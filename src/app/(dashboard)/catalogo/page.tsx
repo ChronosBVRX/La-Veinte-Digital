@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { BookOpen } from "lucide-react"
 import { CatalogSearch } from "@/features/catalogo/components/CatalogSearch"
 
 export default async function CatalogPage() {
@@ -15,37 +16,75 @@ export default async function CatalogPage() {
     .order("nombre", { ascending: true })
 
   return (
-    <div>
-      <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.5rem" }}>Catálogo</h1>
-      <p style={{ color: "var(--muted)", marginBottom: "1.5rem" }}>
-        Busca categorías y adscripciones del sistema
-      </p>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
+    <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: "0.75rem",
+          background: "linear-gradient(135deg, #059669, #10b981)",
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        }}>
+          <BookOpen size={20} color="white" />
+        </div>
         <div>
-          <h2 style={{ fontSize: "1.125rem", fontWeight: 600, marginBottom: "0.75rem" }}>
-            Categorías ({categorias?.length ?? 0})
+          <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>Catálogo</h1>
+          <p style={{ color: "var(--muted)", fontSize: "0.8125rem", margin: "0.125rem 0 0" }}>
+            Busca categorías y adscripciones del sistema
+          </p>
+        </div>
+      </div>
+
+      <div style={{
+        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+        gap: "1.5rem", marginTop: "1.5rem",
+      }}>
+        <div style={{
+          background: "var(--card)", border: "1px solid var(--border)",
+          borderRadius: "var(--radius)", padding: "1.25rem",
+        }}>
+          <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem" }}>
+            Categorías <span style={{ color: "var(--muted)", fontWeight: 400 }}>({categorias?.length ?? 0})</span>
           </h2>
           <CatalogSearch type="categoria" />
           <div style={{ marginTop: "0.75rem", maxHeight: "400px", overflow: "auto" }}>
             {categorias?.map((cat) => (
-              <div key={cat.id} style={{ padding: "0.375rem 0", fontSize: "0.875rem", borderBottom: "1px solid var(--border)" }}>
+              <div key={cat.id} style={{
+                padding: "0.5rem 0.625rem", fontSize: "0.875rem",
+                borderBottom: "1px solid var(--border)", color: "var(--fg)",
+                transition: "background var(--transition)",
+              }}>
                 {cat.nombre}
               </div>
             ))}
+            {(!categorias || categorias.length === 0) && (
+              <p style={{ fontSize: "0.875rem", color: "var(--muted)", textAlign: "center", padding: "2rem 0" }}>
+                No hay categorías registradas
+              </p>
+            )}
           </div>
         </div>
-        <div>
-          <h2 style={{ fontSize: "1.125rem", fontWeight: 600, marginBottom: "0.75rem" }}>
-            Adscripciones ({adscripciones?.length ?? 0})
+        <div style={{
+          background: "var(--card)", border: "1px solid var(--border)",
+          borderRadius: "var(--radius)", padding: "1.25rem",
+        }}>
+          <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem" }}>
+            Adscripciones <span style={{ color: "var(--muted)", fontWeight: 400 }}>({adscripciones?.length ?? 0})</span>
           </h2>
           <CatalogSearch type="adscripcion" />
           <div style={{ marginTop: "0.75rem", maxHeight: "400px", overflow: "auto" }}>
             {adscripciones?.map((ad) => (
-              <div key={ad.id} style={{ padding: "0.375rem 0", fontSize: "0.875rem", borderBottom: "1px solid var(--border)" }}>
+              <div key={ad.id} style={{
+                padding: "0.5rem 0.625rem", fontSize: "0.875rem",
+                borderBottom: "1px solid var(--border)", color: "var(--fg)",
+                transition: "background var(--transition)",
+              }}>
                 {ad.nombre}
               </div>
             ))}
+            {(!adscripciones || adscripciones.length === 0) && (
+              <p style={{ fontSize: "0.875rem", color: "var(--muted)", textAlign: "center", padding: "2rem 0" }}>
+                No hay adscripciones registradas
+              </p>
+            )}
           </div>
         </div>
       </div>

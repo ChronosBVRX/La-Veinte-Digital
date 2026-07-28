@@ -18,8 +18,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ l
         ref={ref}
         style={{
           width: "100%", padding: "0.5rem 0.75rem", border: "1px solid var(--border)",
-          borderRadius: "0.375rem", background: "var(--bg)", color: "var(--fg)", fontSize: "0.875rem",
-          outline: "none", ...style,
+          borderRadius: "var(--radius-sm)", background: "var(--bg)", color: "var(--fg)", fontSize: "0.875rem",
+          outline: "none", transition: "border-color var(--transition), box-shadow var(--transition)",
+          ...style,
         }}
         {...props}
       />
@@ -43,8 +44,10 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
         ref={ref}
         style={{
           width: "100%", padding: "0.5rem 0.75rem", border: "1px solid var(--border)",
-          borderRadius: "0.375rem", background: "var(--bg)", color: "var(--fg)", fontSize: "0.875rem",
-          resize: "vertical", fontFamily: "inherit", outline: "none", ...style,
+          borderRadius: "var(--radius-sm)", background: "var(--bg)", color: "var(--fg)", fontSize: "0.875rem",
+          resize: "vertical", fontFamily: "inherit", outline: "none",
+          transition: "border-color var(--transition), box-shadow var(--transition)",
+          ...style,
         }}
         {...props}
       />
@@ -68,8 +71,9 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
         ref={ref}
         style={{
           width: "100%", padding: "0.5rem 0.75rem", border: "1px solid var(--border)",
-          borderRadius: "0.375rem", background: "var(--bg)", color: "var(--fg)", fontSize: "0.875rem",
-          outline: "none", ...style,
+          borderRadius: "var(--radius-sm)", background: "var(--bg)", color: "var(--fg)", fontSize: "0.875rem",
+          outline: "none", transition: "border-color var(--transition), box-shadow var(--transition)",
+          ...style,
         }}
         {...props}
       >

@@ -8,9 +8,9 @@ interface CardProps {
 
 export function Card({ children, style, padding = "1.25rem" }: CardProps) {
   return (
-    <div style={{
+    <div className="hover-lift" style={{
       background: "var(--card)", border: "1px solid var(--border)",
-      borderRadius: "0.5rem", padding, ...style,
+      borderRadius: "var(--radius)", padding, ...style,
     }}>
       {children}
     </div>

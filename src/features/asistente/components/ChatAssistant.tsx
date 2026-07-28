@@ -19,15 +19,15 @@ Tengo acceso al **Contrato Colectivo de Trabajo** y a los **Estatutos del SNTSS*
 - 🗳️ **Asambleas, elecciones y comités**`
 
 export function ChatAssistant() {
-  const chat = useChat([{ role: "assistant", content: INITIAL_MESSAGE }])
+  const { messages, input, setInput, loading, send, inputRef } = useChat([{ role: "assistant", content: INITIAL_MESSAGE }])
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [chat.messages, chat.loading])
+  }, [messages, loading])
 
   return (
-    <div style={{ height: "calc(100dvh - 56px - 3rem)", display: "flex", flexDirection: "column" }}>
+    <div style={{ height: "calc(100dvh - var(--nav-height) - 3rem)", display: "flex", flexDirection: "column" }}>
       <div style={{ marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
         <div style={{
           width: 40, height: 40, borderRadius: "0.75rem",
@@ -50,43 +50,44 @@ export function ChatAssistant() {
         borderRadius: "0.75rem", padding: "1rem", marginBottom: "1rem",
         display: "flex", flexDirection: "column", gap: "0.75rem",
       }}>
-        {chat.messages.map((msg, i) => (
+        {messages.map((msg, i) => (
           <ChatMessage key={i} message={msg} />
         ))}
-        {chat.loading && <TypingIndicator />}
+        {loading && <TypingIndicator />}
         <div ref={bottomRef} />
       </div>
 
-      {chat.messages.length <= 1 && (
-        <ChatSuggestions onSelect={(text) => chat.send(text)} />
+      {messages.length <= 1 && (
+        <ChatSuggestions onSelect={(text) => send(text)} />
       )}
 
       <form
-        onSubmit={(e) => { e.preventDefault(); chat.send() }}
+        onSubmit={(e) => { e.preventDefault(); send() }}
         style={{ display: "flex", gap: "0.5rem" }}
       >
         <input
-          ref={chat.inputRef}
-          value={chat.input}
-          onChange={(e) => chat.setInput(e.target.value)}
-          disabled={chat.loading}
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          disabled={loading}
           placeholder="Pregunta sobre el CCT o Estatutos del SNTSS..."
           style={{
             flex: 1, padding: "0.625rem 1rem",
             border: "1px solid var(--border)", borderRadius: "0.75rem",
             fontSize: "0.875rem", outline: "none",
+            transition: "border-color var(--transition), box-shadow var(--transition)",
           }}
         />
         <button
           type="submit"
-          disabled={chat.loading || !chat.input.trim()}
+          disabled={loading || !input.trim()}
           style={{
             width: 42, height: 42,
-            background: chat.loading || !chat.input.trim() ? "var(--border)" : "var(--primary)",
+            background: loading || !input.trim() ? "var(--border)" : "var(--primary)",
             color: "var(--primary-fg)", border: "none",
-            borderRadius: "0.75rem", cursor: chat.loading || !chat.input.trim() ? "not-allowed" : "pointer",
+            borderRadius: "0.75rem", cursor: loading || !input.trim() ? "not-allowed" : "pointer",
             display: "flex", alignItems: "center", justifyContent: "center",
-            transition: "background 0.15s",
+            transition: "background var(--transition)",
           }}
         >
           <Send size={18} />

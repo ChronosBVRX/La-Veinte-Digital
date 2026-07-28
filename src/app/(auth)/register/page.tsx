@@ -10,20 +10,27 @@ export default async function RegisterPage() {
   return (
     <div style={{ minHeight: "100dvh", display: "grid", placeItems: "center", padding: "1rem" }}>
       <div style={{ width: "100%", maxWidth: "400px" }}>
-        <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.75rem" }}>
-            <img src="/Logo SXX_recortado.png" alt="SXX" style={{ maxHeight: "80px", width: "auto", display: "block" }} />
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <span style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--primary)", letterSpacing: "-0.02em" }}>SXX</span>
-              <span style={{ fontSize: "1rem", color: "var(--muted)" }}>|</span>
-              <span style={{ fontSize: "1rem", fontWeight: 500, color: "var(--fg)", letterSpacing: "-0.01em" }}>La Veinte Digital</span>
-            </div>
+        <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: "1rem",
+            background: "linear-gradient(135deg, var(--primary), #6366f1)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            margin: "0 auto 1rem", boxShadow: "0 4px 12px rgba(37, 99, 235, 0.25)",
+          }}>
+            <img src="/Logo SXX_recortado.png" alt="SXX" style={{ maxHeight: "44px", width: "auto", filter: "brightness(0) invert(1)" }} />
           </div>
+          <h1 style={{ fontSize: "1.375rem", fontWeight: 700, margin: "0 0 0.25rem" }}>La Veinte Digital</h1>
+          <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: 0 }}>
+            Regístrate en la plataforma
+          </p>
         </div>
-        <p style={{ color: "var(--muted)", marginBottom: "2rem", textAlign: "center" }}>
-          Regístrate en La Veinte Digital
-        </p>
-        <RegisterForm />
+        <div style={{
+          background: "var(--card)", border: "1px solid var(--border)",
+          borderRadius: "var(--radius-lg)", padding: "1.5rem",
+          boxShadow: "var(--shadow-md)",
+        }}>
+          <RegisterForm />
+        </div>
       </div>
     </div>
   )

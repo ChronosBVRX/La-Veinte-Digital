@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { User, Shield } from "lucide-react"
 import { ProfileForm } from "@/features/profile/components/ProfileForm"
 
 export default async function ProfilePage() {
@@ -14,9 +15,37 @@ export default async function ProfilePage() {
     .single()
 
   return (
-    <div style={{ maxWidth: "600px" }}>
-      <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "1.5rem" }}>Mi Perfil</h1>
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "0.5rem", padding: "1.5rem" }}>
+    <div style={{ maxWidth: "600px", margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.5rem" }}>
+        <div style={{
+          width: 44, height: 44, borderRadius: "50%",
+          background: "linear-gradient(135deg, var(--primary), #6366f1)",
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        }}>
+          <User size={22} color="white" />
+        </div>
+        <div>
+          <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>
+            {profile?.full_name ?? "Mi Perfil"}
+          </h1>
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0.125rem 0 0" }}>
+            {user.email}
+          </p>
+        </div>
+      </div>
+
+      <div style={{
+        background: "var(--card)", border: "1px solid var(--border)",
+        borderRadius: "var(--radius)", padding: "1.5rem",
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", gap: "0.5rem",
+          marginBottom: "1.25rem", paddingBottom: "0.75rem",
+          borderBottom: "1px solid var(--border)",
+        }}>
+          <Shield size={16} style={{ color: "var(--primary)" }} />
+          <span style={{ fontSize: "0.9375rem", fontWeight: 600 }}>Información personal</span>
+        </div>
         <ProfileForm profile={profile} />
       </div>
     </div>

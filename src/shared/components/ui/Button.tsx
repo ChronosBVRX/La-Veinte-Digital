@@ -1,6 +1,6 @@
 "use client"
 
-import type { ButtonHTMLAttributes, ReactNode } from "react"
+import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react"
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "ghost"
@@ -10,12 +10,12 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 export function Button({ variant = "primary", size = "md", loading, children, style, disabled, ...props }: ButtonProps) {
-  const base: React.CSSProperties = {
+  const base: CSSProperties = {
     padding: size === "sm" ? "0.375rem 0.75rem" : "0.5rem 1.25rem",
     background: variant === "primary" ? "var(--primary)" : variant === "secondary" ? "var(--accent)" : "transparent",
     color: variant === "primary" ? "var(--primary-fg)" : "var(--fg)",
     border: variant === "ghost" ? "none" : `1px solid ${variant === "primary" ? "transparent" : "var(--border)"}`,
-    borderRadius: "0.5rem",
+    borderRadius: "var(--radius)",
     fontWeight: 600,
     fontSize: "0.875rem",
     cursor: disabled || loading ? "not-allowed" : "pointer",
@@ -23,12 +23,40 @@ export function Button({ variant = "primary", size = "md", loading, children, st
     display: "inline-flex",
     alignItems: "center",
     gap: "0.375rem",
-    transition: "all 0.15s",
+    transition: "all var(--transition)",
     ...style,
   }
 
+  const hoverStyle: CSSProperties = variant === "ghost"
+    ? { background: "var(--accent)" }
+    : variant === "secondary"
+    ? { background: "var(--border)" }
+    : { boxShadow: "var(--shadow-md)" }
+
   return (
-    <button style={base} disabled={disabled || loading} {...props}>
+    <button
+      style={base}
+      disabled={disabled || loading}
+      onMouseEnter={(e) => {
+        if (!disabled && !loading) Object.assign(e.currentTarget.style, hoverStyle)
+      }}
+      onMouseLeave={(e) => {
+        if (!disabled && !loading) {
+          e.currentTarget.style.background = base.background as string
+          e.currentTarget.style.boxShadow = "none"
+        }
+      }}
+      {...props}
+    >
+      {loading && (
+        <span style={{
+          width: 14, height: 14, borderRadius: "50%",
+          border: "2px solid currentColor",
+          borderTopColor: "transparent",
+          animation: "spin 0.6s linear infinite",
+          display: "inline-block",
+        }} />
+      )}
       {children}
     </button>
   )
