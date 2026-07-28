@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { Navbar } from "@/components/layout/navbar"
+import { Navbar } from "@/shared/components/layout/Navbar"
 import type { ReactNode } from "react"
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { CatalogSearch } from "./catalog-search"
+import { CatalogSearch } from "@/features/catalogo/components/CatalogSearch"
 
 export default async function CatalogPage() {
   const supabase = await createClient()

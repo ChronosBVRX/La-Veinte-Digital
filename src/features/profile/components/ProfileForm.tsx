@@ -3,6 +3,8 @@
 import { useActionState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
+import { Input } from "@/shared/components/ui/Input"
+import { Button } from "@/shared/components/ui/Button"
 
 interface Profile {
   id: string
@@ -52,40 +54,15 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
           Perfil actualizado
         </p>
       )}
-      <Field label="Nombre completo" name="full_name" defaultValue={profile?.full_name ?? ""} />
-      <Field label="Matrícula" name="matricula" defaultValue={profile?.matricula ?? ""} />
-      <Field label="Adscripción" name="adscripcion" defaultValue={profile?.adscripcion ?? ""} />
-      <Field label="Categoría" name="categoria" defaultValue={profile?.categoria ?? ""} />
-      <Field label="Antigüedad" name="antiguedad" defaultValue={profile?.antiguedad ?? ""} />
-      <Field label="Teléfono" name="phone" defaultValue={profile?.phone ?? ""} type="tel" />
-      <button
-        type="submit"
-        disabled={pending}
-        style={{
-          padding: "0.625rem 1.25rem", background: "var(--primary)", color: "var(--primary-fg)",
-          border: "none", borderRadius: "0.375rem", fontWeight: 600, cursor: "pointer",
-          alignSelf: "flex-start", opacity: pending ? 0.7 : 1,
-        }}
-      >
+      <Input label="Nombre completo" name="full_name" defaultValue={profile?.full_name ?? ""} />
+      <Input label="Matrícula" name="matricula" defaultValue={profile?.matricula ?? ""} />
+      <Input label="Adscripción" name="adscripcion" defaultValue={profile?.adscripcion ?? ""} />
+      <Input label="Categoría" name="categoria" defaultValue={profile?.categoria ?? ""} />
+      <Input label="Antigüedad" name="antiguedad" defaultValue={profile?.antiguedad ?? ""} />
+      <Input label="Teléfono" name="phone" defaultValue={profile?.phone ?? ""} type="tel" />
+      <Button type="submit" loading={pending} style={{ alignSelf: "flex-start" }}>
         {pending ? "Guardando..." : "Guardar cambios"}
-      </button>
+      </Button>
     </form>
-  )
-}
-
-function Field({ label, name, defaultValue, type = "text" }: { label: string; name: string; defaultValue: string; type?: string }) {
-  return (
-    <div>
-      <label htmlFor={name} style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, marginBottom: "0.25rem" }}>
-        {label}
-      </label>
-      <input
-        id={name}
-        name={name}
-        type={type}
-        defaultValue={defaultValue}
-        style={{ width: "100%", padding: "0.5rem 0.75rem", border: "1px solid var(--border)", borderRadius: "0.375rem" }}
-      />
-    </div>
   )
 }

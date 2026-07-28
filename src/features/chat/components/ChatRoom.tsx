@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { Send } from "lucide-react"
 
 interface Message {
   id: string
@@ -95,16 +96,23 @@ export function ChatRoom({ roomId, userId, initialMessages }: { roomId: string; 
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Escribe un mensaje..."
-          style={{ flex: 1, padding: "0.5rem 0.75rem", border: "1px solid var(--border)", borderRadius: "0.375rem" }}
+          style={{
+            flex: 1, padding: "0.625rem 1rem", border: "1px solid var(--border)",
+            borderRadius: "0.75rem", fontSize: "0.875rem", outline: "none",
+          }}
         />
         <button
           type="submit"
           style={{
-            padding: "0.5rem 1rem", background: "var(--primary)", color: "var(--primary-fg)",
-            border: "none", borderRadius: "0.375rem", fontWeight: 600, cursor: "pointer",
+            width: 42, height: 42,
+            background: !input.trim() ? "var(--border)" : "var(--primary)",
+            color: "var(--primary-fg)", border: "none",
+            borderRadius: "0.75rem",
+            cursor: !input.trim() ? "not-allowed" : "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center",
           }}
         >
-          Enviar
+          <Send size={18} />
         </button>
       </form>
     </>

@@ -3,6 +3,7 @@
 import { useActionState, useOptimistic, startTransition } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
+import { Button } from "@/shared/components/ui/Button"
 
 interface Comment {
   id: string
@@ -65,16 +66,11 @@ export function CommentSection({ postId, comments: initialComments }: { postId: 
           placeholder="Escribe un comentario..."
           style={{ width: "100%", padding: "0.5rem 0.75rem", border: "1px solid var(--border)", borderRadius: "0.375rem", resize: "vertical", fontFamily: "inherit" }}
         />
-        <button
-          type="submit"
-          disabled={pending}
-          style={{
-            marginTop: "0.5rem", padding: "0.5rem 1rem", background: "var(--primary)", color: "var(--primary-fg)",
-            border: "none", borderRadius: "0.375rem", fontWeight: 600, cursor: "pointer", opacity: pending ? 0.7 : 1,
-          }}
-        >
-          {pending ? "Enviando..." : "Comentar"}
-        </button>
+        <div style={{ marginTop: "0.5rem" }}>
+          <Button type="submit" loading={pending}>
+            {pending ? "Enviando..." : "Comentar"}
+          </Button>
+        </div>
       </form>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>

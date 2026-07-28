@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
-import { ChatRoom } from "./chat-room"
+import { ChatRoom } from "@/features/chat/components/ChatRoom"
 
 export default async function ChatRoomPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

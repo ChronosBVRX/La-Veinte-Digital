@@ -21,7 +21,7 @@ export function useRealtimeSubscription<T extends Record<string, unknown>>(
         (payload: RealtimePostgresChangesPayload<T>) => {
           if (payload.eventType === "INSERT") {
             setRecords((prev) => [...prev, payload.new])
-          } else       if (payload.eventType === "DELETE") {
+          } else if (payload.eventType === "DELETE") {
             setRecords((prev) =>
               prev.filter((r) => (r as Record<string, unknown>).id !== (payload.old as Record<string, unknown>).id)
             )

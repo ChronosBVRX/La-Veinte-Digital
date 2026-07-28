@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
-import { CommentSection } from "./comment-section"
+import { CommentSection } from "@/features/foro/components/CommentSection"
 
 export default async function PostPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

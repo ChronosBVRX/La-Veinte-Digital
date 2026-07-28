@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { NewPostForm } from "./new-post-form"
+import { NewPostForm } from "@/features/foro/components/NewPostForm"
 
 export default async function NewPostPage() {
   const supabase = await createClient()
