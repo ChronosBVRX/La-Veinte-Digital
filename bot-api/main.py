@@ -64,8 +64,9 @@ async def endpoint_consulta(req: ConsultaRequest):
         if re.match(r'^(hola|buenos días|buenas tardes|buenas noches|hey|qué tal)\s*$', saludo, re.I):
             return {
                 "respuesta": (
-                    "¡Hola! Soy tu asistente experto en los **Estatutos del SNTSS**. "
-                    "Estoy aquí para ayudarte con cualquier duda sobre derechos sindicales, estructura del sindicato, asambleas, elecciones y más. ¿En qué puedo servirte?"
+                    "¡Hola! 👋 Soy tu **Asistente SNTSS**, tu aliado en temas laborales del IMSS. "
+                    "Tengo acceso al **Contrato Colectivo de Trabajo** y a los **Estatutos del SNTSS** "
+                    "para orientarte sobre tus derechos, prestaciones y obligaciones. ¿En qué puedo ayudarte hoy?"
                 )
             }
 
