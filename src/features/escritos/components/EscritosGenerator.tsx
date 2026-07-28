@@ -1,107 +1,221 @@
 "use client"
 
-import { useState } from "react"
-import { consultarBot } from "@/features/asistente/services/bot"
+import { useState, useEffect, useCallback } from "react"
+import { createClient } from "@/lib/supabase/client"
+import { generarEscrito } from "@/features/escritos/services/generarEscrito"
 import { EscritosForm } from "./EscritosForm"
 import { EscritosResult } from "./EscritosResult"
+import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
+import type { ChangeEvent } from "react"
+
+interface Profile {
+  full_name: string
+  matricula: string
+  categoria: string
+  adscripcion: string
+}
+
+interface FormState {
+  destino: string
+  fecha: string
+  ciudad: string
+  detalle: string
+  atencion: string
+  copia: string
+}
 
 export function EscritosGenerator() {
-  const [form, setForm] = useState({ tipo: "", nombre: "", matricula: "", adscripcion: "", categoria: "", detalle: "" })
+  const supabase = createClient()
+
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [cargandoPerfil, setCargandoPerfil] = useState(true)
+  const [perfilIncompleto, setPerfilIncompleto] = useState(false)
+
+  const [form, setForm] = useState<FormState>({
+    destino: "",
+    fecha: "",
+    ciudad: "",
+    detalle: "",
+    atencion: "",
+    copia: "",
+  })
+  const [textoGenerado, setTextoGenerado] = useState("")
   const [loading, setLoading] = useState(false)
-  const [resultado, setResultado] = useState("")
-  const [error, setError] = useState("")
+  const [mostrarAvanzado, setMostrarAvanzado] = useState(false)
+  const [mostrarVistaPrevia, setMostrarVistaPrevia] = useState(false)
+  const [fotos, setFotos] = useState<string[]>([])
 
-  const updateField = (field: string, value: string) => setForm((prev) => ({ ...prev, [field]: value }))
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) {
+        window.location.href = "/login"
+        return
+      }
 
-  const limpiar = () => {
-    setForm({ tipo: "", nombre: "", matricula: "", adscripcion: "", categoria: "", detalle: "" })
-    setResultado("")
-    setError("")
-  }
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("full_name, matricula, categoria, adscripcion")
+        .eq("id", user.id)
+        .maybeSingle()
 
-  const generar = async () => {
-    if (!form.tipo || !form.detalle.trim()) return
+      setCargandoPerfil(false)
+
+      if (!prof || !prof.full_name || !prof.matricula || !prof.categoria || !prof.adscripcion) {
+        setPerfilIncompleto(true)
+        return
+      }
+
+      setProfile(prof as Profile)
+      setForm((prev) => ({
+        ...prev,
+        fecha: new Date().toISOString().split("T")[0],
+      }))
+    })
+  }, [supabase])
+
+  const updateField = useCallback((field: string, value: string) => {
+    if (field === "textoGenerado") {
+      setTextoGenerado(value)
+    } else {
+      setForm((prev) => ({ ...prev, [field]: value }))
+    }
+  }, [])
+
+  const handleFotosChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    const nuevasFotos: string[] = []
+    files.forEach((f) => {
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        nuevasFotos.push(ev.target?.result as string)
+        if (nuevasFotos.length === files.length) {
+          setFotos(nuevasFotos)
+        }
+      }
+      reader.readAsDataURL(f)
+    })
+  }, [])
+
+  const generar = useCallback(async () => {
+    if (!form.destino || !form.detalle.trim()) return
 
     setLoading(true)
-    setError("")
-    setResultado("")
-
-    const tipoLabel = form.tipo === "solicitud_vacaciones" ? "Solicitud de Vacaciones"
-      : form.tipo === "solicitud_permiso" ? "Solicitud de Permiso"
-      : form.tipo === "queja_despido" ? "Queja por Despido Injustificado"
-      : form.tipo === "solicitud_incapacidad" ? "Solicitud por Incapacidad"
-      : form.tipo === "reclamacion_prestaciones" ? "Reclamación de Prestaciones"
-      : form.tipo === "solicitud_aumento" ? "Solicitud de Aumento Salarial"
-      : form.tipo === "queja_acoso" ? "Queja por Acoso Laboral"
-      : form.tipo === "solicitud_cambio" ? "Solicitud de Cambio de Adscripción"
-      : form.tipo
-
-    const prompt = `Genera un escrito formal de tipo "${tipoLabel}" con los siguientes datos del trabajador:
-- Nombre: ${form.nombre || "[Nombre del trabajador]"}
-- Matrícula: ${form.matricula || "[Matrícula]"}
-- Adscripción: ${form.adscripcion || "[Adscripción]"}
-- Categoría: ${form.categoria || "[Categoría]"}
-
-Detalle del caso:
-${form.detalle}
-
-El escrito debe:
-1. Estar dirigido a la autoridad competente
-2. Incluir fundamentos legales basados en el Contrato Colectivo de Trabajo y Estatutos del SNTSS
-3. Usar un tono formal y profesional
-4. Incluir fecha, lugar, datos del trabajador y firma
-5. Estar estructurado con: encabezado, exposición de hechos, fundamentos legales, puntos petitorios y cierre`
+    setTextoGenerado("")
 
     try {
-      const respuesta = await consultarBot([{ role: "user", content: prompt }])
-      setResultado(respuesta)
+      const respuesta = await generarEscrito(form.detalle)
+      setTextoGenerado(respuesta)
     } catch {
-      setError("Error al generar el escrito. Verifica que el bot esté funcionando.")
+      setTextoGenerado(
+        "Por medio de la presente, expongo ante usted los siguientes hechos:\n\n" +
+        form.detalle +
+        "\n\nPor lo anteriormente expuesto, solicito atentamente se dé solución a mi petición conforme a derecho corresponda."
+      )
     } finally {
       setLoading(false)
     }
+  }, [form.destino, form.detalle])
+
+  const limpiar = useCallback(() => {
+    setForm({ destino: "", fecha: new Date().toISOString().split("T")[0], ciudad: "", detalle: "", atencion: "", copia: "" })
+    setTextoGenerado("")
+    setFotos([])
+  }, [])
+
+  if (cargandoPerfil) {
+    return <LoadingSpinner text="Verificando credenciales..." />
   }
 
-  const copiarPortapapeles = async () => {
-    try { await navigator.clipboard.writeText(resultado) } catch { }
+  if (perfilIncompleto) {
+    return (
+      <div style={{
+        maxWidth: 500, margin: "2rem auto", textAlign: "center",
+        background: "var(--card)", border: "1px solid var(--border)",
+        borderRadius: "0.5rem", padding: "2.5rem 1.5rem",
+      }}>
+        <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>🔒</div>
+        <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.5rem" }}>Perfil Incompleto</h2>
+        <p style={{ color: "var(--muted)", fontSize: "0.875rem", lineHeight: 1.6, marginBottom: "1.5rem" }}>
+          Para generar documentos oficiales, necesitas completar tu información (Nombre, Matrícula, Categoría y Adscripción).
+        </p>
+        <a href="/profile"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: "0.375rem",
+            padding: "0.625rem 1.5rem", borderRadius: "2rem",
+            background: "var(--primary)", color: "var(--primary-fg)",
+            textDecoration: "none", fontWeight: 600, fontSize: "0.875rem",
+          }}
+        >
+          Ir a Editar Perfil
+        </a>
+      </div>
+    )
   }
 
   return (
-    <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+    <div style={{ maxWidth: 900, margin: "0 auto" }}>
       <div style={{ marginBottom: "1.5rem" }}>
-        <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>Generar Escritos</h1>
-        <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: "0.25rem 0 0 0" }}>
-          Crea documentos formales con apoyo de IA basados en el CCT y Estatutos del SNTSS
+        <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>
+          Generador de Escritos PSD
+        </h1>
+        <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>
+          Redacta documentos formales con apoyo de IA, edítalos y descárgalos en PDF
         </p>
       </div>
 
       <EscritosForm
-        {...form}
+        profile={profile}
+        destino={form.destino}
+        fecha={form.fecha}
+        ciudad={form.ciudad}
+        detalle={form.detalle}
+        textoGenerado={textoGenerado}
+        atencion={form.atencion}
+        copia={form.copia}
+        fotos={fotos}
         loading={loading}
+        mostrarAvanzado={mostrarAvanzado}
         onChange={updateField}
         onGenerate={generar}
+        onPreview={() => setMostrarVistaPrevia(true)}
+        onToggleAvanzado={() => setMostrarAvanzado((v) => !v)}
+        onFotosChange={handleFotosChange}
         onClear={limpiar}
       />
 
-      {loading && (
-        <div style={{
-          background: "var(--card)", border: "1px solid var(--border)", borderRadius: "0.5rem",
-          padding: "2rem", textAlign: "center", color: "var(--muted)", fontSize: "0.875rem",
-        }}>
-          Generando escrito... Esto puede tomar unos segundos.
-        </div>
+      {mostrarVistaPrevia && textoGenerado && profile && (
+        <EscritosResult
+          cuerpo={textoGenerado}
+          destino={form.destino}
+          ciudad={form.ciudad}
+          fecha={form.fecha}
+          nombre={profile.full_name}
+          matricula={profile.matricula}
+          categoria={profile.categoria}
+          adscripcion={profile.adscripcion}
+          atencion={form.atencion}
+          copia={form.copia}
+          onClose={() => setMostrarVistaPrevia(false)}
+        />
       )}
 
-      {error && (
+      {fotos.length > 0 && (
         <div style={{
-          background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "0.5rem",
-          padding: "1rem", color: "#991b1b", fontSize: "0.875rem", marginBottom: "1rem",
+          background: "var(--card)", border: "1px solid var(--border)",
+          borderRadius: "0.5rem", padding: "1rem", marginTop: "1rem",
         }}>
-          {error}
+          <p style={{ fontSize: "0.8125rem", fontWeight: 600, margin: "0 0 0.5rem" }}>
+            {fotos.length} foto(s) adjunta(s) como evidencia
+          </p>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            {fotos.map((f, i) => (
+              <img key={i} src={f} alt={`Evidencia ${i + 1}`}
+                style={{ width: 60, height: 60, objectFit: "cover", borderRadius: "0.375rem", border: "2px solid var(--primary)" }}
+              />
+            ))}
+          </div>
         </div>
       )}
-
-      {resultado && !loading && <EscritosResult resultado={resultado} onCopy={copiarPortapapeles} />}
     </div>
   )
 }
