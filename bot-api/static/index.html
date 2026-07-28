@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bot SNTSS - Estatutos</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; background: #f3f4f6; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .card { background: white; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.1); padding: 2rem; max-width: 600px; width: 90%; text-align: center; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; color: #1f2937; }
+    p { color: #6b7280; margin-bottom: 1.5rem; }
+    .status { display: inline-block; padding: 0.5rem 1rem; border-radius: 999px; font-size: 0.875rem; background: #d1fae5; color: #065f46; }
+    .endpoint { margin-top: 1.5rem; padding: 1rem; background: #f9fafb; border-radius: 8px; font-family: monospace; font-size: 0.875rem; color: #374151; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🤖 Bot SNTSS - Estatutos</h1>
+    <p>API de consulta sobre los Estatutos del Sindicato Nacional de Trabajadores del Seguro Social</p>
+    <div class="status">✅ Servidor activo</div>
+    <div class="endpoint">
+      POST /consulta → Consulta los estatutos<br>
+      GET /health → Health check
+    </div>
+  </div>
+</body>
+</html>
