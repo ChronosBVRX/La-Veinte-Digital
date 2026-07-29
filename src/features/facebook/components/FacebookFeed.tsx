@@ -1,33 +1,42 @@
 "use client"
 
-import { useFacebookFeed } from "@/features/facebook/hooks/useFacebookFeed"
-import { FacebookPostCard } from "@/features/facebook/components/FacebookPostCard"
+import { useEffect, useRef, useState } from "react"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { Button } from "@/shared/components/ui/Button"
 
-const FB_PAGE_URL = "https://www.facebook.com/SNTSSSeccionXXMichoacan"
-const FB_PAGE_NAME = "SNTSSSeccionXXMichoacan"
+const FB_PAGE = "https://www.facebook.com/SNTSSSeccionXXMichoacan"
 
 interface Props {
   compact?: boolean
 }
 
 export function FacebookFeed({ compact }: Props) {
-  const { posts, loading, error } = useFacebookFeed(FB_PAGE_NAME)
-  const visible = compact ? posts.slice(0, 3) : posts
+  const [loaded, setLoaded] = useState(false)
+  const [fbBlocked, setFbBlocked] = useState(false)
+  const ref = useRef<HTMLIFrameElement>(null)
+  const h = compact ? 400 : 700
+
+  useEffect(() => {
+    if (!loaded) {
+      const timer = setTimeout(() => {
+        if (!loaded) setFbBlocked(true)
+      }, 8000)
+      return () => clearTimeout(timer)
+    }
+  }, [loaded])
 
   return (
     <div style={{
       background: "var(--card)", border: "1px solid var(--border)",
-      borderRadius: "var(--radius)", overflow: "hidden",
+      borderRadius: "var(--radius)", overflow: "hidden", position: "relative",
     }}>
-      {loading && (
+      {!loaded && !fbBlocked && (
         <div style={{ padding: "2rem" }}>
-          <LoadingSpinner text="Cargando publicaciones..." />
+          <LoadingSpinner text="Cargando Facebook..." />
         </div>
       )}
 
-      {error && (
+      {fbBlocked && (
         <div style={{ padding: "1.5rem", textAlign: "center" }}>
           <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: "0 0 0.75rem" }}>
             No se pudo cargar el feed de Facebook.
@@ -35,41 +44,28 @@ export function FacebookFeed({ compact }: Props) {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => window.open(FB_PAGE_URL, "_blank", "noopener,noreferrer")}
+            onClick={() => window.open(FB_PAGE, "_blank", "noopener,noreferrer")}
           >
-            Ver en Facebook &#8599;
+            Ver en Facebook ↗
           </Button>
         </div>
       )}
 
-      {!loading && !error && visible.length === 0 && (
-        <div style={{ padding: "1.5rem", textAlign: "center" }}>
-          <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0 }}>
-            No hay publicaciones recientes.
-          </p>
-        </div>
-      )}
-
-      {!loading && !error && visible.length > 0 && (
-        <div style={{
-          display: "flex", flexDirection: "column",
-          gap: compact ? "0.5rem" : "0.75rem",
-          padding: compact ? "0.75rem" : "1rem",
-        }}>
-          {visible.map((post) => (
-            <FacebookPostCard key={post.id} post={post} />
-          ))}
-
-          <Button
-            variant="secondary"
-            size="sm"
-            style={{ alignSelf: "center", marginTop: "0.25rem" }}
-            onClick={() => window.open(FB_PAGE_URL, "_blank", "noopener,noreferrer")}
-          >
-            Ver más en Facebook &#8599;
-          </Button>
-        </div>
-      )}
+      <iframe
+        ref={ref}
+        onLoad={() => setLoaded(true)}
+        src={`https://www.facebook.com/plugins/page.php?href=${encodeURIComponent(FB_PAGE)}&tabs=timeline&width=500&height=${h}&small_header=${compact ? "true" : "false"}&adapt_container_width=true&hide_cover=${compact ? "true" : "false"}&show_facepile=false`}
+        style={{
+          border: "none", overflow: "hidden", width: "100%",
+          height: h, display: loaded && !fbBlocked ? "block" : "none",
+          maxWidth: "100%",
+        }}
+        scrolling="no"
+        frameBorder="0"
+        allowFullScreen
+        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+        title="Facebook SNTSS Sección XX Michoacán"
+      />
     </div>
   )
 }
