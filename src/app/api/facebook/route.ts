@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const FB_APP_ID = process.env.FACEBOOK_APP_ID ?? ""
-const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET ?? ""
-const FB_PAGE_NAME = "SNTSSSeccionXXMichoacan"
+const FB_PAGE = "SNTSSSeccionXXMichoacan"
 
 interface FBPost {
   id: string
@@ -16,111 +14,147 @@ interface FBPost {
   url: string | null
 }
 
-async function getAppToken(): Promise<string> {
-  const res = await fetch(
-    `https://graph.facebook.com/v19.0/oauth/access_token?client_id=${FB_APP_ID}&client_secret=${FB_APP_SECRET}&grant_type=client_credentials`,
-    { signal: AbortSignal.timeout(8000) }
-  )
-  if (!res.ok) throw new Error("No se pudo obtener token de Facebook")
-  const data = await res.json()
-  return data.access_token
+function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
 }
 
-async function getPageId(pageName: string, token: string): Promise<string> {
-  const res = await fetch(
-    `https://graph.facebook.com/v19.0/${pageName}?fields=id&access_token=${token}`,
-    { signal: AbortSignal.timeout(8000) }
-  )
-  if (!res.ok) throw new Error(`Página "${pageName}" no encontrada`)
-  const data = await res.json()
-  return data.id
+function extractText(html: string, startAfter: RegExp, endBefore: RegExp): string | null {
+  const afterMatch = html.match(startAfter)
+  if (!afterMatch) return null
+  const after = html.slice(afterMatch.index! + afterMatch[0].length)
+  const beforeMatch = after.match(endBefore)
+  const raw = beforeMatch ? after.slice(0, beforeMatch.index!) : after.slice(0, 500)
+  const cleaned = raw.replace(/<[^>]+>/g, "").trim()
+  return cleaned.length > 0 ? decodeHtmlEntities(cleaned) : null
 }
 
-async function getPosts(pageName: string, count: number): Promise<FBPost[]> {
-  const token = await getAppToken()
-  const pageId = await getPageId(pageName, token)
+function scrapePosts(html: string): FBPost[] {
+  const posts: FBPost[] = []
 
-  const fields = "message,created_time,full_picture,attachments{media_type,media,url},shares"
-  const res = await fetch(
-    `https://graph.facebook.com/v19.0/${pageId}/posts?fields=${fields}&limit=${count}&access_token=${token}`,
-    { signal: AbortSignal.timeout(10000) }
-  )
-  if (!res.ok) throw new Error("Error al obtener posts")
-  const data = await res.json()
+  const postRegex = /data-sigil="feed-entry[^"]*"[^>]*>([\s\S]*?)(?=data-sigil="feed-entry|<\/div>\s*<\/div>\s*<\/div>\s*$)/gi
+  let match: RegExpExecArray | null
 
-  const posts: FBPost[] = (data.data ?? []).map((p: Record<string, unknown>) => {
-    const msg = typeof p.message === "string" ? p.message : null
-    const time = typeof p.created_time === "string" ? p.created_time : new Date().toISOString()
-    const img = typeof p.full_picture === "string" ? p.full_picture : null
+  while ((match = postRegex.exec(html)) !== null) {
+    const block = match[1]
+    if (block.length < 50) continue
+
+    const idMatch = block.match(/data-ft=\{[^}]*"story_fbid":"(\d+)"/i)
+      || block.match(/id="u_0_\w+_(\d+)"/i)
+      || block.match(/href="[^"]*\/(\d{10,})\/"/i)
+    const id = idMatch ? idMatch[1] : `post-${posts.length}-${Date.now()}`
+
+    let text: string | null = null
+    const msgMatch = block.match(/data-ad-preview="message"[^>]*>([\s\S]*?)<\/div>/i)
+      || block.match(/<div[^>]*class="[^"]*story_message[^"]*"[^>]*>([\s\S]*?)<\/div>/i)
+      || block.match(/<span[^>]*data-content="[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
+    if (msgMatch) {
+      text = decodeHtmlEntities(msgMatch[1].replace(/<[^>]+>/g, "").trim())
+      if (text.length < 3) text = null
+    }
+
+    let image: string | null = null
+    const imgMatch = block.match(/background-image:\s*url\("([^"]+)"\)/i)
+      || block.match(/src="(https?:\/\/[^"]*(?:fbcdn|z-m-scontent)[^"]*\.(?:jpg|png|webp)[^"]*)"/i)
+    if (imgMatch) image = imgMatch[1]
 
     let video: string | null = null
-    const atts = p.attachments as { data?: { media_type?: string; media?: { source?: string }; url?: string }[] } | undefined
-    if (atts?.data) {
-      const vid = atts.data.find((a) => a.media_type === "video" || a.media_type === "video_inline")
-      if (vid?.media?.source) video = vid.media.source
+    const vidMatch = block.match(/src="(https?:\/\/[^"]*(?:fbcdn|z-m-scontent)[^"]*\.mp4[^"]*)"/i)
+      || block.match(/data-store="{[^}]*video_url[^}]*}"(\s|$)/i)
+    if (vidMatch) video = vidMatch[1] || null
+
+    const timeMatch = block.match(/data-absolute-date="(\d+)"/i)
+      || block.match(/<abbr[^>]*data-utime="(\d+)"/i)
+    let timeStr = new Date().toISOString()
+    if (timeMatch) {
+      const ts = parseInt(timeMatch[1], 10)
+      if (!isNaN(ts)) timeStr = ts > 1e12 ? new Date(ts).toISOString() : new Date(ts * 1000).toISOString()
     }
 
-    const shares = typeof p.shares === "object" && p.shares !== null
-      ? (p.shares as { count?: number }).count ?? null
-      : null
+    let likes: number | null = null
+    const likesMatch = block.match(/(\d[\d.,]*[kK]?)\s*people reacted/i)
+      || block.match(/(\d[\d.,]*[kK]?)\s*(?:likes?|me gusta)/i)
+    if (likesMatch) likes = parseCount(likesMatch[1])
 
-    return {
-      id: String(p.id ?? ""),
-      text: msg,
-      time,
-      image: img,
-      video,
-      likes: null,
-      comments: null,
-      shares,
-      url: `https://www.facebook.com/${pageName}/posts/${String(p.id ?? "").split("_")[1] ?? ""}`,
+    let comments: number | null = null
+    const commentsMatch = block.match(/(\d[\d.,]*[kK]?)\s*(?:comments?|comentarios?)/i)
+    if (commentsMatch) comments = parseCount(commentsMatch[1])
+
+    let shares: number | null = null
+    const sharesMatch = block.match(/(\d[\d.,]*[kK]?)\s*(?:shares?|compartidos?)/i)
+    if (sharesMatch) shares = parseCount(sharesMatch[1])
+
+    let url: string | null = null
+    const urlMatch = block.match(/href="(\/story\.php[^"]*|\/[^"]*\/posts\/[^"]*|https?:\/\/(?:www\.)?facebook\.com\/[^"]*\/posts\/[^"]*)"/i)
+    if (urlMatch) {
+      url = urlMatch[1].startsWith("http") ? urlMatch[1] : `https://m.facebook.com${urlMatch[1]}`
     }
-  })
 
-  if (posts.length > 0) {
-    const batch = posts.slice(0, 4).map((p) => ({
-      method: "GET",
-      relative_url: `${p.id}?fields=likes.summary(true),comments.summary(true)&access_token=${token}`,
-    }))
-    try {
-      const batchRes = await fetch(`https://graph.facebook.com/v19.0/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ batch, access_token: token }),
-        signal: AbortSignal.timeout(10000),
-      })
-      if (batchRes.ok) {
-        const batchData = await batchRes.json() as { body?: string; code?: number }[]
-        batchData.forEach((r, idx) => {
-          if (r.code === 200 && r.body) {
-            try {
-              const d = JSON.parse(r.body) as { likes?: { summary?: { total_count?: number } }; comments?: { summary?: { total_count?: number } } }
-              if (d.likes?.summary?.total_count != null) posts[idx].likes = d.likes.summary.total_count
-              if (d.comments?.summary?.total_count != null) posts[idx].comments = d.comments.summary.total_count
-            } catch {}
-          }
-        })
-      }
-    } catch {}
+    if (text || image || video) {
+      posts.push({ id, text, time: timeStr, image, video, likes, comments, shares, url })
+    }
   }
 
   return posts
 }
 
-export async function GET(request: NextRequest) {
-  const page = request.nextUrl.searchParams.get("page") || FB_PAGE_NAME
-  const pages = parseInt(request.nextUrl.searchParams.get("pages") || "3", 10)
+function parseCount(s: string): number | null {
+  const clean = s.replace(/,/g, "").trim()
+  if (/[kK]/.test(clean)) return Math.round(parseFloat(clean) * 1000)
+  const n = parseInt(clean, 10)
+  return isNaN(n) ? null : n
+}
 
-  if (!FB_APP_ID || !FB_APP_SECRET) {
-    return NextResponse.json(
-      { error: "Facebook API no configurada. Agrega FACEBOOK_APP_ID y FACEBOOK_APP_SECRET a .env.local", posts: [] },
-      { status: 503 }
-    )
+async function fetchFacebookPage(pageName: string): Promise<string> {
+  const urls = [
+    `https://m.facebook.com/${pageName}/posts/`,
+    `https://m.facebook.com/${pageName}`,
+    `https://www.facebook.com/${pageName}/posts/`,
+  ]
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "es-MX,es;q=0.9,en;q=0.8",
+          "Accept-Encoding": "gzip, deflate, br",
+          "Cache-Control": "no-cache",
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "none",
+        },
+        redirect: "follow",
+        signal: AbortSignal.timeout(15000),
+      })
+
+      if (res.ok) {
+        const html = await res.text()
+        if (html.includes("story_message") || html.includes("data-sigil") || html.includes("story-body")) {
+          return html
+        }
+      }
+    } catch {}
   }
 
+  throw new Error("No se pudo obtener la página de Facebook")
+}
+
+export async function GET(request: NextRequest) {
+  const page = request.nextUrl.searchParams.get("page") || FB_PAGE
+  const pages = parseInt(request.nextUrl.searchParams.get("pages") || "3", 10)
+
   try {
-    const posts = await getPosts(page, pages)
-    return NextResponse.json({ posts })
+    const html = await fetchFacebookPage(page)
+    const posts = scrapePosts(html)
+    return NextResponse.json({ posts: posts.slice(0, pages) })
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Error al obtener posts de Facebook", posts: [] },
