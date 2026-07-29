@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { Send, Flag, Loader } from "lucide-react"
 import { InquisitorAvatar } from "./InquisitorAvatar"
 import { StressMeter } from "./StressMeter"
@@ -14,6 +15,11 @@ interface SimulationChatProps {
   difficulty: 1 | 2
   onSend: (text: string) => void
   onFinish: () => void
+}
+
+const messageVariants = {
+  hidden: { opacity: 0, y: 12, scale: 0.97 },
+  visible: { opacity: 1, y: 0, scale: 1 },
 }
 
 export function SimulationChat({ messages, loading, error, difficulty, onSend, onFinish }: SimulationChatProps) {
@@ -56,12 +62,16 @@ export function SimulationChat({ messages, loading, error, difficulty, onSend, o
       height: "calc(100dvh - var(--nav-height) - 3rem)",
       display: "flex", flexDirection: "column", gap: "0.75rem",
     }}>
-      {/* Top bar: Avatar + Stress Meter + Timer */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: "1rem",
-        padding: "0.75rem", background: "var(--card)",
-        border: "1px solid var(--border)", borderRadius: "0.75rem",
-      }}>
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        style={{
+          display: "flex", alignItems: "center", gap: "1rem",
+          padding: "0.75rem", background: "var(--card)",
+          border: "1px solid var(--border)", borderRadius: "0.75rem",
+        }}
+      >
         <InquisitorAvatar estado={currentEstado} size={56} />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           <StressMeter presion={currentPresion} />
@@ -72,7 +82,9 @@ export function SimulationChat({ messages, loading, error, difficulty, onSend, o
             onTimeUp={handleTimeUp}
           />
         </div>
-        <button
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => setShowConfirm(true)}
           style={{
             padding: "0.5rem 1rem", borderRadius: "0.5rem",
@@ -84,71 +96,87 @@ export function SimulationChat({ messages, loading, error, difficulty, onSend, o
         >
           <Flag size={14} />
           Finalizar
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
 
-      {/* Error banner */}
-      {error && (
-        <div style={{
-          padding: "0.5rem 0.75rem", borderRadius: "0.5rem",
-          background: "#fef2f2", border: "1px solid #fecaca",
-          fontSize: "0.8125rem", color: "#991b1b",
-        }}>
-          {error}
-        </div>
-      )}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            style={{
+              padding: "0.5rem 0.75rem", borderRadius: "0.5rem",
+              background: "#fef2f2", border: "1px solid #fecaca",
+              fontSize: "0.8125rem", color: "#991b1b", overflow: "hidden",
+            }}
+          >
+            {error}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Messages area */}
       <div style={{
         flex: 1, overflow: "auto",
         background: "var(--card)", border: "1px solid var(--border)",
         borderRadius: "0.75rem", padding: "1rem",
         display: "flex", flexDirection: "column", gap: "0.75rem",
       }}>
-        {messages.map((msg, i) => {
-          if (msg.content === "..." && i === 0) return null
-          const isUser = msg.role === "user"
-          return (
-            <div
-              key={i}
-              style={{
-                display: "flex", justifyContent: isUser ? "flex-end" : "flex-start",
-                animation: "fadeIn 0.3s ease",
-              }}
-            >
-              <div style={{
-                maxWidth: "80%",
-                padding: "0.75rem 1rem",
-                borderRadius: isUser ? "1rem 1rem 0.25rem 1rem" : "1rem 1rem 1rem 0.25rem",
-                background: isUser ? "var(--primary)" : "var(--accent)",
-                color: isUser ? "var(--primary-fg)" : "var(--fg)",
-                fontSize: "0.875rem", lineHeight: 1.5,
-                whiteSpace: "pre-wrap",
-              }}>
-                {msg.content}
-              </div>
-            </div>
-          )
-        })}
+        <AnimatePresence>
+          {messages.map((msg, i) => {
+            if (msg.content === "..." && i === 0) return null
+            const isUser = msg.role === "user"
+            return (
+              <motion.div
+                key={i}
+                variants={messageVariants}
+                initial="hidden"
+                animate="visible"
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                style={{
+                  display: "flex", justifyContent: isUser ? "flex-end" : "flex-start",
+                }}
+              >
+                <div style={{
+                  maxWidth: "80%",
+                  padding: "0.75rem 1rem",
+                  borderRadius: isUser ? "1rem 1rem 0.25rem 1rem" : "1rem 1rem 1rem 0.25rem",
+                  background: isUser ? "var(--primary)" : "var(--accent)",
+                  color: isUser ? "var(--primary-fg)" : "var(--fg)",
+                  fontSize: "0.875rem", lineHeight: 1.5,
+                  whiteSpace: "pre-wrap",
+                }}>
+                  {msg.content}
+                </div>
+              </motion.div>
+            )
+          })}
+        </AnimatePresence>
         {loading && (
-          <div style={{
-            display: "flex", justifyContent: "flex-start",
-          }}>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            style={{ display: "flex", justifyContent: "flex-start" }}
+          >
             <div style={{
               padding: "0.75rem 1rem", borderRadius: "1rem 1rem 1rem 0.25rem",
               background: "var(--accent)", fontSize: "0.875rem",
               display: "flex", alignItems: "center", gap: "0.5rem",
               color: "var(--muted)",
             }}>
-              <Loader size={14} style={{ animation: "spin 1s linear infinite" }} />
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+              >
+                <Loader size={14} />
+              </motion.div>
               Escribiendo...
             </div>
-          </div>
+          </motion.div>
         )}
         <div ref={bottomRef} />
       </div>
 
-      {/* Input area */}
       <form onSubmit={handleSubmit} style={{ display: "flex", gap: "0.5rem" }}>
         <input
           ref={inputRef}
@@ -163,9 +191,11 @@ export function SimulationChat({ messages, loading, error, difficulty, onSend, o
             transition: "border-color var(--transition), box-shadow var(--transition)",
           }}
         />
-        <button
+        <motion.button
           type="submit"
           disabled={loading || !input.trim()}
+          whileHover={!loading && input.trim() ? { scale: 1.05 } : {}}
+          whileTap={!loading && input.trim() ? { scale: 0.95 } : {}}
           style={{
             width: 44, height: 44,
             background: loading || !input.trim() ? "var(--border)" : "var(--primary)",
@@ -176,56 +206,72 @@ export function SimulationChat({ messages, loading, error, difficulty, onSend, o
           }}
         >
           <Send size={18} />
-        </button>
+        </motion.button>
       </form>
 
-      {/* Confirm finish modal */}
-      {showConfirm && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 100,
-          background: "rgba(0,0,0,0.4)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          padding: "1rem", animation: "fadeIn 0.2s ease",
-        }}>
-          <div style={{
-            background: "var(--card)", borderRadius: "1rem",
-            padding: "1.5rem", maxWidth: 380, width: "100%",
-            display: "flex", flexDirection: "column", gap: "1rem",
-            textAlign: "center",
-          }}>
-            <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 600 }}>
-              ¿Finalizar simulación?
-            </h3>
-            <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)", lineHeight: 1.5 }}>
-              Se generará un reporte de desempeño con retroalimentación sobre tu actuación.
-            </p>
-            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center" }}>
-              <button
-                onClick={() => setShowConfirm(false)}
-                style={{
-                  padding: "0.625rem 1.25rem", borderRadius: "0.5rem",
-                  border: "1px solid var(--border)", background: "var(--card)",
-                  cursor: "pointer", color: "var(--fg)", fontSize: "0.875rem",
-                  fontWeight: 500,
-                }}
-              >
-                Seguir en la simulación
-              </button>
-              <button
-                onClick={confirmFinish}
-                style={{
-                  padding: "0.625rem 1.25rem", borderRadius: "0.5rem",
-                  border: "none", background: "var(--primary)",
-                  cursor: "pointer", color: "var(--primary-fg)", fontSize: "0.875rem",
-                  fontWeight: 600,
-                }}
-              >
-                Sí, finalizar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {showConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: "fixed", inset: 0, zIndex: 100,
+              background: "rgba(0,0,0,0.4)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              padding: "1rem",
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              style={{
+                background: "var(--card)", borderRadius: "1rem",
+                padding: "1.5rem", maxWidth: 380, width: "100%",
+                display: "flex", flexDirection: "column", gap: "1rem",
+                textAlign: "center",
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 600 }}>
+                ¿Finalizar simulación?
+              </h3>
+              <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)", lineHeight: 1.5 }}>
+                Se generará un reporte de desempeño con retroalimentación sobre tu actuación.
+              </p>
+              <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center" }}>
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => setShowConfirm(false)}
+                  style={{
+                    padding: "0.625rem 1.25rem", borderRadius: "0.5rem",
+                    border: "1px solid var(--border)", background: "var(--card)",
+                    cursor: "pointer", color: "var(--fg)", fontSize: "0.875rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  Seguir en la simulación
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={confirmFinish}
+                  style={{
+                    padding: "0.625rem 1.25rem", borderRadius: "0.5rem",
+                    border: "none", background: "var(--primary)",
+                    cursor: "pointer", color: "var(--primary-fg)", fontSize: "0.875rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  Sí, finalizar
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

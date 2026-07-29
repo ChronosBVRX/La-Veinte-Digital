@@ -1,5 +1,7 @@
 "use client"
 
+import { motion } from "framer-motion"
+
 interface StressMeterProps {
   presion: number
 }
@@ -20,31 +22,38 @@ export function StressMeter({ presion }: StressMeterProps) {
   }
 
   const color = getColor(presion)
+  const isHigh = presion > 6
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", width: "100%" }}>
+    <motion.div
+      layout
+      style={{ display: "flex", flexDirection: "column", gap: "0.25rem", width: "100%" }}
+    >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
           Presión
         </span>
-        <span style={{
-          fontSize: "0.75rem", fontWeight: 700, color,
-          transition: "color 0.3s ease",
-        }}>
+        <motion.span
+          animate={{ color, scale: isHigh ? [1, 1.1, 1] : 1 }}
+          transition={{
+            color: { duration: 0.3 },
+            scale: isHigh ? { repeat: Infinity, duration: 0.8 } : { duration: 0.3 },
+          }}
+          style={{ fontSize: "0.75rem", fontWeight: 700 }}
+        >
           {getLabel(presion)}
-        </span>
+        </motion.span>
       </div>
       <div style={{
         width: "100%", height: 6, background: "var(--accent)",
         borderRadius: 3, overflow: "hidden",
       }}>
-        <div style={{
-          width: `${pct}%`, height: "100%",
-          background: color,
-          borderRadius: 3,
-          transition: "width 0.5s ease, background 0.5s ease",
-        }} />
+        <motion.div
+          animate={{ width: `${pct}%`, background: color }}
+          transition={{ width: { duration: 0.5, ease: "easeOut" }, background: { duration: 0.3 } }}
+          style={{ height: "100%", borderRadius: 3 }}
+        />
       </div>
-    </div>
+    </motion.div>
   )
 }
