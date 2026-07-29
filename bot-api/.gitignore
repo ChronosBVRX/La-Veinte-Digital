@@ -2,3 +2,5 @@ vectorstore/
 .env
 __pycache__/
 *.pyc
+
+.vercel

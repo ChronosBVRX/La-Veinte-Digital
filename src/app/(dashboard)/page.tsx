@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { Bot, FileText, Newspaper, MessageCircle, User, ArrowRight, Shield } from "lucide-react"
+import { Bot, FileText, Newspaper, MessageCircle, User, ArrowRight, Shield, Globe } from "lucide-react"
+import { FacebookFeed } from "@/features/facebook/components/FacebookFeed"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -182,6 +183,18 @@ export default async function DashboardPage() {
             </p>
           )}
         </div>
+      </div>
+
+      {/* Facebook */}
+      <div style={{ marginTop: "1.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+          <Globe size={18} style={{ color: "#1877F2" }} />
+          <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: 0 }}>Facebook SNTSS</h2>
+          <Link href="/facebook" style={{ marginLeft: "auto", fontSize: "0.8125rem", color: "var(--primary)", textDecoration: "none" }}>
+            Ver completo
+          </Link>
+        </div>
+        <FacebookFeed compact />
       </div>
 
       {/* Mobile: full width on small screens */}

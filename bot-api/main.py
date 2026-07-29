@@ -2,7 +2,7 @@ import os
 import re
 from typing import List, Literal
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from embedding_service import generar_y_guardar_vectorstore, consulta_contrato
+from facebook_scraper import get_posts
 
 load_dotenv()
 BASE = os.getcwd()
@@ -86,6 +87,26 @@ async def endpoint_consulta(req: ConsultaRequest):
 
     except Exception as e:
         return {"error": f"Ocurrió un error interno: {str(e)}"}
+
+@app.get("/facebook")
+async def facebook_posts(page: str = Query("SNTSSSeccionXXMichoacan"), pages: int = Query(3)):
+    try:
+        posts = []
+        for post in get_posts(page, pages=pages):
+            posts.append({
+                "id": post.get("post_id"),
+                "text": post.get("text"),
+                "time": str(post.get("time") or ""),
+                "image": post.get("image"),
+                "video": post.get("video"),
+                "likes": post.get("likes"),
+                "comments": post.get("comments"),
+                "shares": post.get("shares"),
+                "url": post.get("post_url"),
+            })
+        return {"posts": posts}
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.get("/health")
 async def health():

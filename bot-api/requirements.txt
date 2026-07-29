@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 pymupdf
 langchain
 langchain-community
@@ -10,3 +10,7 @@ python-dotenv
 tiktoken
 langchain-text-splitters
 langgraph
+facebook-scraper
+beautifulsoup4
+lxml
+lxml_html_clean
