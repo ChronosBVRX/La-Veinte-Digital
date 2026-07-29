@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 import { Bot, FileText, Newspaper, MessageCircle, User, ArrowRight, Shield, Globe } from "lucide-react"
-import { FacebookFeed } from "@/features/facebook/components/FacebookFeed"
+import { FacebookFeeds } from "@/features/facebook/components/FacebookFeeds"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -194,7 +194,7 @@ export default async function DashboardPage() {
             Ver completo
           </Link>
         </div>
-        <FacebookFeed compact />
+        <FacebookFeeds compact />
       </div>
 
       {/* Mobile: full width on small screens */}
