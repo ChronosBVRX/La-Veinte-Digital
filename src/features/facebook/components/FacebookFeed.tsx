@@ -28,7 +28,7 @@ export function FacebookFeed({ compact }: Props) {
       borderRadius: "var(--radius)", overflow: "hidden",
     }}>
       {useIframe ? (
-        <>
+        <div style={{ maxWidth: 500, margin: "0 auto" }}>
           {!loaded && <LoadingSpinner text="Cargando Facebook..." />}
           <iframe
             ref={ref}
@@ -43,7 +43,7 @@ export function FacebookFeed({ compact }: Props) {
             frameBorder="0"
             title="Facebook SNTSS Sección XX Michoacán"
           />
-        </>
+        </div>
       ) : (
         <div style={{
           padding: compact ? "1rem" : "1.5rem",
