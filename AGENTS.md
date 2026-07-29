@@ -180,3 +180,8 @@ Both must be kept in sync. The bot speaks Spanish, uses **negritas**, emojis wit
 1. Run `npm run build` — must compile without errors
 2. Run `npm run lint` — must pass with no errors (warnings are acceptable)
 3. Verify ESLint flat config: uses `eslint.config.mjs`, NOT `.eslintrc.*`
+
+## After every change
+
+1. **Always deploy immediately** after pushing: `vercel --prod --yes`
+2. Wait for the deploy to complete before telling the user
