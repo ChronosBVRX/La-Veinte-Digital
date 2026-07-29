@@ -52,7 +52,7 @@ export function FacebookFeeds({ compact }: Props) {
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         <details style={{
           border: "1px solid var(--border)", borderRadius: "var(--radius)",
-          overflow: "hidden", background: "var(--card)",
+          overflow: "visible", background: "var(--card)",
         }}>
           <summary style={{
             cursor: "pointer", padding: "0.875rem 1.25rem", fontWeight: 600,
@@ -67,7 +67,7 @@ export function FacebookFeeds({ compact }: Props) {
         </details>
         <details style={{
           border: "1px solid var(--border)", borderRadius: "var(--radius)",
-          overflow: "hidden", background: "var(--card)",
+          overflow: "visible", background: "var(--card)",
         }}>
           <summary style={{
             cursor: "pointer", padding: "0.875rem 1.25rem", fontWeight: 600,

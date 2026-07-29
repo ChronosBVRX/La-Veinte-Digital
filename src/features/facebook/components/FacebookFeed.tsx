@@ -26,6 +26,7 @@ export function FacebookFeed({ compact, page = "seccionxx", label }: Props) {
   const ref = useRef<HTMLIFrameElement>(null)
   const cfg = PAGES[page]
   const fbUrl = cfg?.url ?? PAGES.seccionxx.url
+  const fbHeight = compact ? "500" : "1000"
 
   useEffect(() => {
     if (window.innerWidth >= 1024) setUseIframe(true)
@@ -35,21 +36,33 @@ export function FacebookFeed({ compact, page = "seccionxx", label }: Props) {
     return () => clearTimeout(timer)
   }, [loaded])
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const fb = (window as any).FB
+        if (fb && typeof fb.XFBML?.parse === "function") fb.XFBML.parse()
+      } catch {}
+    }
+  }, [loaded])
+
   return (
     <div style={{
       background: "var(--card)", border: "1px solid var(--border)",
       borderRadius: "var(--radius)", overflow: "visible",
     }}>
       {useIframe ? (
-        <div style={{ maxWidth: 500, margin: "0 auto", minHeight: compact ? "400" : "1000" }}>
+        <div style={{ maxWidth: 500, margin: "0 auto", minHeight: fbHeight }}>
           {!loaded && <LoadingSpinner text="Cargando Facebook..." />}
           <iframe
             ref={ref}
             onLoad={() => setLoaded(true)}
-            src={`https://www.facebook.com/plugins/page.php?href=${encodeURIComponent(fbUrl)}&tabs=timeline&width=500&height=${compact ? "400" : "1000"}&small_header=true&adapt_container_width=true&hide_cover=true&show_facepile=false`}
+            src={`https://www.facebook.com/plugins/page.php?href=${encodeURIComponent(fbUrl)}&tabs=timeline&width=500&height=${fbHeight}&small_header=true&adapt_container_width=true&hide_cover=true&show_facepile=false`}
+            width="500"
+            height={fbHeight}
             style={{
               border: "none", overflow: "hidden", width: "100%",
-              minHeight: compact ? "400" : "1000",
+              minHeight: fbHeight,
               display: loaded ? "block" : "none",
             }}
             scrolling="yes"
