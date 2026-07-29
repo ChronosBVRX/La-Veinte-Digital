@@ -8,9 +8,7 @@ export function Navbar({ fullName }: { fullName: string | null }) {
       <div style={{ height: "32px", display: "flex", alignItems: "center" }}>
         <img src="/Logo SXX_recortado.png" alt="SXX" style={{ maxHeight: "100%", width: "auto", display: "block" }} />
       </div>
-      <span style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--primary)", letterSpacing: "-0.02em" }}>SXX</span>
-      <span className="desktop-only" style={{ fontSize: "0.875rem", color: "var(--muted)" }}>|</span>
-      <span className="desktop-only" style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--fg)", letterSpacing: "-0.01em" }}>La Veinte Digital</span>
+      <span style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--primary)", letterSpacing: "-0.02em" }}>La Veinte Digital</span>
       {fullName && (
         <span className="desktop-only" style={{
           fontSize: "0.8125rem", color: "var(--muted)", marginLeft: "0.75rem",
