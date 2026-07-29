@@ -9,14 +9,82 @@ export function normalizeSearch(value: string): string {
     .trim()
 }
 
-export function filterCategorias(records: PrestamoCategoriaRecord[], query: string): PrestamoCategoriaRecord[] {
+function levenshtein(a: string, b: string): number {
+  const m = a.length
+  const n = b.length
+  if (m === 0) return n
+  if (n === 0) return m
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0))
+  for (let i = 0; i <= m; i++) dp[i][0] = i
+  for (let j = 0; j <= n; j++) dp[0][j] = j
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1]
+      } else {
+        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
+      }
+    }
+  }
+  return dp[m][n]
+}
+
+export function searchCategorias(records: PrestamoCategoriaRecord[], query: string): PrestamoCategoriaRecord[] {
   const normalized = normalizeSearch(query)
   if (!normalized) return records
-  return records.filter((r) => {
-    const cat = normalizeSearch(r.categoria)
-    const desc = normalizeSearch(r.descripcionTC ?? "")
-    return cat.includes(normalized) || desc.includes(normalized)
+
+  const scored: { record: PrestamoCategoriaRecord; score: number }[] = []
+
+  for (const record of records) {
+    const catNorm = normalizeSearch(record.categoria)
+    const descNorm = normalizeSearch(record.descripcionTC ?? "")
+    let score = 0
+
+    if (catNorm === normalized || descNorm === normalized) {
+      score = 100
+    } else if (catNorm.includes(normalized) || descNorm.includes(normalized)) {
+      score = 70
+    } else {
+      const queryWords = normalized.split(/\s+/).filter(w => w.length >= 2)
+      for (const qw of queryWords) {
+        if (catNorm.includes(qw)) { score += 15; continue }
+        if (descNorm.includes(qw)) { score += 15; continue }
+        const catWords = catNorm.split(/\s+/)
+        for (const cw of catWords) {
+          if (cw.includes(qw) || qw.includes(cw)) { score += 10; break }
+        }
+        for (const dw of descNorm.split(/\s+/)) {
+          if (dw.includes(qw) || qw.includes(dw)) { score += 10; break }
+        }
+      }
+    }
+
+    if (score === 0) {
+      const distCat = levenshtein(catNorm, normalized)
+      const distDesc = descNorm ? levenshtein(descNorm, normalized) : Infinity
+      const bestDist = Math.min(distCat, distDesc)
+      const maxLen = Math.max(catNorm.length, normalized.length)
+      const normalizedDist = bestDist / maxLen
+      if (normalizedDist < 0.4) {
+        score = Math.round((1 - normalizedDist) * 40)
+      }
+    }
+
+    if (score > 0) {
+      scored.push({ record, score })
+    }
+  }
+
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score
+    return a.record.categoria.localeCompare(b.record.categoria, "es")
   })
+
+  return scored.map(s => s.record)
+}
+
+export function filterCategorias(records: PrestamoCategoriaRecord[], query: string): PrestamoCategoriaRecord[] {
+  return searchCategorias(records, query)
 }
 
 export function calcularPrestamos(record: PrestamoCategoriaRecord): PrestamoCalculado[] {

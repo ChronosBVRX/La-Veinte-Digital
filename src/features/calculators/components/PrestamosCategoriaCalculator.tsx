@@ -1,19 +1,40 @@
 ﻿"use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useActionState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Search } from "lucide-react"
+import { ArrowLeft, Search, Check, RotateCcw } from "lucide-react"
 import { Input } from "@/shared/components/ui/Input"
 import { Card } from "@/shared/components/ui/Card"
+import { Button } from "@/shared/components/ui/Button"
+import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { CalculatorDisclaimer } from "./CalculatorDisclaimer"
-import { filterCategorias, calcularPrestamos, mapJsonToPrestamoRecord } from "../lib/prestamos"
+import { filterCategorias, calcularPrestamos, mapJsonToPrestamoRecord, normalizeSearch } from "../lib/prestamos"
 import { formatCurrency } from "../lib/money"
 import type { PrestamoCategoriaRecord } from "../lib/types"
 import prestamosRaw from "../data/prestamos_categoria.json"
+import { saveProfileCategoria } from "../services/saveProfileCategoria"
 
-export function PrestamosCategoriaCalculator() {
-  const [query, setQuery] = useState("")
+interface Props {
+  initialCategoria?: string | null
+}
+
+export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
+  const [query, setQuery] = useState(initialCategoria ?? "")
   const [selected, setSelected] = useState<PrestamoCategoriaRecord | null>(null)
+  const [saved, setSaved] = useState(false)
+
+  const [saveState, saveAction, savePending] = useActionState(
+    async (_prev: { ok: boolean; error?: string } | undefined, formData: FormData) => {
+      const cat = formData.get("categoria") as string
+      try {
+        await saveProfileCategoria(cat)
+        return { ok: true }
+      } catch {
+        return { ok: false, error: "No se pudo guardar. Intenta de nuevo." }
+      }
+    },
+    undefined
+  )
 
   const records = useMemo(() => {
     const raw = prestamosRaw as Record<string, unknown>[]
@@ -22,10 +43,28 @@ export function PrestamosCategoriaCalculator() {
 
   const filtered = useMemo(() => filterCategorias(records, query), [records, query])
 
+  useEffect(() => {
+    if (!initialCategoria || selected) return
+    const norm = normalizeSearch(initialCategoria)
+    const match = records.find((r) => normalizeSearch(r.categoria) === norm)
+    if (match) setSelected(match)
+  }, [initialCategoria, records, selected])
+
   const selectedCalculos = useMemo(() => {
     if (!selected) return []
     return calcularPrestamos(selected)
   }, [selected])
+
+  const handleSelect = (r: PrestamoCategoriaRecord) => {
+    setSelected(r)
+    setSaved(false)
+  }
+
+  const handleClear = () => {
+    setSelected(null)
+    setQuery("")
+    setSaved(false)
+  }
 
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
@@ -38,47 +77,67 @@ export function PrestamosCategoriaCalculator() {
         Consulta montos de préstamos disponibles según tu categoría.
       </p>
 
-      <div style={{ marginBottom: "1rem" }}>
-        <Input
-          id="buscar"
-          label="Buscar categoría"
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); setSelected(null) }}
-          placeholder="Ej: 08, 02, auxiliar, enfermera..."
-        />
-      </div>
+      {selected && (
+        <div style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+            Categoría seleccionada: <strong style={{ color: "var(--fg)" }}>{selected.categoria}</strong>
+          </span>
+          <button
+            onClick={handleClear}
+            style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", fontSize: "0.75rem", color: "var(--primary)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+          >
+            <RotateCcw size={12} /> Cambiar
+          </button>
+        </div>
+      )}
+
+      {!selected && (
+        <div style={{ marginBottom: "1rem" }}>
+          <Input
+            id="buscar"
+            label="Buscar categoría"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value) }}
+            placeholder="Ej: 08, 02, auxiliar, enfermera..."
+          />
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
         <div>
-          <p style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", margin: "0 0 0.5rem" }}>
-            {filtered.length} categoría{filtered.length !== 1 ? "s" : ""}
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", maxHeight: "500px", overflowY: "auto" }}>
-            {filtered.length === 0 ? (
-              <p style={{ fontSize: "0.8125rem", color: "var(--muted)", textAlign: "center", padding: "1rem" }}>
-                No se encontraron categorías
+          {!selected && (
+            <>
+              <p style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", margin: "0 0 0.5rem" }}>
+                {filtered.length} categoría{filtered.length !== 1 ? "s" : ""}
               </p>
-            ) : (
-              filtered.map((r, i) => (
-                <button
-                  key={i}
-                  onClick={() => setSelected(r)}
-                  style={{
-                    textAlign: "left", background: selected?.categoria === r.categoria ? "var(--primary)" : "var(--card)",
-                    color: selected?.categoria === r.categoria ? "var(--primary-fg)" : "var(--fg)",
-                    border: `1px solid ${selected?.categoria === r.categoria ? "var(--primary)" : "var(--border)"}`,
-                    borderRadius: "var(--radius-sm)", padding: "0.625rem 0.75rem",
-                    cursor: "pointer", fontSize: "0.8125rem", fontWeight: 500, transition: "all var(--transition)",
-                  }}
-                >
-                  <span>{r.categoria}</span>
-                  {r.descripcionTC && (
-                    <span style={{ display: "block", fontSize: "0.6875rem", opacity: 0.8, marginTop: "0.125rem" }}>{r.descripcionTC}</span>
-                  )}
-                </button>
-              ))
-            )}
-          </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", maxHeight: "500px", overflowY: "auto" }}>
+                {filtered.length === 0 ? (
+                  <p style={{ fontSize: "0.8125rem", color: "var(--muted)", textAlign: "center", padding: "1rem" }}>
+                    No se encontraron categorías
+                  </p>
+                ) : (
+                  filtered.map((r, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleSelect(r)}
+                      style={{
+                        textAlign: "left", background: "var(--card)",
+                        color: "var(--fg)",
+                        border: `1px solid var(--border)`,
+                        borderRadius: "var(--radius-sm)", padding: "0.625rem 0.75rem",
+                        cursor: "pointer", fontSize: "0.8125rem", fontWeight: 500, transition: "all var(--transition)",
+                      }}
+                    >
+                      <span>{r.categoria}</span>
+                      {r.descripcionTC && (
+                        <span style={{ display: "block", fontSize: "0.6875rem", opacity: 0.8, marginTop: "0.125rem" }}>{r.descripcionTC}</span>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         <div>
@@ -94,6 +153,27 @@ export function PrestamosCategoriaCalculator() {
                   {selected.smi !== undefined && <InfoRow label="SMI" value={formatCurrency(selected.smi)} />}
                 </div>
               </Card>
+
+              <form action={saveAction}>
+                <input type="hidden" name="categoria" value={selected.categoria} />
+                <Button
+                  type="submit"
+                  variant={saved || saveState?.ok ? "secondary" : "primary"}
+                  size="sm"
+                  loading={savePending}
+                  disabled={saved || saveState?.ok || savePending}
+                  style={{ width: "100%" }}
+                >
+                  {saved || saveState?.ok ? (
+                    <><Check size={14} /> Guardado en perfil</>
+                  ) : (
+                    "Guardar categoría en mi perfil"
+                  )}
+                </Button>
+                {saveState?.error && (
+                  <p style={{ fontSize: "0.75rem", color: "var(--primary)", margin: "0.375rem 0 0" }}>{saveState.error}</p>
+                )}
+              </form>
 
               {selectedCalculos.map((c, i) => (
                 <Card key={i} padding="0.875rem">

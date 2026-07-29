@@ -1,5 +1,7 @@
 import { PrestamosCategoriaCalculator } from "@/features/calculators/components/PrestamosCategoriaCalculator"
+import { getCurrentUserProfile } from "@/features/profile/services/profiles"
 
-export default function PrestamosPage() {
-  return <PrestamosCategoriaCalculator />
+export default async function PrestamosPage() {
+  const profile = await getCurrentUserProfile()
+  return <PrestamosCategoriaCalculator initialCategoria={profile?.categoria} />
 }
