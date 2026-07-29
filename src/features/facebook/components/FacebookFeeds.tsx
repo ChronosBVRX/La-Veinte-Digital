@@ -10,8 +10,8 @@ export function FacebookFeeds({ compact }: Props) {
   if (compact) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        <FacebookFeed compact page="seccionxx" label="Sección XX Michoacán" />
-        <FacebookFeed compact page="cen" label="CEN SNTSS" />
+        <FacebookFeed compact page="seccionxx" label="SNTSS Sección XX" />
+        <FacebookFeed compact page="cen" label="SNTSS Nacional" />
       </div>
     )
   }
@@ -35,26 +35,58 @@ export function FacebookFeeds({ compact }: Props) {
       `}</style>
 
       <div className="fb-grid fb-desktop">
-        <FacebookFeed page="seccionxx" label="Sección XX Michoacán" />
-        <FacebookFeed page="cen" label="CEN SNTSS" />
+        <div>
+          <div style={{
+            display: "flex", alignItems: "center", gap: "0.5rem",
+            marginBottom: "0.75rem",
+          }}>
+            <span style={{
+              width: 28, height: 28, borderRadius: "50%",
+              background: "#1877F2", display: "flex", alignItems: "center",
+              justifyContent: "center", color: "#fff", fontSize: "0.75rem",
+              fontWeight: 700, flexShrink: 0,
+            }}>f</span>
+            <h3 style={{ fontSize: "0.9375rem", fontWeight: 600, margin: 0 }}>
+              SNTSS Sección XX
+            </h3>
+          </div>
+          <FacebookFeed page="seccionxx" label="SNTSS Sección XX" />
+        </div>
+        <div>
+          <div style={{
+            display: "flex", alignItems: "center", gap: "0.5rem",
+            marginBottom: "0.75rem",
+          }}>
+            <span style={{
+              width: 28, height: 28, borderRadius: "50%",
+              background: "#1877F2", display: "flex", alignItems: "center",
+              justifyContent: "center", color: "#fff", fontSize: "0.75rem",
+              fontWeight: 700, flexShrink: 0,
+            }}>f</span>
+            <h3 style={{ fontSize: "0.9375rem", fontWeight: 600, margin: 0 }}>
+              SNTSS Nacional
+            </h3>
+          </div>
+          <FacebookFeed page="cen" label="SNTSS Nacional" />
+        </div>
       </div>
 
       <details className="fb-details fb-accordion">
         <summary>
           <span style={{ fontSize: "0.875rem", color: "#1877F2" }}>f</span>
-          Sección XX Michoacán
+          SNTSS Sección XX
           <span style={{ marginLeft: "auto", fontSize: "0.75rem", color: "var(--muted)" }}>▶</span>
         </summary>
-        <FacebookFeed page="seccionxx" label="Sección XX Michoacán" />
+        <FacebookFeed page="seccionxx" label="SNTSS Sección XX" />
       </details>
 
       <details className="fb-details fb-accordion">
         <summary>
           <span style={{ fontSize: "0.875rem", color: "#1877F2" }}>f</span>
-          CEN SNTSS
+          SNTSS Nacional
           <span style={{ marginLeft: "auto", fontSize: "0.75rem", color: "var(--muted)" }}>▶</span>
         </summary>
-        <FacebookFeed page="cen" label="CEN SNTSS" />
+        <FacebookFeed page="cen" label="SNTSS Nacional" />
       </details>
     </>
   )
