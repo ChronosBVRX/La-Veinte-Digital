@@ -38,10 +38,10 @@ export function FacebookFeed({ compact, page = "seccionxx", label }: Props) {
   return (
     <div style={{
       background: "var(--card)", border: "1px solid var(--border)",
-      borderRadius: "var(--radius)", overflow: "hidden",
+      borderRadius: "var(--radius)", overflow: "visible",
     }}>
       {useIframe ? (
-        <div style={{ maxWidth: 500, margin: "0 auto" }}>
+        <div style={{ maxWidth: 500, margin: "0 auto", minHeight: compact ? "400" : "1000" }}>
           {!loaded && <LoadingSpinner text="Cargando Facebook..." />}
           <iframe
             ref={ref}
@@ -49,10 +49,10 @@ export function FacebookFeed({ compact, page = "seccionxx", label }: Props) {
             src={`https://www.facebook.com/plugins/page.php?href=${encodeURIComponent(fbUrl)}&tabs=timeline&width=500&height=${compact ? "400" : "1000"}&small_header=true&adapt_container_width=true&hide_cover=true&show_facepile=false`}
             style={{
               border: "none", overflow: "hidden", width: "100%",
-              height: compact ? "400" : "1000",
+              minHeight: compact ? "400" : "1000",
               display: loaded ? "block" : "none",
             }}
-            scrolling="no"
+            scrolling="yes"
             frameBorder="0"
             title={label ?? cfg?.name ?? "Facebook SNTSS"}
           />
