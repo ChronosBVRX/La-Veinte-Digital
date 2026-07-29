@@ -46,10 +46,10 @@ export function FacebookFeed({ compact, page = "seccionxx", label }: Props) {
           <iframe
             ref={ref}
             onLoad={() => setLoaded(true)}
-            src={`https://www.facebook.com/plugins/page.php?href=${encodeURIComponent(fbUrl)}&tabs=timeline&width=500&height=${compact ? "400" : "700"}&small_header=true&adapt_container_width=true&hide_cover=${compact ? "true" : "false"}&show_facepile=false`}
+            src={`https://www.facebook.com/plugins/page.php?href=${encodeURIComponent(fbUrl)}&tabs=timeline&width=500&height=${compact ? "400" : "1000"}&small_header=true&adapt_container_width=true&hide_cover=true&show_facepile=false`}
             style={{
               border: "none", overflow: "hidden", width: "100%",
-              height: compact ? "400" : "700",
+              height: compact ? "400" : "1000",
               display: loaded ? "block" : "none",
             }}
             scrolling="no"
