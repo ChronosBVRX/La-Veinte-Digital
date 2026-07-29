@@ -7,15 +7,6 @@ interface Props {
 }
 
 export function FacebookFeeds({ compact }: Props) {
-  if (compact) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        <FacebookFeed compact page="seccionxx" label="SNTSS Sección XX" />
-        <FacebookFeed compact page="cen" label="SNTSS Nacional" />
-      </div>
-    )
-  }
-
   return (
     <>
       <style>{`
@@ -50,7 +41,7 @@ export function FacebookFeeds({ compact }: Props) {
               SNTSS Sección XX
             </h3>
           </div>
-          <FacebookFeed page="seccionxx" label="SNTSS Sección XX" />
+          <FacebookFeed compact={compact} page="seccionxx" label="SNTSS Sección XX" />
         </div>
         <div>
           <div style={{
@@ -67,27 +58,31 @@ export function FacebookFeeds({ compact }: Props) {
               SNTSS Nacional
             </h3>
           </div>
-          <FacebookFeed page="cen" label="SNTSS Nacional" />
+          <FacebookFeed compact={compact} page="cen" label="SNTSS Nacional" />
         </div>
       </div>
 
-      <details className="fb-details fb-accordion">
-        <summary>
-          <span style={{ fontSize: "0.875rem", color: "#1877F2" }}>f</span>
-          SNTSS Sección XX
-          <span style={{ marginLeft: "auto", fontSize: "0.75rem", color: "var(--muted)" }}>▶</span>
-        </summary>
-        <FacebookFeed page="seccionxx" label="SNTSS Sección XX" />
-      </details>
+      {!compact && (
+        <>
+          <details className="fb-details fb-accordion">
+            <summary>
+              <span style={{ fontSize: "0.875rem", color: "#1877F2" }}>f</span>
+              SNTSS Sección XX
+              <span style={{ marginLeft: "auto", fontSize: "0.75rem", color: "var(--muted)" }}>▶</span>
+            </summary>
+            <FacebookFeed page="seccionxx" label="SNTSS Sección XX" />
+          </details>
 
-      <details className="fb-details fb-accordion">
-        <summary>
-          <span style={{ fontSize: "0.875rem", color: "#1877F2" }}>f</span>
-          SNTSS Nacional
-          <span style={{ marginLeft: "auto", fontSize: "0.75rem", color: "var(--muted)" }}>▶</span>
-        </summary>
-        <FacebookFeed page="cen" label="SNTSS Nacional" />
-      </details>
+          <details className="fb-details fb-accordion">
+            <summary>
+              <span style={{ fontSize: "0.875rem", color: "#1877F2" }}>f</span>
+              SNTSS Nacional
+              <span style={{ marginLeft: "auto", fontSize: "0.75rem", color: "var(--muted)" }}>▶</span>
+            </summary>
+            <FacebookFeed page="cen" label="SNTSS Nacional" />
+          </details>
+        </>
+      )}
     </>
   )
 }
