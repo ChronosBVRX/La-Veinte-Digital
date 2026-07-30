@@ -3,6 +3,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { Bot, FileText, Newspaper, MessageCircle, User, ArrowRight, Shield, Globe } from "lucide-react"
 import { FacebookFeeds } from "@/features/facebook/components/FacebookFeeds"
+import { CalendarioMensual } from "@/features/calendario/components/CalendarioMensual"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -105,6 +106,11 @@ export default async function DashboardPage() {
             </Link>
           )
         })}
+      </div>
+
+      {/* Calendario del mes */}
+      <div style={{ marginBottom: "2rem" }}>
+        <CalendarioMensual />
       </div>
 
       {/* Stats Row */}
