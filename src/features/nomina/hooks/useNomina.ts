@@ -11,9 +11,8 @@ import type {
   RecurringConceptOverride,
   OccupationalCondition,
 } from "../lib/types"
-import { calculateSeniority } from "../lib/seniority"
+import { calculateSeniority, reconstructEffectiveDate } from "../lib/seniority"
 import { getCurrentPayPeriod } from "../lib/periods"
-import { resolveSalaryCategory } from "../lib/categories"
 import { calculateProjection } from "../lib/engine"
 import {
   getProfile,
@@ -92,44 +91,21 @@ export function useNomina() {
   const updateProfile = useCallback((p: EmployeePayrollProfile) => {
     saveProfile(p)
     saveConsent(true)
-    let step: NominaStep = "category"
-    if (p.categoryId && p.effectiveSeniorityDate) {
-      step = "ready"
-    } else if (p.categoryId) {
-      step = "seniority"
-    }
-    patch({ consented: true, profile: p, step })
-  }, [patch])
 
-  const selectCategory = useCallback(
-    async (categoryId: string) => {
-      const p = s.profile
-      if (!p) return
-      const resolved = await resolveSalaryCategory(categoryId, new Date().toISOString().slice(0, 10))
-      if (resolved) {
-        setCategoryState(resolved)
-        const updated = { ...p, categoryId: resolved.categoryId, categoryName: resolved.categoryName }
-        saveProfile(updated)
-        patch({ profile: updated, step: "seniority" })
-      }
-    },
-    [s.profile, patch]
-  )
-
-  const updateSeniorityDate = useCallback(
-    (effectiveDate: string) => {
-      const p = s.profile
-      if (!p) return
+    if (p.displayedSeniorityAtLastPayslip) {
+      const effectiveDate = reconstructEffectiveDate(
+        p.displayedSeniorityAtLastPayslip,
+        p.displayedSeniorityAtLastPayslip.referenceDate
+      )
       const today = new Date().toISOString().slice(0, 10)
       const sr = calculateSeniority(effectiveDate, today)
       setSeniority(sr)
       setPeriod(getCurrentPayPeriod(today))
-      const updated = { ...p, effectiveSeniorityDate: effectiveDate }
-      saveProfile(updated)
-      patch({ profile: updated, step: "conditions" })
-    },
-    [s.profile, patch]
-  )
+    }
+
+    const step: NominaStep = p.occupationalConditions.length > 0 ? "ready" : "conditions"
+    patch({ consented: true, profile: p, step })
+  }, [patch])
 
   const updateConditions = useCallback(
     (conditions: OccupationalCondition[]) => {
@@ -183,8 +159,6 @@ export function useNomina() {
     giveConsent,
     revokeConsent,
     updateProfile,
-    selectCategory,
-    updateSeniorityDate,
     updateConditions,
     generateProjection,
     resetProfile,

@@ -25,8 +25,10 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
     employmentType: (profile?.employmentType ?? "base") as EmploymentType,
     workdayHours: String(profile?.workdayHours ?? "8") as string,
     shift: (profile?.shift ?? "matutino") as Shift,
-    institutionalEntryDate: profile?.institutionalEntryDate ?? "",
-    effectiveSeniorityDate: profile?.effectiveSeniorityDate ?? "",
+    seniorityYears: String(profile?.displayedSeniorityAtLastPayslip?.years ?? ""),
+    seniorityMonths: String(profile?.displayedSeniorityAtLastPayslip?.months ?? ""),
+    seniorityDays: String(profile?.displayedSeniorityAtLastPayslip?.days ?? ""),
+    seniorityRefDate: profile?.displayedSeniorityAtLastPayslip?.referenceDate ?? "",
   })
   const [conditions, setConditions] = useState<OccupationalCondition[]>(
     profile?.occupationalConditions ?? []
@@ -56,6 +58,9 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
   }
 
   function buildProfile(): EmployeePayrollProfile {
+    const sy = parseInt(form.seniorityYears) || 0
+    const sm = parseInt(form.seniorityMonths) || 0
+    const sd = parseInt(form.seniorityDays) || 0
     return {
       id: profile?.id ?? crypto.randomUUID?.() ?? `${Date.now()}`,
       userId: profile?.userId ?? "",
@@ -66,8 +71,9 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
       employmentType: form.employmentType,
       workdayHours: parseFloat(form.workdayHours) as JornadaHoras,
       shift: form.shift,
-      institutionalEntryDate: form.institutionalEntryDate || undefined,
-      effectiveSeniorityDate: form.effectiveSeniorityDate || undefined,
+      displayedSeniorityAtLastPayslip: (sy || sm || sd) && form.seniorityRefDate
+        ? { years: sy, months: sm, days: sd, referenceDate: form.seniorityRefDate }
+        : undefined,
       occupationalConditions: conditions,
       recurringConceptOverrides: profile?.recurringConceptOverrides,
       createdAt: profile?.createdAt ?? new Date().toISOString(),
@@ -182,22 +188,50 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
 
       {step === 2 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          <h3 style={{ margin: 0, fontSize: "1rem" }}>Antigüedad</h3>
+          <h3 style={{ margin: 0, fontSize: "1rem" }}>Antigüedad reflejada en tu último tarjetón</h3>
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0 }}>
+            Captura los a&ntilde;os, meses y d&iacute;as que aparecen en tu &uacute;ltimo
+            recibo de n&oacute;mina. A partir de eso, el simulador calcular&aacute; autom&aacute;ticamente
+            tu antig&uuml;edad actual.
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
+            <Input
+              label="Años"
+              type="number"
+              min="0"
+              value={form.seniorityYears}
+              onChange={(e) => handleChange("seniorityYears", e.target.value)}
+              placeholder="0"
+            />
+            <Input
+              label="Meses"
+              type="number"
+              min="0"
+              max="11"
+              value={form.seniorityMonths}
+              onChange={(e) => handleChange("seniorityMonths", e.target.value)}
+              placeholder="0"
+            />
+            <Input
+              label="Días"
+              type="number"
+              min="0"
+              max="30"
+              value={form.seniorityDays}
+              onChange={(e) => handleChange("seniorityDays", e.target.value)}
+              placeholder="0"
+            />
+          </div>
           <Input
-            label="Fecha institucional de ingreso"
+            label="Fecha del tarjetón (periodo que muestra esa antigüedad)"
             type="date"
-            value={form.institutionalEntryDate}
-            onChange={(e) => handleChange("institutionalEntryDate", e.target.value)}
-          />
-          <Input
-            label="Fecha efectiva de antigüedad"
-            type="date"
-            value={form.effectiveSeniorityDate}
-            onChange={(e) => handleChange("effectiveSeniorityDate", e.target.value)}
+            value={form.seniorityRefDate}
+            onChange={(e) => handleChange("seniorityRefDate", e.target.value)}
           />
           <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
-            La fecha efectiva es la que aparece en tu tarjet&oacute;n de n&oacute;mina
-            como base para calcular antig&uuml;edad.
+            Ejemplo: si tu tarjet&oacute;n de la primera quincena de enero 2025 mostraba
+            10 a&ntilde;os 3 meses 15 d&iacute;as, captura eso y la fecha 2025-01-15.
+            El sistema calcular&aacute; tu antig&uuml;edad actual autom&aacute;ticamente.
           </p>
         </div>
       )}
