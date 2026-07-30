@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import type {
   EmployeePayrollProfile,
   ResolvedSalaryCategory,
@@ -10,11 +10,16 @@ import type {
   PayrollIncident,
   RecurringConceptOverride,
   OccupationalCondition,
+  PayrollFact,
+  PayrollFactKey,
+  PayrollFactValue,
+  ProjectionMode,
 } from "../lib/types"
 import { calculateSeniority, reconstructEffectiveDate } from "../lib/seniority"
 import { getCurrentPayPeriod } from "../lib/periods"
-import { calculateProjection } from "../lib/engine"
-import { resolveSalaryCategoryByName } from "../lib/categories"
+import { calculateProjection, type PayrollProjectionResult } from "../lib/engine"
+import { resolveCategory, type CategoryMatch, type CategoryResolutionResult } from "../lib/category-resolver"
+import type { ConditionalPayrollQuestion } from "../lib/question-engine"
 import {
   getProfile,
   saveProfile,
@@ -32,8 +37,17 @@ export type NominaStep =
   | "category"
   | "seniority"
   | "conditions"
+  | "questions"
   | "ready"
   | "projection"
+
+export type CategoryResolutionState =
+  | { status: "idle" }
+  | { status: "resolving" }
+  | { status: "resolved"; category: ResolvedSalaryCategory; method: string }
+  | { status: "ambiguous"; matches: CategoryMatch[] }
+  | { status: "not_found"; originalValue?: string }
+  | { status: "error"; message: string }
 
 interface NominaState {
   consented: boolean
@@ -41,6 +55,11 @@ interface NominaState {
   projections: PayrollProjection[]
   step: NominaStep
   loading: boolean
+}
+
+interface PayrollQuestionAnswer {
+  factKey: PayrollFactKey
+  value: PayrollFactValue
 }
 
 function initState(): NominaState {
@@ -66,26 +85,38 @@ function initState(): NominaState {
 
 export function useNomina() {
   const [s, setS] = useState<NominaState>(initState)
-  const [category, setCategoryState] = useState<ResolvedSalaryCategory | null>(null)
+  const [categoryState, setCategoryState] = useState<CategoryResolutionState>({ status: "idle" })
   const [seniority, setSeniority] = useState<SeniorityResult | null>(null)
   const [period, setPeriod] = useState<PayPeriod | null>(null)
   const [projection, setProjection] = useState<PayrollProjection | null>(null)
+  const [projectionResult, setProjectionResult] = useState<PayrollProjectionResult | null>(null)
+  const [pendingQuestions, setPendingQuestions] = useState<ConditionalPayrollQuestion[]>([])
+  const [questionAnswers, setQuestionAnswers] = useState<PayrollQuestionAnswer[]>([])
   const [hydrating, setHydrating] = useState(false)
+  const hydratingRef = useRef(false)
 
   useEffect(() => {
-    if (!s.consented || !s.profile) return
-    let cancelled = false
+    if (!s.consented || !s.profile || hydratingRef.current) return
+    hydratingRef.current = true
 
     async function hydrate() {
       setHydrating(true)
       const p = s.profile!
 
-      if (p.categoryName && !category) {
-        const cat = await resolveSalaryCategoryByName(
-          p.categoryName,
-          new Date().toISOString().slice(0, 10)
-        )
-        if (!cancelled && cat) setCategoryState(cat)
+      if (p.categoryName && categoryState.status === "idle") {
+        setCategoryState({ status: "resolving" })
+        const result = resolveCategory(p.categoryName, new Date().toISOString().slice(0, 10))
+        if (result.resolved && result.category) {
+          setCategoryState({
+            status: "resolved",
+            category: result.category,
+            method: result.resolutionMethod ?? "unknown",
+          })
+        } else if (result.status === "ambiguous") {
+          setCategoryState({ status: "ambiguous", matches: result.matches ?? [] })
+        } else {
+          setCategoryState({ status: "not_found", originalValue: p.categoryName })
+        }
       }
 
       if (p.displayedSeniorityAtLastPayslip && !seniority) {
@@ -94,18 +125,27 @@ export function useNomina() {
           p.displayedSeniorityAtLastPayslip.referenceDate
         )
         const today = new Date().toISOString().slice(0, 10)
-        if (!cancelled) {
-          setSeniority(calculateSeniority(effectiveDate, today))
-          setPeriod(getCurrentPayPeriod(today))
-        }
+        setSeniority(calculateSeniority(effectiveDate, today))
+        setPeriod(getCurrentPayPeriod(today))
       }
 
-      if (!cancelled) setHydrating(false)
+      setHydrating(false)
     }
 
     hydrate()
-    return () => { cancelled = true }
-  }, [])
+  }, [
+    s.consented,
+    s.profile?.id,
+    s.profile?.categoryName,
+    s.profile?.categoryId,
+    s.profile?.updatedAt,
+    s.profile?.displayedSeniorityAtLastPayslip?.years,
+    s.profile?.displayedSeniorityAtLastPayslip?.months,
+    s.profile?.displayedSeniorityAtLastPayslip?.days,
+    s.profile?.displayedSeniorityAtLastPayslip?.referenceDate,
+    categoryState.status,
+    seniority,
+  ])
 
   const patch = useCallback((patch: Partial<NominaState>) => {
     setS((prev) => ({ ...prev, ...patch }))
@@ -118,10 +158,13 @@ export function useNomina() {
 
   const revokeConsent = useCallback(() => {
     deleteAllData()
-    setCategoryState(null)
+    setCategoryState({ status: "idle" })
     setSeniority(null)
     setPeriod(null)
     setProjection(null)
+    setProjectionResult(null)
+    setPendingQuestions([])
+    setQuestionAnswers([])
     patch({ consented: false, profile: null, projections: [], step: "consent" })
   }, [patch])
 
@@ -140,18 +183,29 @@ export function useNomina() {
       setPeriod(getCurrentPayPeriod(today))
     }
 
-    let resolved = false
     if (p.categoryName) {
-      const cleanName = p.categoryName.replace(/\s+/g, " ").trim()
-      const cat = await resolveSalaryCategoryByName(cleanName, new Date().toISOString().slice(0, 10))
-      if (cat) {
-        setCategoryState(cat)
-        resolved = true
+      setCategoryState({ status: "resolving" })
+      const result = resolveCategory(p.categoryName, new Date().toISOString().slice(0, 10))
+      if (result.resolved && result.category) {
+        setCategoryState({
+          status: "resolved",
+          category: result.category,
+          method: result.resolutionMethod ?? "unknown",
+        })
+      } else if (result.status === "ambiguous") {
+        setCategoryState({ status: "ambiguous", matches: result.matches ?? [] })
+      } else {
+        setCategoryState({ status: "not_found", originalValue: p.categoryName })
       }
     }
 
     const step: NominaStep = p.occupationalConditions.length > 0 ? "ready" : "conditions"
     patch({ consented: true, profile: p, step })
+  }, [patch])
+
+  const resolveAmbiguousCategory = useCallback((category: ResolvedSalaryCategory) => {
+    setCategoryState({ status: "resolved", category, method: "manual" })
+    patch({ step: "ready" })
   }, [patch])
 
   const updateConditions = useCallback(
@@ -165,27 +219,90 @@ export function useNomina() {
     [s.profile, patch]
   )
 
-  const generateProjection = useCallback(
-    (incidents?: PayrollIncident[], recurring?: RecurringConceptOverride[]) => {
-      const p = s.profile
-      if (!p || !category || !period || !seniority) return null
+  const answerQuestion = useCallback(
+    (factKey: PayrollFactKey, value: PayrollFactValue) => {
+      setQuestionAnswers((prev) => {
+        const existing = prev.findIndex((a) => a.factKey === factKey)
+        if (existing >= 0) {
+          const updated = [...prev]
+          updated[existing] = { factKey, value }
+          return updated
+        }
+        return [...prev, { factKey, value }]
+      })
 
-      const proj = calculateProjection(p, category, period, seniority, incidents ?? [], recurring ?? [])
-      setProjection(proj)
-      saveProjection(proj)
-      const updated = [...s.projections.filter((x) => x.id !== proj.id), proj]
-      patch({ projections: updated, step: "projection" })
-      return proj
+      const p = s.profile
+      if (!p) return
+
+      const fact: PayrollFact = {
+        key: factKey,
+        value,
+        source: "user",
+        confidence: value === null ? 0.3 : 0.8,
+        updatedAt: new Date().toISOString(),
+      }
+
+      const existingFacts = p.facts.filter((f) => f.key !== factKey)
+      const updatedProfile = { ...p, facts: [...existingFacts, fact] }
+      saveProfile(updatedProfile)
+      patch({ profile: updatedProfile })
     },
-    [s.profile, s.projections, category, period, seniority, patch]
+    [s.profile, patch]
+  )
+
+  const setAllFacts = useCallback(
+    (facts: PayrollFact[]) => {
+      const p = s.profile
+      if (!p) return
+      const updated = { ...p, facts }
+      saveProfile(updated)
+      patch({ profile: updated })
+    },
+    [s.profile, patch]
+  )
+
+  const generateProjection = useCallback(
+    (
+      mode: ProjectionMode = "assisted",
+      incidents?: PayrollIncident[],
+      recurring?: RecurringConceptOverride[],
+    ) => {
+      const p = s.profile
+      const catState = categoryState
+      if (!p || catState.status !== "resolved" || !period || !seniority) return null
+
+      const input = {
+        profile: p,
+        category: catState.category,
+        period,
+        seniority,
+        incidents: incidents ?? [],
+        recurringConcepts: recurring ?? [],
+        mode,
+      }
+
+      const result = calculateProjection(input)
+      setProjection(result.projection)
+      setProjectionResult(result)
+      setPendingQuestions(result.questions)
+      saveProjection(result.projection)
+
+      const updated = [...s.projections.filter((x) => x.id !== result.projection.id), result.projection]
+      patch({ projections: updated, step: "projection" })
+      return result
+    },
+    [s.profile, s.projections, categoryState, period, seniority, patch]
   )
 
   const resetProfile = useCallback(() => {
     deleteProfile()
-    setCategoryState(null)
+    setCategoryState({ status: "idle" })
     setSeniority(null)
     setPeriod(null)
     setProjection(null)
+    setProjectionResult(null)
+    setPendingQuestions([])
+    setQuestionAnswers([])
     patch({ profile: null, step: "profile" })
   }, [patch])
 
@@ -201,13 +318,19 @@ export function useNomina() {
     }
   }, [s.projections, patch])
 
+  const category = categoryState.status === "resolved" ? categoryState.category : null
+
   return {
     consented: s.consented,
     profile: s.profile,
     category,
+    categoryState,
     seniority,
     period,
     projection,
+    projectionResult,
+    pendingQuestions,
+    questionAnswers,
     projections: s.projections,
     step: s.step,
     loading: s.loading,
@@ -215,7 +338,10 @@ export function useNomina() {
     giveConsent,
     revokeConsent,
     updateProfile,
+    resolveAmbiguousCategory,
     updateConditions,
+    answerQuestion,
+    setAllFacts,
     generateProjection,
     resetProfile,
     setStep,

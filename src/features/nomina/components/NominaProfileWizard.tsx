@@ -27,6 +27,11 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
     employmentType: (profile?.employmentType ?? "base") as EmploymentType,
     workdayHours: String(profile?.workdayHours ?? "8") as string,
     shift: (profile?.shift ?? "matutino") as Shift,
+    ooad: profile?.ooad ?? "",
+    region: profile?.region ?? "",
+    unitCode: profile?.unitCode ?? "",
+    serviceCode: profile?.serviceCode ?? "",
+    positionCode: profile?.positionCode ?? "",
     seniorityYears: String(profile?.displayedSeniorityAtLastPayslip?.years ?? ""),
     seniorityMonths: String(profile?.displayedSeniorityAtLastPayslip?.months ?? ""),
     seniorityDays: String(profile?.displayedSeniorityAtLastPayslip?.days ?? ""),
@@ -53,16 +58,10 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
         .then(({ data }) => {
           if (!data?.categoria) return
           const cat = data.categoria.replace(/\s+/g, " ").trim()
-          setForm((prev) => ({
-            ...prev,
-            categoryName: cat,
-          }))
+          setForm((prev) => ({ ...prev, categoryName: cat }))
           const hours = deriveWorkdayHoursFromCategoryName(cat)
           if (hours) {
-            setForm((prev) => ({
-              ...prev,
-              workdayHours: String(hours),
-            }))
+            setForm((prev) => ({ ...prev, workdayHours: String(hours) }))
           }
         })
     })
@@ -75,18 +74,14 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
   function toggleCondition(type: OccupationalCondition["type"]) {
     setConditions((prev) => {
       const exists = prev.find((c) => c.type === type)
-      if (exists) {
-        return prev.filter((c) => c.type !== type)
-      }
+      if (exists) return prev.filter((c) => c.type !== type)
       return [...prev, { type, enabled: true, permanentExposure: type === "radiation_non_medical" }]
     })
   }
 
   function setPermanentExposure(value: boolean) {
     setConditions((prev) =>
-      prev.map((c) =>
-        c.type === "radiation_non_medical" ? { ...c, permanentExposure: value } : c
-      )
+      prev.map((c) => c.type === "radiation_non_medical" ? { ...c, permanentExposure: value } : c)
     )
   }
 
@@ -104,11 +99,18 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
       employmentType: form.employmentType,
       workdayHours: parseFloat(form.workdayHours) as JornadaHoras,
       shift: form.shift,
+      ooad: form.ooad || undefined,
+      region: form.region || undefined,
+      unitCode: form.unitCode || undefined,
+      serviceCode: form.serviceCode || undefined,
+      positionCode: form.positionCode || undefined,
+      occupationalConditions: conditions,
+      facts: profile?.facts ?? [],
+      siapConceptMarks: profile?.siapConceptMarks ?? [],
+      recurringConcepts: profile?.recurringConcepts ?? [],
       displayedSeniorityAtLastPayslip: (sy || sm || sd) && form.seniorityRefDate
         ? { years: sy, months: sm, days: sd, referenceDate: form.seniorityRefDate }
         : undefined,
-      occupationalConditions: conditions,
-      recurringConceptOverrides: profile?.recurringConceptOverrides,
       createdAt: profile?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
@@ -149,7 +151,7 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
         <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>&#10003;</div>
         <h3 style={{ margin: "0 0 0.25rem" }}>Perfil guardado</h3>
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: 0 }}>
-          Tus datos laborales est&aacute;n listos. Ahora puedes generar tu proyecci&oacute;n de n&oacute;mina.
+          Tus datos laborales están listos.
         </p>
       </Card>
     )
@@ -159,10 +161,9 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
     <Card padding="1.5rem">
       <div style={{ marginBottom: "1.5rem" }}>
         <div style={{
-          display: "flex", gap: "0.375rem", alignItems: "center",
-          marginBottom: "0.75rem",
+          display: "flex", gap: "0.375rem", alignItems: "center", marginBottom: "0.75rem",
         }}>
-          {[1, 2, 3].map((s) => (
+          {[1, 2, 3, 4].map((s) => (
             <div
               key={s}
               style={{
@@ -174,18 +175,18 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
           ))}
         </div>
         <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
-          Paso {step} de 3
+          Paso {step} de 4
         </p>
       </div>
 
       {step === 1 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          <h3 style={{ margin: 0, fontSize: "1rem" }}>Datos laborales</h3>
+          <h3 style={{ margin: 0, fontSize: "1rem" }}>Categoría y contratación</h3>
           <Input
             label="Categoría (nombre o código)"
             value={form.categoryName}
             onChange={(e) => handleChange("categoryName", e.target.value)}
-            placeholder="Ej: ABOGADO 80"
+            placeholder="Ej: TÉCNICO RADIÓLOGO 80"
           />
           <Select
             id="employmentType"
@@ -222,11 +223,47 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
 
       {step === 2 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <h3 style={{ margin: 0, fontSize: "1rem" }}>Unidad y adscripción</h3>
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0 }}>
+            Opcional. Ayuda a determinar conceptos específicos.
+          </p>
+          <Input
+            label="OOAD (Órgano de Operación Administrativa)"
+            value={form.ooad}
+            onChange={(e) => handleChange("ooad", e.target.value)}
+            placeholder="Ej: CDMX Norte"
+          />
+          <Input
+            label="Región"
+            value={form.region}
+            onChange={(e) => handleChange("region", e.target.value)}
+            placeholder="Ej: Ciudad de México"
+          />
+          <Input
+            label="Código de unidad"
+            value={form.unitCode}
+            onChange={(e) => handleChange("unitCode", e.target.value)}
+          />
+          <Input
+            label="Código de servicio"
+            value={form.serviceCode}
+            onChange={(e) => handleChange("serviceCode", e.target.value)}
+          />
+          <Input
+            label="Código de puesto"
+            value={form.positionCode}
+            onChange={(e) => handleChange("positionCode", e.target.value)}
+          />
+        </div>
+      )}
+
+      {step === 3 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
           <h3 style={{ margin: 0, fontSize: "1rem" }}>Antigüedad reflejada en tu último tarjetón</h3>
           <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0 }}>
-            Captura los a&ntilde;os, meses y d&iacute;as que aparecen en tu &uacute;ltimo
-            recibo de n&oacute;mina. A partir de eso, el simulador calcular&aacute; autom&aacute;ticamente
-            tu antig&uuml;edad actual.
+            Captura los años, meses y días que aparecen en tu último
+            recibo de nómina. A partir de eso, el simulador calculará automáticamente
+            tu antigüedad actual.
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
             <Input
@@ -263,14 +300,13 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
             onChange={(e) => handleChange("seniorityRefDate", e.target.value)}
           />
           <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
-            Ejemplo: si tu tarjet&oacute;n de la primera quincena de enero 2025 mostraba
-            10 a&ntilde;os 3 meses 15 d&iacute;as, captura eso y la fecha 2025-01-15.
-            El sistema calcular&aacute; tu antig&uuml;edad actual autom&aacute;ticamente.
+            Ejemplo: si tu tarjetón de la primera quincena de enero 2025 mostraba
+            10 años 3 meses 15 días, captura eso y la fecha 2025-01-15.
           </p>
         </div>
       )}
 
-      {step === 3 && (
+      {step === 4 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
           <h3 style={{ margin: 0, fontSize: "1rem" }}>Condiciones laborales</h3>
           <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0 }}>
@@ -290,8 +326,8 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
               onChange={() => toggleCondition("radiation_non_medical")}
             />
             <div>
-              <div style={{ fontWeight: 500, fontSize: "0.875rem" }}>Emanaciones Radiactivas no M&eacute;dicas</div>
-              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Exposici&oacute;n constante y permanente</div>
+              <div style={{ fontWeight: 500, fontSize: "0.875rem" }}>Emanaciones Radiactivas no Médicas</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Exposición constante y permanente</div>
             </div>
           </label>
 
@@ -307,7 +343,7 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
                 )}
                 onChange={(e) => setPermanentExposure(e.target.checked)}
               />
-              Exposici&oacute;n constante y permanente
+              Exposición constante y permanente
             </label>
           )}
 
@@ -324,8 +360,8 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
               onChange={() => toggleCondition("nursing")}
             />
             <div>
-              <div style={{ fontWeight: 500, fontSize: "0.875rem" }}>Enfermer&iacute;a</div>
-              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Personal de enfermer&iacute;a</div>
+              <div style={{ fontWeight: 500, fontSize: "0.875rem" }}>Enfermería</div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Personal de enfermería</div>
             </div>
           </label>
         </div>
@@ -341,7 +377,7 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
             Anterior
           </Button>
         ) : <div />}
-        {step < 3 ? (
+        {step < 4 ? (
           <Button onClick={() => setStep((s) => s + 1)}>Siguiente</Button>
         ) : (
           <Button onClick={handleSave}>Guardar perfil</Button>

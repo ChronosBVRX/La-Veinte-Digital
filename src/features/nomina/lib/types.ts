@@ -54,6 +54,72 @@ export interface RecurringConceptOverride {
   confirmed: boolean
 }
 
+export type PayrollFactKey =
+  | "has_discontinuous_schedule"
+  | "discontinuous_schedule_in_appointment"
+  | "performs_academic_activities"
+  | "participates_in_teaching"
+  | "participates_in_research"
+  | "participates_in_transplant_program"
+  | "works_in_emergency_transport"
+  | "performs_patient_transport"
+  | "permanent_radiation_exposure"
+  | "has_professional_degree"
+  | "has_professional_license"
+  | "concept_02_on_payslip"
+  | "concept_012_on_payslip"
+  | "concept_013_on_payslip"
+  | "concept_051_on_payslip"
+  | "concept_054_on_payslip"
+  | "concept_057_on_payslip"
+  | "concept_058_on_payslip"
+  | "concept_061_on_payslip"
+  | "concept_062_on_payslip"
+  | "concept_072_on_payslip"
+  | "concept_078_on_payslip"
+  | "concept_083_on_payslip"
+
+export type PayrollFactValue = boolean | string | number | null
+
+export interface PayrollFact {
+  key: PayrollFactKey
+  value: PayrollFactValue
+  source: "profile" | "last_payslip" | "multiple_payslips" | "user" | "appointment_document" | "catalog" | "calculated"
+  confidence: number
+  effectiveFrom?: string
+  effectiveTo?: string
+  updatedAt: string
+}
+
+export interface SiapConceptMark {
+  conceptCode: string
+  status: "confirmed" | "user_reported" | "inferred_from_payslip" | "unknown" | "not_authorized" | "expired"
+  effectiveFrom?: string
+  effectiveTo?: string
+  source: "siap" | "last_payslip" | "appointment_document" | "user"
+}
+
+export interface RecurringConceptEvidence {
+  conceptCode: string
+  appearsNormally: boolean | null
+  lastAmount?: number
+  source: "last_payslip" | "multiple_payslips" | "appointment_document" | "user"
+  firstSeenAt?: string
+  lastSeenAt?: string
+  confirmed: boolean
+}
+
+export interface ResolvedProfileCategory {
+  categoryId: string
+  categoryCode?: string
+  categoryName: string
+  workdayCode?: string
+  workdayHours: number
+  catalogSourceId: string
+  resolvedAt: string
+  resolutionMethod: "id" | "code" | "exact_name" | "alias" | "fuzzy" | "manual"
+}
+
 export interface EmployeePayrollProfile {
   id: string
   userId: string
@@ -63,10 +129,20 @@ export interface EmployeePayrollProfile {
   categoryId?: string
   categoryName?: string
   categoryCode?: string
-
-  employmentType: EmploymentType
+  workdayCode?: string
   workdayHours: JornadaHoras
   shift?: Shift
+
+  employmentType: EmploymentType
+
+  ooad?: string
+  region?: string
+  unitCode?: string
+  unitName?: string
+  serviceCode?: string
+  serviceName?: string
+  positionCode?: string
+  responsibilityArea?: string
 
   institutionalEntryDate?: string
   effectiveSeniorityDate?: string
@@ -78,7 +154,17 @@ export interface EmployeePayrollProfile {
     referenceDate: string
   }
 
+  professionalCredentials?: {
+    hasProfessionalDegree: boolean | null
+    hasProfessionalLicense: boolean | null
+    confirmedByUser: boolean
+    effectiveFrom?: string
+  }
+
   occupationalConditions: OccupationalCondition[]
+  facts: PayrollFact[]
+  siapConceptMarks: SiapConceptMark[]
+  recurringConcepts: RecurringConceptEvidence[]
   recurringConceptOverrides?: RecurringConceptOverride[]
 
   lastPayslipId?: string
@@ -136,9 +222,22 @@ export type PayrollConceptNature =
 export type RuleVerificationStatus =
   | "contract_verified"
   | "regulation_verified"
-  | "app_reconstructed"
+  | "institutional_catalog_verified"
   | "empirically_verified"
+  | "app_reconstructed"
   | "pending_validation"
+
+export type ConceptNature = "base" | "fixed" | "derived" | "seniority_based" | "incident_based" | "periodic" | "extraordinary" | "manual"
+
+export type MathematicalStatus = "calculated" | "missing_base" | "formula_pending_validation"
+export type EligibilityStatus = "confirmed" | "probable" | "requires_answer" | "not_eligible" | "insufficient_data"
+export type AdministrativeStatus = "confirmed" | "confirmed_from_payslip" | "user_reported" | "unknown" | "not_authorized" | "expired"
+
+export interface ConceptEvaluationStatus {
+  mathematicalStatus: MathematicalStatus
+  eligibilityStatus: EligibilityStatus
+  administrativeStatus: AdministrativeStatus
+}
 
 export interface LegalBasis {
   source: "CCT" | "regulation" | "salary_table" | "institutional_catalog" | "reconstructed_application" | "user_confirmation"
@@ -179,6 +278,7 @@ export interface CalculatedPayrollConcept {
   source: "salary_table" | "contract_rule" | "regulation_rule" | "last_payslip" | "user_input" | "estimated_tax" | "reconstructed_rule"
   confidence: "high" | "medium" | "low" | "requires_confirmation"
   verificationStatus: RuleVerificationStatus
+  evaluationStatus?: ConceptEvaluationStatus
   dependencies: { code: string; amount: number }[]
   calculationSteps: CalculationStep[]
   legalBasis: LegalBasis[]
@@ -270,6 +370,20 @@ export interface ImportedPayslipLine {
   confirmedByUser: boolean
 }
 
+export interface ProjectionTotals {
+  confirmedEarnings: number
+  probableEarnings: number
+  conditionalPotentialEarnings: number
+  confirmedDeductions: number
+  estimatedDeductions: number
+  confirmedGross: number
+  possibleGross: number
+  confirmedNet?: number
+  estimatedNetRange?: { minimum: number; maximum: number }
+}
+
+export type ProjectionMode = "strict" | "assisted" | "exploratory"
+
 export interface PayrollProjection {
   id: string
   userId: string
@@ -279,6 +393,10 @@ export interface PayrollProjection {
   seniorityAtPeriodEnd: SeniorityResult
   earnings: CalculatedPayrollConcept[]
   deductions: CalculatedPayrollConcept[]
+  probableConcepts: CalculatedPayrollConcept[]
+  conditionalConcepts: CalculatedPayrollConcept[]
+  excludedConcepts: CalculatedPayrollConcept[]
+  totals: ProjectionTotals
   totalEarnings: number
   totalDeductions: number
   estimatedNet: number
@@ -286,7 +404,7 @@ export interface PayrollProjection {
   warnings: string[]
   unresolvedConcepts: string[]
   requiredConfirmations: string[]
-  mode: "strict" | "assisted" | "experimental"
+  mode: ProjectionMode
   snapshot?: PayrollProjectionSnapshot
 }
 

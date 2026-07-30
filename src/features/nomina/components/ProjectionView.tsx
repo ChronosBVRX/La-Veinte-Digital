@@ -23,6 +23,23 @@ function ConceptRow({ concept }: { concept: CalculatedPayrollConcept }) {
     requires_confirmation: "info",
   }
 
+  const statusLabels: Record<string, string> = {
+    confirmed: "Confirmado",
+    probable: "Probable",
+    requires_answer: "C/R",
+    not_eligible: "No elegible",
+    insufficient_data: "Sin datos",
+    confirmed_from_payslip: "En tarjetón",
+    user_reported: "Reportado",
+    unknown: "No confirmado",
+    not_authorized: "No autorizado",
+    calculated: "Calculado",
+    missing_base: "Sin base",
+    formula_pending_validation: "Pendiente",
+  }
+
+  const evalStatus = concept.evaluationStatus
+
   return (
     <div style={{
       borderBottom: "1px solid var(--border)",
@@ -46,11 +63,25 @@ function ConceptRow({ concept }: { concept: CalculatedPayrollConcept }) {
         <span style={{ fontWeight: 600, fontSize: "0.875rem", fontVariantNumeric: "tabular-nums" }}>
           {formatCurrency(concept.amount)}
         </span>
-        <Badge variant={confidenceColor[concept.confidence] ?? "default"} size="sm">
-          {concept.confidence === "high" ? "Alta" :
-           concept.confidence === "medium" ? "Media" :
-           concept.confidence === "low" ? "Baja" : "C/R"}
-        </Badge>
+        {evalStatus && (
+          <Badge
+            variant={
+              evalStatus.administrativeStatus === "confirmed" || evalStatus.administrativeStatus === "confirmed_from_payslip"
+                ? "success"
+                : evalStatus.eligibilityStatus === "probable"
+                ? "warning"
+                : evalStatus.eligibilityStatus === "requires_answer"
+                ? "info"
+                : "default"
+            }
+            size="sm"
+          >
+            {statusLabels[evalStatus.administrativeStatus === "confirmed" || evalStatus.administrativeStatus === "confirmed_from_payslip"
+              ? evalStatus.administrativeStatus
+              : evalStatus.eligibilityStatus
+            ] ?? concept.confidence}
+          </Badge>
+        )}
         {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </div>
 
@@ -60,9 +91,19 @@ function ConceptRow({ concept }: { concept: CalculatedPayrollConcept }) {
           background: "var(--accent)", borderRadius: "var(--radius)",
           fontSize: "0.75rem", lineHeight: 1.6,
         }}>
+          {evalStatus && (
+            <div style={{ marginBottom: "0.5rem" }}>
+              <strong>Evaluación:</strong>
+              <ul style={{ margin: "0.25rem 0 0", paddingLeft: "1rem" }}>
+                <li>Matemático: {statusLabels[evalStatus.mathematicalStatus]}</li>
+                <li>Elegibilidad: {statusLabels[evalStatus.eligibilityStatus]}</li>
+                <li>Administrativo: {statusLabels[evalStatus.administrativeStatus]}</li>
+              </ul>
+            </div>
+          )}
           {concept.calculationSteps.length > 0 && (
             <div style={{ marginBottom: "0.5rem" }}>
-              <strong>Pasos:</strong>
+              <strong>Cómo se calculó:</strong>
               <ol style={{ margin: "0.25rem 0 0", paddingLeft: "1.25rem" }}>
                 {concept.calculationSteps.map((s, i) => (
                   <li key={i}>{s.label}: {s.expression} = {formatCurrency(s.value)}</li>
@@ -97,13 +138,17 @@ function ConceptRow({ concept }: { concept: CalculatedPayrollConcept }) {
 }
 
 export function ProjectionView({ projection, onBack }: ProjectionViewProps) {
-  const handlePrint = () => {
-    window.print()
+  const handlePrint = () => { window.print() }
+
+  const confLabel: Record<string, string> = {
+    high: "Alta", medium: "Media", low: "Baja",
   }
 
-  const confidenceLabel =
-    projection.confidence === "high" ? "Alta" :
-    projection.confidence === "medium" ? "Media" : "Baja"
+  const showEarnings = projection.earnings.length > 0
+  const showProbable = projection.probableConcepts.length > 0
+  const showConditional = projection.conditionalConcepts.length > 0
+  const showExcluded = projection.excludedConcepts.length > 0
+  const t = projection.totals
 
   return (
     <div style={{ maxWidth: "700px", margin: "0 auto" }}>
@@ -133,8 +178,8 @@ export function ProjectionView({ projection, onBack }: ProjectionViewProps) {
         }}>
           <div><strong>Periodo:</strong> {projection.period.label}</div>
           <div><strong>Categoría:</strong> {projection.category.categoryName}</div>
-          <div><strong>Antigüedad:</strong> {projection.seniorityAtPeriodEnd.years} a&ntilde;os, {projection.seniorityAtPeriodEnd.months} meses</div>
-          <div><strong>Confianza:</strong> {confidenceLabel}</div>
+          <div><strong>Antigüedad:</strong> {projection.seniorityAtPeriodEnd.years}a {projection.seniorityAtPeriodEnd.months}m</div>
+          <div><strong>Confianza:</strong> {confLabel[projection.confidence] ?? projection.confidence}</div>
           <div><strong>Modo:</strong> {projection.mode}</div>
         </div>
 
@@ -155,18 +200,78 @@ export function ProjectionView({ projection, onBack }: ProjectionViewProps) {
           fontSize: "0.8125rem", fontWeight: 600, margin: "0 0 0.5rem",
           color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em",
         }}>
-          Percepciones
+          Percepciones Confirmadas
         </h3>
         <div style={{ marginBottom: "1.25rem" }}>
-          {projection.earnings.length === 0 && (
+          {showEarnings ? projection.earnings.map((c) => (
+            <ConceptRow key={c.code} concept={c} />
+          )) : (
             <p style={{ fontSize: "0.8125rem", color: "var(--muted)", fontStyle: "italic" }}>
-              Sin percepciones calculadas
+              Sin percepciones confirmadas
             </p>
           )}
-          {projection.earnings.map((c) => (
-            <ConceptRow key={c.code} concept={c} />
-          ))}
         </div>
+
+        {showProbable && (
+          <>
+            <h3 style={{
+              fontSize: "0.8125rem", fontWeight: 600, margin: "0 0 0.5rem",
+              color: "var(--warning)", textTransform: "uppercase", letterSpacing: "0.05em",
+            }}>
+              Percepciones Probables
+            </h3>
+            <div style={{ marginBottom: "1.25rem" }}>
+              {projection.probableConcepts.map((c) => (
+                <ConceptRow key={`prob-${c.code}`} concept={c} />
+              ))}
+              <p style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.375rem" }}>
+                Requieren confirmar la asociaci&oacute;n administrativa o su aparici&oacute;n en un tarjet&oacute;n anterior.
+              </p>
+            </div>
+          </>
+        )}
+
+        {showConditional && (
+          <>
+            <h3 style={{
+              fontSize: "0.8125rem", fontWeight: 600, margin: "0 0 0.5rem",
+              color: "var(--info)", textTransform: "uppercase", letterSpacing: "0.05em",
+            }}>
+              Conceptos Condicionados
+            </h3>
+            <div style={{ marginBottom: "1.25rem" }}>
+              {projection.conditionalConcepts.map((c) => (
+                <ConceptRow key={`cond-${c.code}`} concept={c} />
+              ))}
+              <p style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.375rem" }}>
+                Podr&iacute;an aplicar, pero falta informaci&oacute;n para confirmarlos.
+              </p>
+            </div>
+          </>
+        )}
+
+        {showExcluded && (
+          <>
+            <h3 style={{
+              fontSize: "0.8125rem", fontWeight: 600, margin: "0 0 0.5rem",
+              color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em",
+            }}>
+              Conceptos No Incluidos
+            </h3>
+            <div style={{ marginBottom: "1.25rem" }}>
+              {projection.excludedConcepts.map((c) => (
+                <div key={`excl-${c.code}`} style={{ fontSize: "0.8125rem", padding: "0.375rem 0", color: "var(--muted)" }}>
+                  <strong>{c.code}</strong> {c.name}
+                  {c.warnings.length > 0 && (
+                    <span style={{ fontSize: "0.75rem", display: "block", color: "var(--warning)" }}>
+                      {c.warnings[0]}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
         <h3 style={{
           fontSize: "0.8125rem", fontWeight: 600, margin: "0 0 0.5rem",
@@ -175,16 +280,15 @@ export function ProjectionView({ projection, onBack }: ProjectionViewProps) {
           Deducciones
         </h3>
         <div style={{ marginBottom: "1.25rem" }}>
-          {projection.deductions.length === 0 && (
-            <p style={{
-              fontSize: "0.8125rem", color: "var(--muted)", fontStyle: "italic",
-            }}>
+          {projection.deductions.length === 0 ? (
+            <p style={{ fontSize: "0.8125rem", color: "var(--muted)", fontStyle: "italic" }}>
               Sin deducciones calculadas
             </p>
+          ) : (
+            projection.deductions.map((c) => (
+              <ConceptRow key={c.code} concept={c} />
+            ))
           )}
-          {projection.deductions.map((c) => (
-            <ConceptRow key={c.code} concept={c} />
-          ))}
         </div>
 
         <div style={{
@@ -193,23 +297,46 @@ export function ProjectionView({ projection, onBack }: ProjectionViewProps) {
           fontSize: "0.875rem",
         }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Total percepciones</span>
-            <span style={{ fontWeight: 600 }}>{formatCurrency(projection.totalEarnings)}</span>
+            <span>Percepciones confirmadas</span>
+            <span style={{ fontWeight: 600 }}>{formatCurrency(t.confirmedEarnings)}</span>
           </div>
+          {t.probableEarnings > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", color: "var(--warning)" }}>
+              <span>Percepciones probables adicionales</span>
+              <span style={{ fontWeight: 600 }}>{formatCurrency(t.probableEarnings)}</span>
+            </div>
+          )}
+          {t.conditionalPotentialEarnings > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", color: "var(--info)" }}>
+              <span>M&aacute;ximo potencial identificado</span>
+              <span style={{ fontWeight: 600 }}>{formatCurrency(t.conditionalPotentialEarnings)}</span>
+            </div>
+          )}
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Total deducciones</span>
-            <span style={{ fontWeight: 600 }}>{formatCurrency(projection.totalDeductions)}</span>
+            <span>Deducciones confirmadas</span>
+            <span style={{ fontWeight: 600 }}>{formatCurrency(t.confirmedDeductions)}</span>
           </div>
           <div style={{
             display: "flex", justifyContent: "space-between",
             fontSize: "1rem", borderTop: "1px solid var(--border)",
             paddingTop: "0.5rem", marginTop: "0.25rem",
           }}>
-            <span style={{ fontWeight: 700 }}>Subtotal estimado de percepciones</span>
+            <span style={{ fontWeight: 700 }}>Percepciones estimadas</span>
             <span style={{ fontWeight: 700, color: "var(--primary)" }}>
-              {formatCurrency(projection.estimatedNet)}
+              {formatCurrency(t.confirmedEarnings + t.probableEarnings)}
             </span>
           </div>
+          {t.confirmedNet !== undefined && (
+            <div style={{
+              display: "flex", justifyContent: "space-between",
+              fontSize: "1rem",
+            }}>
+              <span style={{ fontWeight: 700 }}>Líquido estimado</span>
+              <span style={{ fontWeight: 700, color: "var(--primary)" }}>
+                {formatCurrency(t.confirmedNet)}
+              </span>
+            </div>
+          )}
         </div>
 
         {projection.requiredConfirmations.length > 0 && (

@@ -13,11 +13,12 @@ export interface SalaryDataRecord {
   sourceRecordId: string
 }
 
-export const SALARY_DATA: SalaryDataRecord[] = CATALOGO_CATEGORIAS.map((c) => ({
-  categoryId: c.nombre,
+export const SALARY_DATA: SalaryDataRecord[] = CATALOGO_CATEGORIAS.map((c, idx) => ({
+  categoryId: `${idx + 1}`,
   categoryName: c.nombre,
   categoryCode: c.nombre,
   workdayHours: deriveWorkdayHoursFromCategoryName(c.nombre) ?? 8,
+  monthlyBaseSalary: c.sueldoQuincenal * 2,
   biweeklyBaseSalary: c.sueldoQuincenal,
   effectiveFrom: "2025-01-01",
   sourceRecordId: `catalog:${c.nombre}`,

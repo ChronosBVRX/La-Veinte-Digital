@@ -3,14 +3,13 @@ import type {
   CalculatedPayrollConcept, EmployeePayrollProfile,
   ResolvedSalaryCategory, PayPeriod, SeniorityResult,
   PayrollIncident, RecurringConceptOverride,
+  ProjectionMode,
 } from "./types"
-import {
-  rule002, rule011, rule020, rule022, rule054, rule055, rule050,
-} from "./rules"
-
-export function getAllRules(): PayrollRule[] {
-  return [rule002, rule011, rule020, rule022, rule054, rule055, rule050]
-}
+import { evaluateEligibilityForConcept, type EligibilityResult } from "./eligibility"
+import { buildPendingQuestions, type ConditionalPayrollQuestion } from "./question-engine"
+import { buildAllBases } from "./repercussion-engine"
+import { calculateProjectionTotals } from "./totals"
+import { getAllRules } from "./rules"
 
 export function topologicalSort(rules: PayrollRule[]): PayrollRule[] {
   const visited = new Set<string>()
@@ -77,7 +76,7 @@ export function detectCircularDependencies(rules: PayrollRule[]): string[] {
 
 export function getUnresolvedConcepts(
   rules: PayrollRule[],
-  profile: EmployeePayrollProfile
+  profile: EmployeePayrollProfile,
 ): string[] {
   return rules
     .filter((r) => {
@@ -92,14 +91,25 @@ export function getUnresolvedConcepts(
     .map((r) => r.id)
 }
 
-export function calculateProjection(
-  profile: EmployeePayrollProfile,
-  category: ResolvedSalaryCategory,
-  period: PayPeriod,
-  seniority: SeniorityResult,
-  incidents: PayrollIncident[],
+export interface PayrollProjectionInput {
+  profile: EmployeePayrollProfile
+  category: ResolvedSalaryCategory
+  period: PayPeriod
+  seniority: SeniorityResult
+  incidents: PayrollIncident[]
   recurringConcepts: RecurringConceptOverride[]
-): PayrollProjection {
+  mode?: ProjectionMode
+}
+
+export interface PayrollProjectionResult {
+  projection: PayrollProjection
+  eligibilityResults: EligibilityResult[]
+  questions: ConditionalPayrollQuestion[]
+}
+
+export function calculateProjection(input: PayrollProjectionInput): PayrollProjectionResult {
+  const { profile, category, period, seniority, incidents, recurringConcepts, mode = "assisted" } = input
+
   const rules = getAllRules()
   const sorted = topologicalSort(rules)
   const calculatedConcepts = new Map<string, CalculatedPayrollConcept>()
@@ -133,14 +143,28 @@ export function calculateProjection(
     }
   }
 
+  const allConcepts = Array.from(calculatedConcepts.values())
+
   const earnings: CalculatedPayrollConcept[] = []
   const deductions: CalculatedPayrollConcept[] = []
+  const probableConcepts: CalculatedPayrollConcept[] = []
+  const conditionalConcepts: CalculatedPayrollConcept[] = []
+  const excludedConcepts: CalculatedPayrollConcept[] = []
 
-  for (const concept of calculatedConcepts.values()) {
-    if (concept.type === "earning" && concept.included) {
-      earnings.push(concept)
-    } else if (concept.type === "deduction" && concept.included) {
-      deductions.push(concept)
+  for (const concept of allConcepts) {
+    if (concept.type === "deduction") {
+      if (concept.included) deductions.push(concept)
+      else excludedConcepts.push(concept)
+    } else if (concept.type === "earning") {
+      if (concept.included && concept.confidence === "high") {
+        earnings.push(concept)
+      } else if (concept.included && concept.confidence === "medium") {
+        probableConcepts.push(concept)
+      } else if (!concept.included && concept.amount > 0) {
+        conditionalConcepts.push(concept)
+      } else if (!concept.included) {
+        excludedConcepts.push(concept)
+      }
     }
 
     if (!concept.included && concept.source !== "salary_table") {
@@ -148,19 +172,21 @@ export function calculateProjection(
     }
   }
 
+  const totals = calculateProjectionTotals(allConcepts, mode)
+
   const totalEarnings = earnings.reduce((s, c) => s + c.amount, 0)
   const totalDeductions = deductions.reduce((s, c) => s + c.amount, 0)
   const estimatedNet = totalEarnings - totalDeductions
 
   const confirmedCount = earnings.filter((c) => c.confidence === "high").length
-  const totalCount = earnings.length + deductions.length
+  const totalCount = allConcepts.length
   const confidenceLevel: "high" | "medium" | "low" =
     totalCount === 0 ? "low" :
     confirmedCount / totalCount >= 0.7 ? "high" :
     confirmedCount / totalCount >= 0.4 ? "medium" :
     "low"
 
-  return {
+  const projection: PayrollProjection = {
     id: crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     userId: profile.userId,
     generatedAt: new Date().toISOString(),
@@ -169,6 +195,10 @@ export function calculateProjection(
     seniorityAtPeriodEnd: seniority,
     earnings,
     deductions,
+    probableConcepts,
+    conditionalConcepts,
+    excludedConcepts,
+    totals,
     totalEarnings,
     totalDeductions,
     estimatedNet,
@@ -176,13 +206,21 @@ export function calculateProjection(
     warnings,
     unresolvedConcepts,
     requiredConfirmations,
-    mode: "assisted",
+    mode,
     snapshot: {
       categorySnapshot: category,
       ruleVersions: Object.fromEntries(rules.map((r) => [r.id, r.version])),
       profileSnapshot: { ...profile },
     },
   }
+
+  const eligibilityResults = allConcepts.map((c) =>
+    evaluateEligibilityForConcept(c.code, profile, category, profile.recurringConcepts)
+  )
+
+  const questions = buildPendingQuestions(profile, eligibilityResults, profile.facts)
+
+  return { projection, eligibilityResults, questions }
 }
 
 export function validateNoNaN(concept: CalculatedPayrollConcept): boolean {

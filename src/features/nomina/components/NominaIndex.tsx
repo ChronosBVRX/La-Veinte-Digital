@@ -4,6 +4,8 @@ import { useNomina } from "../hooks/useNomina"
 import { OptInConsent } from "./OptInConsent"
 import { NominaProfileWizard } from "./NominaProfileWizard"
 import { ProjectionView } from "./ProjectionView"
+import { CategoryResolutionCard } from "./CategoryResolutionCard"
+import { ConditionalQuestionsFlow } from "./ConditionalQuestionsFlow"
 import { Button } from "@/shared/components/ui/Button"
 import { Card } from "@/shared/components/ui/Card"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
@@ -11,13 +13,17 @@ import {
   User, FileText, Trash2,
   ArrowRight, RefreshCw, BarChart3,
 } from "lucide-react"
+import { Badge } from "@/shared/components/ui/Badge"
 
 export function NominaIndex() {
   const {
-    consented, profile, category, seniority, period, projection,
-    projections, step, loading, hydrating,
+    consented, profile, category, categoryState, seniority, period,
+    projection, projections, step, loading, hydrating,
+    pendingQuestions, questionAnswers,
     giveConsent, revokeConsent, updateProfile,
+    resolveAmbiguousCategory,
     generateProjection, resetProfile, setStep, selectProjection,
+    answerQuestion,
   } = useNomina()
 
   if (loading) {
@@ -28,9 +34,7 @@ export function NominaIndex() {
     return (
       <OptInConsent
         onAccept={giveConsent}
-        onDecline={() => {
-          window.history.back?.()
-        }}
+        onDecline={() => { window.history.back?.() }}
       />
     )
   }
@@ -51,6 +55,46 @@ export function NominaIndex() {
     )
   }
 
+  if (categoryState.status === "ambiguous") {
+    return (
+      <CategoryResolutionCard
+        matches={categoryState.matches ?? []}
+        onSelect={resolveAmbiguousCategory}
+        onRetry={() => setStep("profile")}
+      />
+    )
+  }
+
+  if (categoryState.status === "resolving") {
+    return <LoadingSpinner text="Estamos identificando tu categoría..." />
+  }
+
+  if (categoryState.status === "not_found") {
+    return (
+      <div style={{ maxWidth: "560px", margin: "2rem auto" }}>
+        <Card padding="1.5rem" style={{ textAlign: "center" }}>
+          <h3 style={{ margin: "0 0 0.5rem" }}>Categoría no encontrada</h3>
+          <p style={{ fontSize: "0.875rem", color: "var(--muted)", marginBottom: "1rem" }}>
+            No pudimos identificar tu categor&iacute;a &ldquo;{categoryState.originalValue}&rdquo;.
+            Revisa el nombre en tu tarjet&oacute;n e int&eacute;ntalo de nuevo.
+          </p>
+          <Button onClick={() => setStep("profile")}>Volver al perfil</Button>
+        </Card>
+      </div>
+    )
+  }
+
+  if (step === "questions" && pendingQuestions.length > 0) {
+    return (
+      <ConditionalQuestionsFlow
+        questions={pendingQuestions}
+        onAnswer={answerQuestion}
+        onSkip={() => setStep("ready")}
+        onGenerate={() => setStep("ready")}
+      />
+    )
+  }
+
   if (step === "projection" && projection) {
     return (
       <ProjectionView
@@ -59,10 +103,6 @@ export function NominaIndex() {
       />
     )
   }
-
-  const updatedLabel = profile
-    ? "Actualizado recientemente"
-    : ""
 
   return (
     <div style={{ maxWidth: "700px", margin: "0 auto" }}>
@@ -75,7 +115,7 @@ export function NominaIndex() {
             Proyecci&oacute;n de N&oacute;mina
           </h1>
           <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginTop: "0.25rem" }}>
-            M&oacute;dulo opcional de estimaci&oacute;n salarial
+            Simulador de tarjet&oacute;n del IMSS
           </p>
         </div>
         <Button variant="ghost" onClick={revokeConsent} style={{ fontSize: "0.75rem" }}>
@@ -98,8 +138,7 @@ export function NominaIndex() {
                 {profile.categoryName || "Perfil laboral"}
               </div>
               <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-                {profile.employmentType} &middot; {profile.workdayHours}h &middot;
-                {updatedLabel}
+                {profile.employmentType} &middot; {profile.workdayHours}h
               </div>
             </div>
             <Button variant="ghost" size="sm" onClick={resetProfile} style={{ marginLeft: "auto" }}>
@@ -112,6 +151,9 @@ export function NominaIndex() {
               <span><strong>Sueldo quincenal:</strong> ${category.biweeklyBaseSalary.toFixed(2)}</span>
               {seniority && (
                 <span><strong>Antigüedad:</strong> {seniority.years}a {seniority.months}m</span>
+              )}
+              {period && (
+                <span><strong>Periodo:</strong> {period.label}</span>
               )}
             </div>
           )}
@@ -140,7 +182,7 @@ export function NominaIndex() {
                 }}
               >
                 <span>{p.period.label}</span>
-                <span style={{ fontWeight: 600 }}>${p.estimatedNet.toFixed(2)}</span>
+                <span style={{ fontWeight: 600 }}>${p.totalEarnings.toFixed(2)}</span>
               </button>
             ))}
           </div>
@@ -174,9 +216,26 @@ export function NominaIndex() {
             )
           }
           return (
-            <Button onClick={() => generateProjection()}>
-              <FileText size={16} /> Generar proyecci&oacute;n <ArrowRight size={16} />
-            </Button>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "center" }}>
+              <Button onClick={() => {
+                const result = generateProjection("assisted")
+                if (result && result.questions.length > 0) {
+                  setStep("questions")
+                }
+              }}>
+                <FileText size={16} /> Generar proyecci&oacute;n <ArrowRight size={16} />
+              </Button>
+              {pendingQuestions.length > 0 && (
+                <span
+                  onClick={() => setStep("questions")}
+                  style={{ cursor: "pointer" }}
+                >
+                  <Badge variant="info" size="sm">
+                    {pendingQuestions.length} pregunta{pendingQuestions.length > 1 ? "s" : ""} opcional{pendingQuestions.length > 1 ? "es" : ""} para afinar
+                  </Badge>
+                </span>
+              )}
+            </div>
           )
         })()}
       </Card>
