@@ -125,7 +125,7 @@ export function useNomina() {
     patch({ consented: false, profile: null, projections: [], step: "consent" })
   }, [patch])
 
-  const updateProfile = useCallback((p: EmployeePayrollProfile) => {
+  const updateProfile = useCallback(async (p: EmployeePayrollProfile) => {
     saveProfile(p)
     saveConsent(true)
 
@@ -140,10 +140,14 @@ export function useNomina() {
       setPeriod(getCurrentPayPeriod(today))
     }
 
+    let resolved = false
     if (p.categoryName) {
-      resolveSalaryCategoryByName(p.categoryName, new Date().toISOString().slice(0, 10)).then((cat) => {
-        if (cat) setCategoryState(cat)
-      })
+      const cleanName = p.categoryName.replace(/\s+/g, " ").trim()
+      const cat = await resolveSalaryCategoryByName(cleanName, new Date().toISOString().slice(0, 10))
+      if (cat) {
+        setCategoryState(cat)
+        resolved = true
+      }
     }
 
     const step: NominaStep = p.occupationalConditions.length > 0 ? "ready" : "conditions"

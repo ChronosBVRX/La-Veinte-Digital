@@ -6,8 +6,11 @@ export async function resolveSalaryCategory(
   _projectionDate: string
 ): Promise<ResolvedSalaryCategory | null> {
   void _projectionDate
+  const normalized = categoryId.replace(/\s+/g, " ").trim().toLowerCase()
   const record = SALARY_DATA.find(
-    (s) => s.categoryId === categoryId || s.categoryName === categoryId
+    (s) =>
+      s.categoryId.replace(/\s+/g, " ").trim().toLowerCase() === normalized ||
+      s.categoryName.replace(/\s+/g, " ").trim().toLowerCase() === normalized
   )
 
   if (!record) {

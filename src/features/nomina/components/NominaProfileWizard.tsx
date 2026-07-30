@@ -52,7 +52,7 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
         .single()
         .then(({ data }) => {
           if (!data?.categoria) return
-          const cat = data.categoria
+          const cat = data.categoria.replace(/\s+/g, " ").trim()
           setForm((prev) => ({
             ...prev,
             categoryName: cat,

@@ -10,11 +10,11 @@ export const CATALOGO_CATEGORIAS: CategoriaSalarial[] = catalogData as Categoria
 
 const CATEGORIA_MAP = new Map<string, CategoriaSalarial>()
 for (const c of CATALOGO_CATEGORIAS) {
-  CATEGORIA_MAP.set(c.nombre.toLowerCase(), c)
+  CATEGORIA_MAP.set(c.nombre.replace(/\s+/g, " ").toLowerCase(), c)
 }
 
 export function findCategoria(nombre: string): CategoriaSalarial | undefined {
-  const norm = nombre.toLowerCase().trim()
+  const norm = nombre.replace(/\s+/g, " ").toLowerCase().trim()
   const exact = CATEGORIA_MAP.get(norm)
   if (exact) return exact
 
