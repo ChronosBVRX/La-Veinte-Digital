@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { Bot, FileText, User, ArrowRight, Shield, Globe, BarChart3, Calendar } from "lucide-react"
+import { FileText, User, ArrowRight, Shield, Globe, BarChart3, Calendar } from "lucide-react"
 import { FacebookFeeds } from "@/features/facebook/components/FacebookFeeds"
 import { CalendarioMensual } from "@/features/calendario/components/CalendarioMensual"
 import { TodayCard } from "@/shared/components/layout/TodayCard"
@@ -16,19 +16,6 @@ export default async function DashboardPage() {
     .select("*")
     .eq("id", user.id)
     .single()
-
-  const { data: recentPosts } = await supabase
-    .from("forum_posts")
-    .select("id, title, created_at")
-    .order("created_at", { ascending: false })
-    .limit(3)
-
-  const quickActions = [
-    { href: "/asistente", label: "Asistente SNTSS", desc: "Resuelve dudas laborales", icon: Bot, gradient: "linear-gradient(135deg, #2563eb, #6366f1)" },
-    { href: "/escritos", label: "Generar Escritos", desc: "Documentos oficiales PDF", icon: FileText, gradient: "linear-gradient(135deg, #059669, #10b981)" },
-    { href: "/foro", label: "Foro de Discusión", desc: "Participa en la comunidad", icon: ArrowRight, gradient: "linear-gradient(135deg, #d97706, #f59e0b)" },
-    { href: "/nomina", label: "Proyección de Nómina", desc: "Estima tu próximo pago", icon: BarChart3, gradient: "linear-gradient(135deg, #7c3aed, #a855f7)" },
-  ]
 
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
@@ -72,49 +59,6 @@ export default async function DashboardPage() {
         display: "grid", gridTemplateColumns: "1fr 1fr",
         gap: "1rem", marginBottom: "1.5rem",
       }}>
-        <div style={{
-          background: "var(--card)", border: "1px solid var(--border)",
-          borderRadius: "var(--radius-lg)", padding: "1.25rem",
-        }}>
-          <h2 style={{ fontSize: "0.9375rem", fontWeight: 600, margin: "0 0 0.75rem", color: "var(--muted)" }}>
-            Accesos directos
-          </h2>
-          <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr",
-            gap: "0.625rem",
-          }}>
-            {quickActions.map((action) => {
-              const Icon = action.icon
-              return (
-                <Link
-                  key={action.href}
-                  href={action.href}
-                  className="hover-lift"
-                  style={{
-                    textDecoration: "none", color: "inherit",
-                    padding: "0.875rem", borderRadius: "var(--radius)",
-                    display: "flex", flexDirection: "column", gap: "0.5rem",
-                    background: "var(--accent)",
-                  }}
-                >
-                  <div style={{
-                    width: 34, height: 34, borderRadius: "0.625rem",
-                    background: action.gradient, display: "flex",
-                    alignItems: "center", justifyContent: "center", flexShrink: 0,
-                  }}>
-                    <Icon size={17} color="white" />
-                  </div>
-                  <div>
-                    <p style={{ fontSize: "0.8125rem", fontWeight: 600, margin: 0, lineHeight: 1.2 }}>
-                      {action.label}
-                    </p>
-                  </div>
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-
         <CalendarioMensual />
 
         <div style={{
@@ -154,44 +98,6 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div style={{
-          background: "var(--card)", border: "1px solid var(--border)",
-          borderRadius: "var(--radius-lg)", padding: "1.25rem",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
-            <h2 style={{ fontSize: "0.9375rem", fontWeight: 600, margin: 0, color: "var(--muted)" }}>
-              <ArrowRight size={14} style={{ marginRight: "0.375rem", verticalAlign: "middle", color: "var(--primary)" }} />
-              &Uacute;ltimas publicaciones
-            </h2>
-            <Link href="/foro" style={{ fontSize: "0.75rem", color: "var(--primary)", textDecoration: "none" }}>
-              Ver todas
-            </Link>
-          </div>
-          {recentPosts && recentPosts.length > 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              {recentPosts.map((post) => (
-                <Link
-                  key={post.id}
-                  href={`/foro/${post.id}`}
-                  style={{
-                    display: "block", textDecoration: "none", color: "inherit",
-                    padding: "0.625rem 0.75rem", borderRadius: "var(--radius-sm)",
-                    background: "var(--accent)", transition: "background var(--transition)",
-                  }}
-                >
-                  <p style={{ fontSize: "0.8125rem", fontWeight: 500, margin: 0 }}>{post.title}</p>
-                  <p style={{ fontSize: "0.6875rem", color: "var(--muted)", margin: "0.125rem 0 0" }}>
-                    {post.created_at ? new Date(post.created_at).toLocaleDateString("es-MX", { month: "short", day: "numeric" }) : ""}
-                  </p>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0 }}>
-              No hay publicaciones a&uacute;n. <Link href="/foro/nuevo" style={{ color: "var(--primary)" }}>¡Crea la primera!</Link>
-            </p>
-          )}
-        </div>
       </div>
 
       <div>

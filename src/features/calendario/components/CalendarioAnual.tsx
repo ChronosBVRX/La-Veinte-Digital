@@ -14,7 +14,7 @@ const EVENT_ABBR: Record<CalendarEventType, string> = {
   jubilados: "J",
 }
 
-function MonthCalendar({ year, monthIndex }: { year: number; monthIndex: number }) {
+function MonthCalendar({ year, monthIndex, today }: { year: number; monthIndex: number; today: { date: number; month: number; year: number } }) {
   const monthData = CALENDARIOS[year]?.[monthIndex]
   if (!monthData) return null
 
@@ -60,6 +60,7 @@ function MonthCalendar({ year, monthIndex }: { year: number; monthIndex: number 
         {days.map(({ day, events }) => {
           const hasInteractivo = events.some((e) => e.type === "interactivo")
           const otherEvents = events.filter((e) => e.type !== "interactivo")
+          const isToday = day === today.date && monthIndex === today.month && year === today.year
 
           return (
             <div
@@ -68,9 +69,11 @@ function MonthCalendar({ year, monthIndex }: { year: number; monthIndex: number 
               style={{
                 textAlign: "center", padding: "0.125rem 0",
                 borderRadius: "2px", fontSize: "0.625rem",
-                fontWeight: hasInteractivo ? 700 : 500,
-                background: hasInteractivo ? EVENT_COLORS.interactivo : events.length > 0 ? "var(--accent)" : "transparent",
-                color: hasInteractivo ? "#0f172a" : undefined,
+                fontWeight: hasInteractivo ? 700 : isToday ? 700 : 500,
+                background: hasInteractivo ? EVENT_COLORS.interactivo : events.length > 0 ? "var(--accent)" : isToday ? "var(--primary)" : "transparent",
+                color: isToday && !hasInteractivo ? "var(--primary-fg)" : hasInteractivo ? "#0f172a" : undefined,
+                outline: isToday && !hasInteractivo ? "2px solid var(--primary)" : undefined,
+                outlineOffset: isToday && !hasInteractivo ? "-2px" : undefined,
               }}
             >
               {day}
@@ -119,7 +122,7 @@ export function CalendarioAnual() {
         gap: "1rem",
       }}>
         {months.map((_, i) => (
-          <MonthCalendar key={i} year={displayYear} monthIndex={i} />
+          <MonthCalendar key={i} year={displayYear} monthIndex={i} today={{ date: now.getDate(), month: now.getMonth(), year: now.getFullYear() }} />
         ))}
       </div>
 

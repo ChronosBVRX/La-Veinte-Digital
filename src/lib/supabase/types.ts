@@ -60,6 +60,12 @@ export type Database = {
         Update: { author_id?: string; category_id?: string | null; content?: string; created_at?: string | null; id?: string; is_locked?: boolean | null; is_pinned?: boolean | null; title?: string; updated_at?: string | null }
         Relationships: [{ foreignKeyName: "forum_posts_author_id_fkey"; columns: ["author_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] }, { foreignKeyName: "forum_posts_category_id_fkey"; columns: ["category_id"]; isOneToOne: false; referencedRelation: "forum_categories"; referencedColumns: ["id"] }]
       }
+      bitacora_entries: {
+        Row: { created_at: string | null; description: string | null; entry_date: string; entry_type: string; id: string; user_id: string }
+        Insert: { created_at?: string | null; description?: string | null; entry_date: string; entry_type: string; id?: string; user_id: string }
+        Update: { created_at?: string | null; description?: string | null; entry_date?: string; entry_type?: string; id?: string; user_id?: string }
+        Relationships: [{ foreignKeyName: "bitacora_entries_user_id_fkey"; columns: ["user_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] }]
+      }
       profiles: {
         Row: { adscripcion: string | null; antiguedad: string | null; avatar_url: string | null; categoria: string | null; created_at: string | null; full_name: string | null; id: string; is_online: boolean | null; matricula: string | null; phone: string | null; role: string | null; updated_at: string | null }
         Insert: { adscripcion?: string | null; antiguedad?: string | null; avatar_url?: string | null; categoria?: string | null; created_at?: string | null; full_name?: string | null; id: string; is_online?: boolean | null; matricula?: string | null; phone?: string | null; role?: string | null; updated_at?: string | null }

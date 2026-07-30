@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { User, Shield } from "lucide-react"
 import { ProfileForm } from "@/features/profile/components/ProfileForm"
+import { BitacoraPanel } from "@/features/bitacora/components/BitacoraPanel"
 import { getAllAdscripciones } from "@/features/catalogo/services/catalogo"
 import prestamosRaw from "@/features/calculators/data/prestamos_categoria.json"
 
@@ -15,6 +16,13 @@ export default async function ProfilePage() {
     .select("*")
     .eq("id", user.id)
     .single()
+
+  const { data: bitacoraEntries } = await supabase
+    .from("bitacora_entries")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("entry_date", { ascending: false })
+    .order("created_at", { ascending: false })
 
   const adscripciones = await getAllAdscripciones()
   const adscripcionOptions = adscripciones.map((a) => ({
@@ -34,7 +42,7 @@ export default async function ProfilePage() {
     .map((c) => ({ label: c, value: c }))
 
   return (
-    <div style={{ maxWidth: "600px", margin: "0 auto" }}>
+    <div style={{ maxWidth: "700px", margin: "0 auto" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.5rem" }}>
         <div style={{
           width: 44, height: 44, borderRadius: "50%",
@@ -55,17 +63,29 @@ export default async function ProfilePage() {
 
       <div style={{
         background: "var(--card)", border: "1px solid var(--border)",
-        borderRadius: "var(--radius)", padding: "1.5rem",
+        borderRadius: "var(--radius)", overflow: "hidden",
       }}>
-        <div style={{
-          display: "flex", alignItems: "center", gap: "0.5rem",
-          marginBottom: "1.25rem", paddingBottom: "0.75rem",
-          borderBottom: "1px solid var(--border)",
-        }}>
-          <Shield size={16} style={{ color: "var(--primary)" }} />
-          <span style={{ fontSize: "0.9375rem", fontWeight: 600 }}>Información personal</span>
+        <div style={{ padding: "0 1.25rem", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", gap: "1.5rem" }}>
+            <div style={{
+              display: "flex", alignItems: "center", gap: "0.5rem",
+              padding: "0.75rem 0", borderBottom: "2px solid var(--primary)",
+              marginBottom: "-1px", cursor: "default",
+            }}>
+              <Shield size={16} style={{ color: "var(--primary)" }} />
+              <span style={{ fontSize: "0.9375rem", fontWeight: 600, color: "var(--primary)" }}>
+                Información personal
+              </span>
+            </div>
+          </div>
         </div>
-        <ProfileForm profile={profile} categoriaOptions={categoriaOptions} adscripcionOptions={adscripcionOptions} />
+        <div style={{ padding: "1.5rem" }}>
+          <ProfileForm profile={profile} categoriaOptions={categoriaOptions} adscripcionOptions={adscripcionOptions} />
+        </div>
+      </div>
+
+      <div style={{ marginTop: "1.5rem" }}>
+        <BitacoraPanel userId={user.id} initialEntries={bitacoraEntries ?? []} />
       </div>
     </div>
   )
