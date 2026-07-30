@@ -84,7 +84,7 @@ export function countExcludedDates(
     if (includedDates.length >= totalDays) break;
     const d = new Date(start);
     d.setDate(start.getDate() + i);
-    const dateStr = formatDate(d);
+    const dateStr = fmtDate(d);
     if (isWeeklyRest(dateStr, weeklyRestDays) || isMandatoryRest(dateStr, mandatoryDates)) {
       excludedDates.push(dateStr);
     } else {
