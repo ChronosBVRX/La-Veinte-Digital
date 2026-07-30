@@ -68,75 +68,76 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      {/* Quick Actions */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-        gap: "0.75rem", marginBottom: "2rem",
-      }}>
-        {quickActions.map((action) => {
-          const Icon = action.icon
-          return (
-            <Link
-              key={action.href}
-              href={action.href}
-              className="hover-lift"
-              style={{
-                textDecoration: "none", color: "inherit",
-                background: "var(--card)", border: "1px solid var(--border)",
-                borderRadius: "var(--radius-lg)", padding: "1.25rem",
-                display: "flex", flexDirection: "column", gap: "0.75rem",
-              }}
-            >
-              <div style={{
-                width: 40, height: 40, borderRadius: "0.75rem",
-                background: action.gradient, display: "flex",
-                alignItems: "center", justifyContent: "center", flexShrink: 0,
-              }}>
-                <Icon size={20} color="white" />
-              </div>
-              <div>
-                <p style={{ fontSize: "0.9375rem", fontWeight: 600, margin: 0, lineHeight: 1.3 }}>
-                  {action.label}
-                </p>
-                <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0.125rem 0 0" }}>
-                  {action.desc}
-                </p>
-              </div>
-            </Link>
-          )
-        })}
-      </div>
-
-      {/* Calendario del mes */}
-      <div style={{ marginBottom: "2rem" }}>
-        <CalendarioMensual />
-      </div>
-
-      {/* Stats Row */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-        gap: "1rem", marginBottom: "2rem",
-      }}>
-        <StatCard icon={Newspaper} label="Publicaciones en el foro" value={postCount ?? 0} href="/foro" />
-        <StatCard icon={MessageCircle} label="Mensajes en chat" value={messageCount ?? 0} href="/chat" />
-        <StatCard icon={Bot} label="Consultas al asistente" value={0} href="/asistente" />
-      </div>
-
-      {/* Profile Card + Recent Posts */}
+      {/* Grid 2x2 */}
       <div style={{
         display: "grid", gridTemplateColumns: "1fr 1fr",
-        gap: "1rem",
+        gap: "1rem", marginBottom: "1.5rem",
       }}>
+        {/* Quick Actions */}
         <div style={{
           background: "var(--card)", border: "1px solid var(--border)",
-          borderRadius: "var(--radius)", padding: "1.25rem",
+          borderRadius: "var(--radius-lg)", padding: "1.25rem",
         }}>
-          <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: "0 0 1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <Shield size={16} style={{ color: "var(--primary)" }} />
-            Información del perfil
+          <h2 style={{ fontSize: "0.9375rem", fontWeight: 600, margin: "0 0 0.75rem", color: "var(--muted)" }}>
+            Accesos directos
           </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.5rem 1rem", fontSize: "0.875rem" }}>
+          <div style={{
+            display: "grid", gridTemplateColumns: "1fr 1fr",
+            gap: "0.625rem",
+          }}>
+            {quickActions.map((action) => {
+              const Icon = action.icon
+              return (
+                <Link
+                  key={action.href}
+                  href={action.href}
+                  className="hover-lift"
+                  style={{
+                    textDecoration: "none", color: "inherit",
+                    padding: "0.875rem", borderRadius: "var(--radius)",
+                    display: "flex", flexDirection: "column", gap: "0.5rem",
+                    background: "var(--accent)",
+                  }}
+                >
+                  <div style={{
+                    width: 34, height: 34, borderRadius: "0.625rem",
+                    background: action.gradient, display: "flex",
+                    alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  }}>
+                    <Icon size={17} color="white" />
+                  </div>
+                  <div>
+                    <p style={{ fontSize: "0.8125rem", fontWeight: 600, margin: 0, lineHeight: 1.2 }}>
+                      {action.label}
+                    </p>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Calendario del mes */}
+        <CalendarioMensual />
+
+        {/* Stats + Perfil combinados */}
+        <div style={{
+          background: "var(--card)", border: "1px solid var(--border)",
+          borderRadius: "var(--radius-lg)", padding: "1.25rem",
+        }}>
+          <h2 style={{ fontSize: "0.9375rem", fontWeight: 600, margin: "0 0 0.75rem", color: "var(--muted)" }}>
+            Estadísticas
+          </h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1rem" }}>
+            <StatCard icon={Newspaper} label="Publicaciones en el foro" value={postCount ?? 0} href="/foro" />
+            <StatCard icon={MessageCircle} label="Mensajes en chat" value={messageCount ?? 0} href="/chat" />
+            <StatCard icon={Bot} label="Consultas al asistente" value={0} href="/asistente" />
+          </div>
+          <h2 style={{ fontSize: "0.9375rem", fontWeight: 600, margin: "0 0 0.75rem", color: "var(--muted)" }}>
+            <Shield size={14} style={{ marginRight: "0.375rem", verticalAlign: "middle", color: "var(--primary)" }} />
+            Mi perfil
+          </h2>
+          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.375rem 0.75rem", fontSize: "0.8125rem" }}>
             <span style={{ color: "var(--muted)" }}>Email:</span>
             <span>{user.email}</span>
             {profile?.matricula && (
@@ -151,21 +152,22 @@ export default async function DashboardPage() {
           </div>
         </div>
 
+        {/* Últimas publicaciones */}
         <div style={{
           background: "var(--card)", border: "1px solid var(--border)",
-          borderRadius: "var(--radius)", padding: "1.25rem",
+          borderRadius: "var(--radius-lg)", padding: "1.25rem",
         }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
-            <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: 0, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <Newspaper size={16} style={{ color: "var(--primary)" }} />
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+            <h2 style={{ fontSize: "0.9375rem", fontWeight: 600, margin: 0, color: "var(--muted)" }}>
+              <Newspaper size={14} style={{ marginRight: "0.375rem", verticalAlign: "middle", color: "var(--primary)" }} />
               Últimas publicaciones
             </h2>
-            <Link href="/foro" style={{ fontSize: "0.8125rem", color: "var(--primary)", textDecoration: "none" }}>
+            <Link href="/foro" style={{ fontSize: "0.75rem", color: "var(--primary)", textDecoration: "none" }}>
               Ver todas
             </Link>
           </div>
           {recentPosts && recentPosts.length > 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
               {recentPosts.map((post) => (
                 <Link
                   key={post.id}
@@ -176,15 +178,15 @@ export default async function DashboardPage() {
                     background: "var(--accent)", transition: "background var(--transition)",
                   }}
                 >
-                  <p style={{ fontSize: "0.875rem", fontWeight: 500, margin: 0 }}>{post.title}</p>
-                  <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.125rem 0 0" }}>
+                  <p style={{ fontSize: "0.8125rem", fontWeight: 500, margin: 0 }}>{post.title}</p>
+                  <p style={{ fontSize: "0.6875rem", color: "var(--muted)", margin: "0.125rem 0 0" }}>
                     {post.created_at ? new Date(post.created_at).toLocaleDateString("es-MX", { month: "short", day: "numeric" }) : ""}
                   </p>
                 </Link>
               ))}
             </div>
           ) : (
-            <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0 }}>
+            <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0 }}>
               No hay publicaciones aún. <Link href="/foro/nuevo" style={{ color: "var(--primary)" }}>¡Crea la primera!</Link>
             </p>
           )}
@@ -192,7 +194,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Facebook */}
-      <div style={{ marginTop: "1.5rem" }}>
+      <div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
           <Globe size={18} style={{ color: "#1877F2" }} />
           <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: 0 }}>Facebook SNTSS</h2>
@@ -203,7 +205,6 @@ export default async function DashboardPage() {
         <FacebookFeeds compact />
       </div>
 
-      {/* Mobile: full width on small screens */}
       <style>{`
         @media (max-width: 640px) {
           div[style*="gridTemplateColumns: 1fr 1fr"] {
