@@ -1,14 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Modal } from "@/shared/components/ui/Modal"
 import Link from "next/link"
 import { CALENDARIOS, EVENT_LABELS } from "@/features/calendario/services/calendarioData"
 import type { CalendarEventType } from "@/features/calendario/services/calendarioData"
-import { getProfile } from "@/features/nomina/services/storage"
-import { getCurrentPayPeriod } from "@/features/nomina/lib/periods"
-import { calculateSeniority, reconstructEffectiveDate } from "@/features/nomina/lib/seniority"
-import type { EmployeePayrollProfile, Shift } from "@/features/nomina/lib/types"
 
 interface ProfileSummary {
   adscripcion: string | null
@@ -17,7 +13,17 @@ interface ProfileSummary {
   id?: string
 }
 
-const SHIFT_LABELS: Record<Shift, string> = {
+interface NominaProfileLight {
+  shift?: string
+  workdayHours?: number
+  employmentType?: string
+  years?: number
+  months?: number
+  days?: number
+  referenceDate?: string
+}
+
+const SHIFT_LABELS: Record<string, string> = {
   matutino: "Matutino",
   vespertino: "Vespertino",
   nocturno: "Nocturno",
@@ -74,24 +80,44 @@ function getNextVacationStart(year: number, monthIndex: number, day: number): { 
   return { date: candidates[0] }
 }
 
-function getSeniorityEvolucion(nominaProfile: EmployeePayrollProfile | null): string | null {
-  if (!nominaProfile?.displayedSeniorityAtLastPayslip) return null
-  const effectiveDate = reconstructEffectiveDate(
-    nominaProfile.displayedSeniorityAtLastPayslip,
-    nominaProfile.displayedSeniorityAtLastPayslip.referenceDate
-  )
-  const today = new Date().toISOString().slice(0, 10)
-  const period = getCurrentPayPeriod(today)
-  const result = calculateSeniority(effectiveDate, period.endDate)
-  return `${result.years} años, ${result.months} meses y ${result.days} días`
+function getBiweekEnd(): string {
+  const now = new Date()
+  const day = now.getDate()
+  const year = now.getFullYear()
+  const month = now.getMonth()
+  if (day <= 15) return `${year}-${String(month + 1).padStart(2, "0")}-15`
+  const lastDay = new Date(year, month + 1, 0).getDate()
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`
+}
+
+function formatSeniority(y: number, m: number, d: number): string {
+  return `${y} años, ${m} meses y ${d} días`
 }
 
 export function TodayCard({ profile }: { profile: ProfileSummary }) {
   const [open, setOpen] = useState(false)
-  const [nominaProfile] = useState<EmployeePayrollProfile | null>(() => {
-    if (typeof window !== "undefined") return getProfile()
-    return null
-  })
+  const [nominaProfile, setNominaProfile] = useState<NominaProfileLight | null>(null)
+
+  useEffect(() => {
+    const raw = typeof window !== "undefined" ? localStorage.getItem("nomina_profile") : null
+    if (!raw) return
+    try {
+      const parsed = JSON.parse(raw)
+      const seniority = parsed.displayedSeniorityAtLastPayslip
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setNominaProfile({
+        shift: parsed.shift,
+        workdayHours: parsed.workdayHours,
+        employmentType: parsed.employmentType,
+        years: seniority?.years,
+        months: seniority?.months,
+        days: seniority?.days,
+        referenceDate: seniority?.referenceDate,
+      })
+    } catch {
+      // ignore
+    }
+  }, [])
 
   const now = new Date()
   const year = now.getFullYear()
@@ -114,7 +140,31 @@ export function TodayCard({ profile }: { profile: ProfileSummary }) {
     ? Math.ceil((nextPaymentOtro.date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
     : null
 
-  const seniorityEvolucion = getSeniorityEvolucion(nominaProfile)
+  function calcEvolvedSeniority(): string | null {
+    if (
+      nominaProfile?.years == null ||
+      nominaProfile?.months == null ||
+      nominaProfile?.days == null ||
+      !nominaProfile?.referenceDate
+    ) return null
+    const ref = nominaProfile.referenceDate.split("-").map(Number)
+    let ey = ref[0] - nominaProfile.years
+    let em = ref[1] - nominaProfile.months
+    let ed = ref[2] - nominaProfile.days
+    if (ed < 1) { em--; ed += new Date(ey, em - 1, 0).getDate() }
+    if (em < 1) { ey--; em += 12 }
+    const effectiveDate = new Date(ey, em - 1, ed)
+    const biweekEnd = getBiweekEnd().split("-").map(Number)
+    const target = new Date(biweekEnd[0], biweekEnd[1] - 1, biweekEnd[2])
+    if (isNaN(effectiveDate.getTime())) return null
+    let years = target.getFullYear() - effectiveDate.getFullYear()
+    let months = target.getMonth() - effectiveDate.getMonth()
+    let days = target.getDate() - effectiveDate.getDate()
+    if (days < 0) { months--; days += new Date(target.getFullYear(), target.getMonth(), 0).getDate() }
+    if (months < 0) { years--; months += 12 }
+    return formatSeniority(years, months, days)
+  }
+  const seniorityEvolucion = calcEvolvedSeniority()
   const turno = nominaProfile?.shift
   const jornada = nominaProfile?.workdayHours
 
