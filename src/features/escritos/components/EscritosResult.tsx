@@ -14,12 +14,13 @@ interface EscritosResultProps {
   adscripcion: string
   atencion: string
   copia: string
+  fotos?: string[]
   onClose: () => void
 }
 
 export function EscritosResult({
   cuerpo, destino, ciudad, fecha, nombre, matricula,
-  categoria, adscripcion, atencion, copia, onClose,
+  categoria, adscripcion, atencion, copia, fotos, onClose,
 }: EscritosResultProps) {
   const pageRef = useRef<HTMLDivElement>(null)
   const [firmaUrl, setFirmaUrl] = useState("")
@@ -196,7 +197,7 @@ export function EscritosResult({
           }}>
             <div ref={pageRef} id="page-carta" className="page-carta"
               style={{
-                width: 816, minHeight: 1056, background: "#fff", color: "#111",
+                width: 816, background: "#fff", color: "#111",
                 boxShadow: "0 10px 40px rgba(0,0,0,0.5)", flexShrink: 0,
                 transformOrigin: "top center",
               }}
@@ -245,6 +246,44 @@ export function EscritosResult({
                   </div>
                 )}
               </div>
+
+              {(fotos && fotos.length > 0) && (
+                <div style={{
+                  padding: "50px 64px", fontFamily: "'Times New Roman', Times, serif",
+                  fontSize: "12pt", lineHeight: 1.5, color: "#000",
+                  borderTop: "2px solid #ccc", marginTop: 20,
+                }}>
+                  <div style={{ textAlign: "center", marginBottom: 20 }}>
+                    <h2 style={{ fontSize: "16pt", fontWeight: 700, margin: 0 }}>ANEXOS</h2>
+                    <p style={{ fontSize: "10pt", color: "#555", margin: "4px 0 0" }}>
+                      Evidencia fotográfica
+                    </p>
+                  </div>
+                  <div style={{ fontSize: "10pt", marginBottom: 16 }}>
+                    {fotos.map((_, i) => (
+                      <span key={i}>Anexo {i + 1}{i < fotos.length - 1 ? ", " : ""}</span>
+                    ))}
+                  </div>
+                  {fotos.map((foto, i) => (
+                    <div key={i} style={{
+                      marginBottom: 30, textAlign: "center",
+                      pageBreakInside: "avoid",
+                    }}>
+                      <p style={{ fontWeight: 600, fontSize: "10pt", margin: "0 0 8px", textAlign: "left" }}>
+                        Anexo {i + 1}
+                      </p>
+                      <img
+                        src={foto}
+                        alt={`Anexo ${i + 1}`}
+                        style={{
+                          maxWidth: "100%", maxHeight: 400,
+                          border: "1px solid #ccc", objectFit: "contain",
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

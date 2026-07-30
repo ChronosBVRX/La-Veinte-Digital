@@ -14,10 +14,10 @@ import {
 
 export function NominaIndex() {
   const {
-    consented, profile, category, seniority, projection,
-    projections, step, loading,
+    consented, profile, category, seniority, period, projection,
+    projections, step, loading, hydrating,
     giveConsent, revokeConsent, updateProfile,
-    generateProjection, resetProfile, setStep,
+    generateProjection, resetProfile, setStep, selectProjection,
   } = useNomina()
 
   if (loading) {
@@ -127,10 +127,10 @@ export function NominaIndex() {
             </h3>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {projections.slice().reverse().slice(0, 5).map((p) => (
+            {[...projections].reverse().slice(0, 5).map((p) => (
               <button
                 key={p.id}
-                onClick={() => setStep("projection")}
+                onClick={() => selectProjection(p.id)}
                 style={{
                   display: "flex", justifyContent: "space-between", alignItems: "center",
                   padding: "0.5rem 0.75rem", borderRadius: "var(--radius)",
@@ -155,9 +155,30 @@ export function NominaIndex() {
           Calcula una estimaci&oacute;n del pr&oacute;ximo tarjet&oacute;n basada en tu perfil
           y las reglas del CCT.
         </p>
-        <Button onClick={() => generateProjection()}>
-          <FileText size={16} /> Generar proyecci&oacute;n <ArrowRight size={16} />
-        </Button>
+        {(() => {
+          const missing: string[] = []
+          if (!category) missing.push("categoría")
+          if (!seniority) missing.push("antigüedad")
+          if (!period) missing.push("periodo")
+          if (missing.length > 0) {
+            return (
+              <div>
+                <p style={{ fontSize: "0.75rem", color: "var(--warning)", margin: "0 0 0.5rem" }}>
+                  Faltan datos necesarios: <strong>{missing.join(", ")}</strong>
+                  {hydrating ? " (cargando...)" : ". Revisa tu perfil laboral."}
+                </p>
+                <Button disabled>
+                  <FileText size={16} /> Generar proyecci&oacute;n <ArrowRight size={16} />
+                </Button>
+              </div>
+            )
+          }
+          return (
+            <Button onClick={() => generateProjection()}>
+              <FileText size={16} /> Generar proyecci&oacute;n <ArrowRight size={16} />
+            </Button>
+          )
+        })()}
       </Card>
 
       <div style={{

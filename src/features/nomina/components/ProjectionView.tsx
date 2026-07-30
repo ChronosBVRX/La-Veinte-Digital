@@ -205,7 +205,7 @@ export function ProjectionView({ projection, onBack }: ProjectionViewProps) {
             fontSize: "1rem", borderTop: "1px solid var(--border)",
             paddingTop: "0.5rem", marginTop: "0.25rem",
           }}>
-            <span style={{ fontWeight: 700 }}>Líquido estimado</span>
+            <span style={{ fontWeight: 700 }}>Subtotal estimado de percepciones</span>
             <span style={{ fontWeight: 700, color: "var(--primary)" }}>
               {formatCurrency(projection.estimatedNet)}
             </span>

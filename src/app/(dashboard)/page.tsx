@@ -1,9 +1,10 @@
 import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { Bot, FileText, Newspaper, MessageCircle, User, ArrowRight, Shield, Globe } from "lucide-react"
+import { Bot, FileText, User, ArrowRight, Shield, Globe, BarChart3, Calendar } from "lucide-react"
 import { FacebookFeeds } from "@/features/facebook/components/FacebookFeeds"
 import { CalendarioMensual } from "@/features/calendario/components/CalendarioMensual"
+import { TodayCard } from "@/shared/components/layout/TodayCard"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -16,14 +17,6 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single()
 
-  const { count: postCount } = await supabase
-    .from("forum_posts")
-    .select("*", { count: "exact", head: true })
-
-  const { count: messageCount } = await supabase
-    .from("chat_messages")
-    .select("*", { count: "exact", head: true })
-
   const { data: recentPosts } = await supabase
     .from("forum_posts")
     .select("id, title, created_at")
@@ -32,14 +25,13 @@ export default async function DashboardPage() {
 
   const quickActions = [
     { href: "/asistente", label: "Asistente SNTSS", desc: "Resuelve dudas laborales", icon: Bot, gradient: "linear-gradient(135deg, #2563eb, #6366f1)" },
-    { href: "/escritos", label: "Generar Escritos", desc: "Documentos oficiales PSD", icon: FileText, gradient: "linear-gradient(135deg, #059669, #10b981)" },
-    { href: "/foro", label: "Foro de Discusión", desc: "Participa en la comunidad", icon: Newspaper, gradient: "linear-gradient(135deg, #d97706, #f59e0b)" },
-    { href: "/chat", label: "Chat en Vivo", desc: "Conversa con compañeros", icon: MessageCircle, gradient: "linear-gradient(135deg, #7c3aed, #a855f7)" },
+    { href: "/escritos", label: "Generar Escritos", desc: "Documentos oficiales PDF", icon: FileText, gradient: "linear-gradient(135deg, #059669, #10b981)" },
+    { href: "/foro", label: "Foro de Discusión", desc: "Participa en la comunidad", icon: ArrowRight, gradient: "linear-gradient(135deg, #d97706, #f59e0b)" },
+    { href: "/nomina", label: "Proyección de Nómina", desc: "Estima tu próximo pago", icon: BarChart3, gradient: "linear-gradient(135deg, #7c3aed, #a855f7)" },
   ]
 
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
-      {/* Saludo */}
       <div style={{
         marginBottom: "2rem", display: "flex", alignItems: "center",
         justifyContent: "space-between", flexWrap: "wrap", gap: "1rem",
@@ -68,12 +60,18 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      {/* Grid 2x2 */}
+      <div style={{ marginBottom: "1.5rem" }}>
+        <TodayCard profile={{
+          adscripcion: profile?.adscripcion ?? null,
+          categoria: profile?.categoria ?? null,
+          antiguedad: profile?.antiguedad ?? null,
+        }} />
+      </div>
+
       <div className="dashboard-grid" style={{
         display: "grid", gridTemplateColumns: "1fr 1fr",
         gap: "1rem", marginBottom: "1.5rem",
       }}>
-        {/* Quick Actions */}
         <div style={{
           background: "var(--card)", border: "1px solid var(--border)",
           borderRadius: "var(--radius-lg)", padding: "1.25rem",
@@ -117,50 +115,53 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        {/* Calendario del mes */}
         <CalendarioMensual />
 
-        {/* Stats + Perfil combinados */}
         <div style={{
           background: "var(--card)", border: "1px solid var(--border)",
           borderRadius: "var(--radius-lg)", padding: "1.25rem",
         }}>
           <h2 style={{ fontSize: "0.9375rem", fontWeight: 600, margin: "0 0 0.75rem", color: "var(--muted)" }}>
-            Estadísticas
-          </h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1rem" }}>
-            <StatCard icon={Newspaper} label="Publicaciones en el foro" value={postCount ?? 0} href="/foro" />
-            <StatCard icon={MessageCircle} label="Mensajes en chat" value={messageCount ?? 0} href="/chat" />
-            <StatCard icon={Bot} label="Consultas al asistente" value={0} href="/asistente" />
-          </div>
-          <h2 style={{ fontSize: "0.9375rem", fontWeight: 600, margin: "0 0 0.75rem", color: "var(--muted)" }}>
             <Shield size={14} style={{ marginRight: "0.375rem", verticalAlign: "middle", color: "var(--primary)" }} />
-            Mi perfil
+            Mi informaci&oacute;n
           </h2>
           <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.375rem 0.75rem", fontSize: "0.8125rem" }}>
             <span style={{ color: "var(--muted)" }}>Email:</span>
             <span>{user.email}</span>
             {profile?.matricula && (
-              <><span style={{ color: "var(--muted)" }}>Matrícula:</span><span>{profile.matricula}</span></>
+              <><span style={{ color: "var(--muted)" }}>Matr&iacute;cula:</span><span>{profile.matricula}</span></>
             )}
             {profile?.adscripcion && (
-              <><span style={{ color: "var(--muted)" }}>Adscripción:</span><span>{profile.adscripcion}</span></>
+              <><span style={{ color: "var(--muted)" }}>Adscripci&oacute;n:</span><span>{profile.adscripcion}</span></>
             )}
             {profile?.categoria && (
-              <><span style={{ color: "var(--muted)" }}>Categoría:</span><span>{profile.categoria}</span></>
+              <><span style={{ color: "var(--muted)" }}>Categor&iacute;a:</span><span>{profile.categoria}</span></>
             )}
+          </div>
+          <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8125rem" }}>
+              <FileText size={14} style={{ color: "var(--primary)" }} />
+              <Link href="/escritos" style={{ color: "var(--primary)", textDecoration: "none" }}>Ir a Generar Escritos</Link>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8125rem" }}>
+              <BarChart3 size={14} style={{ color: "var(--primary)" }} />
+              <Link href="/nomina" style={{ color: "var(--primary)", textDecoration: "none" }}>Ir a Proyecci&oacute;n de N&oacute;mina</Link>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8125rem" }}>
+              <Calendar size={14} style={{ color: "var(--primary)" }} />
+              <Link href="/calendario" style={{ color: "var(--primary)", textDecoration: "none" }}>Ver Calendario</Link>
+            </div>
           </div>
         </div>
 
-        {/* Últimas publicaciones */}
         <div style={{
           background: "var(--card)", border: "1px solid var(--border)",
           borderRadius: "var(--radius-lg)", padding: "1.25rem",
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
             <h2 style={{ fontSize: "0.9375rem", fontWeight: 600, margin: 0, color: "var(--muted)" }}>
-              <Newspaper size={14} style={{ marginRight: "0.375rem", verticalAlign: "middle", color: "var(--primary)" }} />
-              Últimas publicaciones
+              <ArrowRight size={14} style={{ marginRight: "0.375rem", verticalAlign: "middle", color: "var(--primary)" }} />
+              &Uacute;ltimas publicaciones
             </h2>
             <Link href="/foro" style={{ fontSize: "0.75rem", color: "var(--primary)", textDecoration: "none" }}>
               Ver todas
@@ -187,13 +188,12 @@ export default async function DashboardPage() {
             </div>
           ) : (
             <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0 }}>
-              No hay publicaciones aún. <Link href="/foro/nuevo" style={{ color: "var(--primary)" }}>¡Crea la primera!</Link>
+              No hay publicaciones a&uacute;n. <Link href="/foro/nuevo" style={{ color: "var(--primary)" }}>¡Crea la primera!</Link>
             </p>
           )}
         </div>
       </div>
 
-      {/* Facebook */}
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
           <Globe size={18} style={{ color: "#1877F2" }} />
@@ -213,29 +213,5 @@ export default async function DashboardPage() {
         }
       `}</style>
     </div>
-  )
-}
-
-function StatCard({ icon: Icon, label, value, href }: { icon: typeof Bot; label: string; value: number; href: string }) {
-  return (
-    <Link href={href} style={{ textDecoration: "none", color: "inherit" }}>
-      <div className="hover-lift" style={{
-        background: "var(--card)", border: "1px solid var(--border)",
-        borderRadius: "var(--radius)", padding: "1rem",
-        display: "flex", alignItems: "center", gap: "0.75rem",
-      }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: "0.5rem",
-          background: "var(--accent)", display: "flex", alignItems: "center",
-          justifyContent: "center", flexShrink: 0,
-        }}>
-          <Icon size={18} style={{ color: "var(--primary)" }} />
-        </div>
-        <div>
-          <p style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0, lineHeight: 1.2 }}>{value}</p>
-          <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>{label}</p>
-        </div>
-      </div>
-    </Link>
   )
 }

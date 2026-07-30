@@ -29,16 +29,6 @@ interface Props {
 }
 
 export function TiempoExtraCalculator({ initialCategoria, initialAntiguedad }: Props) {
-  const [fields, setFields] = useState({
-    c002: "", c020: "", adicional1: "", adicional2: "", c050: "",
-    jornada: "8", horasExtra: "",
-  })
-  const [antiguedad, setAntiguedad] = useState(initialAntiguedad ?? "")
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [result, setResult] = useState<ReturnType<typeof calculateTiempoExtra> | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [jsonC011, setJsonC011] = useState<number | null>(null)
-
   const initialMatch = useMemo(() => {
     if (!initialCategoria) return null
     const raw = prestamosRaw as Record<string, unknown>[]
@@ -47,11 +37,20 @@ export function TiempoExtraCalculator({ initialCategoria, initialAntiguedad }: P
     return records.find((r) => r.categoria.toLowerCase().includes(norm)) ?? null
   }, [initialCategoria])
 
-  if (initialMatch && !selectedCategory) {
-    setSelectedCategory(initialMatch.categoria)
-    if (!fields.c002 && initialMatch.sueldoQuincenal) setField("c002", formatCurrency(initialMatch.sueldoQuincenal))
-    if (initialMatch.concepto011) setJsonC011(initialMatch.concepto011)
-  }
+  const initialC002 = initialMatch?.sueldoQuincenal ? formatCurrency(initialMatch.sueldoQuincenal) : ""
+  const [fields, setFields] = useState({
+    c002: initialC002, c020: "", adicional1: "", adicional2: "", c050: "",
+    jornada: "8", horasExtra: "",
+  })
+  const [antiguedad, setAntiguedad] = useState(initialAntiguedad ?? "")
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [result, setResult] = useState<ReturnType<typeof calculateTiempoExtra> | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(
+    () => initialMatch?.categoria ?? null
+  )
+  const [jsonC011, setJsonC011] = useState<number | null>(
+    () => initialMatch?.concepto011 ?? null
+  )
 
   const c002Num = parseCurrencyInput(fields.c002)
   const c011Calculated = c002Num !== null ? calcularConcepto011(c002Num) : null

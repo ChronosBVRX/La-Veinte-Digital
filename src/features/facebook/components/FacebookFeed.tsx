@@ -22,14 +22,13 @@ interface Props {
 
 export function FacebookFeed({ compact, page = "seccionxx", label }: Props) {
   const [loaded, setLoaded] = useState(false)
-  const [useIframe, setUseIframe] = useState(false)
+  const [useIframe] = useState(() => typeof window !== "undefined" && window.innerWidth >= 1024)
   const ref = useRef<HTMLIFrameElement>(null)
   const cfg = PAGES[page]
   const fbUrl = cfg?.url ?? PAGES.seccionxx.url
   const fbHeight = compact ? "500" : "1000"
 
   useEffect(() => {
-    if (window.innerWidth >= 1024) setUseIframe(true)
     const timer = setTimeout(() => {
       if (!loaded) setLoaded(true)
     }, 8000)

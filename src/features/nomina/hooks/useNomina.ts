@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import type {
   EmployeePayrollProfile,
   ResolvedSalaryCategory,
@@ -14,6 +14,7 @@ import type {
 import { calculateSeniority, reconstructEffectiveDate } from "../lib/seniority"
 import { getCurrentPayPeriod } from "../lib/periods"
 import { calculateProjection } from "../lib/engine"
+import { resolveSalaryCategoryByName } from "../lib/categories"
 import {
   getProfile,
   saveProfile,
@@ -69,6 +70,42 @@ export function useNomina() {
   const [seniority, setSeniority] = useState<SeniorityResult | null>(null)
   const [period, setPeriod] = useState<PayPeriod | null>(null)
   const [projection, setProjection] = useState<PayrollProjection | null>(null)
+  const [hydrating, setHydrating] = useState(false)
+
+  useEffect(() => {
+    if (!s.consented || !s.profile) return
+    let cancelled = false
+
+    async function hydrate() {
+      setHydrating(true)
+      const p = s.profile!
+
+      if (p.categoryName && !category) {
+        const cat = await resolveSalaryCategoryByName(
+          p.categoryName,
+          new Date().toISOString().slice(0, 10)
+        )
+        if (!cancelled && cat) setCategoryState(cat)
+      }
+
+      if (p.displayedSeniorityAtLastPayslip && !seniority) {
+        const effectiveDate = reconstructEffectiveDate(
+          p.displayedSeniorityAtLastPayslip,
+          p.displayedSeniorityAtLastPayslip.referenceDate
+        )
+        const today = new Date().toISOString().slice(0, 10)
+        if (!cancelled) {
+          setSeniority(calculateSeniority(effectiveDate, today))
+          setPeriod(getCurrentPayPeriod(today))
+        }
+      }
+
+      if (!cancelled) setHydrating(false)
+    }
+
+    hydrate()
+    return () => { cancelled = true }
+  }, [])
 
   const patch = useCallback((patch: Partial<NominaState>) => {
     setS((prev) => ({ ...prev, ...patch }))
@@ -101,6 +138,12 @@ export function useNomina() {
       const sr = calculateSeniority(effectiveDate, today)
       setSeniority(sr)
       setPeriod(getCurrentPayPeriod(today))
+    }
+
+    if (p.categoryName) {
+      resolveSalaryCategoryByName(p.categoryName, new Date().toISOString().slice(0, 10)).then((cat) => {
+        if (cat) setCategoryState(cat)
+      })
     }
 
     const step: NominaStep = p.occupationalConditions.length > 0 ? "ready" : "conditions"
@@ -146,6 +189,14 @@ export function useNomina() {
     patch({ step })
   }, [patch])
 
+  const selectProjection = useCallback((projectionId: string) => {
+    const found = s.projections.find((p) => p.id === projectionId)
+    if (found) {
+      setProjection(found)
+      patch({ step: "projection" })
+    }
+  }, [s.projections, patch])
+
   return {
     consented: s.consented,
     profile: s.profile,
@@ -156,6 +207,7 @@ export function useNomina() {
     projections: s.projections,
     step: s.step,
     loading: s.loading,
+    hydrating,
     giveConsent,
     revokeConsent,
     updateProfile,
@@ -163,5 +215,6 @@ export function useNomina() {
     generateProjection,
     resetProfile,
     setStep,
+    selectProjection,
   }
 }

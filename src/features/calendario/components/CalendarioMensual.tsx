@@ -3,7 +3,7 @@
 import { useMemo } from "react"
 import Link from "next/link"
 import { Calendar } from "lucide-react"
-import { getMonthData, getDayEvents, EVENT_COLORS, EVENT_LABELS, type CalendarEventType } from "@/features/calendario/services/calendarioData"
+import { getMonthData, getDayEvents, EVENT_COLORS, EVENT_LABELS, type CalendarEventType, CALENDARIOS } from "@/features/calendario/services/calendarioData"
 import { CalendarioExportButton } from "@/features/calendario/components/CalendarioExportButton"
 
 const DAYS_OF_WEEK = ["L", "M", "M", "J", "V", "S", "D"]
@@ -21,17 +21,19 @@ export function CalendarioMensual() {
   const now = useMemo(() => new Date(), [])
   const year = now.getFullYear()
   const monthIndex = now.getMonth()
-  const monthData = getMonthData(monthIndex)
+  const yearData = CALENDARIOS[year] ?? CALENDARIOS[2026]
+  const displayYear = yearData ? year : 2026
+  const monthData = getMonthData(displayYear, monthIndex)
 
-  const firstDayOfMonth = new Date(year, monthIndex, 1).getDay()
-  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate()
+  const firstDayOfMonth = new Date(displayYear, monthIndex, 1).getDay()
+  const daysInMonth = new Date(displayYear, monthIndex + 1, 0).getDate()
   const startOffset = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1
 
   if (!monthData) return null
 
   const days: { day: number; events: ReturnType<typeof getDayEvents> }[] = []
   for (let d = 1; d <= daysInMonth; d++) {
-    days.push({ day: d, events: getDayEvents(monthIndex, d) })
+    days.push({ day: d, events: getDayEvents(displayYear, monthIndex, d) })
   }
 
   return (
@@ -46,11 +48,11 @@ export function CalendarioMensual() {
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <Calendar size={18} style={{ color: "var(--primary)" }} />
           <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: 0 }}>
-            {monthData.month} {year}
+            {monthData.month} {displayYear}
           </h2>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <CalendarioExportButton monthIndex={monthIndex} label="Exportar" />
+          <CalendarioExportButton year={displayYear} monthIndex={monthIndex} label="Exportar" />
           <Link
             href="/calendario"
             style={{

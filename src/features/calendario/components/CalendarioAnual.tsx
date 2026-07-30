@@ -1,4 +1,7 @@
-import { CALENDARIO_2026, getDayEvents, EVENT_COLORS, EVENT_LABELS, type CalendarEventType } from "@/features/calendario/services/calendarioData"
+"use client"
+
+import { useMemo } from "react"
+import { CALENDARIOS, getDayEvents, EVENT_COLORS, EVENT_LABELS, type CalendarEventType } from "@/features/calendario/services/calendarioData"
 
 const DAYS_OF_WEEK = ["L", "M", "M", "J", "V", "S", "D"]
 
@@ -11,16 +14,17 @@ const EVENT_ABBR: Record<CalendarEventType, string> = {
   jubilados: "J",
 }
 
-function MonthCalendar({ monthIndex }: { monthIndex: number }) {
-  const year = 2026
-  const monthData = CALENDARIO_2026[monthIndex]
+function MonthCalendar({ year, monthIndex }: { year: number; monthIndex: number }) {
+  const monthData = CALENDARIOS[year]?.[monthIndex]
+  if (!monthData) return null
+
   const firstDayOfMonth = new Date(year, monthIndex, 1).getDay()
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate()
   const startOffset = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1
 
   const days: { day: number; events: ReturnType<typeof getDayEvents> }[] = []
   for (let d = 1; d <= daysInMonth; d++) {
-    days.push({ day: d, events: getDayEvents(monthIndex, d) })
+    days.push({ day: d, events: getDayEvents(year, monthIndex, d) })
   }
 
   return (
@@ -101,6 +105,12 @@ function MonthCalendar({ monthIndex }: { monthIndex: number }) {
 }
 
 export function CalendarioAnual() {
+  const now = useMemo(() => new Date(), [])
+  const year = now.getFullYear()
+  const yearData = CALENDARIOS[year] ?? CALENDARIOS[2026]
+  const displayYear = yearData ? year : 2026
+  const months = CALENDARIOS[displayYear] ?? []
+
   return (
     <div>
       <div style={{
@@ -108,8 +118,8 @@ export function CalendarioAnual() {
         gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
         gap: "1rem",
       }}>
-        {CALENDARIO_2026.map((_, i) => (
-          <MonthCalendar key={i} monthIndex={i} />
+        {months.map((_, i) => (
+          <MonthCalendar key={i} year={displayYear} monthIndex={i} />
         ))}
       </div>
 
@@ -119,7 +129,7 @@ export function CalendarioAnual() {
         borderRadius: "var(--radius)",
       }}>
         <h3 style={{ fontSize: "0.875rem", fontWeight: 600, margin: "0 0 0.75rem" }}>
-          Calendario IMSS 2026 — Código de colores
+          Calendario IMSS {displayYear} — Código de colores
         </h3>
         <div style={{
           display: "flex", flexWrap: "wrap", gap: "0.75rem 1.5rem",

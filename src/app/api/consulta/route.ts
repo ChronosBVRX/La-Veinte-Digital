@@ -1,6 +1,33 @@
 import { NextResponse } from "next/server"
 import OpenAI from "openai"
+import { createClient } from "@/lib/supabase/server"
 import data from "@/lib/services/vectorstore-data.json"
+
+const MAX_HISTORY_LENGTH = 20
+const MAX_QUESTION_CHARS = 2000
+const DAILY_QUOTA_PER_USER = 100
+
+const usageLog = new Map<string, { date: string; count: number }>()
+
+function checkQuota(userId: string, ip: string): boolean {
+  const today = new Date().toISOString().slice(0, 10)
+  const keys = [userId, ip]
+  for (const key of keys) {
+    const entry = usageLog.get(key)
+    if (entry && entry.date === today && entry.count >= DAILY_QUOTA_PER_USER) {
+      return false
+    }
+  }
+  for (const key of keys) {
+    const entry = usageLog.get(key) ?? { date: today, count: 0 }
+    if (entry.date !== today) {
+      usageLog.set(key, { date: today, count: 1 })
+    } else {
+      entry.count++
+    }
+  }
+  return true
+}
 
 function getOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
@@ -84,6 +111,17 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    }
+
+    const ip = req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "unknown"
+    if (!checkQuota(user.id, ip)) {
+      return NextResponse.json({ error: "Cuota diaria alcanzada. Intenta mañana." }, { status: 429 })
+    }
+
     const body: { history: Message[] } = await req.json()
     const { history } = body
 
@@ -91,9 +129,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ respuesta: "No recibí ninguna pregunta." })
     }
 
+    if (history.length > MAX_HISTORY_LENGTH) {
+      return NextResponse.json({ error: "Historial demasiado largo." }, { status: 400 })
+    }
+
     const question = [...history].reverse().find((m) => m.role === "user")?.content?.trim()
     if (!question) {
       return NextResponse.json({ respuesta: "No pude encontrar tu pregunta." })
+    }
+
+    if (question.length > MAX_QUESTION_CHARS) {
+      return NextResponse.json({ error: `La pregunta excede los ${MAX_QUESTION_CHARS} caracteres.` }, { status: 400 })
     }
 
     const openai = getOpenAI()
@@ -136,7 +182,7 @@ ${context}`
 
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
-      ...history.map((m) => ({
+      ...history.slice(-MAX_HISTORY_LENGTH).map((m) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
       })),
@@ -151,8 +197,7 @@ ${context}`
     const respuesta = completion.choices[0]?.message?.content ?? "Lo siento, no pude generar una respuesta."
 
     return NextResponse.json({ respuesta })
-  } catch (e) {
-    const error = e as Error
-    return NextResponse.json({ error: `Error interno: ${error.message}` }, { status: 500 })
+  } catch {
+    return NextResponse.json({ error: "Ocurrió un error al procesar tu consulta." }, { status: 500 })
   }
 }

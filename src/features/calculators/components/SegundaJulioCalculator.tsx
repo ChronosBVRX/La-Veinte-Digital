@@ -22,13 +22,6 @@ interface Props {
 }
 
 export function SegundaJulioCalculator({ initialCategoria }: Props) {
-  const [c002, setC002] = useState("")
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [resultado, setResultado] = useState<number | null>(null)
-  const [base, setBase] = useState(0)
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [jsonC011, setJsonC011] = useState<number | null>(null)
-
   const initialMatch = useMemo(() => {
     if (!initialCategoria) return null
     const raw = prestamosRaw as Record<string, unknown>[]
@@ -37,11 +30,18 @@ export function SegundaJulioCalculator({ initialCategoria }: Props) {
     return records.find((r) => r.categoria.toLowerCase().includes(norm)) ?? null
   }, [initialCategoria])
 
-  if (initialMatch && !selectedCategory) {
-    setSelectedCategory(initialMatch.categoria)
-    if (!c002 && initialMatch.sueldoQuincenal) setC002(formatCurrency(initialMatch.sueldoQuincenal))
-    if (initialMatch.concepto011) setJsonC011(initialMatch.concepto011)
-  }
+  const [c002, setC002] = useState(() =>
+    initialMatch?.sueldoQuincenal ? formatCurrency(initialMatch.sueldoQuincenal) : ""
+  )
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [resultado, setResultado] = useState<number | null>(null)
+  const [base, setBase] = useState(0)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(
+    () => initialMatch?.categoria ?? null
+  )
+  const [jsonC011, setJsonC011] = useState<number | null>(
+    () => initialMatch?.concepto011 ?? null
+  )
 
   const c002Num = parseCurrencyInput(c002)
   const c011Calculated = c002Num !== null ? calcularConcepto011(c002Num) : null

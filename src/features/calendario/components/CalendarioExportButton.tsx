@@ -1,14 +1,17 @@
 import { Download } from "lucide-react"
 
 interface Props {
+  year?: number
   monthIndex?: number
   label?: string
 }
 
-export function CalendarioExportButton({ monthIndex, label }: Props) {
-  const href = monthIndex !== undefined
-    ? `/api/calendario?mes=${monthIndex}`
-    : "/api/calendario"
+export function CalendarioExportButton({ year, monthIndex, label }: Props) {
+  const params = new URLSearchParams()
+  if (year) params.set("anio", String(year))
+  if (monthIndex !== undefined) params.set("mes", String(monthIndex))
+  const qs = params.toString()
+  const href = qs ? `/api/calendario?${qs}` : `/api/calendario?anio=${new Date().getFullYear()}`
 
   return (
     <a

@@ -31,13 +31,6 @@ interface Props {
 }
 
 export function Clausula97Calculator({ initialCategoria, initialAntiguedad }: Props) {
-  const [c002, setC002] = useState("")
-  const [antiguedad, setAntiguedad] = useState(initialAntiguedad ?? "")
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [result, setResult] = useState<ReturnType<typeof calculateClausula97> | null>(null)
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [jsonC011, setJsonC011] = useState<number | null>(null)
-
   const initialMatch = useMemo(() => {
     if (!initialCategoria) return null
     const raw = prestamosRaw as Record<string, unknown>[]
@@ -46,11 +39,18 @@ export function Clausula97Calculator({ initialCategoria, initialAntiguedad }: Pr
     return records.find((r) => r.categoria.toLowerCase().includes(norm)) ?? null
   }, [initialCategoria])
 
-  if (initialMatch && !selectedCategory) {
-    setSelectedCategory(initialMatch.categoria)
-    if (!c002 && initialMatch.sueldoQuincenal) setC002(formatCurrency(initialMatch.sueldoQuincenal))
-    if (initialMatch.concepto011) setJsonC011(initialMatch.concepto011)
-  }
+  const [c002, setC002] = useState(() =>
+    initialMatch?.sueldoQuincenal ? formatCurrency(initialMatch.sueldoQuincenal) : ""
+  )
+  const [antiguedad, setAntiguedad] = useState(initialAntiguedad ?? "")
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [result, setResult] = useState<ReturnType<typeof calculateClausula97> | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(
+    () => initialMatch?.categoria ?? null
+  )
+  const [jsonC011, setJsonC011] = useState<number | null>(
+    () => initialMatch?.concepto011 ?? null
+  )
 
   const c002Num = parseCurrencyInput(c002)
   const c011Calculated = c002Num !== null ? calcularConcepto011(c002Num) : null

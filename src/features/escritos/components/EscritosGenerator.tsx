@@ -156,10 +156,10 @@ export function EscritosGenerator() {
     <div style={{ maxWidth: 900, margin: "0 auto" }}>
       <div style={{ marginBottom: "1.5rem" }}>
         <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>
-          Generador de Escritos PSD
+          Generador de Escritos PDF
         </h1>
         <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>
-          Redacta documentos formales con apoyo de IA, edítalos y descárgalos en PDF
+          Redacta documentos formales con apoyo de IA, ed&iacute;talos y desc&aacute;rgalos en PDF
         </p>
       </div>
 
@@ -195,6 +195,7 @@ export function EscritosGenerator() {
           adscripcion={profile.adscripcion}
           atencion={form.atencion}
           copia={form.copia}
+          fotos={fotos}
           onClose={() => setMostrarVistaPrevia(false)}
         />
       )}
