@@ -12,19 +12,17 @@ import { FormulaExplanation } from "./FormulaExplanation"
 import { CalculatorDisclaimer } from "./CalculatorDisclaimer"
 import { calculateSegundaJulio } from "../lib/segundaJulio"
 import { mapJsonToPrestamoRecord } from "../lib/prestamos"
-import { calcularConcepto011, calcularConcepto022, parseSeniorityYears } from "../lib/conceptos"
+import { calcularConcepto011 } from "../lib/conceptos"
 import { parseCurrencyInput, formatCurrency } from "../lib/money"
 import prestamosRaw from "../data/prestamos_categoria.json"
 import type { PrestamoCategoriaRecord } from "../lib/types"
 
 interface Props {
   initialCategoria?: string | null
-  initialAntiguedad?: string | null
 }
 
-export function SegundaJulioCalculator({ initialCategoria, initialAntiguedad }: Props) {
+export function SegundaJulioCalculator({ initialCategoria }: Props) {
   const [c002, setC002] = useState("")
-  const [antiguedad, setAntiguedad] = useState(initialAntiguedad ?? "")
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [resultado, setResultado] = useState<number | null>(null)
   const [base, setBase] = useState(0)
@@ -47,8 +45,6 @@ export function SegundaJulioCalculator({ initialCategoria, initialAntiguedad }: 
 
   const c002Num = parseCurrencyInput(c002)
   const c011Calculated = c002Num !== null ? calcularConcepto011(c002Num) : null
-  const antiguedadYears = parseSeniorityYears(antiguedad)
-  const c022 = c002Num !== null && antiguedadYears > 0 ? calcularConcepto022(c002Num, antiguedadYears) : 0
 
   const handleCategorySelect = (record: PrestamoCategoriaRecord) => {
     setSelectedCategory(record.categoria)
@@ -70,7 +66,7 @@ export function SegundaJulioCalculator({ initialCategoria, initialAntiguedad }: 
   }
 
   function handleClear() {
-    setC002(""); setAntiguedad(initialAntiguedad ?? ""); setErrors({}); setResultado(null); setBase(0)
+    setC002(""); setErrors({}); setResultado(null); setBase(0)
     setSelectedCategory(null); setJsonC011(null)
   }
 
@@ -94,12 +90,6 @@ export function SegundaJulioCalculator({ initialCategoria, initialAntiguedad }: 
             )}
           </div>
         )}
-        <CurrencyField label="Antigüedad (años)" value={antiguedad} onChange={(v) => { setAntiguedad(v); if (!v) setResultado(null) }} />
-        {c022 > 0 && (
-          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", background: "var(--accent)", padding: "0.5rem 0.75rem", borderRadius: "var(--radius-sm)", margin: 0 }}>
-            Concepto 022 (Ayuda de Renta por Antigüedad): <strong>{formatCurrency(c022)}</strong> anual
-          </p>
-        )}
       </div>
       <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem" }}>
         <Button onClick={handleCalculate}><Calculator size={16} /> Calcular</Button>
@@ -111,11 +101,6 @@ export function SegundaJulioCalculator({ initialCategoria, initialAntiguedad }: 
             { label: "Base (002 + 011 calculado)", value: base },
             { label: "Segunda de julio", value: resultado, highlight: true },
           ]} />
-          {c022 > 0 && (
-            <ResultCard title="Prestación anual por antigüedad" rows={[
-              { label: "Concepto 022", value: c022, highlight: true },
-            ]} />
-          )}
           <FormulaExplanation steps={["Base = 002 + 011 (011 = 002 × 0.8215)", "Segunda de julio = (Base / 15) x 46"]} />
           <CalculatorDisclaimer />
         </div>
