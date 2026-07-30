@@ -1,17 +1,17 @@
 "use client"
 
-import { useState, useCallback, type CSSProperties, type ReactNode } from "react"
+import { useState, useCallback, type CSSProperties } from "react"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
 import { Input } from "@/shared/components/ui/Input"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
-import { calculateCompletedYears, getCctAnnualDays, determineVacationRegime } from "../domain/entitlement"
-import { isCycleClosed, getCompatibleSemestralInclusionMarks } from "../domain/continuity"
+import { calculateCompletedYears, determineVacationRegime } from "../domain/entitlement"
+import { isCycleClosed } from "../domain/continuity"
 import { validateAnticipation } from "../domain/validation"
 import { buildSimulationResult } from "../domain/simulation"
 import type {
   WorkerProfile, VacationSimulationInput, VacationSimulationResult,
-  ContractType, VacationRegime, EffectiveSeniority, AnticipationResult,
+  ContractType, VacationRegime, WorkScheduleType,
 } from "../domain/types"
 
 type Step =
@@ -43,6 +43,7 @@ interface WizardState {
   result: VacationSimulationResult | null
   loading: boolean
   error: string
+  calendarMonth: number
 }
 
 const CONTRACT_OPTIONS: { value: ContractType; label: string }[] = [
@@ -169,6 +170,7 @@ export function VacationWizard() {
     result: null,
     loading: false,
     error: "",
+    calendarMonth: new Date().getMonth(),
   })
 
   const updateState = useCallback((partial: Partial<WizardState>) => {
@@ -213,8 +215,8 @@ export function VacationWizard() {
         }
         const result = buildSimulationResult(input)
         return { ...prev, result, loading: false, error: "" }
-      } catch (e: any) {
-        return { ...prev, error: e.message, loading: false }
+      } catch (e) {
+        return { ...prev, error: e instanceof Error ? e.message : "Error desconocido", loading: false }
       }
     })
   }
@@ -268,7 +270,6 @@ export function VacationWizard() {
   }
 
   function renderProfileConfirm() {
-    const years = calculateCompletedYears(state.profile.effectiveSeniority)
     return (
       <>
         {renderStepIndicator("profile-confirm")}
@@ -365,7 +366,7 @@ export function VacationWizard() {
                 key={opt.value}
                 onClick={() => {
                   setProfile({
-                    workScheduleType: opt.value as any,
+                    workScheduleType: opt.value as WorkScheduleType,
                     weeklyRestDays: opt.value === "ACCUMULATED_WEEKEND_DAY" ? [0, 1, 2, 3, 4] : state.profile.weeklyRestDays,
                   })
                   goTo("radiation")
@@ -512,10 +513,9 @@ export function VacationWizard() {
   }
 
   function renderCalendar() {
-    const today = new Date()
-    const year = today.getFullYear()
+    const year = new Date().getFullYear()
     const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-    const [selectedMonth, setSelectedMonth] = useState(today.getMonth())
+    const selectedMonth = state.calendarMonth
 
     const regime = state.regime || determineRegime()
     const dueDate = new Date(state.dueDate)
@@ -553,11 +553,11 @@ export function VacationWizard() {
 
         <Card padding="1.25rem">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-            <Button variant="ghost" size="sm" onClick={() => setSelectedMonth((m) => (m === 0 ? 11 : m - 1))}>
+            <Button variant="ghost" size="sm" onClick={() => updateState({ calendarMonth: state.calendarMonth === 0 ? 11 : state.calendarMonth - 1 })}>
               ←
             </Button>
             <span style={{ fontWeight: 600 }}>{months[selectedMonth]} {year}</span>
-            <Button variant="ghost" size="sm" onClick={() => setSelectedMonth((m) => (m === 11 ? 0 : m + 1))}>
+            <Button variant="ghost" size="sm" onClick={() => updateState({ calendarMonth: state.calendarMonth === 11 ? 0 : state.calendarMonth + 1 })}>
               →
             </Button>
           </div>
@@ -572,7 +572,6 @@ export function VacationWizard() {
             {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
               const selectable = isSelectable(day)
               const isSelected = state.selectedStartDate === `${year}-${String(selectedMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
-              const isSunday = new Date(year, selectedMonth, day).getDay() === 0
               return (
                 <button
                   key={day}

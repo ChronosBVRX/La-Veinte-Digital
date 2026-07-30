@@ -1,6 +1,7 @@
-import type { AnnualVacationCalendar, VacationRole } from "../domain/types";
+import type { AnnualVacationCalendar } from "../domain/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-export async function getPublishedCalendar(supabase: any, year: number): Promise<AnnualVacationCalendar | null> {
+export async function getPublishedCalendar(supabase: SupabaseClient, year: number): Promise<AnnualVacationCalendar | null> {
   const { data } = await supabase
     .from("vacation_calendars")
     .select("*, roles:vacation_calendar_roles(*)")
@@ -13,24 +14,24 @@ export async function getPublishedCalendar(supabase: any, year: number): Promise
   if (!data) return null;
 
   return {
-    id: data.id,
-    year: data.year,
-    version: data.version,
-    status: data.status,
-    sourceName: data.source_name,
-    sourceDate: data.source_date,
-    publishedAt: data.published_at,
-    roles: (data.roles || []).map((r: any) => ({
-      id: r.id,
-      roleNumber: r.role_number,
-      startDate: r.start_date,
-      label: r.label,
-      enabled: r.enabled,
+    id: data.id as string,
+    year: data.year as number,
+    version: data.version as string,
+    status: data.status as "DRAFT" | "PUBLISHED" | "ARCHIVED",
+    sourceName: data.source_name as string,
+    sourceDate: data.source_date as string | undefined,
+    publishedAt: data.published_at as string | undefined,
+    roles: ((data.roles as Record<string, unknown>[]) || []).map((r) => ({
+      id: r.id as string,
+      roleNumber: r.role_number as number,
+      startDate: r.start_date as string,
+      label: r.label as string | undefined,
+      enabled: r.enabled as boolean,
     })),
   };
 }
 
-export async function getAllCalendars(supabase: any): Promise<AnnualVacationCalendar[]> {
+export async function getAllCalendars(supabase: SupabaseClient): Promise<AnnualVacationCalendar[]> {
   const { data } = await supabase
     .from("vacation_calendars")
     .select("*, roles:vacation_calendar_roles(*)")
@@ -39,26 +40,26 @@ export async function getAllCalendars(supabase: any): Promise<AnnualVacationCale
 
   if (!data) return [];
 
-  return data.map((d: any) => ({
-    id: d.id,
-    year: d.year,
-    version: d.version,
-    status: d.status,
-    sourceName: d.source_name,
-    sourceDate: d.source_date,
-    publishedAt: d.published_at,
-    roles: (d.roles || []).map((r: any) => ({
-      id: r.id,
-      roleNumber: r.role_number,
-      startDate: r.start_date,
-      label: r.label,
-      enabled: r.enabled,
+  return data.map((d) => ({
+    id: d.id as string,
+    year: d.year as number,
+    version: d.version as string,
+    status: d.status as "DRAFT" | "PUBLISHED" | "ARCHIVED",
+    sourceName: d.source_name as string,
+    sourceDate: d.source_date as string | undefined,
+    publishedAt: d.published_at as string | undefined,
+    roles: ((d.roles as Record<string, unknown>[]) || []).map((r) => ({
+      id: r.id as string,
+      roleNumber: r.role_number as number,
+      startDate: r.start_date as string,
+      label: r.label as string | undefined,
+      enabled: r.enabled as boolean,
     })),
   }));
 }
 
 export async function createCalendar(
-  supabase: any,
+  supabase: SupabaseClient,
   calendar: Omit<AnnualVacationCalendar, "id">
 ): Promise<AnnualVacationCalendar | { error: string }> {
   const { data, error } = await supabase.from("vacation_calendars").insert({
@@ -71,10 +72,10 @@ export async function createCalendar(
   }).select().single();
 
   if (error) return { error: error.message };
-  return { ...calendar, id: data.id };
+  return { ...calendar, id: data.id as string };
 }
 
-export async function publishCalendar(supabase: any, id: string): Promise<boolean> {
+export async function publishCalendar(supabase: SupabaseClient, id: string): Promise<boolean> {
   const { error } = await supabase
     .from("vacation_calendars")
     .update({ status: "PUBLISHED", published_at: new Date().toISOString() })

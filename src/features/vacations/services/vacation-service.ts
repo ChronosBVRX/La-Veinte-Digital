@@ -1,7 +1,8 @@
-import type { SavedVacationSimulation, VacationSimulationInput, VacationSimulationResult, AnnualVacationCalendar } from "../domain/types";
+import type { SavedVacationSimulation, VacationSimulationInput, VacationSimulationResult } from "../domain/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export async function saveSimulation(
-  supabase: any,
+  supabase: SupabaseClient,
   input: VacationSimulationInput,
   result: VacationSimulationResult
 ): Promise<SavedVacationSimulation | { error: string }> {
@@ -21,22 +22,22 @@ export async function saveSimulation(
     if (error) return { error: error.message };
 
     return {
-      id: data.id,
-      userId: data.user_id,
-      calendarId: data.calendar_id,
-      ruleVersionId: data.rule_version_id,
+      id: data.id as string,
+      userId: data.user_id as string,
+      calendarId: data.calendar_id as string,
+      ruleVersionId: data.rule_version_id as string,
       inputSnapshot: data.input_snapshot,
       resultSnapshot: data.result_snapshot,
-      status: data.status,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
+      status: data.status as "DRAFT" | "COMPLETED" | "ARCHIVED",
+      createdAt: data.created_at as string,
+      updatedAt: data.updated_at as string,
     };
-  } catch (e: any) {
-    return { error: e.message };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Error desconocido" };
   }
 }
 
-export async function getMySimulations(supabase: any): Promise<SavedVacationSimulation[]> {
+export async function getMySimulations(supabase: SupabaseClient): Promise<SavedVacationSimulation[]> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
 
@@ -48,20 +49,20 @@ export async function getMySimulations(supabase: any): Promise<SavedVacationSimu
 
   if (!data) return [];
 
-  return data.map((d: any) => ({
-    id: d.id,
-    userId: d.user_id,
-    calendarId: d.calendar_id,
-    ruleVersionId: d.rule_version_id,
+  return data.map((d) => ({
+    id: d.id as string,
+    userId: d.user_id as string,
+    calendarId: d.calendar_id as string,
+    ruleVersionId: d.rule_version_id as string,
     inputSnapshot: d.input_snapshot,
     resultSnapshot: d.result_snapshot,
-    status: d.status,
-    createdAt: d.created_at,
-    updatedAt: d.updated_at,
+    status: d.status as "DRAFT" | "COMPLETED" | "ARCHIVED",
+    createdAt: d.created_at as string,
+    updatedAt: d.updated_at as string,
   }));
 }
 
-export async function getSimulationById(supabase: any, id: string): Promise<SavedVacationSimulation | null> {
+export async function getSimulationById(supabase: SupabaseClient, id: string): Promise<SavedVacationSimulation | null> {
   const { data } = await supabase
     .from("vacation_simulations")
     .select("*")
@@ -71,19 +72,19 @@ export async function getSimulationById(supabase: any, id: string): Promise<Save
   if (!data) return null;
 
   return {
-    id: data.id,
-    userId: data.user_id,
-    calendarId: data.calendar_id,
-    ruleVersionId: data.rule_version_id,
+    id: data.id as string,
+    userId: data.user_id as string,
+    calendarId: data.calendar_id as string,
+    ruleVersionId: data.rule_version_id as string,
     inputSnapshot: data.input_snapshot,
     resultSnapshot: data.result_snapshot,
-    status: data.status,
-    createdAt: data.created_at,
-    updatedAt: data.updated_at,
+    status: data.status as "DRAFT" | "COMPLETED" | "ARCHIVED",
+    createdAt: data.created_at as string,
+    updatedAt: data.updated_at as string,
   };
 }
 
-export async function deleteSimulation(supabase: any, id: string): Promise<boolean> {
+export async function deleteSimulation(supabase: SupabaseClient, id: string): Promise<boolean> {
   const { error } = await supabase.from("vacation_simulations").delete().eq("id", id);
   return !error;
 }

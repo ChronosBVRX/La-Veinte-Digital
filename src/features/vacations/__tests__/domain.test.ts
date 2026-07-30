@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest"
-import { getCctAnnualDays, getEstatutoAnnualDays, getRadiationDaysForPeriod, calculateCompletedYears, determineVacationRegime, isEligibleForV20, getVacationDivision } from "../domain/entitlement"
+import { getCctAnnualDays, getEstatutoAnnualDays, getRadiationDaysForPeriod, determineVacationRegime, isEligibleForV20, getVacationDivision } from "../domain/entitlement"
 import { getSemestralTransition, getCompatibleSemestralInclusionMarks, isCycleClosed, applyInclusionMark, SEMESTRAL_CLOSED_STATES } from "../domain/continuity"
 import { validateAnticipation, calculateReturnDate, validateModification } from "../domain/validation"
-import { getMandatoryRestDates, isWeeklyRest, isMandatoryRest } from "../domain/holidays"
+import { getMandatoryRestDates, isWeeklyRest } from "../domain/holidays"
 import { getAccumulatedDayJourneys, getAccumulatedNightVeladas, isWorkDay } from "../domain/schedules"
 import { detectNormativeConflicts } from "../domain/conflicts"
 import { buildSimulationResult } from "../domain/simulation"
-import type { WorkerProfile, VacationSimulationInput, WorkScheduleDefinition } from "../domain/types"
+import type { VacationSimulationInput, WorkScheduleDefinition } from "../domain/types"
 
 describe("getCctAnnualDays", () => {
   it("returns 0 for less than 1 year", () => {

@@ -1,6 +1,6 @@
 import type {
   SemestralContinuity, SemestralInclusionMark,
-  CuatrimestralContinuity, CuatrimestralInclusionMark,
+  CuatrimestralContinuity,
   V20Continuity, V20InclusionMark,
   SemestralTransition, CuatrimestralStep, VacationStage,
 } from "./types";
@@ -51,8 +51,6 @@ export function getCompatibleSemestralInclusionMarks(
 export function getCompatibleCuatrimestralOptions(
   currentContinuity: CuatrimestralContinuity
 ): CuatrimestralStep[] {
-  const optionA: CuatrimestralStep[] = [];
-  const optionB: CuatrimestralStep[] = [];
   if ([0, 3, 14].includes(currentContinuity)) {
     return [...CUATRIMESTRAL_OPTION_A, ...CUATRIMESTRAL_OPTION_B];
   }

@@ -1,5 +1,3 @@
-import type { AnnualVacationCalendar } from "./types";
-
 export function getMandatoryRestDates(year: number): string[] {
   const dates: string[] = [];
   dates.push(`${year}-01-01`);

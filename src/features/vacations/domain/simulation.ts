@@ -1,6 +1,7 @@
 import type { VacationSimulationInput, VacationSimulationResult, RuleTrace, NormativeConflict, AnticipationResult } from "./types";
-import { calculateCompletedYears, getCctAnnualDays, getEstatutoAnnualDays, getVacationDivision, determineVacationRegime } from "./entitlement";
+import { calculateCompletedYears, getCctAnnualDays, getEstatutoAnnualDays, getVacationDivision } from "./entitlement";
 import { applyInclusionMark, getCompatibleSemestralInclusionMarks } from "./continuity";
+import type { SemestralContinuity } from "./types";
 import { validateAnticipation, calculateReturnDate } from "./validation";
 import { detectNormativeConflicts } from "./conflicts";
 import { getUnitType } from "./schedules";
@@ -33,7 +34,7 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
   });
 
   let compatibleOptions: string[] = [];
-  let proposedInclusionMark = input.selectedInclusionMark ?? 0;
+  const proposedInclusionMark = input.selectedInclusionMark ?? 0;
   let resultingContinuityMark = input.continuityMark;
   let upoIncrement = 0;
 
@@ -41,7 +42,7 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
 
   if ("error" in transitionResult) {
     warnings.push(transitionResult.error);
-    const compatMarks = getCompatibleSemestralInclusionMarks(input.continuityMark as any);
+    const compatMarks = getCompatibleSemestralInclusionMarks(input.continuityMark as SemestralContinuity);
     compatibleOptions = compatMarks.map((m) => getFriendlyOptionName(regime, m));
   } else {
     resultingContinuityMark = transitionResult.nextContinuity;

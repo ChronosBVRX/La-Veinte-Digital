@@ -1,6 +1,6 @@
-import type { VacationRegime, VacationRole, EffectiveSeniority, AnticipationResult, VacationDateCalculationInput, VacationDateCalculationResult, WorkScheduleDefinition } from "./types";
+import type { VacationRegime, AnticipationResult, VacationDateCalculationInput, VacationDateCalculationResult, WorkScheduleDefinition } from "./types";
 import { isWeeklyRest, isMandatoryRest } from "./holidays";
-import { isWorkDay, getUnitType } from "./schedules";
+import { isWorkDay } from "./schedules";
 
 export function validateAnticipation(
   regime: VacationRegime,
@@ -93,7 +93,7 @@ export function calculateVacationRange(input: VacationDateCalculationInput): Vac
   while (vacationUnits < input.entitlementUnits) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
-    const dateStr = formatDate(d);
+    const dateStr = fmtDate(d);
 
     const isRest = isWeeklyRest(dateStr, input.weeklyRestDays);
     const isMand = isMandatoryRest(dateStr, input.mandatoryRestDates);
@@ -140,17 +140,17 @@ function getReturnDate(
   d.setDate(d.getDate() + 1);
   let attempts = 0;
   while (attempts < 30) {
-    const dateStr = formatDate(d);
+    const dateStr = fmtDate(d);
     if (!isWeeklyRest(dateStr, weeklyRestDays) && !isMandatoryRest(dateStr, mandatoryDates) && isWorkDay(dateStr, schedule)) {
       return dateStr;
     }
     d.setDate(d.getDate() + 1);
     attempts++;
   }
-  return formatDate(d);
+  return fmtDate(d);
 }
 
-function formatDate(d: Date): string {
+function fmtDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
