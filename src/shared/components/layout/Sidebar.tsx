@@ -84,7 +84,18 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   return (
     <>
       {/* Mobile overlay */}
-      {open && <div className="sidebar-overlay" onClick={onClose} />}
+      <div
+        className="sidebar-overlay"
+        onClick={onClose}
+        style={{
+          position: "fixed", inset: 0,
+          background: "rgba(0, 0, 0, 0.4)",
+          zIndex: 40,
+          opacity: open ? 1 : 0,
+          pointerEvents: open ? "auto" : "none",
+          transition: "opacity 0.2s ease",
+        }}
+      />
 
       {/* Desktop sidebar */}
       <div className="desktop-only" style={{
@@ -96,16 +107,20 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       </div>
 
       {/* Mobile drawer */}
-      {open && (
-        <div className="sidebar-drawer" style={{
+      <div
+        className="sidebar-drawer"
+        style={{
           position: "fixed", top: 0, left: 0, bottom: 0, width: "280px",
           background: "var(--card)", zIndex: 50,
           borderRight: "1px solid var(--border)",
           paddingTop: "var(--nav-height)", overflowY: "auto",
-        }}>
-          {sidebarContent}
-        </div>
-      )}
+          transform: open ? "translateX(0)" : "translateX(-100%)",
+          transition: "transform 0.25s ease",
+          pointerEvents: open ? "auto" : "none",
+        }}
+      >
+        {sidebarContent}
+      </div>
     </>
   )
 }

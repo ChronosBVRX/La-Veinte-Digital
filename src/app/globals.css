@@ -58,10 +58,6 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes slideInRight {
-  from { opacity: 0; transform: translateX(20px); }
-  to { opacity: 1; transform: translateX(0); }
-}
 
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(100%); }
@@ -156,31 +152,7 @@ a:focus-visible {
     display: none !important;
   }
 
-  .sidebar-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    z-index: 40;
-    animation: fadeIn 0.2s ease;
-  }
 
-  .sidebar-drawer {
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 280px;
-    background: var(--card);
-    z-index: 50;
-    border-right: 1px solid var(--border);
-    animation: slideInRight 0.25s ease reverse;
-    padding-top: var(--nav-height);
-    overflow-y: auto;
-  }
-
-  .sidebar-drawer.closing {
-    animation: slideInRight 0.25s ease forwards;
-  }
 
   main {
     padding-bottom: calc(var(--bottom-nav-height) + 1rem) !important;
