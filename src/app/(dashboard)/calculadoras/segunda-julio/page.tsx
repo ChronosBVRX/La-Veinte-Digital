@@ -1,5 +1,7 @@
 import { SegundaJulioCalculator } from "@/features/calculators/components/SegundaJulioCalculator"
+import { getCurrentUserProfile } from "@/features/profile/services/profiles"
 
-export default function SegundaJulioPage() {
-  return <SegundaJulioCalculator />
+export default async function SegundaJulioPage() {
+  const profile = await getCurrentUserProfile()
+  return <SegundaJulioCalculator initialCategoria={profile?.categoria} />
 }

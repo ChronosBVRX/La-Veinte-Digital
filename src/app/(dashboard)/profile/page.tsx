@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { User, Shield } from "lucide-react"
 import { ProfileForm } from "@/features/profile/components/ProfileForm"
+import { getAllAdscripciones } from "@/features/catalogo/services/catalogo"
+import prestamosRaw from "@/features/calculators/data/prestamos_categoria.json"
 
 export default async function ProfilePage() {
   const supabase = await createClient()
@@ -13,6 +15,23 @@ export default async function ProfilePage() {
     .select("*")
     .eq("id", user.id)
     .single()
+
+  const adscripciones = await getAllAdscripciones()
+  const adscripcionOptions = adscripciones.map((a) => ({
+    label: a.nombre,
+    value: a.nombre,
+  }))
+
+  const raw = prestamosRaw as { CATEGORIA: string }[]
+  const seen = new Set<string>()
+  const categoriaOptions = raw
+    .map((r) => r.CATEGORIA.trim())
+    .filter((c) => {
+      if (seen.has(c)) return false
+      seen.add(c)
+      return true
+    })
+    .map((c) => ({ label: c, value: c }))
 
   return (
     <div style={{ maxWidth: "600px", margin: "0 auto" }}>
@@ -46,7 +65,7 @@ export default async function ProfilePage() {
           <Shield size={16} style={{ color: "var(--primary)" }} />
           <span style={{ fontSize: "0.9375rem", fontWeight: 600 }}>Información personal</span>
         </div>
-        <ProfileForm profile={profile} />
+        <ProfileForm profile={profile} categoriaOptions={categoriaOptions} adscripcionOptions={adscripcionOptions} />
       </div>
     </div>
   )

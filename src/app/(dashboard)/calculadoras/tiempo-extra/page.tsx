@@ -1,5 +1,7 @@
 import { TiempoExtraCalculator } from "@/features/calculators/components/TiempoExtraCalculator"
+import { getCurrentUserProfile } from "@/features/profile/services/profiles"
 
-export default function TiempoExtraPage() {
-  return <TiempoExtraCalculator />
+export default async function TiempoExtraPage() {
+  const profile = await getCurrentUserProfile()
+  return <TiempoExtraCalculator initialCategoria={profile?.categoria} />
 }

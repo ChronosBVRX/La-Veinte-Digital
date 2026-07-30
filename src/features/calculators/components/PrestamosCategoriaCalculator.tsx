@@ -1,6 +1,6 @@
-﻿"use client"
+"use client"
 
-import { useState, useMemo, useEffect, useActionState } from "react"
+import { useState, useMemo, useActionState } from "react"
 import Link from "next/link"
 import { ArrowLeft, Search, Check, RotateCcw } from "lucide-react"
 import { Input } from "@/shared/components/ui/Input"
@@ -20,7 +20,7 @@ interface Props {
 
 export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
   const [query, setQuery] = useState(initialCategoria ?? "")
-  const [selected, setSelected] = useState<PrestamoCategoriaRecord | null>(null)
+  const [userSelected, setUserSelected] = useState<PrestamoCategoriaRecord | null>(null)
   const [saved, setSaved] = useState(false)
 
   const [saveState, saveAction, savePending] = useActionState(
@@ -41,14 +41,15 @@ export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
     return raw.map(mapJsonToPrestamoRecord)
   }, [])
 
-  const filtered = useMemo(() => filterCategorias(records, query), [records, query])
-
-  useEffect(() => {
-    if (!initialCategoria || selected) return
+  const initialMatch = useMemo(() => {
+    if (!initialCategoria) return null
     const norm = normalizeSearch(initialCategoria)
-    const match = records.find((r) => normalizeSearch(r.categoria) === norm)
-    if (match) setSelected(match)
-  }, [initialCategoria, records, selected])
+    return records.find((r) => normalizeSearch(r.categoria) === norm) ?? null
+  }, [initialCategoria, records])
+
+  const selected = userSelected ?? initialMatch
+
+  const filtered = useMemo(() => filterCategorias(records, query), [records, query])
 
   const selectedCalculos = useMemo(() => {
     if (!selected) return []
@@ -56,12 +57,12 @@ export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
   }, [selected])
 
   const handleSelect = (r: PrestamoCategoriaRecord) => {
-    setSelected(r)
+    setUserSelected(r)
     setSaved(false)
   }
 
   const handleClear = () => {
-    setSelected(null)
+    setUserSelected(null)
     setQuery("")
     setSaved(false)
   }

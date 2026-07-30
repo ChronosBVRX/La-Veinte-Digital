@@ -1,22 +1,51 @@
 ﻿"use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import Link from "next/link"
 import { ArrowLeft, Calculator, RotateCcw } from "lucide-react"
 import { Button } from "@/shared/components/ui/Button"
 import { CurrencyField } from "./CurrencyField"
+import { CategorySelector } from "./CategorySelector"
 import { ResultCard } from "./ResultCard"
 import { FormulaExplanation } from "./FormulaExplanation"
 import { CalculatorDisclaimer } from "./CalculatorDisclaimer"
 import { calculateSegundaJulio } from "../lib/segundaJulio"
-import { parseCurrencyInput } from "../lib/money"
+import { mapJsonToPrestamoRecord } from "../lib/prestamos"
+import { parseCurrencyInput, formatCurrency } from "../lib/money"
+import prestamosRaw from "../data/prestamos_categoria.json"
+import type { PrestamoCategoriaRecord } from "../lib/types"
 
-export function SegundaJulioCalculator() {
+interface Props {
+  initialCategoria?: string | null
+}
+
+export function SegundaJulioCalculator({ initialCategoria }: Props) {
   const [c002, setC002] = useState("")
   const [c011, setC011] = useState("")
   const [errors, setErrors] = useState<{ c002?: string; c011?: string }>({})
   const [resultado, setResultado] = useState<number | null>(null)
   const [base, setBase] = useState(0)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+
+  const initialMatch = useMemo(() => {
+    if (!initialCategoria) return null
+    const raw = prestamosRaw as Record<string, unknown>[]
+    const records = raw.map(mapJsonToPrestamoRecord)
+    const norm = initialCategoria.toLowerCase().trim()
+    return records.find((r) => r.categoria.toLowerCase().includes(norm)) ?? null
+  }, [initialCategoria])
+
+  if (initialMatch && !selectedCategory) {
+    setSelectedCategory(initialMatch.categoria)
+    if (!c002 && initialMatch.sueldoQuincenal) setC002(formatCurrency(initialMatch.sueldoQuincenal))
+    if (!c011 && initialMatch.concepto011) setC011(formatCurrency(initialMatch.concepto011))
+  }
+
+  const handleCategorySelect = (record: PrestamoCategoriaRecord) => {
+    setSelectedCategory(record.categoria)
+    if (record.sueldoQuincenal) setC002(formatCurrency(record.sueldoQuincenal))
+    if (record.concepto011) setC011(formatCurrency(record.concepto011))
+  }
 
   function validate(): boolean {
     const e: typeof errors = {}
@@ -37,7 +66,7 @@ export function SegundaJulioCalculator() {
   }
 
   function handleClear() {
-    setC002(""); setC011(""); setErrors({}); setResultado(null); setBase(0)
+    setC002(""); setC011(""); setErrors({}); setResultado(null); setBase(0); setSelectedCategory(null)
   }
 
   return (
@@ -48,6 +77,7 @@ export function SegundaJulioCalculator() {
       <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "0 0 0.25rem" }}>Segunda de Julio</h1>
       <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0 0 1.5rem" }}>Calcula el pago anual de la prestacion segunda de julio.</p>
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
+        <CategorySelector initialCategory={selectedCategory ?? initialCategoria} onSelect={handleCategorySelect} />
         <CurrencyField label="Concepto 002" value={c002} onChange={setC002} error={errors.c002} />
         <CurrencyField label="Concepto 011" value={c011} onChange={setC011} error={errors.c011} />
       </div>

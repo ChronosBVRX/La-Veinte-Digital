@@ -4,6 +4,8 @@ import { useActionState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { Input } from "@/shared/components/ui/Input"
+import { SearchableSelect } from "@/shared/components/ui/SearchableSelect"
+import type { SearchableOption } from "@/shared/components/ui/SearchableSelect"
 import { Button } from "@/shared/components/ui/Button"
 
 interface Profile {
@@ -16,7 +18,13 @@ interface Profile {
   phone: string | null
 }
 
-export function ProfileForm({ profile }: { profile: Profile | null }) {
+interface Props {
+  profile: Profile | null
+  categoriaOptions: SearchableOption[]
+  adscripcionOptions: SearchableOption[]
+}
+
+export function ProfileForm({ profile, categoriaOptions, adscripcionOptions }: Props) {
   const router = useRouter()
 
   const [state, formAction, pending] = useActionState(
@@ -56,8 +64,8 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
       )}
       <Input label="Nombre completo" name="full_name" defaultValue={profile?.full_name ?? ""} />
       <Input label="Matrícula" name="matricula" defaultValue={profile?.matricula ?? ""} />
-      <Input label="Adscripción" name="adscripcion" defaultValue={profile?.adscripcion ?? ""} />
-      <Input label="Categoría" name="categoria" defaultValue={profile?.categoria ?? ""} />
+      <SearchableSelect label="Adscripción" name="adscripcion" defaultValue={profile?.adscripcion} options={adscripcionOptions} />
+      <SearchableSelect label="Categoría" name="categoria" defaultValue={profile?.categoria} options={categoriaOptions} />
       <Input label="Antigüedad" name="antiguedad" defaultValue={profile?.antiguedad ?? ""} />
       <Input label="Teléfono" name="phone" defaultValue={profile?.phone ?? ""} type="tel" />
       <Button type="submit" loading={pending} style={{ alignSelf: "flex-start" }}>

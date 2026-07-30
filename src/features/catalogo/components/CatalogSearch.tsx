@@ -3,11 +3,7 @@
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 
-interface Props {
-  type: "categoria" | "adscripcion"
-}
-
-export function CatalogSearch({ type }: Props) {
+export function CatalogSearch() {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<{ nombre: string }[]>([])
   const [loading, setLoading] = useState(false)
@@ -22,7 +18,7 @@ export function CatalogSearch({ type }: Props) {
     setLoading(true)
     const supabase = createClient()
     const { data } = await supabase.rpc("search_catalogo", {
-      catalogo_type: type,
+      catalogo_type: "adscripcion",
       search_term: value,
     })
     setResults(data ?? [])

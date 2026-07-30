@@ -139,3 +139,4 @@ describe("Prestamos", () => {
     expect(filterCategorias(records, "")).toHaveLength(2)
   })
 })
+

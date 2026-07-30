@@ -1,17 +1,20 @@
 ﻿"use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import Link from "next/link"
 import { ArrowLeft, Calculator, RotateCcw } from "lucide-react"
 import { Button } from "@/shared/components/ui/Button"
 import { Select } from "@/shared/components/ui/Input"
 import { CurrencyField } from "./CurrencyField"
+import { CategorySelector } from "./CategorySelector"
 import { ResultCard } from "./ResultCard"
 import { FormulaExplanation } from "./FormulaExplanation"
 import { CalculatorDisclaimer } from "./CalculatorDisclaimer"
 import { calculateTiempoExtra } from "../lib/tiempoExtra"
-import { parseCurrencyInput } from "../lib/money"
-import type { JornadaHoras, TiempoExtraInput } from "../lib/types"
+import { mapJsonToPrestamoRecord } from "../lib/prestamos"
+import { parseCurrencyInput, formatCurrency } from "../lib/money"
+import prestamosRaw from "../data/prestamos_categoria.json"
+import type { JornadaHoras, TiempoExtraInput, PrestamoCategoriaRecord } from "../lib/types"
 
 const JORNADAS = [
   { value: "6.5", label: "6.5 horas" },
@@ -19,13 +22,38 @@ const JORNADAS = [
   { value: "12", label: "12 horas" },
 ]
 
-export function TiempoExtraCalculator() {
+interface Props {
+  initialCategoria?: string | null
+}
+
+export function TiempoExtraCalculator({ initialCategoria }: Props) {
   const [fields, setFields] = useState({
     c002: "", c011: "", c020: "", adicional1: "", adicional2: "", c050: "",
     jornada: "8", horasExtra: "",
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [result, setResult] = useState<ReturnType<typeof calculateTiempoExtra> | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+
+  const initialMatch = useMemo(() => {
+    if (!initialCategoria) return null
+    const raw = prestamosRaw as Record<string, unknown>[]
+    const records = raw.map(mapJsonToPrestamoRecord)
+    const norm = initialCategoria.toLowerCase().trim()
+    return records.find((r) => r.categoria.toLowerCase().includes(norm)) ?? null
+  }, [initialCategoria])
+
+  if (initialMatch && !selectedCategory) {
+    setSelectedCategory(initialMatch.categoria)
+    if (!fields.c002 && initialMatch.sueldoQuincenal) setField("c002", formatCurrency(initialMatch.sueldoQuincenal))
+    if (!fields.c011 && initialMatch.concepto011) setField("c011", formatCurrency(initialMatch.concepto011))
+  }
+
+  const handleCategorySelect = (record: PrestamoCategoriaRecord) => {
+    setSelectedCategory(record.categoria)
+    if (record.sueldoQuincenal) setField("c002", formatCurrency(record.sueldoQuincenal))
+    if (record.concepto011) setField("c011", formatCurrency(record.concepto011))
+  }
 
   function setField(key: string, value: string) {
     setFields((prev) => ({ ...prev, [key]: value }))
@@ -66,7 +94,7 @@ export function TiempoExtraCalculator() {
 
   function handleClear() {
     setFields({ c002: "", c011: "", c020: "", adicional1: "", adicional2: "", c050: "", jornada: "8", horasExtra: "" })
-    setErrors({}); setResult(null)
+    setErrors({}); setResult(null); setSelectedCategory(null)
   }
 
   return (
@@ -77,6 +105,7 @@ export function TiempoExtraCalculator() {
       <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "0 0 0.25rem" }}>Tiempo Extra</h1>
       <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0 0 1.5rem" }}>Calcula el pago de horas extraordinarias.</p>
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
+        <CategorySelector initialCategory={selectedCategory ?? initialCategoria} onSelect={handleCategorySelect} />
         <CurrencyField label="Concepto 002" value={fields.c002} onChange={(v) => setField("c002", v)} error={errors.c002} />
         <CurrencyField label="Concepto 011" value={fields.c011} onChange={(v) => setField("c011", v)} error={errors.c011} />
         <CurrencyField label="Concepto 020" value={fields.c020} onChange={(v) => setField("c020", v)} error={errors.c020} />

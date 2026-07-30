@@ -24,12 +24,6 @@ export type Database = {
         Update: { created_at?: string | null; id?: number; nombre?: string }
         Relationships: []
       }
-      catalogo_categorias: {
-        Row: { created_at: string | null; id: number; nombre: string }
-        Insert: { created_at?: string | null; id?: number; nombre: string }
-        Update: { created_at?: string | null; id?: number; nombre?: string }
-        Relationships: []
-      }
       chat_messages: {
         Row: { content: string; created_at: string | null; id: string; room_id: string; user_id: string }
         Insert: { content: string; created_at?: string | null; id?: string; room_id: string; user_id: string }

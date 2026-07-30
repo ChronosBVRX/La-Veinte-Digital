@@ -5,11 +5,6 @@ import { CatalogSearch } from "@/features/catalogo/components/CatalogSearch"
 export default async function CatalogPage() {
   const supabase = await createClient()
 
-  const { data: categorias } = await supabase
-    .from("catalogo_categorias")
-    .select("nombre, id")
-    .order("nombre", { ascending: true })
-
   const { data: adscripciones } = await supabase
     .from("catalogo_adscripciones")
     .select("nombre, id")
@@ -28,40 +23,12 @@ export default async function CatalogPage() {
         <div>
           <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>Catálogo</h1>
           <p style={{ color: "var(--muted)", fontSize: "0.8125rem", margin: "0.125rem 0 0" }}>
-            Busca categorías y adscripciones del sistema
+            Adscripciones del sistema
           </p>
         </div>
       </div>
 
-      <div style={{
-        display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-        gap: "1.5rem", marginTop: "1.5rem",
-      }}>
-        <div style={{
-          background: "var(--card)", border: "1px solid var(--border)",
-          borderRadius: "var(--radius)", padding: "1.25rem",
-        }}>
-          <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem" }}>
-            Categorías <span style={{ color: "var(--muted)", fontWeight: 400 }}>({categorias?.length ?? 0})</span>
-          </h2>
-          <CatalogSearch type="categoria" />
-          <div style={{ marginTop: "0.75rem", maxHeight: "400px", overflow: "auto" }}>
-            {categorias?.map((cat) => (
-              <div key={cat.id} style={{
-                padding: "0.5rem 0.625rem", fontSize: "0.875rem",
-                borderBottom: "1px solid var(--border)", color: "var(--fg)",
-                transition: "background var(--transition)",
-              }}>
-                {cat.nombre}
-              </div>
-            ))}
-            {(!categorias || categorias.length === 0) && (
-              <p style={{ fontSize: "0.875rem", color: "var(--muted)", textAlign: "center", padding: "2rem 0" }}>
-                No hay categorías registradas
-              </p>
-            )}
-          </div>
-        </div>
+      <div style={{ marginTop: "1.5rem" }}>
         <div style={{
           background: "var(--card)", border: "1px solid var(--border)",
           borderRadius: "var(--radius)", padding: "1.25rem",
@@ -69,7 +36,7 @@ export default async function CatalogPage() {
           <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem" }}>
             Adscripciones <span style={{ color: "var(--muted)", fontWeight: 400 }}>({adscripciones?.length ?? 0})</span>
           </h2>
-          <CatalogSearch type="adscripcion" />
+          <CatalogSearch />
           <div style={{ marginTop: "0.75rem", maxHeight: "400px", overflow: "auto" }}>
             {adscripciones?.map((ad) => (
               <div key={ad.id} style={{

@@ -4,23 +4,14 @@ export interface CatalogoItem {
   nombre: string
 }
 
-export async function searchCatalogo(type: "categoria" | "adscripcion", searchTerm: string) {
+export async function searchAdscripciones(searchTerm: string) {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc("search_catalogo", {
-    catalogo_type: type,
+    catalogo_type: "adscripcion",
     search_term: searchTerm,
   })
   if (error) throw error
   return (data ?? []) as CatalogoItem[]
-}
-
-export async function getAllCategorias() {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from("catalogo_categorias")
-    .select("nombre, id")
-    .order("nombre", { ascending: true })
-  return data ?? []
 }
 
 export async function getAllAdscripciones() {

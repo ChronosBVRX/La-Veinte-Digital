@@ -77,3 +77,4 @@ export interface PrestamoCalculado {
   valorOriginal?: number
   diferencia?: number
 }
+

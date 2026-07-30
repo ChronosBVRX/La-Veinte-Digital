@@ -1,5 +1,7 @@
 import { Clausula97Calculator } from "@/features/calculators/components/Clausula97Calculator"
+import { getCurrentUserProfile } from "@/features/profile/services/profiles"
 
-export default function Clausula97Page() {
-  return <Clausula97Calculator />
+export default async function Clausula97Page() {
+  const profile = await getCurrentUserProfile()
+  return <Clausula97Calculator initialCategoria={profile?.categoria} />
 }

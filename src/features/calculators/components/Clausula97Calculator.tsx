@@ -1,16 +1,20 @@
 ﻿"use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import Link from "next/link"
 import { ArrowLeft, Calculator, RotateCcw } from "lucide-react"
 import { Button } from "@/shared/components/ui/Button"
 import { Card } from "@/shared/components/ui/Card"
 import { CurrencyField } from "./CurrencyField"
+import { CategorySelector } from "./CategorySelector"
 import { ResultCard } from "./ResultCard"
 import { FormulaExplanation } from "./FormulaExplanation"
 import { CalculatorDisclaimer } from "./CalculatorDisclaimer"
 import { calculateClausula97 } from "../lib/clausula97"
+import { mapJsonToPrestamoRecord } from "../lib/prestamos"
 import { parseCurrencyInput, formatCurrency } from "../lib/money"
+import prestamosRaw from "../data/prestamos_categoria.json"
+import type { PrestamoCategoriaRecord } from "../lib/types"
 
 const options = [
   { key: "unMes" as const, label: "1 mes", quincenas: 2 },
@@ -19,11 +23,36 @@ const options = [
   { key: "cuatroMeses" as const, label: "4 meses", quincenas: 8 },
 ]
 
-export function Clausula97Calculator() {
+interface Props {
+  initialCategoria?: string | null
+}
+
+export function Clausula97Calculator({ initialCategoria }: Props) {
   const [c002, setC002] = useState("")
   const [c011, setC011] = useState("")
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [result, setResult] = useState<ReturnType<typeof calculateClausula97> | null>(null)
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+
+  const initialMatch = useMemo(() => {
+    if (!initialCategoria) return null
+    const raw = prestamosRaw as Record<string, unknown>[]
+    const records = raw.map(mapJsonToPrestamoRecord)
+    const norm = initialCategoria.toLowerCase().trim()
+    return records.find((r) => r.categoria.toLowerCase().includes(norm)) ?? null
+  }, [initialCategoria])
+
+  if (initialMatch && !selectedCategory) {
+    setSelectedCategory(initialMatch.categoria)
+    if (!c002 && initialMatch.sueldoQuincenal) setC002(formatCurrency(initialMatch.sueldoQuincenal))
+    if (!c011 && initialMatch.concepto011) setC011(formatCurrency(initialMatch.concepto011))
+  }
+
+  const handleCategorySelect = (record: PrestamoCategoriaRecord) => {
+    setSelectedCategory(record.categoria)
+    if (record.sueldoQuincenal) setC002(formatCurrency(record.sueldoQuincenal))
+    if (record.concepto011) setC011(formatCurrency(record.concepto011))
+  }
 
   function validate(): boolean {
     const e: Record<string, string> = {}
@@ -41,7 +70,7 @@ export function Clausula97Calculator() {
   }
 
   function handleClear() {
-    setC002(""); setC011(""); setErrors({}); setResult(null)
+    setC002(""); setC011(""); setErrors({}); setResult(null); setSelectedCategory(null)
   }
 
   return (
@@ -52,6 +81,7 @@ export function Clausula97Calculator() {
       <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "0 0 0.25rem" }}>Clausula 97</h1>
       <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0 0 1.5rem" }}>Adelanto de una a cuatro quincenas.</p>
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem", maxWidth: "400px" }}>
+        <CategorySelector initialCategory={selectedCategory ?? initialCategoria} onSelect={handleCategorySelect} />
         <CurrencyField label="Concepto 002" value={c002} onChange={setC002} error={errors.c002} />
         <CurrencyField label="Concepto 011" value={c011} onChange={setC011} error={errors.c011} />
       </div>
