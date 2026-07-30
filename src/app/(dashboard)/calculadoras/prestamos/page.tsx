@@ -3,5 +3,5 @@ import { getCurrentUserProfile } from "@/features/profile/services/profiles"
 
 export default async function PrestamosPage() {
   const profile = await getCurrentUserProfile()
-  return <PrestamosCategoriaCalculator initialCategoria={profile?.categoria} />
+  return <PrestamosCategoriaCalculator initialCategoria={profile?.categoria} initialAntiguedad={profile?.antiguedad} />
 }

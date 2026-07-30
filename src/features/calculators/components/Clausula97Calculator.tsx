@@ -5,6 +5,7 @@ import Link from "next/link"
 import { ArrowLeft, Calculator, RotateCcw } from "lucide-react"
 import { Button } from "@/shared/components/ui/Button"
 import { Card } from "@/shared/components/ui/Card"
+import { Input } from "@/shared/components/ui/Input"
 import { CurrencyField } from "./CurrencyField"
 import { CategorySelector } from "./CategorySelector"
 import { ResultCard } from "./ResultCard"
@@ -12,6 +13,7 @@ import { FormulaExplanation } from "./FormulaExplanation"
 import { CalculatorDisclaimer } from "./CalculatorDisclaimer"
 import { calculateClausula97 } from "../lib/clausula97"
 import { mapJsonToPrestamoRecord } from "../lib/prestamos"
+import { calcularConcepto011, calcularConcepto022, parseSeniorityYears } from "../lib/conceptos"
 import { parseCurrencyInput, formatCurrency } from "../lib/money"
 import prestamosRaw from "../data/prestamos_categoria.json"
 import type { PrestamoCategoriaRecord } from "../lib/types"
@@ -25,14 +27,16 @@ const options = [
 
 interface Props {
   initialCategoria?: string | null
+  initialAntiguedad?: string | null
 }
 
-export function Clausula97Calculator({ initialCategoria }: Props) {
+export function Clausula97Calculator({ initialCategoria, initialAntiguedad }: Props) {
   const [c002, setC002] = useState("")
-  const [c011, setC011] = useState("")
+  const [antiguedad, setAntiguedad] = useState(initialAntiguedad ?? "")
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [result, setResult] = useState<ReturnType<typeof calculateClausula97> | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [jsonC011, setJsonC011] = useState<number | null>(null)
 
   const initialMatch = useMemo(() => {
     if (!initialCategoria) return null
@@ -45,32 +49,35 @@ export function Clausula97Calculator({ initialCategoria }: Props) {
   if (initialMatch && !selectedCategory) {
     setSelectedCategory(initialMatch.categoria)
     if (!c002 && initialMatch.sueldoQuincenal) setC002(formatCurrency(initialMatch.sueldoQuincenal))
-    if (!c011 && initialMatch.concepto011) setC011(formatCurrency(initialMatch.concepto011))
+    if (initialMatch.concepto011) setJsonC011(initialMatch.concepto011)
   }
+
+  const c002Num = parseCurrencyInput(c002)
+  const c011Calculated = c002Num !== null ? calcularConcepto011(c002Num) : null
+  const antiguedadYears = parseSeniorityYears(antiguedad)
+  const c022 = c002Num !== null && antiguedadYears > 0 ? calcularConcepto022(c002Num, antiguedadYears) : 0
 
   const handleCategorySelect = (record: PrestamoCategoriaRecord) => {
     setSelectedCategory(record.categoria)
     if (record.sueldoQuincenal) setC002(formatCurrency(record.sueldoQuincenal))
-    if (record.concepto011) setC011(formatCurrency(record.concepto011))
+    setJsonC011(record.concepto011 ?? null)
   }
 
   function validate(): boolean {
     const e: Record<string, string> = {}
-    const v002 = parseCurrencyInput(c002)
-    const v011 = parseCurrencyInput(c011)
-    if (v002 === null) e.c002 = "Ingrese un valor valido"
-    if (v011 === null) e.c011 = "Ingrese un valor valido"
+    if (c002Num === null) e.c002 = "Ingrese un valor valido"
     setErrors(e)
-    return Object.keys(e).length === 0 && v002 !== null && v011 !== null
+    return Object.keys(e).length === 0 && c002Num !== null
   }
 
   function handleCalculate() {
-    if (!validate()) return
-    setResult(calculateClausula97({ concepto002: parseCurrencyInput(c002)!, concepto011: parseCurrencyInput(c011)! }))
+    if (!validate() || c002Num === null || c011Calculated === null) return
+    setResult(calculateClausula97({ concepto002: c002Num, concepto011: c011Calculated }))
   }
 
   function handleClear() {
-    setC002(""); setC011(""); setErrors({}); setResult(null); setSelectedCategory(null)
+    setC002(""); setAntiguedad(initialAntiguedad ?? ""); setErrors({}); setResult(null)
+    setSelectedCategory(null); setJsonC011(null)
   }
 
   return (
@@ -82,8 +89,23 @@ export function Clausula97Calculator({ initialCategoria }: Props) {
       <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0 0 1.5rem" }}>Adelanto de una a cuatro quincenas.</p>
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem", maxWidth: "400px" }}>
         <CategorySelector initialCategory={selectedCategory ?? initialCategoria} onSelect={handleCategorySelect} />
-        <CurrencyField label="Concepto 002" value={c002} onChange={setC002} error={errors.c002} />
-        <CurrencyField label="Concepto 011" value={c011} onChange={setC011} error={errors.c011} />
+        <CurrencyField label="Concepto 002" value={c002} onChange={(v) => { setC002(v); if (!v) setResult(null) }} error={errors.c002} />
+        {c011Calculated !== null && (
+          <div>
+            <Input label="Concepto 011 (calculado)" value={formatCurrency(c011Calculated)} readOnly />
+            {jsonC011 !== null && (
+              <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>
+                011 en tabulador: {formatCurrency(jsonC011)} | 011 calculado: {formatCurrency(c011Calculated)}
+              </p>
+            )}
+          </div>
+        )}
+        <CurrencyField label="Antigüedad (años)" value={antiguedad} onChange={(v) => { setAntiguedad(v); if (!v) setResult(null) }} />
+        {c022 > 0 && (
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", background: "var(--accent)", padding: "0.5rem 0.75rem", borderRadius: "var(--radius-sm)", margin: 0 }}>
+            Concepto 022 (Ayuda de Renta por Antigüedad): <strong>{formatCurrency(c022)}</strong> anual
+          </p>
+        )}
       </div>
       <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem" }}>
         <Button onClick={handleCalculate}><Calculator size={16} /> Calcular</Button>
@@ -91,7 +113,7 @@ export function Clausula97Calculator({ initialCategoria }: Props) {
       </div>
       {result && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          <ResultCard title="Base quincenal" rows={[{ label: "Base", value: result.baseQuincenal, highlight: true }]} />
+          <ResultCard title="Base quincenal" rows={[{ label: "Base (002 + 011 calculado)", value: result.baseQuincenal, highlight: true }]} />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "0.75rem" }}>
             {options.map((o) => (
               <Card key={o.key} padding="1rem">
@@ -102,7 +124,12 @@ export function Clausula97Calculator({ initialCategoria }: Props) {
               </Card>
             ))}
           </div>
-          <FormulaExplanation steps={["Base quincenal = 002 + 011", "1 mes = Base x 2", "2 meses = Base x 4", "3 meses = Base x 6", "4 meses = Base x 8"]} />
+          {c022 > 0 && (
+            <ResultCard title="Prestación anual por antigüedad" rows={[
+              { label: "Concepto 022", value: c022, highlight: true },
+            ]} />
+          )}
+          <FormulaExplanation steps={["Base quincenal = 002 + 011 (011 = 002 × 0.8215)", "1 mes = Base x 2", "2 meses = Base x 4", "3 meses = Base x 6", "4 meses = Base x 8"]} />
           <CalculatorDisclaimer />
         </div>
       )}

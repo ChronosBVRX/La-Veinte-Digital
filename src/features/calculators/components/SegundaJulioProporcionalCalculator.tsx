@@ -10,23 +10,26 @@ import { CategorySelector } from "./CategorySelector"
 import { ResultCard } from "./ResultCard"
 import { FormulaExplanation } from "./FormulaExplanation"
 import { CalculatorDisclaimer } from "./CalculatorDisclaimer"
-import { calculateSegundaJulioProporcional } from "../lib/segundaJulio"
+import { calculateSegundaJulioProporcional, validateDiasLaborados } from "../lib/segundaJulio"
 import { mapJsonToPrestamoRecord } from "../lib/prestamos"
+import { calcularConcepto011, calcularConcepto022, parseSeniorityYears } from "../lib/conceptos"
 import { parseCurrencyInput, formatCurrency } from "../lib/money"
 import prestamosRaw from "../data/prestamos_categoria.json"
 import type { PrestamoCategoriaRecord } from "../lib/types"
 
 interface Props {
   initialCategoria?: string | null
+  initialAntiguedad?: string | null
 }
 
-export function SegundaJulioProporcionalCalculator({ initialCategoria }: Props) {
+export function SegundaJulioProporcionalCalculator({ initialCategoria, initialAntiguedad }: Props) {
   const [c002, setC002] = useState("")
-  const [c011, setC011] = useState("")
+  const [antiguedad, setAntiguedad] = useState(initialAntiguedad ?? "")
   const [dias, setDias] = useState("")
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [result, setResult] = useState<ReturnType<typeof calculateSegundaJulioProporcional> | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [jsonC011, setJsonC011] = useState<number | null>(null)
 
   const initialMatch = useMemo(() => {
     if (!initialCategoria) return null
@@ -39,40 +42,43 @@ export function SegundaJulioProporcionalCalculator({ initialCategoria }: Props) 
   if (initialMatch && !selectedCategory) {
     setSelectedCategory(initialMatch.categoria)
     if (!c002 && initialMatch.sueldoQuincenal) setC002(formatCurrency(initialMatch.sueldoQuincenal))
-    if (!c011 && initialMatch.concepto011) setC011(formatCurrency(initialMatch.concepto011))
+    if (initialMatch.concepto011) setJsonC011(initialMatch.concepto011)
   }
+
+  const c002Num = parseCurrencyInput(c002)
+  const c011Calculated = c002Num !== null ? calcularConcepto011(c002Num) : null
+  const antiguedadYears = parseSeniorityYears(antiguedad)
+  const c022 = c002Num !== null && antiguedadYears > 0 ? calcularConcepto022(c002Num, antiguedadYears) : 0
 
   const handleCategorySelect = (record: PrestamoCategoriaRecord) => {
     setSelectedCategory(record.categoria)
     if (record.sueldoQuincenal) setC002(formatCurrency(record.sueldoQuincenal))
-    if (record.concepto011) setC011(formatCurrency(record.concepto011))
+    setJsonC011(record.concepto011 ?? null)
   }
 
   function validate(): boolean {
     const e: Record<string, string> = {}
-    const v002 = parseCurrencyInput(c002)
-    const v011 = parseCurrencyInput(c011)
-    const vDias = parseInt(dias, 10)
-    if (v002 === null) e.c002 = "Ingrese un valor valido"
-    if (v011 === null) e.c011 = "Ingrese un valor valido"
-    if (!dias || isNaN(vDias) || vDias < 1) e.dias = "Minimo 1 dia"
-    else if (vDias > 360) e.dias = "Maximo 360 dias"
-    else if (vDias !== Math.floor(vDias)) e.dias = "Debe ser entero"
+    if (c002Num === null) e.c002 = "Ingrese un valor valido"
+    const diasNum = parseInt(dias, 10)
+    if (!dias || isNaN(diasNum)) e.dias = "Ingrese los días laborados"
+    else {
+      const err = validateDiasLaborados(diasNum)
+      if (err) e.dias = err
+    }
     setErrors(e)
-    return Object.keys(e).length === 0 && v002 !== null && v011 !== null
+    return Object.keys(e).length === 0 && c002Num !== null
   }
 
   function handleCalculate() {
-    if (!validate()) return
-    const v002 = parseCurrencyInput(c002)!
-    const v011 = parseCurrencyInput(c011)!
+    if (!validate() || c002Num === null || c011Calculated === null) return
     setResult(calculateSegundaJulioProporcional({
-      concepto002: v002, concepto011: v011, diasLaborados: parseInt(dias, 10),
+      concepto002: c002Num, concepto011: c011Calculated, diasLaborados: parseInt(dias, 10),
     }))
   }
 
   function handleClear() {
-    setC002(""); setC011(""); setDias(""); setErrors({}); setResult(null); setSelectedCategory(null)
+    setC002(""); setAntiguedad(initialAntiguedad ?? ""); setDias(""); setErrors({}); setResult(null)
+    setSelectedCategory(null); setJsonC011(null)
   }
 
   return (
@@ -81,16 +87,27 @@ export function SegundaJulioProporcionalCalculator({ initialCategoria }: Props) 
         <ArrowLeft size={16} /> Volver a calculadoras
       </Link>
       <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "0 0 0.25rem" }}>Segunda de Julio Proporcional</h1>
-      <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0 0 0.25rem" }}>Para categorias 08 y 02 con periodo menor a un ano.</p>
-      <p style={{ color: "var(--muted)", fontSize: "0.8125rem", margin: "0 0 1.5rem" }}>La aplicacion fuente usa base anual de 360 dias.</p>
+      <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0 0 1.5rem" }}>Calcula el pago proporcional de segunda de julio según los días laborados en el año.</p>
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
         <CategorySelector initialCategory={selectedCategory ?? initialCategoria} onSelect={handleCategorySelect} />
-        <CurrencyField label="Concepto 002" value={c002} onChange={setC002} error={errors.c002} />
-        <CurrencyField label="Concepto 011" value={c011} onChange={setC011} error={errors.c011} />
-        <div>
-          <Input id="dias" label="Dias laborados" value={dias} onChange={(e) => setDias(e.target.value.replace(/\D/g, ""))} placeholder="180" inputMode="numeric" style={{ borderColor: errors.dias ? "var(--error)" : undefined }} />
-          {errors.dias && <p style={{ fontSize: "0.75rem", color: "var(--error)", margin: "0.25rem 0 0" }}>{errors.dias}</p>}
-        </div>
+        <CurrencyField label="Concepto 002" value={c002} onChange={(v) => { setC002(v); if (!v) setResult(null) }} error={errors.c002} />
+        {c011Calculated !== null && (
+          <div>
+            <Input label="Concepto 011 (calculado)" value={formatCurrency(c011Calculated)} readOnly />
+            {jsonC011 !== null && (
+              <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>
+                011 en tabulador: {formatCurrency(jsonC011)} | 011 calculado: {formatCurrency(c011Calculated)}
+              </p>
+            )}
+          </div>
+        )}
+        <CurrencyField label="Antigüedad (años)" value={antiguedad} onChange={(v) => { setAntiguedad(v); if (!v) setResult(null) }} />
+        {c022 > 0 && (
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", background: "var(--accent)", padding: "0.5rem 0.75rem", borderRadius: "var(--radius-sm)", margin: 0 }}>
+            Concepto 022 (Ayuda de Renta por Antigüedad): <strong>{formatCurrency(c022)}</strong> anual
+          </p>
+        )}
+        <CurrencyField label="Días laborados en el año" value={dias} onChange={(v) => { setDias(v); if (!v) setResult(null) }} error={errors.dias} />
       </div>
       <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem" }}>
         <Button onClick={handleCalculate}><Calculator size={16} /> Calcular</Button>
@@ -99,15 +116,17 @@ export function SegundaJulioProporcionalCalculator({ initialCategoria }: Props) 
       {result && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
           <ResultCard title="Resultado" rows={[
-            { label: "Base", value: result.base },
-            { label: "Importe completo (360 dias)", value: result.importeCompleto },
-            { label: "Proporcion", value: result.proporcion * 100 },
-            { label: "Importe proporcional", value: result.resultado, highlight: true },
+            { label: "Base (002 + 011 calculado)", value: result.base },
+            { label: "Importe completo (360 días)", value: result.importeCompleto },
+            { label: "Proporción", value: result.proporcion },
+            { label: "Resultado", value: result.resultado, highlight: true },
           ]} />
-          <div style={{ background: "var(--accent)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "0.75rem 1rem", fontSize: "0.875rem" }}>
-            Cobraras aproximadamente <strong>{formatCurrency(result.resultado)}</strong> mas tu quincena.
-          </div>
-          <FormulaExplanation steps={["Base = 002 + 011", "Completo = (Base / 15) x 46", "Proporcion = Dias / 360", "Resultado = Completo x Proporcion"]} />
+          {c022 > 0 && (
+            <ResultCard title="Prestación anual por antigüedad" rows={[
+              { label: "Concepto 022", value: c022, highlight: true },
+            ]} />
+          )}
+          <FormulaExplanation steps={["Base = 002 + 011 (011 = 002 × 0.8215)", "Importe completo = (Base / 15) x 46", "Proporción = Días / 360", "Resultado = Importe completo x Proporción"]} />
           <CalculatorDisclaimer />
         </div>
       )}

@@ -6,9 +6,9 @@ import { ArrowLeft, Search, Check, RotateCcw } from "lucide-react"
 import { Input } from "@/shared/components/ui/Input"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
-import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { CalculatorDisclaimer } from "./CalculatorDisclaimer"
 import { filterCategorias, calcularPrestamos, mapJsonToPrestamoRecord, normalizeSearch } from "../lib/prestamos"
+import { calcularConcepto022, parseSeniorityYears } from "../lib/conceptos"
 import { formatCurrency } from "../lib/money"
 import type { PrestamoCategoriaRecord } from "../lib/types"
 import prestamosRaw from "../data/prestamos_categoria.json"
@@ -16,10 +16,12 @@ import { saveProfileCategoria } from "../services/saveProfileCategoria"
 
 interface Props {
   initialCategoria?: string | null
+  initialAntiguedad?: string | null
 }
 
-export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
+export function PrestamosCategoriaCalculator({ initialCategoria, initialAntiguedad }: Props) {
   const [query, setQuery] = useState(initialCategoria ?? "")
+  const [antiguedad, setAntiguedad] = useState(initialAntiguedad ?? "")
   const [userSelected, setUserSelected] = useState<PrestamoCategoriaRecord | null>(null)
   const [saved, setSaved] = useState(false)
 
@@ -55,6 +57,10 @@ export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
     if (!selected) return []
     return calcularPrestamos(selected)
   }, [selected])
+
+  const antiguedadYears = parseSeniorityYears(antiguedad)
+  const c022 = selected?.sueldoQuincenal && antiguedadYears > 0
+    ? calcularConcepto022(selected.sueldoQuincenal, antiguedadYears) : 0
 
   const handleSelect = (r: PrestamoCategoriaRecord) => {
     setUserSelected(r)
@@ -103,6 +109,16 @@ export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
           />
         </div>
       )}
+
+      <div style={{ marginBottom: "1rem" }}>
+        <Input
+          id="antiguedad"
+          label="Antigüedad (años)"
+          value={antiguedad}
+          onChange={(e) => setAntiguedad(e.target.value)}
+          placeholder="Ej: 10"
+        />
+      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
         <div>
@@ -154,6 +170,18 @@ export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
                   {selected.smi !== undefined && <InfoRow label="SMI" value={formatCurrency(selected.smi)} />}
                 </div>
               </Card>
+
+              {c022 > 0 && (
+                <Card padding="0.875rem" style={{ borderLeft: "3px solid var(--primary)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <p style={{ fontSize: "0.8125rem", fontWeight: 600, margin: 0 }}>Concepto 022</p>
+                      <p style={{ fontSize: "0.6875rem", color: "var(--muted)", margin: "0.125rem 0 0" }}>Ayuda de Renta por Antigüedad (anual)</p>
+                    </div>
+                    <p style={{ fontSize: "1rem", fontWeight: 700, margin: 0, color: "var(--primary)" }}>{formatCurrency(c022)}</p>
+                  </div>
+                </Card>
+              )}
 
               <form action={saveAction}>
                 <input type="hidden" name="categoria" value={selected.categoria} />
