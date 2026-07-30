@@ -110,8 +110,10 @@ Usuario → ChatRoom (CSR)
 - `features/calculators/components/` - Calculadoras con inputs
 - `features/chat/components/ChatRoom.tsx` - Chat en tiempo real
 - `features/escritos/components/` - Formularios
-- `shared/components/layout/` - Navbar, Sidebar, DashboardShell
-- `shared/components/ui/` - Todos los componentes UI
+- `features/bitacora/components/` - Bitácora personal (incidencias laborales)
+- `features/nomina/components/` - Wizard de perfil salarial, proyecciones
+- `shared/components/layout/` - Navbar, Sidebar, DashboardShell, TodayCard (modal interactivo)
+- `shared/components/ui/` - Todos los componentes UI (Button, Input, Card, Modal, etc.)
 
 ---
 
@@ -126,6 +128,8 @@ Usuario → ChatRoom (CSR)
 | Chat en vivo | Supabase Realtime subscriptions |
 | Toast notifications | React Context (`ToastProvider`) |
 | Sidebar | `useState` local en DashboardShell |
+| Perfil nómina | `useNomina` hook + localStorage |
+| TodayCard | `useState` para modal + `getProfile()` de localStorage |
 
 ---
 

@@ -149,31 +149,34 @@ Chat bot con IA que responde preguntas sobre el Contrato Colectivo de Trabajo (C
 - **Segunda de Julio Proporcional** - Cálculo proporcional
 - **Tiempo Extra** - Horas extra
 
-### 3. Calendario IMSS (`/calendario`)
+### 3. Bitácora Personal (`/profile` → sección)
+Registro diario de incidencias laborales con tipos predefinidos: Tiempo Extra, Guardia Festiva, TxT (Sustitución), Falta Injustificada, Incapacidad, Pases de salida/entrada, Vacaciones, No pagado. Los datos se almacenan en Supabase y se muestran en el perfil del usuario.
+
+### 4. Calendario IMSS (`/calendario`)
 Calendario laboral 2026 con fechas de pago, periodos de interactivo y vacacional. Exportable a formato `.ics` (iCalendar).
 
-### 4. Catálogo (`/catalogo`)
+### 5. Catálogo (`/catalogo`)
 Búsqueda en el catálogo de adscripciones del IMSS con función de búsqueda PostgreSQL (`search_catalogo`).
 
-### 5. Chat (`/chat`)
+### 6. Chat (`/chat`)
 Salas de chat en tiempo real con Supabase Realtime. Los usuarios pueden crear y unirse a salas de conversación.
 
-### 6. Escritos (`/escritos`)
+### 7. Escritos (`/escritos`)
 Generador de escritos formales PSD (Prestaciones de Servicios Diversos) con datos precargados del perfil del usuario. Exporta a PDF.
 
-### 7. Facebook (`/facebook`)
+### 8. Facebook (`/facebook`)
 Feed integrado de la página de Facebook de la Sección XX del SNTSS. Usa scraping vía bot-api Python.
 
-### 8. Foro (`/foro`)
+### 9. Foro (`/foro`)
 Foro de discusión con categorías, hilos, comentarios y anidación de respuestas.
 
-### 9. Nómina (`/nomina`)
-Visualización de nómina con wizard de perfil salarial, proyecciones de ingresos futuros y opción de opt-in para precarga de datos.
+### 10. Nómina (`/nomina`)
+Visualización de nómina con wizard de perfil salarial, proyecciones de ingresos futuros y opción de opt-in para precarga de datos. El wizard **precarga automáticamente** la categoría desde el perfil de Supabase y deriva las horas de jornada del sufijo numérico (80→8h, 65→6.5h, 60→6h).
 
-### 10. Perfil (`/profile`)
-Gestión de perfil de usuario: nombre, matrícula, adscripción, categoría, antigüedad, teléfono.
+### 11. Perfil (`/profile`)
+Gestión de perfil de usuario: nombre, matrícula, adscripción, categoría, antigüedad, teléfono, y **bitácora personal** de incidencias laborales. La antigüedad del perfil se usa también para calcular la evolución en la tarjeta del dashboard.
 
-### 11. Simulador (`/simulador`)
+### 12. Simulador (`/simulador`)
 Simulador interactivo de audiencias disciplinarias IMSS con 6 escenarios (faltas, maltrato, incumplimiento, extravío, retardos, confidencialidad). Evalúa el desempeño del trabajador con análisis IA post-simulación.
 
 ---

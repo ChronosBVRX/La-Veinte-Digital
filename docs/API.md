@@ -230,6 +230,16 @@ Health check.
 | `created_at` | timestamptz | Fecha |
 | `updated_at` | timestamptz | Última actualización |
 
+### Tabla: `bitacora_entries`
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id` | UUID (PK) | ID |
+| `user_id` | UUID (FK → profiles) | Usuario |
+| `entry_type` | text | Tipo: Tiempo Extra, Guardia Festiva, TxT (Sustitución), Falta Injustificada, Incapacidad, Pases de salida/entrada, Vacaciones, No pagado |
+| `description` | text | Descripción |
+| `entry_date` | date | Fecha de la incidencia |
+| `created_at` | timestamptz | Fecha de registro |
+
 ### Tabla: `forum_categories`
 | Columna | Tipo | Descripción |
 |---|---|---|
