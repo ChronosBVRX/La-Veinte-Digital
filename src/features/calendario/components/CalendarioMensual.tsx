@@ -4,6 +4,7 @@ import { useMemo } from "react"
 import Link from "next/link"
 import { Calendar } from "lucide-react"
 import { getMonthData, getDayEvents, EVENT_COLORS, EVENT_LABELS, type CalendarEventType } from "@/features/calendario/services/calendarioData"
+import { CalendarioExportButton } from "@/features/calendario/components/CalendarioExportButton"
 
 const DAYS_OF_WEEK = ["L", "M", "M", "J", "V", "S", "D"]
 
@@ -48,16 +49,19 @@ export function CalendarioMensual() {
             {monthData.month} {year}
           </h2>
         </div>
-        <Link
-          href="/calendario"
-          style={{
-            fontSize: "0.8125rem", color: "var(--primary)", textDecoration: "none",
-            display: "flex", alignItems: "center", gap: "0.25rem",
-          }}
-        >
-          Ver completo
-          <span style={{ fontSize: "1rem" }}>→</span>
-        </Link>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <CalendarioExportButton monthIndex={monthIndex} label="Exportar" />
+          <Link
+            href="/calendario"
+            style={{
+              fontSize: "0.8125rem", color: "var(--primary)", textDecoration: "none",
+              display: "flex", alignItems: "center", gap: "0.25rem",
+            }}
+          >
+            Ver completo
+            <span style={{ fontSize: "1rem" }}>→</span>
+          </Link>
+        </div>
       </div>
 
       <div style={{

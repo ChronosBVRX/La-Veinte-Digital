@@ -178,3 +178,86 @@ export function getDayEvents(monthIndex: number, day: number): CalendarEvent[] {
   }
   return result
 }
+
+function pad(n: number): string {
+  return String(n).padStart(2, "0")
+}
+
+function getRanges(days: number[]): [number, number][] {
+  const sorted = [...days].sort((a, b) => a - b)
+  const ranges: [number, number][] = []
+  let start = sorted[0]
+  let end = sorted[0]
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === end + 1) {
+      end = sorted[i]
+    } else {
+      ranges.push([start, end])
+      start = sorted[i]
+      end = sorted[i]
+    }
+  }
+  ranges.push([start, end])
+  return ranges
+}
+
+export function generateICS(year: number, monthIndex?: number): string {
+  const lines: string[] = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//La Veinte Digital//Calendario IMSS 2026//ES",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+  ]
+
+  const months = monthIndex !== undefined ? [monthIndex] : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+
+  const eventTypes: CalendarEventType[] = ["interactivo", "vacacional", "santander", "otros", "cheque", "jubilados"]
+
+  for (const mi of months) {
+    const monthData = CALENDARIO_2026[mi]
+    if (!monthData) continue
+
+    for (const type of eventTypes) {
+      const days = monthData.events[type]
+      if (!days || days.length === 0) continue
+
+      if (type === "interactivo") {
+        const ranges = getRanges(days)
+        for (const [s, e] of ranges) {
+          const dtStart = `${year}${pad(mi + 1)}${pad(s)}`
+          const dtEnd = `${year}${pad(mi + 1)}${pad(e + 1)}`
+          lines.push("BEGIN:VEVENT")
+          lines.push(`DTSTART;VALUE=DATE:${dtStart}`)
+          lines.push(`DTEND;VALUE=DATE:${dtEnd}`)
+          lines.push(`SUMMARY:${EVENT_LABELS[type]}`)
+          lines.push("END:VEVENT")
+        }
+      } else {
+        for (const day of days) {
+          const dt = `${year}${pad(mi + 1)}${pad(day)}`
+          lines.push("BEGIN:VEVENT")
+          lines.push(`DTSTART;VALUE=DATE:${dt}`)
+          lines.push(`DTEND;VALUE=DATE:${dt}`)
+          lines.push(`SUMMARY:${EVENT_LABELS[type]}`)
+          lines.push("END:VEVENT")
+        }
+      }
+    }
+  }
+
+  lines.push("END:VCALENDAR")
+  return lines.join("\r\n")
+}
+
+export function downloadICS(content: string, filename: string) {
+  const blob = new Blob([content], { type: "text/calendar;charset=utf-8" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
