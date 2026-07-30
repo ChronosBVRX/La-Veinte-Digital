@@ -1,12 +1,13 @@
 "use client"
 
-import { type InputHTMLAttributes, type TextareaHTMLAttributes, forwardRef } from "react"
+import { type InputHTMLAttributes, type TextareaHTMLAttributes, type ReactNode, forwardRef } from "react"
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string
+  icon?: ReactNode
 }
 
-export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ label, style, ...props }, ref) {
+export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ label, icon, style, ...props }, ref) {
   return (
     <div>
       {label && (
@@ -14,16 +15,28 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ l
           {label}
         </label>
       )}
-      <input
-        ref={ref}
-        style={{
-          width: "100%", padding: "0.5rem 0.75rem", border: "1px solid var(--border)",
-          borderRadius: "var(--radius-sm)", background: "var(--bg)", color: "var(--fg)", fontSize: "0.875rem",
-          outline: "none", transition: "border-color var(--transition), box-shadow var(--transition)",
-          ...style,
-        }}
-        {...props}
-      />
+      <div style={{ position: "relative" }}>
+        {icon && (
+          <span style={{
+            position: "absolute", left: "0.75rem", top: "50%",
+            transform: "translateY(-50%)", color: "var(--muted)", pointerEvents: "none",
+            display: "flex", alignItems: "center",
+          }}>
+            {icon}
+          </span>
+        )}
+        <input
+          ref={ref}
+          style={{
+            width: "100%", padding: icon ? "0.5rem 0.75rem 0.5rem 2.25rem" : "0.5rem 0.75rem",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-sm)", background: "var(--bg)", color: "var(--fg)", fontSize: "0.875rem",
+            outline: "none", transition: "border-color var(--transition), box-shadow var(--transition)",
+            ...style,
+          }}
+          {...props}
+        />
+      </div>
     </div>
   )
 })

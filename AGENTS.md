@@ -1,3 +1,5 @@
+<!-- Version: 0.001 -->
+<!-- Last updated: 2026-07-30 -->
 <!-- BEGIN:nextjs-agent-rules -->
 # ⚠️ This is NOT the Next.js you know
 

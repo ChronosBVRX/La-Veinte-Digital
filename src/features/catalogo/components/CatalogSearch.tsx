@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { Input } from "@/shared/components/ui/Input"
 
 export function CatalogSearch() {
   const [query, setQuery] = useState("")
@@ -27,14 +28,10 @@ export function CatalogSearch() {
 
   return (
     <div>
-      <input
+      <Input
         value={query}
         onChange={(e) => handleSearch(e.target.value)}
         placeholder="Buscar..."
-        style={{
-          width: "100%", padding: "0.5rem 0.75rem", border: "1px solid var(--border)",
-          borderRadius: "0.375rem", outline: "none", fontSize: "0.875rem",
-        }}
       />
       {loading && <p style={{ fontSize: "0.875rem", color: "var(--muted)", marginTop: "0.5rem" }}>Buscando...</p>}
       {results.length > 0 && (

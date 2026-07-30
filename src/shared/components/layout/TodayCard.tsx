@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { CALENDARIOS, EVENT_LABELS } from "@/features/calendario/services/calendarioData"
-import type { CalendarEventType } from "@/features/calendario/services/calendarioData"
+import { CALENDARIOS, EVENT_LABELS } from "@/shared/data/calendario"
+import type { CalendarEventType } from "@/shared/data/calendario"
 
 interface ProfileSummary {
   adscripcion: string | null

@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import { Input } from "@/shared/components/ui/Input"
+import { Button } from "@/shared/components/ui/Button"
 import { MessageSquare, Send } from "lucide-react"
 import { useChat } from "../hooks/useChat"
 import { ChatMessage } from "./ChatMessage"
@@ -63,35 +65,27 @@ export function ChatAssistant() {
 
       <form
         onSubmit={(e) => { e.preventDefault(); send() }}
-        style={{ display: "flex", gap: "0.5rem" }}
+        style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
       >
-        <input
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={loading}
-          placeholder="Pregunta sobre el CCT o Estatutos del SNTSS..."
-          style={{
-            flex: 1, padding: "0.625rem 1rem",
-            border: "1px solid var(--border)", borderRadius: "0.75rem",
-            fontSize: "0.875rem", outline: "none",
-            transition: "border-color var(--transition), box-shadow var(--transition)",
-          }}
-        />
-        <button
+        <div style={{ flex: 1 }}>
+          <Input
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            disabled={loading}
+            placeholder="Pregunta sobre el CCT o Estatutos del SNTSS..."
+            style={{ borderRadius: "0.75rem" }}
+          />
+        </div>
+        <Button
           type="submit"
           disabled={loading || !input.trim()}
-          style={{
-            width: 42, height: 42,
-            background: loading || !input.trim() ? "var(--border)" : "var(--primary)",
-            color: "var(--primary-fg)", border: "none",
-            borderRadius: "0.75rem", cursor: loading || !input.trim() ? "not-allowed" : "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            transition: "background var(--transition)",
-          }}
+          loading={loading}
+          size="sm"
+          style={{ height: 42, width: 42, padding: 0, borderRadius: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 42 }}
         >
           <Send size={18} />
-        </button>
+        </Button>
       </form>
     </div>
   )

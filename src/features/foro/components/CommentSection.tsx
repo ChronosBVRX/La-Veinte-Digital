@@ -3,6 +3,7 @@
 import { useActionState, useOptimistic, startTransition } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
+import { Textarea } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
 
 interface Comment {
@@ -60,11 +61,10 @@ export function CommentSection({ postId, comments: initialComments }: { postId: 
         {state?.error && (
           <p style={{ color: "#dc2626", fontSize: "0.875rem", marginBottom: "0.5rem" }}>{state.error}</p>
         )}
-        <textarea
+        <Textarea
           name="content"
           rows={3}
           placeholder="Escribe un comentario..."
-          style={{ width: "100%", padding: "0.5rem 0.75rem", border: "1px solid var(--border)", borderRadius: "0.375rem", resize: "vertical", fontFamily: "inherit" }}
         />
         <div style={{ marginTop: "0.5rem" }}>
           <Button type="submit" loading={pending}>

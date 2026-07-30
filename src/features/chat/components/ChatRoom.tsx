@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
+import { Input } from "@/shared/components/ui/Input"
+import { Button } from "@/shared/components/ui/Button"
 import { Send } from "lucide-react"
 
 interface Message {
@@ -98,32 +100,24 @@ export function ChatRoom({ roomId, userId, initialMessages }: { roomId: string; 
 
       <form
         onSubmit={(e) => { e.preventDefault(); handleSend() }}
-        style={{ display: "flex", gap: "0.5rem" }}
+        style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
       >
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Escribe un mensaje..."
-          style={{
-            flex: 1, padding: "0.625rem 1rem", border: "1px solid var(--border)",
-            borderRadius: "0.75rem", fontSize: "0.875rem", outline: "none",
-            transition: "border-color var(--transition), box-shadow var(--transition)",
-          }}
-        />
-        <button
+        <div style={{ flex: 1 }}>
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Escribe un mensaje..."
+            style={{ borderRadius: "0.75rem" }}
+          />
+        </div>
+        <Button
           type="submit"
-          style={{
-            width: 42, height: 42,
-            background: !input.trim() ? "var(--border)" : "var(--primary)",
-            color: "var(--primary-fg)", border: "none",
-            borderRadius: "0.75rem",
-            cursor: !input.trim() ? "not-allowed" : "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            transition: "background var(--transition)",
-          }}
+          disabled={!input.trim()}
+          size="sm"
+          style={{ height: 42, width: 42, padding: 0, borderRadius: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 42 }}
         >
           <Send size={18} />
-        </button>
+        </Button>
       </form>
     </div>
   )
