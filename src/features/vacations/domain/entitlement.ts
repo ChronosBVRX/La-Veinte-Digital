@@ -24,10 +24,12 @@ export function getCctAnnualDays(completedYears: number): number {
 
 export function getEstatutoAnnualDays(completedYears: number): number {
   if (completedYears < 1) return 0;
-  const thresholds = Object.keys(ESTATUTO_DAYS).map(Number).sort((a, b) => a - b);
-  for (let i = thresholds.length - 1; i >= 0; i--) {
-    if (completedYears >= thresholds[i]) {
-      return ESTATUTO_DAYS[thresholds[i]];
+  if (completedYears <= 35) {
+    const thresholds = Object.keys(ESTATUTO_DAYS).map(Number).sort((a, b) => a - b);
+    for (let i = thresholds.length - 1; i >= 0; i--) {
+      if (completedYears >= thresholds[i]) {
+        return ESTATUTO_DAYS[thresholds[i]];
+      }
     }
   }
   const base = 32;

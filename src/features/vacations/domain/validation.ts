@@ -10,8 +10,10 @@ export function validateAnticipation(
   completedYears: number
 ): AnticipationResult {
   const maxAnticipationDays = getMaxAnticipation(regime);
-  const due = new Date(dueDate);
-  const requested = new Date(requestedStartDate);
+  const [dY, dM, dD] = dueDate.split("-").map(Number);
+  const [rY, rM, rD] = requestedStartDate.split("-").map(Number);
+  const due = new Date(dY, dM - 1, dD);
+  const requested = new Date(rY, rM - 1, rD);
   const diffMs = due.getTime() - requested.getTime();
   const daysInAdvance = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
@@ -73,16 +75,18 @@ function getMaxAnticipation(regime: VacationRegime): number {
 }
 
 function getEarliestDate(dueDate: string, maxDays: number): string {
-  const d = new Date(dueDate);
-  d.setDate(d.getDate() - maxDays);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const [y, m, d] = dueDate.split("-").map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  dateObj.setDate(dateObj.getDate() - maxDays);
+  return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
 }
 
 export function calculateVacationRange(input: VacationDateCalculationInput): VacationDateCalculationResult {
   const excludedWeeklyRestDates: string[] = [];
   const excludedMandatoryRestDates: string[] = [];
   const consumedDates: string[] = [];
-  const start = new Date(input.startDate);
+  const [sy, sm, sd] = input.startDate.split("-").map(Number);
+  const start = new Date(sy, sm - 1, sd);
   let vacationUnits = 0;
   let i = 0;
 
@@ -131,7 +135,8 @@ function getReturnDate(
   mandatoryDates: string[],
   schedule: WorkScheduleDefinition
 ): string {
-  const d = new Date(lastVacationDate);
+  const [ly, lm, ld] = lastVacationDate.split("-").map(Number);
+  const d = new Date(ly, lm - 1, ld);
   d.setDate(d.getDate() + 1);
   let attempts = 0;
   while (attempts < 30) {
@@ -153,8 +158,10 @@ export function validateModification(
   originallyScheduledDate: string,
   newDate: string
 ): { allowed: boolean; requiresSpecialProcess: boolean; friendlyMessage: string } {
-  const original = new Date(originallyScheduledDate);
-  const proposed = new Date(newDate);
+  const [oy, om, od] = originallyScheduledDate.split("-").map(Number);
+  const [ny, nm, nd] = newDate.split("-").map(Number);
+  const original = new Date(oy, om - 1, od);
+  const proposed = new Date(ny, nm - 1, nd);
   const diffMs = original.getTime() - proposed.getTime();
   const daysBefore = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
@@ -166,7 +173,7 @@ export function validateModification(
     };
   }
 
-  if (daysBefore >= 15 && daysBefore < 45) {
+  if (daysBefore >= 0 && daysBefore < 45) {
     return {
       allowed: true,
       requiresSpecialProcess: true,
@@ -174,18 +181,10 @@ export function validateModification(
     };
   }
 
-  if (daysBefore < 0) {
-    return {
-      allowed: false,
-      requiresSpecialProcess: true,
-      friendlyMessage: "No puedes modificar un periodo que ya inició.",
-    };
-  }
-
   return {
-    allowed: true,
-    requiresSpecialProcess: false,
-    friendlyMessage: "Puedes solicitar la modificación dentro del plazo ordinario.",
+    allowed: false,
+    requiresSpecialProcess: true,
+    friendlyMessage: "No puedes modificar un periodo que ya inició.",
   };
 }
 
@@ -202,7 +201,7 @@ export function calculateReturnDate(
     unitType,
     weeklyRestDays,
     mandatoryRestDates: mandatoryDates,
-    workSchedule: { type: "ORDINARY" },
+    workSchedule: { type: "ORDINARY", workingDays: [0, 1, 2, 3, 4, 5, 6] },
   });
   return { lastDate: result.lastVacationDate, returnDate: result.returnToWorkDate };
 }

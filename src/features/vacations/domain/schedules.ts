@@ -30,21 +30,23 @@ export function getUnitType(scheduleType: WorkScheduleType): "WORKDAY" | "JOURNE
 
 export function isWorkDay(date: string, schedule: WorkScheduleDefinition): boolean {
   if (!schedule.workingDays || schedule.workingDays.length === 0) return true;
-  const d = new Date(date);
-  const dayOfWeek = d.getDay();
+  const [y, m, d] = date.split("-").map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  const dayOfWeek = dateObj.getDay();
   const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   return schedule.workingDays.includes(adjustedDay);
 }
 
 export function getNextWorkDay(date: string, schedule: WorkScheduleDefinition): string {
-  const d = new Date(date);
-  d.setDate(d.getDate() + 1);
-  while (!isWorkDay(formatDate(d), schedule)) {
-    d.setDate(d.getDate() + 1);
+  const [y, m, d] = date.split("-").map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  dateObj.setDate(dateObj.getDate() + 1);
+  while (!isWorkDay(fmtDate(dateObj), schedule)) {
+    dateObj.setDate(dateObj.getDate() + 1);
   }
-  return formatDate(d);
+  return fmtDate(dateObj);
 }
 
-function formatDate(d: Date): string {
+function fmtDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }

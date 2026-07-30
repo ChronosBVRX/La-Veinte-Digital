@@ -48,13 +48,13 @@ function getEasterWeek(year: number): string[] {
   const saturday = new Date(easterSunday);
   saturday.setDate(easterSunday.getDate() - 1);
   return [
-    formatDate(thursday),
-    formatDate(friday),
-    formatDate(saturday),
+    fmtDate(thursday),
+    fmtDate(friday),
+    fmtDate(saturday),
   ];
 }
 
-function formatDate(d: Date): string {
+function fmtDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
@@ -63,8 +63,9 @@ export function isMandatoryRest(date: string, mandatoryDates: string[]): boolean
 }
 
 export function isWeeklyRest(date: string, weeklyRestDays: number[]): boolean {
-  const d = new Date(date);
-  const dayOfWeek = d.getDay();
+  const [y, m, d] = date.split("-").map(Number);
+  const dateObj = new Date(y, m - 1, d);
+  const dayOfWeek = dateObj.getDay();
   const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   return weeklyRestDays.includes(adjustedDay);
 }
@@ -77,7 +78,8 @@ export function countExcludedDates(
 ): { excludedDates: string[]; includedDates: string[] } {
   const excludedDates: string[] = [];
   const includedDates: string[] = [];
-  const start = new Date(startDate);
+  const [sy, sm, sd] = startDate.split("-").map(Number);
+  const start = new Date(sy, sm - 1, sd);
   for (let i = 0; i < totalDays * 2; i++) {
     if (includedDates.length >= totalDays) break;
     const d = new Date(start);
