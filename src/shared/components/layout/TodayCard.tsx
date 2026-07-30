@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Modal } from "@/shared/components/ui/Modal"
 import Link from "next/link"
 import { CALENDARIOS, EVENT_LABELS } from "@/features/calendario/services/calendarioData"
 import type { CalendarEventType } from "@/features/calendario/services/calendarioData"
@@ -95,7 +94,6 @@ function formatSeniority(y: number, m: number, d: number): string {
 }
 
 export function TodayCard({ profile }: { profile: ProfileSummary }) {
-  const [open, setOpen] = useState(false)
   const [nominaProfile, setNominaProfile] = useState<NominaProfileLight | null>(null)
 
   useEffect(() => {
@@ -127,7 +125,6 @@ export function TodayCard({ profile }: { profile: ProfileSummary }) {
   const displayYear = yearData ? year : 2026
   const dayName = DAY_NAMES[now.getDay()]
 
-  const nextPayment = getNextPaymentDay(displayYear, monthIndex, day)
   const nextPaymentActivo = getNextPaymentDay(displayYear, monthIndex, day, ["santander"])
   const nextPaymentOtro = getNextPaymentDay(displayYear, monthIndex, day, ["otros", "cheque"])
   const interactivoAbierto = isInteractivoOpen(displayYear, monthIndex, day)
@@ -164,240 +161,175 @@ export function TodayCard({ profile }: { profile: ProfileSummary }) {
     if (months < 0) { years--; months += 12 }
     return formatSeniority(years, months, days)
   }
+
   const seniorityEvolucion = calcEvolvedSeniority()
   const turno = nominaProfile?.shift
   const jornada = nominaProfile?.workdayHours
 
   return (
-    <>
-      <div
-        onClick={() => setOpen(true)}
-        style={{
-          background: "linear-gradient(135deg, #1e293b, #0f172a)",
-          borderRadius: "var(--radius-lg)", padding: "1.25rem",
-          color: "#f1f5f9", cursor: "pointer",
-          transition: "opacity 0.2s",
-        }}
-        onMouseOver={(e) => (e.currentTarget.style.opacity = "0.9")}
-        onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
-      >
-        <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: "0 0 0.125rem" }}>
-          Mi d&iacute;a laboral
-        </h2>
-        <p style={{ fontSize: "0.8125rem", color: "#94a3b8", margin: "0 0 1rem" }}>
-          {dayName} {day} de {now.toLocaleDateString("es-MX", { month: "long" })} de {displayYear}
-        </p>
+    <div style={{
+      background: "linear-gradient(135deg, #1e293b, #0f172a)",
+      borderRadius: "var(--radius-lg)", padding: "1.25rem",
+      color: "#f1f5f9",
+    }}>
+      <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: "0 0 0.125rem" }}>
+        Mi d&iacute;a laboral
+      </h2>
+      <p style={{ fontSize: "0.8125rem", color: "#94a3b8", margin: "0 0 1rem" }}>
+        {dayName} {day} de {now.toLocaleDateString("es-MX", { month: "long" })} de {displayYear}
+      </p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          <Row
-            icon="💰"
-            label="Próximo pago"
-            value={nextPayment ? `${nextPayment.date.toLocaleDateString("es-MX", { day: "numeric", month: "long" })} (${nextPayment.label})` : "Sin información"}
-          />
-          <Row
-            icon="📅"
-            label="Interactivo"
-            value={interactivoAbierto ? "Abierto" : "Cerrado"}
-            valueColor={interactivoAbierto ? "#f87171" : "#4ade80"}
-          />
-          <Row
-            icon="🏖️"
-            label="Próximo periodo vacacional"
-            value={nextVacation ? `${nextVacation.date.toLocaleDateString("es-MX", { day: "numeric", month: "long" })}` : "Sin información"}
-          />
-          {profile.antiguedad && (
-            <Row icon="⏳" label="Antigüedad" value={profile.antiguedad} />
-          )}
-          {profile.adscripcion && (
-            <Row icon="🏢" label="Adscripción" value={profile.adscripcion} />
-          )}
-          {profile.categoria && (
-            <Row icon="📋" label="Categoría" value={profile.categoria} />
-          )}
-        </div>
-      </div>
-
-      <Modal open={open} onClose={() => setOpen(false)} title="Mi día laboral" size="md">
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-          <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0 }}>
-            {dayName} {day} de {now.toLocaleDateString("es-MX", { month: "long" })} de {displayYear}
-          </p>
-
-          <Section icon="💰" title="Próximos pagos">
-            {nextPaymentActivo && (
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        <Section icon="💰" title="Próximos pagos">
+          {nextPaymentActivo && (
+            <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>Trabajador activo:</span>
-                <span style={{ fontSize: "0.8125rem", fontWeight: 600 }}>
+                <span style={{ fontSize: "0.8125rem", color: "#94a3b8" }}>Trabajador activo:</span>
+                <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#e2e8f0" }}>
                   {nextPaymentActivo.date.toLocaleDateString("es-MX", { day: "numeric", month: "long" })}
                   {diffDaysActivo !== null ? ` (en ${diffDaysActivo} día${diffDaysActivo !== 1 ? "s" : ""})` : ""}
                 </span>
               </div>
-            )}
-            <div style={{ fontSize: "0.75rem", color: "var(--primary)", fontWeight: 500, marginTop: "0.125rem" }}>
-              Pago Santander y Scotiabank
+              <div style={{ fontSize: "0.75rem", color: "#60a5fa", fontWeight: 500, marginTop: "0.125rem" }}>
+                Pago Santander y Scotiabank
+              </div>
             </div>
-            {nextPaymentOtro && (
-              <>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "0.5rem" }}>
-                  <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>Otros:</span>
-                  <span style={{ fontSize: "0.8125rem", fontWeight: 600 }}>
-                    {nextPaymentOtro.date.toLocaleDateString("es-MX", { day: "numeric", month: "long" })}
-                    {diffDaysOtro !== null ? ` (en ${diffDaysOtro} día${diffDaysOtro !== 1 ? "s" : ""})` : ""}
-                  </span>
-                </div>
-                <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.125rem" }}>
-                  Pago Banamex, Banorte, BBVA y demás bancos o pago con cheque
-                </div>
-              </>
-            )}
-            {!nextPaymentActivo && !nextPaymentOtro && (
-              <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>Sin información</span>
-            )}
-          </Section>
-
-          <Section icon="📅" title="Interactivo">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>Estado:</span>
-              <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: interactivoAbierto ? "#f87171" : "#4ade80" }}>
-                {interactivoAbierto ? "Abierto" : "Cerrado"}
-              </span>
-            </div>
-            <p style={{ fontSize: "0.8125rem", margin: "0.375rem 0 0", color: "var(--muted)", fontStyle: "italic" }}>
-              {interactivoAbierto
-                ? "Estas fechas no se pueden realizar movimientos."
-                : "Puedes hacer tus trámites."}
-            </p>
-          </Section>
-
-          <Section icon="🏖️" title="Próximo periodo vacacional">
-            {nextVacation ? (
-              <div>
-                <span style={{ fontSize: "0.8125rem", fontWeight: 600 }}>
-                  Inicio: {nextVacation.date.toLocaleDateString("es-MX", { day: "numeric", month: "long" })}
-                </span>
-                <span style={{ fontSize: "0.8125rem", color: "var(--muted)", marginLeft: "0.375rem" }}>
-                  ({DAY_NAMES[nextVacation.date.getDay()]})
+          )}
+          {nextPaymentOtro && (
+            <div style={{ marginTop: "0.5rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "0.8125rem", color: "#94a3b8" }}>Otros:</span>
+                <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#e2e8f0" }}>
+                  {nextPaymentOtro.date.toLocaleDateString("es-MX", { day: "numeric", month: "long" })}
+                  {diffDaysOtro !== null ? ` (en ${diffDaysOtro} día${diffDaysOtro !== 1 ? "s" : ""})` : ""}
                 </span>
               </div>
-            ) : (
-              <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>Sin información</span>
-            )}
-          </Section>
-
-          <Section icon="⏳" title="Antigüedad">
-            {profile.antiguedad ? (
-              <>
-                <div style={{ fontSize: "0.9375rem", fontWeight: 600 }}>
-                  {profile.antiguedad}
-                </div>
-                <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>
-                  Esta es la antigüedad que registraste. Si no es correcta, corrígela en{" "}
-                  <Link href="/profile" style={{ color: "var(--primary)", textDecoration: "underline" }}>
-                    tu perfil
-                  </Link>{" "}
-                  para mayor exactitud de datos.
-                </p>
-                {seniorityEvolucion && (
-                  <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "var(--accent)", borderRadius: "var(--radius)" }}>
-                    <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.125rem" }}>
-                      Antigüedad actualizada al cierre de la quincena:
-                    </div>
-                    <div style={{ fontSize: "0.875rem", fontWeight: 600 }}>
-                      {seniorityEvolucion}
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-                No has registrado tu antigüedad.{" "}
-                <Link href="/profile" style={{ color: "var(--primary)", textDecoration: "underline" }}>
-                  Regístrala aquí
-                </Link>
-              </span>
-            )}
-          </Section>
-
-          <Section icon="📌" title="Próximos compromisos">
-            {turno || jornada ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                {turno && (
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>Turno:</span>
-                    <span style={{ fontSize: "0.8125rem", fontWeight: 500 }}>{SHIFT_LABELS[turno]}</span>
-                  </div>
-                )}
-                {jornada && (
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>Jornada:</span>
-                    <span style={{ fontSize: "0.8125rem", fontWeight: 500 }}>{jornada} horas</span>
-                  </div>
-                )}
+              <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: "0.125rem" }}>
+                Pago Banamex, Banorte, BBVA y demás bancos o pago con cheque
               </div>
-            ) : (
-              <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-                No hay compromisos registrados.{" "}
-                <Link href="/nomina/perfil" style={{ color: "var(--primary)", textDecoration: "underline" }}>
-                  Configura tu perfil laboral
-                </Link>
-              </span>
-            )}
-            {nominaProfile?.employmentType && (
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.375rem" }}>
-                <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>Tipo de contratación:</span>
-                <span style={{ fontSize: "0.8125rem", fontWeight: 500 }}>
-                  {nominaProfile.employmentType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-                </span>
-              </div>
-            )}
-            <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "var(--accent)", borderRadius: "var(--radius)" }}>
-              <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
-                {turno && jornada
-                  ? `Tu horario habitual es turno ${SHIFT_LABELS[turno]} con jornada de ${jornada} horas.`
-                  : "Configura tu perfil laboral para ver tus compromisos."}
-              </p>
             </div>
-          </Section>
+          )}
+          {!nextPaymentActivo && !nextPaymentOtro && (
+            <span style={{ fontSize: "0.8125rem", color: "#94a3b8" }}>Sin información</span>
+          )}
+        </Section>
 
-          <div style={{ display: "flex", justifyContent: "center", marginTop: "0.5rem" }}>
-            <Link
-              href="/nomina/perfil"
-              style={{
-                fontSize: "0.8125rem", color: "var(--primary)", textDecoration: "none",
-                fontWeight: 500,
-              }}
-            >
-              Configurar perfil laboral completo →
-            </Link>
+        <Section icon="📅" title="Interactivo">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: "0.8125rem", color: "#94a3b8" }}>Estado:</span>
+            <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: interactivoAbierto ? "#f87171" : "#4ade80" }}>
+              {interactivoAbierto ? "Abierto" : "Cerrado"}
+            </span>
           </div>
-        </div>
-      </Modal>
-    </>
+          <p style={{ fontSize: "0.8125rem", margin: "0.25rem 0 0", color: "#94a3b8", fontStyle: "italic" }}>
+            {interactivoAbierto
+              ? "Estas fechas no se pueden realizar movimientos."
+              : "Puedes hacer tus trámites."}
+          </p>
+        </Section>
+
+        <Section icon="🏖️" title="Próximo periodo vacacional">
+          {nextVacation ? (
+            <div>
+              <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#e2e8f0" }}>
+                Inicio: {nextVacation.date.toLocaleDateString("es-MX", { day: "numeric", month: "long" })}
+              </span>
+              <span style={{ fontSize: "0.8125rem", color: "#94a3b8", marginLeft: "0.375rem" }}>
+                ({DAY_NAMES[nextVacation.date.getDay()]})
+              </span>
+            </div>
+          ) : (
+            <span style={{ fontSize: "0.8125rem", color: "#94a3b8" }}>Sin información</span>
+          )}
+        </Section>
+
+        <Section icon="⏳" title="Antigüedad">
+          {profile.antiguedad ? (
+            <>
+              <div style={{ fontSize: "0.9375rem", fontWeight: 600, color: "#e2e8f0" }}>
+                {profile.antiguedad}
+              </div>
+              <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: "0.25rem 0 0" }}>
+                Esta es la antigüedad que registraste. Si no es correcta, corrígela en{" "}
+                <Link href="/profile" style={{ color: "#60a5fa", textDecoration: "underline" }}>
+                  tu perfil
+                </Link>{" "}
+                para mayor exactitud de datos.
+              </p>
+              {seniorityEvolucion && (
+                <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "rgba(255,255,255,0.08)", borderRadius: "var(--radius)" }}>
+                  <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginBottom: "0.125rem" }}>
+                    Antigüedad actualizada al cierre de la quincena:
+                  </div>
+                  <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "#e2e8f0" }}>
+                    {seniorityEvolucion}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <span style={{ fontSize: "0.8125rem", color: "#94a3b8" }}>
+              No has registrado tu antigüedad.{" "}
+              <Link href="/profile" style={{ color: "#60a5fa", textDecoration: "underline" }}>
+                Regístrala aquí
+              </Link>
+            </span>
+          )}
+        </Section>
+
+        <Section icon="📌" title="Próximos compromisos">
+          {turno || jornada ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+              {turno && (
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: "0.8125rem", color: "#94a3b8" }}>Turno:</span>
+                  <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#e2e8f0" }}>{SHIFT_LABELS[turno]}</span>
+                </div>
+              )}
+              {jornada && (
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: "0.8125rem", color: "#94a3b8" }}>Jornada:</span>
+                  <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#e2e8f0" }}>{jornada} horas</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <span style={{ fontSize: "0.8125rem", color: "#94a3b8" }}>
+              No hay compromisos registrados.{" "}
+              <Link href="/nomina/perfil" style={{ color: "#60a5fa", textDecoration: "underline" }}>
+                Configura tu perfil laboral
+              </Link>
+            </span>
+          )}
+          {nominaProfile?.employmentType && (
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.375rem" }}>
+              <span style={{ fontSize: "0.8125rem", color: "#94a3b8" }}>Tipo de contratación:</span>
+              <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#e2e8f0" }}>
+                {nominaProfile.employmentType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+              </span>
+            </div>
+          )}
+          <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "rgba(255,255,255,0.08)", borderRadius: "var(--radius)" }}>
+            <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: 0 }}>
+              {turno && jornada
+                ? `Tu horario habitual es turno ${SHIFT_LABELS[turno]} con jornada de ${jornada} horas.`
+                : "Configura tu perfil laboral para ver tus compromisos."}
+            </p>
+          </div>
+        </Section>
+      </div>
+    </div>
   )
 }
 
 function Section({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
   return (
-    <div style={{
-      borderBottom: "1px solid var(--border)", paddingBottom: "1rem",
-    }}>
-      <h3 style={{ fontSize: "0.875rem", fontWeight: 600, margin: "0 0 0.5rem", display: "flex", alignItems: "center", gap: "0.375rem" }}>
+    <div>
+      <h3 style={{ fontSize: "0.8125rem", fontWeight: 600, margin: "0 0 0.375rem", display: "flex", alignItems: "center", gap: "0.375rem", color: "#94a3b8" }}>
         <span>{icon}</span>
         {title}
       </h3>
       {children}
-    </div>
-  )
-}
-
-function Row({ icon, label, value, valueColor }: { icon: string; label: string; value: string; valueColor?: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8125rem" }}>
-      <span style={{ flexShrink: 0, width: "1.25rem", textAlign: "center" }}>{icon}</span>
-      <span style={{ color: "#94a3b8", minWidth: "9rem" }}>{label}:</span>
-      <span style={{ fontWeight: 500, color: valueColor ?? "#e2e8f0", marginLeft: "auto", textAlign: "right" }}>
-        {value}
-      </span>
     </div>
   )
 }
