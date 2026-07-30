@@ -8,17 +8,14 @@ import type { Tables } from "@/lib/supabase/types"
 type BitacoraEntry = Tables<"bitacora_entries">
 
 const TYPE_COLORS: Record<string, "warning" | "error" | "info" | "success" | "default"> = {
-  "Tiempo extra": "warning",
-  "Guardia festiva": "info",
-  "Cambio de turno": "info",
-  "Sustitución": "info",
-  "Comisión": "info",
-  "Jornada acumulada": "warning",
-  "Falta justificada": "default",
+  "Tiempo Extra": "warning",
+  "Guardia Festiva": "info",
+  "TxT (Sustitución)": "info",
+  "Falta Injustificada": "error",
   "Incapacidad": "error",
+  "Pases de salida/entrada": "default",
   "Vacaciones": "success",
-  "Pase de entrada o salida": "default",
-  "Día trabajado que no apareció pagado": "error",
+  "No pagado (Reclamación en proceso)": "error",
 }
 
 interface BitacoraListProps {

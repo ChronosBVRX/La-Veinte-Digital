@@ -49,6 +49,7 @@ export default async function DashboardPage() {
 
       <div style={{ marginBottom: "1.5rem" }}>
         <TodayCard profile={{
+          id: profile?.id,
           adscripcion: profile?.adscripcion ?? null,
           categoria: profile?.categoria ?? null,
           antiguedad: profile?.antiguedad ?? null,

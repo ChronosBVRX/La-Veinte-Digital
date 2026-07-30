@@ -20,17 +20,14 @@ interface BitacoraPanelProps {
 
 const TYPE_FILTERS = [
   { id: "all", label: "Todas" },
-  { id: "Tiempo extra", label: "Tiempo extra" },
-  { id: "Guardia festiva", label: "Guardia festiva" },
-  { id: "Cambio de turno", label: "Cambio de turno" },
-  { id: "Sustitución", label: "Sustitución" },
-  { id: "Comisión", label: "Comisión" },
-  { id: "Jornada acumulada", label: "Jornada acumulada" },
-  { id: "Falta justificada", label: "Falta justificada" },
+  { id: "Tiempo Extra", label: "Tiempo Extra" },
+  { id: "Guardia Festiva", label: "Guardia Festiva" },
+  { id: "TxT (Sustitución)", label: "TxT (Sustitución)" },
+  { id: "Falta Injustificada", label: "Falta Injustificada" },
   { id: "Incapacidad", label: "Incapacidad" },
+  { id: "Pases de salida/entrada", label: "Pases de salida/entrada" },
   { id: "Vacaciones", label: "Vacaciones" },
-  { id: "Pase de entrada o salida", label: "Pase de entrada o salida" },
-  { id: "Día trabajado que no apareció pagado", label: "No pagado" },
+  { id: "No pagado (Reclamación en proceso)", label: "No pagado" },
 ]
 
 export function BitacoraPanel({ userId, initialEntries = [] }: BitacoraPanelProps) {

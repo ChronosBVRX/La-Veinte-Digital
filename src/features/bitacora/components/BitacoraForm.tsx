@@ -7,17 +7,14 @@ import { Input } from "@/shared/components/ui/Input"
 import { Select } from "@/shared/components/ui/Input"
 
 const ENTRY_TYPES = [
-  "Tiempo extra",
-  "Guardia festiva",
-  "Cambio de turno",
-  "Sustitución",
-  "Comisión",
-  "Jornada acumulada",
-  "Falta justificada",
+  "Tiempo Extra",
+  "Guardia Festiva",
+  "TxT (Sustitución)",
+  "Falta Injustificada",
   "Incapacidad",
+  "Pases de salida/entrada",
   "Vacaciones",
-  "Pase de entrada o salida",
-  "Día trabajado que no apareció pagado",
+  "No pagado (Reclamación en proceso)",
 ] as const
 
 interface BitacoraFormProps {

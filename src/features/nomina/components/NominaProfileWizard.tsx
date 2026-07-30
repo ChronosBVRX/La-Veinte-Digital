@@ -1,9 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/shared/components/ui/Button"
 import { Input, Select } from "@/shared/components/ui/Input"
 import { Card } from "@/shared/components/ui/Card"
+import { createClient } from "@/lib/supabase/client"
+import { deriveWorkdayHoursFromCategoryName } from "../lib/types"
 import type {
   EmployeePayrollProfile,
   OccupationalCondition,
@@ -34,6 +36,37 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
     profile?.occupationalConditions ?? []
   )
   const [saved, setSaved] = useState(false)
+  const prefillRef = useRef(false)
+
+  useEffect(() => {
+    if (profile || prefillRef.current) return
+    prefillRef.current = true
+
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase
+        .from("profiles")
+        .select("categoria")
+        .eq("id", user.id)
+        .single()
+        .then(({ data }) => {
+          if (!data?.categoria) return
+          const cat = data.categoria
+          setForm((prev) => ({
+            ...prev,
+            categoryName: cat,
+          }))
+          const hours = deriveWorkdayHoursFromCategoryName(cat)
+          if (hours) {
+            setForm((prev) => ({
+              ...prev,
+              workdayHours: String(hours),
+            }))
+          }
+        })
+    })
+  }, [profile])
 
   function handleChange(key: string, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -104,6 +137,7 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
   ]
 
   const workdayOptions = [
+    { value: "6", label: "6 horas" },
     { value: "6.5", label: "6.5 horas" },
     { value: "8", label: "8 horas" },
     { value: "12", label: "12 horas" },

@@ -13,7 +13,17 @@ export type Shift =
   | "jornada_acumulada"
   | "mixto"
 
-export type JornadaHoras = 6.5 | 8 | 12
+export type JornadaHoras = 6 | 6.5 | 8 | 12
+
+const VALID_JORNADAS: JornadaHoras[] = [6, 6.5, 8, 12]
+
+export function deriveWorkdayHoursFromCategoryName(categoryName: string): JornadaHoras | null {
+  const match = categoryName.trim().match(/(\d+)\s*$/)
+  if (!match) return null
+  const suffix = parseInt(match[1], 10)
+  const hours = suffix / 10
+  return VALID_JORNADAS.includes(hours as JornadaHoras) ? (hours as JornadaHoras) : null
+}
 
 export type OccupationalConditionType =
   | "radiation_non_medical"
