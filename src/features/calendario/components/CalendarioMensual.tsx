@@ -7,6 +7,15 @@ import { getMonthData, getDayEvents, EVENT_COLORS, EVENT_LABELS, type CalendarEv
 
 const DAYS_OF_WEEK = ["L", "M", "M", "J", "V", "S", "D"]
 
+const EVENT_ABBR: Record<CalendarEventType, string> = {
+  interactivo: "",
+  vacacional: "V",
+  santander: "S",
+  otros: "B",
+  cheque: "C",
+  jubilados: "J",
+}
+
 export function CalendarioMensual() {
   const now = useMemo(() => new Date(), [])
   const year = now.getFullYear()
@@ -71,36 +80,48 @@ export function CalendarioMensual() {
         {Array.from({ length: startOffset }).map((_, i) => (
           <div key={`empty-${i}`} />
         ))}
-        {days.map(({ day, events }) => (
-          <div
-            key={day}
-            style={{
-              textAlign: "center", padding: "0.25rem 0",
-              borderRadius: "var(--radius-sm)", fontSize: "0.8125rem",
-              fontWeight: 500, position: "relative",
-              background: events.length > 0 ? "var(--accent)" : "transparent",
-            }}
-          >
-            <span style={{ lineHeight: 1.5 }}>{day}</span>
-            {events.length > 0 && (
-              <div style={{
-                display: "flex", justifyContent: "center", gap: "2px",
-                marginTop: "1px",
-              }}>
-                {events.slice(0, 4).map((e, i) => (
-                  <span
-                    key={i}
-                    title={e.label}
-                    style={{
-                      display: "inline-block", width: 5, height: 5,
-                      borderRadius: "50%", background: EVENT_COLORS[e.type],
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+        {days.map(({ day, events }) => {
+          const hasInteractivo = events.some((e) => e.type === "interactivo")
+          const otherEvents = events.filter((e) => e.type !== "interactivo")
+
+          return (
+            <div
+              key={day}
+              title={events.length > 0 ? events.map((e) => e.label).join(", ") : undefined}
+              style={{
+                textAlign: "center", padding: "0.375rem 0.125rem",
+                borderRadius: "var(--radius-sm)", fontSize: "0.8125rem",
+                fontWeight: hasInteractivo ? 600 : 500,
+                background: hasInteractivo ? EVENT_COLORS.interactivo : events.length > 0 ? "var(--accent)" : "transparent",
+                color: hasInteractivo ? "#0f172a" : undefined,
+              }}
+            >
+              <span style={{ lineHeight: 1.5 }}>{day}</span>
+              {otherEvents.length > 0 && (
+                <div style={{
+                  display: "flex", justifyContent: "center", gap: "2px",
+                  marginTop: "2px", flexWrap: "wrap",
+                }}>
+                  {otherEvents.slice(0, 3).map((e, i) => (
+                    <span
+                      key={i}
+                      title={e.label}
+                      style={{
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        width: 14, height: 14, borderRadius: "3px",
+                        background: EVENT_COLORS[e.type],
+                        color: "#fff", fontSize: "0.5rem", fontWeight: 700,
+                        lineHeight: 1,
+                      }}
+                    >
+                      {EVENT_ABBR[e.type]}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       <div style={{
@@ -109,11 +130,25 @@ export function CalendarioMensual() {
         borderTop: "1px solid var(--border)",
       }}>
         {(Object.entries(EVENT_LABELS) as [CalendarEventType, string][]).map(([type, label]) => (
-          <div key={type} style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.6875rem", color: "var(--muted)" }}>
-            <span style={{
-              display: "inline-block", width: 8, height: 8,
-              borderRadius: "2px", background: EVENT_COLORS[type],
-            }} />
+          <div key={type} style={{
+            display: "flex", alignItems: "center", gap: "0.25rem",
+            fontSize: "0.6875rem", color: "var(--muted)",
+          }}>
+            {type === "interactivo" ? (
+              <span style={{
+                display: "inline-block", width: 10, height: 10,
+                borderRadius: "2px", background: EVENT_COLORS[type],
+              }} />
+            ) : (
+              <span style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                width: 12, height: 12, borderRadius: "2px",
+                background: EVENT_COLORS[type],
+                color: "#fff", fontSize: "0.4375rem", fontWeight: 700,
+              }}>
+                {EVENT_ABBR[type]}
+              </span>
+            )}
             {label}
           </div>
         ))}
