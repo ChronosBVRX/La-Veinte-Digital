@@ -1,7 +1,4 @@
-"use client"
-
 import { Download } from "lucide-react"
-import { generateICS, downloadICS } from "@/features/calendario/services/calendarioData"
 
 interface Props {
   monthIndex?: number
@@ -9,27 +6,25 @@ interface Props {
 }
 
 export function CalendarioExportButton({ monthIndex, label }: Props) {
-  const filename = monthIndex !== undefined
-    ? `calendario-imss-2026-${(monthIndex + 1).toString().padStart(2, "0")}.ics`
-    : "calendario-imss-2026.ics"
+  const href = monthIndex !== undefined
+    ? `/api/calendario?mes=${monthIndex}`
+    : "/api/calendario"
 
   return (
-    <button
-      onClick={() => {
-        const content = generateICS(2026, monthIndex)
-        downloadICS(content, filename)
-      }}
+    <a
+      href={href}
+      download
       style={{
         display: "inline-flex", alignItems: "center", gap: "0.375rem",
         padding: "0.375rem 0.75rem", borderRadius: "var(--radius)",
         background: "var(--accent)", border: "1px solid var(--border)",
         cursor: "pointer", color: "var(--fg)", fontSize: "0.8125rem",
-        fontWeight: 500, lineHeight: 1,
+        fontWeight: 500, lineHeight: 1, textDecoration: "none",
+        whiteSpace: "nowrap",
       }}
-      title="Exportar a calendario"
     >
       <Download size={14} />
       {label ?? "Exportar"}
-    </button>
+    </a>
   )
 }

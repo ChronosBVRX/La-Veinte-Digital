@@ -183,6 +183,12 @@ function pad(n: number): string {
   return String(n).padStart(2, "0")
 }
 
+function nextDate(year: number, month: number, day: number): string {
+  const date = new Date(Date.UTC(year, month, day))
+  date.setUTCDate(date.getUTCDate() + 1)
+  return `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}`
+}
+
 function getRanges(days: number[]): [number, number][] {
   const sorted = [...days].sort((a, b) => a - b)
   const ranges: [number, number][] = []
@@ -226,7 +232,7 @@ export function generateICS(year: number, monthIndex?: number): string {
         const ranges = getRanges(days)
         for (const [s, e] of ranges) {
           const dtStart = `${year}${pad(mi + 1)}${pad(s)}`
-          const dtEnd = `${year}${pad(mi + 1)}${pad(e + 1)}`
+          const dtEnd = nextDate(year, mi, e)
           lines.push("BEGIN:VEVENT")
           lines.push(`DTSTART;VALUE=DATE:${dtStart}`)
           lines.push(`DTEND;VALUE=DATE:${dtEnd}`)
@@ -235,10 +241,11 @@ export function generateICS(year: number, monthIndex?: number): string {
         }
       } else {
         for (const day of days) {
-          const dt = `${year}${pad(mi + 1)}${pad(day)}`
+          const dtStart = `${year}${pad(mi + 1)}${pad(day)}`
+          const dtEnd = nextDate(year, mi, day)
           lines.push("BEGIN:VEVENT")
-          lines.push(`DTSTART;VALUE=DATE:${dt}`)
-          lines.push(`DTEND;VALUE=DATE:${dt}`)
+          lines.push(`DTSTART;VALUE=DATE:${dtStart}`)
+          lines.push(`DTEND;VALUE=DATE:${dtEnd}`)
           lines.push(`SUMMARY:${EVENT_LABELS[type]}`)
           lines.push("END:VEVENT")
         }
@@ -248,16 +255,4 @@ export function generateICS(year: number, monthIndex?: number): string {
 
   lines.push("END:VCALENDAR")
   return lines.join("\r\n")
-}
-
-export function downloadICS(content: string, filename: string) {
-  const blob = new Blob([content], { type: "text/calendar;charset=utf-8" })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement("a")
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
 }
