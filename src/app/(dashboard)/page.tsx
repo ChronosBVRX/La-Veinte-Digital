@@ -69,7 +69,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Grid 2x2 */}
-      <div style={{
+      <div className="dashboard-grid" style={{
         display: "grid", gridTemplateColumns: "1fr 1fr",
         gap: "1rem", marginBottom: "1.5rem",
       }}>
@@ -207,7 +207,7 @@ export default async function DashboardPage() {
 
       <style>{`
         @media (max-width: 640px) {
-          div[style*="gridTemplateColumns: 1fr 1fr"] {
+          .dashboard-grid {
             grid-template-columns: 1fr !important;
           }
         }
