@@ -12,19 +12,17 @@ import { FormulaExplanation } from "./FormulaExplanation"
 import { CalculatorDisclaimer } from "./CalculatorDisclaimer"
 import { calculateAguinaldo } from "../lib/aguinaldo"
 import { mapJsonToPrestamoRecord } from "../lib/prestamos"
-import { calcularConcepto011, calcularConcepto022, parseSeniorityYears } from "../lib/conceptos"
+import { calcularConcepto011 } from "../lib/conceptos"
 import { parseCurrencyInput, formatCurrency } from "../lib/money"
 import prestamosRaw from "../data/prestamos_categoria.json"
 import type { PrestamoCategoriaRecord } from "../lib/types"
 
 interface Props {
   initialCategoria?: string | null
-  initialAntiguedad?: string | null
 }
 
-export function AguinaldoCalculator({ initialCategoria, initialAntiguedad }: Props) {
+export function AguinaldoCalculator({ initialCategoria }: Props) {
   const [c002, setC002] = useState("")
-  const [antiguedad, setAntiguedad] = useState(initialAntiguedad ?? "")
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [result, setResult] = useState<ReturnType<typeof calculateAguinaldo> | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -46,8 +44,6 @@ export function AguinaldoCalculator({ initialCategoria, initialAntiguedad }: Pro
 
   const c002Num = parseCurrencyInput(c002)
   const c011Calculated = c002Num !== null ? calcularConcepto011(c002Num) : null
-  const antiguedadYears = parseSeniorityYears(antiguedad)
-  const c022 = c002Num !== null && antiguedadYears > 0 ? calcularConcepto022(c002Num, antiguedadYears) : 0
 
   const handleCategorySelect = (record: PrestamoCategoriaRecord) => {
     setSelectedCategory(record.categoria)
@@ -68,7 +64,7 @@ export function AguinaldoCalculator({ initialCategoria, initialAntiguedad }: Pro
   }
 
   function handleClear() {
-    setC002(""); setAntiguedad(initialAntiguedad ?? ""); setErrors({}); setResult(null)
+    setC002(""); setErrors({}); setResult(null)
     setSelectedCategory(null); setJsonC011(null)
   }
 
@@ -96,12 +92,6 @@ export function AguinaldoCalculator({ initialCategoria, initialAntiguedad }: Pro
             )}
           </div>
         )}
-        <CurrencyField label="Antigüedad (años)" value={antiguedad} onChange={(v) => { setAntiguedad(v); if (!v) setResult(null) }} />
-        {c022 > 0 && (
-          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", background: "var(--accent)", padding: "0.5rem 0.75rem", borderRadius: "var(--radius-sm)", margin: 0 }}>
-            Concepto 022 (Ayuda de Renta por Antigüedad): <strong>{formatCurrency(c022)}</strong> anual
-          </p>
-        )}
       </div>
       <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem" }}>
         <Button onClick={handleCalculate}><Calculator size={16} /> Calcular</Button>
@@ -116,11 +106,6 @@ export function AguinaldoCalculator({ initialCategoria, initialAntiguedad }: Pro
             { label: "Anticipo agosto (043)", value: result.anticipoAgosto043 },
             { label: "Resto diciembre (049)", value: result.restoDiciembre049 },
           ]} />
-          {c022 > 0 && (
-            <ResultCard title="Prestación anual por antigüedad" rows={[
-              { label: "Concepto 022", value: c022, highlight: true },
-            ]} />
-          )}
           <FormulaExplanation steps={["Base = 002 + 011 (011 = 002 × 0.8215)", "Aguinaldo = Base x 7.490956567109524", "047 = Total / 6", "043 = Total / 3", "049 = Total / 2"]} />
           <CalculatorDisclaimer />
         </div>
