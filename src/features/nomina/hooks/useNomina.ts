@@ -28,6 +28,7 @@ import {
   deleteAllData,
   getProjections,
   saveProjection,
+  deleteProjection,
   deleteProfile,
 } from "../services/storage"
 
@@ -242,7 +243,7 @@ export function useNomina() {
         updatedAt: new Date().toISOString(),
       }
 
-      const existingFacts = p.facts.filter((f) => f.key !== factKey)
+      const existingFacts = (p.facts ?? []).filter((f) => f.key !== factKey)
       const updatedProfile = { ...p, facts: [...existingFacts, fact] }
       saveProfile(updatedProfile)
       patch({ profile: updatedProfile })
@@ -293,6 +294,16 @@ export function useNomina() {
     },
     [s.profile, s.projections, categoryState, period, seniority, patch]
   )
+
+  const removeProjection = useCallback((projectionId: string) => {
+    deleteProjection(projectionId)
+    const updated = s.projections.filter((p) => p.id !== projectionId)
+    patch({ projections: updated })
+    if (projection?.id === projectionId) {
+      setProjection(null)
+      setProjectionResult(null)
+    }
+  }, [s.projections, projection, patch])
 
   const resetProfile = useCallback(() => {
     deleteProfile()
@@ -346,5 +357,6 @@ export function useNomina() {
     resetProfile,
     setStep,
     selectProjection,
+    removeProjection,
   }
 }

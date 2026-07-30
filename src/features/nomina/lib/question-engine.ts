@@ -67,7 +67,7 @@ export function buildPendingQuestions(
     }
   }
 
-  const alreadyAnswered = new Set(previousAnswers.map((a) => a.key))
+  const alreadyAnswered = new Set((previousAnswers ?? []).map((a) => a.key))
 
   const questions: ConditionalPayrollQuestion[] = []
 

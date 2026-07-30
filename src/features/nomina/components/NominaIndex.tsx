@@ -23,7 +23,7 @@ export function NominaIndex() {
     giveConsent, revokeConsent, updateProfile,
     resolveAmbiguousCategory,
     generateProjection, resetProfile, setStep, selectProjection,
-    answerQuestion,
+    answerQuestion, removeProjection,
   } = useNomina()
 
   if (loading) {
@@ -170,20 +170,32 @@ export function NominaIndex() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             {[...projections].reverse().slice(0, 5).map((p) => (
-              <button
-                key={p.id}
-                onClick={() => selectProjection(p.id)}
-                style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  padding: "0.5rem 0.75rem", borderRadius: "var(--radius)",
-                  border: "1px solid var(--border)", background: "transparent",
-                  cursor: "pointer", fontSize: "0.8125rem", width: "100%",
-                  textAlign: "left",
-                }}
-              >
-                <span>{p.period.label}</span>
-                <span style={{ fontWeight: 600 }}>${p.totalEarnings.toFixed(2)}</span>
-              </button>
+              <div key={p.id} style={{ display: "flex", gap: "0.25rem" }}>
+                <button
+                  onClick={() => selectProjection(p.id)}
+                  style={{
+                    flex: 1, display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "0.5rem 0.75rem", borderRadius: "var(--radius)",
+                    border: "1px solid var(--border)", background: "transparent",
+                    cursor: "pointer", fontSize: "0.8125rem", textAlign: "left",
+                  }}
+                >
+                  <span>{p.period.label}</span>
+                  <span style={{ fontWeight: 600 }}>${p.totalEarnings.toFixed(2)}</span>
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); removeProjection(p.id) }}
+                  title="Eliminar proyección"
+                  style={{
+                    padding: "0.5rem 0.5rem", borderRadius: "var(--radius)",
+                    border: "1px solid var(--border)", background: "transparent",
+                    cursor: "pointer", fontSize: "0.8125rem", color: "var(--muted)",
+                    lineHeight: 1,
+                  }}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             ))}
           </div>
         </Card>

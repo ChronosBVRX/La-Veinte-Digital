@@ -24,10 +24,22 @@ export function getProfile(): EmployeePayrollProfile | null {
   const raw = localStorage.getItem(NOMINA_PROFILE_KEY)
   if (!raw) return null
   try {
-    return JSON.parse(raw) as EmployeePayrollProfile
+    const p = JSON.parse(raw) as EmployeePayrollProfile
+    p.facts = p.facts ?? []
+    p.occupationalConditions = p.occupationalConditions ?? []
+    p.siapConceptMarks = p.siapConceptMarks ?? []
+    p.recurringConcepts = p.recurringConcepts ?? []
+    return p
   } catch {
     return null
   }
+}
+
+export function deleteProjection(projectionId: string): void {
+  if (typeof window === "undefined") return
+  const projs = getProjections()
+  const filtered = projs.filter((p) => p.id !== projectionId)
+  localStorage.setItem(NOMINA_PROJECTIONS_KEY, JSON.stringify(filtered))
 }
 
 export function saveProfile(profile: EmployeePayrollProfile): void {
