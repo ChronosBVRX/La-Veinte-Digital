@@ -3,5 +3,5 @@ import { getCurrentUserProfile } from "@/features/profile/services/profiles"
 
 export default async function SegundaJulioProporcionalPage() {
   const profile = await getCurrentUserProfile()
-  return <SegundaJulioProporcionalCalculator initialCategoria={profile?.categoria} initialAntiguedad={profile?.antiguedad} />
+  return <SegundaJulioProporcionalCalculator initialCategoria={profile?.categoria} />
 }

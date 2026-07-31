@@ -3,5 +3,5 @@ import { getCurrentUserProfile } from "@/features/profile/services/profiles"
 
 export default async function Clausula97Page() {
   const profile = await getCurrentUserProfile()
-  return <Clausula97Calculator initialCategoria={profile?.categoria} initialAntiguedad={profile?.antiguedad} />
+  return <Clausula97Calculator initialCategoria={profile?.categoria} />
 }

@@ -1,5 +1,5 @@
 import type { ResolvedSalaryCategory } from "./types"
-import { SALARY_DATA } from "../data/salaries"
+import { SALARY_DATA, LEGACY_CATEGORY_ID_MAP, isRecordActiveAt, type SalaryDataRecord } from "../data/salaries"
 
 export interface CategoryMatch {
   category: ResolvedSalaryCategory
@@ -24,6 +24,25 @@ function normalizeCategoryText(value: string): string {
     .replace(/\s+/g, " ")
     .trim()
     .toUpperCase()
+}
+
+function isNumericText(value: string): boolean {
+  return /^\d+(\.\d+)?$/.test(value.trim())
+}
+
+function toResolvedCategory(record: SalaryDataRecord): ResolvedSalaryCategory {
+  return {
+    categoryId: record.categoryId,
+    categoryName: record.categoryName,
+    categoryCode: record.categoryCode,
+    workdayHours: record.workdayHours,
+    monthlyBaseSalary: record.monthlyBaseSalary,
+    biweeklyBaseSalary: record.biweeklyBaseSalary,
+    effectiveFrom: record.effectiveFrom,
+    effectiveTo: record.effectiveTo,
+    salaryTableVersion: record.salaryTableVersion,
+    sourceRecordId: record.sourceRecordId,
+  }
 }
 
 function calculateScore(input: string, candidate: string): number {
@@ -58,25 +77,24 @@ export function resolveCategory(
   date: string,
   existingCategoryId?: string,
 ): CategoryResolutionResult {
-  void date
+  const activeRecords = SALARY_DATA.filter((r) => isRecordActiveAt(r, date))
+
+  if (activeRecords.length === 0) {
+    return {
+      resolved: false,
+      matches: [],
+      status: "not_found",
+      message: `No hay versión del tabulador vigente para la fecha ${date}`,
+    }
+  }
 
   if (existingCategoryId) {
-    const exact = SALARY_DATA.find((s) => s.categoryId === existingCategoryId)
+    const stableId = LEGACY_CATEGORY_ID_MAP.get(existingCategoryId) ?? existingCategoryId
+    const exact = activeRecords.find((s) => s.categoryId === stableId)
     if (exact) {
-      const cat: ResolvedSalaryCategory = {
-        categoryId: exact.categoryId,
-        categoryName: exact.categoryName,
-        categoryCode: exact.categoryCode,
-        workdayHours: exact.workdayHours,
-        monthlyBaseSalary: exact.monthlyBaseSalary,
-        biweeklyBaseSalary: exact.biweeklyBaseSalary,
-        effectiveFrom: exact.effectiveFrom,
-        effectiveTo: exact.effectiveTo,
-        sourceRecordId: exact.sourceRecordId,
-      }
       return {
         resolved: true,
-        category: cat,
+        category: toResolvedCategory(exact),
         resolutionMethod: "id",
         status: "resolved",
       }
@@ -85,42 +103,64 @@ export function resolveCategory(
 
   const normInput = normalizeCategoryText(identifier)
 
-  const exact = SALARY_DATA.find(
-    (s) => normalizeCategoryText(s.categoryId) === normInput || normalizeCategoryText(s.categoryName) === normInput,
-  )
-  if (exact) {
-    const cat: ResolvedSalaryCategory = {
-      categoryId: exact.categoryId,
-      categoryName: exact.categoryName,
-      categoryCode: exact.categoryCode,
-      workdayHours: exact.workdayHours,
-      monthlyBaseSalary: exact.monthlyBaseSalary,
-      biweeklyBaseSalary: exact.biweeklyBaseSalary,
-      effectiveFrom: exact.effectiveFrom,
-      effectiveTo: exact.effectiveTo,
-      sourceRecordId: exact.sourceRecordId,
-    }
+  const exactById = activeRecords.find((s) => normalizeCategoryText(s.categoryId) === normInput)
+  if (exactById) {
     return {
       resolved: true,
-      category: cat,
+      category: toResolvedCategory(exactById),
+      resolutionMethod: "id",
+      status: "resolved",
+    }
+  }
+
+  const exactByCode = activeRecords.find((s) => s.categoryCode && normalizeCategoryText(s.categoryCode) === normInput)
+  if (exactByCode) {
+    return {
+      resolved: true,
+      category: toResolvedCategory(exactByCode),
+      resolutionMethod: "code",
+      status: "resolved",
+    }
+  }
+
+  const exactByName = activeRecords.find((s) => normalizeCategoryText(s.categoryName) === normInput)
+  if (exactByName) {
+    return {
+      resolved: true,
+      category: toResolvedCategory(exactByName),
       resolutionMethod: "exact_name",
       status: "resolved",
     }
   }
 
-  const scored: CategoryMatch[] = SALARY_DATA
+  const legacyById = LEGACY_CATEGORY_ID_MAP.get(identifier.trim())
+  if (legacyById) {
+    const legacyRecord = activeRecords.find((s) => s.categoryId === legacyById)
+    if (legacyRecord) {
+      return {
+        resolved: true,
+        category: toResolvedCategory(legacyRecord),
+        resolutionMethod: "id",
+        status: "resolved",
+      }
+    }
+  }
+
+  // Una entrada puramente numérica sin coincidencia exacta (ni ID ni ID
+  // anterior) es una falsa coincidencia: "5" o "10" no deben matchear por
+  // similitud contra nombres de categorías.
+  if (isNumericText(identifier)) {
+    return {
+      resolved: false,
+      matches: [],
+      status: "not_found",
+      message: `No se encontró ninguna categoría con el identificador "${identifier}"`,
+    }
+  }
+
+  const scored: CategoryMatch[] = activeRecords
     .map((s) => ({
-      category: {
-        categoryId: s.categoryId,
-        categoryName: s.categoryName,
-        categoryCode: s.categoryCode,
-        workdayHours: s.workdayHours,
-        monthlyBaseSalary: s.monthlyBaseSalary,
-        biweeklyBaseSalary: s.biweeklyBaseSalary,
-        effectiveFrom: s.effectiveFrom,
-        effectiveTo: s.effectiveTo,
-        sourceRecordId: s.sourceRecordId,
-      },
+      category: toResolvedCategory(s),
       score: calculateScore(identifier, s.categoryName),
       reasons: [] as string[],
     }))

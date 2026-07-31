@@ -203,6 +203,7 @@ export interface ResolvedSalaryCategory {
   biweeklyBaseSalary: number
   effectiveFrom?: string
   effectiveTo?: string
+  salaryTableVersion?: string
   sourceRecordId: string
 }
 

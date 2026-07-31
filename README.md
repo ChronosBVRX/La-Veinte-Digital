@@ -149,6 +149,11 @@ Chat bot con IA que responde preguntas sobre el Contrato Colectivo de Trabajo (C
 - **Segunda de Julio Proporcional** - Cálculo proporcional
 - **Tiempo Extra** - Horas extra
 
+Incluyen **prerrelleno normativo**: al abrir una calculadora se cargan los
+valores salariales del perfil y del tabulador vigente (con política cerrada
+por calculadora; el 022 nunca se integra a una base y las horas extra siempre
+se capturan a mano). Detalle: `docs/CALCULATOR_PREFILL.md`.
+
 ### 3. Bitácora Personal (`/profile` → sección)
 Registro diario de incidencias laborales con tipos predefinidos: Tiempo Extra, Guardia Festiva, TxT (Sustitución), Falta Injustificada, Incapacidad, Pases de salida/entrada, Vacaciones, No pagado. Los datos se almacenan en Supabase y se muestran en el perfil del usuario.
 

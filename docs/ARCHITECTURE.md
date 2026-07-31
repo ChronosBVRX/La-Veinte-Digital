@@ -91,6 +91,24 @@ Usuario → ChatRoom (CSR)
          → Los demás participantes reciben el mensaje en tiempo real
 ```
 
+### 5. Prerrelleno Normativo de Calculadoras
+
+```
+Calculadora (CSR) → useCalculatorPrefill(calculatorId, targetDate)
+         → GET /api/calculator-prefill?calculator=...&targetDate=...
+         → buildCalculatorPrefill (server, feature nomina):
+             profiles + payroll_contexts → resolveCategory → antigüedad
+             → calculateProjection (motor de nómina existente)
+             → buildCalculatorPrefillResponse (filtro por política cerrada)
+         → usePrefillFields aplica valores solo a campos vacíos
+           (un campo editado nunca se sobrescribe; botón "Restaurar")
+```
+
+Las calculadoras **nunca importan lógica de la feature nomina**; consumen el
+contrato compartido (`src/shared/contracts/calculator-prefill.ts`) vía API
+interna. Las fórmulas de `features/calculators/lib/` no se tocan. Detalle en
+[`CALCULATOR_PREFILL.md`](./CALCULATOR_PREFILL.md).
+
 ---
 
 ## Patrón de Componentes
@@ -156,6 +174,7 @@ Usuario → ChatRoom (CSR)
 
 - **Vitest**: Configurado con alias `@/` mapeado a `./src/`
 - **Tests unitarios**: En `features/calculators/__tests__/` y `features/nomina/__tests__/`
+- **Tests de contrato**: `shared/contracts/__tests__/` (validadores del prerrelleno)
 - **Sin tests de integración o E2E** actualmente
 
 ```bash

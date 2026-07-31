@@ -1,27 +1,38 @@
 "use client"
 
-import { useState, useMemo, useActionState } from "react"
+import { useState, useMemo, useCallback, useActionState } from "react"
 import Link from "next/link"
-import { ArrowLeft, Search, Check, RotateCcw } from "lucide-react"
+import { ArrowLeft, Search, Check, RotateCcw, AlertTriangle } from "lucide-react"
 import { Input } from "@/shared/components/ui/Input"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
 import { CalculatorDisclaimer } from "./CalculatorDisclaimer"
+import { PrefillStatus } from "./PrefillStatus"
 import { filterCategorias, calcularPrestamos, mapJsonToPrestamoRecord, normalizeSearch } from "../lib/prestamos"
-import { calcularConcepto022, parseSeniorityYears } from "../lib/conceptos"
 import { formatCurrency } from "../lib/money"
+import { useCalculatorPrefill } from "../hooks/useCalculatorPrefill"
+import { usePrefillFields } from "../hooks/usePrefillFields"
 import type { PrestamoCategoriaRecord } from "../lib/types"
 import prestamosRaw from "../data/prestamos_categoria.json"
 import { saveProfileCategoria } from "../services/saveProfileCategoria"
 
 interface Props {
   initialCategoria?: string | null
-  initialAntiguedad?: string | null
 }
 
-export function PrestamosCategoriaCalculator({ initialCategoria, initialAntiguedad }: Props) {
+export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
+  const targetDate = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const prefill = useCalculatorPrefill("prestamos", targetDate)
+
   const [query, setQuery] = useState(initialCategoria ?? "")
-  const [antiguedad, setAntiguedad] = useState(initialAntiguedad ?? "")
+  const setQueryField = useCallback((_: "categoryName", value: string) => setQuery(value), [])
+  usePrefillFields({
+    fields: { categoryName: query },
+    setField: setQueryField,
+    fieldMap: { categoryName: "categoryName" },
+    data: prefill.data,
+  })
+
   const [userSelected, setUserSelected] = useState<PrestamoCategoriaRecord | null>(null)
   const [saved, setSaved] = useState(false)
 
@@ -39,9 +50,11 @@ export function PrestamosCategoriaCalculator({ initialCategoria, initialAntigued
   )
 
   const records = useMemo(() => {
-    const raw = prestamosRaw as Record<string, unknown>[]
-    return raw.map(mapJsonToPrestamoRecord)
+    if (!Array.isArray(prestamosRaw)) return []
+    return (prestamosRaw as Record<string, unknown>[]).map(mapJsonToPrestamoRecord)
   }, [])
+
+  const jsonUnavailable = records.length === 0
 
   const initialMatch = useMemo(() => {
     if (!initialCategoria) return null
@@ -57,10 +70,6 @@ export function PrestamosCategoriaCalculator({ initialCategoria, initialAntigued
     if (!selected) return []
     return calcularPrestamos(selected)
   }, [selected])
-
-  const antiguedadYears = parseSeniorityYears(antiguedad)
-  const c022 = selected?.sueldoQuincenal && antiguedadYears > 0
-    ? calcularConcepto022(selected.sueldoQuincenal, antiguedadYears) : 0
 
   const handleSelect = (r: PrestamoCategoriaRecord) => {
     setUserSelected(r)
@@ -81,8 +90,19 @@ export function PrestamosCategoriaCalculator({ initialCategoria, initialAntigued
 
       <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "0 0 0.25rem" }}>Préstamos por categoría</h1>
       <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0 0 1.5rem" }}>
-        Consulta montos de préstamos disponibles según tu categoría.
+        Consulta montos de préstamos disponibles según tu categoría. Los montos provienen del tabulador cargado.
       </p>
+
+      <div style={{ marginBottom: "1rem" }}>
+        <PrefillStatus data={prefill.data} loading={prefill.loading} error={prefill.error} />
+      </div>
+
+      {jsonUnavailable && (
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.3)", borderRadius: "var(--radius)", padding: "0.75rem 1rem", fontSize: "0.8125rem", marginBottom: "1rem" }}>
+          <AlertTriangle size={16} color="var(--warning)" />
+          <span>No se pudo cargar el tabulador de préstamos (prestamos_categoria.json ausente o inválido).</span>
+        </div>
+      )}
 
       {selected && (
         <div style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
@@ -109,16 +129,6 @@ export function PrestamosCategoriaCalculator({ initialCategoria, initialAntigued
           />
         </div>
       )}
-
-      <div style={{ marginBottom: "1rem" }}>
-        <Input
-          id="antiguedad"
-          label="Antigüedad (años)"
-          value={antiguedad}
-          onChange={(e) => setAntiguedad(e.target.value)}
-          placeholder="Ej: 10"
-        />
-      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
         <div>
@@ -167,21 +177,10 @@ export function PrestamosCategoriaCalculator({ initialCategoria, initialAntigued
                   {selected.sueldoPlaza !== undefined && <InfoRow label="Sueldo plaza" value={formatCurrency(selected.sueldoPlaza)} />}
                   {selected.sueldoQuincenal !== undefined && <InfoRow label="Sueldo quincenal" value={formatCurrency(selected.sueldoQuincenal)} />}
                   {selected.concepto011 !== undefined && <InfoRow label="Concepto 011" value={formatCurrency(selected.concepto011)} />}
+                  {selected.smtabMas011 !== undefined && <InfoRow label="SMTAB + 011" value={formatCurrency(selected.smtabMas011)} />}
                   {selected.smi !== undefined && <InfoRow label="SMI" value={formatCurrency(selected.smi)} />}
                 </div>
               </Card>
-
-              {c022 > 0 && (
-                <Card padding="0.875rem" style={{ borderLeft: "3px solid var(--primary)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <p style={{ fontSize: "0.8125rem", fontWeight: 600, margin: 0 }}>Concepto 022</p>
-                      <p style={{ fontSize: "0.6875rem", color: "var(--muted)", margin: "0.125rem 0 0" }}>Ayuda de Renta por Antigüedad (anual)</p>
-                    </div>
-                    <p style={{ fontSize: "1rem", fontWeight: 700, margin: 0, color: "var(--primary)" }}>{formatCurrency(c022)}</p>
-                  </div>
-                </Card>
-              )}
 
               <form action={saveAction}>
                 <input type="hidden" name="categoria" value={selected.categoria} />

@@ -117,6 +117,53 @@ Exporta el calendario IMSS 2026 a formato iCalendar (.ics).
 
 ---
 
+### GET /api/calculator-prefill
+Prerrelleno normativo para calculadoras IMSS (requiere sesión).
+
+**Query Parameters:**
+| Param | Tipo | Descripción |
+|---|---|---|
+| `calculator` | `string` (requerido) | ID de la calculadora: `aguinaldo`, `clausula-97`, `prestamos`, `segunda-julio`, `segunda-julio-proporcional`, `tiempo-extra` |
+| `targetDate` | `string` (opcional) | Fecha de referencia ISO `YYYY-MM-DD`. Por defecto: hoy. |
+
+**Process:**
+1. Autentica con la sesión de Supabase (401 si no hay sesión)
+2. Lee `profiles` (categoría, antigüedad) y `payroll_contexts` (contexto de nómina)
+3. Resuelve la categoría contra el tabulador vigente en `targetDate`
+4. Calcula antigüedad (fecha efectiva > texto del perfil)
+5. Ejecuta el motor de nómina existente (`calculateProjection`)
+6. Filtra por la política cerrada de la calculadora y devuelve el contrato
+
+**Response (200):**
+```json
+{
+  "schemaVersion": "1.0",
+  "calculatorId": "aguinaldo",
+  "targetDate": "2026-07-31",
+  "generatedAt": "2026-07-31T12:00:00.000Z",
+  "categoryResolved": true,
+  "categoryResolutionStatus": "resolved",
+  "fields": {
+    "categoryId": { "value": "TECNICO_RADIOLOGO_80", "source": "profile", "confidence": "high", "effectiveAt": "2026-07-31", "editable": true },
+    "categoryName": { "value": "TECNICO RADIOLOGO 80", "source": "profile", "confidence": "high", "effectiveAt": "2026-07-31", "editable": true },
+    "concepto002": { "value": 3937.64, "source": "salary_table", "confidence": "high", "effectiveAt": "2026-07-31", "editable": true, "ruleVersion": "salary-table-2025-2027" }
+  },
+  "missingFacts": [],
+  "warnings": []
+}
+```
+
+**Errores:**
+- `401` — sin sesión activa
+- `400` — `calculator` inválido o fecha malformada
+- `500` — error interno
+
+Los campos entregados son una lista **cerrada** por calculadora (política en
+`src/features/nomina/lib/calculator-prefill-policy.ts`); el 022 se muestra solo
+como información en Cláusula 97 y nunca se integra a una base.
+
+---
+
 ## Bot API Python (FastAPI)
 
 Endpoint base: `NEXT_PUBLIC_BOT_API_URL` (ej: `http://localhost:8000`)
@@ -239,6 +286,25 @@ Health check.
 | `description` | text | Descripción |
 | `entry_date` | date | Fecha de la incidencia |
 | `created_at` | timestamptz | Fecha de registro |
+
+### Tabla: `payroll_contexts`
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `user_id` | UUID (PK, FK → profiles) | Usuario (una fila por usuario) |
+| `category_id` | text | ID estable de categoría |
+| `category_code` | text | Código de categoría |
+| `category_name` | text | Nombre de categoría |
+| `workday_hours` | numeric(4,1) | Horas de jornada |
+| `employment_type` | text | Tipo de empleo |
+| `effective_seniority_date` | date | Fecha efectiva de antigüedad |
+| `occupational_conditions` | jsonb | Condiciones ocupacionales |
+| `payroll_facts` | jsonb | Hechos de nómina |
+| `recurring_concepts` | jsonb | Evidencia de conceptos recurrentes (023, 050, 063…) |
+| `siap_concept_marks` | jsonb | Marcas de conceptos SIAP |
+| `updated_at` | timestamptz | Última actualización |
+
+RLS: cada usuario solo puede leer/insertar/actualizar su propia fila
+(migración `003_payroll_contexts.sql`).
 
 ### Tabla: `forum_categories`
 | Columna | Tipo | Descripción |

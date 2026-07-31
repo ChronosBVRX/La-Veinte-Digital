@@ -72,6 +72,12 @@ export type Database = {
         Update: { adscripcion?: string | null; antiguedad?: string | null; avatar_url?: string | null; categoria?: string | null; created_at?: string | null; full_name?: string | null; id?: string; is_online?: boolean | null; matricula?: string | null; phone?: string | null; role?: string | null; updated_at?: string | null }
         Relationships: [{ foreignKeyName: "profiles_id_fkey"; columns: ["id"]; isOneToOne: true; referencedRelation: "auth.users"; referencedColumns: ["id"] }]
       }
+      payroll_contexts: {
+        Row: { category_code: string | null; category_id: string | null; category_name: string | null; effective_seniority_date: string | null; employment_type: string | null; occupational_conditions: Json; payroll_facts: Json; recurring_concepts: Json; siap_concept_marks: Json; updated_at: string; user_id: string; workday_hours: number | null }
+        Insert: { category_code?: string | null; category_id?: string | null; category_name?: string | null; effective_seniority_date?: string | null; employment_type?: string | null; occupational_conditions?: Json; payroll_facts?: Json; recurring_concepts?: Json; siap_concept_marks?: Json; updated_at?: string; user_id: string; workday_hours?: number | null }
+        Update: { category_code?: string | null; category_id?: string | null; category_name?: string | null; effective_seniority_date?: string | null; employment_type?: string | null; occupational_conditions?: Json; payroll_facts?: Json; recurring_concepts?: Json; siap_concept_marks?: Json; updated_at?: string; user_id?: string; workday_hours?: number | null }
+        Relationships: [{ foreignKeyName: "payroll_contexts_user_id_fkey"; columns: ["user_id"]; isOneToOne: true; referencedRelation: "auth.users"; referencedColumns: ["id"] }]
+      }
     }
     Views: {
       [_ in never]: never

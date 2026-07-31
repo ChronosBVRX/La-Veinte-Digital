@@ -88,14 +88,14 @@ export function filterCategorias(records: PrestamoCategoriaRecord[], query: stri
 }
 
 export function calcularPrestamos(record: PrestamoCategoriaRecord): PrestamoCalculado[] {
-  const base = (record.sueldoQuincenal ?? 0) + (record.concepto011 ?? 0)
+  const base = record.smtabMas011 ?? (record.sueldoQuincenal ?? 0) + (record.concepto011 ?? 0)
   const smi = record.smi ?? 0
 
   const resultados: PrestamoCalculado[] = [
-    { modalidad: "Cláusula 97 - 1 mes", formula: "Sueldo quincenal + Concepto 011", valor: base, valorOriginal: record.clausula97UnMes },
-    { modalidad: "Cláusula 97 - 2 meses", formula: "(Sueldo quincenal + Concepto 011) × 2", valor: base * 2, valorOriginal: record.clausula97DosMeses },
-    { modalidad: "Cláusula 97 - 3 meses", formula: "(Sueldo quincenal + Concepto 011) × 3", valor: base * 3, valorOriginal: record.clausula97TresMeses },
-    { modalidad: "Concepto 160", formula: "(Sueldo quincenal + Concepto 011) × 10%", valor: base * 0.1, valorOriginal: record.concepto160 },
+    { modalidad: "Cláusula 97 - 1 mes", formula: "SMTAB + Concepto 011", valor: base, valorOriginal: record.clausula97UnMes },
+    { modalidad: "Cláusula 97 - 2 meses", formula: "(SMTAB + Concepto 011) × 2", valor: base * 2, valorOriginal: record.clausula97DosMeses },
+    { modalidad: "Cláusula 97 - 3 meses", formula: "(SMTAB + Concepto 011) × 3", valor: base * 3, valorOriginal: record.clausula97TresMeses },
+    { modalidad: "Concepto 160", formula: "(SMTAB + Concepto 011) × 10%", valor: base * 0.1, valorOriginal: record.concepto160 },
     { modalidad: "Automóvil", formula: "SMI × 24", valor: smi * 24, valorOriginal: record.automovil },
     { modalidad: "Enganche", formula: "SMI × 15", valor: smi * 15, valorOriginal: record.enganche },
     { modalidad: "Mediano plazo", formula: "SMI × 35", valor: smi * 35, valorOriginal: record.medianoPlazo },
