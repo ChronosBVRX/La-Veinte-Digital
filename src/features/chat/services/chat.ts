@@ -9,7 +9,7 @@ export async function getRooms() {
   const supabase = await createClient()
   const { data } = await supabase
     .from("chat_rooms")
-    .select("*, profiles!chat_rooms_created_by_fkey(full_name)")
+    .select("*, limited_profiles!chat_rooms_created_by_fkey(full_name)")
     .order("created_at", { ascending: false })
   return data ?? []
 }
@@ -28,11 +28,11 @@ export async function getMessages(roomId: string) {
   const supabase = await createClient()
   const { data } = await supabase
     .from("chat_messages")
-    .select("*, profiles!chat_messages_user_id_fkey(full_name, avatar_url)")
+    .select("*, limited_profiles!chat_messages_user_id_fkey(full_name, avatar_url)")
     .eq("room_id", roomId)
     .order("created_at", { ascending: true })
     .limit(100)
-  return (data ?? []) as (Message & { profiles: { full_name: string | null; avatar_url: string | null } })[]
+  return (data ?? []) as (Message & { limited_profiles: { full_name: string | null; avatar_url: string | null } | null })[]
 }
 
 export async function sendMessage(message: TablesInsert<"chat_messages">) {
@@ -60,7 +60,7 @@ export async function getParticipants(roomId: string) {
   const supabase = await createClient()
   const { data } = await supabase
     .from("chat_participants")
-    .select("*, profiles(full_name, avatar_url)")
+    .select("*, limited_profiles(full_name, avatar_url)")
     .eq("room_id", roomId)
   return data ?? []
 }

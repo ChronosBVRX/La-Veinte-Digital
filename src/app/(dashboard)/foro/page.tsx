@@ -12,7 +12,7 @@ export default async function ForumPage() {
 
   const { data: posts } = await supabase
     .from("forum_posts")
-    .select("*, profiles!forum_posts_author_id_fkey(full_name), forum_categories!inner(name, slug)")
+    .select("*, limited_profiles!forum_posts_author_id_fkey(full_name), forum_categories!inner(name, slug)")
     .order("is_pinned", { ascending: false })
     .order("created_at", { ascending: false })
 
@@ -124,7 +124,7 @@ export default async function ForumPage() {
                 <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0 }}>
                   {(post as { forum_categories?: { name: string } }).forum_categories?.name ?? "General"}
                   &nbsp;&middot;&nbsp;
-                  {post.profiles?.full_name ?? "Anónimo"}
+                  {post.limited_profiles?.full_name ?? "Anónimo"}
                 </p>
               </div>
               <span style={{

@@ -11,7 +11,7 @@ interface Comment {
   content: string
   author_id: string
   created_at: string | null
-  profiles: { full_name: string | null; avatar_url: string | null } | null
+  limited_profiles: { full_name: string | null; avatar_url: string | null } | null
 }
 
 export function CommentSection({ postId, comments: initialComments }: { postId: string; comments: Comment[] }) {
@@ -35,7 +35,7 @@ export function CommentSection({ postId, comments: initialComments }: { postId: 
         content,
         author_id: user.id,
         created_at: new Date().toISOString(),
-        profiles: { full_name: null, avatar_url: null },
+        limited_profiles: { full_name: null, avatar_url: null },
       }
 
       startTransition(() => addOptimistic(optimistic))
@@ -78,7 +78,7 @@ export function CommentSection({ postId, comments: initialComments }: { postId: 
           <div key={comment.id} style={{ background: "var(--bg)", borderRadius: "0.375rem", padding: "0.75rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.25rem" }}>
               <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>
-                {comment.profiles?.full_name ?? "Tú"}
+                {comment.limited_profiles?.full_name ?? "Tú"}
               </span>
               <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
                 {comment.created_at ? new Date(comment.created_at).toLocaleDateString("es-MX") : ""}

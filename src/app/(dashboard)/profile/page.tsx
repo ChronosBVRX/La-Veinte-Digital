@@ -11,6 +11,11 @@ export default async function ProfilePage() {
 
   if (!user) return <p>Debes iniciar sesión</p>
 
+  // Los usuarios OAuth (Google/Facebook) recién registrados podrían no tener
+  // fila en profiles si el trigger aún no se ejecutó o es un usuario previo
+  // al trigger. Se garantiza la existencia de forma idempotente.
+  await supabase.rpc("ensure_profile_exists")
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("*")
