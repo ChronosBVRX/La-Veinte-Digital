@@ -5,7 +5,7 @@ import type { SemestralContinuity } from "./types";
 import { validateAnticipation, calculateReturnDate, isFirstPeriod } from "./validation";
 import { detectNormativeConflicts } from "./conflicts";
 import { getUnitType, getWorkScheduleForProfile } from "./schedules";
-import { getMandatoryRestDates } from "./holidays";
+import { getMandatoryRestDatesForRange } from "./holidays";
 
 export function buildSimulationResult(input: VacationSimulationInput): VacationSimulationResult {
   const traces: RuleTrace[] = [];
@@ -109,7 +109,7 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
       unitsUsed,
       unitType,
       input.workerProfile.weeklyRestDays ?? [],
-      getMandatoryRestDates(new Date(input.selectedStartDate).getFullYear()),
+      getMandatoryRestDatesForRange(input.selectedStartDate, 400),
       getWorkScheduleForProfile(input.workerProfile)
     );
     lastDate = dateResult.lastDate;

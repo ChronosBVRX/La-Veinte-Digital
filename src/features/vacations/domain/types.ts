@@ -105,6 +105,7 @@ export interface VacationDateCalculationResult {
   excludedMandatoryRestDates: string[];
   totalCalendarDays: number;
   totalVacationUnits: number;
+  truncated: boolean;
 }
 
 export interface SemestralTransition {
@@ -119,6 +120,7 @@ export interface CuatrimestralStep {
   periodIndex: number;
   inclusionMark: CuatrimestralInclusionMark;
   nextContinuity: CuatrimestralContinuity;
+  option: "A" | "B";
 }
 
 export interface SavedVacationSimulation {

@@ -3,10 +3,19 @@ import type { WorkScheduleType, WorkScheduleDefinition, WorkerProfile } from "./
 export function getWorkScheduleForProfile(
   profile: Pick<WorkerProfile, "workScheduleType" | "weeklyRestDays">
 ): WorkScheduleDefinition {
-  if (profile.workScheduleType === "ACCUMULATED_WEEKEND_DAY") {
-    return { type: "ACCUMULATED_WEEKEND_DAY", workingDays: [5, 6] };
+  switch (profile.workScheduleType) {
+    case "ACCUMULATED_WEEKEND_DAY":
+      return { type: "ACCUMULATED_WEEKEND_DAY", workingDays: [5, 6] };
+    case "ACCUMULATED_NIGHT":
+      return { type: "ACCUMULATED_NIGHT" };
+    case "ROTATING":
+      return { type: "ROTATING" };
+    case "CUSTOM":
+      return { type: "CUSTOM" };
+    case "ORDINARY":
+    default:
+      return { type: "ORDINARY" };
   }
-  return { type: profile.workScheduleType ?? "ORDINARY" };
 }
 
 export const ACCUMULATED_DAY_JOURNEYS: Record<number, number> = {

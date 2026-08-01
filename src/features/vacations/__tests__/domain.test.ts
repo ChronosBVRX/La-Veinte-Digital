@@ -2,8 +2,9 @@ import { describe, it, expect } from "vitest"
 import { getCctAnnualDays, getEstatutoAnnualDays, getRadiationDaysForPeriod, determineVacationRegime, isEligibleForV20, getVacationDivision, getUnitsForInclusion } from "../domain/entitlement"
 import { getSemestralTransition, getCompatibleSemestralInclusionMarks, isCycleClosed, applyInclusionMark, SEMESTRAL_CLOSED_STATES, getCompatibleV20Options } from "../domain/continuity"
 import { validateAnticipation, calculateReturnDate, calculateVacationRange, validateModification, isFirstPeriod } from "../domain/validation"
-import { getMandatoryRestDates, isWeeklyRest } from "../domain/holidays"
-import { getAccumulatedDayJourneys, getAccumulatedNightVeladas, isWorkDay, getWorkScheduleForProfile } from "../domain/schedules"
+import { getMandatoryRestDates, getMandatoryRestDatesForRange, isWeeklyRest } from "../domain/holidays"
+import { getAccumulatedDayJourneys, getAccumulatedNightVeladas, isWorkDay, getWorkScheduleForProfile, getUnitType } from "../domain/schedules"
+import { getCompatibleCuatrimestralOptions } from "../domain/continuity"
 import { detectNormativeConflicts } from "../domain/conflicts"
 import { buildSimulationResult } from "../domain/simulation"
 import type { VacationSimulationInput, WorkScheduleDefinition } from "../domain/types"
@@ -385,6 +386,28 @@ describe("validateModification", () => {
     const result = validateModification("2026-10-14", "2026-10-20")
     expect(result.allowed).toBe(false)
   })
+
+  it("measures anticipation from the request date, not the new date", () => {
+    const result = validateModification("2026-10-14", "2026-09-20", "2026-09-01")
+    expect(result.allowed).toBe(true)
+    expect(result.requiresNormativeReview).toBe(true)
+  })
+
+  it("blocks when the request is inside the exceptional 15-day margin", () => {
+    const result = validateModification("2026-10-14", "2026-10-05", "2026-10-01")
+    expect(result.allowed).toBe(false)
+    expect(result.requiresNormativeReview).toBe(true)
+  })
+
+  it("blocks when the period already started at request time", () => {
+    const result = validateModification("2026-10-14", "2026-10-20", "2026-10-16")
+    expect(result.allowed).toBe(false)
+  })
+
+  it("blocks a new date earlier than the request date", () => {
+    const result = validateModification("2026-10-14", "2026-08-01", "2026-09-01")
+    expect(result.allowed).toBe(false)
+  })
 })
 
 describe("calculateVacationRange", () => {
@@ -607,5 +630,164 @@ describe("buildSimulationResult", () => {
     expect(result.requiresSpecialProcess).toBe(true)
     expect(result.anticipationResult?.allowed).toBe(false)
     expect(result.anticipationResult?.reasonCode).toBe("FIRST_PERIOD_BEFORE_YEAR")
+  })
+})
+
+describe("Cuatrimestral State Machine", () => {
+  it("labels option A steps as CUATRIMESTRAL_SEQUENCE_A", () => {
+    const steps = getCompatibleCuatrimestralOptions(0)
+    expect(steps.filter((s) => s.option === "A").length).toBe(3)
+    expect(steps.filter((s) => s.option === "B").length).toBe(3)
+    const firstA = applyInclusionMark("CUATRIMESTRAL", 0, 0)
+    if ("error" in firstA) throw new Error(firstA.error)
+    expect(firstA.stage).toBe("CUATRIMESTRAL_SEQUENCE_A")
+    const firstB = applyInclusionMark("CUATRIMESTRAL", 0, 2)
+    if ("error" in firstB) throw new Error(firstB.error)
+    expect(firstB.stage).toBe("CUATRIMESTRAL_SEQUENCE_B")
+    expect(firstB.nextContinuity).toBe(4)
+  })
+
+  it("advances option A: 1 → 2 → 3", () => {
+    const s1 = applyInclusionMark("CUATRIMESTRAL", 1, 0)
+    if ("error" in s1) throw new Error(s1.error)
+    expect(s1.nextContinuity).toBe(2)
+    const s2 = applyInclusionMark("CUATRIMESTRAL", 2, 0)
+    if ("error" in s2) throw new Error(s2.error)
+    expect(s2.nextContinuity).toBe(3)
+  })
+
+  it("advances option B: 4 → 9 → 14", () => {
+    const s1 = applyInclusionMark("CUATRIMESTRAL", 4, 5)
+    if ("error" in s1) throw new Error(s1.error)
+    expect(s1.nextContinuity).toBe(9)
+    expect(s1.stage).toBe("CUATRIMESTRAL_SEQUENCE_B")
+    const s2 = applyInclusionMark("CUATRIMESTRAL", 9, 5)
+    if ("error" in s2) throw new Error(s2.error)
+    expect(s2.nextContinuity).toBe(14)
+  })
+
+  it("blocks incompatible marks mid-sequence", () => {
+    expect("error" in applyInclusionMark("CUATRIMESTRAL", 4, 0)).toBe(true)
+    expect("error" in applyInclusionMark("CUATRIMESTRAL", 1, 5)).toBe(true)
+    expect("error" in applyInclusionMark("CUATRIMESTRAL", 2, 5)).toBe(true)
+    expect("error" in applyInclusionMark("CUATRIMESTRAL", 9, 2)).toBe(true)
+  })
+
+  it("reopens from closed state 14 with either option", () => {
+    const a = applyInclusionMark("CUATRIMESTRAL", 14, 0)
+    if ("error" in a) throw new Error(a.error)
+    expect(a.stage).toBe("CUATRIMESTRAL_SEQUENCE_A")
+    const b = applyInclusionMark("CUATRIMESTRAL", 14, 2)
+    if ("error" in b) throw new Error(b.error)
+    expect(b.stage).toBe("CUATRIMESTRAL_SEQUENCE_B")
+  })
+})
+
+describe("Estatuto State Machine", () => {
+  it("only allows mark 2 from a closed state, mark 3 from continuity 3", () => {
+    const first = applyInclusionMark("ESTATUTO", 0, 2)
+    if ("error" in first) throw new Error(first.error)
+    expect(first.nextContinuity).toBe(3)
+    expect(first.stage).toBe("FIRST_COMPLETE_PERIOD")
+
+    const second = applyInclusionMark("ESTATUTO", 3, 3)
+    if ("error" in second) throw new Error(second.error)
+    expect(second.nextContinuity).toBe(6)
+    expect(second.stage).toBe("SECOND_COMPLETE_PERIOD")
+  })
+
+  it("closes the cycle with mark 0 from continuity 6", () => {
+    const closed = applyInclusionMark("ESTATUTO", 6, 0)
+    if ("error" in closed) throw new Error(closed.error)
+    expect(closed.nextContinuity).toBe(0)
+    expect(closed.upoIncrement).toBe(2)
+  })
+
+  it("blocks invalid transitions", () => {
+    expect("error" in applyInclusionMark("ESTATUTO", 6, 2)).toBe(true)
+    expect("error" in applyInclusionMark("ESTATUTO", 0, 3)).toBe(true)
+    expect("error" in applyInclusionMark("ESTATUTO", 3, 2)).toBe(true)
+  })
+})
+
+describe("Vacation range limits", () => {
+  it("flags truncation when the 365-day cap is hit", () => {
+    const result = calculateVacationRange({
+      startDate: "2026-01-01",
+      entitlementUnits: 500,
+      unitType: "WORKDAY",
+      weeklyRestDays: [],
+      mandatoryRestDates: [],
+      workSchedule: { type: "ORDINARY" },
+    })
+    expect(result.truncated).toBe(true)
+    expect(result.totalVacationUnits).toBe(500)
+    expect(result.consumedDates.length).toBeLessThan(500)
+  })
+
+  it("does not flag truncation for normal entitlements", () => {
+    const result = calculateVacationRange({
+      startDate: "2026-01-01",
+      entitlementUnits: 20,
+      unitType: "WORKDAY",
+      weeklyRestDays: [5, 6],
+      mandatoryRestDates: [],
+      workSchedule: { type: "ORDINARY" },
+    })
+    expect(result.truncated).toBe(false)
+  })
+})
+
+describe("getMandatoryRestDatesForRange", () => {
+  it("includes holidays from both years when the range crosses dic-ene", () => {
+    const dates = getMandatoryRestDatesForRange("2026-12-20", 40)
+    expect(dates).toContain("2026-12-25")
+    expect(dates).toContain("2027-01-01")
+    expect(dates).toContain("2026-01-01")
+  })
+
+  it("includes only the single year for short ranges", () => {
+    const dates = getMandatoryRestDatesForRange("2026-06-01", 20)
+    expect(dates).toContain("2026-09-15")
+    expect(dates).not.toContain("2027-01-01")
+  })
+})
+
+describe("getUnitType", () => {
+  it("maps every schedule type to its unit", () => {
+    expect(getUnitType("ORDINARY")).toBe("WORKDAY")
+    expect(getUnitType("ACCUMULATED_WEEKEND_DAY")).toBe("JOURNEY")
+    expect(getUnitType("ACCUMULATED_NIGHT")).toBe("VELADA")
+    expect(getUnitType("ROTATING")).toBe("WORKDAY")
+    expect(getUnitType("CUSTOM")).toBe("WORKDAY")
+  })
+
+  it("returns explicit schedule definitions for all types", () => {
+    expect(getWorkScheduleForProfile({ workScheduleType: "ACCUMULATED_WEEKEND_DAY", weeklyRestDays: [] })).toEqual({ type: "ACCUMULATED_WEEKEND_DAY", workingDays: [5, 6] })
+    expect(getWorkScheduleForProfile({ workScheduleType: "ACCUMULATED_NIGHT", weeklyRestDays: [] })).toEqual({ type: "ACCUMULATED_NIGHT" })
+    expect(getWorkScheduleForProfile({ workScheduleType: "ROTATING", weeklyRestDays: [] })).toEqual({ type: "ROTATING" })
+    expect(getWorkScheduleForProfile({ workScheduleType: "CUSTOM", weeklyRestDays: [] })).toEqual({ type: "CUSTOM" })
+    expect(getWorkScheduleForProfile({ workScheduleType: "ORDINARY", weeklyRestDays: [] })).toEqual({ type: "ORDINARY" })
+  })
+})
+
+describe("semestral FIRST_COMPLETE_PERIOD marks", () => {
+  it("mark 2 from a closed state enters FIRST_COMPLETE_PERIOD", () => {
+    const t = getSemestralTransition(0, 2)
+    expect(t).toBeDefined()
+    expect(t!.stage).toBe("FIRST_COMPLETE_PERIOD")
+    expect(t!.nextContinuity).toBe(3)
+  })
+
+  it("mark 3 completes the period only from continuity 3", () => {
+    const t = getSemestralTransition(3, 3)
+    expect(t).toBeDefined()
+    expect(t!.stage).toBe("SECOND_COMPLETE_PERIOD")
+    expect(t!.nextContinuity).toBe(6)
+  })
+
+  it("mark 3 is blocked from closed states", () => {
+    const t = getSemestralTransition(0, 3)
+    expect(t).toBeUndefined()
   })
 })

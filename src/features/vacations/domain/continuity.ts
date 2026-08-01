@@ -20,15 +20,15 @@ export const SEMESTRAL_TRANSITIONS: SemestralTransition[] = [
 export const SEMESTRAL_CLOSED_STATES: SemestralContinuity[] = [0, 2, 6, 13];
 
 const CUATRIMESTRAL_OPTION_A: CuatrimestralStep[] = [
-  { periodIndex: 1, inclusionMark: 0, nextContinuity: 1 },
-  { periodIndex: 2, inclusionMark: 0, nextContinuity: 2 },
-  { periodIndex: 3, inclusionMark: 0, nextContinuity: 3 },
+  { periodIndex: 1, inclusionMark: 0, nextContinuity: 1, option: "A" },
+  { periodIndex: 2, inclusionMark: 0, nextContinuity: 2, option: "A" },
+  { periodIndex: 3, inclusionMark: 0, nextContinuity: 3, option: "A" },
 ];
 
 const CUATRIMESTRAL_OPTION_B: CuatrimestralStep[] = [
-  { periodIndex: 1, inclusionMark: 2, nextContinuity: 4 },
-  { periodIndex: 2, inclusionMark: 5, nextContinuity: 9 },
-  { periodIndex: 3, inclusionMark: 5, nextContinuity: 14 },
+  { periodIndex: 1, inclusionMark: 2, nextContinuity: 4, option: "B" },
+  { periodIndex: 2, inclusionMark: 5, nextContinuity: 9, option: "B" },
+  { periodIndex: 3, inclusionMark: 5, nextContinuity: 14, option: "B" },
 ];
 
 export function getSemestralTransition(
@@ -103,7 +103,8 @@ export function applyInclusionMark(
     const options = getCompatibleCuatrimestralOptions(currentContinuity as CuatrimestralContinuity);
     const step = options.find((s) => s.inclusionMark === inclusionMark);
     if (!step) return { error: "Esta marca de inclusión no es compatible con tu estado actual." };
-    return { nextContinuity: step.nextContinuity, upoIncrement: 1, stage: "CUATRIMESTRAL_SEQUENCE_A" };
+    const stage = step.option === "A" ? "CUATRIMESTRAL_SEQUENCE_A" : "CUATRIMESTRAL_SEQUENCE_B";
+    return { nextContinuity: step.nextContinuity, upoIncrement: 1, stage };
   }
   if (regime === "EXTRAORDINARIO_V20") {
     const transition = V20_TRANSITIONS.find(
@@ -115,10 +116,19 @@ export function applyInclusionMark(
     return { nextContinuity: transition.nextContinuity, upoIncrement: transition.upoIncrement, stage: "FULL_OR_CLOSED_OPTION" };
   }
   if (regime === "ESTATUTO") {
-    if (inclusionMark === 0) return { nextContinuity: 0, upoIncrement: 2, stage: "FULL_OR_CLOSED_OPTION" };
-    if (inclusionMark === 2) return { nextContinuity: 3, upoIncrement: 1, stage: "FIRST_FRACTION" };
-    if (inclusionMark === 3) return { nextContinuity: 6, upoIncrement: 1, stage: "SECOND_FRACTION" };
-    return { error: "Marca de inclusión no reconocida para régimen Estatuto." };
+    if (currentContinuity === 0 && inclusionMark === 0) {
+      return { nextContinuity: 0, upoIncrement: 2, stage: "FULL_OR_CLOSED_OPTION" };
+    }
+    if (currentContinuity === 0 && inclusionMark === 2) {
+      return { nextContinuity: 3, upoIncrement: 1, stage: "FIRST_COMPLETE_PERIOD" };
+    }
+    if (currentContinuity === 3 && inclusionMark === 3) {
+      return { nextContinuity: 6, upoIncrement: 1, stage: "SECOND_COMPLETE_PERIOD" };
+    }
+    if (currentContinuity === 6 && inclusionMark === 0) {
+      return { nextContinuity: 0, upoIncrement: 2, stage: "FULL_OR_CLOSED_OPTION" };
+    }
+    return { error: "Marca de inclusión no válida desde tu estado actual en el régimen Estatuto." };
   }
   return { error: "Régimen no reconocido." };
 }
