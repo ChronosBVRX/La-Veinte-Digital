@@ -1,10 +1,11 @@
 import type { VacationSimulationInput, VacationSimulationResult, RuleTrace, NormativeConflict, AnticipationResult } from "./types";
-import { calculateCompletedYears, getCctAnnualDays, getEstatutoAnnualDays, getVacationDivision } from "./entitlement";
+import { calculateCompletedYears, getCctAnnualDays, getEstatutoAnnualDays, getUnitsForInclusion } from "./entitlement";
 import { applyInclusionMark, getCompatibleSemestralInclusionMarks } from "./continuity";
 import type { SemestralContinuity } from "./types";
-import { validateAnticipation, calculateReturnDate } from "./validation";
+import { validateAnticipation, calculateReturnDate, isFirstPeriod } from "./validation";
 import { detectNormativeConflicts } from "./conflicts";
-import { getUnitType } from "./schedules";
+import { getUnitType, getWorkScheduleForProfile } from "./schedules";
+import { getMandatoryRestDates } from "./holidays";
 
 export function buildSimulationResult(input: VacationSimulationInput): VacationSimulationResult {
   const traces: RuleTrace[] = [];
@@ -37,10 +38,12 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
   const proposedInclusionMark = input.selectedInclusionMark ?? 0;
   let resultingContinuityMark = input.continuityMark;
   let upoIncrement = 0;
+  let transitionBlocked = false;
 
   const transitionResult = applyInclusionMark(regime, input.continuityMark, proposedInclusionMark);
 
   if ("error" in transitionResult) {
+    transitionBlocked = true;
     warnings.push(transitionResult.error);
     const compatMarks = getCompatibleSemestralInclusionMarks(input.continuityMark as SemestralContinuity);
     compatibleOptions = compatMarks.map((m) => getFriendlyOptionName(regime, m));
@@ -51,16 +54,30 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
 
   traces.push({
     ruleCode: "APPLY_INCLUSION_MARK",
-    result: "APPLIED",
+    result: transitionBlocked ? "BLOCKED" : "APPLIED",
     input: { regime, continuityMark: input.continuityMark, proposedInclusionMark },
     output: { resultingContinuityMark, upoIncrement },
-    explanation: `Marca de continuidad ${input.continuityMark} → inclusión ${proposedInclusionMark} → continuidad resultante ${resultingContinuityMark}.`,
+    explanation: transitionBlocked
+      ? `La marca de inclusión ${proposedInclusionMark} no es válida desde la continuidad ${input.continuityMark}.`
+      : `Marca de continuidad ${input.continuityMark} → inclusión ${proposedInclusionMark} → continuidad resultante ${resultingContinuityMark}.`,
   });
 
   const unitType = getUnitType(input.workerProfile.workScheduleType ?? "ORDINARY");
   const vacationDays = cctDays;
 
-  const [firstPart] = getVacationDivision(vacationDays);
+  const unitsUsed = getUnitsForInclusion(
+    regime,
+    vacationDays,
+    proposedInclusionMark,
+    completedYears,
+    input.nextPeriodNumber
+  );
+
+  const firstPeriod = isFirstPeriod(
+    input.nextPeriodNumber,
+    input.expiredVacationPeriods,
+    input.enjoyedVacationDays
+  );
 
   let anticipationResult: AnticipationResult | undefined;
   if (input.selectedStartDate && input.dueDate) {
@@ -68,7 +85,7 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
       regime,
       input.dueDate,
       input.selectedStartDate,
-      false,
+      firstPeriod,
       completedYears
     );
     traces.push({
@@ -85,13 +102,15 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
 
   let lastDate = "";
   let returnDateStr = "";
-  if (input.selectedStartDate) {
+  const anticipationBlocked = anticipationResult ? !anticipationResult.allowed : false;
+  if (input.selectedStartDate && !transitionBlocked && !anticipationBlocked) {
     const dateResult = calculateReturnDate(
       input.selectedStartDate,
-      firstPart,
+      unitsUsed,
       unitType,
       input.workerProfile.weeklyRestDays ?? [],
-      getMandatoryRestDates(input.selectedStartDate)
+      getMandatoryRestDates(new Date(input.selectedStartDate).getFullYear()),
+      getWorkScheduleForProfile(input.workerProfile)
     );
     lastDate = dateResult.lastDate;
     returnDateStr = dateResult.returnDate;
@@ -123,7 +142,7 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
     startDate: input.selectedStartDate,
     endDate: lastDate || undefined,
     returnDate: returnDateStr || undefined,
-    unitsUsed: firstPart,
+    unitsUsed,
     unitType,
     originalContinuityMark: input.continuityMark,
     proposedInclusionMark,
@@ -131,7 +150,7 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
     affectedUPO: input.nextPeriodNumber + upoIncrement,
     dueDate: input.dueDate,
     anticipationDays: anticipationResult?.daysInAdvance ?? 0,
-    requiresSpecialProcess: false,
+    requiresSpecialProcess: transitionBlocked || anticipationBlocked,
     requiresNormativeReview,
     normativeConflicts,
     warnings,
@@ -156,16 +175,4 @@ function getFriendlyOptionName(regime: string, inclusionMark: number): string {
     }
   }
   return `Opción compatible`;
-}
-
-function getMandatoryRestDates(startDate: string): string[] {
-  const year = new Date(startDate).getFullYear();
-  return [
-    `${year}-01-01`,
-    `${year}-05-01`,
-    `${year}-05-10`,
-    `${year}-09-15`,
-    `${year}-09-16`,
-    `${year}-12-25`,
-  ];
 }

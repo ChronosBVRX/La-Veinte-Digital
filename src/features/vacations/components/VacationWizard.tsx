@@ -539,7 +539,13 @@ export function VacationWizard() {
     const firstDayOfWeek = new Date(year, selectedMonth, 1).getDay()
 
     const yearAnticipation = state.selectedStartDate && state.dueDate
-      ? validateAnticipation(regime, state.dueDate, state.selectedStartDate, false, calculateCompletedYears(state.profile.effectiveSeniority))
+      ? validateAnticipation(
+          regime,
+          state.dueDate,
+          state.selectedStartDate,
+          state.nextPeriodNumber <= 1 && state.expiredVacationPeriods === 0 && state.enjoyedVacationDays === 0,
+          calculateCompletedYears(state.profile.effectiveSeniority)
+        )
       : null
 
     return (
@@ -637,6 +643,12 @@ export function VacationWizard() {
         {r.requiresNormativeReview && (
           <div style={REVIEW_BOX}>
             Esta combinación requiere validación con Servicios de Personal debido a una diferencia entre las fuentes normativas.
+          </div>
+        )}
+
+        {r.requiresSpecialProcess && (
+          <div style={WARN_BOX}>
+            Esta propuesta no puede programarse directamente: requiere un proceso especial o la autorización de las áreas competentes antes de registrar las fechas.
           </div>
         )}
 

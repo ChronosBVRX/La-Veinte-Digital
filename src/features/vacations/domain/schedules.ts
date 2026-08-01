@@ -1,4 +1,13 @@
-import type { WorkScheduleType, WorkScheduleDefinition } from "./types";
+import type { WorkScheduleType, WorkScheduleDefinition, WorkerProfile } from "./types";
+
+export function getWorkScheduleForProfile(
+  profile: Pick<WorkerProfile, "workScheduleType" | "weeklyRestDays">
+): WorkScheduleDefinition {
+  if (profile.workScheduleType === "ACCUMULATED_WEEKEND_DAY") {
+    return { type: "ACCUMULATED_WEEKEND_DAY", workingDays: [5, 6] };
+  }
+  return { type: profile.workScheduleType ?? "ORDINARY" };
+}
 
 export const ACCUMULATED_DAY_JOURNEYS: Record<number, number> = {
   7: 3, 8: 3, 9: 4, 10: 4, 11: 4, 12: 5, 13: 5,

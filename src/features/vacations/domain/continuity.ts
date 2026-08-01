@@ -69,13 +69,25 @@ export function getCompatibleCuatrimestralOptions(
 
 export function getCompatibleV20Options(currentContinuity: V20Continuity): V20InclusionMark[] {
   switch (currentContinuity) {
-    case 0: return [0, 6, 7, 8];
+    case 0: return [0, 6];
     case 1: return [];
-    case 2: return [];
-    case 3: return [];
+    case 2: return [7];
+    case 3: return [8];
     default: return [];
   }
 }
+
+const V20_TRANSITIONS: {
+  currentContinuity: V20Continuity;
+  inclusionMark: V20InclusionMark;
+  nextContinuity: V20Continuity;
+  upoIncrement: number;
+}[] = [
+  { currentContinuity: 0, inclusionMark: 0, nextContinuity: 1, upoIncrement: 2 },
+  { currentContinuity: 0, inclusionMark: 6, nextContinuity: 2, upoIncrement: 1 },
+  { currentContinuity: 2, inclusionMark: 7, nextContinuity: 3, upoIncrement: 1 },
+  { currentContinuity: 3, inclusionMark: 8, nextContinuity: 0, upoIncrement: 1 },
+];
 
 export function applyInclusionMark(
   regime: "SEMESTRAL" | "CUATRIMESTRAL" | "EXTRAORDINARIO_V20" | "ESTATUTO",
@@ -94,8 +106,13 @@ export function applyInclusionMark(
     return { nextContinuity: step.nextContinuity, upoIncrement: 1, stage: "CUATRIMESTRAL_SEQUENCE_A" };
   }
   if (regime === "EXTRAORDINARIO_V20") {
-    if (inclusionMark === 0) return { nextContinuity: 1, upoIncrement: 2, stage: "FULL_OR_CLOSED_OPTION" };
-    return { nextContinuity: currentContinuity + 1, upoIncrement: 1, stage: "FULL_OR_CLOSED_OPTION" };
+    const transition = V20_TRANSITIONS.find(
+      (t) => t.currentContinuity === (currentContinuity as V20Continuity) && t.inclusionMark === (inclusionMark as V20InclusionMark)
+    );
+    if (!transition) {
+      return { error: "Esta marca de inclusión no es compatible con tu estado actual del periodo extraordinario V20." };
+    }
+    return { nextContinuity: transition.nextContinuity, upoIncrement: transition.upoIncrement, stage: "FULL_OR_CLOSED_OPTION" };
   }
   if (regime === "ESTATUTO") {
     if (inclusionMark === 0) return { nextContinuity: 0, upoIncrement: 2, stage: "FULL_OR_CLOSED_OPTION" };
@@ -109,7 +126,7 @@ export function applyInclusionMark(
 export function isCycleClosed(regime: string, continuity: number): boolean {
   if (regime === "SEMESTRAL") return SEMESTRAL_CLOSED_STATES.includes(continuity as SemestralContinuity);
   if (regime === "CUATRIMESTRAL") return [0, 3, 14].includes(continuity);
-  if (regime === "EXTRAORDINARIO_V20") return continuity === 0;
+  if (regime === "EXTRAORDINARIO_V20") return continuity === 0 || continuity === 3;
   if (regime === "ESTATUTO") return [0, 6].includes(continuity);
   return false;
 }

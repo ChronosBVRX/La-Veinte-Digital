@@ -103,10 +103,10 @@ export function calculateVacationRange(input: VacationDateCalculationInput): Vac
       excludedWeeklyRestDates.push(dateStr);
     } else if (isMand) {
       excludedMandatoryRestDates.push(dateStr);
-    } else if (input.unitType === "WORKDAY" || isWorkable) {
-      consumedDates.push(dateStr);
-      vacationUnits++;
-    } else {
+    } else if (isWorkable) {
+      // Solo los días laborables consumen unidades de vacaciones.
+      // Los días no laborables del horario (p. ej. entre semana para
+      // horario acumulado de fin de semana) alargan el periodo sin consumir.
       consumedDates.push(dateStr);
       vacationUnits++;
     }
@@ -157,7 +157,7 @@ function fmtDate(d: Date): string {
 export function validateModification(
   originallyScheduledDate: string,
   newDate: string
-): { allowed: boolean; requiresSpecialProcess: boolean; friendlyMessage: string } {
+): { allowed: boolean; requiresSpecialProcess: boolean; requiresNormativeReview?: boolean; friendlyMessage: string } {
   const [oy, om, od] = originallyScheduledDate.split("-").map(Number);
   const [ny, nm, nd] = newDate.split("-").map(Number);
   const original = new Date(oy, om - 1, od);
@@ -173,11 +173,21 @@ export function validateModification(
     };
   }
 
-  if (daysBefore >= 0 && daysBefore < 45) {
+  if (daysBefore >= 15 && daysBefore < 45) {
     return {
       allowed: true,
       requiresSpecialProcess: true,
-      friendlyMessage: "Esta propuesta se encuentra dentro del margen excepcional de 15 días naturales, pero requiere autorización de las áreas correspondientes.",
+      requiresNormativeReview: true,
+      friendlyMessage: "El cambio se solicita con menos de 45 días de anticipación. Se permite solo con autorización de las áreas correspondientes; la regla exacta requiere revisión normativa.",
+    };
+  }
+
+  if (daysBefore >= 0 && daysBefore < 15) {
+    return {
+      allowed: false,
+      requiresSpecialProcess: true,
+      requiresNormativeReview: true,
+      friendlyMessage: "La modificación queda dentro del margen excepcional de 15 días naturales previos al periodo programado. No puede aplicarse automáticamente: requiere autorización expresa de Servicios de Personal.",
     };
   }
 
@@ -193,7 +203,8 @@ export function calculateReturnDate(
   entitlementUnits: number,
   unitType: "WORKDAY" | "JOURNEY" | "VELADA",
   weeklyRestDays: number[],
-  mandatoryDates: string[]
+  mandatoryDates: string[],
+  workSchedule?: WorkScheduleDefinition
 ): { lastDate: string; returnDate: string } {
   const result = calculateVacationRange({
     startDate,
@@ -201,7 +212,19 @@ export function calculateReturnDate(
     unitType,
     weeklyRestDays,
     mandatoryRestDates: mandatoryDates,
-    workSchedule: { type: "ORDINARY", workingDays: [0, 1, 2, 3, 4, 5, 6] },
+    workSchedule: workSchedule ?? { type: "ORDINARY" },
   });
   return { lastDate: result.lastVacationDate, returnDate: result.returnToWorkDate };
+}
+
+/**
+ * Determina si el periodo por disfrutar es el primer periodo vacacional del
+ * trabajador: no hay periodos vencidos ni días disfrutados y es el periodo 1.
+ */
+export function isFirstPeriod(
+  nextPeriodNumber: number,
+  expiredVacationPeriods: number,
+  enjoyedVacationDays: number
+): boolean {
+  return nextPeriodNumber <= 1 && expiredVacationPeriods === 0 && enjoyedVacationDays === 0;
 }
