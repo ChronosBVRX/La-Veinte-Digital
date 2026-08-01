@@ -21,6 +21,7 @@ import prestamosRaw from "../data/prestamos_categoria.json"
 import type { JornadaHoras, TiempoExtraInput, PrestamoCategoriaRecord } from "../lib/types"
 
 const JORNADAS = [
+  { value: "6", label: "6 horas" },
   { value: "6.5", label: "6.5 horas" },
   { value: "8", label: "8 horas" },
   { value: "12", label: "12 horas" },
@@ -156,7 +157,7 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
         <CurrencyField label="Concepto 002" value={fields.c002} onChange={(v) => { setField("c002", v) }} error={errors.c002} />
         <CurrencyField label="Concepto 011" value={fields.c011} onChange={(v) => { setField("c011", v) }} error={errors.c011} />
         <CurrencyField label="Concepto 020" value={fields.c020} onChange={(v) => { setField("c020", v) }} error={errors.c020} />
-        <CurrencyField label="Concepto adicional 1 (022, 023 o 063)" description="Copia el concepto que recibas; cero si no aplica." value={fields.adicional1} onChange={(v) => { setField("adicional1", v) }} error={errors.adicional1} />
+        <CurrencyField label="Concepto adicional 1 (023 o 063)" description="Copia el concepto que recibas; cero si no aplica." value={fields.adicional1} onChange={(v) => { setField("adicional1", v) }} error={errors.adicional1} />
         <CurrencyField label="Concepto adicional 2 (023 o 063)" description="Copia el concepto que recibas; cero si no aplica." value={fields.adicional2} onChange={(v) => { setField("adicional2", v) }} error={errors.adicional2} />
         <CurrencyField label="Concepto 050" value={fields.c050} onChange={(v) => { setField("c050", v) }} error={errors.c050} />
         <Select id="jornada" label="Jornada" value={fields.jornada} onChange={(e) => { setField("jornada", e.target.value); prefillFields.markDirty("jornada") }}>

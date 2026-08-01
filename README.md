@@ -50,7 +50,8 @@ la-veinte-digital/
 │   │   ├── api/                    # API routes
 │   │   │   ├── consulta/           # Asistente IA (Next.js)
 │   │   │   ├── simulador/          # Simulador de audiencias
-│   │   │   └── calendario/         # Exportar calendario (.ics)
+│   │   │   ├── calendario/         # Exportar calendario (.ics)
+│   │   │   └── tarjeton/confirm/   # Confirmación de tarjetón IMSS
 │   │   ├── globals.css             # Variables CSS globales
 │   │   └── layout.tsx              # Root layout
 │   │
@@ -87,10 +88,16 @@ la-veinte-digital/
 │   │   │   └── services/           # forum.ts
 │   │   ├── nomina/                 # Nómina y proyecciones
 │   │   │   ├── components/         # NominaIndex, Wizard, OptIn, Projection
-│   │   │   ├── services/           # prefill.ts, storage.ts
+│   │   │   ├── services/           # prefill.ts, local-migration-service.ts
 │   │   │   ├── lib/                # Lógica de nómina
 │   │   │   ├── data/               # Datos salariales
 │   │   │   ├── hooks/              # Custom hooks
+│   │   │   └── __tests__/          # Pruebas
+│   │   ├── tarjeton/               # Importación de tarjetón IMSS
+│   │   │   ├── components/         # Dropzone, Review, Summary, ImportSuccess
+│   │   │   ├── hooks/              # useTarjetonImporter
+│   │   │   ├── services/           # confirm-tarjeton, payslip-sync
+│   │   │   ├── lib/                # Parsers, PDF.js/OCR, sanitize, confianza
 │   │   │   └── __tests__/          # Pruebas
 │   │   ├── profile/                # Perfil de usuario
 │   │   │   ├── components/         # ProfileForm
@@ -181,7 +188,10 @@ Visualización de nómina con wizard de perfil salarial, proyecciones de ingreso
 ### 11. Perfil (`/profile`)
 Gestión de perfil de usuario: nombre, matrícula, adscripción, categoría, antigüedad, teléfono, y **bitácora personal** de incidencias laborales. La antigüedad del perfil se usa también para calcular la evolución en la tarjeta del dashboard.
 
-### 12. Simulador (`/simulador`)
+### 12. Tarjetón IMSS (`/tarjeton`)
+Importa el PDF de tu recibo de pago del IMSS. La extracción corre **100% en tu navegador** (PDF.js + OCR Tesseract de respaldo para tarjetones escaneados); revisas cada campo y al confirmar se guarda solo el resultado estructurado — el PDF nunca se sube. RFC/CURP/NSS/cuenta se descartan o enmascaran; el folio fiscal se guarda como huella. La confirmación actualiza tu contexto de nómina (categoría, jornada, antigüedad, conceptos recurrentes) y el prerrelleno de las calculadoras. Detalle: `docs/TARJETON_IMPORT.md`.
+
+### 13. Simulador (`/simulador`)
 Simulador interactivo de audiencias disciplinarias IMSS con 6 escenarios (faltas, maltrato, incumplimiento, extravío, retardos, confidencialidad). Evalúa el desempeño del trabajador con análisis IA post-simulación.
 
 ---
@@ -278,10 +288,13 @@ El archivo `vercel.json` incluye rewrites para `/health` y `/consulta` hacia `/a
 | `chat_participants` | Participantes de salas |
 | `catalogo_adscripciones` | Catálogo de adscripciones IMSS |
 | `ai_chat_history` | Historial de conversaciones con IA |
+| `payroll_contexts` | Contexto de nómina (categoría, jornada, antigüedad, recurrentes) |
+| `imported_payslips` (+ `_lines`, `_observations`) | Tarjetones confirmados, sin datos sensibles |
 
 ### Funciones
 
 - `search_catalogo(catalogo_type, search_term)` - Búsqueda en catálogo
+- `confirm_imported_payslip(...)` - Persistencia atómica de un tarjetón confirmado
 
 ---
 

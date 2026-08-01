@@ -1,5 +1,5 @@
-<!-- Version: 0.001 -->
-<!-- Last updated: 2026-07-30 -->
+<!-- Version: 0.002 -->
+<!-- Last updated: 2026-07-31 -->
 <!-- BEGIN:nextjs-agent-rules -->
 # ⚠️ This is NOT the Next.js you know
 
@@ -164,6 +164,53 @@ The AI assistant's personality is defined in two places:
 - `bot-api/embedding_service.py` (Python version)
 
 Both must be kept in sync. The bot speaks Spanish, uses **negritas**, emojis with moderation, and acts as a friendly ally to workers.
+
+## Infrastructure Access
+
+### Supabase (Database)
+
+| Info | Value |
+|------|-------|
+| Project URL | `https://ragktminwduiggvaoeix.supabase.co` |
+| Project ref | `ragktminwduiggvaoeix` |
+| Service role key | en `.env.local` como `NEXT_PUBLIC_SUPABASE_ANON_KEY` NO es la service role — la service_role solo está en el dashboard de Supabase |
+
+**Comandos útiles:**
+```bash
+# Login con PAT (Personal Access Token de app.supabase.com/account/tokens)
+supabase login --token <pat>
+
+# Vincular proyecto local
+supabase link --project-ref ragktminwduiggvaoeix
+
+# Ejecutar SQL contra la base remota
+supabase db query --linked --file supabase/migrations/<file>.sql
+
+# Verificar tablas
+supabase db query --linked "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
+```
+
+**PAT actual (válido mientras no se revoque):** `PAT_guardado_en_.env.local`
+
+### Vercel (Deploy)
+
+| Info | Value |
+|------|-------|
+| Project name | `la-veinte-digital` |
+| Production URL | `https://la-veinte-digital.vercel.app` |
+
+**Comandos útiles:**
+```bash
+# Deploy a producción
+vercel --prod --yes
+```
+
+El OIDC token de Vercel está en `.env.local` como `VERCEL_OIDC_TOKEN`. Las variables de entorno se configuran en el dashboard de Vercel.
+
+### Notas
+
+- `.env.local` no se sube a git (está en `.gitignore`). Las secrets van en el dashboard de Vercel para producción.
+- El Service Role Key de Supabase NO debe exponerse al cliente ni subirse a git — solo se usa desde scripts de administración o el dashboard.
 
 ## Anti-patterns — NEVER do these
 

@@ -1,4 +1,4 @@
-import type { EmployeePayrollProfile, ImportedPayslip, PayrollProjection } from "../lib/types"
+import type { EmployeePayrollProfile, ImportedPayslip, PayrollProjection } from "@/features/nomina/lib/types"
 
 const NOMINA_PROFILE_KEY = "nomina_profile"
 const NOMINA_PAYSLIPS_KEY = "nomina_payslips"

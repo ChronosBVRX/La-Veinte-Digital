@@ -76,7 +76,7 @@ usePrefillFields(data)
 | `concepto023` / `concepto063` | number | Solo con evidencia confirmada en tarjetón |
 | `workdayHours` | number | Derivada de la categoría (tiempo-extra) |
 | `seniorityYears` / `effectiveSeniorityDate` | number / string | Cláusula 97 y 2ª julio proporcional |
-| `daysWorkedInAnnualPeriod` | number | Solo 2ª julio proporcional, con fuente real |
+| `daysWorkedInAnnualPeriod` | number | Solo 2ª julio proporcional, con fuente real (`last_payslip` = días del tarjetón confirmado más reciente) |
 
 Cada campo lleva `source`, `confidence`, `effectiveAt`, `editable`,
 `ruleVersion` y `legalReference` para trazabilidad.
@@ -109,6 +109,16 @@ condiciones ocupacionales y evidencia de conceptos recurrentes. RLS: solo el
 propietario lee/escribe su fila. Si no existe fila, el servicio degrada a
 `profiles` (categoría + antigüedad textual) sin romper la calculadora.
 
+La fila se **escribe al confirmar un tarjetón**: el RPC
+`confirm_imported_payslip` (migración `004_imported_payslips.sql`) hace upsert
+del contexto (categoría, jornada solo si es 6/6.5/8/12, antigüedad efectiva,
+merge de 050/023/063 y hecho `concept_054_on_payslip`) dentro de la misma
+transacción que persiste el recibo.
+
+Además, el servicio lee el **tarjetón confirmado más reciente**
+(`imported_payslips.payroll_totals.daysWorkedInYear`) para proveer
+`daysWorkedInAnnualPeriod` con `source: "last_payslip"`.
+
 ## Pruebas
 
 ```bash
@@ -124,7 +134,8 @@ tabulador (legacy), respuestas válidas contra el validador del contrato.
 
 ## Límites conocidos
 
-- La escritura de `payroll_contexts` (sync local → Supabase con
-  consentimiento) aún no está implementada; la tabla y su RLS están listas.
+- El prerrelleno de `daysWorkedInAnnualPeriod` depende de que exista un
+  tarjetón confirmado; sin él, el campo queda vacío (declarado en
+  `missingFacts`) y la calculadora sigue siendo usable.
 - La API es de solo lectura; el prerrelleno se degrada elegantemente si el
   contexto aún no existe.

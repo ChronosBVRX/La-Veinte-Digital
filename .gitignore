@@ -42,3 +42,10 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# runtime vendor regenerado por scripts/copy-vendor.mjs (predev/prebuild)
+/public/vendor
+
+# supabase cli temp
+/supabase/.temp
+

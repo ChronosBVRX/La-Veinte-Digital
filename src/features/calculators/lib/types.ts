@@ -22,7 +22,7 @@ export interface SegundaJulioProporcionalResult {
   resultado: number
 }
 
-export type JornadaHoras = 6.5 | 8 | 12
+export type JornadaHoras = 6 | 6.5 | 8 | 12
 
 export interface TiempoExtraInput {
   concepto002: number

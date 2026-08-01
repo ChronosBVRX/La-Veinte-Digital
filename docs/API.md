@@ -162,6 +162,49 @@ Los campos entregados son una lista **cerrada** por calculadora (política en
 `src/features/nomina/lib/calculator-prefill-policy.ts`); el 022 se muestra solo
 como información en Cláusula 97 y nunca se integra a una base.
 
+### POST /api/tarjeton/confirm
+Confirma un tarjetón IMSS ya extraído y revisado por el trabajador (requiere
+sesión). **El PDF nunca se sube**: el cliente envía solo el resultado
+estructurado (`ConfirmTarjetonRequest`, contrato
+`src/shared/contracts/tarjeton-import.ts`).
+
+**Request Body:**
+```json
+{
+  "schemaVersion": "1.0",
+  "sourceHash": "<sha256 del PDF, 64 hex>",
+  "parsed": { "type": "imss_payroll_receipt", "extraction": { "method": "native_text" }, "...": "..." },
+  "profileUpdates": { "matricula": true, "categoria": false },
+  "acknowledgeTotalDifference": false
+}
+```
+
+**Process (RPC `confirm_imported_payslip`, una transacción):**
+1. Autentica con la sesión de Supabase (401 si no hay sesión)
+2. Valida el contrato (schemaVersion "1.0", tipo, límites de líneas/observaciones)
+3. Recalcula los totales en servidor con tolerancia 0.05 (salvo reconocimiento)
+4. Si la matrícula difiere y no fue autorizado el cambio → `matricula_mismatch`
+5. Si `(user_id, source_hash)` ya existe → respuesta `duplicate` (sin error)
+6. Inserta cabecera + líneas + observaciones; actualiza `profiles` solo con
+   campos autorizados; hace upsert de `payroll_contexts` (categoría, jornada,
+   antigüedad efectiva, conceptos recurrentes 050/023/063, hecho 054)
+
+**Response (200):**
+```json
+{
+  "id": "uuid",
+  "duplicate": false,
+  "profileUpdated": true,
+  "payrollContextUpdated": true
+}
+```
+
+**Errores:**
+- `401` — sin sesión activa
+- `400` — `invalid_payload` o `template_not_detected`
+- `422` — `totals_mismatch`, `matricula_mismatch`, `duplicate`, `limits_exceeded`
+- `500` — error interno
+
 ---
 
 ## Bot API Python (FastAPI)
@@ -306,7 +349,48 @@ Health check.
 RLS: cada usuario solo puede leer/insertar/actualizar su propia fila
 (migración `003_payroll_contexts.sql`).
 
-### Tabla: `forum_categories`
+### Tabla: `imported_payslips`
+| Columna | Tipo | Descripción |
+|---|---|---|
+| `id` | UUID (PK) | ID |
+| `user_id` | UUID (FK → profiles) | Dueño del tarjetón |
+| `source_hash` | text | SHA-256 del PDF fuente (dedup) |
+| `extraction_method` | text | `native_text` \| `ocr` \| `hybrid` |
+| `period_raw` / `period_year` / `period_month` / `period_half` | text / int | Periodo del tarjetón |
+| `folio` | text | Folio del tarjetón |
+| `fiscal_folio_hash` | text | Folio fiscal como huella (sin exponer el original) |
+| `certification_date` | date | Fecha de certificación |
+| `global_confidence` | numeric(4,3) | Confianza 0–1 |
+| `warnings` | jsonb | Advertencias de validación |
+| `employee_data` / `attendance` / `vacations` / `payroll_totals` | jsonb | Datos estructurados |
+| `created_at` | timestamptz | Fecha |
+
+UNIQUE(`user_id`, `source_hash`). Sin RFC/CURP/NSS/cuenta/QR/sellos.
+
+### Tabla: `imported_payslip_lines`
+Líneas de percepciones/deducciones: `line_index`, `concept_code`,
+`description`, `amount numeric(14,2)`, `kind` (`earning`/`deduction`),
+`confidence`, `confirmed_by_user`. UNIQUE(`payslip_id`, `line_index`).
+
+### Tabla: `imported_payslip_observations`
+Observaciones: `line_index`, `concept_code`, `amount`, `due_period`, `units`,
+`control_number`, `initial_charge`, `notes`. UNIQUE(`payslip_id`, `line_index`).
+
+RLS en las tres tablas: solo el dueño lee/inserta (migración
+`004_imported_payslips.sql`).
+
+### Función: `confirm_imported_payslip`
+```sql
+confirm_imported_payslip(
+  p_source_hash text,
+  p_parsed jsonb,
+  p_profile_updates jsonb,
+  p_acknowledge_total_difference boolean
+) → jsonb  -- { id, duplicate, profileUpdated, payrollContextUpdated }
+```
+SECURITY DEFINER, validación de contrato y totales en servidor.
+
+### Función: `search_catalogo`
 | Columna | Tipo | Descripción |
 |---|---|---|
 | `id` | UUID (PK) | ID |

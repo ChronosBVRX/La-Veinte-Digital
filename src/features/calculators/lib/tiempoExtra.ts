@@ -1,6 +1,6 @@
 import type { TiempoExtraInput, TiempoExtraResult } from "./types"
 
-export const JORNADAS = [6.5, 8, 12] as const
+export const JORNADAS = [6, 6.5, 8, 12] as const
 export const MAX_HORAS_EXTRA = 24
 
 // Nota técnica: la implementación de referencia parecía dividir entre las horas

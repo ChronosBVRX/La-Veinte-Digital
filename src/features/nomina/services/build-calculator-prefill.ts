@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import type { CalculatorId, CalculatorPrefillResponse } from "@/shared/contracts/calculator-prefill"
+import type { CalculatorId, CalculatorPrefillResponse, PrefillSource } from "@/shared/contracts/calculator-prefill"
 import type { Tables } from "@/lib/supabase/types"
 import type {
   EmployeePayrollProfile,
@@ -125,6 +125,32 @@ export async function buildCalculatorPrefill(args: BuildCalculatorPrefillArgs): 
   } catch (err) {
     if (isDev) {
       console.warn("[calculator-prefill] payroll_contexts no disponible:", err instanceof Error ? err.message : err)
+    }
+  }
+
+  // Días laborados en el año: solo si vienen del último tarjetón confirmado
+  // (nunca se asume un valor por defecto).
+  let daysWorkedInAnnualPeriod: { value: number; source: PrefillSource; note?: string } | undefined
+  try {
+    const { data: latestPayslip } = await supabase
+      .from("imported_payslips")
+      .select("payroll_totals")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const totals = latestPayslip?.payroll_totals
+    const days = isObject(totals) ? asNumber(totals.daysWorkedInYear) : undefined
+    if (days !== undefined && days > 0) {
+      daysWorkedInAnnualPeriod = {
+        value: days,
+        source: "last_payslip",
+        note: "Días laborados del último tarjetón confirmado.",
+      }
+    }
+  } catch (err) {
+    if (isDev) {
+      console.warn("[calculator-prefill] imported_payslips no disponible:", err instanceof Error ? err.message : err)
     }
   }
 
@@ -277,6 +303,7 @@ export async function buildCalculatorPrefill(args: BuildCalculatorPrefillArgs): 
     effectiveSeniorityDate,
     concepts,
     recurringEvidence: buildRecurringEvidence(profile),
+    daysWorkedInAnnualPeriod,
   })
 
   for (const warning of projection.warnings) {

@@ -30,7 +30,7 @@ import {
   saveProjection,
   deleteProjection,
   deleteProfile,
-} from "../services/storage"
+} from "@/shared/services/local-storage"
 
 export type NominaStep =
   | "consent"

@@ -78,12 +78,39 @@ export type Database = {
         Update: { category_code?: string | null; category_id?: string | null; category_name?: string | null; effective_seniority_date?: string | null; employment_type?: string | null; occupational_conditions?: Json; payroll_facts?: Json; recurring_concepts?: Json; siap_concept_marks?: Json; updated_at?: string; user_id?: string; workday_hours?: number | null }
         Relationships: [{ foreignKeyName: "payroll_contexts_user_id_fkey"; columns: ["user_id"]; isOneToOne: true; referencedRelation: "auth.users"; referencedColumns: ["id"] }]
       }
+      imported_payslips: {
+        Row: { attendance: Json; certification_date: string | null; created_at: string; employee_data: Json; extraction_method: string; fiscal_folio_hash: string | null; folio: string | null; global_confidence: number; id: string; payroll_totals: Json; period_half: number | null; period_month: number | null; period_raw: string; period_year: number | null; source_hash: string; user_id: string; vacations: Json; warnings: Json }
+        Insert: { attendance?: Json; certification_date?: string | null; created_at?: string; employee_data?: Json; extraction_method: string; fiscal_folio_hash?: string | null; folio?: string | null; global_confidence?: number; id?: string; payroll_totals?: Json; period_half?: number | null; period_month?: number | null; period_raw?: string; period_year?: number | null; source_hash: string; user_id: string; vacations?: Json; warnings?: Json }
+        Update: { attendance?: Json; certification_date?: string | null; created_at?: string; employee_data?: Json; extraction_method?: string; fiscal_folio_hash?: string | null; folio?: string | null; global_confidence?: number; id?: string; payroll_totals?: Json; period_half?: number | null; period_month?: number | null; period_raw?: string; period_year?: number | null; source_hash?: string; user_id?: string; vacations?: Json; warnings?: Json }
+        Relationships: [{ foreignKeyName: "imported_payslips_user_id_fkey"; columns: ["user_id"]; isOneToOne: false; referencedRelation: "profiles"; referencedColumns: ["id"] }]
+      }
+      imported_payslip_lines: {
+        Row: { amount: number; concept_code: string; confidence: number; confirmed_by_user: boolean; description: string; id: string; kind: string; line_index: number; payslip_id: string }
+        Insert: { amount: number; concept_code: string; confidence?: number; confirmed_by_user?: boolean; description?: string; id?: string; kind: string; line_index: number; payslip_id: string }
+        Update: { amount?: number; concept_code?: string; confidence?: number; confirmed_by_user?: boolean; description?: string; id?: string; kind?: string; line_index?: number; payslip_id?: string }
+        Relationships: [{ foreignKeyName: "imported_payslip_lines_payslip_id_fkey"; columns: ["payslip_id"]; isOneToOne: false; referencedRelation: "imported_payslips"; referencedColumns: ["id"] }]
+      }
+      imported_payslip_observations: {
+        Row: { amount: number | null; concept_code: string; control_number: string | null; due_period: string | null; id: string; initial_charge: number | null; line_index: number; notes: string | null; payslip_id: string; units: number | null }
+        Insert: { amount?: number | null; concept_code?: string; control_number?: string | null; due_period?: string | null; id?: string; initial_charge?: number | null; line_index: number; notes?: string | null; payslip_id: string; units?: number | null }
+        Update: { amount?: number | null; concept_code?: string; control_number?: string | null; due_period?: string | null; id?: string; initial_charge?: number | null; line_index?: number; notes?: string | null; payslip_id?: string; units?: number | null }
+        Relationships: [{ foreignKeyName: "imported_payslip_observations_payslip_id_fkey"; columns: ["payslip_id"]; isOneToOne: false; referencedRelation: "imported_payslips"; referencedColumns: ["id"] }]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       search_catalogo: { Args: { catalogo_type: string; search_term: string }; Returns: { nombre: string }[] }
+      confirm_imported_payslip: {
+        Args: {
+          p_source_hash: string
+          p_parsed: Json
+          p_profile_updates: Json
+          p_acknowledge_total_difference: boolean
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

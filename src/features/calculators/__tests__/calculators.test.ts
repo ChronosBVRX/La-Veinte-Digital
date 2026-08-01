@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest"
 import { calculateAguinaldo } from "../lib/aguinaldo"
 import { calculateSegundaJulio, calculateSegundaJulioProporcional, validateDiasLaborados } from "../lib/segundaJulio"
 import { calculateClausula97 } from "../lib/clausula97"
-import { calculateTiempoExtra, calculateTiempoExtraLegacy, sumTiempoExtraConceptos, validateHorasExtra } from "../lib/tiempoExtra"
+import { calculateTiempoExtra, calculateTiempoExtraLegacy, sumTiempoExtraConceptos, validateHorasExtra, JORNADAS } from "../lib/tiempoExtra"
 import { roundCurrency, formatCurrency, parseCurrencyInput } from "../lib/money"
 import { calcularPrestamos, normalizeSearch, filterCategorias, mapJsonToPrestamoRecord } from "../lib/prestamos"
 import type { PrestamoCategoriaRecord, TiempoExtraInput } from "../lib/types"
@@ -111,6 +111,10 @@ describe("Tiempo extra", () => {
   it("jornada 12 modifica valor hora", () => {
     expect(calculateTiempoExtra({ ...input, jornada: 12 }).valorHora)
       .toBeLessThan(calculateTiempoExtra({ ...input, jornada: 8 }).valorHora)
+  })
+  it("jornada de 6 horas esta soportada", () => {
+    expect(JORNADAS).toContain(6)
+    expect(calculateTiempoExtra({ ...input, jornada: 6 }).horasOrdinariasPeriodo).toBe(90)
   })
   it("ningun NaN", () => {
     const r = calculateTiempoExtra(input)

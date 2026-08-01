@@ -1,5 +1,5 @@
 import type { EmployeePayrollProfile } from "../lib/types"
-import { getProfile } from "./storage"
+import { getProfile } from "@/shared/services/local-storage"
 import { fetchProfileFromSupabase, saveProfileToSupabase } from "./payroll-profile-service"
 
 export async function migrateLocalProfileToSupabase(userId: string): Promise<EmployeePayrollProfile | null> {
