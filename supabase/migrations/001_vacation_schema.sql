@@ -1,6 +1,22 @@
 -- Vacation Module Schema
 -- Requires: auth.users, public.profiles
 
+-- 0. profiles base (idempotente; 006 la complementa con trigger y RLS)
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  full_name text,
+  matricula text,
+  adscripcion text,
+  categoria text,
+  antiguedad text,
+  phone text,
+  avatar_url text,
+  role text default 'user',
+  is_online boolean default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 -- 1. Versioned vacation rules
 CREATE TABLE IF NOT EXISTS vacation_rule_versions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
