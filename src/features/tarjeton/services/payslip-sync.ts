@@ -11,6 +11,7 @@
 import type { ImportedPayslip, EmployeePayrollProfile, PayrollFact, RecurringConceptEvidence } from "@/features/nomina/lib/types"
 import type { ConfirmTarjetonRequest, ConfirmTarjetonResponse, ParsedImssTarjeton } from "@/shared/contracts/tarjeton-import"
 import { getPayPeriod } from "@/features/nomina/lib/periods"
+import { institutionalToday } from "@/shared/lib/dates"
 import { getProfile, savePayslip, saveProfile } from "@/shared/services/local-storage"
 
 export interface PayslipSyncResult {
@@ -29,7 +30,7 @@ export function buildImportedPayslip(
   const period =
     document.year && document.month && document.half
       ? getPayPeriod(document.year, document.month, document.half)
-      : getPayPeriod(new Date().getFullYear(), new Date().getMonth() + 1, 1)
+      : getPayPeriod(institutionalToday().getFullYear(), institutionalToday().getMonth() + 1, 1)
 
   const seniority = parsed.employee.seniority
   const fallbackEarnings = payroll.earnings.reduce((s, l) => s + l.amount, 0)

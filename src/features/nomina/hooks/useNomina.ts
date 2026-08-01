@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect, useRef } from "react"
+import { todayForQueryParam } from "@/shared/lib/dates"
 import type {
   EmployeePayrollProfile,
   ResolvedSalaryCategory,
@@ -106,7 +107,7 @@ export function useNomina() {
 
       if (p.categoryName && categoryState.status === "idle") {
         setCategoryState({ status: "resolving" })
-        const result = resolveCategory(p.categoryName, new Date().toISOString().slice(0, 10))
+        const result = resolveCategory(p.categoryName, todayForQueryParam())
         if (result.resolved && result.category) {
           setCategoryState({
             status: "resolved",
@@ -125,7 +126,7 @@ export function useNomina() {
           p.displayedSeniorityAtLastPayslip,
           p.displayedSeniorityAtLastPayslip.referenceDate
         )
-        const today = new Date().toISOString().slice(0, 10)
+        const today = todayForQueryParam()
         setSeniority(calculateSeniority(effectiveDate, today))
         setPeriod(getCurrentPayPeriod(today))
       }
@@ -178,7 +179,7 @@ export function useNomina() {
         p.displayedSeniorityAtLastPayslip,
         p.displayedSeniorityAtLastPayslip.referenceDate
       )
-      const today = new Date().toISOString().slice(0, 10)
+      const today = todayForQueryParam()
       const sr = calculateSeniority(effectiveDate, today)
       setSeniority(sr)
       setPeriod(getCurrentPayPeriod(today))
@@ -186,7 +187,7 @@ export function useNomina() {
 
     if (p.categoryName) {
       setCategoryState({ status: "resolving" })
-      const result = resolveCategory(p.categoryName, new Date().toISOString().slice(0, 10))
+      const result = resolveCategory(p.categoryName, todayForQueryParam())
       if (result.resolved && result.category) {
         setCategoryState({
           status: "resolved",

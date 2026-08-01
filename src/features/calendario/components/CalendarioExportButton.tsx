@@ -1,4 +1,5 @@
 import { Download } from "lucide-react"
+import { institutionalToday } from "@/shared/lib/dates"
 
 interface Props {
   year?: number
@@ -11,7 +12,7 @@ export function CalendarioExportButton({ year, monthIndex, label }: Props) {
   if (year) params.set("anio", String(year))
   if (monthIndex !== undefined) params.set("mes", String(monthIndex))
   const qs = params.toString()
-  const href = qs ? `/api/calendario?${qs}` : `/api/calendario?anio=${new Date().getFullYear()}`
+  const href = qs ? `/api/calendario?${qs}` : `/api/calendario?anio=${institutionalToday().getFullYear()}`
 
   return (
     <a

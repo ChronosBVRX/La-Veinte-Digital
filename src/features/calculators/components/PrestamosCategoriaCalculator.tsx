@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo, useCallback, useActionState } from "react"
+import { todayForQueryParam } from "@/shared/lib/dates"
 import Link from "next/link"
 import { ArrowLeft, Search, Check, RotateCcw, AlertTriangle } from "lucide-react"
 import { Input } from "@/shared/components/ui/Input"
@@ -21,7 +22,7 @@ interface Props {
 }
 
 export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
-  const targetDate = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const targetDate = useMemo(() => todayForQueryParam(), [])
   const prefill = useCalculatorPrefill("prestamos", targetDate)
 
   const [query, setQuery] = useState(initialCategoria ?? "")
