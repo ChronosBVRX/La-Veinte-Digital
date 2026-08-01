@@ -32,6 +32,49 @@ begin
 end $$;
 
 -- ============================================================
+-- 1b. Políticas admin de vacaciones (dependen de profiles; en
+--     001 rompían el reset desde cero, aquí se recrean).
+-- ============================================================
+do $$
+begin
+  if to_regclass('public.vacation_rule_versions') is null then
+    return;
+  end if;
+
+  drop policy if exists "Admins can manage rules" on public.vacation_rule_versions;
+  create policy "Admins can manage rules"
+    on public.vacation_rule_versions for all
+    to authenticated
+    using (
+      exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+    );
+
+  drop policy if exists "Admins can manage calendars" on public.vacation_calendars;
+  create policy "Admins can manage calendars"
+    on public.vacation_calendars for all
+    to authenticated
+    using (
+      exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+    );
+
+  drop policy if exists "Admins can manage calendar roles" on public.vacation_calendar_roles;
+  create policy "Admins can manage calendar roles"
+    on public.vacation_calendar_roles for all
+    to authenticated
+    using (
+      exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+    );
+
+  drop policy if exists "Admins can manage mandatory rest days" on public.vacation_mandatory_rest_days;
+  create policy "Admins can manage mandatory rest days"
+    on public.vacation_mandatory_rest_days for all
+    to authenticated
+    using (
+      exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+    );
+end $$;
+
+-- ============================================================
 -- 2. Trigger SECURITY DEFINER sobre auth.users (INSERT y UPDATE)
 --    Crea/actualiza el perfil de forma idempotente para registro
 --    por correo, Google, Facebook y usuarios existentes sin perfil.

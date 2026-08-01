@@ -111,56 +111,28 @@ ALTER TABLE vacation_simulation_events ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
 
--- Rules: admins can read/write, all authenticated can read published
+-- Rules: all authenticated can read published
 CREATE POLICY "Everyone can read rules"
   ON vacation_rule_versions FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage rules"
-  ON vacation_rule_versions FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
-
--- Calendars: all authenticated can read, admins manage
+-- Calendars: all authenticated can read
 CREATE POLICY "Everyone can read calendars"
   ON vacation_calendars FOR SELECT
   TO authenticated
   USING (true);
-
-CREATE POLICY "Admins can manage calendars"
-  ON vacation_calendars FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
 
 CREATE POLICY "Everyone can read calendar roles"
   ON vacation_calendar_roles FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage calendar roles"
-  ON vacation_calendar_roles FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
-
--- Mandatory rest days: everyone can read, admins manage
+-- Mandatory rest days: everyone can read
 CREATE POLICY "Everyone can read mandatory rest days"
   ON vacation_mandatory_rest_days FOR SELECT
   TO authenticated
   USING (true);
-
-CREATE POLICY "Admins can manage mandatory rest days"
-  ON vacation_mandatory_rest_days FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
 
 -- Profile data: user can only see/update own data
 CREATE POLICY "Users can read own vacation profile"
