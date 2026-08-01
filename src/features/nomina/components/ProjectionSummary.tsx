@@ -14,10 +14,10 @@ export function ProjectionSummary({ totals }: ProjectionSummaryProps) {
       <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", fontSize: "0.875rem" }}>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <span>Percepciones confirmadas</span>
-          <span style={{ fontWeight: 600 }}>{formatCurrency(totals.confirmedEarnings)}</span>
+          <span style={{ fontWeight: 600 }}>{formatCurrency(totals.confirmedGross)}</span>
         </div>
 
-        {totals.probableEarnings > 0 && (
+        {totals.probableGross > totals.confirmedGross && (
           <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)" }}>
             <span>Percepciones probables adicionales</span>
             <span>+{formatCurrency(totals.probableEarnings)}</span>
@@ -34,9 +34,16 @@ export function ProjectionSummary({ totals }: ProjectionSummaryProps) {
         <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--border)", paddingTop: "0.375rem" }}>
           <span style={{ fontWeight: 700 }}>Percepciones estimadas</span>
           <span style={{ fontWeight: 700, color: "var(--primary)" }}>
-            {formatCurrency(totals.confirmedGross)}
+            {formatCurrency(totals.probableGross)}
           </span>
         </div>
+
+        {totals.possibleGross > totals.probableGross && (
+          <div style={{ display: "flex", justifyContent: "space-between", color: "var(--muted)" }}>
+            <span>Escenario posible</span>
+            <span style={{ fontWeight: 600 }}>{formatCurrency(totals.possibleGross)}</span>
+          </div>
+        )}
 
         {totals.confirmedDeductions > 0 && (
           <>

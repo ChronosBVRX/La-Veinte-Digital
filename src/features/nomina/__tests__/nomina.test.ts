@@ -4,9 +4,8 @@ import { calculateSeniority, reconstructEffectiveDate } from "../lib/seniority"
 import { getPayPeriod, getCurrentPayPeriod, getNextPayPeriod } from "../lib/periods"
 import {
   rule002, rule011, rule020, rule022, rule02,
-  rule012, rule013, rule054, rule055, rule050,
-  rule051, rule057, rule058, rule061, rule062,
-  rule072, rule078, rule083,
+  rule054, rule055, rule050,
+  rule072,
 } from "../lib/rules"
 import { topologicalSort, calculateProjection, detectCircularDependencies } from "../lib/engine"
 import { resolveCategory } from "../lib/category-resolver"
@@ -20,7 +19,7 @@ function getPercentageForConcept072(categoryId: string): number {
 import { getImpactMatrixEffectiveAt } from "../data/repercussion-matrix"
 import { evaluateEligibilityForConcept } from "../lib/eligibility"
 import { buildPendingQuestions } from "../lib/question-engine"
-import { calculateProjectionTotals } from "../lib/totals"
+import { calculateProjectionTotals, validateProjectionTotals } from "../lib/totals"
 import { buildBaseForConcept } from "../lib/repercussion-engine"
 import type {
   PayrollRuleContext, EmployeePayrollProfile, ResolvedSalaryCategory,
@@ -441,6 +440,44 @@ describe("Totals - no mezclar conceptos", () => {
     expect(totals.confirmedEarnings).toBe(3937.64)
     expect(totals.probableEarnings).toBe(358.62)
     expect(totals.conditionalPotentialEarnings).toBe(1434.48)
+    expect(totals.confirmedGross).toBe(3937.64)
+    expect(totals.probableGross).toBeCloseTo(4296.26)
+    expect(totals.possibleGross).toBeCloseTo(5730.74)
+  })
+
+  it("confirmedNet solo resta deducciones confirmadas", () => {
+    const confirmed: CalculatedPayrollConcept = {
+      code: "002", name: "Sueldo", type: "earning", nature: "base",
+      amount: 3937.64, included: true, source: "salary_table",
+      confidence: "high", verificationStatus: "contract_verified",
+      dependencies: [], calculationSteps: [], legalBasis: [], warnings: [],
+    }
+    const confirmedDeduction: CalculatedPayrollConcept = {
+      code: "301", name: "ISR", type: "deduction", nature: "base",
+      amount: 500, included: true, source: "contract_rule",
+      confidence: "high", verificationStatus: "contract_verified",
+      dependencies: [], calculationSteps: [], legalBasis: [], warnings: [],
+    }
+    const estimatedDeduction: CalculatedPayrollConcept = {
+      code: "311", name: "Cuota sindical", type: "deduction", nature: "derived",
+      amount: 100, included: true, source: "contract_rule",
+      confidence: "medium", verificationStatus: "contract_verified",
+      dependencies: [], calculationSteps: [], legalBasis: [], warnings: [],
+    }
+    const totals = calculateProjectionTotals([confirmed, confirmedDeduction, estimatedDeduction])
+    expect(totals.confirmedNet).toBeCloseTo(3437.64)
+    expect(totals.estimatedNetRange).toEqual({
+      minimum: 3937.64 - 500 - 100,
+      maximum: 3937.64 - 500,
+    })
+  })
+
+  it("validateProjectionTotals rechaza totales no finitos", () => {
+    const ok = calculateProjectionTotals([])
+    expect(validateProjectionTotals(ok)).toBe(true)
+    expect(validateProjectionTotals({ ...ok, confirmedGross: NaN })).toBe(false)
+    expect(validateProjectionTotals({ ...ok, probableGross: Infinity })).toBe(false)
+    expect(validateProjectionTotals({ ...ok, possibleGross: Number("x") })).toBe(false)
   })
 })
 

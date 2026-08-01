@@ -378,6 +378,7 @@ export interface ProjectionTotals {
   confirmedDeductions: number
   estimatedDeductions: number
   confirmedGross: number
+  probableGross: number
   possibleGross: number
   confirmedNet?: number
   estimatedNetRange?: { minimum: number; maximum: number }

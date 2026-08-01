@@ -7,8 +7,7 @@ import type {
 } from "./types"
 import { evaluateEligibilityForConcept, type EligibilityResult } from "./eligibility"
 import { buildPendingQuestions, type ConditionalPayrollQuestion } from "./question-engine"
-import { buildAllBases } from "./repercussion-engine"
-import { calculateProjectionTotals } from "./totals"
+import { calculateProjectionTotals, validateProjectionTotals } from "./totals"
 import { getAllRules } from "./rules"
 
 export function topologicalSort(rules: PayrollRule[]): PayrollRule[] {
@@ -136,6 +135,12 @@ export function calculateProjection(input: PayrollProjectionInput): PayrollProje
   for (const rule of sorted) {
     try {
       const result = rule.calculate(ctx)
+      if (!validateNoNaN(result.concept)) {
+        warnings.push(
+          `Regla ${rule.id}: el concepto ${result.concept.code} contiene valores no numéricos; se omite.`
+        )
+        continue
+      }
       calculatedConcepts.set(result.concept.code, result.concept)
 
       if (result.concept.warnings.length > 0) {
@@ -179,6 +184,9 @@ export function calculateProjection(input: PayrollProjectionInput): PayrollProje
   }
 
   const totals = calculateProjectionTotals(allConcepts)
+  if (!validateProjectionTotals(totals)) {
+    warnings.push("La proyección contiene totales no numéricos; los montos mostrados pueden ser incorrectos.")
+  }
 
   const totalEarnings = earnings.reduce((s, c) => s + c.amount, 0)
   const totalDeductions = deductions.reduce((s, c) => s + c.amount, 0)
@@ -186,11 +194,15 @@ export function calculateProjection(input: PayrollProjectionInput): PayrollProje
 
   const confirmedCount = earnings.filter((c) => c.confidence === "high").length
   const totalCount = allConcepts.length
-  const confidenceLevel: "high" | "medium" | "low" =
+  let confidenceLevel: "high" | "medium" | "low" =
     totalCount === 0 ? "low" :
     confirmedCount / totalCount >= 0.7 ? "high" :
     confirmedCount / totalCount >= 0.4 ? "medium" :
     "low"
+
+  if (unresolvedConcepts.length > 0 && confidenceLevel === "high") {
+    confidenceLevel = "medium"
+  }
 
   const projection: PayrollProjection = {
     id: crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
