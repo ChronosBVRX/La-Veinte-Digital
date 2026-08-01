@@ -21,7 +21,7 @@ export default function CalendarioPage() {
             Fechas de pago, periodos de interactivo y vacacional
           </p>
         </div>
-        <CalendarioExportButton year={displayYear} label="Exportar aÃ±o completo" />
+        <CalendarioExportButton year={displayYear} label="Exportar año completo" />
       </div>
       <CalendarioAnual />
     </div>

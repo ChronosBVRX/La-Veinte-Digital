@@ -54,16 +54,16 @@ const CONTRACT_OPTIONS: { value: ContractType; label: string }[] = [
   { value: "CONFIANZA_A_ESTATUTO", label: "Confianza A (Estatuto)" },
   { value: "TEMPORAL", label: "Temporal" },
   { value: "SUSTITUTO", label: "Sustituto" },
-  { value: "MEDICO_RESIDENTE", label: "MÃ©dico Residente" },
+  { value: "MEDICO_RESIDENTE", label: "Médico Residente" },
   { value: "BECADO", label: "Becado" },
   { value: "OTRO", label: "Otro" },
 ]
 
 const SCHEDULE_OPTIONS: { value: string; label: string }[] = [
   { value: "ORDINARY", label: "Trabajo entre semana" },
-  { value: "ACCUMULATED_WEEKEND_DAY", label: "Trabajo principalmente sÃ¡bado y domingo" },
+  { value: "ACCUMULATED_WEEKEND_DAY", label: "Trabajo principalmente sábado y domingo" },
   { value: "ACCUMULATED_NIGHT", label: "Trabajo tres noches alternadas" },
-  { value: "ROTATING", label: "Mis dÃ­as cambian" },
+  { value: "ROTATING", label: "Mis días cambian" },
   { value: "CUSTOM", label: "Otro horario" },
 ]
 
@@ -238,29 +238,29 @@ export function VacationWizard() {
     return (
       <>
         {renderStepIndicator("welcome")}
-        <h1 style={HEADER}>Simulador de ProgramaciÃ³n de Vacaciones</h1>
+        <h1 style={HEADER}>Simulador de Programación de Vacaciones</h1>
         <p style={SUBTITLE}>
-          Este asistente te guiarÃ¡ paso a paso para conocer tus opciones de vacaciones
-          y simular la mejor fecha para ti. No necesitas conocer tÃ©rminos tÃ©cnicos:
+          Este asistente te guiará paso a paso para conocer tus opciones de vacaciones
+          y simular la mejor fecha para ti. No necesitas conocer términos técnicos:
           el sistema interpreta la normativa por ti.
         </p>
         <Card style={{ marginBottom: "1.5rem" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             <p style={{ fontSize: "0.9rem", color: "var(--fg)", lineHeight: 1.6 }}>
-              El simulador utiliza tu perfil y la informaciÃ³n de tu tarjetÃ³n para:
+              El simulador utiliza tu perfil y la información de tu tarjetón para:
             </p>
             <ul style={{ fontSize: "0.85rem", color: "var(--muted)", paddingLeft: "1.25rem", lineHeight: 1.8 }}>
               <li>Identificar el tipo de periodo que te corresponde</li>
-              <li>Mostrar las opciones compatibles con tu situaciÃ³n</li>
-              <li>Calcular fechas de inicio, tÃ©rmino y reincorporaciÃ³n</li>
-              <li>Excluir automÃ¡ticamente tus descansos semanales y obligatorios</li>
+              <li>Mostrar las opciones compatibles con tu situación</li>
+              <li>Calcular fechas de inicio, término y reincorporación</li>
+              <li>Excluir automáticamente tus descansos semanales y obligatorios</li>
               <li>Generar un resumen para guardar o compartir</li>
             </ul>
           </div>
         </Card>
         <div style={DISCLAIMER}>
-          Este simulador es informativo. La programaciÃ³n definitiva debe ser autorizada
-          y registrada por las Ã¡reas competentes del IMSS.
+          Este simulador es informativo. La programación definitiva debe ser autorizada
+          y registrada por las áreas competentes del IMSS.
         </div>
         <div style={BUTTON_ROW}>
           <div />
@@ -275,14 +275,14 @@ export function VacationWizard() {
       <>
         {renderStepIndicator("profile-confirm")}
         <h2 style={HEADER}>Datos de tu perfil</h2>
-        <p style={SUBTITLE}>Confirmemos que tus datos son correctos. Puedes corregir cualquier dato aquÃ­.</p>
+        <p style={SUBTITLE}>Confirmemos que tus datos son correctos. Puedes corregir cualquier dato aquí.</p>
         <Card padding="1.25rem">
           <div style={FIELD_GROUP}>
             <Input label="Nombre completo" value={state.profile.fullName || ""} onChange={(e) => setProfile({ fullName: e.target.value })} />
-            <Input label="MatrÃ­cula" value={state.profile.matricula || ""} onChange={(e) => setProfile({ matricula: e.target.value })} />
-            <Input label="CategorÃ­a" value={state.profile.category || ""} onChange={(e) => setProfile({ category: e.target.value })} />
+            <Input label="Matrícula" value={state.profile.matricula || ""} onChange={(e) => setProfile({ matricula: e.target.value })} />
+            <Input label="Categoría" value={state.profile.category || ""} onChange={(e) => setProfile({ category: e.target.value })} />
             <div>
-              <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.25rem" }}>Tipo de contrataciÃ³n</label>
+              <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.25rem" }}>Tipo de contratación</label>
               <select
                 value={state.profile.contractType}
                 onChange={(e) => setProfile({ contractType: e.target.value as ContractType })}
@@ -292,14 +292,14 @@ export function VacationWizard() {
               </select>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem" }}>
-              <Input label="AÃ±os de antigÃ¼edad" type="number" value={state.profile.effectiveSeniority.years} onChange={(e) => setProfile({ effectiveSeniority: { ...state.profile.effectiveSeniority, years: Number(e.target.value) } })} />
+              <Input label="Años de antigüedad" type="number" value={state.profile.effectiveSeniority.years} onChange={(e) => setProfile({ effectiveSeniority: { ...state.profile.effectiveSeniority, years: Number(e.target.value) } })} />
               <Input label="Quincenas" type="number" value={state.profile.effectiveSeniority.fortnights} onChange={(e) => setProfile({ effectiveSeniority: { ...state.profile.effectiveSeniority, fortnights: Number(e.target.value) } })} />
-              <Input label="DÃ­as" type="number" value={state.profile.effectiveSeniority.days} onChange={(e) => setProfile({ effectiveSeniority: { ...state.profile.effectiveSeniority, days: Number(e.target.value) } })} />
+              <Input label="Días" type="number" value={state.profile.effectiveSeniority.days} onChange={(e) => setProfile({ effectiveSeniority: { ...state.profile.effectiveSeniority, days: Number(e.target.value) } })} />
             </div>
           </div>
         </Card>
         <div style={BUTTON_ROW}>
-          <Button variant="ghost" onClick={() => goTo("welcome")}>AtrÃ¡s</Button>
+          <Button variant="ghost" onClick={() => goTo("welcome")}>Atrás</Button>
           <Button onClick={() => goTo("tarjeton-data")}>Continuar</Button>
         </div>
       </>
@@ -310,13 +310,13 @@ export function VacationWizard() {
     return (
       <>
         {renderStepIndicator("tarjeton-data")}
-        <h2 style={HEADER}>Datos de tu tarjetÃ³n</h2>
-        <p style={SUBTITLE}>Estos datos los encuentras en tu tarjetÃ³n de vacaciones.</p>
+        <h2 style={HEADER}>Datos de tu tarjetón</h2>
+        <p style={SUBTITLE}>Estos datos los encuentras en tu tarjetón de vacaciones.</p>
 
         <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>
           <div style={FIELD_GROUP}>
             <div style={{ background: "var(--accent)", borderRadius: "var(--radius)", padding: "0.75rem", fontSize: "0.85rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
-              En tu tarjetÃ³n busca la secciÃ³n de vacaciones. AhÃ­ aparecen los siguientes datos.
+              En tu tarjetón busca la sección de vacaciones. Ahí aparecen los siguientes datos.
             </div>
             <Input
               label="Marca de continuidad actual"
@@ -326,7 +326,7 @@ export function VacationWizard() {
 
             />
             <Input
-              label="NÃºmero de periodo por disfrutar"
+              label="Número de periodo por disfrutar"
               type="number"
               value={state.nextPeriodNumber}
               onChange={(e) => updateState({ nextPeriodNumber: Number(e.target.value) })}
@@ -347,7 +347,7 @@ export function VacationWizard() {
         </Card>
 
         <div style={BUTTON_ROW}>
-          <Button variant="ghost" onClick={() => goTo("profile-confirm")}>AtrÃ¡s</Button>
+          <Button variant="ghost" onClick={() => goTo("profile-confirm")}>Atrás</Button>
           <Button onClick={() => goTo("work-schedule")} disabled={!state.dueDate}>Continuar</Button>
         </div>
       </>
@@ -358,8 +358,8 @@ export function VacationWizard() {
     return (
       <>
         {renderStepIndicator("work-schedule")}
-        <h2 style={HEADER}>Â¿CÃ³mo trabajas normalmente?</h2>
-        <p style={SUBTITLE}>Elige la opciÃ³n que mejor describa tu horario habitual.</p>
+        <h2 style={HEADER}>¿Cómo trabajas normalmente?</h2>
+        <p style={SUBTITLE}>Elige la opción que mejor describa tu horario habitual.</p>
         <Card padding="1.25rem">
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             {SCHEDULE_OPTIONS.map((opt) => (
@@ -388,7 +388,7 @@ export function VacationWizard() {
           </div>
         </Card>
         <div style={{ marginTop: "0.75rem" }}>
-          <Button variant="ghost" onClick={() => goTo("tarjeton-data")}>AtrÃ¡s</Button>
+          <Button variant="ghost" onClick={() => goTo("tarjeton-data")}>Atrás</Button>
         </div>
       </>
     )
@@ -398,11 +398,11 @@ export function VacationWizard() {
     return (
       <>
         {renderStepIndicator("radiation")}
-        <h2 style={HEADER}>ExposiciÃ³n a emanaciones radiactivas</h2>
-        <p style={SUBTITLE}>Â¿Laboras de manera constante y permanente en un Ã¡rea oficialmente reconocida con exposiciÃ³n a emanaciones radiactivas?</p>
+        <h2 style={HEADER}>Exposición a emanaciones radiactivas</h2>
+        <p style={SUBTITLE}>¿Laboras de manera constante y permanente en un área oficialmente reconocida con exposición a emanaciones radiactivas?</p>
         <Card padding="1.25rem">
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            <Button onClick={() => { setProfile({ radiologicalExposure: true }); goTo("continuity") }}>SÃ­</Button>
+            <Button onClick={() => { setProfile({ radiologicalExposure: true }); goTo("continuity") }}>Sí</Button>
             <Button variant="secondary" onClick={() => { setProfile({ radiologicalExposure: false }); goTo("continuity") }}>No</Button>
             <Button variant="ghost" onClick={() => { setProfile({ radiologicalExposure: "UNSURE" }); goTo("continuity") }}>
               No estoy seguro
@@ -411,12 +411,12 @@ export function VacationWizard() {
         </Card>
         {state.profile.radiologicalExposure === "UNSURE" && (
           <div style={WARN_BOX}>
-            Puedes continuar con la simulaciÃ³n, pero esta condiciÃ³n debe confirmarse con
-            Servicios de Personal para que sea vÃ¡lida.
+            Puedes continuar con la simulación, pero esta condición debe confirmarse con
+            Servicios de Personal para que sea válida.
           </div>
         )}
         <div style={{ marginTop: "0.75rem" }}>
-          <Button variant="ghost" onClick={() => goTo("work-schedule")}>AtrÃ¡s</Button>
+          <Button variant="ghost" onClick={() => goTo("work-schedule")}>Atrás</Button>
         </div>
       </>
     )
@@ -431,7 +431,7 @@ export function VacationWizard() {
         <Card padding="1.25rem">
           <p style={{ fontSize: "0.9rem", lineHeight: 1.6, marginBottom: "1rem" }}>
             {closed
-              ? "Tus periodos anteriores estÃ¡n completos. Puedes iniciar una nueva opciÃ³n de programaciÃ³n."
+              ? "Tus periodos anteriores están completos. Puedes iniciar una nueva opción de programación."
               : state.continuityMark === 1
               ? "Tienes una primera parte pendiente de completar. Debes seleccionar la segunda parte."
               : state.continuityMark === 3
@@ -446,7 +446,7 @@ export function VacationWizard() {
           </div>
         </Card>
         <div style={BUTTON_ROW}>
-          <Button variant="ghost" onClick={() => goTo("radiation")}>AtrÃ¡s</Button>
+          <Button variant="ghost" onClick={() => goTo("radiation")}>Atrás</Button>
           <Button onClick={() => goTo("inclusion-options")}>Ver opciones disponibles</Button>
         </div>
       </>
@@ -458,22 +458,22 @@ export function VacationWizard() {
     const options: { mark: number; label: string; desc: string }[] = []
 
     if (closed) {
-      options.push({ mark: 0, label: "Disfrutar el periodo de manera continua", desc: "Tomas todos tus dÃ­as de vacaciones de una sola vez." })
-      options.push({ mark: 1, label: "Dividirlo en dos partes semejantes", desc: "Primera parte de tus vacaciones. DespuÃ©s podrÃ¡s programar la segunda." })
+      options.push({ mark: 0, label: "Disfrutar el periodo de manera continua", desc: "Tomas todos tus días de vacaciones de una sola vez." })
+      options.push({ mark: 1, label: "Dividirlo en dos partes semejantes", desc: "Primera parte de tus vacaciones. Después podrás programar la segunda." })
       options.push({ mark: 4, label: "Revisar una modalidad especial", desc: "Relacionada con el pago de prestaciones (primera parte)." })
     } else if (state.continuityMark === 1) {
       options.push({ mark: 1, label: "Completar la segunda parte", desc: "Primero debes completar la segunda parte de tus vacaciones." })
     } else if (state.continuityMark === 3) {
-      options.push({ mark: 3, label: "Completar el periodo completo pendiente", desc: "Debes completar el periodo que estÃ¡ en proceso." })
+      options.push({ mark: 3, label: "Completar el periodo completo pendiente", desc: "Debes completar el periodo que está en proceso." })
     } else if (state.continuityMark === 4) {
-      options.push({ mark: 9, label: "Completar la segunda parte (modalidad especial)", desc: "Finaliza tu ciclo actual con esta opciÃ³n." })
+      options.push({ mark: 9, label: "Completar la segunda parte (modalidad especial)", desc: "Finaliza tu ciclo actual con esta opción." })
     }
 
     return (
       <>
         {renderStepIndicator("inclusion-options")}
-        <h2 style={HEADER}>Â¿CÃ³mo deseas disfrutar tus vacaciones?</h2>
-        <p style={SUBTITLE}>Selecciona la opciÃ³n que prefieras.</p>
+        <h2 style={HEADER}>¿Cómo deseas disfrutar tus vacaciones?</h2>
+        <p style={SUBTITLE}>Selecciona la opción que prefieras.</p>
         <Card padding="1.25rem">
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             {options.map((opt) => (
@@ -500,14 +500,14 @@ export function VacationWizard() {
         </Card>
         <div style={{ marginTop: "1rem" }}>
           <details style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-            <summary style={{ cursor: "pointer" }}>Ver detalles tÃ©cnicos</summary>
+            <summary style={{ cursor: "pointer" }}>Ver detalles técnicos</summary>
             <p style={{ marginTop: "0.5rem" }}>
-              Marca de inclusiÃ³n: {state.selectedInclusionMark} | Continuidad: {state.continuityMark}
+              Marca de inclusión: {state.selectedInclusionMark} | Continuidad: {state.continuityMark}
             </p>
           </details>
         </div>
         <div style={BUTTON_ROW}>
-          <Button variant="ghost" onClick={() => goTo("continuity")}>AtrÃ¡s</Button>
+          <Button variant="ghost" onClick={() => goTo("continuity")}>Atrás</Button>
         </div>
       </>
     )
@@ -554,18 +554,18 @@ export function VacationWizard() {
         {renderStepIndicator("calendar")}
         <h2 style={HEADER}>Elige tu fecha de inicio</h2>
         <p style={SUBTITLE}>
-          Fecha mÃ¡s temprana disponible: {earliestDate.toLocaleDateString("es-MX")}
+          Fecha más temprana disponible: {earliestDate.toLocaleDateString("es-MX")}
           {" | "}Vencimiento: {dueDate.toLocaleDateString("es-MX")}
         </p>
 
         <Card padding="1.25rem">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
             <Button variant="ghost" size="sm" onClick={() => updateState({ calendarMonth: state.calendarMonth === 0 ? 11 : state.calendarMonth - 1 })}>
-              â†
+              ←
             </Button>
             <span style={{ fontWeight: 600 }}>{months[selectedMonth]} {year}</span>
             <Button variant="ghost" size="sm" onClick={() => updateState({ calendarMonth: state.calendarMonth === 11 ? 0 : state.calendarMonth + 1 })}>
-              â†’
+              →
             </Button>
           </div>
 
@@ -619,7 +619,7 @@ export function VacationWizard() {
         </Card>
 
         <div style={BUTTON_ROW}>
-          <Button variant="ghost" onClick={() => goTo("inclusion-options")}>AtrÃ¡s</Button>
+          <Button variant="ghost" onClick={() => goTo("inclusion-options")}>Atrás</Button>
           <Button onClick={() => {
             handleRunSimulation()
             setTimeout(() => goTo("result"), 50)
@@ -639,17 +639,17 @@ export function VacationWizard() {
       <>
         {renderStepIndicator("result")}
         <h2 style={HEADER}>Tu propuesta de vacaciones</h2>
-        <p style={SUBTITLE}>Revisa los detalles de tu simulaciÃ³n.</p>
+        <p style={SUBTITLE}>Revisa los detalles de tu simulación.</p>
 
         {r.requiresNormativeReview && (
           <div style={REVIEW_BOX}>
-            Esta combinaciÃ³n requiere validaciÃ³n con Servicios de Personal debido a una diferencia entre las fuentes normativas.
+            Esta combinación requiere validación con Servicios de Personal debido a una diferencia entre las fuentes normativas.
           </div>
         )}
 
         {r.requiresSpecialProcess && (
           <div style={WARN_BOX}>
-            Esta propuesta no puede programarse directamente: requiere un proceso especial o la autorizaciÃ³n de las Ã¡reas competentes antes de registrar las fechas.
+            Esta propuesta no puede programarse directamente: requiere un proceso especial o la autorización de las áreas competentes antes de registrar las fechas.
           </div>
         )}
 
@@ -659,28 +659,28 @@ export function VacationWizard() {
 
         <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", fontSize: "0.9rem" }}>
-            <ResultItem label="RÃ©gimen" value={getRegimeLabel(r.regime)} />
+            <ResultItem label="Régimen" value={getRegimeLabel(r.regime)} />
             <ResultItem label="Periodo" value={`#${r.periodNumber}`} />
-            <ResultItem label="Inicio" value={r.startDate || "â€”"} />
-            <ResultItem label="TÃ©rmino" value={r.endDate || "â€”"} />
-            <ResultItem label="ReincorporaciÃ³n" value={r.returnDate || "â€”"} />
+            <ResultItem label="Inicio" value={r.startDate || "—"} />
+            <ResultItem label="Término" value={r.endDate || "—"} />
+            <ResultItem label="Reincorporación" value={r.returnDate || "—"} />
             <ResultItem label="Unidades" value={`${r.unitsUsed} ${getUnitLabel(r.unitType)}`} />
             <ResultItem label="Vencimiento" value={r.dueDate} />
-            <ResultItem label="AnticipaciÃ³n" value={`${r.anticipationDays} dÃ­as`} />
+            <ResultItem label="Anticipación" value={`${r.anticipationDays} días`} />
           </div>
         </Card>
 
         <details style={{ marginBottom: "1rem" }}>
           <summary style={{ cursor: "pointer", fontSize: "0.85rem", color: "var(--muted)" }}>
-            Ver detalles tÃ©cnicos y fundamento
+            Ver detalles técnicos y fundamento
           </summary>
           <Card padding="1.25rem" style={{ marginTop: "0.5rem" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", fontSize: "0.8rem" }}>
               <ResultItem label="Continuidad original" value={String(r.originalContinuityMark)} />
-              <ResultItem label="InclusiÃ³n propuesta" value={String(r.proposedInclusionMark)} />
+              <ResultItem label="Inclusión propuesta" value={String(r.proposedInclusionMark)} />
               <ResultItem label="Continuidad resultante" value={String(r.resultingContinuityMark)} />
               <ResultItem label="UPO afectado" value={String(r.affectedUPO)} />
-              <ResultItem label="VersiÃ³n calendario" value={r.calendarVersion} />
+              <ResultItem label="Versión calendario" value={r.calendarVersion} />
             </div>
             {r.traces.length > 0 && (
               <div style={{ marginTop: "0.75rem" }}>
@@ -703,12 +703,12 @@ export function VacationWizard() {
         </details>
 
         <div style={DISCLAIMER}>
-          Este simulador es informativo. La programaciÃ³n definitiva debe ser autorizada
-          y registrada por las Ã¡reas competentes del IMSS.
+          Este simulador es informativo. La programación definitiva debe ser autorizada
+          y registrada por las áreas competentes del IMSS.
         </div>
 
         <div style={BUTTON_ROW}>
-          <Button variant="ghost" onClick={() => goTo("calendar")}>AtrÃ¡s</Button>
+          <Button variant="ghost" onClick={() => goTo("calendar")}>Atrás</Button>
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <Button variant="secondary" onClick={() => {
               const text = generateSummaryText(r)
@@ -716,7 +716,7 @@ export function VacationWizard() {
             }}>
               Copiar resumen
             </Button>
-            <Button onClick={() => goTo("welcome")}>Nueva simulaciÃ³n</Button>
+            <Button onClick={() => goTo("welcome")}>Nueva simulación</Button>
           </div>
         </div>
       </>
@@ -764,15 +764,15 @@ function ResultItem({ label, value }: { label: string; value: string }) {
 function getRegimeLabel(r: VacationRegime): string {
   switch (r) {
     case "SEMESTRAL": return "Semestral"
-    case "CUATRIMESTRAL": return "Cuatrimestral (RadiaciÃ³n)"
-    case "EXTRAORDINARIO_V20": return "Extraordinario (20+ aÃ±os)"
+    case "CUATRIMESTRAL": return "Cuatrimestral (Radiación)"
+    case "EXTRAORDINARIO_V20": return "Extraordinario (20+ años)"
     case "ESTATUTO": return "Confianza A (Estatuto)"
   }
 }
 
 function getUnitLabel(unit: "WORKDAY" | "JOURNEY" | "VELADA"): string {
   switch (unit) {
-    case "WORKDAY": return "dÃ­as hÃ¡biles"
+    case "WORKDAY": return "días hábiles"
     case "JOURNEY": return "jornadas"
     case "VELADA": return "veladas"
   }
@@ -780,14 +780,14 @@ function getUnitLabel(unit: "WORKDAY" | "JOURNEY" | "VELADA"): string {
 
 function generateSummaryText(r: VacationSimulationResult): string {
   return `PROPUESTA DE VACACIONES
-RÃ©gimen: ${getRegimeLabel(r.regime)}
+Régimen: ${getRegimeLabel(r.regime)}
 Periodo: #${r.periodNumber}
-Inicio: ${r.startDate || "â€”"}
-TÃ©rmino: ${r.endDate || "â€”"}
-ReincorporaciÃ³n: ${r.returnDate || "â€”"}
+Inicio: ${r.startDate || "—"}
+Término: ${r.endDate || "—"}
+Reincorporación: ${r.returnDate || "—"}
 Unidades: ${r.unitsUsed} ${getUnitLabel(r.unitType)}
 Vencimiento: ${r.dueDate}
-AnticipaciÃ³n: ${r.anticipationDays} dÃ­as
-${r.requiresNormativeReview ? "\nRequiere validaciÃ³n con Servicios de Personal." : ""}
+Anticipación: ${r.anticipationDays} días
+${r.requiresNormativeReview ? "\nRequiere validación con Servicios de Personal." : ""}
 \n--- Generado por Simulador de Vacaciones IMSS ---`
 }

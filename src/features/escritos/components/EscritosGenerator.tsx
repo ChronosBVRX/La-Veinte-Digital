@@ -110,7 +110,7 @@ export function EscritosGenerator() {
       setTextoGenerado(
         "Por medio de la presente, expongo ante usted los siguientes hechos:\n\n" +
         form.detalle +
-        "\n\nPor lo anteriormente expuesto, solicito atentamente se dÃƒÂ© soluciÃƒÂ³n a mi peticiÃƒÂ³n conforme a derecho corresponda."
+        "\n\nPor lo anteriormente expuesto, solicito atentamente se dé solución a mi petición conforme a derecho corresponda."
       )
     } finally {
       setLoading(false)
@@ -134,10 +134,10 @@ export function EscritosGenerator() {
         background: "var(--card)", border: "1px solid var(--border)",
         borderRadius: "0.5rem", padding: "2.5rem 1.5rem",
       }}>
-        <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>Ã°Å¸â€â€™</div>
+        <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>⚠️</div>
         <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.5rem" }}>Perfil Incompleto</h2>
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", lineHeight: 1.6, marginBottom: "1.5rem" }}>
-          Para generar documentos oficiales, necesitas completar tu informaciÃƒÂ³n (Nombre, MatrÃƒÂ­cula, CategorÃƒÂ­a y AdscripciÃƒÂ³n).
+          Para generar documentos oficiales, necesitas completar tu información (Nombre, Matrícula, Categoría y Adscripción).
         </p>
         <a href="/profile"
           style={{
