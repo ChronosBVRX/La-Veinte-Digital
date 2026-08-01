@@ -196,7 +196,7 @@ solo se guarda como hash. Detalle en
 ## Pruebas
 
 - **Vitest**: Configurado con alias `@/` mapeado a `./src/`
-- **Tests unitarios**: En `features/calculators/__tests__/` y `features/nomina/__tests__/`
+- **Tests unitarios**: En `features/calculators/__tests__/`, `features/nomina/__tests__/`, `features/vacations/__tests__/` y `features/tarjeton/__tests__/` (parsers puros + servicio de confirmación, fixtures ficticios)
 - **Tests de contrato**: `shared/contracts/__tests__/` (validadores del prerrelleno)
 - **Sin tests de integración o E2E** actualmente
 

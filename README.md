@@ -19,6 +19,8 @@ Plataforma digital de la comunidad SNTSS (Sindicato Nacional de Trabajadores del
 | Framer Motion | ^12.43.0 |
 | Vitest | ^4.1.10 |
 | ESLint (flat config) | ^9 |
+| pdfjs-dist | ^6.1.200 (lectura local del tarjetón) |
+| tesseract.js | ^7.0.0 (OCR de respaldo, vendor local) |
 
 ---
 
@@ -112,6 +114,8 @@ la-veinte-digital/
 │   │   │   ├── ui/                 # Button, Input, Card, Modal, Toast, etc.
 │   │   │   └── layout/             # Navbar, Sidebar, BottomNav, DashboardShell
 │   │   ├── hooks/                  # useUser
+│   │   ├── services/               # local-storage (perfil, recibos, proyecciones)
+│   │   ├── contracts/              # tarjeton-import, calculator-prefill
 │   │   └── lib/                    # utils (cn, formatDate, etc.)
 │   │
 │   ├── lib/                        # Infraestructura

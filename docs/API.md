@@ -129,10 +129,12 @@ Prerrelleno normativo para calculadoras IMSS (requiere sesión).
 **Process:**
 1. Autentica con la sesión de Supabase (401 si no hay sesión)
 2. Lee `profiles` (categoría, antigüedad) y `payroll_contexts` (contexto de nómina)
-3. Resuelve la categoría contra el tabulador vigente en `targetDate`
-4. Calcula antigüedad (fecha efectiva > texto del perfil)
-5. Ejecuta el motor de nómina existente (`calculateProjection`)
-6. Filtra por la política cerrada de la calculadora y devuelve el contrato
+3. Lee el último tarjetón confirmado (`imported_payslips`) para
+   `daysWorkedInAnnualPeriod` (`source: "last_payslip"`)
+4. Resuelve la categoría contra el tabulador vigente en `targetDate`
+5. Calcula antigüedad (fecha efectiva > texto del perfil)
+6. Ejecuta el motor de nómina existente (`calculateProjection`)
+7. Filtra por la política cerrada de la calculadora y devuelve el contrato
 
 **Response (200):**
 ```json

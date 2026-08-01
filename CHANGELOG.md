@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.003] - 2026-07-31
+
+### Docs
+- `AGENTS.md`: estructura del proyecto con `features/tarjeton/`, `shared/services/` y `shared/contracts/`; convención de import `@/shared/services/<service>`; nueva Rule 11 (tarjetón: extracción 100% local, RPC atómico, `public/vendor/` gitignore); estado de migraciones aplicadas en Supabase; anti-patterns de vendor y subida de PDFs.
+- `README.md`: stack con `pdfjs-dist` y `tesseract.js`; estructura de `shared/`; nota del prerrelleno alimentado por tarjetones confirmados.
+- `src/features/calculators/README.md`: jornada 6h en Tiempo Extra (6 | 6.5 | 8 | 12), concepto adicional 1 (023/063), sección de prerrelleno normativo y actualización de privacidad (API interna autenticada, sin datos sensibles).
+- `CHANGELOG.md`: entrada 0.003.
+
+### Meta
+- Versión 0.003 en `AGENTS.md`.
+
 ## [0.002] - 2026-07-31
 
 ### Added
