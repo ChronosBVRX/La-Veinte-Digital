@@ -54,15 +54,15 @@ jobs:
 
       - name: Check every table has RLS enabled
         run: |
-          supabase db query --local "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p') AND NOT c.relrowsecurity AND c.relname NOT LIKE 'pg_%';" > rls_check.txt
+          supabase db query --local --output-format json "SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p') AND NOT c.relrowsecurity AND c.relname NOT LIKE 'pg_%';" > rls_check.txt
           if [ -s rls_check.txt ] && ! grep -q '\[\]' rls_check.txt; then
             echo "Tablas sin RLS:"; cat rls_check.txt; exit 1
           fi
 
       - name: Check seeds and key tables exist after reset
         run: |
-          supabase db query --local "SELECT count(*) FROM public.vacation_mandatory_rest_days WHERE year = 2027;" | grep -q '"count": 12'
-          supabase db query --local "SELECT count(*) FROM pg_class WHERE relname IN ('chat_messages','forum_posts','profiles','payroll_contexts') AND relnamespace='public'::regnamespace;" | grep -q '"count": 4'
+          supabase db query --local --output-format json "SELECT count(*) FROM public.vacation_mandatory_rest_days WHERE year = 2027;" | grep -q '"count": 12'
+          supabase db query --local --output-format json "SELECT count(*) FROM pg_class WHERE relname IN ('chat_messages','forum_posts','profiles','payroll_contexts') AND relnamespace='public'::regnamespace;" | grep -q '"count": 4'
 
   python:
     runs-on: ubuntu-latest
