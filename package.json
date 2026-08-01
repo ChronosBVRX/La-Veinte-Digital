@@ -2,6 +2,9 @@
   "name": "la-veinte-digital",
   "version": "0.001",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "predev": "node scripts/copy-vendor.mjs",
     "dev": "next dev",
@@ -9,7 +12,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
