@@ -208,7 +208,7 @@ supabase db query --linked --file supabase/migrations/<file>.sql
 supabase db query --linked "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
 ```
 
-**PAT actual (válido mientras no se revoque):** `PAT_guardado_en_.env.local`
+**PAT (Supabase access token):** no commitearlo — configurarlo en `.env.local` como `SUPABASE_ACCESS_TOKEN` o en `~/.supabase/access-token`. Se genera en app.supabase.com/account/tokens.
 
 El proyecto ya está vinculado (`supabase link` hecho). Migraciones aplicadas a
 remoto hasta la `004_imported_payslips.sql` (tablas `imported_payslips`,
