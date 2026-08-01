@@ -54,6 +54,7 @@ export function TarjetonImporter({ profile }: TarjetonImporterProps) {
         {(state.step === "review" || state.step === "confirming") && state.parsed && (
           <>
             <Review
+              key={`${state.fileName}-${state.parsed.document.periodRaw}`}
               parsed={state.parsed}
               profile={profile}
               confirming={state.step === "confirming"}

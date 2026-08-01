@@ -7,6 +7,7 @@ import { parseImssObservations } from "../lib/imss-observations-parser"
 import { stripSensitiveFields, maskIdentifier, isSensitiveKey } from "../lib/sanitize-sensitive-fields"
 import { reconstructLines } from "../lib/line-reconstruction"
 import { parseImssTarjeton } from "../lib/imss-tarjeton-parser"
+import { markConceptsConfirmedByUser } from "../lib/confirm-mark"
 import type { PositionedPdfText } from "@/shared/contracts/tarjeton-import"
 
 describe("money-parser", () => {
@@ -237,6 +238,40 @@ describe("imss-tarjeton-parser (orquestador)", () => {
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(outcome.reason).toBe("no_text")
+  })
+})
+
+describe("confirm-mark", () => {
+  it("marca todas las líneas como confirmadas por el trabajador", () => {
+    const parsed = {
+      payroll: {
+        earnings: [
+          { lineIndex: 0, code: "002", description: "Sueldo", amount: 1000, kind: "earning", confidence: 0.6, confirmedByUser: false },
+          { lineIndex: 1, code: "011", description: "Prima", amount: 500, kind: "earning", confidence: 0.9, confirmedByUser: false },
+        ],
+        deductions: [
+          { lineIndex: 0, code: "212", description: "Cuota", amount: 100, kind: "deduction", confidence: 0.7, confirmedByUser: false },
+        ],
+      },
+    }
+    const result = markConceptsConfirmedByUser(parsed as never)
+    expect(result.payroll.earnings.every((l) => l.confirmedByUser)).toBe(true)
+    expect(result.payroll.deductions.every((l) => l.confirmedByUser)).toBe(true)
+    expect(result.payroll.earnings[0]).not.toBe(parsed.payroll.earnings[0])
+  })
+
+  it("no muta el objeto original", () => {
+    const parsed = {
+      payroll: {
+        earnings: [
+          { lineIndex: 0, code: "002", description: "Sueldo", amount: 1000, kind: "earning", confidence: 0.6, confirmedByUser: false },
+        ],
+        deductions: [],
+      },
+    }
+    const result = markConceptsConfirmedByUser(parsed as never)
+    expect(parsed.payroll.earnings[0].confirmedByUser).toBe(false)
+    expect(result.payroll.deductions).toEqual([])
   })
 })
 
