@@ -10,7 +10,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
 
   const { data: post } = await supabase
     .from("forum_posts")
-    .select("*, profiles!forum_posts_author_id_fkey(full_name, avatar_url, matricula, adscripcion), forum_categories(name)")
+    .select("*, limited_profiles!forum_posts_author_id_fkey(full_name, avatar_url), forum_categories(name)")
     .eq("id", id)
     .single()
 
@@ -18,7 +18,7 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
 
   const { data: comments } = await supabase
     .from("forum_comments")
-    .select("*, profiles!forum_comments_author_id_fkey(full_name, avatar_url)")
+    .select("*, limited_profiles!forum_comments_author_id_fkey(full_name, avatar_url)")
     .eq("post_id", id)
     .order("created_at", { ascending: true })
 
@@ -55,9 +55,8 @@ export default async function PostPage({ params }: { params: Promise<{ id: strin
         }}>
           <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
             <User size={12} />
-            {post.profiles?.full_name ?? "Anónimo"}
+            {post.limited_profiles?.full_name ?? "Anónimo"}
           </span>
-          {post.profiles?.matricula && <span>&middot; {post.profiles.matricula}</span>}
           <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
             <Clock size={12} />
             {new Date(post.created_at!).toLocaleDateString("es-MX", {

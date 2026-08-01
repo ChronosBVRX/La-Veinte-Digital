@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import type { CalculatorId, CalculatorPrefillResponse } from "@/shared/contracts/calculator-prefill"
+import type { CalculatorId, CalculatorPrefillResponse, PrefillSource } from "@/shared/contracts/calculator-prefill"
 import type { Tables } from "@/lib/supabase/types"
 import type {
   EmployeePayrollProfile,
@@ -105,14 +105,19 @@ export async function buildCalculatorPrefill(args: BuildCalculatorPrefillArgs): 
   const { calculatorId, userId, targetDate } = args
   const generatedAt = new Date().toISOString()
   const isDev = process.env.NODE_ENV !== "production"
+  const warnings: string[] = []
 
   const supabase = await createClient()
 
-  const { data: profileRow } = await supabase
+  const { data: profileRow, error: profileError } = await supabase
     .from("profiles")
     .select("categoria, antiguedad")
     .eq("id", userId)
     .maybeSingle()
+
+  if (profileError && isDev) {
+    console.warn("[calculator-prefill] perfil no disponible:", profileError.message)
+  }
 
   let contextRow: PayrollContextRow | null = null
   try {
@@ -125,6 +130,41 @@ export async function buildCalculatorPrefill(args: BuildCalculatorPrefillArgs): 
   } catch (err) {
     if (isDev) {
       console.warn("[calculator-prefill] payroll_contexts no disponible:", err instanceof Error ? err.message : err)
+    }
+  }
+
+  // Gating de consentimiento: los datos del tarjetón (categoría, jornada,
+  // antigüedad, conceptos recurrentes, hechos) solo se usan si el trabajador
+  // aceptó el consentimiento. Sin él, el prerrelleno usa únicamente el
+  // perfil básico (categoría/antigüedad que el propio usuario registró).
+  const contextAllowed = contextRow?.consent_given === true
+  const contextProfile = contextAllowed ? contextRow : null
+
+  // Días laborados en el año: solo si vienen del último tarjetón confirmado
+  // (nunca se asume un valor por defecto) y el consentimiento está otorgado.
+  let daysWorkedInAnnualPeriod: { value: number; source: PrefillSource; note?: string } | undefined
+  if (contextAllowed) {
+    try {
+      const { data: latestPayslip } = await supabase
+        .from("imported_payslips")
+        .select("payroll_totals")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const totals = latestPayslip?.payroll_totals
+      const days = isObject(totals) ? asNumber(totals.daysWorkedInYear) : undefined
+      if (days !== undefined && days > 0) {
+        daysWorkedInAnnualPeriod = {
+          value: days,
+          source: "last_payslip",
+          note: "Días laborados del último tarjetón confirmado.",
+        }
+      }
+    } catch (err) {
+      if (isDev) {
+        console.warn("[calculator-prefill] imported_payslips no disponible:", err instanceof Error ? err.message : err)
+      }
     }
   }
 
@@ -146,8 +186,8 @@ export async function buildCalculatorPrefill(args: BuildCalculatorPrefillArgs): 
     return emptyContext("missing_profile")
   }
 
-  const categoryIdentifier = contextRow?.category_name ?? profileRow?.categoria ?? contextRow?.category_id ?? ""
-  const existingCategoryId = contextRow?.category_id ?? undefined
+  const categoryIdentifier = contextProfile?.category_name ?? profileRow?.categoria ?? contextProfile?.category_id ?? ""
+  const existingCategoryId = contextProfile?.category_id ?? undefined
 
   let resolutionStatus: CalculatorPrefillBuildContext["categoryStatus"] = "not_found"
   let category: CalculatorPrefillBuildContext["category"] = null
@@ -171,36 +211,40 @@ export async function buildCalculatorPrefill(args: BuildCalculatorPrefillArgs): 
     }
   }
 
-  const workdayHours = asNumber(contextRow?.workday_hours) ?? category?.workdayHours ?? 8
+  const workdayHours = asNumber(contextProfile?.workday_hours) ?? category?.workdayHours ?? 8
 
-  const employmentType = asString(contextRow?.employment_type) ?? "base"
+  const employmentType = asString(contextProfile?.employment_type) ?? "base"
 
-  const recurringConcepts = normalizeRecurringConcepts(parseJsonArray(contextRow?.recurring_concepts))
+  const recurringConcepts = normalizeRecurringConcepts(parseJsonArray(contextProfile?.recurring_concepts))
 
   const profile: EmployeePayrollProfile = {
     id: userId,
     userId,
-    consentGiven: true,
-    categoryId: category?.categoryId ?? contextRow?.category_id ?? undefined,
-    categoryName: category?.categoryName ?? contextRow?.category_name ?? profileRow?.categoria ?? undefined,
-    categoryCode: category?.categoryCode ?? contextRow?.category_code ?? undefined,
+    consentGiven: contextRow?.consent_given === true,
+    categoryId: category?.categoryId ?? contextProfile?.category_id ?? undefined,
+    categoryName: category?.categoryName ?? contextProfile?.category_name ?? profileRow?.categoria ?? undefined,
+    categoryCode: category?.categoryCode ?? contextProfile?.category_code ?? undefined,
     workdayHours: (VALID_JORNADAS as readonly number[]).includes(workdayHours) ? workdayHours as 6 | 6.5 | 8 | 12 : 8,
     employmentType: (EMPLOYMENT_TYPES as readonly string[]).includes(employmentType)
       ? employmentType as EmployeePayrollProfile["employmentType"]
       : "base",
-    occupationalConditions: parseJsonArray(contextRow?.occupational_conditions).filter(isObject) as unknown as OccupationalCondition[],
-    facts: parseJsonArray(contextRow?.payroll_facts).filter(isObject) as unknown as PayrollFact[],
-    siapConceptMarks: parseJsonArray(contextRow?.siap_concept_marks).filter(isObject) as unknown as SiapConceptMark[],
+    occupationalConditions: parseJsonArray(contextProfile?.occupational_conditions).filter(isObject) as unknown as OccupationalCondition[],
+    facts: parseJsonArray(contextProfile?.payroll_facts).filter(isObject) as unknown as PayrollFact[],
+    siapConceptMarks: parseJsonArray(contextProfile?.siap_concept_marks).filter(isObject) as unknown as SiapConceptMark[],
     recurringConcepts,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+  }
+
+  if (!contextAllowed && contextRow) {
+    warnings.push("Los datos de tu tarjetón aún no se usan: para prellenar con ellos acepta el consentimiento de nómina.")
   }
 
   let seniority: CalculatorPrefillBuildContext["seniority"] = null
   let senioritySource: CalculatorPrefillBuildContext["senioritySource"] = null
   let effectiveSeniorityDate: string | undefined
 
-  const contextSeniorityDate = asString(contextRow?.effective_seniority_date)
+  const contextSeniorityDate = asString(contextProfile?.effective_seniority_date)
   if (contextSeniorityDate) {
     seniority = calculateSeniority(contextSeniorityDate, targetDate)
     senioritySource = "effective_date"
@@ -277,6 +321,8 @@ export async function buildCalculatorPrefill(args: BuildCalculatorPrefillArgs): 
     effectiveSeniorityDate,
     concepts,
     recurringEvidence: buildRecurringEvidence(profile),
+    daysWorkedInAnnualPeriod,
+    warnings,
   })
 
   for (const warning of projection.warnings) {

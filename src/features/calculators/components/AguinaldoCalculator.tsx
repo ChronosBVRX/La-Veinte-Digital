@@ -1,6 +1,7 @@
-﻿"use client"
+"use client"
 
 import { useState, useMemo, useCallback } from "react"
+import { todayForQueryParam } from "@/shared/lib/dates"
 import Link from "next/link"
 import { ArrowLeft, Calculator, RotateCcw, Sparkles } from "lucide-react"
 import { Button } from "@/shared/components/ui/Button"
@@ -25,7 +26,7 @@ interface Props {
 type FieldKey = "c002" | "c011"
 
 export function AguinaldoCalculator({ initialCategoria }: Props) {
-  const targetDate = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const targetDate = useMemo(() => todayForQueryParam(), [])
   const prefill = useCalculatorPrefill("aguinaldo", targetDate)
 
   const initialMatch = useMemo(() => {

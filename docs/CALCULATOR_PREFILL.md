@@ -28,6 +28,14 @@ ninguna fórmula de cálculo**.
    prerrellenan con evidencia confirmada (tarjetón/payroll_contexts). Si no
    hay evidencia, la respuesta lo declara en `missingFacts`/`warnings` y la
    calculadora sigue siendo usable.
+8. **Consentimiento explícito**: los datos provenientes del tarjetón
+   (`payroll_contexts`) solo se usan si el trabajador otorgó el
+   consentimiento (`payroll_contexts.consent_given = true`). Sin él, el
+   prerrelleno usa únicamente el perfil básico (categoría/antigüedad
+   registradas manualmente) y la respuesta incluye el warning
+   "Los datos de tu tarjetón aún no se usan…". El consentimiento se otorga
+   al confirmar un tarjetón, al aceptar el opt-in de nómina o al guardar el
+   perfil laboral (servicio `src/shared/services/payroll-consent.ts`).
 
 ## Arquitectura
 
@@ -76,7 +84,7 @@ usePrefillFields(data)
 | `concepto023` / `concepto063` | number | Solo con evidencia confirmada en tarjetón |
 | `workdayHours` | number | Derivada de la categoría (tiempo-extra) |
 | `seniorityYears` / `effectiveSeniorityDate` | number / string | Cláusula 97 y 2ª julio proporcional |
-| `daysWorkedInAnnualPeriod` | number | Solo 2ª julio proporcional, con fuente real |
+| `daysWorkedInAnnualPeriod` | number | Solo 2ª julio proporcional, con fuente real (`last_payslip` = días del tarjetón confirmado más reciente) |
 
 Cada campo lleva `source`, `confidence`, `effectiveAt`, `editable`,
 `ruleVersion` y `legalReference` para trazabilidad.
@@ -105,9 +113,30 @@ const prefillFields = usePrefillFields({
 
 Tabla `payroll_contexts` (migración `supabase/migrations/003_payroll_contexts.sql`):
 una fila por usuario con categoría resuelta, antigüedad efectiva, jornada,
-condiciones ocupacionales y evidencia de conceptos recurrentes. RLS: solo el
-propietario lee/escribe su fila. Si no existe fila, el servicio degrada a
-`profiles` (categoría + antigüedad textual) sin romper la calculadora.
+condiciones ocupacionales, evidencia de conceptos recurrentes y el
+consentimiento (`consent_given`, `consent_given_at`, añadidos en
+`006_profiles_lifecycle.sql`). RLS: solo el propietario lee/escribe su fila.
+Si no existe fila, el servicio degrada a `profiles` (categoría + antigüedad
+textual) sin romper la calculadora.
+
+El gating de consentimiento vive en `buildCalculatorPrefill`:
+`contextProfile = contextRow?.consent_given === true ? contextRow : null`.
+Con `consent_given = false`, ni categoría/jornada/antigüedad del tarjetón, ni
+`daysWorkedInAnnualPeriod` se entregan al prerrelleno (solo el perfil manual).
+
+La fila se **escribe al confirmar un tarjetón**: el RPC
+`confirm_imported_payslip` (migración `004_imported_payslips.sql`) hace upsert
+del contexto (categoría, jornada solo si es 6/6.5/8/12, antigüedad efectiva,
+merge de 050/023/063 y hecho `concept_054_on_payslip`) dentro de la misma
+transacción que persiste el recibo. El `ON CONFLICT DO UPDATE` del RPC **no
+toca `consent_given`**: el consentimiento se otorga desde el cliente con
+`grantPayrollConsent()` (`src/shared/services/payroll-consent.ts`, upsert de
+`consent_given: true` + fecha) y se revoca con `revokePayrollConsent()`.
+
+Además, el servicio lee el **tarjetón confirmado más reciente**
+(`imported_payslips.payroll_totals.daysWorkedInYear`) para proveer
+`daysWorkedInAnnualPeriod` con `source: "last_payslip"` — solo cuando el
+consentimiento está otorgado.
 
 ## Pruebas
 
@@ -124,7 +153,8 @@ tabulador (legacy), respuestas válidas contra el validador del contrato.
 
 ## Límites conocidos
 
-- La escritura de `payroll_contexts` (sync local → Supabase con
-  consentimiento) aún no está implementada; la tabla y su RLS están listas.
+- El prerrelleno de `daysWorkedInAnnualPeriod` depende de que exista un
+  tarjetón confirmado; sin él, el campo queda vacío (declarado en
+  `missingFacts`) y la calculadora sigue siendo usable.
 - La API es de solo lectura; el prerrelleno se degrada elegantemente si el
   contexto aún no existe.

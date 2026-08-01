@@ -11,7 +11,7 @@ interface Message {
   content: string
   user_id: string
   created_at: string | null
-  profiles: { full_name: string | null; avatar_url: string | null } | null
+  limited_profiles: { full_name: string | null; avatar_url: string | null } | null
 }
 
 export function ChatRoom({ roomId, userId, initialMessages }: { roomId: string; userId: string; initialMessages: Message[] }) {
@@ -29,14 +29,14 @@ export function ChatRoom({ roomId, userId, initialMessages }: { roomId: string; 
         async (payload) => {
           const newMsg = payload.new as { id: string; content: string; user_id: string; created_at: string | null; room_id: string }
           const { data: profile } = await supabase
-            .from("profiles")
+            .from("limited_profiles")
             .select("full_name, avatar_url")
             .eq("id", newMsg.user_id)
             .single()
 
           setMessages((prev) => [
             ...prev,
-            { ...newMsg, profiles: profile ?? { full_name: null, avatar_url: null } },
+            { ...newMsg, limited_profiles: profile ?? { full_name: null, avatar_url: null } },
           ])
         }
       )
@@ -83,7 +83,7 @@ export function ChatRoom({ roomId, userId, initialMessages }: { roomId: string; 
           >
             {msg.user_id !== userId && (
               <div style={{ fontSize: "0.6875rem", fontWeight: 600, marginBottom: "0.25rem", opacity: 0.7 }}>
-                {msg.profiles?.full_name ?? "Usuario"}
+                {msg.limited_profiles?.full_name ?? "Usuario"}
               </div>
             )}
             <p style={{ margin: 0, fontSize: "0.875rem", lineHeight: 1.4 }}>{msg.content}</p>

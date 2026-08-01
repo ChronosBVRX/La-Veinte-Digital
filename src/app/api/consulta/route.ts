@@ -1,36 +1,49 @@
 import { NextResponse } from "next/server"
 import OpenAI from "openai"
 import { createClient } from "@/lib/supabase/server"
+import { requireUser } from "@/shared/server/auth/require-user"
 import data from "@/lib/services/vectorstore-data.json"
 
 const MAX_HISTORY_LENGTH = 20
 const MAX_QUESTION_CHARS = 2000
 const DAILY_QUOTA_PER_USER = 100
-
-const usageLog = new Map<string, { date: string; count: number }>()
-
-function checkQuota(userId: string, ip: string): boolean {
-  const today = new Date().toISOString().slice(0, 10)
-  const keys = [userId, ip]
-  for (const key of keys) {
-    const entry = usageLog.get(key)
-    if (entry && entry.date === today && entry.count >= DAILY_QUOTA_PER_USER) {
-      return false
-    }
-  }
-  for (const key of keys) {
-    const entry = usageLog.get(key) ?? { date: today, count: 0 }
-    if (entry.date !== today) {
-      usageLog.set(key, { date: today, count: 1 })
-    } else {
-      entry.count++
-    }
-  }
-  return true
-}
+const OPENAI_TIMEOUT_MS = 30000
 
 function getOpenAI() {
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY no está configurada")
+  }
+  return new OpenAI({ apiKey })
+}
+
+function newRequestId(): string {
+  return `con-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function withTimeout(ms: number): AbortSignal {
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(), ms)
+  return controller.signal
+}
+
+async function consumeQuota(userId: string): Promise<boolean> {
+  try {
+    const supabase = await createClient()
+    const { data, error } = await supabase.rpc("increment_api_usage", {
+      p_user: userId,
+      p_route: "consulta",
+      p_limit: DAILY_QUOTA_PER_USER,
+    })
+    if (error) {
+      console.error("[consulta] error de cuota:", error.message)
+      return true
+    }
+    return data === true
+  } catch (err) {
+    console.error("[consulta] error inesperado de cuota:", err instanceof Error ? err.message : err)
+    return true
+  }
 }
 
 interface Message {
@@ -105,48 +118,67 @@ function topK(queryEmbedding: number[], query: string, k: number): string[] {
   return Array.from(selected).sort((a, b) => a - b).map((i) => data.chunks[i])
 }
 
-export async function GET() {
-  return NextResponse.json({ status: "ok" })
+/**
+ * Backend Python privado (opcional). El navegador nunca lo llama directo:
+ * pasa por /api/consulta, que lo invoca con el secreto interno cuando
+ * BOT_API_URL está configurado. Si no responde, se degrada al motor
+ * directo de OpenAI dentro de Next.js.
+ */
+async function respondViaPythonBot(
+  history: Message[],
+  question: string,
+  requestId: string,
+): Promise<string | null> {
+  const botUrl = process.env.BOT_API_URL
+  const secret = process.env.BOT_API_SHARED_SECRET
+  if (!botUrl || !secret) return null
+
+  try {
+    const controller = new AbortController()
+    setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS)
+    const res = await fetch(`${botUrl.replace(/\/$/, "")}/consulta`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Bot-Secret": secret,
+      },
+      body: JSON.stringify({ history: history.slice(-MAX_HISTORY_LENGTH) }),
+      signal: controller.signal,
+    })
+    if (!res.ok) {
+      console.warn(`[consulta] ${requestId} bot python ${res.status}, usando motor directo`)
+      return null
+    }
+    const data = await res.json()
+    if (typeof data.respuesta !== "string" || data.respuesta.length === 0) {
+      console.warn(`[consulta] ${requestId} bot python sin respuesta, usando motor directo`)
+      return null
+    }
+    return data.respuesta
+  } catch (err) {
+    console.warn(
+      `[consulta] ${requestId} bot python no disponible, usando motor directo:`,
+      err instanceof Error ? err.message : err,
+    )
+    return null
+  }
 }
 
-export async function POST(req: Request) {
+async function respondDirect(
+  history: Message[],
+  question: string,
+  requestId: string,
+): Promise<NextResponse> {
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
-
-    const ip = req.headers.get("x-forwarded-for") ?? req.headers.get("x-real-ip") ?? "unknown"
-    if (!checkQuota(user.id, ip)) {
-      return NextResponse.json({ error: "Cuota diaria alcanzada. Intenta mañana." }, { status: 429 })
-    }
-
-    const body: { history: Message[] } = await req.json()
-    const { history } = body
-
-    if (!history?.length) {
-      return NextResponse.json({ respuesta: "No recibí ninguna pregunta." })
-    }
-
-    if (history.length > MAX_HISTORY_LENGTH) {
-      return NextResponse.json({ error: "Historial demasiado largo." }, { status: 400 })
-    }
-
-    const question = [...history].reverse().find((m) => m.role === "user")?.content?.trim()
-    if (!question) {
-      return NextResponse.json({ respuesta: "No pude encontrar tu pregunta." })
-    }
-
-    if (question.length > MAX_QUESTION_CHARS) {
-      return NextResponse.json({ error: `La pregunta excede los ${MAX_QUESTION_CHARS} caracteres.` }, { status: 400 })
-    }
-
     const openai = getOpenAI()
-    const embeddingResp = await openai.embeddings.create({
-      model: "text-embedding-ada-002",
-      input: question,
-    })
+    const signal = withTimeout(OPENAI_TIMEOUT_MS)
+    const embeddingResp = await openai.embeddings.create(
+      {
+        model: "text-embedding-ada-002",
+        input: question,
+      },
+      { signal },
+    )
     const queryEmbedding = embeddingResp.data[0].embedding
 
     const relevantChunks = topK(queryEmbedding, question, 8)
@@ -188,16 +220,81 @@ ${context}`
       })),
     ]
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      temperature: 0.0,
-      messages,
-    })
+    const completion = await openai.chat.completions.create(
+      {
+        model: "gpt-4o-mini",
+        temperature: 0.0,
+        messages,
+      },
+      { signal },
+    )
 
     const respuesta = completion.choices[0]?.message?.content ?? "Lo siento, no pude generar una respuesta."
 
     return NextResponse.json({ respuesta })
   } catch {
-    return NextResponse.json({ error: "Ocurrió un error al procesar tu consulta." }, { status: 500 })
+    return NextResponse.json(
+      { error: "Ocurrió un error al procesar tu consulta.", requestId },
+      { status: 500 },
+    )
+  }
+}
+
+export async function GET() {
+  return NextResponse.json({ status: "ok" })
+}
+
+export async function POST(req: Request) {
+  const requestId = newRequestId()
+
+  const auth = await requireUser()
+  if (auth.response) {
+    return auth.response
+  }
+  const user = auth.user
+
+  const allowed = await consumeQuota(user.id)
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Cuota diaria alcanzada. Intenta mañana.", requestId },
+      { status: 429 },
+    )
+  }
+
+  try {
+    const body: { history: Message[] } = await req.json()
+    const { history } = body
+
+    if (!history?.length) {
+      return NextResponse.json({ respuesta: "No recibí ninguna pregunta." })
+    }
+
+    if (history.length > MAX_HISTORY_LENGTH) {
+      return NextResponse.json({ error: "Historial demasiado largo.", requestId }, { status: 400 })
+    }
+
+    const question = [...history].reverse().find((m) => m.role === "user")?.content?.trim()
+    if (!question) {
+      return NextResponse.json({ respuesta: "No pude encontrar tu pregunta." })
+    }
+
+    if (question.length > MAX_QUESTION_CHARS) {
+      return NextResponse.json(
+        { error: `La pregunta excede los ${MAX_QUESTION_CHARS} caracteres.`, requestId },
+        { status: 400 },
+      )
+    }
+
+    const pythonResponse = await respondViaPythonBot(history, question, requestId)
+    if (pythonResponse !== null) {
+      return NextResponse.json({ respuesta: pythonResponse })
+    }
+
+    return await respondDirect(history, question, requestId)
+  } catch {
+    return NextResponse.json(
+      { error: "Ocurrió un error al procesar tu consulta.", requestId },
+      { status: 500 },
+    )
   }
 }

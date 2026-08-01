@@ -1,12 +1,29 @@
 import { NextResponse } from "next/server"
 import OpenAI from "openai"
+import { createClient } from "@/lib/supabase/server"
+import { requireUser } from "@/shared/server/auth/require-user"
+import {
+  parseSimuladorRequest,
+  parseSimuladorChatResponse,
+  parseSimuladorAnalysisResponse,
+  SIMULADOR_DAILY_QUOTA,
+  type SimuladorMessage,
+  type SimuladorScenarioId,
+  type SimuladorDifficulty,
+} from "@/shared/contracts/simulador"
 import data from "@/lib/services/vectorstore-data.json"
 
+const OPENAI_TIMEOUT_MS = 30000
+
 function getOpenAI() {
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY no está configurada")
+  }
+  return new OpenAI({ apiKey })
 }
 
-const SCENARIOS: Record<string, { nombre: string; contexto: string; keywords: string[] }> = {
+const SCENARIOS: Record<SimuladorScenarioId, { nombre: string; contexto: string; keywords: string[] }> = {
   faltas: {
     nombre: "Faltas Injustificadas",
     contexto: "Investigación por faltas de asistencia sin justificar. El trabajador acumuló 3 faltas en 15 días, posible abandono de servicio.",
@@ -71,14 +88,12 @@ function topK(queryEmbedding: number[], query: string, k: number, keywords: stri
     const chunk = data.chunks[i]
     const chunkLower = chunk.toLowerCase()
 
-    // Keyword boosts from scenario
     for (const kw of keywords) {
       if (q.includes(kw.toLowerCase()) && chunkLower.includes(kw.toLowerCase())) {
         score += 0.25
       }
     }
 
-    // Boost Ley Federal del Trabajo and Ley General de Salud when relevant
     if (q.includes("ley federal") && chunkLower.includes("ley federal del trabajo")) score += 0.4
     if (q.includes("ley general de salud") && chunkLower.includes("ley general de salud")) score += 0.4
     if (q.includes("confidencialidad") && chunkLower.includes("ley general de salud")) score += 0.3
@@ -88,7 +103,6 @@ function topK(queryEmbedding: number[], query: string, k: number, keywords: stri
     if (q.includes("rescisión") && chunkLower.includes("rescisión")) score += 0.35
     if (q.includes("disciplinaria") && chunkLower.includes("disciplinaria")) score += 0.3
 
-    // Structural boosts for article/clause references
     for (const qn of queryArts) {
       if (new RegExp(`art[iíïi]culo\\s*${qn}`, "i").test(chunk)) score += 0.8
     }
@@ -109,56 +123,152 @@ function topK(queryEmbedding: number[], query: string, k: number, keywords: stri
   return Array.from(selected).sort((a, b) => a - b).map((i) => data.chunks[i])
 }
 
+function newRequestId(): string {
+  return `sim-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function withTimeout(signal: AbortSignal, ms: number): AbortSignal {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ms)
+  signal.addEventListener(
+    "abort",
+    () => {
+      clearTimeout(timer)
+      controller.abort()
+    },
+    { once: true },
+  )
+  return controller.signal
+}
+
+async function consumeQuota(userId: string, route: string): Promise<boolean> {
+  try {
+    const supabase = await createClient()
+    const { data, error } = await supabase.rpc("increment_api_usage", {
+      p_user: userId,
+      p_route: route,
+      p_limit: SIMULADOR_DAILY_QUOTA,
+    })
+    if (error) {
+      console.error("[simulador] error de cuota:", error.message)
+      return true
+    }
+    return data === true
+  } catch (err) {
+    console.error("[simulador] error inesperado de cuota:", err instanceof Error ? err.message : err)
+    return true
+  }
+}
+
+/**
+ * Recupera contexto normativo por embeddings. Cuando falla (embedding o
+ * búsqueda), devuelve un resultado explícito para que el prompt NO le diga
+ * al modelo que "tiene conocimiento" de documentos que no se recuperaron.
+ */
+async function retrieveContext(
+  openai: OpenAI,
+  query: string,
+  k: number,
+  keywords: string[],
+  signal: AbortSignal,
+): Promise<{ ok: true; context: string } | { ok: false }> {
+  try {
+    const embeddingResp = await openai.embeddings.create(
+      {
+        model: "text-embedding-ada-002",
+        input: query,
+      },
+      { signal },
+    )
+    const queryEmbedding = embeddingResp.data[0].embedding
+    const relevantChunks = topK(queryEmbedding, query, k, keywords)
+    const context = relevantChunks.join("\n\n---\n\n")
+    return { ok: true, context }
+  } catch {
+    return { ok: false }
+  }
+}
+
 export async function GET() {
   return NextResponse.json({ status: "ok" })
 }
 
 export async function POST(req: Request) {
+  const requestId = newRequestId()
+
+  const auth = await requireUser()
+  if (auth.response) {
+    return NextResponse.json(
+      { error: "No autenticado", code: "unauthorized", requestId },
+      { status: 401 },
+    )
+  }
+  const user = auth.user
+
+  let body: unknown
   try {
-    const body = await req.json()
-    const { action, history, scenario: scenarioId, difficulty = 1 } = body
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: "JSON inválido", requestId }, { status: 400 })
+  }
 
-    if (action === "analyze") {
-      return handleAnalysis(history, scenarioId)
-    }
+  const parsed = parseSimuladorRequest(body)
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error, requestId }, { status: 400 })
+  }
 
-    return handleChat(history, scenarioId, difficulty)
-  } catch (e) {
-    const error = e as Error
-    return NextResponse.json({ error: `Error interno: ${error.message}` }, { status: 500 })
+  const { action, scenario, difficulty, history } = parsed.value
+
+  const allowed = await consumeQuota(user.id, "simulador")
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Cuota diaria alcanzada. Intenta mañana.", requestId },
+      { status: 429 },
+    )
+  }
+
+  try {
+    const result =
+      action === "analyze"
+        ? await handleAnalysis(history, scenario, requestId)
+        : await handleChat(history, scenario, difficulty, requestId)
+    return result
+  } catch (err) {
+    console.error(`[simulador] ${requestId} error:`, err instanceof Error ? err.message : err)
+    return NextResponse.json(
+      { error: "Ocurrió un error al procesar la solicitud", requestId },
+      { status: 500 },
+    )
   }
 }
 
 async function handleChat(
-  history: { role: string; content: string }[],
-  scenarioId: string,
-  difficulty: number
-) {
-  const scenario = SCENARIOS[scenarioId] ?? SCENARIOS.faltas
-  const question = [...history].reverse().find((m) => m.role === "user")?.content?.trim()
+  history: SimuladorMessage[],
+  scenarioId: SimuladorScenarioId,
+  difficulty: SimuladorDifficulty,
+  requestId: string,
+): Promise<NextResponse> {
+  const scenario = SCENARIOS[scenarioId]
   const openai = getOpenAI()
+  const controller = new AbortController()
+  const signal = withTimeout(controller.signal, OPENAI_TIMEOUT_MS)
 
-  // Build rich context from ALL documentation
-  const searchQuery = `${scenario.nombre} ${scenario.keywords.join(" ")} ${question ?? ""}`
-  let context = ""
+  const question = [...history].reverse().find((m) => m.role === "user")?.content?.trim() ?? ""
+  const searchQuery = `${scenario.nombre} ${scenario.keywords.join(" ")} ${question}`
 
-  try {
-    const embeddingResp = await openai.embeddings.create({
-      model: "text-embedding-ada-002",
-      input: searchQuery,
-    })
-    const queryEmbedding = embeddingResp.data[0].embedding
-    const relevantChunks = topK(queryEmbedding, searchQuery, 12, scenario.keywords)
-    context = relevantChunks.join("\n\n---\n\n")
-  } catch {
-    context = ""
-  }
+  const retrieved = await retrieveContext(openai, searchQuery, 12, scenario.keywords, signal)
 
-  const intensityDesc = difficulty === 2
-    ? "Eres INTIMIDADOR, buscas contradicciones agresivamente, aceleras el ritmo, interrumpes con preguntas de seguimiento, y usas un tono de presión constante. No das tiempo para respirar."
-    : "Tus preguntas son directas pero formales, das tiempo para responder, mantienes un tono profesional sin ser agresivo."
+  const intensityDesc =
+    difficulty === 2
+      ? "Eres INTIMIDADOR, buscas contradicciones agresivamente, aceleras el ritmo, interrumpes con preguntas de seguimiento, y usas un tono de presión constante. No das tiempo para respirar."
+      : "Tus preguntas son directas pero formales, das tiempo para responder, mantienes un tono profesional sin ser agresivo."
 
   const isFirstMessage = history.length <= 1
+
+  const normativitySection = retrieved.ok
+    ? `NORMATIVIDAD APLICABLE (DOCUMENTACIÓN OFICIAL — debes basar tus preguntas ESTRICTAMENTE en este contenido):\n${retrieved.context}`
+    : `NORMATIVIDAD APLICABLE:
+La recuperación de documentos falló para esta consulta. NO digas que tienes conocimiento de cláusulas o artículos específicos. NO cites números de cláusula, artículo o documento. Formula preguntas procedimentales genéricas (qué sucedió, quién estuvo presente, qué registros existen) sin referencias documentales y sin presentar citas que no puedas verificar.`
 
   const systemPrompt = `Eres el Lic. Mendoza, funcionario del área jurídica del IMSS o representante de la Comisión Mixta Disciplinaria. Tu personalidad es FRÍA, BUROCRÁTICA, INCISIVA y PROFESIONAL. Hablas como un investigador que busca esclarecer los hechos. NO eres amigable, NO usas emojis, NO das consejos. Eres neutral y procedimental.
 
@@ -168,15 +278,14 @@ ${scenario.contexto}
 NIVEL DE DIFICULTAD: ${difficulty === 2 ? "Nivel 2 - Presión Alta" : "Nivel 1 - Aclaración de hechos"}
 ${intensityDesc}
 
-NORMATIVIDAD APLICABLE (DOCUMENTACIÓN OFICIAL — debes basar tus preguntas ESTRICTAMENTE en este contenido):
-${context || "Tienes conocimiento de la normatividad IMSS, CCT, Estatutos SNTSS, Ley Federal del Trabajo y Ley General de Salud. Debes citar artículos y cláusulas específicos."}
+${normativitySection}
 
 INSTRUCCIONES ESTRICTAS — CERO INVENCIÓN:
 1. NO inventes cláusulas, artículos o disposiciones que no estén en el contexto proporcionado.
 2. Cada pregunta o afirmación debe poder respaldarse con una referencia documental específica (Cláusula X, Artículo Y, Ley Z).
 3. Si no encuentras una disposición específica en el contexto, formula la pregunta de forma genérica sin citar artículos falsos.
 4. Es preferible decir "según la normatividad aplicable" a inventar un número de artículo.
-5. Cita SIEMPRE el documento de origen: "[Clausulas.pdf]", "[Ley Federal del Trabajo.pdf]", "[REGLAMENTO INTERIOR DE TRABAJO.pdf]", etc.
+5. Cita SIEMPRE el documento de origen cuando exista en el contexto: "[Clausulas.pdf]", "[Ley Federal del Trabajo.pdf]", etc. Nunca inventes un documento.
 6. Tus preguntas deben ser verosímiles y basadas en derecho laboral real.
 
 REGLAS DE CONDUCTA:
@@ -188,7 +297,7 @@ REGLAS DE CONDUCTA:
 6. Si el trabajador pide un abogado o representante sindical, indícale que tiene derecho pero que la investigación continuará.
 
 ${isFirstMessage ? `INICIO DE LA AUDIENCIA:
-Comienza la investigación presentándote formalmente como el Lic. Mendoza, del área jurídica, indicando el motivo de la citatoria y preguntando al trabajador si está consciente del motivo de esta investigación. Menciona la normatividad aplicable citando documentos reales del contexto. No seas agresivo en la primera interacción, pero sí formal y serio.` : ""}
+Comienza la investigación presentándote formalmente como el Lic. Mendoza, del área jurídica, indicando el motivo de la citatoria y preguntando al trabajador si está consciente del motivo de esta investigación. Menciona la normatividad aplicable SOLO si está en el contexto proporcionado. No seas agresivo en la primera interacción, pero sí formal y serio.` : ""}
 
 IMPORTANTE: Debes responder ÚNICAMENTE con un objeto JSON válido en este formato exacto (sin texto adicional, sin markdown):
 {"mensaje": "tu respuesta como inquisidor", "presion": 1-10, "estado": "neutral"|"inquisitivo"|"presionando"|"desaprobando"}
@@ -206,57 +315,83 @@ Donde:
     })),
   ]
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    temperature: difficulty === 2 ? 0.5 : 0.2,
-    messages,
-  })
+  const completion = await openai.chat.completions.create(
+    {
+      model: "gpt-4o-mini",
+      temperature: difficulty === 2 ? 0.5 : 0.2,
+      messages,
+    },
+    { signal },
+  )
 
-  const raw = completion.choices[0]?.message?.content ?? "{}"
-  let parsed: { mensaje: string; presion: number; estado: string }
-
-  try {
-    const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
-    parsed = JSON.parse(cleaned)
-  } catch {
-    parsed = { mensaje: raw.replace(/[{}"]/g, ""), presion: 5, estado: "neutral" }
+  const raw = completion.choices[0]?.message?.content ?? ""
+  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
+  const parsed = parseSimuladorChatResponse(safeJsonParse(cleaned))
+  if (parsed) {
+    return NextResponse.json(parsed)
   }
 
-  return NextResponse.json({
-    respuesta: parsed.mensaje,
-    presion: Math.max(1, Math.min(10, parsed.presion ?? 5)),
-    estado: ["neutral", "inquisitivo", "presionando", "desaprobando"].includes(parsed.estado)
-      ? parsed.estado : "neutral",
-  })
+  console.warn(`[simulador] ${requestId} respuesta no estructurada de la IA, reintentando`)
+  const retry = await openai.chat.completions.create(
+    {
+      model: "gpt-4o-mini",
+      temperature: 0,
+      messages: [
+        ...messages,
+        {
+          role: "user",
+          content:
+            "Tu respuesta anterior no fue un JSON válido. Responde ÚNICAMENTE con el objeto JSON del formato indicado, sin texto adicional.",
+        },
+      ],
+    },
+    { signal },
+  )
+  const retryRaw = retry.choices[0]?.message?.content ?? ""
+  const retryParsed = parseSimuladorChatResponse(
+    safeJsonParse(retryRaw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()),
+  )
+  if (retryParsed) {
+    return NextResponse.json(retryParsed)
+  }
+
+  return NextResponse.json(
+    { error: "El asistente no produjo una respuesta válida", requestId },
+    { status: 503 },
+  )
 }
 
-async function handleAnalysis(history: { role: string; content: string }[], scenarioId: string) {
-  const scenario = SCENARIOS[scenarioId] ?? SCENARIOS.faltas
+async function handleAnalysis(
+  history: SimuladorMessage[],
+  scenarioId: SimuladorScenarioId,
+  requestId: string,
+): Promise<NextResponse> {
+  const scenario = SCENARIOS[scenarioId]
   const conversationText = history
     .map((m) => `${m.role === "user" ? "TRABAJADOR" : "LIC. MENDOZA"}: ${m.content}`)
     .join("\n\n")
 
   const openai = getOpenAI()
+  const controller = new AbortController()
+  const signal = withTimeout(controller.signal, OPENAI_TIMEOUT_MS)
 
-  // Get relevant legal context for the analysis
   const lastMessages = history.slice(-4).map((m) => m.content).join(" ")
-  let legalContext = ""
-  try {
-    const embeddingResp = await openai.embeddings.create({
-      model: "text-embedding-ada-002",
-      input: `${scenario.nombre} ${scenario.keywords.join(" ")} ${lastMessages}`,
-    })
-    const queryEmbedding = embeddingResp.data[0].embedding
-    const relevantChunks = topK(queryEmbedding, lastMessages, 8, scenario.keywords)
-    legalContext = relevantChunks.join("\n\n---\n\n")
-  } catch {
-    legalContext = ""
-  }
+  const retrieved = await retrieveContext(
+    openai,
+    `${scenario.nombre} ${scenario.keywords.join(" ")} ${lastMessages}`,
+    8,
+    scenario.keywords,
+    signal,
+  )
 
-  const systemPrompt = `Eres un analista especializado en evaluar el desempeño de trabajadores en investigaciones laborales y auditorías disciplinarias del IMSS. Debes analizar la siguiente conversación entre un trabajador y un investigador (Lic. Mendoza del área jurídica).
+  const normativitySection = retrieved.ok
+    ? `NORMATIVIDAD DE REFERENCIA PARA ESTE ANÁLISIS (usa esto para identificar qué artículos debió invocar el trabajador):\n${retrieved.context}`
+    : `NORMATIVIDAD DE REFERENCIA PARA ESTE ANÁLISIS:
+La recuperación de documentos falló. NO inventes artículos ni cláusulas. Evalúa el desempeño con criterios procedimentales generales (claridad, compostura, contradicciones) y deja articulosRelevantes vacío.`
 
-NORMATIVIDAD DE REFERENCIA PARA ESTE ANÁLISIS (usa esto para identificar qué artículos debió invocar el trabajador):
-${legalContext || "CCT del IMSS, Ley Federal del Trabajo, Reglamento Interior de Trabajo, Estatutos SNTSS."}
+  const systemPrompt = `Eres un analista especializado en evaluar el desempeño de trabajadores en investigaciones laborales y auditorías disciplinarias del IMSS. Debes analizar la siguiente conversación entre un trabajador y un investigador (Lic. Mendoza del área jurídica), correspondiente a una investigación por: ${scenario.nombre}.
+
+${normativitySection}
 
 Evalúa los siguientes aspectos y responde ÚNICAMENTE con un objeto JSON (sin texto adicional):
 
@@ -274,7 +409,7 @@ CRITERIOS DE EVALUACIÓN:
 - puntajeFirmeza: ¿Respondió con claridad y seguridad? ¿Se contradijo o dio respuestas vagas?
 - erroresTacticos: ¿Dijo algo que podría usarse en su contra? ¿Habló de más? ¿Se autoincriminó? ¿No supo citar normatividad aplicable?
 - fortalezas: ¿Mantuvo silencio cuando debía? ¿Respondió con precisión? ¿Citó cláusulas?
-- articulosRelevantes: Basado en NORMATIVIDAD REAL del contexto. NO inventes artículos. Usa SOLO los documentos y artículos que aparecen en el contexto proporcionado. Ej: "Cláusula 47 del CCT", "Artículo 51 del Reglamento Interior de Trabajo", "Artículo 47 de la Ley Federal del Trabajo".
+- articulosRelevantes: Basado en NORMATIVIDAD REAL del contexto. NO inventes artículos. Usa SOLO los documentos y artículos que aparecen en el contexto proporcionado. Si el contexto está vacío o no contiene el artículo específico, devuelve un arreglo vacío.
 - resumen: Evaluación general y recomendación pedagógica para mejorar en futuras investigaciones.
 
 IMPORTANTE: Sé objetivo y constructivo. NO inventes referencias legales. Usa exclusivamente la normatividad del contexto proporcionado. Si el contexto no contiene un artículo específico, no lo inventes.`
@@ -284,32 +419,57 @@ IMPORTANTE: Sé objetivo y constructivo. NO inventes referencias legales. Usa ex
     { role: "user", content: `Aquí está la transcripción de la investigación:\n\n${conversationText}` },
   ]
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    temperature: 0.2,
-    messages,
-  })
+  const completion = await openai.chat.completions.create(
+    {
+      model: "gpt-4o-mini",
+      temperature: 0.2,
+      messages,
+    },
+    { signal },
+  )
 
-  const raw = completion.choices[0]?.message?.content ?? "{}"
+  const raw = completion.choices[0]?.message?.content ?? ""
+  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
+  const parsed = parseSimuladorAnalysisResponse(safeJsonParse(cleaned))
+  if (parsed) {
+    return NextResponse.json(parsed)
+  }
 
+  console.warn(`[simulador] ${requestId} análisis no estructurado de la IA, reintentando`)
+  const retry = await openai.chat.completions.create(
+    {
+      model: "gpt-4o-mini",
+      temperature: 0,
+      messages: [
+        ...messages,
+        {
+          role: "user",
+          content:
+            "Tu respuesta anterior no fue un JSON válido. Responde ÚNICAMENTE con el objeto JSON del formato indicado, sin texto adicional.",
+        },
+      ],
+    },
+    { signal },
+  )
+  const retryRaw = retry.choices[0]?.message?.content ?? ""
+  const retryParsed = parseSimuladorAnalysisResponse(
+    safeJsonParse(retryRaw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()),
+  )
+  if (retryParsed) {
+    return NextResponse.json(retryParsed)
+  }
+
+  return NextResponse.json(
+    { error: "El análisis no produjo una respuesta válida", requestId },
+    { status: 503 },
+  )
+}
+
+function safeJsonParse(text: string): unknown {
+  if (!text) return null
   try {
-    const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
-    const parsed = JSON.parse(cleaned)
-    return NextResponse.json({
-      puntajeCalma: Math.max(0, Math.min(100, parsed.puntajeCalma ?? 50)),
-      puntajeFirmeza: Math.max(0, Math.min(100, parsed.puntajeFirmeza ?? 50)),
-      erroresTacticos: Array.isArray(parsed.erroresTacticos) ? parsed.erroresTacticos : [],
-      fortalezas: Array.isArray(parsed.fortalezas) ? parsed.fortalezas : [],
-      articulosRelevantes: Array.isArray(parsed.articulosRelevantes) ? parsed.articulosRelevantes : [],
-      resumen: parsed.resumen ?? "No se pudo generar un análisis completo.",
-    })
+    return JSON.parse(text)
   } catch {
-    return NextResponse.json({
-      puntajeCalma: 50, puntajeFirmeza: 50,
-      erroresTacticos: ["No se pudieron analizar los errores tácticos automáticamente."],
-      fortalezas: ["No se pudieron identificar fortalezas automáticamente."],
-      articulosRelevantes: ["Revisa la normatividad aplicable con tu representante sindical."],
-      resumen: "No se pudo completar el análisis automático. Consulta a tu representante sindical para retroalimentación personalizada.",
-    })
+    return null
   }
 }

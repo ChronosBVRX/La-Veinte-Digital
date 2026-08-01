@@ -1,68 +1,81 @@
 import os
 import re
+import secrets
 from typing import List, Literal
-from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, Query
+from fastapi import FastAPI, Request, Header, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
-from embedding_service import generar_y_guardar_vectorstore, consulta_contrato
-from facebook_scraper import get_posts
+from embedding_service import consulta_contrato
 
 load_dotenv()
 BASE = os.getcwd()
-VECTORSTORE_DIR = os.path.join(BASE, "vectorstore")
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    if not os.path.exists(VECTORSTORE_DIR):
-        print("Vectorstore no encontrado. Generando uno nuevo a partir de los PDFs...")
-        generar_y_guardar_vectorstore()
-    yield
+SHARED_SECRET = os.getenv("BOT_API_SHARED_SECRET", "")
 
-app = FastAPI(lifespan=lifespan)
+CORS_ORIGIN = os.getenv(
+    "BOT_CORS_ORIGIN", "https://la-veinte-digital.vercel.app"
+)
+
+MAX_HISTORY_LENGTH = 20
+MAX_CONTENT_CHARS = 2000
+
+app = FastAPI(
+    title="Bot SNTSS (privado)",
+    docs_url="/docs" if SHARED_SECRET else None,
+    openapi_url="/openapi.json" if SHARED_SECRET else None,
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[CORS_ORIGIN],
+    allow_credentials=False,
+    allow_methods=["POST", "GET"],
+    allow_headers=["Content-Type", "X-Bot-Secret"],
 )
+
+
+def _require_secret(x_bot_secret: str | None = Header(default=None)) -> None:
+    if not SHARED_SECRET:
+        raise HTTPException(status_code=503, detail="Servicio no configurado")
+    if not x_bot_secret or not secrets.compare_digest(x_bot_secret, SHARED_SECRET):
+        raise HTTPException(status_code=401, detail="No autorizado")
+
 
 app.mount(
     "/static",
     StaticFiles(directory=os.path.join(BASE, "static")),
-    name="static"
+    name="static",
 )
+
 
 @app.get("/")
 async def index():
     return FileResponse(os.path.join(BASE, "static", "index.html"))
 
-@app.head("/")
-async def head_index():
-    return FileResponse(os.path.join(BASE, "static", "index.html"))
 
 class Message(BaseModel):
     role: Literal["user", "assistant"]
-    content: str
+    content: str = Field(min_length=1, max_length=MAX_CONTENT_CHARS)
+
 
 class ConsultaRequest(BaseModel):
-    history: List[Message]
+    history: List[Message] = Field(max_length=MAX_HISTORY_LENGTH)
+
 
 @app.post("/consulta")
-async def endpoint_consulta(req: ConsultaRequest):
+async def endpoint_consulta(req: ConsultaRequest, x_bot_secret: str | None = Header(default=None)):
+    _require_secret(x_bot_secret)
     history = req.history
     if not history:
         return {"respuesta": "No recibí ninguna pregunta. ¿En qué puedo ayudar?"}
 
     if len(history) == 1 and history[0].role == "user":
         saludo = history[0].content.strip()
-        if re.match(r'^(hola|buenos días|buenas tardes|buenas noches|hey|qué tal)\s*$', saludo, re.I):
+        if re.match(r"^(hola|buenos días|buenas tardes|buenas noches|hey|qué tal)\s*$", saludo, re.I):
             return {
                 "respuesta": (
                     "¡Hola! 👋 Soy tu **Asistente SNTSS**, tu aliado en temas laborales del IMSS. "
@@ -80,34 +93,12 @@ async def endpoint_consulta(req: ConsultaRequest):
     if not question:
         return {"respuesta": "No pude encontrar tu pregunta en el historial."}
 
-    try:
-        historial_dicts = [h.model_dump() if hasattr(h, 'model_dump') else h.dict() for h in history]
-        respuesta = consulta_contrato(question, historial_dicts)
-        return {"respuesta": respuesta}
+    historial_dicts = [h.model_dump() for h in history]
+    respuesta = consulta_contrato(question, historial_dicts)
+    return {"respuesta": respuesta}
 
-    except Exception as e:
-        return {"error": f"Ocurrió un error interno: {str(e)}"}
-
-@app.get("/facebook")
-async def facebook_posts(page: str = Query("SNTSSSeccionXXMichoacan"), pages: int = Query(3)):
-    try:
-        posts = []
-        for post in get_posts(page, pages=pages):
-            posts.append({
-                "id": post.get("post_id"),
-                "text": post.get("text"),
-                "time": str(post.get("time") or ""),
-                "image": post.get("image"),
-                "video": post.get("video"),
-                "likes": post.get("likes"),
-                "comments": post.get("comments"),
-                "shares": post.get("shares"),
-                "url": post.get("post_url"),
-            })
-        return {"posts": posts}
-    except Exception as e:
-        return {"error": str(e)}
 
 @app.get("/health")
-async def health():
+async def health(x_bot_secret: str | None = Header(default=None)):
+    _require_secret(x_bot_secret)
     return {"status": "ok"}

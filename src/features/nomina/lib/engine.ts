@@ -48,27 +48,33 @@ export function topologicalSort(rules: PayrollRule[]): PayrollRule[] {
 export function detectCircularDependencies(rules: PayrollRule[]): string[] {
   const ruleMap = new Map(rules.map((r) => [r.id, r]))
   const errors: string[] = []
+  const state = new Map<string, "visiting" | "done">()
+  const path: string[] = []
 
-  for (const rule of rules) {
-    const visited = new Set<string>()
-    const stack = [rule.id]
-
-    while (stack.length > 0) {
-      const current = stack.pop()!
-      if (visited.has(current)) {
-        errors.push(`Dependencia circular: ${[...visited, current].join(" -> ")}`)
-        break
-      }
-      visited.add(current)
-      const r = ruleMap.get(current)
-      if (r) {
-        for (const dep of r.dependencies) {
-          if (ruleMap.has(dep)) {
-            stack.push(dep)
-          }
+  function visit(id: string) {
+    const s = state.get(id)
+    if (s === "done") return
+    if (s === "visiting") {
+      const cycleStart = path.indexOf(id)
+      errors.push(`Dependencia circular: ${[...path.slice(cycleStart), id].join(" -> ")}`)
+      return
+    }
+    state.set(id, "visiting")
+    path.push(id)
+    const rule = ruleMap.get(id)
+    if (rule) {
+      for (const dep of rule.dependencies) {
+        if (ruleMap.has(dep)) {
+          visit(dep)
         }
       }
     }
+    path.pop()
+    state.set(id, "done")
+  }
+
+  for (const rule of rules) {
+    visit(rule.id)
   }
 
   return errors
@@ -172,7 +178,7 @@ export function calculateProjection(input: PayrollProjectionInput): PayrollProje
     }
   }
 
-  const totals = calculateProjectionTotals(allConcepts, mode)
+  const totals = calculateProjectionTotals(allConcepts)
 
   const totalEarnings = earnings.reduce((s, c) => s + c.amount, 0)
   const totalDeductions = deductions.reduce((s, c) => s + c.amount, 0)

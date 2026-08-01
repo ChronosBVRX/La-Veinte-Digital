@@ -92,7 +92,7 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
     return {
       id: profile?.id ?? crypto.randomUUID?.() ?? `${Date.now()}`,
       userId: profile?.userId ?? "",
-      consentGiven: true,
+      consentGiven: profile?.consentGiven ?? false,
       consentDate: profile?.consentDate ?? new Date().toISOString(),
       categoryId: form.categoryId || undefined,
       categoryName: form.categoryName || undefined,

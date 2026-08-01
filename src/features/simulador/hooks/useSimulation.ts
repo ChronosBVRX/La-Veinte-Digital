@@ -2,61 +2,59 @@
 
 import { useState, useCallback } from "react"
 import { consultarSimulador, analizarDesempeno, type SimMessage, type AnalysisResult } from "../services/bot"
+import { SIMULADOR_SCENARIOS, type SimuladorScenarioId } from "@/shared/contracts/simulador"
 
 export type Phase = "disclaimer" | "setup" | "simulation" | "report"
 
 export interface Scenario {
-  id: string
+  id: SimuladorScenarioId
   nombre: string
   descripcion: string
   contexto: string
   clausulas: string[]
 }
 
-export const SCENARIOS: Scenario[] = [
-  {
-    id: "faltas",
-    nombre: "Faltas Injustificadas",
-    descripcion: "Se te acusa de haber faltado sin justificación durante 3 días.",
-    contexto: "Investigación por ausencias no justificadas.",
-    clausulas: ["Cláusula 47 CCT", "Art. 51 Reglamento"],
-  },
-  {
-    id: "maltrato",
-    nombre: "Presunto Maltrato",
-    descripcion: "Un compañero presentó queja formal por maltrato verbal.",
-    contexto: "Investigación por queja de maltrato.",
-    clausulas: ["Cláusula 9 CCT", "Art. 48 Reglamento"],
-  },
-  {
-    id: "incumplimiento",
-    nombre: "Incumplimiento de Funciones",
-    descripcion: "Se te señala por no realizar funciones según tu profesiograma.",
-    contexto: "Investigación por omisión de funciones laborales.",
-    clausulas: ["Cláusula 3 CCT", "Cláusula 45 CCT"],
-  },
-  {
-    id: "extravio",
-    nombre: "Extravío de Insumos",
-    descripcion: "Se te responsabiliza por pérdida de materiales ($15,000 aprox).",
-    contexto: "Investigación por faltante en inventario bajo tu resguardo.",
-    clausulas: ["Cláusula 38 CCT", "Cláusula 52 CCT"],
-  },
-  {
-    id: "retardo",
-    nombre: "Retardos Frecuentes",
-    descripcion: "Se te acusa de retardos recurrentes en tu turno.",
-    contexto: "Investigación por retardos acumulados.",
-    clausulas: ["Cláusula 47 CCT", "Reglamento Interior"],
-  },
-  {
-    id: "confidencialidad",
-    nombre: "Violación de Confidencialidad",
-    descripcion: "Presunta divulgación de información sensible del IMSS.",
-    contexto: "Investigación por queja anónima sobre filtración de datos.",
-    clausulas: ["Cláusula 8 CCT", "Cláusula 42 CCT"],
-  },
-]
+export const SCENARIOS: Scenario[] = SIMULADOR_SCENARIOS.map((id) => {
+  const def: Record<string, Omit<Scenario, "id">> = {
+    faltas: {
+      nombre: "Faltas Injustificadas",
+      descripcion: "Se te acusa de haber faltado sin justificación durante 3 días.",
+      contexto: "Investigación por ausencias no justificadas.",
+      clausulas: ["Cláusula 47 CCT", "Art. 51 Reglamento"],
+    },
+    maltrato: {
+      nombre: "Presunto Maltrato",
+      descripcion: "Un compañero presentó queja formal por maltrato verbal.",
+      contexto: "Investigación por queja de maltrato.",
+      clausulas: ["Cláusula 9 CCT", "Art. 48 Reglamento"],
+    },
+    incumplimiento: {
+      nombre: "Incumplimiento de Funciones",
+      descripcion: "Se te señala por no realizar funciones según tu profesiograma.",
+      contexto: "Investigación por omisión de funciones laborales.",
+      clausulas: ["Cláusula 3 CCT", "Cláusula 45 CCT"],
+    },
+    extravio: {
+      nombre: "Extravío de Insumos",
+      descripcion: "Se te responsabiliza por pérdida de materiales ($15,000 aprox).",
+      contexto: "Investigación por faltante en inventario bajo tu resguardo.",
+      clausulas: ["Cláusula 38 CCT", "Cláusula 52 CCT"],
+    },
+    retardo: {
+      nombre: "Retardos Frecuentes",
+      descripcion: "Se te acusa de retardos recurrentes en tu turno.",
+      contexto: "Investigación por retardos acumulados.",
+      clausulas: ["Cláusula 47 CCT", "Reglamento Interior"],
+    },
+    confidencialidad: {
+      nombre: "Violación de Confidencialidad",
+      descripcion: "Presunta divulgación de información sensible del IMSS.",
+      contexto: "Investigación por queja anónima sobre filtración de datos.",
+      clausulas: ["Cláusula 8 CCT", "Cláusula 42 CCT"],
+    },
+  }
+  return { id, ...def[id] }
+})
 
 const INITIAL_INQUISITOR_MSG = "..."
 
@@ -137,7 +135,7 @@ export function useSimulation() {
     setPhase("report")
 
     try {
-      const result = await analizarDesempeno(messages)
+      const result = await analizarDesempeno(messages, scenario.id)
       setAnalysis(result)
     } catch {
       setAnalysis({
@@ -151,7 +149,7 @@ export function useSimulation() {
     } finally {
       setLoading(false)
     }
-  }, [messages])
+  }, [messages, scenario.id])
 
   const reset = useCallback(() => {
     setPhase("setup")

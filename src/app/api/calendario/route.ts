@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server"
 import { generateICS } from "@/features/calendario/services/calendarioData"
+import { institutionalToday } from "@/shared/lib/dates"
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const mesParam = searchParams.get("mes")
   const yearParam = searchParams.get("anio")
-  const year = yearParam ? parseInt(yearParam) : new Date().getFullYear()
+  const year = yearParam ? parseInt(yearParam) : institutionalToday().getFullYear()
   const monthIndex = mesParam !== null ? parseInt(mesParam) : undefined
 
   const content = generateICS(year, monthIndex)

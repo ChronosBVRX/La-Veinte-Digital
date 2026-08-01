@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Vendor assets descargados (workers de PDF.js/Tesseract).
+    "public/vendor/**",
   ]),
 ]);
 

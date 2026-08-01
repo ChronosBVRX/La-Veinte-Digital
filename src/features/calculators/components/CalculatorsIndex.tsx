@@ -1,6 +1,7 @@
 ﻿"use client"
 
-import { Calculator, Calendar, DollarSign, Clock, Percent, FileText } from "lucide-react"
+import Link from "next/link"
+import { Calculator, Calendar, DollarSign, Clock, Percent, FileText, FileUp, ArrowRight } from "lucide-react"
 import { CalculatorCard } from "./CalculatorCard"
 
 const calculators = [
@@ -19,6 +20,26 @@ export function CalculatorsIndex() {
         <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>Calculadoras Laborales</h1>
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0.25rem 0 0" }}>Herramientas informativas para estimar prestaciones.</p>
       </div>
+
+      <Link href="/tarjeton" style={{ textDecoration: "none", display: "block", marginBottom: "1.5rem" }}>
+        <div style={{
+          background: "var(--primary)", color: "var(--primary-fg)", borderRadius: "var(--radius)",
+          padding: "1rem 1.25rem", display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: "1rem", boxShadow: "var(--shadow-md)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <FileUp size={22} />
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.125rem" }}>
+              <span style={{ fontWeight: 700, fontSize: "0.9375rem" }}>Importa tu tarjetón IMSS</span>
+              <span style={{ opacity: 0.85, fontSize: "0.8125rem" }}>
+                Tus calculadoras se llenan con los importes reales de tu recibo.
+              </span>
+            </div>
+          </div>
+          <ArrowRight size={20} />
+        </div>
+      </Link>
+
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "1rem" }}>
         {calculators.map((c) => <CalculatorCard key={c.href} {...c} />)}
       </div>

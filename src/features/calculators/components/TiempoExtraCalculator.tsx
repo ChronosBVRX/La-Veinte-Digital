@@ -1,6 +1,7 @@
-﻿"use client"
+"use client"
 
 import { useState, useMemo, useCallback } from "react"
+import { todayForQueryParam } from "@/shared/lib/dates"
 import Link from "next/link"
 import { ArrowLeft, Calculator, RotateCcw, Sparkles } from "lucide-react"
 import { Button } from "@/shared/components/ui/Button"
@@ -21,6 +22,7 @@ import prestamosRaw from "../data/prestamos_categoria.json"
 import type { JornadaHoras, TiempoExtraInput, PrestamoCategoriaRecord } from "../lib/types"
 
 const JORNADAS = [
+  { value: "6", label: "6 horas" },
   { value: "6.5", label: "6.5 horas" },
   { value: "8", label: "8 horas" },
   { value: "12", label: "12 horas" },
@@ -33,7 +35,7 @@ interface Props {
 type FieldKey = "c002" | "c011" | "c020" | "adicional1" | "adicional2" | "c050" | "jornada"
 
 export function TiempoExtraCalculator({ initialCategoria }: Props) {
-  const targetDate = useMemo(() => new Date().toISOString().slice(0, 10), [])
+  const targetDate = useMemo(() => todayForQueryParam(), [])
   const prefill = useCalculatorPrefill("tiempo-extra", targetDate)
 
   const initialMatch = useMemo(() => {
@@ -109,7 +111,7 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
     if (vAd1 === null) e.adicional1 = "Importe inválido (0 si no aplica)"
     if (vAd2 === null) e.adicional2 = "Importe inválido (0 si no aplica)"
     if (v050 === null) e.c050 = "Importe inválido (0 si no aplica)"
-    if (vJ !== 6.5 && vJ !== 8 && vJ !== 12) e.jornada = "Seleccione una jornada"
+    if (vJ !== 6 && vJ !== 6.5 && vJ !== 8 && vJ !== 12) e.jornada = "Seleccione una jornada"
     if (!fields.horasExtra || isNaN(vH)) e.horasExtra = "Ingrese las horas extra"
     else {
       const err = validateHorasExtra(vH)
@@ -156,7 +158,7 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
         <CurrencyField label="Concepto 002" value={fields.c002} onChange={(v) => { setField("c002", v) }} error={errors.c002} />
         <CurrencyField label="Concepto 011" value={fields.c011} onChange={(v) => { setField("c011", v) }} error={errors.c011} />
         <CurrencyField label="Concepto 020" value={fields.c020} onChange={(v) => { setField("c020", v) }} error={errors.c020} />
-        <CurrencyField label="Concepto adicional 1 (022, 023 o 063)" description="Copia el concepto que recibas; cero si no aplica." value={fields.adicional1} onChange={(v) => { setField("adicional1", v) }} error={errors.adicional1} />
+        <CurrencyField label="Concepto adicional 1 (023 o 063)" description="Copia el concepto que recibas; cero si no aplica." value={fields.adicional1} onChange={(v) => { setField("adicional1", v) }} error={errors.adicional1} />
         <CurrencyField label="Concepto adicional 2 (023 o 063)" description="Copia el concepto que recibas; cero si no aplica." value={fields.adicional2} onChange={(v) => { setField("adicional2", v) }} error={errors.adicional2} />
         <CurrencyField label="Concepto 050" value={fields.c050} onChange={(v) => { setField("c050", v) }} error={errors.c050} />
         <Select id="jornada" label="Jornada" value={fields.jornada} onChange={(e) => { setField("jornada", e.target.value); prefillFields.markDirty("jornada") }}>

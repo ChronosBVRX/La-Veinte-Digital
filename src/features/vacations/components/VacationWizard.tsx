@@ -8,6 +8,7 @@ import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { calculateCompletedYears, determineVacationRegime } from "../domain/entitlement"
 import { isCycleClosed } from "../domain/continuity"
 import { validateAnticipation } from "../domain/validation"
+import { institutionalToday } from "@/shared/lib/dates"
 import { buildSimulationResult } from "../domain/simulation"
 import type {
   WorkerProfile, VacationSimulationInput, VacationSimulationResult,
@@ -170,7 +171,7 @@ export function VacationWizard() {
     result: null,
     loading: false,
     error: "",
-    calendarMonth: new Date().getMonth(),
+    calendarMonth: institutionalToday().getMonth(),
   })
 
   const updateState = useCallback((partial: Partial<WizardState>) => {
@@ -209,7 +210,7 @@ export function VacationWizard() {
           enjoyedVacationDays: prev.enjoyedVacationDays,
           totalYearVacationDays: prev.totalYearVacationDays,
           periodToEnjoy: prev.periodToEnjoy,
-          calendarId: `manual-${new Date().getFullYear()}`,
+          calendarId: `manual-${institutionalToday().getFullYear()}`,
           selectedInclusionMark: prev.selectedInclusionMark,
           selectedStartDate: prev.selectedStartDate,
         }
@@ -513,7 +514,7 @@ export function VacationWizard() {
   }
 
   function renderCalendar() {
-    const year = new Date().getFullYear()
+    const year = institutionalToday().getFullYear()
     const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
     const selectedMonth = state.calendarMonth
 
@@ -539,7 +540,13 @@ export function VacationWizard() {
     const firstDayOfWeek = new Date(year, selectedMonth, 1).getDay()
 
     const yearAnticipation = state.selectedStartDate && state.dueDate
-      ? validateAnticipation(regime, state.dueDate, state.selectedStartDate, false, calculateCompletedYears(state.profile.effectiveSeniority))
+      ? validateAnticipation(
+          regime,
+          state.dueDate,
+          state.selectedStartDate,
+          state.nextPeriodNumber <= 1 && state.expiredVacationPeriods === 0 && state.enjoyedVacationDays === 0,
+          calculateCompletedYears(state.profile.effectiveSeniority)
+        )
       : null
 
     return (
@@ -637,6 +644,12 @@ export function VacationWizard() {
         {r.requiresNormativeReview && (
           <div style={REVIEW_BOX}>
             Esta combinación requiere validación con Servicios de Personal debido a una diferencia entre las fuentes normativas.
+          </div>
+        )}
+
+        {r.requiresSpecialProcess && (
+          <div style={WARN_BOX}>
+            Esta propuesta no puede programarse directamente: requiere un proceso especial o la autorización de las áreas competentes antes de registrar las fechas.
           </div>
         )}
 

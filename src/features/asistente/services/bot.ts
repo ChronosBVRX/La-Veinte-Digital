@@ -1,13 +1,10 @@
-const BOT_API_URL = process.env.NEXT_PUBLIC_BOT_API_URL ?? ""
-
 export interface BotMessage {
   role: "user" | "assistant"
   content: string
 }
 
 export async function consultarBot(history: BotMessage[]): Promise<string> {
-  const url = BOT_API_URL ? `${BOT_API_URL}/consulta` : "/api/consulta"
-  const res = await fetch(url, {
+  const res = await fetch("/api/consulta", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ history }),

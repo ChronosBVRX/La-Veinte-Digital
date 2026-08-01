@@ -1,8 +1,7 @@
-import type { CalculatedPayrollConcept, ProjectionTotals, ProjectionMode } from "./types"
+import type { CalculatedPayrollConcept, ProjectionTotals } from "./types"
 
 export function calculateProjectionTotals(
   concepts: CalculatedPayrollConcept[],
-  mode: ProjectionMode = "assisted",
 ): ProjectionTotals {
   const confirmedEarnings = concepts.filter(
     (c) => c.type === "earning" && c.included && c.confidence === "high"

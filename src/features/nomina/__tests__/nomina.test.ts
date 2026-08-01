@@ -8,7 +8,7 @@ import {
   rule051, rule057, rule058, rule061, rule062,
   rule072, rule078, rule083,
 } from "../lib/rules"
-import { topologicalSort, calculateProjection } from "../lib/engine"
+import { topologicalSort, calculateProjection, detectCircularDependencies } from "../lib/engine"
 import { resolveCategory } from "../lib/category-resolver"
 import { CLAUSE_63_BIS_C_DAYS } from "../lib/types"
 import { getPercentageForCategory } from "../data/concept-percentage-tables"
@@ -277,6 +277,47 @@ describe("engine - topologicalSort", () => {
     expect(sorted[0].id).toBe("002")
     expect(sorted[1].id).toBe("011")
     expect(sorted[2].id).toBe("054")
+  })
+})
+
+describe("engine - detectCircularDependencies", () => {
+  function rule(id: string, dependencies: string[] = []): PayrollRule {
+    return {
+      id, version: "1.0.0", effectiveFrom: "2025-01-01", dependencies,
+      calculate: () => {
+        throw new Error("no se calcula en este test")
+      },
+    }
+  }
+
+  it("no reporta ciclos en un grafo acíclico", () => {
+    const rules = [rule("A", ["B"]), rule("B", ["C"]), rule("C"), rule("D", ["B"])]
+    expect(detectCircularDependencies(rules)).toEqual([])
+  })
+
+  it("no reporta falsos positivos con dependencias compartidas (diamond)", () => {
+    const rules = [rule("A", ["B", "C"]), rule("B", ["D"]), rule("C", ["D"]), rule("D")]
+    expect(detectCircularDependencies(rules)).toEqual([])
+  })
+
+  it("reporta un ciclo directo", () => {
+    const rules = [rule("A", ["B"]), rule("B", ["A"])]
+    const errors = detectCircularDependencies(rules)
+    expect(errors.length).toBe(1)
+    expect(errors[0]).toContain("A")
+    expect(errors[0]).toContain("B")
+  })
+
+  it("reporta un autociclo", () => {
+    const errors = detectCircularDependencies([rule("A", ["A"])])
+    expect(errors.length).toBe(1)
+    expect(errors[0]).toContain("A")
+  })
+
+  it("reporta un ciclo en un grafo con ramas adicionales", () => {
+    const rules = [rule("A", ["B", "C"]), rule("B", ["C"]), rule("C", ["A"]), rule("D")]
+    const errors = detectCircularDependencies(rules)
+    expect(errors.length).toBeGreaterThan(0)
   })
 })
 

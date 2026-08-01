@@ -29,11 +29,16 @@ export async function signUpAction(formData: FormData) {
   })
   if (error) throw new Error(error.message)
 
+  // El perfil lo crea el trigger handle_new_user (migración 006).
+  // Este upsert solo complementa el nombre cuando el trigger aún no
+  // registró el full_name, sin competir con él ni romper el flujo.
   if (data.user) {
-    await supabase.from("profiles").insert({
-      id: data.user.id,
-      full_name: fullName,
-    })
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .upsert({ id: data.user.id, full_name: fullName }, { onConflict: "id" })
+    if (profileError) {
+      console.error("[signUp] perfil upsert:", profileError.message)
+    }
   }
 
   revalidatePath("/")

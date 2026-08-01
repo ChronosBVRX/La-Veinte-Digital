@@ -6,7 +6,7 @@ export default async function ChatPage() {
   const supabase = await createClient()
   const { data: rooms } = await supabase
     .from("chat_rooms")
-    .select("*, profiles!chat_rooms_created_by_fkey(full_name)")
+    .select("*, limited_profiles!chat_rooms_created_by_fkey(full_name)")
     .eq("is_private", false)
     .order("created_at", { ascending: false })
 
@@ -67,7 +67,7 @@ export default async function ChatPage() {
                 </p>
               )}
               <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0, marginTop: "auto" }}>
-                Por {room.profiles?.full_name ?? "Desconocido"}
+                Por {room.limited_profiles?.full_name ?? "Desconocido"}
               </p>
             </div>
           </Link>

@@ -9,8 +9,9 @@ import { ConditionalQuestionsFlow } from "./ConditionalQuestionsFlow"
 import { Button } from "@/shared/components/ui/Button"
 import { Card } from "@/shared/components/ui/Card"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
+import Link from "next/link"
 import {
-  User, FileText, Trash2,
+  User, FileText, Trash2, FileUp,
   ArrowRight, RefreshCw, BarChart3,
 } from "lucide-react"
 import { Badge } from "@/shared/components/ui/Badge"
@@ -127,8 +128,7 @@ export function NominaIndex() {
         <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
             <div style={{
-              width: 36, height: 36, borderRadius: "50%",
-              background: "rgba(37,99,235,0.1)", display: "flex",
+              width: 36, height: 36, borderRadius: "50%",              background: "rgba(37,99,235,0.1)", display: "flex",
               alignItems: "center", justifyContent: "center",
             }}>
               <User size={18} style={{ color: "var(--primary)" }} />
@@ -159,6 +159,22 @@ export function NominaIndex() {
           )}
         </Card>
       )}
+
+      <Link href="/tarjeton" style={{ textDecoration: "none", display: "block", marginBottom: "1rem" }}>
+        <div style={{
+          background: "var(--accent)", border: "1px dashed var(--primary)",
+          borderRadius: "var(--radius)", padding: "0.875rem 1rem",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", fontSize: "0.875rem" }}>
+            <FileUp size={18} style={{ color: "var(--primary)" }} />
+            <span>
+              <strong>¿Tienes tu tarjetón?</strong> Impórtalo para que las proyecciones usen tus importes reales.
+            </span>
+          </div>
+          <ArrowRight size={16} style={{ color: "var(--primary)" }} />
+        </div>
+      </Link>
 
       {projections.length > 0 && (
         <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect, useRef } from "react"
+import { todayForQueryParam } from "@/shared/lib/dates"
 import type {
   EmployeePayrollProfile,
   ResolvedSalaryCategory,
@@ -30,7 +31,11 @@ import {
   saveProjection,
   deleteProjection,
   deleteProfile,
-} from "../services/storage"
+} from "@/shared/services/local-storage"
+import {
+  grantPayrollConsent,
+  revokePayrollConsent,
+} from "@/shared/services/payroll-consent"
 
 export type NominaStep =
   | "consent"
@@ -106,7 +111,7 @@ export function useNomina() {
 
       if (p.categoryName && categoryState.status === "idle") {
         setCategoryState({ status: "resolving" })
-        const result = resolveCategory(p.categoryName, new Date().toISOString().slice(0, 10))
+        const result = resolveCategory(p.categoryName, todayForQueryParam())
         if (result.resolved && result.category) {
           setCategoryState({
             status: "resolved",
@@ -125,7 +130,7 @@ export function useNomina() {
           p.displayedSeniorityAtLastPayslip,
           p.displayedSeniorityAtLastPayslip.referenceDate
         )
-        const today = new Date().toISOString().slice(0, 10)
+        const today = todayForQueryParam()
         setSeniority(calculateSeniority(effectiveDate, today))
         setPeriod(getCurrentPayPeriod(today))
       }
@@ -155,6 +160,9 @@ export function useNomina() {
   const giveConsent = useCallback(() => {
     saveConsent(true)
     patch({ consented: true, step: "profile" })
+    grantPayrollConsent().catch((err) => {
+      console.warn("[nomina] no se pudo registrar el consentimiento en el servidor:", err)
+    })
   }, [patch])
 
   const revokeConsent = useCallback(() => {
@@ -167,18 +175,24 @@ export function useNomina() {
     setPendingQuestions([])
     setQuestionAnswers([])
     patch({ consented: false, profile: null, projections: [], step: "consent" })
+    revokePayrollConsent().catch((err) => {
+      console.warn("[nomina] no se pudo revocar el consentimiento en el servidor:", err)
+    })
   }, [patch])
 
   const updateProfile = useCallback(async (p: EmployeePayrollProfile) => {
     saveProfile(p)
     saveConsent(true)
+    grantPayrollConsent().catch((err) => {
+      console.warn("[nomina] no se pudo registrar el consentimiento en el servidor:", err)
+    })
 
     if (p.displayedSeniorityAtLastPayslip) {
       const effectiveDate = reconstructEffectiveDate(
         p.displayedSeniorityAtLastPayslip,
         p.displayedSeniorityAtLastPayslip.referenceDate
       )
-      const today = new Date().toISOString().slice(0, 10)
+      const today = todayForQueryParam()
       const sr = calculateSeniority(effectiveDate, today)
       setSeniority(sr)
       setPeriod(getCurrentPayPeriod(today))
@@ -186,7 +200,7 @@ export function useNomina() {
 
     if (p.categoryName) {
       setCategoryState({ status: "resolving" })
-      const result = resolveCategory(p.categoryName, new Date().toISOString().slice(0, 10))
+      const result = resolveCategory(p.categoryName, todayForQueryParam())
       if (result.resolved && result.category) {
         setCategoryState({
           status: "resolved",

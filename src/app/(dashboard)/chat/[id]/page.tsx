@@ -18,7 +18,7 @@ export default async function ChatRoomPage({ params }: { params: Promise<{ id: s
 
   const { data: messages } = await supabase
     .from("chat_messages")
-    .select("*, profiles!chat_messages_user_id_fkey(full_name, avatar_url)")
+    .select("*, limited_profiles!chat_messages_user_id_fkey(full_name, avatar_url)")
     .eq("room_id", id)
     .order("created_at", { ascending: true })
     .limit(100)

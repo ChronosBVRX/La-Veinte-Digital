@@ -1,9 +1,10 @@
 import { CalendarioAnual } from "@/features/calendario/components/CalendarioAnual"
 import { CalendarioExportButton } from "@/features/calendario/components/CalendarioExportButton"
 import { CALENDARIOS } from "@/features/calendario/services/calendarioData"
+import { institutionalToday } from "@/shared/lib/dates"
 
 export default function CalendarioPage() {
-  const year = new Date().getFullYear()
+  const year = institutionalToday().getFullYear()
   const displayYear = CALENDARIOS[year] ? year : 2026
 
   return (

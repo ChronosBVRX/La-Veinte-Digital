@@ -109,6 +109,27 @@ contrato compartido (`src/shared/contracts/calculator-prefill.ts`) vía API
 interna. Las fórmulas de `features/calculators/lib/` no se tocan. Detalle en
 [`CALCULATOR_PREFILL.md`](./CALCULATOR_PREFILL.md).
 
+### 6. Importación de Tarjetón IMSS
+
+```
+Usuario → /tarjeton → TarjetonImporter (CSR)
+         → useTarjetonImporter:
+             PDF.js (texto nativo) → ¿< 120 chars? → Tesseract OCR (fallback)
+             → parseImssTarjeton (orquestador) → Revisión humana (Review)
+         → POST /api/tarjeton/confirm (contrato estructurado, NUNCA el PDF)
+         → RPC confirm_imported_payslip (transacción única):
+             imported_payslips + lines + observations
+             → profiles (campos autorizados)
+             → payroll_contexts (upsert: categoría, jornada, antigüedad,
+               recurrentes 050/023/063, hecho 054)
+         → syncConfirmedPayslip (localStorage: perfil + recibos)
+```
+
+El PDF se procesa 100% en el navegador (PDF.js + Tesseract vía
+`public/vendor/`); RFC/CURP/NSS/cuenta/sellos se descartan y el folio fiscal
+solo se guarda como hash. Detalle en
+[`TARJETON_IMPORT.md`](./TARJETON_IMPORT.md).
+
 ---
 
 ## Patrón de Componentes
@@ -130,6 +151,7 @@ interna. Las fórmulas de `features/calculators/lib/` no se tocan. Detalle en
 - `features/escritos/components/` - Formularios
 - `features/bitacora/components/` - Bitácora personal (incidencias laborales)
 - `features/nomina/components/` - Wizard de perfil salarial, proyecciones
+- `features/tarjeton/components/` - Importador de tarjetón IMSS (Dropzone, Review, Summary)
 - `shared/components/layout/` - Navbar, Sidebar, DashboardShell, TodayCard (modal interactivo)
 - `shared/components/ui/` - Todos los componentes UI (Button, Input, Card, Modal, etc.)
 
@@ -147,6 +169,7 @@ interna. Las fórmulas de `features/calculators/lib/` no se tocan. Detalle en
 | Toast notifications | React Context (`ToastProvider`) |
 | Sidebar | `useState` local en DashboardShell |
 | Perfil nómina | `useNomina` hook + localStorage |
+| Importación de tarjetón | `useTarjetonImporter` hook (máquina de estados idle→reading→review→confirming→done) |
 | TodayCard | `useState` para modal + `getProfile()` de localStorage |
 
 ---
@@ -173,7 +196,7 @@ interna. Las fórmulas de `features/calculators/lib/` no se tocan. Detalle en
 ## Pruebas
 
 - **Vitest**: Configurado con alias `@/` mapeado a `./src/`
-- **Tests unitarios**: En `features/calculators/__tests__/` y `features/nomina/__tests__/`
+- **Tests unitarios**: En `features/calculators/__tests__/`, `features/nomina/__tests__/`, `features/vacations/__tests__/` y `features/tarjeton/__tests__/` (parsers puros + servicio de confirmación, fixtures ficticios)
 - **Tests de contrato**: `shared/contracts/__tests__/` (validadores del prerrelleno)
 - **Sin tests de integración o E2E** actualmente
 
@@ -195,3 +218,4 @@ npx vitest        # Modo watch
 | `lucide-react` | Iconos |
 | `react-markdown` | Renderizado de respuestas del bot |
 | `jspdf` + `html2canvas` | Generación de PDF |
+| `pdfjs-dist` + `tesseract.js` | Extracción local del tarjetón (PDF.js) y OCR de respaldo (Tesseract), servidos desde `public/vendor/` |

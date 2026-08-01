@@ -4,11 +4,14 @@ import { buildCalculatorPrefill } from "@/features/nomina/services/build-calcula
 import { parseCalculatorPrefillQuery } from "@/features/nomina/lib/calculator-prefill-query"
 
 /**
- * GET /api/calculator-prefill?calculator=<id>&date=<YYYY-MM-DD>
+ * GET /api/calculator-prefill?calculator=<id>&targetDate=<YYYY-MM-DD>
  *
  * Endpoint interno de SOLO LECTURA para el prerrelleno normativo de las
  * calculadoras. No acepta userId desde el cliente: el usuario se obtiene de
  * la sesión. Nunca actualiza datos ni llama a APIs externas.
+ *
+ * El parámetro `date` se acepta únicamente como legado temporal (ver
+ * docs/CALCULATOR_PREFILL.md); el cliente nuevo debe usar `targetDate`.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -16,6 +19,7 @@ export async function GET(request: NextRequest) {
   const parsed = parseCalculatorPrefillQuery(
     searchParams.get("calculator"),
     searchParams.get("date"),
+    searchParams.get("targetDate"),
   )
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.error }, { status: 400 })

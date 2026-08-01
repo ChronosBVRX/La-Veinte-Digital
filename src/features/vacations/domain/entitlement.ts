@@ -1,5 +1,4 @@
 import type { ContractType, EffectiveSeniority, VacationRegime } from "./types";
-
 const CCT_ANNUAL_DAYS_MIN = 16;
 const CCT_ANNUAL_DAYS_MAX = 20;
 
@@ -61,6 +60,34 @@ export function determineVacationRegime(
 
 export function getVacationDivision(totalDays: number): [number, number] {
   return [Math.floor(totalDays / 2), Math.ceil(totalDays / 2)];
+}
+
+/**
+ * Unidades a disfrutar según régimen e inclusión.
+ * - CUATRIMESTRAL: tabla RADIATION_DAYS por periodo (0|1|2) del año.
+ * - EXTRAORDINARIO_V20: 15 días por fracción (marca 6/7/8) o el total (marca 0).
+ * - SEMESTRAL/ESTATUTO: completo (marca 0), primera parte (1/2/4) o segunda (3/9).
+ */
+export function getUnitsForInclusion(
+  regime: VacationRegime,
+  totalDays: number,
+  inclusionMark: number,
+  completedYears: number,
+  nextPeriodNumber: number
+): number {
+  if (regime === "CUATRIMESTRAL") {
+    const periodIndex = ((Math.max(1, nextPeriodNumber) - 1) % 3) as 0 | 1 | 2;
+    return getRadiationDaysForPeriod(completedYears, periodIndex);
+  }
+  if (regime === "EXTRAORDINARIO_V20") {
+    if (inclusionMark === 0) return totalDays;
+    return 15;
+  }
+  const [firstPart, secondPart] = getVacationDivision(totalDays);
+  if (inclusionMark === 0) return totalDays;
+  if (inclusionMark === 1 || inclusionMark === 2 || inclusionMark === 4) return firstPart;
+  if (inclusionMark === 3 || inclusionMark === 9) return secondPart;
+  return totalDays;
 }
 
 export function isEligibleForV20(completedYears: number): boolean {

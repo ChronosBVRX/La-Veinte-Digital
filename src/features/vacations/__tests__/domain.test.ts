@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest"
-import { getCctAnnualDays, getEstatutoAnnualDays, getRadiationDaysForPeriod, determineVacationRegime, isEligibleForV20, getVacationDivision } from "../domain/entitlement"
-import { getSemestralTransition, getCompatibleSemestralInclusionMarks, isCycleClosed, applyInclusionMark, SEMESTRAL_CLOSED_STATES } from "../domain/continuity"
-import { validateAnticipation, calculateReturnDate, validateModification } from "../domain/validation"
+import { getCctAnnualDays, getEstatutoAnnualDays, getRadiationDaysForPeriod, determineVacationRegime, isEligibleForV20, getVacationDivision, getUnitsForInclusion } from "../domain/entitlement"
+import { getSemestralTransition, getCompatibleSemestralInclusionMarks, isCycleClosed, applyInclusionMark, SEMESTRAL_CLOSED_STATES, getCompatibleV20Options } from "../domain/continuity"
+import { validateAnticipation, calculateReturnDate, calculateVacationRange, validateModification, isFirstPeriod } from "../domain/validation"
 import { getMandatoryRestDates, isWeeklyRest } from "../domain/holidays"
-import { getAccumulatedDayJourneys, getAccumulatedNightVeladas, isWorkDay } from "../domain/schedules"
+import { getAccumulatedDayJourneys, getAccumulatedNightVeladas, isWorkDay, getWorkScheduleForProfile } from "../domain/schedules"
 import { detectNormativeConflicts } from "../domain/conflicts"
 import { buildSimulationResult } from "../domain/simulation"
 import type { VacationSimulationInput, WorkScheduleDefinition } from "../domain/types"
@@ -104,6 +104,37 @@ describe("getVacationDivision", () => {
   })
 })
 
+describe("getUnitsForInclusion", () => {
+  it("uses full CCT days for continuous enjoyment (mark 0)", () => {
+    expect(getUnitsForInclusion("SEMESTRAL", 16, 0, 14, 43)).toBe(16)
+  })
+
+  it("uses first half for fraction marks", () => {
+    expect(getUnitsForInclusion("SEMESTRAL", 17, 1, 14, 43)).toBe(8)
+    expect(getUnitsForInclusion("SEMESTRAL", 17, 2, 14, 43)).toBe(8)
+    expect(getUnitsForInclusion("SEMESTRAL", 17, 4, 14, 43)).toBe(8)
+  })
+
+  it("uses second half for completion marks", () => {
+    expect(getUnitsForInclusion("SEMESTRAL", 17, 3, 14, 43)).toBe(9)
+    expect(getUnitsForInclusion("SEMESTRAL", 17, 9, 14, 43)).toBe(9)
+  })
+
+  it("uses RADIATION_DAYS table per period for CUATRIMESTRAL", () => {
+    expect(getUnitsForInclusion("CUATRIMESTRAL", 20, 0, 0, 1)).toBe(7)
+    expect(getUnitsForInclusion("CUATRIMESTRAL", 20, 0, 0, 2)).toBe(8)
+    expect(getUnitsForInclusion("CUATRIMESTRAL", 20, 0, 0, 3)).toBe(7)
+    expect(getUnitsForInclusion("CUATRIMESTRAL", 20, 0, 0, 4)).toBe(7)
+  })
+
+  it("uses 15 days per fraction for V20 marks 6/7/8 and full for mark 0", () => {
+    expect(getUnitsForInclusion("EXTRAORDINARIO_V20", 20, 0, 20, 1)).toBe(20)
+    expect(getUnitsForInclusion("EXTRAORDINARIO_V20", 20, 6, 20, 1)).toBe(15)
+    expect(getUnitsForInclusion("EXTRAORDINARIO_V20", 20, 7, 20, 1)).toBe(15)
+    expect(getUnitsForInclusion("EXTRAORDINARIO_V20", 20, 8, 20, 1)).toBe(15)
+  })
+})
+
 describe("Semestral Continuity State Machine", () => {
   it("closed cycles [0,2,6,13] allow inclusion 0", () => {
     for (const c of SEMESTRAL_CLOSED_STATES) {
@@ -172,6 +203,47 @@ describe("Semestral Continuity State Machine", () => {
   it("rejects incompatible transition", () => {
     const result = applyInclusionMark("SEMESTRAL", 1, 0)
     expect("error" in result).toBe(true)
+  })
+})
+
+describe("V20 Continuity State Machine", () => {
+  it("continuity 0 allows only marks 0 and 6", () => {
+    expect(getCompatibleV20Options(0)).toEqual([0, 6])
+  })
+
+  it("continuity 2 allows mark 7, continuity 3 allows mark 8", () => {
+    expect(getCompatibleV20Options(2)).toEqual([7])
+    expect(getCompatibleV20Options(3)).toEqual([8])
+  })
+
+  it("continuity 1 has no valid options", () => {
+    expect(getCompatibleV20Options(1)).toEqual([])
+  })
+
+  it("applies explicit V20 transitions instead of currentContinuity+1", () => {
+    const t1 = applyInclusionMark("EXTRAORDINARIO_V20", 0, 0)
+    if ("error" in t1) throw new Error(t1.error)
+    expect(t1.nextContinuity).toBe(1)
+    expect(t1.upoIncrement).toBe(2)
+
+    const t2 = applyInclusionMark("EXTRAORDINARIO_V20", 0, 6)
+    if ("error" in t2) throw new Error(t2.error)
+    expect(t2.nextContinuity).toBe(2)
+
+    const t3 = applyInclusionMark("EXTRAORDINARIO_V20", 2, 7)
+    if ("error" in t3) throw new Error(t3.error)
+    expect(t3.nextContinuity).toBe(3)
+
+    const t4 = applyInclusionMark("EXTRAORDINARIO_V20", 3, 8)
+    if ("error" in t4) throw new Error(t4.error)
+    expect(t4.nextContinuity).toBe(0)
+  })
+
+  it("blocks invalid V20 transitions", () => {
+    const bad = applyInclusionMark("EXTRAORDINARIO_V20", 1, 0)
+    expect("error" in bad).toBe(true)
+    const bad2 = applyInclusionMark("EXTRAORDINARIO_V20", 0, 7)
+    expect("error" in bad2).toBe(true)
   })
 })
 
@@ -296,15 +368,69 @@ describe("validateModification", () => {
     expect(result.requiresSpecialProcess).toBe(true)
   })
 
-  it("allows exceptional 15-day margin but requires authorization", () => {
-    const result = validateModification("2026-10-14", "2026-10-01")
+  it("allows 15-44 day changes only with normative review", () => {
+    const result = validateModification("2026-10-14", "2026-09-20")
     expect(result.allowed).toBe(true)
     expect(result.requiresSpecialProcess).toBe(true)
+    expect(result.requiresNormativeReview).toBe(true)
+  })
+
+  it("blocks changes within the exceptional 15-day margin", () => {
+    const result = validateModification("2026-10-14", "2026-10-01")
+    expect(result.allowed).toBe(false)
+    expect(result.requiresNormativeReview).toBe(true)
   })
 
   it("cannot modify after start date", () => {
     const result = validateModification("2026-10-14", "2026-10-20")
     expect(result.allowed).toBe(false)
+  })
+})
+
+describe("calculateVacationRange", () => {
+  it("consumes only workable dates for weekend-accumulated schedules", () => {
+    const result = calculateVacationRange({
+      startDate: "2026-07-25", // Saturday
+      entitlementUnits: 3,
+      unitType: "WORKDAY",
+      weeklyRestDays: [0, 1, 2, 3, 4],
+      mandatoryRestDates: [],
+      workSchedule: { type: "ACCUMULATED_WEEKEND_DAY", workingDays: [5, 6] },
+    })
+    // Sáb 25, Dom 26, Lun 27 (no laborable, no consume) → Sáb 01-08
+    expect(result.consumedDates).toEqual(["2026-07-25", "2026-07-26", "2026-08-01"])
+    expect(result.totalVacationUnits).toBe(3)
+    expect(result.returnToWorkDate).toBe("2026-08-02")
+  })
+
+  it("excludes mandatory rest dates without consuming units", () => {
+    const result = calculateVacationRange({
+      startDate: "2026-09-14",
+      entitlementUnits: 4,
+      unitType: "WORKDAY",
+      weeklyRestDays: [5, 6],
+      mandatoryRestDates: ["2026-09-15", "2026-09-16"],
+      workSchedule: { type: "ORDINARY" },
+    })
+    expect(result.consumedDates).toContain("2026-09-14")
+    expect(result.consumedDates).not.toContain("2026-09-15")
+    expect(result.consumedDates).not.toContain("2026-09-16")
+    expect(result.excludedMandatoryRestDates).toEqual(["2026-09-15", "2026-09-16"])
+  })
+})
+
+describe("isFirstPeriod", () => {
+  it("is true only when nothing was enjoyed and it is period 1", () => {
+    expect(isFirstPeriod(1, 0, 0)).toBe(true)
+  })
+
+  it("is false when period number is greater than 1", () => {
+    expect(isFirstPeriod(2, 0, 0)).toBe(false)
+  })
+
+  it("is false when there are expired periods or enjoyed days", () => {
+    expect(isFirstPeriod(1, 1, 0)).toBe(false)
+    expect(isFirstPeriod(1, 0, 8)).toBe(false)
   })
 })
 
@@ -318,6 +444,20 @@ describe("calculateReturnDate", () => {
     const last = new Date(result.lastDate)
     const ret = new Date(result.returnDate)
     expect(ret.getTime()).toBeGreaterThan(last.getTime())
+  })
+
+  it("uses the real work schedule when provided", () => {
+    const result = calculateReturnDate(
+      "2026-07-25", 2, "JOURNEY", [0, 1, 2, 3, 4],
+      [],
+      getWorkScheduleForProfile({
+        workScheduleType: "ACCUMULATED_WEEKEND_DAY",
+        weeklyRestDays: [0, 1, 2, 3, 4],
+      })
+    )
+    // Sáb 25 y Dom 26 son jornadas laborables; regresa el sábado siguiente 01-08
+    expect(result.lastDate).toBe("2026-07-26")
+    expect(result.returnDate).toBe("2026-08-01")
   })
 })
 
@@ -410,5 +550,62 @@ describe("buildSimulationResult", () => {
   it("includes friendly messages in warnings", () => {
     const result = buildSimulationResult(baseInput)
     expect(result.warnings).toBeDefined()
+  })
+
+  it("uses full entitlement for continuous inclusion", () => {
+    const result = buildSimulationResult(baseInput)
+    expect(result.unitsUsed).toBe(20)
+    expect(result.endDate).toBeDefined()
+    expect(result.returnDate).toBeDefined()
+  })
+
+  it("uses half entitlement for first fraction inclusion", () => {
+    const result = buildSimulationResult({ ...baseInput, selectedInclusionMark: 1 })
+    expect(result.unitsUsed).toBe(10)
+  })
+
+  it("blocks invalid transitions and skips date calculation", () => {
+    const result = buildSimulationResult({
+      ...baseInput,
+      continuityMark: 1, // primera parte pendiente
+      selectedInclusionMark: 0, // inválida desde continuidad 1
+    })
+    expect(result.requiresSpecialProcess).toBe(true)
+    expect(result.warnings.length).toBeGreaterThan(0)
+    expect(result.endDate).toBeUndefined()
+    expect(result.returnDate).toBeUndefined()
+    const trace = result.traces.find((t) => t.ruleCode === "APPLY_INCLUSION_MARK")
+    expect(trace?.result).toBe("BLOCKED")
+  })
+
+  it("uses RADIATION_DAYS units for CUATRIMESTRAL regime", () => {
+    const result = buildSimulationResult({
+      ...baseInput,
+      regime: "CUATRIMESTRAL",
+      workerProfile: {
+        ...baseInput.workerProfile,
+        contractType: "BASE",
+        radiologicalExposure: true,
+        effectiveSeniority: { years: 0, fortnights: 0, days: 0 },
+      },
+      nextPeriodNumber: 2,
+    })
+    expect(result.unitsUsed).toBe(8) // RADIATION_DAYS[0][1]
+  })
+
+  it("blocks anticipation for first period before completing first year", () => {
+    const result = buildSimulationResult({
+      ...baseInput,
+      workerProfile: {
+        ...baseInput.workerProfile,
+        effectiveSeniority: { years: 0, fortnights: 0, days: 0 },
+      },
+      nextPeriodNumber: 1,
+      expiredVacationPeriods: 0,
+      enjoyedVacationDays: 0,
+    })
+    expect(result.requiresSpecialProcess).toBe(true)
+    expect(result.anticipationResult?.allowed).toBe(false)
+    expect(result.anticipationResult?.reasonCode).toBe("FIRST_PERIOD_BEFORE_YEAR")
   })
 })

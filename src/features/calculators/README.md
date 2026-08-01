@@ -42,10 +42,13 @@ Días laborados: entero entre 1 y 360 (base anual de 360 días de la aplicación
 
 ```text
 suma = 002 + 011 + 020 + Adicional 1 + Adicional 2 + 050
-horasOrdinarias = jornada (6.5 | 8 | 12) × 15
+horasOrdinarias = jornada (6 | 6.5 | 8 | 12) × 15
 valorHora = suma ÷ horasOrdinarias
 pago = valorHora × 2 × horasExtra
 ```
+
+Jornadas soportadas: `JORNADAS = [6, 6.5, 8, 12]`. El concepto adicional 1
+corresponde al 023 o 063 del tarjetón.
 
 **Aclaración sobre la fórmula corregida:** la implementación de referencia parecía
 dividir entre las horas extra y multiplicar posteriormente por las mismas, anulando
@@ -85,6 +88,16 @@ Si el JSON incluye los valores precalculados, se comparan contra el cálculo y, 
 2. Ejecuta `npm test` — el test `el tabulador real tiene 117 registros y claves consistentes` valida que existan `SMTAB+11` y `C97 1 MES` por registro.
 3. Revisa la consola en desarrollo por advertencias de diferencia > $0.10.
 
+## Prerrelleno normativo (prefill)
+
+Al abrir una calculadora, los valores salariales se prerrellenan desde el perfil
+del trabajador y el tabulador vigente vía la API interna autenticada
+`GET /api/calculator-prefill` (política cerrada por calculadora; el 022 nunca
+se integra a una base y las horas extra nunca se prerrellenan). Los campos
+editados nunca se sobrescriben. El prerrelleno se alimenta del contexto de
+nómina (`payroll_contexts`) y de los tarjetones IMSS confirmados en `/tarjeton`.
+Detalle: `docs/CALCULATOR_PREFILL.md`.
+
 ## Pruebas
 
 ```bash
@@ -100,5 +113,6 @@ Las fórmulas fueron reconstruidas a partir del comportamiento y del código com
 ## Seguridad y privacidad
 
 - Los cálculos se ejecutan localmente en el cliente; ningún importe se envía a servidores externos.
+- El prerrelleno consulta la API interna autenticada (`/api/calculator-prefill`), que solo devuelve los campos de la política cerrada; nunca contraseñas, RFC/CURP/NSS ni folios.
 - No se registran salarios en consola de producción (solo advertencias de consistencia del tabulador en desarrollo).
 - No hay historial ni almacenamiento de resultados.
