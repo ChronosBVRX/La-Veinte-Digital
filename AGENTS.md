@@ -1,4 +1,4 @@
-<!-- Version: 0.003 -->
+<!-- Version: 0.004 -->
 <!-- Last updated: 2026-07-31 -->
 <!-- BEGIN:nextjs-agent-rules -->
 # ⚠️ This is NOT the Next.js you know
@@ -258,5 +258,5 @@ El OIDC token de Vercel está en `.env.local` como `VERCEL_OIDC_TOKEN`. Las vari
 
 ## After every change
 
-1. **Always deploy immediately** after pushing: `vercel --prod --yes`
-2. Wait for the deploy to complete before telling the user
+1. Run `npm run build` and `npx vitest run` — the suite must pass
+2. Do NOT deploy automatically; deployments are explicit and requested by the user
