@@ -34,7 +34,7 @@ const DAY_NAMES = ["domingo", "lunes", "martes", "miércoles", "jueves", "vierne
 
 function getNextPaymentDay(year: number, monthIndex: number, day: number, types?: CalendarEventType[]): { date: Date; label: string } | null {
   const filterTypes = types ?? ["santander", "otros", "cheque", "jubilados"]
-  const yearData = CALENDARIOS[year] ?? CALENDARIOS[2026]
+  const yearData = CALENDARIOS[year]
   if (!yearData) return null
   const now = new Date(year, monthIndex, day)
   const candidates: { date: Date; label: string }[] = []
@@ -55,13 +55,13 @@ function getNextPaymentDay(year: number, monthIndex: number, day: number, types?
 }
 
 function isInteractivoOpen(year: number, monthIndex: number, day: number): boolean {
-  const yearData = CALENDARIOS[year] ?? CALENDARIOS[2026]
+  const yearData = CALENDARIOS[year]
   if (!yearData) return false
   return yearData[monthIndex]?.events.interactivo?.includes(day) ?? false
 }
 
 function getNextVacationStart(year: number, monthIndex: number, day: number): { date: Date } | null {
-  const yearData = CALENDARIOS[year] ?? CALENDARIOS[2026]
+  const yearData = CALENDARIOS[year]
   if (!yearData) return null
   const now = new Date(year, monthIndex, day)
   const candidates: Date[] = []
@@ -125,11 +125,10 @@ export function TodayCard({ profile }: { profile: ProfileSummary }) {
   const displayYear = yearData ? year : 2026
   const dayName = DAY_NAMES[now.getDay()]
 
-  const nextPaymentActivo = getNextPaymentDay(displayYear, monthIndex, day, ["santander"])
-  const nextPaymentOtro = getNextPaymentDay(displayYear, monthIndex, day, ["otros", "cheque"])
-  const interactivoAbierto = isInteractivoOpen(displayYear, monthIndex, day)
-  const nextVacation = getNextVacationStart(displayYear, monthIndex, day)
-
+  const nextPaymentActivo = yearData ? getNextPaymentDay(year, monthIndex, day, ["santander"]) : null
+  const nextPaymentOtro = yearData ? getNextPaymentDay(year, monthIndex, day, ["otros", "cheque"]) : null
+  const interactivoAbierto = yearData ? isInteractivoOpen(year, monthIndex, day) : false
+  const nextVacation = yearData ? getNextVacationStart(year, monthIndex, day) : null
   const diffDaysActivo = nextPaymentActivo
     ? Math.ceil((nextPaymentActivo.date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
     : null
