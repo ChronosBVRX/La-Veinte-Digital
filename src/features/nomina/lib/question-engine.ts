@@ -2,7 +2,6 @@ import type {
   EmployeePayrollProfile,
   PayrollFact,
   PayrollFactKey,
-  PayrollFactValue,
 } from "./types"
 import type { EligibilityResult, MissingPayrollFact } from "./eligibility"
 
@@ -27,7 +26,7 @@ export interface ConditionalPayrollQuestion {
   estimatedImpact?: number
 }
 
-function estimateImpactForFact(factKey: PayrollFactKey, profile: EmployeePayrollProfile): number {
+function estimateImpactForFact(factKey: PayrollFactKey): number {
   const impactEstimates: Partial<Record<PayrollFactKey, number>> = {
     concept_072_on_payslip: 358,
     concept_054_on_payslip: 1434,
@@ -75,7 +74,7 @@ export function buildPendingQuestions(
     const factKey = factKeyStr as PayrollFactKey
     if (alreadyAnswered.has(factKey)) continue
 
-    const impact = estimateImpactForFact(factKey, profile)
+    const impact = estimateImpactForFact(factKey)
     const concepts = mf.conceptCode.split(",")
 
     questions.push({

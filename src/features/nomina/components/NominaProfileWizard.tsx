@@ -16,7 +16,7 @@ import type {
 
 interface NominaProfileWizardProps {
   profile: EmployeePayrollProfile | null
-  onSave: (profile: EmployeePayrollProfile) => void
+  onSave?: (profile: EmployeePayrollProfile) => void
 }
 
 export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProps) {
@@ -117,7 +117,7 @@ export function NominaProfileWizard({ profile, onSave }: NominaProfileWizardProp
   }
 
   function handleSave() {
-    onSave(buildProfile())
+    onSave?.(buildProfile())
     setSaved(true)
   }
 

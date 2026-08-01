@@ -60,6 +60,12 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
 
   const setField = useCallback((key: keyof typeof fields, value: string) => {
     setFields((prev) => ({ ...prev, [key]: value }))
+    setErrors((prev) => {
+      if (!(key in prev)) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
     if (key !== "jornada" && !value) setResult(null)
   }, [])
 
@@ -99,18 +105,22 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
 
   function validate(): boolean {
     const e: Record<string, string> = {}
-    const v = (k: string) => parseCurrencyInput(fields[k as keyof typeof fields])
-    const v002 = v("c002"), v011 = v("c011"), v020 = v("c020")
-    const vAd1 = v("adicional1"), vAd2 = v("adicional2"), v050 = v("c050")
+    const v = (k: keyof typeof fields) => parseCurrencyInput(fields[k])
+    const optional = (k: keyof typeof fields, errKey: string): number => {
+      if (fields[k].trim() === "") return 0
+      const val = v(k)
+      if (val === null) e[errKey] = "Importe inválido (0 si no aplica)"
+      return val ?? 0
+    }
+
+    const v002 = v("c002")
     const vJ = parseFloat(fields.jornada)
     const vH = parseFloat(fields.horasExtra)
 
     if (v002 === null) e.c002 = "Importe inválido"
-    if (v011 === null) e.c011 = "Importe inválido (0 si no aplica)"
-    if (v020 === null) e.c020 = "Importe inválido (0 si no aplica)"
-    if (vAd1 === null) e.adicional1 = "Importe inválido (0 si no aplica)"
-    if (vAd2 === null) e.adicional2 = "Importe inválido (0 si no aplica)"
-    if (v050 === null) e.c050 = "Importe inválido (0 si no aplica)"
+    optional("c011", "c011")
+    optional("c020", "c020")
+    optional("c050", "c050")
     if (vJ !== 6 && vJ !== 6.5 && vJ !== 8 && vJ !== 12) e.jornada = "Seleccione una jornada"
     if (!fields.horasExtra || isNaN(vH)) e.horasExtra = "Ingrese las horas extra"
     else {
@@ -119,13 +129,12 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
     }
 
     setErrors(e)
-    return Object.keys(e).length === 0 && v002 !== null && v011 !== null && v020 !== null &&
-      vAd1 !== null && vAd2 !== null && v050 !== null && vH > 0
+    return Object.keys(e).length === 0 && v002 !== null && vH > 0
   }
 
   function handleCalculate() {
     if (!validate()) return
-    const g = (k: string) => parseCurrencyInput(fields[k as keyof typeof fields])!
+    const g = (k: keyof typeof fields) => parseCurrencyInput(fields[k]) ?? 0
     const input: TiempoExtraInput = {
       concepto002: g("c002"),
       concepto011: g("c011"),

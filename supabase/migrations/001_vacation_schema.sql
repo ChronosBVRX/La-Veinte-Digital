@@ -1,6 +1,22 @@
 -- Vacation Module Schema
 -- Requires: auth.users, public.profiles
 
+-- 0. profiles base (idempotente; 006 la complementa con trigger y RLS)
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  full_name text,
+  matricula text,
+  adscripcion text,
+  categoria text,
+  antiguedad text,
+  phone text,
+  avatar_url text,
+  role text default 'user',
+  is_online boolean default false,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 -- 1. Versioned vacation rules
 CREATE TABLE IF NOT EXISTS vacation_rule_versions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -111,56 +127,28 @@ ALTER TABLE vacation_simulation_events ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
 
--- Rules: admins can read/write, all authenticated can read published
+-- Rules: all authenticated can read published
 CREATE POLICY "Everyone can read rules"
   ON vacation_rule_versions FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage rules"
-  ON vacation_rule_versions FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
-
--- Calendars: all authenticated can read, admins manage
+-- Calendars: all authenticated can read
 CREATE POLICY "Everyone can read calendars"
   ON vacation_calendars FOR SELECT
   TO authenticated
   USING (true);
-
-CREATE POLICY "Admins can manage calendars"
-  ON vacation_calendars FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
 
 CREATE POLICY "Everyone can read calendar roles"
   ON vacation_calendar_roles FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Admins can manage calendar roles"
-  ON vacation_calendar_roles FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
-
--- Mandatory rest days: everyone can read, admins manage
+-- Mandatory rest days: everyone can read
 CREATE POLICY "Everyone can read mandatory rest days"
   ON vacation_mandatory_rest_days FOR SELECT
   TO authenticated
   USING (true);
-
-CREATE POLICY "Admins can manage mandatory rest days"
-  ON vacation_mandatory_rest_days FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
 
 -- Profile data: user can only see/update own data
 CREATE POLICY "Users can read own vacation profile"
@@ -230,20 +218,4 @@ INSERT INTO vacation_mandatory_rest_days (year, date, label, source_document) VA
   (2026, '2026-09-16', 'Día de la Independencia', 'CCT 2025-2027 - Cláusula 46'),
   (2026, '2026-11-16', 'Tercer lunes de noviembre (Día de la Revolución)', 'CCT 2025-2027 - Cláusula 46'),
   (2026, '2026-12-25', 'Navidad', 'CCT 2025-2027 - Cláusula 46')
-ON CONFLICT (year, date) DO NOTHING;
-
--- Insert initial data: 2027 mandatory rest days
-INSERT INTO vacation_mandatory_rest_days (year, date, label, source_document) VALUES
-  (2027, '2027-01-01', 'Año Nuevo', 'CCT 2025-2027 - Cláusula 46'),
-  (2027, '2027-02-01', 'Primer lunes de febrero (Día de la Constitución)', 'CCT 2025-2027 - Cláusula 46'),
-  (2027, '2027-03-15', 'Tercer lunes de marzo (Natalicio de Juárez)', 'CCT 2025-2027 - Cláusula 46'),
-  (2027, '2027-03-25', 'Jueves de Semana Mayor', 'CCT 2025-2027 - Cláusula 46'),
-  (2027, '2027-03-26', 'Viernes de Semana Mayor', 'CCT 2025-2027 - Cláusula 46'),
-  (2027, '2027-03-27', 'Sábado de Semana Mayor', 'CCT 2025-2027 - Cláusula 46'),
-  (2027, '2027-05-01', 'Día del Trabajo', 'CCT 2025-2027 - Cláusula 46'),
-  (2027, '2027-05-10', 'Día de la Madre', 'CCT 2025-2027 - Cláusula 46'),
-  (2027, '2027-09-15', 'Fiesta Nacional (15 de septiembre)', 'CCT 2025-2027 - Cláusula 46'),
-  (2027, '2027-09-16', 'Día de la Independencia', 'CCT 2025-2027 - Cláusula 46'),
-  (2027, '2027-11-15', 'Tercer lunes de noviembre (Día de la Revolución)', 'CCT 2025-2027 - Cláusula 46'),
-  (2027, '2027-12-25', 'Navidad', 'CCT 2025-2027 - Cláusula 46')
 ON CONFLICT (year, date) DO NOTHING;

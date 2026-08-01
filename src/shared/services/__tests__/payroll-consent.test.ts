@@ -3,6 +3,7 @@ import {
   fetchPayrollConsent,
   grantPayrollConsent,
   revokePayrollConsent,
+  deletePayrollDataRemote,
   type PayrollConsentDeps,
 } from "../payroll-consent"
 
@@ -15,13 +16,16 @@ function makeClient(result: () => ChainResult) {
   const updateEq = vi.fn(result)
   const update = vi.fn(() => ({ eq: updateEq }))
   const upsert = vi.fn(result)
+  const deleteEq = vi.fn(result)
+  const del = vi.fn(() => ({ eq: deleteEq }))
   const from = vi.fn((table: string) => {
-    if (table === "payroll_contexts") return { select, upsert, update }
+    if (table === "payroll_contexts") return { select, upsert, update, delete: del }
+    if (table === "imported_payslips") return { delete: del }
     throw new Error(`tabla inesperada: ${table}`)
   })
   const getUser = vi.fn(async () => ({ data: { user: { id: "user-1" } }, error: null }))
   const client = { from, auth: { getUser } } as unknown as PayrollConsentDeps["client"]
-  return { client, from, select, selectEq, maybeSingle, upsert, update, updateEq, getUser }
+  return { client, from, select, selectEq, maybeSingle, upsert, update, updateEq, getUser, del, deleteEq }
 }
 
 function deps(result: () => ChainResult): PayrollConsentDeps {
@@ -80,5 +84,28 @@ describe("payroll-consent", () => {
     } catch (err) {
       expect((err as Error).message).toBe("revoke failed")
     }
+  })
+
+  it("deletePayrollDataRemote borra tarjetones y luego el contexto", async () => {
+    const { client, from, del, deleteEq } = makeClient(() => ({ data: null, error: null }))
+    const d: PayrollConsentDeps = { client, user: { id: "user-1" } }
+    await deletePayrollDataRemote(d)
+    expect(from).toHaveBeenNthCalledWith(1, "imported_payslips")
+    expect(del).toHaveBeenCalledTimes(2)
+    expect(deleteEq).toHaveBeenNthCalledWith(1, "user_id", "user-1")
+    expect(deleteEq).toHaveBeenNthCalledWith(2, "user_id", "user-1")
+    expect(from).toHaveBeenNthCalledWith(2, "payroll_contexts")
+  })
+
+  it("deletePayrollDataRemote aborta si falla el borrado de tarjetones", async () => {
+    const { client, from } = makeClient(() => ({ data: null, error: null }))
+    const d: PayrollConsentDeps = { client, user: { id: "user-1" } }
+    ;(from as unknown as ReturnType<typeof vi.fn>).mockImplementation((table: string) => {
+      if (table === "imported_payslips") {
+        return { delete: () => ({ eq: () => ({ data: null, error: new Error("delete failed") }) }) }
+      }
+      return { select: () => ({ eq: () => ({ maybeSingle: () => ({ data: null, error: null }) }) }) }
+    })
+    await expect(deletePayrollDataRemote(d)).rejects.toThrow("delete failed")
   })
 })

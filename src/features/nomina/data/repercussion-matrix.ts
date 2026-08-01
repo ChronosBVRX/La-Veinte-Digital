@@ -6,7 +6,7 @@ export interface ConceptImpactRule {
   verificationStatus: "regulation_verified" | "pending_validation"
 }
 
-export function getImpactMatrixEffectiveAt(_date: string): ConceptImpactRule[] {
+export function getImpactMatrixEffectiveAt(date: string): ConceptImpactRule[] {
   const impacts: ConceptImpactRule[] = []
 
   const verifiedImpacts: Record<string, string[]> = {
@@ -28,5 +28,7 @@ export function getImpactMatrixEffectiveAt(_date: string): ConceptImpactRule[] {
     }
   }
 
-  return impacts
+  return impacts.filter(
+    (i) => date >= i.effectiveFrom && (!i.effectiveTo || date <= i.effectiveTo)
+  )
 }

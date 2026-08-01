@@ -36,6 +36,7 @@ export function BitacoraPanel({ userId, initialEntries = [] }: BitacoraPanelProp
   const [showForm, setShowForm] = useState(false)
   const [filter, setFilter] = useState("all")
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const fetchEntries = useCallback(async () => {
     setLoading(true)
@@ -52,9 +53,14 @@ export function BitacoraPanel({ userId, initialEntries = [] }: BitacoraPanelProp
 
   const handleDelete = async (id: string) => {
     setDeletingId(id)
+    setDeleteError(null)
     const supabase = createClient()
-    await supabase.from("bitacora_entries").delete().eq("id", id)
-    setEntries((prev) => prev.filter((e) => e.id !== id))
+    const { error } = await supabase.from("bitacora_entries").delete().eq("id", id)
+    if (error) {
+      setDeleteError("No se pudo eliminar el registro. Intenta de nuevo.")
+    } else {
+      setEntries((prev) => prev.filter((e) => e.id !== id))
+    }
     setDeletingId(null)
   }
 
@@ -107,6 +113,14 @@ export function BitacoraPanel({ userId, initialEntries = [] }: BitacoraPanelProp
       </div>
 
       <div style={{ padding: "1rem 1.25rem" }}>
+        {deleteError && (
+          <p style={{
+            color: "#dc2626", fontSize: "0.8125rem", background: "#fef2f2",
+            padding: "0.5rem 0.75rem", borderRadius: "0.375rem", margin: "0 0 0.75rem",
+          }}>
+            {deleteError}
+          </p>
+        )}
         {loading ? (
           <LoadingSpinner text="Cargando registros..." />
         ) : (

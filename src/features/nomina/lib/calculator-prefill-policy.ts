@@ -29,7 +29,6 @@ export interface CalculatorPrefillPolicy {
 }
 
 const NO_SENIORITY: Pick<CalculatorPrefillPolicy, "includeSeniority"> = { includeSeniority: false }
-const NO_CATEGORY: Pick<CalculatorPrefillPolicy, "allowCategory"> = { allowCategory: false }
 
 export const CALCULATOR_POLICIES: Record<CalculatorId, CalculatorPrefillPolicy> = {
   aguinaldo: {

@@ -1,7 +1,48 @@
 import type { NextConfig } from "next";
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://ragktminwduiggvaoeix.supabase.co";
+const botApiUrl = process.env.NEXT_PUBLIC_BOT_API_URL ?? "";
+
+const connectSources = [
+  "'self'",
+  supabaseUrl,
+  supabaseUrl.replace(/^https:/, "wss:"),
+  "https://tessdata.projectnaptha.com",
+  "https://cdn.jsdelivr.net",
+  ...(botApiUrl ? botApiUrl.split(",").map((u) => u.trim()).filter(Boolean) : []),
+].join(" ");
+
+const cspDirectives = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  `connect-src ${connectSources}`,
+  "worker-src 'self' blob: https://cdn.jsdelivr.net",
+  "frame-src https://www.facebook.com",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "object-src 'none'",
+  ...(process.env.NODE_ENV === "production" ? ["upgrade-insecure-requests"] : []),
+];
+
 const nextConfig: NextConfig = {
-  /* config options here */
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "Content-Security-Policy", value: cspDirectives.join("; ") },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

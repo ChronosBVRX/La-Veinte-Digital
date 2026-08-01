@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useMemo } from "react"
 import { CALENDARIOS, getDayEvents, EVENT_COLORS, EVENT_LABELS, type CalendarEventType } from "@/features/calendario/services/calendarioData"
@@ -110,9 +110,9 @@ function MonthCalendar({ year, monthIndex, today }: { year: number; monthIndex: 
 export function CalendarioAnual() {
   const now = useMemo(() => new Date(), [])
   const year = now.getFullYear()
-  const yearData = CALENDARIOS[year] ?? CALENDARIOS[2026]
-  const displayYear = yearData ? year : 2026
-  const months = CALENDARIOS[displayYear] ?? []
+  const yearData = CALENDARIOS[year]
+  if (!yearData) return null
+  const months = CALENDARIOS[year] ?? []
 
   return (
     <div>
@@ -122,7 +122,7 @@ export function CalendarioAnual() {
         gap: "1rem",
       }}>
         {months.map((_, i) => (
-          <MonthCalendar key={i} year={displayYear} monthIndex={i} today={{ date: now.getDate(), month: now.getMonth(), year: now.getFullYear() }} />
+          <MonthCalendar key={i} year={year} monthIndex={i} today={{ date: now.getDate(), month: now.getMonth(), year: now.getFullYear() }} />
         ))}
       </div>
 
@@ -132,7 +132,7 @@ export function CalendarioAnual() {
         borderRadius: "var(--radius)",
       }}>
         <h3 style={{ fontSize: "0.875rem", fontWeight: 600, margin: "0 0 0.75rem" }}>
-          Calendario IMSS {displayYear} — Código de colores
+          Calendario IMSS {year} — Código de colores
         </h3>
         <div style={{
           display: "flex", flexWrap: "wrap", gap: "0.75rem 1.5rem",
@@ -162,3 +162,4 @@ export function CalendarioAnual() {
     </div>
   )
 }
+

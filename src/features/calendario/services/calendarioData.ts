@@ -31,7 +31,27 @@ function getRanges(days: number[]): [number, number][] {
   return ranges
 }
 
+export function hasCalendar(year: number): boolean {
+  return CALENDARIOS[year] !== undefined
+}
+
+export function isValidMonthIndex(monthIndex: number): boolean {
+  return Number.isInteger(monthIndex) && monthIndex >= 0 && monthIndex <= 11
+}
+
+// DTSTAMP/UID estables por evento: el UID no debe cambiar entre descargas.
+function eventUid(year: number, mi: number, day: number, type: CalendarEventType, end?: number): string {
+  const suffix = end !== undefined ? `${pad(day)}-${pad(end)}` : pad(day)
+  return `imss-${year}-${pad(mi + 1)}-${suffix}-${type}@laveinte-digital`
+}
+
+function dtStamp(): string {
+  return new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")
+}
+
 export function generateICS(year: number, monthIndex?: number): string {
+  if (!hasCalendar(year)) return ""
+
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -47,6 +67,7 @@ export function generateICS(year: number, monthIndex?: number): string {
   const eventTypes: CalendarEventType[] = ["interactivo", "vacacional", "santander", "otros", "cheque", "jubilados"]
 
   for (const mi of months) {
+    if (!isValidMonthIndex(mi)) continue
     const monthData = yearData[mi]
     if (!monthData) continue
 
@@ -60,6 +81,8 @@ export function generateICS(year: number, monthIndex?: number): string {
           const dtStart = `${year}${pad(mi + 1)}${pad(s)}`
           const dtEnd = nextDate(year, mi, e)
           lines.push("BEGIN:VEVENT")
+          lines.push(`UID:${eventUid(year, mi, s, type, e)}`)
+          lines.push(`DTSTAMP:${dtStamp()}`)
           lines.push(`DTSTART;VALUE=DATE:${dtStart}`)
           lines.push(`DTEND;VALUE=DATE:${dtEnd}`)
           lines.push(`SUMMARY:${EVENT_LABELS[type]}`)
@@ -70,6 +93,8 @@ export function generateICS(year: number, monthIndex?: number): string {
           const dtStart = `${year}${pad(mi + 1)}${pad(day)}`
           const dtEnd = nextDate(year, mi, day)
           lines.push("BEGIN:VEVENT")
+          lines.push(`UID:${eventUid(year, mi, day, type)}`)
+          lines.push(`DTSTAMP:${dtStamp()}`)
           lines.push(`DTSTART;VALUE=DATE:${dtStart}`)
           lines.push(`DTEND;VALUE=DATE:${dtEnd}`)
           lines.push(`SUMMARY:${EVENT_LABELS[type]}`)

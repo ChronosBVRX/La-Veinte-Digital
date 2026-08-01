@@ -18,6 +18,7 @@ interface ReviewProps {
   onConfirm: (opts: {
     profileUpdates: ConfirmTarjetonRequest["profileUpdates"]
     acknowledgeTotalDifference: boolean
+    authorizeServerStorage: boolean
   }) => void
   onCancel: () => void
 }
@@ -25,6 +26,7 @@ interface ReviewProps {
 export function Review({ parsed, profile, confirming, onConfirm, onCancel }: ReviewProps) {
   const [updates, setUpdates] = useState<ConfirmTarjetonRequest["profileUpdates"]>({})
   const [acknowledge, setAcknowledge] = useState(false)
+  const [consentGiven, setConsentGiven] = useState(false)
   const { employee, payroll, document, extraction, vacations, attendance } = parsed
 
   const validations = extraction.validations
@@ -153,13 +155,33 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
         </Card>
       )}
 
+      <Card padding="1rem" style={{ borderColor: "var(--primary)" }}>
+        <label style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", fontSize: "0.875rem", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            checked={consentGiven}
+            onChange={(e) => setConsentGiven(e.target.checked)}
+            style={{ marginTop: "0.25rem", accentColor: "var(--primary)" }}
+          />
+          <span>
+            <strong>Autorizo guardar mis datos</strong> de este tarjetón (conceptos, asistencias y vacaciones)
+            en el servidor para el prerrelleno de mi próxima nómina. Puedo revocarlo o borrarlos desde la pestaña
+            de nómina en cualquier momento.
+          </span>
+        </label>
+      </Card>
+
       <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
         <Button variant="ghost" onClick={onCancel} disabled={confirming}>
           Cancelar
         </Button>
         <Button
-          onClick={() => onConfirm({ profileUpdates: updates, acknowledgeTotalDifference: acknowledge })}
-          disabled={totalsMismatch && !acknowledge}
+          onClick={() => onConfirm({
+            profileUpdates: updates,
+            acknowledgeTotalDifference: acknowledge,
+            authorizeServerStorage: consentGiven,
+          })}
+          disabled={(totalsMismatch && !acknowledge) || !consentGiven}
           loading={confirming}
         >
           Confirmar tarjetón

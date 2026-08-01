@@ -25,11 +25,19 @@ export function calculateProjectionTotals(
   const confirmedDeductionsTotal = confirmedDeductions.reduce((s, c) => s + c.amount, 0)
   const estimatedDeductionsTotal = estimatedDeductions.reduce((s, c) => s + c.amount, 0)
 
-  const confirmedGross = confirmedEarningsTotal + probableEarningsTotal
-  const possibleGross = confirmedGross + conditionalPotentialTotal
+  const confirmedGross = confirmedEarningsTotal
+  const probableGross = confirmedGross + probableEarningsTotal
+  const possibleGross = probableGross + conditionalPotentialTotal
 
-  const confirmedNet = confirmedDeductionsTotal > 0 || estimatedDeductionsTotal > 0
-    ? confirmedGross - confirmedDeductionsTotal - estimatedDeductionsTotal
+  const confirmedNet = confirmedDeductionsTotal > 0
+    ? confirmedGross - confirmedDeductionsTotal
+    : undefined
+
+  const estimatedNetRange = confirmedDeductionsTotal > 0 || estimatedDeductionsTotal > 0
+    ? {
+        minimum: confirmedGross - confirmedDeductionsTotal - estimatedDeductionsTotal,
+        maximum: possibleGross - confirmedDeductionsTotal,
+      }
     : undefined
 
   return {
@@ -39,10 +47,27 @@ export function calculateProjectionTotals(
     confirmedDeductions: confirmedDeductionsTotal,
     estimatedDeductions: estimatedDeductionsTotal,
     confirmedGross,
+    probableGross,
     possibleGross,
     confirmedNet,
-    estimatedNetRange: confirmedNet !== undefined
-      ? { minimum: confirmedGross - confirmedDeductionsTotal - estimatedDeductionsTotal, maximum: confirmedGross }
-      : undefined,
+    estimatedNetRange,
   }
+}
+
+export function validateProjectionTotals(totals: ProjectionTotals): boolean {
+  const fields: number[] = [
+    totals.confirmedEarnings,
+    totals.probableEarnings,
+    totals.conditionalPotentialEarnings,
+    totals.confirmedDeductions,
+    totals.estimatedDeductions,
+    totals.confirmedGross,
+    totals.probableGross,
+    totals.possibleGross,
+  ]
+  if (totals.confirmedNet !== undefined) fields.push(totals.confirmedNet)
+  if (totals.estimatedNetRange !== undefined) {
+    fields.push(totals.estimatedNetRange.minimum, totals.estimatedNetRange.maximum)
+  }
+  return fields.every((v) => Number.isFinite(v))
 }

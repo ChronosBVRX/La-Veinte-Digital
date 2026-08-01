@@ -1,5 +1,4 @@
 import type { CalculatedPayrollConcept } from "./types"
-import type { ConceptImpactRule } from "../data/repercussion-matrix"
 import { getImpactMatrixEffectiveAt } from "../data/repercussion-matrix"
 
 export interface ConceptBaseResult {

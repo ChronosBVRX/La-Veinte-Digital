@@ -89,8 +89,13 @@ export function calculateVacationRange(input: VacationDateCalculationInput): Vac
   const start = new Date(sy, sm - 1, sd);
   let vacationUnits = 0;
   let i = 0;
+  let truncated = false;
 
   while (vacationUnits < input.entitlementUnits) {
+    if (i > 365) {
+      truncated = true;
+      break;
+    }
     const d = new Date(start);
     d.setDate(start.getDate() + i);
     const dateStr = fmtDate(d);
@@ -111,7 +116,6 @@ export function calculateVacationRange(input: VacationDateCalculationInput): Vac
       vacationUnits++;
     }
     i++;
-    if (i > 365) break;
   }
 
   const lastDate = consumedDates[consumedDates.length - 1];
@@ -126,6 +130,7 @@ export function calculateVacationRange(input: VacationDateCalculationInput): Vac
     excludedMandatoryRestDates,
     totalCalendarDays: consumedDates.length + excludedWeeklyRestDates.length + excludedMandatoryRestDates.length,
     totalVacationUnits: input.entitlementUnits,
+    truncated,
   };
 }
 
@@ -156,14 +161,34 @@ function fmtDate(d: Date): string {
 
 export function validateModification(
   originallyScheduledDate: string,
-  newDate: string
+  newDate: string,
+  requestDate?: string
 ): { allowed: boolean; requiresSpecialProcess: boolean; requiresNormativeReview?: boolean; friendlyMessage: string } {
+  const referenceDate = requestDate ?? newDate;
   const [oy, om, od] = originallyScheduledDate.split("-").map(Number);
   const [ny, nm, nd] = newDate.split("-").map(Number);
+  const [ry, rm, rd] = referenceDate.split("-").map(Number);
   const original = new Date(oy, om - 1, od);
   const proposed = new Date(ny, nm - 1, nd);
-  const diffMs = original.getTime() - proposed.getTime();
+  const request = new Date(ry, rm - 1, rd);
+  const diffMs = original.getTime() - request.getTime();
   const daysBefore = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (daysBefore < 0) {
+    return {
+      allowed: false,
+      requiresSpecialProcess: true,
+      friendlyMessage: "No puedes modificar un periodo que ya inició.",
+    };
+  }
+
+  if (proposed < request) {
+    return {
+      allowed: false,
+      requiresSpecialProcess: true,
+      friendlyMessage: "La nueva fecha no puede ser anterior a la fecha de la solicitud.",
+    };
+  }
 
   if (daysBefore >= 45) {
     return {

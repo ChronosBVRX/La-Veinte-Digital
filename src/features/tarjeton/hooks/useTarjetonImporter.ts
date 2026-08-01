@@ -14,6 +14,7 @@ import { renderPdfPageToCanvas } from "@/features/tarjeton/lib/render-pdf-page"
 import { runOcrFallback } from "@/features/tarjeton/lib/run-ocr-fallback"
 import { parseImssTarjeton } from "@/features/tarjeton/lib/imss-tarjeton-parser"
 import { computeFileSha256 } from "@/features/tarjeton/lib/file-hash"
+import { markConceptsConfirmedByUser } from "@/features/tarjeton/lib/confirm-mark"
 import { confirmTarjetonClient } from "@/features/tarjeton/services/confirm-tarjeton-client"
 import { syncConfirmedPayslip } from "@/features/tarjeton/services/payslip-sync"
 import { grantPayrollConsent } from "@/shared/services/payroll-consent"
@@ -95,7 +96,6 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
 
     try {
       const arrayBuffer = await file.arrayBuffer()
-      const sourceHash = await computeFileSha256(arrayBuffer)
       if (controller.signal.aborted) return
 
       const { pdf, loadingTask } = await loadPdfDocument(arrayBuffer)
@@ -177,16 +177,22 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
   const confirm = useCallback(async (opts: {
     profileUpdates: ConfirmTarjetonRequest["profileUpdates"]
     acknowledgeTotalDifference: boolean
+    authorizeServerStorage: boolean
   }) => {
     const parsed = state.parsed
     const file = fileRef.current
     if (!parsed || !file) return
+    if (!opts.authorizeServerStorage) return
+
+    await grantPayrollConsent().catch((err) => {
+      console.warn("[tarjeton] no se pudo registrar el consentimiento para el prerrelleno:", err)
+    })
 
     const sourceHash = await computeFileSha256(await file.arrayBuffer())
     const request: ConfirmTarjetonRequest = {
       schemaVersion: "1.0",
       sourceHash,
-      parsed,
+      parsed: markConceptsConfirmedByUser(parsed),
       profileUpdates: opts.profileUpdates,
       acknowledgeTotalDifference: opts.acknowledgeTotalDifference,
     }
@@ -205,10 +211,6 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
     } catch (err) {
       console.warn("[tarjeton] sincronización local falló:", err)
     }
-
-    grantPayrollConsent().catch((err) => {
-      console.warn("[tarjeton] no se pudo registrar el consentimiento para el prerrelleno:", err)
-    })
 
     setState((s) => ({ ...s, step: "done", confirmResponse: result.data, error: undefined }))
   }, [state.parsed])

@@ -73,7 +73,10 @@ export function Dropzone({ onFile, disabled }: DropzoneProps) {
         size="sm"
         disabled={disabled}
         style={{ marginTop: "0.5rem" }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation()
+          inputRef.current?.click()
+        }}
       >
         Elegir archivo
       </Button>

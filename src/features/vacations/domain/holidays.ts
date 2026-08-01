@@ -91,3 +91,23 @@ export function countExcludedDates(
   }
   return { excludedDates, includedDates };
 }
+
+/**
+ * Descansos obligatorios de TODOS los años que toca un periodo aproximado
+ * de `approxCalendarDays` días a partir de `startDate`. Un periodo que cruza
+ * de diciembre a enero no puede perder los feriados del año siguiente.
+ */
+export function getMandatoryRestDatesForRange(
+  startDate: string,
+  approxCalendarDays: number
+): string[] {
+  const [sy, sm, sd] = startDate.split("-").map(Number);
+  const start = new Date(sy, sm - 1, sd);
+  const end = new Date(start);
+  end.setDate(start.getDate() + Math.max(0, approxCalendarDays - 1));
+  const dates: string[] = [];
+  for (let year = start.getFullYear(); year <= end.getFullYear(); year++) {
+    dates.push(...getMandatoryRestDates(year));
+  }
+  return dates;
+}

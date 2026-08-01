@@ -2,12 +2,15 @@ import { NextResponse } from "next/server"
 import OpenAI from "openai"
 import { createClient } from "@/lib/supabase/server"
 import { requireUser } from "@/shared/server/auth/require-user"
+import { parseConsultaRequest, type ConsultaMessage } from "@/shared/contracts/consulta"
 import data from "@/lib/services/vectorstore-data.json"
 
 const MAX_HISTORY_LENGTH = 20
 const MAX_QUESTION_CHARS = 2000
 const DAILY_QUOTA_PER_USER = 100
 const OPENAI_TIMEOUT_MS = 30000
+
+type QuotaResult = "allowed" | "exceeded" | "error"
 
 function getOpenAI() {
   const apiKey = process.env.OPENAI_API_KEY
@@ -27,7 +30,7 @@ function withTimeout(ms: number): AbortSignal {
   return controller.signal
 }
 
-async function consumeQuota(userId: string): Promise<boolean> {
+async function consumeQuota(userId: string): Promise<QuotaResult> {
   try {
     const supabase = await createClient()
     const { data, error } = await supabase.rpc("increment_api_usage", {
@@ -37,18 +40,13 @@ async function consumeQuota(userId: string): Promise<boolean> {
     })
     if (error) {
       console.error("[consulta] error de cuota:", error.message)
-      return true
+      return "error"
     }
-    return data === true
+    return data === true ? "allowed" : "exceeded"
   } catch (err) {
     console.error("[consulta] error inesperado de cuota:", err instanceof Error ? err.message : err)
-    return true
+    return "error"
   }
-}
-
-interface Message {
-  role: "user" | "assistant"
-  content: string
 }
 
 function cosineSimilarity(a: number[], b: number[]): number {
@@ -125,7 +123,7 @@ function topK(queryEmbedding: number[], query: string, k: number): string[] {
  * directo de OpenAI dentro de Next.js.
  */
 async function respondViaPythonBot(
-  history: Message[],
+  history: ConsultaMessage[],
   question: string,
   requestId: string,
 ): Promise<string | null> {
@@ -165,7 +163,7 @@ async function respondViaPythonBot(
 }
 
 async function respondDirect(
-  history: Message[],
+  history: ConsultaMessage[],
   question: string,
   requestId: string,
 ): Promise<NextResponse> {
@@ -215,7 +213,7 @@ ${context}`
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
       ...history.slice(-MAX_HISTORY_LENGTH).map((m) => ({
-        role: m.role as "user" | "assistant",
+        role: m.role,
         content: m.content,
       })),
     ]
@@ -253,48 +251,53 @@ export async function POST(req: Request) {
   }
   const user = auth.user
 
-  const allowed = await consumeQuota(user.id)
-  if (!allowed) {
+  const quota = await consumeQuota(user.id)
+  if (quota === "exceeded") {
     return NextResponse.json(
       { error: "Cuota diaria alcanzada. Intenta mañana.", requestId },
       { status: 429 },
     )
   }
-
-  try {
-    const body: { history: Message[] } = await req.json()
-    const { history } = body
-
-    if (!history?.length) {
-      return NextResponse.json({ respuesta: "No recibí ninguna pregunta." })
-    }
-
-    if (history.length > MAX_HISTORY_LENGTH) {
-      return NextResponse.json({ error: "Historial demasiado largo.", requestId }, { status: 400 })
-    }
-
-    const question = [...history].reverse().find((m) => m.role === "user")?.content?.trim()
-    if (!question) {
-      return NextResponse.json({ respuesta: "No pude encontrar tu pregunta." })
-    }
-
-    if (question.length > MAX_QUESTION_CHARS) {
-      return NextResponse.json(
-        { error: `La pregunta excede los ${MAX_QUESTION_CHARS} caracteres.`, requestId },
-        { status: 400 },
-      )
-    }
-
-    const pythonResponse = await respondViaPythonBot(history, question, requestId)
-    if (pythonResponse !== null) {
-      return NextResponse.json({ respuesta: pythonResponse })
-    }
-
-    return await respondDirect(history, question, requestId)
-  } catch {
+  if (quota === "error") {
     return NextResponse.json(
-      { error: "Ocurrió un error al procesar tu consulta.", requestId },
-      { status: 500 },
+      { error: "No se pudo verificar tu cuota. Intenta de nuevo en unos minutos.", requestId },
+      { status: 503 },
     )
   }
+
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json(
+      { error: "El cuerpo debe ser JSON válido.", requestId },
+      { status: 400 },
+    )
+  }
+
+  const parsed = parseConsultaRequest(body)
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error, requestId }, { status: 400 })
+  }
+
+  const { history } = parsed.value
+
+  const question = [...history].reverse().find((m) => m.role === "user")?.content?.trim()
+  if (!question) {
+    return NextResponse.json({ error: "No pude encontrar tu pregunta.", requestId }, { status: 400 })
+  }
+
+  if (question.length > MAX_QUESTION_CHARS) {
+    return NextResponse.json(
+      { error: `La pregunta excede los ${MAX_QUESTION_CHARS} caracteres.`, requestId },
+      { status: 400 },
+    )
+  }
+
+  const pythonResponse = await respondViaPythonBot(history, question, requestId)
+  if (pythonResponse !== null) {
+    return NextResponse.json({ respuesta: pythonResponse })
+  }
+
+  return await respondDirect(history, question, requestId)
 }
