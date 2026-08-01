@@ -64,6 +64,10 @@ jobs:
           supabase db query --local --output-format json "SELECT count(*) FROM public.vacation_mandatory_rest_days WHERE year = 2027;" | grep -q '"count": 12'
           supabase db query --local --output-format json "SELECT count(*) FROM pg_class WHERE relname IN ('chat_messages','forum_posts','profiles','payroll_contexts') AND relnamespace='public'::regnamespace;" | grep -q '"count": 4'
 
+      - name: Chat RLS functional tests (two users)
+        run: |
+          supabase db query --local -f supabase/tests/chat_rls.sql
+
   python:
     runs-on: ubuntu-latest
     timeout-minutes: 15
