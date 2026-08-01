@@ -230,7 +230,9 @@ npm run build
 | `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Anon key de Supabase |
 | `OPENAI_API_KEY` | API key de OpenAI |
-| `NEXT_PUBLIC_BOT_API_URL` | URL del bot API Python (opcional, fallback a `/api/consulta`) |
+| `BOT_API_URL` | URL del bot API Python (opcional). La ruta `/api/consulta` la consulta con el header `X-Bot-Secret`; si no responde, cae al motor Next.js |
+| `BOT_API_SHARED_SECRET` | Secreto compartido para autenticar llamadas al bot Python. Sin él, el bot responde 503 en `/health` y `/consulta` (fail-closed) y la app usa el motor Next.js |
+| `NEXT_PUBLIC_BOT_API_URL` | URL del bot API Python para modo directo desde el frontend (opcional; fallback a `/api/consulta`) |
 
 ### Bot API Python (opcional)
 
@@ -241,6 +243,14 @@ source venv/bin/activate  # o venv\Scripts\activate en Windows
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
+
+Variables del bot (`bot-api/.env`):
+
+| Variable | Descripción |
+|---|---|
+| `OPENAI_API_KEY` | API key de OpenAI (embeddings + respuestas) |
+| `BOT_API_SHARED_SECRET` | Secreto requerido por `/health` y `/consulta` (header `X-Bot-Secret`) |
+| `BOT_CORS_ORIGIN` | Origen permitido (por defecto `https://la-veinte-digital.vercel.app`) |
 
 O con Docker:
 
