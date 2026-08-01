@@ -400,7 +400,8 @@ create policy "Users can delete own payroll context"
 -- ============================================================
 do $$
 begin
-  if exists (
+  if to_regclass('public.chat_messages') is not null
+    and exists (
     select 1 from pg_publication where pubname = 'supabase_realtime'
   ) and not exists (
     select 1 from pg_publication_tables
