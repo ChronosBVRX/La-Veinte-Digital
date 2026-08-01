@@ -227,6 +227,7 @@ export function EscritosResult({
 
                 {firmaUrl && (
                   <div style={{ marginTop: 40 }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={firmaUrl} alt="Firma" style={{ maxHeight: 80, display: "block", margin: "0 auto 5px" }} />
                   </div>
                 )}
@@ -272,6 +273,7 @@ export function EscritosResult({
                       <p style={{ fontWeight: 600, fontSize: "10pt", margin: "0 0 8px", textAlign: "left" }}>
                         Anexo {i + 1}
                       </p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={foto}
                         alt={`Anexo ${i + 1}`}

@@ -16,13 +16,6 @@ interface ProjectionViewProps {
 function ConceptRow({ concept }: { concept: CalculatedPayrollConcept }) {
   const [expanded, setExpanded] = useState(false)
 
-  const confidenceColor: Record<string, "success" | "warning" | "error" | "info"> = {
-    high: "success",
-    medium: "warning",
-    low: "error",
-    requires_confirmation: "info",
-  }
-
   const statusLabels: Record<string, string> = {
     confirmed: "Confirmado",
     probable: "Probable",

@@ -9,7 +9,7 @@ export default function NominaPerfilPage() {
       <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "1.5rem" }}>
         Configura tus datos laborales para la proyecci&oacute;n de n&oacute;mina.
       </p>
-      <NominaProfileWizard profile={null} onSave={() => {}} />
+      <NominaProfileWizard profile={null} />
     </div>
   )
 }

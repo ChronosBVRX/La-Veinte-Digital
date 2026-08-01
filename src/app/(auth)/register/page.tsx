@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import Image from "next/image"
 import { RegisterForm } from "./register-form"
 
 export default async function RegisterPage() {
@@ -17,7 +18,13 @@ export default async function RegisterPage() {
             display: "flex", alignItems: "center", justifyContent: "center",
             margin: "0 auto 1rem", boxShadow: "0 4px 12px rgba(37, 99, 235, 0.25)",
           }}>
-            <img src="/Logo SXX_recortado.png" alt="SXX" style={{ maxHeight: "44px", width: "auto", filter: "brightness(0) invert(1)" }} />
+            <Image
+              src="/Logo SXX_recortado.png"
+              alt="SXX"
+              width={44}
+              height={44}
+              style={{ maxHeight: "44px", width: "auto", filter: "brightness(0) invert(1)" }}
+            />
           </div>
           <h1 style={{ fontSize: "1.375rem", fontWeight: 700, margin: "0 0 0.25rem" }}>La Veinte Digital</h1>
           <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: 0 }}>

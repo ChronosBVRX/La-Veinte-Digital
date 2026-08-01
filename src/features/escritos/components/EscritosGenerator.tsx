@@ -211,6 +211,7 @@ export function EscritosGenerator() {
           </p>
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
             {fotos.map((f, i) => (
+              /* eslint-disable-next-line @next/next/no-img-element */
               <img key={i} src={f} alt={`Evidencia ${i + 1}`}
                 style={{ width: 60, height: 60, objectFit: "cover", borderRadius: "0.375rem", border: "2px solid var(--primary)" }}
               />

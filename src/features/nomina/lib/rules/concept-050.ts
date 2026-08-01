@@ -6,6 +6,7 @@ export const rule050: PayrollRule = {
   effectiveFrom: "2025-01-01",
   dependencies: [],
   calculate(_ctx: PayrollRuleContext): RuleCalculationResult {
+    void _ctx
     const concept: CalculatedPayrollConcept = {
       code: "050",
       name: "Ayuda para Despensa",

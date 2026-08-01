@@ -2,14 +2,11 @@ import type {
   EmployeePayrollProfile,
   ResolvedSalaryCategory,
   PayrollFactKey,
-  PayrollFact,
   RecurringConceptEvidence,
   EligibilityStatus,
-  MathematicalStatus,
   AdministrativeStatus,
-  ConceptEvaluationStatus,
 } from "./types"
-import { CONCEPT_ELIGIBILITY, type EligibilityDefinition } from "../data/eligibility-catalog"
+import { CONCEPT_ELIGIBILITY } from "../data/eligibility-catalog"
 
 export interface EligibilityRequirementResult {
   requirement: string
@@ -78,12 +75,16 @@ export function evaluateEligibilityForConcept(
   }
 
   if (def.incompatibleConcepts) {
-    const hasIncompatible = false
+    const hasIncompatible = profile.recurringConcepts.some(
+      (c) => c.appearsNormally !== false && def.incompatibleConcepts!.includes(c.conceptCode)
+    )
     const r: EligibilityRequirementResult = {
       requirement: `Sin incompatibilidades (${def.incompatibleConcepts.join(", ")})`,
-      met: true,
+      met: !hasIncompatible,
+      details: hasIncompatible ? `Concepto incompatible detectado en tus tarjetones` : undefined,
     }
-    matched.push(r)
+    if (hasIncompatible) failed.push(r)
+    else matched.push(r)
   }
 
   if (def.requiredFacts) {
