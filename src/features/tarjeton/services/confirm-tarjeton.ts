@@ -16,7 +16,7 @@ import { validateTarjetonTotals } from "@/features/tarjeton/lib/validations"
 
 export class ConfirmTarjetonError extends Error {
   constructor(
-    public code: "invalid_payload" | "unauthorized" | "duplicate" | "totals_mismatch" | "matricula_mismatch" | "limits_exceeded" | "template_not_detected" | "internal",
+    public code: "invalid_payload" | "unauthorized" | "duplicate" | "totals_mismatch" | "matricula_mismatch" | "limits_exceeded" | "template_not_detected" | "consent_required" | "internal",
     message: string,
   ) {
     super(message)
@@ -86,6 +86,7 @@ export async function confirmTarjetonService(deps: ConfirmTarjetonServiceDeps, r
       p_parsed: request.parsed,
       p_profile_updates: request.profileUpdates,
       p_acknowledge_total_difference: request.acknowledgeTotalDifference,
+      p_authorize_server_storage: request.authorizeServerStorage,
     })
 
     if (error) {
@@ -122,6 +123,9 @@ function mapRpcError(message: string): { ok: false; error: { code: ConfirmTarjet
   }
   if (normalized.includes("invalid_payload")) {
     return { ok: false, error: { code: "invalid_payload", message: "El contenido no cumple el contrato del tarjetón." } }
+  }
+  if (normalized.includes("consent_required")) {
+    return { ok: false, error: { code: "consent_required", message: "Es necesario autorizar el guardado de tus datos para continuar." } }
   }
   return { ok: false, error: { code: "internal", message: "No fue posible confirmar el tarjetón." } }
 }

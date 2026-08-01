@@ -7,6 +7,7 @@ function makeRequest(overrides: Partial<ConfirmTarjetonRequest> = {}): ConfirmTa
     schemaVersion: "1.0",
     sourceHash: "a".repeat(64),
     acknowledgeTotalDifference: false,
+    authorizeServerStorage: true,
     profileUpdates: { matricula: false },
     parsed: {
       schemaVersion: "1.0",
@@ -108,7 +109,37 @@ describe("confirm-tarjeton service", () => {
     expect(result.ok).toBe(true)
   })
 
-  it("descarta claves sensibles enviadas por error", async () => {
+  it("rechaza claves sensibles enviadas por error (whitelist estricta)", async () => {
+    const rpc = async () => ({ data: null, error: null })
+
+    const request = makeRequest()
+    ;(request.parsed as unknown as Record<string, unknown>).rfc = "ROGA900101HX0"
+
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, request)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe("invalid_payload")
+  })
+
+  it("rechaza claves extra en subobjetos del contrato", async () => {
+    const rpc = async () => ({ data: null, error: null })
+
+    const withEmployeeExtra = makeRequest()
+    ;(withEmployeeExtra.parsed.employee as unknown as Record<string, unknown>).cuentaBancaria = "0123456789"
+    expect(await confirmTarjetonService({ userId: "u1", rpc }, withEmployeeExtra)).toMatchObject({
+      ok: false,
+      error: { code: "invalid_payload" },
+    })
+
+    const withDocExtra = makeRequest()
+    ;(withDocExtra.parsed.document as unknown as Record<string, unknown>).codigoQR = "data:image/png;base64,..."
+    expect(await confirmTarjetonService({ userId: "u1", rpc }, withDocExtra)).toMatchObject({
+      ok: false,
+      error: { code: "invalid_payload" },
+    })
+  })
+
+  it("envía el consentimiento al RPC", async () => {
     let sentArgs: Record<string, unknown> | null = null
     const rpc = async (_fn: string, args: Record<string, unknown>) => {
       sentArgs = args
@@ -118,17 +149,18 @@ describe("confirm-tarjeton service", () => {
       }
     }
 
-    const request = makeRequest()
-    ;(request.parsed as unknown as Record<string, unknown>).rfc = "ROGA900101HX0"
-    ;(request.parsed.employee as unknown as Record<string, unknown>).cuentaBancaria = "0123456789"
-    ;(request.parsed.document as unknown as Record<string, unknown>).codigoQR = "data:image/png;base64,..."
-
-    const result = await confirmTarjetonService({ userId: "u1", rpc }, request)
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, makeRequest())
     expect(result.ok).toBe(true)
     expect(sentArgs).not.toBeNull()
-    expect(sentArgs!.p_parsed as Record<string, unknown>).not.toHaveProperty("rfc")
-    expect((sentArgs!.p_parsed as { employee: Record<string, unknown> }).employee).not.toHaveProperty("cuentaBancaria")
-    expect((sentArgs!.p_parsed as { document: Record<string, unknown> }).document).not.toHaveProperty("codigoQR")
+    expect(sentArgs!.p_authorize_server_storage).toBe(true)
+  })
+
+  it("mapea consent_required del RPC al código del contrato", async () => {
+    const rpc = async () => ({ data: null, error: { message: "consent_required" } })
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, makeRequest())
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe("consent_required")
   })
 
   it("rechaza cuerpos que no cumplen el contrato", async () => {

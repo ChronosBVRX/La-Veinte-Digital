@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
   if (!result.ok) {
     const status = result.error.code === "unauthorized" ? 401
       : result.error.code === "invalid_payload" || result.error.code === "template_not_detected" ? 400
+      : result.error.code === "consent_required" ? 403
       : result.error.code === "totals_mismatch" || result.error.code === "matricula_mismatch" || result.error.code === "duplicate" || result.error.code === "limits_exceeded" ? 422
       : 500
     return NextResponse.json(result.error, { status })

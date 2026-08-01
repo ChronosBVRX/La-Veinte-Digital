@@ -1051,6 +1051,7 @@ export type Database = {
       confirm_imported_payslip: {
         Args: {
           p_acknowledge_total_difference: boolean
+          p_authorize_server_storage: boolean
           p_parsed: Json
           p_profile_updates: Json
           p_source_hash: string
