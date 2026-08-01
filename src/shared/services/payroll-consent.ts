@@ -49,3 +49,20 @@ export async function revokePayrollConsent(deps?: PayrollConsentDeps): Promise<v
 
   if (error) throw error
 }
+
+export async function deletePayrollDataRemote(deps?: PayrollConsentDeps): Promise<void> {
+  const { client, userId } = await resolveContext(deps)
+  const { error } = await client
+    .from("imported_payslips")
+    .delete()
+    .eq("user_id", userId)
+
+  if (error) throw error
+
+  const { error: ctxError } = await client
+    .from("payroll_contexts")
+    .delete()
+    .eq("user_id", userId)
+
+  if (ctxError) throw ctxError
+}

@@ -19,7 +19,8 @@ import type {
 import { calculateSeniority, reconstructEffectiveDate } from "../lib/seniority"
 import { getCurrentPayPeriod } from "../lib/periods"
 import { calculateProjection, type PayrollProjectionResult } from "../lib/engine"
-import { resolveCategory, type CategoryMatch, type CategoryResolutionResult } from "../lib/category-resolver"
+import { validateProjectionTotals } from "../lib/totals"
+import { resolveCategory, type CategoryMatch } from "../lib/category-resolver"
 import type { ConditionalPayrollQuestion } from "../lib/question-engine"
 import {
   getProfile,
@@ -35,6 +36,7 @@ import {
 import {
   grantPayrollConsent,
   revokePayrollConsent,
+  deletePayrollDataRemote,
 } from "@/shared/services/payroll-consent"
 
 export type NominaStep =
@@ -141,6 +143,7 @@ export function useNomina() {
     hydrate()
   }, [
     s.consented,
+    s.profile,
     s.profile?.id,
     s.profile?.categoryName,
     s.profile?.categoryId,
@@ -177,6 +180,21 @@ export function useNomina() {
     patch({ consented: false, profile: null, projections: [], step: "consent" })
     revokePayrollConsent().catch((err) => {
       console.warn("[nomina] no se pudo revocar el consentimiento en el servidor:", err)
+    })
+  }, [patch])
+
+  const deleteDataPermanently = useCallback(() => {
+    deleteAllData()
+    setCategoryState({ status: "idle" })
+    setSeniority(null)
+    setPeriod(null)
+    setProjection(null)
+    setProjectionResult(null)
+    setPendingQuestions([])
+    setQuestionAnswers([])
+    patch({ consented: false, profile: null, projections: [], step: "consent" })
+    deletePayrollDataRemote().catch((err) => {
+      console.warn("[nomina] no se pudo borrar la información en el servidor:", err)
     })
   }, [patch])
 
@@ -300,7 +318,9 @@ export function useNomina() {
       setProjection(result.projection)
       setProjectionResult(result)
       setPendingQuestions(result.questions)
-      saveProjection(result.projection)
+      if (validateProjectionTotals(result.projection.totals)) {
+        saveProjection(result.projection)
+      }
 
       const updated = [...s.projections.filter((x) => x.id !== result.projection.id), result.projection]
       patch({ projections: updated, step: "projection" })
@@ -362,6 +382,7 @@ export function useNomina() {
     hydrating,
     giveConsent,
     revokeConsent,
+    deleteDataPermanently,
     updateProfile,
     resolveAmbiguousCategory,
     updateConditions,

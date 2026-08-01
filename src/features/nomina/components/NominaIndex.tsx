@@ -20,8 +20,8 @@ export function NominaIndex() {
   const {
     consented, profile, category, categoryState, seniority, period,
     projection, projections, step, loading, hydrating,
-    pendingQuestions, questionAnswers,
-    giveConsent, revokeConsent, updateProfile,
+    pendingQuestions,
+    giveConsent, revokeConsent, deleteDataPermanently, updateProfile,
     resolveAmbiguousCategory,
     generateProjection, resetProfile, setStep, selectProjection,
     answerQuestion, removeProjection,
@@ -119,9 +119,30 @@ export function NominaIndex() {
             Simulador de tarjet&oacute;n del IMSS
           </p>
         </div>
-        <Button variant="ghost" onClick={revokeConsent} style={{ fontSize: "0.75rem" }}>
-          <Trash2 size={14} /> Desactivar
-        </Button>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              if (window.confirm("¿Desactivar la proyección de nómina? Tus datos guardados se conservan en el servidor por si quieres reactivarla después.")) {
+                revokeConsent()
+              }
+            }}
+            style={{ fontSize: "0.75rem" }}
+          >
+            <Trash2 size={14} /> Desactivar
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              if (window.confirm("¿Borrar permanentemente todos tus datos de nómina y tarjetones del servidor? Esta acción no se puede deshacer.")) {
+                deleteDataPermanently()
+              }
+            }}
+            style={{ fontSize: "0.75rem", color: "#dc2626" }}
+          >
+            Borrar mis datos
+          </Button>
+        </div>
       </div>
 
       {profile && (
