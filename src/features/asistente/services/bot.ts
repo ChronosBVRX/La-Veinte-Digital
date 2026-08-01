@@ -3,18 +3,54 @@ export interface BotMessage {
   content: string
 }
 
-export async function consultarBot(history: BotMessage[]): Promise<string> {
-  const res = await fetch("/api/consulta", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ history }),
-  })
+export type BotErrorCode = "network" | "quota" | "server" | "empty"
 
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Bot API error (${res.status}): ${err}`)
+export class BotError extends Error {
+  constructor(
+    public code: BotErrorCode,
+    message: string,
+  ) {
+    super(message)
+    this.name = "BotError"
+  }
+}
+
+export function botErrorMessage(code: BotErrorCode): string {
+  switch (code) {
+    case "network":
+      return "No pude conectar con el servidor. Verifica tu conexión e intenta de nuevo."
+    case "quota":
+      return "Alcanzaste el límite diario de consultas. Intenta de nuevo mañana."
+    case "empty":
+      return "No recibí una respuesta válida. Reformula tu pregunta."
+    default:
+      return "El servidor tuvo un problema al responder. Intenta de nuevo en unos minutos."
+  }
+}
+
+export async function consultarBot(history: BotMessage[]): Promise<string> {
+  let res: Response
+  try {
+    res = await fetch("/api/consulta", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ history }),
+    })
+  } catch (err) {
+    throw new BotError("network", err instanceof Error ? err.message : "Network error")
   }
 
-  const data = await res.json()
-  return data.respuesta ?? data.error ?? "Error al obtener respuesta"
+  if (res.status === 429) {
+    throw new BotError("quota", `Quota exceeded (429)`)
+  }
+  if (!res.ok) {
+    throw new BotError("server", `Bot API error (${res.status}): ${await res.text()}`)
+  }
+
+  const data = await res.json().catch(() => null)
+  const respuesta = typeof data?.respuesta === "string" ? data.respuesta : ""
+  if (!respuesta) {
+    throw new BotError("empty", "Empty response")
+  }
+  return respuesta
 }
