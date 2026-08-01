@@ -111,6 +111,10 @@ export type Database = {
         }
         Returns: Json
       }
+      increment_api_usage: {
+        Args: { p_user: string; p_route: string; p_limit: number }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never

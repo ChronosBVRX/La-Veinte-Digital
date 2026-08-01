@@ -1,3 +1,5 @@
+import type { SimuladorScenarioId } from "@/shared/contracts/simulador"
+
 export interface SimMessage {
   role: "user" | "assistant"
   content: string
@@ -19,8 +21,8 @@ export interface AnalysisResult {
 
 export async function consultarSimulador(
   history: SimMessage[],
-  scenario: string,
-  difficulty: number
+  scenario: SimuladorScenarioId,
+  difficulty: 1 | 2,
 ): Promise<{ respuesta: string; presion: number; estado: InquisitorState }> {
   const res = await fetch("/api/simulador", {
     method: "POST",
@@ -41,11 +43,14 @@ export async function consultarSimulador(
   }
 }
 
-export async function analizarDesempeno(history: SimMessage[]): Promise<AnalysisResult> {
+export async function analizarDesempeno(
+  history: SimMessage[],
+  scenario: SimuladorScenarioId,
+): Promise<AnalysisResult> {
   const res = await fetch("/api/simulador", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "analyze", history }),
+    body: JSON.stringify({ action: "analyze", history, scenario }),
   })
 
   if (!res.ok) {

@@ -1,9 +1,15 @@
 import fitz, re, json, os
 from langchain_openai import OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from embedding_service import generar_y_guardar_vectorstore
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PDF_FOLDER = os.path.join(HERE, "pdfs")
+
+# 1) Regenera el vectorstore FAISS del bot Python (con metadata y marcador
+#    de confianza que autoriza la deserialización en consulta).
+print("Regenerando vectorstore FAISS...")
+generar_y_guardar_vectorstore()
 
 all_texts = []
 
