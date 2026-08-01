@@ -48,6 +48,8 @@ export interface CalculatorPrefillBuildContext {
   recurringEvidence: RecurringEvidenceEntry[]
   /** Días laborados reales y verificables (solo si existen). */
   daysWorkedInAnnualPeriod?: { value: number; source: PrefillSource; note?: string }
+  /** Advertencias previas del servicio (p. ej. consentimiento no otorgado). */
+  warnings?: string[]
 }
 
 function mapConfidence(confidence: CalculatedPayrollConcept["confidence"]): PrefillConfidence {
@@ -91,7 +93,7 @@ function fieldFromConcept(
 
 export function buildCalculatorPrefillResponse(ctx: CalculatorPrefillBuildContext): CalculatorPrefillResponse {
   const policy = getCalculatorPolicy(ctx.calculatorId)
-  const warnings: string[] = []
+  const warnings: string[] = [...(ctx.warnings ?? [])]
   const missingFacts: string[] = []
   const fields: CalculatorPrefillFields = {}
 

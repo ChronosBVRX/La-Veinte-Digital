@@ -32,6 +32,10 @@ import {
   deleteProjection,
   deleteProfile,
 } from "@/shared/services/local-storage"
+import {
+  grantPayrollConsent,
+  revokePayrollConsent,
+} from "@/shared/services/payroll-consent"
 
 export type NominaStep =
   | "consent"
@@ -156,6 +160,9 @@ export function useNomina() {
   const giveConsent = useCallback(() => {
     saveConsent(true)
     patch({ consented: true, step: "profile" })
+    grantPayrollConsent().catch((err) => {
+      console.warn("[nomina] no se pudo registrar el consentimiento en el servidor:", err)
+    })
   }, [patch])
 
   const revokeConsent = useCallback(() => {
@@ -168,11 +175,17 @@ export function useNomina() {
     setPendingQuestions([])
     setQuestionAnswers([])
     patch({ consented: false, profile: null, projections: [], step: "consent" })
+    revokePayrollConsent().catch((err) => {
+      console.warn("[nomina] no se pudo revocar el consentimiento en el servidor:", err)
+    })
   }, [patch])
 
   const updateProfile = useCallback(async (p: EmployeePayrollProfile) => {
     saveProfile(p)
     saveConsent(true)
+    grantPayrollConsent().catch((err) => {
+      console.warn("[nomina] no se pudo registrar el consentimiento en el servidor:", err)
+    })
 
     if (p.displayedSeniorityAtLastPayslip) {
       const effectiveDate = reconstructEffectiveDate(

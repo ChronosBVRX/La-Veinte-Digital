@@ -272,6 +272,12 @@ describe("Prerrelleno normativo - días laborados", () => {
 })
 
 describe("Prerrelleno normativo - contrato", () => {
+  it("las advertencias previas del servicio se propagan a la respuesta", () => {
+    const res = buildCalculatorPrefillResponse(makeContext({
+      warnings: ["Los datos de tu tarjetón aún no se usan: para prellenar con ellos acepta el consentimiento de nómina."],
+    }))
+    expect(res.warnings.join(" ")).toContain("consentimiento")
+  })
   it("las respuestas del builder pasan el validador del contrato", async () => {
     const { isCalculatorPrefillResponse } = await import("@/shared/contracts/calculator-prefill")
     const res = buildCalculatorPrefillResponse(makeContext({ calculatorId: "tiempo-extra" }))

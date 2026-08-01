@@ -111,7 +111,7 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
     if (vAd1 === null) e.adicional1 = "Importe inválido (0 si no aplica)"
     if (vAd2 === null) e.adicional2 = "Importe inválido (0 si no aplica)"
     if (v050 === null) e.c050 = "Importe inválido (0 si no aplica)"
-    if (vJ !== 6.5 && vJ !== 8 && vJ !== 12) e.jornada = "Seleccione una jornada"
+    if (vJ !== 6 && vJ !== 6.5 && vJ !== 8 && vJ !== 12) e.jornada = "Seleccione una jornada"
     if (!fields.horasExtra || isNaN(vH)) e.horasExtra = "Ingrese las horas extra"
     else {
       const err = validateHorasExtra(vH)

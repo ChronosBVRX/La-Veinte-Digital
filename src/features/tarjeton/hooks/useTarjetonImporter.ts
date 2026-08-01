@@ -16,6 +16,7 @@ import { parseImssTarjeton } from "@/features/tarjeton/lib/imss-tarjeton-parser"
 import { computeFileSha256 } from "@/features/tarjeton/lib/file-hash"
 import { confirmTarjetonClient } from "@/features/tarjeton/services/confirm-tarjeton-client"
 import { syncConfirmedPayslip } from "@/features/tarjeton/services/payslip-sync"
+import { grantPayrollConsent } from "@/shared/services/payroll-consent"
 
 export interface TarjetonProfileSnapshot {
   fullName?: string | null
@@ -204,6 +205,10 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
     } catch (err) {
       console.warn("[tarjeton] sincronización local falló:", err)
     }
+
+    grantPayrollConsent().catch((err) => {
+      console.warn("[tarjeton] no se pudo registrar el consentimiento para el prerrelleno:", err)
+    })
 
     setState((s) => ({ ...s, step: "done", confirmResponse: result.data, error: undefined }))
   }, [state.parsed])
