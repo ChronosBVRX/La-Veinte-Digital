@@ -1,5 +1,8 @@
 const MEXICO_TIME_ZONE = "America/Mexico_City"
 
+// México sin horario de verano desde 2022 (UTC-6 fijo).
+const MEXICO_OFFSET_MS = -6 * 60 * 60 * 1000
+
 const WEEKDAY_NAMES = [
   "Domingo",
   "Lunes",
@@ -25,8 +28,24 @@ const MONTH_NAMES = [
   "Diciembre",
 ] as const
 
+function capitalize(name: string): string {
+  return name.charAt(0).toUpperCase() + name.slice(1)
+}
+
+function isISODateString(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
+// Convierte una fecha civil YYYY-MM-DD (día institucional de México) en el
+// instante UTC de su medianoche mexicana. Sin esto, `new Date("2026-08-01")`
+// se interpreta como medianoche de la zona del servidor y al reformatear en
+// America/Mexico_City retrocede al día anterior.
+function mexicoMidnight(dateString: string): Date {
+  return new Date(Date.parse(`${dateString}T00:00:00Z`) - MEXICO_OFFSET_MS)
+}
+
 export function institutionalToday(): Date {
-  return new Date(`${institutionalDateString()}T00:00:00`)
+  return mexicoMidnight(institutionalDateString())
 }
 
 export function institutionalDateString(date: Date = new Date()): string {
@@ -54,11 +73,11 @@ export function institutionalDateTimeString(date: Date = new Date()): string {
 }
 
 export function institutionalWeekday(date: Date = new Date()): string {
-  const dtf = new Intl.DateTimeFormat("en-US", {
+  const dtf = new Intl.DateTimeFormat("es-MX", {
     timeZone: MEXICO_TIME_ZONE,
     weekday: "long",
   })
-  const name = dtf.format(date)
+  const name = capitalize(dtf.format(date))
   const idx = WEEKDAY_NAMES.indexOf(name as (typeof WEEKDAY_NAMES)[number])
   return idx >= 0 ? name : WEEKDAY_NAMES[0]
 }
@@ -68,19 +87,28 @@ export function institutionalMonthName(date: Date = new Date()): string {
     timeZone: MEXICO_TIME_ZONE,
     month: "long",
   })
-  const name = dtf.format(date)
+  const name = capitalize(dtf.format(date))
   const idx = MONTH_NAMES.indexOf(name as (typeof MONTH_NAMES)[number])
   return idx >= 0 ? name : MONTH_NAMES[0]
 }
 
 export function formatDateInstitutional(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(`${date}T00:00:00`) : date
-  return new Intl.DateTimeFormat("es-MX", {
+  const dtf = new Intl.DateTimeFormat("es-MX", {
     timeZone: MEXICO_TIME_ZONE,
     day: "2-digit",
     month: "long",
     year: "numeric",
-  }).format(d)
+  })
+  if (typeof date === "string") {
+    if (!isISODateString(date)) return date
+    return new Intl.DateTimeFormat("es-MX", {
+      timeZone: "UTC",
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    }).format(new Date(Date.parse(`${date}T00:00:00Z`)))
+  }
+  return dtf.format(date)
 }
 
 export function isInstitutionalDateValid(isoDate: string): boolean {

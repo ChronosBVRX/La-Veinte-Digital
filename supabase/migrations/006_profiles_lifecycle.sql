@@ -123,8 +123,9 @@ create policy "Users can update own profile"
   with check (auth.uid() = id);
 
 -- Vista pública limitada para foro/chat: solo identidad visible.
-create or replace view public.limited_profiles
-with (security_invoker = on) as
+-- Corre como el dueño (postgres) para eludir la RLS de profiles y poder
+-- exponer nombre/avatar de otros participantes sin revelar el perfil completo.
+create or replace view public.limited_profiles as
   select id, full_name, avatar_url
   from public.profiles;
 
@@ -133,88 +134,102 @@ grant select on public.limited_profiles to anon;
 
 -- ============================================================
 -- 4. Chat: solo participantes leen mensajes de salas privadas.
+--    (Las tablas se crean en 007_base_schema.sql; aquí solo se
+--    aplican políticas si ya existen, para que la migración sea
+--    reproducible desde una base vacía.)
 -- ============================================================
-drop policy if exists "Chat messages are publicly readable" on public.chat_messages;
-drop policy if exists "Authenticated users can send messages" on public.chat_messages;
-drop policy if exists "Users can delete own messages" on public.chat_messages;
+do $$
+begin
+  if to_regclass('public.chat_messages') is null then
+    return;
+  end if;
 
-create policy "Participants can read room messages"
-  on public.chat_messages for select
-  using (
-    exists (
-      select 1 from public.chat_rooms r
-      where r.id = chat_messages.room_id
-        and coalesce(r.is_private, false) = false
-    )
-    or exists (
-      select 1 from public.chat_participants p
-      where p.room_id = chat_messages.room_id
-        and p.user_id = auth.uid()
-    )
-  );
+  drop policy if exists "Chat messages are publicly readable" on public.chat_messages;
+  drop policy if exists "Authenticated users can send messages" on public.chat_messages;
+  drop policy if exists "Users can delete own messages" on public.chat_messages;
 
-create policy "Users can send messages to their rooms"
-  on public.chat_messages for insert
-  with check (
-    user_id = auth.uid()
-    and char_length(content) between 1 and 2000
-    and (
+  create policy "Participants can read room messages"
+    on public.chat_messages for select
+    using (
       exists (
         select 1 from public.chat_rooms r
-        where r.id = room_id
+        where r.id = chat_messages.room_id
           and coalesce(r.is_private, false) = false
       )
       or exists (
         select 1 from public.chat_participants p
-        where p.room_id = room_id
+        where p.room_id = chat_messages.room_id
           and p.user_id = auth.uid()
       )
-    )
-  );
+    );
 
-create policy "Users can delete own messages"
-  on public.chat_messages for delete
-  using (auth.uid() = user_id);
+  create policy "Users can send messages to their rooms"
+    on public.chat_messages for insert
+    with check (
+      user_id = auth.uid()
+      and char_length(content) between 1 and 2000
+      and (
+        exists (
+          select 1 from public.chat_rooms r
+          where r.id = room_id
+            and coalesce(r.is_private, false) = false
+        )
+        or exists (
+          select 1 from public.chat_participants p
+          where p.room_id = room_id
+            and p.user_id = auth.uid()
+        )
+      )
+    );
 
-drop policy if exists "Participants are publicly readable" on public.chat_participants;
-drop policy if exists "Authenticated users can join rooms" on public.chat_participants;
+  create policy "Users can delete own messages"
+    on public.chat_messages for delete
+    using (auth.uid() = user_id);
 
-create policy "Users can read own participants"
-  on public.chat_participants for select
-  using (auth.uid() = user_id);
+  drop policy if exists "Participants are publicly readable" on public.chat_participants;
+  drop policy if exists "Authenticated users can join rooms" on public.chat_participants;
 
-create policy "Users can join rooms"
-  on public.chat_participants for insert
-  with check (
-    user_id = auth.uid()
-    and exists (select 1 from public.chat_rooms r where r.id = room_id)
-  );
+  create policy "Users can read own participants"
+    on public.chat_participants for select
+    using (auth.uid() = user_id);
 
--- Índices de mensajes por sala y orden cronológico.
-create index if not exists chat_messages_room_created_idx
-  on public.chat_messages (room_id, created_at);
+  create policy "Users can join rooms"
+    on public.chat_participants for insert
+    with check (
+      user_id = auth.uid()
+      and exists (select 1 from public.chat_rooms r where r.id = room_id)
+    );
+
+  -- Índices de mensajes por sala y orden cronológico.
+  create index if not exists chat_messages_room_created_idx
+    on public.chat_messages (room_id, created_at);
+end $$;
 
 -- ============================================================
 -- 5. Foro: autor o admin modifican/eliminan; límites de longitud;
 --    categoría validada por FK.
 -- ============================================================
-drop policy if exists "Admins can manage posts" on public.forum_posts;
-drop policy if exists "Admins can manage comments" on public.forum_comments;
-
-create policy "Admins can manage posts"
-  on public.forum_posts for all
-  using (
-    exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
-  );
-
-create policy "Admins can manage comments"
-  on public.forum_comments for all
-  using (
-    exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
-  );
-
 do $$
 begin
+  if to_regclass('public.forum_posts') is null then
+    return;
+  end if;
+
+  drop policy if exists "Admins can manage posts" on public.forum_posts;
+  drop policy if exists "Admins can manage comments" on public.forum_comments;
+
+  create policy "Admins can manage posts"
+    on public.forum_posts for all
+    using (
+      exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+    );
+
+  create policy "Admins can manage comments"
+    on public.forum_comments for all
+    using (
+      exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+    );
+
   if not exists (
     select 1 from pg_constraint
     where conrelid = 'public.forum_posts'::regclass and conname = 'forum_posts_title_len_check'
@@ -236,10 +251,10 @@ begin
     alter table public.forum_comments add constraint forum_comments_content_len_check
       check (char_length(content) between 1 and 10000);
   end if;
-end $$;
 
-create index if not exists forum_posts_created_idx
-  on public.forum_posts (created_at desc);
+  create index if not exists forum_posts_created_idx
+    on public.forum_posts (created_at desc);
+end $$;
 
 -- ============================================================
 -- 6. Bitácora: actualización por propietario + restricciones.

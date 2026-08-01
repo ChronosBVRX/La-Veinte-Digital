@@ -21,9 +21,12 @@ export function CalendarioMensual() {
   const now = useMemo(() => new Date(), [])
   const year = now.getFullYear()
   const monthIndex = now.getMonth()
-  const yearData = CALENDARIOS[year] ?? CALENDARIOS[2026]
-  const displayYear = yearData ? year : 2026
-  const monthData = getMonthData(displayYear, monthIndex)
+  const yearData = CALENDARIOS[year]
+
+  if (!yearData) return null
+
+  const monthData = getMonthData(year, monthIndex)
+  const displayYear = year
 
   const firstDayOfMonth = new Date(displayYear, monthIndex, 1).getDay()
   const daysInMonth = new Date(displayYear, monthIndex + 1, 0).getDate()

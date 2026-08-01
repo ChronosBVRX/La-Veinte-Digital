@@ -44,10 +44,13 @@ describe("fechas institucionales (America/Mexico_City)", () => {
     expect(institutionalDateString(today)).toBe(institutionalDateString())
   })
 
-  it("normaliza medianoche UTC para que la fecha no cambie al convertirla a ISO", () => {
-    const instant = new Date("2026-07-31T20:17:00-06:00")
-    expect(institutionalToday().toISOString().slice(0, 10)).toBe(
-      institutionalDateString(instant)
-    )
+  it("institutionalToday devuelve la misma fecha civil al convertirla a ISO (sin retroceder un día)", () => {
+    const today = institutionalToday()
+    expect(today.toISOString().slice(0, 10)).toBe(institutionalDateString())
+    const mexicoHour = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "America/Mexico_City",
+      hour: "2-digit",
+    }).format(today)
+    expect(mexicoHour).toBe("00")
   })
 })

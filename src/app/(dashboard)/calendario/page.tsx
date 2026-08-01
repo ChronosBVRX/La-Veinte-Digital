@@ -5,7 +5,7 @@ import { institutionalToday } from "@/shared/lib/dates"
 
 export default function CalendarioPage() {
   const year = institutionalToday().getFullYear()
-  const displayYear = CALENDARIOS[year] ? year : 2026
+  const hasCalendar = CALENDARIOS[year] !== undefined
 
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
@@ -15,15 +15,29 @@ export default function CalendarioPage() {
       }}>
         <div>
           <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>
-            Calendario IMSS {displayYear}
+            Calendario IMSS {year}
           </h1>
           <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0.25rem 0 0" }}>
             Fechas de pago, periodos de interactivo y vacacional
           </p>
         </div>
-        <CalendarioExportButton year={displayYear} label="Exportar año completo" />
+        {hasCalendar && <CalendarioExportButton year={year} label="Exportar año completo" />}
       </div>
-      <CalendarioAnual />
+      {hasCalendar ? (
+        <CalendarioAnual />
+      ) : (
+        <div style={{
+          background: "var(--card)", border: "1px solid var(--border)",
+          borderRadius: "var(--radius-lg)", padding: "1.5rem", textAlign: "center",
+        }}>
+          <p style={{ margin: 0, color: "var(--fg)", fontWeight: 600 }}>
+            El calendario para {year} aún no está publicado.
+          </p>
+          <p style={{ margin: "0.25rem 0 0", color: "var(--muted)", fontSize: "0.875rem" }}>
+            Se habilitará en cuanto se confirme el calendario oficial.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
