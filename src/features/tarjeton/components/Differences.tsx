@@ -26,9 +26,7 @@ export function buildDifferences(
   if (profile.matricula && emp.employeeNumber && profile.matricula.trim() !== emp.employeeNumber.trim()) {
     differences.push({ key: "matricula", label: "Matrícula", current: profile.matricula, detected: emp.employeeNumber })
   }
-  if (profile.adscripcion && emp.assignmentName && profile.adscripcion.trim().toUpperCase() !== emp.assignmentName.trim().toUpperCase()) {
-    differences.push({ key: "adscripcion", label: "Adscripción", current: profile.adscripcion, detected: emp.assignmentName })
-  }
+  // La adscripción no se toma del tarjetón. Se conserva siempre la del perfil.
   if (profile.categoria && emp.categoryName && profile.categoria.trim().toUpperCase() !== emp.categoryName.trim().toUpperCase()) {
     differences.push({ key: "categoria", label: "Categoría", current: profile.categoria, detected: emp.categoryName })
   }
@@ -51,9 +49,9 @@ export function Differences({ parsed, profile, updates, onToggle }: DifferencesP
     return (
       <Card padding="1rem">
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <Badge variant="success">Coinciden</Badge>
+          <Badge variant="success">Datos correctos</Badge>
           <span style={{ fontSize: "0.875rem", color: "var(--muted)" }}>
-            Los datos del tarjetón coinciden con tu perfil.
+            Los datos que se pueden importar coinciden con tu perfil.
           </span>
         </div>
       </Card>
@@ -62,22 +60,16 @@ export function Differences({ parsed, profile, updates, onToggle }: DifferencesP
 
   return (
     <Card padding="1rem" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", borderColor: "var(--warning)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        <Badge variant="warning">Diferencias con tu perfil</Badge>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+        <Badge variant="warning">Revisa estos datos</Badge>
         <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-          Marca qué datos deseas actualizar en tu perfil.
+          Marca solamente los datos que deseas actualizar en tu perfil.
         </span>
       </div>
       {differences.map((d) => (
         <label
           key={d.key}
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: "0.625rem",
-            cursor: "pointer",
-            fontSize: "0.875rem",
-          }}
+          style={{ display: "flex", alignItems: "flex-start", gap: "0.625rem", cursor: "pointer", fontSize: "0.875rem" }}
         >
           <input
             type="checkbox"
@@ -88,17 +80,17 @@ export function Differences({ parsed, profile, updates, onToggle }: DifferencesP
           <span style={{ display: "flex", flexDirection: "column", gap: "0.125rem" }}>
             <span style={{ fontWeight: 600 }}>{d.label}</span>
             <span style={{ color: "var(--muted)", fontSize: "0.8125rem" }}>
-              En tu perfil: <strong>{d.current}</strong>
+              Guardado en tu perfil: <strong>{d.current}</strong>
             </span>
             <span style={{ color: "var(--muted)", fontSize: "0.8125rem" }}>
-              En el tarjetón: <strong>{d.detected}</strong>
+              Detectado en el tarjetón: <strong>{d.detected}</strong>
             </span>
           </span>
         </label>
       ))}
       {differences.some((d) => d.key === "matricula") && updates.matricula !== true && (
         <div style={{ fontSize: "0.8125rem", color: "var(--error)", background: "#fef2f2", borderRadius: "var(--radius)", padding: "0.5rem 0.75rem" }}>
-          La matrícula no coincide con tu perfil. Debes autorizar el cambio de forma explícita para continuar.
+          La matrícula es diferente. Para continuar, revisa el número y autoriza el cambio marcando la casilla.
         </div>
       )}
     </Card>
