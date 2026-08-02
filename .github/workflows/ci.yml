@@ -66,7 +66,15 @@ jobs:
 
       - name: Chat RLS functional tests (two users)
         run: |
-          supabase db query --local -f supabase/tests/chat_rls.sql
+          set +e
+          output=$(supabase db query --local -f supabase/tests/chat_rls.sql 2>&1)
+          status=$?
+          echo "$output"
+          if [ $status -ne 0 ]; then
+            msg=$(echo "$output" | tr '\n' ' ' | head -c 1500)
+            echo "::error::$msg"
+            exit $status
+          fi
 
   python:
     runs-on: ubuntu-latest
