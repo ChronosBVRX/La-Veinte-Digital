@@ -66,15 +66,13 @@ jobs:
 
       - name: Chat RLS functional tests (two users)
         run: |
-          set +e
-          output=$(supabase db query --local -f supabase/tests/chat_rls.sql 2>&1)
-          status=$?
-          echo "$output"
-          if [ $status -ne 0 ]; then
-            msg=$(echo "$output" | tr '\n' ' ' | head -c 1500)
-            echo "::error::$msg"
-            exit $status
+          db_container=$(docker ps --format '{{.Names}}' | grep -E 'supabase_db_' | head -1)
+          if [ -z "$db_container" ]; then
+            echo "::error::no se encontró el contenedor supabase_db_"
+            exit 1
           fi
+          docker exec "$db_container" psql -v ON_ERROR_STOP=1 -v VERBOSITY=verbose \
+            -U postgres -d postgres -f - < supabase/tests/chat_rls.sql
 
   python:
     runs-on: ubuntu-latest
