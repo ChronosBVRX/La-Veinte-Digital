@@ -7,16 +7,17 @@
  * hash opcional del folio fiscal, que se delega a `hashText`.
  */
 import type { ParsedImssTarjeton, PositionedPdfText, TarjetonExtractionMethod } from "@/shared/contracts/tarjeton-import"
-import { reconstructLines, type ReconstructedLine } from "./line-reconstruction"
+import type { ReconstructedLine } from "./line-reconstruction"
 import { detectImssTemplate, TEMPLATE_NOT_DETECTED_MESSAGE } from "./imss-template-detector"
 import { parseImssProfile, extractSeniorityRaw } from "./imss-profile-parser"
 import { parseImssConceptTables } from "./imss-concept-table-parser"
 import { parseImssObservations } from "./imss-observations-parser"
 import { parseImssPeriod, parseImssDate, imssPeriodEndDate } from "./imss-date-parser"
 import { parseImssPayslipSeniority, buildTarjetonSeniority } from "./imss-seniority-parser"
-import { globalTarjetonConfidence, baseFieldConfidence, clampConfidence, requiresReviewForConfidence } from "./confidence"
+import { globalTarjetonConfidence, baseFieldConfidence, clampConfidence, requiresReviewForConfidence, structuralConfidence } from "./confidence"
 import { validateTarjetonTotals, validateConcept011Sanity } from "./validations"
 import { parseImssMoney } from "./money-parser"
+import { buildImssLayoutRegions } from "./imss-layout-regions"
 
 export interface TarjetonParseInput {
   items: PositionedPdfText[]
@@ -132,7 +133,8 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
     }
   }
 
-  const lines = reconstructLines(items)
+  const layout = buildImssLayoutRegions(items)
+  const { lines, receptorLines, receptorColumns, earningsLines, deductionLines } = layout
   const template = detectImssTemplate(lines)
   if (!template.detected) {
     warnings.push(TEMPLATE_NOT_DETECTED_MESSAGE)
@@ -180,13 +182,13 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
   const certificationDate = findFirstDateNear(lines, "CERTIFICACION")
 
   // ---- Perfil -----------------------------------------------------------
-  const profile = parseImssProfile(lines, method)
+  const profile = parseImssProfile(receptorLines, method)
   warnings.push(...profile.warnings)
 
   const employee = { ...profile.employee }
 
   // ---- Antigüedad (con quincenas, nunca conjeturas) ----------------------
-  const seniorityRaw = extractSeniorityRaw(lines)
+  const seniorityRaw = extractSeniorityRaw(receptorLines)
   if (seniorityRaw && periodEndDate) {
     const parsedSeniority = parseImssPayslipSeniority(seniorityRaw)
     if (parsedSeniority) {
@@ -224,8 +226,10 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
     { key: "scholarshipWithoutPay", labels: ["BECAS SIN SUELDO"] },
     { key: "concept033Days", labels: ["DIAS DEL CONCEPTO 033"] },
   ]
+  const attendanceLines = layout.receptorScoped ? receptorColumns[1] : lines
+  const vacationAndPayrollLines = layout.receptorScoped ? receptorColumns[2] : lines
   for (const spec of attendanceSpecs) {
-    const field = readNumberField(lines, spec.labels)
+    const field = readNumberField(attendanceLines, spec.labels)
     if (field) attendance[spec.key] = field.value
   }
 
@@ -239,16 +243,16 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
     { key: "accumulatedRetirementDays", labels: ["DIAS ACUMULADOS PARA JUBILACION", "DIAS ACUMULADOS PARA JUBILACIÓN"] },
   ]
   for (const spec of vacationsSpecs) {
-    const field = readNumberField(lines, spec.labels)
+    const field = readNumberField(vacationAndPayrollLines, spec.labels)
     if (field) vacations[spec.key] = field.value
   }
 
-  const firstPeriodRead = readValueAfterLabel(lines, ["INICIO DE 1ER PERIODO", "INICIO 1ER PERIODO", "INICIO DE 1er PERIODO"])
+  const firstPeriodRead = readValueAfterLabel(vacationAndPayrollLines, ["INICIO DE 1ER PERIODO", "INICIO 1ER PERIODO", "INICIO DE 1er PERIODO"])
   if (firstPeriodRead) {
     const date = findFirstDateNear([firstPeriodRead.line], firstPeriodRead.line.norm.slice(0, 10))
     vacations.firstPeriodStartRaw = date ?? firstPeriodRead.value
   }
-  const secondPeriodRead = readValueAfterLabel(lines, ["INICIO DE 2DO PERIODO", "INICIO 2DO PERIODO", "INICIO DE 2do PERIODO"])
+  const secondPeriodRead = readValueAfterLabel(vacationAndPayrollLines, ["INICIO DE 2DO PERIODO", "INICIO 2DO PERIODO", "INICIO DE 2do PERIODO"])
   if (secondPeriodRead) {
     const date = findFirstDateNear([secondPeriodRead.line], secondPeriodRead.line.norm.slice(0, 10))
     vacations.secondPeriodStartRaw = date ?? secondPeriodRead.value
@@ -261,12 +265,12 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
     { key: "creditCapacity", labels: ["CAPACIDAD DE CREDITO", "CAPACIDAD DE CRÉDITO"] },
   ]
   for (const spec of payrollSpecs) {
-    const field = readNumberField(lines, spec.labels)
+    const field = readNumberField(vacationAndPayrollLines, spec.labels)
     if (field) payroll[spec.key] = field.value
   }
 
   // ---- Conceptos, totales y observaciones --------------------------------
-  const concepts = parseImssConceptTables(lines)
+  const concepts = parseImssConceptTables(earningsLines, deductionLines)
   warnings.push(...concepts.warnings)
   payroll.earnings = concepts.earnings
   payroll.deductions = concepts.deductions
@@ -310,11 +314,52 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
 
   // ---- Confianza global -----------------------------------------------------
   const confidenceLines = [
-    ...lines.map((l) => ({ confidence: l.confidence })),
+    ...Object.values(profile.fields).map((field) => ({ confidence: field.confidence })),
     ...payroll.earnings.map((l) => ({ confidence: l.confidence, kind: "earning" as const })),
     ...payroll.deductions.map((l) => ({ confidence: l.confidence, kind: "deduction" as const })),
   ]
-  const globalConfidence = globalTarjetonConfidence(confidenceLines)
+  const earningCodes = new Set(payroll.earnings.map((line) => line.code))
+  const duplicateCodes = payroll.deductions.filter((line) => earningCodes.has(line.code))
+  const contaminatedConcepts = [...payroll.earnings, ...payroll.deductions].filter((line) =>
+    /\b\d{3}\b/.test(line.description) || /TOTAL (?:PERCEPCIONES|DEDUCCIONES)/.test(line.description.toUpperCase()),
+  )
+  let structuralIssues = 0
+  if (!layout.receptorScoped) {
+    structuralIssues++
+    warnings.push("No se pudo aislar la sección Receptor; revisa manualmente los datos laborales.")
+  }
+  if (!layout.tablesScoped) {
+    structuralIssues++
+    warnings.push("No se pudieron separar las tablas por coordenadas; revisa percepciones y deducciones.")
+  }
+  if (profile.warnings.some((warning) => warning.includes("contiene otra etiqueta"))) structuralIssues++
+  if (contaminatedConcepts.length > 0) {
+    structuralIssues++
+    warnings.push("Una o más descripciones de conceptos contienen otro código o un total; revisa la separación de columnas.")
+  }
+  if (duplicateCodes.length > 0) {
+    structuralIssues++
+    warnings.push("Hay códigos repetidos entre percepciones y deducciones; revisa la clasificación de conceptos.")
+  }
+  if (payroll.earnings.length > 0 && payroll.earnings.length === payroll.deductions.length && !layout.tablesScoped) structuralIssues++
+  const missingCriticalProfile = [employee.employeeNumber, employee.fullName, employee.categoryCode, employee.categoryName]
+    .filter((value) => !value).length
+  if (missingCriticalProfile > 0) {
+    structuralIssues += missingCriticalProfile
+    warnings.push("Faltan datos laborales críticos; revisa matrícula, nombre y categoría.")
+  }
+  if (payroll.earnings.length === 0 || payroll.deductions.length === 0) {
+    structuralIssues++
+    warnings.push("No se detectaron conceptos en una o ambas tablas de nómina.")
+  }
+  if (payroll.totalEarnings === undefined || payroll.totalDeductions === undefined || payroll.netPay === undefined) {
+    structuralIssues++
+    warnings.push("Falta uno o más totales de nómina; la extracción requiere revisión.")
+  }
+  if (totals.earningsTotalMatches === false) structuralIssues++
+  if (totals.deductionsTotalMatches === false) structuralIssues++
+  if (totals.netPayMatches === false) structuralIssues++
+  const globalConfidence = structuralConfidence(globalTarjetonConfidence(confidenceLines), structuralIssues)
 
   const parsed: ParsedImssTarjeton = {
     schemaVersion: "1.0",
