@@ -141,22 +141,24 @@ function withTimeout(signal: AbortSignal, ms: number): AbortSignal {
   return controller.signal
 }
 
-async function consumeQuota(userId: string, route: string): Promise<boolean> {
+type QuotaResult = "allowed" | "exceeded" | "error"
+
+async function consumeQuota(userId: string): Promise<QuotaResult> {
   try {
     const supabase = await createClient()
     const { data, error } = await supabase.rpc("increment_api_usage", {
       p_user: userId,
-      p_route: route,
+      p_route: "simulador",
       p_limit: SIMULADOR_DAILY_QUOTA,
     })
     if (error) {
       console.error("[simulador] error de cuota:", error.message)
-      return true
+      return "error"
     }
-    return data === true
+    return data === true ? "allowed" : "exceeded"
   } catch (err) {
     console.error("[simulador] error inesperado de cuota:", err instanceof Error ? err.message : err)
-    return true
+    return "error"
   }
 }
 
@@ -219,11 +221,17 @@ export async function POST(req: Request) {
 
   const { action, scenario, difficulty, history } = parsed.value
 
-  const allowed = await consumeQuota(user.id, "simulador")
-  if (!allowed) {
+  const allowed = await consumeQuota(user.id)
+  if (allowed === "exceeded") {
     return NextResponse.json(
       { error: "Cuota diaria alcanzada. Intenta mañana.", requestId },
       { status: 429 },
+    )
+  }
+  if (allowed === "error") {
+    return NextResponse.json(
+      { error: "No se pudo verificar la cuota. Intenta de nuevo.", requestId },
+      { status: 503 },
     )
   }
 

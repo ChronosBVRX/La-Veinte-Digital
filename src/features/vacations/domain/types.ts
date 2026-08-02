@@ -200,17 +200,23 @@ export interface VacationSimulationInput {
 }
 
 export interface VacationSimulationResult {
+  /**
+   * "BLOCKED" cuando la inclusión propuesta no es compatible con la marca de
+   * continuidad actual: no se producen datos aparentes (unidades, UPO, fechas)
+   * y solo se reportan las opciones compatibles.
+   */
+  status: "COMPUTED" | "BLOCKED";
   regime: VacationRegime;
   periodNumber: number;
   startDate?: string;
   endDate?: string;
   returnDate?: string;
-  unitsUsed: number;
+  unitsUsed?: number;
   unitType: "WORKDAY" | "JOURNEY" | "VELADA";
   originalContinuityMark: number;
   proposedInclusionMark: number;
-  resultingContinuityMark: number;
-  affectedUPO: number;
+  resultingContinuityMark?: number;
+  affectedUPO?: number;
   dueDate: string;
   anticipationDays: number;
   requiresSpecialProcess: boolean;

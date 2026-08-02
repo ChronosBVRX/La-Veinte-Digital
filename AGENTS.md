@@ -1,4 +1,4 @@
-<!-- Version: 0.004 -->
+<!-- Version: 0.005 -->
 <!-- Last updated: 2026-07-31 -->
 <!-- BEGIN:nextjs-agent-rules -->
 # ⚠️ This is NOT the Next.js you know
@@ -123,13 +123,13 @@ The `@/` alias maps to `./src/` (configured in `tsconfig.json`).
 
 ## Rule 6: Proxy (middleware) — auth guard
 
-The file `src/proxy.ts` uses Supabase SSR cookie-based auth. If you add a new route that needs auth protection, ensure the `proxy` function in `proxy.ts` does NOT exclude it. The current exclusion list:
+The file `src/proxy.ts` uses Supabase SSR cookie-based auth. Everything is protected **by default**; only paths in the explicit `PUBLIC_PATH_PREFIXES` constant are public:
 
 ```ts
-/login /register /callback /api/ /health /consulta
+["/login", "/register", "/callback", "/api/"]
 ```
 
-Add new public routes to this exclusion list if needed.
+`/api/*` is excluded because each API route self-guards with `requireUser`. Add a new public route to this array only with justification.
 
 ## Rule 7: Database access
 
@@ -160,9 +160,9 @@ const [state, formAction, pending] = useActionState(
 The chat assistant has two parallel backends:
 
 1. **Next.js API route** at `/api/consulta` — uses OpenAI embeddings + cosine similarity on `vectorstore-data.json`
-2. **Python FastAPI** at `NEXT_PUBLIC_BOT_API_URL` — uses LangChain + FAISS
+2. **Python FastAPI** (optional) — uses LangChain + FAISS, configured via server-only `BOT_API_URL` + `BOT_API_SHARED_SECRET`
 
-The frontend (`features/asistente/services/bot.ts`) checks for `NEXT_PUBLIC_BOT_API_URL` first, falls back to `/api/consulta`.
+The frontend (`features/asistente/services/bot.ts`) ALWAYS calls `/api/consulta` (auth + quota). That route invokes the Python bot with the `X-Bot-Secret` header when configured, and falls back to the direct OpenAI engine. Do NOT introduce client-side access to the Python bot (no `NEXT_PUBLIC_*` bot env vars).
 
 **DO NOT create a third implementation.** If modifying the bot, update BOTH backends or consolidate to one.
 

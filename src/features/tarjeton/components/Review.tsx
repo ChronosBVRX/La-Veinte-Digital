@@ -3,8 +3,11 @@
 import { useMemo, useState } from "react"
 import type { ConfirmTarjetonRequest, ParsedImssTarjeton } from "@/shared/contracts/tarjeton-import"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
+import type { ReviewedConceptLine } from "@/features/tarjeton/lib/confirm-mark"
+import { needsExplicitConfirmation } from "@/features/tarjeton/lib/confirm-mark"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
+import { Input } from "@/shared/components/ui/Input"
 import { Badge } from "@/shared/components/ui/Badge"
 import { ExtractedField } from "./ExtractedField"
 import { Summary } from "./Summary"
@@ -19,15 +22,29 @@ interface ReviewProps {
     profileUpdates: ConfirmTarjetonRequest["profileUpdates"]
     acknowledgeTotalDifference: boolean
     authorizeServerStorage: boolean
+    conceptLines: ReviewedConceptLine[]
   }) => void
   onCancel: () => void
+}
+
+function parseAmount(value: string): number | null {
+  const normalized = value.trim().replace(",", ".")
+  if (!normalized) return null
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 export function Review({ parsed, profile, confirming, onConfirm, onCancel }: ReviewProps) {
   const [updates, setUpdates] = useState<ConfirmTarjetonRequest["profileUpdates"]>({})
   const [acknowledge, setAcknowledge] = useState(false)
   const [consentGiven, setConsentGiven] = useState(false)
-  const { employee, payroll, document, extraction, vacations, attendance } = parsed
+  const [rows, setRows] = useState<ReviewedConceptLine[]>(() =>
+    [...parsed.payroll.earnings, ...parsed.payroll.deductions].map((line) => ({
+      ...line,
+      confirmedByUser: !needsExplicitConfirmation(line.confidence),
+    })),
+  )
+  const { employee, document, extraction, vacations, attendance } = parsed
 
   const validations = extraction.validations
   const totalsMismatch = Boolean(
@@ -49,7 +66,15 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
     { key: "entryDate" as const, label: "Fecha de ingreso", sensitive: false },
   ]
 
-  const conceptRows = [...payroll.earnings, ...payroll.deductions]
+  const visibleRows = rows.filter((row) => row.deleted !== true)
+  const pendingReview = rows.filter(
+    (row) => row.deleted !== true && !row.confirmedByUser,
+  )
+  const invalidAmounts = visibleRows.some((row) => parseAmount(String(row.amount)) === null)
+
+  function updateRow(lineIndex: number, patch: Partial<ReviewedConceptLine>) {
+    setRows((prev) => prev.map((row) => (row.lineIndex === lineIndex ? { ...row, ...patch } : row)))
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -106,24 +131,83 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
         )}
       </Card>
 
-      <Card padding="1rem" style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-        <div style={{ fontWeight: 700, fontSize: "0.875rem", marginBottom: "0.25rem" }}>
-          Conceptos ({conceptRows.length})
+      <Card padding="1rem" style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+          <div style={{ fontWeight: 700, fontSize: "0.875rem" }}>Conceptos ({visibleRows.length})</div>
+          {pendingReview.length > 0 && (
+            <Badge variant="warning">{pendingReview.length} línea(s) por confirmar</Badge>
+          )}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "3.5rem 1fr auto", gap: "0.5rem", fontSize: "0.8125rem", color: "var(--muted)", fontWeight: 600 }}>
-          <span>Código</span>
-          <span>Descripción</span>
-          <span style={{ textAlign: "right" }}>Importe</span>
+        <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+          Corrige código, descripción o importe, confirma cada línea marcada y elimina falsos positivos del OCR.
         </div>
-        {conceptRows.map((line) => (
-          <div key={`${line.kind}-${line.lineIndex}`} style={{ display: "grid", gridTemplateColumns: "3.5rem 1fr auto", gap: "0.5rem", fontSize: "0.875rem", alignItems: "center" }}>
-            <Badge variant={line.kind === "earning" ? "info" : "warning"}>{line.code}</Badge>
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{line.description}</span>
-            <span style={{ fontWeight: 600, textAlign: "right", color: line.kind === "deduction" && line.amount < 0 ? "var(--error)" : "var(--fg)" }}>
-              {line.amount.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-          </div>
-        ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+          {visibleRows.map((row) => {
+            const needsConfirm = needsExplicitConfirmation(row.confidence)
+            const unconfirmed = !row.confirmedByUser
+            return (
+              <div
+                key={`${row.kind}-${row.lineIndex}`}
+                style={{
+                  display: "flex", alignItems: "center", gap: "0.375rem",
+                  padding: "0.375rem", borderRadius: "var(--radius-sm)",
+                  background: unconfirmed ? "color-mix(in srgb, var(--warning) 12%, var(--card))" : "transparent",
+                  flexWrap: "wrap",
+                }}
+              >
+                <Badge variant={row.kind === "earning" ? "info" : "warning"}>{row.kind === "earning" ? "P" : "D"}</Badge>
+                <Input
+                  value={row.code}
+                  onChange={(e) => updateRow(row.lineIndex, { code: e.target.value })}
+                  aria-label={`Código del concepto ${row.lineIndex}`}
+                  style={{ width: "4.5rem", padding: "0.25rem 0.5rem", fontSize: "0.8125rem" }}
+                />
+                <Input
+                  value={row.description}
+                  onChange={(e) => updateRow(row.lineIndex, { description: e.target.value })}
+                  aria-label={`Descripción del concepto ${row.lineIndex}`}
+                  style={{ flex: 1, minWidth: "10rem", padding: "0.25rem 0.5rem", fontSize: "0.8125rem" }}
+                />
+                <Input
+                  value={String(row.amount)}
+                  onChange={(e) => {
+                    const amount = parseAmount(e.target.value)
+                    if (amount !== null) updateRow(row.lineIndex, { amount })
+                  }}
+                  aria-label={`Importe del concepto ${row.lineIndex}`}
+                  style={{ width: "7rem", padding: "0.25rem 0.5rem", fontSize: "0.8125rem", textAlign: "right" }}
+                />
+                {needsConfirm && (
+                  <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.75rem", cursor: "pointer", whiteSpace: "nowrap" }}>
+                    <input
+                      type="checkbox"
+                      checked={row.confirmedByUser}
+                      onChange={(e) => updateRow(row.lineIndex, { confirmedByUser: e.target.checked })}
+                      style={{ accentColor: "var(--primary)" }}
+                    />
+                    Confirmar
+                  </label>
+                )}
+                <button
+                  type="button"
+                  onClick={() => updateRow(row.lineIndex, { deleted: true })}
+                  aria-label={`Eliminar concepto ${row.lineIndex}`}
+                  style={{
+                    background: "transparent", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)",
+                    color: "var(--muted)", cursor: "pointer", padding: "0.25rem 0.5rem", fontSize: "0.8125rem",
+                  }}
+                >
+                  Eliminar
+                </button>
+              </div>
+            )
+          })}
+          {visibleRows.length === 0 && (
+            <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+              No hay conceptos. Si el OCR no reconoció líneas, revisa otro archivo o cancela.
+            </div>
+          )}
+        </div>
       </Card>
 
       {(Object.keys(vacations).length > 0 || Object.keys(attendance).length > 0) && (
@@ -171,6 +255,12 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
         </label>
       </Card>
 
+      {invalidAmounts && (
+        <div style={{ fontSize: "0.8125rem", color: "var(--error)" }}>
+          Hay importes inválidos: corrígelos o elimina esas líneas antes de confirmar.
+        </div>
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
         <Button variant="ghost" onClick={onCancel} disabled={confirming}>
           Cancelar
@@ -180,8 +270,9 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
             profileUpdates: updates,
             acknowledgeTotalDifference: acknowledge,
             authorizeServerStorage: consentGiven,
+            conceptLines: rows.filter((row) => row.deleted !== true),
           })}
-          disabled={(totalsMismatch && !acknowledge) || !consentGiven}
+          disabled={(totalsMismatch && !acknowledge) || !consentGiven || invalidAmounts || visibleRows.length === 0}
           loading={confirming}
         >
           Confirmar tarjetón

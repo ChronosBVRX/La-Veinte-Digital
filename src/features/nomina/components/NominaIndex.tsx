@@ -19,7 +19,7 @@ import { Badge } from "@/shared/components/ui/Badge"
 export function NominaIndex() {
   const {
     consented, profile, category, categoryState, seniority, period,
-    projection, projections, step, loading, hydrating,
+    projection, projections, step, loading, hydrating, deleting, deletionError,
     pendingQuestions,
     giveConsent, revokeConsent, deleteDataPermanently, updateProfile,
     resolveAmbiguousCategory,
@@ -29,6 +29,10 @@ export function NominaIndex() {
 
   if (loading) {
     return <LoadingSpinner text="Cargando..." />
+  }
+
+  if (deleting) {
+    return <LoadingSpinner text="Borrando tus datos del servidor..." />
   }
 
   if (!consented) {
@@ -133,6 +137,7 @@ export function NominaIndex() {
           </Button>
           <Button
             variant="ghost"
+            disabled={deleting}
             onClick={() => {
               if (window.confirm("¿Borrar permanentemente todos tus datos de nómina y tarjetones del servidor? Esta acción no se puede deshacer.")) {
                 deleteDataPermanently()
@@ -144,6 +149,16 @@ export function NominaIndex() {
           </Button>
         </div>
       </div>
+
+      {deletionError && (
+        <div style={{
+          background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.3)",
+          borderRadius: "var(--radius)", padding: "0.75rem 1rem",
+          fontSize: "0.8125rem", color: "#991b1b", marginBottom: "1rem",
+        }}>
+          {deletionError}
+        </div>
+      )}
 
       {profile && (
         <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>

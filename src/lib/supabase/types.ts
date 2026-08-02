@@ -137,6 +137,49 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_room_invitations: {
+        Row: {
+          created_at: string | null
+          id: string
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_room_invitations_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "chat_rooms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_room_invitations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "limited_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_room_invitations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_messages: {
         Row: {
           content: string
@@ -1008,6 +1051,7 @@ export type Database = {
       confirm_imported_payslip: {
         Args: {
           p_acknowledge_total_difference: boolean
+          p_authorize_server_storage: boolean
           p_parsed: Json
           p_profile_updates: Json
           p_source_hash: string
@@ -1015,6 +1059,7 @@ export type Database = {
         Returns: Json
       }
       ensure_profile_exists: { Args: never; Returns: boolean }
+      erase_user_payroll_data: { Args: never; Returns: undefined }
       increment_api_usage: {
         Args: { p_limit: number; p_route: string; p_user: string }
         Returns: boolean

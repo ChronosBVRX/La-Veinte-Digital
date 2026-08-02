@@ -91,6 +91,11 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
     ),
   })
 
+  const handleCurrencyChange = useCallback((key: keyof typeof fields) => (value: string) => {
+    prefillFields.markDirty(key)
+    setField(key, value)
+  }, [prefillFields.markDirty, setField])
+
   const handleCategorySelect = (record: PrestamoCategoriaRecord) => {
     setSelectedCategory(record.categoria)
     prefillFields.markDirty("c002")
@@ -120,6 +125,8 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
     if (v002 === null) e.c002 = "Importe inválido"
     optional("c011", "c011")
     optional("c020", "c020")
+    optional("adicional1", "adicional1")
+    optional("adicional2", "adicional2")
     optional("c050", "c050")
     if (vJ !== 6 && vJ !== 6.5 && vJ !== 8 && vJ !== 12) e.jornada = "Seleccione una jornada"
     if (!fields.horasExtra || isNaN(vH)) e.horasExtra = "Ingrese las horas extra"
@@ -164,12 +171,12 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
         <PrefillStatus data={prefill.data} loading={prefill.loading} error={prefill.error} />
         <CategorySelector initialCategory={selectedCategory ?? initialCategoria} onSelect={handleCategorySelect} />
-        <CurrencyField label="Concepto 002" value={fields.c002} onChange={(v) => { setField("c002", v) }} error={errors.c002} />
-        <CurrencyField label="Concepto 011" value={fields.c011} onChange={(v) => { setField("c011", v) }} error={errors.c011} />
-        <CurrencyField label="Concepto 020" value={fields.c020} onChange={(v) => { setField("c020", v) }} error={errors.c020} />
-        <CurrencyField label="Concepto adicional 1 (023 o 063)" description="Copia el concepto que recibas; cero si no aplica." value={fields.adicional1} onChange={(v) => { setField("adicional1", v) }} error={errors.adicional1} />
-        <CurrencyField label="Concepto adicional 2 (023 o 063)" description="Copia el concepto que recibas; cero si no aplica." value={fields.adicional2} onChange={(v) => { setField("adicional2", v) }} error={errors.adicional2} />
-        <CurrencyField label="Concepto 050" value={fields.c050} onChange={(v) => { setField("c050", v) }} error={errors.c050} />
+        <CurrencyField label="Concepto 002" value={fields.c002} onChange={handleCurrencyChange("c002")} error={errors.c002} />
+        <CurrencyField label="Concepto 011" value={fields.c011} onChange={handleCurrencyChange("c011")} error={errors.c011} />
+        <CurrencyField label="Concepto 020" value={fields.c020} onChange={handleCurrencyChange("c020")} error={errors.c020} />
+        <CurrencyField label="Concepto adicional 1 (023 o 063)" description="Copia el concepto que recibas; cero si no aplica." value={fields.adicional1} onChange={handleCurrencyChange("adicional1")} error={errors.adicional1} />
+        <CurrencyField label="Concepto adicional 2 (023 o 063)" description="Copia el concepto que recibas; cero si no aplica." value={fields.adicional2} onChange={handleCurrencyChange("adicional2")} error={errors.adicional2} />
+        <CurrencyField label="Concepto 050" value={fields.c050} onChange={handleCurrencyChange("c050")} error={errors.c050} />
         <Select id="jornada" label="Jornada" value={fields.jornada} onChange={(e) => { setField("jornada", e.target.value); prefillFields.markDirty("jornada") }}>
           {JORNADAS.map((j) => <option key={j.value} value={j.value}>{j.label}</option>)}
         </Select>
@@ -178,7 +185,7 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
             id="horasExtra"
             label="Horas extra"
             value={fields.horasExtra}
-            onChange={(e) => { setField("horasExtra", e.target.value) }}
+            onChange={(e) => { setField("horasExtra", e.target.value); prefillFields.markDirty("horasExtra") }}
             placeholder="Ej: 5"
             inputMode="numeric"
             autoComplete="off"

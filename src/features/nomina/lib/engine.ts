@@ -150,7 +150,12 @@ export function calculateProjection(input: PayrollProjectionInput): PayrollProje
         requiredConfirmations.push(result.concept.code)
       }
     } catch (e) {
-      warnings.push(`Error calculando regla ${rule.id}: ${e instanceof Error ? e.message : "error desconocido"}`)
+      const message = e instanceof Error ? e.message : "error desconocido"
+      warnings.push(`Error calculando regla ${rule.id}: ${message}`)
+      // Una excepción de regla deja el concepto sin resolver: baja la
+      // confianza de la proyección y exige revisión/confirmación manual.
+      unresolvedConcepts.push(rule.id)
+      requiredConfirmations.push(rule.id)
     }
   }
 

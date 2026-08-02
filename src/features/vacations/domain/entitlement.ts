@@ -67,6 +67,14 @@ export function getVacationDivision(totalDays: number): [number, number] {
  * - CUATRIMESTRAL: tabla RADIATION_DAYS por periodo (0|1|2) del año.
  * - EXTRAORDINARIO_V20: 15 días por fracción (marca 6/7/8) o el total (marca 0).
  * - SEMESTRAL/ESTATUTO: completo (marca 0), primera parte (1/2/4) o segunda (3/9).
+ *
+ * Nota normativa (hallazgo de auditoría #9): las marcas 2 y 3 ("periodo
+ * completo") devuelven la mitad del año vacacional (floor/ceil), no el total.
+ * Es el desglose semestral esperado: cada "periodo completo" corresponde a la
+ * mitad del año y ambas partes suman el total anual. Sin embargo, la semántica
+ * exacta de la marca está sujeta a confirmación con la normativa vigente; el
+ * motor no la corrige por intuición y expone el desglose en la traza
+ * `UNITS_COMPLETE_PERIOD` para revisión.
  */
 export function getUnitsForInclusion(
   regime: VacationRegime,

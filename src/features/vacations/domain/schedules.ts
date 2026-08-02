@@ -1,5 +1,12 @@
 import type { WorkScheduleType, WorkScheduleDefinition, WorkerProfile } from "./types";
 
+/**
+ * Horario a partir del perfil. Las jornadas acumuladas (nocturnas, rotativas y
+ * personalizadas) se rigen por los descansos semanales declarados: los días no
+ * descansados son laborables. Así `isWorkDay()` no devuelve true para todos los
+ * días del calendario con estos horarios. Si no hay descansos declarados, todos
+ * los días se consideran laborables (sin información no se excluye nada).
+ */
 export function getWorkScheduleForProfile(
   profile: Pick<WorkerProfile, "workScheduleType" | "weeklyRestDays">
 ): WorkScheduleDefinition {
@@ -7,15 +14,28 @@ export function getWorkScheduleForProfile(
     case "ACCUMULATED_WEEKEND_DAY":
       return { type: "ACCUMULATED_WEEKEND_DAY", workingDays: [5, 6] };
     case "ACCUMULATED_NIGHT":
-      return { type: "ACCUMULATED_NIGHT" };
     case "ROTATING":
-      return { type: "ROTATING" };
     case "CUSTOM":
-      return { type: "CUSTOM" };
+      return {
+        type: profile.workScheduleType,
+        workingDays: getWorkDaysFromRestDays(profile.weeklyRestDays ?? []),
+      };
     case "ORDINARY":
     default:
       return { type: "ORDINARY" };
   }
+}
+
+/**
+ * Días laborables de la semana (lunes=0 ... domingo=6, misma convención que
+ * `weeklyRestDays` e `isWorkDay`) como complemento de los descansos declarados.
+ */
+export function getWorkDaysFromRestDays(weeklyRestDays: number[]): number[] {
+  const workDays: number[] = [];
+  for (let day = 0; day < 7; day++) {
+    if (!weeklyRestDays.includes(day)) workDays.push(day);
+  }
+  return workDays;
 }
 
 export const ACCUMULATED_DAY_JOURNEYS: Record<number, number> = {

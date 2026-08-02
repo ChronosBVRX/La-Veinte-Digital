@@ -64,15 +64,39 @@ jobs:
           supabase db query --local --output-format json "SELECT count(*) FROM public.vacation_mandatory_rest_days WHERE year = 2027;" | grep -q '"count": 12'
           supabase db query --local --output-format json "SELECT count(*) FROM pg_class WHERE relname IN ('chat_messages','forum_posts','profiles','payroll_contexts') AND relnamespace='public'::regnamespace;" | grep -q '"count": 4'
 
+      - name: Chat RLS functional tests (two users)
+        run: |
+          db_container=$(docker ps --format '{{.Names}}' | grep -E 'supabase_db_' | head -1)
+          if [ -z "$db_container" ]; then
+            echo "::error::no se encontró el contenedor supabase_db_"
+            exit 1
+          fi
+          docker exec "$db_container" psql -v ON_ERROR_STOP=1 -v VERBOSITY=verbose \
+            -U postgres -d postgres -f - < supabase/tests/chat_rls.sql
+
   python:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      BOT_API_SHARED_SECRET: "ci-test-secret"
+      OPENAI_API_KEY: "placeholder"
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r bot-api/requirements.txt
+          pip install -r bot-api/requirements-dev.txt
 
       - name: Python syntax check
         run: python -m compileall bot-api
+
+      - name: Run tests
+        working-directory: bot-api
+        run: python -m pytest -v

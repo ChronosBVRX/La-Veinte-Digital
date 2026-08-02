@@ -7,6 +7,11 @@ import type {
   PrefillField,
   PrefillSource,
 } from "@/shared/contracts/calculator-prefill"
+import {
+  VALID_WORKDAY_HOURS,
+  SENIORITY_YEARS_MAX,
+  DAYS_WORKED_MAX,
+} from "@/shared/contracts/calculator-prefill"
 import type { CalculatedPayrollConcept, EmployeePayrollProfile, ResolvedSalaryCategory, SeniorityResult } from "./types"
 import { getAllRules } from "./rules"
 import { getCalculatorPolicy } from "./calculator-prefill-policy"
@@ -201,7 +206,7 @@ export function buildCalculatorPrefillResponse(ctx: CalculatorPrefillBuildContex
 
     if (policy.includeWorkdayHours) {
       const hours = ctx.category.workdayHours ?? ctx.profile?.workdayHours
-      if (hours && hours > 0) {
+      if (hours && VALID_WORKDAY_HOURS.includes(hours)) {
         fields.workdayHours = {
           value: hours,
           source: "salary_table",
@@ -216,13 +221,18 @@ export function buildCalculatorPrefillResponse(ctx: CalculatorPrefillBuildContex
   }
 
   if (policy.includeSeniority && ctx.seniority) {
-    fields.seniorityYears = {
-      value: ctx.seniority.years,
-      source: "calculated",
-      confidence: "high",
-      effectiveAt: ctx.targetDate,
-      editable: true,
-      legalReference: "Antigüedad efectiva del trabajador",
+    if (ctx.seniority.years <= SENIORITY_YEARS_MAX) {
+      fields.seniorityYears = {
+        value: ctx.seniority.years,
+        source: "calculated",
+        confidence: "high",
+        effectiveAt: ctx.targetDate,
+        editable: true,
+        legalReference: "Antigüedad efectiva del trabajador",
+      }
+    } else {
+      warnings.push("La antigüedad efectiva supera el límite normativo razonable — no se prerrellena.")
+      missingFacts.push("antigüedad")
     }
     if (ctx.senioritySource === "effective_date" || ctx.senioritySource === "payslip_reconstructed") {
       fields.effectiveSeniorityDate = {
@@ -237,13 +247,18 @@ export function buildCalculatorPrefillResponse(ctx: CalculatorPrefillBuildContex
   }
 
   if (policy.includeDaysWorked && ctx.daysWorkedInAnnualPeriod) {
-    fields.daysWorkedInAnnualPeriod = {
-      value: ctx.daysWorkedInAnnualPeriod.value,
-      source: ctx.daysWorkedInAnnualPeriod.source,
-      confidence: "requires_confirmation",
-      effectiveAt: ctx.targetDate,
-      editable: true,
-      warning: ctx.daysWorkedInAnnualPeriod.note ?? "Solo se prerrellena con una fuente real y verificable.",
+    if (ctx.daysWorkedInAnnualPeriod.value >= 0 && ctx.daysWorkedInAnnualPeriod.value <= DAYS_WORKED_MAX) {
+      fields.daysWorkedInAnnualPeriod = {
+        value: ctx.daysWorkedInAnnualPeriod.value,
+        source: ctx.daysWorkedInAnnualPeriod.source,
+        confidence: "requires_confirmation",
+        effectiveAt: ctx.targetDate,
+        editable: true,
+        warning: ctx.daysWorkedInAnnualPeriod.note ?? "Solo se prerrellena con una fuente real y verificable.",
+      }
+    } else {
+      warnings.push("Los días laborados del periodo están fuera de rango — no se prerrellenan.")
+      missingFacts.push("días laborados en el periodo anual")
     }
   }
 

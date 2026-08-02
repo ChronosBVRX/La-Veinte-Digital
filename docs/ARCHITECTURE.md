@@ -63,9 +63,10 @@ Usuario → /login → Server Action (signInAction)
 
 ```
 Usuario → ChatAssistant (CSR)
-         → consultarBot() → ¿NEXT_PUBLIC_BOT_API_URL?
-           ├── Sí → POST a Python FastAPI
-           └── No → POST a /api/consulta (Next.js)
+         → POST /api/consulta (Next.js; auth + cuota diaria)
+           ├── Si BOT_API_URL + BOT_API_SHARED_SECRET configurados
+           │    → Python FastAPI (X-Bot-Secret); si no responde → motor directo
+           └── Motor directo en Next.js:
          → OpenAI: embedding de pregunta
          → Cosine similarity contra vectorstore-data.json
          → Contexto + prompt → GPT-4o-mini
