@@ -82,3 +82,7 @@ export function globalTarjetonConfidence(
   }
   return clampConfidence(total / weightSum)
 }
+
+export function structuralConfidence(base: number, issueCount: number): number {
+  return clampConfidence(base - Math.min(0.65, issueCount * 0.18))
+}

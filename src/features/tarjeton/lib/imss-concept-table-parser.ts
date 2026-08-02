@@ -8,7 +8,6 @@
  */
 import type { TarjetonConceptLine } from "@/shared/contracts/tarjeton-import"
 import type { ReconstructedLine } from "./line-reconstruction"
-import { findLineSpan } from "./line-reconstruction"
 import { parseImssMoney } from "./money-parser"
 import { clampConfidence } from "./confidence"
 
@@ -32,19 +31,29 @@ function parseRow(line: ReconstructedLine): { code: string; description: string;
   return { code: match[1], description: match[2].trim(), amount }
 }
 
-function parseLinesInRange(
+function isTableHeader(line: ReconstructedLine): boolean {
+  return line.norm.includes("CONCEPTO DESCRIPCION IMPORTE")
+}
+
+function parseLinesBetweenTotals(
   lines: ReconstructedLine[],
-  range: { start: number; end: number } | null,
+  startAnchor: string,
+  totalAnchor: string,
   kind: "earning" | "deduction",
   warnings: string[],
+  lineIndexOffset = 0,
 ): TarjetonConceptLine[] {
   const result: TarjetonConceptLine[] = []
-  if (!range) return result
+  const start = lines.findIndex((line) => line.norm.includes(startAnchor))
+  if (start < 0) return result
+  const relativeEnd = lines.slice(start + 1).findIndex((line) => line.norm.includes(totalAnchor))
+  const end = relativeEnd < 0 ? lines.length : start + 1 + relativeEnd
 
-  for (let i = range.start + 1; i < range.end; i++) {
+  for (let i = start + 1; i < end; i++) {
     const line = lines[i]
     if (line.norm.includes("TOTAL")) continue
     if (line.norm.includes("PERCEPCIONES") || line.norm.includes("DEDUCCIONES") || line.norm.includes("OBSERVACIONES")) continue
+    if (isTableHeader(line)) continue
 
     const row = parseRow(line)
     if (!row) {
@@ -76,7 +85,7 @@ function parseLinesInRange(
     }
 
     result.push({
-      lineIndex: i,
+      lineIndex: lineIndexOffset + i,
       code: row.code,
       description: row.description,
       amount: row.amount,
@@ -100,18 +109,25 @@ function extractTotal(lines: ReconstructedLine[], labelNorm: string): number | u
   return undefined
 }
 
-export function parseImssConceptTables(lines: ReconstructedLine[]): ConceptTableResult {
+export function parseImssConceptTables(
+  earningsLines: ReconstructedLine[],
+  deductionLines: ReconstructedLine[],
+): ConceptTableResult {
   const warnings: string[] = []
 
-  const earningsRange = findLineSpan(lines, "PERCEPCIONES", "DEDUCCIONES")
-  const deductionsRange = findLineSpan(lines, "DEDUCCIONES", "OBSERVACIONES")
+  const earnings = parseLinesBetweenTotals(earningsLines, "PERCEPCIONES", "TOTAL PERCEPCIONES", "earning", warnings)
+  const deductions = parseLinesBetweenTotals(
+    deductionLines,
+    "DEDUCCIONES",
+    "TOTAL DEDUCCIONES",
+    "deduction",
+    warnings,
+    earningsLines.length,
+  )
 
-  const earnings = parseLinesInRange(lines, earningsRange, "earning", warnings)
-  const deductions = parseLinesInRange(lines, deductionsRange, "deduction", warnings)
-
-  const totalEarnings = extractTotal(lines, "TOTAL PERCEPCIONES")
-  const totalDeductions = extractTotal(lines, "TOTAL DEDUCCIONES")
-  const netPay = extractTotal(lines, "LIQUIDO")
+  const totalEarnings = extractTotal(earningsLines, "TOTAL PERCEPCIONES")
+  const totalDeductions = extractTotal(deductionLines, "TOTAL DEDUCCIONES")
+  const netPay = extractTotal(deductionLines, "LIQUIDO")
 
   return { earnings, deductions, totalEarnings, totalDeductions, netPay, warnings }
 }

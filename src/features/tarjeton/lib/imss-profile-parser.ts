@@ -10,6 +10,7 @@ import type { ReconstructedLine } from "./line-reconstruction"
 import { parseImssMoney } from "./money-parser"
 import { parseImssDate } from "./imss-date-parser"
 import { baseFieldConfidence, multilineAdjustment, clampConfidence, requiresReviewForConfidence } from "./confidence"
+import { normalizeText } from "./positioned-text"
 
 type Employee = ParsedImssTarjeton["employee"]
 
@@ -42,6 +43,13 @@ const LABEL_SPECS: LabelSpec[] = [
   { key: "plaza", labels: ["PLAZA"], kind: "text" },
   { key: "entryDate", labels: ["FECHA DE INGRESO"], kind: "date", critical: true },
 ]
+
+const PROFILE_LABELS = LABEL_SPECS.flatMap((spec) => spec.labels).concat(["JORNADA", "ANTIGUEDAD EFECTIVA"])
+
+function containsAnotherLabel(value: string): boolean {
+  const normalized = normalizeText(value)
+  return PROFILE_LABELS.some((label) => normalized.includes(normalizeText(label)))
+}
 
 const VALID_WORKDAY_HOURS = [6, 6.5, 8, 12] as const
 
@@ -173,15 +181,21 @@ export function parseImssProfile(lines: ReconstructedLine[], method: TarjetonExt
       continue
     }
 
+    const contaminated = containsAnotherLabel(raw.value)
+    const confidence = contaminated ? clampConfidence(raw.confidence - 0.4) : raw.confidence
+    if (contaminated) {
+      warnings.push(`El campo ${spec.key} contiene otra etiqueta y requiere revisión: "${raw.value}"`)
+    }
+
     // @ts-expect-error -- asignación genérica validada por la spec
     employee[spec.key] = value
     fields[spec.key] = {
       value: value as never,
       rawValue: raw.value,
       page: raw.page,
-      confidence: raw.confidence,
+      confidence,
       method: raw.method,
-      requiresReview: requiresReviewForConfidence(raw.confidence, spec.critical ?? false),
+      requiresReview: contaminated || requiresReviewForConfidence(confidence, spec.critical ?? false),
     }
   }
 

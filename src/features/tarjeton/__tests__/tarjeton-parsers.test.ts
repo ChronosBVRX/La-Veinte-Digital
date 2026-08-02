@@ -81,7 +81,7 @@ describe("imss-concept-table-parser", () => {
   ])
 
   it("separa percepciones y deducciones con sus importes", () => {
-    const result = parseImssConceptTables(lines)
+    const result = parseImssConceptTables(lines, lines)
     expect(result.earnings).toHaveLength(3)
     expect(result.earnings[0]).toMatchObject({ code: "002", amount: 3937.64, kind: "earning" })
     expect(result.earnings[1]).toMatchObject({ code: "011", amount: 3234.77 })
@@ -91,7 +91,7 @@ describe("imss-concept-table-parser", () => {
   })
 
   it("extrae los totales del documento", () => {
-    const result = parseImssConceptTables(lines)
+    const result = parseImssConceptTables(lines, lines)
     expect(result.totalEarnings).toBe(7572.41)
     expect(result.totalDeductions).toBe(1234.56)
     expect(result.netPay).toBe(6337.85)
@@ -221,6 +221,10 @@ describe("imss-tarjeton-parser (orquestador)", () => {
     expect(parsed.extraction.validations.earningsTotalMatches).toBe(true)
     expect(parsed.extraction.validations.deductionsTotalMatches).toBe(true)
     expect(parsed.extraction.validations.netPayMatches).toBe(true)
+    expect(parsed.extraction.globalConfidence).toBeLessThan(0.85)
+    expect(parsed.extraction.warnings).toContain(
+      "No se pudo aislar la sección Receptor; revisa manualmente los datos laborales.",
+    )
   })
 
   it("rechaza documentos que no son tarjetón", async () => {
@@ -238,6 +242,91 @@ describe("imss-tarjeton-parser (orquestador)", () => {
     expect(outcome.ok).toBe(false)
     if (outcome.ok) return
     expect(outcome.reason).toBe("no_text")
+  })
+
+  it("separa el receptor y las tablas paralelas usando coordenadas", async () => {
+    const parallelItems: PositionedPdfText[] = [
+      positioned(30, 20, "INSTITUTO MEXICANO DEL SEGURO SOCIAL"),
+      positioned(30, 40, "RECIBO DE PAGO DE NOMINA"),
+      positioned(30, 60, "NOMBRE:"),
+      positioned(100, 60, "Instituto Mexicano del Seguro Social"),
+      positioned(30, 100, "RECEPTOR"),
+      positioned(40, 140, "MATRICULA:"),
+      positioned(130, 140, "98173968"),
+      positioned(260, 140, "RETARDOS:"),
+      positioned(350, 140, "0"),
+      positioned(410, 140, "PERIODO DE PAGO:"),
+      positioned(510, 140, "2A-JUL-2026"),
+      positioned(40, 170, "NOMBRE:"),
+      positioned(130, 170, "EDUARDO BOLAÑOS VAZQUEZ"),
+      positioned(40, 200, "CLAVE DE CATEGORIA/PUESTO:"),
+      positioned(180, 200, "20570080"),
+      positioned(40, 230, "NOMBRE CATEGORIA/PUESTO:"),
+      positioned(180, 230, "TECNICO RADIOLOGO 80"),
+      positioned(40, 260, "NOMBRE DE ADSCRIPCION:"),
+      positioned(155, 260, "COORDINACION CLIN DE AUX DE DIAGN Y TRAT"),
+      positioned(40, 290, "ANTIGUEDAD EFECTIVA:"),
+      positioned(150, 290, "14 años 3 qnas 1 días"),
+      positioned(410, 290, "FECHA DE INGRESO:"),
+      positioned(510, 290, "01-04-2012"),
+      positioned(30, 500, "PERCEPCIONES"),
+      positioned(315, 500, "DEDUCCIONES"),
+      positioned(30, 520, "CONCEPTO DESCRIPCION IMPORTE"),
+      positioned(315, 520, "CONCEPTO DESCRIPCION IMPORTE"),
+      ...parallelConceptRow(540, ["002", "Sueldo Base Fijo", "3,937.64"], ["111", "Aport Complementaria Afore", "5,321.15"]),
+      ...parallelConceptRow(558, ["011", "Prestaciones en Dinero", "3,234.77"], ["212", "Impuesto Sobre la Renta", "1,234.56"]),
+      ...parallelConceptRow(576, ["013", "Sobresueldo", "400.00"], ["107", "Fondo Jubilacion", "2,000.00"]),
+      ...parallelConceptRow(594, ["020", "Ayuda Renta", "1,000.00"], ["151", "Cuota Sindical", "3,000.00"]),
+      ...parallelConceptRow(612, ["022", "Ayuda Despensa", "2,000.00"], ["180", "Seguro", "4,000.00"]),
+      ...parallelConceptRow(630, ["032", "Estimulos", "3,000.00"], ["183", "Prestamo", "5,000.00"]),
+      ...parallelConceptRow(648, ["050", "Ayuda Vacaciones", "4,000.00"], ["190", "Otros Descuentos", "4,097.84"]),
+      ...parallelConceptRow(666, ["054", "Compensacion", "5,000.00"]),
+      ...parallelConceptRow(684, ["063", "Prima", "6,000.00"]),
+      ...parallelConceptRow(702, ["080", "Ajuste", "7,619.14"]),
+      positioned(30, 725, "TOTAL PERCEPCIONES"),
+      positioned(245, 725, "36,191.55"),
+      positioned(315, 725, "TOTAL DEDUCCIONES"),
+      positioned(540, 725, "24,653.55"),
+      positioned(315, 745, "LIQUIDO"),
+      positioned(540, 745, "11,538.00"),
+      positioned(30, 770, "MENSAJES"),
+      positioned(30, 790, "CERTIFICACION 31-07-2026"),
+    ]
+
+    const shiftedItems = parallelItems.map((pdfItem) => ({ ...pdfItem, x: pdfItem.x + 100 }))
+    const outcome = await parseImssTarjeton({ items: shiftedItems, pageCount: 1 })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+
+    expect(outcome.parsed.employee.employeeNumber).toBe("98173968")
+    expect(outcome.parsed.employee.fullName).toBe("EDUARDO BOLAÑOS VAZQUEZ")
+    expect(outcome.parsed.employee.assignmentName).toBe("COORDINACION CLIN DE AUX DE DIAGN Y TRAT")
+    expect(outcome.parsed.employee.categoryCode).toBe("20570080")
+    expect(outcome.parsed.employee.categoryName).toBe("TECNICO RADIOLOGO 80")
+    expect(outcome.parsed.employee.seniority).toMatchObject({ years: 14, fortnights: 3, days: 1 })
+    expect(outcome.parsed.payroll.earnings).toHaveLength(10)
+    expect(outcome.parsed.payroll.deductions).toHaveLength(7)
+    const conceptIndexes = [...outcome.parsed.payroll.earnings, ...outcome.parsed.payroll.deductions]
+      .map((line) => line.lineIndex)
+    expect(new Set(conceptIndexes).size).toBe(conceptIndexes.length)
+    expect(outcome.parsed.payroll.totalEarnings).toBe(36191.55)
+    expect(outcome.parsed.payroll.totalDeductions).toBe(24653.55)
+    expect(outcome.parsed.payroll.netPay).toBe(11538)
+    expect(outcome.parsed.extraction.validations).toMatchObject({
+      earningsTotalMatches: true,
+      deductionsTotalMatches: true,
+      netPayMatches: true,
+    })
+    expect(outcome.parsed.extraction.globalConfidence).toBeGreaterThanOrEqual(0.95)
+
+    const withoutTotals = shiftedItems.filter((pdfItem) => pdfItem.y < 725 || pdfItem.y >= 770)
+    const incompleteOutcome = await parseImssTarjeton({ items: withoutTotals, pageCount: 1 })
+    expect(incompleteOutcome.ok).toBe(true)
+    if (!incompleteOutcome.ok) return
+    expect(incompleteOutcome.parsed.extraction.globalConfidence).toBeLessThan(0.85)
+    expect(incompleteOutcome.parsed.extraction.warnings).toContain(
+      "Falta uno o más totales de nómina; la extracción requiere revisión.",
+    )
   })
 })
 
@@ -302,4 +391,37 @@ function item(y: number, text: string): PositionedPdfText {
     confidence: 1,
     method: "native_text",
   }
+}
+
+function positioned(x: number, y: number, text: string): PositionedPdfText {
+  return {
+    text,
+    page: 1,
+    x,
+    y,
+    width: text.length * 3,
+    height: 10,
+    confidence: 1,
+    method: "native_text",
+  }
+}
+
+function parallelConceptRow(
+  y: number,
+  earning: [string, string, string],
+  deduction?: [string, string, string],
+): PositionedPdfText[] {
+  const row = [
+    positioned(30, y, earning[0]),
+    positioned(70, y, earning[1]),
+    positioned(245, y, earning[2]),
+  ]
+  if (deduction) {
+    row.push(
+      positioned(315, y, deduction[0]),
+      positioned(355, y, deduction[1]),
+      positioned(540, y, deduction[2]),
+    )
+  }
+  return row
 }

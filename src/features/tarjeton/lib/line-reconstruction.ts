@@ -30,6 +30,25 @@ export interface ReconstructOptions {
   xGapThreshold?: number
   /** Filtro: mínimo de caracteres útiles por elemento. */
   minTextLength?: number
+  xMin?: number
+  xMax?: number
+  yMin?: number
+  yMax?: number
+}
+
+function isInsideRegion(
+  item: NormalizedPdfTextItem,
+  options: ReconstructOptions,
+): boolean {
+  const centerX = item.x + item.width / 2
+  const centerY = item.y + item.height / 2
+
+  if (options.xMin !== undefined && centerX < options.xMin) return false
+  if (options.xMax !== undefined && centerX >= options.xMax) return false
+  if (options.yMin !== undefined && centerY < options.yMin) return false
+  if (options.yMax !== undefined && centerY >= options.yMax) return false
+
+  return true
 }
 
 export function reconstructLines(
@@ -37,9 +56,9 @@ export function reconstructLines(
   options: ReconstructOptions = {},
 ): ReconstructedLine[] {
   const { yTolerance = 3, xGapThreshold = 1.5, minTextLength = 0 } = options
-  const normalized = normalizePositionedText(items).filter(
-    (item) => item.text.trim().length >= minTextLength,
-  )
+  const normalized = normalizePositionedText(items)
+    .filter((item) => item.text.trim().length >= minTextLength)
+    .filter((item) => isInsideRegion(item, options))
 
   // Agrupar por página y proximidad vertical.
   const rows: NormalizedPdfTextItem[][] = []
