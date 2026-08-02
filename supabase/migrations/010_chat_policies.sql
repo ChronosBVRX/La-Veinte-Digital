@@ -9,6 +9,92 @@
 --     nuevas 006 salía sin hacer nada porque las tablas aún no existían).
 --   * limited_profiles deja de ser consultable por anon (la clave pública
 --     expone nombres/avatares de todos los usuarios).
+--   * Los helpers SECURITY DEFINER rompen la recursión infinita (42P17) entre
+--     las políticas de chat_rooms y chat_participants: ninguna política
+--     consulta la otra tabla con RLS activo.
+
+-- ============================================================
+-- 0. Tabla de invitaciones (necesaria para los helpers/políticas)
+-- ============================================================
+create table if not exists public.chat_room_invitations (
+  id uuid primary key default gen_random_uuid(),
+  room_id uuid not null references public.chat_rooms (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz default now(),
+  unique (room_id, user_id)
+);
+
+alter table public.chat_room_invitations enable row level security;
+
+-- ============================================================
+-- 0b. Helpers SECURITY DEFINER (acceden a las tablas sin RLS)
+-- ============================================================
+create or replace function public.is_chat_participant(v_room_id uuid, v_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.chat_participants p
+    where p.room_id = v_room_id and p.user_id = v_user_id
+  )
+$$;
+
+create or replace function public.is_chat_admin(v_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.profiles pr
+    where pr.id = v_user_id and pr.role = 'admin'
+  )
+$$;
+
+create or replace function public.is_chat_room_visible(v_room_id uuid, v_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.chat_rooms r
+    where r.id = v_room_id
+      and (
+        coalesce(r.is_private, false) = false
+        or r.created_by = v_user_id
+        or public.is_chat_participant(r.id, v_user_id)
+        or public.is_chat_admin(v_user_id)
+      )
+  )
+$$;
+
+create or replace function public.is_chat_invited(v_room_id uuid, v_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.chat_room_invitations i
+    where i.room_id = v_room_id and i.user_id = v_user_id
+  )
+$$;
+
+revoke all on function public.is_chat_participant(uuid, uuid) from public;
+revoke all on function public.is_chat_admin(uuid) from public;
+revoke all on function public.is_chat_room_visible(uuid, uuid) from public;
+revoke all on function public.is_chat_invited(uuid, uuid) from public;
+grant execute on function public.is_chat_participant(uuid, uuid) to authenticated;
+grant execute on function public.is_chat_admin(uuid) to authenticated;
+grant execute on function public.is_chat_room_visible(uuid, uuid) to authenticated;
+grant execute on function public.is_chat_invited(uuid, uuid) to authenticated;
 
 -- ============================================================
 -- 1. chat_rooms
@@ -22,14 +108,8 @@ create policy "Chat rooms are visible to participants"
   using (
     coalesce(is_private, false) = false
     or created_by = auth.uid()
-    or exists (
-      select 1 from public.chat_participants p
-      where p.room_id = id and p.user_id = auth.uid()
-    )
-    or exists (
-      select 1 from public.profiles pr
-      where pr.id = auth.uid() and pr.role = 'admin'
-    )
+    or public.is_chat_participant(id, auth.uid())
+    or public.is_chat_admin(auth.uid())
   );
 
 create policy "Authenticated users can create rooms"
@@ -42,11 +122,11 @@ create policy "Creators and admins can update rooms"
   to authenticated
   using (
     created_by = auth.uid()
-    or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
+    or public.is_chat_admin(auth.uid())
   )
   with check (
     created_by = auth.uid()
-    or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
+    or public.is_chat_admin(auth.uid())
   );
 
 create policy "Creators and admins can delete rooms"
@@ -54,22 +134,12 @@ create policy "Creators and admins can delete rooms"
   to authenticated
   using (
     created_by = auth.uid()
-    or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
+    or public.is_chat_admin(auth.uid())
   );
 
 -- ============================================================
--- 2. chat_room_invitations (tabla nueva: invitación explícita)
+-- 2. chat_room_invitations
 -- ============================================================
-create table if not exists public.chat_room_invitations (
-  id uuid primary key default gen_random_uuid(),
-  room_id uuid not null references public.chat_rooms (id) on delete cascade,
-  user_id uuid not null references public.profiles (id) on delete cascade,
-  created_at timestamptz default now(),
-  unique (room_id, user_id)
-);
-
-alter table public.chat_room_invitations enable row level security;
-
 create policy "Invited users and creators can see invitations"
   on public.chat_room_invitations for select
   to authenticated
@@ -80,7 +150,7 @@ create policy "Invited users and creators can see invitations"
       where r.id = room_id
         and (
           r.created_by = auth.uid()
-          or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
+          or public.is_chat_admin(auth.uid())
         )
     )
   );
@@ -94,7 +164,7 @@ create policy "Creators and admins can invite"
       where r.id = room_id
         and (
           r.created_by = auth.uid()
-          or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
+          or public.is_chat_admin(auth.uid())
         )
     )
   );
@@ -108,7 +178,7 @@ create policy "Creators and admins can remove invitations"
       where r.id = room_id
         and (
           r.created_by = auth.uid()
-          or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
+          or public.is_chat_admin(auth.uid())
         )
     )
   );
@@ -124,15 +194,7 @@ create policy "Users can see members of visible rooms"
   to authenticated
   using (
     user_id = auth.uid()
-    or exists (
-      select 1 from public.chat_rooms r
-      where r.id = room_id
-        and (
-          coalesce(r.is_private, false) = false
-          or r.created_by = auth.uid()
-          or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
-        )
-    )
+    or public.is_chat_room_visible(room_id, auth.uid())
   );
 
 create policy "Users can join public, invited or owned rooms"
@@ -140,15 +202,9 @@ create policy "Users can join public, invited or owned rooms"
   to authenticated
   with check (
     user_id = auth.uid()
-    and exists (
-      select 1 from public.chat_rooms r
-      where r.id = room_id
-        and (
-          coalesce(r.is_private, false) = false
-          or r.created_by = auth.uid()
-          or exists (select 1 from public.chat_room_invitations i where i.room_id = room_id and i.user_id = auth.uid())
-          or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
-        )
+    and (
+      public.is_chat_room_visible(room_id, auth.uid())
+      or public.is_chat_invited(room_id, auth.uid())
     )
   );
 
@@ -161,7 +217,7 @@ create policy "Creators and admins can add participants"
       where r.id = room_id
         and (
           r.created_by = auth.uid()
-          or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
+          or public.is_chat_admin(auth.uid())
         )
     )
   );
@@ -176,7 +232,7 @@ create policy "Users can leave rooms or be removed by creators"
       where r.id = room_id
         and (
           r.created_by = auth.uid()
-          or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
+          or public.is_chat_admin(auth.uid())
         )
     )
   );
@@ -197,11 +253,8 @@ create policy "Participants can read room messages"
       select 1 from public.chat_rooms r
       where r.id = room_id and coalesce(r.is_private, false) = false
     )
-    or exists (
-      select 1 from public.chat_participants p
-      where p.room_id = room_id and p.user_id = auth.uid()
-    )
-    or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
+    or public.is_chat_participant(room_id, auth.uid())
+    or public.is_chat_admin(auth.uid())
   );
 
 create policy "Participants can send messages"
@@ -214,11 +267,8 @@ create policy "Participants can send messages"
         select 1 from public.chat_rooms r
         where r.id = room_id and coalesce(r.is_private, false) = false
       )
-      or exists (
-        select 1 from public.chat_participants p
-        where p.room_id = room_id and p.user_id = auth.uid()
-      )
-      or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
+      or public.is_chat_participant(room_id, auth.uid())
+      or public.is_chat_admin(auth.uid())
     )
   );
 
@@ -227,7 +277,7 @@ create policy "Users can delete own messages"
   to authenticated
   using (
     user_id = auth.uid()
-    or exists (select 1 from public.profiles pr where pr.id = auth.uid() and pr.role = 'admin')
+    or public.is_chat_admin(auth.uid())
   );
 
 -- ============================================================

@@ -73,6 +73,10 @@ def test_recuperar_fragmentos_vacio_sin_matches():
 
 
 def test_consulta_contrato_sin_contexto_responde_honestamente(monkeypatch):
+    class FakeEmbeddings:
+        pass
+
+    monkeypatch.setattr("embedding_service.OpenAIEmbeddings", FakeEmbeddings)
     monkeypatch.setattr(
         "embedding_service._cargar_vectorstore",
         lambda embeddings: FakeDB([]),
