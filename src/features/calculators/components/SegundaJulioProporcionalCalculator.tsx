@@ -73,6 +73,11 @@ export function SegundaJulioProporcionalCalculator({ initialCategoria }: Props) 
     data: prefill.data,
   })
 
+  const handleCurrencyChange = useCallback((key: FieldKey) => (value: string) => {
+    prefillFields.markDirty(key)
+    setField(key, value)
+  }, [prefillFields.markDirty, setField])
+
   const c002Num = parseCurrencyInput(c002)
   const c011Num = parseCurrencyInput(c011)
 
@@ -123,14 +128,14 @@ export function SegundaJulioProporcionalCalculator({ initialCategoria }: Props) 
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
         <PrefillStatus data={prefill.data} loading={prefill.loading} error={prefill.error} />
         <CategorySelector initialCategory={selectedCategory ?? initialCategoria} onSelect={handleCategorySelect} />
-        <CurrencyField label="Concepto 002" description="Importe quincenal del concepto 002." value={c002} onChange={(v) => { setField("c002", v) }} error={errors.c002} />
-        <CurrencyField label="Concepto 011" description="Importe quincenal del concepto 011. Copia el valor de tu nómina." value={c011} onChange={(v) => { setField("c011", v) }} error={errors.c011} />
+        <CurrencyField label="Concepto 002" description="Importe quincenal del concepto 002." value={c002} onChange={handleCurrencyChange("c002")} error={errors.c002} />
+        <CurrencyField label="Concepto 011" description="Importe quincenal del concepto 011. Copia el valor de tu nómina." value={c011} onChange={handleCurrencyChange("c011")} error={errors.c011} />
         <div>
           <Input
             id="dias"
             label="Días laborados (1 julio – 30 junio)"
             value={dias}
-            onChange={(e) => { setField("dias", e.target.value) }}
+            onChange={(e) => { setField("dias", e.target.value); prefillFields.markDirty("dias") }}
             placeholder="Ej: 180"
             inputMode="numeric"
             autoComplete="off"

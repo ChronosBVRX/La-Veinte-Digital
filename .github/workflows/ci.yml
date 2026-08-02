@@ -70,13 +70,26 @@ jobs:
 
   python:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      BOT_API_SHARED_SECRET: "ci-test-secret"
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r bot-api/requirements.txt
+          pip install -r bot-api/requirements-dev.txt
 
       - name: Python syntax check
         run: python -m compileall bot-api
+
+      - name: Run tests
+        working-directory: bot-api
+        run: python -m pytest -v

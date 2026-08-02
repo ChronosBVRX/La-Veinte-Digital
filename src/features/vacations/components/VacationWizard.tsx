@@ -664,7 +664,7 @@ export function VacationWizard() {
             <ResultItem label="Inicio" value={r.startDate || "—"} />
             <ResultItem label="Término" value={r.endDate || "—"} />
             <ResultItem label="Reincorporación" value={r.returnDate || "—"} />
-            <ResultItem label="Unidades" value={`${r.unitsUsed} ${getUnitLabel(r.unitType)}`} />
+            <ResultItem label="Unidades" value={r.unitsUsed !== undefined ? `${r.unitsUsed} ${getUnitLabel(r.unitType)}` : "—"} />
             <ResultItem label="Vencimiento" value={r.dueDate} />
             <ResultItem label="Anticipación" value={`${r.anticipationDays} días`} />
           </div>
@@ -678,8 +678,8 @@ export function VacationWizard() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", fontSize: "0.8rem" }}>
               <ResultItem label="Continuidad original" value={String(r.originalContinuityMark)} />
               <ResultItem label="Inclusión propuesta" value={String(r.proposedInclusionMark)} />
-              <ResultItem label="Continuidad resultante" value={String(r.resultingContinuityMark)} />
-              <ResultItem label="UPO afectado" value={String(r.affectedUPO)} />
+              <ResultItem label="Continuidad resultante" value={r.resultingContinuityMark !== undefined ? String(r.resultingContinuityMark) : "—"} />
+              <ResultItem label="UPO afectado" value={r.affectedUPO !== undefined ? String(r.affectedUPO) : "—"} />
               <ResultItem label="Versión calendario" value={r.calendarVersion} />
             </div>
             {r.traces.length > 0 && (
@@ -785,7 +785,7 @@ Periodo: #${r.periodNumber}
 Inicio: ${r.startDate || "—"}
 Término: ${r.endDate || "—"}
 Reincorporación: ${r.returnDate || "—"}
-Unidades: ${r.unitsUsed} ${getUnitLabel(r.unitType)}
+Unidades: ${r.unitsUsed !== undefined ? `${r.unitsUsed} ${getUnitLabel(r.unitType)}` : "—"}
 Vencimiento: ${r.dueDate}
 Anticipación: ${r.anticipationDays} días
 ${r.requiresNormativeReview ? "\nRequiere validación con Servicios de Personal." : ""}

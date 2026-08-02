@@ -37,6 +37,7 @@ import {
   grantPayrollConsent,
   revokePayrollConsent,
   deletePayrollDataRemote,
+  savePayrollProfileRemote,
 } from "@/shared/services/payroll-consent"
 
 export type NominaStep =
@@ -102,6 +103,9 @@ export function useNomina() {
   const [questionAnswers, setQuestionAnswers] = useState<PayrollQuestionAnswer[]>([])
   const [hydrating, setHydrating] = useState(false)
   const hydratingRef = useRef(false)
+  const [deleting, setDeleting] = useState(false)
+  const deletingRef = useRef(false)
+  const [deletionError, setDeletionError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!s.consented || !s.profile || hydratingRef.current) return
@@ -160,6 +164,12 @@ export function useNomina() {
     setS((prev) => ({ ...prev, ...patch }))
   }, [])
 
+  const syncProfileToServer = useCallback((profile: EmployeePayrollProfile) => {
+    savePayrollProfileRemote(profile).catch((err) => {
+      console.warn("[nomina] no se pudo sincronizar el perfil al servidor:", err)
+    })
+  }, [])
+
   const giveConsent = useCallback(() => {
     saveConsent(true)
     patch({ consented: true, step: "profile" })
@@ -183,24 +193,37 @@ export function useNomina() {
     })
   }, [patch])
 
-  const deleteDataPermanently = useCallback(() => {
-    deleteAllData()
-    setCategoryState({ status: "idle" })
-    setSeniority(null)
-    setPeriod(null)
-    setProjection(null)
-    setProjectionResult(null)
-    setPendingQuestions([])
-    setQuestionAnswers([])
-    patch({ consented: false, profile: null, projections: [], step: "consent" })
-    deletePayrollDataRemote().catch((err) => {
-      console.warn("[nomina] no se pudo borrar la información en el servidor:", err)
-    })
+  const deleteDataPermanently = useCallback(async () => {
+    if (deletingRef.current) return
+    deletingRef.current = true
+    setDeleting(true)
+    setDeletionError(null)
+    try {
+      await deletePayrollDataRemote()
+      deleteAllData()
+      setCategoryState({ status: "idle" })
+      setSeniority(null)
+      setPeriod(null)
+      setProjection(null)
+      setProjectionResult(null)
+      setPendingQuestions([])
+      setQuestionAnswers([])
+      patch({ consented: false, profile: null, projections: [], step: "consent" })
+    } catch (err) {
+      console.error("[nomina] no se pudo borrar la información en el servidor:", err)
+      setDeletionError(
+        "No se pudo borrar la información en el servidor. Tus datos locales se conservan; inténtalo de nuevo más tarde."
+      )
+    } finally {
+      deletingRef.current = false
+      setDeleting(false)
+    }
   }, [patch])
 
   const updateProfile = useCallback(async (p: EmployeePayrollProfile) => {
     saveProfile(p)
     saveConsent(true)
+    syncProfileToServer(p)
     grantPayrollConsent().catch((err) => {
       console.warn("[nomina] no se pudo registrar el consentimiento en el servidor:", err)
     })
@@ -234,7 +257,7 @@ export function useNomina() {
 
     const step: NominaStep = p.occupationalConditions.length > 0 ? "ready" : "conditions"
     patch({ consented: true, profile: p, step })
-  }, [patch])
+  }, [patch, syncProfileToServer])
 
   const resolveAmbiguousCategory = useCallback((category: ResolvedSalaryCategory) => {
     setCategoryState({ status: "resolved", category, method: "manual" })
@@ -247,9 +270,10 @@ export function useNomina() {
       if (!p) return
       const updated = { ...p, occupationalConditions: conditions }
       saveProfile(updated)
+      syncProfileToServer(updated)
       patch({ profile: updated, step: "ready" })
     },
-    [s.profile, patch]
+    [s.profile, patch, syncProfileToServer]
   )
 
   const answerQuestion = useCallback(
@@ -278,9 +302,10 @@ export function useNomina() {
       const existingFacts = (p.facts ?? []).filter((f) => f.key !== factKey)
       const updatedProfile = { ...p, facts: [...existingFacts, fact] }
       saveProfile(updatedProfile)
+      syncProfileToServer(updatedProfile)
       patch({ profile: updatedProfile })
     },
-    [s.profile, patch]
+    [s.profile, patch, syncProfileToServer]
   )
 
   const setAllFacts = useCallback(
@@ -289,9 +314,10 @@ export function useNomina() {
       if (!p) return
       const updated = { ...p, facts }
       saveProfile(updated)
+      syncProfileToServer(updated)
       patch({ profile: updated })
     },
-    [s.profile, patch]
+    [s.profile, patch, syncProfileToServer]
   )
 
   const generateProjection = useCallback(
@@ -380,6 +406,8 @@ export function useNomina() {
     step: s.step,
     loading: s.loading,
     hydrating,
+    deleting,
+    deletionError,
     giveConsent,
     revokeConsent,
     deleteDataPermanently,

@@ -48,6 +48,37 @@ export function getCompatibleSemestralInclusionMarks(
     .map((t) => t.inclusionMark);
 }
 
+function getCompatibleEstatutoMarks(currentContinuity: number): number[] {
+  if (currentContinuity === 0) return [0, 2];
+  if (currentContinuity === 3) return [3];
+  if (currentContinuity === 6) return [0];
+  return [];
+}
+
+/**
+ * Marcas de inclusión compatibles desde una continuidad dada, por régimen.
+ * Es la versión no semestral de `getCompatibleSemestralInclusionMarks`:
+ * CUATRIMESTRAL deriva de las opciones A/B, V20 y ESTATUTO de sus transiciones.
+ */
+export function getCompatibleInclusionMarks(
+  regime: "SEMESTRAL" | "CUATRIMESTRAL" | "EXTRAORDINARIO_V20" | "ESTATUTO",
+  currentContinuity: number
+): number[] {
+  switch (regime) {
+    case "SEMESTRAL":
+      return getCompatibleSemestralInclusionMarks(currentContinuity as SemestralContinuity);
+    case "CUATRIMESTRAL":
+      return getCompatibleCuatrimestralOptions(currentContinuity as CuatrimestralContinuity)
+        .map((s) => s.inclusionMark);
+    case "EXTRAORDINARIO_V20":
+      return getCompatibleV20Options(currentContinuity as V20Continuity);
+    case "ESTATUTO":
+      return getCompatibleEstatutoMarks(currentContinuity);
+    default:
+      return [];
+  }
+}
+
 export function getCompatibleCuatrimestralOptions(
   currentContinuity: CuatrimestralContinuity
 ): CuatrimestralStep[] {

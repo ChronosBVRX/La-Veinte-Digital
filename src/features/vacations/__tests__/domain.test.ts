@@ -587,18 +587,58 @@ describe("buildSimulationResult", () => {
     expect(result.unitsUsed).toBe(10)
   })
 
-  it("blocks invalid transitions and skips date calculation", () => {
+  it("blocks invalid transitions without producing apparent data", () => {
     const result = buildSimulationResult({
       ...baseInput,
       continuityMark: 1, // primera parte pendiente
       selectedInclusionMark: 0, // inválida desde continuidad 1
     })
+    expect(result.status).toBe("BLOCKED")
     expect(result.requiresSpecialProcess).toBe(true)
     expect(result.warnings.length).toBeGreaterThan(0)
     expect(result.endDate).toBeUndefined()
     expect(result.returnDate).toBeUndefined()
+    expect(result.unitsUsed).toBeUndefined()
+    expect(result.affectedUPO).toBeUndefined()
+    expect(result.resultingContinuityMark).toBeUndefined()
+    expect(result.anticipationResult).toBeUndefined()
+    expect(result.compatibleOptions).toBeDefined()
+    expect(result.compatibleOptions!.length).toBeGreaterThan(0)
+    expect(result.compatibleOptions![0]).toContain("Completar la segunda parte")
     const trace = result.traces.find((t) => t.ruleCode === "APPLY_INCLUSION_MARK")
     expect(trace?.result).toBe("BLOCKED")
+  })
+
+  it("reports compatible options per regime for cuatrimestral blocks", () => {
+    const result = buildSimulationResult({
+      ...baseInput,
+      regime: "CUATRIMESTRAL",
+      continuityMark: 1, // solo opción A (marca 0) es compatible
+      selectedInclusionMark: 2, // inválida desde continuidad 1
+    })
+    expect(result.status).toBe("BLOCKED")
+    expect(result.compatibleOptions).toEqual(["Disfrutar el periodo en una sola parte (opción A)"])
+  })
+
+  it("reports compatible options for estatuto blocks", () => {
+    const result = buildSimulationResult({
+      ...baseInput,
+      regime: "ESTATUTO",
+      continuityMark: 3, // solo marca 3 es compatible
+      selectedInclusionMark: 0,
+    })
+    expect(result.status).toBe("BLOCKED")
+    expect(result.compatibleOptions).toEqual(["Completar la segunda parte del periodo"])
+  })
+
+  it("traces the complete-period unit split for marks 2 and 3", () => {
+    const result = buildSimulationResult({ ...baseInput, selectedInclusionMark: 2 })
+    expect(result.status).toBe("COMPUTED")
+    expect(result.unitsUsed).toBe(10)
+    const trace = result.traces.find((t) => t.ruleCode === "UNITS_COMPLETE_PERIOD")
+    expect(trace).toBeDefined()
+    expect(trace!.result).toBe("APPLIED")
+    expect(String(trace!.explanation)).toContain("mitad semestral")
   })
 
   it("uses RADIATION_DAYS units for CUATRIMESTRAL regime", () => {
@@ -764,10 +804,23 @@ describe("getUnitType", () => {
 
   it("returns explicit schedule definitions for all types", () => {
     expect(getWorkScheduleForProfile({ workScheduleType: "ACCUMULATED_WEEKEND_DAY", weeklyRestDays: [] })).toEqual({ type: "ACCUMULATED_WEEKEND_DAY", workingDays: [5, 6] })
-    expect(getWorkScheduleForProfile({ workScheduleType: "ACCUMULATED_NIGHT", weeklyRestDays: [] })).toEqual({ type: "ACCUMULATED_NIGHT" })
-    expect(getWorkScheduleForProfile({ workScheduleType: "ROTATING", weeklyRestDays: [] })).toEqual({ type: "ROTATING" })
-    expect(getWorkScheduleForProfile({ workScheduleType: "CUSTOM", weeklyRestDays: [] })).toEqual({ type: "CUSTOM" })
+    expect(getWorkScheduleForProfile({ workScheduleType: "ACCUMULATED_NIGHT", weeklyRestDays: [] })).toEqual({ type: "ACCUMULATED_NIGHT", workingDays: [0, 1, 2, 3, 4, 5, 6] })
+    expect(getWorkScheduleForProfile({ workScheduleType: "ROTATING", weeklyRestDays: [] })).toEqual({ type: "ROTATING", workingDays: [0, 1, 2, 3, 4, 5, 6] })
+    expect(getWorkScheduleForProfile({ workScheduleType: "CUSTOM", weeklyRestDays: [] })).toEqual({ type: "CUSTOM", workingDays: [0, 1, 2, 3, 4, 5, 6] })
     expect(getWorkScheduleForProfile({ workScheduleType: "ORDINARY", weeklyRestDays: [] })).toEqual({ type: "ORDINARY" })
+  })
+
+  it("derives working days from declared rest days for accumulated schedules", () => {
+    expect(getWorkScheduleForProfile({ workScheduleType: "ACCUMULATED_NIGHT", weeklyRestDays: [5, 6] })).toEqual({ type: "ACCUMULATED_NIGHT", workingDays: [0, 1, 2, 3, 4] })
+    expect(getWorkScheduleForProfile({ workScheduleType: "ROTATING", weeklyRestDays: [0, 2] })).toEqual({ type: "ROTATING", workingDays: [1, 3, 4, 5, 6] })
+    expect(getWorkScheduleForProfile({ workScheduleType: "CUSTOM", weeklyRestDays: [0, 1, 2, 3, 4, 5, 6] })).toEqual({ type: "CUSTOM", workingDays: [] })
+  })
+
+  it("night schedules respect declared rest days via isWorkDay", () => {
+    const night = getWorkScheduleForProfile({ workScheduleType: "ACCUMULATED_NIGHT", weeklyRestDays: [5, 6] })
+    // Monday July 27, 2026 → laborable; Saturday July 25 → descanso
+    expect(isWorkDay("2026-07-27", night)).toBe(true)
+    expect(isWorkDay("2026-07-25", night)).toBe(false)
   })
 })
 

@@ -15,6 +15,12 @@ TRUST_MARKER_FILE = os.path.join(VECTORSTORE_FOLDER, ".trusted")
 MAX_HISTORY_MESSAGES = 20
 MAX_QUESTION_CHARS = 2000
 MAX_RETRIEVED_CHUNKS = 6
+MIN_RELEVANCE_SCORE = 0.4
+NO_INFORMATION_RESPONSE = (
+    "No encontré esa información específica en los documentos que tengo, "
+    "pero puedo ayudarte con otros temas del CCT o los Estatutos. "
+    "¿Quieres intentar con otra pregunta?"
+)
 
 
 def _vectorstore_is_trusted() -> bool:
@@ -75,10 +81,12 @@ def _split_document(fname: str, text: str):
         if not part.strip():
             continue
         m = re.match(r"\s*((?:CL[AÁ]USULA|ART[ÍI]CULO)\s+\d+)", part, re.I)
-        section = m.group(1) if m else None
-        if section and buffer:
-            yield buffer.strip(), {"document": fname, "page": None, "section": section}
+        new_section = m.group(1) if m else None
+        if new_section is not None:
+            if buffer:
+                yield buffer.strip(), {"document": fname, "page": None, "section": section}
             buffer = part
+            section = new_section
         else:
             buffer += "\n\n" + part
     if buffer.strip():
@@ -179,6 +187,16 @@ def _formatear_contexto(resultados) -> str:
     return "\n\n---\n\n".join(bloques)
 
 
+def _recuperar_fragmentos(db, question: str):
+    """Recupera fragmentos con umbral mínimo de relevancia. Preguntas sin
+    relación con los documentos devuelven lista vacía para que el asistente
+    responda honestamente en lugar de inventar o usar contexto irrelevante."""
+    pares = db.similarity_search_with_relevance_scores(
+        question, k=MAX_RETRIEVED_CHUNKS
+    )
+    return [doc for doc, score in pares if score >= MIN_RELEVANCE_SCORE]
+
+
 def consulta_contrato(question: str, history: List[dict]) -> str:
     if len(question) > MAX_QUESTION_CHARS:
         return "Lo siento, tu pregunta es demasiado larga. Intenta resumirla en menos de 2000 caracteres."
@@ -188,30 +206,31 @@ def consulta_contrato(question: str, history: List[dict]) -> str:
     if db is None:
         return "⚠️ Error: La base de documentos no está disponible en este entorno. Intenta de nuevo más tarde."
 
-    retriever = db.as_retriever(
-        search_type="similarity", search_kwargs={"k": MAX_RETRIEVED_CHUNKS}
-    )
-    resultados = retriever.invoke(question)
+    resultados = _recuperar_fragmentos(db, question)
+    if not resultados:
+        return NO_INFORMATION_RESPONSE
     contexto = _formatear_contexto(resultados)
 
     llm = ChatOpenAI(temperature=0.0, model="gpt-4o-mini")
 
     system_message = f"""Eres el Asistente SNTSS, un aliado confiable y cercano para los trabajadores del IMSS afiliados al Sindicato Nacional de Trabajadores del Seguro Social. Tu personalidad es amigable, empática y profesional — hablas como un compañero que conoce bien los derechos laborales y siempre busca ayudar.
 
-REGLAS ESTRICTAS (CERO ALUCINACIONES):
-1. FUENTE EXCLUSIVA: Tu respuesta debe basarse ÚNICA Y EXCLUSIVAMENTE en el CONTEXTO que se te proporciona abajo. Tienes ESTRICTAMENTE PROHIBIDO usar tu conocimiento general o inventar información.
-2. MANEJO DE VACÍOS:
-   - Si el contexto responde parcialmente, entrégala aclarando que es la única referencia encontrada en los documentos.
-   - Si el contexto NO contiene nada relacionado, responde de forma empática: "No encontré esa información específica en los documentos que tengo, pero puedo ayudarte con otros temas del CCT o los Estatutos. ¿Quieres intentar con otra pregunta?"
-3. CITAS PRECISAS: Siempre que fundamentes tu respuesta, especifica el número de artículo/cláusula y el nombre del documento que aparece en el contexto. Nunca cites un documento que no esté en el contexto.
-4. FORMATO Y TONO:
-   - Usa formato Markdown: **negritas** para conceptos clave, listas con viñetas, párrafos cortos.
-   - Habla de forma conversacional y cercana, como si le hablaras a un compañero de trabajo.
-   - Usa emojis con moderación (✅, 📋, ⚖️) para dar calidez.
-   - Cuando el trabajador hable de sus derechos, vacaciones o prestaciones, demuestra empatía.
-   - No seas robótico. Si la pregunta es vaga, ofrece orientación y preguntas de seguimiento.
+Tienes conocimiento de estos documentos: **Contrato Colectivo de Trabajo (CCT)** del IMSS, **Estatutos del SNTSS**, reglamentos varios (Escalafón, Interior de Trabajo, Becas, etc.), Catálogo, Profesiogramas, Tabulador de sueldos y Régimen de Jubilaciones y Pensiones. Cada fragmento del contexto inicia con el nombre del documento entre corchetes, ej: [Clausulas.pdf], [estatutos-sntss-2022.pdf]
 
-CONTEXTO (fragmentos recuperados con su documento de origen):
+REGLAS ESTRICTAS (CERO ALUCINACIONES):
+1. FUENTE EXCLUSIVA: Responde ÚNICA Y EXCLUSIVAMENTE con base en el CONTEXTO que se te proporciona. Tienes ESTRICTAMENTE PROHIBIDO usar tu conocimiento general o inventar información.
+2. CITAS LITERALES: Cita solo cláusulas, artículos y nombres de documento que aparezcan literalmente en el CONTEXTO. Nunca cites un documento, cláusula o artículo que no esté en el contexto. No agregues números, cifras, plazos o montos que no provengan del contexto.
+3. MANEJO DE VACÍOS:
+   - Si el contexto responde parcialmente, entrégala aclarando que es la única referencia encontrada en los documentos.
+   - Si el contexto NO contiene nada relacionado, responde de forma empática: "{NO_INFORMATION_RESPONSE}"
+4. FORMATO Y TONO:
+   - Responde SIEMPRE en español, conversacional y cercano, como un compañero de trabajo.
+   - Usa **negritas** para conceptos clave, listas con viñetas para derechos/obligaciones y párrafos cortos.
+   - Usa emojis con moderación (✅, 📋, ⚖️).
+   - Cuando el trabajador hable de sus derechos, vacaciones o prestaciones, demuestra empatía.
+   - Si la pregunta es vaga o general, ofrece orientación con preguntas de seguimiento. No seas robótico.
+
+Contexto:
 {contexto}
 """
 

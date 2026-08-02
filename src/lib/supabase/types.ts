@@ -1059,6 +1059,7 @@ export type Database = {
         Returns: Json
       }
       ensure_profile_exists: { Args: never; Returns: boolean }
+      erase_user_payroll_data: { Args: never; Returns: undefined }
       increment_api_usage: {
         Args: { p_limit: number; p_route: string; p_user: string }
         Returns: boolean

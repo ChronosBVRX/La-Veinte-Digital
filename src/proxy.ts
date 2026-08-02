@@ -3,6 +3,11 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import type { Database } from "@/lib/supabase/types"
 
+// Rutas públicas EXPLÍCITAS. Todo lo demás requiere sesión por defecto.
+// Las rutas /api/* se autoprotegen internamente (requireUser), por eso
+// se excluyen aquí. No agregar rutas a esta lista sin justificación.
+const PUBLIC_PATH_PREFIXES = ["/login", "/register", "/callback", "/api/"]
+
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -29,15 +34,10 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith("/login") &&
-    !request.nextUrl.pathname.startsWith("/register") &&
-    !request.nextUrl.pathname.startsWith("/callback") &&
-    !request.nextUrl.pathname.startsWith("/api/") &&
-    !request.nextUrl.pathname.startsWith("/health") &&
-    !request.nextUrl.pathname.startsWith("/consulta")
-  ) {
+  const pathname = request.nextUrl.pathname
+  const isPublic = PUBLIC_PATH_PREFIXES.some((p) => pathname.startsWith(p))
+
+  if (!user && !isPublic) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
     const redirectResponse = NextResponse.redirect(url)

@@ -211,7 +211,7 @@ estructurado (`ConfirmTarjetonRequest`, contrato
 
 ## Bot API Python (FastAPI)
 
-Endpoint base: `NEXT_PUBLIC_BOT_API_URL` (ej: `http://localhost:8000`)
+El navegador nunca llama al bot Python directamente: siempre pasa por `POST /api/consulta` (Next.js), que lo invoca con el header `X-Bot-Secret` cuando `BOT_API_URL` y `BOT_API_SHARED_SECRET` están configurados; si no responde, se degrada al motor directo de OpenAI dentro de Next.js. Para desarrollo local, el bot corre en `http://localhost:8000`.
 
 ### GET /
 Página de estado HTML.

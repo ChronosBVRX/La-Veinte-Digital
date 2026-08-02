@@ -121,6 +121,31 @@ function isNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value)
 }
 
+/** Jornadas válidas del IMSS: 6, 6.5, 8 y 12 horas. */
+export const VALID_WORKDAY_HOURS: readonly number[] = [6, 6.5, 8, 12]
+
+/** Límite superior razonable de antigüedad efectiva (años). */
+export const SENIORITY_YEARS_MAX = 80
+
+/** Días laborados en el periodo anual (base 360, tope 366 para años bisiestos). */
+export const DAYS_WORKED_MAX = 366
+
+function isNonNegativeNumber(value: unknown): boolean {
+  return isNumber(value) && value >= 0
+}
+
+function isWorkdayHoursValue(value: unknown): boolean {
+  return isNumber(value) && VALID_WORKDAY_HOURS.includes(value)
+}
+
+function isSeniorityYearsValue(value: unknown): boolean {
+  return isNumber(value) && value >= 0 && value <= SENIORITY_YEARS_MAX
+}
+
+function isDaysWorkedValue(value: unknown): boolean {
+  return isNumber(value) && value >= 0 && value <= DAYS_WORKED_MAX
+}
+
 function isPrefillSource(value: unknown): value is PrefillSource {
   return (
     typeof value === "string" &&
@@ -135,12 +160,26 @@ function isPrefillConfidence(value: unknown): value is PrefillConfidence {
   )
 }
 
+const PREFILL_FIELD_KEYS = new Set<string>([
+  "value",
+  "source",
+  "confidence",
+  "effectiveAt",
+  "editable",
+  "ruleVersion",
+  "legalReference",
+  "warning",
+])
+
 function isPrefillField(
   value: unknown,
   isValue: (v: unknown) => boolean
 ): value is PrefillField<unknown> {
   if (typeof value !== "object" || value === null) return false
   const f = value as Record<string, unknown>
+  for (const key of Object.keys(f)) {
+    if (!PREFILL_FIELD_KEYS.has(key)) return false
+  }
   return (
     isValue(f.value) &&
     isPrefillSource(f.source) &&
@@ -156,19 +195,21 @@ function isPrefillField(
 const FIELD_CHECKS: Array<[string, (v: unknown) => boolean]> = [
   ["categoryId", isString],
   ["categoryName", isString],
-  ["concepto002", isNumber],
-  ["concepto011", isNumber],
-  ["concepto020", isNumber],
-  ["concepto022", isNumber],
-  ["concepto023", isNumber],
-  ["concepto050", isNumber],
-  ["concepto054", isNumber],
-  ["concepto063", isNumber],
-  ["workdayHours", isNumber],
-  ["seniorityYears", isNumber],
+  ["concepto002", isNonNegativeNumber],
+  ["concepto011", isNonNegativeNumber],
+  ["concepto020", isNonNegativeNumber],
+  ["concepto022", isNonNegativeNumber],
+  ["concepto023", isNonNegativeNumber],
+  ["concepto050", isNonNegativeNumber],
+  ["concepto054", isNonNegativeNumber],
+  ["concepto063", isNonNegativeNumber],
+  ["workdayHours", isWorkdayHoursValue],
+  ["seniorityYears", isSeniorityYearsValue],
   ["effectiveSeniorityDate", isString],
-  ["daysWorkedInAnnualPeriod", isNumber],
+  ["daysWorkedInAnnualPeriod", isDaysWorkedValue],
 ]
+
+const ALLOWED_FIELD_KEYS = new Set<string>(FIELD_CHECKS.map(([key]) => key))
 
 export function isCalculatorPrefillResponse(value: unknown): value is CalculatorPrefillResponse {
   if (typeof value !== "object" || value === null) return false
@@ -187,6 +228,9 @@ export function isCalculatorPrefillResponse(value: unknown): value is Calculator
   if (typeof r.fields !== "object" || r.fields === null) return false
 
   const fields = r.fields as Record<string, unknown>
+  for (const key of Object.keys(fields)) {
+    if (!ALLOWED_FIELD_KEYS.has(key)) return false
+  }
   for (const [key, check] of FIELD_CHECKS) {
     if (fields[key] === undefined) continue
     if (!isPrefillField(fields[key], check)) return false

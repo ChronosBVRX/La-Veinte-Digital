@@ -129,6 +129,46 @@ describe("contrato: validacion de respuesta", () => {
     expect(isCalculatorPrefillResponse(bad)).toBe(false)
   })
 
+  it("rechaza importes de concepto negativos", () => {
+    const r = validResponse()
+    const bad = { ...r, fields: { ...r.fields, concepto020: field(-1) } }
+    expect(isCalculatorPrefillResponse(bad)).toBe(false)
+    const ok = { ...r, fields: { ...r.fields, concepto020: field(0) } }
+    expect(isCalculatorPrefillResponse(ok)).toBe(true)
+  })
+
+  it("rechaza jornadas no validas en workdayHours", () => {
+    const r = validResponse()
+    const bad = { ...r, fields: { ...r.fields, workdayHours: field(7) } }
+    expect(isCalculatorPrefillResponse(bad)).toBe(false)
+    const ok = { ...r, fields: { ...r.fields, workdayHours: field(6.5) } }
+    expect(isCalculatorPrefillResponse(ok)).toBe(true)
+  })
+
+  it("rechaza antiguedad fuera del rango 0-80", () => {
+    const r = validResponse()
+    const bad = { ...r, fields: { ...r.fields, seniorityYears: field(81) } }
+    expect(isCalculatorPrefillResponse(bad)).toBe(false)
+    const ok = { ...r, fields: { ...r.fields, seniorityYears: field(80) } }
+    expect(isCalculatorPrefillResponse(ok)).toBe(true)
+  })
+
+  it("rechaza dias laborados fuera del rango 0-366", () => {
+    const r = validResponse()
+    const bad = { ...r, fields: { ...r.fields, daysWorkedInAnnualPeriod: field(367) } }
+    expect(isCalculatorPrefillResponse(bad)).toBe(false)
+    const ok = { ...r, fields: { ...r.fields, daysWorkedInAnnualPeriod: field(366) } }
+    expect(isCalculatorPrefillResponse(ok)).toBe(true)
+  })
+
+  it("rechaza propiedades extra dentro de fields", () => {
+    const r = validResponse()
+    const bad = { ...r, fields: { ...r.fields, concepto999: field(100), payload: { hack: 1 } } }
+    expect(isCalculatorPrefillResponse(bad)).toBe(false)
+    const nested = { ...r, fields: { ...r.fields, concepto020: { ...field(100), x: 1 } } }
+    expect(isCalculatorPrefillResponse(nested)).toBe(false)
+  })
+
   it("acepta respuestas parciales con campos ausentes", () => {
     const r = validResponse()
     const partial = { ...r, fields: { categoryName: r.fields.categoryName }, warnings: ["sin tarjeton"] }
