@@ -10,7 +10,7 @@ import { parseImssTarjeton } from "../lib/imss-tarjeton-parser"
 import { applyConceptEdits, needsExplicitConfirmation, updateReviewedConcept } from "../lib/confirm-mark"
 import { buildDifferences } from "../components/Differences"
 import { DETAIL_LABELS, buildFriendlyWarnings } from "../components/Review"
-import { imssPositionedTextFixture, expectedRegressionValues } from "./fixtures/imss-positioned-text"
+import { imssPositionedTextFixture, expectedSyntheticValues } from "./fixtures/imss-positioned-text"
 import type { PositionedPdfText } from "@/shared/contracts/tarjeton-import"
 
 describe("money-parser", () => {
@@ -289,17 +289,17 @@ describe("imss-tarjeton-parser (orquestador)", () => {
     expect(outcome.ok).toBe(true)
     if (!outcome.ok) return
 
-    expect(outcome.parsed.document).toMatchObject({ periodRaw: expectedRegressionValues.periodRaw, year: 2026, month: 7, half: 2, folio: "9585" })
+    expect(outcome.parsed.document).toMatchObject({ periodRaw: expectedSyntheticValues.periodRaw, year: 2026, month: 7, half: 2, folio: "4321" })
     expect(outcome.parsed.employee).toMatchObject({
-      employeeNumber: expectedRegressionValues.employeeNumber,
-      fullName: expectedRegressionValues.fullName,
-      categoryCode: expectedRegressionValues.categoryCode,
-      categoryName: expectedRegressionValues.categoryName,
+      employeeNumber: expectedSyntheticValues.employeeNumber,
+      fullName: expectedSyntheticValues.fullName,
+      categoryCode: expectedSyntheticValues.categoryCode,
+      categoryName: expectedSyntheticValues.categoryName,
       workdayHours: 8,
-      entryDate: expectedRegressionValues.entryDate,
+      entryDate: expectedSyntheticValues.entryDate,
     })
     expect(outcome.parsed.employee).not.toHaveProperty("assignmentName")
-    expect(outcome.parsed.employee.seniority).toMatchObject({ years: 14, fortnights: 3, days: 1 })
+    expect(outcome.parsed.employee.seniority).toMatchObject({ years: 12, fortnights: 4, days: 2 })
     expect(outcome.parsed.payroll.earnings).toHaveLength(10)
     expect(outcome.parsed.payroll.deductions).toHaveLength(7)
     expect(outcome.parsed.payroll.earnings.map(({ code, description, amount }) => [code, description, amount])).toEqual([
@@ -326,9 +326,9 @@ describe("imss-tarjeton-parser (orquestador)", () => {
     const conceptIndexes = [...outcome.parsed.payroll.earnings, ...outcome.parsed.payroll.deductions]
       .map((line) => line.lineIndex)
     expect(new Set(conceptIndexes).size).toBe(conceptIndexes.length)
-    expect(outcome.parsed.payroll.totalEarnings).toBe(expectedRegressionValues.totalEarnings)
-    expect(outcome.parsed.payroll.totalDeductions).toBe(expectedRegressionValues.totalDeductions)
-    expect(outcome.parsed.payroll.netPay).toBe(expectedRegressionValues.netPay)
+    expect(outcome.parsed.payroll.totalEarnings).toBe(expectedSyntheticValues.totalEarnings)
+    expect(outcome.parsed.payroll.totalDeductions).toBe(expectedSyntheticValues.totalDeductions)
+    expect(outcome.parsed.payroll.netPay).toBe(expectedSyntheticValues.netPay)
     expect(outcome.parsed.extraction.validations).toMatchObject({
       earningsTotalMatches: true,
       deductionsTotalMatches: true,
@@ -426,8 +426,8 @@ describe("presentación amigable del tarjetón", () => {
     expect(outcome.ok).toBe(true)
     if (!outcome.ok) return
     const differences = buildDifferences(outcome.parsed, {
-      fullName: expectedRegressionValues.fullName,
-      matricula: expectedRegressionValues.employeeNumber,
+      fullName: expectedSyntheticValues.fullName,
+      matricula: expectedSyntheticValues.employeeNumber,
       categoria: "OTRA CATEGORIA",
       antiguedad: outcome.parsed.employee.seniority?.raw,
     })

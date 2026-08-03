@@ -28,14 +28,14 @@ function conceptRow(
   return items
 }
 
-export const expectedRegressionValues = {
-  employeeNumber: "98173968",
+export const expectedSyntheticValues = {
+  employeeNumber: "87654321",
   fullName: "PERSONA TRABAJADORA DE PRUEBA",
   categoryCode: "20570080",
   categoryName: "TECNICO RADIOLOGO 80",
-  entryDate: "2011-11-27",
+  entryDate: "2012-04-01",
   periodRaw: "2A-JUL-2026",
-  folio: "9585",
+  folio: "4321",
   totalEarnings: 36191.55,
   totalDeductions: 24653.55,
   netPay: 11538,
@@ -44,12 +44,12 @@ export const expectedRegressionValues = {
 export const imssPositionedTextFixture: PositionedPdfText[] = [
   text(30, 20, "INSTITUTO MEXICANO DEL SEGURO SOCIAL"),
   text(30, 38, "RECIBO DE PAGO DE NOMINA"),
-  text(430, 38, "FOLIO:"), text(500, 38, "9585"),
+  text(430, 38, "FOLIO:"), text(500, 38, "4321"),
   text(30, 58, "EMISOR"),
   text(30, 78, "NOMBRE:"), text(100, 78, "Instituto Mexicano del Seguro Social"),
   text(30, 112, "RECEPTOR"),
 
-  text(40, 140, "MATRICULA:"), text(150, 140, "98173968"),
+  text(40, 140, "MATRICULA:"), text(150, 140, "87654321"),
   text(270, 140, "RETARDOS:"), text(390, 140, "0"),
   text(440, 140, "PERIODO DE PAGO:"), text(565, 140, "2A-JUL-2026"),
 
@@ -65,7 +65,7 @@ export const imssPositionedTextFixture: PositionedPdfText[] = [
   text(270, 194, "SIN RETARDO:"), text(390, 194, "2"),
   text(440, 194, "DIAS PAGADOS EN LA QUINCENA:"), text(610, 194, "15"),
 
-  text(40, 212, "ANTIGUEDAD EFECTIVA:"), text(175, 212, "14 años 3 qnas 1 dias"),
+  text(40, 212, "ANTIGUEDAD EFECTIVA:"), text(175, 212, "12 años 4 qnas 2 dias"),
   text(270, 212, "ASIDUIDAD:"), text(390, 212, "1"),
   text(440, 212, "VACACIONES DISFRUTADAS:"), text(600, 212, "42"),
 
@@ -80,7 +80,7 @@ export const imssPositionedTextFixture: PositionedPdfText[] = [
   text(440, 266, "PERIODO POR DISFRUTAR:"), text(600, 266, "43"),
 
   text(270, 284, "LICENCIAS SIN SUELDO:"), text(390, 284, "0"),
-  text(440, 284, "FECHA DE INGRESO:"), text(565, 284, "27-11-2011"),
+  text(440, 284, "FECHA DE INGRESO:"), text(565, 284, "01-04-2012"),
 
   text(270, 302, "COMISIONES:"), text(390, 302, "73"),
   text(440, 302, "SUELDO MENSUAL INTEGRADO:"), text(610, 302, "22,058.60"),
