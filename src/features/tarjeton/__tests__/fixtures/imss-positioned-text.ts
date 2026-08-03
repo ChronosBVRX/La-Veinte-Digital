@@ -54,38 +54,38 @@ export const imssPositionedTextFixture: PositionedPdfText[] = [
   text(440, 140, "PERIODO DE PAGO:"), text(565, 140, "2A-JUL-2026"),
 
   text(40, 158, "NOMBRE:"), text(150, 158, "PERSONA TRABAJADORA DE PRUEBA"),
-  text(270, 158, "PASES DE SALIDA:"), text(390, 158, "3"),
+  text(270, 158, "PASES DE SALIDA:"), text(390, 158, "2"),
   text(440, 158, "CAPACIDAD DE CREDITO:"), text(585, 158, "-2,390.73"),
 
   text(40, 176, "CLAVE CATEGORIA/PUESTO:"), text(190, 176, "20570080"),
-  text(270, 176, "FALTAS:"), text(390, 176, "1"),
-  text(440, 176, "DIAS LABORADOS EN EL AÑO:"), text(600, 176, "211"),
+  text(270, 176, "FALTAS:"), text(390, 176, "0"),
+  text(440, 176, "DIAS LABORADOS EN EL AÑO:"), text(600, 176, "100"),
 
   text(40, 194, "NOMBRE CATEGORIA/PUESTO:"), text(190, 194, "TECNICO RADIOLOGO 80"),
-  text(270, 194, "SIN RETARDO:"), text(390, 194, "2"),
-  text(440, 194, "DIAS PAGADOS EN LA QUINCENA:"), text(610, 194, "15"),
+  text(270, 194, "SIN RETARDO:"), text(390, 194, "4"),
+  text(440, 194, "DIAS PAGADOS EN LA QUINCENA:"), text(610, 194, "14"),
 
   text(40, 212, "ANTIGUEDAD EFECTIVA:"), text(175, 212, "12 años 4 qnas 2 dias"),
-  text(270, 212, "ASIDUIDAD:"), text(390, 212, "1"),
-  text(440, 212, "VACACIONES DISFRUTADAS:"), text(600, 212, "42"),
+  text(270, 212, "ASIDUIDAD:"), text(390, 212, "2"),
+  text(440, 212, "VACACIONES DISFRUTADAS:"), text(600, 212, "10"),
 
   text(40, 230, "NOMBRE DE ADSCRIPCION:"), text(185, 230, "UNIDAD FICTICIA"),
   text(270, 230, "MATERNIDAD:"), text(390, 230, "0"),
-  text(440, 230, "VACACIONES EN EL AÑO:"), text(600, 230, "26"),
+  text(440, 230, "VACACIONES EN EL AÑO:"), text(600, 230, "20"),
 
   text(270, 248, "LICENCIA 140 BIS:"), text(390, 248, "0"),
-  text(440, 248, "MARCA DE CONTINUIDAD:"), text(600, 248, "0"),
+  text(440, 248, "MARCA DE CONTINUIDAD:"), text(600, 248, "1"),
 
   text(270, 266, "LICENCIAS CON SUELDO:"), text(390, 266, "0"),
-  text(440, 266, "PERIODO POR DISFRUTAR:"), text(600, 266, "43"),
+  text(440, 266, "PERIODO POR DISFRUTAR:"), text(600, 266, "12"),
 
   text(270, 284, "LICENCIAS SIN SUELDO:"), text(390, 284, "0"),
   text(440, 284, "FECHA DE INGRESO:"), text(565, 284, "01-04-2012"),
 
-  text(270, 302, "COMISIONES:"), text(390, 302, "73"),
+  text(270, 302, "COMISIONES:"), text(390, 302, "12"),
   text(440, 302, "SUELDO MENSUAL INTEGRADO:"), text(610, 302, "22,058.60"),
 
-  text(270, 320, "DIAS DEL CONCEPTO 033:"), text(390, 320, "2"),
+  text(270, 320, "DIAS DEL CONCEPTO 033:"), text(390, 320, "1"),
 
   text(30, 380, "PERCEPCIONES"), text(330, 380, "DEDUCCIONES"),
   text(35, 400, "CONCEPTO"), text(72, 400, "DESCRIPCION"), text(270, 400, "IMPORTE"),

@@ -337,12 +337,12 @@ describe("imss-tarjeton-parser (orquestador)", () => {
     expect(outcome.parsed.extraction.globalConfidence).toBeGreaterThanOrEqual(0.95)
 
     expect(outcome.parsed.attendance).toMatchObject({
-      delays: 0, exitPasses: 3, absences: 1, noDelayDays: 2, attendanceScore: 1,
+      delays: 0, exitPasses: 2, absences: 0, noDelayDays: 4, attendanceScore: 2,
       maternityLeave: 0, license140Bis: 0, paidLicenses: 0, unpaidLicenses: 0,
-      commissions: 73, concept033Days: 2,
+      commissions: 12, concept033Days: 1,
     })
-    expect(outcome.parsed.vacations).toMatchObject({ enjoyedDays: 42, daysInYear: 26, continuityMark: 0, periodNumberToEnjoy: 43 })
-    expect(outcome.parsed.payroll).toMatchObject({ daysWorkedInYear: 211, daysPaidInFortnight: 15, integratedMonthlySalary: 22058.6, creditCapacity: -2390.73 })
+    expect(outcome.parsed.vacations).toMatchObject({ enjoyedDays: 10, daysInYear: 20, continuityMark: 1, periodNumberToEnjoy: 12 })
+    expect(outcome.parsed.payroll).toMatchObject({ daysWorkedInYear: 100, daysPaidInFortnight: 14, integratedMonthlySalary: 22058.6, creditCapacity: -2390.73 })
     expect(outcome.parsed.payroll.earnings.find((line) => line.code === "011")?.description).toBe("Ayuda Renta Cláusula 63 Bis Inc b")
     expect(outcome.parsed.payroll.earnings.every((line) => !/\b(?:111|112|151|154|180|190|192)\b/.test(line.description))).toBe(true)
     expect(outcome.parsed.payroll.observations.map((observation) => observation.conceptCode)).toEqual(["154", "190", "192", "192", "032", "055"])
