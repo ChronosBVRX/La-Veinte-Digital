@@ -4,12 +4,14 @@ import { useMemo, useState } from "react"
 import type { ConfirmTarjetonRequest, ParsedImssTarjeton } from "@/shared/contracts/tarjeton-import"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
 import type { ReviewedConceptLine } from "@/features/tarjeton/lib/confirm-mark"
-import { needsExplicitConfirmation } from "@/features/tarjeton/lib/confirm-mark"
+import { needsExplicitConfirmation, updateReviewedConcept } from "@/features/tarjeton/lib/confirm-mark"
 import { requiresReviewForConfidence } from "@/features/tarjeton/lib/confidence"
+import { parseImssMoney } from "@/features/tarjeton/lib/money-parser"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
 import { Input } from "@/shared/components/ui/Input"
 import { Badge } from "@/shared/components/ui/Badge"
+import { Checkbox } from "@/shared/components/ui/Checkbox"
 import { ExtractedField } from "./ExtractedField"
 import { Summary } from "./Summary"
 import { Differences } from "./Differences"
@@ -27,11 +29,11 @@ interface ReviewProps {
   onCancel: () => void
 }
 
-const DETAIL_LABELS: Record<string, string> = {
+export const DETAIL_LABELS: Record<string, string> = {
   delays: "Retardos",
   exitPasses: "Pases de salida",
   absences: "Faltas",
-  noDelayDays: "Días sin retardo",
+  noDelayDays: "Registros sin retardo",
   attendanceScore: "Asiduidad",
   incidentFortnight: "Quincena de incidencia",
   generalIllnessLeave: "Incapacidad por enfermedad general",
@@ -46,7 +48,7 @@ const DETAIL_LABELS: Record<string, string> = {
   scholarshipWithoutPay: "Beca sin sueldo",
   concept033Days: "Días del concepto 033",
   enjoyedDays: "Vacaciones disfrutadas",
-  daysInYear: "Días de vacaciones en el año",
+  daysInYear: "Vacaciones en el año",
   twentyYearsOrMoreDays: "Vacaciones por 20 años o más",
   expiredPeriods: "Periodos vacacionales vencidos",
   continuityMark: "Marca de continuidad",
@@ -57,19 +59,14 @@ const DETAIL_LABELS: Record<string, string> = {
 }
 
 function parseAmount(value: string): number | null {
-  const normalized = value.trim().replace(",", ".")
-  if (!normalized) return null
-  const parsed = Number(normalized)
-  return Number.isFinite(parsed) ? parsed : null
+  return parseImssMoney(value) ?? null
 }
 
-function buildFriendlyWarnings(warnings: string[]): string[] {
+export function buildFriendlyWarnings(warnings: string[]): string[] {
   const messages: string[] = []
-  const unreadEarnings = warnings.filter((warning) => warning.includes("Fila de earning sin interpretar")).length
-  const unreadDeductions = warnings.filter((warning) => warning.includes("Fila de deduction sin interpretar")).length
+  const unreadConcepts = warnings.filter((warning) => warning.includes("Fila de percepción") || warning.includes("Fila de deducción")).length
 
-  if (unreadEarnings > 0) messages.push(`No se pudieron leer ${unreadEarnings} percepciones. Revisa la lista de conceptos.`)
-  if (unreadDeductions > 0) messages.push(`No se pudieron leer ${unreadDeductions} deducciones. Revisa la lista de conceptos.`)
+  if (unreadConcepts > 0) messages.push("No pudimos leer algunos conceptos del tarjetón. Compara la lista con tu recibo antes de continuar.")
   if (warnings.some((warning) => warning.includes("suma de percepciones") || warning.includes("suma de deducciones"))) {
     messages.push("Los importes detectados todavía no coinciden con los totales impresos en el tarjetón.")
   }
@@ -78,6 +75,18 @@ function buildFriendlyWarnings(warnings: string[]): string[] {
   }
   if (warnings.some((warning) => warning.includes("No se detectaron conceptos"))) {
     messages.push("Una de las dos listas de pago quedó vacía. No confirmes hasta revisarla.")
+  }
+  if (warnings.some((warning) => warning.includes("Receptor") || warning.includes("datos laborales críticos"))) {
+    messages.push("No pudimos confirmar todos los datos del trabajador. Compáralos con tu tarjetón.")
+  }
+  if (warnings.some((warning) => warning.includes("separar las tablas") || warning.includes("separación de columnas"))) {
+    messages.push("No pudimos separar con seguridad percepciones y deducciones. Revisa ambas listas.")
+  }
+  if (warnings.some((warning) => warning.includes("totales de nómina"))) {
+    messages.push("No pudimos leer uno o más totales. Compáralos con el recibo antes de continuar.")
+  }
+  if (warnings.some((warning) => warning.includes("observaciones"))) {
+    messages.push("No pudimos organizar todas las observaciones del tarjetón.")
   }
 
   return [...new Set(messages)]
@@ -101,10 +110,9 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
     validations.deductionsTotalMatches === false ||
     validations.netPayMatches === false,
   )
-  const seniorityNeedsReview = useMemo(
-    () => requiresReviewForConfidence(extraction.globalConfidence, true),
-    [extraction.globalConfidence],
-  )
+  const fieldConfidences = extraction.fieldConfidences ?? {}
+  const seniorityConfidence = fieldConfidences.seniority ?? 0
+  const seniorityNeedsReview = requiresReviewForConfidence(seniorityConfidence, true)
   const friendlyWarnings = useMemo(
     () => buildFriendlyWarnings(extraction.warnings),
     [extraction.warnings],
@@ -114,17 +122,17 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
     { key: "employeeNumber" as const, label: "Matrícula" },
     { key: "fullName" as const, label: "Nombre" },
     { key: "categoryName" as const, label: "Categoría" },
+    { key: "categoryCode" as const, label: "Clave del puesto" },
     { key: "entryDate" as const, label: "Fecha de ingreso" },
   ]
 
   const visibleRows = rows.filter((row) => row.deleted !== true)
+  const deletedRows = rows.filter((row) => row.deleted === true)
   const pendingReview = visibleRows.filter((row) => !row.confirmedByUser)
   const invalidAmounts = visibleRows.some((row) => parseAmount(String(row.amount)) === null)
 
   function updateRow(lineIndex: number, kind: ReviewedConceptLine["kind"], patch: Partial<ReviewedConceptLine>) {
-    setRows((previous) => previous.map((row) => (
-      row.lineIndex === lineIndex && row.kind === kind ? { ...row, ...patch } : row
-    )))
+    setRows((previous) => updateReviewedConcept(previous, { lineIndex, kind }, patch))
   }
 
   return (
@@ -157,15 +165,9 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
                 La suma de los conceptos no coincide con los totales impresos en el recibo.
               </span>
             </div>
-            <label style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", fontSize: "0.875rem", cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={acknowledge}
-                onChange={(event) => setAcknowledge(event.target.checked)}
-                style={{ marginTop: "0.25rem", accentColor: "var(--primary)" }}
-              />
-              <span>Ya revisé los importes y confirmo que deseo continuar.</span>
-            </label>
+            <Checkbox checked={acknowledge} onChange={(event) => setAcknowledge(event.target.checked)} style={{ fontSize: "0.875rem" }}>
+              Ya revisé los importes y confirmo que deseo continuar.
+            </Checkbox>
           </div>
         </Card>
       )}
@@ -182,9 +184,9 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
               value: employee[field.key] ?? null,
               rawValue: null,
               page: 1,
-              confidence: extraction.globalConfidence,
+              confidence: fieldConfidences[field.key] ?? 0,
               method: extraction.method,
-              requiresReview: false,
+              requiresReview: requiresReviewForConfidence(fieldConfidences[field.key] ?? 0, true),
             }}
           />
         ))}
@@ -195,15 +197,12 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
               value: employee.seniority.raw,
               rawValue: null,
               page: 1,
-              confidence: extraction.globalConfidence,
+              confidence: seniorityConfidence,
               method: extraction.method,
               requiresReview: seniorityNeedsReview,
             }}
           />
         )}
-        <div style={{ fontSize: "0.75rem", color: "var(--muted)", paddingTop: "0.5rem" }}>
-          La adscripción no se modifica con el tarjetón; se conserva la que ya tienes guardada en tu perfil.
-        </div>
       </Card>
 
       <Card padding="1rem" style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
@@ -212,7 +211,10 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
           {pendingReview.length > 0 && <Badge variant="warning">{pendingReview.length} por revisar</Badge>}
         </div>
         <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-          Comprueba el código, el nombre y el importe. Puedes corregirlos o eliminar una fila que no pertenezca al tarjetón.
+          Revisa que cada concepto y su importe coincidan con tu tarjetón. Puedes corregir un dato o eliminar una fila que haya sido reconocida por error.
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(6rem, 0.8fr) minmax(4.5rem, 0.6fr) minmax(12rem, 2fr) minmax(7rem, 0.8fr) minmax(6rem, 0.8fr)", gap: "0.375rem", color: "var(--muted)", fontSize: "0.75rem", fontWeight: 600, maxWidth: "100%", overflowX: "auto" }}>
+          <span>Tipo</span><span>Código</span><span>Descripción</span><span>Importe</span><span>Acción</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           {visibleRows.map((row) => {
@@ -256,32 +258,22 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
                   style={{ width: "7rem", padding: "0.25rem 0.5rem", fontSize: "0.8125rem", textAlign: "right" }}
                 />
                 {needsConfirm && (
-                  <label style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.75rem", cursor: "pointer", whiteSpace: "nowrap" }}>
-                    <input
-                      type="checkbox"
-                      checked={row.confirmedByUser}
-                      onChange={(event) => updateRow(row.lineIndex, row.kind, { confirmedByUser: event.target.checked })}
-                      style={{ accentColor: "var(--primary)" }}
-                    />
+                  <Checkbox
+                    checked={row.confirmedByUser}
+                    onChange={(event) => updateRow(row.lineIndex, row.kind, { confirmedByUser: event.target.checked })}
+                    style={{ alignItems: "center", fontSize: "0.75rem", whiteSpace: "nowrap" }}
+                  >
                     Ya lo revisé
-                  </label>
+                  </Checkbox>
                 )}
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => updateRow(row.lineIndex, row.kind, { deleted: true })}
                   aria-label={`Eliminar concepto ${row.lineIndex}`}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid var(--border)",
-                    borderRadius: "var(--radius-sm)",
-                    color: "var(--muted)",
-                    cursor: "pointer",
-                    padding: "0.25rem 0.5rem",
-                    fontSize: "0.8125rem",
-                  }}
                 >
                   Quitar
-                </button>
+                </Button>
               </div>
             )
           })}
@@ -291,15 +283,26 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
             </div>
           )}
         </div>
+        {deletedRows.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", borderTop: "1px solid var(--border)", paddingTop: "0.625rem" }}>
+            <span style={{ color: "var(--muted)", fontSize: "0.75rem", fontWeight: 600 }}>Conceptos quitados</span>
+            {deletedRows.map((row) => (
+              <div key={`${row.kind}-${row.lineIndex}-deleted`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem", fontSize: "0.8125rem" }}>
+                <span>{row.kind === "earning" ? "Percepción" : "Deducción"} {row.code}: {row.description}</span>
+                <Button variant="ghost" size="sm" onClick={() => updateRow(row.lineIndex, row.kind, { deleted: false })}>Recuperar</Button>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
 
       {(Object.keys(vacations).length > 0 || Object.keys(attendance).length > 0) && (
         <Card padding="1rem" style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
           <div style={{ fontWeight: 700, fontSize: "0.875rem", marginBottom: "0.25rem" }}>Asistencia y vacaciones</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.5rem" }}>
-            {[...Object.entries(attendance), ...Object.entries(vacations)].map(([key, value]) => (
+            {[...Object.entries(attendance), ...Object.entries(vacations)].filter(([key, value]) => DETAIL_LABELS[key] && value !== undefined).map(([key, value]) => (
               <span key={key} style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-                {DETAIL_LABELS[key] ?? key}: <strong style={{ color: "var(--fg)" }}>{String(value)}</strong>
+                {DETAIL_LABELS[key]}: <strong style={{ color: "var(--fg)" }}>{String(value)}</strong>
               </span>
             ))}
           </div>
@@ -318,17 +321,11 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
       )}
 
       <Card padding="1rem" style={{ borderColor: "var(--primary)" }}>
-        <label style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", fontSize: "0.875rem", cursor: "pointer" }}>
-          <input
-            type="checkbox"
-            checked={consentGiven}
-            onChange={(event) => setConsentGiven(event.target.checked)}
-            style={{ marginTop: "0.25rem", accentColor: "var(--primary)" }}
-          />
+        <Checkbox checked={consentGiven} onChange={(event) => setConsentGiven(event.target.checked)} style={{ fontSize: "0.875rem" }}>
           <span>
             <strong>Autorizo guardar los datos confirmados</strong> para usarlos al preparar mi próxima nómina. Podré borrarlos más adelante desde la sección de nómina.
           </span>
-        </label>
+        </Checkbox>
       </Card>
 
       {invalidAmounts && (
@@ -346,7 +343,7 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
             authorizeServerStorage: consentGiven,
             conceptLines: rows.filter((row) => row.deleted !== true),
           })}
-          disabled={(totalsMismatch && !acknowledge) || !consentGiven || invalidAmounts || visibleRows.length === 0}
+          disabled={(totalsMismatch && !acknowledge) || !consentGiven || invalidAmounts || visibleRows.length === 0 || pendingReview.length > 0}
           loading={confirming}
         >
           Confirmar tarjetón

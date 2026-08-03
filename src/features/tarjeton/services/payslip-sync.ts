@@ -41,7 +41,7 @@ export function buildImportedPayslip(
     userId,
     period,
     categoryName: parsed.employee.categoryName,
-    institutionalEntryDate: seniority?.reconstructedEffectiveDate,
+    institutionalEntryDate: parsed.employee.entryDate,
     displayedSeniority: seniority && seniority.fortnights === 0
       ? { years: seniority.years, months: 0, days: seniority.days }
       : undefined,
@@ -49,15 +49,15 @@ export function buildImportedPayslip(
       code: l.code,
       description: l.description,
       amount: l.amount,
-      confirmedByUser: true,
-      includeInNextProjection: true,
+      confirmedByUser: l.confirmedByUser,
+      includeInNextProjection: l.confirmedByUser,
     })),
     deductions: payroll.deductions.map((l) => ({
       code: l.code,
       description: l.description,
       amount: l.amount,
-      confirmedByUser: true,
-      includeInNextProjection: true,
+      confirmedByUser: l.confirmedByUser,
+      includeInNextProjection: l.confirmedByUser,
     })),
     totalEarnings: payroll.totalEarnings ?? fallbackEarnings,
     totalDeductions: payroll.totalDeductions ?? fallbackDeductions,
@@ -86,10 +86,17 @@ export function applyPayslipToProfile(
 
   if (profileUpdates.categoria === true && employee.categoryName) {
     updated.categoryName = employee.categoryName
+    updated.categoryCode = employee.categoryCode
+    if (employee.workdayHours === 6 || employee.workdayHours === 6.5 || employee.workdayHours === 8 || employee.workdayHours === 12) {
+      updated.workdayHours = employee.workdayHours
+    }
   }
   if (profileUpdates.antiguedad === true && seniority) {
+    if (employee.entryDate) {
+      updated.institutionalEntryDate = employee.entryDate
+    }
     if (seniority.reconstructedEffectiveDate) {
-      updated.institutionalEntryDate = seniority.reconstructedEffectiveDate
+      updated.effectiveSeniorityDate = seniority.reconstructedEffectiveDate
     }
     if (seniority.fortnights === 0) {
       updated.displayedSeniorityAtLastPayslip = {
@@ -104,7 +111,7 @@ export function applyPayslipToProfile(
   // Evidencia de conceptos recurrentes confirmados en el tarjetón.
   const recurringConcepts: RecurringConceptEvidence[] = [...(profile.recurringConcepts ?? [])]
   for (const line of parsed.payroll.earnings) {
-    if (!RECURRENT_CODES.has(line.code)) continue
+    if (!line.confirmedByUser || !RECURRENT_CODES.has(line.code)) continue
     const existing = recurringConcepts.find((r) => r.conceptCode === line.code)
     const entry: RecurringConceptEvidence = {
       conceptCode: line.code,
@@ -124,7 +131,7 @@ export function applyPayslipToProfile(
   updated.recurringConcepts = recurringConcepts
 
   // Hecho de nómina: 054 presente en tarjetón.
-  const has054 = parsed.payroll.earnings.some((l) => l.code === "054" && l.amount > 0)
+  const has054 = parsed.payroll.earnings.some((l) => l.confirmedByUser && l.code === "054" && l.amount > 0)
   if (has054) {
     const facts = [...(profile.facts ?? []).filter((f) => f.key !== "concept_054_on_payslip")]
     const fact: PayrollFact = {

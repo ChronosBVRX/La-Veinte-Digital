@@ -9,14 +9,13 @@ export default async function TarjetonPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, matricula, adscripcion, categoria, antiguedad")
+    .select("full_name, matricula, categoria, antiguedad")
     .eq("id", user.id)
     .single()
 
   const snapshot = {
     fullName: profile?.full_name ?? null,
     matricula: profile?.matricula ?? null,
-    adscripcion: profile?.adscripcion ?? null,
     categoria: profile?.categoria ?? null,
     antiguedad: profile?.antiguedad ?? null,
   }

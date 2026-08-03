@@ -38,9 +38,9 @@ export async function confirmTarjetonClient(request: ConfirmTarjetonRequest): Pr
 
   let error: { code: ConfirmTarjetonErrorCode; message: string } | null = null
   try {
-    const body = (await response.json()) as { code?: ConfirmTarjetonErrorCode; error?: string }
-    if (body.code && body.error) {
-      error = { code: body.code, message: body.error }
+    const body = (await response.json()) as { code?: ConfirmTarjetonErrorCode; message?: string }
+    if (body.code && body.message) {
+      error = { code: body.code, message: body.message }
     }
   } catch {
     // Cuerpo no JSON: se usa el código del status.

@@ -58,3 +58,15 @@ export const AUTO_CONFIRM_THRESHOLD = 0.95
 export function needsExplicitConfirmation(confidence: number): boolean {
   return confidence < AUTO_CONFIRM_THRESHOLD
 }
+
+export function updateReviewedConcept(
+  lines: ReviewedConceptLine[],
+  identity: Pick<ReviewedConceptLine, "kind" | "lineIndex">,
+  patch: Partial<ReviewedConceptLine>,
+): ReviewedConceptLine[] {
+  return lines.map((line) => (
+    line.kind === identity.kind && line.lineIndex === identity.lineIndex
+      ? { ...line, ...patch }
+      : line
+  ))
+}

@@ -48,7 +48,7 @@ export function sanitizeConfirmTarjetonRequest(raw: unknown): ConfirmTarjetonReq
   }
 
   const totals = validateTarjetonTotals(sanitized.parsed)
-  const mismatched = !totals.earningsTotalMatches || !totals.deductionsTotalMatches || !totals.netPayMatches
+  const mismatched = totals.earningsTotalMatches === false || totals.deductionsTotalMatches === false || totals.netPayMatches === false
   if (mismatched && !sanitized.acknowledgeTotalDifference) {
     throw new ConfirmTarjetonError(
       "totals_mismatch",
@@ -60,12 +60,23 @@ export function sanitizeConfirmTarjetonRequest(raw: unknown): ConfirmTarjetonReq
     throw new ConfirmTarjetonError("template_not_detected", "El archivo no parece un tarjetón del IMSS.")
   }
 
+  const unconfirmed = [...sanitized.parsed.payroll.earnings, ...sanitized.parsed.payroll.deductions]
+    .some((line) => !line.confirmedByUser)
+  if (unconfirmed) {
+    throw new ConfirmTarjetonError("invalid_payload", "Confirma cada concepto antes de guardar el tarjetón.")
+  }
+
   return sanitized
 }
 
 export interface ConfirmTarjetonServiceDeps {
   userId: string
   rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>
+}
+
+function normalizeRpcResponse(data: unknown): unknown {
+  if (typeof data !== "object" || data === null || Array.isArray(data) || "schemaVersion" in data) return data
+  return { schemaVersion: "1.0", ...data }
 }
 
 /** Persiste la confirmación vía RPC (una sola transacción). */
@@ -92,11 +103,12 @@ export async function confirmTarjetonService(deps: ConfirmTarjetonServiceDeps, r
     if (error) {
       return mapRpcError(error.message)
     }
-    if (!data || !isConfirmTarjetonResponse(data)) {
+    const normalizedData = normalizeRpcResponse(data)
+    if (!normalizedData || !isConfirmTarjetonResponse(normalizedData)) {
       return { ok: false, error: { code: "internal", message: "El servidor devolvió una respuesta inválida." } }
     }
 
-    return { ok: true, data }
+    return { ok: true, data: normalizedData }
   } catch (err) {
     console.error("[tarjeton/confirm]", err instanceof Error ? err.message : err)
     return { ok: false, error: { code: "internal", message: "No fue posible confirmar el tarjetón." } }

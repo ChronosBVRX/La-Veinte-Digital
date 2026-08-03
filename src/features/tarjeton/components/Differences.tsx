@@ -4,6 +4,7 @@ import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarje
 import type { ConfirmTarjetonRequest, ParsedImssTarjeton } from "@/shared/contracts/tarjeton-import"
 import { Card } from "@/shared/components/ui/Card"
 import { Badge } from "@/shared/components/ui/Badge"
+import { Checkbox } from "@/shared/components/ui/Checkbox"
 
 export interface Difference {
   key: keyof ConfirmTarjetonRequest["profileUpdates"]
@@ -26,8 +27,7 @@ export function buildDifferences(
   if (profile.matricula && emp.employeeNumber && profile.matricula.trim() !== emp.employeeNumber.trim()) {
     differences.push({ key: "matricula", label: "Matrícula", current: profile.matricula, detected: emp.employeeNumber })
   }
-  // La adscripción no se toma del tarjetón. Se conserva siempre la del perfil.
-  if (profile.categoria && emp.categoryName && profile.categoria.trim().toUpperCase() !== emp.categoryName.trim().toUpperCase()) {
+  if (emp.categoryName && (profile.categoria ?? "").trim().toUpperCase() !== emp.categoryName.trim().toUpperCase()) {
     differences.push({ key: "categoria", label: "Categoría", current: profile.categoria, detected: emp.categoryName })
   }
   if (profile.antiguedad && emp.seniority?.raw && profile.antiguedad.trim().toUpperCase() !== emp.seniority.raw.trim().toUpperCase()) {
@@ -67,16 +67,12 @@ export function Differences({ parsed, profile, updates, onToggle }: DifferencesP
         </span>
       </div>
       {differences.map((d) => (
-        <label
+        <Checkbox
           key={d.key}
+          checked={updates[d.key] === true}
+          onChange={() => onToggle(d.key)}
           style={{ display: "flex", alignItems: "flex-start", gap: "0.625rem", cursor: "pointer", fontSize: "0.875rem" }}
         >
-          <input
-            type="checkbox"
-            checked={updates[d.key] === true}
-            onChange={() => onToggle(d.key)}
-            style={{ marginTop: "0.25rem", accentColor: "var(--primary)" }}
-          />
           <span style={{ display: "flex", flexDirection: "column", gap: "0.125rem" }}>
             <span style={{ fontWeight: 600 }}>{d.label}</span>
             <span style={{ color: "var(--muted)", fontSize: "0.8125rem" }}>
@@ -85,8 +81,13 @@ export function Differences({ parsed, profile, updates, onToggle }: DifferencesP
             <span style={{ color: "var(--muted)", fontSize: "0.8125rem" }}>
               Detectado en el tarjetón: <strong>{d.detected}</strong>
             </span>
+            {d.key === "categoria" && parsed.employee.categoryCode && (
+              <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>
+                Clave del puesto: {parsed.employee.categoryCode}
+              </span>
+            )}
           </span>
-        </label>
+        </Checkbox>
       ))}
       {differences.some((d) => d.key === "matricula") && updates.matricula !== true && (
         <div style={{ fontSize: "0.8125rem", color: "var(--error)", background: "#fef2f2", borderRadius: "var(--radius)", padding: "0.5rem 0.75rem" }}>
