@@ -91,8 +91,6 @@ export interface ParsedImssTarjeton {
     employeeNumber?: string
     fullName?: string
     employmentType?: string
-    assignmentCode?: string
-    assignmentName?: string
     location?: string
     organizationalCode?: string
     categoryCode?: string
@@ -151,6 +149,11 @@ export interface ParsedImssTarjeton {
   extraction: {
     method: TarjetonExtractionMethod
     globalConfidence: number
+    /** Evidencia propia de los campos críticos; no hereda la confianza global. */
+    fieldConfidences?: Partial<Record<
+      "employeeNumber" | "fullName" | "categoryCode" | "categoryName" | "entryDate" | "seniority",
+      number
+    >>
     warnings: string[]
     validations: {
       templateDetected: boolean
@@ -167,7 +170,6 @@ export interface ParsedImssTarjeton {
 export interface TarjetonProfileUpdateRequest {
   fullName?: boolean
   matricula?: boolean
-  adscripcion?: boolean
   categoria?: boolean
   antiguedad?: boolean
 }
@@ -239,8 +241,8 @@ const PARSE_ROOT_KEYS = ["schemaVersion", "document", "employee", "attendance", 
 const DOCUMENT_KEYS = ["type", "pageCount", "periodRaw", "year", "month", "half", "folio", "fiscalFolioHash", "certificationDate"] as const
 
 const EMPLOYEE_KEYS = [
-  "employeeNumber", "fullName", "employmentType", "assignmentCode", "assignmentName",
-  "location", "organizationalCode", "categoryCode", "categoryName", "workdayHours",
+  "employeeNumber", "fullName", "employmentType", "location", "organizationalCode",
+  "categoryCode", "categoryName", "workdayHours",
   "plaza", "entryDate", "seniority",
 ] as const
 
@@ -265,7 +267,8 @@ const PAYROLL_KEYS = [
   "integratedMonthlySalary", "creditCapacity",
 ] as const
 
-const EXTRACTION_KEYS = ["method", "globalConfidence", "warnings", "validations"] as const
+const EXTRACTION_KEYS = ["method", "globalConfidence", "fieldConfidences", "warnings", "validations"] as const
+const FIELD_CONFIDENCE_KEYS = ["employeeNumber", "fullName", "categoryCode", "categoryName", "entryDate", "seniority"] as const
 
 const VALIDATIONS_KEYS = [
   "templateDetected", "earningsTotalMatches", "deductionsTotalMatches",
@@ -276,7 +279,7 @@ const CONCEPT_LINE_KEYS = ["lineIndex", "code", "description", "amount", "kind",
 
 const OBSERVATION_KEYS = ["lineIndex", "conceptCode", "amount", "duePeriod", "units", "controlNumber", "initialCharge", "notes"] as const
 
-const PROFILE_UPDATE_KEYS = ["fullName", "matricula", "adscripcion", "categoria", "antiguedad"] as const
+const PROFILE_UPDATE_KEYS = ["fullName", "matricula", "categoria", "antiguedad"] as const
 
 const REQUEST_KEYS = ["schemaVersion", "sourceHash", "parsed", "profileUpdates", "acknowledgeTotalDifference", "authorizeServerStorage"] as const
 
@@ -363,12 +366,13 @@ export function isParsedImssTarjeton(value: unknown): value is ParsedImssTarjeto
   if (!isNumber(doc.pageCount) || doc.pageCount < 1 || doc.pageCount > 4) return false
   if (!isString(doc.periodRaw)) return false
   if (!isOptionalNumber(doc.year) || !isOptionalNumber(doc.month) || !isOptionalNumber(doc.half)) return false
-  if (!isOptionalString(doc.folio) || !isOptionalString(doc.fiscalFolioHash) || !isOptionalString(doc.certificationDate)) return false
+  if (!isOptionalString(doc.folio) || !isOptionalString(doc.certificationDate)) return false
+  if (doc.fiscalFolioHash !== undefined && (!isString(doc.fiscalFolioHash) || !/^[a-f0-9]{64}$/i.test(doc.fiscalFolioHash))) return false
 
   const emp = value.employee
   if (!isObject(emp)) return false
   if (!hasOnlyKeys(emp, EMPLOYEE_KEYS)) return false
-  for (const key of ["employeeNumber", "fullName", "employmentType", "assignmentCode", "assignmentName", "location", "organizationalCode", "categoryCode", "categoryName", "plaza", "entryDate"] as const) {
+  for (const key of ["employeeNumber", "fullName", "employmentType", "location", "organizationalCode", "categoryCode", "categoryName", "plaza", "entryDate"] as const) {
     if (!isOptionalString(emp[key])) return false
   }
   if (!isOptionalNumber(emp.workdayHours)) return false
@@ -412,6 +416,13 @@ export function isParsedImssTarjeton(value: unknown): value is ParsedImssTarjeto
   if (!hasOnlyKeys(ext, EXTRACTION_KEYS)) return false
   if (!isExtractionMethod(ext.method)) return false
   if (!isNumber(ext.globalConfidence) || ext.globalConfidence < 0 || ext.globalConfidence > 1) return false
+  if (ext.fieldConfidences !== undefined) {
+    if (!isObject(ext.fieldConfidences) || !hasOnlyKeys(ext.fieldConfidences, FIELD_CONFIDENCE_KEYS)) return false
+    for (const key of FIELD_CONFIDENCE_KEYS) {
+      const confidence = ext.fieldConfidences[key]
+      if (confidence !== undefined && (!isNumber(confidence) || confidence < 0 || confidence > 1)) return false
+    }
+  }
   if (!Array.isArray(ext.warnings) || !ext.warnings.every(isString)) return false
   const validations = ext.validations
   if (!isObject(validations)) return false

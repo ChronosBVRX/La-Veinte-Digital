@@ -102,26 +102,58 @@ interface RawFieldValue {
   multiline: boolean
 }
 
-function longestLabelForLine(line: ReconstructedLine): string | null {
+function longestLabelForLine(line: ReconstructedLine, extraLabels: string[] = []): string | null {
   let longest: string | null = null
-  for (const spec of LABEL_SPECS) {
-    for (const label of spec.labels) {
-      if (line.norm.includes(label) && (longest === null || label.length > longest.length)) {
-        longest = label
-      }
+  for (const label of [...PROFILE_LABELS, ...extraLabels]) {
+    const normalized = normalizeText(label)
+    if (line.norm.includes(normalized) && (longest === null || normalized.length > longest.length)) {
+      longest = normalized
     }
   }
   return longest
+}
+
+function rawIndexFromNormalized(raw: string, normalizedIndex: number): number {
+  let rawIndex = 0
+  let normalizedLength = 0
+  while (rawIndex < raw.length && normalizedLength < normalizedIndex) {
+    const normalizedCharacter = normalizeText(raw[rawIndex])
+    rawIndex++
+    if (normalizedCharacter) normalizedLength += normalizedCharacter.length
+  }
+  return rawIndex
+}
+
+function valueOnAnchorLine(line: ReconstructedLine, label: string): string {
+  const normalizedLabel = normalizeText(label)
+  const anchorItemIndex = line.items.findIndex((item) => item.norm.includes(normalizedLabel))
+  if (anchorItemIndex >= 0) {
+    const anchorItem = line.items[anchorItemIndex]
+    const labelIndex = anchorItem.norm.indexOf(normalizedLabel)
+    const rawStart = rawIndexFromNormalized(anchorItem.text, labelIndex + normalizedLabel.length)
+    const values = [cleanValue(anchorItem.text.slice(rawStart))]
+    for (const item of line.items.slice(anchorItemIndex + 1)) {
+      if (PROFILE_LABELS.some((knownLabel) => item.norm.includes(normalizeText(knownLabel)))) break
+      values.push(cleanValue(item.text))
+    }
+    return values.filter(Boolean).join(" ")
+  }
+
+  const normalizedIndex = line.norm.indexOf(normalizedLabel)
+  if (normalizedIndex < 0) return ""
+  const rawStart = rawIndexFromNormalized(line.text, normalizedIndex + normalizedLabel.length)
+  return cleanValue(line.text.slice(rawStart))
 }
 
 function readLabelValue(lines: ReconstructedLine[], spec: LabelSpec): RawFieldValue | null {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     for (const label of spec.labels) {
-      const idx = line.norm.indexOf(label)
-      if (idx < 0 || label !== longestLabelForLine(line)) continue
+      const normalizedLabel = normalizeText(label)
+      const idx = line.norm.indexOf(normalizedLabel)
+      if (idx < 0 || normalizedLabel !== longestLabelForLine(line, spec.labels)) continue
 
-      const after = cleanValue(line.text.slice(idx + label.length))
+      const after = valueOnAnchorLine(line, label)
       if (after) {
         return {
           value: after,
@@ -141,11 +173,12 @@ function readLabelValue(lines: ReconstructedLine[], spec: LabelSpec): RawFieldVa
             next.norm.includes("PERCEPCIONES") ||
             next.norm.includes("DEDUCCIONES") ||
             next.norm.includes("OBSERVACIONES") ||
-            longestLabelForLine(next)
+            longestLabelForLine(next, spec.labels)
           ) {
             break
           }
-          if (next.y - line.y > 24 && j === i + 1) break
+          if (next.page !== line.page || next.y - line.y > Math.max(24, line.yMax - line.yMin + 12)) break
+          if (Math.abs(next.xMin - line.xMin) > 80) break
           const text = cleanValue(next.text)
           if (!text) continue
           continuation.push(text)
@@ -216,21 +249,17 @@ export function parseImssProfile(
     }
   }
 
-  // Regla de producto: la adscripción se conserva exclusivamente desde el perfil.
-  delete employee.assignmentCode
-  delete employee.assignmentName
-  delete fields.assignmentCode
-  delete fields.assignmentName
-
   const jornadaRaw = readLabelValue(lines, {
     key: "workdayHours",
     labels: ["JORNADA"],
     kind: "number",
   })
+  let workdayResolved = false
   if (jornadaRaw?.value !== null && jornadaRaw?.value !== undefined) {
     const hours = parseImssMoney(jornadaRaw.value)
     if (hours !== undefined && (VALID_WORKDAY_HOURS as readonly number[]).includes(hours)) {
       employee.workdayHours = hours
+      workdayResolved = true
       fields.workdayHours = {
         value: hours,
         rawValue: jornadaRaw.value,
@@ -240,7 +269,8 @@ export function parseImssProfile(
         requiresReview: requiresReviewForConfidence(jornadaRaw.confidence, false),
       }
     }
-  } else if (employee.categoryName) {
+  }
+  if (!workdayResolved && employee.categoryName) {
     const derived = deriveWorkdayHoursFromCategoryName(employee.categoryName)
     if (derived !== null) {
       employee.workdayHours = derived

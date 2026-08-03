@@ -26,8 +26,6 @@ export interface OcrFallbackResult {
   usedCdn: boolean
 }
 
-const PAGE_BREAK = " " as const
-
 export async function runOcrFallback(
   pages: HTMLCanvasElement[],
   opts: OcrFallbackOptions = {},
@@ -76,20 +74,23 @@ export async function runOcrFallback(
       }
 
       for (const block of data.blocks ?? []) {
-        const { bbox, text } = block
-        if (!text?.trim()) continue
-        const words = text.split(/\s+/).filter(Boolean)
-        if (words.length === 0) continue
-        items.push({
-          text: words.join(PAGE_BREAK),
-          x: bbox.x0 / scale,
-          y: bbox.y0 / scale,
-          width: (bbox.x1 - bbox.x0) / scale,
-          height: (bbox.y1 - bbox.y0) / scale,
-          page: i + 1,
-          confidence: Math.max(0.01, Math.min(1, (block.confidence ?? 0) / 100)),
-          method: "ocr",
-        })
+        for (const paragraph of block.paragraphs ?? []) {
+          for (const line of paragraph.lines ?? []) {
+            for (const word of line.words ?? []) {
+              if (!word.text?.trim()) continue
+              items.push({
+                text: word.text.trim(),
+                x: word.bbox.x0 / scale,
+                y: word.bbox.y0 / scale,
+                width: (word.bbox.x1 - word.bbox.x0) / scale,
+                height: (word.bbox.y1 - word.bbox.y0) / scale,
+                page: i + 1,
+                confidence: Math.max(0.01, Math.min(1, (word.confidence ?? 0) / 100)),
+                method: "ocr",
+              })
+            }
+          }
+        }
       }
     }
 

@@ -9,10 +9,11 @@
 import type { TarjetonConceptLine } from "@/shared/contracts/tarjeton-import"
 import type { ReconstructedLine } from "./line-reconstruction"
 import { parseImssMoney } from "./money-parser"
-import { clampConfidence } from "./confidence"
+import { baseFieldConfidence, clampConfidence, multilineAdjustment } from "./confidence"
+import { isConceptCode, normalizeText } from "./positioned-text"
 
 const ROW_PATTERN = /^(\d{3})\s+(.+?)\s+(-?[\d\s,]+\.\d{2})\s*$/
-const AMOUNT_ONLY_PATTERN = /^[-+]?[\d\s,]+\.\d{2}$/
+const AMOUNT_ONLY_PATTERN = /^[-+]?\d[\d\s,]*(?:\.\d{1,2})?$/
 
 export interface ConceptTableResult {
   earnings: TarjetonConceptLine[]
@@ -24,6 +25,29 @@ export interface ConceptTableResult {
 }
 
 function parseRow(line: ReconstructedLine): { code: string; description: string; amount: number } | null {
+  const codeIndex = line.items.findIndex((item) => isConceptCode(item.text))
+  if (codeIndex >= 0) {
+    let amountIndex = -1
+    for (let index = line.items.length - 1; index > codeIndex; index--) {
+      const item = line.items[index]
+      if (AMOUNT_ONLY_PATTERN.test(item.text.trim()) && parseImssMoney(item.text) !== undefined) {
+        amountIndex = index
+        break
+      }
+    }
+    if (amountIndex > codeIndex) {
+      const description = line.items
+        .slice(codeIndex + 1, amountIndex)
+        .map((item) => item.text.trim())
+        .filter(Boolean)
+        .join(" ")
+      const amount = parseImssMoney(line.items[amountIndex].text)
+      if (description && amount !== undefined) {
+        return { code: line.items[codeIndex].text.trim(), description, amount }
+      }
+    }
+  }
+
   const match = line.text.trim().match(ROW_PATTERN)
   if (!match) return null
   const amount = parseImssMoney(match[3])
@@ -32,7 +56,8 @@ function parseRow(line: ReconstructedLine): { code: string; description: string;
 }
 
 function isTableHeader(line: ReconstructedLine): boolean {
-  return line.norm.includes("CONCEPTO DESCRIPCION IMPORTE")
+  const norm = normalizeText(line.text)
+  return norm.includes("CONCEPTO DESCRIPCION IMPORTE") || norm === "CONCEPTO" || norm === "DESCRIPCION" || norm === "IMPORTE"
 }
 
 function parseLinesBetweenTotals(
@@ -57,40 +82,29 @@ function parseLinesBetweenTotals(
 
     const row = parseRow(line)
     if (!row) {
-      // Posible descripción multilínea: si la fila anterior quedó sin importe,
-      // se agrega el texto actual a la descripción pendiente.
       const last = result[result.length - 1]
-      const pendingAmount = AMOUNT_ONLY_PATTERN.test(line.text.trim())
-      if (last && pendingAmount) {
-        const amount = parseImssMoney(line.text.trim())
-        if (amount !== undefined) {
-          result[result.length - 1] = { ...last, amount }
+      const hasCode = line.items.some((item) => isConceptCode(item.text))
+      const hasAmount = line.items.some((item) => AMOUNT_ONLY_PATTERN.test(item.text.trim()))
+      if (last && !hasCode && !hasAmount && line.y - lines[i - 1].y <= 24) {
+        const merged = `${last.description} ${line.text.trim()}`.trim()
+        result[result.length - 1] = {
+          ...last,
+          description: merged,
+          confidence: clampConfidence(multilineAdjustment(last.confidence, true)),
         }
         continue
       }
-      if (last && !AMOUNT_ONLY_PATTERN.test(line.text.trim())) {
-        const merged = `${last.description} ${line.text.trim()}`.trim()
-        result[result.length - 1] = { ...last, description: merged, confidence: clampConfidence(last.confidence - 0.08) }
-        continue
-      }
-      warnings.push(`Fila de ${kind} sin interpretar: "${line.text}"`)
-      continue
-    }
-
-    // Continuación del código anterior si el código se repite sin importe.
-    const last = result[result.length - 1]
-    if (last && last.code === row.code && !last.description.endsWith(row.description)) {
-      result[result.length - 1] = { ...last, description: `${last.description} ${row.description}`.trim() }
+      warnings.push(kind === "earning" ? "Fila de percepción sin interpretar." : "Fila de deducción sin interpretar.")
       continue
     }
 
     result.push({
-      lineIndex: lineIndexOffset + i,
+      lineIndex: lineIndexOffset + result.length,
       code: row.code,
       description: row.description,
       amount: row.amount,
       kind,
-      confidence: clampConfidence(line.method === "ocr" ? line.confidence : 0.98),
+      confidence: clampConfidence(baseFieldConfidence(line.method, line.confidence)),
       confirmedByUser: false,
     })
   }
@@ -122,7 +136,7 @@ export function parseImssConceptTables(
     "TOTAL DEDUCCIONES",
     "deduction",
     warnings,
-    earningsLines.length,
+    earnings.length,
   )
 
   const totalEarnings = extractTotal(earningsLines, "TOTAL PERCEPCIONES")

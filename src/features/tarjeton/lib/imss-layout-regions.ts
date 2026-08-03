@@ -8,8 +8,12 @@ export interface ImssLayoutRegions {
   receptorLines: ReconstructedLine[]
   earningsLines: ReconstructedLine[]
   deductionLines: ReconstructedLine[]
+  observationLines: ReconstructedLine[]
   receptorScoped: boolean
   tablesScoped: boolean
+  messagesScoped: boolean
+  observationsScoped: boolean
+  fiscalScoped: boolean
 }
 
 function findAnchor(
@@ -22,6 +26,14 @@ function findAnchor(
 
 function centerY(item: NormalizedPdfTextItem): number {
   return item.y + item.height / 2
+}
+
+function firstAnchorY(
+  items: NormalizedPdfTextItem[],
+  labels: string[],
+  afterY = Number.NEGATIVE_INFINITY,
+): number | undefined {
+  return findAnchor(items, labels, afterY)?.y
 }
 
 export function buildImssLayoutRegions(items: PositionedPdfText[]): ImssLayoutRegions {
@@ -40,7 +52,7 @@ export function buildImssLayoutRegions(items: PositionedPdfText[]): ImssLayoutRe
     centerY(receptorAnchor) < centerY(earningsAnchor),
   )
 
-  let receptorColumns: ImssLayoutRegions["receptorColumns"] = [lines, [], []]
+  let receptorColumns: ImssLayoutRegions["receptorColumns"] = [[], [], []]
   if (receptorScoped && receptorAnchor && earningsAnchor && pageWidth > 0) {
     const receptorTop = centerY(receptorAnchor) + 0.01
     const conceptsTop = centerY(earningsAnchor)
@@ -50,8 +62,10 @@ export function buildImssLayoutRegions(items: PositionedPdfText[]): ImssLayoutRe
     })
     const delaysAnchor = findAnchor(normalizePositionedText(receptorItems), ["RETARDOS"])
     const periodAnchor = findAnchor(normalizePositionedText(receptorItems), ["PERIODO DE PAGO"])
-    const firstDivider = delaysAnchor?.x ?? pageWidth * 0.39
-    const secondDivider = periodAnchor?.x ?? pageWidth * 0.66
+    const contentLeft = Math.min(...normalized.map((item) => item.x))
+    const contentWidth = Math.max(1, pageWidth - contentLeft)
+    const firstDivider = delaysAnchor?.x ?? contentLeft + contentWidth * 0.39
+    const secondDivider = periodAnchor?.x ?? contentLeft + contentWidth * 0.66
 
     receptorColumns = [
       reconstructLines(receptorItems, { xMin: 0, xMax: firstDivider }),
@@ -63,7 +77,7 @@ export function buildImssLayoutRegions(items: PositionedPdfText[]): ImssLayoutRe
   const parallelTables = Boolean(
     earningsAnchor &&
     deductionsAnchor &&
-    Math.abs(centerY(earningsAnchor) - centerY(deductionsAnchor)) <= 3 &&
+    Math.abs(centerY(earningsAnchor) - centerY(deductionsAnchor)) <= Math.max(6, earningsAnchor.height) &&
     deductionsAnchor.x > earningsAnchor.x,
   )
   let earningsLines = lines
@@ -86,12 +100,23 @@ export function buildImssLayoutRegions(items: PositionedPdfText[]): ImssLayoutRe
       yMin: tableTop,
       yMax: tableBottom,
     })
-    const continuationItems = items.filter((item) => item.page > 1)
-    earningsLines = [...firstPageEarnings, ...reconstructLines(continuationItems, { xMin: 0, xMax: divider })]
-      .map((line, index) => ({ ...line, index }))
-    deductionLines = [...firstPageDeductions, ...reconstructLines(continuationItems, { xMin: divider })]
-      .map((line, index) => ({ ...line, index }))
+    earningsLines = firstPageEarnings.map((line, index) => ({ ...line, index }))
+    deductionLines = firstPageDeductions.map((line, index) => ({ ...line, index }))
   }
+
+  const messagesAnchor = findAnchor(normalized, ["MENSAJES"], earningsAnchor?.y)
+  const observationsAnchor = findAnchor(normalized, ["OBSERVACIONES"], messagesAnchor?.y ?? earningsAnchor?.y)
+  const certificationY = firstAnchorY(normalized, ["CERTIFICACION", "INFORMACION FISCAL"], observationsAnchor?.y)
+  const observationsScoped = Boolean(observationsAnchor)
+  const observationLines = observationsAnchor
+    ? reconstructLines(pageOneItems, {
+        yMin: centerY(observationsAnchor),
+        yMax: certificationY ?? Number.POSITIVE_INFINITY,
+      })
+    : []
+
+  const pageTwoItems = normalizePositionedText(items.filter((item) => item.page > 1))
+  const fiscalScoped = Boolean(findAnchor(pageTwoItems, ["INFORMACION FISCAL", "FOLIO FISCAL", "CERTIFICACION"]))
 
   return {
     lines,
@@ -99,7 +124,11 @@ export function buildImssLayoutRegions(items: PositionedPdfText[]): ImssLayoutRe
     receptorLines: receptorColumns.flat(),
     earningsLines,
     deductionLines,
+    observationLines,
     receptorScoped,
     tablesScoped: parallelTables,
+    messagesScoped: Boolean(messagesAnchor),
+    observationsScoped,
+    fiscalScoped,
   }
 }

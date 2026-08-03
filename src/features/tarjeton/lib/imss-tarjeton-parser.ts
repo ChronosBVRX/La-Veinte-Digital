@@ -38,8 +38,8 @@ function detectMethod(items: PositionedPdfText[]): TarjetonExtractionMethod {
 
 function cleanValue(raw: string): string {
   return raw
-    .replace(/^[\s:;.\-–—]+/, "")
-    .replace(/[\s:;.\-–—]+$/, "")
+    .replace(/^[\s:;.–—]+/, "")
+    .replace(/[\s:;.–—]+$/, "")
     .replace(/\s+/g, " ")
 }
 
@@ -110,7 +110,7 @@ function readNumberField(
 function findFirstDateNear(lines: ReconstructedLine[], anchor: string, window = 2): string | undefined {
   for (let i = 0; i < lines.length; i++) {
     if (!lines[i].norm.includes(anchor)) continue
-    const end = Math.min(lines.length, i + window)
+    const end = Math.min(lines.length - 1, i + window)
     for (let j = i; j <= end; j++) {
       for (const token of lines[j].text.split(/\s+/)) {
         const date = parseImssDate(token)
@@ -134,7 +134,7 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
   }
 
   const layout = buildImssLayoutRegions(items)
-  const { lines, receptorLines, receptorColumns, earningsLines, deductionLines } = layout
+  const { lines, receptorLines, receptorColumns, earningsLines, deductionLines, observationLines } = layout
   const template = detectImssTemplate(lines)
   if (!template.detected) {
     warnings.push(TEMPLATE_NOT_DETECTED_MESSAGE)
@@ -156,7 +156,7 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
   for (const line of lines) {
     const period = parseImssPeriod(line.text)
     if (period) {
-      periodRaw = line.text.trim()
+      periodRaw = period.normalized
       year = period.year
       month = period.month
       half = period.half
@@ -182,13 +182,13 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
   const certificationDate = findFirstDateNear(lines, "CERTIFICACION")
 
   // ---- Perfil -----------------------------------------------------------
-  const profile = parseImssProfile(receptorLines, method)
+  const profile = parseImssProfile(layout.receptorScoped ? receptorLines : [], method)
   warnings.push(...profile.warnings)
 
   const employee = { ...profile.employee }
 
   // ---- Antigüedad (con quincenas, nunca conjeturas) ----------------------
-  const seniorityRaw = extractSeniorityRaw(receptorLines)
+  const seniorityRaw = extractSeniorityRaw(layout.receptorScoped ? receptorLines : [])
   if (seniorityRaw && periodEndDate) {
     const parsedSeniority = parseImssPayslipSeniority(seniorityRaw)
     if (parsedSeniority) {
@@ -226,8 +226,8 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
     { key: "scholarshipWithoutPay", labels: ["BECAS SIN SUELDO"] },
     { key: "concept033Days", labels: ["DIAS DEL CONCEPTO 033"] },
   ]
-  const attendanceLines = layout.receptorScoped ? receptorColumns[1] : lines
-  const vacationAndPayrollLines = layout.receptorScoped ? receptorColumns[2] : lines
+  const attendanceLines = layout.receptorScoped ? receptorColumns[1] : []
+  const vacationAndPayrollLines = layout.receptorScoped ? receptorColumns[2] : []
   for (const spec of attendanceSpecs) {
     const field = readNumberField(attendanceLines, spec.labels)
     if (field) attendance[spec.key] = field.value
@@ -277,7 +277,7 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
   payroll.totalEarnings = concepts.totalEarnings
   payroll.totalDeductions = concepts.totalDeductions
   payroll.netPay = concepts.netPay
-  payroll.observations = parseImssObservations(lines)
+  payroll.observations = parseImssObservations(observationLines)
 
   // ---- Validaciones --------------------------------------------------------
   const totals = validateTarjetonTotals({
@@ -332,7 +332,7 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
     structuralIssues++
     warnings.push("No se pudieron separar las tablas por coordenadas; revisa percepciones y deducciones.")
   }
-  if (profile.warnings.some((warning) => warning.includes("contiene otra etiqueta"))) structuralIssues++
+  if (profile.warnings.length > 0) structuralIssues++
   if (contaminatedConcepts.length > 0) {
     structuralIssues++
     warnings.push("Una o más descripciones de conceptos contienen otro código o un total; revisa la separación de columnas.")
@@ -351,6 +351,10 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
   if (payroll.earnings.length === 0 || payroll.deductions.length === 0) {
     structuralIssues++
     warnings.push("No se detectaron conceptos en una o ambas tablas de nómina.")
+  }
+  if (!layout.observationsScoped) {
+    structuralIssues++
+    warnings.push("No se pudo aislar la sección de observaciones.")
   }
   if (payroll.totalEarnings === undefined || payroll.totalDeductions === undefined || payroll.netPay === undefined) {
     structuralIssues++
@@ -381,6 +385,14 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
     extraction: {
       method,
       globalConfidence,
+      fieldConfidences: {
+        employeeNumber: profile.fields.employeeNumber?.confidence,
+        fullName: profile.fields.fullName?.confidence,
+        categoryCode: profile.fields.categoryCode?.confidence,
+        categoryName: profile.fields.categoryName?.confidence,
+        entryDate: profile.fields.entryDate?.confidence,
+        seniority: profile.fields.seniority?.confidence,
+      },
       warnings,
       validations: {
         templateDetected: true,
