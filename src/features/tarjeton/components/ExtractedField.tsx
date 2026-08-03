@@ -8,6 +8,7 @@ import { maskSensitiveLabel } from "@/features/tarjeton/lib/sanitize-sensitive-f
 interface ExtractedFieldProps {
   label: string
   field?: ExtractedTarjetonField<string | number | null>
+  secondaryText?: string
   /** Clave usada para detectar etiquetas sensibles (RFC, cuenta, NSS...). */
   sensitive?: boolean
 }
@@ -18,7 +19,7 @@ function displayValue(value: string | number | null | undefined, sensitive: bool
   return String(value)
 }
 
-export function ExtractedField({ label, field, sensitive }: ExtractedFieldProps) {
+export function ExtractedField({ label, field, secondaryText, sensitive }: ExtractedFieldProps) {
   const value = displayValue(field?.value, sensitive, label)
 
   const style: React.CSSProperties = {
@@ -49,6 +50,9 @@ export function ExtractedField({ label, field, sensitive }: ExtractedFieldProps)
         <span style={{ fontWeight: 600, fontSize: "0.875rem", color: "var(--fg)", wordBreak: "break-word" }}>
           {value}
         </span>
+        {secondaryText && (
+          <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>{secondaryText}</span>
+        )}
         {field.rawValue && field.rawValue !== value && (
           <span style={{ color: "var(--muted)", fontSize: "0.6875rem" }}>Crudo: {field.rawValue}</span>
         )}

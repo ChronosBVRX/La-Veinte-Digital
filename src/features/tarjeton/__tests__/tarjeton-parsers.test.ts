@@ -7,7 +7,10 @@ import { parseImssObservations } from "../lib/imss-observations-parser"
 import { stripSensitiveFields, maskIdentifier, isSensitiveKey } from "../lib/sanitize-sensitive-fields"
 import { reconstructLines } from "../lib/line-reconstruction"
 import { parseImssTarjeton } from "../lib/imss-tarjeton-parser"
-import { applyConceptEdits, needsExplicitConfirmation } from "../lib/confirm-mark"
+import { applyConceptEdits, needsExplicitConfirmation, updateReviewedConcept } from "../lib/confirm-mark"
+import { buildDifferences } from "../components/Differences"
+import { DETAIL_LABELS, buildFriendlyWarnings } from "../components/Review"
+import { imssPositionedTextFixture, expectedSyntheticValues } from "./fixtures/imss-positioned-text"
 import type { PositionedPdfText } from "@/shared/contracts/tarjeton-import"
 
 describe("money-parser", () => {
@@ -96,6 +99,16 @@ describe("imss-concept-table-parser", () => {
     expect(result.totalDeductions).toBe(1234.56)
     expect(result.netPay).toBe(6337.85)
   })
+
+  it("conserva filas distintas aunque repitan el mismo código", () => {
+    const repeated = reconstructLines([
+      item(1, "PERCEPCIONES"),
+      item(2, "055 FONDO A 100.00"),
+      item(3, "055 FONDO B 200.00"),
+      item(4, "TOTAL PERCEPCIONES 300.00"),
+    ])
+    expect(parseImssConceptTables(repeated, []).earnings.map((line) => line.amount)).toEqual([100, 200])
+  })
 })
 
 describe("imss-observations-parser", () => {
@@ -111,6 +124,45 @@ describe("imss-observations-parser", () => {
     expect(observations).toHaveLength(2)
     expect(observations[0]).toMatchObject({ conceptCode: "055", duePeriod: "2026014" })
     expect(observations[1]).toMatchObject({ conceptCode: "032", amount: 900, units: 3 })
+  })
+
+  it("conserva texto libre solo dentro de la región de observaciones", () => {
+    const freeText = reconstructLines([
+      item(1, "OBSERVACIONES"),
+      item(2, "ACLARACION GENERAL SIN CONCEPTO"),
+      item(3, "CERTIFICACION"),
+    ])
+    expect(parseImssObservations(freeText)).toEqual([
+      { lineIndex: 0, conceptCode: "", notes: "ACLARACION GENERAL SIN CONCEPTO" },
+    ])
+  })
+
+  it("reconstruye encabezados compuestos cuando OCR los separa por palabra", () => {
+    const ocrLines = reconstructLines([
+      positionedItem(10, 10, "OBSERVACIONES", "ocr"),
+      positionedItem(10, 30, "CONCEPTO", "ocr"), positionedItem(80, 30, "IMPORTE", "ocr"),
+      positionedItem(150, 30, "VENCIMIENTO", "ocr"), positionedItem(230, 30, "UNIDADES", "ocr"),
+      positionedItem(300, 30, "NUM", "ocr"), positionedItem(325, 30, "CONTROL", "ocr"),
+      positionedItem(390, 30, "CARGO", "ocr"), positionedItem(425, 30, "INICIAL", "ocr"),
+      positionedItem(500, 30, "OBSERVACIONES", "ocr"),
+      positionedItem(10, 50, "190", "ocr"), positionedItem(80, 50, "1,430.19", "ocr"),
+      positionedItem(150, 50, "2026014", "ocr"), positionedItem(230, 50, "2", "ocr"),
+      positionedItem(300, 50, "A01", "ocr"), positionedItem(390, 50, "8,000.00", "ocr"),
+      positionedItem(500, 50, "Préstamo", "ocr"),
+      positionedItem(500, 62, "vigente", "ocr"),
+      positionedItem(10, 80, "CERTIFICACION", "ocr"),
+    ])
+    expect(parseImssObservations(ocrLines)).toEqual([
+      expect.objectContaining({
+        conceptCode: "190",
+        amount: 1430.19,
+        duePeriod: "2026014",
+        units: 2,
+        controlNumber: "A01",
+        initialCharge: 8000,
+        notes: "Préstamo vigente",
+      }),
+    ])
   })
 })
 
@@ -197,26 +249,13 @@ describe("imss-tarjeton-parser (orquestador)", () => {
     })
     expect(parsed.document.fiscalFolioHash).toBe("hash:14")
 
-    expect(parsed.employee).toMatchObject({
-      employeeNumber: "123456",
-      fullName: "MARIA JOSE GARCIA RUIZ",
-      categoryCode: "6112",
-      categoryName: "ENFERMERA GENERAL 80",
-      entryDate: "2003-03-01",
-      workdayHours: 8,
-    })
-    expect(parsed.employee.seniority).toMatchObject({
-      years: 22,
-      fortnights: 10,
-      days: 2,
-      referenceDate: "2026-01-15",
-    })
+    expect(parsed.employee).toEqual({})
 
     expect(parsed.payroll.earnings.map((l) => l.code)).toEqual(["002", "011", "055"])
     expect(parsed.payroll.deductions.map((l) => l.code)).toEqual(["212"])
     expect(parsed.payroll.totalEarnings).toBe(7572.41)
     expect(parsed.payroll.netPay).toBe(6337.85)
-    expect(parsed.payroll.daysWorkedInYear).toBe(12)
+    expect(parsed.payroll.daysWorkedInYear).toBeUndefined()
 
     expect(parsed.extraction.validations.earningsTotalMatches).toBe(true)
     expect(parsed.extraction.validations.deductionsTotalMatches).toBe(true)
@@ -244,74 +283,52 @@ describe("imss-tarjeton-parser (orquestador)", () => {
     expect(outcome.reason).toBe("no_text")
   })
 
-  it("separa el receptor y las tablas paralelas usando coordenadas", async () => {
-    const parallelItems: PositionedPdfText[] = [
-      positioned(30, 20, "INSTITUTO MEXICANO DEL SEGURO SOCIAL"),
-      positioned(30, 40, "RECIBO DE PAGO DE NOMINA"),
-      positioned(30, 60, "NOMBRE:"),
-      positioned(100, 60, "Instituto Mexicano del Seguro Social"),
-      positioned(30, 100, "RECEPTOR"),
-      positioned(40, 140, "MATRICULA:"),
-      positioned(130, 140, "98173968"),
-      positioned(260, 140, "RETARDOS:"),
-      positioned(350, 140, "0"),
-      positioned(410, 140, "PERIODO DE PAGO:"),
-      positioned(510, 140, "2A-JUL-2026"),
-      positioned(40, 170, "NOMBRE:"),
-      positioned(130, 170, "EDUARDO BOLAÑOS VAZQUEZ"),
-      positioned(40, 200, "CLAVE DE CATEGORIA/PUESTO:"),
-      positioned(180, 200, "20570080"),
-      positioned(40, 230, "NOMBRE CATEGORIA/PUESTO:"),
-      positioned(180, 230, "TECNICO RADIOLOGO 80"),
-      positioned(40, 260, "NOMBRE DE ADSCRIPCION:"),
-      positioned(155, 260, "COORDINACION CLIN DE AUX DE DIAGN Y TRAT"),
-      positioned(40, 290, "ANTIGUEDAD EFECTIVA:"),
-      positioned(150, 290, "14 años 3 qnas 1 días"),
-      positioned(410, 290, "FECHA DE INGRESO:"),
-      positioned(510, 290, "01-04-2012"),
-      positioned(30, 500, "PERCEPCIONES"),
-      positioned(315, 500, "DEDUCCIONES"),
-      positioned(30, 520, "CONCEPTO DESCRIPCION IMPORTE"),
-      positioned(315, 520, "CONCEPTO DESCRIPCION IMPORTE"),
-      ...parallelConceptRow(540, ["002", "Sueldo Base Fijo", "3,937.64"], ["111", "Aport Complementaria Afore", "5,321.15"]),
-      ...parallelConceptRow(558, ["011", "Prestaciones en Dinero", "3,234.77"], ["212", "Impuesto Sobre la Renta", "1,234.56"]),
-      ...parallelConceptRow(576, ["013", "Sobresueldo", "400.00"], ["107", "Fondo Jubilacion", "2,000.00"]),
-      ...parallelConceptRow(594, ["020", "Ayuda Renta", "1,000.00"], ["151", "Cuota Sindical", "3,000.00"]),
-      ...parallelConceptRow(612, ["022", "Ayuda Despensa", "2,000.00"], ["180", "Seguro", "4,000.00"]),
-      ...parallelConceptRow(630, ["032", "Estimulos", "3,000.00"], ["183", "Prestamo", "5,000.00"]),
-      ...parallelConceptRow(648, ["050", "Ayuda Vacaciones", "4,000.00"], ["190", "Otros Descuentos", "4,097.84"]),
-      ...parallelConceptRow(666, ["054", "Compensacion", "5,000.00"]),
-      ...parallelConceptRow(684, ["063", "Prima", "6,000.00"]),
-      ...parallelConceptRow(702, ["080", "Ajuste", "7,619.14"]),
-      positioned(30, 725, "TOTAL PERCEPCIONES"),
-      positioned(245, 725, "36,191.55"),
-      positioned(315, 725, "TOTAL DEDUCCIONES"),
-      positioned(540, 725, "24,653.55"),
-      positioned(315, 745, "LIQUIDO"),
-      positioned(540, 745, "11,538.00"),
-      positioned(30, 770, "MENSAJES"),
-      positioned(30, 790, "CERTIFICACION 31-07-2026"),
-    ]
-
-    const shiftedItems = parallelItems.map((pdfItem) => ({ ...pdfItem, x: pdfItem.x + 100 }))
-    const outcome = await parseImssTarjeton({ items: shiftedItems, pageCount: 1 })
+  it("extrae el fixture geométrico completo sin mezclar columnas", async () => {
+    const shiftedItems = imssPositionedTextFixture.map((pdfItem) => ({ ...pdfItem, x: pdfItem.x + 100 }))
+    const outcome = await parseImssTarjeton({ items: shiftedItems, pageCount: 2, hashText: async () => "f".repeat(64) })
     expect(outcome.ok).toBe(true)
     if (!outcome.ok) return
 
-    expect(outcome.parsed.employee.employeeNumber).toBe("98173968")
-    expect(outcome.parsed.employee.fullName).toBe("EDUARDO BOLAÑOS VAZQUEZ")
-    expect(outcome.parsed.employee.assignmentName).toBe("COORDINACION CLIN DE AUX DE DIAGN Y TRAT")
-    expect(outcome.parsed.employee.categoryCode).toBe("20570080")
-    expect(outcome.parsed.employee.categoryName).toBe("TECNICO RADIOLOGO 80")
-    expect(outcome.parsed.employee.seniority).toMatchObject({ years: 14, fortnights: 3, days: 1 })
+    expect(outcome.parsed.document).toMatchObject({ periodRaw: expectedSyntheticValues.periodRaw, year: 2026, month: 7, half: 2, folio: "4321" })
+    expect(outcome.parsed.employee).toMatchObject({
+      employeeNumber: expectedSyntheticValues.employeeNumber,
+      fullName: expectedSyntheticValues.fullName,
+      categoryCode: expectedSyntheticValues.categoryCode,
+      categoryName: expectedSyntheticValues.categoryName,
+      workdayHours: 8,
+      entryDate: expectedSyntheticValues.entryDate,
+    })
+    expect(outcome.parsed.employee).not.toHaveProperty("assignmentName")
+    expect(outcome.parsed.employee.seniority).toMatchObject({ years: 12, fortnights: 4, days: 2 })
     expect(outcome.parsed.payroll.earnings).toHaveLength(10)
     expect(outcome.parsed.payroll.deductions).toHaveLength(7)
+    expect(outcome.parsed.payroll.earnings.map(({ code, description, amount }) => [code, description, amount])).toEqual([
+      ["002", "Sueldo Base Fijo", 3937.64],
+      ["011", "Ayuda Renta Cláusula 63 Bis Inc b", 3234.77],
+      ["020", "Ayuda Renta Cláusula 63 Bis Inc a", 250],
+      ["022", "Ayuda Renta Cláusula 63 Bis Inc c", 1972.41],
+      ["032", "Estímulo por Asistencia", 1721.37],
+      ["033", "Estímulo por Puntualidad", 1147.58],
+      ["050", "Ayuda para Despensa", 200],
+      ["054", "Emanaciones Radioactivas no Médicas", 1434.48],
+      ["055", "Fondo de Ahorro", 21934.68],
+      ["072", "Ayuda para Libros", 358.62],
+    ])
+    expect(outcome.parsed.payroll.deductions.map(({ code, description, amount }) => [code, description, amount])).toEqual([
+      ["111", "Aport Complementaria Afore", 5321.15],
+      ["112", "Fondo Ayuda Sindical por Defunción", 55.31],
+      ["151", "ISR", 313.03],
+      ["154", "Descuento Crédito INFONAVIT", 2670.42],
+      ["180", "Cuota Sindical", 143.45],
+      ["190", "Caja de ahorro préstamo", 1430.19],
+      ["192", "Caja de Ahorro Ahorro", 14720],
+    ])
     const conceptIndexes = [...outcome.parsed.payroll.earnings, ...outcome.parsed.payroll.deductions]
       .map((line) => line.lineIndex)
     expect(new Set(conceptIndexes).size).toBe(conceptIndexes.length)
-    expect(outcome.parsed.payroll.totalEarnings).toBe(36191.55)
-    expect(outcome.parsed.payroll.totalDeductions).toBe(24653.55)
-    expect(outcome.parsed.payroll.netPay).toBe(11538)
+    expect(outcome.parsed.payroll.totalEarnings).toBe(expectedSyntheticValues.totalEarnings)
+    expect(outcome.parsed.payroll.totalDeductions).toBe(expectedSyntheticValues.totalDeductions)
+    expect(outcome.parsed.payroll.netPay).toBe(expectedSyntheticValues.netPay)
     expect(outcome.parsed.extraction.validations).toMatchObject({
       earningsTotalMatches: true,
       deductionsTotalMatches: true,
@@ -319,8 +336,19 @@ describe("imss-tarjeton-parser (orquestador)", () => {
     })
     expect(outcome.parsed.extraction.globalConfidence).toBeGreaterThanOrEqual(0.95)
 
-    const withoutTotals = shiftedItems.filter((pdfItem) => pdfItem.y < 725 || pdfItem.y >= 770)
-    const incompleteOutcome = await parseImssTarjeton({ items: withoutTotals, pageCount: 1 })
+    expect(outcome.parsed.attendance).toMatchObject({
+      delays: 0, exitPasses: 2, absences: 0, noDelayDays: 4, attendanceScore: 2,
+      maternityLeave: 0, license140Bis: 0, paidLicenses: 0, unpaidLicenses: 0,
+      commissions: 12, concept033Days: 1,
+    })
+    expect(outcome.parsed.vacations).toMatchObject({ enjoyedDays: 10, daysInYear: 20, continuityMark: 1, periodNumberToEnjoy: 12 })
+    expect(outcome.parsed.payroll).toMatchObject({ daysWorkedInYear: 100, daysPaidInFortnight: 14, integratedMonthlySalary: 22058.6, creditCapacity: -2390.73 })
+    expect(outcome.parsed.payroll.earnings.find((line) => line.code === "011")?.description).toBe("Ayuda Renta Cláusula 63 Bis Inc b")
+    expect(outcome.parsed.payroll.earnings.every((line) => !/\b(?:111|112|151|154|180|190|192)\b/.test(line.description))).toBe(true)
+    expect(outcome.parsed.payroll.observations.map((observation) => observation.conceptCode)).toEqual(["154", "190", "192", "192", "032", "055"])
+
+    const withoutTotals = shiftedItems.filter((pdfItem) => pdfItem.y !== 608 && pdfItem.y !== 626)
+    const incompleteOutcome = await parseImssTarjeton({ items: withoutTotals, pageCount: 2 })
     expect(incompleteOutcome.ok).toBe(true)
     if (!incompleteOutcome.ok) return
     expect(incompleteOutcome.parsed.extraction.globalConfidence).toBeLessThan(0.85)
@@ -378,6 +406,55 @@ describe("confirm-mark", () => {
     expect(needsExplicitConfirmation(0.95)).toBe(false)
     expect(needsExplicitConfirmation(0.98)).toBe(false)
   })
+
+  it("edita solo la fila identificada por tipo e índice", () => {
+    const rows = [
+      { lineIndex: 0, code: "002", description: "Sueldo", amount: 100, kind: "earning" as const, confidence: 0.9, confirmedByUser: false },
+      { lineIndex: 0, code: "111", description: "Afore", amount: 50, kind: "deduction" as const, confidence: 0.9, confirmedByUser: false },
+    ]
+    const updated = updateReviewedConcept(rows, { kind: "earning", lineIndex: 0 }, { amount: 125, deleted: true })
+    expect(updated[0]).toMatchObject({ amount: 125, deleted: true })
+    expect(updated[1]).toEqual(rows[1])
+    const restored = updateReviewedConcept(updated, { kind: "earning", lineIndex: 0 }, { deleted: false })
+    expect(restored[0].deleted).toBe(false)
+  })
+})
+
+describe("presentación amigable del tarjetón", () => {
+  it("nunca ofrece adscripción y compara la categoría por nombre", async () => {
+    const outcome = await parseImssTarjeton({ items: imssPositionedTextFixture, pageCount: 2 })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    const differences = buildDifferences(outcome.parsed, {
+      fullName: expectedSyntheticValues.fullName,
+      matricula: expectedSyntheticValues.employeeNumber,
+      categoria: "OTRA CATEGORIA",
+      antiguedad: outcome.parsed.employee.seniority?.raw,
+    })
+    expect(differences).toEqual([expect.objectContaining({ key: "categoria", detected: "TECNICO RADIOLOGO 80" })])
+    expect(differences.some((difference) => String(difference.key).includes("adscripcion"))).toBe(false)
+  })
+
+  it("permite importar la categoría cuando el perfil todavía está vacío", async () => {
+    const outcome = await parseImssTarjeton({ items: imssPositionedTextFixture, pageCount: 2 })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(buildDifferences(outcome.parsed, { categoria: null })).toEqual([
+      expect.objectContaining({ key: "categoria", current: null, detected: "TECNICO RADIOLOGO 80" }),
+    ])
+  })
+
+  it("traduce las claves visibles y agrupa advertencias técnicas", () => {
+    const requiredLabels = ["delays", "exitPasses", "absences", "noDelayDays", "attendanceScore", "maternityLeave", "license140Bis", "paidLicenses", "unpaidLicenses", "commissions", "concept033Days", "enjoyedDays", "daysInYear", "continuityMark", "periodNumberToEnjoy"]
+    expect(requiredLabels.every((key) => Boolean(DETAIL_LABELS[key]))).toBe(true)
+    const warnings = buildFriendlyWarnings([
+      "Fila de percepción sin interpretar.",
+      "Fila de deducción sin interpretar.",
+      "No se pudieron separar las tablas por coordenadas; revisa percepciones y deducciones.",
+    ])
+    expect(warnings).toHaveLength(2)
+    expect(warnings.join(" ")).not.toMatch(/earning|deduction|lineIndex|assignmentName|requiresReview/i)
+  })
 })
 
 function item(y: number, text: string): PositionedPdfText {
@@ -392,36 +469,20 @@ function item(y: number, text: string): PositionedPdfText {
     method: "native_text",
   }
 }
-
-function positioned(x: number, y: number, text: string): PositionedPdfText {
+function positionedItem(
+  x: number,
+  y: number,
+  text: string,
+  method: PositionedPdfText["method"] = "native_text",
+): PositionedPdfText {
   return {
     text,
     page: 1,
     x,
     y,
-    width: text.length * 3,
+    width: Math.max(10, text.length * 3),
     height: 10,
-    confidence: 1,
-    method: "native_text",
+    confidence: method === "ocr" ? 0.95 : 1,
+    method,
   }
-}
-
-function parallelConceptRow(
-  y: number,
-  earning: [string, string, string],
-  deduction?: [string, string, string],
-): PositionedPdfText[] {
-  const row = [
-    positioned(30, y, earning[0]),
-    positioned(70, y, earning[1]),
-    positioned(245, y, earning[2]),
-  ]
-  if (deduction) {
-    row.push(
-      positioned(315, y, deduction[0]),
-      positioned(355, y, deduction[1]),
-      positioned(540, y, deduction[2]),
-    )
-  }
-  return row
 }

@@ -75,6 +75,15 @@ describe("confirm-tarjeton service", () => {
     expect(result.data).toMatchObject({ id: "abc-123", duplicate: false, profileUpdated: true })
   })
 
+  it("normaliza la respuesta del RPC desplegado sin versión de esquema", async () => {
+    const rpc = async () => ({
+      data: { id: "abc", duplicate: false, profileUpdated: false, payrollContextUpdated: true },
+      error: null,
+    })
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, makeRequest())
+    expect(result).toMatchObject({ ok: true, data: { schemaVersion: "1.0", id: "abc" } })
+  })
+
   it("rechaza totales que no cuadran sin reconocimiento explícito", async () => {
     const rpc = async () => ({ data: null, error: null })
     const result = await confirmTarjetonService({ userId: "u1", rpc }, makeRequest({
@@ -137,6 +146,34 @@ describe("confirm-tarjeton service", () => {
       ok: false,
       error: { code: "invalid_payload" },
     })
+  })
+
+  it("rechaza cualquier intento de actualizar adscripción", async () => {
+    const rpc = async () => ({ data: null, error: null })
+    const request = makeRequest()
+    ;(request.profileUpdates as Record<string, boolean>).adscripcion = true
+    ;(request.parsed.employee as Record<string, unknown>).assignmentName = "UNIDAD NO PERMITIDA"
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, request)
+    expect(result).toMatchObject({ ok: false, error: { code: "invalid_payload" } })
+  })
+
+  it("permite confirmar cuando un total no fue legible y no hay discrepancia comprobable", async () => {
+    const request = makeRequest()
+    delete request.parsed.payroll.netPay
+    const rpc = async () => ({
+      data: { id: "abc", duplicate: false, profileUpdated: false, payrollContextUpdated: true },
+      error: null,
+    })
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, request)
+    expect(result.ok).toBe(true)
+  })
+
+  it("rechaza conceptos que el trabajador no confirmó", async () => {
+    const request = makeRequest()
+    request.parsed.payroll.earnings[0].confirmedByUser = false
+    const rpc = async () => ({ data: null, error: null })
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, request)
+    expect(result).toMatchObject({ ok: false, error: { code: "invalid_payload" } })
   })
 
   it("envía el consentimiento al RPC", async () => {

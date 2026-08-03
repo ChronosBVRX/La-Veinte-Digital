@@ -1,22 +1,29 @@
 /**
  * Parser del perfil laboral del tarjetón IMSS (página 1).
  *
- * Extrae pares etiqueta→valor apoyándose en las líneas reconstruidas.
- * Soporta valores multilínea (adscripción) y solo acepta valores cuando
- * la etiqueta ancla está presente (nunca adivina campos ausentes).
+ * El tarjetón se usa únicamente para los campos que representa de forma
+ * inequívoca. La adscripción del perfil no se importa desde este documento.
  */
-import type { ExtractedTarjetonField, ParsedImssTarjeton, TarjetonExtractionMethod } from "@/shared/contracts/tarjeton-import"
+import type {
+  ExtractedTarjetonField,
+  ParsedImssTarjeton,
+  TarjetonExtractionMethod,
+} from "@/shared/contracts/tarjeton-import"
 import type { ReconstructedLine } from "./line-reconstruction"
 import { parseImssMoney } from "./money-parser"
 import { parseImssDate } from "./imss-date-parser"
-import { baseFieldConfidence, multilineAdjustment, clampConfidence, requiresReviewForConfidence } from "./confidence"
+import {
+  baseFieldConfidence,
+  multilineAdjustment,
+  clampConfidence,
+  requiresReviewForConfidence,
+} from "./confidence"
 import { normalizeText } from "./positioned-text"
 
 type Employee = ParsedImssTarjeton["employee"]
 
 export interface ProfileParseResult {
   employee: Employee
-  /** Campo por clave interna (para depuración y revisión). */
   fields: Record<string, ExtractedTarjetonField<string | number | null>>
   warnings: string[]
 }
@@ -26,25 +33,43 @@ interface LabelSpec {
   labels: string[]
   kind: "text" | "number" | "date"
   critical?: boolean
-  /** Líneas de continuación permitidas cuando el valor no está en la misma fila. */
   maxContinuations?: number
 }
 
 const LABEL_SPECS: LabelSpec[] = [
   { key: "employeeNumber", labels: ["MATRICULA"], kind: "text", critical: true },
-  { key: "fullName", labels: ["NOMBRE"], kind: "text" },
+  { key: "fullName", labels: ["NOMBRE"], kind: "text", critical: true },
   { key: "employmentType", labels: ["TIPO DE CONTRATACION"], kind: "text" },
-  { key: "assignmentCode", labels: ["CLAVE DE ADSCRIPCION"], kind: "text" },
-  { key: "assignmentName", labels: ["NOMBRE DE ADSCRIPCION", "ADSCRIPCION"], kind: "text", maxContinuations: 2 },
   { key: "location", labels: ["UBICACION"], kind: "text" },
-  { key: "organizationalCode", labels: ["CLAVE DE ESTRUCTURA ORGANIZACIONAL", "ESTRUCTURA ORG"], kind: "text" },
-  { key: "categoryCode", labels: ["CLAVE DE CATEGORIA/PUESTO", "CLAVE CATEGORIA"], kind: "text", critical: true },
-  { key: "categoryName", labels: ["NOMBRE CATEGORIA/PUESTO", "NOMBRE DE CATEGORIA", "CATEGORIA/PUESTO"], kind: "text", critical: true, maxContinuations: 1 },
+  {
+    key: "organizationalCode",
+    labels: ["CLAVE EST. ORG", "CLAVE DE ESTRUCTURA ORGANIZACIONAL", "ESTRUCTURA ORG"],
+    kind: "text",
+  },
+  {
+    key: "categoryCode",
+    labels: ["CLAVE CATEGORIA/PUESTO", "CLAVE DE CATEGORIA/PUESTO", "CLAVE CATEGORIA"],
+    kind: "text",
+    critical: true,
+  },
+  {
+    key: "categoryName",
+    labels: ["NOMBRE CATEGORIA/PUESTO", "NOMBRE DE CATEGORIA/PUESTO", "NOMBRE DE CATEGORIA"],
+    kind: "text",
+    critical: true,
+    maxContinuations: 1,
+  },
   { key: "plaza", labels: ["PLAZA"], kind: "text" },
   { key: "entryDate", labels: ["FECHA DE INGRESO"], kind: "date", critical: true },
 ]
 
-const PROFILE_LABELS = LABEL_SPECS.flatMap((spec) => spec.labels).concat(["JORNADA", "ANTIGUEDAD EFECTIVA"])
+const PROFILE_LABELS = LABEL_SPECS.flatMap((spec) => spec.labels).concat([
+  "JORNADA",
+  "ANTIGUEDAD EFECTIVA",
+  "UBICACION",
+  "CLAVE DE ADSCRIPCION",
+  "NOMBRE DE ADSCRIPCION",
+])
 
 function containsAnotherLabel(value: string): boolean {
   const normalized = normalizeText(value)
@@ -53,7 +78,7 @@ function containsAnotherLabel(value: string): boolean {
 
 const VALID_WORKDAY_HOURS = [6, 6.5, 8, 12] as const
 
-/** "TECNICO RADIOLOGO 80" → 8; "ENFERMERA 65" → 6.5; "CAT 120" → 12. */
+/** "TECNICO RADIOLOGO 80" → 8; "ENFERMERA 65" → 6.5. */
 export function deriveWorkdayHoursFromCategoryName(categoryName: string): number | null {
   const match = categoryName.trim().match(/(\d+)\s*$/)
   if (!match) return null
@@ -77,40 +102,58 @@ interface RawFieldValue {
   multiline: boolean
 }
 
-/**
- * Etiqueta más específica presente en la línea (la de mayor longitud).
- * Garantiza que "CLAVE DE CATEGORIA/PUESTO" gane sobre "CATEGORIA/PUESTO"
- * y que "NOMBRE DE ADSCRIPCION" gane sobre "ADSCRIPCION".
- */
-function longestLabelForLine(line: ReconstructedLine, extraLabels: string[]): string | null {
+function longestLabelForLine(line: ReconstructedLine, extraLabels: string[] = []): string | null {
   let longest: string | null = null
-  for (const spec of LABEL_SPECS) {
-    for (const label of spec.labels) {
-      if (line.norm.includes(label) && (longest === null || label.length > longest.length)) {
-        longest = label
-      }
-    }
-  }
-  for (const label of extraLabels) {
-    if (line.norm.includes(label) && (longest === null || label.length > longest.length)) {
-      longest = label
+  for (const label of [...PROFILE_LABELS, ...extraLabels]) {
+    const normalized = normalizeText(label)
+    if (line.norm.includes(normalized) && (longest === null || normalized.length > longest.length)) {
+      longest = normalized
     }
   }
   return longest
+}
+
+function rawIndexFromNormalized(raw: string, normalizedIndex: number): number {
+  let rawIndex = 0
+  let normalizedLength = 0
+  while (rawIndex < raw.length && normalizedLength < normalizedIndex) {
+    const normalizedCharacter = normalizeText(raw[rawIndex])
+    rawIndex++
+    if (normalizedCharacter) normalizedLength += normalizedCharacter.length
+  }
+  return rawIndex
+}
+
+function valueOnAnchorLine(line: ReconstructedLine, label: string): string {
+  const normalizedLabel = normalizeText(label)
+  const anchorItemIndex = line.items.findIndex((item) => item.norm.includes(normalizedLabel))
+  if (anchorItemIndex >= 0) {
+    const anchorItem = line.items[anchorItemIndex]
+    const labelIndex = anchorItem.norm.indexOf(normalizedLabel)
+    const rawStart = rawIndexFromNormalized(anchorItem.text, labelIndex + normalizedLabel.length)
+    const values = [cleanValue(anchorItem.text.slice(rawStart))]
+    for (const item of line.items.slice(anchorItemIndex + 1)) {
+      if (PROFILE_LABELS.some((knownLabel) => item.norm.includes(normalizeText(knownLabel)))) break
+      values.push(cleanValue(item.text))
+    }
+    return values.filter(Boolean).join(" ")
+  }
+
+  const normalizedIndex = line.norm.indexOf(normalizedLabel)
+  if (normalizedIndex < 0) return ""
+  const rawStart = rawIndexFromNormalized(line.text, normalizedIndex + normalizedLabel.length)
+  return cleanValue(line.text.slice(rawStart))
 }
 
 function readLabelValue(lines: ReconstructedLine[], spec: LabelSpec): RawFieldValue | null {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
     for (const label of spec.labels) {
-      const idx = line.norm.indexOf(label)
-      if (idx < 0) continue
+      const normalizedLabel = normalizeText(label)
+      const idx = line.norm.indexOf(normalizedLabel)
+      if (idx < 0 || normalizedLabel !== longestLabelForLine(line, spec.labels)) continue
 
-      // Solo la etiqueta más específica de la línea puede reclamarla:
-      // evita que "CATEGORIA/PUESTO" capture la fila "CLAVE DE CATEGORIA/PUESTO".
-      if (label !== longestLabelForLine(line, spec.labels)) continue
-
-      const after = cleanValue(line.text.slice(idx + label.length))
+      const after = valueOnAnchorLine(line, label)
       if (after) {
         return {
           value: after,
@@ -121,44 +164,56 @@ function readLabelValue(lines: ReconstructedLine[], spec: LabelSpec): RawFieldVa
         }
       }
 
-      // Valor en la siguiente línea (multilínea).
       if (spec.maxContinuations && spec.maxContinuations > 0) {
         const continuation: string[] = []
         let confidences = line.confidence
-        const page = line.page
-        const method = line.method
         for (let j = i + 1; j <= i + spec.maxContinuations && j < lines.length; j++) {
           const next = lines[j]
-          // No cruzar a otra sección: detenerse ante un nuevo ancla de etiqueta.
-          if (next.norm.includes("PERCEPCIONES") || next.norm.includes("DEDUCCIONES") || next.norm.includes("OBSERVACIONES")) break
-          if (next.y - line.y > 24 && j === i + 1) break
+          if (
+            next.norm.includes("PERCEPCIONES") ||
+            next.norm.includes("DEDUCCIONES") ||
+            next.norm.includes("OBSERVACIONES") ||
+            longestLabelForLine(next, spec.labels)
+          ) {
+            break
+          }
+          if (next.page !== line.page || next.y - line.y > Math.max(24, line.yMax - line.yMin + 12)) break
+          if (Math.abs(next.xMin - line.xMin) > 80) break
           const text = cleanValue(next.text)
           if (!text) continue
           continuation.push(text)
           confidences += next.confidence
         }
         if (continuation.length > 0) {
-          const joined = continuation.join(" ")
           return {
-            value: joined,
-            page,
+            value: continuation.join(" "),
+            page: line.page,
             confidence: multilineAdjustment(
               clampConfidence(confidences / (continuation.length + 1)),
               true,
             ),
-            method,
+            method: line.method,
             multiline: true,
           }
         }
       }
 
-      return { value: null, page: line.page, confidence: line.confidence, method: line.method, multiline: false }
+      return {
+        value: null,
+        page: line.page,
+        confidence: line.confidence,
+        method: line.method,
+        multiline: false,
+      }
     }
   }
   return null
 }
 
-export function parseImssProfile(lines: ReconstructedLine[], method: TarjetonExtractionMethod): ProfileParseResult {
+export function parseImssProfile(
+  lines: ReconstructedLine[],
+  method: TarjetonExtractionMethod,
+): ProfileParseResult {
   const employee: Employee = {}
   const fields: ProfileParseResult["fields"] = {}
   const warnings: string[] = []
@@ -167,27 +222,21 @@ export function parseImssProfile(lines: ReconstructedLine[], method: TarjetonExt
     const raw = readLabelValue(lines, spec)
     if (!raw || raw.value === null) continue
 
-    let value: string | number | null = null
-    if (spec.kind === "number") {
-      value = parseImssMoney(raw.value) ?? null
-    } else if (spec.kind === "date") {
-      value = parseImssDate(raw.value) ?? null
-    } else {
-      value = raw.value
-    }
+    let value: string | number | null
+    if (spec.kind === "number") value = parseImssMoney(raw.value) ?? null
+    else if (spec.kind === "date") value = parseImssDate(raw.value) ?? null
+    else value = raw.value
 
     if (value === null) {
-      warnings.push(`El campo ${spec.key} no pudo interpretarse (valor: "${raw.value}")`)
+      warnings.push(`No se pudo interpretar ${spec.key}.`)
       continue
     }
 
     const contaminated = containsAnotherLabel(raw.value)
     const confidence = contaminated ? clampConfidence(raw.confidence - 0.4) : raw.confidence
-    if (contaminated) {
-      warnings.push(`El campo ${spec.key} contiene otra etiqueta y requiere revisión: "${raw.value}"`)
-    }
+    if (contaminated) warnings.push(`Revisa el dato detectado para ${spec.key}.`)
 
-    // @ts-expect-error -- asignación genérica validada por la spec
+    // @ts-expect-error -- asignación genérica validada por LabelSpec.
     employee[spec.key] = value
     fields[spec.key] = {
       value: value as never,
@@ -195,16 +244,22 @@ export function parseImssProfile(lines: ReconstructedLine[], method: TarjetonExt
       page: raw.page,
       confidence,
       method: raw.method,
-      requiresReview: contaminated || requiresReviewForConfidence(confidence, spec.critical ?? false),
+      requiresReview:
+        contaminated || requiresReviewForConfidence(confidence, spec.critical ?? false),
     }
   }
 
-  // Jornada: etiqueta explícita o sufijo de la categoría.
-  const jornadaRaw = readLabelValue(lines, { key: "workdayHours", labels: ["JORNADA"], kind: "number" })
+  const jornadaRaw = readLabelValue(lines, {
+    key: "workdayHours",
+    labels: ["JORNADA"],
+    kind: "number",
+  })
+  let workdayResolved = false
   if (jornadaRaw?.value !== null && jornadaRaw?.value !== undefined) {
     const hours = parseImssMoney(jornadaRaw.value)
     if (hours !== undefined && (VALID_WORKDAY_HOURS as readonly number[]).includes(hours)) {
       employee.workdayHours = hours
+      workdayResolved = true
       fields.workdayHours = {
         value: hours,
         rawValue: jornadaRaw.value,
@@ -214,7 +269,8 @@ export function parseImssProfile(lines: ReconstructedLine[], method: TarjetonExt
         requiresReview: requiresReviewForConfidence(jornadaRaw.confidence, false),
       }
     }
-  } else if (employee.categoryName) {
+  }
+  if (!workdayResolved && employee.categoryName) {
     const derived = deriveWorkdayHoursFromCategoryName(employee.categoryName)
     if (derived !== null) {
       employee.workdayHours = derived
@@ -222,16 +278,19 @@ export function parseImssProfile(lines: ReconstructedLine[], method: TarjetonExt
         value: derived,
         rawValue: employee.categoryName,
         page: fields.categoryName?.page ?? 1,
-        confidence: 0.8,
+        confidence: fields.categoryName?.confidence ?? 0.9,
         method: fields.categoryName?.method ?? method,
-        requiresReview: true,
+        requiresReview: fields.categoryName?.requiresReview ?? false,
       }
     }
   }
 
-  // Antigüedad efectiva: se devuelve cruda; el orquestador la interpreta
-  // con parseImssPayslipSeniority (el tarjetón usa quincenas).
-  const seniorityRaw = readLabelValue(lines, { key: "seniority", labels: ["ANTIGUEDAD EFECTIVA"], kind: "text", critical: true })
+  const seniorityRaw = readLabelValue(lines, {
+    key: "seniority",
+    labels: ["ANTIGUEDAD EFECTIVA"],
+    kind: "text",
+    critical: true,
+  })
   if (seniorityRaw?.value !== null && seniorityRaw?.value !== undefined) {
     fields.seniority = {
       value: null,
@@ -246,9 +305,11 @@ export function parseImssProfile(lines: ReconstructedLine[], method: TarjetonExt
   return { employee, fields, warnings }
 }
 
-/** Extrae el texto crudo de la antigüedad efectiva (p. ej. "14 años 3 qnas 1 días"). */
 export function extractSeniorityRaw(lines: ReconstructedLine[]): string | null {
-  const spec: LabelSpec = { key: "seniority", labels: ["ANTIGUEDAD EFECTIVA"], kind: "text" }
-  const raw = readLabelValue(lines, spec)
+  const raw = readLabelValue(lines, {
+    key: "seniority",
+    labels: ["ANTIGUEDAD EFECTIVA"],
+    kind: "text",
+  })
   return raw?.value ?? null
 }

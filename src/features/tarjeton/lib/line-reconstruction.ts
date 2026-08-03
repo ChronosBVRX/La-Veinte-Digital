@@ -14,6 +14,10 @@ export interface ReconstructedLine {
   index: number
   page: number
   y: number
+  xMin: number
+  xMax: number
+  yMin: number
+  yMax: number
   /** Texto unido de la fila. */
   text: string
   norm: string
@@ -40,11 +44,12 @@ function isInsideRegion(
   item: NormalizedPdfTextItem,
   options: ReconstructOptions,
 ): boolean {
-  const centerX = item.x + item.width / 2
   const centerY = item.y + item.height / 2
 
-  if (options.xMin !== undefined && centerX < options.xMin) return false
-  if (options.xMax !== undefined && centerX >= options.xMax) return false
+  // La coordenada inicial identifica mejor la columna de textos largos que
+  // su centro, que puede invadir visualmente la columna contigua.
+  if (options.xMin !== undefined && item.x < options.xMin) return false
+  if (options.xMax !== undefined && item.x >= options.xMax) return false
   if (options.yMin !== undefined && centerY < options.yMin) return false
   if (options.yMax !== undefined && centerY >= options.yMax) return false
 
@@ -59,6 +64,7 @@ export function reconstructLines(
   const normalized = normalizePositionedText(items)
     .filter((item) => item.text.trim().length >= minTextLength)
     .filter((item) => isInsideRegion(item, options))
+    .sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x)
 
   // Agrupar por página y proximidad vertical.
   const rows: NormalizedPdfTextItem[][] = []
@@ -66,7 +72,7 @@ export function reconstructLines(
     let placed = false
     for (const row of rows) {
       const rowPage = row[0]?.page ?? 0
-      const rowY = row[0]?.y ?? 0
+      const rowY = row.reduce((sum, current) => sum + current.y, 0) / row.length
       if (item.page !== rowPage) continue
       if (Math.abs(item.y - rowY) <= yTolerance) {
         row.push(item)
@@ -106,6 +112,10 @@ export function reconstructLines(
     if (!text.trim()) continue
 
     const avgConfidence = row.reduce((s, i) => s + i.confidence, 0) / Math.max(1, row.length)
+    const xMin = Math.min(...row.map((item) => item.x))
+    const xMax = Math.max(...row.map((item) => item.x + item.width))
+    const yMin = Math.min(...row.map((item) => item.y))
+    const yMax = Math.max(...row.map((item) => item.y + item.height))
     const method = row.every((i) => i.method === "native_text")
       ? ("native_text" as const)
       : row.every((i) => i.method === "ocr")
@@ -115,7 +125,11 @@ export function reconstructLines(
     lines.push({
       index,
       page: row[0]?.page ?? 1,
-      y: row[0]?.y ?? 0,
+      y: yMin,
+      xMin,
+      xMax,
+      yMin,
+      yMax,
       text,
       norm,
       items: row,

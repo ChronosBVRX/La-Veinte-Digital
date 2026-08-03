@@ -21,7 +21,6 @@ import { syncConfirmedPayslip } from "@/features/tarjeton/services/payslip-sync"
 export interface TarjetonProfileSnapshot {
   fullName?: string | null
   matricula?: string | null
-  adscripcion?: string | null
   categoria?: string | null
   antiguedad?: string | null
 }
