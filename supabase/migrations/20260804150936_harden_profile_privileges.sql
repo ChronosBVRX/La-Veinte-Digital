@@ -59,6 +59,8 @@ CREATE TRIGGER guard_profile_protected_fields
 -- Revoke broad DML, then grant only personal columns
 REVOKE INSERT, UPDATE ON TABLE public.profiles FROM anon, authenticated;
 
+GRANT SELECT ON TABLE public.profiles TO authenticated;
+
 GRANT INSERT (
   id, full_name, matricula, adscripcion, categoria, antiguedad, phone, avatar_url
 ) ON TABLE public.profiles TO authenticated;
