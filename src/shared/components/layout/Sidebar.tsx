@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, MessageCircle, Bot, FileText, BookOpen, User, Newspaper, Target, Calculator, DollarSign, X, Calendar, CalendarCheck, Globe, ClipboardList, FileUp } from "lucide-react"
+import { Home, Bot, FileText, BookOpen, User, Target, Calculator, DollarSign, X, Calendar, CalendarCheck, Globe, ClipboardList, FileUp } from "lucide-react"
 import type { CSSProperties } from "react"
 
 interface SidebarProps {
@@ -12,8 +12,6 @@ interface SidebarProps {
 
 const links = [
   { href: "/", label: "Inicio", icon: Home },
-  { href: "/foro", label: "Foro", icon: Newspaper },
-  { href: "/chat", label: "Chat", icon: MessageCircle },
   { href: "/asistente", label: "Asistente SNTSS", icon: Bot },
   { href: "/simulador", label: "Simulador", icon: Target },
   { href: "/calculadoras", label: "Calculadoras", icon: Calculator },

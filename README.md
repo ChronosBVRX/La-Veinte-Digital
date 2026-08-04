@@ -1,6 +1,6 @@
 # La Veinte Digital
 
-Plataforma digital de la comunidad SNTSS (Sindicato Nacional de Trabajadores del Seguro Social). Diseñada para trabajadores del IMSS, ofrece herramientas laborales, asistencia legal vía IA, foros, chat en vivo, calculadoras de prestaciones, y más.
+Plataforma digital de la comunidad SNTSS (Sindicato Nacional de Trabajadores del Seguro Social). Diseñada para trabajadores del IMSS, ofrece herramientas laborales, asistencia legal vía IA, calculadoras de prestaciones y gestión personal.
 
 ---
 
@@ -11,7 +11,7 @@ Plataforma digital de la comunidad SNTSS (Sindicato Nacional de Trabajadores del
 | Next.js | 16.2.12 |
 | React | 19.2.4 |
 | TypeScript | 5.x |
-| Supabase (Auth + DB + Realtime) | ^0.12.3 |
+| Supabase (Auth + DB) | ^0.12.3 |
 | OpenAI API | GPT-4o-mini / text-embedding-ada-002 |
 | Python FastAPI (Bot API) | LangChain + FAISS |
 | PostgreSQL | 14.5 |
@@ -40,16 +40,15 @@ la-veinte-digital/
 │   │   │   ├── calculadoras/       # Calculadoras de prestaciones
 │   │   │   ├── calendario/         # Calendario IMSS
 │   │   │   ├── catalogo/           # Catálogo de adscripciones
-│   │   │   ├── chat/               # Salas de chat en vivo
 │   │   │   ├── escritos/           # Generador de escritos PSD
 │   │   │   ├── facebook/           # Feed de Facebook SNTSS
-│   │   │   ├── foro/               # Foro de discusión
 │   │   │   ├── nomina/             # Nómina y proyecciones
 │   │   │   ├── profile/            # Perfil de usuario
 │   │   │   ├── simulador/          # Simulador de audiencias
 │   │   │   ├── layout.tsx          # Layout protegido
 │   │   │   └── page.tsx            # Dashboard principal
 │   │   ├── api/                    # API routes
+│   │   │   ├── health/             # Health check público
 │   │   │   ├── consulta/           # Asistente IA (Next.js)
 │   │   │   ├── simulador/          # Simulador de audiencias
 │   │   │   ├── calendario/         # Exportar calendario (.ics)
@@ -74,10 +73,6 @@ la-veinte-digital/
 │   │   ├── catalogo/               # Catálogo de adscripciones
 │   │   │   ├── components/         # CatalogSearch
 │   │   │   └── services/           # catalogo.ts
-│   │   ├── chat/                   # Chat en tiempo real
-│   │   │   ├── components/         # ChatRoom
-│   │   │   ├── hooks/              # useRealtime
-│   │   │   └── services/           # chat.ts
 │   │   ├── escritos/               # Generación de documentos PSD
 │   │   │   ├── components/         # EscritosForm, Generator, Result
 │   │   │   └── services/           # generarEscrito.ts
@@ -85,9 +80,6 @@ la-veinte-digital/
 │   │   │   ├── components/         # FacebookFeed, FacebookFeeds
 │   │   │   ├── hooks/              # (vacío)
 │   │   │   └── services/           # (vacío)
-│   │   ├── foro/                   # Foro de discusión
-│   │   │   ├── components/         # CommentSection, NewPostForm
-│   │   │   └── services/           # forum.ts
 │   │   ├── nomina/                 # Nómina y proyecciones
 │   │   │   ├── components/         # NominaIndex, Wizard, OptIn, Projection
 │   │   │   ├── services/           # prefill.ts, local-migration-service.ts
@@ -174,28 +166,22 @@ Calendario laboral 2026 con fechas de pago, periodos de interactivo y vacacional
 ### 5. Catálogo (`/catalogo`)
 Búsqueda en el catálogo de adscripciones del IMSS con función de búsqueda PostgreSQL (`search_catalogo`).
 
-### 6. Chat (`/chat`)
-Salas de chat en tiempo real con Supabase Realtime. Los usuarios pueden crear y unirse a salas de conversación.
-
-### 7. Escritos (`/escritos`)
+### 6. Escritos (`/escritos`)
 Generador de escritos formales PSD (Prestaciones de Servicios Diversos) con datos precargados del perfil del usuario. Exporta a PDF.
 
-### 8. Facebook (`/facebook`)
+### 7. Facebook (`/facebook`)
 Feed integrado de la página de Facebook de la Sección XX del SNTSS. Usa scraping vía bot-api Python.
 
-### 9. Foro (`/foro`)
-Foro de discusión con categorías, hilos, comentarios y anidación de respuestas.
-
-### 10. Nómina (`/nomina`)
+### 8. Nómina (`/nomina`)
 Visualización de nómina con wizard de perfil salarial, proyecciones de ingresos futuros y opción de opt-in para precarga de datos. El wizard **precarga automáticamente** la categoría desde el perfil de Supabase y deriva las horas de jornada del sufijo numérico (80→8h, 65→6.5h, 60→6h).
 
-### 11. Perfil (`/profile`)
+### 9. Perfil (`/profile`)
 Gestión de perfil de usuario: nombre, matrícula, adscripción, categoría, antigüedad, teléfono, y **bitácora personal** de incidencias laborales. La antigüedad del perfil se usa también para calcular la evolución en la tarjeta del dashboard.
 
-### 12. Tarjetón IMSS (`/tarjeton`)
+### 10. Tarjetón IMSS (`/tarjeton`)
 Importa el PDF de tu recibo de pago del IMSS. La extracción corre **100% en tu navegador** (PDF.js + OCR Tesseract de respaldo para tarjetones escaneados); revisas cada campo y al confirmar se guarda solo el resultado estructurado — el PDF nunca se sube. RFC/CURP/NSS/cuenta se descartan o enmascaran; el folio fiscal se guarda como huella. La confirmación actualiza tu contexto de nómina (categoría, jornada, antigüedad, conceptos recurrentes) y el prerrelleno de las calculadoras. Detalle: `docs/TARJETON_IMPORT.md`.
 
-### 13. Simulador (`/simulador`)
+### 11. Simulador (`/simulador`)
 Simulador interactivo de audiencias disciplinarias IMSS con 6 escenarios (faltas, maltrato, incumplimiento, extravío, retardos, confidencialidad). Evalúa el desempeño del trabajador con análisis IA post-simulación.
 
 ---
@@ -270,7 +256,7 @@ El proyecto está configurado para desplegarse en Vercel:
 vercel --prod --yes
 ```
 
-El archivo `vercel.json` incluye rewrites para `/health` y `/consulta` hacia `/api/consulta`.
+El archivo `vercel.json` expone `/health` mediante el endpoint independiente `/api/health`.
 
 ---
 
@@ -293,20 +279,19 @@ El archivo `vercel.json` incluye rewrites para `/health` y `/consulta` hacia `/a
 | Tabla | Descripción |
 |---|---|
 | `profiles` | Perfiles de usuario (extends auth.users) |
-| `forum_categories` | Categorías del foro |
-| `forum_posts` | Publicaciones del foro |
-| `forum_comments` | Comentarios del foro (soporta anidación) |
-| `chat_rooms` | Salas de chat |
-| `chat_messages` | Mensajes de chat |
-| `chat_participants` | Participantes de salas |
 | `catalogo_adscripciones` | Catálogo de adscripciones IMSS |
 | `ai_chat_history` | Historial de conversaciones con IA |
 | `payroll_contexts` | Contexto de nómina (categoría, jornada, antigüedad, recurrentes) |
 | `imported_payslips` (+ `_lines`, `_observations`) | Tarjetones confirmados, sin datos sensibles |
 
+El chat social y el foro fueron retirados del frontend. Sus tablas se conservan
+temporalmente hasta completar el respaldo, la reconciliación de migraciones y el
+rollout descrito en `docs/REMOVE_SOCIAL_MODULES_ROLLOUT.md`. El asistente de IA y
+`ai_chat_history` no forman parte de esa retirada.
+
 ### Funciones
 
-- `search_catalogo(catalogo_type, search_term)` - Búsqueda en catálogo
+- `search_catalogo(search_term, catalogo_type)` - Búsqueda en catálogo
 - `confirm_imported_payslip(...)` - Persistencia atómica de un tarjetón confirmado
 
 ---

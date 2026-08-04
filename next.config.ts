@@ -5,7 +5,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://ragktminwdu
 const connectSources = [
   "'self'",
   supabaseUrl,
-  supabaseUrl.replace(/^https:/, "wss:"),
   "https://tessdata.projectnaptha.com",
   "https://cdn.jsdelivr.net",
 ].join(" ");
