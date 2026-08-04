@@ -5,8 +5,28 @@
 -- Any failure raises an exception and breaks CI.
 
 -- ============================================================
--- Setup: create synthetic users (as postgres, bypasses RLS)
+-- Setup: limpiar estado residual y crear usuarios sintéticos
+-- (como postgres, bypasses RLS). Idempotente: borra perfiles y
+-- usuarios de corridas previas para que el trigger siempre dispare.
 -- ============================================================
+delete from public.profiles
+ where id in (
+   '00000000-0000-0000-0000-00000000b001',
+   '00000000-0000-0000-0000-00000000b002',
+   '00000000-0000-0000-0000-00000000b003',
+   '00000000-0000-0000-0000-00000000b004',
+   '00000000-0000-0000-0000-00000000b005'
+ );
+
+delete from auth.users
+ where id in (
+   '00000000-0000-0000-0000-00000000b001',
+   '00000000-0000-0000-0000-00000000b002',
+   '00000000-0000-0000-0000-00000000b003',
+   '00000000-0000-0000-0000-00000000b004',
+   '00000000-0000-0000-0000-00000000b005'
+ );
+
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -294,29 +314,55 @@ $$;
 reset role;
 
 -- ============================================================
--- Test 12: ProfileForm upsert works (ON CONFLICT DO UPDATE)
+-- Test 12: ProfileForm current flow — ensure_profile_exists + UPDATE
 -- ============================================================
 set role authenticated;
 set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000b004';
 set request.jwt.claim.role = 'authenticated';
 set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000b004","role":"authenticated"}';
 
-insert into public.profiles (id, full_name, matricula)
-values ('00000000-0000-0000-0000-00000000b004', 'Profile Form', 'SYNTH004')
-on conflict (id) do update set
-  full_name = excluded.full_name,
-  matricula = excluded.matricula;
+-- El perfil ya existe por el trigger (Test 1); ensure_profile_exists es idempotente.
+select public.ensure_profile_exists();
+
+-- UPDATE del propio perfil con los campos editables permitidos.
+update public.profiles
+   set full_name = 'Profile Form',
+       matricula = 'SYNTH004',
+       adscripcion = 'Adsc Test',
+       categoria = 'Cat Test',
+       antiguedad = '5',
+       phone = '5551234567'
+ where id = '00000000-0000-0000-0000-00000000b004';
+
+-- Segunda actualización: sobrescribe campos permitidos, id y role intactos.
+update public.profiles
+   set full_name = 'Profile Form 2',
+       matricula = 'SYNTH005',
+       phone = '5550000000'
+ where id = '00000000-0000-0000-0000-00000000b004';
 
 do $$
+declare v_rec record;
 begin
-  if not exists (
-    select 1 from public.profiles
-    where id = '00000000-0000-0000-0000-00000000b004'
-      and full_name = 'Profile Form'
-      and matricula = 'SYNTH004'
-      and role = 'user'
-  ) then
-    raise exception 'Test 12 FAILED: ProfileForm upsert failed';
+  select id, full_name, matricula, adscripcion, categoria, antiguedad, phone, role
+    into v_rec
+    from public.profiles
+   where id = '00000000-0000-0000-0000-00000000b004';
+
+  if v_rec.full_name is distinct from 'Profile Form 2' then
+    raise exception 'Test 12 FAILED: second UPDATE did not overwrite full_name (got %)', v_rec.full_name;
+  end if;
+  if v_rec.matricula is distinct from 'SYNTH005' then
+    raise exception 'Test 12 FAILED: second UPDATE did not overwrite matricula';
+  end if;
+  if v_rec.phone is distinct from '5550000000' then
+    raise exception 'Test 12 FAILED: second UPDATE did not overwrite phone';
+  end if;
+  if v_rec.role is distinct from 'user' then
+    raise exception 'Test 12 FAILED: role changed on UPDATE (got %)', v_rec.role;
+  end if;
+  if v_rec.id is distinct from '00000000-0000-0000-0000-00000000b004' then
+    raise exception 'Test 12 FAILED: id changed on UPDATE';
   end if;
 end
 $$;

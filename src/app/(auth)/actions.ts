@@ -1,7 +1,6 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import type { OwnProfileUpsert } from "@/shared/contracts/profile"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
@@ -23,25 +22,17 @@ export async function signUpAction(formData: FormData) {
   const password = formData.get("password") as string
   const fullName = formData.get("full_name") as string
 
-  const { data, error } = await supabase.auth.signUp({
+  const { error } = await supabase.auth.signUp({
     email,
     password,
     options: { data: { full_name: fullName } },
   })
   if (error) throw new Error(error.message)
 
-  // El perfil lo crea el trigger handle_new_user (migración 006).
-  // Este upsert solo complementa el nombre cuando el trigger aún no
-  // registró el full_name, sin competir con él ni romper el flujo.
-  if (data.user) {
-    const profile: OwnProfileUpsert = { id: data.user.id, full_name: fullName }
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .upsert(profile, { onConflict: "id" })
-    if (profileError) {
-      console.error("[signUp] perfil upsert:", profileError.message)
-    }
-  }
+  // El perfil lo crea el trigger handle_new_user (migración 006) usando
+  // raw_user_meta_data.full_name. No se requiere upsert complementario.
+  // Si el trigger fallara, ensure_profile_exists en la página de perfil
+  // lo creará en la primera visita autenticada.
 
   revalidatePath("/")
   redirect("/")
