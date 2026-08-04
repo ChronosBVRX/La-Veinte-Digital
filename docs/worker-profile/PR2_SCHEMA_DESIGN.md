@@ -294,3 +294,36 @@ Condiciones globales:
 ## 10. Pruebas SQL planeadas (detalle en PR2_TEST_PLAN.md)
 
 Onboarding, transiciones, aislamiento por usuario, fabricación de eventos, consentimiento por otro user, reaceptación, revocación, backfill idempotente, borrado conserva cuenta+basic, cascade por cuenta, metadata sensible rechazada, grants mínimos, combinaciones inválidas de `worker_preferences`, y comportamiento de cada valor `employment_type` legacy, db reset desde cero.
+
+## 11. Decisión documentada: RLS, propietario y FORCE RLS
+
+### 11.1 Propietario
+
+| Objeto | Owner (local) |
+|--------|---------------|
+| `worker_preferences`, `worker_consents`, `worker_data_events` | `postgres` |
+| `_insert_worker_event`, `backfill_worker_profile`, `choose_basic_mode`, `confirm_manual_worker_profile`, `confirm_payslip_worker_profile`, `change_worker_profile_mode`, `delete_worker_data`, `grant_worker_consent`, `revoke_worker_consent`, `get_effective_consent` | `postgres` |
+
+En Supabase, `postgres` es un superusuario y **tiene BYPASSRLS** de forma implícita. Las funciones `SECURITY DEFINER` creadas por `postgres` se ejecutan con privilegios de `postgres` (bypass RLS) y con `search_path = pg_catalog, public`.
+
+### 11.2 Por qué ENABLE RLS + ausencia de DML directo + RPC controlada es suficiente
+
+- **ENABLE RLS** activa el filtrado por fila para todo acceso que NO provenga del owner con BYPASSRLS.
+- `authenticated` **no tiene grants de INSERT/UPDATE/DELETE** sobre las tablas nuevas → aunque existiera policy, no puede escribir.
+- `authenticated` **solo tiene SELECT** con policy `user_id = auth.uid()` → solo lee lo suyo.
+- Toda escritura pasa por **RPC `SECURITY DEFINER`** (owner = `postgres`, BYPASSRLS) que:
+  - toma `user_id` de `auth.uid()` (nunca del cliente),
+  - valida payloads contra allowlists,
+  - valida transición/consentimiento,
+  - genera el evento en la misma transacción.
+- Por tanto, la combinación **ENABLE RLS + sin grants DML + RPC controlada** impide: escritura directa, fabricación de eventos, escritura de otro usuario, y consentimientos falsificados. El usuario nunca interactúa con las tablas más allá del SELECT propio.
+
+### 11.3 Qué ocurriría con FORCE ROW LEVEL SECURITY
+
+`FORCE RLS` aplica el filtrado por fila **incluso al propietario de la tabla**, salvo que el rol tenga `BYPASSRLS` o sea superusuario. En este proyecto:
+
+- Las RPC `SECURITY DEFINER` corren como `postgres` (superusuario, BYPASSRLS) → **FORCE RLS NO las afecta** (siguen pudiendo escribir).
+- `postgres` (owner) también tiene BYPASSRLS → tampoco le afecta en acceso directo de mantenimiento.
+- `authenticated` ya está restringido por falta de grants → FORCE RLS no añade protección a `authenticated` (no puede escribir de todos modos).
+
+**Conclusión:** en el stack local actual, `FORCE ROW LEVEL SECURITY` **no añade seguridad real** porque el owner es superusuario con BYPASSRLS y `authenticated` no tiene grants de escritura. Añadirlo sería inofensivo pero no aportaría nada, y en un futuro donde una RPC `SECURITY DEFINER` no fuera owner/superusuario podría romper el servicio. **Se mantiene `ENABLE RLS` sin `FORCE`**, y la protección real descansa en la ausencia de grants DML + RPC validadas. Esta decisión se revisará si cambia el owner o se introducen roles no-superusuario.

@@ -948,6 +948,148 @@ select public.ensure_profile_exists();
 reset role;
 
 -- ============================================================
+-- Test 39: matriz EXECUTE final (PUBLIC, anon, authenticated)
+-- ============================================================
+do $$
+declare v_exec boolean;
+begin
+  -- anon no ejecuta ninguna RPC de dominio.
+  select coalesce(has_function_privilege('anon', 'public.choose_basic_mode()', 'EXECUTE'), false) into v_exec;
+  if v_exec then raise exception 'Test 39 FAILED: anon ejecuta choose_basic_mode'; end if;
+  select coalesce(has_function_privilege('anon', 'public.delete_worker_data()', 'EXECUTE'), false) into v_exec;
+  if v_exec then raise exception 'Test 39 FAILED: anon ejecuta delete_worker_data'; end if;
+  select coalesce(has_function_privilege('anon', 'public.grant_worker_consent(text, text)', 'EXECUTE'), false) into v_exec;
+  if v_exec then raise exception 'Test 39 FAILED: anon ejecuta grant_worker_consent'; end if;
+  select coalesce(has_function_privilege('anon', 'public._insert_worker_event(text, text, jsonb)', 'EXECUTE'), false) into v_exec;
+  if v_exec then raise exception 'Test 39 FAILED: anon ejecuta _insert_worker_event'; end if;
+  select coalesce(has_function_privilege('anon', 'public.backfill_worker_profile()', 'EXECUTE'), false) into v_exec;
+  if v_exec then raise exception 'Test 39 FAILED: anon ejecuta backfill_worker_profile'; end if;
+
+  -- authenticated SÍ ejecuta las 8 públicas.
+  select coalesce(has_function_privilege('authenticated', 'public.choose_basic_mode()', 'EXECUTE'), false) into v_exec;
+  if not v_exec then raise exception 'Test 39 FAILED: authenticated NO ejecuta choose_basic_mode'; end if;
+  select coalesce(has_function_privilege('authenticated', 'public.confirm_manual_worker_profile(jsonb, jsonb, jsonb, text)', 'EXECUTE'), false) into v_exec;
+  if not v_exec then raise exception 'Test 39 FAILED: authenticated NO ejecuta confirm_manual_worker_profile'; end if;
+  select coalesce(has_function_privilege('authenticated', 'public.confirm_payslip_worker_profile(jsonb, text, text, numeric, text)', 'EXECUTE'), false) into v_exec;
+  if not v_exec then raise exception 'Test 39 FAILED: authenticated NO ejecuta confirm_payslip_worker_profile'; end if;
+  select coalesce(has_function_privilege('authenticated', 'public.change_worker_profile_mode(text)', 'EXECUTE'), false) into v_exec;
+  if not v_exec then raise exception 'Test 39 FAILED: authenticated NO ejecuta change_worker_profile_mode'; end if;
+  select coalesce(has_function_privilege('authenticated', 'public.delete_worker_data()', 'EXECUTE'), false) into v_exec;
+  if not v_exec then raise exception 'Test 39 FAILED: authenticated NO ejecuta delete_worker_data'; end if;
+  select coalesce(has_function_privilege('authenticated', 'public.grant_worker_consent(text, text)', 'EXECUTE'), false) into v_exec;
+  if not v_exec then raise exception 'Test 39 FAILED: authenticated NO ejecuta grant_worker_consent'; end if;
+  select coalesce(has_function_privilege('authenticated', 'public.revoke_worker_consent(text)', 'EXECUTE'), false) into v_exec;
+  if not v_exec then raise exception 'Test 39 FAILED: authenticated NO ejecuta revoke_worker_consent'; end if;
+  select coalesce(has_function_privilege('authenticated', 'public.get_effective_consent(text)', 'EXECUTE'), false) into v_exec;
+  if not v_exec then raise exception 'Test 39 FAILED: authenticated NO ejecuta get_effective_consent'; end if;
+
+  -- authenticated NO ejecuta las internas.
+  select coalesce(has_function_privilege('authenticated', 'public._insert_worker_event(text, text, jsonb)', 'EXECUTE'), false) into v_exec;
+  if v_exec then raise exception 'Test 39 FAILED: authenticated ejecuta _insert_worker_event'; end if;
+  select coalesce(has_function_privilege('authenticated', 'public.backfill_worker_profile()', 'EXECUTE'), false) into v_exec;
+  if v_exec then raise exception 'Test 39 FAILED: authenticated ejecuta backfill_worker_profile'; end if;
+end
+$$;
+
+-- ============================================================
+-- Test 40: payload estricto — claves de sistema rechazadas en confirm_manual
+-- ============================================================
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000e002';
+set request.jwt.claim.role = 'authenticated';
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000e002","role":"authenticated"}';
+
+do $$
+declare v_denied boolean := false;
+begin
+  -- user_id explícito rechazado.
+  begin
+    perform public.confirm_manual_worker_profile('{"user_id":"00000000-0000-0000-0000-00000000e002"}', '{}', '{"user_id":"manual"}', '1.0');
+  exception when others then v_denied := true; end;
+  if not v_denied then raise exception 'Test 40 FAILED: user_id aceptado'; end if;
+
+  v_denied := false;
+  begin
+    perform public.confirm_manual_worker_profile('{"role":"admin"}', '{}', '{"role":"manual"}', '1.0');
+  exception when others then v_denied := true; end;
+  if not v_denied then raise exception 'Test 40 FAILED: role aceptado'; end if;
+
+  v_denied := false;
+  begin
+    perform public.confirm_manual_worker_profile('{}', '{"created_at":"x"}', '{"created_at":"manual"}', '1.0');
+  exception when others then v_denied := true; end;
+  if not v_denied then raise exception 'Test 40 FAILED: created_at aceptado'; end if;
+
+  v_denied := false;
+  begin
+    perform public.confirm_manual_worker_profile('{}', '{}', '{"event_type":"manual"}', '1.0');
+  exception when others then v_denied := true; end;
+  if not v_denied then raise exception 'Test 40 FAILED: event_type aceptado'; end if;
+
+  v_denied := false;
+  begin
+    perform public.confirm_manual_worker_profile('{}', '{}', '{"accepted_source":"manual"}', '1.0');
+  exception when others then v_denied := true; end;
+  if not v_denied then raise exception 'Test 40 FAILED: accepted_source aceptado'; end if;
+
+  v_denied := false;
+  begin
+    perform public.confirm_manual_worker_profile('{}', '{}', '{"clave_arbitraria":"x"}', '1.0');
+  exception when others then v_denied := true; end;
+  if not v_denied then raise exception 'Test 40 FAILED: clave arbitraria aceptada'; end if;
+
+  v_denied := false;
+  begin
+    perform public.confirm_manual_worker_profile('{"categoria":{"nested":true}}', '{}', '{"categoria":"manual"}', '1.0');
+  exception when others then v_denied := true; end;
+  if not v_denied then raise exception 'Test 40 FAILED: objeto anidado aceptado'; end if;
+end
+$$;
+
+reset role;
+
+-- ============================================================
+-- Test 41: payload estricto — claves de sistema rechazadas en confirm_payslip
+-- ============================================================
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000e003';
+set request.jwt.claim.role = 'authenticated';
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000e003","role":"authenticated"}';
+
+-- Requiere consentimiento store_tarjeton primero.
+select public.grant_worker_consent('store_tarjeton', '1.0');
+
+do $$
+declare v_denied boolean := false;
+begin
+  begin
+    perform public.confirm_payslip_worker_profile('{"user_id":"00000000-0000-0000-0000-00000000e003"}', '1.0');
+  exception when others then v_denied := true; end;
+  if not v_denied then raise exception 'Test 41 FAILED: user_id aceptado en payslip'; end if;
+
+  v_denied := false;
+  begin
+    perform public.confirm_payslip_worker_profile('{"priority":"critical"}', '1.0');
+  exception when others then v_denied := true; end;
+  if not v_denied then raise exception 'Test 41 FAILED: priority aceptado en payslip'; end if;
+
+  v_denied := false;
+  begin
+    perform public.confirm_payslip_worker_profile('{"accepted_at":"x"}', '1.0');
+  exception when others then v_denied := true; end;
+  if not v_denied then raise exception 'Test 41 FAILED: accepted_at aceptado en payslip'; end if;
+
+  v_denied := false;
+  begin
+    perform public.confirm_payslip_worker_profile('{"categoria":"true","category_name":{"nested":true}}', '1.0');
+  exception when others then v_denied := true; end;
+  if not v_denied then raise exception 'Test 41 FAILED: objeto anidado aceptado en payslip'; end if;
+end
+$$;
+
+reset role;
+
+-- ============================================================
 -- Cleanup
 -- ============================================================
 reset role;

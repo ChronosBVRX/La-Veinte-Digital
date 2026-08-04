@@ -160,7 +160,7 @@ create or replace function public._insert_worker_event(
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_uid uuid := auth.uid();
@@ -204,8 +204,9 @@ begin
 end;
 $$;
 
-revoke all on function public._insert_worker_event(text, text, jsonb) from public;
--- SIN grant a authenticated: solo owner/service_role invoca desde RPC de dominio.
+-- Los privilegios de _insert_worker_event se revocan por completo en la
+-- sección de grants (§6.9): ni PUBLIC, ni anon, ni authenticated pueden
+-- ejecutarla. Solo la invocan las RPC de dominio (owner/service_role).
 
 -- ============================================================
 -- 6. RPCs de dominio (escritura exclusiva del perfil laboral)
@@ -220,7 +221,7 @@ create or replace function public.choose_basic_mode()
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_uid uuid := auth.uid();
@@ -259,6 +260,10 @@ $$;
 -- p_situation: {workday_hours, shift, employment_type, effective_seniority_date}
 -- p_sources: {matricula, adscripcion, categoria, workday_hours, shift, employment_type, effective_seniority_date}
 -- p_consent_version: versión del aviso (validate against allowlist)
+-- Validación estricta: rechaza cualquier clave fuera de la allowlist,
+-- incluida cualquier clave de sistema (user_id, id, role, created_at,
+-- updated_at, is_online, event_type, priority, accepted_source, accepted_at,
+-- revoked_at) y objetos anidados no previstos.
 create or replace function public.confirm_manual_worker_profile(
   p_identity jsonb,
   p_situation jsonb,
@@ -268,7 +273,7 @@ create or replace function public.confirm_manual_worker_profile(
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_uid uuid := auth.uid();
@@ -278,9 +283,9 @@ declare
   ];
   v_allowed_sources constant text[] := array['manual', 'payslip_confirmed', 'calculated', 'inferred'];
   v_key text;
-  v_value jsonb;
   v_src text;
-  v_workday numeric;
+  v_wk numeric;
+  v_date text;
   v_consent_exists boolean;
 begin
   if v_uid is null then
@@ -291,10 +296,29 @@ begin
     raise exception 'invalid payload';
   end if;
 
-  -- Validar campos de sources contra allowlist y fuentes válidas.
+  -- Validar cada clave presente contra la allowlist; rechazar objetos anidados.
+  for v_key in select jsonb_object_keys(p_identity) loop
+    if not (v_key = any(v_allowed_fields)) then
+      raise exception 'not allowed identity field: %', v_key;
+    end if;
+    if jsonb_typeof(p_identity->v_key) = 'object' or jsonb_typeof(p_identity->v_key) = 'array' then
+      raise exception 'nested object not allowed: %', v_key;
+    end if;
+  end loop;
+  for v_key in select jsonb_object_keys(p_situation) loop
+    if not (v_key = any(v_allowed_fields)) then
+      raise exception 'not allowed situation field: %', v_key;
+    end if;
+    if jsonb_typeof(p_situation->v_key) = 'object' or jsonb_typeof(p_situation->v_key) = 'array' then
+      raise exception 'nested object not allowed: %', v_key;
+    end if;
+  end loop;
   for v_key in select jsonb_object_keys(p_sources) loop
     if not (v_key = any(v_allowed_fields)) then
-      raise exception 'not allowed field: %', v_key;
+      raise exception 'not allowed source field: %', v_key;
+    end if;
+    if jsonb_typeof(p_sources->v_key) <> 'string' then
+      raise exception 'invalid source type for %', v_key;
     end if;
     v_src := p_sources->>v_key;
     if v_src is null or not (v_src = any(v_allowed_sources)) then
@@ -302,17 +326,51 @@ begin
     end if;
   end loop;
 
-  -- Validar que identity/situation no contengan claves ajenas.
-  for v_key in select jsonb_object_keys(p_identity) loop
-    if not (v_key = any(v_allowed_fields)) then
-      raise exception 'not allowed identity field: %', v_key;
+  -- Validación por campo: tipo, enum, límites y formato de fecha.
+  if (p_identity ? 'matricula') and p_identity->>'matricula' is not null then
+    if length(p_identity->>'matricula') > 32 then
+      raise exception 'matricula too long';
     end if;
-  end loop;
-  for v_key in select jsonb_object_keys(p_situation) loop
-    if not (v_key = any(v_allowed_fields)) then
-      raise exception 'not allowed situation field: %', v_key;
+  end if;
+  if (p_identity ? 'adscripcion') and p_identity->>'adscripcion' is not null then
+    if length(p_identity->>'adscripcion') > 200 then
+      raise exception 'adscripcion too long';
     end if;
-  end loop;
+  end if;
+  if (p_identity ? 'categoria') and p_identity->>'categoria' is not null then
+    if length(p_identity->>'categoria') > 200 then
+      raise exception 'categoria too long';
+    end if;
+  end if;
+  if (p_situation ? 'workday_hours') and p_situation->>'workday_hours' is not null then
+    v_wk := (p_situation->>'workday_hours')::numeric;
+    if v_wk not in (6, 6.5, 8, 12) then
+      raise exception 'invalid workday_hours';
+    end if;
+  end if;
+  if (p_situation ? 'shift') and p_situation->>'shift' is not null then
+    if p_situation->>'shift' not in ('matutino', 'vespertino', 'nocturno', 'jornada_acumulada', 'mixto') then
+      raise exception 'invalid shift';
+    end if;
+  end if;
+  if (p_situation ? 'employment_type') and p_situation->>'employment_type' is not null then
+    if p_situation->>'employment_type' not in ('base', 'confianza', 'eventual', 'confianza_a_estatuto', 'sustituto', 'interino', 'obra_determinada', 'otro') then
+      raise exception 'invalid employment_type';
+    end if;
+  end if;
+  if (p_situation ? 'effective_seniority_date') and p_situation->>'effective_seniority_date' is not null then
+    v_date := p_situation->>'effective_seniority_date';
+    if v_date !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
+      raise exception 'invalid date format';
+    end if;
+    begin
+      if (v_date::date) is null then
+        raise exception 'invalid date value';
+      end if;
+    exception when others then
+      raise exception 'invalid date value';
+    end;
+  end if;
 
   -- Consentimiento de uso de datos laborales obligatorio.
   select exists (
@@ -381,6 +439,9 @@ $$;
 
 -- 6.3 confirm_payslip_worker_profile(...): update confirmado desde tarjetón
 -- Reutiliza la misma transacción para registrar consentimiento store_tarjeton.
+-- Validación estricta: p_profile_updates admite solo claves de la allowlist:
+--   categoria (bool), antiguedad (bool), category_name (text), effective_seniority_date (date)
+-- Rechaza cualquier clave de sistema o clave desconocida.
 create or replace function public.confirm_payslip_worker_profile(
   p_profile_updates jsonb,
   p_consent_version text,
@@ -391,11 +452,14 @@ create or replace function public.confirm_payslip_worker_profile(
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_uid uuid := auth.uid();
+  v_allowed constant text[] := array['categoria', 'antiguedad', 'category_name', 'effective_seniority_date'];
+  v_key text;
   v_consent_exists boolean;
+  v_date text;
 begin
   if v_uid is null then
     raise exception 'unauthorized';
@@ -403,6 +467,49 @@ begin
 
   if jsonb_typeof(p_profile_updates) <> 'object' then
     raise exception 'invalid payload';
+  end if;
+
+  -- Rechazar claves fuera de la allowlist y objetos anidados.
+  for v_key in select jsonb_object_keys(p_profile_updates) loop
+    if not (v_key = any(v_allowed)) then
+      raise exception 'not allowed update field: %', v_key;
+    end if;
+    if jsonb_typeof(p_profile_updates->v_key) = 'object' or jsonb_typeof(p_profile_updates->v_key) = 'array' then
+      raise exception 'nested object not allowed: %', v_key;
+    end if;
+  end loop;
+
+  -- Validar tipos por clave.
+  if p_profile_updates ? 'categoria' and jsonb_typeof(p_profile_updates->'categoria') <> 'boolean' then
+    raise exception 'categoria must be boolean';
+  end if;
+  if p_profile_updates ? 'antiguedad' and jsonb_typeof(p_profile_updates->'antiguedad') <> 'boolean' then
+    raise exception 'antiguedad must be boolean';
+  end if;
+  if p_profile_updates ? 'category_name' and p_profile_updates->>'category_name' is not null
+     and length(p_profile_updates->>'category_name') > 200 then
+    raise exception 'category_name too long';
+  end if;
+  if p_profile_updates ? 'effective_seniority_date' and p_profile_updates->>'effective_seniority_date' is not null then
+    v_date := p_profile_updates->>'effective_seniority_date';
+    if v_date !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
+      raise exception 'invalid date format';
+    end if;
+    begin
+      if (v_date::date) is null then
+        raise exception 'invalid date value';
+      end if;
+    exception when others then
+      raise exception 'invalid date value';
+    end;
+  end if;
+
+  -- Validar metadata técnica del evento (nunca de cliente).
+  if p_extraction_method is not null and p_extraction_method not in ('native_text', 'ocr', 'hybrid') then
+    raise exception 'invalid extraction_method';
+  end if;
+  if p_confidence is not null and (p_confidence < 0 or p_confidence > 1) then
+    raise exception 'invalid confidence';
   end if;
 
   -- Consentimiento de almacenamiento de tarjetón obligatorio.
@@ -457,7 +564,7 @@ create or replace function public.change_worker_profile_mode(p_new_mode text)
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_uid uuid := auth.uid();
@@ -497,7 +604,7 @@ create or replace function public.delete_worker_data()
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_uid uuid := auth.uid();
@@ -542,7 +649,7 @@ create or replace function public.grant_worker_consent(p_purpose text, p_version
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_uid uuid := auth.uid();
@@ -574,7 +681,7 @@ create or replace function public.revoke_worker_consent(p_purpose text)
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_uid uuid := auth.uid();
@@ -600,7 +707,7 @@ create or replace function public.get_effective_consent(p_purpose text)
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_uid uuid := auth.uid();
@@ -629,30 +736,54 @@ begin
 end;
 $$;
 
--- Grants de RPCs: EXECUTE a authenticated (operaciones iniciadas por el usuario).
+-- Grants de RPCs: revocar de PUBLIC, anon y authenticated; conceder EXECUTE
+-- a authenticated únicamente para las operaciones que el usuario deba iniciar.
 revoke all on function public.choose_basic_mode() from public;
+revoke all on function public.choose_basic_mode() from anon;
+revoke all on function public.choose_basic_mode() from authenticated;
 grant execute on function public.choose_basic_mode() to authenticated;
 
 revoke all on function public.confirm_manual_worker_profile(jsonb, jsonb, jsonb, text) from public;
+revoke all on function public.confirm_manual_worker_profile(jsonb, jsonb, jsonb, text) from anon;
+revoke all on function public.confirm_manual_worker_profile(jsonb, jsonb, jsonb, text) from authenticated;
 grant execute on function public.confirm_manual_worker_profile(jsonb, jsonb, jsonb, text) to authenticated;
 
 revoke all on function public.confirm_payslip_worker_profile(jsonb, text, text, numeric, text) from public;
+revoke all on function public.confirm_payslip_worker_profile(jsonb, text, text, numeric, text) from anon;
+revoke all on function public.confirm_payslip_worker_profile(jsonb, text, text, numeric, text) from authenticated;
 grant execute on function public.confirm_payslip_worker_profile(jsonb, text, text, numeric, text) to authenticated;
 
 revoke all on function public.change_worker_profile_mode(text) from public;
+revoke all on function public.change_worker_profile_mode(text) from anon;
+revoke all on function public.change_worker_profile_mode(text) from authenticated;
 grant execute on function public.change_worker_profile_mode(text) to authenticated;
 
 revoke all on function public.delete_worker_data() from public;
+revoke all on function public.delete_worker_data() from anon;
+revoke all on function public.delete_worker_data() from authenticated;
 grant execute on function public.delete_worker_data() to authenticated;
 
 revoke all on function public.grant_worker_consent(text, text) from public;
+revoke all on function public.grant_worker_consent(text, text) from anon;
+revoke all on function public.grant_worker_consent(text, text) from authenticated;
 grant execute on function public.grant_worker_consent(text, text) to authenticated;
 
 revoke all on function public.revoke_worker_consent(text) from public;
+revoke all on function public.revoke_worker_consent(text) from anon;
+revoke all on function public.revoke_worker_consent(text) from authenticated;
 grant execute on function public.revoke_worker_consent(text) to authenticated;
 
 revoke all on function public.get_effective_consent(text) from public;
+revoke all on function public.get_effective_consent(text) from anon;
+revoke all on function public.get_effective_consent(text) from authenticated;
 grant execute on function public.get_effective_consent(text) to authenticated;
+
+-- _insert_worker_event: NO ejecutable por nadie salvo owner (service_role/postgres).
+revoke all on function public._insert_worker_event(text, text, jsonb) from public;
+revoke all on function public._insert_worker_event(text, text, jsonb) from anon;
+revoke all on function public._insert_worker_event(text, text, jsonb) from authenticated;
+
+-- backfill_worker_profile: sus privilegios se revocan tras su creación (§7).
 
 -- ============================================================
 -- 7. Backfill conservador (idempotente)
@@ -670,7 +801,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_prefs bigint := 0;
@@ -745,8 +876,11 @@ begin
 end;
 $$;
 
+-- backfill_worker_profile: revocar de PUBLIC, anon y authenticated.
+-- Solo se invoca como admin/service_role (1x).
 revoke all on function public.backfill_worker_profile() from public;
--- SIN grant a authenticated: solo postgres/service_role (admin/1x).
+revoke all on function public.backfill_worker_profile() from anon;
+revoke all on function public.backfill_worker_profile() from authenticated;
 
 -- ============================================================
 -- 8. Compatibilidad employment_type (deuda documentada)
