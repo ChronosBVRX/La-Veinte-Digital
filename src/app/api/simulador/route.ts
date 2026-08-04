@@ -191,20 +191,11 @@ async function retrieveContext(
   }
 }
 
-export async function GET() {
-  return NextResponse.json({ status: "ok" })
-}
-
 export async function POST(req: Request) {
   const requestId = newRequestId()
 
   const auth = await requireUser()
-  if (auth.response) {
-    return NextResponse.json(
-      { error: "No autenticado", code: "unauthorized", requestId },
-      { status: 401 },
-    )
-  }
+  if (auth.response) return auth.response
   const user = auth.user
 
   let body: unknown

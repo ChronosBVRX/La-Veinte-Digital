@@ -11,18 +11,18 @@ import { confirmTarjetonService } from "@/features/tarjeton/services/confirm-tar
  * y la huella SHA-256 del archivo. La persistencia es atómica (RPC).
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireUser()
+  if (auth.response) {
+    return auth.response
+  }
+  const user = auth.user
+
   let body: unknown
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 })
   }
-
-  const auth = await requireUser()
-  if (auth.response) {
-    return auth.response
-  }
-  const user = auth.user
 
   const supabase = await createClient()
 

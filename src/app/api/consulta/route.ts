@@ -169,10 +169,6 @@ ${context}`
   }
 }
 
-export async function GET() {
-  return NextResponse.json({ status: "ok" })
-}
-
 export async function POST(req: Request) {
   const requestId = newRequestId()
 

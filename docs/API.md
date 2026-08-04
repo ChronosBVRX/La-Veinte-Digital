@@ -2,12 +2,12 @@
 
 ## Rutas Internas (Next.js API Routes)
 
-### GET /api/consulta
-Health check del asistente.
+### GET /api/health
+Health check público e independiente. No usa OpenAI, cuota ni datos personales.
 
 **Response:**
 ```json
-{ "status": "ok" }
+{ "status": "ok", "version": "0.002" }
 ```
 
 ---
@@ -271,11 +271,11 @@ Obtiene posts de Facebook de una página.
 ```
 
 ### GET /health
-Health check.
+Alias público de `/api/health` en Vercel.
 
 **Response:**
 ```json
-{ "status": "ok" }
+{ "status": "ok", "version": "0.002" }
 ```
 
 ---
@@ -294,32 +294,7 @@ Health check.
 | `phone` | text | Teléfono |
 | `avatar_url` | text | URL de avatar |
 | `role` | text | Rol del usuario |
-| `is_online` | boolean | Estado de conexión |
 | `created_at` | timestamptz | Fecha de creación |
-| `updated_at` | timestamptz | Última actualización |
-
-### Tabla: `forum_posts`
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | UUID (PK) | ID del post |
-| `author_id` | UUID (FK → profiles) | Autor |
-| `category_id` | UUID (FK → forum_categories) | Categoría |
-| `title` | text | Título |
-| `content` | text | Contenido |
-| `is_pinned` | boolean | Fijado |
-| `is_locked` | boolean | Cerrado |
-| `created_at` | timestamptz | Fecha de creación |
-| `updated_at` | timestamptz | Última actualización |
-
-### Tabla: `forum_comments`
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | UUID (PK) | ID del comentario |
-| `post_id` | UUID (FK → forum_posts) | Post padre |
-| `author_id` | UUID (FK → profiles) | Autor |
-| `parent_id` | UUID (FK → forum_comments) | Comentario padre (anidación) |
-| `content` | text | Contenido |
-| `created_at` | timestamptz | Fecha |
 | `updated_at` | timestamptz | Última actualización |
 
 ### Tabla: `bitacora_entries`
@@ -387,46 +362,11 @@ confirm_imported_payslip(
   p_source_hash text,
   p_parsed jsonb,
   p_profile_updates jsonb,
-  p_acknowledge_total_difference boolean
+  p_acknowledge_total_difference boolean,
+  p_authorize_server_storage boolean
 ) → jsonb  -- { id, duplicate, profileUpdated, payrollContextUpdated }
 ```
 SECURITY DEFINER, validación de contrato y totales en servidor.
-
-### Función: `search_catalogo`
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | UUID (PK) | ID |
-| `name` | text | Nombre |
-| `slug` | text | Slug URL |
-| `description` | text | Descripción |
-| `sort_order` | int | Orden |
-
-### Tabla: `chat_rooms`
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | UUID (PK) | ID de sala |
-| `name` | text | Nombre de sala |
-| `description` | text | Descripción |
-| `created_by` | UUID (FK → profiles) | Creador |
-| `is_private` | boolean | Sala privada |
-| `created_at` | timestamptz | Fecha |
-
-### Tabla: `chat_messages`
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | UUID (PK) | ID |
-| `room_id` | UUID (FK → chat_rooms) | Sala |
-| `user_id` | UUID (FK → profiles) | Autor |
-| `content` | text | Mensaje |
-| `created_at` | timestamptz | Fecha |
-
-### Tabla: `chat_participants`
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | UUID (PK) | ID |
-| `room_id` | UUID (FK → chat_rooms) | Sala |
-| `user_id` | UUID (FK → profiles) | Usuario |
-| `joined_at` | timestamptz | Fecha de ingreso |
 
 ### Tabla: `catalogo_adscripciones`
 | Columna | Tipo | Descripción |
@@ -446,5 +386,12 @@ SECURITY DEFINER, validación de contrato y totales en servidor.
 
 ### Función: `search_catalogo`
 ```sql
-search_catalogo(catalogo_type text, search_term text) → TABLE(nombre text)
+search_catalogo(search_term text, catalogo_type text) → TABLE(nombre text)
 ```
+
+El inventario remoto de 2026-08-03 encontró una rama de categoría que referencia
+una tabla ausente. Consulta `schema-reconciliation/REMOTE_SCHEMA_INVENTORY.md`;
+no presupongas que ambas variantes del catálogo están operativas.
+
+Las tablas históricas del chat social y foro se conservan temporalmente solo en
+la base mientras se completa el rollout. No forman parte de la API activa.
