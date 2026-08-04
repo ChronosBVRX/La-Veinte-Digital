@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client"
+import type { OwnProfileUpsert } from "@/shared/contracts/profile"
 import type { EmployeePayrollProfile } from "../lib/types"
 
 export async function fetchProfileFromSupabase(userId: string): Promise<Partial<EmployeePayrollProfile> | null> {
@@ -18,13 +19,13 @@ export async function fetchProfileFromSupabase(userId: string): Promise<Partial<
 
 export async function saveProfileToSupabase(profile: EmployeePayrollProfile): Promise<void> {
   const supabase = createClient()
+  const profileUpdates: OwnProfileUpsert = {
+    id: profile.userId,
+    categoria: profile.categoryName ?? null,
+  }
   const { error } = await supabase
     .from("profiles")
-    .upsert({
-      id: profile.userId,
-      categoria: profile.categoryName ?? null,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "id" })
+    .upsert(profileUpdates, { onConflict: "id" })
 
   if (error) throw error
 }

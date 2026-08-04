@@ -7,6 +7,7 @@ import { Input } from "@/shared/components/ui/Input"
 import { SearchableSelect } from "@/shared/components/ui/SearchableSelect"
 import type { SearchableOption } from "@/shared/components/ui/SearchableSelect"
 import { Button } from "@/shared/components/ui/Button"
+import type { OwnProfileUpsert } from "@/shared/contracts/profile"
 
 interface Profile {
   id: string
@@ -62,18 +63,18 @@ export function ProfileForm({ profile, categoriaOptions, adscripcionOptions }: P
       const userId = profile?.id ?? userData.user?.id
       if (!userId) return { error: "No se pudo identificar tu usuario" }
 
-      const { error } = await supabase.from("profiles").upsert(
-        {
-          id: userId,
-          full_name: fullName,
-          matricula,
-          adscripcion,
-          categoria,
-          antiguedad,
-          phone,
-        },
-        { onConflict: "id" },
-      )
+      const profileUpdates: OwnProfileUpsert = {
+        id: userId,
+        full_name: fullName,
+        matricula,
+        adscripcion,
+        categoria,
+        antiguedad,
+        phone,
+      }
+      const { error } = await supabase
+        .from("profiles")
+        .upsert(profileUpdates, { onConflict: "id" })
 
       if (error) return { error: error.message }
       router.refresh()

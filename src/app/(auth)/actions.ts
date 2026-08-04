@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
+import type { OwnProfileUpsert } from "@/shared/contracts/profile"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
@@ -33,9 +34,10 @@ export async function signUpAction(formData: FormData) {
   // Este upsert solo complementa el nombre cuando el trigger aún no
   // registró el full_name, sin competir con él ni romper el flujo.
   if (data.user) {
+    const profile: OwnProfileUpsert = { id: data.user.id, full_name: fullName }
     const { error: profileError } = await supabase
       .from("profiles")
-      .upsert({ id: data.user.id, full_name: fullName }, { onConflict: "id" })
+      .upsert(profile, { onConflict: "id" })
     if (profileError) {
       console.error("[signUp] perfil upsert:", profileError.message)
     }
