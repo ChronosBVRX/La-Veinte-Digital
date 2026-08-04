@@ -148,7 +148,7 @@ CREATE TRIGGER guard_profile_protected_fields
   EXECUTE FUNCTION public.guard_profile_protected_fields();
 
 -- Revoke broad DML
-REVOKE INSERT, UPDATE ON TABLE public.profiles FROM anon, authenticated;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON TABLE public.profiles FROM anon, authenticated;
 
 -- Grant SELECT on table
 GRANT SELECT ON TABLE public.profiles TO authenticated;
@@ -233,7 +233,7 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.role_table_grants
     WHERE table_schema = 'public' AND table_name = 'profiles'
-    AND grantee = 'anon' AND privilege_type IN ('INSERT', 'UPDATE', 'DELETE')
+    AND grantee = 'anon' AND privilege_type IN ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')
   ) THEN
     RAISE EXCEPTION 'verification failed: anon still has DML';
   END IF;
@@ -247,13 +247,17 @@ BEGIN
     SELECT 1 FROM information_schema.role_table_grants
     WHERE table_schema = 'public' AND table_name = 'limited_profiles'
     AND grantee IN ('anon', 'authenticated')
-    AND privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE')
+    AND privilege_type IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')
   ) THEN
     RAISE EXCEPTION 'verification failed: limited_profiles still has grants';
   END IF;
 END
 $$;
 
-RAISE NOTICE 'Profile hardening applied and verified successfully.';
+DO $$
+BEGIN
+  RAISE NOTICE 'Profile hardening applied and verified successfully.';
+END
+$$;
 
 COMMIT;
