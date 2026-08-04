@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
 import { buildCalculatorPrefill } from "@/features/nomina/services/build-calculator-prefill"
 import { parseCalculatorPrefillQuery } from "@/features/nomina/lib/calculator-prefill-query"
+import { requireUser } from "@/shared/server/auth/require-user"
 
 /**
  * GET /api/calculator-prefill?calculator=<id>&targetDate=<YYYY-MM-DD>
@@ -14,6 +14,11 @@ import { parseCalculatorPrefillQuery } from "@/features/nomina/lib/calculator-pr
  * docs/CALCULATOR_PREFILL.md); el cliente nuevo debe usar `targetDate`.
  */
 export async function GET(request: NextRequest) {
+  const auth = await requireUser()
+  if (auth.response) {
+    return auth.response
+  }
+
   const { searchParams } = new URL(request.url)
 
   const parsed = parseCalculatorPrefillQuery(
@@ -25,17 +30,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: parsed.error }, { status: 400 })
   }
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 })
-  }
-
   try {
     const response = await buildCalculatorPrefill({
       calculatorId: parsed.value.calculatorId,
-      userId: user.id,
+      userId: auth.user.id,
       targetDate: parsed.value.targetDate,
     })
 

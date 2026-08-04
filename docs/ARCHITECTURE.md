@@ -2,7 +2,7 @@
 
 ## Visión General
 
-La Veinte Digital es una aplicación web full-stack construida con Next.js 16 (App Router) que sirve a la comunidad del SNTSS Sección XX. Combina server-side rendering con componentes cliente para ofrecer un dashboard interactivo con herramientas laborales, comunicación entre trabajadores y asistencia basada en IA.
+La Veinte Digital es una aplicación web full-stack construida con Next.js 16 (App Router) que sirve a la comunidad del SNTSS Sección XX. Combina server-side rendering con componentes cliente para ofrecer un dashboard interactivo con herramientas laborales y asistencia basada en IA.
 
 ---
 
@@ -22,14 +22,14 @@ La Veinte Digital es una aplicación web full-stack construida con Next.js 16 (A
 │                  │                                       │
 │          ┌───────┴────────┐                              │
 │          │   proxy.ts     │  ← Supabase SSR Auth         │
-│          │  (Middleware)   │                              │
+│          │    (Proxy)      │                              │
 │          └────────────────┘                              │
 ├─────────────────────────────────────────────────────────┤
 │                      Supabase                             │
 │  ┌─────────────┐  ┌──────────────┐  ┌────────────────┐  │
-│  │ Auth        │  │ PostgreSQL   │  │ Realtime       │  │
-│  │ (SSR + PKCE)│  │ (Tablas +    │  │ (Chat,         │  │
-│  │             │  │  Funciones)  │  │  Presencia)    │  │
+│  │ Auth        │  │ PostgreSQL   │  │ RLS + RPC      │  │
+│  │ (SSR + PKCE)│  │ (Tablas +    │  │ (autorización  │  │
+│  │             │  │  Funciones)  │  │  y operaciones)│  │
 │  └─────────────┘  └──────────────┘  └────────────────┘  │
 ├─────────────────────────────────────────────────────────┤
 │                   OpenAI API                              │
@@ -83,16 +83,7 @@ Usuario → SimuladorPage (CSR)
          → Análisis post-simulación: evalúa calma, firmeza, errores
 ```
 
-### 4. Chat en Vivo
-
-```
-Usuario → ChatRoom (CSR)
-         → Supabase Realtime (subscription a chat_messages)
-         → INSERT mensaje → Realtime broadcasting
-         → Los demás participantes reciben el mensaje en tiempo real
-```
-
-### 5. Prerrelleno Normativo de Calculadoras
+### 4. Prerrelleno Normativo de Calculadoras
 
 ```
 Calculadora (CSR) → useCalculatorPrefill(calculatorId, targetDate)
@@ -139,8 +130,6 @@ solo se guarda como hash. Detalle en
 
 - `app/(dashboard)/layout.tsx` - Verifica auth, carga perfil, renderiza DashboardShell
 - `app/(dashboard)/page.tsx` - Dashboard con stats, calendario, feeds
-- `app/(dashboard)/chat/page.tsx` - Lista de salas
-- `app/(dashboard)/foro/[id]/page.tsx` - Detalle de post
 - Todas las pages en `app/(dashboard)/` que no requieren interactividad
 
 ### Client Components (CSR)
@@ -148,7 +137,6 @@ solo se guarda como hash. Detalle en
 - `features/asistente/components/` - Chat, mensajes, typing indicator
 - `features/simulador/components/` - Simulación interactiva
 - `features/calculators/components/` - Calculadoras con inputs
-- `features/chat/components/ChatRoom.tsx` - Chat en tiempo real
 - `features/escritos/components/` - Formularios
 - `features/bitacora/components/` - Bitácora personal (incidencias laborales)
 - `features/nomina/components/` - Wizard de perfil salarial, proyecciones
@@ -166,7 +154,6 @@ solo se guarda como hash. Detalle en
 | Formularios | `useActionState` con Server Actions |
 | Chat IA | `useState` en ChatAssistant |
 | Simulador | `useSimulation` hook |
-| Chat en vivo | Supabase Realtime subscriptions |
 | Toast notifications | React Context (`ToastProvider`) |
 | Sidebar | `useState` local en DashboardShell |
 | Perfil nómina | `useNomina` hook + localStorage |
@@ -177,19 +164,19 @@ solo se guarda como hash. Detalle en
 
 ## Seguridad
 
-1. **Auth Middleware** (`src/proxy.ts`): Protege todas las rutas del dashboard. Redirige a `/login` si no hay sesión.
-2. **Rutas públicas**: `/login`, `/register`, `/callback`, `/api/*`, `/health`, `/consulta`
-3. **Server Actions**: Verifican auth con `createClient()` del lado servidor
-4. **Row Level Security (RLS)**: Las tablas de Supabase deben tener políticas RLS configuradas
-5. **API Routes**: No exponen datos sensibles; usan OpenAI con server-side API keys
+1. **Auth Proxy** (`src/proxy.ts`): protege páginas por defecto y hace una comprobación optimista de APIs autenticadas.
+2. **Registro API**: cada `src/app/api/**/route.ts` tiene clasificación exacta en `shared/server/routing/route-policy.ts`; las rutas desconocidas responden JSON 404.
+3. **Autorización definitiva**: cada API privada conserva `requireUser()` dentro del handler y las operaciones de datos dependen además de RLS/RPC.
+4. **Rutas públicas**: páginas legales/auth y únicamente `/api/health` y `/api/calendario` entre las APIs actuales.
+5. **Secretos**: OpenAI y el secreto del bot Python permanecen solo en servidor.
 
 ---
 
 ## Rendimiento
 
-- **RSC (React Server Components)**: Para páginas que no requieren interactividad (foro, chat rooms list, calendario)
+- **RSC (React Server Components)**: Para páginas que no requieren interactividad, como calendario y vistas iniciales del dashboard
 - **Streaming**: No implementado actualmente (considerar para carga de documentos grandes)
-- **CSR**: Componentes interactivos (chat, calculadoras, simulador) se cargan como client bundles
+- **CSR**: Componentes interactivos (asistente, calculadoras, simulador) se cargan como client bundles
 - **Optimización de imágenes**: Next.js Image component no se usa actualmente (img tags directas)
 
 ---
@@ -199,7 +186,8 @@ solo se guarda como hash. Detalle en
 - **Vitest**: Configurado con alias `@/` mapeado a `./src/`
 - **Tests unitarios**: En `features/calculators/__tests__/`, `features/nomina/__tests__/`, `features/vacations/__tests__/` y `features/tarjeton/__tests__/` (parsers puros + servicio de confirmación, fixtures ficticios)
 - **Tests de contrato**: `shared/contracts/__tests__/` (validadores del prerrelleno)
-- **Sin tests de integración o E2E** actualmente
+- **Tests de routing**: clasificación exhaustiva de APIs, proxy y health endpoint
+- **Sin tests E2E** actualmente
 
 ```bash
 npm test          # Ejecutar todos los tests

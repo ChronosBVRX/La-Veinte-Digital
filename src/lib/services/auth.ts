@@ -1,5 +1,6 @@
 import { createClient as createServerClient } from "@/lib/supabase/server"
 import { createClient as createBrowserClient } from "@/lib/supabase/client"
+import type { OwnProfileUpsert } from "@/shared/contracts/profile"
 
 export async function signUp(email: string, password: string, fullName: string) {
   const supabase = await createServerClient()
@@ -11,10 +12,11 @@ export async function signUp(email: string, password: string, fullName: string) 
   if (error) throw error
 
   if (data.user) {
-    await supabase.from("profiles").insert({
+    const profile: OwnProfileUpsert = {
       id: data.user.id,
       full_name: fullName,
-    })
+    }
+    await supabase.from("profiles").insert(profile)
   }
 
   return data

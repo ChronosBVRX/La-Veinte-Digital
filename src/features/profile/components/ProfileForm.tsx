@@ -7,6 +7,7 @@ import { Input } from "@/shared/components/ui/Input"
 import { SearchableSelect } from "@/shared/components/ui/SearchableSelect"
 import type { SearchableOption } from "@/shared/components/ui/SearchableSelect"
 import { Button } from "@/shared/components/ui/Button"
+import type { EditableProfileFields } from "@/shared/contracts/profile"
 
 interface Profile {
   id: string
@@ -56,26 +57,37 @@ export function ProfileForm({ profile, categoriaOptions, adscripcionOptions }: P
       }
 
       // Recupera o crea el perfil faltante (usuarios OAuth sin fila en profiles).
-      await supabase.rpc("ensure_profile_exists")
+      const { error: ensureError } = await supabase.rpc("ensure_profile_exists")
+      if (ensureError) {
+        console.error("[ProfileForm] ensure_profile_exists:", ensureError.message)
+        return { error: "No se pudo preparar tu perfil. Inténtalo de nuevo." }
+      }
 
-      const { data: userData } = await supabase.auth.getUser()
-      const userId = profile?.id ?? userData.user?.id
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      if (userError) {
+        console.error("[ProfileForm] getUser:", userError.message)
+        return { error: "No se pudo identificar tu usuario. Inténtalo de nuevo." }
+      }
+      const userId = userData.user?.id
       if (!userId) return { error: "No se pudo identificar tu usuario" }
 
-      const { error } = await supabase.from("profiles").upsert(
-        {
-          id: userId,
-          full_name: fullName,
-          matricula,
-          adscripcion,
-          categoria,
-          antiguedad,
-          phone,
-        },
-        { onConflict: "id" },
-      )
+      const editableUpdates: EditableProfileFields = {
+        full_name: fullName,
+        matricula,
+        adscripcion,
+        categoria,
+        antiguedad,
+        phone,
+      }
+      const { error } = await supabase
+        .from("profiles")
+        .update(editableUpdates)
+        .eq("id", userId)
 
-      if (error) return { error: error.message }
+      if (error) {
+        console.error("[ProfileForm] update:", error.message)
+        return { error: "No se pudo guardar tu perfil. Inténtalo de nuevo." }
+      }
       router.refresh()
       return { success: true }
     },

@@ -1,7 +1,15 @@
 import { createClient } from "@/lib/supabase/server"
-import type { Tables, TablesUpdate } from "@/lib/supabase/types"
+import type { Tables } from "@/lib/supabase/types"
+import {
+  EDITABLE_PROFILE_FIELD_NAMES,
+  type EditableProfileFields,
+} from "@/shared/contracts/profile"
 
 type Profile = Tables<"profiles">
+
+const EDITABLE_PROFILE_FIELDS = new Set<keyof EditableProfileFields>(
+  EDITABLE_PROFILE_FIELD_NAMES,
+)
 
 export async function getProfile(userId: string) {
   const supabase = await createClient()
@@ -13,7 +21,12 @@ export async function getProfile(userId: string) {
   return data as Profile | null
 }
 
-export async function updateProfile(userId: string, updates: TablesUpdate<"profiles">) {
+export async function updateProfile(userId: string, updates: EditableProfileFields) {
+  const unknownField = Object.keys(updates).find(
+    (field) => !EDITABLE_PROFILE_FIELDS.has(field as keyof EditableProfileFields),
+  )
+  if (unknownField) throw new Error(`Campo de perfil no editable: ${unknownField}`)
+
   const supabase = await createClient()
   const { data, error } = await supabase
     .from("profiles")

@@ -18,13 +18,21 @@ export async function fetchProfileFromSupabase(userId: string): Promise<Partial<
 
 export async function saveProfileToSupabase(profile: EmployeePayrollProfile): Promise<void> {
   const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    // Si no hay sesión, conservamos el almacenamiento local y no escribimos.
+    // El servicio se usa principalmente desde el hook de nómina donde el usuario siempre está autenticado.
+    return
+  }
+  const { error: ensureError } = await supabase.rpc("ensure_profile_exists")
+  if (ensureError) {
+    console.error("[payroll-profile-service] ensure_profile_exists:", ensureError.message)
+    throw new Error("No se pudo preparar el perfil para escribir.")
+  }
   const { error } = await supabase
     .from("profiles")
-    .upsert({
-      id: profile.userId,
-      categoria: profile.categoryName ?? null,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "id" })
+    .update({ categoria: profile.categoryName ?? null })
+    .eq("id", user.id)
 
   if (error) throw error
 }

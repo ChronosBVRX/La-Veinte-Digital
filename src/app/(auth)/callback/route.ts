@@ -6,8 +6,6 @@ const ALLOWED_INTERNAL_PATHS = [
   "/profile",
   "/calculadoras",
   "/asistente",
-  "/chat",
-  "/foro",
   "/bitacora",
   "/nomina",
   "/vacaciones",

@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Vendor assets descargados (workers de PDF.js/Tesseract).
     "public/vendor/**",
+    // Supabase local stack temporales (generados por supabase start).
+    "supabase/.temp/**",
   ]),
 ]);
 

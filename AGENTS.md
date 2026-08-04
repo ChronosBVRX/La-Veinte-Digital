@@ -123,13 +123,11 @@ The `@/` alias maps to `./src/` (configured in `tsconfig.json`).
 
 ## Rule 6: Proxy (middleware) — auth guard
 
-The file `src/proxy.ts` uses Supabase SSR cookie-based auth. Everything is protected **by default**; only paths in the explicit `PUBLIC_PATH_PREFIXES` constant are public:
-
-```ts
-["/login", "/register", "/callback", "/api/"]
-```
-
-`/api/*` is excluded because each API route self-guards with `requireUser`. Add a new public route to this array only with justification.
+The file `src/proxy.ts` uses Supabase SSR cookie-based auth. Pages are protected
+by default. Every API route must be listed exactly in
+`src/shared/server/routing/route-policy.ts`; unknown APIs return JSON 404.
+Authenticated API routes must also call `requireUser()` inside the route handler.
+The proxy is an optimistic boundary, never the only authorization layer.
 
 ## Rule 7: Database access
 
@@ -166,6 +164,10 @@ The frontend (`features/asistente/services/bot.ts`) ALWAYS calls `/api/consulta`
 
 **DO NOT create a third implementation.** If modifying the bot, update BOTH backends or consolidate to one.
 
+The social chat (`/chat`, `features/chat`) and forum (`/foro`, `features/foro`)
+are retired. Do not restore them. The AI assistant (`/asistente`,
+`features/asistente`, `/api/consulta`, `bot-api`, `ai_chat_history`) remains active.
+
 ## Rule 10: System prompts
 
 The AI assistant's personality is defined in two places:
@@ -201,20 +203,18 @@ supabase login --token <pat>
 # Vincular proyecto local
 supabase link --project-ref ragktminwduiggvaoeix
 
-# Ejecutar SQL contra la base remota
-supabase db query --linked --file supabase/migrations/<file>.sql
-
-# Verificar tablas
-supabase db query --linked "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
+# Inventario remoto de solo lectura
+supabase migration list --linked
+supabase db query --linked "begin transaction read only; SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'; commit;"
 ```
 
 **PAT (Supabase access token):** no commitearlo — configurarlo en `.env.local` como `SUPABASE_ACCESS_TOKEN` o en `~/.supabase/access-token`. Se genera en app.supabase.com/account/tokens.
 
-El proyecto ya está vinculado (`supabase link` hecho). Migraciones aplicadas a
-remoto hasta la `004_imported_payslips.sql` (tablas `imported_payslips`,
-`imported_payslip_lines`, `imported_payslip_observations` + RPC
-`confirm_imported_payslip`). Al crear migraciones nuevas, actualiza a la par
-`src/lib/supabase/types.ts`.
+No presupongas el historial remoto. La evidencia de 2026-08-03 muestra deriva
+entre el ledger y los archivos locales; consulta `docs/schema-reconciliation/`
+y vuelve a ejecutar inventario de solo lectura antes de cualquier decisión.
+Toda operación remota, incluida una reparación de historial, migración, hotfix o
+deploy, exige revisión y aprobación explícitas. Nunca uses `db reset --linked`.
 
 ### Vercel (Deploy)
 
@@ -248,6 +248,8 @@ El OIDC token de Vercel está en `.env.local` como `VERCEL_OIDC_TOKEN`. Las vari
 - ❌ Store large data files (like vectorstore) in `src/` — move to external storage
 - ❌ Commit `public/vendor/` or `supabase/.temp/` (regenerados por `prebuild`/CLI)
 - ❌ Upload tarjetón PDFs (o cualquier archivo) a rutas API — la extracción es 100% local
+- ❌ Assume local migration names prove remote SQL equivalence
+- ❌ Run `migration repair`, `db push`, remote SQL writes, or `db reset --linked` without explicit approval
 - ❌ Add dependencies without running `npm run build` to verify
 
 ## Before committing changes
