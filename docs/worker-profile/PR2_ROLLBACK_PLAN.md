@@ -16,11 +16,11 @@ datos en `matricula/adscripcion/shift/source_*`, `worker_preferences`,
 `worker_consents` o `worker_data_events`.
 
 **Acción:**
-- `DROP TABLE worker_data_events, worker_consents, worker_preferences, backfill_conflicts;`
+- `DROP TABLE worker_data_events, worker_consents, worker_preferences;` (+ `backfill_conflicts` si se conservó)
 - `ALTER TABLE payroll_contexts DROP COLUMN matricula, adscripcion, shift, source_*;`
-- `DROP FUNCTION backfill_worker_profile(), upsert_consent(), get_effective_consent(), insert_worker_event();`
+- `DROP FUNCTION backfill_worker_profile(), grant_worker_consent(), revoke_worker_consent(), get_effective_consent(), _insert_worker_event(), choose_basic_mode(), confirm_manual_worker_profile(), confirm_payslip_worker_profile(), change_worker_profile_mode(), delete_worker_data();`
 
-**Pérdida:** ninguna (sin datos nuevos). Seguro.
+**Pérdida:** ninguna (sin datos nuevos). **Solo es aplicable si se verifica previamente que no hay datos** en esas columnas/tablas (consulta de recuento); en caso contrario, no ejecutar el DROP.
 
 ## 3. Escenario B — Rollback después de uso (con datos nuevos)
 
@@ -42,10 +42,11 @@ usuario y rompería el servicio en ejecución.
 4. **Mantener columnas/tablas** como dormidas durante el periodo de observación.
 5. Solo tras confirmar estabilidad, decidir:
    - Volver a activar (re-aplicar PR2), o
-   - Limpieza ordenada: exportar/archivar eventos y consents, luego `DROP`.
+   - Limpieza ordenada **solo con respaldo y plan de exportación previos**: archivar eventos/consents y datos laborales nuevos, luego `DROP`.
 
-**Pérdida:** controlada; los datos laborales nuevos permanecen archivados, no
-destruidos.
+**Pérdida:** controlada; los datos laborales nuevos permanecen archivados, no destruidos.
+
+> **Regla:** nunca se borran columnas o tablas con datos sin respaldo y plan de exportación.
 
 ## 4. Escenario C — Desactivación de feature (sin tocar datos)
 

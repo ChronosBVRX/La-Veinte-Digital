@@ -79,3 +79,30 @@
 - Usuarios sintéticos en `auth.users` con IDs fijos `00...00c0xx`, limpieza al inicio.
 - Sin modificar el esquema dentro del test.
 - `profile_security.sql` existente debe seguir pasando (no se altera).
+
+## 12. Casos adicionales por correcciones de diseño
+
+### 12.1 Escritura exclusiva vía servicio de dominio
+
+39. **authenticated no puede INSERT/UPDATE directamente `worker_preferences`:** la tabla no concede grants de escritura a authenticated; un intento directo falla.
+40. **authenticated no puede escribir directamente las nuevas columnas de `payroll_contexts`:** sin grants columnar de INSERT/UPDATE para las columnas nuevas; falla.
+41. **authenticated no puede ejecutar `_insert_worker_event`:** sin `GRANT EXECUTE TO authenticated`; la invocación falla.
+42. **Las RPC de perfil insertan el evento legítimo automáticamente:** `choose_basic_mode()`/`confirm_manual_worker_profile(...)` generan el evento esperado sin que el cliente lo pida.
+43. **El cliente no puede elegir `event_type` ni `priority`:** ninguna RPC expuesta acepta esos parámetros; quedan determinados por la operación de dominio.
+44. **`auth.uid()` NULL rechazado:** cada RPC de dominio lanza error si no hay sesión.
+
+### 12.2 Consentimiento
+
+45. **Reaceptación crea nueva evidencia:** aceptar la misma `version` dos veces (tras revocación) genera dos filas con `accepted_at` distintos; la primera evidencia no se sobrescribe.
+46. **`accepted_source` no puede falsificarse:** la RPC lo fija según la operación (p. ej. `confirm_payslip_worker_profile` → `tarjeton`); el cliente no lo envía.
+47. **Propósito/versión validados contra allowlist del servidor:** valor no permitido rechazado.
+
+### 12.3 Backfill y conflictos
+
+48. **Metadata de conflicto no contiene valores:** el reporte/`backfill_conflicts` solo expone `field`, `conflict_type`, `resolution_strategy`, `created_at`, `user_id`; sin `legacy_value`/`kept_value` ni valores laborales.
+49. **Cada valor `employment_type` legacy tiene comportamiento definido:** `base`/`confianza` mapean exactos; `eventual`/`confianza_a_estatuto` sin equivalencia → conservados y documentados; los nuevos valores canónicos del dominio se registran vía adaptador.
+
+### 12.4 Worker preferences
+
+50. **Combinación inválida `onboarding_state`/`preferred_worker_mode` rechazada:** `basic` + `preferred_worker_mode='manual'` y `configured` + `NULL` violan los CHECK de combinación.
+51. **Solo RPC cambian el estado:** un intento de UPDATE directo de `onboarding_state` por authenticated falla (sin grants).

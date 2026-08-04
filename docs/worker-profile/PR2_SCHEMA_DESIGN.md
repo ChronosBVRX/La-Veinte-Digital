@@ -62,12 +62,29 @@ El estado de onboarding **no debe depender de que exista una fila laboral**. Si 
 
 ```
 worker_preferences
-- user_id          uuid PK REFERENCES profiles(id) ON DELETE CASCADE
-- onboarding_state text NOT NULL CHECK (onboarding_state IN ('unconfigured','basic','configured'))
-- preferred_worker_mode text CHECK (preferred_worker_mode IN ('manual','payslip'))  -- NULL ok
-- created_at       timestamptz NOT NULL DEFAULT now()
-- updated_at       timestamptz NOT NULL DEFAULT now()
+- user_id                uuid PK REFERENCES profiles(id) ON DELETE CASCADE
+- onboarding_state       text NOT NULL CHECK (onboarding_state IN ('unconfigured','basic','configured'))
+- preferred_worker_mode  text CHECK (preferred_worker_mode IN ('manual','payslip'))
+- created_at             timestamptz NOT NULL DEFAULT now()
+- updated_at             timestamptz NOT NULL DEFAULT now()
+- CHECK (onboarding_state = 'configured' OR preferred_worker_mode IS NULL)
+- CHECK (onboarding_state <> 'configured' OR preferred_worker_mode IS NOT NULL)
 ```
+
+**Constraints de combinación (§6 de decisiones):**
+- Si `onboarding_state <> 'configured'` (es decir, `unconfigured` o `basic`), `preferred_worker_mode` **debe** ser `NULL`.
+- Si `onboarding_state = 'configured'`, `preferred_worker_mode` **debe** ser `'manual'` o `'payslip'`.
+
+**Escritura:** el usuario **no escribe `onboarding_state` ni `preferred_worker_mode` libremente**. Solo las RPC de dominio (§3 de la matriz RLS) cambian estos valores según las transiciones definidas.
+
+### 2.2b Transiciones de onboarding (solo vía RPC)
+
+| Transición | RPC | preferred_worker_mode |
+|-----------|-----|------------------------|
+| `unconfigured → basic` | `choose_basic_mode()` | `NULL` |
+| `unconfigured → configured` | `confirm_manual_worker_profile(...)` / `confirm_payslip_worker_profile(...)` | `manual` / `payslip` |
+| `basic → configured` | `confirm_manual_worker_profile(...)` / `confirm_payslip_worker_profile(...)` | `manual` / `payslip` |
+| `configured → basic` | `delete_worker_data()` | `NULL` |
 
 ### 2.3 Justificaciones por evento
 
@@ -120,7 +137,8 @@ Solo `onboarding_state` y `preferred_worker_mode`. No se añaden preferencias fu
 ### 3.6 Notas transversales
 - Toda columna nueva es aditiva (ADD COLUMN IF NOT EXISTS).
 - Las nuevas columnas se gobiernan por las políticas RLS existentes de la tabla (por fila `user_id = auth.uid()`).
-- `grant` de las columnas nuevas: se concede `GRANT UPDATE (col) ... TO authenticated` y `GRANT INSERT (col)...` columnar, sin conceder DML de tabla (coherente con el hardening de profiles).
+- **`grant` de las columnas nuevas:** NO se conceden grants de INSERT/UPDATE (ni de tabla ni columnares) a `authenticated`. Solo las RPC de `WorkerProfileService` escriben estas columnas. El frontend nuevo las lee vía SELECT (RLS propio).
+- El código legacy (wizard de nómina, `confirm_imported_payslip`) conserva temporalmente los permisos estrictamente necesarios, documentados como **compatibilidad temporal con fecha de retiro** (PR8).
 
 ---
 
@@ -145,11 +163,13 @@ worker_consents
 
 | Pregunta | Respuesta |
 |----------|-----------|
-| **Unicidad** | `(user_id, purpose, version)`. Una aceptación por usuario×finalidad×versión. |
-| **Reaceptación** | Nuevo registro con nueva `version` (o nueva `accepted_at` si misma versión, tras revocación, con `accepted_at` actualizado). La reaceptación de la misma versión se representa actualizando `accepted_at` y limpiando `revoked_at` (upsert controlado por el servicio). |
+| **Unicidad** | `(user_id, purpose, version)`. Cada aceptación es un registro distinto. |
+| **Reaceptación** | **Cada aceptación crea una fila nueva.** No se usa UPSERT que borre `accepted_at` histórico. Si se reacepta la misma `version` tras revocación, se crea una fila nueva con su propio `accepted_at` (la evidencia histórica de la aceptación anterior se conserva intacta). |
 | **Consentimiento vigente** | La fila con `revoked_at IS NULL` y el `accepted_at` más reciente para el `purpose`. Función server `get_effective_consent(user_id, purpose)` (SECURITY DEFINER). |
-| **Revocación** | `UPDATE ... SET revoked_at = now() WHERE user_id=? AND purpose=? AND revoked_at IS NULL`. No se borra la fila (historial). |
-| **Tras borrar datos laborales** | Se conservan los registros de consentimiento (evidencia de aceptación histórica) con `revoked_at` seteado para las finalidades activas. No se borra la evidencia. |
+| **Revocación** | Apunta al **consentimiento vigente** (`revoked_at IS NULL`): `UPDATE ... SET revoked_at = now() WHERE user_id=? AND purpose=? AND revoked_at IS NULL`. No se borra la fila (historial). |
+| **Propósito y versión** | Se validan contra **allowlists del servidor** dentro de la RPC; el cliente no los envía libremente. |
+| **accepted_source** | **No se acepta libremente del cliente**: lo determina la RPC de dominio (onboarding, worker_center, tarjeton o settings según la operación). |
+| **Tras borrar datos laborales** | Se conservan los registros de consentimiento (evidencia histórica) con `revoked_at` seteado para las finalidades activas. No se borra la evidencia. |
 | **Al eliminar cuenta** | Se borran por `ON DELETE CASCADE` (igual que profiles). |
 | **IP / user-agent** | **NO se guardan en v1.** Si más adelante se requieren, se declaran en el aviso y se agregan columnas con retención documentada. |
 
@@ -171,22 +191,24 @@ worker_data_events
 
 ### 5.2 Reglas de acceso
 
-| Operación | authenticated | Servicio (RPC SECURITY DEFINER) |
-|-----------|---------------|----------------------------------|
+| Operación | authenticated | Función interna `_insert_worker_event` (SECURITY DEFINER) |
+|-----------|---------------|------------------------------------------------------------|
 | SELECT | ✅ solo `user_id = auth.uid()` (RLS) | ✅ (postgres) |
-| INSERT | ❌ **no directo** | ✅ vía RPC `insert_worker_event(...)` validado |
+| INSERT | ❌ **no directo** | ✅ solo llamada por RPC de dominio controladas |
 | UPDATE | ❌ | ❌ (append-only, ni servicio) |
 | DELETE | ❌ | ❌ salvo limpieza admin/cuenta (cascade) |
 
 ### 5.3 Cómo insertar sin conceder service_role al frontend
 
-- RPC `insert_worker_event(p_event_type, p_priority, p_metadata jsonb)` con `SECURITY DEFINER`, `search_path = public`, y validación interna:
-  - `p_event_type` / `p_priority` en enums permitidos.
-  - `p_metadata` validado contra la **allowlist** (mismas claves de `validateWorkerEventMetadata` del PR1): `modeFrom, modeTo, field, source, consentVersion, consentPurpose, extractionMethod, confidence, period`.
-  - Rechaza cualquier clave no permitida o que contenga valores laborales/identificadores/importes.
-  - `user_id` se toma de `auth.uid()` — el cliente no lo envía.
-- `REVOKE ALL ON FUNCTION ... FROM PUBLIC; GRANT EXECUTE ... TO authenticated;`
-- Sin `INSERT` directo a la tabla para `authenticated` (ni siquiera con RLS de propio user), para que el cliente no pueda fabricar eventos.
+- **NO existe `GRANT EXECUTE insert_worker_event TO authenticated`.** El historial no es falsificable.
+- Función interna `_insert_worker_event(event_type, priority, metadata)`:
+  - **no recibe `user_id`** — lo toma de `auth.uid()` en el contexto de la transacción de la RPC de dominio que la invoca;
+  - **no es ejecutable por `anon` ni `authenticated`** (solo owner / postgres);
+  - solo la llaman las RPC de dominio controladas (§3 de la matriz RLS) dentro de su misma transacción;
+  - valida `metadata` contra la **allowlist** (claves de `validateWorkerEventMetadata` del PR1): `modeFrom, modeTo, field, source, consentVersion, consentPurpose, extractionMethod, confidence, period`;
+  - **calcula `event_type` y `priority` desde la operación de dominio** que la invoca, no desde valores enviados por el cliente;
+  - `created_at` lo fija la BD (`DEFAULT now()`), el cliente no puede decidirlo.
+- Sin `INSERT` directo a la tabla para `authenticated` (ni siquiera con RLS de propio user).
 
 ### 5.4 Política de conservación
 
@@ -199,16 +221,16 @@ worker_data_events
 
 | Tabla | Rol | SELECT | INSERT | UPDATE | DELETE |
 |-------|-----|:------:|:------:|:------:|:------:|
-| `worker_preferences` | authenticated | ✅ propio | ✅ propio | ✅ propio | ❌ (solo servicio) |
-| `payroll_contexts` | authenticated | ✅ propio | ✅ propio | ✅ propio | ✅ propio (legacy) |
-| `worker_consents` | authenticated | ✅ propio | ❌ directo (solo servicio) | ❌ directo | ❌ directo |
+| `worker_preferences` | authenticated | ✅ propio | ❌ directo | ❌ directo | ❌ directo |
+| `payroll_contexts` | authenticated | ✅ propio | ❌ genérico (solo RPC) | ❌ genérico (solo RPC) | ❌ genérico (solo RPC/legacy) |
+| `worker_consents` | authenticated | ✅ propio | ❌ directo | ❌ directo | ❌ directo |
 | `worker_data_events` | authenticated | ✅ propio | ❌ directo | ❌ directo | ❌ directo |
 
 Condiciones globales:
 - No se amplían grants de `profiles`.
-- `authenticated` no puede elegir otro `user_id` (RLS por `auth.uid()`).
-- Funciones SECURITY DEFINER con `search_path = public` fijo y `REVOKE ... FROM PUBLIC`.
-- Solo el servicio central (server actions / RPC) escribe consents y events.
+- `authenticated` no puede elegir otro `user_id` (RLS por `auth.uid()`; RPC usan `auth.uid()`).
+- Funciones SECURITY DEFINER con `search_path` endurecido y `REVOKE ... FROM PUBLIC`.
+- Solo el servicio central (RPC de dominio específicas) escribe preferences, consents y events, y las columnas nuevas de `payroll_contexts`.
 
 ---
 
@@ -221,10 +243,54 @@ Condiciones globales:
 
 ## 8. Rollback (detalle en PR2_ROLLBACK_PLAN.md)
 
-- **Antes de uso:** DROP de columnas/tablas nuevas es seguro (sin datos).
-- **Después de uso:** no basta DROP; hay que conservar datos y restaurar lectores legacy.
-- **Desactivación de feature:** mantener columnas/tablas pero dejar de escribir; los lectores vuelven a `profiles` legacy.
+- **Antes de recibir datos:** DROP de columnas/tablas nuevas es posible (no hay datos que perder).
+- **Después de recibir datos:** NO basta DROP. Se usa feature flag / soft-disable, se conservan las tablas y columnas, y se restauran los lectores legacy. Nunca se borran columnas/tablas con datos sin respaldo y plan de exportación.
 
-## 9. Pruebas SQL planeadas (detalle en PR2_TEST_PLAN.md)
+## 9. `employment_type` — resolución antes de SQL
 
-Onboarding, transiciones, aislamiento por usuario, fabricación de eventos, consentimiento por otro user, reaceptación, revocación, backfill idempotente, borrado conserva cuenta+basic, cascade por cuenta, metadata sensible rechazada, grants mínimos, db reset desde cero.
+### 9.1 Valores actuales en DB (CHECK de `payroll_contexts`)
+
+`base`, `confianza`, `eventual`, `confianza_a_estatuto`
+
+### 9.2 Valores del dominio PR1 (`EmploymentType`)
+
+`base`, `sustituto`, `interino`, `obra_determinada`, `confianza`, `otro`
+
+### 9.3 Matriz valor legacy → canónico
+
+| Valor DB (legacy) | Valor dominio (canónico) | Equivalencia | Acción |
+|-------------------|--------------------------|--------------|--------|
+| `base` | `base` | **exacta** | sin cambio |
+| `confianza` | `confianza` | **exacta** | sin cambio |
+| `eventual` | — | **sin equivalencia** en el dominio | requiere confirmación manual o nuevo valor canónico |
+| `confianza_a_estatuto` | — | **sin equivalencia** en el dominio | requiere confirmación manual o nuevo valor canónico |
+| — | `sustituto` | **sin valor DB previo** | nuevo valor del dominio sin dato existente |
+| — | `interino` | **sin valor DB previo** | nuevo valor del dominio sin dato existente |
+| — | `obra_determinada` | **sin valor DB previo** | nuevo valor del dominio sin dato existente |
+| — | `otro` | **sin valor DB previo** | nuevo valor del dominio sin dato existente |
+
+> Nota: `sustituto`/`interino`/`obra_determinada`/`otro` no existen hoy en el CHECK DB. Cualquier correspondencia con valores legacy que no esté listada arriba **no se inventa**; si aparece un valor legacy sin equivalencia definida, se marca `requiere confirmación manual`.
+
+### 9.4 Estrategia propuesta
+
+**Opción recomendada: B — introducir valores canónicos nuevos con adaptador temporal.**
+
+| Criterio | A (ampliar CHECK, mantener legacy) | B (canónicos nuevos + adaptador) | C (migrar gradual a enum nuevo) |
+|----------|-------------------------------------|-----------------------------------|---------------------------------|
+| Compatibilidad con datos existentes | Alta (no toca filas) | Media (nuevos valores; legacy intacto) | Baja (reescribe datos) |
+| Impacto en fórmulas | Bajo (sin cambio de dominio) | Medio (adaptador en lectura) | Alto (renombra datos en fórmulas) |
+| Impacto en UI | Ninguno | El wizard usa valores canónicos | Sustituye valores en UI |
+| Rollback | Trivial | Simple (adaptador se retira) | Complejo (migración inversa) |
+| Pruebas | Fáciles | Requieren mapeo legacy→canónico | Requieren migración de datos |
+
+**Justificación de B:**
+1. No rompe los datos existentes (`base`, `confianza`, `eventual`, `confianza_a_estatuto` siguen siendo válidos en el CHECK).
+2. El dominio PR1 expone valores más expresivos; el adaptador traduce lectura/escritura entre ambos sin alterar fórmulas.
+3. `eventual` y `confianza_a_estatuto` (legacy sin equivalente canónico claro) **no se eliminan ni se mapean forzadamente**: se conservan en el CHECK durante la transición y se documentan como `requiere confirmación manual` si el usuario los tiene.
+4. Rollback simple: retirar el adaptador sin migración de datos.
+
+**Acción concreta (NO autorizada todavía):** ampliar el CHECK para incluir los valores canónicos del dominio, manteniendo los legacy; un adaptador en el servicio traduce entre `EmploymentType` y el valor DB. No se modifica el CHECK hasta aprobación explícita.
+
+## 10. Pruebas SQL planeadas (detalle en PR2_TEST_PLAN.md)
+
+Onboarding, transiciones, aislamiento por usuario, fabricación de eventos, consentimiento por otro user, reaceptación, revocación, backfill idempotente, borrado conserva cuenta+basic, cascade por cuenta, metadata sensible rechazada, grants mínimos, combinaciones inválidas de `worker_preferences`, y comportamiento de cada valor `employment_type` legacy, db reset desde cero.

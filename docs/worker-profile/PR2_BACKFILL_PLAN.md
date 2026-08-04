@@ -58,18 +58,41 @@
 - Si el parser produce una fecha, marcarla `calculated` (derivada), **no** `manual` ni `payslip_confirmed`.
 - Si no, NULL + documentación.
 
-## 5. Tabla de conflictos (propuesta)
+## 5. Conflictos — política sin duplicar datos
+
+**Preferencia:** NO mantener una tabla permanente de valores conflictivos. El backfill produce **conteos agregados y un reporte sanitizado** (por campo y por tipo de conflicto), sin valores individuales.
+
+### 5.1 Reporte sanitizado (no persistente)
+
+El backfill emite, como salida de la ejecución:
+
+```
+field                conflict_type                  count
+categoria            legacy_vs_context_mismatch       12
+categoria            legacy_present_context_empty     38
+antiguedad           unparseable_text                  9
+```
+
+Sin matrículas, adscripciones, categorías, antigüedades, importes ni valores previos/posteriores.
+
+### 5.2 Tabla técnica de conflictos (solo si se requiere persistir)
+
+Si se conserva una tabla técnica, sus campos se limitan a:
 
 ```
 backfill_conflicts
-- id            bigint identity PK
-- user_id       uuid NOT NULL
-- field         text NOT NULL
-- legacy_value  text
-- kept_value    text
-- reason        text NOT NULL
-- created_at    timestamptz NOT NULL DEFAULT now()
+- id                 bigint identity PK
+- user_id            uuid NOT NULL          -- identificador técnico mínimo
+- field              text NOT NULL
+- conflict_type      text NOT NULL
+- resolution_strategy text NOT NULL
+- created_at         timestamptz NOT NULL DEFAULT now()
 ```
+
+**NO guarda:** `legacy_value`, `kept_value`, matrícula, adscripción, categoría, antigüedad, importes ni ningún valor previo/posterior.
+
+- `conflict_type`: `legacy_vs_context_mismatch` | `legacy_present_context_empty` | `unparseable_text` | `partial_row`.
+- `resolution_strategy`: qué se hizo (p. ej. `keep_context`, `fill_legacy_manual`, `null_and_document`).
 - Solo la escribe el backfill (admin/service_role). No expuesta a authenticated.
 - Al eliminar cuenta: cascade por user_id (o limpieza periódica).
 
@@ -78,7 +101,7 @@ backfill_conflicts
 1. Crear tablas nuevas + columnas nuevas + policies + grants.
 2. Ejecutar backfill de `worker_preferences` (crear fila `unconfigured` para todo `auth.users` existente sin fila).
 3. Ejecutar backfill de `payroll_contexts` (casos §3).
-4. Registrar conflictos en `backfill_conflicts`.
+4. Registrar conflictos: emitir conteos agregados sanitizados; opcionalmente persistir en `backfill_conflicts` (solo campos técnicos, sin valores).
 5. (Opcional) migrar consentimientos legacy `consent_given` → `worker_consents` con `version = consent_version ?? '1.0'`, `accepted_source='tarjeton'` cuando `consent_given=true`.
 6. Insertar eventos `profile_created` / `mode_changed` informativos para usuarios ya configurados (solo si procede; no fabricar historial falso de más).
 
