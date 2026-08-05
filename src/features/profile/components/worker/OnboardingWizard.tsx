@@ -9,8 +9,7 @@ import { ReviewStep } from "./ReviewStep"
 import { ConsentStep } from "./ConsentStep"
 import { ConfirmStep } from "./ConfirmStep"
 import { SummaryStep } from "./SummaryStep"
-import { chooseBasicModeAction, grantWorkerConsentAction, confirmManualProfileAction } from "@/features/profile/actions/worker-profile-actions"
-import { WORKER_PRIVACY_NOTICE_VERSION } from "@/shared/domain/worker"
+import { chooseBasicModeAction, confirmManualProfileAction } from "@/features/profile/actions/worker-profile-actions"
 import type { WorkerProfileDraft, ConfirmedWorkerProfileUpdate } from "@/shared/domain/worker"
 
 interface OnboardingWizardProps {
@@ -58,10 +57,14 @@ export function OnboardingWizard({ returnTo, onComplete }: OnboardingWizardProps
           onStart={() => goNext()}
           onSkipBasic={async () => {
             setLoading(true)
-            const result = await chooseBasicModeAction()
-            setLoading(false)
-            if (result.ok) onComplete()
-            else setError(result.message)
+            setError(null)
+            try {
+              const result = await chooseBasicModeAction()
+              if (result.ok) onComplete()
+              else setError(result.message)
+            } finally {
+              setLoading(false)
+            }
           }}
           loading={loading}
         />
@@ -138,21 +141,23 @@ export function OnboardingWizard({ returnTo, onComplete }: OnboardingWizardProps
           onConfirm={async () => {
             setLoading(true)
             setError(null)
-            await grantWorkerConsentAction("use_worker_data", WORKER_PRIVACY_NOTICE_VERSION)
-            const update: ConfirmedWorkerProfileUpdate = {
-              mode: "manual",
-              sourceOfRequest: "manual",
-              identity: { ...draft.identity },
-              situation: { ...draft.situation },
-              sources: Object.fromEntries(
-                draft.confirmedFields.map((f) => [f, "manual"])
-              ) as ConfirmedWorkerProfileUpdate["sources"],
-              consentRef: { purpose: "use_worker_data", version: WORKER_PRIVACY_NOTICE_VERSION },
+            try {
+              const update: ConfirmedWorkerProfileUpdate = {
+                mode: "manual",
+                sourceOfRequest: "manual",
+                identity: { ...draft.identity },
+                situation: { ...draft.situation },
+                sources: Object.fromEntries(
+                  draft.confirmedFields.map((f) => [f, "manual"])
+                ) as ConfirmedWorkerProfileUpdate["sources"],
+                consentRef: { purpose: "use_worker_data", version: "2026-08-v1" },
+              }
+              const result = await confirmManualProfileAction(update)
+              if (result.ok) goNext()
+              else setError(result.message)
+            } finally {
+              setLoading(false)
             }
-            const result = await confirmManualProfileAction(update)
-            setLoading(false)
-            if (result.ok) goNext()
-            else setError(result.message)
           }}
           onBack={goBack}
           loading={loading}

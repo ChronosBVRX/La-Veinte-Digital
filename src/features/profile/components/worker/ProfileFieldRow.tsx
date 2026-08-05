@@ -1,6 +1,5 @@
 "use client"
 import type { WorkerFieldName, WorkerFieldSource, FieldRequirement } from "@/shared/domain/worker"
-import { FIELD_REQUIREMENTS } from "@/shared/domain/worker"
 
 const SOURCE_LABELS: Record<string, { text: string; color: string }> = {
   payslip_confirmed: { text: "✓ Confirmado desde tarjetón", color: "#16a34a" },

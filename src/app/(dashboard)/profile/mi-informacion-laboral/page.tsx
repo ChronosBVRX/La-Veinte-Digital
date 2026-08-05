@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { WorkerProfileService } from "@/shared/server/worker-profile"
+import { WorkerProfileUnavailableError, WorkerProfileUnauthorizedError } from "@/shared/server/worker-profile/errors"
 import { isSafeInternalReturnPath } from "@/shared/domain/worker"
 import { WorkerProfileCenter } from "@/features/profile/components/worker/WorkerProfileCenter"
 import type { WorkerProfile, ProfileQuality, FieldRequirement, WorkerDataEvent, WorkerProfileMode } from "@/shared/domain/worker"
@@ -44,14 +45,17 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
       events = await svc.listWorkerEvents(20)
     }
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Error desconocido"
+    console.error("[worker-profile-page]", err instanceof Error ? err.message : err)
+    const displayMessage = err instanceof WorkerProfileUnavailableError
+      ? "El perfil laboral no está disponible en este momento. Inténtalo más tarde."
+      : err instanceof WorkerProfileUnauthorizedError
+        ? "Debes iniciar sesión para ver tu información laboral."
+        : "No se pudo cargar tu información laboral. Inténtalo de nuevo."
     return (
       <div style={{ padding: "2rem", maxWidth: "600px", margin: "0 auto" }}>
         <h1 style={{ fontSize: "1.25rem", margin: "0 0 0.5rem" }}>Mi información laboral</h1>
         <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.375rem", padding: "1rem", color: "#991b1b", fontSize: "0.9375rem" }}>
-          {message.includes("disponible") || message.includes("UnavailableError")
-            ? "El perfil laboral no está disponible en este momento. Inténtalo más tarde."
-            : "No se pudo cargar tu información laboral. Inténtalo de nuevo."}
+          {displayMessage}
         </div>
       </div>
     )

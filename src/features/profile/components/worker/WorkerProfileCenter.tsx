@@ -1,8 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
-import type { WorkerProfile, ProfileQuality, FieldRequirement, WorkerDataEvent, WorkerProfileMode, WorkerFieldSource } from "@/shared/domain/worker"
+import type { WorkerProfile, ProfileQuality, FieldRequirement, WorkerDataEvent, WorkerProfileMode } from "@/shared/domain/worker"
 import { OnboardingWizard } from "./OnboardingWizard"
 import { BasicModeCard } from "./BasicModeCard"
 import { ProfileQualityCard } from "./ProfileQualityCard"
