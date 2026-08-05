@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useCallback } from "react"
+import { useEffect, useCallback, useRef } from "react"
 import { Button } from "@/shared/components/ui/Button"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { useTarjetonImporter } from "@/features/tarjeton/hooks/useTarjetonImporter"
@@ -15,19 +15,31 @@ interface TarjetonImportStepProps {
 
 export function TarjetonImportStep({ onParsed, onBack }: TarjetonImportStepProps) {
   const importer = useTarjetonImporter(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const cleanup = useCallback(() => {
+    importer.reset()
+    if (inputRef.current) inputRef.current.value = ""
+  }, [importer])
 
   const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) importer.start(file)
   }, [importer])
 
-  // Cuando termina la extracción, mapear a draft y avanzar
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => { cleanup() }
+  }, [cleanup])
+
   useEffect(() => {
     if (importer.state.step === "review" && importer.state.parsed) {
       const result = mapParsedPayslipToWorkerProfileDraft(importer.state.parsed)
       onParsed(result.draft, importer.state.parsed)
     }
   }, [importer.state.step, importer.state.parsed, onParsed])
+
+  const handleReset = () => { cleanup() }
 
   if (importer.state.step === "reading") {
     return (
@@ -55,8 +67,8 @@ export function TarjetonImportStep({ onParsed, onBack }: TarjetonImportStepProps
             "No se pudo leer el archivo. Intenta con otro tarjetón."}
         </div>
         <div style={{ display: "flex", gap: "0.75rem" }}>
-          <Button variant="secondary" onClick={onBack}>←</Button>
-          <Button onClick={() => importer.reset()}>Reintentar</Button>
+          <Button variant="secondary" onClick={onBack}>← Cancelar importación</Button>
+          <Button onClick={handleReset}>Reintentar</Button>
         </div>
       </div>
     )
@@ -81,12 +93,12 @@ export function TarjetonImportStep({ onParsed, onBack }: TarjetonImportStepProps
           borderRadius: "0.25rem", fontSize: "0.875rem", cursor: "pointer", fontWeight: 500,
         }}>
           Seleccionar archivo
-          <input type="file" accept="application/pdf" onChange={handleFile} style={{ display: "none" }} />
+          <input type="file" accept="application/pdf" onChange={handleFile} style={{ display: "none" }} ref={inputRef} />
         </label>
         <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>Máximo 4 páginas, 10 MB</p>
       </div>
       <div style={{ display: "flex", gap: "0.75rem", justifyContent: "space-between" }}>
-        <Button variant="secondary" onClick={onBack}>←</Button>
+        <Button variant="secondary" onClick={onBack}>← Cancelar importación</Button>
         <div />
       </div>
     </div>

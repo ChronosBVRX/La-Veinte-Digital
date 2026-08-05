@@ -17,8 +17,8 @@ function minimalParsed(overrides: Partial<ParsedImssTarjeton["employee"]> = {}):
     },
     attendance: {},
     vacations: {},
-    payroll: { earnings: [], deductions: [], totalEarnings: 0, totalDeductions: 0, netPay: 0 },
-    extraction: { method: "native_text", globalConfidence: 0.95, validations: { templateDetected: true } },
+    payroll: { earnings: [], deductions: [], observations: [], totalEarnings: 0, totalDeductions: 0, netPay: 0 },
+    extraction: { method: "native_text", globalConfidence: 0.95, warnings: [], validations: { templateDetected: true, earningsTotalMatches: null, deductionsTotalMatches: null, netPayMatches: null, employeeMatchesProfile: null, categoryResolved: null } },
   }
 }
 
@@ -56,14 +56,14 @@ describe("mapParsedPayslipToWorkerProfileDraft", () => {
     const result = mapParsedPayslipToWorkerProfileDraft(minimalParsed({ employmentType: "eventual" }))
     expect(result.draft.situation.employmentType).toBeUndefined()
     expect(result.requiresConfirmation).toContain("employmentType")
-    expect(result.notes.some((n) => n.includes("eventual"))).toBe(true)
+    expect(result.warnings.some((n: string) => n.includes("eventual"))).toBe(true)
   })
 
   it("confianza_a_estatuto requiere confirmación manual sin equivalencia canónica", () => {
     const result = mapParsedPayslipToWorkerProfileDraft(minimalParsed({ employmentType: "confianza_a_estatuto" }))
     expect(result.draft.situation.employmentType).toBeUndefined()
     expect(result.requiresConfirmation).toContain("employmentType")
-    expect(result.notes.some((n) => n.includes("confianza_a_estatuto"))).toBe(true)
+    expect(result.warnings.some((n: string) => n.includes("confianza_a_estatuto"))).toBe(true)
   })
 
   it("no inventa datos ausentes", () => {
@@ -82,6 +82,6 @@ describe("mapParsedPayslipToWorkerProfileDraft", () => {
 
   it("nombre detectado aparece en notas (informativo)", () => {
     const result = mapParsedPayslipToWorkerProfileDraft(minimalParsed({ fullName: "User Sintetico" }))
-    expect(result.notes.some((n) => n.includes("User Sintetico"))).toBe(true)
+    expect(result.warnings.some((n: string) => n.includes("User Sintetico"))).toBe(true)
   })
 })

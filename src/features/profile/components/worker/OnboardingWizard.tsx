@@ -11,6 +11,7 @@ import { ConsentStep } from "./ConsentStep"
 import { ConfirmStep } from "./ConfirmStep"
 import { SummaryStep } from "./SummaryStep"
 import { chooseBasicModeAction, confirmManualProfileAction, confirmPayslipProfileAction } from "@/features/profile/actions/worker-profile-actions"
+import { mapParsedPayslipToWorkerProfileDraft, type DetectedField } from "./payslip-adapter"
 import type { WorkerProfileDraft, ConfirmedWorkerProfileUpdate } from "@/shared/domain/worker"
 import type { ParsedImssTarjeton } from "@/shared/contracts/tarjeton-import"
 
@@ -27,13 +28,29 @@ export function OnboardingWizard({ returnTo, onComplete }: OnboardingWizardProps
   const [consentAccepted, setConsentAccepted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [detectedFields, setDetectedFields] = useState<DetectedField[]>([])
+  const [payWarnings, setPayWarnings] = useState<string[]>([])
+  const [reqConfirmation, setReqConfirmation] = useState<WorkerProfileDraft["confirmedFields"]>([])
+  const [extractionMeta, setExtractionMeta] = useState<{ method: string; confidence?: number; period?: string }>({ method: "native_text" })
   const parsedRef = useRef<ParsedImssTarjeton | null>(null)
-  const fileRef = useRef<File | null>(null)
+
+  const resetPayslip = useCallback(() => {
+    parsedRef.current = null
+    setDetectedFields([])
+    setPayWarnings([])
+    setReqConfirmation([])
+    setExtractionMeta({ method: "native_text" })
+  }, [])
 
   const goNext = useCallback(() => setStep((s) => s + 1), [])
   const goBack = useCallback(() => setStep((s) => Math.max(1, s - 1)), [])
-  const handlePayslipParsed = useCallback((d: WorkerProfileDraft, parsed: ParsedImssTarjeton) => {
-    setDraft(d)
+  const handlePayslipParsed = useCallback((_d: WorkerProfileDraft, parsed: ParsedImssTarjeton) => {
+    const result = mapParsedPayslipToWorkerProfileDraft(parsed)
+    setDraft(result.draft)
+    setDetectedFields(result.detectedFields)
+    setPayWarnings(result.warnings)
+    setReqConfirmation(result.requiresConfirmation)
+    setExtractionMeta(result.extraction)
     parsedRef.current = parsed
     setStep((s) => s + 1)
   }, [])
@@ -139,6 +156,10 @@ export function OnboardingWizard({ returnTo, onComplete }: OnboardingWizardProps
         <ReviewStep
           draft={draft}
           method={chosenMethod ?? "manual"}
+          detectedFields={detectedFields}
+          requiresConfirmation={reqConfirmation}
+          warnings={payWarnings}
+          onDraftChange={setDraft}
           onEdit={() => setStep(chosenMethod === "payslip" ? 4 : 4)}
           onContinue={goNext}
           onBack={goBack}
@@ -177,8 +198,7 @@ export function OnboardingWizard({ returnTo, onComplete }: OnboardingWizardProps
                 }
                 const result = await confirmPayslipProfileAction(update)
                 if (result.ok) {
-                  parsedRef.current = null
-                  fileRef.current = null
+                  resetPayslip()
                   goNext()
                 } else setError(result.message)
               } else {
