@@ -33,12 +33,8 @@ vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }))
 
 import {
   confirmPayslipProfileAction,
-  confirmManualProfileAction,
-  chooseBasicModeAction,
-  grantWorkerConsentAction,
 } from "@/features/profile/actions/worker-profile-actions"
 import { buildConfirmedPayslipProfileUpdate } from "../build-payslip-update"
-import type { ConfirmedWorkerProfileUpdate } from "@/shared/domain/worker"
 import { WorkerProfileUnauthorizedError } from "@/shared/server/worker-profile/errors"
 
 describe("confirmPayslipProfileAction metadata", () => {
