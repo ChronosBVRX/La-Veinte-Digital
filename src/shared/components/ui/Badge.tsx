@@ -2,17 +2,32 @@ import type { ReactNode, CSSProperties } from "react"
 
 interface BadgeProps {
   children: ReactNode
-  variant?: "default" | "success" | "warning" | "error" | "info"
+  variant?:
+    | "default"
+    | "neutral"
+    | "success"
+    | "warning"
+    | "error"
+    | "info"
+    | "work"
+    | "tools"
+    | "assistance"
+    | "community"
   size?: "sm" | "md"
   style?: CSSProperties
 }
 
 const variantStyles: Record<string, CSSProperties> = {
   default: { background: "var(--accent)", color: "var(--muted)" },
+  neutral: { background: "var(--accent)", color: "var(--muted)" },
   success: { background: "#f0fdf4", color: "var(--success)" },
   warning: { background: "#fffbeb", color: "var(--warning)" },
   error: { background: "#fef2f2", color: "var(--error)" },
   info: { background: "#eff6ff", color: "var(--info)" },
+  work: { background: "color-mix(in srgb, var(--area-work) 12%, transparent)", color: "var(--area-work)" },
+  tools: { background: "color-mix(in srgb, var(--area-tools) 12%, transparent)", color: "var(--area-tools)" },
+  assistance: { background: "color-mix(in srgb, var(--area-assistance) 12%, transparent)", color: "var(--area-assistance)" },
+  community: { background: "color-mix(in srgb, var(--area-community) 12%, transparent)", color: "var(--area-community)" },
 }
 
 export function Badge({ children, variant = "default", size = "sm", style }: BadgeProps) {
