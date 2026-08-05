@@ -626,6 +626,7 @@ export type Database = {
       }
       payroll_contexts: {
         Row: {
+          adscripcion: string | null
           category_code: string | null
           category_id: string | null
           category_name: string | null
@@ -634,15 +635,25 @@ export type Database = {
           consent_version: string | null
           effective_seniority_date: string | null
           employment_type: string | null
+          matricula: string | null
           occupational_conditions: Json
           payroll_facts: Json
           recurring_concepts: Json
+          shift: string | null
           siap_concept_marks: Json
+          source_adscripcion: string | null
+          source_category_name: string | null
+          source_effective_seniority_date: string | null
+          source_employment_type: string | null
+          source_matricula: string | null
+          source_shift: string | null
+          source_workday_hours: string | null
           updated_at: string
           user_id: string
           workday_hours: number | null
         }
         Insert: {
+          adscripcion?: string | null
           category_code?: string | null
           category_id?: string | null
           category_name?: string | null
@@ -651,15 +662,25 @@ export type Database = {
           consent_version?: string | null
           effective_seniority_date?: string | null
           employment_type?: string | null
+          matricula?: string | null
           occupational_conditions?: Json
           payroll_facts?: Json
           recurring_concepts?: Json
+          shift?: string | null
           siap_concept_marks?: Json
+          source_adscripcion?: string | null
+          source_category_name?: string | null
+          source_effective_seniority_date?: string | null
+          source_employment_type?: string | null
+          source_matricula?: string | null
+          source_shift?: string | null
+          source_workday_hours?: string | null
           updated_at?: string
           user_id: string
           workday_hours?: number | null
         }
         Update: {
+          adscripcion?: string | null
           category_code?: string | null
           category_id?: string | null
           category_name?: string | null
@@ -668,10 +689,19 @@ export type Database = {
           consent_version?: string | null
           effective_seniority_date?: string | null
           employment_type?: string | null
+          matricula?: string | null
           occupational_conditions?: Json
           payroll_facts?: Json
           recurring_concepts?: Json
+          shift?: string | null
           siap_concept_marks?: Json
+          source_adscripcion?: string | null
+          source_category_name?: string | null
+          source_effective_seniority_date?: string | null
+          source_employment_type?: string | null
+          source_matricula?: string | null
+          source_shift?: string | null
+          source_workday_hours?: string | null
           updated_at?: string
           user_id?: string
           workday_hours?: number | null
@@ -1026,6 +1056,135 @@ export type Database = {
           },
         ]
       }
+      worker_consents: {
+        Row: {
+          accepted_at: string
+          accepted_source: string
+          created_at: string
+          id: string
+          purpose: string
+          revoked_at: string | null
+          user_id: string
+          version: string
+        }
+        Insert: {
+          accepted_at?: string
+          accepted_source: string
+          created_at?: string
+          id?: string
+          purpose: string
+          revoked_at?: string | null
+          user_id: string
+          version: string
+        }
+        Update: {
+          accepted_at?: string
+          accepted_source?: string
+          created_at?: string
+          id?: string
+          purpose?: string
+          revoked_at?: string | null
+          user_id?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worker_consents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "limited_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worker_consents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      worker_data_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: number
+          metadata: Json
+          priority: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: never
+          metadata?: Json
+          priority: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: never
+          metadata?: Json
+          priority?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worker_data_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "limited_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worker_data_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      worker_preferences: {
+        Row: {
+          created_at: string
+          onboarding_state: string
+          preferred_worker_mode: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          onboarding_state: string
+          preferred_worker_mode?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          onboarding_state?: string
+          preferred_worker_mode?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worker_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "limited_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worker_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       limited_profiles: {
@@ -1048,6 +1207,20 @@ export type Database = {
       }
     }
     Functions: {
+      backfill_worker_profile: {
+        Args: never
+        Returns: {
+          conflicts_mismatch: number
+          conflicts_unparseable: number
+          contexts_filled: number
+          preferences_created: number
+        }[]
+      }
+      change_worker_profile_mode: {
+        Args: { p_new_mode: string }
+        Returns: undefined
+      }
+      choose_basic_mode: { Args: never; Returns: undefined }
       confirm_imported_payslip: {
         Args: {
           p_acknowledge_total_difference: boolean
@@ -1058,12 +1231,38 @@ export type Database = {
         }
         Returns: Json
       }
+      confirm_manual_worker_profile: {
+        Args: {
+          p_consent_version: string
+          p_identity: Json
+          p_situation: Json
+          p_sources: Json
+        }
+        Returns: undefined
+      }
+      confirm_payslip_worker_profile: {
+        Args: {
+          p_confidence?: number
+          p_consent_version: string
+          p_extraction_method?: string
+          p_period?: string
+          p_profile_updates: Json
+        }
+        Returns: undefined
+      }
+      delete_worker_data: { Args: never; Returns: undefined }
       ensure_profile_exists: { Args: never; Returns: boolean }
       erase_user_payroll_data: { Args: never; Returns: undefined }
+      get_effective_consent: { Args: { p_purpose: string }; Returns: Json }
+      grant_worker_consent: {
+        Args: { p_purpose: string; p_version: string }
+        Returns: undefined
+      }
       increment_api_usage: {
         Args: { p_limit: number; p_route: string; p_user: string }
         Returns: boolean
       }
+      revoke_worker_consent: { Args: { p_purpose: string }; Returns: undefined }
       search_catalogo: {
         Args: { catalogo_type: string; search_term: string }
         Returns: {
@@ -1073,6 +1272,14 @@ export type Database = {
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       unaccent: { Args: { "": string }; Returns: string }
+      _insert_worker_event: {
+        Args: {
+          p_event_type: string
+          p_metadata?: Json
+          p_priority: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
