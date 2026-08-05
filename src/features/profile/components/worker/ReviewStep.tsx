@@ -2,15 +2,26 @@
 import { Button } from "@/shared/components/ui/Button"
 import type { WorkerProfileDraft } from "@/shared/domain/worker"
 
-function sourceLabel(): string { return "Capturado manualmente" }
+interface ReviewStepProps {
+  draft: WorkerProfileDraft
+  method: "manual" | "payslip"
+  onEdit: () => void
+  onContinue: () => void
+  onBack: () => void
+}
 
-export function ReviewStep({ draft, onEdit, onContinue, onBack }: { draft: WorkerProfileDraft; onEdit: () => void; onContinue: () => void; onBack: () => void }) {
+export function ReviewStep({ draft, method, onEdit, onContinue, onBack }: ReviewStepProps) {
+  const sourceLabel = method === "payslip" ? "Detectado desde tarjetón" : "Capturado manualmente"
+  const sourceIcon = method === "payslip" ? "📄" : "✏"
+
   const fields = [
     { label: "Categoría", value: draft.identity.categoria },
     { label: "Antigüedad", value: draft.situation.effectiveSeniorityDate },
     { label: "Jornada", value: draft.situation.workdayHours ? `${draft.situation.workdayHours}h` : null },
     { label: "Adscripción", value: draft.identity.adscripcion },
     { label: "Matrícula", value: draft.identity.matricula },
+    { label: "Turno", value: draft.situation.shift },
+    { label: "Tipo de contratación", value: draft.situation.employmentType },
   ].filter((f) => f.value)
 
   return (
@@ -20,7 +31,7 @@ export function ReviewStep({ draft, onEdit, onContinue, onBack }: { draft: Worke
         <div key={f.label} style={{ padding: "0.625rem", background: "var(--accent)", borderRadius: "var(--radius)" }}>
           <div style={{ fontWeight: 600, fontSize: "0.875rem" }}>{f.label}</div>
           <div style={{ fontSize: "0.9375rem" }}>{f.value}</div>
-          <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>✏ {sourceLabel()}</div>
+          <div style={{ fontSize: "0.75rem", color: method === "payslip" ? "#16a34a" : "var(--muted)" }}>{sourceIcon} {sourceLabel}</div>
         </div>
       ))}
       {fields.length === 0 && <p style={{ color: "var(--muted)" }}>No se detectaron datos para revisar.</p>}
