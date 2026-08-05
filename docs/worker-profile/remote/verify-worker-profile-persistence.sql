@@ -91,12 +91,50 @@ declare v_exec boolean;
 begin
   select coalesce(has_function_privilege('authenticated', 'public.choose_basic_mode()', 'EXECUTE'), false) into v_exec;
   if not v_exec then raise exception 'verify failed: choose_basic_mode not executable by authenticated'; end if;
+  select coalesce(has_function_privilege('authenticated', 'public.confirm_manual_worker_profile(jsonb, jsonb, jsonb, text)', 'EXECUTE'), false) into v_exec;
+  if not v_exec then raise exception 'verify failed: confirm_manual_worker_profile'; end if;
+  select coalesce(has_function_privilege('authenticated', 'public.confirm_payslip_worker_profile(jsonb, text, text, numeric, text)', 'EXECUTE'), false) into v_exec;
+  if not v_exec then raise exception 'verify failed: confirm_payslip_worker_profile'; end if;
+  select coalesce(has_function_privilege('authenticated', 'public.change_worker_profile_mode(text)', 'EXECUTE'), false) into v_exec;
+  if not v_exec then raise exception 'verify failed: change_worker_profile_mode'; end if;
   select coalesce(has_function_privilege('authenticated', 'public.delete_worker_data()', 'EXECUTE'), false) into v_exec;
-  if not v_exec then raise exception 'verify failed: delete_worker_data not executable by authenticated'; end if;
+  if not v_exec then raise exception 'verify failed: delete_worker_data'; end if;
   select coalesce(has_function_privilege('authenticated', 'public.grant_worker_consent(text, text)', 'EXECUTE'), false) into v_exec;
-  if not v_exec then raise exception 'verify failed: grant_worker_consent not executable by authenticated'; end if;
+  if not v_exec then raise exception 'verify failed: grant_worker_consent'; end if;
+  select coalesce(has_function_privilege('authenticated', 'public.revoke_worker_consent(text)', 'EXECUTE'), false) into v_exec;
+  if not v_exec then raise exception 'verify failed: revoke_worker_consent'; end if;
   select coalesce(has_function_privilege('authenticated', 'public.get_effective_consent(text)', 'EXECUTE'), false) into v_exec;
-  if not v_exec then raise exception 'verify failed: get_effective_consent not executable by authenticated'; end if;
+  if not v_exec then raise exception 'verify failed: get_effective_consent'; end if;
+end
+$$;
+
+-- 7b. Verificar firmas (patrón de tipos)
+do $$
+begin
+  if not exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='confirm_manual_worker_profile' and pg_get_function_identity_arguments(p.oid) ~ 'jsonb.*jsonb.*jsonb.*text') then
+    raise exception 'verify failed: confirm_manual_worker_profile signature';
+  end if;
+  if not exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='confirm_payslip_worker_profile' and pg_get_function_identity_arguments(p.oid) ~ 'jsonb.*text.*text.*numeric.*text') then
+    raise exception 'verify failed: confirm_payslip_worker_profile signature';
+  end if;
+  if not exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='_insert_worker_event' and pg_get_function_identity_arguments(p.oid) ~ 'text.*text.*jsonb') then
+    raise exception 'verify failed: _insert_worker_event signature';
+  end if;
+end
+$$;
+
+-- 7c. SECURITY DEFINER en todas las RPCs
+do $$
+declare v_missing text;
+begin
+  select string_agg(p.proname, ', ') into v_missing
+    from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+   where n.nspname='public'
+     and p.proname in ('choose_basic_mode','confirm_manual_worker_profile','confirm_payslip_worker_profile','change_worker_profile_mode','delete_worker_data','grant_worker_consent','revoke_worker_consent','get_effective_consent','_insert_worker_event','backfill_worker_profile')
+     and p.prosecdef is distinct from true;
+  if v_missing is not null then
+    raise exception 'verify failed: functions not SECURITY DEFINER: %', v_missing;
+  end if;
 end
 $$;
 
