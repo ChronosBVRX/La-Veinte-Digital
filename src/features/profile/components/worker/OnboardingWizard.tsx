@@ -187,7 +187,12 @@ export function OnboardingWizard({ returnTo, onComplete }: OnboardingWizardProps
             try {
               if (chosenMethod === "payslip") {
                 const update = buildConfirmedPayslipProfileUpdate(draft, extractionMeta, "2026-08-v1")
-                const result = await confirmPayslipProfileAction(update)
+                const result = await confirmPayslipProfileAction(
+                  update,
+                  extractionMeta.method || undefined,
+                  extractionMeta.confidence,
+                  extractionMeta.period,
+                )
                 if (result.ok) {
                   resetPayslip()
                   goNext()

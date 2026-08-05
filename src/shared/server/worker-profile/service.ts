@@ -344,7 +344,10 @@ export class WorkerProfileService {
   }
 
   /** confirm_payslip_worker_profile(...) — update confirmado desde tarjetón. */
-  async confirmPayslipProfile(update: ConfirmedWorkerProfileUpdate): Promise<void> {
+  async confirmPayslipProfile(
+    update: ConfirmedWorkerProfileUpdate,
+    opts?: { extractionMethod?: string; confidence?: number; period?: string },
+  ): Promise<void> {
     const userId = await this.getUserId()
     this.validateConfirmedUpdate(update)
     if (update.mode !== "payslip") {
@@ -365,9 +368,9 @@ export class WorkerProfileService {
     const { error } = await this.client.rpc("confirm_payslip_worker_profile", {
       p_profile_updates: profileUpdates,
       p_consent_version: consentVersion,
-      p_extraction_method: undefined,
-      p_confidence: undefined,
-      p_period: undefined,
+      p_extraction_method: opts?.extractionMethod ?? undefined,
+      p_confidence: opts?.confidence ?? undefined,
+      p_period: opts?.period ?? undefined,
     })
     if (error) throw mapRpcError(error.message, "No se pudo guardar tu perfil laboral.")
     void userId

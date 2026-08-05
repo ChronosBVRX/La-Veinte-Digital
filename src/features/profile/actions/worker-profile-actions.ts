@@ -40,11 +40,16 @@ export async function confirmManualProfileAction(input: ConfirmedWorkerProfileUp
   }
 }
 
-export async function confirmPayslipProfileAction(input: ConfirmedWorkerProfileUpdate): Promise<ActionResult> {
+export async function confirmPayslipProfileAction(
+  profile: ConfirmedWorkerProfileUpdate,
+  extractionMethod?: string,
+  confidence?: number,
+  period?: string,
+): Promise<ActionResult> {
   try {
     const svc = new WorkerProfileService()
-    svc.validateConfirmedUpdate(input)
-    await svc.confirmPayslipProfile(input)
+    svc.validateConfirmedUpdate(profile)
+    await svc.confirmPayslipProfile(profile, { extractionMethod, confidence, period })
     revalidatePath("/profile/mi-informacion-laboral")
     return { ok: true }
   } catch (err) {
