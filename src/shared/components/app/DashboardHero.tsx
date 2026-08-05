@@ -4,48 +4,19 @@ import { Sun, Moon, Clock } from "@phosphor-icons/react"
 
 interface DashboardHeroProps {
   fullName: string | null
+  greeting: string
+  dateLabel: string
 }
 
-const DAY_NAMES = [
-  "domingo",
-  "lunes",
-  "martes",
-  "miércoles",
-  "jueves",
-  "viernes",
-  "sábado",
-]
-
-const MONTH_NAMES = [
-  "enero",
-  "febrero",
-  "marzo",
-  "abril",
-  "mayo",
-  "junio",
-  "julio",
-  "agosto",
-  "septiembre",
-  "octubre",
-  "noviembre",
-  "diciembre",
-]
-
-function getGreeting(): { text: string; Icon: typeof Sun } {
-  const hour = new Date().getHours()
-  if (hour >= 6 && hour < 12) return { text: "Buenos días", Icon: Sun }
-  if (hour >= 12 && hour < 19) return { text: "Buenas tardes", Icon: Clock }
-  return { text: "Buenas noches", Icon: Moon }
+function getGreetingIcon(greeting: string): typeof Sun {
+  if (greeting === "Buenos días") return Sun
+  if (greeting === "Buenas tardes") return Clock
+  return Moon
 }
 
-export function DashboardHero({ fullName }: DashboardHeroProps) {
-  const now = new Date()
-  const dayName = DAY_NAMES[now.getDay()]
-  const day = now.getDate()
-  const month = MONTH_NAMES[now.getMonth()]
-  const year = now.getFullYear()
+export function DashboardHero({ fullName, greeting, dateLabel }: DashboardHeroProps) {
   const firstName = fullName?.split(" ")[0] ?? ""
-  const { text: greeting, Icon } = getGreeting()
+  const Icon = getGreetingIcon(greeting)
 
   return (
     <div
@@ -93,7 +64,7 @@ export function DashboardHero({ fullName }: DashboardHeroProps) {
             textTransform: "capitalize",
           }}
         >
-          {dayName} {day} de {month} de {year}
+          {dateLabel}
         </p>
         <p
           style={{

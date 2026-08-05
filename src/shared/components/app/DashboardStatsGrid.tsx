@@ -104,7 +104,7 @@ export function DashboardStatsGrid({ profile }: DashboardStatsGridProps) {
         }
         subtitle={
           nextPayment
-            ? `Santander y Scotiabank`
+            ? "Fecha programada de pago"
             : undefined
         }
         color="var(--area-work)"
@@ -124,18 +124,18 @@ export function DashboardStatsGrid({ profile }: DashboardStatsGridProps) {
 
       <DashboardStat
         icon={AirplaneTilt}
-        title="Vacaciones"
+        title="Calendario vacacional"
         value={
-          nextVacation
-            ? `Próximo periodo`
-            : "Sin información"
-        }
-        subtitle={
           nextVacation
             ? nextVacation.date.toLocaleDateString("es-MX", {
                 day: "numeric",
                 month: "long",
               })
+            : "Sin información"
+        }
+        subtitle={
+          nextVacation
+            ? "Próxima fecha del calendario"
             : undefined
         }
         color="var(--area-assistance)"
@@ -153,13 +153,6 @@ export function DashboardStatsGrid({ profile }: DashboardStatsGridProps) {
         empty={!hasTarjeton}
       />
 
-      <style>{`
-        @media (max-width: 480px) {
-          .dashboard-stats-grid-inner {
-            grid-template-columns: 1fr 1fr !important;
-          }
-        }
-      `}</style>
     </div>
   )
 }

@@ -21,9 +21,31 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single()
 
+  const now = new Date()
+
+  const dateLabel = new Intl.DateTimeFormat("es-MX", {
+    timeZone: "America/Mexico_City",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(now)
+
+  const hour = now.getHours()
+  const greeting =
+    hour >= 6 && hour < 12
+      ? "Buenos días"
+      : hour >= 12 && hour < 19
+      ? "Buenas tardes"
+      : "Buenas noches"
+
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
-      <DashboardHero fullName={profile?.full_name ?? null} />
+      <DashboardHero
+        fullName={profile?.full_name ?? null}
+        greeting={greeting}
+        dateLabel={dateLabel}
+      />
 
       <DashboardStatsGrid
         profile={{ antiguedad: profile?.antiguedad ?? null }}
