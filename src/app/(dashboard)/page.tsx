@@ -1,10 +1,14 @@
 import { createClient } from "@/lib/supabase/server"
-import Link from "next/link"
 import { redirect } from "next/navigation"
-import { FileText, User, ArrowRight, Shield, Globe, BarChart3, Calendar } from "lucide-react"
+import { Shield, Globe, ArrowRight } from "lucide-react"
+import Link from "next/link"
 import { FacebookFeeds } from "@/features/facebook/components/FacebookFeeds"
 import { CalendarioMensual } from "@/features/calendario/components/CalendarioMensual"
 import { TodayCard } from "@/shared/components/layout/TodayCard"
+import { DashboardHero } from "@/shared/components/app/DashboardHero"
+import { DashboardStatsGrid } from "@/shared/components/app/DashboardStatsGrid"
+import { QuickActionsGrid } from "@/shared/components/app/QuickActionsGrid"
+import { DashboardSection } from "@/shared/components/app/DashboardSection"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -17,104 +21,165 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single()
 
+  const now = new Date()
+
+  const dateLabel = new Intl.DateTimeFormat("es-MX", {
+    timeZone: "America/Mexico_City",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(now)
+
+  const hour = now.getHours()
+  const greeting =
+    hour >= 6 && hour < 12
+      ? "Buenos días"
+      : hour >= 12 && hour < 19
+      ? "Buenas tardes"
+      : "Buenas noches"
+
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
-      <div style={{
-        marginBottom: "2rem", display: "flex", alignItems: "center",
-        justifyContent: "space-between", flexWrap: "wrap", gap: "1rem",
-      }}>
-        <div>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>
-            Bienvenido{profile?.full_name ? `, ${profile.full_name.split(" ")[0]}` : ""}
-          </h1>
-          <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0.25rem 0 0" }}>
-            Panel principal &middot; La Veinte Digital
-          </p>
-        </div>
-        <Link
-          href="/profile"
+      <DashboardHero
+        fullName={profile?.full_name ?? null}
+        greeting={greeting}
+        dateLabel={dateLabel}
+      />
+
+      <DashboardStatsGrid
+        profile={{ antiguedad: profile?.antiguedad ?? null }}
+      />
+
+      <QuickActionsGrid />
+
+      <DashboardSection title="Mi d&iacute;a laboral">
+        <TodayCard
+          profile={{
+            id: profile?.id,
+            adscripcion: profile?.adscripcion ?? null,
+            categoria: profile?.categoria ?? null,
+            antiguedad: profile?.antiguedad ?? null,
+          }}
+        />
+      </DashboardSection>
+
+      <DashboardSection title="Calendario y datos">
+        <div
+          className="dashboard-content-grid"
           style={{
-            display: "inline-flex", alignItems: "center", gap: "0.375rem",
-            padding: "0.5rem 1rem", borderRadius: "var(--radius)",
-            background: "var(--accent)", border: "1px solid var(--border)",
-            textDecoration: "none", color: "var(--fg)", fontSize: "0.875rem",
-            fontWeight: 500, transition: "all var(--transition)",
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "1rem",
           }}
         >
-          <User size={16} />
-          Mi Perfil
-          <ArrowRight size={14} />
-        </Link>
-      </div>
+          <CalendarioMensual />
 
-      <div style={{ marginBottom: "1.5rem" }}>
-        <TodayCard profile={{
-          id: profile?.id,
-          adscripcion: profile?.adscripcion ?? null,
-          categoria: profile?.categoria ?? null,
-          antiguedad: profile?.antiguedad ?? null,
-        }} />
-      </div>
-
-      <div className="dashboard-grid" style={{
-        display: "grid", gridTemplateColumns: "1fr 1fr",
-        gap: "1rem", marginBottom: "1.5rem",
-      }}>
-        <CalendarioMensual />
-
-        <div style={{
-          background: "var(--card)", border: "1px solid var(--border)",
-          borderRadius: "var(--radius-lg)", padding: "1.25rem",
-        }}>
-          <h2 style={{ fontSize: "0.9375rem", fontWeight: 600, margin: "0 0 0.75rem", color: "var(--muted)" }}>
-            <Shield size={14} style={{ marginRight: "0.375rem", verticalAlign: "middle", color: "var(--primary)" }} />
-            Mi informaci&oacute;n
-          </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.375rem 0.75rem", fontSize: "0.8125rem" }}>
-            <span style={{ color: "var(--muted)" }}>Email:</span>
-            <span>{user.email}</span>
-            {profile?.matricula && (
-              <><span style={{ color: "var(--muted)" }}>Matr&iacute;cula:</span><span>{profile.matricula}</span></>
-            )}
-            {profile?.adscripcion && (
-              <><span style={{ color: "var(--muted)" }}>Adscripci&oacute;n:</span><span>{profile.adscripcion}</span></>
-            )}
-            {profile?.categoria && (
-              <><span style={{ color: "var(--muted)" }}>Categor&iacute;a:</span><span>{profile.categoria}</span></>
-            )}
-          </div>
-          <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8125rem" }}>
-              <FileText size={14} style={{ color: "var(--primary)" }} />
-              <Link href="/escritos" style={{ color: "var(--primary)", textDecoration: "none" }}>Ir a Generar Escritos</Link>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8125rem" }}>
-              <BarChart3 size={14} style={{ color: "var(--primary)" }} />
-              <Link href="/nomina" style={{ color: "var(--primary)", textDecoration: "none" }}>Ir a Proyecci&oacute;n de N&oacute;mina</Link>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8125rem" }}>
-              <Calendar size={14} style={{ color: "var(--primary)" }} />
-              <Link href="/calendario" style={{ color: "var(--primary)", textDecoration: "none" }}>Ver Calendario</Link>
+          <div
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-lg)",
+              padding: "1.25rem",
+            }}
+          >
+            <h3
+              style={{
+                fontSize: "0.8125rem",
+                fontWeight: 600,
+                margin: "0 0 0.75rem",
+                color: "var(--muted)",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.375rem",
+              }}
+            >
+              <Shield size={14} style={{ color: "var(--primary)" }} />
+              Mi informaci&oacute;n
+            </h3>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "auto 1fr",
+                gap: "0.375rem 0.75rem",
+                fontSize: "0.8125rem",
+              }}
+            >
+              <span style={{ color: "var(--muted)" }}>Email:</span>
+              <span>{user.email}</span>
+              {profile?.matricula && (
+                <>
+                  <span style={{ color: "var(--muted)" }}>Matr&iacute;cula:</span>
+                  <span>{profile.matricula}</span>
+                </>
+              )}
+              {profile?.adscripcion && (
+                <>
+                  <span style={{ color: "var(--muted)" }}>Adscripci&oacute;n:</span>
+                  <span>{profile.adscripcion}</span>
+                </>
+              )}
+              {profile?.categoria && (
+                <>
+                  <span style={{ color: "var(--muted)" }}>Categor&iacute;a:</span>
+                  <span>{profile.categoria}</span>
+                </>
+              )}
             </div>
           </div>
         </div>
+      </DashboardSection>
 
-      </div>
-
-      <div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
-          <Globe size={18} style={{ color: "#1877F2" }} />
-          <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: 0 }}>Facebook SNTSS</h2>
-          <Link href="/facebook" style={{ marginLeft: "auto", fontSize: "0.8125rem", color: "var(--primary)", textDecoration: "none" }}>
-            Ver completo
+      <DashboardSection title="">
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "0.5rem",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <Globe size={16} style={{ color: "#1877F2" }} />
+            <span
+              style={{
+                fontSize: "0.8125rem",
+                fontWeight: 600,
+                color: "var(--muted)",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+              }}
+            >
+              Noticias de la Secci&oacute;n XX
+            </span>
+          </div>
+          <Link
+            href="/facebook"
+            style={{
+              fontSize: "0.75rem",
+              color: "var(--primary)",
+              textDecoration: "none",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.25rem",
+            }}
+          >
+            Ver feed completo
+            <ArrowRight size={12} />
           </Link>
         </div>
         <FacebookFeeds compact />
-      </div>
+      </DashboardSection>
 
       <style>{`
         @media (max-width: 640px) {
-          .dashboard-grid {
+          .dashboard-content-grid {
             grid-template-columns: 1fr !important;
           }
         }
