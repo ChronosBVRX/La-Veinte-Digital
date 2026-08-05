@@ -1,19 +1,22 @@
 "use client"
 
-import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react"
+import type { CSSProperties, ReactNode } from "react"
+import Link from "next/link"
 import { cn } from "@/shared/lib/ui/cn"
 
 type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger"
 type ButtonSize = "sm" | "md" | "lg"
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ActionLinkProps {
+  href: string
   variant?: ButtonVariant
   size?: ButtonSize
-  loading?: boolean
   fullWidth?: boolean
   leadingIcon?: ReactNode
   trailingIcon?: ReactNode
   children: ReactNode
+  className?: string
+  style?: CSSProperties
 }
 
 const sizeStyles: Record<ButtonSize, CSSProperties> = {
@@ -37,22 +40,17 @@ function variantBase(v: ButtonVariant): CSSProperties {
   }
 }
 
-export function Button({
+export function ActionLink({
+  href,
   variant = "primary",
   size = "md",
-  loading,
   fullWidth,
   leadingIcon,
   trailingIcon,
   children,
-  style,
   className,
-  disabled,
-  type,
-  ...props
-}: ButtonProps) {
-  const isDisabled = disabled || loading
-
+  style,
+}: ActionLinkProps) {
   const base: CSSProperties = {
     display: "inline-flex",
     alignItems: "center",
@@ -61,8 +59,7 @@ export function Button({
     border: "1px solid transparent",
     borderRadius: "var(--radius)",
     fontWeight: 600,
-    cursor: isDisabled ? "not-allowed" : "pointer",
-    opacity: isDisabled ? 0.6 : 1,
+    cursor: "pointer",
     transition: "all var(--transition)",
     textDecoration: "none",
     whiteSpace: "nowrap",
@@ -73,28 +70,10 @@ export function Button({
   }
 
   return (
-    <button
-      type={type ?? "button"}
-      className={cn(className)}
-      style={base}
-      disabled={isDisabled}
-      {...props}
-    >
-      {loading && (
-        <span aria-hidden="true" style={{
-          width: size === "sm" ? 12 : 16,
-          height: size === "sm" ? 12 : 16,
-          borderRadius: "50%",
-          border: "2px solid currentColor",
-          borderTopColor: "transparent",
-          animation: "spin 0.6s linear infinite",
-          display: "inline-block",
-          flexShrink: 0,
-        }} />
-      )}
+    <Link href={href} className={cn(className)} style={base}>
       {leadingIcon}
       {children}
       {trailingIcon}
-    </button>
+    </Link>
   )
 }

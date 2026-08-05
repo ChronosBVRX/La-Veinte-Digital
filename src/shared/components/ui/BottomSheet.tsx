@@ -1,56 +1,37 @@
 "use client"
 
-import { useEffect, useId, useRef, useSyncExternalStore } from "react"
+import { useEffect, useId, useRef } from "react"
 import { X } from "@phosphor-icons/react"
 import type { CSSProperties, ReactNode } from "react"
 
-interface ModalProps {
+interface BottomSheetProps {
   open: boolean
   onClose: () => void
   title?: ReactNode
   children?: ReactNode
-  size?: "sm" | "md" | "lg" | "full"
-  style?: CSSProperties
-  footer?: ReactNode
-  closeOnOverlay?: boolean
-  description?: string
+  height?: "auto" | "medium" | "large"
 }
 
-const sizeMap: Record<string, string> = {
-  sm: "400px",
-  md: "560px",
-  lg: "720px",
-  full: "96%",
+const heightMap: Record<string, CSSProperties["maxHeight"]> = {
+  auto: undefined,
+  medium: "50dvh",
+  large: "85dvh",
 }
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
-export function Modal({
+export function BottomSheet({
   open,
   onClose,
   title,
   children,
-  size = "md",
-  style,
-  footer,
-  closeOnOverlay = true,
-  description,
-}: ModalProps) {
+  height = "auto",
+}: BottomSheetProps) {
   const titleId = useId()
-  const descId = useId()
   const overlayRef = useRef<HTMLDivElement>(null)
-  const dialogRef = useRef<HTMLDivElement>(null)
+  const sheetRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
-
-  const isMobile = useSyncExternalStore(
-    (onStoreChange) => {
-      const mql = window.matchMedia("(max-width: 768px)")
-      mql.addEventListener("change", onStoreChange)
-      return () => mql.removeEventListener("change", onStoreChange)
-    },
-    () => window.matchMedia("(max-width: 768px)").matches
-  )
 
   useEffect(() => {
     if (!open) return
@@ -58,12 +39,12 @@ export function Modal({
     previousFocusRef.current = document.activeElement as HTMLElement
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && closeOnOverlay) {
+      if (e.key === "Escape") {
         onClose()
         return
       }
-      if (e.key === "Tab" && dialogRef.current) {
-        const focusable = dialogRef.current.querySelectorAll(FOCUSABLE)
+      if (e.key === "Tab" && sheetRef.current) {
+        const focusable = sheetRef.current.querySelectorAll(FOCUSABLE)
         const first = focusable[0] as HTMLElement | undefined
         const last = focusable[focusable.length - 1] as HTMLElement | undefined
         if (!first || !last) return
@@ -85,8 +66,8 @@ export function Modal({
     document.body.style.overflow = "hidden"
 
     requestAnimationFrame(() => {
-      if (dialogRef.current) {
-        const firstFocusable = dialogRef.current.querySelector(FOCUSABLE) as HTMLElement | null
+      if (sheetRef.current) {
+        const firstFocusable = sheetRef.current.querySelector(FOCUSABLE) as HTMLElement | null
         firstFocusable?.focus()
       }
     })
@@ -95,7 +76,7 @@ export function Modal({
       document.removeEventListener("keydown", onKeyDown)
       document.body.style.overflow = ""
     }
-  }, [open, onClose, closeOnOverlay])
+  }, [open, onClose])
 
   useEffect(() => {
     if (!open && previousFocusRef.current) {
@@ -108,10 +89,8 @@ export function Modal({
   if (!open) return null
 
   const overlayClick = (e: React.MouseEvent) => {
-    if (e.target === overlayRef.current && closeOnOverlay) onClose()
+    if (e.target === overlayRef.current) onClose()
   }
-
-  const isDesktop = !isMobile
 
   return (
     <div
@@ -123,47 +102,63 @@ export function Modal({
         zIndex: 1000,
         background: "rgba(0,0,0,0.4)",
         display: "flex",
-        alignItems: isDesktop ? "center" : "flex-end",
+        alignItems: "flex-end",
         justifyContent: "center",
-        padding: isDesktop ? "1rem" : 0,
       }}
     >
       <div
-        ref={dialogRef}
+        ref={sheetRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={description ? descId : undefined}
-        className={isDesktop ? "animate-scale-in" : "animate-slide-up"}
+        aria-labelledby={title ? titleId : undefined}
+        className="animate-slide-up"
         style={{
           background: "var(--card)",
-          borderRadius: isDesktop
-            ? "var(--radius-lg)"
-            : "var(--radius-lg) var(--radius-lg) 0 0",
+          borderRadius: "var(--radius-lg) var(--radius-lg) 0 0",
           boxShadow: "var(--shadow-lg)",
-          width: isDesktop ? undefined : "100%",
-          maxWidth: isDesktop ? sizeMap[size] : undefined,
-          maxHeight: isDesktop ? "90dvh" : "85dvh",
+          width: "100%",
+          maxWidth: 600,
+          maxHeight: heightMap[height],
           overflow: "auto",
           display: "flex",
           flexDirection: "column",
-          paddingBottom: isDesktop ? undefined : "env(safe-area-inset-bottom)",
-          ...style,
+          paddingBottom: "env(safe-area-inset-bottom)",
         }}
       >
         <div
           style={{
             display: "flex",
+            justifyContent: "center",
+            paddingTop: "0.5rem",
+            paddingBottom: "0.25rem",
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              width: 36,
+              height: 4,
+              borderRadius: 2,
+              background: "var(--border)",
+            }}
+          />
+        </div>
+        <div
+          style={{
+            display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "1rem 1.25rem",
-            borderBottom: "1px solid var(--border)",
+            padding: "0.5rem 1.25rem 0.75rem",
             flexShrink: 0,
           }}
         >
           <h2
-            id={titleId}
-            style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}
+            id={title ? titleId : undefined}
+            style={{
+              fontSize: "1rem",
+              fontWeight: 700,
+              margin: 0,
+            }}
           >
             {title ?? ""}
           </h2>
@@ -181,42 +176,16 @@ export function Modal({
               cursor: "pointer",
               color: "var(--muted)",
               transition: "background var(--transition)",
+              flexShrink: 0,
             }}
             aria-label="Cerrar"
           >
             <X size={16} />
           </button>
         </div>
-        {description && (
-          <p
-            id={descId}
-            style={{
-              margin: 0,
-              padding: "0.75rem 1.25rem 0",
-              fontSize: "var(--text-sm)",
-              color: "var(--muted)",
-            }}
-          >
-            {description}
-          </p>
-        )}
         {children && (
-          <div style={{ padding: "1.25rem", flex: 1, minHeight: 0 }}>
+          <div style={{ padding: "0 1.25rem 1.25rem", flex: 1, minHeight: 0 }}>
             {children}
-          </div>
-        )}
-        {footer && (
-          <div
-            style={{
-              padding: "1rem 1.25rem",
-              borderTop: "1px solid var(--border)",
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: "0.5rem",
-              flexShrink: 0,
-            }}
-          >
-            {footer}
           </div>
         )}
       </div>
