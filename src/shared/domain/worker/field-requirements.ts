@@ -116,3 +116,6 @@ export const FIELD_REQUIREMENTS: readonly FieldRequirement[] = [
     impactIfMissing: "No impide cálculos; aparece vacía en los escritos.",
   },
 ]
+
+/** Versión actual del aviso de privacidad laboral. No duplicar en otros archivos. */
+export const WORKER_PRIVACY_NOTICE_VERSION = "2026-08-v1"
