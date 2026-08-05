@@ -93,6 +93,9 @@ describe("social module retirement", () => {
   it.each([
     "src/shared/components/layout/Sidebar.tsx",
     "src/shared/components/layout/BottomNav.tsx",
+    "src/shared/components/app/DesktopSidebar.tsx",
+    "src/shared/components/app/MobileBottomNav.tsx",
+    "src/shared/components/app/navigation.ts",
     "src/app/(auth)/callback/route.ts",
   ])("contains no retired route in %s", (relativePath) => {
     const source = readFileSync(path.resolve(ROOT, relativePath), "utf8")
@@ -112,11 +115,11 @@ describe("social module retirement", () => {
 
   it("uses the required five-item mobile navigation order", () => {
     const source = readFileSync(
-      path.resolve(ROOT, "src/shared/components/layout/BottomNav.tsx"),
+      path.resolve(ROOT, "src/shared/components/app/navigation.ts"),
       "utf8",
     )
-    const hrefs = ["/", "/tarjeton", "/calculadoras", "/asistente", "/profile"]
-    const positions = hrefs.map((href) => source.indexOf(`href: "${href}"`))
+    const keys = ["inicio", "trabajo", "asistente", "herramientas", "mas"]
+    const positions = keys.map((key) => source.indexOf(`key: "${key}"`))
 
     expect(positions.every((position) => position >= 0)).toBe(true)
     expect(positions).toEqual([...positions].sort((a, b) => a - b))
