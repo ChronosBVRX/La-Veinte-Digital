@@ -1,9 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { User, Shield } from "lucide-react"
+import Link from "next/link"
 import { ProfileForm } from "@/features/profile/components/ProfileForm"
 import { BitacoraPanel } from "@/features/bitacora/components/BitacoraPanel"
-import { getAllAdscripciones } from "@/features/catalogo/services/catalogo"
-import prestamosRaw from "@/features/calculators/data/prestamos_categoria.json"
 
 export default async function ProfilePage() {
   const supabase = await createClient()
@@ -11,9 +10,6 @@ export default async function ProfilePage() {
 
   if (!user) return <p>Debes iniciar sesión</p>
 
-  // Los usuarios OAuth (Google/Facebook) recién registrados podrían no tener
-  // fila en profiles si el trigger aún no se ejecutó o es un usuario previo
-  // al trigger. Se garantiza la existencia de forma idempotente.
   await supabase.rpc("ensure_profile_exists")
 
   const { data: profile } = await supabase
@@ -28,23 +24,6 @@ export default async function ProfilePage() {
     .eq("user_id", user.id)
     .order("entry_date", { ascending: false })
     .order("created_at", { ascending: false })
-
-  const adscripciones = await getAllAdscripciones()
-  const adscripcionOptions = adscripciones.map((a) => ({
-    label: a.nombre,
-    value: a.nombre,
-  }))
-
-  const raw = prestamosRaw as { CATEGORIA: string }[]
-  const seen = new Set<string>()
-  const categoriaOptions = raw
-    .map((r) => r.CATEGORIA.trim())
-    .filter((c) => {
-      if (seen.has(c)) return false
-      seen.add(c)
-      return true
-    })
-    .map((c) => ({ label: c, value: c }))
 
   return (
     <div style={{ maxWidth: "700px", margin: "0 auto" }}>
@@ -82,10 +61,17 @@ export default async function ProfilePage() {
                 Información personal
               </span>
             </div>
+            <Link href="/profile/mi-informacion-laboral" style={{
+              display: "flex", alignItems: "center", gap: "0.5rem",
+              padding: "0.75rem 0", cursor: "pointer", textDecoration: "none",
+              fontSize: "0.9375rem", color: "var(--muted)",
+            }}>
+              Datos laborales
+            </Link>
           </div>
         </div>
         <div style={{ padding: "1.5rem" }}>
-          <ProfileForm profile={profile} categoriaOptions={categoriaOptions} adscripcionOptions={adscripcionOptions} />
+          <ProfileForm profile={profile} />
         </div>
       </div>
 
