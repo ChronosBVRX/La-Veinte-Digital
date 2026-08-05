@@ -12,6 +12,7 @@ import { ConfirmStep } from "./ConfirmStep"
 import { SummaryStep } from "./SummaryStep"
 import { chooseBasicModeAction, confirmManualProfileAction, confirmPayslipProfileAction } from "@/features/profile/actions/worker-profile-actions"
 import { mapParsedPayslipToWorkerProfileDraft, type DetectedField } from "./payslip-adapter"
+import { buildConfirmedPayslipProfileUpdate } from "./build-payslip-update"
 import type { WorkerProfileDraft, ConfirmedWorkerProfileUpdate } from "@/shared/domain/worker"
 import type { ParsedImssTarjeton } from "@/shared/contracts/tarjeton-import"
 
@@ -160,7 +161,6 @@ export function OnboardingWizard({ returnTo, onComplete }: OnboardingWizardProps
           requiresConfirmation={reqConfirmation}
           warnings={payWarnings}
           onDraftChange={setDraft}
-          onEdit={() => setStep(chosenMethod === "payslip" ? 4 : 4)}
           onContinue={goNext}
           onBack={goBack}
         />
@@ -186,16 +186,7 @@ export function OnboardingWizard({ returnTo, onComplete }: OnboardingWizardProps
             setError(null)
             try {
               if (chosenMethod === "payslip") {
-                const update: ConfirmedWorkerProfileUpdate = {
-                  mode: "payslip",
-                  sourceOfRequest: "payslip",
-                  identity: { ...draft.identity },
-                  situation: { ...draft.situation },
-                  sources: Object.fromEntries(
-                    draft.confirmedFields.map((f) => [f, "payslip_confirmed"])
-                  ) as ConfirmedWorkerProfileUpdate["sources"],
-                  consentRef: { purpose: "store_tarjeton", version: "2026-08-v1" },
-                }
+                const update = buildConfirmedPayslipProfileUpdate(draft, extractionMeta, "2026-08-v1")
                 const result = await confirmPayslipProfileAction(update)
                 if (result.ok) {
                   resetPayslip()

@@ -6,6 +6,7 @@ import { Input } from "@/shared/components/ui/Input"
 import type { WorkerProfileDraft, WorkerFieldName } from "@/shared/domain/worker"
 import type { DetectedField } from "./payslip-adapter"
 import { FIELD_REQUIREMENTS } from "@/shared/domain/worker"
+import { validateFieldEdit } from "./build-payslip-update"
 
 interface ReviewStepProps {
   draft: WorkerProfileDraft
@@ -16,7 +17,6 @@ interface ReviewStepProps {
   /** Valor anterior del perfil si existe (para mostrar diffs) */
   previousValues?: Partial<Record<WorkerFieldName, string | null>>
   onDraftChange: (d: WorkerProfileDraft) => void
-  onEdit: () => void
   onContinue: () => void
   onBack: () => void
 }
@@ -28,11 +28,12 @@ const FIELD_NAMES: Record<string, string> = {
 }
 
 export function ReviewStep({
-  draft, method, detectedFields, requiresConfirmation, warnings,
-  previousValues, onDraftChange, onEdit, onContinue, onBack,
+  draft,   method, detectedFields, requiresConfirmation, warnings,
+  previousValues, onDraftChange, onContinue, onBack,
 }: ReviewStepProps) {
   const [editingField, setEditingField] = useState<WorkerFieldName | null>(null)
   const [editValue, setEditValue] = useState("")
+  const [editError, setEditError] = useState<string | null>(null)
 
   const sourceLabel = method === "payslip" ? "Detectado desde tarjetón" : "Capturado manualmente"
 
@@ -42,21 +43,19 @@ export function ReviewStep({
     const next = isSelected(f)
       ? draft.confirmedFields.filter((x) => x !== f)
       : [...draft.confirmedFields, f]
-    const updated = { ...draft, confirmedFields: next }
-    if (!next.includes(f)) {
-      if (["matricula", "adscripcion", "categoria"].includes(f)) updated.identity = { ...updated.identity, [f]: null }
-      if (["workdayHours", "shift", "effectiveSeniorityDate", "employmentType"].includes(f)) updated.situation = { ...updated.situation, [f]: null }
-    }
-    onDraftChange(updated)
+    onDraftChange({ ...draft, confirmedFields: next })
   }
 
   const startEdit = (f: WorkerFieldName, value: string | null) => {
     setEditingField(f)
     setEditValue(value ?? "")
+    setEditError(null)
   }
 
   const saveEdit = () => {
     if (!editingField) return
+    const err = validateFieldEdit(editingField, editValue)
+    if (err) { setEditError(err); return }
     const updated = { ...draft }
     const v = editValue.trim() || null
     if (["matricula", "adscripcion", "categoria"].includes(editingField)) {
@@ -67,6 +66,7 @@ export function ReviewStep({
     }
     onDraftChange(updated)
     setEditingField(null)
+    setEditError(null)
   }
 
   const getFieldValue = (f: WorkerFieldName): string | null => {
@@ -108,11 +108,14 @@ export function ReviewStep({
                 <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>{FIELD_NAMES[df.field] ?? df.field}</div>
                 <div style={{ fontSize: "0.9375rem", fontWeight: 600 }}>
                   {editingField === df.field ? (
-                    <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.25rem" }}>
-                      <Input type={df.field === "effectiveSeniorityDate" ? "date" : "text"} value={editValue} onChange={(e) => setEditValue(e.target.value)} />
-                      <Button size="sm" onClick={saveEdit}>Guardar</Button>
-                      <Button size="sm" variant="secondary" onClick={() => setEditingField(null)}>Cancelar</Button>
-                    </div>
+                    <>
+                      <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.25rem" }}>
+                        <Input type={df.field === "effectiveSeniorityDate" ? "date" : "text"} value={editValue} onChange={(e) => setEditValue(e.target.value)} />
+                        <Button size="sm" onClick={saveEdit}>Guardar</Button>
+                        <Button size="sm" variant="secondary" onClick={() => { setEditingField(null); setEditError(null) }}>Cancelar</Button>
+                      </div>
+                      {editError && <p role="alert" style={{ color: "#dc2626", fontSize: "0.75rem", margin: "0.25rem 0 0" }}>{editError}</p>}
+                    </>
                   ) : (
                     <>{getFieldValue(df.field) ?? <span style={{ color: "var(--muted)" }}>—</span>}</>
                   )}
