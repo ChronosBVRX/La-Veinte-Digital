@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useId, useRef, useSyncExternalStore } from "react"
+import { useEffect, useId, useRef } from "react"
 import { X } from "@phosphor-icons/react"
 import type { CSSProperties, ReactNode } from "react"
 
@@ -43,22 +43,13 @@ export function Modal({
   const dialogRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
 
-  const isMobile = useSyncExternalStore(
-    (onStoreChange) => {
-      const mql = window.matchMedia("(max-width: 768px)")
-      mql.addEventListener("change", onStoreChange)
-      return () => mql.removeEventListener("change", onStoreChange)
-    },
-    () => window.matchMedia("(max-width: 768px)").matches
-  )
-
   useEffect(() => {
     if (!open) return
 
     previousFocusRef.current = document.activeElement as HTMLElement
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && closeOnOverlay) {
+      if (e.key === "Escape") {
         onClose()
         return
       }
@@ -95,7 +86,7 @@ export function Modal({
       document.removeEventListener("keydown", onKeyDown)
       document.body.style.overflow = ""
     }
-  }, [open, onClose, closeOnOverlay])
+  }, [open, onClose])
 
   useEffect(() => {
     if (!open && previousFocusRef.current) {
@@ -111,115 +102,128 @@ export function Modal({
     if (e.target === overlayRef.current && closeOnOverlay) onClose()
   }
 
-  const isDesktop = !isMobile
-
   return (
-    <div
-      ref={overlayRef}
-      onClick={overlayClick}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1000,
-        background: "rgba(0,0,0,0.4)",
-        display: "flex",
-        alignItems: isDesktop ? "center" : "flex-end",
-        justifyContent: "center",
-        padding: isDesktop ? "1rem" : 0,
-      }}
-    >
+    <>
       <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={description ? descId : undefined}
-        className={isDesktop ? "animate-scale-in" : "animate-slide-up"}
+        ref={overlayRef}
+        onClick={overlayClick}
+        className="ui-modal-overlay"
         style={{
-          background: "var(--card)",
-          borderRadius: isDesktop
-            ? "var(--radius-lg)"
-            : "var(--radius-lg) var(--radius-lg) 0 0",
-          boxShadow: "var(--shadow-lg)",
-          width: isDesktop ? undefined : "100%",
-          maxWidth: isDesktop ? sizeMap[size] : undefined,
-          maxHeight: isDesktop ? "90dvh" : "85dvh",
-          overflow: "auto",
+          position: "fixed",
+          inset: 0,
+          zIndex: 1000,
+          background: "rgba(0,0,0,0.4)",
           display: "flex",
-          flexDirection: "column",
-          paddingBottom: isDesktop ? undefined : "env(safe-area-inset-bottom)",
-          ...style,
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "1rem",
         }}
       >
         <div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={description ? descId : undefined}
+          className="ui-modal-dialog animate-scale-in"
           style={{
+            background: "var(--card)",
+            borderRadius: "var(--radius-lg)",
+            boxShadow: "var(--shadow-lg)",
+            width: "100%",
+            maxWidth: sizeMap[size],
+            maxHeight: "90dvh",
+            overflow: "auto",
             display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "1rem 1.25rem",
-            borderBottom: "1px solid var(--border)",
-            flexShrink: 0,
+            flexDirection: "column",
+            ...style,
           }}
         >
-          <h2
-            id={titleId}
-            style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}
-          >
-            {title ?? ""}
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              background: "var(--accent)",
-              border: "none",
-              borderRadius: "50%",
-              width: 32,
-              height: 32,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              color: "var(--muted)",
-              transition: "background var(--transition)",
-            }}
-            aria-label="Cerrar"
-          >
-            <X size={16} />
-          </button>
-        </div>
-        {description && (
-          <p
-            id={descId}
-            style={{
-              margin: 0,
-              padding: "0.75rem 1.25rem 0",
-              fontSize: "var(--text-sm)",
-              color: "var(--muted)",
-            }}
-          >
-            {description}
-          </p>
-        )}
-        {children && (
-          <div style={{ padding: "1.25rem", flex: 1, minHeight: 0 }}>
-            {children}
-          </div>
-        )}
-        {footer && (
           <div
             style={{
-              padding: "1rem 1.25rem",
-              borderTop: "1px solid var(--border)",
               display: "flex",
-              justifyContent: "flex-end",
-              gap: "0.5rem",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "1rem 1.25rem",
+              borderBottom: "1px solid var(--border)",
               flexShrink: 0,
             }}
           >
-            {footer}
+            <h2
+              id={titleId}
+              style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}
+            >
+              {title ?? ""}
+            </h2>
+            <button
+              onClick={onClose}
+              style={{
+                background: "var(--accent)",
+                border: "none",
+                borderRadius: "50%",
+                width: 32,
+                height: 32,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                color: "var(--muted)",
+                transition: "background var(--transition)",
+              }}
+              aria-label="Cerrar"
+            >
+              <X size={16} />
+            </button>
           </div>
-        )}
+          {description && (
+            <p
+              id={descId}
+              style={{
+                margin: 0,
+                padding: "0.75rem 1.25rem 0",
+                fontSize: "var(--text-sm)",
+                color: "var(--muted)",
+              }}
+            >
+              {description}
+            </p>
+          )}
+          {children && (
+            <div style={{ padding: "1.25rem", flex: 1, minHeight: 0 }}>
+              {children}
+            </div>
+          )}
+          {footer && (
+            <div
+              style={{
+                padding: "1rem 1.25rem",
+                borderTop: "1px solid var(--border)",
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "0.5rem",
+                flexShrink: 0,
+              }}
+            >
+              {footer}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      <style>{`
+        @media (max-width: 768px) {
+          .ui-modal-overlay {
+            align-items: flex-end !important;
+            padding: 0 !important;
+          }
+          .ui-modal-dialog {
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
+            max-height: 85dvh !important;
+            padding-bottom: env(safe-area-inset-bottom) !important;
+            animation: slideUp 0.25s ease forwards !important;
+          }
+        }
+      `}</style>
+    </>
   )
 }
