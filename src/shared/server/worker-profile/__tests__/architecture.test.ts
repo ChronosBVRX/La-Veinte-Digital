@@ -43,22 +43,23 @@ describe("server-only enforcement", () => {
     expect(fileContains(svc, 'import "server-only"')).toBe(true)
   })
 
-  it("ningún componente 'use client' importa desde worker-profile", () => {
+  it("ningún componente 'use client' en src/app importa el WorkerProfileService", () => {
     const components = scanFiles(resolve(SRC_DIR, "app"), ".tsx")
     for (const c of components) {
       const content = readFileSync(c, "utf8")
       if (content.includes('"use client"') || content.includes("'use client'")) {
-        expect(content).not.toContain("worker-profile")
+        // Solo prohíbe importaciones del servicio server-only, no de acciones ni dominio.
+        expect(content).not.toContain("@/shared/server/worker-profile")
       }
     }
   })
 
-  it("ningún archivo features con 'use client' importa desde worker-profile", () => {
+  it("ningún archivo features con 'use client' importa el WorkerProfileService directamente", () => {
     const featFiles = scanFiles(resolve(SRC_DIR, "features"), ".tsx")
     for (const f of featFiles) {
       const content = readFileSync(f, "utf8")
       if (content.includes('"use client"') || content.includes("'use client'")) {
-        expect(content).not.toContain("worker-profile")
+        expect(content).not.toContain("@/shared/server/worker-profile")
       }
     }
   })
