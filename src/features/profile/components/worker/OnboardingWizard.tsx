@@ -1,16 +1,20 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { WelcomeStep } from "./WelcomeStep"
 import { ModeChoiceStep } from "./ModeChoiceStep"
 import { MethodChoiceStep } from "./MethodChoiceStep"
 import { ManualCaptureStep } from "./ManualCaptureStep"
+import { TarjetonImportStep } from "./TarjetonImportStep"
 import { ReviewStep } from "./ReviewStep"
 import { ConsentStep } from "./ConsentStep"
 import { ConfirmStep } from "./ConfirmStep"
 import { SummaryStep } from "./SummaryStep"
-import { chooseBasicModeAction, confirmManualProfileAction } from "@/features/profile/actions/worker-profile-actions"
+import { chooseBasicModeAction, confirmManualProfileAction, confirmPayslipProfileAction } from "@/features/profile/actions/worker-profile-actions"
+import { mapParsedPayslipToWorkerProfileDraft, type DetectedField } from "./payslip-adapter"
+import { buildConfirmedPayslipProfileUpdate } from "./build-payslip-update"
 import type { WorkerProfileDraft, ConfirmedWorkerProfileUpdate } from "@/shared/domain/worker"
+import type { ParsedImssTarjeton } from "@/shared/contracts/tarjeton-import"
 
 interface OnboardingWizardProps {
   returnTo?: string
@@ -25,9 +29,32 @@ export function OnboardingWizard({ returnTo, onComplete }: OnboardingWizardProps
   const [consentAccepted, setConsentAccepted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [detectedFields, setDetectedFields] = useState<DetectedField[]>([])
+  const [payWarnings, setPayWarnings] = useState<string[]>([])
+  const [reqConfirmation, setReqConfirmation] = useState<WorkerProfileDraft["confirmedFields"]>([])
+  const [extractionMeta, setExtractionMeta] = useState<{ method: string; confidence?: number; period?: string }>({ method: "native_text" })
+  const parsedRef = useRef<ParsedImssTarjeton | null>(null)
+
+  const resetPayslip = useCallback(() => {
+    parsedRef.current = null
+    setDetectedFields([])
+    setPayWarnings([])
+    setReqConfirmation([])
+    setExtractionMeta({ method: "native_text" })
+  }, [])
 
   const goNext = useCallback(() => setStep((s) => s + 1), [])
   const goBack = useCallback(() => setStep((s) => Math.max(1, s - 1)), [])
+  const handlePayslipParsed = useCallback((_d: WorkerProfileDraft, parsed: ParsedImssTarjeton) => {
+    const result = mapParsedPayslipToWorkerProfileDraft(parsed)
+    setDraft(result.draft)
+    setDetectedFields(result.detectedFields)
+    setPayWarnings(result.warnings)
+    setReqConfirmation(result.requiresConfirmation)
+    setExtractionMeta(result.extraction)
+    parsedRef.current = parsed
+    setStep((s) => s + 1)
+  }, [])
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
@@ -93,19 +120,22 @@ export function OnboardingWizard({ returnTo, onComplete }: OnboardingWizardProps
           selected={chosenMethod}
           onSelect={(method) => setChosenMethod(method)}
           onContinue={() => {
-            if (chosenMethod === "payslip") {
-              setError("La importación de tarjetón estará disponible en la siguiente fase. Por ahora configura tu perfil manualmente.")
-              return
+            if (!chosenMethod) return
+            if (chosenMethod === "manual") {
+              setDraft((prev) => ({ ...prev, mode: "manual" }))
+              goNext()
+            } else {
+              // Tarjetón: avanza al paso 4b (importación)
+              goNext()
+              // La importación va al paso 4 (que es 4b para tarjetón)
             }
-            setDraft((prev) => ({ ...prev, mode: "manual" }))
-            goNext()
           }}
           onBack={goBack}
         />
       )}
 
-      {/* Paso 4 — Captura manual */}
-      {step === 4 && (
+      {/* Paso 4a — Captura manual */}
+      {step === 4 && chosenMethod === "manual" && (
         <ManualCaptureStep
           draft={draft}
           onChange={setDraft}
@@ -114,11 +144,23 @@ export function OnboardingWizard({ returnTo, onComplete }: OnboardingWizardProps
         />
       )}
 
+      {/* Paso 4b — Tarjetón */}
+      {step === 4 && chosenMethod === "payslip" && (
+        <TarjetonImportStep
+          onParsed={handlePayslipParsed}
+          onBack={goBack}
+        />
+      )}
+
       {/* Paso 5 — Revisión */}
       {step === 5 && (
         <ReviewStep
           draft={draft}
-          onEdit={() => setStep(4)}
+          method={chosenMethod ?? "manual"}
+          detectedFields={detectedFields}
+          requiresConfirmation={reqConfirmation}
+          warnings={payWarnings}
+          onDraftChange={setDraft}
           onContinue={goNext}
           onBack={goBack}
         />
@@ -138,23 +180,38 @@ export function OnboardingWizard({ returnTo, onComplete }: OnboardingWizardProps
       {step === 7 && (
         <ConfirmStep
           draft={draft}
+          method={chosenMethod ?? "manual"}
           onConfirm={async () => {
             setLoading(true)
             setError(null)
             try {
-              const update: ConfirmedWorkerProfileUpdate = {
-                mode: "manual",
-                sourceOfRequest: "manual",
-                identity: { ...draft.identity },
-                situation: { ...draft.situation },
-                sources: Object.fromEntries(
-                  draft.confirmedFields.map((f) => [f, "manual"])
-                ) as ConfirmedWorkerProfileUpdate["sources"],
-                consentRef: { purpose: "use_worker_data", version: "2026-08-v1" },
+              if (chosenMethod === "payslip") {
+                const update = buildConfirmedPayslipProfileUpdate(draft, extractionMeta, "2026-08-v1")
+                const result = await confirmPayslipProfileAction(
+                  update,
+                  extractionMeta.method || undefined,
+                  extractionMeta.confidence,
+                  extractionMeta.period,
+                )
+                if (result.ok) {
+                  resetPayslip()
+                  goNext()
+                } else setError(result.message)
+              } else {
+                const update: ConfirmedWorkerProfileUpdate = {
+                  mode: "manual",
+                  sourceOfRequest: "manual",
+                  identity: { ...draft.identity },
+                  situation: { ...draft.situation },
+                  sources: Object.fromEntries(
+                    draft.confirmedFields.map((f) => [f, "manual"])
+                  ) as ConfirmedWorkerProfileUpdate["sources"],
+                  consentRef: { purpose: "use_worker_data", version: "2026-08-v1" },
+                }
+                const result = await confirmManualProfileAction(update)
+                if (result.ok) goNext()
+                else setError(result.message)
               }
-              const result = await confirmManualProfileAction(update)
-              if (result.ok) goNext()
-              else setError(result.message)
             } finally {
               setLoading(false)
             }
