@@ -17,7 +17,7 @@ import { WorkerProfileService } from "../service"
 
 const LOCAL_URL = "http://127.0.0.1:54321"
 const LOCAL_ANON_KEY = process.env.SUPABASE_LOCAL_ANON_KEY ?? ""
-const DOCKER_DB = "supabase_db_La_Veinte_Digital"
+const DOCKER_DB = process.env.SUPABASE_LOCAL_DB_CONTAINER ?? "supabase_db_La_Veinte_Digital"
 
 // Email sintético fijo para el test.
 const TEST_EMAIL = "wp-integration@test.local"
@@ -38,11 +38,23 @@ function execDb(sql: string): void {
 // Detección de disponibilidad a nivel de módulo (sincrónica), para que
 // describe.skipIf la evalúe correctamente.
 function detectAvailable(): boolean {
-  if (!LOCAL_ANON_KEY) return false
+  if (!LOCAL_ANON_KEY) {
+    // Solo una advertencia; no falla en CI (sin Docker local ni env vars).
+    console.warn(
+      "[worker-profile integration] Omitiendo tests de integración local: " +
+        "falta SUPABASE_LOCAL_ANON_KEY. Define esta variable de entorno para " +
+        "ejecutar contra un Supabase local. No usa datos reales.",
+    )
+    return false
+  }
   try {
     execDb("select 1;")
     return true
   } catch {
+    console.warn(
+      "[worker-profile integration] Omitiendo tests de integración local: " +
+        "no se pudo conectar al contenedor Docker '" + DOCKER_DB + "'.",
+    )
     return false
   }
 }

@@ -1,3 +1,5 @@
+import "server-only"
+
 /**
  * WorkerProfileService — servicio central de escritura/lectura del perfil
  * laboral. Capa servidor.

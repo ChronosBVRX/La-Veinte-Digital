@@ -1,3 +1,5 @@
+import "server-only"
+
 /**
  * Servicio de perfil laboral (capa servidor).
  *
