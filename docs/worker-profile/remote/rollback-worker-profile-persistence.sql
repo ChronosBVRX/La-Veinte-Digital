@@ -65,7 +65,7 @@ revoke select on public.payroll_contexts from authenticated;
 
 COMMIT;
 
-RAISE NOTICE 'Rollback Scenario A completed. Worker profile persistence removed.';
+DO $$ BEGIN RAISE NOTICE 'Rollback Scenario A completed. Worker profile persistence removed.'; END $$;
 
 -- ============================================================
 -- ESCENARIO B — Rollback después de uso (soft-disable)
