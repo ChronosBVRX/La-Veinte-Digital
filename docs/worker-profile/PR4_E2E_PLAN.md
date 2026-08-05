@@ -58,7 +58,7 @@ Pruebas funcionales del onboarding y el centro laboral desde la perspectiva del 
 
 | # | Caso | Resultado esperado |
 |---|------|--------------------|
-| 27 | Dropzone acepta PDF | TarjetónImporter renderizado en el paso 4b; acepta archivos PDF |
+| 27 | Dropzone acepta PDF | TarjetonImporter renderizado en el paso 4b; acepta archivos PDF |
 | 28 | Rechaza no-PDF | Muestra error "El archivo no es un PDF válido" |
 | 29 | Extracción exitosa | Procesa PDF → avanza automáticamente al paso 5 con campos extraídos |
 | 30 | Extracción fallida | Muestra error funcional; botón reintentar para volver a seleccionar archivo |
@@ -67,6 +67,12 @@ Pruebas funcionales del onboarding y el centro laboral desde la perspectiva del 
 | 33 | Editar concepto | Tabla de conceptos con edición de importes confirmados |
 | 34 | Confirmar tarjetón | Botón "Confirmar y guardar" → RPC exitosa → paso 8 con fuente "✓ Confirmado desde tarjetón" |
 | 35 | PDF no se envía | Inspeccionar body de POST a /api/tarjeton/confirm: solo contiene source_hash + datos estructurados |
+| 36 | Antes del consentimiento no se llama persistencia | Hasta el paso 6, no se ha llamado a ninguna RPC de escritura ni server action de guardado |
+| 37 | Cancelar después de procesar PDF | Botón "Cancelar" antes de confirmar → el estado del importador se resetea, no se guarda nada, no hay llamada al servidor |
+| 38 | Excluir campo en revisión impide inclusión | Campo excluido en paso 5 NO aparece en el payload de `ConfirmedWorkerProfileUpdate` |
+| 39 | Rechazar consentimiento no crea datos | No marcar checkbox en paso 6 → no se crea `worker_consents` ni `payroll_contexts` |
+| 40 | PDF no aparece en solicitudes de red | Verificar que ninguna solicitud de red contiene el archivo PDF (solo datos estructurados) |
+| 41 | Solo se envían campos estructurados permitidos | Verificar que el body de confirmación contiene solo claves del contrato `ConfirmTarjetonRequest`, sin campos sensibles |
 
 ---
 
@@ -91,14 +97,17 @@ Pruebas funcionales del onboarding y el centro laboral desde la perspectiva del 
 
 | # | Caso | Resultado esperado |
 |---|------|--------------------|
-| 46 | Abandonar wizard | Navegar a otra ruta en cualquier paso → el draft se descarta, vuelve al estado previo |
-| 47 | Sesión expirada en medio de guardado | Proxy redirige a /login; datos no guardados no se persisten |
-| 48 | returnTo válido | `?returnTo=/calculadoras/aguinaldo` → paso 8 muestra botón "Volver a Aguinaldo" |
-| 49 | returnTo inválido | `?returnTo=https://evil.com` → botón "Volver" muestra "Ir al inicio" |
-| 50 | returnTo ruta no listada | `?returnTo=/admin/secreto` → "Ir al inicio" |
-| 51 | Modo básico repetido | Click en "Usar modo básico" cuando ya está en basic → idempotente, sin error |
-| 52 | Consentimiento rechazado | No marcar checkbox en paso 6 → botón deshabilitado; retroceder no guarda nada |
-| 53 | Modo básico → configurar | Desde panel basic, click en "Configurar" → wizard paso 1; se crea perfil al confirmar |
+| 50 | Abandonar wizard | Navegar a otra ruta en cualquier paso → el draft se descarta, vuelve al estado previo |
+| 51 | Sesión expirada en medio de guardado | Proxy redirige a /login; datos no guardados no se persisten |
+| 52 | URL externa en returnTo | `?returnTo=https://evil.com` → servidor lo transforma en `undefined`; cliente usa `/` |
+| 53 | Protocol-relative en returnTo | `?returnTo=//evil.example` → rechazado → `undefined` → `/` |
+| 54 | javascript: en returnTo | `?returnTo=javascript:alert(1)` → rechazado → `undefined` → `/` |
+| 55 | Ruta interna no permitida en returnTo | `?returnTo=/admin/secreto` → no en lista blanca → `undefined` → `/` |
+| 56 | Ruta permitida con query | `?returnTo=/calculadoras/aguinaldo?q=1` → pathname válido → aceptado, navegación al validado |
+| 57 | Fallback al dashboard | returnTo inválido o ausente → botón "Volver" muestra "Ir al inicio" |
+| 58 | Modo básico repetido | Click en "Usar modo básico" cuando ya está en basic → idempotente, sin error |
+| 59 | Consentimiento rechazado | No marcar checkbox en paso 6 → no se guarda; retroceder no guarda nada; no se crean worker_consents ni payroll_contexts |
+| 60 | Modo básico → configurar | Desde panel basic, click en "Configurar" → wizard paso 1; se crea perfil al confirmar |
 
 ---
 

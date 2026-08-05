@@ -268,7 +268,67 @@ Control de acceso:
 └──────────────────────────────────┘
 ```
 
-## 4. Estados del perfil
+## 4. Flujo definitivo (consentimiento antes de persistir)
+
+Regla: **seleccionar un método o un PDF no otorga consentimiento. Ningún dato laboral se guarda antes de confirmar explícitamente la casilla de consentimiento.**
+
+```
+Bienvenida (paso 1)
+  → elegir modo (paso 2)
+    → elegir método (paso 3)
+      → captura o importación local (paso 4)
+        → revisión (paso 5)
+          → consentimiento (paso 6)
+            → confirmación de guardado (paso 7)
+              → resumen (paso 8)
+```
+
+En cada paso antes del paso 6 (consentimiento):
+- No se persiste ningún dato laboral.
+- No se crea `worker_consents` ni `payroll_contexts`.
+- El draft del wizard existe solo en memoria del navegador (ver §12).
+- Si el usuario abandona o cierra, no queda nada guardado.
+
+El consentimiento (paso 6):
+- La casilla no viene marcada.
+- Al marcar, el botón "Siguiente" (paso 7) se habilita.
+- No marcar no impide retroceder ni elegir modo básico.
+- Modo básico **no requiere consentimiento** porque no guarda datos laborales.
+
+## 5. Server actions explícitas
+
+El flujo de escritura es:
+
+```
+Client Component
+  → Server Action explícita ("use server")
+    → WorkerProfileService
+      → RPC de dominio
+```
+
+La lectura inicial puede ocurrir en `page.tsx` como Server Component.
+
+**Server actions planeadas** (sin implementar todavía):
+
+| Server Action | Parámetros | Servicio |
+|--------------|-----------|----------|
+| `chooseBasicModeAction()` | — | `WorkerProfileService.chooseBasicMode()` |
+| `confirmManualProfileAction(input)` | `ConfirmedWorkerProfileUpdate` (sin userId) | `WorkerProfileService.confirmManualProfile(input)` |
+| `confirmPayslipProfileAction(input)` | `ConfirmedWorkerProfileUpdate` (sin userId) | `WorkerProfileService.confirmPayslipProfile(input)` |
+| `changeWorkerProfileModeAction(mode)` | `WorkerProfileMode` | `WorkerProfileService.changeWorkerProfileMode(mode)` |
+| `deleteWorkerDataAction(confirmation)` | `{ confirmation: string }` (debe ser "BORRAR") | `WorkerProfileService.deleteWorkerData()` |
+| `grantWorkerConsentAction(purpose, version)` | `ConsentPurpose, string` | `WorkerProfileService.grantConsent(purpose, version)` |
+| `revokeWorkerConsentAction(purpose)` | `ConsentPurpose` | `WorkerProfileService.revokeConsent(purpose)` |
+
+**Reglas:**
+- No aceptan `userId` (el servicio lo obtiene de la sesión).
+- Validan la entrada en servidor antes de delegar al servicio.
+- Devuelven resultados discriminados: `{ success: true } | { error: string }`. El mensaje de error es funcional, nunca SQL/UUID/RLS.
+- La Server Action llama exclusivamente al método del `WorkerProfileService`.
+- El servicio es el único que llama a la RPC de dominio.
+- Ningún Client Component llama al servicio directamente para escrituras.
+
+## 6. Estados del perfil
 
 | Estado | Vista en el Centro | Acciones disponibles |
 |--------|-------------------|---------------------|
@@ -277,23 +337,26 @@ Control de acceso:
 | `configured/manual` | Centro completo: calidad, fuentes, historial, acciones | Cambiar método, actualizar, borrar datos |
 | `configured/payslip` | Centro completo + badge tarjetón + confianza alta | Importar nuevo tarjetón, cambiar a manual, actualizar, borrar datos |
 
-## 5. Textos completos para usuarios noveles
+## 7. Textos completos para usuarios noveles
 
-> Ver `PR4_COPY_DECK.md`. Principios: una decisión por pantalla, lenguaje sin tecnicismos (sin RPC, JSON, parser, persistencia), explicación antes de pedir cada dato, botones con acciones concretas, confirmaciones visibles.
+> Ver `PR4_COPY_DECK.md`. Principios: una decisión por pantalla, lenguaje sin tecnicismos...
 
-## 6. Aviso simplificado de privacidad (borrador)
+## 8. Aviso simplificado de privacidad (borrador)
 
 Revisión legal obligatoria antes de lanzamiento.
 
 > Ver `PR4_COPY_DECK.md` §Aviso.
 
-## 7. Comportamiento de `returnTo`
+## 9. Comportamiento de `returnTo`
 
 - Parámetro query opcional: `?returnTo=/calculadoras/aguinaldo`.
-- Validado contra `isSafeInternalReturnPath` (lista blanca, rechaza externos/javascript/protocol-relative).
-- En el wizard paso 8, el botón secundario lo usa si es válido; si no, lleva a `/`.
-- Si `returnTo` no es válido, se ignora silenciosamente (se usa `/` por defecto).
-- Se conserva a través de los pasos del wizard (pasa como prop).
+- Se recibe en la página servidor (`page.tsx`).
+- Se valida mediante `isSafeInternalReturnPath()` (lista blanca; rechaza externos, javascript:, protocol-relative y rutas no listadas).
+- Si es inválido, se transforma en `undefined` (fallback silencioso).
+- **Nunca se utiliza directamente en `window.location`.**
+- El valor validado (o `undefined`) se entrega al cliente ya sanitizado.
+- La navegación de retorno se ejecuta mediante `router.push` solo al valor validado.
+- Se conserva a través de los pasos del wizard como prop.
 
 ## 8. Experiencia móvil
 
@@ -352,24 +415,47 @@ Revisión legal obligatoria antes de lanzamiento.
 └──────────────────────────────────────────────┘
 ```
 
-## 10. Accesibilidad
+## 12. Accesibilidad
 
-- **Focus:** orden lógico de tabulación. El primer campo recibe auto-focus al avanzar.
+- **Focus:** orden lógico de tabulación. Al cambiar de paso, mover focus al título principal del paso.
 - **Labels:** cada input tiene `<label>` asociado vía `htmlFor` (o implícito). Lectores de pantalla anuncian el propósito.
-- **Teclado:** navegación completa con Tab/Enter/Escape. Los botones de opción (○) se seleccionan con Enter/Flechas.
-- **Lectores de pantalla:** anuncian progreso ("Paso 3 de 8"), errores asociados al campo vía `aria-describedby`, cambios de estado visibles.
+- **Teclado:** navegación completa con Tab/Enter/Escape. Los selectores de modo deben ser `<fieldset>` + `<input type="radio">` reales (radio group), no `<div>` con onClick.
+- **Lectores de pantalla:**
+  - Anuncian progreso ("Paso 3 de 8") con texto accesible.
+  - Anuncian errores y éxito mediante `aria-live="polite"` o `role="status"`.
+  - Errores asociados al campo vía `aria-describedby`.
 - **Contraste:** respeta variables CSS del tema (--primary, --fg sobre --bg). Sin texto gris claro sobre gris claro.
-- **Errores asociados a campos:** cada campo con error tiene `aria-invalid="true"` y un mensaje accesible vía `aria-describedby` o `role="alert"` inline.
+- **Errores asociados a campos:** `aria-invalid="true"` + mensaje accesible vía `aria-describedby`.
+- **Diálogo de borrado:** focus trap dentro del diálogo; al cerrar, el focus retorna al botón que lo abrió.
+- **No depender solo del color:** las fuentes ("✓ Confirmado desde tarjetón", "✏ Manual") deben incluir texto o icono semántico, nunca solo color. La prioridad de eventos (info/important/critical) no debe depender únicamente de color.
 
-## 11. Casos límite
+## 13. Estado del wizard y política de drafts
+
+- Mientras no haya confirmación (paso 7), **el draft permanece solo en memoria del navegador** (estado React).
+- **Por defecto NO se persiste el draft en `localStorage` ni `sessionStorage`.**
+- Recargar la página o cerrar la pestaña elimina el draft (sin confirmación de abandono necesaria porque no hay datos sensibles persistidos).
+- **Antes de abandonar con cambios:** si el usuario intenta navegar a otra ruta o cerrar y el draft contiene datos capturados, se muestra una advertencia (usando `window.onbeforeunload` o el evento `routeChangeStart` de Next).
+- **Después de guardar (paso 7 exitoso):** se limpia TODO el estado temporal:
+  - Draft del wizard.
+  - Referencias al archivo PDF.
+  - Texto extraído del PDF.
+  - `WorkerProfileDraft` en memoria.
+- **Nunca se guarda** en `localStorage`/`sessionStorage`: PDF, base64, texto completo extraído, borradores sensibles, archivos temporales del tarjetón.
+- La limpieza de memoria de archivo la maneja `useTarjetonImporter.reset()`.
+
+## 14. Casos límite
 
 | Caso | Comportamiento |
 |------|---------------|
-| **Abandonar wizard** | El usuario puede cerrar o navegar a otra ruta. El draft en cliente se descarta (no se persiste nada). Vuelve a `unconfigured` o al estado previo. |
+| **Abandonar wizard** | Si hay cambios, advertencia antes de salir. El draft se descarta (no persistido). Vuelve a `unconfigured` o al estado previo. |
 | **Sesión expirada** | El proxy redirige a login. Si ocurre en medio de una operación (RPC), el servicio lanza `WorkerProfileUnauthorizedError` → UI muestra "Tu sesión caducó. Inicia sesión de nuevo." |
 | **RPC no disponible** | `WorkerProfileUnavailableError` → UI muestra "El perfil laboral no está disponible en este momento. Inténtalo más tarde." |
 | **Tarjetón ilegible** | El importador muestra "El archivo no parece ser un tarjetón del IMSS." con botón para volver al paso 4 y reintentar. |
 | **Datos parciales** | En la revisión, los campos no detectados aparecen vacíos con fuente "No detectado". El usuario decide si capturarlos o excluirlos. |
-| **Consentimiento rechazado** | El checkbox no se marca → el botón "Confirmar" está deshabilitado. Si el usuario retrocede sin confirmar, no se guarda nada. |
-| **returnTo inválido** | Se usa `/` como fallback. No se muestra error al usuario (es una guarda de seguridad, no un problema de usuario). |
-| **Modo básico repetido** | `chooseBasicMode` es idempotente: si ya está en `basic`, la RPC hace `return` sin error. La UI muestra el panel de configuración opcional. |
+| **Consentimiento rechazado** | El checkbox no se marca → el botón del paso 7 no es accesible (se salta el paso 6). Si el usuario retrocede desde el paso 6 sin marcar, no se guarda nada. No se crea `worker_consents` ni `payroll_contexts`. |
+| **returnTo inválido** | Se recibe en servidor, se valida con `isSafeInternalReturnPath()`, se transforma en `undefined` si es inválido. El cliente recibe `undefined` y usa `/` como fallback. |
+| **Modo básico repetido** | `chooseBasicMode` es idempotente. La UI muestra el panel de configuración opcional. |
+| **Cancelar después de procesar PDF** | El tarjetón se procesó en el navegador pero NO se envió al servidor. No hay llamada a persistencia. Al cancelar, el estado del importador se resetea. |
+| **PDF no aparece en solicitudes de red** | El archivo nunca se envía al servidor. Solo se transmite `source_hash` + datos estructurados en `POST /api/tarjeton/confirm`. |
+| **Excluir campo del payload** | Al excluir un campo en la revisión, NO se incluye en `ConfirmedWorkerProfileUpdate` ni en los sources enviados a la RPC. |
+| **Recargar durante el wizard** | El draft se pierde (solo en memoria). El usuario vuelve al paso 1. Sin datos guardados. |

@@ -32,7 +32,11 @@
 - **Descripción:** Podré capturar mis datos manualmente o importar un tarjetón para proponerlos automáticamente.
 
 **Texto de privacidad (recuadro):**
-Tus datos laborales son opcionales. Si decides agregarlos, se utilizarán para completar calculadoras, simulaciones de nómina y vacaciones, preparar escritos y personalizar las herramientas que utilices. Podrás modificarlos o borrarlos en cualquier momento desde Mi perfil → Mi información laboral. El tarjetón se procesa en tu dispositivo y no se guarda. La Veinte Digital es una herramienta independiente, sin relación con el IMSS ni con el SNTSS.
+Tus datos laborales son opcionales. Si decides agregarlos, se utilizarán para completar calculadoras, simulaciones de nómina y vacaciones, preparar escritos y personalizar las herramientas que utilices. Podrás modificarlos o borrarlos en cualquier momento desde Mi perfil → Mi información laboral.
+
+El archivo PDF se procesa en tu dispositivo y no se conserva. Si decides continuar, solo se guardarán los datos estructurados que revises, selecciones y confirmes.
+
+La Veinte Digital es una herramienta independiente. No es un sitio oficial, no representa ni actúa en nombre del IMSS o del SNTSS.
 
 **Enlace:** Consulta el Aviso de Privacidad.
 
@@ -90,9 +94,11 @@ Tus datos laborales son opcionales. Si decides agregarlos, se utilizarán para c
 
 **Título:** Antes de guardar
 
-**Párrafo:** Tus datos laborales se utilizarán para completar calculadoras, simulaciones de nómina y vacaciones, preparar escritos y personalizar las herramientas que utilices.
+**Párrafo:** Seleccionar un método o procesar un tarjetón no guarda tus datos. Solo se guardarán cuando confirmes esta sección.
 
-**Secundario:** Si importaste un tarjetón, el archivo se procesó en tu dispositivo y no se guardó. Solo se almacenaron los campos que revisaste y confirmaste.
+**Secundario:** Tus datos laborales se utilizarán para completar calculadoras, simulaciones de nómina y vacaciones, preparar escritos y personalizar las herramientas que utilices.
+
+**Secundario:** Si importaste un tarjetón, el archivo PDF se procesó en tu dispositivo y no se conserva. Si decides continuar, solo se guardarán los datos estructurados que revisaste, seleccionaste y confirmaste.
 
 **Secundario:** Podrás modificar o borrar tus datos en cualquier momento desde Mi perfil → Mi información laboral. Al borrarlos, tu cuenta permanecerá activa en modo básico.
 
@@ -188,10 +194,10 @@ Tus datos laborales son opcionales. Si decides agregarlos, se utilizarán para c
 
 Agregar tus datos laborales es opcional. Si decides hacerlo, La Veinte Digital los utilizará para configurar tu perfil, prerrellenar calculadoras, generar simulaciones de nómina y vacaciones, preparar escritos y personalizar las herramientas que tú utilices.
 
-Puedes capturarlos manualmente o importar un tarjetón. El archivo se procesa en tu dispositivo y no se conserva; únicamente se guardan los campos que revises y confirmes.
+Puedes capturarlos manualmente o importar un tarjetón. El archivo PDF se procesa en tu dispositivo y no se conserva. Si decides continuar, solo se guardarán los datos estructurados que revises, selecciones y confirmes.
 
 Puedes modificar o borrar tus datos laborales en cualquier momento desde Mi perfil → Mi información laboral. Al borrarlos, tu cuenta permanecerá activa en modo básico.
 
-La Veinte Digital es una herramienta independiente, sin relación con el Instituto Mexicano del Seguro Social ni con el Sindicato Nacional de Trabajadores del Seguro Social.
+La Veinte Digital es una herramienta independiente. No es un sitio oficial, no representa ni actúa en nombre del IMSS o del SNTSS.
 
 Consulta el Aviso de Privacidad completo para conocer al responsable, las finalidades del tratamiento, los mecanismos para limitar el uso o divulgación de tus datos y cómo ejercer tus derechos de acceso, rectificación, cancelación y oposición.

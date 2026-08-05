@@ -119,15 +119,54 @@ Todos consumen datos del servidor (page.tsx). Sin escritura local.
 | `Card` (shared/ui) | Contenedores de sección |
 | `LoadingSpinner` (shared/ui) | Estados de carga |
 | `TarjetonImporter` (tarjeton) | En `TarjetonImportStep` |
-| `ProfileForm` (profile) | Se reduce a datos personales (name, phone, avatar); campos laborales → Centro |
+| `ProfileForm` (profile) | **Solo datos personales** (name, phone, avatar). **NO se reutiliza para datos laborales.** |
 | `Differences` (tarjeton) | En `ReviewStep` para diferencias tarjetón vs perfil |
 
 ## Dependencias del servicio
 
-Todos los componentes de escritura delegan en `WorkerProfileService` (server). Ninguno llama RPC directamente ni escribe en BD.
+Todos los componentes de escritura delegan en **Server Actions explícitas** (`"use server"`). Ningún Client Component llama al `WorkerProfileService` directamente para escrituras.
 
-- **Lectura:** page.tsx (server) → `WorkerProfileService.getCurrentProfile()`, `getProfileQuality()`, `getFieldRequirements()`, `listWorkerEvents()`.
-- **Escritura:** server actions que envuelven el servicio (o el servicio se llama desde page.tsx como server action implícito). Todas las escrituras son `"use server"`.
+Flujo:
+
+```
+Client Component
+  → Server Action ("use server")
+    → WorkerProfileService
+      → RPC de dominio
+```
+
+La lectura inicial puede ocurrir en `page.tsx` como Server Component.
+
+**Server actions planeadas** (sin implementar todavía):
+
+| Server Action | Parámetros | Servicio |
+|--------------|-----------|----------|
+| `chooseBasicModeAction()` | — | `WorkerProfileService.chooseBasicMode()` |
+| `confirmManualProfileAction(input)` | `ConfirmedWorkerProfileUpdate` (sin userId) | `WorkerProfileService.confirmManualProfile(input)` |
+| `confirmPayslipProfileAction(input)` | `ConfirmedWorkerProfileUpdate` (sin userId) | `WorkerProfileService.confirmPayslipProfile(input)` |
+| `changeWorkerProfileModeAction(mode)` | `WorkerProfileMode` | `WorkerProfileService.changeWorkerProfileMode(mode)` |
+| `deleteWorkerDataAction(confirmation)` | `{ confirmation: string }` (debe ser "BORRAR") | `WorkerProfileService.deleteWorkerData()` |
+| `grantWorkerConsentAction(purpose, version)` | `ConsentPurpose, string` | `WorkerProfileService.grantConsent(purpose, version)` |
+| `revokeWorkerConsentAction(purpose)` | `ConsentPurpose` | `WorkerProfileService.revokeConsent(purpose)` |
+
+Reglas de las server actions:
+- No aceptan `userId`.
+- Validan la entrada en servidor antes de delegar al servicio.
+- Devuelven `{ success: true } | { error: string }` con mensajes funcionales.
+- Nunca devuelven SQL, UUID, RLS ni errores PostgreSQL.
+
+## Separación Perfil Personal / Perfil Laboral
+
+**ProfileForm** queda exclusivamente para datos personales: `full_name`, `phone`, `avatar_url`. **No se reutiliza para guardar información laboral.**
+
+El wizard laboral:
+- Utiliza `WorkerProfileDraft` (dominio).
+- Usa componentes propios (`src/features/profile/components/worker/`).
+- Usa validadores propios del dominio.
+- **Nunca escribe `profiles`** con datos laborales.
+- **Nunca llama acciones de `ProfileForm`.**
+
+Los componentes del Centro no importan acciones de `ProfileForm` ni escriben directamente en `profiles`. Esta restricción se verificará con un test de arquitectura planeado (similar a `architecture.test.ts` del PR3).
 
 ## Estados de loading y error (todos los componentes)
 
