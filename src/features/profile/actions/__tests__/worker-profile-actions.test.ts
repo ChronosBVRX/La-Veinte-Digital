@@ -70,7 +70,7 @@ describe("worker profile server actions", () => {
 
   it("deleteWorkerDataAction rechaza cualquier texto distinto de BORRAR", async () => {
     let result = await deleteWorkerDataAction("")
-    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error("debió fallar")
     expect(result.message).toContain("BORRAR")
 
     result = await deleteWorkerDataAction("borrar")
@@ -84,7 +84,7 @@ describe("worker profile server actions", () => {
   it("errores del servicio se convierten en mensajes funcionales", async () => {
     mocks.chooseBasicMode.mockRejectedValue(new Error("consent_required"))
     const result = await chooseBasicModeAction()
-    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error("debió fallar")
     expect(result.message).toBeTruthy()
     expect(result.message).not.toContain("consent_required")
     expect(result.message).not.toContain("Error")
@@ -98,6 +98,7 @@ describe("worker profile server actions", () => {
       consentRef: { purpose: "use_worker_data", version: "1.0" },
     })
     expect(result.ok).toBe(false)
+    if (result.ok) throw new Error("debió fallar")
     expect(result.message).not.toContain("worker_preferences")
     expect(result.message).not.toContain("relation")
     expect(result.message).not.toContain("policy")
@@ -108,6 +109,7 @@ describe("worker profile server actions", () => {
     mocks.chooseBasicMode.mockRejectedValue(new WorkerProfileUnauthorizedError())
     const result = await chooseBasicModeAction()
     expect(result.ok).toBe(false)
+    if (result.ok) throw new Error("debió fallar")
     expect(result.message).toBe("No autenticado.")
   })
 
