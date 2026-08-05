@@ -25,6 +25,14 @@
   --sidebar-collapsed-width: 0px;
   --bottom-nav-height: 64px;
   --transition: 0.2s ease;
+  --brand-navy: #17324d;
+  --brand-blue: #2e4f77;
+  --brand-cyan: #4da1a8;
+  --brand-surface: #f3f6f8;
+  --area-work: #16856b;
+  --area-tools: #3568c0;
+  --area-assistance: #7557c8;
+  --area-community: #cf6c4c;
 }
 
 * {
@@ -174,6 +182,16 @@ a:focus-visible {
   :root {
     --bottom-nav-height: 56px;
   }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(100%); }
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
