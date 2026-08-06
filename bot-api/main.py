@@ -63,32 +63,41 @@ class Message(BaseModel):
 
 
 class ConsultaRequest(BaseModel):
-    history: List[Message] = Field(max_length=MAX_HISTORY_LENGTH)
+    # Pregunta canónica. Si no se envía, se deriva del historial por compatibilidad.
+    question: str | None = Field(default=None, max_length=MAX_CONTENT_CHARS)
+    history: List[Message] = Field(default_factory=list, max_length=MAX_HISTORY_LENGTH)
 
 
 @app.post("/consulta")
 async def endpoint_consulta(req: ConsultaRequest, x_bot_secret: str | None = Header(default=None)):
     _require_secret(x_bot_secret)
     history = req.history
-    if not history:
+
+    # La pregunta canónica viene explícitamente; el historial solo aporta contexto.
+    # Se mantiene la derivación desde el historial como fallback por compatibilidad.
+    question = req.question.strip() if req.question else None
+
+    if not history and not question:
         return {"respuesta": "No recibí ninguna pregunta. ¿En qué puedo ayudar?"}
 
-    if len(history) == 1 and history[0].role == "user":
-        saludo = history[0].content.strip()
-        if re.match(r"^(hola|buenos días|buenas tardes|buenas noches|hey|qué tal)\s*$", saludo, re.I):
-            return {
-                "respuesta": (
-                    "¡Hola! 👋 Soy tu **Asistente SNTSS**, tu aliado en temas laborales del IMSS. "
-                    "Tengo acceso al **Contrato Colectivo de Trabajo** y a los **Estatutos del SNTSS** "
-                    "para orientarte sobre tus derechos, prestaciones y obligaciones. ¿En qué puedo ayudarte hoy?"
-                )
-            }
+    if (
+        question
+        and len(history) <= 1
+        and re.match(r"^(hola|buenos días|buenas tardes|buenas noches|hey|qué tal)\s*$", question, re.I)
+    ):
+        return {
+            "respuesta": (
+                "¡Hola! 👋 Soy tu **Asistente SNTSS**, tu aliado en temas laborales del IMSS. "
+                "Tengo acceso al **Contrato Colectivo de Trabajo** y a los **Estatutos del SNTSS** "
+                "para orientarte sobre tus derechos, prestaciones y obligaciones. ¿En qué puedo ayudarte hoy?"
+            )
+        }
 
-    question = None
-    for msg in reversed(history):
-        if msg.role == "user":
-            question = msg.content.strip()
-            break
+    if not question:
+        for msg in reversed(history):
+            if msg.role == "user":
+                question = msg.content.strip()
+                break
 
     if not question:
         return {"respuesta": "No pude encontrar tu pregunta en el historial."}
