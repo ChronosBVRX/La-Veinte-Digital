@@ -38,11 +38,11 @@ export const DESKTOP_NAV_GROUPS: NavGroup[] = [
     area: "work",
     color: "var(--area-work)",
     items: [
-      { href: "/nomina", label: "Nómina", icon: Receipt },
+      { href: "/nomina", label: "Mi próxima quincena", icon: Receipt },
       { href: "/tarjeton", label: "Mi Tarjetón", icon: IdentificationCard },
       { href: "/calendario", label: "Calendario", icon: CalendarDots },
       { href: "/vacaciones", label: "Vacaciones", icon: AirplaneTilt },
-      { href: "/bitacora", label: "Bitácora", icon: Notebook },
+      { href: "/bitacora", label: "Mis incidencias", icon: Notebook },
     ],
   },
   {
@@ -52,8 +52,8 @@ export const DESKTOP_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/calculadoras", label: "Calculadoras", icon: Calculator },
       { href: "/simulador-nomina", label: "Simulador de nómina", icon: ArrowsLeftRight },
-      { href: "/escritos", label: "Generar escritos", icon: FileText },
-      { href: "/catalogo", label: "Catálogo", icon: Books },
+      { href: "/escritos", label: "Crear un escrito", icon: FileText },
+      { href: "/catalogo", label: "Consultar conceptos", icon: Books },
     ],
   },
   {
@@ -61,8 +61,8 @@ export const DESKTOP_NAV_GROUPS: NavGroup[] = [
     area: "assistance",
     color: "var(--area-assistance)",
     items: [
-      { href: "/asistente", label: "Asistente SNTSS", icon: Sparkle },
-      { href: "/simulador", label: "Simulador", icon: Scales },
+      { href: "/asistente", label: "Preguntar sobre mis derechos", icon: Sparkle },
+      { href: "/simulador", label: "Practicar una audiencia", icon: Scales },
     ],
   },
   {

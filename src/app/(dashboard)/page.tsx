@@ -1,14 +1,13 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { Shield, Globe, ArrowRight } from "lucide-react"
+import { Globe, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { FacebookFeeds } from "@/features/facebook/components/FacebookFeeds"
-import { CalendarioMensual } from "@/features/calendario/components/CalendarioMensual"
 import { TodayCard } from "@/shared/components/layout/TodayCard"
 import { DashboardHero } from "@/shared/components/app/DashboardHero"
-import { DashboardStatsGrid } from "@/shared/components/app/DashboardStatsGrid"
-import { QuickActionsGrid } from "@/shared/components/app/QuickActionsGrid"
+import { DashboardPendientes } from "@/shared/components/app/DashboardPendientes"
 import { DashboardSection } from "@/shared/components/app/DashboardSection"
+import { CompactCalendar } from "@/shared/components/app/CompactCalendar"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -20,6 +19,13 @@ export default async function DashboardPage() {
     .select("*")
     .eq("id", user.id)
     .single()
+
+  const { count: tarjetonesCount } = await supabase
+    .from("imported_payslips")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+
+  const hasTarjeton = (tarjetonesCount ?? 0) > 0
 
   const now = new Date()
 
@@ -47,13 +53,13 @@ export default async function DashboardPage() {
         dateLabel={dateLabel}
       />
 
-      <DashboardStatsGrid
-        profile={{ antiguedad: profile?.antiguedad ?? null }}
+      <DashboardPendientes
+        hasAntiguedad={!!profile?.antiguedad}
+        hasTarjeton={hasTarjeton}
+        hasCategoria={!!profile?.categoria}
       />
 
-      <QuickActionsGrid />
-
-      <DashboardSection title="Mi d&iacute;a laboral">
+      <DashboardSection title="">
         <TodayCard
           profile={{
             id: profile?.id,
@@ -64,71 +70,66 @@ export default async function DashboardPage() {
         />
       </DashboardSection>
 
-      <DashboardSection title="Calendario y datos">
-        <div
-          className="dashboard-content-grid"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "1rem",
-          }}
-        >
-          <CalendarioMensual />
-
-          <div
+      <div style={{ marginBottom: "var(--space-6)" }}>
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "0.75rem",
+        }}>
+          <span style={{
+            fontSize: "var(--text-xs)",
+            fontWeight: 700,
+            color: "var(--muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+          }}>
+            Acciones frecuentes
+          </span>
+          <Link
+            href="/herramientas"
             style={{
-              background: "var(--card)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-lg)",
-              padding: "1.25rem",
+              fontSize: "var(--text-xs)",
+              color: "var(--primary)",
+              textDecoration: "none",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.25rem",
             }}
           >
-            <h3
-              style={{
-                fontSize: "0.8125rem",
-                fontWeight: 600,
-                margin: "0 0 0.75rem",
-                color: "var(--muted)",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.375rem",
-              }}
-            >
-              <Shield size={14} style={{ color: "var(--primary)" }} />
-              Mi informaci&oacute;n
-            </h3>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "auto 1fr",
-                gap: "0.375rem 0.75rem",
-                fontSize: "0.8125rem",
-              }}
-            >
-              <span style={{ color: "var(--muted)" }}>Email:</span>
-              <span>{user.email}</span>
-              {profile?.matricula && (
-                <>
-                  <span style={{ color: "var(--muted)" }}>Matr&iacute;cula:</span>
-                  <span>{profile.matricula}</span>
-                </>
-              )}
-              {profile?.adscripcion && (
-                <>
-                  <span style={{ color: "var(--muted)" }}>Adscripci&oacute;n:</span>
-                  <span>{profile.adscripcion}</span>
-                </>
-              )}
-              {profile?.categoria && (
-                <>
-                  <span style={{ color: "var(--muted)" }}>Categor&iacute;a:</span>
-                  <span>{profile.categoria}</span>
-                </>
-              )}
-            </div>
-          </div>
+            Ver todas las herramientas
+            <ArrowRight size={12} />
+          </Link>
         </div>
-      </DashboardSection>
+        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+          <Link href="/tarjeton" style={{
+            display: "flex", alignItems: "center", gap: "0.5rem",
+            padding: "0.625rem 0.875rem", background: "var(--card)", border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)", fontWeight: 600,
+            textDecoration: "none", color: "var(--fg)", transition: "box-shadow var(--transition)",
+          }} className="hover-lift">
+            Mi tarjetón <ArrowRight size={12} style={{ color: "var(--muted)" }} />
+          </Link>
+          <Link href="/bitacora" style={{
+            display: "flex", alignItems: "center", gap: "0.5rem",
+            padding: "0.625rem 0.875rem", background: "var(--card)", border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)", fontWeight: 600,
+            textDecoration: "none", color: "var(--fg)", transition: "box-shadow var(--transition)",
+          }} className="hover-lift">
+            Registrar incidencia <ArrowRight size={12} style={{ color: "var(--muted)" }} />
+          </Link>
+          <Link href="/asistente" style={{
+            display: "flex", alignItems: "center", gap: "0.5rem",
+            padding: "0.625rem 0.875rem", background: "var(--card)", border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)", fontWeight: 600,
+            textDecoration: "none", color: "var(--fg)", transition: "box-shadow var(--transition)",
+          }} className="hover-lift">
+            Preguntar al asistente <ArrowRight size={12} style={{ color: "var(--muted)" }} />
+          </Link>
+        </div>
+      </div>
+
+      <CompactCalendar />
 
       <DashboardSection title="">
         <div
@@ -139,23 +140,15 @@ export default async function DashboardPage() {
             marginBottom: "0.5rem",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}
-          >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
             <Globe size={16} style={{ color: "#1877F2" }} />
-            <span
-              style={{
-                fontSize: "0.8125rem",
-                fontWeight: 600,
-                color: "var(--muted)",
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-              }}
-            >
+            <span style={{
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+              color: "var(--muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+            }}>
               Noticias de la Secci&oacute;n XX
             </span>
           </div>
@@ -176,14 +169,6 @@ export default async function DashboardPage() {
         </div>
         <FacebookFeeds compact />
       </DashboardSection>
-
-      <style>{`
-        @media (max-width: 640px) {
-          .dashboard-content-grid {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
     </div>
   )
 }
