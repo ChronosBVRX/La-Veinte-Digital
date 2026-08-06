@@ -13,12 +13,12 @@ interface ProfileSummaryCardProps {
 }
 
 const FIELDS = [
-  { key: "name", label: "Nombre", weight: 1 },
-  { key: "phone", label: "Teléfono", weight: 1 },
-  { key: "matricula", label: "Matrícula", weight: 1 },
-  { key: "categoria", label: "Categoría", weight: 1 },
-  { key: "adscripcion", label: "Adscripción", weight: 1 },
-  { key: "antiguedad", label: "Antigüedad", weight: 1 },
+  { key: "name", label: "Nombre" },
+  { key: "phone", label: "Teléfono" },
+  { key: "matricula", label: "Matrícula" },
+  { key: "categoria", label: "Categoría" },
+  { key: "adscripcion", label: "Adscripción" },
+  { key: "antiguedad", label: "Antigüedad" },
 ]
 
 export function ProfileSummaryCard({
@@ -96,20 +96,31 @@ export function ProfileSummaryCard({
         )}
 
         <div style={{ marginTop: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <div style={{
-            flex: 1,
-            height: 4,
-            borderRadius: 2,
-            background: "var(--border)",
-            overflow: "hidden",
-          }}>
-            <div style={{
-              width: `${percent}%`,
-              height: "100%",
-              background: percent >= 80 ? "var(--success)" : percent >= 50 ? "var(--brand-cyan)" : "var(--warning)",
+          <div
+            role="progressbar"
+            aria-label="Perfil completado"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percent}
+            aria-valuetext={`${percent}% completo`}
+            style={{
+              flex: 1,
+              height: 4,
               borderRadius: 2,
-              transition: "width 0.3s",
-            }} />
+              background: "var(--border)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              aria-hidden="true"
+              style={{
+                width: `${percent}%`,
+                height: "100%",
+                background: percent >= 80 ? "var(--success)" : percent >= 50 ? "var(--brand-cyan)" : "var(--warning)",
+                borderRadius: 2,
+                transition: "width 0.3s",
+              }}
+            />
           </div>
           <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)", fontWeight: 600, whiteSpace: "nowrap" }}>
             {percent}% completo
