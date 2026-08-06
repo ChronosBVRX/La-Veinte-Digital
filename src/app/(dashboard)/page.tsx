@@ -7,7 +7,7 @@ import { TodayCard } from "@/shared/components/layout/TodayCard"
 import { DashboardHero } from "@/shared/components/app/DashboardHero"
 import { DashboardPendientes } from "@/shared/components/app/DashboardPendientes"
 import { DashboardSection } from "@/shared/components/app/DashboardSection"
-import { CompactCalendar } from "@/shared/components/app/CompactCalendar"
+import { CalendarioLaboral } from "@/shared/components/app/CalendarioLaboral"
 import { AgendaCardWrapper } from "@/shared/components/app/AgendaCardWrapper"
 
 export default async function DashboardPage() {
@@ -130,7 +130,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <CompactCalendar />
+      <CalendarioLaboral />
 
       <AgendaCardWrapper userId={user.id} />
 
