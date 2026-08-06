@@ -11,7 +11,7 @@ interface AgendaCardProps {
   userId: string
   commitments: WorkerCommitment[]
   onCommitmentsChange: () => void
-  onAdd: (c: Omit<WorkerCommitment, "id" | "createdAt">) => void
+  onAdd: (c: Omit<WorkerCommitment, "id" | "createdAt">) => void | Promise<void>
 }
 
 function formatDate(iso: string): string {

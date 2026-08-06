@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { X, Clock, CaretLeft, CaretRight } from "@phosphor-icons/react"
+import { Clock, CaretLeft, CaretRight } from "@phosphor-icons/react"
 import { Button } from "@/shared/components/ui/Button"
 import { Input } from "@/shared/components/ui/Input"
 import { FormField } from "@/shared/components/ui/FormField"
