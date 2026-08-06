@@ -9,6 +9,7 @@ import {
   Calculator,
   FileText,
   Notebook,
+  ArrowsLeftRight,
 } from "@phosphor-icons/react"
 
 interface QuickActionProps {
@@ -97,11 +98,17 @@ export function QuickActionsGrid() {
       href: "/bitacora",
       color: "var(--area-community)",
     },
+    {
+      icon: ArrowsLeftRight,
+      label: "Simulador\nde nómina",
+      href: "/simulador-nomina",
+      color: "var(--area-tools)",
+    },
   ]
 
   const gridStyle: CSSProperties = {
     display: "grid",
-    gridTemplateColumns: "repeat(5, 1fr)",
+    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
     gap: "0.75rem",
     marginBottom: "1.5rem",
   }
