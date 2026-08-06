@@ -171,15 +171,34 @@ export function TodayCard({ profile }: { profile: ProfileSummary }) {
       borderRadius: "var(--radius-lg)", padding: "1.25rem",
       color: "#f1f5f9",
     }}>
-      <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: "0 0 0.125rem" }}>
-        Mi d&iacute;a laboral
+      <h2 style={{ fontSize: "1.25rem", fontWeight: 700, margin: "0 0 0.125rem" }}>
+        Mi jornada
       </h2>
-      <p style={{ fontSize: "0.8125rem", color: "#94a3b8", margin: "0 0 1rem" }}>
+      <p style={{ fontSize: "0.875rem", color: "#94a3b8", margin: "0 0 1.25rem" }}>
         {dayName} {day} de {now.toLocaleDateString("es-MX", { month: "long" })} de {displayYear}
       </p>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        <Section icon="💰" title="Próximos pagos">
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <Section icon="🏥" title="Mi lugar de trabajo">
+          {profile.categoria && (
+            <div style={{ fontSize: "1rem", fontWeight: 600, color: "#e2e8f0", marginBottom: "0.25rem" }}>
+              {profile.categoria}
+            </div>
+          )}
+          {profile.adscripcion && (
+            <div style={{ fontSize: "0.875rem", color: "#94a3b8" }}>
+              {profile.adscripcion}
+            </div>
+          )}
+          {turno && (
+            <div style={{ fontSize: "0.9375rem", fontWeight: 600, color: "#93c5fd", marginTop: "0.5rem" }}>
+              Turno {SHIFT_LABELS[turno].toLowerCase()}
+              {jornada && ` · ${jornada} horas`}
+            </div>
+          )}
+        </Section>
+
+        <Section icon="💰" title="Próximo pago">
           {nextPaymentActivo && (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -276,46 +295,6 @@ export function TodayCard({ profile }: { profile: ProfileSummary }) {
           )}
         </Section>
 
-        <Section icon="📌" title="Próximos compromisos">
-          {turno || jornada ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-              {turno && (
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: "0.8125rem", color: "#94a3b8" }}>Turno:</span>
-                  <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#e2e8f0" }}>{SHIFT_LABELS[turno]}</span>
-                </div>
-              )}
-              {jornada && (
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ fontSize: "0.8125rem", color: "#94a3b8" }}>Jornada:</span>
-                  <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#e2e8f0" }}>{jornada} horas</span>
-                </div>
-              )}
-            </div>
-          ) : (
-            <span style={{ fontSize: "0.8125rem", color: "#94a3b8" }}>
-              No hay compromisos registrados.{" "}
-              <Link href="/nomina/perfil" style={{ color: "#60a5fa", textDecoration: "underline" }}>
-                Configura tu perfil laboral
-              </Link>
-            </span>
-          )}
-          {nominaProfile?.employmentType && (
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "0.375rem" }}>
-              <span style={{ fontSize: "0.8125rem", color: "#94a3b8" }}>Tipo de contratación:</span>
-              <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "#e2e8f0" }}>
-                {nominaProfile.employmentType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
-              </span>
-            </div>
-          )}
-          <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: "rgba(255,255,255,0.08)", borderRadius: "var(--radius)" }}>
-            <p style={{ fontSize: "0.75rem", color: "#94a3b8", margin: 0 }}>
-              {turno && jornada
-                ? `Tu horario habitual es turno ${SHIFT_LABELS[turno]} con jornada de ${jornada} horas.`
-                : "Configura tu perfil laboral para ver tus compromisos."}
-            </p>
-          </div>
-        </Section>
       </div>
     </div>
   )

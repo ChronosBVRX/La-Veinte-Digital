@@ -8,6 +8,7 @@ import { DashboardHero } from "@/shared/components/app/DashboardHero"
 import { DashboardPendientes } from "@/shared/components/app/DashboardPendientes"
 import { DashboardSection } from "@/shared/components/app/DashboardSection"
 import { CompactCalendar } from "@/shared/components/app/CompactCalendar"
+import { AgendaCardWrapper } from "@/shared/components/app/AgendaCardWrapper"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -130,6 +131,8 @@ export default async function DashboardPage() {
       </div>
 
       <CompactCalendar />
+
+      <AgendaCardWrapper userId={user.id} />
 
       <DashboardSection title="">
         <div
