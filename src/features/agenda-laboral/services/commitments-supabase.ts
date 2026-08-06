@@ -66,3 +66,20 @@ export async function deleteCommitment(id: string): Promise<boolean> {
   }
   return true
 }
+
+export async function upsertLegacyCommitment(
+  commitment: CommitmentInsert
+): Promise<CommitmentRow | null> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from("worker_commitments")
+    .upsert(commitment, { onConflict: "user_id,legacy_local_id" })
+    .select()
+    .single()
+
+  if (error) {
+    console.error("[commitments-supabase] legacy upsert:", error.message)
+    return null
+  }
+  return data
+}

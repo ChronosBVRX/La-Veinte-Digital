@@ -8,6 +8,7 @@ import {
   insertCommitment as supabaseInsert,
   updateCommitment as supabaseUpdate,
   deleteCommitment as supabaseDelete,
+  upsertLegacyCommitment,
 } from "../services/commitments-supabase"
 import { getCommitments as getLocal, clearLocalForUser } from "../services/commitments-local"
 
@@ -99,7 +100,7 @@ export function useCommitments(userId: string) {
           status: c.status,
           legacy_local_id: c.id,
         }
-        const result = await supabaseInsert(insert)
+        const result = await upsertLegacyCommitment(insert)
         if (result) {
           migrated++
         } else {
@@ -161,5 +162,9 @@ export function useCommitments(userId: string) {
     await refresh()
   }, [refresh])
 
-  return { commitments, upcoming, loading, fetchError, add, update, remove, refresh }
+  const retryMigration = useCallback(() => {
+    setMigration("pending")
+  }, [])
+
+  return { commitments, upcoming, loading, fetchError, migration, retryMigration, add, update, remove, refresh }
 }
