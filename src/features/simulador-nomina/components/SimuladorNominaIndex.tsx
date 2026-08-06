@@ -353,7 +353,31 @@ export function SimuladorNominaIndex() {
           </div>
         </div>
 
-        <SectionCard title="Desglose de cambios" description="Conceptos que cambian entre tu situación actual y el escenario.">
+        <div style={{
+          padding: "var(--space-5)",
+          background: "linear-gradient(135deg, var(--surface-interactive), var(--card))",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-lg)",
+          textAlign: "center",
+          marginBottom: "var(--space-5)",
+        }}>
+          <div style={{ fontSize: "var(--text-sm)", color: "var(--muted)", marginBottom: "0.25rem" }}>
+            Con este cambio recibirías aproximadamente
+          </div>
+          <div style={{
+            fontSize: "var(--text-2xl)",
+            fontWeight: 800,
+            color: result.netDelta > 0 ? "var(--success)" : result.netDelta < 0 ? "var(--error)" : "var(--fg)",
+            marginBottom: "0.125rem",
+          }}>
+            {result.netDelta > 0 ? "+" : ""}${result.netDelta.toLocaleString("es-MX")} por quincena
+          </div>
+          <Badge variant={result.netDelta > 0 ? "success" : result.netDelta < 0 ? "error" : "neutral"}>
+            {result.netDeltaPercent > 0 ? "+" : ""}{result.netDeltaPercent}% que ahora
+          </Badge>
+        </div>
+
+        <SectionCard title="Lo que más cambia" description="Los tres conceptos con mayor diferencia entre tu situación actual y el escenario.">
           <ScenarioComparison result={result} />
         </SectionCard>
 
