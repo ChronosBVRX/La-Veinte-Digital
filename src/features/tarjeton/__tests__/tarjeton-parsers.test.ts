@@ -7,6 +7,7 @@ import { parseImssObservations } from "../lib/imss-observations-parser"
 import { stripSensitiveFields, maskIdentifier, isSensitiveKey } from "../lib/sanitize-sensitive-fields"
 import { reconstructLines } from "../lib/line-reconstruction"
 import { parseImssTarjeton } from "../lib/imss-tarjeton-parser"
+import { normalizeWithIndexMap } from "../lib/positioned-text"
 import { applyConceptEdits, needsExplicitConfirmation, updateReviewedConcept } from "../lib/confirm-mark"
 import { buildDifferences } from "../components/Differences"
 import { DETAIL_LABELS, buildFriendlyWarnings } from "../components/Review"
@@ -351,7 +352,10 @@ describe("imss-tarjeton-parser (orquestador)", () => {
     const incompleteOutcome = await parseImssTarjeton({ items: withoutTotals, pageCount: 2 })
     expect(incompleteOutcome.ok).toBe(true)
     if (!incompleteOutcome.ok) return
-    expect(incompleteOutcome.parsed.extraction.globalConfidence).toBeLessThan(0.85)
+    expect(incompleteOutcome.status).toBe("requires_review")
+    expect(incompleteOutcome.parsed.extraction.reviewMode).toBe("full")
+    expect(incompleteOutcome.parsed.extraction.autoConfirmable).toBe(false)
+    expect(incompleteOutcome.parsed.extraction.criticalFieldConfidence).toBeLessThan(1)
     expect(incompleteOutcome.parsed.extraction.warnings).toContain(
       "Falta uno o más totales de nómina; la extracción requiere revisión.",
     )
@@ -457,6 +461,162 @@ describe("presentación amigable del tarjetón", () => {
   })
 })
 
+describe("mapeo Unicode de etiquetas", () => {
+  it("construye mapa índice-a-índice para texto NFC", () => {
+    const { normalized, normToRaw } = normalizeWithIndexMap("CERTIFICACIÓN")
+    expect(normalized).toBe("CERTIFICACION")
+    expect(normToRaw[normalized.indexOf("O")]).toBe("CERTIFICACIÓN".indexOf("Ó"))
+  })
+
+  it("lee valor tras etiqueta acentuada sin cortar caracteres", async () => {
+    const outcome = await parseImssTarjeton({
+      items: [
+        positionedItem(10, 10, "INSTITUTO MEXICANO DEL SEGURO SOCIAL"),
+        positionedItem(10, 30, "RECIBO DE PAGO DE NOMINA"),
+        positionedItem(10, 50, "RECEPTOR"),
+        positionedItem(10, 70, "PERIODO DE PAGO 1A-ENE-2026"),
+        positionedItem(10, 90, "MATRICULA 123456"),
+        positionedItem(10, 110, "NOMBRE MARIA JOSE GARCIA RUIZ"),
+        positionedItem(10, 130, "NOMBRE CATEGORIA/PUESTO ENFERMERA GENERAL 80"),
+        positionedItem(200, 150, "PERCEPCIONES"),
+        positionedItem(200, 170, "002 SUELDO BASE 3,937.64"),
+        positionedItem(200, 190, "TOTAL PERCEPCIONES 3,937.64"),
+        positionedItem(400, 150, "DEDUCCIONES"),
+        positionedItem(400, 170, "212 ISR -234.56"),
+        positionedItem(400, 190, "TOTAL DEDUCCIONES 234.56"),
+        positionedItem(400, 210, "LIQUIDO 3,703.08"),
+      ],
+      pageCount: 1,
+    })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.parsed.employee.categoryName).toBe("ENFERMERA GENERAL 80")
+  })
+})
+
+describe("aceptación de tarjetón", () => {
+  const baseItems = [
+    positionedItem(10, 10, "INSTITUTO MEXICANO DEL SEGURO SOCIAL"),
+    positionedItem(10, 30, "RECIBO DE PAGO DE NOMINA"),
+    positionedItem(10, 50, "RECEPTOR"),
+    positionedItem(10, 70, "PERIODO DE PAGO 1A-ENE-2026"),
+    positionedItem(10, 90, "MATRICULA 123456"),
+    positionedItem(10, 110, "NOMBRE MARIA JOSE GARCIA RUIZ"),
+    positionedItem(10, 130, "NOMBRE CATEGORIA/PUESTO ENFERMERA GENERAL 80"),
+    positionedItem(200, 150, "PERCEPCIONES"),
+    positionedItem(200, 170, "002 SUELDO BASE 3,937.64"),
+    positionedItem(200, 190, "TOTAL PERCEPCIONES 3,937.64"),
+    positionedItem(400, 150, "DEDUCCIONES"),
+    positionedItem(400, 170, "212 ISR -234.56"),
+    positionedItem(400, 190, "TOTAL DEDUCCIONES 234.56"),
+    positionedItem(400, 210, "LIQUIDO 3,703.08"),
+  ]
+
+  it("rechaza tarjetón sin deducciones", async () => {
+    const withoutDeductions = baseItems.filter((i) => !i.text.includes("DEDUCCIONES") && !i.text.includes("LIQUIDO"))
+    const outcome = await parseImssTarjeton({ items: withoutDeductions, pageCount: 1 })
+    expect(outcome.ok).toBe(false)
+    if (outcome.ok) return
+    expect(outcome.status).toBe("rejected")
+    expect(outcome.reason).toBe("critical_sections_missing")
+    expect(outcome.partial).toBeDefined()
+  })
+
+  it("rechaza tarjetón sin percepciones", async () => {
+    const withoutEarnings = baseItems.filter((i) => !i.text.includes("PERCEPCIONES"))
+    const outcome = await parseImssTarjeton({ items: withoutEarnings, pageCount: 1 })
+    expect(outcome.ok).toBe(false)
+    if (outcome.ok) return
+    expect(outcome.status).toBe("rejected")
+    expect(outcome.reason).toBe("critical_sections_missing")
+  })
+
+  it("marca autoConfirmable false cuando hay códigos duplicados entre tablas", async () => {
+    const duplicateItems = [
+      ...baseItems.filter((i) => !i.text.includes("212 ISR")),
+      positionedItem(400, 170, "002 OTRO -234.56"),
+    ]
+    const outcome = await parseImssTarjeton({ items: duplicateItems, pageCount: 1 })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.parsed.extraction.autoConfirmable).toBe(false)
+    expect(outcome.parsed.extraction.reviewMode).toBe("full")
+  })
+
+  it("marca totales inconsistentes y bloquea auto-confirmación", async () => {
+    const badTotals = baseItems.map((i) =>
+      i.text.includes("TOTAL PERCEPCIONES") ? item(9, "TOTAL PERCEPCIONES 9,999.99") : i,
+    )
+    const outcome = await parseImssTarjeton({ items: badTotals, pageCount: 1 })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.parsed.extraction.validations.earningsTotalMatches).toBe(false)
+    expect(outcome.parsed.extraction.autoConfirmable).toBe(false)
+    expect(outcome.parsed.extraction.reviewMode).toBe("full")
+  })
+
+  it("detecta confianza crítica baja aunque la global sea alta", async () => {
+    const items = [
+      positionedItem(10, 10, "INSTITUTO MEXICANO DEL SEGURO SOCIAL"),
+      positionedItem(10, 30, "RECIBO DE PAGO DE NOMINA"),
+      positionedItem(10, 50, "RECEPTOR"),
+      positionedItem(10, 70, "PERIODO DE PAGO 1A-ENE-2026"),
+      positionedItem(10, 90, "MATRICULA 123456"),
+      positionedItem(10, 110, "NOMBRE MARIA JOSE GARCIA RUIZ"),
+      // Categoría con OCR de baja calidad: confianza crítica baja, pero el
+      // resto del documento sigue siendo de alta confianza gracias a los
+      // muchos conceptos nativos.
+      positionedItem(10, 130, "NOMBRE CATEGORIA/PUESTO ENFERMERA 80", "ocr", 0.6),
+      positionedItem(200, 150, "PERCEPCIONES"),
+      positionedItem(200, 170, "002 SUELDO BASE 3,937.64"),
+      positionedItem(200, 190, "011 PRESTACIONES EN DINERO 3,234.77"),
+      positionedItem(200, 210, "020 AYUDA RENTA 250.00"),
+      positionedItem(200, 230, "050 AYUDA DESPENSA 200.00"),
+      positionedItem(200, 250, "TOTAL PERCEPCIONES 7,622.41"),
+      positionedItem(400, 150, "DEDUCCIONES"),
+      positionedItem(400, 170, "212 ISR -234.56"),
+      positionedItem(400, 190, "180 CUOTA SINDICAL -143.45"),
+      positionedItem(400, 210, "TOTAL DEDUCCIONES 377.01"),
+      positionedItem(400, 230, "LIQUIDO 7,245.40"),
+    ]
+    const outcome = await parseImssTarjeton({ items, pageCount: 1 })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    const critical = outcome.parsed.extraction.criticalFieldConfidence ?? 0
+    expect(outcome.parsed.extraction.globalConfidence).toBeGreaterThan(critical)
+    expect(critical).toBeLessThan(0.95)
+    expect(outcome.parsed.extraction.autoConfirmable).toBe(false)
+  })
+
+  it("conserva antigüedad aunque falte el periodo de pago", async () => {
+    const items = [
+      positionedItem(10, 10, "INSTITUTO MEXICANO DEL SEGURO SOCIAL"),
+      positionedItem(10, 30, "RECIBO DE PAGO DE NOMINA"),
+      positionedItem(10, 50, "RECEPTOR"),
+      positionedItem(10, 70, "MATRICULA 123456"),
+      positionedItem(10, 90, "NOMBRE MARIA JOSE GARCIA RUIZ"),
+      positionedItem(10, 110, "ANTIGUEDAD EFECTIVA 14 años 3 qnas 1 días"),
+      positionedItem(10, 130, "NOMBRE CATEGORIA/PUESTO ENFERMERA GENERAL 80"),
+      positionedItem(200, 150, "PERCEPCIONES"),
+      positionedItem(200, 170, "002 SUELDO BASE 3,937.64"),
+      positionedItem(200, 190, "TOTAL PERCEPCIONES 3,937.64"),
+      positionedItem(400, 150, "DEDUCCIONES"),
+      positionedItem(400, 170, "212 ISR -234.56"),
+      positionedItem(400, 190, "TOTAL DEDUCCIONES 234.56"),
+      positionedItem(400, 210, "LIQUIDO 3,703.08"),
+    ]
+    const outcome = await parseImssTarjeton({ items, pageCount: 1 })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.parsed.employee.seniority).toMatchObject({
+      years: 14,
+      fortnights: 3,
+      days: 1,
+      status: "missing_reference_date",
+    })
+  })
+})
+
 function item(y: number, text: string): PositionedPdfText {
   return {
     text,
@@ -474,6 +634,7 @@ function positionedItem(
   y: number,
   text: string,
   method: PositionedPdfText["method"] = "native_text",
+  confidence?: number,
 ): PositionedPdfText {
   return {
     text,
@@ -482,7 +643,7 @@ function positionedItem(
     y,
     width: Math.max(10, text.length * 3),
     height: 10,
-    confidence: method === "ocr" ? 0.95 : 1,
+    confidence: confidence ?? (method === "ocr" ? 0.95 : 1),
     method,
   }
 }

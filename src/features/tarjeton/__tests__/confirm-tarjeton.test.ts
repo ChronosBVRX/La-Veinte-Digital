@@ -215,4 +215,27 @@ describe("confirm-tarjeton service", () => {
     if (result.ok) return
     expect(result.error.code).toBe("matricula_mismatch")
   })
+
+  it("detecta confirmación duplicada como protección de concurrencia", async () => {
+    let calls = 0
+    const rpc = async () => {
+      calls++
+      if (calls === 1) {
+        return {
+          data: { id: "abc", duplicate: false, profileUpdated: true, payrollContextUpdated: true },
+          error: null,
+        }
+      }
+      return { data: null, error: { message: "duplicate key value violates unique constraint" } }
+    }
+
+    const request = makeRequest()
+    const first = await confirmTarjetonService({ userId: "u1", rpc }, request)
+    const second = await confirmTarjetonService({ userId: "u1", rpc }, request)
+
+    expect(first.ok).toBe(true)
+    expect(second.ok).toBe(false)
+    if (second.ok) return
+    expect(second.error.code).toBe("duplicate")
+  })
 })
