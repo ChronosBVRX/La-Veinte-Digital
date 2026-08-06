@@ -32,6 +32,8 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
   const [notes, setNotes] = useState("")
   const [reminder, setReminder] = useState({ dayBefore: true, hoursBefore: true, atStart: false })
 
+  const [error, setError] = useState<string | null>(null)
+
   const reset = () => {
     setStep("type")
     setType(null)
@@ -44,13 +46,29 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
     setSubstituteName("")
     setNotes("")
     setReminder({ dayBefore: true, hoursBefore: true, atStart: false })
+    setError(null)
   }
 
   const handleSave = () => {
     if (!type || !date || !startTime || !endTime) return
 
-    const startAt = `${date}T${startTime}:00`
-    const endAt = `${date}T${endTime}:00`
+    const start = new Date(`${date}T${startTime}:00`)
+    const end = new Date(`${date}T${endTime}:00`)
+
+    if (end <= start) {
+      end.setDate(end.getDate() + 1)
+    }
+
+    const durationMs = end.getTime() - start.getTime()
+    const durationHours = durationMs / (1000 * 60 * 60)
+
+    if (durationHours > 23) {
+      setError("La duración máxima es de 23 horas. Revisa las horas de entrada y salida.")
+      return
+    }
+
+    const startAt = start.toISOString()
+    const endAt = end.toISOString()
 
     onSave({
       userId,
@@ -69,11 +87,20 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
     onClose()
   }
 
+  const isOvernight = startTime && endTime
+    ? (() => {
+        const [sh, sm] = startTime.split(":").map(Number)
+        const [eh, em] = endTime.split(":").map(Number)
+        return (eh * 60 + em) <= (sh * 60 + sm)
+      })()
+    : false
+
   const hours = startTime && endTime
     ? (() => {
         const [sh, sm] = startTime.split(":").map(Number)
         const [eh, em] = endTime.split(":").map(Number)
-        const mins = (eh * 60 + em) - (sh * 60 + sm)
+        let mins = (eh * 60 + em) - (sh * 60 + sm)
+        if (mins <= 0) mins += 24 * 60
         return `${Math.floor(mins / 60)}h${mins % 60 > 0 ? ` ${mins % 60}m` : ""}`
       })()
     : null
@@ -138,7 +165,7 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
             <FormField label="Entrada" htmlFor="startTime" required>
               <Input id="startTime" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
             </FormField>
-            <FormField label="Salida" htmlFor="endTime" required>
+            <FormField label={isOvernight ? "Salida (día siguiente)" : "Salida"} htmlFor="endTime" required>
               <Input id="endTime" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
             </FormField>
           </div>
@@ -146,7 +173,13 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
           {hours && (
             <div style={{ fontSize: "var(--text-sm)", color: "var(--brand-cyan)", fontWeight: 600, textAlign: "center" }}>
               <Clock size={14} style={{ verticalAlign: "middle", marginRight: "0.25rem" }} />
-              {hours}
+              {hours}{isOvernight ? " (turno nocturno)" : ""}
+            </div>
+          )}
+
+          {error && (
+            <div style={{ fontSize: "var(--text-xs)", color: "var(--error)", textAlign: "center" }}>
+              {error}
             </div>
           )}
 

@@ -1,4 +1,5 @@
-import type { WorkerCommitment, CommitmentType, Reminder } from "../types"
+import type { WorkerCommitment } from "../types"
+import { COMMITMENT_TYPE_LABELS } from "../types"
 
 const STORAGE_KEY = "worker_commitments"
 
@@ -61,16 +62,30 @@ export function checkReminders(userId: string): { commitment: WorkerCommitment; 
   for (const c of getCommitments(userId)) {
     if (c.status !== "active") continue
     const start = new Date(c.startAt)
+    if (now >= start) continue
 
-    if (c.reminder.dayBefore) {
-      const oneDayBefore = new Date(start.getTime() - 24 * 60 * 60 * 1000)
-      if (now > oneDayBefore && now < start) {
-        alerts.push({ commitment: c, label: `Mañana: ${COMMITMENT_TYPE_LABELS[c.type as CommitmentType]}` })
+    const typeLabel = COMMITMENT_TYPE_LABELS[c.type] ?? "Compromiso"
+
+    if (c.reminder.hoursBefore) {
+      const twoHoursBefore = new Date(start.getTime() - 2 * 60 * 60 * 1000)
+      if (now >= twoHoursBefore) {
+        alerts.push({
+          commitment: c,
+          label: `En menos de 2h: ${typeLabel} a las ${start.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`,
+        })
+      }
+    }
+
+    if (c.reminder.atStart) {
+      const fifteenAfter = new Date(start.getTime() + 15 * 60 * 1000)
+      if (now >= start && now < fifteenAfter) {
+        alerts.push({
+          commitment: c,
+          label: `Ahora: ${typeLabel}`,
+        })
       }
     }
   }
 
   return alerts
 }
-
-import { COMMITMENT_TYPE_LABELS } from "../types"

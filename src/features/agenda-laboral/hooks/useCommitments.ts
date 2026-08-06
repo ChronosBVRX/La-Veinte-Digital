@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import type { WorkerCommitment, CommitmentType } from "../types"
+import type { WorkerCommitment } from "../types"
 import { getCommitments, getUpcomingCommitments, addCommitment, updateCommitment, deleteCommitment } from "../services/commitments"
 
 interface UseCommitmentsReturn {

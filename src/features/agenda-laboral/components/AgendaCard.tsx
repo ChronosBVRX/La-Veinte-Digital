@@ -1,9 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, CaretRight, Clock, MapPin, User } from "@phosphor-icons/react"
+import { Plus, Clock, MapPin, User } from "@phosphor-icons/react"
 import { Button } from "@/shared/components/ui/Button"
-import { SectionCard } from "@/shared/components/ui/SectionCard"
 import { CommitmentForm } from "./CommitmentForm"
 import type { WorkerCommitment } from "../types"
 import { COMMITMENT_TYPE_LABELS, COMMITMENT_TYPE_ICONS } from "../types"
@@ -35,8 +34,6 @@ function formatTime(iso: string): string {
 export function AgendaCard({ userId, commitments, onCommitmentsChange, onAdd }: AgendaCardProps) {
   const [showForm, setShowForm] = useState(false)
 
-  const upcoming = commitments.filter((c) => c.status === "active" && new Date(c.startAt) > new Date()).slice(0, 3)
-
   return (
     <>
       <div style={{ marginBottom: "var(--space-6)" }}>
@@ -65,7 +62,7 @@ export function AgendaCard({ userId, commitments, onCommitmentsChange, onAdd }: 
           </Button>
         </div>
 
-        {upcoming.length === 0 ? (
+        {commitments.length === 0 ? (
           <div style={{
             padding: "var(--space-6)",
             background: "var(--card)",
@@ -82,7 +79,7 @@ export function AgendaCard({ userId, commitments, onCommitmentsChange, onAdd }: 
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {upcoming.map((c) => (
+            {commitments.map((c) => (
               <div
                 key={c.id}
                 style={{
@@ -139,6 +136,10 @@ export function AgendaCard({ userId, commitments, onCommitmentsChange, onAdd }: 
             ))}
           </div>
         )}
+
+        <p style={{ fontSize: "0.625rem", color: "var(--muted)", margin: "0.5rem 0 0", textAlign: "center" }}>
+          Tus compromisos se guardan solo en este dispositivo.
+        </p>
       </div>
 
       {showForm && (
