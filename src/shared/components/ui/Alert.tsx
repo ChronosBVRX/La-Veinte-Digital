@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react"
 import { Info, SealCheck, Warning, X } from "@phosphor-icons/react"
-import { cn } from "@/shared/lib/ui/cn"
 
 type AlertVariant = "info" | "success" | "warning" | "error"
 

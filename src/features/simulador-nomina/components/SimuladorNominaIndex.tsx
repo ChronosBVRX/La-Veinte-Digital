@@ -37,6 +37,7 @@ export function SimuladorNominaIndex() {
   const [running, setRunning] = useState(false)
   const [categories, setCategories] = useState<{ name: string; salary: number }[]>([])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage sync on mount
   useEffect(() => {
     try {
       const raw = localStorage.getItem("nomina_profile")

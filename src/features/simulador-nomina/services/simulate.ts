@@ -64,8 +64,6 @@ export function compareProjections(
   const allCodes = new Set([...baselineMap.keys(), ...scenarioMap.keys()])
 
   const conceptDeltas: ConceptDelta[] = []
-  const baselineTotal = baseline.totalEarnings
-  const scenarioTotal = scenario.totalEarnings
   const baselineNet = baseline.totals.possibleGross
   const scenarioNet = scenario.totals.possibleGross
 
