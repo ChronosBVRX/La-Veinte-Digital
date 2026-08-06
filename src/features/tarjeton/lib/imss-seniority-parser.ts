@@ -115,5 +115,7 @@ export function buildTarjetonSeniority(
     days: parsed.days,
     referenceDate: periodEndDate,
     reconstructedEffectiveDate: reconstructEffectiveDateFromSeniority(parsed, periodEndDate),
+    parsed,
+    status: "complete",
   }
 }
