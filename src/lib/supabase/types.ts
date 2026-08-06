@@ -1104,6 +1104,68 @@ export type Database = {
           },
         ]
       }
+      worker_commitments: {
+        Row: {
+          created_at: string
+          end_at: string
+          id: string
+          notes: string | null
+          reminder_at_start: boolean
+          reminder_day_before: boolean
+          reminder_hours_before: boolean
+          service: string | null
+          start_at: string
+          status: string
+          substitute_worker_name: string | null
+          title: string
+          type: string
+          user_id: string
+          workplace: string | null
+        }
+        Insert: {
+          created_at?: string
+          end_at: string
+          id?: string
+          notes?: string | null
+          reminder_at_start?: boolean
+          reminder_day_before?: boolean
+          reminder_hours_before?: boolean
+          service?: string | null
+          start_at: string
+          status?: string
+          substitute_worker_name?: string | null
+          title: string
+          type: string
+          user_id: string
+          workplace?: string | null
+        }
+        Update: {
+          created_at?: string
+          end_at?: string
+          id?: string
+          notes?: string | null
+          reminder_at_start?: boolean
+          reminder_day_before?: boolean
+          reminder_hours_before?: boolean
+          service?: string | null
+          start_at?: string
+          status?: string
+          substitute_worker_name?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+          workplace?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worker_commitments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       worker_data_events: {
         Row: {
           created_at: string
