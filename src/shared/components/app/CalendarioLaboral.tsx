@@ -1,21 +1,26 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
-import { CaretLeft, CaretRight, Calendar as CalendarIcon, CurrencyDollar, CalendarCheck, AirplaneTilt, Clock, User, MapPin, ArrowsClockwise, Warning } from "@phosphor-icons/react"
+import { CaretLeft, CaretRight, Clock, MapPin, Warning } from "@phosphor-icons/react"
 import Link from "next/link"
 import { CALENDARIOS, EVENT_LABELS, EVENT_COLORS } from "@/shared/data/calendario"
 import type { CalendarEventType } from "@/shared/data/calendario"
 import { createClient } from "@/lib/supabase/client"
+import { CalendarioExportButton } from "@/features/calendario/components/CalendarioExportButton"
 
 const STORAGE_KEY = "calendar_filters_v1"
 
 const MONTH_NAMES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 const DAY_HEADERS = ["L", "M", "M", "J", "V", "S", "D"]
 
-type FilterKey = "santander" | "otros" | "cheque" | "jubilados" | "interactivo" | "vacacional" | "txt_substitution" | "overtime" | "shift_change" | "other"
+const PAYMENT_TYPES = new Set<CalendarEventType>(["santander", "otros", "cheque", "jubilados"])
+
+type FilterKey = "payments" | "interactivo" | "vacacional" | "txt_substitution" | "overtime" | "shift_change" | "other"
+
+const AGENDA_KEYS: FilterKey[] = ["txt_substitution", "overtime", "shift_change", "other"]
 
 const FILTER_DEFS: { key: FilterKey; label: string; color: string; group: "institucional" | "agenda" }[] = [
-  { key: "santander", label: "Pagos", color: "#ef4444", group: "institucional" },
+  { key: "payments", label: "Pagos", color: "#ef4444", group: "institucional" },
   { key: "interactivo", label: "Interactivo", color: "#eab308", group: "institucional" },
   { key: "vacacional", label: "Vacaciones", color: "#22c55e", group: "institucional" },
   { key: "txt_substitution", label: "TxT", color: "#3b82f6", group: "agenda" },
@@ -29,12 +34,10 @@ interface CalendarEvent {
   date: Date
   title: string
   time?: string
-  timeEnd?: string
   color: string
   type: FilterKey
   detail?: string
   isNightShift?: boolean
-  commitmentId?: string
 }
 
 function loadFilters(): FilterKey[] {
@@ -61,13 +64,13 @@ function getInstitutionalEvents(year: number, month: number): CalendarEvent[] {
     if (!days) continue
     for (const d of days) {
       const t = type as CalendarEventType
-      if (t === "otros" || t === "cheque" || t === "jubilados") continue
+      const filterType: FilterKey = PAYMENT_TYPES.has(t) ? "payments" : (t as FilterKey)
       events.push({
         id: `inst-${year}-${month}-${d}-${t}`,
         date: new Date(year, month, d),
         title: EVENT_LABELS[t],
         color: EVENT_COLORS[t],
-        type: t as FilterKey,
+        type: filterType,
       })
     }
   }
@@ -105,24 +108,24 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
             setCommitments(data.map((c) => {
               const start = new Date(c.start_at)
               const end = new Date(c.end_at)
-              const isNightShift = start.getDate() !== end.getDate()
+              const isNightShift = start.getDate() !== end.getDate() && end.getHours() < start.getHours()
               const typeMap: Record<string, FilterKey> = {
                 txt_substitution: "txt_substitution",
                 overtime: "overtime",
                 shift_change: "shift_change",
                 other: "other",
               }
+              const agendaType = typeMap[c.type] ?? "other"
+              const color = FILTER_DEFS.find((f) => f.key === agendaType)?.color ?? "#64748b"
               return {
                 id: `agenda-${c.id}`,
                 date: start,
                 title: c.title,
                 time: `${start.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}–${end.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`,
-                timeEnd: isNightShift ? `${end.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })} del día siguiente` : undefined,
-                color: "#3b82f6",
-                type: typeMap[c.type] ?? "other",
+                color,
+                type: agendaType,
                 detail: [c.service, c.substitute_worker_name ? `Cubres a ${c.substitute_worker_name}` : null, c.workplace].filter(Boolean).join(" · "),
                 isNightShift,
-                commitmentId: c.id,
               }
             }))
           }
@@ -139,6 +142,10 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
     })
   }, [])
 
+  const toggleAgendaFilters = useCallback(() => {
+    setShowAgendaFilters((prev) => !prev)
+  }, [])
+
   const toggleAll = useCallback(() => {
     setFilters((prev) => {
       const all = FILTER_DEFS.map((f) => f.key)
@@ -147,6 +154,8 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
       return next
     })
   }, [])
+
+  const agendaActive = useMemo(() => AGENDA_KEYS.some((key) => filters.includes(key)), [filters])
 
   const allEvents = useMemo(() => {
     const inst = getInstitutionalEvents(year, month)
@@ -182,29 +191,41 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
   const allFilterKeys = FILTER_DEFS.map((f) => f.key)
   const allActive = filters.length === allFilterKeys.length
 
+  const renderFilters = (compact?: boolean) => (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem", marginBottom: compact ? 0 : "var(--space-4)" }}>
+      <FilterChip active={allActive} onClick={toggleAll} color="var(--primary)" compact={compact}>
+        Todos
+      </FilterChip>
+      {FILTER_DEFS.filter((f) => f.group === "institucional").map((f) => (
+        <FilterChip key={f.key} active={filters.includes(f.key)} onClick={() => toggleFilter(f.key)} color={f.color} compact={compact}>
+          {f.label}
+        </FilterChip>
+      ))}
+      <FilterChip
+        active={agendaActive}
+        onClick={toggleAgendaFilters}
+        onCaretClick={() => setShowAgendaFilters(!showAgendaFilters)}
+        color="var(--brand-cyan)"
+        aria-expanded={showAgendaFilters}
+        compact={compact}
+        hasSubmenu
+      >
+        Mi agenda
+      </FilterChip>
+      {showAgendaFilters && FILTER_DEFS.filter((f) => f.group === "agenda").map((f) => (
+        <FilterChip key={f.key} active={filters.includes(f.key)} onClick={() => toggleFilter(f.key)} color={f.color} compact={compact}>
+          {f.label}
+        </FilterChip>
+      ))}
+      {loadingAgenda && <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)", alignSelf: "center" }}>Cargando...</span>}
+      {agendaError && <span style={{ fontSize: "var(--text-xs)", color: "var(--error)", alignSelf: "center", display: "flex", alignItems: "center", gap: "0.25rem" }}><Warning size={12} /> Agenda no disponible</span>}
+    </div>
+  )
+
   if (fullPage) {
     return (
       <div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem", marginBottom: "var(--space-4)" }}>
-          <FilterChip active={allActive} onClick={toggleAll} color="var(--primary)">
-            Todos
-          </FilterChip>
-          {FILTER_DEFS.filter((f) => f.group === "institucional").map((f) => (
-            <FilterChip key={f.key} active={filters.includes(f.key)} onClick={() => toggleFilter(f.key)} color={f.color}>
-              {f.label}
-            </FilterChip>
-          ))}
-          <FilterChip active={showAgendaFilters} onClick={() => setShowAgendaFilters(!showAgendaFilters)} color="var(--brand-cyan)">
-            Mi agenda
-          </FilterChip>
-          {showAgendaFilters && FILTER_DEFS.filter((f) => f.group === "agenda").map((f) => (
-            <FilterChip key={f.key} active={filters.includes(f.key)} onClick={() => toggleFilter(f.key)} color={f.color}>
-              {f.label}
-            </FilterChip>
-          ))}
-          {loadingAgenda && <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)", alignSelf: "center" }}>Cargando agenda...</span>}
-          {agendaError && <span style={{ fontSize: "var(--text-xs)", color: "var(--error)", alignSelf: "center", display: "flex", alignItems: "center", gap: "0.25rem" }}><Warning size={12} /> Agenda no disponible</span>}
-        </div>
+        {renderFilters()}
         <CalendarGrid year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} startOffset={startOffset} daysInMonth={daysInMonth} dayEvents={dayEvents} selectedDay={selectedDay} setSelectedDay={setSelectedDay} isToday={isToday} />
         <DayDetail events={selectedEvents} />
       </div>
@@ -215,7 +236,7 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
     <div style={{ marginBottom: "var(--space-6)" }}>
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        marginBottom: "0.75rem",
+        marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem",
       }}>
         <span style={{
           fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--muted)",
@@ -224,12 +245,19 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
           Calendario laboral
         </span>
         <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
-          {FILTER_DEFS.slice(0, 4).map((f) => (
+          {FILTER_DEFS.filter((f) => f.group === "institucional").map((f) => (
             <FilterChip key={f.key} active={filters.includes(f.key)} onClick={() => toggleFilter(f.key)} color={f.color} compact>
               {f.label}
             </FilterChip>
           ))}
-          <FilterChip active={showAgendaFilters} onClick={() => setShowAgendaFilters(!showAgendaFilters)} color="var(--brand-cyan)" compact>
+          <FilterChip
+            active={agendaActive}
+            onClick={toggleAgendaFilters}
+            color="var(--brand-cyan)"
+            aria-expanded={showAgendaFilters}
+            compact
+            hasSubmenu
+          >
             Agenda
           </FilterChip>
           {showAgendaFilters && FILTER_DEFS.filter((f) => f.group === "agenda").map((f) => (
@@ -249,7 +277,7 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
         <div style={{ flex: "3", minWidth: 0 }}>
           <CalendarGrid year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} startOffset={startOffset} daysInMonth={daysInMonth} dayEvents={dayEvents} selectedDay={selectedDay} setSelectedDay={setSelectedDay} isToday={isToday} compact />
         </div>
-        <div className="desktop-only" style={{ flex: "2", minWidth: 180 }}>
+        <div style={{ flex: "2", minWidth: 180 }}>
           <DayDetail events={selectedEvents} compact />
         </div>
       </div>
@@ -263,26 +291,43 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
   )
 }
 
-function FilterChip({ active, onClick, color, children, compact }: { active: boolean; onClick: () => void; color: string; children: React.ReactNode; compact?: boolean }) {
+function FilterChip({ active, onClick, onCaretClick, color, children, compact, hasSubmenu, "aria-expanded": ariaExpanded }: {
+  active: boolean; onClick: () => void; onCaretClick?: () => void; color: string; children: React.ReactNode;
+  compact?: boolean; hasSubmenu?: boolean; "aria-expanded"?: boolean;
+}) {
   return (
-    <button
-      onClick={onClick}
-      aria-pressed={active}
-      style={{
-        display: "inline-flex", alignItems: "center", gap: "0.25rem",
-        padding: compact ? "0.25rem 0.5rem" : "0.375rem 0.75rem",
-        borderRadius: "var(--radius-pill)", border: `1.5px solid ${active ? color : "var(--border)"}`,
-        background: active ? `${color}15` : "var(--card)",
-        color: active ? color : "var(--muted)",
-        fontSize: "var(--text-xs)", fontWeight: active ? 600 : 400,
-        cursor: "pointer", fontFamily: "inherit",
-        transition: "all var(--transition)",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {active && <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, display: "inline-block" }} />}
-      {children}
-    </button>
+    <span style={{ display: "inline-flex", alignItems: "center", borderRadius: "var(--radius-pill)", border: `1.5px solid ${active ? color : "var(--border)"}`, background: active ? `${color}15` : "var(--card)" }}>
+      <button
+        onClick={onClick}
+        aria-pressed={active}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: "0.25rem",
+          padding: compact ? "0.25rem 0.5rem" : "0.375rem 0.75rem",
+          border: "none", background: "none",
+          color: active ? color : "var(--muted)",
+          fontSize: "var(--text-xs)", fontWeight: active ? 600 : 400,
+          cursor: "pointer", fontFamily: "inherit",
+          borderRadius: "var(--radius-pill)", whiteSpace: "nowrap",
+        }}
+      >
+        {active && <span style={{ width: 6, height: 6, borderRadius: "50%", background: color, display: "inline-block" }} />}
+        {children}
+      </button>
+      {hasSubmenu && (
+        <button
+          onClick={onCaretClick}
+          aria-expanded={ariaExpanded}
+          aria-label={ariaExpanded ? "Ocultar subfiltros" : "Mostrar subfiltros"}
+          style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            border: "none", background: "none", cursor: "pointer", padding: "0 0.375rem 0 0.125rem",
+            color: "var(--muted)", fontSize: "0.625rem",
+          }}
+        >
+          {ariaExpanded ? <CaretLeft size={10} style={{ transform: "rotate(90deg)" }} /> : <CaretLeft size={10} style={{ transform: "rotate(-90deg)" }} />}
+        </button>
+      )}
+    </span>
   )
 }
 
@@ -365,21 +410,18 @@ function CalendarGrid({ year, month, prevMonth, nextMonth, startOffset, daysInMo
 }
 
 function DayDetail({ events, compact }: { events: CalendarEvent[]; compact?: boolean }) {
-  if (events.length === 0 && !compact) {
+  if (events.length === 0)
     return (
-      <div style={{ marginTop: "var(--space-4)", padding: "var(--space-4)", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", textAlign: "center" }}>
-        <span style={{ fontSize: "var(--text-sm)", color: "var(--muted)" }}>Selecciona un día para ver sus eventos</span>
+      <div style={{ padding: "var(--space-4)", color: "var(--muted)", fontSize: compact ? "var(--text-xs)" : "var(--text-sm)", textAlign: "center", background: compact ? "none" : "var(--card)", border: compact ? "none" : "1px solid var(--border)", borderRadius: "var(--radius-lg)", marginTop: compact ? 0 : "var(--space-4)" }}>
+        {compact ? "Selecciona un día" : "Selecciona un día para ver sus eventos"}
       </div>
     )
-  }
-
-  if (events.length === 0 && compact) return <div style={{ padding: "var(--space-4)", color: "var(--muted)", fontSize: "var(--text-xs)", textAlign: "center" }}>Selecciona un día</div>
 
   const ref = events[0]
   const dateLabel = ref.date.toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" }).toUpperCase()
 
   return (
-    <div>
+    <div style={{ marginTop: compact ? 0 : "var(--space-4)" }}>
       <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--muted)", marginBottom: "0.5rem", textTransform: "uppercase" }}>
         {dateLabel}
       </div>
@@ -387,7 +429,7 @@ function DayDetail({ events, compact }: { events: CalendarEvent[]; compact?: boo
         {events.map((e) => (
           <div key={e.id} style={{
             padding: compact ? "0.5rem 0.75rem" : "0.625rem 0.875rem",
-            background: "var(--card)", border: `1px solid var(--border)`,
+            background: "var(--card)", border: "1px solid var(--border)",
             borderLeft: `3px solid ${e.color}`,
             borderRadius: "var(--radius-sm)", fontSize: "var(--text-xs)",
           }}>
