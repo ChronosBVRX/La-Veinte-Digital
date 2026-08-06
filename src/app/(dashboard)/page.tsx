@@ -5,7 +5,6 @@ import Link from "next/link"
 import { FacebookFeeds } from "@/features/facebook/components/FacebookFeeds"
 import { TodayCard } from "@/shared/components/layout/TodayCard"
 import { DashboardHero } from "@/shared/components/app/DashboardHero"
-import { DashboardStatsGrid } from "@/shared/components/app/DashboardStatsGrid"
 import { DashboardPendientes } from "@/shared/components/app/DashboardPendientes"
 import { DashboardSection } from "@/shared/components/app/DashboardSection"
 import { CompactCalendar } from "@/shared/components/app/CompactCalendar"
@@ -20,6 +19,13 @@ export default async function DashboardPage() {
     .select("*")
     .eq("id", user.id)
     .single()
+
+  const { count: tarjetonesCount } = await supabase
+    .from("imported_payslips")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+
+  const hasTarjeton = (tarjetonesCount ?? 0) > 0
 
   const now = new Date()
 
@@ -38,8 +44,6 @@ export default async function DashboardPage() {
       : hour >= 12 && hour < 19
       ? "Buenas tardes"
       : "Buenas noches"
-
-  const hasTarjeton = typeof profile?.id === "string"
 
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
@@ -66,10 +70,6 @@ export default async function DashboardPage() {
         />
       </DashboardSection>
 
-      <DashboardStatsGrid
-        profile={{ antiguedad: profile?.antiguedad ?? null }}
-      />
-
       <div style={{ marginBottom: "var(--space-6)" }}>
         <div style={{
           display: "flex",
@@ -87,7 +87,7 @@ export default async function DashboardPage() {
             Acciones frecuentes
           </span>
           <Link
-            href="/calculadoras"
+            href="/herramientas"
             style={{
               fontSize: "var(--text-xs)",
               color: "var(--primary)",
