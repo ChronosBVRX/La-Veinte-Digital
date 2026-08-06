@@ -16,6 +16,17 @@ export function clearLocal() {
   localStorage.removeItem(STORAGE_KEY)
 }
 
+export function clearLocalForUser(userId: string) {
+  const remaining = readAllLocal().filter(
+    (c) => c.userId !== userId
+  )
+  if (remaining.length === 0) {
+    localStorage.removeItem(STORAGE_KEY)
+  } else {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining))
+  }
+}
+
 export function getCommitments(userId: string): WorkerCommitment[] {
   return readAllLocal().filter((c) => c.userId === userId)
 }

@@ -5,7 +5,11 @@ export type CommitmentRow = Tables<"worker_commitments">
 export type CommitmentInsert = TablesInsert<"worker_commitments">
 export type CommitmentUpdate = TablesUpdate<"worker_commitments">
 
-export async function fetchCommitments(userId: string): Promise<CommitmentRow[]> {
+export type FetchResult =
+  | { ok: true; data: CommitmentRow[] }
+  | { ok: false; error: string }
+
+export async function fetchCommitments(userId: string): Promise<FetchResult> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from("worker_commitments")
@@ -15,9 +19,9 @@ export async function fetchCommitments(userId: string): Promise<CommitmentRow[]>
 
   if (error) {
     console.error("[commitments-supabase] fetch:", error.message)
-    return []
+    return { ok: false, error: error.message }
   }
-  return data ?? []
+  return { ok: true, data: data ?? [] }
 }
 
 export async function insertCommitment(commitment: CommitmentInsert): Promise<CommitmentRow | null> {

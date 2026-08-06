@@ -1109,6 +1109,7 @@ export type Database = {
           created_at: string
           end_at: string
           id: string
+          legacy_local_id: string | null
           notes: string | null
           reminder_at_start: boolean
           reminder_day_before: boolean
@@ -1126,6 +1127,7 @@ export type Database = {
           created_at?: string
           end_at: string
           id?: string
+          legacy_local_id?: string | null
           notes?: string | null
           reminder_at_start?: boolean
           reminder_day_before?: boolean
@@ -1143,6 +1145,7 @@ export type Database = {
           created_at?: string
           end_at?: string
           id?: string
+          legacy_local_id?: string | null
           notes?: string | null
           reminder_at_start?: boolean
           reminder_day_before?: boolean
