@@ -8,15 +8,8 @@ interface DashboardHeroProps {
   dateLabel: string
 }
 
-function getGreetingIcon(greeting: string): typeof Sun {
-  if (greeting === "Buenos días") return Sun
-  if (greeting === "Buenas tardes") return Clock
-  return Moon
-}
-
 export function DashboardHero({ fullName, greeting, dateLabel }: DashboardHeroProps) {
   const firstName = fullName?.split(" ")[0] ?? ""
-  const Icon = getGreetingIcon(greeting)
 
   return (
     <div
@@ -38,11 +31,9 @@ export function DashboardHero({ fullName, greeting, dateLabel }: DashboardHeroPr
             marginBottom: "0.25rem",
           }}
         >
-          <Icon
-            size={22}
-            weight="duotone"
-            color="var(--brand-cyan)"
-          />
+          {greeting === "Buenos días" && <Sun size={22} weight="duotone" color="var(--brand-cyan)" />}
+          {greeting === "Buenas tardes" && <Clock size={22} weight="duotone" color="var(--brand-cyan)" />}
+          {greeting !== "Buenos días" && greeting !== "Buenas tardes" && <Moon size={22} weight="duotone" color="var(--brand-cyan)" />}
           <h1
             style={{
               fontSize: "1.375rem",

@@ -75,6 +75,7 @@ interface DashboardStatsGridProps {
 export function DashboardStatsGrid({ profile }: DashboardStatsGridProps) {
   const [hasTarjeton, setHasTarjeton] = useState(false)
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage read on mount
   useEffect(() => {
     setHasTarjeton(hasImportedPayslip())
   }, [])

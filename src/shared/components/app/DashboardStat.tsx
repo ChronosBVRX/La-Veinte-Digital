@@ -1,5 +1,4 @@
 import Link from "next/link"
-import type { ReactNode } from "react"
 import type { IconProps } from "@phosphor-icons/react"
 
 interface DashboardStatProps {
