@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
     "e2e": "npx playwright test",
-    "e2e:smoke": "npx playwright test --project=chromium-desktop --project=chromium-public --grep='smoke\\.|auth-public\\.'",
+    "e2e:smoke": "npx playwright test e2e/smoke --project=chromium-desktop --project=chromium-public",
     "e2e:full": "npx playwright test",
     "e2e:headed": "npx playwright test --headed",
     "e2e:ui": "npx playwright test --ui",

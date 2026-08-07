@@ -11,12 +11,6 @@ npm install
 npx playwright install chromium firefox
 ```
 
-Genera los PDFs de prueba:
-
-```bash
-node e2e/fixtures/pdfs/generate-pdf-fixtures.mjs
-```
-
 ---
 
 ## Variables de entorno
@@ -31,24 +25,29 @@ Crear `.env.local` con:
 
 Las credenciales NUNCA se commitean al repositorio.
 
+Si faltan `E2E_USER_EMAIL` o `E2E_USER_PASSWORD`, el setup de autenticación **falla**
+con un mensaje claro. Las pruebas públicas (`chromium-public`) no requieren credenciales.
+
 ---
 
 ## Preparación de cuenta E2E
 
 1. Crear una cuenta dedicada en Supabase (dashboard o vía `/register`).
 2. Si la app requiere confirmación por email, confirmar manualmente.
-3. Opcional: completar perfil con datos de prueba.
-4. Configurar `E2E_USER_EMAIL` y `E2E_USER_PASSWORD` en `.env.local`.
+3. Configurar `E2E_USER_EMAIL` y `E2E_USER_PASSWORD` en `.env.local`.
 
 ---
 
 ## Ejecución
 
 ```bash
-# Smoke tests (rápidos, navegación + autenticación)
+# Solo pruebas públicas (sin credenciales)
+npx playwright test --project=chromium-public
+
+# Smoke tests (requiere credenciales E2E)
 npm run e2e:smoke
 
-# Suite completa
+# Suite completa (requiere credenciales E2E)
 npm run e2e:full
 
 # Modo visible (ver navegador)
@@ -80,16 +79,10 @@ npx playwright test e2e/full/tarjeton.spec.ts --debug
 ```
 e2e/
 ├── global-setup.ts              # Autenticación (storageState)
-├── fixtures/
-│   ├── monitored-page.ts        # Captura errores consola/red
+    ├── fixtures/
+│   │   └── test.ts              # Auto-fixture: captura consola/red automática
 │   └── pdfs/
-│       ├── generate-pdf-fixtures.mjs  # Generador de PDFs sintéticos
-│       ├── tarjeton-valido.pdf
-│       ├── tarjeton-sin-percepciones.pdf
-│       ├── tarjeton-sin-deducciones.pdf
-│       ├── imss-no-tarjeton.pdf
-│       ├── documento-generico.pdf
-│       └── tarjeton-ambiguo.pdf
+│       └── generate-pdf-fixtures.mjs  # PDFs estáticos de referencia (las pruebas de tarjetón generan PDFs únicos por run)
 ├── smoke/
 │   ├── auth-public.spec.ts      # Login público (sin sesión)
 │   ├── auth-authenticated.spec.ts # Sesión persistente
@@ -125,22 +118,16 @@ e2e/
 
 ## Fixtures de PDF
 
-Los PDFs son generados sintéticamente con `jspdf`. No contienen datos reales.
+Los tests de tarjetón generan PDFs sintéticos **únicos por ejecución** usando `jspdf` (ya en dependencias).
+Cada run produce diferentes `source_hash`, garantizando aislamiento entre ejecuciones consecutivas
+de CI. Los PDFs estáticos en `e2e/fixtures/pdfs/` sirven como referencia inicial y para el
+script generador.
 
-Para regenerar:
+Para regenerar PDFs estáticos:
 
 ```bash
 node e2e/fixtures/pdfs/generate-pdf-fixtures.mjs
 ```
-
-| Archivo | Propósito |
-|---------|-----------|
-| `tarjeton-valido.pdf` | Tarjetón IMSS con percepciones y deducciones |
-| `tarjeton-sin-percepciones.pdf` | Solo deducciones |
-| `tarjeton-sin-deducciones.pdf` | Solo percepciones |
-| `imss-no-tarjeton.pdf` | Documento IMSS que no es tarjetón |
-| `documento-generico.pdf` | PDF sin relación con IMSS |
-| `tarjeton-ambiguo.pdf` | Campos faltantes para confianza baja |
 
 ---
 
@@ -148,26 +135,31 @@ node e2e/fixtures/pdfs/generate-pdf-fixtures.mjs
 
 Las pruebas del asistente interceptan `POST /api/consulta` para verificar headers sin consumir cuota real.
 
-Para pruebas de integración real con OpenAI/Python bot, usar una suite separada (no incluida en el commit).
+Para pruebas de integración real con OpenAI/Python bot, crear
+`e2e/integration/asistente-real.spec.ts` y ejecutarlo manualmente.
 
----
+## Captura automática de errores
+
+Todas las pruebas usan un fixture automático (`e2e/fixtures/test.ts`) basado en `test.extend()`.
+Cada test captura automáticamente:
+
+- `console.error` y excepciones no controladas
+- `pageerror` (errores fatales de página)
+- Respuestas HTTP 5xx y 4xx inesperadas
+- Fallos de recursos (JS, CSS rotos)
+
+Al finalizar cada test, la fixture falla si hay errores no permitidos.
+Los tests pueden declarar errores esperados con `errors.allowConsole(...)` y
+`errors.allowNetwork(...)`.
 
 ## Limpieza de datos
 
-Los tests que modifican datos (perfil, tarjetón) deben ejecutarse contra:
-- Entorno local con Supabase local
-- Cuenta E2E aislada en staging
+Los tests de tarjetón generan PDFs con contenido único por ejecución (`RUN_ID = Date.now()`),
+por lo que cada run produce `source_hash` distintos. Esto garantiza que ejecuciones
+consecutivas no colisionen.
 
-Para limpiar datos después de tests:
-
-```sql
--- Limpiar tarjetones de la cuenta E2E
-DELETE FROM imported_payslips WHERE user_id = '<e2e-user-id>';
--- Limpiar compromisos
-DELETE FROM commitments WHERE user_id = '<e2e-user-id>';
-```
-
-Ejecutar `node scripts/cleanup-e2e-data.mjs` si existe.
+La prueba de duplicados usa el mismo buffer dos veces **dentro del mismo test**, verificando
+que la segunda inserción sea rechazada correctamente.
 
 ---
 

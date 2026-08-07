@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test"
+import { test, expect } from "../fixtures/test"
 
 test.describe("Acceso publico - sin sesion", () => {
   test("redirige a login cuando no hay sesion", async ({ page }) => {
@@ -11,14 +11,19 @@ test.describe("Acceso publico - sin sesion", () => {
     await expect(page).toHaveURL(/\/login/)
   })
 
-  test("login falla con credenciales incorrectas", async ({ page }) => {
+  test("login falla con credenciales incorrectas", async ({ page, errors }) => {
+    // The server returns 500 for invalid credentials (expected)
+    errors.allowConsole(/Failed to load resource.*500/)
+    errors.allowNetwork(/\/login$/)
+
     await page.goto("/login")
     await page.getByLabel("Correo electrónico").fill("noexiste@test.com")
     await page.getByLabel("Contraseña").fill("password-incorrecto")
     await page.getByRole("button", { name: /iniciar sesión/i }).click()
 
-    const errorIndicator = page.locator('[style*="--error"], [style*="fef2f2"]')
-    await expect(errorIndicator).toBeVisible({ timeout: 10_000 })
+    await expect(
+      page.locator('[style*="--error"], [style*="fef2f2"]')
+    ).toBeVisible({ timeout: 10_000 })
   })
 
   test("login muestra formulario con campos requeridos", async ({ page }) => {
