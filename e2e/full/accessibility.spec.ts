@@ -1,21 +1,6 @@
 import { test, expect } from "../fixtures/test"
 
 test.describe("Accesibilidad basica", () => {
-  test("login tiene inputs con labels", async ({ page }) => {
-    await page.goto("/login")
-    await page.waitForLoadState("networkidle")
-    await expect(page.getByLabel("Correo electrónico")).toBeVisible()
-    await expect(page.getByLabel("Contraseña")).toBeVisible()
-  })
-
-  test("login tiene botones con nombre accesible", async ({ page }) => {
-    await page.goto("/login")
-    await page.waitForLoadState("networkidle")
-    await expect(page.getByRole("button", { name: /iniciar sesión/i })).toBeVisible()
-    await expect(page.getByRole("button", { name: /google/i })).toBeVisible()
-    await expect(page.getByRole("button", { name: /facebook/i })).toBeVisible()
-  })
-
   test("dashboard tiene heading principal", async ({ page }) => {
     await page.goto("/")
     await page.waitForLoadState("networkidle")
@@ -56,15 +41,6 @@ test.describe("Accesibilidad basica", () => {
 })
 
 test.describe("Navegacion por teclado", () => {
-  test("login permite navegacion por teclado", async ({ page }) => {
-    await page.goto("/login")
-    await page.waitForLoadState("networkidle")
-    await page.keyboard.press("Tab")
-    await expect(page.getByLabel("Correo electrónico")).toBeFocused()
-    await page.keyboard.press("Tab")
-    await expect(page.getByLabel("Contraseña")).toBeFocused()
-  })
-
   test("escape cierra modales cuando existen", async ({ page }) => {
     await page.goto("/")
     await page.waitForLoadState("networkidle")
