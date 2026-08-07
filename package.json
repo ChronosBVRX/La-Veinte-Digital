@@ -14,7 +14,14 @@
     "lint": "eslint",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm run lint && npm test && npm run build"
+    "check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "e2e": "npx playwright test",
+    "e2e:smoke": "npx playwright test --project=chromium-desktop --grep='smoke\\.spec\\.ts|auth-public\\.spec\\.ts'",
+    "e2e:full": "npx playwright test",
+    "e2e:headed": "npx playwright test --headed",
+    "e2e:ui": "npx playwright test --ui",
+    "e2e:report": "npx playwright show-report",
+    "e2e:debug": "npx playwright test --debug"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
@@ -34,6 +41,7 @@
     "tesseract.js": "7.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",

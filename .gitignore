@@ -50,3 +50,8 @@ next-env.d.ts
 /supabase/.temp
 /supabase/.branches
 
+# playwright e2e
+/playwright-report/
+/test-results/
+/e2e/.auth/
+
