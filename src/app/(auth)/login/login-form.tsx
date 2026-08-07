@@ -9,17 +9,7 @@ import { signInAction } from "../actions"
 import { signInWithOAuth } from "@/lib/services/auth-client"
 
 export function LoginForm() {
-  const [state, formAction, pending] = useActionState(
-    async (_prev: { error?: string } | undefined, formData: FormData) => {
-      try {
-        await signInAction(formData)
-        return {}
-      } catch (e) {
-        return { error: (e as Error).message }
-      }
-    },
-    undefined
-  )
+  const [state, formAction, pending] = useActionState(signInAction, undefined)
 
   return (
     <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
