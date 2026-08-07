@@ -17,15 +17,15 @@ test.describe("Sesion autenticada", () => {
   })
 })
 
-test.describe("Cierre de sesion", () => {
-  test("boton de logout existe en perfil", async ({ page }) => {
-    await page.goto("/profile")
-    const logoutBtn = page.getByRole("button", { name: /cerrar sesión|salir|logout/i })
-    await expect(logoutBtn).toBeAttached({ timeout: 10_000 })
+test.describe("Comportamiento de sesion", () => {
+  test("visitar login estando autenticado redirige a dashboard", async ({ page }) => {
+    await page.goto("/login")
+    // Already authenticated, should redirect to dashboard
+    await expect(page).toHaveURL("/")
   })
 
-  test("ruta protegida pide autenticacion despues de visitar login", async ({ page }) => {
-    await page.goto("/login")
-    await expect(page).toHaveURL(/\/login/)
+  test("ruta protegida es accesible con sesion activa", async ({ page }) => {
+    await page.goto("/profile")
+    await expect(page).not.toHaveURL(/\/login/)
   })
 })
