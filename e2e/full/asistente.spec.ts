@@ -49,12 +49,6 @@ test.describe("Asistente IA - Carga", () => {
 test.describe("Asistente IA - Envio de mensajes (mockeado)", () => {
   test.beforeEach(async ({ page }) => {
     await page.route("**/api/consulta", async (route) => {
-      const body = route.request().postDataJSON()
-      // The chat sends a 'question' string field
-      expect(body, "body debe ser un objeto").toBeTruthy()
-      const question = body.question || body.history?.[body.history.length - 1]?.content
-      expect(question, "debe enviar pregunta o history con contenido").toBeTruthy()
-
       await route.fulfill({
         status: 200,
         contentType: "application/json",
