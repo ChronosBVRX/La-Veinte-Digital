@@ -58,7 +58,69 @@ function createValidPayslip() {
   return doc
 }
 
-// ── Fixture 2: Tarjeton sin percepciones ──
+// ── Fixture 2: Tarjeton valido (alternativo para aislamiento) ──
+function createValidPayslip2() {
+  const doc = new jsPDF()
+  doc.setFont("helvetica")
+  doc.setFontSize(10)
+
+  doc.text("INSTITUTO MEXICANO DEL SEGURO SOCIAL", 14, 20)
+  doc.text("TARJETON DE PAGO", 14, 28)
+  doc.text("Nombre: ROBERTO DIAZ SOTO", 14, 40)
+  doc.text("NSS: 34567890123", 14, 48)
+  doc.text("Periodo: 01/03/2025 - 15/03/2025", 14, 56)
+  doc.text("No. de afiliacion: 00345678901", 14, 64)
+
+  doc.text("PERCEPCIONES", 14, 80)
+  doc.text("Sueldo base", 14, 88)
+  doc.text("$6,500.00", 150, 88)
+  doc.text("Ayuda de despensa", 14, 96)
+  doc.text("$1,500.00", 150, 96)
+  doc.text("Total percepciones: $8,000.00", 14, 108)
+
+  doc.text("DEDUCCIONES", 14, 124)
+  doc.text("Cuota IMSS", 14, 132)
+  doc.text("$450.00", 150, 132)
+  doc.text("ISR", 14, 140)
+  doc.text("$300.00", 150, 140)
+  doc.text("Total deducciones: $750.00", 14, 152)
+
+  doc.text("LIQUIDO A RECIBIR: $7,250.00", 14, 170)
+
+  return doc
+}
+
+// ── Fixture 3: Tarjeton valido (tercero para test de recarga) ──
+function createValidPayslip3() {
+  const doc = new jsPDF()
+  doc.setFont("helvetica")
+  doc.setFontSize(10)
+
+  doc.text("INSTITUTO MEXICANO DEL SEGURO SOCIAL", 14, 20)
+  doc.text("TARJETON DE PAGO", 14, 28)
+  doc.text("Nombre: LAURA FLORES MORALES", 14, 40)
+  doc.text("NSS: 89012345678", 14, 48)
+  doc.text("Periodo: 16/03/2025 - 31/03/2025", 14, 56)
+  doc.text("No. de afiliacion: 00890123456", 14, 64)
+
+  doc.text("PERCEPCIONES", 14, 80)
+  doc.text("Sueldo base", 14, 88)
+  doc.text("$7,200.00", 150, 88)
+  doc.text("Ayuda de despensa", 14, 96)
+  doc.text("$1,800.00", 150, 96)
+  doc.text("Total percepciones: $9,000.00", 14, 108)
+
+  doc.text("DEDUCCIONES", 14, 124)
+  doc.text("Cuota IMSS", 14, 132)
+  doc.text("$500.00", 150, 132)
+  doc.text("Total deducciones: $500.00", 14, 144)
+
+  doc.text("LIQUIDO A RECIBIR: $8,500.00", 14, 162)
+
+  return doc
+}
+
+// ── Fixture 4: Tarjeton sin percepciones ──
 function createPayslipNoPercepciones() {
   const doc = new jsPDF()
   doc.setFont("helvetica")
@@ -77,7 +139,7 @@ function createPayslipNoPercepciones() {
   return doc
 }
 
-// ── Fixture 3: Tarjeton sin deducciones ──
+// ── Fixture 5: Tarjeton sin deducciones ──
 function createPayslipNoDeducciones() {
   const doc = new jsPDF()
   doc.setFont("helvetica")
@@ -97,7 +159,7 @@ function createPayslipNoDeducciones() {
   return doc
 }
 
-// ── Fixture 4: PDF IMSS que no es tarjeton (ej: constancia) ──
+// ── Fixture 6: PDF IMSS que no es tarjeton (ej: constancia) ──
 function createIMSSNonPayslip() {
   const doc = new jsPDF()
   doc.setFont("helvetica")
@@ -114,7 +176,7 @@ function createIMSSNonPayslip() {
   return doc
 }
 
-// ── Fixture 5: PDF generico (no IMSS) ──
+// ── Fixture 7: PDF generico (no IMSS) ──
 function createGenericPDF() {
   const doc = new jsPDF()
   doc.setFont("helvetica")
@@ -156,6 +218,8 @@ function main() {
   ensureDir(__dirname)
 
   save(createValidPayslip(), "tarjeton-valido.pdf")
+  save(createValidPayslip2(), "tarjeton-valido-2.pdf")
+  save(createValidPayslip3(), "tarjeton-valido-3.pdf")
   save(createPayslipNoPercepciones(), "tarjeton-sin-percepciones.pdf")
   save(createPayslipNoDeducciones(), "tarjeton-sin-deducciones.pdf")
   save(createIMSSNonPayslip(), "imss-no-tarjeton.pdf")

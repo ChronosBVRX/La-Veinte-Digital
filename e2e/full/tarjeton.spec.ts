@@ -1,11 +1,39 @@
-import { test, expect } from "@playwright/test"
+import { test, expect, type Page } from "@playwright/test"
 import path from "path"
-import { fileURLToPath } from "url"
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const FIXTURES = path.join(__dirname, "..", "fixtures", "pdfs")
 
 const pdfPath = (name: string) => path.join(FIXTURES, name)
+
+// ── Helpers ──
+
+async function uploadPdf(page: Page, filePath: string) {
+  await page.setInputFiles('input[type="file"]', filePath)
+}
+
+async function waitForReviewScreen(page: Page) {
+  await expect(
+    page.getByText("Revisa los datos detectados")
+  ).toBeVisible({ timeout: 30_000 })
+}
+
+async function waitForDropzoneWithError(page: Page) {
+  await expect(
+    page.locator('[aria-label="Seleccionar tarjetón PDF"]')
+  ).toBeVisible({ timeout: 30_000 })
+}
+
+async function confirmTarjeton(page: Page) {
+  const consentCheckbox = page.locator('input[type="checkbox"]').first()
+  if (await consentCheckbox.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await consentCheckbox.check()
+  }
+  await page.getByRole("button", { name: "Confirmar tarjetón" }).click()
+}
+
+// ─────────────────────────────────────────────────────────────
+// Valid import tests (each uses a unique PDF for isolation)
+// ─────────────────────────────────────────────────────────────
 
 test.describe("Tarjeton - Importacion valida", () => {
   test("carga la pagina de tarjeton", async ({ page }) => {
@@ -16,169 +44,147 @@ test.describe("Tarjeton - Importacion valida", () => {
       page.getByText("Importar tarjetón IMSS")
     ).toBeVisible({ timeout: 10_000 })
 
-    // Dropzone should be visible
     await expect(
       page.locator('[aria-label="Seleccionar tarjetón PDF"]')
     ).toBeVisible()
   })
 
-  test("importa tarjeton valido exitosamente", async ({ page }) => {
+  test("importa tarjeton valido, revisa datos y confirma", async ({ page }) => {
     await page.goto("/tarjeton")
     await page.waitForLoadState("networkidle")
 
-    // Upload valid PDF
-    await page.setInputFiles(
-      'input[type="file"]',
-      pdfPath("tarjeton-valido.pdf")
-    )
+    await uploadPdf(page, pdfPath("tarjeton-valido.pdf"))
+    await waitForReviewScreen(page)
 
-    // Wait for review screen (extraction complete)
-    await expect(
-      page.getByText("Revisa los datos detectados")
-    ).toBeVisible({ timeout: 30_000 })
+    // Verify worker data was extracted
+    await expect(page.getByText("JUAN PEREZ LOPEZ")).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText("Percepciones")).toBeVisible()
+    await expect(page.getByText("Deducciones")).toBeVisible()
 
-    // Verify worker name detected
-    await expect(page.getByText("JUAN PEREZ LOPEZ")).toBeVisible({ timeout: 10_000 })
+    // Confirm the import
+    await confirmTarjeton(page)
 
-    // Check that percepciones and deducciones show up in the summary
-    await expect(page.getByText("Percepciones")).toBeVisible({ timeout: 5000 })
-    await expect(page.getByText("Deducciones")).toBeVisible({ timeout: 5000 })
-
-    // Verify the consent checkbox is present
-    await expect(
-      page.getByText("Autorizo guardar los datos confirmados")
-    ).toBeVisible()
-
-    // Accept consent
-    const consentCheckbox = page.locator('input[type="checkbox"]').first()
-    await consentCheckbox.check()
-
-    // Confirm the tarjeton
-    await page.getByRole("button", { name: "Confirmar tarjetón" }).click()
-
-    // Wait for success screen
+    // Verify success screen with specific assertions
     await expect(
       page.getByText("Tarjetón confirmado")
     ).toBeVisible({ timeout: 20_000 })
+    await expect(page.getByText("Guardado")).toBeVisible()
   })
 
-  test("tarjeton confirmado aparece tras recarga", async ({ page }) => {
+  test("importa segundo tarjeton distinto sin conflicto", async ({ page }) => {
     await page.goto("/tarjeton")
     await page.waitForLoadState("networkidle")
 
-    // Upload valid PDF
-    await page.setInputFiles(
-      'input[type="file"]',
-      pdfPath("tarjeton-valido.pdf")
-    )
+    // Use tarjeton-valido-2.pdf (different worker/period than valido.pdf)
+    await uploadPdf(page, pdfPath("tarjeton-valido-2.pdf"))
+    await waitForReviewScreen(page)
 
-    // Wait for review screen
-    await expect(
-      page.getByText("Revisa los datos detectados")
-    ).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText("ROBERTO DIAZ SOTO")).toBeVisible({ timeout: 5000 })
+    await confirmTarjeton(page)
 
-    const consentCheckbox = page.locator('input[type="checkbox"]').first()
-    if (await consentCheckbox.isVisible().catch(() => false)) {
-      await consentCheckbox.check()
-    }
-
-    await page.getByRole("button", { name: "Confirmar tarjetón" }).click()
-
-    // Wait for success
     await expect(
       page.getByText("Tarjetón confirmado")
     ).toBeVisible({ timeout: 20_000 })
-
-    // Reload and check the page still works
-    await page.reload()
-    await page.waitForLoadState("networkidle")
-    await expect(
-      page.locator('[aria-label="Seleccionar tarjetón PDF"]')
-    ).toBeVisible({ timeout: 10_000 })
   })
 })
 
-test.describe("Tarjeton - Casos invalidos", () => {
-  test("rechaza PDF generico (no IMSS)", async ({ page }) => {
+// ─────────────────────────────────────────────────────────────
+// Negative tests: invalid PDFs MUST be rejected
+// ─────────────────────────────────────────────────────────────
+
+test.describe("Tarjeton - Casos invalidos (deben fallar)", () => {
+  test("rechaza PDF generico - no permite revision ni confirmacion", async ({ page }) => {
     await page.goto("/tarjeton")
     await page.waitForLoadState("networkidle")
 
-    await page.setInputFiles(
-      'input[type="file"]',
-      pdfPath("documento-generico.pdf")
-    )
+    await uploadPdf(page, pdfPath("documento-generico.pdf"))
 
-    // Should either show an error or never reach review screen
-    // Wait and check - a generic PDF likely won't be recognized as a tarjeton
-    await page.waitForTimeout(5000)
+    // Wait for processing to finish: either error appears or dropzone reappears
+    await waitForDropzoneWithError(page)
 
-    // Either we see an error OR we're still on idle (review didn't appear)
-    const hasReview = await page
-      .getByText("Revisa los datos detectados")
-      .isVisible({ timeout: 3000 })
-      .catch(() => false)
+    // CRITICAL: the review screen must NOT appear
+    await expect(
+      page.getByText("Revisa los datos detectados")
+    ).not.toBeVisible()
 
-    // If we reached review with a generic PDF, document as unexpected
-    if (hasReview) {
-      console.warn("UNEXPECTED: Generic PDF was recognized as a tarjeton")
-    }
-    // Either way, the app handled it without crashing
-    await expect(page.locator("body")).not.toContainText("500")
+    // Should show an error indicating the file was rejected
+    const errorMsg = page.getByText("Este archivo no parece ser un tarjetón de pago del IMSS.")
+    await expect(errorMsg).toBeVisible({ timeout: 5000 })
   })
 
   test("rechaza documento IMSS que no es tarjeton", async ({ page }) => {
     await page.goto("/tarjeton")
     await page.waitForLoadState("networkidle")
 
-    await page.setInputFiles(
-      'input[type="file"]',
-      pdfPath("imss-no-tarjeton.pdf")
-    )
+    await uploadPdf(page, pdfPath("imss-no-tarjeton.pdf"))
+    await waitForDropzoneWithError(page)
 
-    // Should either show error or not reach review
-    await page.waitForTimeout(5000)
-    await expect(page.locator("body")).not.toContainText("500")
+    // Review screen must NOT appear
+    await expect(
+      page.getByText("Revisa los datos detectados")
+    ).not.toBeVisible()
+
+    // Should show rejection error
+    const errorMsg = page.getByText(
+      "Este archivo no parece ser un tarjetón de pago del IMSS."
+    )
+    await expect(errorMsg).toBeVisible({ timeout: 5000 })
   })
 
-  test("maneja archivo duplicado sin crear duplicados", async ({ page }) => {
+  test("no se puede confirmar sin consentimiento", async ({ page }) => {
     await page.goto("/tarjeton")
     await page.waitForLoadState("networkidle")
 
-    // First upload
-    await page.setInputFiles(
-      'input[type="file"]',
-      pdfPath("tarjeton-valido.pdf")
-    )
+    await uploadPdf(page, pdfPath("tarjeton-valido-3.pdf"))
+    await waitForReviewScreen(page)
 
-    await expect(
-      page.getByText("Revisa los datos detectados")
-    ).toBeVisible({ timeout: 30_000 })
+    // Do NOT check the consent checkbox
+    // The confirm button should be disabled
+    const confirmBtn = page.getByRole("button", { name: "Confirmar tarjetón" })
+    await expect(confirmBtn).toBeDisabled()
+  })
+})
 
-    const consentCheckbox = page.locator('input[type="checkbox"]').first()
-    if (await consentCheckbox.isVisible().catch(() => false)) {
-      await consentCheckbox.check()
-    }
+// ─────────────────────────────────────────────────────────────
+// Duplicate deduplication test
+// ─────────────────────────────────────────────────────────────
 
-    await page.getByRole("button", { name: "Confirmar tarjetón" }).click()
+test.describe("Tarjeton - Deduplicacion", () => {
+  test("detecta duplicado y muestra mensaje sin crear segundo registro", async ({ page }) => {
+    await page.goto("/tarjeton")
+    await page.waitForLoadState("networkidle")
+
+    // First import
+    await uploadPdf(page, pdfPath("tarjeton-valido-2.pdf"))
+    await waitForReviewScreen(page)
+
+    await expect(page.getByText("ROBERTO DIAZ SOTO")).toBeVisible({ timeout: 5000 })
+    await confirmTarjeton(page)
     await expect(
       page.getByText("Tarjetón confirmado")
     ).toBeVisible({ timeout: 20_000 })
 
-    // Go back and try again
+    // Start over for the second attempt
     await page.getByRole("button", { name: "Subir otro tarjetón" }).click()
     await expect(
       page.locator('[aria-label="Seleccionar tarjetón PDF"]')
     ).toBeVisible({ timeout: 10_000 })
 
-    await page.setInputFiles(
-      'input[type="file"]',
-      pdfPath("tarjeton-valido.pdf")
-    )
+    // Import the SAME file again
+    await uploadPdf(page, pdfPath("tarjeton-valido-2.pdf"))
+    await waitForReviewScreen(page)
+    await confirmTarjeton(page)
 
-    // May detect duplicate or may reach review
-    await page.waitForTimeout(5000)
+    // Should reach the success screen but with duplicate badge
+    await expect(
+      page.getByText("Tarjetón confirmado")
+    ).toBeVisible({ timeout: 20_000 })
 
-    // Should not crash with 500
-    await expect(page.locator("body")).not.toContainText("500")
+    // Check for duplicate-specific indicators
+    const duplicateBadge = page.getByText("Ya habías subido este archivo")
+    await expect(duplicateBadge).toBeVisible({ timeout: 5000 })
+
+    const duplicateNote = page.getByText("No se guardó una copia duplicada")
+    await expect(duplicateNote).toBeVisible({ timeout: 5000 })
   })
 })

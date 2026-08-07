@@ -9,11 +9,13 @@ setup("autenticar usuario E2E", async ({ page }) => {
   const password = process.env.E2E_USER_PASSWORD
 
   if (!email || !password) {
-    test.skip(
+    throw new Error(
       "E2E_USER_EMAIL o E2E_USER_PASSWORD no definidas. " +
-        "Configuralas en .env.local para ejecutar pruebas autenticadas."
+        "Configuralas en .env.local para ejecutar pruebas autenticadas.\n" +
+        "Ejemplo:\n" +
+        '  E2E_USER_EMAIL="test@example.com"\n' +
+        '  E2E_USER_PASSWORD="your-password"'
     )
-    return
   }
 
   // Ensure .auth directory exists
