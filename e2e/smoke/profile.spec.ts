@@ -20,7 +20,7 @@ test.describe("Perfil - visualizacion", () => {
     await page.goto("/profile")
     await page.waitForLoadState("networkidle")
     const laboralLink = page.getByRole("link", { name: /datos laborales|información laboral/i })
-    await expect(laboralLink).toBeVisible()
+    await expect(laboralLink.first()).toBeVisible()
   })
 
   test("formulario de perfil laboral carga correctamente", async ({ page }) => {
@@ -46,7 +46,8 @@ test.describe("Perfil - edicion", () => {
     await page.waitForLoadState("networkidle")
     await page.getByLabel("Nombre completo").clear()
     await page.getByRole("button", { name: /guardar cambios/i }).click()
-    await expect(page.getByText(/nombre completo es obligatorio/i)).toBeVisible({ timeout: 5000 })
+    // Browser native validation fires before server action; check validity
+    await expect(page.getByLabel("Nombre completo")).toHaveJSProperty("validity.valueMissing", true)
   })
 
   test("telefono invalido muestra error", async ({ page }) => {

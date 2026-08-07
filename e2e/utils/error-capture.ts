@@ -27,6 +27,12 @@ const ALLOWED_CONSOLE_PATTERNS: (string | RegExp)[] = [
   /Warning: TT: undefined function/i,
   /The CMap/,
   /resource.*preload.*not used/i,
+  // Facebook embedded iframe errors - external third party, not our code
+  /ErrorUtils caught an error/i,
+  /Could not find element/i,
+  /DataStore\.get: namespace is required/i,
+  /fbcdn\.net/,
+  /Subsequent non-fatal errors won't be logged/i,
 ]
 
 // ---------------------------------------------------------------------------
@@ -116,7 +122,7 @@ export function registerNetworkWatcher(
   page.on("requestfailed", (request) => {
     const failure = request.failure()
     if (!failure) return
-    if (/favicon|analytics|gtag|pixel/i.test(request.url())) return
+    if (/favicon|analytics|gtag|pixel|fbcdn|facebook/i.test(request.url())) return
 
     errors.push({
       url: request.url(),
