@@ -11,11 +11,7 @@ test.describe("Acceso publico - sin sesion", () => {
     await expect(page).toHaveURL(/\/login/)
   })
 
-  test("login falla con credenciales incorrectas", async ({ page, errors }) => {
-    // The server returns 500 for invalid credentials (expected)
-    errors.allowConsole(/Failed to load resource.*500/)
-    errors.allowNetwork(/\/login$/)
-
+  test("login falla con credenciales incorrectas", async ({ page }) => {
     await page.goto("/login")
     await page.getByLabel("Correo electrónico").fill("noexiste@test.com")
     await page.getByLabel("Contraseña").fill("password-incorrecto")
