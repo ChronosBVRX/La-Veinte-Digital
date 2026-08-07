@@ -36,7 +36,6 @@ const ALLOWED_CONSOLE_PATTERNS: (string | RegExp)[] = [
   // Facebook blocks iframe embedding in CI (X-Frame-Options: deny)
   /X-Frame-Options/i,
   /Refused to display.*facebook/i,
-  /chrome-error:\/\/chromewebdata/,
 ]
 
 // ---------------------------------------------------------------------------
@@ -55,6 +54,10 @@ export function registerConsoleWatcher(
       )
 
     if (!isError && !isSeriousWarning) return
+
+    // Facebook iframe resources blocked in CI (location is chrome-error://)
+    if (msg.location().url.includes("chrome-error://")) return
+
     if (ALLOWED_CONSOLE_PATTERNS.some((p) => msg.text().match(p))) return
 
     errors.push({
