@@ -49,6 +49,17 @@ test.describe("Asistente IA - Carga", () => {
 test.describe("Asistente IA - Envio de mensajes (mockeado)", () => {
   test.beforeEach(async ({ page }) => {
     await page.route("**/api/consulta", async (route) => {
+      const body = route.request().postDataJSON()
+      // The app sends history array; last user message contains the question
+      expect(body).toBeTruthy()
+      if (body.history) {
+        expect(Array.isArray(body.history)).toBe(true)
+        const lastUser = [...body.history].reverse().find((m: { role: string }) => m.role === "user")
+        expect(lastUser, "history debe contener al menos un mensaje user").toBeTruthy()
+        expect(typeof lastUser.content).toBe("string")
+        expect(lastUser.content.length).toBeGreaterThan(0)
+      }
+
       await route.fulfill({
         status: 200,
         contentType: "application/json",

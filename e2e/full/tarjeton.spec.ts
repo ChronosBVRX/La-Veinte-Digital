@@ -84,7 +84,7 @@ async function waitForReviewScreen(page: Page) {
 
 async function waitForDropzone(page: Page) {
   await expect(
-    page.locator('[aria-label="Seleccionar tarjetón PDF"]')
+    page.locator('[aria-label="Seleccionar tarjetón PDF"]').first()
   ).toBeVisible({ timeout: 30_000 })
 }
 
@@ -107,7 +107,7 @@ test.describe("Tarjeton - Importacion valida", () => {
       page.getByText("Importar tarjetón IMSS")
     ).toBeVisible({ timeout: 10_000 })
     await expect(
-      page.locator('[aria-label="Seleccionar tarjetón PDF"]')
+      page.locator('[aria-label="Seleccionar tarjetón PDF"]').first()
     ).toBeVisible()
   })
 
@@ -206,7 +206,7 @@ test.describe("Tarjeton - Deduplicacion", () => {
     // Start over and import the SAME buffer again
     await page.getByRole("button", { name: "Subir otro tarjetón" }).click()
     await expect(
-      page.locator('[aria-label="Seleccionar tarjetón PDF"]')
+      page.locator('[aria-label="Seleccionar tarjetón PDF"]').first()
     ).toBeVisible({ timeout: 10_000 })
 
     await uploadPdf(page, pdf2)

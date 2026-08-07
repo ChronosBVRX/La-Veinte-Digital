@@ -11,9 +11,10 @@ test.describe("Calculadoras - Indice", () => {
 
     await expect(page.getByRole("link", { name: "Aguinaldo" })).toBeVisible()
     await expect(page.getByRole("link", { name: "Tiempo Extra" })).toBeVisible()
-    await expect(page.getByRole("link", { name: "Segunda de Julio" })).toBeVisible()
-    await expect(page.getByRole("link", { name: "Clausula 97" })).toBeVisible()
-    await expect(page.getByRole("link", { name: "Prestamos por Categoria" })).toBeVisible()
+    await expect(page.getByRole("link", { name: /^Segunda de Julio$/ })).toBeVisible()
+    await expect(page.getByRole("link", { name: "Segunda de Julio Proporcional" })).toBeVisible()
+    await expect(page.getByRole("link", { name: "Cláusula 97" })).toBeVisible()
+    await expect(page.getByRole("link", { name: "Préstamos por Categoría" })).toBeVisible()
   })
 })
 
@@ -97,7 +98,7 @@ test.describe("Calculadoras - Tiempo Extra", () => {
     await page.locator("#horasExtra").fill("5")
     await page.getByRole("button", { name: "Calcular" }).click()
 
-    await expect(page.getByText("Pago estimado")).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText("Pago estimado", { exact: true })).toBeVisible({ timeout: 5000 })
   })
 
   test("validacion de horas extra requeridas", async ({ page }) => {
@@ -140,6 +141,6 @@ test.describe("Calculadoras - Clausula 97", () => {
     await page.goto("/calculadoras/clausula-97")
     await page.waitForLoadState("networkidle")
 
-    await expect(page.getByRole("heading", { name: "Clausula 97" })).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole("heading", { name: "Cláusula 97" })).toBeVisible({ timeout: 10_000 })
   })
 })

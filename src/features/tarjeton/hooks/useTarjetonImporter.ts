@@ -93,10 +93,10 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
     setState({ step: "reading", fileName: file.name, fileSize: file.size, usedOcr: false, progress: 0.05 })
 
     try {
-      const arrayBuffer = await file.arrayBuffer()
+      const sourceBytes = new Uint8Array(await file.arrayBuffer())
       if (controller.signal.aborted) return
 
-      const { pdf, loadingTask } = await loadPdfDocument(arrayBuffer)
+      const { pdf, loadingTask } = await loadPdfDocument(sourceBytes.slice().buffer)
       const pageCount = pdf.numPages
       if (pageCount > MAX_PAGES) {
         await loadingTask.destroy()
@@ -114,7 +114,7 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
       // 2. OCR de respaldo si el PDF es escaneado.
       if (totalChars < MIN_NATIVE_TEXT_CHARS) {
         if (controller.signal.aborted) return
-        const { pdf } = await loadPdfDocument(arrayBuffer)
+        const { pdf } = await loadPdfDocument(sourceBytes.slice().buffer)
         const canvases: HTMLCanvasElement[] = []
         for (let p = 1; p <= pageCount; p++) {
           canvases.push(await renderPdfPageToCanvas(pdf, p, { scale: 2, signal: controller.signal }))
