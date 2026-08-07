@@ -103,7 +103,7 @@ export function applyPayslipToProfile(
         years: seniority.years,
         months: 0,
         days: seniority.days,
-        referenceDate: seniority.referenceDate,
+        referenceDate: seniority.referenceDate ?? parsed.document.periodRaw,
       }
     }
   }

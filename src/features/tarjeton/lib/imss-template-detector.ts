@@ -19,8 +19,8 @@ interface Anchor {
 export const IMSS_TARJETON_ANCHORS: Anchor[] = [
   { label: "INSTITUTO MEXICANO DEL SEGURO SOCIAL" },
   { label: "RECIBO DE PAGO DE NOMINA", required: true },
-  { label: "PERCEPCIONES", required: true },
-  { label: "DEDUCCIONES", required: true },
+  { label: "PERCEPCIONES" },
+  { label: "DEDUCCIONES" },
   { label: "TOTAL PERCEPCIONES" },
   { label: "TOTAL DEDUCCIONES" },
   { label: "ANTIGUEDAD EFECTIVA" },

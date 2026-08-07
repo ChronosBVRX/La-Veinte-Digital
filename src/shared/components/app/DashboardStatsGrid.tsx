@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useSyncExternalStore } from "react"
 import {
   CurrencyDollar,
   Clock,
@@ -73,12 +73,11 @@ interface DashboardStatsGridProps {
 }
 
 export function DashboardStatsGrid({ profile }: DashboardStatsGridProps) {
-  const [hasTarjeton, setHasTarjeton] = useState(false)
-
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage read on mount
-  useEffect(() => {
-    setHasTarjeton(hasImportedPayslip())
-  }, [])
+  const hasTarjeton = useSyncExternalStore(
+    () => () => {},
+    () => hasImportedPayslip(),
+    () => false,
+  )
 
   const nextPayment = getNextPaymentDay()
   const nextVacation = getNextVacation()

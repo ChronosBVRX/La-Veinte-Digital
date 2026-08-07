@@ -58,6 +58,39 @@ function makeRequest(overrides: Partial<ConfirmTarjetonRequest> = {}): ConfirmTa
 }
 
 describe("confirm-tarjeton service", () => {
+  it("acepta campos opcionales de extracción y antigüedad", async () => {
+    const rpc = async (_fn: string, args: Record<string, unknown>) => {
+      const parsed = args.p_parsed as ConfirmTarjetonRequest["parsed"]
+      expect(parsed.extraction.criticalFieldConfidence).toBe(0.97)
+      expect(parsed.extraction.autoConfirmable).toBe(false)
+      expect(parsed.extraction.reviewMode).toBe("critical_fields")
+      expect(parsed.employee.seniority?.referenceDate).toBe("2026-01-15")
+      expect(parsed.employee.seniority?.reconstructedEffectiveDate).toBe("2016-01-01")
+      return {
+        data: { schemaVersion: "1.0", id: "abc", duplicate: false, profileUpdated: true, payrollContextUpdated: true },
+        error: null,
+      }
+    }
+    const request = makeRequest()
+    request.parsed.extraction = {
+      ...request.parsed.extraction,
+      criticalFieldConfidence: 0.97,
+      autoConfirmable: false,
+      reviewMode: "critical_fields",
+    }
+    request.parsed.employee.seniority = {
+      raw: "10 AÑOS 0 QNAS 0 DIAS",
+      years: 10,
+      fortnights: 0,
+      days: 0,
+      referenceDate: "2026-01-15",
+      reconstructedEffectiveDate: "2016-01-01",
+      status: "complete",
+    }
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, request)
+    expect(result.ok).toBe(true)
+  })
+
   it("acepta un tarjetón válido y devuelve la respuesta del RPC", async () => {
     const rpc = async (fn: string, args: Record<string, unknown>) => {
       expect(fn).toBe("confirm_imported_payslip")
@@ -214,5 +247,28 @@ describe("confirm-tarjeton service", () => {
     expect(result.ok).toBe(false)
     if (result.ok) return
     expect(result.error.code).toBe("matricula_mismatch")
+  })
+
+  it("detecta confirmación duplicada como protección de concurrencia", async () => {
+    let calls = 0
+    const rpc = async () => {
+      calls++
+      if (calls === 1) {
+        return {
+          data: { id: "abc", duplicate: false, profileUpdated: true, payrollContextUpdated: true },
+          error: null,
+        }
+      }
+      return { data: null, error: { message: "duplicate key value violates unique constraint" } }
+    }
+
+    const request = makeRequest()
+    const first = await confirmTarjetonService({ userId: "u1", rpc }, request)
+    const second = await confirmTarjetonService({ userId: "u1", rpc }, request)
+
+    expect(first.ok).toBe(true)
+    expect(second.ok).toBe(false)
+    if (second.ok) return
+    expect(second.error.code).toBe("duplicate")
   })
 })

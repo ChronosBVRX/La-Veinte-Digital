@@ -49,3 +49,37 @@ export function isNumberLike(text: string): boolean {
 export function isConceptCode(text: string): boolean {
   return /^\d{3}$/.test(text.trim())
 }
+
+/**
+ * Normaliza texto a mayúsculas sin acentos y devuelve un mapa de índices
+ * `normToRaw` que permite traducir cualquier posición del texto normalizado
+ * a su posición equivalente en el texto crudo.
+ *
+ * Esto es necesario porque el texto crudo puede estar en Unicode NFC (por
+ * ejemplo "Ó" como un solo carácter) mientras que la búsqueda se hace sobre
+ * el texto normalizado. El mapa garantiza que `slice(rawEnd)` no corte
+ * caracteres compuestos.
+ */
+export function normalizeWithIndexMap(raw: string): {
+  normalized: string
+  normToRaw: number[]
+} {
+  let normalized = ""
+  const normToRaw: number[] = []
+
+  for (let rawIndex = 0; rawIndex < raw.length; rawIndex++) {
+    const decomposed = raw[rawIndex]
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+
+    for (const char of decomposed) {
+      normalized += char.toUpperCase()
+      normToRaw.push(rawIndex)
+    }
+  }
+
+  // Índice final: permite slice hasta el final del texto crudo.
+  normToRaw.push(raw.length)
+
+  return { normalized, normToRaw }
+}

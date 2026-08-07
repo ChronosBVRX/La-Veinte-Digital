@@ -104,3 +104,47 @@ trabajador).
   `workday_hours`.
 - **Navegación**: link "Mi Tarjetón" en la Sidebar; CTAs en Calculadoras y
   Nómina apuntan a `/tarjeton`.
+
+## Riesgos abiertos conocidos
+
+1. **Idempotencia de la deduplicación en DB**
+   - La base de datos impide duplicados mediante `UNIQUE(user_id, source_hash)`
+     en `imported_payslips`.
+   - El cliente no bloquea el botón de confirmar hasta recibir respuesta; si
+     el usuario hace doble clic o hay una reconexión lenta, pueden enviarse
+     dos requests casi simultáneos. El test de concurrencia en
+     `confirm-tarjeton.test.ts` simula este escenario y espera que el segundo
+     request devuelva `duplicate`.
+   - Riesgo real: una carrera concurrente entre dos transacciones puede hacer
+     que ambas pasen el `SELECT` inicial y luego una reciba una violación
+     `unique_violation` en lugar de la respuesta normalizada `duplicate: true`.
+     El servicio (`confirm-tarjeton.ts`) ya mapea ese error al código
+     `duplicate`, pero la respuesta no incluye el `id` existente.
+   - Mitigación actual: `requestRef` en `useTarjetonImporter` previene el
+     reenvío mientras `status === "confirming"`. Mejora futura: capturar
+     `unique_violation` dentro del RPC y devolver la fila existente como
+     respuesta `duplicate: true`.
+
+2. **Comportamiento de rechazo parcial en la UI**
+   - `parseImssTarjeton` ahora devuelve `reviewMode: "rejected"` cuando el
+     detector de plantilla falla o faltan datos críticos. En ese modo la UI
+     muestra el mensaje de error y no permite continuar.
+   - Si `reviewMode` es `"full"` o `"critical_fields"`, el flujo de revisión
+     obliga al usuario a confirmar cada concepto, pero aún no distingue
+     visualmente entre "campos críticos" y "campos secundarios": todos se
+     presentan en la misma lista. Esto puede hacer que un campo de baja
+     confianza pase desapercibido si el usuario confirma sin leer.
+   - Mitigación actual: `autoConfirmable` nunca es `true` cuando
+     `criticalFieldConfidence < 1`, y `reviewMode` obliga a revisión
+     completa en esos casos.
+
+3. **Fecha de referencia opcional de antigüedad**
+   - `TarjetonSeniority.referenceDate` y
+     `EmployeePayrollProfile.displayedSeniorityAtLastPayslip.referenceDate`
+     son opcionales para soportar datos antiguos o parsers que no logren
+     reconstruir el periodo.
+   - Si falta, `payslip-sync.ts` usa `parsed.document.periodRaw` como fallback.
+   - `useNomina` y `TodayCard` verifican la existencia de `referenceDate`
+     antes de reconstruir la antigüedad; si falta, el cálculo de antigüedad
+     evolucionada se omite silenciosamente hasta que llegue un tarjetón con
+     fecha de referencia completa.

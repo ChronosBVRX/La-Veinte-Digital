@@ -18,7 +18,7 @@ import {
   clampConfidence,
   requiresReviewForConfidence,
 } from "./confidence"
-import { normalizeText } from "./positioned-text"
+import { normalizeText, normalizeWithIndexMap } from "./positioned-text"
 
 type Employee = ParsedImssTarjeton["employee"]
 
@@ -113,24 +113,15 @@ function longestLabelForLine(line: ReconstructedLine, extraLabels: string[] = []
   return longest
 }
 
-function rawIndexFromNormalized(raw: string, normalizedIndex: number): number {
-  let rawIndex = 0
-  let normalizedLength = 0
-  while (rawIndex < raw.length && normalizedLength < normalizedIndex) {
-    const normalizedCharacter = normalizeText(raw[rawIndex])
-    rawIndex++
-    if (normalizedCharacter) normalizedLength += normalizedCharacter.length
-  }
-  return rawIndex
-}
-
 function valueOnAnchorLine(line: ReconstructedLine, label: string): string {
   const normalizedLabel = normalizeText(label)
   const anchorItemIndex = line.items.findIndex((item) => item.norm.includes(normalizedLabel))
   if (anchorItemIndex >= 0) {
     const anchorItem = line.items[anchorItemIndex]
-    const labelIndex = anchorItem.norm.indexOf(normalizedLabel)
-    const rawStart = rawIndexFromNormalized(anchorItem.text, labelIndex + normalizedLabel.length)
+    const { normalized, normToRaw } = normalizeWithIndexMap(anchorItem.text)
+    const labelIndex = normalized.indexOf(normalizedLabel)
+    if (labelIndex < 0) return ""
+    const rawStart = normToRaw[labelIndex + normalizedLabel.length] ?? anchorItem.text.length
     const values = [cleanValue(anchorItem.text.slice(rawStart))]
     for (const item of line.items.slice(anchorItemIndex + 1)) {
       if (PROFILE_LABELS.some((knownLabel) => item.norm.includes(normalizeText(knownLabel)))) break
@@ -139,9 +130,10 @@ function valueOnAnchorLine(line: ReconstructedLine, label: string): string {
     return values.filter(Boolean).join(" ")
   }
 
-  const normalizedIndex = line.norm.indexOf(normalizedLabel)
+  const { normalized, normToRaw } = normalizeWithIndexMap(line.text)
+  const normalizedIndex = normalized.indexOf(normalizedLabel)
   if (normalizedIndex < 0) return ""
-  const rawStart = rawIndexFromNormalized(line.text, normalizedIndex + normalizedLabel.length)
+  const rawStart = normToRaw[normalizedIndex + normalizedLabel.length] ?? line.text.length
   return cleanValue(line.text.slice(rawStart))
 }
 

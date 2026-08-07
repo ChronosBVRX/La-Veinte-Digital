@@ -45,9 +45,13 @@ export interface TarjetonSeniority {
   fortnights: number
   days: number
   /** Fecha de referencia usada para reconstruir la fecha efectiva. */
-  referenceDate: string
+  referenceDate?: string
   /** Fecha efectiva reconstruida (fin de periodo − años − qnas×15 − días). */
   reconstructedEffectiveDate?: string
+  /** Interpretación propia de la antigüedad, sin depender de la fecha de referencia. */
+  parsed?: { years: number; fortnights: number; days: number }
+  /** Estado del dato: completo, falta fecha de referencia o no se pudo interpretar. */
+  status?: "unparsed" | "missing_reference_date" | "complete"
 }
 
 export interface TarjetonConceptLine {
@@ -154,6 +158,12 @@ export interface ParsedImssTarjeton {
       "employeeNumber" | "fullName" | "categoryCode" | "categoryName" | "entryDate" | "seniority",
       number
     >>
+    /** Confianza mínima entre los campos críticos (matrícula, categoría, periodo, totales). */
+    criticalFieldConfidence?: number
+    /** true solo cuando todos los criterios de auto-confirmación se cumplen. */
+    autoConfirmable?: boolean
+    /** Modo de revisión recomendado para la UI. */
+    reviewMode?: "minimal" | "critical_fields" | "full" | "rejected"
     warnings: string[]
     validations: {
       templateDetected: boolean
@@ -246,7 +256,7 @@ const EMPLOYEE_KEYS = [
   "plaza", "entryDate", "seniority",
 ] as const
 
-const SENIORITY_KEYS = ["raw", "years", "fortnights", "days", "referenceDate", "reconstructedEffectiveDate"] as const
+const SENIORITY_KEYS = ["raw", "years", "fortnights", "days", "referenceDate", "reconstructedEffectiveDate", "parsed", "status"] as const
 
 const ATTENDANCE_KEYS = [
   "delays", "exitPasses", "absences", "noDelayDays", "attendanceScore", "incidentFortnight",
@@ -267,7 +277,7 @@ const PAYROLL_KEYS = [
   "integratedMonthlySalary", "creditCapacity",
 ] as const
 
-const EXTRACTION_KEYS = ["method", "globalConfidence", "fieldConfidences", "warnings", "validations"] as const
+const EXTRACTION_KEYS = ["method", "globalConfidence", "fieldConfidences", "criticalFieldConfidence", "autoConfirmable", "reviewMode", "warnings", "validations"] as const
 const FIELD_CONFIDENCE_KEYS = ["employeeNumber", "fullName", "categoryCode", "categoryName", "entryDate", "seniority"] as const
 
 const VALIDATIONS_KEYS = [
@@ -381,8 +391,15 @@ export function isParsedImssTarjeton(value: unknown): value is ParsedImssTarjeto
     if (!isObject(s)) return false
     if (!hasOnlyKeys(s, SENIORITY_KEYS)) return false
     if (!isString(s.raw) || !isNumber(s.years) || !isNumber(s.fortnights) || !isNumber(s.days)) return false
-    if (!isString(s.referenceDate)) return false
+    if (!isOptionalString(s.referenceDate)) return false
     if (!isOptionalString(s.reconstructedEffectiveDate)) return false
+    if (s.status !== undefined && !["unparsed", "missing_reference_date", "complete"].includes(s.status as string)) return false
+    if (s.parsed !== undefined) {
+      const p = s.parsed as Record<string, unknown>
+      if (!isObject(p)) return false
+      if (!hasOnlyKeys(p, ["years", "fortnights", "days"])) return false
+      if (!isNumber(p.years) || !isNumber(p.fortnights) || !isNumber(p.days)) return false
+    }
   }
 
   const att = value.attendance
@@ -423,6 +440,9 @@ export function isParsedImssTarjeton(value: unknown): value is ParsedImssTarjeto
       if (confidence !== undefined && (!isNumber(confidence) || confidence < 0 || confidence > 1)) return false
     }
   }
+  if (ext.criticalFieldConfidence !== undefined && (!isNumber(ext.criticalFieldConfidence) || ext.criticalFieldConfidence < 0 || ext.criticalFieldConfidence > 1)) return false
+  if (ext.autoConfirmable !== undefined && !isBoolean(ext.autoConfirmable)) return false
+  if (ext.reviewMode !== undefined && !["minimal", "critical_fields", "full", "rejected"].includes(ext.reviewMode as string)) return false
   if (!Array.isArray(ext.warnings) || !ext.warnings.every(isString)) return false
   const validations = ext.validations
   if (!isObject(validations)) return false

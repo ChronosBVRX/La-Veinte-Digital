@@ -151,7 +151,8 @@ export interface EmployeePayrollProfile {
     years: number
     months: number
     days: number
-    referenceDate: string
+    /** Fecha de referencia del tarjetón; puede faltar en datos antiguos. */
+    referenceDate?: string
   }
 
   professionalCredentials?: {
