@@ -36,6 +36,7 @@ const ALLOWED_CONSOLE_PATTERNS: (string | RegExp)[] = [
   // Facebook blocks iframe embedding in CI (X-Frame-Options: deny)
   /X-Frame-Options/i,
   /Refused to display.*facebook/i,
+  /chrome-error:\/\/chromewebdata/,
 ]
 
 // ---------------------------------------------------------------------------
