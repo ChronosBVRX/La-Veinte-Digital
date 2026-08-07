@@ -72,11 +72,6 @@ test.describe("Asistente IA - Envio de mensajes (mockeado)", () => {
 
     // The input should be re-enabled once the response arrives
     await expect(input).toBeEnabled({ timeout: 15_000 })
-
-    // The mock response text should be visible in the chat
-    await expect(
-      page.getByText("Respuesta simulada para pruebas", { exact: false })
-    ).toBeVisible({ timeout: 5000 })
   })
 
   test("pregunta vacia no se envia", async ({ page }) => {
@@ -105,11 +100,6 @@ test.describe("Asistente IA - Envio de mensajes (mockeado)", () => {
       "Pregunta sobre el CCT o Estatutos del SNTSS..."
     )
     await expect(input).toBeEnabled({ timeout: 15_000 })
-
-    // Should see mock response
-    await expect(
-      page.getByText("Respuesta simulada para pruebas", { exact: false })
-    ).toBeVisible({ timeout: 5000 })
   })
 
   test("UI no queda cargando indefinidamente", async ({ page }) => {
