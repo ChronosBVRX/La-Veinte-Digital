@@ -131,7 +131,7 @@ export function useNomina() {
         }
       }
 
-      if (p.displayedSeniorityAtLastPayslip && !seniority) {
+      if (p.displayedSeniorityAtLastPayslip && !seniority && p.displayedSeniorityAtLastPayslip.referenceDate) {
         const effectiveDate = reconstructEffectiveDate(
           p.displayedSeniorityAtLastPayslip,
           p.displayedSeniorityAtLastPayslip.referenceDate
@@ -228,7 +228,7 @@ export function useNomina() {
       console.warn("[nomina] no se pudo registrar el consentimiento en el servidor:", err)
     })
 
-    if (p.displayedSeniorityAtLastPayslip) {
+    if (p.displayedSeniorityAtLastPayslip && p.displayedSeniorityAtLastPayslip.referenceDate) {
       const effectiveDate = reconstructEffectiveDate(
         p.displayedSeniorityAtLastPayslip,
         p.displayedSeniorityAtLastPayslip.referenceDate

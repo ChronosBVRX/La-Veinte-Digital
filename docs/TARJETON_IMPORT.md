@@ -104,3 +104,40 @@ trabajador).
   `workday_hours`.
 - **Navegación**: link "Mi Tarjetón" en la Sidebar; CTAs en Calculadoras y
   Nómina apuntan a `/tarjeton`.
+
+## Riesgos abiertos conocidos
+
+1. **Idempotencia de la deduplicación en DB**
+   - El servidor usa `UNIQUE(user_id, source_hash)` para detectar duplicados.
+   - El cliente no bloquea el botón de confirmar hasta recibir respuesta; si
+     el usuario hace doble clic o hay una reconexión lenta, pueden enviarse
+     dos requests casi simultáneos. El test de concurrencia en
+     `confirm-tarjeton.test.ts` simula este escenario y espera que el segundo
+     request devuelva `duplicate`, pero la segunda petición aún consume
+     cuota de red y genera una fila de error/auditoría en logs.
+   - Mitigación actual: `requestRef` en `useTarjetonImporter` previene el
+     reenvío mientras `status === "confirming"`. No hay bloqueo distribuido.
+
+2. **Comportamiento de rechazo parcial en la UI**
+   - `parseImssTarjeton` ahora devuelve `reviewMode: "rejected"` cuando el
+     detector de plantilla falla o faltan datos críticos. En ese modo la UI
+     muestra el mensaje de error y no permite continuar.
+   - Si `reviewMode` es `"full"` o `"critical_fields"`, el flujo de revisión
+     obliga al usuario a confirmar cada concepto, pero aún no distingue
+     visualmente entre "campos críticos" y "campos secundarios": todos se
+     presentan en la misma lista. Esto puede hacer que un campo de baja
+     confianza pase desapercibido si el usuario confirma sin leer.
+   - Mitigación actual: `autoConfirmable` nunca es `true` cuando
+     `criticalFieldConfidence < 1`, y `reviewMode` obliga a revisión
+     completa en esos casos.
+
+3. **Fecha de referencia opcional de antigüedad**
+   - `TarjetonSeniority.referenceDate` y
+     `EmployeePayrollProfile.displayedSeniorityAtLastPayslip.referenceDate`
+     son opcionales para soportar datos antiguos o parsers que no logren
+     reconstruir el periodo.
+   - Si falta, `payslip-sync.ts` usa `parsed.document.periodRaw` como fallback.
+   - `useNomina` y `TodayCard` verifican la existencia de `referenceDate`
+     antes de reconstruir la antigüedad; si falta, el cálculo de antigüedad
+     evolucionada se omite silenciosamente hasta que llegue un tarjetón con
+     fecha de referencia completa.

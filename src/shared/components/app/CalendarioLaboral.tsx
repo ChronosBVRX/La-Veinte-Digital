@@ -1,12 +1,11 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { CaretLeft, CaretRight, Clock, MapPin, Warning } from "@phosphor-icons/react"
 import Link from "next/link"
 import { CALENDARIOS, EVENT_LABELS, EVENT_COLORS } from "@/shared/data/calendario"
 import type { CalendarEventType } from "@/shared/data/calendario"
 import { createClient } from "@/lib/supabase/client"
-import { CalendarioExportButton } from "@/features/calendario/components/CalendarioExportButton"
 
 const STORAGE_KEY = "calendar_filters_v1"
 
@@ -134,26 +133,26 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
     })
   }, [])
 
-  const toggleFilter = useCallback((key: FilterKey) => {
+  const toggleFilter = (key: FilterKey) => {
     setFilters((prev) => {
       const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
       saveFilters(next)
       return next
     })
-  }, [])
+  }
 
-  const toggleAgendaFilters = useCallback(() => {
+  const toggleAgendaFilters = () => {
     setShowAgendaFilters((prev) => !prev)
-  }, [])
+  }
 
-  const toggleAll = useCallback(() => {
+  const toggleAll = () => {
     setFilters((prev) => {
       const all = FILTER_DEFS.map((f) => f.key)
       const next = prev.length === all.length ? [] : all
       saveFilters(next)
       return next
     })
-  }, [])
+  }
 
   const agendaActive = useMemo(() => AGENDA_KEYS.some((key) => filters.includes(key)), [filters])
 

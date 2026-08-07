@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { IdentificationCard, ArrowRight, ArrowsLeftRight, CurrencyDollar, ClockCounterClockwise } from "@phosphor-icons/react"
 import { PageHeader } from "@/shared/components/app/PageHeader"
 import { SectionCard } from "@/shared/components/ui/SectionCard"
@@ -25,74 +25,83 @@ const SCENARIO_PRESETS: { key: string; label: string; description: string; icon:
   { key: "seniority_bump", label: "Más antigüedad", description: "Proyecta tu quincena cuando cumplas más años de servicio.", icon: ClockCounterClockwise },
 ]
 
+interface InitialState {
+  step: Step
+  profile: EmployeePayrollProfile | null
+  baseline: PayrollProjection | null
+  categories: { name: string; salary: number }[]
+  targetCategory: string
+}
+
+function loadInitialState(): InitialState {
+  try {
+    const raw = localStorage.getItem("nomina_profile")
+    if (!raw) return { step: "no-profile", profile: null, baseline: null, categories: [], targetCategory: "" }
+
+    const loadedProfile = JSON.parse(raw) as EmployeePayrollProfile
+    if (!loadedProfile.categoryId && !loadedProfile.categoryName) {
+      return { step: "no-profile", profile: null, baseline: null, categories: [], targetCategory: "" }
+    }
+
+    const today = new Date().toISOString().slice(0, 10)
+    const period = getCurrentPayPeriod(today)
+    const resolved = resolveCategory(
+      loadedProfile.categoryId ?? loadedProfile.categoryName ?? "",
+      String(loadedProfile.workdayHours)
+    )
+
+    if (!resolved || resolved.status !== "resolved" || !resolved.category) {
+      return { step: "no-profile", profile: null, baseline: null, categories: [], targetCategory: "" }
+    }
+
+    const computedSeniority = loadedProfile.effectiveSeniorityDate
+      ? computeSeniority(loadedProfile.effectiveSeniorityDate, period)
+      : { years: 0, months: 0, days: 0, totalDays: 0, referenceDate: "", source: "institutional_entry_date" as const, warnings: [] as string[] }
+
+    const facts: PayrollFact[] = loadedProfile.facts ?? []
+
+    const projResult = calculateProjection({
+      profile: { ...loadedProfile, facts },
+      category: resolved.category,
+      period,
+      seniority: computedSeniority,
+      incidents: [],
+      recurringConcepts: [],
+    })
+
+    const cats = SALARY_DATA
+      .filter((c: { workdayHours: number }) => c.workdayHours === 8)
+      .map((c: { categoryName: string; biweeklyBaseSalary: number }) => ({
+        name: c.categoryName,
+        salary: c.biweeklyBaseSalary,
+      }))
+      .sort((a: { salary: number }, b: { salary: number }) => a.salary - b.salary)
+
+    return {
+      step: "select",
+      profile: loadedProfile,
+      baseline: projResult.projection,
+      categories: cats,
+      targetCategory: loadedProfile.categoryName ?? "",
+    }
+  } catch (e) {
+    console.error("[SimuladorNomina]", e)
+    return { step: "no-profile", profile: null, baseline: null, categories: [], targetCategory: "" }
+  }
+}
+
 export function SimuladorNominaIndex() {
-  const [step, setStep] = useState<Step>("loading")
-  const [baseline, setBaseline] = useState<PayrollProjection | null>(null)
-  const [profile, setProfile] = useState<EmployeePayrollProfile | null>(null)
+  const [initial] = useState(loadInitialState)
+  const [step, setStep] = useState<Step>(initial.step)
+  const [baseline, setBaseline] = useState<PayrollProjection | null>(initial.baseline)
+  const [profile, setProfile] = useState<EmployeePayrollProfile | null>(initial.profile)
   const [result, setResult] = useState<SimulationResult | null>(null)
   const [scenarioType, setScenarioType] = useState<string | null>(null)
-  const [targetCategory, setTargetCategory] = useState<string>("")
+  const [targetCategory, setTargetCategory] = useState<string>(initial.targetCategory)
   const [targetYears, setTargetYears] = useState<number>(10)
   const [error, setError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
-  const [categories, setCategories] = useState<{ name: string; salary: number }[]>([])
-
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage sync on mount
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("nomina_profile")
-      if (!raw) { setStep("no-profile"); return }
-
-      const loadedProfile = JSON.parse(raw) as EmployeePayrollProfile
-      if (!loadedProfile.categoryId && !loadedProfile.categoryName) { setStep("no-profile"); return }
-
-      setProfile(loadedProfile)
-
-      const today = new Date().toISOString().slice(0, 10)
-      const period = getCurrentPayPeriod(today)
-      const resolved = resolveCategory(
-        loadedProfile.categoryId ?? loadedProfile.categoryName ?? "",
-        String(loadedProfile.workdayHours)
-      )
-
-      if (!resolved || resolved.status !== "resolved" || !resolved.category) {
-        setStep("no-profile")
-        return
-      }
-
-      const computedSeniority = loadedProfile.effectiveSeniorityDate
-        ? computeSeniority(loadedProfile.effectiveSeniorityDate, period)
-        : { years: 0, months: 0, days: 0, totalDays: 0, referenceDate: "", source: "institutional_entry_date" as const, warnings: [] as string[] }
-
-      const facts: PayrollFact[] = loadedProfile.facts ?? []
-
-      const projResult = calculateProjection({
-        profile: { ...loadedProfile, facts },
-        category: resolved.category,
-        period,
-        seniority: computedSeniority,
-        incidents: [],
-        recurringConcepts: [],
-      })
-
-      setBaseline(projResult.projection)
-
-      const cats = SALARY_DATA
-        .filter((c: { workdayHours: number }) => c.workdayHours === 8)
-        .map((c: { categoryName: string; biweeklyBaseSalary: number }) => ({
-          name: c.categoryName,
-          salary: c.biweeklyBaseSalary,
-        }))
-        .sort((a: { salary: number }, b: { salary: number }) => a.salary - b.salary)
-      setCategories(cats)
-
-      if (loadedProfile.categoryName) setTargetCategory(loadedProfile.categoryName)
-      setStep("select")
-    } catch (e) {
-      console.error("[SimuladorNomina]", e)
-      setStep("no-profile")
-    }
-  }, [])
+  const [categories, setCategories] = useState<{ name: string; salary: number }[]>(initial.categories)
 
   const runSimulation = async () => {
     if (!baseline || !profile) return
