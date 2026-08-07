@@ -23,16 +23,18 @@ interface Props {
 export function FacebookFeed({ compact, page = "seccionxx", label }: Props) {
   const [loaded, setLoaded] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [useIframe, setUseIframe] = useState(false)
   const ref = useRef<HTMLIFrameElement>(null)
   const cfg = PAGES[page]
   const fbUrl = cfg?.url ?? PAGES.seccionxx.url
   const fbHeight = compact ? "500" : "1000"
 
+  // SSR-safe: window dimensions are only available after client-side hydration
   useEffect(() => {
+    // eslint-disable-next-line
     setMounted(true)
-    setUseIframe(window.innerWidth >= 1024)
   }, [])
+
+  const useIframe = mounted && typeof window !== "undefined" && window.innerWidth >= 1024
 
   useEffect(() => {
     const timer = setTimeout(() => {
