@@ -9,9 +9,9 @@ setup("autenticar usuario E2E", async ({ page }) => {
   const password = process.env.E2E_USER_PASSWORD
 
   if (!email || !password) {
-    console.warn(
+    test.skip(
       "E2E_USER_EMAIL o E2E_USER_PASSWORD no definidas. " +
-        "Saltando setup de autenticacion. Las pruebas autenticadas fallaran."
+        "Configuralas en .env.local para ejecutar pruebas autenticadas."
     )
     return
   }

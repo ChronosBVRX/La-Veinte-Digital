@@ -40,7 +40,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install chromium --with-deps
-      - run: npm run copy-vendor
       - name: Run E2E public tests
         run: npx playwright test --project=chromium-public
         env:
@@ -70,9 +69,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps
-      - run: npm run copy-vendor
       - name: Run E2E smoke tests
-        run: npx playwright test --project=chromium-desktop --project=chromium-mobile --grep='smoke\.spec\.ts'
+        run: npx playwright test e2e/smoke/ --project=chromium-desktop --project=chromium-mobile
         env:
           CI: "true"
           E2E_BASE_URL: http://localhost:3000
@@ -114,7 +112,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps
-      - run: npm run copy-vendor
       - name: Run all E2E tests
         run: npx playwright test
         env:
