@@ -73,16 +73,24 @@ async def endpoint_consulta(req: ConsultaRequest, x_bot_secret: str | None = Hea
     _require_secret(x_bot_secret)
     history = req.history
 
-    # La pregunta canónica viene explícitamente; el historial solo aporta contexto.
-    # Se mantiene la derivación desde el historial como fallback por compatibilidad.
+    # La pregunta canónica viene explícitamente; si falta, se deriva del
+    # último mensaje del usuario para mantener compatibilidad con clientes
+    # anteriores y para detectar saludos antes de llamar al motor.
     question = req.question.strip() if req.question else None
 
-    if not history and not question:
+    if not question:
+        for msg in reversed(history):
+            if msg.role == "user":
+                question = msg.content.strip()
+                break
+
+    if not question:
+        if history:
+            return {"respuesta": "No pude encontrar tu pregunta en el historial."}
         return {"respuesta": "No recibí ninguna pregunta. ¿En qué puedo ayudar?"}
 
     if (
-        question
-        and len(history) <= 1
+        len(history) <= 1
         and re.match(r"^(hola|buenos días|buenas tardes|buenas noches|hey|qué tal)\s*$", question, re.I)
     ):
         return {
@@ -92,15 +100,6 @@ async def endpoint_consulta(req: ConsultaRequest, x_bot_secret: str | None = Hea
                 "para orientarte sobre tus derechos, prestaciones y obligaciones. ¿En qué puedo ayudarte hoy?"
             )
         }
-
-    if not question:
-        for msg in reversed(history):
-            if msg.role == "user":
-                question = msg.content.strip()
-                break
-
-    if not question:
-        return {"respuesta": "No pude encontrar tu pregunta en el historial."}
 
     historial_dicts = [h.model_dump() for h in history]
     respuesta = consulta_contrato(question, historial_dicts)
