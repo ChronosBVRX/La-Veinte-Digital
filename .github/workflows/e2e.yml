@@ -81,8 +81,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       - name: Run E2E full tests
-        if: success() || failure()
-        run: npx playwright test --project=chromium-desktop
+        run: npx playwright test e2e/full/ --project=chromium-desktop
         env:
           CI: "true"
           E2E_BASE_URL: http://localhost:3000
