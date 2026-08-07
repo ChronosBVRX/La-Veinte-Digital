@@ -353,8 +353,8 @@ function CalendarGrid({ year, month, prevMonth, nextMonth, startOffset, daysInMo
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px", marginBottom: "2px" }}>
-        {DAY_HEADERS.map((d) => (
-          <div key={d} style={{ textAlign: "center", fontSize: "0.625rem", fontWeight: 600, color: "var(--muted)", padding: "0.25rem 0", textTransform: "uppercase" }}>
+        {DAY_HEADERS.map((d, idx) => (
+          <div key={`day-${idx}`} style={{ textAlign: "center", fontSize: "0.625rem", fontWeight: 600, color: "var(--muted)", padding: "0.25rem 0", textTransform: "uppercase" }}>
             {d}
           </div>
         ))}
