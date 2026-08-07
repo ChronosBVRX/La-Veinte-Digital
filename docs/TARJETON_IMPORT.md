@@ -108,15 +108,22 @@ trabajador).
 ## Riesgos abiertos conocidos
 
 1. **Idempotencia de la deduplicación en DB**
-   - El servidor usa `UNIQUE(user_id, source_hash)` para detectar duplicados.
+   - La base de datos impide duplicados mediante `UNIQUE(user_id, source_hash)`
+     en `imported_payslips`.
    - El cliente no bloquea el botón de confirmar hasta recibir respuesta; si
      el usuario hace doble clic o hay una reconexión lenta, pueden enviarse
      dos requests casi simultáneos. El test de concurrencia en
      `confirm-tarjeton.test.ts` simula este escenario y espera que el segundo
-     request devuelva `duplicate`, pero la segunda petición aún consume
-     cuota de red y genera una fila de error/auditoría en logs.
+     request devuelva `duplicate`.
+   - Riesgo real: una carrera concurrente entre dos transacciones puede hacer
+     que ambas pasen el `SELECT` inicial y luego una reciba una violación
+     `unique_violation` en lugar de la respuesta normalizada `duplicate: true`.
+     El servicio (`confirm-tarjeton.ts`) ya mapea ese error al código
+     `duplicate`, pero la respuesta no incluye el `id` existente.
    - Mitigación actual: `requestRef` en `useTarjetonImporter` previene el
-     reenvío mientras `status === "confirming"`. No hay bloqueo distribuido.
+     reenvío mientras `status === "confirming"`. Mejora futura: capturar
+     `unique_violation` dentro del RPC y devolver la fila existente como
+     respuesta `duplicate: true`.
 
 2. **Comportamiento de rechazo parcial en la UI**
    - `parseImssTarjeton` ahora devuelve `reviewMode: "rejected"` cuando el

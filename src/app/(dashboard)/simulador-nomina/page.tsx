@@ -1,5 +1,5 @@
-import { SimuladorNominaIndex } from "@/features/simulador-nomina/components/SimuladorNominaIndex"
+import { SimuladorNominaPageClient } from "@/features/simulador-nomina/components/SimuladorNominaPageClient"
 
 export default function SimuladorNominaPage() {
-  return <SimuladorNominaIndex />
+  return <SimuladorNominaPageClient />
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useSyncExternalStore } from "react"
 import {
   CurrencyDollar,
   Clock,
@@ -73,7 +73,11 @@ interface DashboardStatsGridProps {
 }
 
 export function DashboardStatsGrid({ profile }: DashboardStatsGridProps) {
-  const [hasTarjeton] = useState(() => hasImportedPayslip())
+  const hasTarjeton = useSyncExternalStore(
+    () => () => {},
+    () => hasImportedPayslip(),
+    () => false,
+  )
 
   const nextPayment = getNextPaymentDay()
   const nextVacation = getNextVacation()
