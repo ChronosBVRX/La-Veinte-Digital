@@ -88,6 +88,9 @@ export function registerNetworkWatcher(
   page.on("response", (response: PWResponse) => {
     const status = response.status()
 
+    // Facebook iframe resources blocked in CI
+    if (/facebook\.com/i.test(response.url())) return
+
     if (status >= 500 && status <= 599) {
       errors.push({
         url: response.url(),
