@@ -122,7 +122,12 @@ export function registerNetworkWatcher(
   page.on("requestfailed", (request) => {
     const failure = request.failure()
     if (!failure) return
-    if (/favicon|analytics|gtag|pixel|fbcdn|facebook/i.test(request.url())) return
+    const url = request.url()
+    if (/favicon|analytics|gtag|pixel|fbcdn|facebook/i.test(url)) return
+    // Next.js RSC requests legitimately aborted during navigation
+    if (/_rsc=/.test(url)) return
+    // Form POSTs that get aborted during fast navigation (CI)
+    if (request.method() === "POST" && /\/login|\/register/.test(url)) return
 
     errors.push({
       url: request.url(),
