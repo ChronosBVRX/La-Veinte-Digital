@@ -1,8 +1,8 @@
 "use client"
 
 import { useState } from "react"
+import dynamic from "next/dynamic"
 import type { WorkerProfile, ProfileQuality, FieldRequirement, WorkerDataEvent, WorkerProfileMode } from "@/shared/domain/worker"
-import { OnboardingWizard } from "./OnboardingWizard"
 import { BasicModeCard } from "./BasicModeCard"
 import { ProfileQualityCard } from "./ProfileQualityCard"
 import { ProfileFieldsList } from "./ProfileFieldsList"
@@ -10,6 +10,11 @@ import { ProfileHistoryList } from "./ProfileHistoryList"
 import { ChangeMethodDialog } from "./ChangeMethodDialog"
 import { DeleteWorkerDataSection } from "./DeleteWorkerDataSection"
 import { changeWorkerProfileModeAction } from "@/features/profile/actions/worker-profile-actions"
+
+const OnboardingWizard = dynamic(
+  () => import("./OnboardingWizard").then((m) => m.OnboardingWizard),
+  { ssr: false }
+)
 
 export type WorkerState = "unconfigured" | "basic" | "configured"
 

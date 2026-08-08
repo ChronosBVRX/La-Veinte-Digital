@@ -136,15 +136,33 @@ function isMissingRelationError(error: unknown): boolean {
 }
 
 export class WorkerProfileService {
-  private readonly client: SupabaseClient<Database>
+  private _client: SupabaseClient<Database> | null = null
+  private _initPromise: Promise<void> | null = null
 
   constructor(deps: WorkerProfileServiceDeps = {}) {
-    this.client = deps.client ?? (createClient() as unknown as SupabaseClient<Database>)
+    if (deps.client) {
+      this._client = deps.client
+    }
+  }
+
+  private async getClient(): Promise<SupabaseClient<Database>> {
+    if (this._client) return this._client
+    if (!this._initPromise) {
+      this._initPromise = (async () => {
+        this._client = await (createClient() as unknown as Promise<SupabaseClient<Database>>)
+      })()
+    }
+    await this._initPromise
+    if (!this._client) {
+      throw new Error("WorkerProfileService: no se pudo crear el cliente de Supabase.")
+    }
+    return this._client
   }
 
   /** Obtiene el usuario autenticado desde la sesión del servidor. */
   private async getUserId(): Promise<string> {
-    const { data, error } = await this.client.auth.getUser()
+    const client = await this.getClient()
+    const { data, error } = await client.auth.getUser()
     if (error || !data.user) {
       throw new WorkerProfileUnauthorizedError(error ?? undefined)
     }
@@ -154,7 +172,7 @@ export class WorkerProfileService {
   /** Lee worker_preferences (SELECT propio) o lanza Unavailable si no existe la tabla. */
   async getWorkerPreferences(): Promise<WorkerPreferencesView> {
     const userId = await this.getUserId()
-    const { data, error } = await this.client
+    const { data, error } = await (await this.getClient())
       .from("worker_preferences")
       .select("*")
       .eq("user_id", userId)
@@ -185,7 +203,7 @@ export class WorkerProfileService {
     if (prefs.onboardingState === "unconfigured") return { state: "unconfigured" }
     if (prefs.onboardingState === "basic") return { state: "basic" }
 
-    const { data, error } = await this.client
+    const { data, error } = await (await this.getClient())
       .from("payroll_contexts")
       .select("*")
       .eq("user_id", userId)
@@ -208,7 +226,7 @@ export class WorkerProfileService {
   /** choose_basic_mode() — unconfigured|configured → basic (sin perfil laboral). */
   async chooseBasicMode(): Promise<void> {
     await this.getUserId()
-    const { error } = await this.client.rpc("choose_basic_mode")
+    const { error } = await (await this.getClient()).rpc("choose_basic_mode")
     if (error) throw mapRpcError(error.message, "No se pudo activar el modo básico.")
   }
 
@@ -333,7 +351,7 @@ export class WorkerProfileService {
       if (value) sources[key] = value
     }
 
-    const { error } = await this.client.rpc("confirm_manual_worker_profile", {
+    const { error } = await (await this.getClient()).rpc("confirm_manual_worker_profile", {
       p_identity: identity,
       p_situation: situation,
       p_sources: sources,
@@ -365,7 +383,7 @@ export class WorkerProfileService {
       effective_seniority_date: update.situation?.effectiveSeniorityDate ?? null,
     }
 
-    const { error } = await this.client.rpc("confirm_payslip_worker_profile", {
+    const { error } = await (await this.getClient()).rpc("confirm_payslip_worker_profile", {
       p_profile_updates: profileUpdates,
       p_consent_version: consentVersion,
       p_extraction_method: opts?.extractionMethod ?? undefined,
@@ -382,14 +400,14 @@ export class WorkerProfileService {
     if (mode !== "manual" && mode !== "payslip") {
       throw new WorkerProfileValidationError("Modo inválido.")
     }
-    const { error } = await this.client.rpc("change_worker_profile_mode", { p_new_mode: mode })
+    const { error } = await (await this.getClient()).rpc("change_worker_profile_mode", { p_new_mode: mode })
     if (error) throw mapRpcError(error.message, "No se pudo cambiar el modo del perfil.")
   }
 
   /** delete_worker_data() — borrado laboral completo; conserva cuenta y basic. */
   async deleteWorkerData(): Promise<void> {
     await this.getUserId()
-    const { error } = await this.client.rpc("delete_worker_data")
+    const { error } = await (await this.getClient()).rpc("delete_worker_data")
     if (error) throw mapRpcError(error.message, "No se pudieron borrar tus datos laborales.")
   }
 
@@ -402,7 +420,7 @@ export class WorkerProfileService {
     if (!version?.trim()) {
       throw new WorkerProfileValidationError("Versión de consentimiento requerida.")
     }
-    const { error } = await this.client.rpc("grant_worker_consent", {
+    const { error } = await (await this.getClient()).rpc("grant_worker_consent", {
       p_purpose: purpose,
       p_version: version.trim(),
     })
@@ -415,7 +433,7 @@ export class WorkerProfileService {
     if (purpose !== "use_worker_data" && purpose !== "store_tarjeton") {
       throw new WorkerProfileValidationError("Finalidad de consentimiento inválida.")
     }
-    const { error } = await this.client.rpc("revoke_worker_consent", { p_purpose: purpose })
+    const { error } = await (await this.getClient()).rpc("revoke_worker_consent", { p_purpose: purpose })
     if (error) throw mapRpcError(error.message, "No se pudo revocar el consentimiento.")
   }
 
@@ -425,7 +443,7 @@ export class WorkerProfileService {
     if (purpose !== "use_worker_data" && purpose !== "store_tarjeton") {
       throw new WorkerProfileValidationError("Finalidad de consentimiento inválida.")
     }
-    const { data, error } = await this.client.rpc("get_effective_consent", { p_purpose: purpose })
+    const { data, error } = await (await this.getClient()).rpc("get_effective_consent", { p_purpose: purpose })
     if (error) throw mapRpcError(error.message, "No se pudo consultar el consentimiento.")
     if (!data) return null
     const view = data as Record<string, unknown>
@@ -441,7 +459,7 @@ export class WorkerProfileService {
   async listWorkerEvents(limit = 50): Promise<WorkerDataEvent[]> {
     const userId = await this.getUserId()
     const safeLimit = Math.max(1, Math.min(limit, 200))
-    const { data, error } = await this.client
+    const { data, error } = await (await this.getClient())
       .from("worker_data_events")
       .select("*")
       .eq("user_id", userId)
