@@ -12,23 +12,38 @@ function makeValidPdf(workerName: string, period: string): Buffer {
   const doc = new jsPDF()
   doc.setFont("helvetica")
   doc.setFontSize(10)
-  doc.text("INSTITUTO MEXICANO DEL SEGURO SOCIAL", 14, 20)
-  doc.text("RECIBO DE PAGO DE NOMINA", 14, 28)
-  doc.text(`Nombre: ${workerName}`, 14, 40)
-  doc.text("NSS: 10020030001", 14, 48)
-  doc.text(`PERIODO DE PAGO: ${period}`, 14, 56)
-  doc.text("MATRICULA: 001002003", 14, 64)
-  doc.text("PERCEPCIONES", 14, 80)
-  doc.text("Sueldo base", 14, 88)
-  doc.text("$5,000.00", 150, 88)
-  doc.text("Ayuda de despensa", 14, 96)
-  doc.text("$1,200.00", 150, 96)
-  doc.text("TOTAL PERCEPCIONES $6,200.00", 14, 108)
-  doc.text("DEDUCCIONES", 14, 124)
-  doc.text("Cuota IMSS", 14, 132)
-  doc.text("$300.00", 150, 132)
-  doc.text("TOTAL DEDUCCIONES $300.00", 14, 144)
-  doc.text("LIQUIDO $5,900.00", 14, 160)
+
+  // Golden fixture based on parseImssTarjeton unit tests.
+  // All text at same x-position so PDF.js extracts lines in order.
+  const X = 14
+  let y = 20
+  const line = (t: string) => { doc.text(t, X, y); y += 8 }
+
+  line("INSTITUTO MEXICANO DEL SEGURO SOCIAL")
+  line("RECIBO DE PAGO DE NOMINA")
+  line(`PERIODO DE PAGO ${period}`)
+  line(`MATRICULA 123456`)
+  line(`NOMBRE ${workerName}`)
+  line("CLAVE DE CATEGORIA/PUESTO 6112")
+  line("NOMBRE CATEGORIA/PUESTO ENFERMERA GENERAL 80")
+  line("FECHA DE INGRESO 01-03-2003")
+  line("ANTIGUEDAD EFECTIVA 22 anos 10 qnas 2 dias")
+  line("FOLIO 998877")
+  line("FOLIO FISCAL RF-2026-000123")
+  line("PERCEPCIONES")
+  line("002 SUELDO BASE 3937.64")
+  line("011 PRESTACIONES EN DINERO 3234.77")
+  line("055 MAYOR IMPORTE 400.00")
+  line("TOTAL PERCEPCIONES 7572.41")
+  line("DEDUCCIONES")
+  line("212 IMPUESTO SOBRE LA RENTA 1234.56")
+  line("TOTAL DEDUCCIONES 1234.56")
+  line("LIQUIDO 6337.85")
+  line("OBSERVACIONES")
+  line(`055 VENCIMIENTO ${RUN_ID}`)
+  line("DIAS LABORADOS EN EL ANO 12")
+  line("CERTIFICACION 31-01-2026")
+
   return Buffer.from(doc.output("arraybuffer"))
 }
 
