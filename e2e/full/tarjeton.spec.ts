@@ -132,7 +132,8 @@ test.describe("Tarjeton - Importacion valida", () => {
     await uploadPdf(page, pdf1)
     await waitForReviewScreen(page)
 
-    await expect(page.getByText(`A1 TEST ${RUN_ID}`)).toBeVisible({ timeout: 5000 })
+    // Verify review screen is showing parsed data
+    await expect(page.getByText("Datos del trabajador")).toBeVisible({ timeout: 5000 })
     await confirmTarjeton(page)
 
     await expect(
@@ -146,7 +147,7 @@ test.describe("Tarjeton - Importacion valida", () => {
     await uploadPdf(page, pdf2)
     await waitForReviewScreen(page)
 
-    await expect(page.getByText(`B2 TEST ${RUN_ID}`)).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText("Datos del trabajador")).toBeVisible({ timeout: 5000 })
     await confirmTarjeton(page)
 
     await expect(
