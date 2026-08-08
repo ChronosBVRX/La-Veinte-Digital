@@ -141,6 +141,6 @@ test.describe("Calculadoras - Clausula 97", () => {
     await page.goto("/calculadoras/clausula-97")
     await page.waitForLoadState("networkidle")
 
-    await expect(page.getByRole("heading", { name: "Clausula 97" })).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByRole("heading", { name: "Cláusula 97" })).toBeVisible({ timeout: 10_000 })
   })
 })
