@@ -9,7 +9,6 @@ import type { Page } from "@playwright/test"
  */
 export const ALL_ROUTES = [
   { href: "/", label: "Inicio" },
-  { href: "/nomina", label: "Mi proxima quincena" },
   { href: "/tarjeton", label: "Mi Tarjeton" },
   { href: "/calendario", label: "Calendario" },
   { href: "/vacaciones", label: "Vacaciones" },

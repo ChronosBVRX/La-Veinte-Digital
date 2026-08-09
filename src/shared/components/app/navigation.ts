@@ -38,7 +38,6 @@ export const DESKTOP_NAV_GROUPS: NavGroup[] = [
     area: "work",
     color: "var(--area-work)",
     items: [
-      { href: "/nomina", label: "Mi próxima quincena", icon: Receipt },
       { href: "/tarjeton", label: "Mi Tarjetón", icon: IdentificationCard },
       { href: "/calendario", label: "Calendario", icon: CalendarDots },
       { href: "/vacaciones", label: "Vacaciones", icon: AirplaneTilt },

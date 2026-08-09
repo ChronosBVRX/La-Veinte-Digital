@@ -1,5 +1,5 @@
-import { NominaIndex } from "@/features/nomina/components/NominaIndex"
+import { redirect } from "next/navigation"
 
 export default function NominaPage() {
-  return <NominaIndex />
+  redirect("/simulador-nomina")
 }
