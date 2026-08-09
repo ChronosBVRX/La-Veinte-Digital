@@ -25,7 +25,7 @@ export interface TarjetonProfileSnapshot {
   antiguedad?: string | null
 }
 
-export type TarjetonImportErrorCode = ConfirmTarjetonErrorCode | "invalid_file" | "unsupported" | "no_text"
+export type TarjetonImportErrorCode = ConfirmTarjetonErrorCode | "invalid_file" | "unsupported" | "no_text" | "critical_sections_missing"
 
 export interface TarjetonImportError {
   code: TarjetonImportErrorCode
@@ -144,7 +144,11 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
       })
 
       if (!outcome.ok) {
-        fail({ code: "template_not_detected", message: outcome.message })
+        const code: TarjetonImportErrorCode =
+          outcome.reason === "critical_sections_missing" ? "critical_sections_missing"
+          : outcome.reason === "no_text" ? "no_text"
+          : "template_not_detected"
+        fail({ code, message: outcome.message })
         return
       }
 
