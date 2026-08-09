@@ -101,6 +101,7 @@ export async function confirmTarjetonService(deps: ConfirmTarjetonServiceDeps, r
     })
 
     if (error) {
+      console.error("[tarjeton/confirm][rpc]", { message: error.message })
       return mapRpcError(error.message)
     }
     const normalizedData = normalizeRpcResponse(data)
@@ -110,7 +111,8 @@ export async function confirmTarjetonService(deps: ConfirmTarjetonServiceDeps, r
 
     return { ok: true, data: normalizedData }
   } catch (err) {
-    console.error("[tarjeton/confirm]", err instanceof Error ? err.message : err)
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error("[tarjeton/confirm]", msg)
     return { ok: false, error: { code: "internal", message: "No fue posible confirmar el tarjetón." } }
   }
 }
