@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
+import { FormField } from "@/shared/components/ui/FormField"
+import { Alert } from "@/shared/components/ui/Alert"
 import type { EditableProfileFields } from "@/shared/contracts/profile"
 
 interface Profile {
@@ -59,29 +61,73 @@ export function ProfileForm({ profile }: Props) {
   )
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-        {state?.error && (
-          <p role="alert" style={{ color: "#dc2626", fontSize: "0.875rem", background: "#fef2f2", padding: "0.5rem", borderRadius: "0.375rem" }}>
-            {state.error}
-          </p>
-        )}
-        {state?.success && (
-          <p style={{ color: "#16a34a", fontSize: "0.875rem", background: "#f0fdf4", padding: "0.5rem", borderRadius: "0.375rem" }}>
-            Perfil actualizado
-          </p>
-        )}
-        <Input label="Nombre completo" name="full_name" defaultValue={profile?.full_name ?? ""} required />
-        <Input label="Teléfono" name="phone" defaultValue={profile?.phone ?? ""} type="tel" />
-        <Button type="submit" loading={pending} style={{ alignSelf: "flex-start" }}>
-          {pending ? "Guardando..." : "Guardar cambios"}
-        </Button>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-6)" }}>
+      {state?.error && (
+        <Alert variant="error" title="No se pudo guardar">
+          {state.error}
+        </Alert>
+      )}
+      {state?.success && (
+        <Alert variant="success" title="Perfil actualizado">
+          Tus datos se guardaron correctamente.
+        </Alert>
+      )}
+
+      <form action={formAction}>
+        <div className="profile-form-grid" style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: "var(--space-4)",
+          marginBottom: "var(--space-5)",
+        }}>
+          <FormField label="Nombre completo" htmlFor="full_name" required>
+            <Input
+              id="full_name"
+              name="full_name"
+              defaultValue={profile?.full_name ?? ""}
+              required
+            />
+          </FormField>
+
+          <FormField label="Teléfono" htmlFor="phone" hint="Opcional. Solo dígitos (8-15)">
+            <Input
+              id="phone"
+              name="phone"
+              type="tel"
+              defaultValue={profile?.phone ?? ""}
+              inputMode="numeric"
+            />
+          </FormField>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
+          <Button type="submit" loading={pending}>
+            {pending ? "Guardando cambios" : "Guardar cambios"}
+          </Button>
+        </div>
       </form>
-      <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem", marginTop: "0.5rem" }}>
-        <Link href="/profile/mi-informacion-laboral" style={{ color: "var(--primary)", textDecoration: "none", fontWeight: 600, fontSize: "0.875rem" }}>
+
+      <div style={{ borderTop: "1px solid var(--border)", paddingTop: "var(--space-5)" }}>
+        <Link
+          href="/profile/mi-informacion-laboral"
+          style={{
+            color: "var(--primary)",
+            textDecoration: "none",
+            fontWeight: 600,
+            fontSize: "var(--text-sm)",
+          }}
+        >
           Administrar mi información laboral →
         </Link>
       </div>
+
+      <style>{`
+        @media (max-width: 640px) {
+          .profile-form-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </div>
   )
 }
