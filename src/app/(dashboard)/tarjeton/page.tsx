@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { TarjetonImporterWrapper } from "@/features/tarjeton/components/TarjetonImporterWrapper"
-import { TarjetonHistorySection } from "@/features/tarjeton/components/TarjetonHistorySection"
+import { TarjetonPageClient } from "@/features/tarjeton/components/TarjetonPageClient"
 
 export default async function TarjetonPage() {
   const supabase = await createClient()
@@ -37,8 +36,7 @@ export default async function TarjetonPage() {
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto" }}>
-      <TarjetonImporterWrapper profile={snapshot} />
-      {previousImports.length > 0 && <TarjetonHistorySection imports={previousImports} />}
+      <TarjetonPageClient profile={snapshot} previousImports={previousImports} />
     </div>
   )
 }
