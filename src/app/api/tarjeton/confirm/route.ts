@@ -31,6 +31,9 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       rpc: async (fn, args) => {
         const { data, error } = await supabase.rpc(fn as "confirm_imported_payslip", args as never)
+        if (error) {
+          console.error("[tarjeton/confirm][supabase]", { code: error.code, message: error.message, details: error.details, hint: error.hint })
+        }
         return { data, error: error ? { message: error.message } : null }
       },
     },

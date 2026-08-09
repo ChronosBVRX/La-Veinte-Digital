@@ -122,7 +122,8 @@ export async function confirmTarjetonService(deps: ConfirmTarjetonServiceDeps, r
     return { ok: true, data: normalizedData }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    console.error("[tarjeton/confirm]", msg)
+    const stack = err instanceof Error ? err.stack?.split('\n').slice(0,3).join('\n') : ''
+    console.error("[tarjeton/confirm]", msg, stack)
     return { ok: false, error: { code: "internal", message: "No fue posible confirmar el tarjetón." } }
   }
 }
