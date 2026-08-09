@@ -67,7 +67,9 @@ function positionedObservation(
   const value = (column: ObservationColumn) => cells.get(column)?.join(" ").trim()
   const amount = parseImssMoney(value("amount"))
   const units = parseImssMoney(value("units"))
-  const initialCharge = parseImssMoney(value("initialCharge"))
+  const charge = parseImssMoney(value("initialCharge"))
+  // Reject non-sensical values (PDF artifacts can produce huge numbers)
+  const initialCharge = charge !== undefined && Math.abs(charge) < 100_000_000 ? charge : undefined
 
   return {
     lineIndex,
