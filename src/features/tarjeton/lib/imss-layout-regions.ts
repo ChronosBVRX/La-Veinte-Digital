@@ -86,7 +86,20 @@ export function buildImssLayoutRegions(items: PositionedPdfText[]): ImssLayoutRe
     const tableTop = centerY(earningsAnchor)
     const endAnchor = findAnchor(normalized, ["MENSAJES", "OBSERVACIONES", "CERTIFICACION"], earningsAnchor.y + 0.01)
     const tableBottom = endAnchor ? centerY(endAnchor) : Number.POSITIVE_INFINITY
-    const divider = deductionsAnchor?.x ?? pageWidth / 2
+
+    // The "DEDUCCIONES" title is centered above the right table; use the
+    // second "CONCEPTO" column header or the deductions anchor, whichever
+    // is further left (gives more room for deduction codes).
+    const headerRowItems = normalized.filter(
+      (item) => item.y >= tableTop && item.y <= tableTop + Math.max(30, (earningsAnchor?.height ?? 14) * 4),
+    )
+    const conceptHeaders = headerRowItems
+      .filter((item) => item.norm.includes("CONCEPTO"))
+      .sort((a, b) => a.x - b.x)
+    const divider = Math.min(
+      conceptHeaders[1]?.x ?? Infinity,
+      deductionsAnchor?.x ?? pageWidth / 2,
+    )
 
     const firstPageEarnings = reconstructLines(pageOneItems, {
       xMin: 0,
