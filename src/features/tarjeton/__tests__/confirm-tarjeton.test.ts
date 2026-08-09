@@ -272,3 +272,115 @@ describe("confirm-tarjeton service", () => {
     expect(second.error.code).toBe("duplicate")
   })
 })
+
+describe("validacion de contrato seniority (parsed/status)", () => {
+  function makeRpc() {
+    return async () => ({
+      data: { schemaVersion: "1.0", id: "test-payslip-1", duplicate: false, profileUpdated: false, payrollContextUpdated: false },
+      error: null,
+    })
+  }
+
+  it("acepta seniority con parsed y status completos", async () => {
+    const rpc = makeRpc()
+    const request = makeRequest({
+      parsed: {
+        ...makeRequest().parsed,
+        employee: {
+          ...makeRequest().parsed.employee,
+          seniority: {
+            raw: "14 anos 3 qnas 1 dias",
+            years: 14,
+            fortnights: 3,
+            days: 1,
+            parsed: { years: 14, fortnights: 3, days: 1 },
+            status: "complete",
+          },
+        },
+        extraction: {
+          ...makeRequest().parsed.extraction,
+          validations: { ...makeRequest().parsed.extraction.validations, templateDetected: true },
+        },
+      },
+    })
+
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, request)
+    expect(result.ok).toBe(true)
+  })
+
+  it("rechaza campo desconocido en seniority", async () => {
+    const rpc = makeRpc()
+    const badSeniority = {
+      raw: "1 a",
+      years: 1, fortnights: 0, days: 0, parsed: { years: 1, fortnights: 0, days: 0 },
+      status: "complete", desconocido: true,
+    }
+    const request = makeRequest({
+      parsed: {
+        ...makeRequest().parsed,
+        employee: { ...makeRequest().parsed.employee, seniority: badSeniority as never },
+        extraction: {
+          ...makeRequest().parsed.extraction,
+          validations: { ...makeRequest().parsed.extraction.validations, templateDetected: true },
+        },
+      },
+    })
+
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, request)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe("invalid_payload")
+  })
+
+  it("rechaza campo desconocido en seniority.parsed", async () => {
+    const rpc = makeRpc()
+    const request = makeRequest({
+      parsed: {
+        ...makeRequest().parsed,
+        employee: {
+          ...makeRequest().parsed.employee,
+          seniority: {
+            raw: "1 a", years: 1, fortnights: 0, days: 0,
+            parsed: { years: 1, fortnights: 0, days: 0, meses: 12 } as never,
+            status: "complete",
+          },
+        },
+        extraction: {
+          ...makeRequest().parsed.extraction,
+          validations: { ...makeRequest().parsed.extraction.validations, templateDetected: true },
+        },
+      },
+    })
+
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, request)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe("invalid_payload")
+  })
+
+  it("rechaza status invalido", async () => {
+    const rpc = makeRpc()
+    const request = makeRequest({
+      parsed: {
+        ...makeRequest().parsed,
+        employee: {
+          ...makeRequest().parsed.employee,
+          seniority: {
+            raw: "1 a", years: 1, fortnights: 0, days: 0,
+            parsed: { years: 1, fortnights: 0, days: 0 },
+            status: "invalido" as never,
+          },
+        },
+        extraction: {
+          ...makeRequest().parsed.extraction,
+          validations: { ...makeRequest().parsed.extraction.validations, templateDetected: true },
+        },
+      },
+    })
+
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, request)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe("invalid_payload")
+  })
+})
