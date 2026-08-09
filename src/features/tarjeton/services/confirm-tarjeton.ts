@@ -92,6 +92,16 @@ export async function confirmTarjetonService(deps: ConfirmTarjetonServiceDeps, r
   }
 
   try {
+    // Round floating-point confidence values to avoid numeric field overflow
+    if (typeof request.parsed.extraction.globalConfidence === "number") {
+      request.parsed.extraction.globalConfidence = Math.round(request.parsed.extraction.globalConfidence * 1000) / 1000
+    }
+    for (const line of [...request.parsed.payroll.earnings, ...request.parsed.payroll.deductions]) {
+      if (typeof line.confidence === "number") {
+        line.confidence = Math.round(line.confidence * 1000) / 1000
+      }
+    }
+
     const { data, error } = await deps.rpc("confirm_imported_payslip", {
       p_source_hash: request.sourceHash,
       p_parsed: request.parsed,
