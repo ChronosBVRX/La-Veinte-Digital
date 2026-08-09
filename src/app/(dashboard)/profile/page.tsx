@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { User, Shield } from "lucide-react"
 import Link from "next/link"
 import { ProfileForm } from "@/features/profile/components/ProfileForm"
-import { BitacoraPanel } from "@/features/bitacora/components/BitacoraPanel"
+import { TarjetonHistory } from "@/features/profile/components/TarjetonHistory"
 
 export default async function ProfilePage() {
   const supabase = await createClient()
@@ -12,18 +12,26 @@ export default async function ProfilePage() {
 
   await supabase.rpc("ensure_profile_exists")
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single()
+  const [profileRes, payslipsRes] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", user.id).single(),
+    supabase.from("imported_payslips")
+      .select("id, period_raw, extraction_method, global_confidence, created_at, employee_data, payroll_totals")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ])
 
-  const { data: bitacoraEntries } = await supabase
-    .from("bitacora_entries")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("entry_date", { ascending: false })
-    .order("created_at", { ascending: false })
+  const profile = profileRes.data
+  const payslipEntries = (payslipsRes.data ?? []).map((p) => ({
+    id: p.id,
+    period_raw: p.period_raw,
+    extraction_method: p.extraction_method,
+    global_confidence: p.global_confidence,
+    created_at: p.created_at,
+    employee_name: (p.employee_data as Record<string, unknown> | undefined)?.fullName as string ?? null,
+    total_earnings: (p.payroll_totals as Record<string, number> | undefined)?.totalEarnings ?? null,
+    total_net: (p.payroll_totals as Record<string, number> | undefined)?.netPay ?? null,
+  }))
 
   return (
     <div style={{ maxWidth: "700px", margin: "0 auto" }}>
@@ -75,9 +83,7 @@ export default async function ProfilePage() {
         </div>
       </div>
 
-      <div style={{ marginTop: "1.5rem" }}>
-        <BitacoraPanel userId={user.id} initialEntries={bitacoraEntries ?? []} />
-      </div>
+      <TarjetonHistory entries={payslipEntries} />
     </div>
   )
 }
