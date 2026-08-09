@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { IdentificationCard, ArrowRight, ArrowsLeftRight, CurrencyDollar, ClockCounterClockwise } from "@phosphor-icons/react"
 import { PageHeader } from "@/shared/components/app/PageHeader"
 import { SectionCard } from "@/shared/components/ui/SectionCard"
@@ -34,6 +34,7 @@ interface InitialState {
 }
 
 function loadInitialState(): InitialState {
+  // localStorage is kept as fast cache/fallback, but real source is Supabase via API
   try {
     const raw = localStorage.getItem("nomina_profile")
     if (!raw) return { step: "no-profile", profile: null, baseline: null, categories: [], targetCategory: "" }
@@ -102,6 +103,36 @@ export function SimuladorNominaIndex() {
   const [error, setError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
   const [categories, setCategories] = useState<{ name: string; salary: number }[]>(initial.categories)
+
+  // Hydrate from Supabase worker context on mount (source of truth)
+  useEffect(() => {
+    fetch("/api/worker-context")
+      .then(r => r.json())
+      .then((ctx: Record<string, unknown>) => {
+        if (!ctx?.employment || !ctx?.payroll) return
+        const emp = ctx.employment as Record<string, unknown>
+        const pay = ctx.payroll as Record<string, unknown>
+        // Sync to localStorage as cache
+        const profileData = {
+          categoryName: emp.categoryName,
+          workdayHours: emp.workdayHours,
+          effectiveSeniorityDate: emp.effectiveSeniorityDate,
+          facts: pay.payrollFacts || [],
+          recurringConcepts: pay.recurringConcepts || [],
+        }
+        localStorage.setItem("nomina_profile", JSON.stringify(profileData))
+        // Reload from updated localStorage
+        const reloaded = loadInitialState()
+        if (reloaded.step !== "no-profile") {
+          setStep(reloaded.step)
+          setBaseline(reloaded.baseline)
+          setProfile(reloaded.profile)
+          setTargetCategory(reloaded.targetCategory)
+          setCategories(reloaded.categories)
+        }
+      })
+      .catch(() => { /* use localStorage as fallback */ })
+  }, [])
 
   const runSimulation = async () => {
     if (!baseline || !profile) return

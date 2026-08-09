@@ -5,6 +5,7 @@ export const API_ACCESS = {
   "/api/consulta": "authenticated",
   "/api/simulador": "authenticated",
   "/api/tarjeton/confirm": "authenticated",
+  "/api/worker-context": "authenticated",
 } as const
 
 export type ApiAccessLevel = (typeof API_ACCESS)[keyof typeof API_ACCESS]

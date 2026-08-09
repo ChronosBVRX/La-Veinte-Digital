@@ -70,7 +70,8 @@ BEGIN
   v_folio := NULLIF(v_doc->>'folio', ''); v_fiscal_hash := NULLIF(v_doc->>'fiscalFolioHash', ''); v_cert := NULLIF(v_doc->>'certificationDate', '')::DATE;
   v_warnings := COALESCE(v_ext->'warnings', '[]'::jsonb); v_cat_name := NULLIF(v_emp->>'categoryName', '');
   v_hours := (v_emp->>'workdayHours')::NUMERIC; v_seniority := v_emp->'seniority';
-  v_sen_date := NULLIF(v_seniority->>'reconstructedEffectiveDate', '')::DATE; v_employment := NULLIF(v_emp->>'employmentType', '');
+  v_sen_date := NULLIF(v_seniority->>'reconstructedEffectiveDate', '')::DATE;
+  v_employment := LOWER(NULLIF(v_emp->>'employmentType', ''));
   INSERT INTO public.imported_payslips (user_id, source_hash, extraction_method, period_raw, period_year, period_month, period_half, folio, fiscal_folio_hash, certification_date, global_confidence, warnings, employee_data, attendance, vacations, payroll_totals)
   VALUES (v_user_id, p_source_hash, v_method, v_period_raw, v_year, v_month, v_half, v_folio, v_fiscal_hash, v_cert, v_confidence, v_warnings, v_emp, v_att, v_vac,
     jsonb_build_object('totalEarnings', v_tot_earn, 'totalDeductions', v_tot_ded, 'netPay', v_net,
