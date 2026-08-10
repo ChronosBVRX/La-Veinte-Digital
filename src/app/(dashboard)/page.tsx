@@ -39,7 +39,13 @@ export default async function DashboardPage() {
     year: "numeric",
   }).format(now)
 
-  const hour = now.getHours()
+  const hour = Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Mexico_City",
+      hour: "numeric",
+      hourCycle: "h23",
+    }).format(now)
+  )
   const greeting =
     hour >= 6 && hour < 12
       ? "Buenos días"
