@@ -1,10 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { TodayCard } from "@/shared/components/layout/TodayCard"
-import { DashboardHero } from "@/shared/components/app/DashboardHero"
+import { WelcomeCard } from "@/shared/components/app/WelcomeCard"
 import { OnboardingCard } from "@/shared/components/app/OnboardingCard"
 import { HomeQuickActions } from "@/shared/components/app/HomeQuickActions"
-import { TodaySummary } from "@/shared/components/app/TodaySummary"
 import { UpNextChips } from "@/shared/components/app/UpNextChips"
 import { DesktopQuickPills } from "@/shared/components/app/DesktopQuickPills"
 import { NoticiasSection } from "@/shared/components/app/NoticiasSection"
@@ -56,7 +55,7 @@ export default async function DashboardPage() {
         margin: "0 auto",
       }}
     >
-      <DashboardHero
+      <WelcomeCard
         fullName={profile?.full_name ?? null}
         greeting={greeting}
         dateLabel={dateLabel}
@@ -70,7 +69,6 @@ export default async function DashboardPage() {
           hasCategoria={!!profile?.categoria}
         />
         <HomeQuickActions />
-        <TodaySummary />
         <UpNextChips />
         <CalendarioLaboral />
         <div id="agenda" style={{ scrollMarginTop: "calc(var(--nav-height) + 1.5rem)" }}>

@@ -44,6 +44,28 @@ export function isInteractivoOpen(year: number, monthIndex: number, day: number)
   return yearData[monthIndex]?.events.interactivo?.includes(day) ?? false
 }
 
+export function getNextNonInteractiveDay(
+  year: number,
+  monthIndex: number,
+  day: number,
+): { date: Date } | null {
+  const checkDate = new Date(year, monthIndex, day + 1)
+  for (let i = 0; i < 90; i++) {
+    const y = checkDate.getFullYear()
+    const m = checkDate.getMonth()
+    const d = checkDate.getDate()
+    const yearData = CALENDARIOS[y]
+    if (yearData) {
+      const interactiveDays = yearData[m]?.events.interactivo
+      if (!interactiveDays?.includes(d)) {
+        return { date: new Date(y, m, d) }
+      }
+    }
+    checkDate.setDate(checkDate.getDate() + 1)
+  }
+  return null
+}
+
 export function getNextVacationStart(
   year: number,
   monthIndex: number,
