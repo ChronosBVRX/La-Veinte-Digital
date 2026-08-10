@@ -16,7 +16,7 @@ export const ALL_ROUTES = [
   { href: "/calculadoras", label: "Calculadoras" },
   { href: "/simulador-nomina", label: "Simulador de nomina" },
   { href: "/escritos", label: "Crear un escrito" },
-  { href: "/catalogo", label: "Consultar conceptos" },
+  { href: "/catalogo", label: "Entender conceptos de mi pago" },
   { href: "/asistente", label: "Asistente IA" },
   { href: "/simulador", label: "Practicar una audiencia" },
   { href: "/facebook", label: "Noticias SNTSS" },

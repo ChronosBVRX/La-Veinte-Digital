@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useRef } from "react"
+import { motion, useReducedMotion } from "framer-motion"
 import { X } from "@phosphor-icons/react"
 import { MOBILE_SHEET_GROUPS } from "./navigation"
 
@@ -17,6 +18,7 @@ export function MobileNavigationSheet({ openKey, onClose, onNavigate }: MobileNa
   const sheetRef = useRef<HTMLDivElement>(null)
   const isOpen = openKey !== null
   const group = openKey ? MOBILE_SHEET_GROUPS[openKey] : null
+  const reduce = useReducedMotion()
 
   useEffect(() => {
     if (!isOpen) return
@@ -42,21 +44,26 @@ export function MobileNavigationSheet({ openKey, onClose, onNavigate }: MobileNa
 
   if (!isOpen || !group) return null
 
+  const sheetTransition = reduce
+    ? { duration: 0 }
+    : { type: "spring" as const, stiffness: 320, damping: 32, mass: 0.8 }
+
   return (
     <>
-      <div
+      <motion.div
         style={{
           position: "fixed",
           inset: 0,
           background: "rgba(0, 0, 0, 0.4)",
           zIndex: 60,
-          opacity: 1,
-          transition: "opacity 0.2s ease",
         }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: reduce ? 0 : 0.2, ease: "easeOut" }}
         onClick={onClose}
       />
 
-      <div
+      <motion.div
         ref={sheetRef}
         style={{
           position: "fixed",
@@ -69,10 +76,13 @@ export function MobileNavigationSheet({ openKey, onClose, onNavigate }: MobileNa
           borderTopLeftRadius: "var(--radius-lg)",
           borderTopRightRadius: "var(--radius-lg)",
           paddingBottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 1rem)",
-          animation: "slideUp 0.25s ease forwards",
           maxHeight: "70vh",
           overflowY: "auto",
+          boxShadow: "0 -8px 28px rgba(0,0,0,0.18)",
         }}
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        transition={sheetTransition}
       >
         <div
           style={{
@@ -126,22 +136,24 @@ export function MobileNavigationSheet({ openKey, onClose, onNavigate }: MobileNa
                   onClose()
                   onNavigate()
                 }}
+                aria-current={isActive ? "page" : undefined}
+                className="pressable"
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: "0.75rem",
-                  padding: "0.75rem 0.75rem",
+                  padding: "0.875rem 0.75rem",
                   borderRadius: "var(--radius)",
                   textDecoration: "none",
                   color: isActive ? group.color : "var(--fg)",
                   fontWeight: isActive ? 600 : 400,
-                  fontSize: "0.875rem",
+                  fontSize: "var(--text-sm)",
                   background: isActive ? "var(--accent)" : "transparent",
                   transition: "all var(--transition)",
                 }}
               >
                 <IconComponent
-                  size={20}
+                  size={22}
                   weight={isActive ? "fill" : "regular"}
                   color={isActive ? group.color : "var(--muted)"}
                 />
@@ -150,7 +162,7 @@ export function MobileNavigationSheet({ openKey, onClose, onNavigate }: MobileNa
             )
           })}
         </div>
-      </div>
+      </motion.div>
     </>
   )
 }

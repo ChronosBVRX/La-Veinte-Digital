@@ -52,7 +52,7 @@ export const DESKTOP_NAV_GROUPS: NavGroup[] = [
       { href: "/calculadoras", label: "Calculadoras", icon: Calculator },
       { href: "/simulador-nomina", label: "Simulador de nómina", icon: ArrowsLeftRight },
       { href: "/escritos", label: "Crear un escrito", icon: FileText },
-      { href: "/catalogo", label: "Consultar conceptos", icon: Books },
+      { href: "/catalogo", label: "Entender conceptos de mi pago", icon: Books },
     ],
   },
   {
@@ -91,7 +91,10 @@ export const MOBILE_SHEET_GROUPS: Record<string, { label: string; color: string;
   herramientas: {
     label: "Herramientas",
     color: "var(--area-tools)",
-    items: DESKTOP_NAV_GROUPS[1].items,
+    items: [
+      ...DESKTOP_NAV_GROUPS[1].items,
+      { href: "/simulador", label: "Practicar una audiencia", icon: Scales },
+    ],
   },
   mas: {
     label: "Más",

@@ -169,6 +169,14 @@ a:focus-visible {
   transform: scale(1.03);
 }
 
+.pressable {
+  transition: transform var(--transition);
+}
+
+.pressable:active {
+  transform: scale(0.97);
+}
+
 .animate-fade-in {
   animation: fadeIn 0.3s ease forwards;
 }
@@ -190,6 +198,9 @@ a:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .skeleton-pulse {
     animation: none;
+  }
+  .pressable:active {
+    transform: none;
   }
 }
 

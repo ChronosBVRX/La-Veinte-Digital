@@ -120,7 +120,7 @@ export function useSimulation() {
       }
       setMessages((prev) => [...prev, aiMsg])
     } catch {
-      setError("Error al comunicarse con el inquisidor.")
+      setError("Error al comunicarse con el evaluador.")
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: "⚠️ No se pudo obtener respuesta. Intenta de nuevo.", presion: 5, estado: "neutral", timestamp: Date.now() },

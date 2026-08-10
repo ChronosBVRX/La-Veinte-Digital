@@ -238,7 +238,7 @@ export function SimuladorNominaIndex() {
           </div>
         )}
 
-        <SectionCard title="¿Qué querés simular?" icon={<ArrowsLeftRight size={20} weight="duotone" />}>
+        <SectionCard title="¿Qué quieres simular?" icon={<ArrowsLeftRight size={20} weight="duotone" />}>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
             {SCENARIO_PRESETS.map((preset) => {
               const Icon = preset.icon

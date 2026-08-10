@@ -8,8 +8,8 @@ const TOOLS = [
   { href: "/calculadoras", label: "Calculadoras", description: "Aguinaldo, tiempo extra, préstamos, segunda de julio y más.", icon: Calculator },
   { href: "/simulador-nomina", label: "Simulador de nómina", description: "Compara cómo cambiaría tu quincena al modificar categoría o antigüedad.", icon: ArrowsLeftRight },
   { href: "/escritos", label: "Crear un escrito", description: "Genera documentos formales basados en tu situación laboral.", icon: FileText },
-  { href: "/catalogo", label: "Consultar conceptos", description: "Explora los conceptos del Contrato Colectivo de Trabajo.", icon: Books },
-  { href: "/simulador", label: "Practicar una audiencia", description: "Simula una audiencia de aclaración con un inquisidor virtual.", icon: Scales },
+  { href: "/catalogo", label: "Entender conceptos de mi pago", description: "Explora los conceptos del Contrato Colectivo de Trabajo.", icon: Books },
+  { href: "/simulador", label: "Practicar una audiencia", description: "Practica una audiencia de aclaración con un evaluador virtual.", icon: Scales },
 ]
 
 export default function HerramientasPage() {

@@ -1,11 +1,13 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { Globe, ArrowRight } from "lucide-react"
-import Link from "next/link"
-import { FacebookFeeds } from "@/features/facebook/components/FacebookFeeds"
 import { TodayCard } from "@/shared/components/layout/TodayCard"
 import { DashboardHero } from "@/shared/components/app/DashboardHero"
-import { DashboardPendientes } from "@/shared/components/app/DashboardPendientes"
+import { OnboardingCard } from "@/shared/components/app/OnboardingCard"
+import { HomeQuickActions } from "@/shared/components/app/HomeQuickActions"
+import { TodaySummary } from "@/shared/components/app/TodaySummary"
+import { UpNextChips } from "@/shared/components/app/UpNextChips"
+import { DesktopQuickPills } from "@/shared/components/app/DesktopQuickPills"
+import { NoticiasSection } from "@/shared/components/app/NoticiasSection"
 import { DashboardSection } from "@/shared/components/app/DashboardSection"
 import { CalendarioLaboral } from "@/shared/components/app/CalendarioLaboral"
 import { AgendaCardWrapper } from "@/shared/components/app/AgendaCardWrapper"
@@ -47,131 +49,90 @@ export default async function DashboardPage() {
       : "Buenas noches"
 
   return (
-    <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
+    <div
+      className="dashboard-root"
+      style={{
+        maxWidth: "1240px",
+        margin: "0 auto",
+      }}
+    >
       <DashboardHero
         fullName={profile?.full_name ?? null}
         greeting={greeting}
         dateLabel={dateLabel}
       />
 
-      <DashboardPendientes
-        hasAntiguedad={!!profile?.antiguedad}
-        hasTarjeton={hasTarjeton}
-        hasCategoria={!!profile?.categoria}
-      />
-
-      <DashboardSection title="">
-        <TodayCard
-          profile={{
-            id: profile?.id,
-            adscripcion: profile?.adscripcion ?? null,
-            categoria: profile?.categoria ?? null,
-            antiguedad: profile?.antiguedad ?? null,
-          }}
+      {/* Móvil */}
+      <div className="mobile-only">
+        <OnboardingCard
+          hasAntiguedad={!!profile?.antiguedad}
+          hasTarjeton={hasTarjeton}
+          hasCategoria={!!profile?.categoria}
         />
-      </DashboardSection>
-
-      <div style={{ marginBottom: "var(--space-6)" }}>
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "0.75rem",
-        }}>
-          <span style={{
-            fontSize: "var(--text-xs)",
-            fontWeight: 700,
-            color: "var(--muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-          }}>
-            Acciones frecuentes
-          </span>
-          <Link
-            href="/herramientas"
-            style={{
-              fontSize: "var(--text-xs)",
-              color: "var(--primary)",
-              textDecoration: "none",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.25rem",
-            }}
-          >
-            Ver todas las herramientas
-            <ArrowRight size={12} />
-          </Link>
+        <HomeQuickActions />
+        <TodaySummary />
+        <UpNextChips />
+        <CalendarioLaboral />
+        <div id="agenda" style={{ scrollMarginTop: "calc(var(--nav-height) + 1.5rem)" }}>
+          <AgendaCardWrapper userId={user.id} />
         </div>
-        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-          <Link href="/tarjeton" style={{
-            display: "flex", alignItems: "center", gap: "0.5rem",
-            padding: "0.625rem 0.875rem", background: "var(--card)", border: "1px solid var(--border)",
-            borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)", fontWeight: 600,
-            textDecoration: "none", color: "var(--fg)", transition: "box-shadow var(--transition)",
-          }} className="hover-lift">
-            Mi tarjetón <ArrowRight size={12} style={{ color: "var(--muted)" }} />
-          </Link>
-          <Link href="/bitacora" style={{
-            display: "flex", alignItems: "center", gap: "0.5rem",
-            padding: "0.625rem 0.875rem", background: "var(--card)", border: "1px solid var(--border)",
-            borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)", fontWeight: 600,
-            textDecoration: "none", color: "var(--fg)", transition: "box-shadow var(--transition)",
-          }} className="hover-lift">
-            Registrar incidencia <ArrowRight size={12} style={{ color: "var(--muted)" }} />
-          </Link>
-          <Link href="/asistente" style={{
-            display: "flex", alignItems: "center", gap: "0.5rem",
-            padding: "0.625rem 0.875rem", background: "var(--card)", border: "1px solid var(--border)",
-            borderRadius: "var(--radius-md)", fontSize: "var(--text-sm)", fontWeight: 600,
-            textDecoration: "none", color: "var(--fg)", transition: "box-shadow var(--transition)",
-          }} className="hover-lift">
-            Preguntar al asistente <ArrowRight size={12} style={{ color: "var(--muted)" }} />
-          </Link>
-        </div>
+        <NoticiasSection />
       </div>
 
-      <CalendarioLaboral />
-
-      <AgendaCardWrapper userId={user.id} />
-
-      <DashboardSection title="">
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: "0.5rem",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <Globe size={16} style={{ color: "#1877F2" }} />
-            <span style={{
-              fontSize: "0.8125rem",
-              fontWeight: 600,
-              color: "var(--muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
-            }}>
-              Noticias de la Secci&oacute;n XX
-            </span>
-          </div>
-          <Link
-            href="/facebook"
-            style={{
-              fontSize: "0.75rem",
-              color: "var(--primary)",
-              textDecoration: "none",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.25rem",
-            }}
-          >
-            Ver feed completo
-            <ArrowRight size={12} />
-          </Link>
+      {/* Escritorio: layout 2 columnas */}
+      <div className="dashboard-desktop desktop-only">
+        <div className="dashboard-main">
+          <DashboardSection title="">
+            <TodayCard
+              profile={{
+                id: profile?.id,
+                adscripcion: profile?.adscripcion ?? null,
+                categoria: profile?.categoria ?? null,
+                antiguedad: profile?.antiguedad ?? null,
+              }}
+            />
+          </DashboardSection>
+          <DesktopQuickPills />
+          <CalendarioLaboral />
         </div>
-        <FacebookFeeds compact />
-      </DashboardSection>
+        <aside className="dashboard-rail">
+          <OnboardingCard
+            hasAntiguedad={!!profile?.antiguedad}
+            hasTarjeton={hasTarjeton}
+            hasCategoria={!!profile?.categoria}
+          />
+          <div id="agenda" style={{ scrollMarginTop: "calc(var(--nav-height) + 1.5rem)" }}>
+            <AgendaCardWrapper userId={user.id} />
+          </div>
+          <NoticiasSection />
+        </aside>
+      </div>
+
+      <style>{`
+        .dashboard-desktop {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 340px;
+          gap: 1.5rem;
+          align-items: start;
+        }
+        .dashboard-main { min-width: 0; }
+        .dashboard-rail {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+          position: sticky;
+          top: calc(var(--nav-height) + 1.5rem);
+          max-height: calc(100dvh - var(--nav-height) - 3rem);
+          overflow-y: auto;
+          padding-right: 0.25rem;
+        }
+        @media (max-width: 1100px) {
+          .dashboard-desktop {
+            grid-template-columns: minmax(0, 1fr) 300px;
+            gap: 1rem;
+          }
+        }
+      `}</style>
     </div>
   )
 }

@@ -37,7 +37,7 @@ export async function consultarSimulador(
 
   const data = await res.json()
   return {
-    respuesta: data.respuesta ?? "Error al obtener respuesta del inquisidor.",
+    respuesta: data.respuesta ?? "Error al obtener respuesta del evaluador.",
     presion: data.presion ?? 5,
     estado: data.estado ?? "neutral",
   }
