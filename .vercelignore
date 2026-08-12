@@ -1,0 +1,9 @@
+node_modules/
+.next/
+android-app/
+playwright-report/
+test-results/
+.coverage
+.DS_Store
+*.pem
+*.tsbuildinfo

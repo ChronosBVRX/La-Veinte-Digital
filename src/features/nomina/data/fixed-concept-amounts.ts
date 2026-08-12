@@ -18,7 +18,7 @@ export const FIXED_CONCEPT_AMOUNTS: Record<string, FixedConceptAmountEntry[]> = 
 export function getFixedAmount(
   conceptCode: string,
   date: string
-): { amount: number; frequency: "biweekly" | "monthly" | "annual" } | null {
+): { amount: number; frequency: "biweekly" | "monthly" | "annual"; version: string } | null {
   const entries = FIXED_CONCEPT_AMOUNTS[conceptCode]
   if (!entries || entries.length === 0) return null
 
@@ -29,5 +29,5 @@ export function getFixedAmount(
   })
 
   if (!applicable) return null
-  return { amount: applicable.amount, frequency: applicable.frequency }
+  return { amount: applicable.amount, frequency: applicable.frequency, version: applicable.effectiveFrom }
 }

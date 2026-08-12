@@ -107,6 +107,10 @@ export interface RecurringConceptEvidence {
   firstSeenAt?: string
   lastSeenAt?: string
   confirmed: boolean
+  /** Tipo de ocurrencia: solo 'recurring' y 'variable' se proyectan automáticamente. */
+  occurrenceType: ConceptOccurrenceType
+  /** Hasta cuándo se asume que el trabajador mantiene la elegibilidad. */
+  eligibilityPersistence: EligibilityPersistence
 }
 
 export interface ResolvedProfileCategory {
@@ -202,6 +206,8 @@ export interface ResolvedSalaryCategory {
   workdayHours?: number
   monthlyBaseSalary?: number
   biweeklyBaseSalary: number
+  /** Valor tabular del concepto 011 según el catálogo oficial (Cláusula 63 Bis, inciso b). */
+  conceptoTabular011?: number
   effectiveFrom?: string
   effectiveTo?: string
   salaryTableVersion?: string
@@ -285,6 +291,61 @@ export interface CalculatedPayrollConcept {
   calculationSteps: CalculationStep[]
   legalBasis: LegalBasis[]
   warnings: string[]
+  /** Importe comprobado del último tarjetón real (ancla). */
+  anchorAmount?: number
+  /** Fecha de la última evidencia del tarjetón para este concepto. */
+  anchorDate?: string
+  /** Origen de la elegibilidad del concepto. */
+  elegibilitySource: "payslip_confirmed" | "contract_rule" | "tabular_value" | "user_reported" | "formula_deduced" | "unknown"
+}
+
+/** Par de anclaje: importe comprobado + fecha de evidencia. */
+export interface ConceptAnchor {
+  amount: number
+  date: string
+  /** Tipo de ocurrencia del concepto en el tarjetón. */
+  occurrenceType: ConceptOccurrenceType
+  /** Hasta cuándo se asume que el trabajador mantiene la elegibilidad. */
+  eligibilityPersistence: EligibilityPersistence
+}
+
+/** Clasifica la frecuencia con que un concepto aparece en el tarjetón. */
+export type ConceptOccurrenceType =
+  | "recurring"   // aparece siempre (002, 011, 020, 050, 023, 063)
+  | "periodic"    // solo en periodos específicos (022 anual, 055 julio)
+  | "variable"    // aparece regularmente pero el importe varía con la base (054, 072, etc.)
+  | "one_time"    // apareció una sola vez, no debe reaparecer automáticamente
+  | "unknown"     // sin clasificar
+
+/** Define hasta cuándo se asume que el trabajador mantiene la elegibilidad. */
+export type EligibilityPersistence =
+  | "persistent"     // derecho permanente (002, 011, 020)
+  | "until_changed"  // mantiene mientras no haya evidencia de cambio (054, 072, etc.)
+  | "period_scoped"  // solo en el periodo específico (055 julio, 022 anual)
+  | "event_scoped"   // condicionado a un hecho con vigencia limitada (incidencias)
+
+/**
+ * Instantánea del estado de referencia (último tarjetón) usada para detectar
+ * si las causas externas cambiaron entre el baseline y la proyección.
+ *
+ * No almacena importes (eso es `conceptAnchors`); almacena las causas
+ * verificables que determinan si un concepto debe recalcularse.
+ */
+export interface PayrollReferenceSnapshot {
+  /** Fecha de referencia del último tarjetón. */
+  date: string
+  /** Categoría en el momento del tarjetón. */
+  categoryId: string
+  /** Antigüedad comprobada en el momento del tarjetón. */
+  seniority: {
+    years: number
+    months: number
+    days: number
+  }
+  /** Versión de la tabla salarial vigente en el momento del tarjetón. */
+  salaryTableVersion?: string
+  /** Versiones de tablas de importes fijos en el momento del tarjetón. */
+  fixedTableVersions: Record<string, string>
 }
 
 export interface PayrollRuleContext {
@@ -295,6 +356,12 @@ export interface PayrollRuleContext {
   incidents: PayrollIncident[]
   confirmedRecurringConcepts: RecurringConceptOverride[]
   calculatedConcepts: ReadonlyMap<string, CalculatedPayrollConcept>
+  /** Anclas de importe comprobado del último tarjetón real. */
+  conceptAnchors: ReadonlyMap<string, ConceptAnchor>
+  /** Modo de cálculo: baseline reproduce el tarjetón real; projection proyecta hacia adelante. */
+  mode: ProjectionMode
+  /** Instantánea del estado de referencia para comparar causas externas. */
+  referenceSnapshot?: PayrollReferenceSnapshot
 }
 
 export interface RuleCalculationResult {
@@ -385,7 +452,7 @@ export interface ProjectionTotals {
   estimatedNetRange?: { minimum: number; maximum: number }
 }
 
-export type ProjectionMode = "strict" | "assisted" | "exploratory"
+export type ProjectionMode = "strict" | "assisted" | "exploratory" | "baseline"
 
 export interface PayrollProjection {
   id: string

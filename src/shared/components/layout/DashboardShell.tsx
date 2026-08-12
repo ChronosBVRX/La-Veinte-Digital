@@ -41,9 +41,10 @@ export function DashboardShell({ fullName, children }: DashboardShellProps) {
         <main
           style={{
             flex: 1,
-            padding: "1.5rem",
+            padding: "clamp(1rem, 2vw, 1.5rem)",
             overflow: "auto",
             minHeight: "calc(100dvh - var(--nav-height))",
+            minWidth: 0,
           }}
         >
           <div className="animate-fade-in">{children}</div>

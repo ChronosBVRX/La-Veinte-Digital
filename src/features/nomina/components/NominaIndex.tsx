@@ -196,21 +196,39 @@ export function NominaIndex() {
         </Card>
       )}
 
-      <Link href="/tarjeton" style={{ textDecoration: "none", display: "block", marginBottom: "1rem" }}>
-        <div style={{
-          background: "var(--accent)", border: "1px dashed var(--primary)",
-          borderRadius: "var(--radius)", padding: "0.875rem 1rem",
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", fontSize: "0.875rem" }}>
-            <FileUp size={18} style={{ color: "var(--primary)" }} />
-            <span>
-              <strong>¿Tienes tu tarjetón?</strong> Impórtalo para que las proyecciones usen tus importes reales.
-            </span>
+      {profile?.displayedSeniorityAtLastPayslip?.referenceDate ? (
+        <Link href="/tarjeton" style={{ textDecoration: "none", display: "block", marginBottom: "1rem" }}>
+          <div style={{
+            background: "var(--accent)", border: "1px solid var(--border)",
+            borderRadius: "var(--radius)", padding: "0.75rem 1rem",
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", fontSize: "0.875rem" }}>
+              <FileUp size={18} style={{ color: "var(--primary)" }} />
+              <span>
+                <strong>Actualiza tu tarjetón</strong> para mantener tus importes al día.
+              </span>
+            </div>
+            <ArrowRight size={16} style={{ color: "var(--primary)" }} />
           </div>
-          <ArrowRight size={16} style={{ color: "var(--primary)" }} />
-        </div>
-      </Link>
+        </Link>
+      ) : (
+        <Link href="/tarjeton" style={{ textDecoration: "none", display: "block", marginBottom: "1rem" }}>
+          <div style={{
+            background: "var(--accent)", border: "1px dashed var(--primary)",
+            borderRadius: "var(--radius)", padding: "0.875rem 1rem",
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", fontSize: "0.875rem" }}>
+              <FileUp size={18} style={{ color: "var(--primary)" }} />
+              <span>
+                <strong>¿Tienes tu tarjetón?</strong> Impórtalo para que las proyecciones usen tus importes reales.
+              </span>
+            </div>
+            <ArrowRight size={16} style={{ color: "var(--primary)" }} />
+          </div>
+        </Link>
+      )}
 
       {projections.length > 0 && (
         <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>

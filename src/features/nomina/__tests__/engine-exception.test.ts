@@ -48,6 +48,7 @@ function mockRules(): PayrollRule[] {
         source: "salary_table",
         confidence: "high",
         verificationStatus: "contract_verified",
+        elegibilitySource: "tabular_value",
         dependencies: [],
         calculationSteps: [{ label: "Tabulador", expression: "3937.64", value: 3937.64 }],
         legalBasis: [],

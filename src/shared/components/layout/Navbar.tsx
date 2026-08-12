@@ -6,14 +6,14 @@ import Image from "next/image"
 export function Navbar({ fullName }: { fullName: string | null }) {
   return (
     <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.625rem", textDecoration: "none", color: "inherit" }}>
-      <div style={{ height: "32px", display: "flex", alignItems: "center" }}>
+      <div style={{ height: "36px", display: "flex", alignItems: "center" }}>
         <Image
-          src="/Logo SXX_recortado.png"
-          alt="SXX"
-          width={32}
-          height={32}
+          src="/logo-horizontal.png"
+          alt="La Veinte Digital"
+          width={140}
+          height={36}
           priority
-          style={{ maxHeight: "100%", width: "auto", height: "32px", objectFit: "contain", display: "block" }}
+          style={{ maxHeight: "100%", width: "auto", height: "36px", objectFit: "contain", display: "block" }}
         />
       </div>
       <span style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--primary)", letterSpacing: "-0.02em" }}>La Veinte Digital</span>

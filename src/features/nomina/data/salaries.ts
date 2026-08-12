@@ -7,6 +7,7 @@ export interface SalaryDataRecord {
   categoryName: string
   biweeklyBaseSalary: number
   monthlyBaseSalary?: number
+  conceptoTabular011?: number
   workdayHours: number
   effectiveFrom: string
   effectiveTo?: string
@@ -42,6 +43,7 @@ export const SALARY_DATA: SalaryDataRecord[] = CATALOGO_CATEGORIAS.map((c) => ({
   workdayHours: deriveWorkdayHoursFromCategoryName(c.nombre) ?? 8,
   monthlyBaseSalary: c.sueldoQuincenal * 2,
   biweeklyBaseSalary: c.sueldoQuincenal,
+  conceptoTabular011: c.concepto011,
   effectiveFrom: "2025-01-01",
   salaryTableVersion: SALARY_TABLE_VERSION,
   sourceRecordId: `catalog:${c.nombre}`,

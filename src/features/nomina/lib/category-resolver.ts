@@ -38,6 +38,7 @@ function toResolvedCategory(record: SalaryDataRecord): ResolvedSalaryCategory {
     workdayHours: record.workdayHours,
     monthlyBaseSalary: record.monthlyBaseSalary,
     biweeklyBaseSalary: record.biweeklyBaseSalary,
+    conceptoTabular011: record.conceptoTabular011,
     effectiveFrom: record.effectiveFrom,
     effectiveTo: record.effectiveTo,
     salaryTableVersion: record.salaryTableVersion,

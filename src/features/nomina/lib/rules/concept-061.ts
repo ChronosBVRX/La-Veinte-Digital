@@ -1,4 +1,5 @@
 import type { PayrollRuleContext, RuleCalculationResult, CalculatedPayrollConcept, PayrollRule } from "../types"
+import { dependenciesStatus, resolveWithAnchor } from "../engine"
 
 export const concept061Rule: PayrollRule = {
   id: "061",
@@ -7,6 +8,7 @@ export const concept061Rule: PayrollRule = {
   dependencies: ["002", "011"],
   calculate(ctx: PayrollRuleContext): RuleCalculationResult {
     const profile = ctx.profile
+    const anchor = ctx.conceptAnchors.get("061")
     const isRecurring = profile.recurringConcepts.some(
       (rc) => rc.conceptCode === "061" && rc.confirmed && rc.appearsNormally === true
     )
@@ -17,30 +19,63 @@ export const concept061Rule: PayrollRule = {
       (f) => f.key === "concept_061_on_payslip" && f.value === true
     )
 
-    const eligible = isRecurring || (hasFact && hasPayslipEvidence)
+    const eligible = anchor ? true : (isRecurring || (hasFact && hasPayslipEvidence))
+
+    const DEPS = ["002", "011"]
 
     const c002 = ctx.calculatedConcepts.get("002")?.amount ?? 0
     const c011 = ctx.calculatedConcepts.get("011")?.amount ?? 0
     const base = c002 + c011
-    const amount = base * 0.10
+    const formulaAmount = base * 0.10
+
+    const status = dependenciesStatus(DEPS, ctx)
+    const { amount, warnings: resolutionWarnings } = resolveWithAnchor(
+      anchor,
+      eligible ? formulaAmount : 0,
+      status,
+      ctx.mode,
+    )
+
+    const formulaSource = isRecurring ? "last_payslip" : "contract_rule"
+    const source =
+      (anchor && (
+        ctx.mode === "baseline" ||
+        status === "unchanged" ||
+        (status === "unknown" && ctx.mode !== "exploratory")
+      )) ? "last_payslip" : formulaSource
+
+    const warnings: string[] = [...resolutionWarnings]
+    if (!eligible) {
+      warnings.push("Requiere adscripción a vehículo de urgencias o terapia intensiva en CDMX/Valle de México")
+    }
+    if (anchor) {
+      const discrepancy = Math.abs(formulaAmount - anchor.amount)
+      if (discrepancy > 0.50) {
+        warnings.push(`Diferencia entre fórmula (${formulaAmount.toFixed(2)}) y último tarjetón (${anchor.amount.toFixed(2)}): ${discrepancy.toFixed(2)}`)
+      }
+    }
 
     const concept: CalculatedPayrollConcept = {
       code: "061",
       name: "Traslado de Pacientes",
       type: "earning",
       nature: "derived",
-      amount: eligible ? amount : 0,
+      amount,
       included: eligible,
-      source: isRecurring ? "last_payslip" : "contract_rule",
-      confidence: isRecurring ? "high" : "medium",
+      source,
+      confidence: anchor || isRecurring ? "high" : "medium",
       verificationStatus: "contract_verified",
+      elegibilitySource: anchor ? "payslip_confirmed" : (eligible ? "formula_deduced" : "unknown"),
+      anchorAmount: anchor?.amount,
+      anchorDate: anchor?.date,
       dependencies: [{ code: "002", amount: c002 }, { code: "011", amount: c011 }],
       calculationSteps: [
         { label: "Base", expression: `002 + 011 = ${c002} + ${c011} = ${base}`, value: base },
-        { label: "061 = base × 10%", expression: `${base} × 0.10 = ${amount}`, value: amount },
+        { label: "061 = base × 10%", expression: `${base} × 0.10 = ${formulaAmount}`, value: formulaAmount },
+        ...(anchor ? [          { label: "Último tarjetón (referencia)", expression: `Ancla: ${anchor.amount}`, value: anchor.amount }] : []),
       ],
       legalBasis: [{ source: "CCT", title: "Traslado de Pacientes", reference: "Cláusula aplicable del CCT" }],
-      warnings: eligible ? [] : ["Requiere adscripción a vehículo de urgencias o terapia intensiva en CDMX/Valle de México"],
+      warnings,
     }
     return { concept, dependencies: ["002", "011"] }
   },

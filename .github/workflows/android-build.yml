@@ -1,0 +1,130 @@
+name: Android Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android-app/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'android-app/**'
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Canal de publicación'
+        required: true
+        type: choice
+        default: 'dev'
+        options: [dev, beta, stable]
+      promote:
+        description: '¿Actualizar latest.json automáticamente?'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: Build & Sign APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Extract version info
+        id: version
+        run: |
+          VCODE=$(grep 'versionCode' app/build.gradle.kts | grep -v '//' | head -1 | sed 's/[^0-9]*//g')
+          VNAME=$(grep 'versionName' app/build.gradle.kts | grep -v '//' | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "versionCode=${VCODE}" >> $GITHUB_OUTPUT
+          echo "versionName=${VNAME}" >> $GITHUB_OUTPUT
+          echo "versionCode=${VCODE}  versionName=${VNAME}"
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug
+
+      - name: Build release APK
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          LAVEINTE_KEYSTORE_BASE64: ${{ secrets.LAVEINTE_KEYSTORE_BASE64 }}
+          LAVEINTE_KEYSTORE_PASSWORD: ${{ secrets.LAVEINTE_KEYSTORE_PASSWORD }}
+          LAVEINTE_KEY_ALIAS: ${{ secrets.LAVEINTE_KEY_ALIAS }}
+          LAVEINTE_KEY_PASSWORD: ${{ secrets.LAVEINTE_KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
+
+      - name: Verify release signature
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          echo "=== Cert info ==="
+          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose --print-certs "$APK"
+          echo "=== Verification passed ==="
+
+      - name: Compute APK hashes and size
+        if: github.event_name == 'workflow_dispatch'
+        id: apk
+        run: |
+          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          SHA=$(sha256sum "$APK" | cut -d' ' -f1)
+          SIZE=$(stat -c%s "$APK")
+          echo "sha256=${SHA}" >> $GITHUB_OUTPUT
+          echo "size=${SIZE}" >> $GITHUB_OUTPUT
+          echo "apk_path=${APK}" >> $GITHUB_OUTPUT
+          echo "=== APK ==="
+          echo "SHA-256: $SHA"
+          echo "Size:    $(echo "scale=1; $SIZE/1048576" | bc) MB"
+
+      - name: Upload debug artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: android-app/app/build/outputs/apk/debug/*.apk
+
+      - name: Upload release artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: android-app/app/build/outputs/apk/release/*.apk
+
+      - name: Upload to Supabase Storage
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          node ../scripts/upload-android-release.mjs "$APK" "${{ github.event.inputs.channel }}" "${{ steps.version.outputs.versionName }}"
+
+      - name: Print release summary
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "============================================"
+          echo " RELEASE BUILD COMPLETE"
+          echo "============================================"
+          echo " Channel:     ${{ github.event.inputs.channel }}"
+          echo " Version:     ${{ steps.version.outputs.versionName }}"
+          echo " VersionCode: ${{ steps.version.outputs.versionCode }}"
+          echo " SHA-256:     ${{ steps.apk.outputs.sha256 }}"
+          echo " Size:        $(echo "scale=1; ${{ steps.apk.outputs.size }}/1048576" | bc) MB"
+          echo " Commit:      ${{ github.sha }}"
+          echo "============================================"
+          echo " Next steps:"
+          echo "  1. Download the artifact from this run"
+          echo "  2. Copy SHA-256 above to public/android/${{ github.event.inputs.channel }}/latest.json"
+          echo "  3. Deploy to Vercel to publish"
+          echo "============================================"

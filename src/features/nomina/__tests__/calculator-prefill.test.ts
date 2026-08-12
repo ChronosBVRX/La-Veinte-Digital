@@ -47,6 +47,7 @@ function concept(code: string, amount: number, opts: Partial<CalculatedPayrollCo
     source: "salary_table",
     confidence: "high",
     verificationStatus: "contract_verified",
+    elegibilitySource: "tabular_value",
     dependencies: [],
     calculationSteps: [],
     legalBasis: [],

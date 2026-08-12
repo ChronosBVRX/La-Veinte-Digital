@@ -1,0 +1,20 @@
+{
+  "channel": "stable",
+  "versionCode": 149,
+  "versionName": "1.0.49",
+  "minimumVersionCode": 100,
+  "forceUpdate": false,
+  "publishedAt": "2026-08-12T00:00:00Z",
+  "apk": {
+    "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
+    "sha256": "390c7403e2e6d3a380efcc5d8234c33c3b4785d13633d136e5e91ad50a6fa3b4",
+    "size": 66559588
+  },
+  "releaseNotes": [
+    "Design System nativo completo: LvdDialog, LvdSectionHeader, LvdCard con color, LvdFormField y botón primario configurable",
+    "Formularios migrados: Guardar acceso (LVD) y Administrar accesos (tarjetas blancas + diálogos de olvidar/actualizar)",
+    "Todos los diálogos de actualización OTA ahora usan el estilo LVD (superficie blanca, radio 18dp, botón azul)",
+    "Confirmación de eliminación en el historial de tarjetones con diálogo LVD",
+    "La lógica funcional NO cambió: es un refactor visual con tokens centralizados"
+  ]
+}

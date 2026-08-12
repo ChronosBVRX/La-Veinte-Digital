@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Bot, FileText, BookOpen, User, Target, Calculator, DollarSign, X, Calendar, CalendarCheck, Globe, ClipboardList, FileUp } from "lucide-react"
+import { Home, Bot, FileText, BookOpen, User, Target, Calculator, DollarSign, X, Calendar, CalendarCheck, Globe, ClipboardList, FileBadge, RefreshCw } from "lucide-react"
+import { useIsNativeApp } from "@/shared/hooks/useIsNativeApp"
 import type { CSSProperties } from "react"
 
 interface SidebarProps {
@@ -10,24 +11,28 @@ interface SidebarProps {
   onClose: () => void
 }
 
-const links = [
-  { href: "/", label: "Inicio", icon: Home },
-  { href: "/asistente", label: "Asistente SNTSS", icon: Bot },
-  { href: "/simulador", label: "Simulador", icon: Target },
-  { href: "/calculadoras", label: "Calculadoras", icon: Calculator },
-  { href: "/nomina", label: "Nómina", icon: DollarSign },
-  { href: "/tarjeton", label: "Mi Tarjetón", icon: FileUp },
-  { href: "/escritos", label: "Generar Escritos", icon: FileText },
-  { href: "/catalogo", label: "Catálogo", icon: BookOpen },
-  { href: "/calendario", label: "Calendario", icon: Calendar },
-  { href: "/facebook", label: "Noticias SNTSS", icon: Globe },
-  { href: "/bitacora", label: "Bitácora", icon: ClipboardList },
-  { href: "/vacaciones", label: "Vacaciones", icon: CalendarCheck },
-  { href: "/profile", label: "Mi Perfil", icon: User },
-]
-
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname()
+  const isNative = useIsNativeApp()
+
+  const links = [
+    { href: "/", label: "Inicio", icon: Home },
+    { href: "/asistente", label: "Asistente SNTSS", icon: Bot },
+    { href: "/simulador", label: "Simulador", icon: Target },
+    { href: "/calculadoras", label: "Calculadoras", icon: Calculator },
+    { href: "/nomina", label: "Nómina", icon: DollarSign },
+    { href: "/escritos", label: "Generar Escritos", icon: FileText },
+    { href: "/catalogo", label: "Catálogo", icon: BookOpen },
+    { href: "/calendario", label: "Calendario", icon: Calendar },
+    { href: "/facebook", label: "Noticias SNTSS", icon: Globe },
+    { href: "/bitacora", label: "Bitácora", icon: ClipboardList },
+    { href: "/vacaciones", label: "Vacaciones", icon: CalendarCheck },
+  { href: "/profile", label: "Mi Perfil", icon: User },
+  ...(isNative ? [
+    { href: "#", label: "Tarjetones IMSS", icon: FileBadge, onClick: true },
+    { href: "#", label: "Actualizar app", icon: RefreshCw, onClick: true, action: "checkUpdate" },
+  ] : []),
+]
 
   const sidebarContent = (
     <nav style={{ padding: "0.75rem" }}>
@@ -59,8 +64,30 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             ? { background: "var(--primary)", color: "var(--primary-fg)" }
             : { background: "transparent", color: "var(--fg)" }
 
+          const isBridgeItem = (link as any).onClick
+
           return (
             <li key={link.href}>
+              {isBridgeItem ? (
+                <button
+                  onClick={() => {
+                    const act = (link as any).action
+                    if (act === "checkUpdate") (window as any).LaVeinteApp?.checkForUpdate?.()
+                    else (window as any).LaVeinteApp?.openOfficialPayslips?.()
+                    onClose()
+                  }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "0.625rem", width: "100%",
+                    padding: "0.625rem 0.75rem", borderRadius: "var(--radius)",
+                    textDecoration: "none", fontSize: "0.875rem", fontWeight: 400, cursor: "pointer",
+                    border: "none",
+                    ...activeStyle,
+                  }}
+                >
+                  <Icon size={18} />
+                  {link.label}
+                </button>
+              ) : (
               <Link
                 href={link.href}
                 onClick={onClose}
@@ -75,6 +102,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 <Icon size={18} />
                 {link.label}
               </Link>
+              )}
             </li>
           )
         })}

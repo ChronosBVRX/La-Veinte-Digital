@@ -19,11 +19,11 @@ export default async function LoginPage() {
             margin: "0 auto 1rem", boxShadow: "0 4px 12px rgba(37, 99, 235, 0.25)",
           }}>
             <Image
-              src="/Logo SXX_recortado.png"
-              alt="SXX"
+              src="/logo-icon.png"
+              alt="La Veinte Digital"
               width={44}
               height={44}
-              style={{ maxHeight: "44px", width: "auto", filter: "brightness(0) invert(1)" }}
+              style={{ maxHeight: "44px", width: "auto" }}
             />
           </div>
           <h1 style={{ fontSize: "1.375rem", fontWeight: 700, margin: "0 0 0.25rem" }}>La Veinte Digital</h1>

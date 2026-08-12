@@ -201,20 +201,42 @@ export function WelcomeCard({ fullName, greeting, dateLabel }: WelcomeCardProps)
       </p>
 
       <Block icon={<Wallet size={18} weight="duotone" />} label="Próximo pago">
-        {santander && santanderDaysLeft !== null && (
+        {santander && santanderDaysLeft !== null && santanderDaysLeft === 0 ? (
           <Line>
-            Faltan <strong style={strong}>{para(santanderDaysLeft)}</strong> para tu pago de
+            Hoy paga Santander o Scotiabank&nbsp;
+            <span style={dateChip}>cae el {santanderLabel}</span>.
+          </Line>
+        ) : santander && santanderDaysLeft !== null && santanderDaysLeft === 1 ? (
+          <Line>
+            Mañana paga Santander o Scotiabank&nbsp;
+            <span style={dateChip}>cae el {santanderLabel}</span>.
+          </Line>
+        ) : santander && santanderDaysLeft !== null ? (
+          <Line>
+            Faltan <strong style={strong}>{para(santanderDaysLeft)}</strong>{" "}para tu pago de{" "}
             Santander o Scotiabank&nbsp;
             <span style={dateChip}>cae el {santanderLabel}</span>.
           </Line>
-        )}
-        {otros && otrosDaysLeft !== null && (
+        ) : null}
+        {otros && otrosDaysLeft !== null && otrosDaysLeft === 0 ? (
           <Line>
-            Faltan <strong style={strong}>{para(otrosDaysLeft)}</strong> para el pago de Banamex,
-            Banorte, BBVA o con cheque&nbsp;
+            {santanderDaysLeft === 0 ? "y h" : "H"}oy pagan Banamex, Banorte, BBVA o con
+            cheque&nbsp;
             <span style={dateChip}>cae el {otrosLabel}</span>.
           </Line>
-        )}
+        ) : otros && otrosDaysLeft !== null && otrosDaysLeft === 1 ? (
+          <Line>
+            {santanderDaysLeft === 0 ? "y m" : "M"}añana pagan Banamex, Banorte, BBVA o con
+            cheque&nbsp;
+            <span style={dateChip}>cae el {otrosLabel}</span>.
+          </Line>
+        ) : otros && otrosDaysLeft !== null ? (
+          <Line>
+            Faltan <strong style={strong}>{para(otrosDaysLeft)}</strong>{" "}para el pago de{" "}
+            Banamex, Banorte, BBVA o con cheque&nbsp;
+            <span style={dateChip}>cae el {otrosLabel}</span>.
+          </Line>
+        ) : null}
         {!santander && !otros && <Line>Sin información de pagos por ahora.</Line>}
       </Block>
 
@@ -229,7 +251,7 @@ export function WelcomeCard({ fullName, greeting, dateLabel }: WelcomeCardProps)
               ) : (
                 <>
                   {" "}
-                  Faltan <strong style={strong}>{para(interactiveDaysLeft)}</strong> para que
+                  Faltan <strong style={strong}>{para(interactiveDaysLeft)}</strong>{" "}para que
                   termine&nbsp;
                   <span style={dateChip}>cae el {interactiveEndsLabel}</span>.
                 </>

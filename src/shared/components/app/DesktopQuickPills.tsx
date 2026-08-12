@@ -4,9 +4,8 @@ import Link from "next/link"
 import { ArrowRight } from "@phosphor-icons/react"
 
 const PILLS = [
-  { href: "/tarjeton", label: "Mi tarjetón" },
-  { href: "/bitacora", label: "Registrar incidencia" },
-  { href: "/asistente", label: "Preguntar al asistente" },
+  { href: "/bitacora", label: "Registrar eventos en mi agenda" },
+  { href: "/asistente", label: "Preguntas del CCT IA-Assistant" },
 ]
 
 export function DesktopQuickPills() {

@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import type { IconProps } from "@phosphor-icons/react"
-import { IdentificationCard, Calculator, Sparkle, Notebook } from "@phosphor-icons/react"
+import { Calculator, Sparkle, Notebook, Article, ArrowsClockwise } from "@phosphor-icons/react"
+import { useIsNativeApp } from "@/shared/hooks/useIsNativeApp"
 
 type IconType = React.ComponentType<IconProps & { size?: number; weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone" }>
 
@@ -18,13 +19,13 @@ interface QuickTile {
 }
 
 const TILES: QuickTile[] = [
-  { icon: IdentificationCard, label: "Mi tarjetón", href: "/tarjeton", color: "var(--area-work)" },
-  { icon: Calculator, label: "Calcular un pago", href: "/calculadoras", color: "var(--area-tools)" },
-  { icon: Sparkle, label: "Asistente IA", href: "/asistente", color: "var(--area-assistance)" },
-  { icon: Notebook, label: "Registrar incidencia", href: "/bitacora", color: "var(--brand-cyan)" },
+  { icon: Calculator, label: "Calculadoras", href: "/calculadoras", color: "var(--area-tools)" },
+  { icon: Sparkle, label: "Preguntas del CCT IA-Assistant", href: "/asistente", color: "var(--area-assistance)" },
+  { icon: Notebook, label: "Registrar eventos en mi agenda", href: "/bitacora", color: "var(--brand-cyan)" },
 ]
 
 export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuickActionsProps) {
+  const isNative = useIsNativeApp()
   return (
     <section style={{ marginBottom: "var(--space-6)" }}>
       <h2
@@ -94,6 +95,56 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
             </Link>
           )
         })}
+        {isNative && (
+          <button
+            onClick={() => { (window as any).LaVeinteApp?.openOfficialPayslips() }}
+            className="hover-lift pressable"
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center",
+              justifyContent: "center", gap: "0.5rem", minHeight: 92,
+              padding: "0.875rem 0.5rem", background: "var(--card)",
+              border: "1px solid var(--border)", borderRadius: "var(--radius-lg)",
+              cursor: "pointer", color: "var(--fg)", fontFamily: "inherit",
+              transition: "transform var(--transition), box-shadow var(--transition)",
+            }}
+          >
+            <span style={{
+              width: 44, height: 44, borderRadius: "var(--radius)",
+              background: "linear-gradient(135deg, var(--area-work)1f, var(--area-work)14)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <Article size={24} weight="duotone" color="var(--area-work)" />
+            </span>
+            <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, textAlign: "center", lineHeight: 1.25 }}>
+              Consulta tu tarjetón
+            </span>
+          </button>
+        )}
+        {isNative && (
+          <button
+            onClick={() => { (window as any).LaVeinteApp?.checkForUpdate?.() }}
+            className="hover-lift pressable"
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center",
+              justifyContent: "center", gap: "0.5rem", minHeight: 92,
+              padding: "0.875rem 0.5rem", background: "var(--card)",
+              border: "1px solid var(--border)", borderRadius: "var(--radius-lg)",
+              cursor: "pointer", color: "var(--fg)", fontFamily: "inherit",
+              transition: "transform var(--transition), box-shadow var(--transition)",
+            }}
+          >
+            <span style={{
+              width: 44, height: 44, borderRadius: "var(--radius)",
+              background: "linear-gradient(135deg, var(--brand-cyan)1f, var(--brand-cyan)14)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <ArrowsClockwise size={24} weight="duotone" color="var(--brand-cyan)" />
+            </span>
+            <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, textAlign: "center", lineHeight: 1.25 }}>
+              Actualizar APP
+            </span>
+          </button>
+        )}
       </div>
     </section>
   )

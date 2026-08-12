@@ -7,6 +7,8 @@ import type {
   PayrollFact,
   RecurringConceptEvidence,
   SiapConceptMark,
+  ConceptOccurrenceType,
+  EligibilityPersistence,
 } from "../lib/types"
 import { resolveCategory } from "../lib/category-resolver"
 import { calculateSeniority } from "../lib/seniority"
@@ -59,6 +61,26 @@ function parseJsonArray(raw: unknown): unknown[] {
   return Array.isArray(raw) ? raw : []
 }
 
+function classifyOccurrence(code: string): ConceptOccurrenceType {
+  const recurring = new Set(["002", "011", "020", "050", "023", "063"])
+  if (recurring.has(code)) return "recurring"
+  const periodic = new Set(["022", "055"])
+  if (periodic.has(code)) return "periodic"
+  const variable = new Set(["02", "012", "013", "051", "054", "057", "058", "061", "062", "072", "078", "083"])
+  if (variable.has(code)) return "variable"
+  return "unknown"
+}
+
+function classifyPersistence(code: string): EligibilityPersistence {
+  const persistent = new Set(["002", "011", "020"])
+  if (persistent.has(code)) return "persistent"
+  const periodScoped = new Set(["022", "055"])
+  if (periodScoped.has(code)) return "period_scoped"
+  const untilChanged = new Set(["02", "012", "013", "050", "023", "063", "051", "054", "057", "058", "061", "062", "072", "078", "083"])
+  if (untilChanged.has(code)) return "until_changed"
+  return "event_scoped"
+}
+
 function normalizeRecurringConcepts(raw: unknown[]): RecurringConceptEvidence[] {
   const result: RecurringConceptEvidence[] = []
   for (const item of raw) {
@@ -66,6 +88,8 @@ function normalizeRecurringConcepts(raw: unknown[]): RecurringConceptEvidence[] 
     const code = asString(item.conceptCode)
     if (!code) continue
     const source = asString(item.source)
+    const storedType = asString(item.occurrenceType) as ConceptOccurrenceType | undefined
+    const storedPersistence = asString(item.eligibilityPersistence) as EligibilityPersistence | undefined
     result.push({
       conceptCode: code,
       appearsNormally: asBoolean(item.appearsNormally) ?? null,
@@ -76,6 +100,8 @@ function normalizeRecurringConcepts(raw: unknown[]): RecurringConceptEvidence[] 
       firstSeenAt: asString(item.firstSeenAt),
       lastSeenAt: asString(item.lastSeenAt),
       confirmed: asBoolean(item.confirmed) ?? false,
+      occurrenceType: storedType ?? classifyOccurrence(code),
+      eligibilityPersistence: storedPersistence ?? classifyPersistence(code),
     })
   }
   return result

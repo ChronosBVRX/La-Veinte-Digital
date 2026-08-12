@@ -2,8 +2,9 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { House, UserCircle, X } from "@phosphor-icons/react"
+import { House, UserCircle, X, Article, ArrowsClockwise } from "@phosphor-icons/react"
 import { DESKTOP_NAV_GROUPS } from "./navigation"
+import { useIsNativeApp } from "@/shared/hooks/useIsNativeApp"
 import type { CSSProperties } from "react"
 
 interface DesktopSidebarProps {
@@ -13,55 +14,57 @@ interface DesktopSidebarProps {
 
 export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
   const pathname = usePathname()
+  const isNative = useIsNativeApp()
   const isHomeActive = pathname === "/"
 
-  const sidebarContent = (
-    <nav style={{ padding: "0.75rem 0.5rem" }}>
-      <div
+  const brandingHeader = (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "0 0.625rem 0.75rem",
+        marginBottom: "0.25rem",
+        borderBottom: "1px solid var(--border)",
+      }}
+    >
+      <Link
+        href="/"
+        onClick={onClose}
         style={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 0.625rem 0.75rem",
-          marginBottom: "0.25rem",
-          borderBottom: "1px solid var(--border)",
+          gap: "0.625rem",
+          textDecoration: "none",
+          color: "var(--primary)",
+          fontSize: "0.9375rem",
+          fontWeight: 700,
+          letterSpacing: "-0.01em",
         }}
       >
-        <Link
-          href="/"
-          onClick={onClose}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.625rem",
-            textDecoration: "none",
-            color: "var(--primary)",
-            fontSize: "0.9375rem",
-            fontWeight: 700,
-            letterSpacing: "-0.01em",
-          }}
-        >
-          La Veinte Digital
-        </Link>
-        <button
-          onClick={onClose}
-          className="mobile-only"
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--muted)",
-            padding: "0.25rem",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          aria-label="Cerrar menú"
-        >
-          <X size={18} weight="regular" />
-        </button>
-      </div>
+        La Veinte Digital
+      </Link>
+      <button
+        onClick={onClose}
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          color: "var(--muted)",
+          padding: "0.25rem",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+        aria-label="Cerrar menú"
+      >
+        <X size={18} weight="regular" />
+      </button>
+    </div>
+  )
 
+  const mainNavContent = (
+    <>
       <NavItem
         href="/"
         label="Inicio"
@@ -119,6 +122,62 @@ export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
         </div>
       ))}
 
+      {isNative && (
+        <>
+        <div style={{ marginTop: "1rem" }}>
+          <span style={{
+            fontSize: "0.6875rem", fontWeight: 700, color: "var(--area-work)",
+            textTransform: "uppercase", letterSpacing: "0.08em", padding: "0 0.625rem",
+            marginBottom: "0.25rem", display: "block",
+          }}>
+            APP MÓVIL
+          </span>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.0625rem" }}>
+            <li>
+              <button
+                onClick={() => { (window as any).LaVeinteApp?.openOfficialPayslips() }}
+                style={{
+                  display: "flex", alignItems: "center", gap: "0.625rem", width: "100%",
+                  padding: "0.5rem 0.625rem", borderRadius: "var(--radius)",
+                  background: "transparent", border: "none", cursor: "pointer",
+                  fontSize: "0.8125rem", color: "var(--fg)", textDecoration: "none",
+                }}
+              >
+                <Article size={20} weight="regular" style={{ color: "var(--area-work)", flexShrink: 0 }} />
+                Tarjetones IMSS
+              </button>
+            </li>
+          </ul>
+        </div>
+
+        <div style={{ marginTop: "1rem" }}>
+          <span style={{
+            fontSize: "0.6875rem", fontWeight: 700, color: "var(--brand-cyan)",
+            textTransform: "uppercase", letterSpacing: "0.08em", padding: "0 0.625rem",
+            marginBottom: "0.25rem", display: "block",
+          }}>
+            ACTUALIZAR
+          </span>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.0625rem" }}>
+            <li>
+              <button
+                onClick={() => { (window as any).LaVeinteApp?.checkForUpdate?.() }}
+                style={{
+                  display: "flex", alignItems: "center", gap: "0.625rem", width: "100%",
+                  padding: "0.5rem 0.625rem", borderRadius: "var(--radius)",
+                  background: "transparent", border: "none", cursor: "pointer",
+                  fontSize: "0.8125rem", color: "var(--fg)", textDecoration: "none",
+                }}
+              >
+                <ArrowsClockwise size={20} weight="regular" style={{ color: "var(--brand-cyan)", flexShrink: 0 }} />
+                Buscar actualización
+              </button>
+            </li>
+          </ul>
+        </div>
+        </>
+      )}
+
       <div style={{ marginTop: "1rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem" }}>
         <NavItem
           href="/profile"
@@ -129,6 +188,19 @@ export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
           onClick={onClose}
         />
       </div>
+    </>
+  )
+
+  const mobileDrawerContent = (
+    <nav style={{ padding: "0.75rem 0.5rem" }}>
+      {brandingHeader}
+      {mainNavContent}
+    </nav>
+  )
+
+  const desktopSidebarContent = (
+    <nav style={{ padding: "0.75rem 0.5rem" }}>
+      {mainNavContent}
     </nav>
   )
 
@@ -159,7 +231,7 @@ export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
           transition: "width var(--transition)",
         }}
       >
-        {sidebarContent}
+        {desktopSidebarContent}
       </div>
 
       <div
@@ -181,7 +253,7 @@ export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
           paddingBottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px))",
         }}
       >
-        {sidebarContent}
+        {mobileDrawerContent}
       </div>
     </>
   )

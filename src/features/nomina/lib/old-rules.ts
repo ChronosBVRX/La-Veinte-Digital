@@ -43,6 +43,7 @@ export const rule002: PayrollRule = {
       source: "salary_table",
       confidence: "high",
       verificationStatus: "contract_verified",
+      elegibilitySource: "tabular_value",
       dependencies: [],
       calculationSteps: [step("Sueldo tabular quincenal", `${ctx.category.biweeklyBaseSalary}`, amount)],
       legalBasis: commonLegalBasis,
@@ -71,6 +72,7 @@ export const rule011: PayrollRule = {
       source: "contract_rule",
       confidence: "high",
       verificationStatus: "contract_verified",
+      elegibilitySource: "formula_deduced",
       dependencies: [{ code: "002", amount: c002 }],
       calculationSteps: [
         step("002 del tabulador", `002 = ${c002}`, c002),
@@ -103,6 +105,7 @@ export const rule020: PayrollRule = {
       source: "contract_rule",
       confidence: "high",
       verificationStatus: "contract_verified",
+      elegibilitySource: "contract_rule",
       dependencies: [],
       calculationSteps: [
         step("Monto mensual CCT", "$500 mensuales", 500),
@@ -138,6 +141,7 @@ export const rule022: PayrollRule = {
       source: "contract_rule",
       confidence: "requires_confirmation",
       verificationStatus: "contract_verified",
+      elegibilitySource: "formula_deduced",
       dependencies: [{ code: "002", amount: c002 }],
       calculationSteps: [
         step("Antigüedad cumplida", `${completedYears} años`, completedYears),
@@ -186,6 +190,7 @@ export const rule054: PayrollRule = {
       source: "contract_rule",
       confidence: hasCondition ? "high" : "medium",
       verificationStatus: "contract_verified",
+      elegibilitySource: "formula_deduced",
       dependencies: [
         { code: "002", amount: c002 },
         { code: "011", amount: c011 },
@@ -224,6 +229,7 @@ export const rule055: PayrollRule = {
       source: "reconstructed_rule",
       confidence: "medium",
       verificationStatus: "app_reconstructed",
+      elegibilitySource: "formula_deduced",
       dependencies: [
         { code: "002", amount: c002 },
         { code: "011", amount: c011 },
@@ -262,6 +268,7 @@ export const rule050: PayrollRule = {
       source: "contract_rule",
       confidence: "requires_confirmation",
       verificationStatus: "pending_validation",
+      elegibilitySource: "unknown",
       dependencies: [],
       calculationSteps: [step("Monto pendiente de configuración", "Sin monto configurado en el catálogo", 0)],
       legalBasis: [legalBasisCCT("Ayuda para Despensa", "Prestación del CCT")],

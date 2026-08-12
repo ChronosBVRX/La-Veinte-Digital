@@ -3,7 +3,7 @@
 import Link from "next/link"
 import Image from "next/image"
 import { useEffect, useRef, useState } from "react"
-import { List, UserCircle, MagnifyingGlass, CaretDown } from "@phosphor-icons/react"
+import { List, UserCircle, CaretDown, DeviceMobile } from "@phosphor-icons/react"
 
 interface AppHeaderProps {
   fullName: string | null
@@ -13,6 +13,9 @@ interface AppHeaderProps {
 export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
   const firstName = fullName?.split(" ")[0] ?? ""
   const [profileOpen, setProfileOpen] = useState(false)
+  const [isAndroid] = useState(() =>
+    typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent)
+  )
   const profileRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -34,20 +37,20 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
   }, [profileOpen])
 
   return (
-    <header
-      style={{
-        background: "var(--card)",
-        borderBottom: "1px solid var(--border)",
-        padding: "0 1rem",
-        height: "var(--nav-height)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        position: "sticky",
-        top: 0,
-        zIndex: 60,
-      }}
-    >
+    <header className="app-header" style={{
+      background: "rgba(255,255,255,0.88)",
+      backdropFilter: "blur(16px)",
+      WebkitBackdropFilter: "blur(16px)",
+      borderBottom: "1px solid rgba(0,0,0,0.06)",
+      padding: "0 clamp(1rem, 2vw, 1.5rem)",
+      height: "var(--nav-height)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      position: "sticky",
+      top: 0,
+      zIndex: 60,
+    }}>
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
         <button
           onClick={onMenuToggle}
@@ -70,7 +73,6 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
 
         <Link
           href="/"
-          className="mobile-only"
           style={{
             display: "flex",
             alignItems: "center",
@@ -79,25 +81,26 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
             color: "inherit",
           }}
         >
-          <div style={{ height: "28px", display: "flex", alignItems: "center" }}>
+          <div style={{ height: "30px", display: "flex", alignItems: "center" }}>
             <Image
-              src="/Logo SXX_recortado.png"
-              alt="SXX"
-              width={28}
-              height={28}
+              src="/logo-horizontal.png"
+              alt="La Veinte Digital"
+              width={120}
+              height={30}
               priority
               style={{
                 maxHeight: "100%",
                 width: "auto",
-                height: "28px",
+                height: "30px",
                 objectFit: "contain",
                 display: "block",
               }}
             />
           </div>
           <span
+            className="desktop-only"
             style={{
-              fontSize: "1rem",
+              fontSize: "0.9375rem",
               fontWeight: 700,
               color: "var(--primary)",
               letterSpacing: "-0.02em",
@@ -106,44 +109,75 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
             La Veinte Digital
           </span>
         </Link>
-
-        <SearchBar />
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
-        {firstName && (
-          <span
-            style={{
-              fontSize: "0.8125rem",
-              color: "var(--muted)",
-            }}
-          >
-            {firstName}
-          </span>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        {isAndroid && (
+        <a
+          href="/LaVeinteDigital.apk"
+          title="Descargar app Android"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            background: "var(--accent)",
+            color: "var(--muted)",
+            transition: "color 0.15s",
+          }}
+        >
+          <DeviceMobile size={18} weight="fill" />
+        </a>
         )}
         <div ref={profileRef} style={{ position: "relative" }}>
           <button
             onClick={() => setProfileOpen((v) => !v)}
             aria-haspopup="menu"
             aria-expanded={profileOpen}
-            className="pressable"
+            className="profile-trigger"
             style={{
-              width: 32,
-              height: 32,
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              padding: "0.25rem 0.5rem 0.25rem 0.75rem",
+              borderRadius: "var(--radius-pill)",
+              background: "transparent",
+              border: "1px solid transparent",
+              cursor: "pointer",
+              color: "var(--fg)",
+              fontFamily: "inherit",
+              fontSize: "0.8125rem",
+              fontWeight: 500,
+              transition: "all var(--transition)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--accent)"
+              e.currentTarget.style.borderColor = "var(--border)"
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent"
+              e.currentTarget.style.borderColor = "transparent"
+            }}
+          >
+            <span className="desktop-only" style={{ whiteSpace: "nowrap" }}>
+              {firstName}
+            </span>
+            <span style={{
+              width: 28,
+              height: 28,
               borderRadius: "50%",
               background: "linear-gradient(135deg, var(--brand-navy), var(--brand-blue))",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               color: "var(--primary-fg)",
-              border: "none",
-              cursor: "pointer",
-              padding: 0,
-              boxShadow: "0 2px 6px rgba(23,50,77,0.25)",
-            }}
-            aria-label="Abrir menú de perfil"
-          >
-            <UserCircle size={18} weight="fill" />
+              boxShadow: "0 2px 6px rgba(23,50,77,0.2)",
+            }}>
+              <UserCircle size={16} weight="fill" />
+            </span>
+            <CaretDown size={10} weight="bold" style={{ color: "var(--muted)", marginLeft: "-0.125rem" }} />
           </button>
           {profileOpen && (
             <div
@@ -207,58 +241,5 @@ function ProfileItem({ label, href, onClick }: { label: string; href: string; on
     >
       {label}
     </Link>
-  )
-}
-
-function SearchBar() {
-  return (
-    <form
-      className="desktop-only"
-      role="search"
-      style={{ display: "flex", alignItems: "center", position: "relative" }}
-      onSubmit={(e) => {
-        e.preventDefault()
-        const value = new FormData(e.currentTarget).get("q")
-        if (typeof value === "string" && value.trim()) {
-          window.location.href = `/herramientas?q=${encodeURIComponent(value.trim())}`
-        }
-      }}
-    >
-      <MagnifyingGlass
-        size={16}
-        weight="regular"
-        style={{
-          position: "absolute",
-          left: "0.625rem",
-          top: "50%",
-          transform: "translateY(-50%)",
-          color: "var(--muted)",
-        }}
-      />
-      <input
-        name="q"
-        type="search"
-        placeholder="Buscar herramienta, concepto o derecho…"
-        aria-label="Buscar herramienta, concepto o derecho"
-        style={{
-          width: 360,
-          maxWidth: "40vw",
-          minHeight: 36,
-          padding: "0 0.75rem 0 2.25rem",
-          background: "var(--accent)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius-pill)",
-          fontSize: "var(--text-sm)",
-          color: "var(--fg)",
-          fontFamily: "inherit",
-          outline: "none",
-        }}
-      />
-      <CaretDown
-        size={12}
-        weight="regular"
-        style={{ marginLeft: "0.375rem", color: "var(--muted)", pointerEvents: "none" }}
-      />
-    </form>
   )
 }

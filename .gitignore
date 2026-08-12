@@ -55,3 +55,11 @@ next-env.d.ts
 /test-results/
 /e2e/.auth/
 
+# Android app (not deployed to Vercel)
+/android-app/
+
+# Android keystores (never commit)
+*.jks
+*.keystore
+*.b64
+

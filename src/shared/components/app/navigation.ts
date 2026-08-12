@@ -1,7 +1,5 @@
 import {
   House,
-  IdentificationCard,
-  Receipt,
   Calculator,
   CalendarDots,
   Notebook,
@@ -16,6 +14,7 @@ import {
   Briefcase,
   Wrench,
   ArrowsLeftRight,
+  Article,
 } from "@phosphor-icons/react"
 import type { IconProps } from "@phosphor-icons/react"
 
@@ -38,7 +37,6 @@ export const DESKTOP_NAV_GROUPS: NavGroup[] = [
     area: "work",
     color: "var(--area-work)",
     items: [
-      { href: "/tarjeton", label: "Mi Tarjetón", icon: IdentificationCard },
       { href: "/calendario", label: "Calendario", icon: CalendarDots },
       { href: "/vacaciones", label: "Vacaciones", icon: AirplaneTilt },
       { href: "/bitacora", label: "Mis incidencias", icon: Notebook },

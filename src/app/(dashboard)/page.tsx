@@ -1,13 +1,10 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { TodayCard } from "@/shared/components/layout/TodayCard"
 import { WelcomeCard } from "@/shared/components/app/WelcomeCard"
 import { OnboardingCard } from "@/shared/components/app/OnboardingCard"
 import { HomeQuickActions } from "@/shared/components/app/HomeQuickActions"
-import { UpNextChips } from "@/shared/components/app/UpNextChips"
 import { DesktopQuickPills } from "@/shared/components/app/DesktopQuickPills"
 import { NoticiasSection } from "@/shared/components/app/NoticiasSection"
-import { DashboardSection } from "@/shared/components/app/DashboardSection"
 import { CalendarioLaboral } from "@/shared/components/app/CalendarioLaboral"
 import { AgendaCardWrapper } from "@/shared/components/app/AgendaCardWrapper"
 
@@ -57,8 +54,9 @@ export default async function DashboardPage() {
     <div
       className="dashboard-root"
       style={{
-        maxWidth: "1240px",
+        maxWidth: "1440px",
         margin: "0 auto",
+        width: "100%",
       }}
     >
       <WelcomeCard
@@ -67,7 +65,6 @@ export default async function DashboardPage() {
         dateLabel={dateLabel}
       />
 
-      {/* Móvil */}
       <div className="mobile-only">
         <OnboardingCard
           hasAntiguedad={!!profile?.antiguedad}
@@ -75,7 +72,6 @@ export default async function DashboardPage() {
           hasCategoria={!!profile?.categoria}
         />
         <HomeQuickActions />
-        <UpNextChips />
         <CalendarioLaboral />
         <div id="agenda" style={{ scrollMarginTop: "calc(var(--nav-height) + 1.5rem)" }}>
           <AgendaCardWrapper userId={user.id} />
@@ -83,19 +79,8 @@ export default async function DashboardPage() {
         <NoticiasSection />
       </div>
 
-      {/* Escritorio: layout 2 columnas */}
       <div className="dashboard-desktop desktop-only">
         <div className="dashboard-main">
-          <DashboardSection title="">
-            <TodayCard
-              profile={{
-                id: profile?.id,
-                adscripcion: profile?.adscripcion ?? null,
-                categoria: profile?.categoria ?? null,
-                antiguedad: profile?.antiguedad ?? null,
-              }}
-            />
-          </DashboardSection>
           <DesktopQuickPills />
           <CalendarioLaboral />
         </div>
@@ -108,32 +93,35 @@ export default async function DashboardPage() {
           <div id="agenda" style={{ scrollMarginTop: "calc(var(--nav-height) + 1.5rem)" }}>
             <AgendaCardWrapper userId={user.id} />
           </div>
-          <NoticiasSection />
         </aside>
+      </div>
+
+      <div className="desktop-only" style={{ marginTop: "clamp(1rem, 2vw, 1.5rem)" }}>
+        <NoticiasSection />
       </div>
 
       <style>{`
         .dashboard-desktop {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) 340px;
-          gap: 1.5rem;
+          grid-template-columns: minmax(0, 1fr);
+          gap: clamp(1rem, 2vw, 1.5rem);
           align-items: start;
         }
-        .dashboard-main { min-width: 0; }
+
+        .dashboard-main {
+          min-width: 0;
+        }
+
         .dashboard-rail {
           display: flex;
           flex-direction: column;
           gap: 1.5rem;
-          position: sticky;
-          top: calc(var(--nav-height) + 1.5rem);
-          max-height: calc(100dvh - var(--nav-height) - 3rem);
-          overflow-y: auto;
-          padding-right: 0.25rem;
+          min-width: 0;
         }
-        @media (max-width: 1100px) {
+
+        @media (min-width: 1200px) {
           .dashboard-desktop {
-            grid-template-columns: minmax(0, 1fr) 300px;
-            gap: 1rem;
+            grid-template-columns: minmax(0, 1fr) minmax(300px, 340px);
           }
         }
       `}</style>

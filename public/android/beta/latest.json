@@ -1,0 +1,16 @@
+{
+  "channel": "beta",
+  "versionCode": 100,
+  "versionName": "1.0.0-beta",
+  "minimumVersionCode": 100,
+  "forceUpdate": false,
+  "publishedAt": "2026-08-10T23:30:00Z",
+  "apk": {
+    "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
+    "sha256": "",
+    "size": 0
+  },
+  "releaseNotes": [
+    "Canal beta de pruebas"
+  ]
+}

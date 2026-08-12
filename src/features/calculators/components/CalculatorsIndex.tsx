@@ -13,7 +13,7 @@ const calculators = [
   { href: "/calculadoras/prestamos", title: "Prestamos por Categoria", description: "Montos de prestamos disponibles.", icon: Calculator },
 ]
 
-export function CalculatorsIndex() {
+export function CalculatorsIndex({ hasTarjeton }: { hasTarjeton: boolean }) {
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto" }}>
       <div style={{ marginBottom: "2rem" }}>
@@ -22,22 +22,38 @@ export function CalculatorsIndex() {
       </div>
 
       <Link href="/tarjeton" style={{ textDecoration: "none", display: "block", marginBottom: "1.5rem" }}>
-        <div style={{
-          background: "var(--primary)", color: "var(--primary-fg)", borderRadius: "var(--radius)",
-          padding: "1rem 1.25rem", display: "flex", alignItems: "center", justifyContent: "space-between",
-          gap: "1rem", boxShadow: "var(--shadow-md)",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <FileUp size={22} />
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.125rem" }}>
-              <span style={{ fontWeight: 700, fontSize: "0.9375rem" }}>Importa tu tarjetón IMSS</span>
-              <span style={{ opacity: 0.85, fontSize: "0.8125rem" }}>
-                Tus calculadoras se llenan con los importes reales de tu recibo.
+        {hasTarjeton ? (
+          <div style={{
+            background: "var(--accent)", border: "1px solid var(--border)",
+            borderRadius: "var(--radius)", padding: "0.75rem 1rem",
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", fontSize: "0.875rem" }}>
+              <FileUp size={18} style={{ color: "var(--primary)" }} />
+              <span style={{ color: "var(--fg)" }}>
+                <strong>Actualiza tu tarjetón</strong> para mantener tus importes al día.
               </span>
             </div>
+            <ArrowRight size={16} style={{ color: "var(--primary)" }} />
           </div>
-          <ArrowRight size={20} />
-        </div>
+        ) : (
+          <div style={{
+            background: "var(--primary)", color: "var(--primary-fg)", borderRadius: "var(--radius)",
+            padding: "1rem 1.25rem", display: "flex", alignItems: "center", justifyContent: "space-between",
+            gap: "1rem", boxShadow: "var(--shadow-md)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <FileUp size={22} />
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.125rem" }}>
+                <span style={{ fontWeight: 700, fontSize: "0.9375rem" }}>Importa tu tarjetón IMSS</span>
+                <span style={{ opacity: 0.85, fontSize: "0.8125rem" }}>
+                  Tus calculadoras se llenan con los importes reales de tu recibo.
+                </span>
+              </div>
+            </div>
+            <ArrowRight size={20} />
+          </div>
+        )}
       </Link>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "1rem" }}>

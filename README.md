@@ -247,6 +247,19 @@ docker run -p 8000:8000 bot-api-sntss
 
 ---
 
+## Aplicación Android (shell nativo)
+
+Existe una app híbrida en `android-app/` que embebe el Home web en un WebView
+persistente y aporta: actualizaciones OTA, biometría, bóveda de credenciales
+IMSS, captura de tarjetones de los portales oficiales y visor PDF con gestos.
+Toda la técnica (rutas del grafo, puente `window.LaVeinteApp`, ruteo por
+dominios, flujo OTA, seguridad, tema claro, áreas de regresión) y el checklist
+de publicación está en [`docs/ANDROID_APP.md`](./docs/ANDROID_APP.md).
+Regla: cada cambio de código en `android-app/` requiere bump de versión +
+actualización de doc + publicación OTA documentada en ese archivo.
+
+---
+
 ## Despliegue
 
 El proyecto está configurado para desplegarse en Vercel:

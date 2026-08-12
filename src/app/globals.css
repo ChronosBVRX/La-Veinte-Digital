@@ -218,14 +218,16 @@ a:focus-visible {
     display: none !important;
   }
 
-
-
   main {
     padding-bottom: calc(var(--bottom-nav-height) + 1rem) !important;
   }
 }
 
 @media (min-width: 769px) {
+  :root {
+    --nav-height: 60px;
+  }
+
   .mobile-only {
     display: none !important;
   }
@@ -252,8 +254,26 @@ a:focus-visible {
   to { opacity: 0; transform: translateY(100%); }
 }
 
-@media (min-width: 769px) and (max-width: 1024px) {
+@media (min-width: 769px) and (max-width: 1199px) {
   :root {
     --sidebar-width: 200px;
+  }
+}
+
+@media (min-width: 1200px) {
+  :root {
+    --sidebar-width: 240px;
+  }
+}
+
+.profile-trigger:hover {
+  background: var(--accent) !important;
+  border-color: var(--border) !important;
+}
+
+/* Desktop top bar: reduce logo text on compact screens */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .app-header .desktop-only {
+    font-size: 0.875rem !important;
   }
 }
