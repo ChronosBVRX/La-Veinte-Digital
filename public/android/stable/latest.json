@@ -1,20 +1,20 @@
 {
   "channel": "stable",
-  "versionCode": 149,
-  "versionName": "1.0.49",
+  "versionCode": 154,
+  "versionName": "1.0.54",
   "minimumVersionCode": 100,
   "forceUpdate": false,
   "publishedAt": "2026-08-12T00:00:00Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "390c7403e2e6d3a380efcc5d8234c33c3b4785d13633d136e5e91ad50a6fa3b4",
-    "size": 66559588
+    "sha256": "3108fab83020e31541505a8873d0e3811cda8eb5239aae8db28f4e5f9696f95b",
+    "size": 66805348
   },
   "releaseNotes": [
-    "Design System nativo completo: LvdDialog, LvdSectionHeader, LvdCard con color, LvdFormField y botón primario configurable",
-    "Formularios migrados: Guardar acceso (LVD) y Administrar accesos (tarjetas blancas + diálogos de olvidar/actualizar)",
-    "Todos los diálogos de actualización OTA ahora usan el estilo LVD (superficie blanca, radio 18dp, botón azul)",
-    "Confirmación de eliminación en el historial de tarjetones con diálogo LVD",
-    "La lógica funcional NO cambió: es un refactor visual con tokens centralizados"
+    "Nuevo: Tarjetón Digital IMSS con formulario nativo (Delegación, Usuario, Contraseña)",
+    "Autologin en el portal oficial con verificación doble de campos (evita el bug del primer login)",
+    "Detección y clasificación de errores del portal (contraseña incorrecta, cuenta bloqueada, servicio no disponible, etc.)",
+    "Consulta de tarjetones, captura del PDF oficial e integración con el histórico local",
+    "Credenciales independientes de Tu Perfil IMSS, cifradas con Android Keystore"
   ]
 }

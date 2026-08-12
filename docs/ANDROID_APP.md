@@ -3,7 +3,7 @@
 > Documentación técnica de referencia para agentes futuros.
 > Ámbito: `android-app/` (shell nativo Compose) que embebe el Home web
 > (`https://la-veinte-digital.vercel.app`) en un WebView persistente.
-> Última actualización: **2026-08-12 — v1.0.49 (versionCode 149)**.
+> Última actualización: **2026-08-12 — v1.0.54 (versionCode 154)**.
 
 Esta guía describe rutas, APIs, flujos de datos y convenciones del shell
 Android para que cualquier agente pueda retomar el trabajo **sin romper
@@ -143,9 +143,9 @@ Checklist de publicación (ejecutado en las versiones 1.0.44/145/146):
 7. **Verificar**: `HEAD https://la-veinte-digital.vercel.app/LaVeinteDigital.apk`
    → 200 y tamaño coincidente; GET `latest.json` → versionName/sha coincidentes.
 
-Estado actual de producción: **1.0.49 / 149** — SHA
-`390c7403e2e6d3a380efcc5d8234c33c3b4785d13633d136e5e91ad50a6fa3b4`,
-66,559,588 bytes.
+Estado actual de producción: **1.0.54 / 154** — SHA
+`3108fab83020e31541505a8873d0e3811cda8eb5239aae8db28f4e5f9696f95b`,
+66,805,348 bytes.
 
 **Canales**: `/android/{stable,beta,dev}/latest.json`. La app solo consulta
 `stable`. El `proxy` de Next.js excluye `.apk`/`.json` del matcher de auth.
@@ -410,16 +410,71 @@ Pantalla CLARA (diseño 1.0.46):
     el guardado en Keystore). Las credenciales se persisten **solo después**
     de que el login es exitoso — nunca se guarda una contraseña incorrecta.
     Protección `loginJob` anti-doble-tap.
-  - Login automático: detecta inputs `#matricula`/`#password`, los rellena vía
-    `HTMLInputElement.prototype.value` setter + eventos, clickea botón
-    "iniciar sesión" (normalizado sin acentos), espera pathname que contenga
-    `/guitpei-web/app`. Fallback manual tras 10s.
+  - Login automático (1.0.51): detecta inputs `#matricula`/`#password`, espera
+    el formulario (`awaitInputs`, máx ~7.5s), rellena vía
+    `HTMLInputElement.prototype.value` + `InputEvent('input', inputType:
+    'insertText')` + keyup/change/blur, **verifica** que los valores coinciden
+    exactamente y que no fueron reseteados por Angular (dos comprobaciones
+    separadas 300ms + 200ms), con **reintentos** (hasta 10) en lugar de delays
+    fijos. El botón "iniciar sesión" se pulsa **solo si ambos campos están
+    llenos** (guard `DO_NOT_SUBMIT_*` en `CLICK_SCRIPT`). Esto elimina el race
+    condition del primer login donde Angular consideraba vacíos los campos.
+    Fallback manual tras 10s.
+  - Estados internos del login: `WaitingForm → FillingForm → VerifyingForm →
+    SubmittingLogin → WaitingAuthentication`. El overlay muestra "Preparando
+    acceso…" durante formulario/relleno/verificación y "Conectando con Tu Perfil
+    IMSS…" solo al enviar.
+  - Errores del portal (1.0.52): durante la espera de autenticación se consulta
+    `LOGIN_ERROR_SCRIPT` (selectores `mat-error`, `.alert`, `[role="alert"]`,
+    snackbar, etc.). El texto detectado se clasifica con
+    `classifyPortalError()` → `PortalLoginErrorKind`:
+    `FIELDS_REQUIRED` (fallo interno: rellenar y reintentar hasta 3 veces, nunca
+    culpar al usuario) · `BAD_CREDENTIALS` → "Revisar datos" ·
+    `ACCOUNT_LOCKED_OR_UNREGISTERED` → "Entrar manualmente" ·
+    `SERVICE_UNAVAILABLE`/`TIMEOUT` → mensaje claro sin culpar ·
+    `UNKNOWN` → muestra el texto detectado. El resultado se presenta en el modal
+    LVD `TuPerfilLoginErrorDialog` (title "No pudimos iniciar sesión",
+    conserva la causa real, acciones según el tipo).
+  - **Anti-falsos-positivos (1.0.53)**: el `LOGIN_ERROR_SCRIPT` lee SOLO texto
+    visible (`innerText` + `isVisible()` con `offsetParent`/`getBoundingClientRect`)
+    y NO usa `textContent` (que lee elementos ocultos de Angular). El error debe
+    persistir `ERROR_PERSIST_SAMPLES = 3` muestras consecutivas idénticas antes
+    de abortar (descarta destellos). `classifyPortalError` usa frases estrictas
+    ("contraseña incorrecta", "no coinciden", "bloqueada"...) y devuelve `null`
+    para texto benigno/no clasificado — evita el falso "credenciales
+    incorrectas" cuando el login es correcto.
   - Tarjetón: navega a `.../app/administration/card`, espera DOM, corre un
     script único de automatización (`CARD_AUTOMATION_JS`) que escoge OOAD **17
     (Michoacán)** y el período más reciente, dejando resultados en
     `window.__LVD_CARD_RESULT__/__STATE__/__ERROR__` (polling desde Kotlin).
   - El overlay `TuPerfilTarjetonOverlay` permite cambiar OOAD/período,
     consultar, reintentar y abrir el "formulario original" del portal.
+- **Tarjetón Digital** → `TarjetonDigitalFlowController` (1.0.54). Portal
+  ASP.NET WebForms: la página principal carga un iframe `#ifrPaginaSecundaria`
+  cuyo `src` alterna entre `RegistroUsuarios/Web/wfrAcceso.aspx` (login) y
+  `ComprobanteDigital/Web/wfrGenerarTarjeton.aspx` (consulta). El login NO es
+  postback: `#btnIngresar` → `fnValidaUsuario()` hace AJAX a
+  `wsRegistroUsuario.asmx/wsValidaUsuario`; por eso la APK interactúa con el
+  formulario real (no reconstruye ViewState/EventValidation).
+  - Formulario nativo `TarjetonDigitalLoginDialog` (Delegación + Usuario +
+    Contraseña). Delegaciones: catálogo de respaldo (`TarjetonDigitalDelegaciones`)
+    refrescado en vivo desde el `<select id="ddlDelegacion">`.
+  - Máquina de estados: `CheckingSession → LoadingPage → WaitingIframe →
+    WaitingDom → FillingForm → VerifyingForm → Submitting → WaitingAuthResult →
+    Authenticated → OpeningTarjetonPage → TarjetonReady → …`. El submit solo
+    ocurre con los 3 campos verificados dos veces; "campos requeridos" tras
+    autofill ⇒ reintento (máx 3), nunca culpa al usuario.
+  - Errores clasificados por `TarjetonDigitalLoginErrorParser` →
+    `TarjetonDigitalLoginResult` (InvalidCredentials / MissingFields /
+    AccountLocked / SessionExpired / ServiceUnavailable / PortalError /
+    UnknownError), presentados en `TarjetonDigitalLoginErrorDialog`.
+  - Consulta de tarjetones: lee periodos del jqGrid vía `getDataIDs` +
+    `getRowData`; overlay `TarjetonDigitalTarjetonOverlay` (periodo + tipo
+    Tarjetón/Conceptos/XML); formato fijo "Archivo" y pulsa `#btnAceptar`.
+  - PDF: `window.open('...wfrReporteTarjeton.aspx')` se intercepta dentro del
+    iframe (`TarjetonDigitalBridge`, allowlist `rh.imss.gob.mx`) → descarga
+    HTTP autenticada con cookies, valida `%PDF-`, SHA-256, dedup y guarda con
+    `source = TARJETON_DIGITAL`.
 - **Captura del PDF** (`ImssPdfCaptureCoordinator`): doble vía —
   1) `DownloadListener` capturando descargas HTTP `.pdf` (descarga autenticada
   con cookies y valida cabecera `%PDF-`), 2) monitor JS inyectado
