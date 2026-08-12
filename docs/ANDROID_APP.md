@@ -3,7 +3,7 @@
 > Documentación técnica de referencia para agentes futuros.
 > Ámbito: `android-app/` (shell nativo Compose) que embebe el Home web
 > (`https://la-veinte-digital.vercel.app`) en un WebView persistente.
-> Última actualización: **2026-08-12 — v1.0.56 (versionCode 156)**.
+> Última actualización: **2026-08-12 — v1.0.57 (versionCode 157)**.
 
 Esta guía describe rutas, APIs, flujos de datos y convenciones del shell
 Android para que cualquier agente pueda retomar el trabajo **sin romper
@@ -143,9 +143,9 @@ Checklist de publicación (ejecutado en las versiones 1.0.44/145/146):
 7. **Verificar**: `HEAD https://la-veinte-digital.vercel.app/LaVeinteDigital.apk`
    → 200 y tamaño coincidente; GET `latest.json` → versionName/sha coincidentes.
 
-Estado actual de producción: **1.0.56 / 156** — SHA
-`9deeb13866df1339431b4a3037346603aa67207392aff1953d2de2691753f3e0`,
-66,821,732 bytes.
+Estado actual de producción: **1.0.57 / 157** — SHA
+`4694d8a279b9b46c1c833673a1d65a565c32f7959b70ab5949492e600341d5b5`,
+67,411,660 bytes.
 
 **Canales**: `/android/{stable,beta,dev}/latest.json`. La app solo consulta
 `stable`. El `proxy` de Next.js excluye `.apk`/`.json` del matcher de auth.
@@ -318,7 +318,10 @@ Verifying → ReadyToInstall → install()`. `forceUpdate` se marca si
 - Cache en DataStore `la_veinte_update_cache` (`UpdateCache`): usado como
   fallback offline (y si el cache marcaba forceUpdate pendiente).
 - `UpdateDownloader` baja a `filesDir/updates/LaVeinteDigital-<v>.apk` (timeouts
-  30s/300s, sigue redirects).
+  30s/300s, sigue redirects). Desde **1.0.57** reporta progreso real:
+  lee `Content-Length` y emite `onProgress(percent)` por cada byte leído,
+  que `UpdateManager` propaga a `UpdateState.Downloading(progress)` para la
+  barra del diálogo (antes quedaba fija en 0% hasta terminar).
 - `ApkVerifier.verify(file, apk.sha256)`: compara SHA-256; si el sha del
   manifest está vacío salta la verificación. **No instalar si falla**
   (borra el archivo).
