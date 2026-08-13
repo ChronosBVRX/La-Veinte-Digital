@@ -1,20 +1,19 @@
 {
   "channel": "stable",
-  "versionCode": 157,
-  "versionName": "1.0.57",
+  "versionCode": 158,
+  "versionName": "1.0.58",
   "minimumVersionCode": 100,
   "forceUpdate": false,
   "publishedAt": "2026-08-12T00:00:00Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "4694d8a279b9b46c1c833673a1d65a565c32f7959b70ab5949492e600341d5b5",
-    "size": 67411660
+    "sha256": "45249d06cd608ec2afb1021b9d154eca5296c37206db5f37461fe40ec50dc104",
+    "size": 66821732
   },
   "releaseNotes": [
-    "Corregido: ahora sí se detectan y muestran los tarjetones tras iniciar sesión",
-    "El avance de descarga de actualización ahora se muestra correctamente",
-    "La barra de progreso refleja el porcentaje real de bytes descargados",
     "Nuevo: Tarjetón Digital IMSS con formulario nativo (Delegación, Usuario, Contraseña)",
-    "Autologin con verificación doble de campos y clasificación de errores del portal"
+    "Consulta de tarjetones, captura del PDF oficial e integración con el histórico local",
+    "Autologin con verificación doble de campos y clasificación de errores del portal",
+    "El avance de descarga de actualización ahora se muestra correctamente"
   ]
 }

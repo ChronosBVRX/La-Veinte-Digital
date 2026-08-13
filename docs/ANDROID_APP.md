@@ -3,7 +3,7 @@
 > Documentación técnica de referencia para agentes futuros.
 > Ámbito: `android-app/` (shell nativo Compose) que embebe el Home web
 > (`https://la-veinte-digital.vercel.app`) en un WebView persistente.
-> Última actualización: **2026-08-12 — v1.0.57 (versionCode 157)**.
+> Última actualización: **2026-08-12 — v1.0.58 (versionCode 158)**.
 
 Esta guía describe rutas, APIs, flujos de datos y convenciones del shell
 Android para que cualquier agente pueda retomar el trabajo **sin romper
@@ -143,9 +143,9 @@ Checklist de publicación (ejecutado en las versiones 1.0.44/145/146):
 7. **Verificar**: `HEAD https://la-veinte-digital.vercel.app/LaVeinteDigital.apk`
    → 200 y tamaño coincidente; GET `latest.json` → versionName/sha coincidentes.
 
-Estado actual de producción: **1.0.57 / 157** — SHA
-`4694d8a279b9b46c1c833673a1d65a565c32f7959b70ab5949492e600341d5b5`,
-67,411,660 bytes.
+Estado actual de producción: **1.0.58 / 158** — SHA
+`45249d06cd608ec2afb1021b9d154eca5296c37206db5f37461fe40ec50dc104`,
+66,821,732 bytes.
 
 **Canales**: `/android/{stable,beta,dev}/latest.json`. La app solo consulta
 `stable`. El `proxy` de Next.js excluye `.apk`/`.json` del matcher de auth.
