@@ -18,13 +18,13 @@ struct InternalWebView: UIViewRepresentable {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         configuration.allowsInlineMediaPlayback = true
+        configuration.applicationNameForUserAgent = "LaVeinteDigitalIOS/\(AppInfo.version)"
 
         let userContent = configuration.userContentController
         userContent.addUserScript(LaVeinteBridge.userScript())
         userContent.add(context.coordinator, name: LaVeinteBridge.messageHandlerName)
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
-        webView.applicationNameForUserAgent = "LaVeinteDigitalIOS/\(AppInfo.version)"
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
@@ -66,16 +66,17 @@ struct InternalWebView: UIViewRepresentable {
             }
             BridgeHandler.shared.onAuthenticated = { [weak self] in
                 guard let self else { return }
-                if !appLock.isBiometricEnabled && BiometricManager.canAuthenticateStrong() {
-                    appLock.showEnrollmentInvite = true
+                if !self.appLock.isBiometricEnabled && BiometricManager.canAuthenticateStrong() {
+                    self.appLock.showEnrollmentInvite = true
                 }
             }
             BridgeHandler.shared.onLoggedOut = { [weak self] in
+                guard let self else { return }
                 BiometricKeyStore.delete()
                 BiometricPreferences.isEnabled = false
-                appLock.isBiometricEnabled = false
-                appLock.lock()
-                appLock.showEnrollmentInvite = false
+                self.appLock.isBiometricEnabled = false
+                self.appLock.lock()
+                self.appLock.showEnrollmentInvite = false
             }
         }
 
