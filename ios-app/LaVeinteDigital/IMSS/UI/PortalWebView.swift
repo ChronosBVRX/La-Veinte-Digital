@@ -93,8 +93,7 @@ struct PortalWebView: UIViewRepresentable {
             decidePolicyFor navigationAction: WKNavigationAction,
             decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
         ) {
-            guard let url = navigationAction.request.url,
-                  let scheme = url.scheme?.lowercased() else {
+            guard let url = navigationAction.request.url else {
                 decisionHandler(.cancel)
                 return
             }

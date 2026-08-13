@@ -105,7 +105,7 @@ final class TarjetonDigitalFlowController: ObservableObject {
     func retryTarjetonAutomation() {
         guard let wv = webView else { return }
         state = .openingTarjetonPage
-        doOpenTarjetonPage(wv)
+        Task { await doOpenTarjetonPage(wv) }
     }
 
     func markGenerating() { state = .generatingTarjeton }
@@ -119,7 +119,7 @@ final class TarjetonDigitalFlowController: ObservableObject {
         guard let message else { return }
         let result = TarjetonDigitalLoginErrorParser.classify(message)
         if result == .sessionExpired {
-            state = .loginError(result: result, portalMessage: message)
+            state = .loginError(result: .sessionExpired, portalMessage: message)
         } else if message.hasPrefix("ERROR") || result == .serviceUnavailable {
             state = .loginError(result: .serviceUnavailable, portalMessage: message)
         }
@@ -187,20 +187,20 @@ final class TarjetonDigitalFlowController: ObservableObject {
         state = .loadingPage
 
         state = .waitingIframe
-        if !await awaitIframe(wv) { state = .error(reason: "IFRAME_TIMEOUT"); return }
+        if !(await awaitIframe(wv)) { state = .error(reason: "IFRAME_TIMEOUT"); return }
 
         state = .waitingDom
-        if !await awaitDom(wv) { state = .error(reason: "LOGIN_DOM_TIMEOUT"); return }
+        if !(await awaitDom(wv)) { state = .error(reason: "LOGIN_DOM_TIMEOUT"); return }
 
         await refreshDelegaciones(wv)
 
         var fieldsRequiredRetries = 0
         while true {
             state = .fillingForm
-            if !await fillAndVerify(wv, delegacion.value, username, password) { state = .error(reason: "LOGIN_FILL_FAILED"); return }
+            if !(await fillAndVerify(wv, delegacion.value, username, password)) { state = .error(reason: "LOGIN_FILL_FAILED"); return }
 
             state = .verifyingForm
-            if !await valuesStillPresent(wv, delegacion.value, username, password) { state = .error(reason: "LOGIN_VALUE_RESET"); return }
+            if !(await valuesStillPresent(wv, delegacion.value, username, password)) { state = .error(reason: "LOGIN_VALUE_RESET"); return }
 
             state = .submitting
             let click = await clickIngresar(wv)

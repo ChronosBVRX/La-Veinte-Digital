@@ -58,7 +58,8 @@ enum ImssCredentialKeyStore {
 
     static func encrypt(portalId: String, plaintext: Data) throws -> Data {
         guard let key = getKey(portalId: portalId) else { throw VaultError.keyNotFound }
-        return try AES.GCM.seal(plaintext, using: key).combined
+        let sealed = try AES.GCM.seal(plaintext, using: key)
+        return sealed.combined!
     }
 
     static func decrypt(portalId: String, combined: Data) throws -> Data {

@@ -5,7 +5,7 @@ import Foundation
 /// el portal manda (se refresca desde `<select id="ddlDelegacion">`).
 enum TarjetonDigitalDelegaciones {
 
-    struct Delegacion: Equatable {
+    struct Delegacion: Hashable {
         let value: String
         let label: String
         var displayName: String { TarjetonDigitalDelegaciones.prettify(label) }

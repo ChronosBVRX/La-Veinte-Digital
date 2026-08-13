@@ -109,7 +109,7 @@ final class TuPerfilFlowController: ObservableObject {
     func retryCardAutomation() {
         guard let wv = webView else { return }
         state = .preparingCardForm
-        runAutomation(wv)
+        Task { await runAutomation(wv) }
     }
 
     func markGenerating() { state = .generatingTarjeton }
@@ -156,15 +156,15 @@ final class TuPerfilFlowController: ObservableObject {
         wv.load(URLRequest(url: URL(string: Self.loginURL)!))
         state = .waitingForm
 
-        if !await awaitInputs(wv) { state = .error(reason: "LOGIN_INPUTS_TIMEOUT"); return }
+        if !(await awaitInputs(wv)) { state = .error(reason: "LOGIN_INPUTS_TIMEOUT"); return }
 
         var fieldsRequiredRetries = 0
         while true {
             state = .fillingForm
-            if !await fillAndVerify(wv, username, password) { state = .error(reason: "LOGIN_FILL_FAILED"); return }
+            if !(await fillAndVerify(wv, username, password)) { state = .error(reason: "LOGIN_FILL_FAILED"); return }
 
             state = .verifyingForm
-            if !await valuesStillPresent(wv, username, password) { state = .error(reason: "LOGIN_VALUE_RESET"); return }
+            if !(await valuesStillPresent(wv, username, password)) { state = .error(reason: "LOGIN_VALUE_RESET"); return }
 
             state = .submittingLogin
             let click = await clickLogin(wv)

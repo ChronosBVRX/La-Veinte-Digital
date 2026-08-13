@@ -2,7 +2,7 @@ name: LaVeinteDigital
 options:
   bundleIdPrefix: com.laveintedigital
   deploymentTarget:
-    iOS: "15.0"
+    iOS: "16.0"
   createIntermediateGroups: true
   projectFormat: xcode15_0
 
@@ -10,7 +10,7 @@ targets:
   LaVeinteDigital:
     type: application
     platform: iOS
-    deploymentTarget: "15.0"
+    deploymentTarget: "16.0"
     sources:
       - path: LaVeinteDigital
     settings:
@@ -41,7 +41,7 @@ targets:
   LaVeinteDigitalTests:
     type: bundle.unit-test
     platform: iOS
-    deploymentTarget: "15.0"
+    deploymentTarget: "16.0"
     sources:
       - LaVeinteDigitalTests
     dependencies:
