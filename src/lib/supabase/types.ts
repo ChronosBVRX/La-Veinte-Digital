@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -47,6 +47,72 @@ export type Database = {
           {
             foreignKeyName: "ai_chat_history_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      android_releases: {
+        Row: {
+          apk_sha256: string | null
+          apk_size: number | null
+          apk_url: string | null
+          channel: string
+          commit_sha: string | null
+          created_at: string
+          force_update: boolean
+          id: number
+          minimum_version_code: number | null
+          published_at: string | null
+          published_by: string | null
+          release_notes: string[] | null
+          version_code: number
+          version_name: string
+        }
+        Insert: {
+          apk_sha256?: string | null
+          apk_size?: number | null
+          apk_url?: string | null
+          channel?: string
+          commit_sha?: string | null
+          created_at?: string
+          force_update?: boolean
+          id?: never
+          minimum_version_code?: number | null
+          published_at?: string | null
+          published_by?: string | null
+          release_notes?: string[] | null
+          version_code: number
+          version_name: string
+        }
+        Update: {
+          apk_sha256?: string | null
+          apk_size?: number | null
+          apk_url?: string | null
+          channel?: string
+          commit_sha?: string | null
+          created_at?: string
+          force_update?: boolean
+          id?: never
+          minimum_version_code?: number | null
+          published_at?: string | null
+          published_by?: string | null
+          release_notes?: string[] | null
+          version_code?: number
+          version_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "android_releases_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "limited_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "android_releases_published_by_fkey"
+            columns: ["published_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -136,324 +202,6 @@ export type Database = {
           nombre?: string
         }
         Relationships: []
-      }
-      chat_room_invitations: {
-        Row: {
-          created_at: string | null
-          id: string
-          room_id: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          room_id: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          room_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "chat_room_invitations_room_id_fkey"
-            columns: ["room_id"]
-            isOneToOne: false
-            referencedRelation: "chat_rooms"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "chat_room_invitations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "limited_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "chat_room_invitations_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      chat_messages: {
-        Row: {
-          content: string
-          created_at: string | null
-          id: string
-          room_id: string
-          user_id: string
-        }
-        Insert: {
-          content: string
-          created_at?: string | null
-          id?: string
-          room_id: string
-          user_id: string
-        }
-        Update: {
-          content?: string
-          created_at?: string | null
-          id?: string
-          room_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "chat_messages_room_id_fkey"
-            columns: ["room_id"]
-            isOneToOne: false
-            referencedRelation: "chat_rooms"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "chat_messages_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "limited_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "chat_messages_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      chat_participants: {
-        Row: {
-          id: string
-          joined_at: string | null
-          room_id: string
-          user_id: string
-        }
-        Insert: {
-          id?: string
-          joined_at?: string | null
-          room_id: string
-          user_id: string
-        }
-        Update: {
-          id?: string
-          joined_at?: string | null
-          room_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "chat_participants_room_id_fkey"
-            columns: ["room_id"]
-            isOneToOne: false
-            referencedRelation: "chat_rooms"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "chat_participants_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "limited_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "chat_participants_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      chat_rooms: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          description: string | null
-          id: string
-          is_private: boolean | null
-          name: string
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          is_private?: boolean | null
-          name: string
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          is_private?: boolean | null
-          name?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "chat_rooms_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "limited_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "chat_rooms_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      forum_categories: {
-        Row: {
-          created_at: string | null
-          description: string | null
-          id: string
-          name: string
-          slug: string
-          sort_order: number | null
-        }
-        Insert: {
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          name: string
-          slug: string
-          sort_order?: number | null
-        }
-        Update: {
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          name?: string
-          slug?: string
-          sort_order?: number | null
-        }
-        Relationships: []
-      }
-      forum_comments: {
-        Row: {
-          author_id: string
-          content: string
-          created_at: string | null
-          id: string
-          parent_id: string | null
-          post_id: string
-          updated_at: string | null
-        }
-        Insert: {
-          author_id: string
-          content: string
-          created_at?: string | null
-          id?: string
-          parent_id?: string | null
-          post_id: string
-          updated_at?: string | null
-        }
-        Update: {
-          author_id?: string
-          content?: string
-          created_at?: string | null
-          id?: string
-          parent_id?: string | null
-          post_id?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "forum_comments_author_id_fkey"
-            columns: ["author_id"]
-            isOneToOne: false
-            referencedRelation: "limited_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "forum_comments_author_id_fkey"
-            columns: ["author_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "forum_comments_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "forum_comments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "forum_comments_post_id_fkey"
-            columns: ["post_id"]
-            isOneToOne: false
-            referencedRelation: "forum_posts"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      forum_posts: {
-        Row: {
-          author_id: string
-          category_id: string | null
-          content: string
-          created_at: string | null
-          id: string
-          is_locked: boolean | null
-          is_pinned: boolean | null
-          title: string
-          updated_at: string | null
-        }
-        Insert: {
-          author_id: string
-          category_id?: string | null
-          content: string
-          created_at?: string | null
-          id?: string
-          is_locked?: boolean | null
-          is_pinned?: boolean | null
-          title: string
-          updated_at?: string | null
-        }
-        Update: {
-          author_id?: string
-          category_id?: string | null
-          content?: string
-          created_at?: string | null
-          id?: string
-          is_locked?: boolean | null
-          is_pinned?: boolean | null
-          title?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "forum_posts_author_id_fkey"
-            columns: ["author_id"]
-            isOneToOne: false
-            referencedRelation: "limited_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "forum_posts_author_id_fkey"
-            columns: ["author_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "forum_posts_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "forum_categories"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       imported_payslip_lines: {
         Row: {
@@ -768,6 +516,71 @@ export type Database = {
         }
         Relationships: []
       }
+      transfer_files: {
+        Row: {
+          content_type: string
+          created_at: string
+          data: string
+          id: string
+          name: string
+          session_id: string
+          size_bytes: number
+        }
+        Insert: {
+          content_type: string
+          created_at?: string
+          data: string
+          id?: string
+          name: string
+          session_id: string
+          size_bytes: number
+        }
+        Update: {
+          content_type?: string
+          created_at?: string
+          data?: string
+          id?: string
+          name?: string
+          session_id?: string
+          size_bytes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transfer_files_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "transfer_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      transfer_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          owner_id: string | null
+          owner_token: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          owner_id?: string | null
+          owner_token: string
+          token: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          owner_id?: string | null
+          owner_token?: string
+          token?: string
+        }
+        Relationships: []
+      }
       vacation_calendar_roles: {
         Row: {
           calendar_id: string
@@ -1056,54 +869,6 @@ export type Database = {
           },
         ]
       }
-      worker_consents: {
-        Row: {
-          accepted_at: string
-          accepted_source: string
-          created_at: string
-          id: string
-          purpose: string
-          revoked_at: string | null
-          user_id: string
-          version: string
-        }
-        Insert: {
-          accepted_at?: string
-          accepted_source: string
-          created_at?: string
-          id?: string
-          purpose: string
-          revoked_at?: string | null
-          user_id: string
-          version: string
-        }
-        Update: {
-          accepted_at?: string
-          accepted_source?: string
-          created_at?: string
-          id?: string
-          purpose?: string
-          revoked_at?: string | null
-          user_id?: string
-          version?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "worker_consents_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "limited_profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "worker_consents_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       worker_commitments: {
         Row: {
           created_at: string
@@ -1162,6 +927,61 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "worker_commitments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "limited_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worker_commitments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      worker_consents: {
+        Row: {
+          accepted_at: string
+          accepted_source: string
+          created_at: string
+          id: string
+          purpose: string
+          revoked_at: string | null
+          user_id: string
+          version: string
+        }
+        Insert: {
+          accepted_at?: string
+          accepted_source: string
+          created_at?: string
+          id?: string
+          purpose: string
+          revoked_at?: string | null
+          user_id: string
+          version: string
+        }
+        Update: {
+          accepted_at?: string
+          accepted_source?: string
+          created_at?: string
+          id?: string
+          purpose?: string
+          revoked_at?: string | null
+          user_id?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worker_consents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "limited_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worker_consents_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -1250,130 +1070,6 @@ export type Database = {
           },
         ]
       }
-      transfer_sessions: {
-        Row: {
-          created_at: string
-          expires_at: string
-          id: string
-          owner_id: string | null
-          owner_token: string
-          token: string
-        }
-        Insert: {
-          created_at?: string
-          expires_at: string
-          id?: string
-          owner_id?: string | null
-          owner_token: string
-          token: string
-        }
-        Update: {
-          created_at?: string
-          expires_at?: string
-          id?: string
-          owner_id?: string | null
-          owner_token?: string
-          token?: string
-        }
-        Relationships: []
-      }
-      transfer_files: {
-        Row: {
-          content_type: string
-          created_at: string
-          data: string
-          id: string
-          name: string
-          session_id: string
-          size_bytes: number
-        }
-        Insert: {
-          content_type: string
-          created_at?: string
-          data: string
-          id?: string
-          name: string
-          session_id: string
-          size_bytes: number
-        }
-        Update: {
-          content_type?: string
-          created_at?: string
-          data?: string
-          id?: string
-          name?: string
-          session_id?: string
-          size_bytes?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "transfer_files_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "transfer_sessions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      android_releases: {
-        Row: {
-          apk_sha256: string | null
-          apk_size: number | null
-          apk_url: string | null
-          channel: string
-          commit_sha: string | null
-          created_at: string
-          force_update: boolean
-          id: number
-          minimum_version_code: number | null
-          published_at: string | null
-          published_by: string | null
-          release_notes: string[] | null
-          version_code: number
-          version_name: string
-        }
-        Insert: {
-          apk_sha256?: string | null
-          apk_size?: number | null
-          apk_url?: string | null
-          channel?: string
-          commit_sha?: string | null
-          created_at?: string
-          force_update?: boolean
-          id?: number
-          minimum_version_code?: number | null
-          published_at?: string | null
-          published_by?: string | null
-          release_notes?: string[] | null
-          version_code: number
-          version_name: string
-        }
-        Update: {
-          apk_sha256?: string | null
-          apk_size?: number | null
-          apk_url?: string | null
-          channel?: string
-          commit_sha?: string | null
-          created_at?: string
-          force_update?: boolean
-          id?: number
-          minimum_version_code?: number | null
-          published_at?: string | null
-          published_by?: string | null
-          release_notes?: string[] | null
-          version_code?: number
-          version_name?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "android_releases_published_by_fkey"
-            columns: ["published_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Views: {
       limited_profiles: {
@@ -1396,6 +1092,10 @@ export type Database = {
       }
     }
     Functions: {
+      _insert_worker_event: {
+        Args: { p_event_type: string; p_metadata?: Json; p_priority: string }
+        Returns: undefined
+      }
       backfill_worker_profile: {
         Args: never
         Returns: {
@@ -1411,6 +1111,16 @@ export type Database = {
       }
       choose_basic_mode: { Args: never; Returns: undefined }
       confirm_imported_payslip: {
+        Args: {
+          p_acknowledge_total_difference: boolean
+          p_authorize_server_storage: boolean
+          p_parsed: Json
+          p_profile_updates: Json
+          p_source_hash: string
+        }
+        Returns: Json
+      }
+      confirm_imported_payslip_v1: {
         Args: {
           p_acknowledge_total_difference: boolean
           p_authorize_server_storage: boolean
@@ -1451,11 +1161,9 @@ export type Database = {
         Args: { p_limit: number; p_route: string; p_user: string }
         Returns: boolean
       }
+      mexico_date: { Args: never; Returns: string }
       revoke_worker_consent: { Args: { p_purpose: string }; Returns: undefined }
-      safe_numeric_cast: {
-        Args: { value: string }
-        Returns: number
-      }
+      safe_numeric_cast: { Args: { value: string }; Returns: number }
       search_catalogo: {
         Args: { catalogo_type: string; search_term: string }
         Returns: {
@@ -1464,19 +1172,7 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
-      unaccent: { Args: { "": string }; Returns: string }
-      _insert_worker_event: {
-        Args: {
-          p_event_type: string
-          p_metadata?: Json
-          p_priority: string
-        }
-        Returns: undefined
-      }
-      transfer_close_session: {
-        Args: { p_owner_token: string }
-        Returns: Json
-      }
+      transfer_close_session: { Args: { p_owner_token: string }; Returns: Json }
       transfer_create_session: {
         Args: { p_ttl_minutes?: number }
         Returns: Json
@@ -1485,10 +1181,7 @@ export type Database = {
         Args: { p_file_id: string; p_owner_token: string }
         Returns: Json
       }
-      transfer_list_files: {
-        Args: { p_owner_token: string }
-        Returns: Json
-      }
+      transfer_list_files: { Args: { p_owner_token: string }; Returns: Json }
       transfer_upload_file: {
         Args: {
           p_content_type: string
@@ -1499,6 +1192,7 @@ export type Database = {
         }
         Returns: Json
       }
+      unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
       [_ in never]: never
