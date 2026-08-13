@@ -10,8 +10,9 @@ enum PortalScripts {
     /// Codifica un String Swift como literal JS (con comillas) — equivalente a
     /// `org.json.JSONObject.quote`.
     static func jsQuote(_ s: String) -> String {
-        let data = try! JSONSerialization.data(withJSONObject: s)
-        return String(data: data, encoding: .utf8)!
+        let data = try! JSONSerialization.data(withJSONObject: [s])
+        let str = String(data: data, encoding: .utf8)! // ["..."]
+        return String(str.dropFirst().dropLast()) // "..."
     }
 
     // MARK: - Tu Perfil
