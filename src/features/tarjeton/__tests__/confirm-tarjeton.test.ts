@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { confirmTarjetonService } from "../services/confirm-tarjeton"
 import type { ConfirmTarjetonRequest } from "@/shared/contracts/tarjeton-import"
 
@@ -270,6 +270,133 @@ describe("confirm-tarjeton service", () => {
     expect(second.ok).toBe(false)
     if (second.ok) return
     expect(second.error.code).toBe("duplicate")
+  })
+})
+
+describe("sanitización de datos secundarios antes del RPC", () => {
+  it("normaliza observaciones inválidas y añade warnings sin abortar", async () => {
+    let sentArgs: Record<string, unknown> | null = null
+    const rpc = async (_fn: string, args: Record<string, unknown>) => {
+      sentArgs = args
+      return {
+        data: { schemaVersion: "1.0", id: "abc", duplicate: false, profileUpdated: false, payrollContextUpdated: true },
+        error: null,
+      }
+    }
+
+    const request = makeRequest()
+    request.parsed.payroll.observations = [
+      { lineIndex: 0, conceptCode: "190", amount: 2670.42, units: 99999, initialCharge: 742135987210 },
+      { lineIndex: 1, conceptCode: "032", notes: "SIN IMPORTE" },
+    ]
+
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, request)
+    expect(result.ok).toBe(true)
+
+    const parsed = (sentArgs!.p_parsed as ConfirmTarjetonRequest["parsed"])
+    expect(parsed.payroll.observations[0]).toEqual({ lineIndex: 0, conceptCode: "190", amount: 2670.42 })
+    expect(parsed.payroll.observations[1]).toEqual({ lineIndex: 1, conceptCode: "032", notes: "SIN IMPORTE" })
+    expect(parsed.extraction.warnings).toContain("Observación 1 (190): unidades inválidas; se omitieron.")
+    expect(parsed.extraction.warnings).toContain("Observación 1 (190): cargo inicial inválido; se omitió.")
+  })
+
+  it("redondea confianza con muchos decimales antes de enviar al RPC", async () => {
+    let sentArgs: Record<string, unknown> | null = null
+    const rpc = async (_fn: string, args: Record<string, unknown>) => {
+      sentArgs = args
+      return {
+        data: { schemaVersion: "1.0", id: "abc", duplicate: false, profileUpdated: false, payrollContextUpdated: true },
+        error: null,
+      }
+    }
+
+    const request = makeRequest()
+    request.parsed.extraction.globalConfidence = 0.987654321
+    request.parsed.payroll.earnings[0].confidence = 0.987654321
+
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, request)
+    expect(result.ok).toBe(true)
+
+    const parsed = (sentArgs!.p_parsed as ConfirmTarjetonRequest["parsed"])
+    expect(parsed.extraction.globalConfidence).toBe(0.988)
+    expect(parsed.payroll.earnings[0].confidence).toBe(0.988)
+  })
+
+  it("rechaza importes críticos fuera de rango incluso con reconocimiento de totales", async () => {
+    const rpc = async () => ({ data: null, error: null })
+
+    const request = makeRequest({ acknowledgeTotalDifference: true })
+    request.parsed.payroll.earnings[0].amount = 742135987210
+    request.parsed.payroll.totalEarnings = 742135987210
+
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, request)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe("invalid_payload")
+    expect(result.error.message).toContain("fuera de rango")
+  })
+
+  it("registra requestId y diagnóstico completo de obs_insert_failed sin degradarlo a internal", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const rpc = async () => ({
+      data: null,
+      error: {
+        message: "obs_insert_failed: line 3 code 190 amount 742135987210 units 99999 initialCharge 742135987210 error numeric field overflow",
+        code: "22003",
+        details: "A field with precision 14, scale 2 must round to an absolute value less than 10^12.",
+        hint: null,
+      },
+    })
+
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, makeRequest())
+    expect(result).toMatchObject({ ok: false, error: { code: "persistence_failed" } })
+
+    const obsLog = consoleSpy.mock.calls.flat().find((arg) =>
+      typeof arg === "object" && arg !== null && "line" in arg && arg.line === "3",
+    ) as Record<string, unknown> | undefined
+    expect(obsLog).toBeDefined()
+    expect(obsLog).toMatchObject({
+      code: "190",
+      amount: "742135987210",
+      units: "99999",
+      initialCharge: "742135987210",
+      supabaseCode: "22003",
+    })
+    expect(typeof obsLog!.requestId).toBe("string")
+    consoleSpy.mockRestore()
+  })
+
+  it("mapea line_insert_failed a persistence_failed con diagnóstico", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const rpc = async () => ({
+      data: null,
+      error: {
+        message: "line_insert_failed: line 7 code 054 amount 742135987210 confidence 0.98 error numeric field overflow",
+        code: "22003",
+      },
+    })
+
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, makeRequest())
+    expect(result).toMatchObject({ ok: false, error: { code: "persistence_failed" } })
+
+    const lineLog = consoleSpy.mock.calls.flat().find((arg) =>
+      typeof arg === "object" && arg !== null && "line" in arg && arg.line === "7",
+    ) as Record<string, unknown> | undefined
+    expect(lineLog).toBeDefined()
+    expect(lineLog).toMatchObject({ code: "054", amount: "742135987210", confidence: "0.98" })
+    consoleSpy.mockRestore()
+  })
+
+  it("mapea desbordes crudos de Postgres a persistence_failed", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const rpc = async () => ({
+      data: null,
+      error: { message: "numeric field overflow", code: "22003", details: "A field with precision 14, scale 2 must round to an absolute value less than 10^12." },
+    })
+
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, makeRequest())
+    expect(result).toMatchObject({ ok: false, error: { code: "persistence_failed" } })
+    consoleSpy.mockRestore()
   })
 })
 

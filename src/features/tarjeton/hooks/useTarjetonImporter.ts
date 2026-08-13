@@ -15,6 +15,7 @@ import { runOcrFallback } from "@/features/tarjeton/lib/run-ocr-fallback"
 import { parseImssTarjeton } from "@/features/tarjeton/lib/imss-tarjeton-parser"
 import { computeFileSha256 } from "@/features/tarjeton/lib/file-hash"
 import { applyConceptEdits, type ReviewedConceptLine } from "@/features/tarjeton/lib/confirm-mark"
+import { sanitizeTarjetonForPersistence } from "@/features/tarjeton/lib/safe-values"
 import { confirmTarjetonClient } from "@/features/tarjeton/services/confirm-tarjeton-client"
 import { syncConfirmedPayslip } from "@/features/tarjeton/services/payslip-sync"
 
@@ -188,10 +189,44 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
     if (!opts.authorizeServerStorage) return
 
     const sourceHash = await computeFileSha256(await file.arrayBuffer())
+
+    const edited = applyConceptEdits(parsed, opts.conceptLines)
+    // Frontera cliente: un dato secundario inválido (observaciones, fechas
+    // auxiliares) se normaliza antes de enviar; los importes críticos fuera
+    // de rango detienen la confirmación con un mensaje claro.
+    const { parsed: safeParsed, sanitized, critical } = sanitizeTarjetonForPersistence(edited)
+    if (critical.length > 0) {
+      console.warn("[tarjeton/confirm][critical]", { critical })
+      setState((s) => ({
+        ...s,
+        step: "review",
+        error: {
+          code: "invalid_payload",
+          message: "Uno o más importes del tarjetón están fuera de rango. Corrige o elimina la fila antes de confirmar.",
+        },
+      }))
+      return
+    }
+
+    // Registro técnico NO sensible: nunca incluye nombre, matrícula, RFC,
+    // CURP ni NSS. Solo conteos, totales y metadatos de extracción.
+    console.info("[tarjeton/confirm][client]", {
+      earnings: safeParsed.payroll.earnings.length,
+      deductions: safeParsed.payroll.deductions.length,
+      observations: safeParsed.payroll.observations.length,
+      totalEarnings: safeParsed.payroll.totalEarnings,
+      totalDeductions: safeParsed.payroll.totalDeductions,
+      netPay: safeParsed.payroll.netPay,
+      method: safeParsed.extraction.method,
+      globalConfidence: safeParsed.extraction.globalConfidence,
+      period: safeParsed.document.periodRaw,
+      sanitizedSecondaryFields: sanitized.length,
+    })
+
     const request: ConfirmTarjetonRequest = {
       schemaVersion: "1.0",
       sourceHash,
-      parsed: applyConceptEdits(parsed, opts.conceptLines),
+      parsed: safeParsed,
       profileUpdates: opts.profileUpdates,
       acknowledgeTotalDifference: opts.acknowledgeTotalDifference,
       authorizeServerStorage: opts.authorizeServerStorage,
@@ -202,6 +237,7 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
     const result = await confirmTarjetonClient(request)
 
     if (!result.ok) {
+      console.warn("[tarjeton/confirm][client-failed]", { code: result.error.code, message: result.error.message })
       setState((s) => ({ ...s, step: "review", error: result.error }))
       return
     }

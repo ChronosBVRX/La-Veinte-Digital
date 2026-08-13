@@ -1452,6 +1452,10 @@ export type Database = {
         Returns: boolean
       }
       revoke_worker_consent: { Args: { p_purpose: string }; Returns: undefined }
+      safe_numeric_cast: {
+        Args: { value: string }
+        Returns: number
+      }
       search_catalogo: {
         Args: { catalogo_type: string; search_term: string }
         Returns: {

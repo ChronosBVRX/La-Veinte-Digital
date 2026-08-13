@@ -34,7 +34,10 @@ export async function POST(request: NextRequest) {
         if (error) {
           console.error("[tarjeton/confirm][supabase]", { code: error.code, message: error.message, details: error.details, hint: error.hint })
         }
-        return { data, error: error ? { message: error.message } : null }
+        return {
+          data,
+          error: error ? { message: error.message, code: error.code, details: error.details, hint: error.hint } : null,
+        }
       },
     },
     body,

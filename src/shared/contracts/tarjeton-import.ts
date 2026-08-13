@@ -219,6 +219,7 @@ export type ConfirmTarjetonErrorCode =
   | "limits_exceeded"
   | "template_not_detected"
   | "consent_required"
+  | "persistence_failed"
   | "internal"
 
 export interface ConfirmTarjetonError {
