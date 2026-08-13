@@ -1,0 +1,19 @@
+# XcodeGen generado
+LaVeinteDigital.xcodeproj/
+
+# Build
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+
+# Swift Package Manager
+.build/
+Package.resolved
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+.DS_Store

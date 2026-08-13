@@ -3,7 +3,7 @@
 import Link from "next/link"
 import type { IconProps } from "@phosphor-icons/react"
 import { Calculator, Sparkle, Notebook, Article, ArrowsClockwise, ArrowsLeftRight } from "@phosphor-icons/react"
-import { useIsNativeApp } from "@/shared/hooks/useIsNativeApp"
+import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
 import { TransferDocumentsButton } from "@/features/transferir/components/TransferDocumentsButton"
 
 type IconType = React.ComponentType<IconProps & { size?: number; weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone" }>
@@ -27,6 +27,7 @@ const TILES: QuickTile[] = [
 
 export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuickActionsProps) {
   const isNative = useIsNativeApp()
+  const platform = useNativePlatform()
   return (
     <section style={{ marginBottom: "var(--space-6)" }}>
       <h2
@@ -148,7 +149,7 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
             </span>
           </button>
         )}
-        {isNative && (
+        {isNative && platform === "android" && (
           <button
             onClick={() => { window.LaVeinteApp?.checkForUpdate?.() }}
             className="hover-lift pressable"

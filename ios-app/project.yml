@@ -1,0 +1,61 @@
+name: LaVeinteDigital
+options:
+  bundleIdPrefix: com.laveintedigital
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+
+targets:
+  LaVeinteDigital:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: LaVeinteDigital
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.laveintedigital.app
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_TESTABILITY: YES
+        INFOPLIST_KEY_NSFaceIDUsageDescription: "Usamos Face ID / Touch ID para proteger tu información y acceder a tus tarjetones de forma segura."
+    info:
+      path: LaVeinteDigital/Info.plist
+      properties:
+        CFBundleDisplayName: La Veinte Digital
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        ITSAppUsesNonExemptEncryption: false
+        CFBundleURLTypes:
+          - CFBundleURLName: com.laveintedigital.app
+            CFBundleURLSchemes:
+              - laveinte
+
+  LaVeinteDigitalTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources:
+      - LaVeinteDigitalTests
+    dependencies:
+      - target: LaVeinteDigital
+
+schemes:
+  LaVeinteDigital:
+    build:
+      targets:
+        LaVeinteDigital: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - LaVeinteDigitalTests
+    archive:
+      config: Release

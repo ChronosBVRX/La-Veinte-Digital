@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Home, Bot, FileText, BookOpen, User, Target, Calculator, DollarSign, X, Calendar, CalendarCheck, Globe, ClipboardList, FileBadge, RefreshCw, type LucideIcon } from "lucide-react"
-import { useIsNativeApp } from "@/shared/hooks/useIsNativeApp"
+import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
 import type { CSSProperties } from "react"
 
 interface SidebarProps {
@@ -22,6 +22,7 @@ interface SidebarLink {
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname()
   const isNative = useIsNativeApp()
+  const platform = useNativePlatform()
 
   const links: SidebarLink[] = [
     { href: "/", label: "Inicio", icon: Home },
@@ -38,7 +39,9 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   { href: "/profile", label: "Mi Perfil", icon: User },
   ...(isNative ? [
     { href: "#", label: "Tarjetones IMSS", icon: FileBadge, onClick: true },
-    { href: "#", label: "Actualizar app", icon: RefreshCw, onClick: true, action: "checkUpdate" as const },
+    ...(platform === "android" ? [
+      { href: "#", label: "Actualizar app", icon: RefreshCw, onClick: true, action: "checkUpdate" as const },
+    ] : []),
   ] : []),
 ]
 

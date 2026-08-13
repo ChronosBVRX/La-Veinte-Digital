@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { House, UserCircle, X, Article, ArrowsClockwise } from "@phosphor-icons/react"
 import { DESKTOP_NAV_GROUPS } from "./navigation"
-import { useIsNativeApp } from "@/shared/hooks/useIsNativeApp"
+import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
 import type { CSSProperties } from "react"
 
 interface DesktopSidebarProps {
@@ -15,6 +15,7 @@ interface DesktopSidebarProps {
 export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
   const pathname = usePathname()
   const isNative = useIsNativeApp()
+  const platform = useNativePlatform()
   const isHomeActive = pathname === "/"
 
   const brandingHeader = (
@@ -150,6 +151,7 @@ export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
           </ul>
         </div>
 
+        {platform === "android" && (
         <div style={{ marginTop: "1rem" }}>
           <span style={{
             fontSize: "0.6875rem", fontWeight: 700, color: "var(--brand-cyan)",
@@ -175,6 +177,7 @@ export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
             </li>
           </ul>
         </div>
+        )}
         </>
       )}
 
