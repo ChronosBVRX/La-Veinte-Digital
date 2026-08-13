@@ -9,41 +9,28 @@ enum TarjetonDigitalJson {
 
     static func parseObject(_ raw: String?) -> [String: Any]? {
         guard let raw, raw != "null", raw != "undefined" else { return nil }
-        if let data = raw.data(using: .utf8),
-           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            return obj
-        }
-        if let data = raw.data(using: .utf8),
-           let str = try? JSONSerialization.jsonObject(with: data) as? String,
-           let inner = str.data(using: .utf8),
-           let obj = try? JSONSerialization.jsonObject(with: inner) as? [String: Any] {
-            return obj
-        }
+        if let obj = decode([String: Any].self, from: raw) { return obj }
+        if let str = decode(String.self, from: raw),
+           let obj = decode([String: Any].self, from: str) { return obj }
         return nil
     }
 
     static func parseArray(_ raw: String?) -> [[String: Any]]? {
         guard let raw, raw != "null", raw != "undefined" else { return nil }
-        if let data = raw.data(using: .utf8),
-           let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
-            return arr
-        }
-        if let data = raw.data(using: .utf8),
-           let str = try? JSONSerialization.jsonObject(with: data) as? String,
-           let inner = str.data(using: .utf8),
-           let arr = try? JSONSerialization.jsonObject(with: inner) as? [[String: Any]] {
-            return arr
-        }
+        if let arr = decode([[String: Any]].self, from: raw) { return arr }
+        if let str = decode(String.self, from: raw),
+           let arr = decode([[String: Any]].self, from: str) { return arr }
         return nil
     }
 
     /// Decodifica un resultado `JSON.stringify("string")` (o una cadena ya JSON).
     static func parseString(_ raw: String?) -> String? {
         guard let raw, raw != "null", raw != "undefined" else { return nil }
-        if let data = raw.data(using: .utf8),
-           let s = try? JSONSerialization.jsonObject(with: data) as? String {
-            return s
-        }
-        return nil
+        return decode(String.self, from: raw)
+    }
+
+    private static func decode<T>(_ type: T.Type, from s: String) -> T? {
+        guard let data = s.data(using: .utf8) else { return nil }
+        return (try? JSONSerialization.jsonObject(with: data)) as? T
     }
 }
