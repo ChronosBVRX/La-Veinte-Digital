@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useCallback } from "react"
+import Link from "next/link"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
-import { CheckCircle, Trash, Plus } from "@phosphor-icons/react"
+import { CheckCircle, Trash, Plus, Info } from "@phosphor-icons/react"
 
 interface PreviousImport {
   id: string
@@ -17,9 +18,11 @@ interface PreviousImport {
 
 export function TarjetonHistorySection({
   imports: initial,
+  latestConcepts = [],
   onUploadNew,
 }: {
   imports: PreviousImport[]
+  latestConcepts?: Array<{ code: string; description: string; amount: number; kind: "earning" | "deduction" }>
   onUploadNew?: () => void
 }) {
   const [imports, setImports] = useState(initial)
@@ -72,6 +75,38 @@ export function TarjetonHistorySection({
               </Button>
             </div>
           </div>
+          {latestConcepts.length > 0 && (
+            <div style={{ marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid var(--border)" }}>
+              <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.5rem" }}>
+                Conceptos de tu último tarjetón
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
+                {latestConcepts.map((c, i) => (
+                  <Link
+                    key={`${c.code}-${i}`}
+                    href={`/guia/conceptos/${c.code}`}
+                    title={`Explicación del concepto ${c.code}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                      padding: "0.25rem 0.5rem",
+                      borderRadius: "9999px",
+                      background: c.kind === "earning" ? "#eff6ff" : "#fffbeb",
+                      color: c.kind === "earning" ? "var(--info)" : "var(--warning)",
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      textDecoration: "none",
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    {c.code} · {c.description}
+                    <Info size={12} weight="fill" aria-hidden="true" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
       )}
 

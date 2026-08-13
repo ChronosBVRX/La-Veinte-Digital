@@ -18,9 +18,11 @@ interface PreviousImport {
 export function TarjetonPageClient({
   profile,
   previousImports,
+  latestConcepts = [],
 }: {
   profile: TarjetonProfileSnapshot
   previousImports: PreviousImport[]
+  latestConcepts?: Array<{ code: string; description: string; amount: number; kind: "earning" | "deduction" }>
 }) {
   const [showUploader, setShowUploader] = useState(previousImports.length === 0)
 
@@ -29,6 +31,7 @@ export function TarjetonPageClient({
       {previousImports.length > 0 && (
         <TarjetonHistorySection
           imports={previousImports}
+          latestConcepts={latestConcepts}
           onUploadNew={() => setShowUploader(true)}
         />
       )}

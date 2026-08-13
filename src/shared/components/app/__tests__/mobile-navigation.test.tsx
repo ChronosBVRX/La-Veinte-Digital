@@ -40,7 +40,7 @@ describe("navegación móvil — Punto 3", () => {
   it("el sheet de Herramientas conserva las 4 herramientas base", () => {
     const hrefs = MOBILE_SHEET_GROUPS.herramientas.items.map((i) => i.href)
     expect(hrefs).toEqual(
-      expect.arrayContaining(["/calculadoras", "/simulador-nomina", "/escritos", "/catalogo"]),
+      expect.arrayContaining(["/calculadoras", "/simulador-nomina", "/escritos", "/guia"]),
     )
   })
 })

@@ -14,7 +14,6 @@ import {
   Briefcase,
   Wrench,
   ArrowsLeftRight,
-  Article,
 } from "@phosphor-icons/react"
 import type { IconProps } from "@phosphor-icons/react"
 
@@ -50,7 +49,7 @@ export const DESKTOP_NAV_GROUPS: NavGroup[] = [
       { href: "/calculadoras", label: "Calculadoras", icon: Calculator },
       { href: "/simulador-nomina", label: "Simulador de nómina", icon: ArrowsLeftRight },
       { href: "/escritos", label: "Crear un escrito", icon: FileText },
-      { href: "/catalogo", label: "Entender conceptos de mi pago", icon: Books },
+      { href: "/guia", label: "Guía de mi Tarjetón", icon: Books },
     ],
   },
   {

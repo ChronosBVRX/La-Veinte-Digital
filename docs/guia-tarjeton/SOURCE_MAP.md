@@ -1,0 +1,22 @@
+# SOURCE_MAP — páginas del manual
+
+- 1: portada.
+- 2-4: índice.
+- 5: presentación y Art. 53 citado por el manual.
+- 6: objetivo y referencia al SIAP.
+- 7: estructura de 5 secciones.
+- 8: separador Emisor/Receptor.
+- 9: Emisor y Receptor.
+- 10-19: campos del receptor, incidencias, vacaciones, crédito y sueldo mensual integrado.
+- 20: separador Percepciones/Deducciones.
+- 21-22: catálogo de percepciones.
+- 22-28: explicaciones de conceptos de percepción seleccionados.
+- 29-30: catálogo de deducciones.
+- 30-31: explicaciones de deducciones seleccionadas.
+- 32: Mensajes y Observaciones.
+- 33: campos de Observaciones.
+- 34-36: registro/descarga del tarjetón según el manual.
+- 37: consulta de datos biométricos según el manual.
+- 38: importancia de conservar el tarjetón.
+- 39-40: agradecimientos, autora, coordinación y apoyo bibliográfico.
+- 41: cierre.

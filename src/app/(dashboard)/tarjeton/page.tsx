@@ -34,9 +34,27 @@ export default async function TarjetonPage() {
     totalNet: (p.payroll_totals as Record<string, number> | undefined)?.netPay ?? null,
   }))
 
+  // Conceptos del último tarjetón (para la guía integrada en el visor).
+  let latestConcepts: Array<{ code: string; description: string; amount: number; kind: "earning" | "deduction" }> = []
+  const latestRow = payslipsRes.data?.[0]
+  if (latestRow) {
+    const { data: lines } = await supabase
+      .from("imported_payslip_lines")
+      .select("concept_code, description, amount, kind")
+      .eq("payslip_id", latestRow.id)
+      .order("line_index", { ascending: true })
+      .limit(12)
+    latestConcepts = (lines ?? []).map((l) => ({
+      code: l.concept_code,
+      description: l.description,
+      amount: l.amount,
+      kind: l.kind === "deduction" ? ("deduction" as const) : ("earning" as const),
+    }))
+  }
+
   return (
     <div style={{ maxWidth: 720, margin: "0 auto" }}>
-      <TarjetonPageClient profile={snapshot} previousImports={previousImports} />
+      <TarjetonPageClient profile={snapshot} previousImports={previousImports} latestConcepts={latestConcepts} />
     </div>
   )
 }

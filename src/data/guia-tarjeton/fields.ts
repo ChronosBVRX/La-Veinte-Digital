@@ -1,0 +1,543 @@
+// Manual 2023 reference fields; validate current rules separately.
+
+export const guideFields = [
+  {
+    "id": 1,
+    "name": "Matrícula",
+    "sourcePage": 9,
+    "sourceText": "",
+    "status": "reference-only"
+  },
+  {
+    "id": 2,
+    "name": "Nombre",
+    "sourcePage": 10,
+    "sourceText": "2. Nombre. Dato alfabético que determina el nombre paterno, materno y nombre (s) del\n                  trabajador.",
+    "status": "reference-only"
+  },
+  {
+    "id": 3,
+    "name": "RFC",
+    "sourcePage": 10,
+    "sourceText": "3. RFC (Registro Federal de Contribuyentes). Clave alfanumérica establecida por la Secretaría\n                  de Hacienda y Crédito Público (SHCP), para identificar la cuenta individual de cada persona\n                  física o moral que incurre en obligaciones de índole fiscal por obligaciones laborales.",
+    "status": "reference-only"
+  },
+  {
+    "id": 4,
+    "name": "CURP",
+    "sourcePage": 10,
+    "sourceText": "4. CURP (Clave Única de Registro Poblacional). Clave alfanumérica de 18 caracteres, de\n                  registro de identificación personal de la Secretaría de Gobernación. Tiene una naturaleza\n                  biunívoca y se identifica solo a una persona.",
+    "status": "reference-only"
+  },
+  {
+    "id": 5,
+    "name": "No. Seguridad Social (NSS)",
+    "sourcePage": 10,
+    "sourceText": "5. No. Seguridad Social (NSS). Clave numérica que el IMSS como patrón asigna al trabajador de\n                  manera personalizada, por lo que este número es único e irrepetible, independientemente del\n                  estado en el que se encuentre el afiliado.",
+    "status": "reference-only"
+  },
+  {
+    "id": 6,
+    "name": "Tipo de contratación",
+    "sourcePage": 10,
+    "sourceText": "6. Tipo de contratación. Es la descripción del tipo de contratación del trabajador:\n\n             Trabajadores de Confianza. Son aquellos trabajadores designados y contratados libremente por el IMSS\nTrabajadores   derealizan\n             que   Confianza.    Son aquellos\n                            funciones           trabajadores\n                                       de dirección,          designados\n                                                      inspección,            y contratados\n                                                                    vigilancia                libremente\n                                                                                y fiscalización  de carácter                  realizan funciones de\n                                                                                                                          quetabulado,\n                                                                                                                el IMSSy no\n                                                                                                            porgeneral\ndirección, inspección,  vigilancia\n             se subdividen         y fiscalización\n                              en Confianza          de carácterpor\n                                             “A”, contratados    general   y no tabulado,\n                                                                     el Instituto           se subdividen\n                                                                                    y Confianza              en Confianza\n                                                                                                  “B”, señalados            “A”, contratados por el\n                                                                                                                   en el reglamento\nInstituto y Confianza  “B”, señalados\n             para la calificacion        en el reglamento\n                                  y selección   de puestos.para   la calificacion\n                                                            La totalidad    de losytrabajadores\n                                                                                      selección dedepuestos.   La totalidad\n                                                                                                       confianza             de los trabajadores de\n                                                                                                                   nunca podrá\nconfianza nunca   podrá   exceder  del 10%   del número   total de  trabajadores     base. Cláusulas   11 y 12  Contrato   Colectivo\n             exceder del 10% del número total de trabajadores base. Cláusulas 11 y 12 Contrato Colectivo del Trabajodel Trabajo\n(CCT).       (CCT).\nTrabajadores  de Base. Sondeaquellos\n           Trabajadores              queaquellos\n                             Base. Son    ocupan que\n                                                   en forma\n                                                        ocupandefinitiva\n                                                                en forma undefinitiva\n                                                                            puesto tabulado,  conforme\n                                                                                      un puesto         a las\n                                                                                                tabulado,     normasacontenidas\n                                                                                                           conforme     las          en el\nCCT. Sus actividades se encuentrana   descritas  en los profesiogramas    respectivos  de cada categoría. Para trabajar\n           normas contenidas en el CCT. Sus actividades se encuentrana descritas en los profesiogramas respectivos       al servicio del\nIMSS es requisito\n           de cadaindispensable  ingresar\n                    categoría. Para       a través\n                                    trabajar        del Sindicato\n                                             al servicio del IMSSNacional    de Trabajadores\n                                                                    es requisito  indispensabledel SeguroaSocial\n                                                                                                ingresar   través(SNTSS).\n                                                                                                                  del\n            Sindicato Nacional de Trabajadores del Seguro Social (SNTSS).\nTrabajadores a obra determinada. Son los trabajadores contratados por el Instituto para realizar una labor específica que no tiene\ncarácter permanente  y queaalobra\n            Trabajadores      concluir, se extingue\n                                  determinada.   Sonla los\n                                                       relación de trabajo.\n                                                           trabajadores contratados por el Instituto para realizar una labor\n            específica que no tiene carácter permanente y que al concluir, se extingue la relación de trabajo.\nTrabajadores sustitutos. Son los candidatos de “Bolsa de Trabajo” contratados para desempeñar una actividad por tiempo\ndeterminadoTrabajadores\n             eventual, por sustitutos.\n                            razon de incrementos  temporales\n                                       Son los candidatos     de trabajo\n                                                          de “Bolsa      o ausentismo\n                                                                    de Trabajo”       de trabajadores\n                                                                                contratados             de Base,una\n                                                                                              para desempeñar    conforme a las\nnormas del reglamento   de bolsa de trabajo.\n            actividad por tiempo determinado eventual, por razon de incrementos temporales de trabajo o ausentismo\n             de trabajadores de Base, conforme a las normas del reglamento de bolsa de trabajo.",
+    "status": "reference-only"
+  },
+  {
+    "id": 7,
+    "name": "Clave de Adscripción",
+    "sourcePage": 10,
+    "sourceText": "7. Clave de adscripción. Clave alfanumérica (15 dígitos) que identifica la delegación, el grupo de\n                  trabajo o alguna de sus dependencias, especificando la ubicación del inmueble y el tipo de\n                  fución que desempeña dentro del Instituto. Ejemplo: Se desglosa la siguiente clave de\n                  adscripción:\n\n                                                                      10",
+    "status": "reference-only"
+  },
+  {
+    "id": 8,
+    "name": "Nombre de Adscripción",
+    "sourcePage": 11,
+    "sourceText": "8. Nombre de adscripción. Dato alfabético que precisa conforme a la estructura organizacional\n        en el Instituto, el nombre de la dependencia donde presta sus servicios el trabajador. Ejemplo:\n        Hospital General Regional No. 1.",
+    "status": "reference-only"
+  },
+  {
+    "id": 9,
+    "name": "Ubicación",
+    "sourcePage": 11,
+    "sourceText": "9. Ubicación. Dato alfanumérico que identifica el domicilio en donde se encuentra ubicada la\n        unidad o centro de trabaj donde presta sus servicios el trabajador.",
+    "status": "reference-only"
+  },
+  {
+    "id": 10,
+    "name": "Clave Est. Org.",
+    "sourcePage": 11,
+    "sourceText": "10. Clave Est. Org. (Clave de la estructura organizacional). Clave alfanumérica (10 dígitos) que\n        identifica la Clave Departamental, donde se encuentra adscrito el trabajador. Las dos primeras\n        posiciones corresponden a la delegacion a la que pertenece y las siguientes al orden jerárquico\n        que ocupa la dependencia dentro de la estructura organizacional.",
+    "status": "reference-only"
+  },
+  {
+    "id": 11,
+    "name": "Clave categoría/puesto",
+    "sourcePage": 11,
+    "sourceText": "11. Clave Categoría/Puesto. Dato numérico (8 dígitos) que identifica el nombre del puesto del\n        trabajador de acuerdo al último nombramiento, describiendo el puesto y la jornada. Se\n        denoniman categorías a los puestos de Base y Confianza que están enlistados en el Tabulador\n        de Sueldos.\n\nEjemplo:\n   Categoría: Aux. de enfermería 80. Clave Categoría/Puesto: 20210080\n\n   2        Tipo de contratación: Base\n\n   02100 Clave que identifica la categoría del trabajador\n\n   80       Jornada. Número de horas que labora el trabajador de acuerdo con su nombramiento (8.0 horas)\n\n Tabulador de sueldos. Es la lista de categorías y cuotas fijas mensuales en efectivo agrupadas por ramas de trabajo o\n escalafonarias y que forman parte del CCT.",
+    "status": "reference-only"
+  },
+  {
+    "id": 12,
+    "name": "Nombre categoría/puesto",
+    "sourcePage": 11,
+    "sourceText": "12. Nombre Categoría/Puesto. Dato alfabético que identifica el nombre de la categoría del\n        trabajador de acuerdo al último nombramiento que identifica el puesto y la jornada.",
+    "status": "reference-only"
+  },
+  {
+    "id": 13,
+    "name": "Antigüedad efectiva",
+    "sourcePage": 11,
+    "sourceText": "13. Antigüedad efectiva. Dato numérico que identifica los años, quincenas y días de tiempo\n        efectivo de servicios del trabajador en el Instituto, contados a partir de la fecha de ingreso.\n\n                                                         11",
+    "status": "reference-only"
+  },
+  {
+    "id": 14,
+    "name": "Plaza",
+    "sourcePage": 12,
+    "sourceText": "14. Plaza. Clave numérica que corresponde a la plaza que ocupa el trabajador y que la identifica el\n       SIAP.",
+    "status": "reference-only"
+  },
+  {
+    "id": 15,
+    "name": "Marca de ocupación plaza",
+    "sourcePage": 12,
+    "sourceText": "15. Marca de ocupación plaza. Clave numérica que identifica el motivo por el cual el titular del\n       puesto lo dejó vacante para ser ocupado en forma “no definitiva”. Derivado de la gran\n       movilidad de los trabajadores. Quincenalmente se realizan movimientos para actualizar las\n       plantillas del personal.\n\n                       TABLA DE CLAVES DE MOVIMIENTO (MARCAS DE OCUPACIÓN)\n                   Clave                                        Descripción/Utilización\n\n       00                               Definitiva\n                                        Asignada a trabajadores que figuran como titulares de plaza.\n\n       01                               Titular pasó a Confianza no Definitiva\n                                        Asignada a trabajadores titulares de plaza de confianza o base que\n                                        ocupan interinamente una plaza de confianza.\n\n       02                               Titular pasó a Base Interinas\n                                        Asignada a trabajadores de base promocionados interinamente en\n                                        otra plaza de base\n\n       03                               Titular pasó a Temporal\n                                        Asignada a trabajadores de base o confianza que ocupan una plaza\n                                        temporal.\n\n       20                               Definitiva Estatuto A\n                                        Asignada a trabajadores que figuran como titulares de plaza.\n\n       21                               No Definitiva Estatuto A\n                                        Asignada a trabajadores titulares de plaza de Estatuto “A” que\n                                        ocupan interinamente otra plaza de Estatuto “A”.\n\n       90                               Titular con promoción escalafonaria No Definitiva por dictamen\n                                        Asignada a trabajadores de base promocionados interinamente en\n                                        plaza superior de la misma rama por dictamen escalafonario.\n\n       98                               Titular con promoción escalafonaria No Definitiva por Interinato\n                                        en tato Dictamina Escalafón\n                                        Asignada a trabajadores de base promocionados interinamente en\n                                        plazas superior de la misma rama por interinato en tanto dictamina\n                                        escalafón.\n\n                                                       12",
+    "status": "reference-only"
+  },
+  {
+    "id": 16,
+    "name": "Matrícula titular",
+    "sourcePage": 13,
+    "sourceText": "16. Matrícula titular. Clave numérica que identifica la matrícula del trabajador titular del p uesto\n       que es sustituido, por otro trabajador en forma “No Definitiva”.",
+    "status": "reference-only"
+  },
+  {
+    "id": 17,
+    "name": "Fecha de término",
+    "sourcePage": 13,
+    "sourceText": "17. Fecha de término. Dato numérico que identifica el día, mes y año de término del contrato de\n       trabajo, la beca o la residencia del trabajador que no es titular de la plaza.",
+    "status": "reference-only"
+  },
+  {
+    "id": 18,
+    "name": "Banco",
+    "sourcePage": 13,
+    "sourceText": "18. Banco. Dato alfabético que identifica a la Institucion Bancaria elegida por el trabajador, en la\n       que el instituto efectuará en forma quincenal los depósitos del importe liquido derivado de las\n       percepciones salariales que tenga derecho, cuando haya elegido la forma de pago de\n       acreditamiento en cuenta.\n\nFormas de pago:\n\n        Dígito 1 (efectivo)\n\n        Dígito 2 (cheque)\n\n        Dígito 3 (Acreditamiento en Cuenta)",
+    "status": "reference-only"
+  },
+  {
+    "id": 19,
+    "name": "No. de cuenta bancaria",
+    "sourcePage": 13,
+    "sourceText": "19. No. de cuenta bancaria. Dato numérico que identifica el número de cuenta asignado al\n       trabajador por la institución bancaria cuando haya elegido esta forma de pago.",
+    "status": "reference-only"
+  },
+  {
+    "id": 20,
+    "name": "Retardos",
+    "sourcePage": 13,
+    "sourceText": "20. Retardos. Dato numérico que identifica en horas los minutos de retardo acumulados desde el\n       primero de noviembre al treinta y uno de octubre del año siguiente. Cláusula 38 CCT.\n\n           Cláusula 38 CCT. Tiempo de Tolerancia. Cuando el trabajador registre su asistencia hasta el\n           minuto 5 de entrada, tendra como estímulo, dos días de aguinaldo por cada 10 veces que marque\n           dichas condiciones y el pago correlativo deberá haceerse en la nómina ordinaria de la siguiente\n           quincena de aquella en la que el trabajador alcanzó este cálculo. Al personal que registre su\n           asistencia entre los minutos 6 y 30 se le aplicará el descuento del tiempo no laborado. En la\n           segunda quincena de noviembre se registra el acumulado total de incidencias y en la primera\n           quincena de diciembre se reinician los contadores.",
+    "status": "reference-only"
+  },
+  {
+    "id": 21,
+    "name": "Pases de salida",
+    "sourcePage": 13,
+    "sourceText": "21. Pases de salida. Dato numérico que identifica en horas acumuladas el tiempo autorizado al\n       trabajador mediante pases de salida, intermedios, y/o entrada computados del primero de\n       noviembre al treinta y uno de octubre del año siguiente. Artículos 29, 30 y 30 Bis. Reglamento\n       Interior del Trabajo.",
+    "status": "reference-only"
+  },
+  {
+    "id": 22,
+    "name": "Faltas",
+    "sourcePage": 13,
+    "sourceText": "22. Faltas. Dato numérico que identifica los días acumulados de ausencias injustificadas del\n       trabajador durante el ejercicio comprendido del primero de noviembre al treinta y uno de\n       octubre del año siguiente. Cláusula 129 CCT. Artículo 86 Reglamento Interior de Trabajo.\n\n                                                         13",
+    "status": "reference-only"
+  },
+  {
+    "id": 23,
+    "name": "Sin retardo",
+    "sourcePage": 14,
+    "sourceText": "23. Sin retardo. Dato numérico que identifica el número de veces que el trabajador ha registrado\n   asistencia dentro de los cinco minutos de tolerancia diarios. En este rango no se genera\n   sanción alguna. Por cada 10 marcas de asistencia se genera el pago der 2 días de aguinaldo\n   como estímulo de puntualidad (Concepto 033). Cláusula 38 CCT. Artículo 93 Reglamento\n   Interior de Trabajo.",
+    "status": "reference-only"
+  },
+  {
+    "id": 24,
+    "name": "Asiduidad",
+    "sourcePage": 14,
+    "sourceText": "24. Asiduidad. Dato numérico que identifica el ausentismo del trabajador por trimestre como son:\n   faltas, licencias sin sueldo, licencia con sueldo, beca sin sueldo e incapacidades por enfermedad\n   general; durante el ejercicio comprendido del primero de noviembre al treinta y uno de\n   octubre del año siguiente.\n\n       1er. Trimestre (noviembre a enero)\n\n       2do. Trimestre (febrero a abril)\n\n       3er. Trimestre (mayo a julio)\n\n       4to. Trimestre (agosto a octubre)",
+    "status": "reference-only"
+  },
+  {
+    "id": 25,
+    "name": "Incapacidad enfermedad general",
+    "sourcePage": 14,
+    "sourceText": "25. Incapacidad enfermedad general. Dato numérico que identifica los días de ausentismo\n   amparados por Certificado de Incapacidad derivado de enfermedad general.",
+    "status": "reference-only"
+  },
+  {
+    "id": 26,
+    "name": "Incapacidad riesgo de trabajo",
+    "sourcePage": 14,
+    "sourceText": "26. Incapacidad riesgo de trabajo. Dato numérico que identifica los días de ausentismo por\n   incapacidad derivado de incapacidad por riesgo de trabajo. Cláusula 91 CCT.",
+    "status": "reference-only"
+  },
+  {
+    "id": 27,
+    "name": "Incapacidad maternidad",
+    "sourcePage": 14,
+    "sourceText": "27. Incapacidad maternidad. Dato numérico que identifica los días de ausentismo derivado de\n   incapacidad por maternidad de una trabajadora. Cláusula 77 CCT.",
+    "status": "reference-only"
+  },
+  {
+    "id": 28,
+    "name": "Notas de mérito (casos)",
+    "sourcePage": 14,
+    "sourceText": "28. Notas de mérito (casos). Dato numérico que identifica los días con derecho a pago por\n   concepto de Notas de Mérito otorgadas al trabajador en forma acumulada durante el ejercicio\n   comprendido del primero al treita y uno de octubre del año siguiente y que se pagan a través\n   de la nómina en la primera quincena de diciembre de cada año. Cada nota de mérito es\n   equivalente a un día de aguinaldo. Cláusula 126 del CCT. Reglamento Interior del Trabajo\n   Artículos 95, 96, 97 y 98.",
+    "status": "reference-only"
+  },
+  {
+    "id": 29,
+    "name": "Notas de demérito",
+    "sourcePage": 15,
+    "sourceText": "",
+    "status": "reference-only"
+  },
+  {
+    "id": 30,
+    "name": "Quincena de incidencia",
+    "sourcePage": 15,
+    "sourceText": "30. Quincena de incidencia. Clave numérica que identifica la quincena que corresponde el pago\n   de los estimulos de asistencia generados por el trabajador. Los registros de asistencia,\n   puntualidad y sustituciones se reflejan en un mes después en el comprobante de pago.",
+    "status": "reference-only"
+  },
+  {
+    "id": 31,
+    "name": "Vale a cuenta de aguinaldo",
+    "sourcePage": 15,
+    "sourceText": "31. Vale a cuenta de aguinaldo. Dato alfabético que identifica la opción solicitada por el\n   trabajador para el pago (SÍ o NO), del anticipo de aguinaldo, que se paga en la primera\n   quincena de agosto con el importe de un mes de sueldo (concepto 043) y que se solicitó al\n   realizarse la programación anual de vacaciones. Cláusula 107 CCT.\n\n       Cláusula 107 – Aguinaldo\n       El aguinaldo anual de los trabajadores será de tres meses de sueldo nominal y proporcional a los\n       sueldos percibidos. El pago se hará anticipado medio mes en la primera quincena de enero; un mes\n       más en la primera quincena de agosto a solicitud del trabajador y el saldo, en la primera quincena\n       del mes de diciembre. El aguinaldo se pagará libre de impuestos, absorbiéndolo el Instituto.",
+    "status": "reference-only"
+  },
+  {
+    "id": 32,
+    "name": "Comisiones",
+    "sourcePage": 15,
+    "sourceText": "32. Comisiones. Dato numérico que identifica los días acumulados de ausentismo derivados de\n   una Comisión asignada al trabajador fuera de su centro de trabajo en forma acumulada\n   durante el ejercicio comprendido del primero de noviembre al treinta y uno de octubre del año\n   siguiente.",
+    "status": "reference-only"
+  },
+  {
+    "id": 33,
+    "name": "Comisiones p/capacitación",
+    "sourcePage": 15,
+    "sourceText": "33. Comisiones p/capacitación. Dato numérico que indica los días de ausentismo derivados de\n   una comisión para la capacitación del trabajador en forma acumulada durante el ejercicio\n   comprendido del primero al treinta y uno de octubre del año siguiente. Cláusula 114 del CCT.\n   Reglamento de Capacitación y Adiestramiento 3 y 25.",
+    "status": "reference-only"
+  },
+  {
+    "id": 34,
+    "name": "Licencia con sueldo",
+    "sourcePage": 15,
+    "sourceText": "34. Licencia con sueldo. Dato numérico que identifica los días de ausentismo derivado por una\n   licencia con goce de sueldo del trabajador en forma acumulada. Cláusula 39 CCT.\n\n       Cláusula 39 CCT- Permisos Económicos. El Instituto, a peticion del trabajador o del sindicato,\n       estará obligado a conceder permisos económicos a los trabajadores hasta por tres días con goce de\n       salario, siempre que existan causas personales o familiares de fuerza mayor, que hagan la ausencia\n       del trabajador en su puesto.",
+    "status": "reference-only"
+  },
+  {
+    "id": 35,
+    "name": "Licencia sin sueldo",
+    "sourcePage": 16,
+    "sourceText": "",
+    "status": "reference-only"
+  },
+  {
+    "id": 36,
+    "name": "Licencia vigencia de contrato",
+    "sourcePage": 16,
+    "sourceText": "36. Licencia vigencia de contrato. Dato numérico que identifica los días totales de ausentismo\n   derivado de una licencia sin sueldo que el trabajador ha generado a partir de la fecha de\n   vigencia del CCT en virgor a la quincena de proceso (hasta por un año conforme a la vifencia\n   del CCT).",
+    "status": "reference-only"
+  },
+  {
+    "id": 37,
+    "name": "Becas sin sueldo",
+    "sourcePage": 16,
+    "sourceText": "37. Beca sin sueldo. Dato numérico que identifica los días de ausentismo programado derivado de\n   becas sin sueldo del trabajador. Artículo 10 del Reglamento de Becas. Las becas sin goce de\n   salario darán derecho a:\n\n       a) Licencia sin goce de salario hasta por un máximo de veinticuatro meses.\n       b) Conservación de derechos escalafonarios y de antigüedad durante el tiempo que dure la beca, si\n       el trabajador tiene menos de 3 años de antigüedad y que sea estudiante en carrera profesional o de\n       tipo politécnico.\n       c) Conservacion y generacion de derechos escalafonarios y de antigüedad durante el tiempo que\n       dure la beca, si el trabajador tiene más de 3 años de antigüedad y que sea estudiante de carrera\n       profesional o de tipo politécnico.",
+    "status": "reference-only"
+  },
+  {
+    "id": 38,
+    "name": "Becas con sueldo",
+    "sourcePage": 16,
+    "sourceText": "38. Becas con sueldo. Dato numérico que identifica los días de ausentismo programado\n   derivados de beca con sueldo del trabajador. Artículo 9 del Reglamento de Becas. Las becas con\n   goce de salario darán derecho a:\n\n       a) Salario íntegro por el tiempo que dure la beca.\n       b) Conservación y generación de derechos de antigüedad y escalafonarios.",
+    "status": "reference-only"
+  },
+  {
+    "id": 39,
+    "name": "Días concepto 033",
+    "sourcePage": 16,
+    "sourceText": "39. Días concepto 033. Dato numérico que identifica el importe adicional que percibe el\n   trabajador como estímulo de puntualidad por registrar su asistencia hasta el tiempo de\n   tolerancia (minuto 5). Por cada 10 marcas de asistencia se genera el pago de 2 días de\n   aguinaldo. Para este efecto se consideran como días laborados con registro de asistencia hasta\n   el minuto cinco de entrada, los periodos de vacaciones, los pases de entrada oficiales y las\n   incapacidades por riesgo de trabajo siempre y cuando no ocurran en el trayecto. Artículo 93\n   del Reglamento Interior del Trabajo.\n\n                     INCIDENCIA                                 CONCEPTOS 032 Y 033\n   Beca con sueldo                                 Con pago Cptos. 032 - 033\n\n   Beca sin sueldo                                 Sin pago Cptos. 032 – 033\n\n   Comisión                                        Con pago Cptos. 032 - 033\n\n   Falta                                           Sin pago Cptos. 032 – 033\n\n   Incapacidad de enfermedad general               Sin pago Cptos. 032 – 033\n   Incapacidad maternidad                          Con pago Cptos. 032 - 033\n\n                                                 16",
+    "status": "reference-only"
+  },
+  {
+    "id": 40,
+    "name": "Periodo de pago",
+    "sourcePage": 17,
+    "sourceText": "40. Periodo de pago. Descripcion de la quincena de pago. Ejemplo: 1ª ENE. 2024. Se integra con\n        una clave alfanumérica de 9 posiciones. Los dos primeros dígitos corresponden, ya sea a la\n        primera (1ª) quincena del mes, las tres posiciones siguientes indican el mes y las últimas\n        cuatro posiciones identifican el año.",
+    "status": "reference-only"
+  },
+  {
+    "id": 41,
+    "name": "Método de pago",
+    "sourcePage": 17,
+    "sourceText": "41. Método de pago. Es la forma de pago: efectivo, cheque o acreditamiento en cuenta.",
+    "status": "reference-only"
+  },
+  {
+    "id": 42,
+    "name": "Capacidad de crédito",
+    "sourcePage": 17,
+    "sourceText": "42. Capacidad de crédito. Dato numérico que identifica el importe máximo de descuento que se\n        puede aplicar al trabajador que solicita un crédito de conformidad a las normas vigentes en\n        cada caso. Si en este campo el dato que figura es igual a cero o aparece una cantidad precedida\n        por un signo (-) significa que tiene una capacidad de crédito negativa y por lo tanto, no tendrá\n        derecho a un nuevo crédito. La Ley Federal de Trabajo en su Artículo 110 Fracción I señala que\n        el descuento que se le puede hacer a un trabajador no puede ser maor del 30%.",
+    "status": "reference-only"
+  },
+  {
+    "id": 43,
+    "name": "Días laborados en el año",
+    "sourcePage": 17,
+    "sourceText": "43. Días laborados en el año. Días laborados computados desde el primero de enero al último día\n        de la quincena procesada a la que se refiere el comprobante de pago. Este dato se toma como\n        base para el cálculo del impuesto (año calendario).",
+    "status": "reference-only"
+  },
+  {
+    "id": 44,
+    "name": "Días pagados en la quincena",
+    "sourcePage": 17,
+    "sourceText": "44. Días pagados en la quincena. Dato numérico que identifica el número de días efectivos\n        pagados al trabajador en la quincena a la que se refiere el comprobante de pago.",
+    "status": "reference-only"
+  },
+  {
+    "id": 45,
+    "name": "Vacaciones disfrutadas",
+    "sourcePage": 17,
+    "sourceText": "45. Vacaciones disfrutadas. Contados numérico del SIAP que enumera los periodos vacacionales\n        disfrutados por el trabajador en su vida laboral. La cláusula 47 del CCT señala que por cada año\n\n                                                              17",
+    "status": "reference-only"
+  },
+  {
+    "id": 46,
+    "name": "Vacaciones de 20 años o más",
+    "sourcePage": 18,
+    "sourceText": "46. Vacaciones de 20 años o más. Este dato numérico refleja el último periodo vacacional\n   extraordinario por 20 o más años de servicio disfrutado por el trabajador.",
+    "status": "reference-only"
+  },
+  {
+    "id": 47,
+    "name": "No. de periodo vac. vencidos",
+    "sourcePage": 18,
+    "sourceText": "47. No. de periodo vac. vencidos. Dato numérico que identifica el número de periodos\n   vacacionales no ejercidos por el trabajador en la fecha de vencimiento, los cuales se\n   encuentran pendientes de disfrutar.",
+    "status": "reference-only"
+  },
+  {
+    "id": 48,
+    "name": "Vacaciones en el año",
+    "sourcePage": 18,
+    "sourceText": "48. Vacaciones en el año. Dato numérico que identifica el número de ausentismo programado\n   derivado de las vacaciones disfrutadas por el trabajador de forma acumulada durante el\n   ejercicio del primero de noviembre al treinta y uno de octubre del año siguiente. Cláusula 47\n   del CCT.",
+    "status": "reference-only"
+  },
+  {
+    "id": 49,
+    "name": "Marca de continuidad",
+    "sourcePage": 18,
+    "sourceText": "49. Marca de continuidad. Dígito que identifica las características del último periodo otorgado y\n   las condiciones de disfrute para el siguiente periodo.\n\n   MARCA\n     DE                   DESCRIPCIÓN DEL DISFRUTE                               CIERRE DE CICLO\n CONTINUIDAD\n       0        Continuo hasta 20 días, con pago de concepto 48        Sin dato, disfruta de dos periodos.\n                (completo).\n\n       1        1ra fracción, hasta 10 días, con pago de concepto 48   Con 1, en 2da fracción, con pago de\n                (50%).                                                 concepto 48 (50%).\n\n       2        Hasta 20 días del primer periodo, sin pago del         Con 3, en segundo periodo, sin pago\n                concepto 48.                                           de concepto 48.\n\n       3        Hasta 15 días del segundo periodo, sin pago de         Sin dato, cierra ciclo.\n                concepto 48.\n\n       4        1ra fracción, hasta 10 días, con pago de concepto 48   Con 9, en segunda fracción del pago\n                (completo).                                            de concepto 48.\n\n       5        Del periodo 2 o 3, sin pago de concepto 48.            Con 5, segundo y tercer periodo sin\n                                                                       pago de concepto 48.\n\n       9        1ra fracción, hasta 10 días, si pago de concepto 48.   Con 4, 2da fracción con pago de\n                                                                       concepto 48.",
+    "status": "reference-only"
+  },
+  {
+    "id": 50,
+    "name": "Por vencer",
+    "sourcePage": 18,
+    "sourceText": "50. Por vencer. Dato numérico que identifica la fecha en la cual el trabajdor completará los 180\n   días laborados para tener derecho a un periodo más de vacaciones que deberá disfrutar\n   conforme a la tabla de roles vacacionales.",
+    "status": "reference-only"
+  },
+  {
+    "id": 51,
+    "name": "No. de periodo por disfrutar",
+    "sourcePage": 18,
+    "sourceText": "51. No. De periodo por disfrutar. Dato numérico que identifica el periodo vacacional próximo que\n   deberá disfrutar el trabajador conforme a la tabla de roles vacacionales.",
+    "status": "reference-only"
+  },
+  {
+    "id": 52,
+    "name": "Días de sust. y temp. vacs.",
+    "sourcePage": 18,
+    "sourceText": "52. Días de Sust. y Temp. Vacs. Dato numérico que identifica los días acumulados por el\n   trabajador derivado de una sustitución y/o temporalidad para efecto de vacaciones.\n\n                                                     18",
+    "status": "reference-only"
+  },
+  {
+    "id": 53,
+    "name": "Días de vacs. acum p/jubilación",
+    "sourcePage": 19,
+    "sourceText": "53. Días de vacs. acum p/jubilación. Dato numérico que identifica los días acumulados para\n   efectos de jubilación. Cuando el trabajador con 20 años o más opta en la programación anual\n   por laborar el periodo extraordinario de vacaciones, se reducirá en treinta días el tiempo para\n   su jubilación. Cláusula 47 del CCT.",
+    "status": "reference-only"
+  },
+  {
+    "id": 54,
+    "name": "Inicio (1er periodo vac.)",
+    "sourcePage": 19,
+    "sourceText": "54. Inicio (1er periodo vac.). Fecha programada en el SIAP para disfrute del 1er periodo de\n   vacaciones en el año en el que el trabajador va a disfrutrar.",
+    "status": "reference-only"
+  },
+  {
+    "id": 55,
+    "name": "Inicio (2do periodo vac.)",
+    "sourcePage": 19,
+    "sourceText": "55. Inicio (2do periodo vac.). Fecha programada en el SIAP para disfrute del 2do periodo de\n   vacaciones en el año en el que el trabajador va a disfrutrar.",
+    "status": "reference-only"
+  },
+  {
+    "id": 56,
+    "name": "Crédito INFONAVIT",
+    "sourcePage": 19,
+    "sourceText": "56. Crédito INFONAVIT. Dato numérico que identifica el número de crédito otorgado al\n   trabajador por el INFONAVIT.",
+    "status": "reference-only"
+  },
+  {
+    "id": 57,
+    "name": "Sueldo mensual integrado",
+    "sourcePage": 19,
+    "sourceText": "57. Sueldo mensual integrado. Dato numérico que identifica el importe mensual que percibe el\n   trabajador como retribución a sus servicios. Este importe se integra por la suma de todos los\n   importes a que tiene derecho el trabajador, de acuerdo a su categoría y funciones. Es la base\n   de cálculo para determinar el importe de la prima vacacional, prima dominical, guardias,\n   tiempo extraordinario y ayuda para actividades culturales y recreativas.\n\n                                    ¿Cómo obtenerlo?\n       Se suma el importe quincenal de los conceptos 002 + 011 (o en su caso 016 + 022 +\n       023 + 057 + 058 + 061 + 063) + 020 + 050 y se multiplica por 2 para obtener la\n       cantidad mensual.",
+    "status": "reference-only"
+  },
+  {
+    "id": 58,
+    "name": "Fecha de ingreso",
+    "sourcePage": 19,
+    "sourceText": "58. Fecha de ingreso. Clave numérica que indica el día, mes y año en la que el trabajador inciio la\n   relación laboral con el instituto.",
+    "status": "reference-only"
+  },
+  {
+    "id": 59,
+    "name": "Marca de crédito",
+    "sourcePage": 19,
+    "sourceText": "59. Marca de crédito. Descripción del tipo de crédito con el que ha sido beneficiado el trabajado\n   como: INFONAVIT, Gastos de escrituración, Crédito hipotecario, Préstamo personal, entre\n   otros.\n\n                                               19",
+    "status": "reference-only"
+  },
+  {
+    "id": 60,
+    "name": "Percepciones",
+    "sourcePage": 21,
+    "sourceText": "60. Percepciones. Columnas donde se registran las claves de los conceptos de percepciones\n        (ingresos), su descripción y el importe de cada concepto.",
+    "status": "reference-only"
+  },
+  {
+    "id": 61,
+    "name": "Concepto (percepciones)",
+    "sourcePage": 21,
+    "sourceText": "61. Concepto (percepciones). Clave numérica de tres posiciones que identifica una percepción\n        (ingreso) en el salario del trabajador. Las claves de los conceptos de percepción inician en\n        001 al 084.",
+    "status": "reference-only"
+  },
+  {
+    "id": 62,
+    "name": "Descripción (percepciones)",
+    "sourcePage": 21,
+    "sourceText": "62. Descripción (percepciones). Datos alfanuméricos que detallan cada uno de los conceptos de\n        ingresos que se aplican a favor del trabajador en la quincena de pago.",
+    "status": "reference-only"
+  },
+  {
+    "id": 63,
+    "name": "Importe (percepciones)",
+    "sourcePage": 21,
+    "sourceText": "63. Importe (percepciones). Dato numérico que identifica el importe monetario de cada concepto\n        de percepción a favor del trabajador.",
+    "status": "reference-only"
+  },
+  {
+    "id": 64,
+    "name": "Total de percepciones",
+    "sourcePage": 21,
+    "sourceText": "64. Total de percepciones. Dato numérico que identifica el importe total que recibe el trabajador,\n        sin considerar las deducciones, en la quincena de pago.\n                                        CLAVES DE PERCEPCIÓN\n\nCLAVE                    CONCEPTO                    CLAVE                   CONCEPTO\n\n 001     SUELDO CONFIANZA                               041   COMPLEMENTO DE AYUDA A BECARIO\n\n 002     SUELDO BASE                                    042   ANTICIPO DE SUELDO CL. 97 CCT\n\n 003     SUELDO TEMPORAL                                043   VALE A CUENTA DE AGUINALDO\n\n 005     SUELDO BECARIOS                                044   AYUDA PARA REFRIGERIO\n\n 007     SUELDO BECADOS                                 046   AYUDA DE ALOJAMIENTO A BECARIOS\n\n 008     SUELDO SUSTITUTOS                              047   ANTICIPO DE AGUINALDO DE ENERO\n\n                                                   21",
+    "status": "reference-only"
+  },
+  {
+    "id": 65,
+    "name": "Deducciones",
+    "sourcePage": 29,
+    "sourceText": "65. Deducciones. Columnas donde se registran las claves de los conceptos de deducciones por\n        descuentos aplicados al trabajador, su descripción y el importe de cada concepto.",
+    "status": "reference-only"
+  },
+  {
+    "id": 66,
+    "name": "Concepto (deducciones)",
+    "sourcePage": 29,
+    "sourceText": "66. Concepto (deducciones). Clave numérica de tres posiciones que identifican las deducciones\n        en el salario del trabajador. Las claves de los conceptos de deducciones inician del 104 al\n        199.",
+    "status": "reference-only"
+  },
+  {
+    "id": 67,
+    "name": "Descripción (deducciones)",
+    "sourcePage": 29,
+    "sourceText": "67. Descripción (deducciones). Se detallan cada uno de los conceptos de deducción por\n        descuentos aplicados al trabajador.",
+    "status": "reference-only"
+  },
+  {
+    "id": 68,
+    "name": "Importe (deducciones)",
+    "sourcePage": 29,
+    "sourceText": "68. Importe (deducciones). Dato numérico que identifica el importe total de deducciones por\n        descuentos aplicados al trabajador en la quincena de pago.",
+    "status": "reference-only"
+  },
+  {
+    "id": 69,
+    "name": "Total deducciones",
+    "sourcePage": 29,
+    "sourceText": "69. Total deducciones. Dato numérico que identifica el importe total de deducciones por\n        descuentos aplicados al trabajador en la quincena de pago.",
+    "status": "reference-only"
+  },
+  {
+    "id": 70,
+    "name": "Líquido",
+    "sourcePage": 29,
+    "sourceText": "70. Líquido (deducciones). Dato numérico que identifica el importe neto que percibe el\n        trabajador en la quincena de pago.\n                                        CLAVES DE DEDUCCIÓN\nCLAVE                    CONCEPTO                   CLAVE                   CONCEPTO\n\n104      CRÉDITO HIPOTECARIO FOVI                   151     IMPUESTOS SOBRE LA RENTA (ISR)\n\n106      ENGANCHE DE CASA HABITACIÓN E.S.M.I.       152     FONDO DE JUBILACIÓN\n\n107      PROVISIÓN FONDO DE JUBILACIÓN              153     DESCUENTO COMPLEMEN ISR AÑO\n                                                            ANTERIOR\n108      PROVISIÓN RJP                              154     DESCUENTO CRÉDITO INFONAVIT\n\n109      PRIMA DE SEGURO DAÑOS DE VIVIENDA          155     DISPOSICIÓN JUDICIAL (PENSIÓN\n         INFONAVIT                                          ALIMENTICIA)\n110      CRÉDITO DE AUTOMOVIL CON TERCEROS          156     VIÁTICOS NO COMPROBADOS\n\n111      APORTACIÓN COMPLEMENTARIA AFORE            160     RECUPERACIÓN CL. 97 DEL CCT\n\n112      FONDO DE AYUDA SINDICAL POR                161     SUSPENSIÓN TEMPORAL\n         DEFUNCIÓN\n113      SEGURO DE GUARDERÍAS                       162     RESPONSABILIDAD SOBRE INSTRUMENTOS\n                                                            DE TRABAJO\n114      SEG. IND. VOL. GASTOS MÉDICOS MAYORES      164     SUSPENSIÓN SINDICAL\n\n116      SERVICIO DE TELECOMUNICACIONES             166     CASAS COMERCIALES (COMISIÓN PARITARIA)\n\n119      PRIMA DE SEGURO DE AUTOMOVIL               167     VÍVERES\n\n120      SEGURO MÉDICO                              168     ROPA\n\n121      SEGURO DE ENFERMERÍA                       169     RECUPERACIÓN VALE A CUENTA DE SUELDO\n\n122      CRED. TRAB. CONF.                          170     FONACOT\n\n125      RETENCIÓN A CUENTA DE TERCEROS             171     LICENCIA SIN SUELDO MENOR A (4) DÍAS\n\n126      SEGURO DE CAMILLERO EN UMH                 172     FALTA INJUSTIFICADA\n\n129      LICENCIA SIN SUELDO MAYOR 3 DÍAS           173     PASES DE SALIDA\n\n                                                   29",
+    "status": "reference-only"
+  },
+  {
+    "id": 71,
+    "name": "Concepto (observaciones)",
+    "sourcePage": 32,
+    "sourceText": "71. Concepto (observaciones). Claves de conceptos de percepciones y deducciones.",
+    "status": "reference-only"
+  },
+  {
+    "id": 72,
+    "name": "Importe (observaciones)",
+    "sourcePage": 32,
+    "sourceText": "72. Importe (observaciones). Dato numérico que identifica los importes que corresponden a los\n       conceptos de percepciones o deducciones aplicados al trabajador.\n\n                                                   32",
+    "status": "reference-only"
+  },
+  {
+    "id": 73,
+    "name": "Vencimiento (observaciones)",
+    "sourcePage": 33,
+    "sourceText": "73. Vencimiento (observaciones). Clave numérica que identifica la quincena y año en la cual\n   vence un concepto de percepciones o deducciones.",
+    "status": "reference-only"
+  },
+  {
+    "id": 74,
+    "name": "Unidades (observaciones)",
+    "sourcePage": 33,
+    "sourceText": "74. Unidades (observaciones). Dato numérico que identifica el número de unidades de cada\n   concepto. Este se refleja en la cantidad de unidades, días, horas o décimas.",
+    "status": "reference-only"
+  },
+  {
+    "id": 75,
+    "name": "Núm. Control (observaciones)",
+    "sourcePage": 33,
+    "sourceText": "75. Núm. Control (observaciones). Clave numérica que se impone a cada reporte, de acuerdo con\n   las normas vigentes, según el concepto del que se trate.",
+    "status": "reference-only"
+  },
+  {
+    "id": 76,
+    "name": "Cargo inicial (observaciones)",
+    "sourcePage": 33,
+    "sourceText": "76. Cargo inicial (observaciones). Dato numérico que identifica los importes pagados por\n   conceptos de sueldos, prestaciones y créditos otorgados al trabajador y los saldos en importes\n   o en número de veces el salario mensual integrado de conceptos que se encuentran en\n   proceso de recuperación.",
+    "status": "reference-only"
+  },
+  {
+    "id": 77,
+    "name": "Observaciones",
+    "sourcePage": 33,
+    "sourceText": "77. Observaciones. En este espacio se identifican diversos mensajes relacionados con el concepto\n   de que se trate de acuerdo con la norma respectiva: mensajes, fechas, importes de abone y\n   saldo, intereses y capital, así como el acumulado y parte proporcional en veces del salario\n   mensual integrado.\n\n                                              33",
+    "status": "reference-only"
+  }
+] as const;

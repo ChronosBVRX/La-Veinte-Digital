@@ -15,6 +15,7 @@ import { Checkbox } from "@/shared/components/ui/Checkbox"
 import { ExtractedField } from "./ExtractedField"
 import { Summary } from "./Summary"
 import { Differences } from "./Differences"
+import { ConceptHelp } from "@/shared/components/app/ConceptHelp"
 
 interface ReviewProps {
   parsed: ParsedImssTarjeton
@@ -248,6 +249,9 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
                   aria-label={`Nombre del concepto ${row.lineIndex}`}
                   style={{ flex: 1, minWidth: "12rem", padding: "0.25rem 0.5rem", fontSize: "0.8125rem" }}
                 />
+                {/^\d{3}$/.test(row.code.trim()) && (
+                  <ConceptHelp conceptCode={row.code.trim()} variant="icon" size={18} />
+                )}
                 <Input
                   value={String(row.amount)}
                   onChange={(event) => {

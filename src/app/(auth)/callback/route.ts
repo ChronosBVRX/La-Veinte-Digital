@@ -13,7 +13,7 @@ const ALLOWED_INTERNAL_PATHS = [
   "/calendario",
   "/tarjeton",
   "/escritos",
-  "/catalogo",
+  "/guia",
 ]
 
 function isSafeInternalPath(path: string | null): boolean {
