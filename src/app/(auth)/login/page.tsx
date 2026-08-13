@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Image from "next/image"
-import { LoginForm } from "./login-form"
+import { LoginTabs } from "./login-tabs"
 
 export default async function LoginPage() {
   const supabase = await createClient()
@@ -36,7 +36,7 @@ export default async function LoginPage() {
           borderRadius: "var(--radius-lg)", padding: "1.5rem",
           boxShadow: "var(--shadow-md)",
         }}>
-          <LoginForm />
+          <LoginTabs />
         </div>
       </div>
     </div>

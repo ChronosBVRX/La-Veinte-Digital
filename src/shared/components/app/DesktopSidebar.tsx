@@ -135,7 +135,7 @@ export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
           <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.0625rem" }}>
             <li>
               <button
-                onClick={() => { (window as any).LaVeinteApp?.openOfficialPayslips() }}
+                onClick={() => { window.LaVeinteApp?.openOfficialPayslips() }}
                 style={{
                   display: "flex", alignItems: "center", gap: "0.625rem", width: "100%",
                   padding: "0.5rem 0.625rem", borderRadius: "var(--radius)",
@@ -161,7 +161,7 @@ export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
           <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.0625rem" }}>
             <li>
               <button
-                onClick={() => { (window as any).LaVeinteApp?.checkForUpdate?.() }}
+                onClick={() => { window.LaVeinteApp?.checkForUpdate?.() }}
                 style={{
                   display: "flex", alignItems: "center", gap: "0.625rem", width: "100%",
                   padding: "0.5rem 0.625rem", borderRadius: "var(--radius)",

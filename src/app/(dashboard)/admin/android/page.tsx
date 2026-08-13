@@ -3,6 +3,13 @@ import { redirect } from "next/navigation"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
 
+interface AndroidManifest {
+  versionCode: number
+  versionName: string
+  forceUpdate?: boolean
+  apk: { url: string; sha256?: string; size: number }
+}
+
 export default async function AdminAndroidPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -26,19 +33,19 @@ export default async function AdminAndroidPage() {
   const baseUrl = "https://la-veinte-digital.vercel.app"
 
   // Fetch published manifests
-  let stable: any = null, beta: any = null, dev: any = null
+  let stable: AndroidManifest | null = null, beta: AndroidManifest | null = null, dev: AndroidManifest | null = null
   try {
     const [s, b, d] = await Promise.all([
-      fetch(`${baseUrl}/android/stable/latest.json`, { next: { revalidate: 60 } }).then(r => r.json()),
-      fetch(`${baseUrl}/android/beta/latest.json`, { next: { revalidate: 60 } }).then(r => r.json()),
-      fetch(`${baseUrl}/android/dev/latest.json`, { next: { revalidate: 60 } }).then(r => r.json()),
+      fetch(`${baseUrl}/android/stable/latest.json`, { next: { revalidate: 60 } }).then(r => r.json() as Promise<AndroidManifest>),
+      fetch(`${baseUrl}/android/beta/latest.json`, { next: { revalidate: 60 } }).then(r => r.json() as Promise<AndroidManifest>),
+      fetch(`${baseUrl}/android/dev/latest.json`, { next: { revalidate: 60 } }).then(r => r.json() as Promise<AndroidManifest>),
     ])
     stable = s; beta = b; dev = d
   } catch { /* offline — show empty */ }
 
   // Fetch release history from Supabase (table added by migration 20260810120000)
-  const { data: releases } = await (supabase
-    .from("android_releases" as any) as any)
+  const { data: releases } = await supabase
+    .from("android_releases")
     .select("*")
     .order("version_code", { ascending: false })
     .limit(30)
@@ -95,7 +102,7 @@ export default async function AdminAndroidPage() {
                 </tr>
               </thead>
               <tbody>
-                {releases.map((r: any) => (
+                {releases.map((r) => (
                   <tr key={r.id} style={{ borderBottom: "1px solid var(--border)" }}>
                     <td style={{ padding: "0.5rem 0.75rem", fontWeight: 600 }}>
                       v{r.version_name} <span style={{ color: "var(--muted)", fontWeight: 400 }}>({r.version_code})</span>

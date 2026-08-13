@@ -2,8 +2,9 @@
 
 import Link from "next/link"
 import type { IconProps } from "@phosphor-icons/react"
-import { Calculator, Sparkle, Notebook, Article, ArrowsClockwise } from "@phosphor-icons/react"
+import { Calculator, Sparkle, Notebook, Article, ArrowsClockwise, ArrowsLeftRight } from "@phosphor-icons/react"
 import { useIsNativeApp } from "@/shared/hooks/useIsNativeApp"
+import { TransferDocumentsButton } from "@/features/transferir/components/TransferDocumentsButton"
 
 type IconType = React.ComponentType<IconProps & { size?: number; weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone" }>
 
@@ -95,9 +96,36 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
             </Link>
           )
         })}
+        <TransferDocumentsButton
+          renderTrigger={(open) => (
+            <button
+              onClick={open}
+              className="hover-lift pressable"
+              style={{
+                display: "flex", flexDirection: "column", alignItems: "center",
+                justifyContent: "center", gap: "0.5rem", minHeight: 92,
+                padding: "0.875rem 0.5rem", background: "var(--card)",
+                border: "1px solid var(--border)", borderRadius: "var(--radius-lg)",
+                cursor: "pointer", color: "var(--fg)", fontFamily: "inherit",
+                transition: "transform var(--transition), box-shadow var(--transition)",
+              }}
+            >
+              <span style={{
+                width: 44, height: 44, borderRadius: "var(--radius)",
+                background: "linear-gradient(135deg, var(--primary)1f, var(--primary)14)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <ArrowsLeftRight size={24} weight="duotone" color="var(--primary)" />
+              </span>
+              <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, textAlign: "center", lineHeight: 1.25 }}>
+                Transferir documentos
+              </span>
+            </button>
+          )}
+        />
         {isNative && (
           <button
-            onClick={() => { (window as any).LaVeinteApp?.openOfficialPayslips() }}
+            onClick={() => { window.LaVeinteApp?.openOfficialPayslips() }}
             className="hover-lift pressable"
             style={{
               display: "flex", flexDirection: "column", alignItems: "center",
@@ -122,7 +150,7 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
         )}
         {isNative && (
           <button
-            onClick={() => { (window as any).LaVeinteApp?.checkForUpdate?.() }}
+            onClick={() => { window.LaVeinteApp?.checkForUpdate?.() }}
             className="hover-lift pressable"
             style={{
               display: "flex", flexDirection: "column", alignItems: "center",

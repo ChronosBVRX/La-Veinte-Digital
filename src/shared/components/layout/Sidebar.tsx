@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Bot, FileText, BookOpen, User, Target, Calculator, DollarSign, X, Calendar, CalendarCheck, Globe, ClipboardList, FileBadge, RefreshCw } from "lucide-react"
+import { Home, Bot, FileText, BookOpen, User, Target, Calculator, DollarSign, X, Calendar, CalendarCheck, Globe, ClipboardList, FileBadge, RefreshCw, type LucideIcon } from "lucide-react"
 import { useIsNativeApp } from "@/shared/hooks/useIsNativeApp"
 import type { CSSProperties } from "react"
 
@@ -11,11 +11,19 @@ interface SidebarProps {
   onClose: () => void
 }
 
+interface SidebarLink {
+  href: string
+  label: string
+  icon: LucideIcon
+  onClick?: boolean
+  action?: "checkUpdate" | "openPayslips"
+}
+
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname()
   const isNative = useIsNativeApp()
 
-  const links = [
+  const links: SidebarLink[] = [
     { href: "/", label: "Inicio", icon: Home },
     { href: "/asistente", label: "Asistente SNTSS", icon: Bot },
     { href: "/simulador", label: "Simulador", icon: Target },
@@ -30,7 +38,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   { href: "/profile", label: "Mi Perfil", icon: User },
   ...(isNative ? [
     { href: "#", label: "Tarjetones IMSS", icon: FileBadge, onClick: true },
-    { href: "#", label: "Actualizar app", icon: RefreshCw, onClick: true, action: "checkUpdate" },
+    { href: "#", label: "Actualizar app", icon: RefreshCw, onClick: true, action: "checkUpdate" as const },
   ] : []),
 ]
 
@@ -64,16 +72,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             ? { background: "var(--primary)", color: "var(--primary-fg)" }
             : { background: "transparent", color: "var(--fg)" }
 
-          const isBridgeItem = (link as any).onClick
+          const isBridgeItem = link.onClick
 
           return (
             <li key={link.href}>
               {isBridgeItem ? (
                 <button
                   onClick={() => {
-                    const act = (link as any).action
-                    if (act === "checkUpdate") (window as any).LaVeinteApp?.checkForUpdate?.()
-                    else (window as any).LaVeinteApp?.openOfficialPayslips?.()
+                    const act = link.action
+                    if (act === "checkUpdate") window.LaVeinteApp?.checkForUpdate?.()
+                    else window.LaVeinteApp?.openOfficialPayslips?.()
                     onClose()
                   }}
                   style={{

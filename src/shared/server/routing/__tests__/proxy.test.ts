@@ -76,7 +76,7 @@ describe("proxy matcher", () => {
     "/api/nested/file.svg",
     "/",
     "/calculadoras",
-    "/protected.json",
+    "/protected-page",
     "/login",
     "/health",
   ])("covers %s", (url) => {

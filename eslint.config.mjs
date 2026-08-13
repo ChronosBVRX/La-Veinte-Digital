@@ -16,6 +16,9 @@ const eslintConfig = defineConfig([
     "public/vendor/**",
     // Supabase local stack temporales (generados por supabase start).
     "supabase/.temp/**",
+    // Artefactos generados por Playwright (reportes/traces minificados).
+    "playwright-report/**",
+    "test-results/**",
   ]),
 ]);
 

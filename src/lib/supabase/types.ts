@@ -1250,6 +1250,130 @@ export type Database = {
           },
         ]
       }
+      transfer_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          owner_id: string | null
+          owner_token: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          owner_id?: string | null
+          owner_token: string
+          token: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          owner_id?: string | null
+          owner_token?: string
+          token?: string
+        }
+        Relationships: []
+      }
+      transfer_files: {
+        Row: {
+          content_type: string
+          created_at: string
+          data: string
+          id: string
+          name: string
+          session_id: string
+          size_bytes: number
+        }
+        Insert: {
+          content_type: string
+          created_at?: string
+          data: string
+          id?: string
+          name: string
+          session_id: string
+          size_bytes: number
+        }
+        Update: {
+          content_type?: string
+          created_at?: string
+          data?: string
+          id?: string
+          name?: string
+          session_id?: string
+          size_bytes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transfer_files_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "transfer_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      android_releases: {
+        Row: {
+          apk_sha256: string | null
+          apk_size: number | null
+          apk_url: string | null
+          channel: string
+          commit_sha: string | null
+          created_at: string
+          force_update: boolean
+          id: number
+          minimum_version_code: number | null
+          published_at: string | null
+          published_by: string | null
+          release_notes: string[] | null
+          version_code: number
+          version_name: string
+        }
+        Insert: {
+          apk_sha256?: string | null
+          apk_size?: number | null
+          apk_url?: string | null
+          channel?: string
+          commit_sha?: string | null
+          created_at?: string
+          force_update?: boolean
+          id?: number
+          minimum_version_code?: number | null
+          published_at?: string | null
+          published_by?: string | null
+          release_notes?: string[] | null
+          version_code: number
+          version_name: string
+        }
+        Update: {
+          apk_sha256?: string | null
+          apk_size?: number | null
+          apk_url?: string | null
+          channel?: string
+          commit_sha?: string | null
+          created_at?: string
+          force_update?: boolean
+          id?: number
+          minimum_version_code?: number | null
+          published_at?: string | null
+          published_by?: string | null
+          release_notes?: string[] | null
+          version_code?: number
+          version_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "android_releases_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       limited_profiles: {
@@ -1344,6 +1468,32 @@ export type Database = {
           p_priority: string
         }
         Returns: undefined
+      }
+      transfer_close_session: {
+        Args: { p_owner_token: string }
+        Returns: Json
+      }
+      transfer_create_session: {
+        Args: { p_ttl_minutes?: number }
+        Returns: Json
+      }
+      transfer_get_file: {
+        Args: { p_file_id: string; p_owner_token: string }
+        Returns: Json
+      }
+      transfer_list_files: {
+        Args: { p_owner_token: string }
+        Returns: Json
+      }
+      transfer_upload_file: {
+        Args: {
+          p_content_type: string
+          p_data: string
+          p_name: string
+          p_size_bytes: number
+          p_token: string
+        }
+        Returns: Json
       }
     }
     Enums: {

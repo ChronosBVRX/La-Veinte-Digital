@@ -78,7 +78,7 @@ function createMockContext(overrides?: Partial<PayrollRuleContext>): PayrollRule
     confirmedRecurringConcepts: [],
     calculatedConcepts: new Map(),
     conceptAnchors: new Map(),
-    mode: "projection" as const,
+    mode: "assisted" as const,
     ...overrides,
   }
 }
@@ -640,7 +640,7 @@ describe("Anclaje de tarjetón — elegibilidad confirmada, importe no congelado
       incidents: [],
       recurringConcepts: [],
     }
-    const result = calculateProjection(input as any)
+    const result = calculateProjection(input)
     // concepto one_time no debe aparecer en la proyección
     const hasOneTime = result.projection.earnings.some((c) => c.code === "999")
     expect(hasOneTime).toBe(false)

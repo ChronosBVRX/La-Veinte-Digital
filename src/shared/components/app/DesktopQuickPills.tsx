@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { ArrowRight } from "@phosphor-icons/react"
+import { ArrowRight, ArrowsLeftRight } from "@phosphor-icons/react"
+import { TransferDocumentsButton } from "@/features/transferir/components/TransferDocumentsButton"
 
 const PILLS = [
   { href: "/bitacora", label: "Registrar eventos en mi agenda" },
@@ -70,6 +71,33 @@ export function DesktopQuickPills() {
             <ArrowRight size={12} style={{ color: "var(--muted)" }} />
           </Link>
         ))}
+        <TransferDocumentsButton
+          renderTrigger={(open) => (
+            <button
+              onClick={open}
+              className="hover-lift pressable"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                padding: "0.625rem 0.875rem",
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-md)",
+                fontSize: "var(--text-sm)",
+                fontWeight: 600,
+                cursor: "pointer",
+                color: "var(--fg)",
+                fontFamily: "inherit",
+                transition: "box-shadow var(--transition)",
+              }}
+            >
+              <ArrowsLeftRight size={16} style={{ color: "var(--primary)" }} />
+              Transferir documentos
+              <ArrowRight size={12} style={{ color: "var(--muted)" }} />
+            </button>
+          )}
+        />
       </div>
     </div>
   )

@@ -17,6 +17,7 @@ export const PUBLIC_PAGE_PATHS = [
   "/login",
   "/register",
   "/health",
+  "/transfer",
 ] as const
 
 export const PUBLIC_AUTH_ROUTE_PATHS = ["/callback"] as const
