@@ -13,6 +13,62 @@ export type GuideConceptRef = `concept:${string}` | `field:${string | number}` |
 /** Clasificación de un concepto educativo. */
 export type GuideConceptCategory = "perception" | "deduction" | "field" | "section"
 
+/** Estado de verificación normativa de una ficha o dato. */
+export type VerificationState = "verified" | "partially_verified" | "pending_verification"
+
+/** Institución emisora de una fuente oficial. */
+export type SourceInstitution = "IMSS" | "DOF" | "SAT" | "SCJN"
+
+/** Tipo de documento de una fuente oficial. */
+export type SourceKind =
+  | "CCT"
+  | "RIT"
+  | "NORMA_IMSS"
+  | "PROCEDIMIENTO_IMSS"
+  | "TABULADOR"
+  | "LEY"
+  | "JURISPRUDENCIA"
+  | "PORTAL_IMSS"
+
+/**
+ * Fuente oficial que respalda un concepto o campo de la guía.
+ * Solo se usa documentación institucional (imss.gob.mx y legislación oficial).
+ */
+export interface OfficialSource {
+  /** Id estable para referencias desde concept-details/field-details. */
+  id: string
+  institution: SourceInstitution
+  type: SourceKind
+  /** Clave del documento (p. ej. "1000-001-020", "1A74-003-031"). */
+  documentCode?: string
+  title: string
+  /** Cláusula contractual cuando aplica ("38"). */
+  clause?: string
+  /** Artículo cuando aplica ("93"). */
+  article?: string
+  /** Numeral cuando aplica ("7.7"). */
+  numeral?: string
+  annex?: string
+  /** Vigencia declarada por la fuente ("16 oct 2025 – 15 oct 2027"). */
+  validity?: string
+  /** URL oficial del documento (imss.gob.mx u otra fuente primaria). */
+  officialUrl?: string
+  /** Fecha en que se verificó contra la fuente. */
+  verifiedAt?: string
+}
+
+/**
+ * Cita puntual de una fuente oficial dentro de una ficha
+ * (documento + cláusula/artículo/numeral cuando se conoce).
+ */
+export interface SourceCitation {
+  sourceId: string
+  clause?: string
+  article?: string
+  numeral?: string
+  note?: string
+}
+
 /** Línea de concepto de un tarjetón, tal como la consume la guía. */
 export interface GuidePayslipLine {
   code: string

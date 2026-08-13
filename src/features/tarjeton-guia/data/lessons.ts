@@ -1,9 +1,9 @@
-/**
+﻿/**
  * Rutas educativas de la Guía de mi Tarjetón.
  *
- * Contenido original basado en la semilla `guideLessonSeeds` del Knowledge Pack
- * (Manual IMSS 2023) y redactado para micro-lecciones de 30–90 segundos.
+ * Contenido original redactado para micro-lecciones de 30–90 segundos.
  * Las cantidades usadas en ejemplos son ficticias y están marcadas como tales.
+ * Nota: contenido educativo (índice provisional), no autoridad normativa.
  */
 
 export interface GuideLessonBlock {
@@ -16,8 +16,6 @@ export interface GuideLesson {
   title: string
   emoji: string
   blocks: GuideLessonBlock[]
-  /** Referencia al manual 2023 (páginas). */
-  sourcePages?: number[]
 }
 
 export interface GuideLessonPath {
@@ -39,7 +37,6 @@ export const guideLessonPaths: GuideLessonPath[] = [
         id: "que-es-tarjeton",
         title: "¿Qué es un tarjetón?",
         emoji: "🧾",
-        sourcePages: [5, 6],
         blocks: [
           {
             kind: "text",
@@ -59,7 +56,6 @@ export const guideLessonPaths: GuideLessonPath[] = [
         id: "estructura",
         title: "Las 5 partes de tu tarjetón",
         emoji: "🧩",
-        sourcePages: [7, 9, 20, 32, 33],
         blocks: [
           {
             kind: "text",
@@ -75,7 +71,6 @@ export const guideLessonPaths: GuideLessonPath[] = [
         id: "percepciones-deducciones",
         title: "Percepciones vs. deducciones",
         emoji: "⚖️",
-        sourcePages: [20, 21, 29],
         blocks: [
           {
             kind: "text",
@@ -95,7 +90,6 @@ export const guideLessonPaths: GuideLessonPath[] = [
         id: "codigos",
         title: "¿Qué significan 002, 011, 032…?",
         emoji: "🔢",
-        sourcePages: [21, 22, 29, 30],
         blocks: [
           {
             kind: "text",
@@ -115,7 +109,6 @@ export const guideLessonPaths: GuideLessonPath[] = [
         id: "incidencia",
         title: "Quincena de incidencia",
         emoji: "📅",
-        sourcePages: [15, 32],
         blocks: [
           {
             kind: "text",
@@ -135,7 +128,6 @@ export const guideLessonPaths: GuideLessonPath[] = [
         id: "vacaciones",
         title: "Entiende tus vacaciones",
         emoji: "🏖️",
-        sourcePages: [17, 18, 19, 24, 27],
         blocks: [
           {
             kind: "text",
@@ -155,7 +147,6 @@ export const guideLessonPaths: GuideLessonPath[] = [
         id: "observaciones",
         title: "Aprende a leer Observaciones",
         emoji: "🔍",
-        sourcePages: [32, 33],
         blocks: [
           {
             kind: "text",
@@ -175,7 +166,6 @@ export const guideLessonPaths: GuideLessonPath[] = [
         id: "conservar",
         title: "¿Por qué guardar tus tarjetones?",
         emoji: "🗂️",
-        sourcePages: [38],
         blocks: [
           {
             kind: "text",

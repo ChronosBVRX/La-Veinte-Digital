@@ -1,8 +1,8 @@
-# Estructura general del tarjetón
+﻿# Estructura general del tarjetón
 
 Presentación, objetivo y las cinco áreas del recibo: Emisor, Receptor, Percepciones/Deducciones, Mensajes y Observaciones.
 
-> Fuente: Manual de orientación al tarjetón de pago del trabajador del IMSS — 2023.
+> Fuente: transcripción de un documento de referencia NO oficial (solo histórico del índice). No es autoridad normativa.
 
 ## Página 5
 
@@ -22,7 +22,7 @@ refleja el fruto de tu esfuerzo y dedicación en tu trabajo. Interpretar de
 manera efectiva cada componente de tu tarjetón no solo te permite tomar
 decisiones financieras más informadas, sino que también te empodera
 para comprender y valorar plenamente tu contribución en el entorno
-laboral. Este manual ha sido creado específicamente para brindarte la
+laboral. Este documento de referencia fue creado específicamente para brindarte la
 orientación que necesitas para aprovechar al máximo la información en tu
 tarjetón de pago y para garantizar que puedas navegar por este aspecto
 clave de tu vida laboral con confianza y comprensión.
@@ -39,8 +39,8 @@ integran el comprobante de pago. Ante las dudas y solicitudes de
 aclaración por parte de los trabajadores respecto a sus percepciones y
 deducciones y con la simple responsabilidad de contribuir al
 fortalecimiento de la comprensión de la misma. Como practicante de la
-guardería 002 de Ciudad Obregón, se presenta el manual explicativo
-denominado: “Manual de Orientación al Tarjetón de Pago”.
+guardería 002 de Ciudad Obregón, se presenta el documento de referencia
+denominado "OrientaciÃ³n al TarjetÃ³n de Pago".
 
 Es importante señalar que el comprobante de pago es un producto del
 SIAP el cual es un programa informático destinado al registro de los
@@ -54,7 +54,7 @@ en el comprobante. De ahí la importancia de conocer el tarjetón de
 pago para tener mayor certeza de que lo que se reflejó en el mismo es
 lo justo.
 
-El manual se divide en secciones clave que te guiarán a través de tu
+El documento se divide en secciones clave que te guiarán a través de tu
 tarjetón de pago.
 
 En caso de consulta virtual:
@@ -63,7 +63,7 @@ tenga una mayor rapidez en la consulta. Basta con poner el cursor en el
 tema/subtema o número de página que se desea consultar y le llevará
 ahí.
 
- Este manual está diseñado para empleados, administradores y personal
+ El documento está diseñado para empleados, administradores y personal
      sindical, con el objetivo de que todos puedan entender mejor los
    tarjetones de pago y utilizar esta información de manera adecuada.
 
@@ -72,7 +72,7 @@ ahí.
 Estructura del recibo de pago de los trabajadores
                                   del IMSS
 
-Para su mejor comprensión y análisis, el manual se ha dividido en 5 secciones (desglose del contenido del
+Para su mejor comprensión y análisis, el documento se ha dividido en 5 secciones (desglose del contenido del
 tarjetón):
 
   I.   Emisor

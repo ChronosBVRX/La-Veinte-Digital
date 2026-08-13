@@ -11,6 +11,8 @@ import { Tabs } from "@/shared/components/ui/Tabs"
 import { getGuideConceptWithDetails, getRelationsForConcept, resolveRefHref } from "@/features/tarjeton-guia/lib/catalog"
 import { normalizeCode } from "@/features/tarjeton-guia/lib/normalize"
 import type { GuideDetailContent } from "@/features/tarjeton-guia/data/concept-details"
+import type { VerificationState } from "@/features/tarjeton-guia/lib/types"
+import { VerificationCard } from "@/features/tarjeton-guia/components/VerificationCard"
 
 export function ConceptFichaPage({ code }: { code: string }) {
   const norm = normalizeCode(code)
@@ -59,7 +61,7 @@ export function ConceptFichaPage({ code }: { code: string }) {
         >
           {(active) => {
             if (active === "detallado") return <DetalladoTab d={d} />
-            if (active === "fundamento") return <FundamentoTab sources={d?.sources} />
+            if (active === "fundamento") return <FundamentoTab d={d} />
             return <FacilTab d={d} kindLabel={kind} />
           }}
         </Tabs>
@@ -207,25 +209,15 @@ function DetalladoTab({ d }: { d: GuideDetailContent | null }) {
   )
 }
 
-function FundamentoTab({ sources }: { sources?: string[] }) {
-  const labels: Record<string, string> = {
-    "cct-2023-2025-mentioned": "Contrato Colectivo de Trabajo 2023–2025",
-  }
-  const shown = (sources ?? []).filter((sid) => labels[sid])
+function FundamentoTab({ d }: { d: GuideDetailContent | null }) {
+  if (!d) return null
+  const state: VerificationState = d.verification ?? "pending_verification"
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      <Section title="Referencias">
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          {shown.map((sid) => (
-            <div key={sid} style={{ padding: "0.625rem 0.75rem", borderRadius: "var(--radius-sm)", background: "var(--accent)", fontSize: "0.8125rem", lineHeight: 1.5 }}>
-              {labels[sid]}
-            </div>
-          ))}
-          <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
-            Esta guía es educativa. Las reglas vigentes de cálculo viven en los motores de La Veinte Digital.
-          </p>
-        </div>
-      </Section>
+      <VerificationCard state={state} sources={d.sources} />
+      <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
+        Esta guía es educativa. Las reglas vigentes de cálculo viven en los motores de La Veinte Digital.
+      </p>
     </div>
   )
 }

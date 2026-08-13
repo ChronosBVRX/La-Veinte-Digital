@@ -1,19 +1,19 @@
-// Capa editorial de "Guía de mi Tarjetón".
-// Contenido educativo curado para la UI, basado principalmente en el
-// Manual de orientación al tarjetón de pago del trabajador del IMSS (2023)
-// (ver `manual-imss-2023-completo.md` y `concepts.ts`) y en la normativa
-// vigente que ya documenta La Veinte Digital.
+﻿// Capa editorial de "Guía de mi Tarjetón".
+// Contenido educativo curado para la UI, basado en el índice provisional
+// (concepts.ts) y en la normativa vigente ya validada por La Veinte Digital.
 //
 // IMPORTANTE:
-// - Cantidades y porcentajes del manual se marcan como `reference-only`.
-// - Las fórmulas NO viven aquí: viven en `formulas-manual-2023.ts`
-//   (reference-only) y en los motores vigentes de `features/calculators`,
-//   `features/nomina` y `features/vacations`.
+// - Este archivo es NOTA EDITORIAL/ÍNDICE, no autoridad normativa: ninguna
+//   cantidad o porcentaje citado aquí se muestra como vigente sin respaldo
+//   en fuentes oficiales (CCT IMSS-SNTSS vigente, normas y procedimientos
+//   del IMSS) o en los motores validados del repositorio.
+// - Las fórmulas y cantidades vigentes viven en los motores de
+//   `features/calculators`, `features/nomina` y `features/vacations`.
 // - `calculator` solo enlaza motores vigentes validados del repositorio.
 // - Para agregar o actualizar un concepto: edita SOLO este archivo y,
 //   si aplica, las fuentes en `sources.ts` y las relaciones en `relations.ts`.
 
-export type GuideContentSourceType = "manual" | "CCT" | "RIT" | "ley" | "convenio" | "app"
+export type GuideContentSourceType = "provisional" | "CCT" | "RIT" | "ley" | "convenio" | "app"
 
 export interface GuideContentSource {
   type: GuideContentSourceType
@@ -77,7 +77,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       ],
     },
     detailed: {
-      howItWorks: "El IMSS tiene un tabulador con categorías de personal de base. Tu sueldo base quincenal corresponde a tu categoría y a la vigencia del tabulador (el manual de 2023 menciona que se actualiza a partir del 16 de octubre de cada año).",
+      howItWorks: "El IMSS tiene un tabulador con categorías de personal de base. Tu sueldo base quincenal corresponde a tu categoría y a la vigencia del tabulador (una fuente provisional menciona que se actualiza a partir del 16 de octubre de cada año).",
       whenItAppears: "Quincenalmente, mientras tu nombramiento esté vigente y existan días pagados en la quincena.",
       affects: [
         "Es la base de la ayuda de renta (011) y de muchos estímulos (032, 033).",
@@ -88,7 +88,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       calculation: {
         kind: "current",
         engine: "Simulador de nómina / Tabulador de sueldos",
-        note: "La app ya tiene el tabulador vigente; no se usa la fórmula del manual.",
+        note: "La app ya tiene el tabulador vigente; no se usa la fórmula duna fuente provisional.",
       },
     },
     related: ["011", "022", "032", "033", "037", "field:57", "field:11"],
@@ -107,13 +107,13 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       ],
     },
     detailed: {
-      howItWorks: "El manual de 2023 indica que la ayuda de renta equivale a un porcentaje del sueldo tabular (72.15% en esa fuente) y que el porcentaje se actualiza en cada revisión contractual. Usa sueldos e historial reales: la cifra que ves en tu tarjetón es la que tu nómina realmente calculó.",
+      howItWorks: "una fuente provisional indica que la ayuda de renta equivale a un porcentaje del sueldo tabular (72.15% en esa fuente) y que el porcentaje se actualiza en cada revisión contractual. Usa sueldos e historial reales: la cifra que ves en tu tarjetón es la que tu nómina realmente calculó.",
       whenItAppears: "Mientras la cláusula aplique a tu situación; es una percepción recurrente.",
       affects: ["Renta de tu casa-habitación", "Cálculo de estímulos y otros conceptos que toman el 011 como base"],
       review: "Si en la misma categoría ves un importe distinto al de semanas anteriores, revisa si hubo alguna actualización del porcentaje o una incidencia.",
       calculation: {
         kind: "reference-only",
-        formula: "Sueldo tabular (002) × 72.15% (manual 2023; el porcentaje se actualiza en cada revisión contractual)",
+        formula: "Sueldo tabular (002) × 72.15% (fuente provisional; el porcentaje se actualiza en cada revisión contractual)",
         note: "La app usa el tabulador vigente; este porcentaje es referencia histórica y requiere validación.",
       },
     },
@@ -124,18 +124,18 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
     code: "012",
     easy: {
       short: "Es un complemento de pago que recibes cuando laburas con jornada discontinua.",
-      whyMatters: "Recompensa un horario partido: el manual habla de un 15% adicional sobre tu sueldo normal.",
+      whyMatters: "Recompensa un horario partido: una fuente provisional habla de un 15% adicional sobre tu sueldo normal.",
       whenAppears: "Solo en las quincenas donde se paga jornada discontinua.",
       conditions: [{ what: "Jornada continua normal", effect: "variable" }],
     },
     detailed: {
-      howItWorks: "La cláusula 28 del CCT permite horarios discontinuos por necesidad del servicio con aceptación previa del sindicato, y el trabajador percibe un porcentaje adicional de sueldo (el manual de 2023 registra 15%).",
+      howItWorks: "La cláusula 28 del CCT permite horarios discontinuos por necesidad del servicio con aceptación previa del sindicato, y el trabajador percibe un porcentaje adicional de sueldo (una fuente provisional registra 15%).",
       whenItAppears: "En las quincenas en las que tu jornada discontinua esté vigente.",
       affects: ["Se toma en cuenta en diversas bases de cálculo (por ejemplo, primas y estímulos)"],
       review: "Es un concepto variable: puede aparecer o desaparecer según tu horario asignado.",
       calculation: {
         kind: "reference-only",
-        formula: "Sueldo tabular (002) + 011 × 15% (manual 2023; validar vigencia y precedencia)",
+        formula: "Sueldo tabular (002) + 011 × 15% (fuente provisional; validar vigencia y precedencia)",
         note: "Pendiente de validación contra normativa vigente.",
       },
     },
@@ -161,7 +161,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
     code: "020",
     easy: {
       short: "Ayuda quincenal fija para el pago de renta (cláusula 63 Bis inciso A).",
-      whyMatters: "Es un apoyo fijo: el manual de 2023 registra $250.00 quincenales.",
+      whyMatters: "Es un apoyo fijo: una fuente provisional registra $250.00 quincenales.",
       whenAppears: "Quincenalmente para quien tiene derecho a esta prestación.",
       conditions: [{ what: "Incidencias o pérdida del derecho", effect: "suspende" }],
     },
@@ -182,13 +182,13 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       conditions: [{ what: "Antigüedad efectiva insuficiente", effect: "variable" }],
     },
     detailed: {
-      howItWorks: "El factor de pago se calcula dividiendo los días de estímulo entre 360, y la antigüedad se determina conforme a la cláusula 30 del CCT (referencia del manual 2023).",
+      howItWorks: "El factor de pago se calcula dividiendo los días de estímulo entre 360, y la antigüedad se determina conforme a la cláusula 30 del CCT (referencia del fuente provisional).",
       whenItAppears: "Se genera periódicamente según tus periodos de antigüedad.",
       affects: ["Depende directamente de tu antigüedad efectiva registrada"],
       review: "Si cambió sin que cambie tu antigüedad, conviene revisar el registro.",
       calculation: {
         kind: "reference-only",
-        formula: "002 + 011 (o 013 + 057 + 058 + 061, según el caso) × factor según años de servicio (manual 2023)",
+        formula: "002 + 011 (o 013 + 057 + 058 + 061, según el caso) × factor según años de servicio (fuente provisional)",
         note: "Requiere la tabla/factor vigente; la app lo cubre en el simulador de nómina.",
       },
     },
@@ -214,7 +214,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
     code: "025",
     easy: {
       short: "Pago que cubre el servicio de guardería cuando no hay cupo en alguna.",
-      whyMatters: "Sustituye al servicio de guardería con un monto mensual (el manual 2023 registra $1,000.00 mensuales, $500.00 quincenales).",
+      whyMatters: "Sustituye al servicio de guardería con un monto mensual (el fuente provisional registra $1,000.00 mensuales, $500.00 quincenales).",
       whenAppears: "Solo para trabajadores con derecho a guardería sin cupo disponible y con comprobación de su derecho.",
       conditions: [{ what: "Cupo disponible en guardería", effect: "suspende" }],
     },
@@ -224,7 +224,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       review: "Si usas guardería con cupo, no deberías verlo.",
       calculation: {
         kind: "reference-only",
-        formula: "$1,000.00 mensuales / $500.00 quincenales (manual 2023)",
+        formula: "$1,000.00 mensuales / $500.00 quincenales (fuente provisional)",
         note: "Cantidad de referencia; validar vigencia.",
       },
     },
@@ -235,7 +235,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
     code: "026",
     easy: {
       short: "Compensación mensual de pasajes para quienes desempeñan tareas fuera de los centros de trabajo.",
-      whyMatters: "El manual de 2023 registra $600.00 mensuales ($300.00 quincenales) y no se suspende en vacaciones ni en licencias por enfermedad.",
+      whyMatters: "una fuente provisional registra $600.00 mensuales ($300.00 quincenales) y no se suspende en vacaciones ni en licencias por enfermedad.",
       whenAppears: "Quincenalmente para el personal que labora fuera de los centros de trabajo.",
       conditions: [{ what: "Tareas fuera del centro de trabajo", effect: "informacion" }],
     },
@@ -245,7 +245,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       review: "Es recurrente para quienes les aplica.",
       calculation: {
         kind: "reference-only",
-        formula: "$600.00 mensuales / $300.00 quincenales (manual 2023)",
+        formula: "$600.00 mensuales / $300.00 quincenales (fuente provisional)",
         note: "Cantidad de referencia; validar vigencia.",
       },
     },
@@ -260,7 +260,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       whenAppears: "Cuando la Comisión de Pasajes determina tu derecho y el importe.",
     },
     detailed: {
-      howItWorks: "El importe lo determinan la Comisión Nacional o las subcomisiones mixtas de Pasajes (manual 2023).",
+      howItWorks: "El importe lo determinan la Comisión Nacional o las subcomisiones mixtas de Pasajes (fuente provisional).",
       whenItAppears: "Mientras prestes servicios en un municipio distinto al de tu residencia, si es colindante.",
       review: "Es un concepto condicionado a tu situación de residencia.",
     },
@@ -276,7 +276,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       conditions: [{ what: "No disfrutar el periodo", effect: "suspende" }],
     },
     detailed: {
-      howItWorks: "Por cada año de servicios tienes un periodo mínimo de vacaciones (el manual 2023 señala 16 días hábiles con aumento de un día por año, sin exceder 20). Durante ese periodo te corresponde una prima del 25% sobre los salarios correspondientes (cláusula 47 CCT).",
+      howItWorks: "Por cada año de servicios tienes un periodo mínimo de vacaciones (el fuente provisional señala 16 días hábiles con aumento de un día por año, sin exceder 20). Durante ese periodo te corresponde una prima del 25% sobre los salarios correspondientes (cláusula 47 CCT).",
       whenItAppears: "En la quincena en la que coincide el pago de tus vacaciones.",
       affects: ["Depende de tu sueldo mensual integrado", "Se relaciona con tus periodos de vacaciones"],
       review: "Si tomaste vacaciones y el importe no te cuadra, revisa los días pagados.",
@@ -303,7 +303,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       review: "Revisa que el número de domingos coincida con los que trabajaste.",
       calculation: {
         kind: "reference-only",
-        formula: "Base quincenal ÷ 15 ÷ jornada × 0.25 (manual 2023; validar vigencia)",
+        formula: "Base quincenal ÷ 15 ÷ jornada × 0.25 (fuente provisional; validar vigencia)",
         note: "El motor vigente si existe en la app se usará en lugar de esta referencia.",
       },
     },
@@ -318,12 +318,12 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       whenAppears: "Únicamente cuando ocurre un cambio de lugar autorizado.",
     },
     detailed: {
-      howItWorks: "Cuando por necesidades del servicio te muevan de lugar, el manual de 2023 indica que se cubren pasajes, transporte de menaje y un importe equivalente a 60 días de sueldo (cláusula 99 CCT).",
+      howItWorks: "Cuando por necesidades del servicio te muevan de lugar, una fuente provisional indica que se cubren pasajes, transporte de menaje y un importe equivalente a 60 días de sueldo (cláusula 99 CCT).",
       whenItAppears: "En la quincena del cambio de lugar.",
       review: "Es extraordinario: no debería aparecer en quincenas normales.",
       calculation: {
         kind: "reference-only",
-        formula: "002 + 011 × 4 quincenas (60 días de sueldo) (manual 2023; validar vigencia)",
+        formula: "002 + 011 × 4 quincenas (60 días de sueldo) (fuente provisional; validar vigencia)",
       },
     },
     related: ["002", "011"],
@@ -344,7 +344,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
     detailed: {
       howItWorks: "El estímulo por asistencia se otorga por asistir todos los días hábiles de la quincena (3 días de aguinaldo) y se paga en la nómina de la quincena siguiente a aquella en la que ocurrió (artículo 91 del RIT, referencia 2023).",
       whenItAppears: "En la quincena siguiente a la de la asistencia perfecta; por eso a veces no coincide con tu quincena de incidencia.",
-      affects: ["Registros de asistencia de la quincena anterior", "Se paga con un mes de desfase según el manual"],
+      affects: ["Registros de asistencia de la quincena anterior", "Se paga con un mes de desfase según una fuente provisional"],
       review: "Si no aparece, revisa tu quincena de incidencia y las incidencias registradas (faltas, licencias, incapacidades).",
       calculation: {
         kind: "current",
@@ -425,16 +425,16 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
     code: "039",
     easy: {
       short: "Es una bonificación quincenal ligada al seguro de guarderías.",
-      whyMatters: "El manual de 2023 registra un importe de $5.21 quincenal.",
+      whyMatters: "una fuente provisional registra un importe de $5.21 quincenal.",
       whenAppears: "Quincenalmente para el personal con esa bonificación.",
       conditions: [{ what: "Derecho a guarderías", effect: "informacion" }],
     },
     detailed: {
-      howItWorks: "Bonificación por seguro de responsabilidad civil de la rama de guarderías (manual 2023).",
+      howItWorks: "Bonificación por seguro de responsabilidad civil de la rama de guarderías (fuente provisional).",
       whenItAppears: "Es un concepto fijo para quien tiene derecho.",
       calculation: {
         kind: "reference-only",
-        formula: "$5.21 quincenal (manual 2023)",
+        formula: "$5.21 quincenal (fuente provisional)",
         note: "Cantidad de referencia; validar vigencia.",
       },
     },
@@ -444,11 +444,11 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
     code: "040",
     easy: {
       short: "Bonificación quincenal al personal médico como protección a la práctica médica.",
-      whyMatters: "Aplica principalmente a personal con práctica médica (el manual 2023 registra $20.20 quincenales).",
+      whyMatters: "Aplica principalmente a personal con práctica médica (el fuente provisional registra $20.20 quincenales).",
       whenAppears: "Quincenalmente para el personal que la tiene asignada.",
     },
     detailed: {
-      howItWorks: "Bonificación por seguro médico como protección a la práctica médica (manual 2023).",
+      howItWorks: "Bonificación por seguro médico como protección a la práctica médica (fuente provisional).",
       whenItAppears: "Para personal médico con derecho a esta bonificación.",
     },
     related: ["120"],
@@ -460,7 +460,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       short: "Es el anticipo de sueldo de la cláusula 97: hasta 3 meses de sueldo, una sola vez al año y sin intereses.",
       whyMatters: "Si lo solicitaste, verás el pago del anticipo y después su recuperación como descuento.",
       whenAppears: "En la quincena en la que se te deposita el anticipo.",
-      conditions: [{ what: "Antigüedad mínima (23 quincenas según el manual 2023)", effect: "informacion" }, { what: "Solicitud del trabajador", effect: "informacion" }],
+      conditions: [{ what: "Antigüedad mínima (23 quincenas según el fuente provisional)", effect: "informacion" }, { what: "Solicitud del trabajador", effect: "informacion" }],
     },
     detailed: {
       howItWorks: "Es facultativo del trabajador de base usar en una sola ocasión o fraccionado, hasta por tres meses de sueldo, una sola vez al año y sin devengar intereses (cláusula 97 CCT, referencia 2023).",
@@ -503,18 +503,18 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
     code: "044",
     easy: {
       short: "Ayuda quincenal para refrigerio (personal de guarderías que no recibe alimentos en especie).",
-      whyMatters: "El manual de 2023 registra $30.00 quincenales.",
+      whyMatters: "una fuente provisional registra $30.00 quincenales.",
       whenAppears: "Quincenalmente para quien tiene derecho; se afecta por varias incidencias.",
       conditions: [
         { what: "Incidencias (incapacidades, comisiones, licencias, faltas, becas, vacaciones)", effect: "reduce" },
       ],
     },
     detailed: {
-      howItWorks: "Ayuda para alimentación al personal de guarderías que no percibe alimentos en especie; se afecta con incidencias (manual 2023).",
+      howItWorks: "Ayuda para alimentación al personal de guarderías que no percibe alimentos en especie; se afecta con incidencias (fuente provisional).",
       whenItAppears: "Quincenas de nómina activa para el personal con derecho.",
       calculation: {
         kind: "reference-only",
-        formula: "$30.00 quincenales (manual 2023)",
+        formula: "$30.00 quincenales (fuente provisional)",
         note: "Cantidad de referencia; validar vigencia.",
       },
     },
@@ -550,12 +550,12 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       conditions: [{ what: "Antigüedad efectiva", effect: "variable" }],
     },
     detailed: {
-      howItWorks: "Los trabajadores perciben días de salario por ayuda cultural y recreativa según su antigüedad efectiva (tabla del manual 2023: 1 año = 23 días … 5 y más = 31 días).",
+      howItWorks: "Los trabajadores perciben días de salario por ayuda cultural y recreativa según su antigüedad efectiva (tabla del fuente provisional: 1 año = 23 días … 5 y más = 31 días).",
       whenItAppears: "En la quincena del pago anual de esta ayuda.",
       affects: ["Su cálculo depende del sueldo mensual integrado"],
       calculation: {
         kind: "reference-only",
-        formula: "SMI ÷ 30 × días de ayuda según antigüedad (manual 2023; validar tabla vigente)",
+        formula: "SMI ÷ 30 × días de ayuda según antigüedad (fuente provisional; validar tabla vigente)",
       },
     },
     related: ["field:13", "field:57", "029"],
@@ -586,7 +586,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
     code: "050",
     easy: {
       short: "Es una ayuda quincenal fija para despensa.",
-      whyMatters: "Es un apoyo fijo (el manual de 2023 registra $400.00 mensuales; la app usa $200.00 quincenales como fijo vigente).",
+      whyMatters: "Es un apoyo fijo (una fuente provisional registra $400.00 mensuales; la app usa $200.00 quincenales como fijo vigente).",
       whenAppears: "Quincenalmente para quien tiene derecho.",
       conditions: [{ what: "Pérdida del derecho por categoría o incidencias", effect: "suspende" }],
     },
@@ -659,7 +659,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
     code: "055",
     easy: {
       short: "Es el fondo de ahorro: se entrega una vez al año, en la segunda quincena de julio.",
-      whyMatters: "Es uno de los pagos anuales más esperados; el manual de 2023 habla de 46 días de sueldo tabular.",
+      whyMatters: "Es uno de los pagos anuales más esperados; una fuente provisional habla de 46 días de sueldo tabular.",
       whenAppears: "Segunda quincena de julio.",
       conditions: [{ what: "Incidencias del ejercicio (faltas, licencias sin sueldo, becas sin sueldo)", effect: "reduce" }],
     },
@@ -669,7 +669,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       review: "Si tuviste incidencias, el importe puede ser proporcional.",
       calculation: {
         kind: "reference-only",
-        formula: "(002 + 011) ÷ 15 × 46 días (manual 2023; contrato 2021-2023, requiere actualización)",
+        formula: "(002 + 011) ÷ 15 × 46 días (fuente provisional; contrato 2021-2023, requiere actualización)",
       },
     },
     related: ["152", "192", "002", "011"],
@@ -683,7 +683,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       whenAppears: "Según tu categoría.",
     },
     detailed: {
-      howItWorks: "Se integra en las bases de cálculo de múltiples conceptos (el manual lo menciona como parte de las sumas base).",
+      howItWorks: "Se integra en las bases de cálculo de múltiples conceptos (una fuente provisional lo menciona como parte de las sumas base).",
       whenItAppears: "Mientras tu nombramiento lo contemple.",
     },
     related: ["002", "011", "058", "061"],
@@ -692,7 +692,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
     code: "058",
     easy: {
       short: "Sobresueldo para enfermería con participación en docencia, enseñanza e investigación.",
-      whyMatters: "El manual de 2023 menciona un aumento del 31% sobre la base salarial.",
+      whyMatters: "una fuente provisional menciona un aumento del 31% sobre la base salarial.",
       whenAppears: "Quincenalmente para categorías de enfermería con actividades docentes.",
     },
     detailed: {
@@ -700,7 +700,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       whenItAppears: "Quincenalmente mientras acredites la actividad.",
       calculation: {
         kind: "reference-only",
-        formula: "(002 + 011) × 31% (manual 2023; validar cláusula y porcentaje vigentes)",
+        formula: "(002 + 011) × 31% (fuente provisional; validar cláusula y porcentaje vigentes)",
       },
     },
     related: ["002", "011"],
@@ -750,7 +750,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       whenAppears: "Segunda quincena de marzo, si el cálculo anual de ISPT procede a tu favor.",
     },
     detailed: {
-      howItWorks: "Se genera según la mecánica del cálculo anual de ISPT; si procede devolución, se efectúa en la segunda quincena de marzo del año siguiente (manual 2023).",
+      howItWorks: "Se genera según la mecánica del cálculo anual de ISPT; si procede devolución, se efectúa en la segunda quincena de marzo del año siguiente (fuente provisional).",
       whenItAppears: "Una vez al año, cuando aplica.",
       review: "Depende del resultado de tu cálculo de impuestos anual.",
     },
@@ -862,12 +862,12 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       conditions: [{ what: "Régimen de jubilaciones aplicable", effect: "informacion" }],
     },
     detailed: {
-      howItWorks: "El convenio adicional de jubilaciones y pensiones para trabajadores de base de nuevo ingreso (14 de octubre de 2005) estableció un aumento de aportación del 3% al 10% anual al fondo de jubilación; el 7% se descuenta con el concepto 107 (fundamento manual 2023).",
+      howItWorks: "El convenio adicional de jubilaciones y pensiones para trabajadores de base de nuevo ingreso (14 de octubre de 2005) estableció un aumento de aportación del 3% al 10% anual al fondo de jubilación; el 7% se descuenta con el concepto 107 (fundamento provisional).",
       whenItAppears: "Quincenalmente para los trabajadores a los que aplica el convenio.",
       review: "Es una aportación a tu propio fondo: revisa que el importe sea constante.",
       calculation: {
         kind: "reference-only",
-        formula: "Base (002 + 011 al 019 + 057 + 058) × 1.25 + (020 + 022 + 023 + 050 + 062 + 063) × 0.07 (manual 2023)",
+        formula: "Base (002 + 011 al 019 + 057 + 058) × 1.25 + (020 + 022 + 023 + 050 + 062 + 063) × 0.07 (fuente provisional)",
         note: "Requiere validación de régimen vigente.",
       },
     },
@@ -882,11 +882,11 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       whenAppears: "Quincenalmente para quien está en ese régimen.",
     },
     detailed: {
-      howItWorks: "La provisión RJP 2005 se estableció para trabajadores de base de nuevo ingreso entre el 16 de octubre de 2005 y el 31 de julio de 2008, con aportaciones del 4% al 10% (fundamento manual 2023).",
+      howItWorks: "La provisión RJP 2005 se estableció para trabajadores de base de nuevo ingreso entre el 16 de octubre de 2005 y el 31 de julio de 2008, con aportaciones del 4% al 10% (fundamento provisional).",
       whenItAppears: "Quincenalmente según tu generación de ingreso.",
       calculation: {
         kind: "reference-only",
-        formula: "Base × 0.10 (manual 2023; validar régimen aplicable)",
+        formula: "Base × 0.10 (fuente provisional; validar régimen aplicable)",
       },
     },
     related: ["107", "111", "152"],
@@ -919,11 +919,11 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       whenAppears: "Quincenalmente para los trabajadores de nuevo ingreso a partir de agosto de 2008.",
     },
     detailed: {
-      howItWorks: "El convenio del 27 de junio de 2008 estableció que los trabajadores de nuevo ingreso a partir del 1 de agosto de 2008 aportan del 7% al 15% a un esquema de pensiones de la Ley del Seguro Social (fundamento manual 2023).",
+      howItWorks: "El convenio del 27 de junio de 2008 estableció que los trabajadores de nuevo ingreso a partir del 1 de agosto de 2008 aportan del 7% al 15% a un esquema de pensiones de la Ley del Seguro Social (fundamento provisional).",
       whenItAppears: "Quincenalmente para la generación correspondiente.",
       calculation: {
         kind: "reference-only",
-        formula: "Base × 0.15 (manual 2023; validar régimen aplicable)",
+        formula: "Base × 0.15 (fuente provisional; validar régimen aplicable)",
       },
     },
     related: ["107", "108", "152"],
@@ -933,15 +933,15 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
     code: "112",
     easy: {
       short: "Fondo de ayuda sindical por defunción.",
-      whyMatters: "El manual de 2023 registra un importe quincenal de $42.12.",
+      whyMatters: "una fuente provisional registra un importe quincenal de $42.12.",
       whenAppears: "Quincenalmente para los trabajadores agremiados.",
     },
     detailed: {
-      howItWorks: "Este concepto sustituye a los conceptos 182 y 183; en caso de defunción de un trabajador miembro del sindicato, jubilado o pensionado, el fondo de ayuda sindical cubre una cantidad mayor (fundamento manual 2023).",
+      howItWorks: "Este concepto sustituye a los conceptos 182 y 183; en caso de defunción de un trabajador miembro del sindicato, jubilado o pensionado, el fondo de ayuda sindical cubre una cantidad mayor (fundamento provisional).",
       whenItAppears: "Quincenalmente mientras seas miembro del sindicato.",
       calculation: {
         kind: "reference-only",
-        formula: "$42.12 quincenales (manual 2023)",
+        formula: "$42.12 quincenales (fuente provisional)",
         note: "Cantidad de referencia; validar vigencia.",
       },
     },
@@ -1079,7 +1079,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       conditions: [{ what: "Ingresos acumulados del año y deducciones aplicables", effect: "variable" }],
     },
     detailed: {
-      howItWorks: "El instituto retiene el impuesto quincenal y lo entrega a la SHCP conforme a la Ley del Impuesto Sobre la Renta (fundamento manual 2023).",
+      howItWorks: "El instituto retiene el impuesto quincenal y lo entrega a la SHCP conforme a la Ley del Impuesto Sobre la Renta (fundamento provisional).",
       whenItAppears: "Quincenas en las que tu ingreso gravable supera el límite de no retención.",
       affects: ["Se relaciona con los días laborados en el año (base del cálculo anual)", "Puede dar devoluciones (070)"],
       review: "Revisa que la base use tus días laborados en el año; si el importe te sorprende, compara contra la tabla de ISR vigente.",
@@ -1095,11 +1095,11 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       whenAppears: "Quincenalmente para los trabajadores de base a los que aplica.",
     },
     detailed: {
-      howItWorks: "Los trabajadores aportan el 3% sobre los conceptos señalados por el régimen de jubilaciones y pensiones, además del mismo porcentaje sobre el fondo de ahorro (cláusula 110 CCT, fundamento manual 2023).",
+      howItWorks: "Los trabajadores aportan el 3% sobre los conceptos señalados por el régimen de jubilaciones y pensiones, además del mismo porcentaje sobre el fondo de ahorro (cláusula 110 CCT, fundamento fuente provisional).",
       whenItAppears: "Quincenalmente; también se aplica en la segunda quincena de julio sobre el fondo de ahorro.",
       calculation: {
         kind: "reference-only",
-        formula: "Base × 0.03 (manual 2023; validar régimen vigente)",
+        formula: "Base × 0.03 (fuente provisional; validar régimen vigente)",
       },
     },
     related: ["107", "108", "111", "055"],

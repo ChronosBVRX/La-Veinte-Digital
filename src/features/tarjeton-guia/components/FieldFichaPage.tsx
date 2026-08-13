@@ -9,6 +9,7 @@ import { Badge } from "@/shared/components/ui/Badge"
 import { ActionLink } from "@/shared/components/ui/ActionLink"
 import { getGuideField, resolveRefHref, resolveRefLabel } from "@/features/tarjeton-guia/lib/catalog"
 import { fieldDetails } from "@/features/tarjeton-guia/data/field-details"
+import { VerificationCard } from "@/features/tarjeton-guia/components/VerificationCard"
 import { GUIDE_FIELD_CONTENT_BY_ID, GUIDE_SECTION_FIELD_RANGES } from "@/data/guia-tarjeton/guide-fields-content"
 import { guideSections } from "@/data/guia-tarjeton/sections"
 
@@ -34,7 +35,7 @@ export function FieldFichaPage({ id }: { id: string | number }) {
   const sectionId = sectionForField(field.id)
   const section = guideSections.find((s) => s.id === sectionId)
   const relations = getFieldRelations(field.id)
-  const hasEnough = !!curated?.simple || !!kp?.easy || !!field.sourceText
+  const hasEnough = !!curated?.simple || !!kp?.easy
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto" }}>
@@ -49,11 +50,15 @@ export function FieldFichaPage({ id }: { id: string | number }) {
         <Badge variant="work">{section?.name ?? "Sección del recibo"}</Badge>
       </div>
 
+      <div style={{ marginBottom: "1rem" }}>
+        <VerificationCard state={curated?.verification ?? "pending_verification"} sources={curated?.sources} />
+      </div>
+
       {hasEnough ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
           <Card padding="1.25rem 1.5rem">
             <SectionTitle>¿Qué es?</SectionTitle>
-            <p style={para()}>{curated?.simple ?? kp?.easy ?? premise(field.sourceText)}</p>
+            <p style={para()}>{curated?.simple ?? kp?.easy}</p>
           </Card>
 
           {(curated?.whyItMatters || kp?.whenToCheck || curated?.where) && (
@@ -149,15 +154,6 @@ function getFieldRelations(id: number): Array<{ ref: string; label: string }> {
     if (label && !out.some((o) => o.ref === full)) out.push({ ref: full, label })
   }
   return out
-}
-
-function premise(text: string): string {
-  const clean = condense(text)
-  return clean.slice(0, 160).trim() + (clean.length > 160 ? "…" : "")
-}
-
-function condense(text: string): string {
-  return text.replace(/\s+/g, " ").trim()
 }
 
 function SectionTitle({ children }: { children: ReactNode }) {

@@ -1,3 +1,9 @@
+/**
+ * Relaciones navegables del índice provisional (pack).
+ * La base textual es descriptiva y NO cita documentos no oficiales.
+ * El respaldo normativo de cada relación se registra aparte (fuentes
+ * oficiales + estado de verificación); hasta verificarse, permanece pendiente.
+ */
 export const guideRelations = [
   {
     "from": "field:57",
@@ -7,9 +13,8 @@ export const guideRelations = [
       "concept:037",
       "concept:048"
     ],
-    "basis": "El manual indica que el sueldo mensual integrado es base para prima vacacional, prima dominical, guardias, tiempo extraordinario y ayuda para actividades culturales y recreativas.",
-    "sourcePage": 19,
-    "status": "manual-2023-reference"
+    "basis": "El sueldo mensual integrado es la base para el cálculo de varias percepciones.",
+    "status": "pending_verification"
   },
   {
     "from": "field:13",
@@ -23,15 +28,8 @@ export const guideRelations = [
       "concept:022",
       "concept:048"
     ],
-    "basis": "El manual relaciona antigüedad efectiva con vacaciones, factores de ayuda de renta y días de ayuda cultural/recreativa.",
-    "sourcePages": [
-      11,
-      18,
-      19,
-      23,
-      27
-    ],
-    "status": "manual-2023-reference"
+    "basis": "La antigüedad efectiva se relaciona con vacaciones, factores de ayuda de renta y días de ayuda cultural y recreativa.",
+    "status": "pending_verification"
   },
   {
     "from": "field:30",
@@ -39,9 +37,8 @@ export const guideRelations = [
       "concept:032",
       "concept:033"
     ],
-    "basis": "La quincena de incidencia identifica la quincena correspondiente al pago de estímulos de asistencia; el manual menciona desfase de registros.",
-    "sourcePage": 15,
-    "status": "manual-2023-reference"
+    "basis": "La quincena de incidencia se relaciona con el pago de estímulos de asistencia y puntualidad.",
+    "status": "pending_verification"
   },
   {
     "from": "section:observaciones",
@@ -52,11 +49,7 @@ export const guideRelations = [
       "field:76",
       "field:77"
     ],
-    "basis": "La sección Observaciones contiene vencimiento, unidades, número de control, cargo inicial y mensajes/detalles.",
-    "sourcePages": [
-      32,
-      33
-    ],
-    "status": "manual-2023-reference"
+    "basis": "La sección de observaciones contiene vencimiento, unidades, número de control, cargo inicial y mensajes de cada descuento.",
+    "status": "pending_verification"
   }
 ] as const;

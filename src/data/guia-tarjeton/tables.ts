@@ -1,4 +1,4 @@
-// Tables transcribed from the 2023 manual. Reference-only.
+﻿// Índice provisional: tablas transcritas de una fuente de referencia no oficial. No usar como autoridad normativa.
 
 export const occupationMarks = [
   {
@@ -78,7 +78,7 @@ export const incidence032033 = [
     "incidence": "Incapacidad riesgo de trabajo (no trayecto)",
     "concept032": "con pago",
     "concept033": "con pago",
-    "note": "Trayecto: el manual indica solo pago del 032."
+    "note": "Trayecto: la fuente provisional indica solo pago del 032."
   },
   {
     "incidence": "Lactancia-Entrada",

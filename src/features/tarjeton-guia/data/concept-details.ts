@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Contenido educativo curado para los conceptos prioritarios de la Guía de mi Tarjetón.
  *
  * - `simple`: "En palabras simples" (capa Fácil).
@@ -8,12 +8,16 @@
  * - `affects`: "¿Qué puede hacer que no lo genere?" (solo condiciones documentadas).
  * - `related`: relaciones navegables respaldadas (códigos de concepto o ids de campo `field:N`).
  * - `calculator`: vínculo opcional a un simulador existente (nunca fórmulas nuevas).
- * - `sources`: ids de `guideSources` (conceptDetails solo referencia, no normativa vigente).
+ * - `sources`: ids de `guideSources` (solo documentos oficiales IMSS/CCT confirmados).
+ * - `verification`: estado de verificación normativa de la entrada
+ *   (`verified` = asociación a documento oficial confirmada; `partially_verified` =
+ *   documento identificado, cláusula/numeral aún por precisar; `pending_verification` =
+ *   referencia oficial aún por confirmar).
  *
  * Este archivo es CONTENIDO educacional: las cantidades y fórmulas vigentes viven en los
  * motores de La Veinte (nominas/calculadores). Nunca colocar fórmulas de producción aquí.
  */
-import type { GuideConceptRef } from "@/features/tarjeton-guia/lib/types"
+import type { GuideConceptRef, VerificationState } from "@/features/tarjeton-guia/lib/types"
 
 export interface GuideDetailContent {
   simple: string
@@ -24,6 +28,7 @@ export interface GuideDetailContent {
   related?: Array<{ ref: GuideConceptRef; label: string; why?: string }>
   calculator?: { route: string; label: string }
   sources?: string[]
+  verification?: VerificationState
 }
 
 /** Contenido curado por código de concepto (3 dígitos). */
@@ -43,7 +48,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:151", label: "Impuesto sobre la renta (ISR)" },
       { ref: "field:57", label: "Sueldo mensual integrado" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: ["cct-2025-2027"], verification: "partially_verified",
   },
   "011": {
     simple: "Es una ayuda mensual equivalente a un porcentaje del concepto 002 (sueldo base), establecida en la cláusula 63 Bis de la contratación colectiva.",
@@ -55,7 +60,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:020", label: "Ayuda de renta (otra variante)" },
       { ref: "concept:022", label: "Ayuda de renta por antigüedad" },
     ],
-    sources: ["manual-imss-2023", "cct-2023-2025-mentioned"],
+    sources: ["cct-2025-2027"], verification: "partially_verified",
   },
   "012": {
     simple: "Es un pago adicional por tener jornada discontinua: cuando tu jornada laboral se divide en dos partes, te corresponde un sobresueldo.",
@@ -66,7 +71,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:002", label: "Sueldo base", why: "Base de la proyección de tu jornada" },
       { ref: "concept:013", label: "Sobresueldo médico" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: ["norma-1000-001-020"], verification: "verified",
   },
   "020": {
     simple: "Es una ayuda de renta que el IMSS paga a trabajadores de ciertas categorías, con un importe fijo establecido en su normativa.",
@@ -77,7 +82,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:011", label: "Ayuda de renta (sobre sueldo)", why: "Otra modalidad de la misma prestación" },
       { ref: "concept:022", label: "Ayuda de renta por antigüedad" },
     ],
-    sources: ["manual-imss-2023", "cct-2023-2025-mentioned"],
+    sources: ["cct-2025-2027"], verification: "partially_verified",
   },
   "022": {
     simple: "Es una ayuda de renta adicional que depende de tu antigüedad: entre más años de servicio, mayor es el factor que se te paga.",
@@ -90,7 +95,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:002", label: "Sueldo base" },
       { ref: "concept:011", label: "Ayuda de renta" },
     ],
-    sources: ["manual-imss-2023", "cct-2023-2025-mentioned"],
+    sources: ["cct-2025-2027"], verification: "partially_verified",
   },
   "025": {
     simple: "Es el pago supletorio de guardería: cubre el servicio de guardería cuando por alguna razón el IMSS no puede otorgarlo directamente.",
@@ -98,7 +103,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se genera en los periodos en que el derecho a guardería se cubre mediante pago en lugar del servicio.",
     whenItAppears: "Aparece únicamente en los periodos donde corresponde el pago supletorio.",
     related: [{ ref: "concept:039", label: "Bonificación de guarderías", why: "Concepto relacionado con servicios de guardería" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "026": {
     simple: "Es una compensación fija por pasajes: el IMSS paga una cantidad para apoyar el transporte de los trabajadores.",
@@ -106,7 +111,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se paga a los trabajadores que tienen asignada la compensación por pasajes.",
     whenItAppears: "Aparece quincenalmente mientras mantengas el derecho a la compensación.",
     related: [{ ref: "concept:027", label: "Compensación de pasajes", why: "Modalidad relacionada" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "027": {
     simple: "Es una compensación por pasajes que se ajusta según las condiciones del servicio o traslado.",
@@ -114,7 +119,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se genera en los periodos donde corresponde la compensación ajustada de pasajes.",
     whenItAppears: "Aparece en las quincenas donde corresponde según tus condiciones de trabajo.",
     related: [{ ref: "concept:026", label: "Pasajes fijos", why: "Modalidad fija de la misma prestación" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "029": {
     simple: "Es el pago por tus vacaciones: un porcentaje adicional que se te paga cuando disfrutas tu periodo vacacional.",
@@ -129,7 +134,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:049", label: "Aguinaldo" },
     ],
     calculator: { route: "/vacaciones", label: "Calcular mis vacaciones" },
-    sources: ["manual-imss-2023", "cct-2023-2025-mentioned"],
+    sources: ["cct-2025-2027"], verification: "partially_verified",
   },
   "030": {
     simple: "Es un porcentaje extra que se paga cuando trabajas en domingo.",
@@ -137,7 +142,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se genera en las quincenas en las que laboraste días domingo conforme a tu jornada.",
     whenItAppears: "Aparece en los periodos donde tu jornada incluye trabajo en domingo.",
     related: [{ ref: "concept:002", label: "Sueldo base", why: "Se calcula sobre tu sueldo" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "031": {
     simple: "Es una compensación por cambio de lugar de adscripción: apoya los gastos cuando te trasladan temporal o definitivamente.",
@@ -145,7 +150,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se paga cuando el trabajador es cambiado de lugar de adscripción.",
     whenItAppears: "Aparece en la quincena donde corresponde el cambio de lugar.",
     related: [{ ref: "field:8", label: "Nombre de adscripción", why: "Tu adscripción actual se refleja en el receptor" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "032": {
     simple: "Es un estímulo económico por tener asistencia perfecta: se paga por días de asistencia sin faltas.",
@@ -159,7 +164,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "field:24", label: "Asiduidad" },
       { ref: "field:30", label: "Quincena de incidencia" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "033": {
     simple: "Es un estímulo por llegadas puntuales: se paga cuando no tienes retardos en el periodo que se evalúa.",
@@ -173,7 +178,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "field:39", label: "Días concepto 033" },
       { ref: "field:30", label: "Quincena de incidencia" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "037": {
     simple: "Es el pago de las horas extra que trabajaste más allá de tu jornada ordinaria.",
@@ -183,7 +188,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     affects: ["Horas extra no autorizadas"],
     related: [{ ref: "concept:002", label: "Sueldo base", why: "Es la base de cálculo de las horas extra" }],
     calculator: { route: "/calculadoras/tiempo-extra", label: "Calcular mi tiempo extra" },
-    sources: ["manual-imss-2023", "cct-2023-2025-mentioned"],
+    sources: ["proc-1a74-003-031"], verification: "verified",
   },
   "038": {
     simple: "Es el pago de tus vacaciones cuando no las disfrutas como descanso y se te pagan en efectivo.",
@@ -195,7 +200,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "field:47", label: "Periodos vacacionales vencidos" },
     ],
     calculator: { route: "/vacaciones", label: "Consultar mis vacaciones" },
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "039": {
     simple: "Es una bonificación relacionada con el servicio de guarderías.",
@@ -203,7 +208,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se paga en los periodos donde corresponde la bonificación por servicios de guardería.",
     whenItAppears: "Aparece en los periodos donde corresponde según tu situación.",
     related: [{ ref: "concept:025", label: "Pago supletorio de guardería", why: "Concepto relacionado con guarderías" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "040": {
     simple: "Es una bonificación por el seguro médico.",
@@ -211,7 +216,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se paga en los periodos donde corresponde la bonificación de seguro médico.",
     whenItAppears: "Aparece en las quincenas donde corresponde según las condiciones del trabajador.",
     related: [{ ref: "concept:039", label: "Bonificación de guarderías", why: "Otras bonificaciones del IMSS" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "042": {
     simple: "Es un anticipo de sueldo: una parte de tu sueldo que se adelanta antes de la quincena.",
@@ -222,7 +227,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:169", label: "Recuperación de vale a cuenta de sueldo", why: "Descuento relacionado con anticipos" },
       { ref: "concept:043", label: "Vale a cuenta de aguinaldo" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "043": {
     simple: "Es un vale a cuenta de aguinaldo: un adelanto del aguinaldo que se descuenta después.",
@@ -234,7 +239,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:047", label: "Anticipo de aguinaldo" },
     ],
     calculator: { route: "/calculadoras/clausula-97", label: "Calcular la recuperación Cl. 97" },
-    sources: ["manual-imss-2023", "cct-2023-2025-mentioned"],
+    sources: [], verification: "pending_verification",
   },
   "044": {
     simple: "Es una ayuda para refrigerio.",
@@ -242,7 +247,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se paga a los trabajadores con derecho a la ayuda para refrigerio.",
     whenItAppears: "Aparece quincenalmente mientras tengas asignado el concepto.",
     related: [{ ref: "concept:050", label: "Ayuda para despensa", why: "Otras ayudas fijas" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "047": {
     simple: "Es un anticipo del aguinaldo, similar al vale pero con otra forma de recuperación.",
@@ -254,7 +259,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:049", label: "Aguinaldo" },
     ],
     calculator: { route: "/calculadoras/clausula-97", label: "Calcular la recuperación Cl. 97" },
-    sources: ["manual-imss-2023", "cct-2023-2025-mentioned"],
+    sources: [], verification: "pending_verification",
   },
   "048": {
     simple: "Es una ayuda para actividades culturales y recreativas.",
@@ -265,7 +270,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "field:13", label: "Antigüedad efectiva", why: "Los días asignados dependen de la antigüedad" },
       { ref: "concept:049", label: "Aguinaldo" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "049": {
     simple: "Es tu aguinaldo: la prestación anual obligatoria que se paga a final de año.",
@@ -279,7 +284,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:047", label: "Anticipo de aguinaldo" },
     ],
     calculator: { route: "/calculadoras/aguinaldo", label: "Calcular mi aguinaldo" },
-    sources: ["manual-imss-2023", "cct-2023-2025-mentioned"],
+    sources: ["cct-2025-2027"], verification: "partially_verified",
   },
   "050": {
     simple: "Es la ayuda para despensa: una prestación que se paga quincenalmente a los trabajadores que la tienen asignada.",
@@ -287,7 +292,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se paga a los trabajadores con derecho a la ayuda para despensa.",
     whenItAppears: "Aparece quincenalmente mientras tengas asignado el concepto.",
     related: [{ ref: "concept:044", label: "Ayuda para refrigerio", why: "Otras ayudas fijas" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "052": {
     simple: "Son las notas de mérito: un reconocimiento económico o registral por desempeño sobresaliente.",
@@ -295,7 +300,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se otorga cuando se emite una nota de mérito a tu favor.",
     whenItAppears: "Aparece en la quincena donde se registra la nota.",
     related: [{ ref: "field:28", label: "Notas de mérito (casos)", why: "Se refleja en el receptor" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "053": {
     simple: "Es una percepción relacionada con tu fondo de retiro.",
@@ -306,7 +311,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:107", label: "Provisión fondo de jubilación", why: "Concepto de deducción vinculado" },
       { ref: "concept:108", label: "Provisión RJP" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "055": {
     simple: "Es una percepción de fondo de ahorro: junto con la deducción equivalente, forma tu ahorro.",
@@ -314,7 +319,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se registra como aportación al fondo de ahorro en el periodo establecido.",
     whenItAppears: "Aparece en los periodos donde se paga el fondo de ahorro.",
     related: [{ ref: "concept:055", label: "Deducción de fondo de ahorro", why: "Aportación y descuento van de la mano" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "058": {
     simple: "Es un sobresueldo por actividades de docencia y enfermería.",
@@ -322,7 +327,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se paga a los trabajadores que desempeñan funciones de docencia o enfermería.",
     whenItAppears: "Aparece en las quincenas donde se desempeña la función.",
     related: [{ ref: "concept:002", label: "Sueldo base", why: "Base de los sobresueldos" }],
-    sources: ["manual-imss-2023"],
+    sources: ["norma-1000-001-020"], verification: "verified",
   },
   "070": {
     simple: "Es la devolución de ISPT: cuando se te retuvo impuesto de más, se te devuelve.",
@@ -330,7 +335,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se genera cuando el cálculo del impuesto resulta en una devolución a tu favor.",
     whenItAppears: "Aparece en la quincena donde se aplica el ajuste de impuestos.",
     related: [{ ref: "concept:151", label: "Impuesto sobre la renta (ISR)", why: "Retención vinculada" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "084": {
     simple: "Es un estímulo por calidad y eficiencia.",
@@ -338,7 +343,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se paga cuando se acredita el estímulo de calidad y eficiencia.",
     whenItAppears: "Aparece en la quincena donde se otorga el estímulo.",
     related: [{ ref: "concept:052", label: "Notas de mérito", why: "Otros reconocimientos" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
 
   // ------------------------------------------------------------------ DEDUCCIONES
@@ -351,7 +356,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:152", label: "Fondo de jubilación", why: "Aportación base del fondo" },
       { ref: "concept:108", label: "Provisión RJP" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "108": {
     simple: "Es la provisión del Régimen de Jubilaciones y Pensiones (RJP) para trabajadores incorporados entre 2005 y 2008.",
@@ -362,7 +367,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:107", label: "Provisión fondo de jubilación" },
       { ref: "concept:152", label: "Fondo de jubilación" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "111": {
     simple: "Es la aportación complementaria a tu Afore.",
@@ -370,7 +375,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se descuenta conforme a las disposiciones vigentes del ahorro complementario.",
     whenItAppears: "Aparece quincenalmente como descuento.",
     related: [{ ref: "concept:107", label: "Provisión fondo de jubilación" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "113": {
     simple: "Es la aportación al seguro de guarderías.",
@@ -378,7 +383,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se descuenta en los periodos donde corresponde la aportación al seguro.",
     whenItAppears: "Aparece mientras esté vigente la aportación al seguro de guarderías.",
     related: [{ ref: "concept:039", label: "Bonificación de guarderías" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "129": {
     simple: "Es el descuento por licencia sin sueldo mayor a 3 días.",
@@ -389,7 +394,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:171", label: "Licencia sin sueldo menor a 4 días", why: "Duración distinta de la misma incidencia" },
       { ref: "field:35", label: "Licencia sin sueldo" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "151": {
     simple: "Es el Impuesto Sobre la Renta (ISR): la retención que el patrón hace de tu sueldo por concepto de impuestos.",
@@ -402,7 +407,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:070", label: "Devoluciones ISPT", why: "Ajuste cuando la retención fue de más" },
       { ref: "concept:153", label: "Descuento complementario ISR", why: "Ajuste de periodos anteriores" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "152": {
     simple: "Es la aportación base a tu fondo de jubilación.",
@@ -413,7 +418,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:107", label: "Provisión fondo de jubilación", why: "Aportación complementaria" },
       { ref: "concept:108", label: "Provisión RJP" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "153": {
     simple: "Es un descuento complementario de ISR del año anterior: corrige la retención cuando el cálculo anual resulta en un faltante.",
@@ -424,7 +429,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:151", label: "Impuesto sobre la renta (ISR)" },
       { ref: "concept:070", label: "Devoluciones ISPT", why: "Ajuste inverso a tu favor" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "154": {
     simple: "Es el descuento del crédito INFONAVIT: el pago mensual de tu crédito de vivienda.",
@@ -436,7 +441,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "field:59", label: "Marca de crédito" },
       { ref: "field:74", label: "Unidades (observaciones)", why: "Las unidades registran el avance del crédito" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: ["proc-1a14-003-010"], verification: "verified",
   },
   "155": {
     simple: "Es un descuento por disposición judicial, como una pensión alimenticia dictada por un juez.",
@@ -444,7 +449,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se retiene conforme a una disposición judicial notificada al IMSS.",
     whenItAppears: "Aparece mientras esté vigente la disposición judicial.",
     related: [{ ref: "field:77", label: "Observaciones", why: "Puede detallar el cargo" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "156": {
     simple: "Es un descuento por viáticos no comprobados.",
@@ -452,7 +457,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se genera cuando los viáticos entregados no se comprueban.",
     whenItAppears: "Aparece en la quincena donde se realiza la recuperación.",
     related: [{ ref: "field:77", label: "Observaciones" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "160": {
     simple: "Es la recuperación de la cláusula 97 del CCT: descuentos relacionados con vale o anticipo de aguinaldo.",
@@ -464,7 +469,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:047", label: "Anticipo de aguinaldo" },
     ],
     calculator: { route: "/calculadoras/clausula-97", label: "Calcular la recuperación Cl. 97" },
-    sources: ["manual-imss-2023", "cct-2023-2025-mentioned"],
+    sources: ["cct-2025-2027"], verification: "partially_verified",
   },
   "161": {
     simple: "Es un descuento por suspensión temporal de la relación laboral.",
@@ -472,7 +477,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se genera cuando se aplica una suspensión temporal.",
     whenItAppears: "Aparece en la quincena donde se aplica la suspensión.",
     related: [{ ref: "concept:164", label: "Suspensión sindical", why: "Suspensión por causas sindicales" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "162": {
     simple: "Es un descuento por responsabilidad sobre instrumentos de trabajo.",
@@ -480,7 +485,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se descuenta conforme a la determinación de responsabilidad.",
     whenItAppears: "Aparece en la quincena donde se aplica la recuperación.",
     related: [{ ref: "field:77", label: "Observaciones", why: "Puede detallar el cargo" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "164": {
     simple: "Es un descuento por suspensión sindical.",
@@ -488,7 +493,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se genera conforme a la determinación sindical correspondiente.",
     whenItAppears: "Aparece en la quincena donde se aplica la suspensión.",
     related: [{ ref: "concept:161", label: "Suspensión temporal", why: "Tipo de suspensión" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "169": {
     simple: "Es la recuperación de los vales a cuenta de sueldo.",
@@ -499,7 +504,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:042", label: "Anticipo de sueldo", why: "El descuento recupera este adelanto" },
       { ref: "field:76", label: "Cargo inicial (observaciones)", why: "Registra el monto original" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "170": {
     simple: "Es el descuento de crédito FONACOT.",
@@ -510,7 +515,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "field:56", label: "Crédito INFONAVIT", why: "Otros créditos con descuento quincenal" },
       { ref: "field:73", label: "Vencimiento (observaciones)", why: "Fecha de fin del descuento" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "171": {
     simple: "Es el descuento de licencias sin sueldo menores a 4 días.",
@@ -521,7 +526,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:129", label: "Licencia sin sueldo mayor a 3 días", why: "Misma incidencia con mayor duración" },
       { ref: "field:35", label: "Licencia sin sueldo" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "172": {
     simple: "Es la deducción por falta injustificada.",
@@ -534,7 +539,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:032", label: "Estímulo por asistencia", why: "Las faltas afectan este estímulo" },
       { ref: "concept:033", label: "Estímulo por puntualidad" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "173": {
     simple: "Es la deducción por pases de salida.",
@@ -545,7 +550,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "field:21", label: "Pases de salida", why: "Se registra en el receptor" },
       { ref: "concept:033", label: "Estímulo por puntualidad", why: "Los pases pueden afectar el estímulo" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "122": {
     simple: "Es el descuento del crédito de trabajadores de confianza.",
@@ -553,7 +558,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se descuenta cuando tienes un crédito de trabajadores de confianza.",
     whenItAppears: "Aparece quincenalmente mientras el crédito esté vigente.",
     related: [{ ref: "field:77", label: "Observaciones", why: "Puede detallar el saldo y el vencimiento" }],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
   "109": {
     simple: "Es la prima de seguro de daños de vivienda INFONAVIT.",
@@ -564,6 +569,6 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
       { ref: "concept:154", label: "Descuento crédito INFONAVIT", why: "Ambos dependen de tu crédito" },
       { ref: "field:56", label: "Crédito INFONAVIT" },
     ],
-    sources: ["manual-imss-2023"],
+    sources: [], verification: "pending_verification",
   },
 }

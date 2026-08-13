@@ -167,7 +167,7 @@ function FieldList({ sectionId }: { sectionId: string }) {
         if (!field) return null
         const curated = fieldDetails[String(id)]
         const kp = GUIDE_FIELD_CONTENT_BY_ID.get(id)
-        const desc = curated?.simple ?? kp?.easy ?? field.sourceText?.slice(0, 100)
+        const desc = curated?.simple ?? kp?.easy
         const sensitive = SENSITIVE_FIELD_IDS.has(id)
         return (
           <Link

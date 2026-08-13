@@ -1,8 +1,8 @@
-# SOURCE_MAP — páginas del manual
+# SOURCE_MAP — páginas del documento de referencia (NO oficial, solo histórico del índice)
 
 - 1: portada.
 - 2-4: índice.
-- 5: presentación y Art. 53 citado por el manual.
+- 5: presentación y Art. 53 citado.
 - 6: objetivo y referencia al SIAP.
 - 7: estructura de 5 secciones.
 - 8: separador Emisor/Receptor.
@@ -15,8 +15,8 @@
 - 30-31: explicaciones de deducciones seleccionadas.
 - 32: Mensajes y Observaciones.
 - 33: campos de Observaciones.
-- 34-36: registro/descarga del tarjetón según el manual.
-- 37: consulta de datos biométricos según el manual.
+- 34-36: registro/descarga del tarjetón.
+- 37: consulta de datos biométricos.
 - 38: importancia de conservar el tarjetón.
 - 39-40: agradecimientos, autora, coordinación y apoyo bibliográfico.
 - 41: cierre.

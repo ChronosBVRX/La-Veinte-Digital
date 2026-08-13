@@ -1,7 +1,8 @@
 // Lecciones curadas de "Aprende desde cero" (Guía de mi Tarjetón).
-// Base: `lessons.ts` (semillas del manual 2023). Cada lección está pensada
-// para completarse en 30–90 segundos. Los importes de ejemplo son ficticios
-// y están marcados como tales.
+// NOTA: estas lecciones son contenido educativo (índice provisional), no
+// autoridad normativa; sin cláusulas/artículos de fuentes oficiales no se
+// presentan como fundamento. Los importes de ejemplo son ficticios y están
+// marcados como tales.
 
 export type LessonBlock =
   | { type: "text"; text: string }

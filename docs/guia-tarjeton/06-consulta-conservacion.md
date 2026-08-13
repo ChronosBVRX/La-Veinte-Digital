@@ -1,8 +1,8 @@
-# Consulta, biométricos y conservación del tarjetón
+﻿# Consulta, biométricos y conservación del tarjetón
 
-Procedimientos descritos por el manual para obtener el tarjetón, consultar biométricos y motivos para conservar los comprobantes.
+Procedimientos descritos en el documento de referencia para obtener el tarjetón, consultar biométricos y motivos para conservar los comprobantes.
 
-> Fuente: Manual de orientación al tarjetón de pago del trabajador del IMSS — 2023.
+> Fuente: transcripción de un documento de referencia NO oficial (solo histórico del índice). No es autoridad normativa.
 
 ## Página 34
 

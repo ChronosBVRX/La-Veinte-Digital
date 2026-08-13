@@ -2,19 +2,19 @@
 
 ## Regla de oro
 
-Este directorio convierte a texto y datos estructurados el **Manual de orientación al tarjetón de pago del trabajador del IMSS — 2023** para que un agente de código que no pueda leer PDF pueda utilizarlo.
+Este directorio es un **índice provisional** (campos, códigos y temas del tarjetón) para que un agente de código pueda explorar el dominio sin abrir el PDF original.
 
-**No es una fuente de reglas vigentes por sí sola.** Es una fuente educativa/documental fechada en 2023.
+**No es autoridad normativa.** No se cita ni como fuente, bibliografía ni fundamento el "Manual de orientación al tarjetón de pago del trabajador del IMSS — 2023" (documento NO oficial del IMSS). Las únicas fuentes citables son oficiales: CCT IMSS-SNTSS vigente (2025-2027) y su RIT, normas y procedimientos del IMSS (imss.gob.mx), tabuladores oficiales y legislación aplicable.
 
 ## Prioridad de fuentes
 
 Cuando implementes lógica en La Veinte Digital usa esta prioridad:
 
 1. Reglas/calculadoras/motores ya validados y vigentes del repositorio.
-2. Normativa vigente incorporada al proyecto y explícitamente identificada como actual.
-3. Este paquete del Manual 2023 como explicación, nomenclatura, estructura y referencia histórica/documental.
+2. Fuentes oficiales verificadas: CCT IMSS-SNTSS vigente, normas/procedimientos del IMSS, tabulador oficial (registrados en `src/data/guia-tarjeton/sources.ts`).
+3. Este paquete como índice provisional de descubrimiento únicamente.
 
-Nunca sobrescribas una regla vigente del proyecto con una fórmula o cantidad del manual solamente porque aparece aquí.
+Nunca sobrescribas una regla vigente del proyecto con una fórmula o cantidad de una fuente no oficial. Nunca afirmes una cláusula, artículo o numeral que no hayas confirmado en un documento oficial: usa `pending_verification`.
 
 ## Antes de implementar la guía
 
@@ -27,19 +27,17 @@ Lee, como mínimo:
 - `docs/guia-tarjeton/04-deducciones.md`
 - `docs/guia-tarjeton/05-mensajes-observaciones.md`
 
-Para una consulta exhaustiva usa `docs/guia-tarjeton/manual-imss-2023-completo.md` o `src/data/guia-tarjeton/manual-pages.json`.
+Para descubrir campos y códigos usa `src/data/guia-tarjeton/concepts.ts` y `fields.ts`.
 
 ## Qué contiene el paquete
 
-- Catálogo completo de claves de percepciones mostradas en el manual.
-- Catálogo completo de claves de deducciones mostradas en el manual.
-- Los 77 campos/elementos numerados por el manual.
+- Índice provisional de claves de percepciones y deducciones.
+- Los 77 campos/elementos numerados.
 - Las 5 secciones del recibo.
-- Texto fuente por página.
 - Tabla de marcas de ocupación de plaza.
 - Matriz de incidencias de conceptos 032/033.
 - Marcas de continuidad de vacaciones.
-- Fórmulas del manual separadas y marcadas como **NO EJECUTABLES SIN VALIDACIÓN**.
+- Registro de fuentes oficiales (`sources.ts`) con estados de verificación.
 - Semillas de relaciones y microlecciones.
 
 ## Cómo usar `concepts.ts`
@@ -49,60 +47,33 @@ Para una consulta exhaustiva usa `docs/guia-tarjeton/manual-imss-2023-completo.m
 - `code`
 - `name`
 - `kind`
-- `manual2023.detail`
+- `catalog.detail`
 - `requiresCurrentValidation`
 
-`manual2023.detail` conserva bloques del manual cuando existe explicación específica.
+`catalog.detail` conserva bloques de la fuente provisional cuando existe explicación específica.
 
-No conviertas automáticamente `manual2023.detail` en copy final para usuarios. Crea tres capas:
+No conviertas automáticamente `catalog.detail` en copy final para usuarios. Crea tres capas:
 
 1. **Fácil**: lenguaje humano y corto.
 2. **Detallado**: comportamiento, incidencias, relaciones y qué revisar.
-3. **Fundamento**: citas normativas y fuente.
-
-## Fórmulas
-
-Todas las fórmulas del manual están en:
-
-`src/data/guia-tarjeton/formulas-manual-2023.ts`
-
-Se encuentran deliberadamente separadas de `concepts.ts` para impedir que se conviertan accidentalmente en lógica productiva.
-
-Nunca importes ese archivo desde el motor de nómina.
-
-Solo puede usarse para:
-
-- mostrar una explicación histórica/documental claramente etiquetada;
-- comparar contra una regla vigente;
-- ayudar a localizar qué regla necesita verificación.
+3. **Fundamento**: fuentes oficiales verificadas y estado de verificación (usar `sources.ts` + `verification`).
 
 ## Cantidades y porcentajes
 
-Hay cantidades fijas y porcentajes fechados en el manual. Ejemplos incluyen ayudas, bonificaciones, fondo de ahorro y porcentajes de ciertos conceptos.
-
-Trátalos como `reference-only` hasta validar con la fuente vigente.
+Cualquier cantidad fija o porcentaje de fuentes provisionales es `reference-only` hasta validarse contra la fuente oficial vigente, y nunca se presenta en la UI como regla vigente. El contenido curado en `features/tarjeton-guia/data/*` es descriptivo-educativo; los cálculos reales viven en los motores del repositorio.
 
 ## Errores o rarezas de la fuente
 
-El PDF contiene erratas de redacción y algunas fórmulas con precedencia matemática ambigua. El paquete no intenta "arreglarlas" silenciosamente.
+El índice provisional puede contener erratas. Reglas:
 
-Cuando una fórmula parezca extraña:
-
-1. No la corrijas por intuición.
+1. No las "corrijas" por intuición.
 2. Revisa si La Veinte ya tiene un cálculo vigente.
-3. Si no existe, marca la regla como pendiente de validación normativa.
-4. Mantén la fuente original disponible para auditoría.
+3. Si no existe, marca la regla como `pending_verification`.
+4. No inventes citas normativas para respaldar un valor.
 
 ## Integración recomendada en la UI
 
-La guía debe consultar `concepts`, `fields`, `sections` y `relations` como capa de conocimiento. Los valores reales de un usuario deben provenir del parser/tarjetón de La Veinte, nunca de estos archivos.
-
-Ejemplo conceptual:
-
-```ts
-const help = getGuideConcept('033')
-const payrollValue = parsedPayslip.perceptions.find(p => p.code === '033')
-```
+La guía consulta `concepts`, `fields`, `sections` y `relations` como capa de conocimiento. Los valores reales de un usuario provienen del parser/tarjetón de La Veinte, nunca de estos archivos.
 
 La explicación y el valor real son responsabilidades separadas.
 
@@ -114,12 +85,17 @@ No afirmar "te pagaron mal" porque un concepto no aparezca. La guía puede decir
 - "Conviene revisar la incidencia y el periodo en que se generó."
 - "La información disponible no permite determinar por sí sola si existe un error."
 
+## Política documental (obligatoria)
+
+- Solo se citan fuentes institucionales del IMSS (imss.gob.mx / rh.imss.gob.mx / reposipot.imss.gob.mx), el CCT IMSS-SNTSS vigente y legislación externa (DOF/SAT/SCJN) cuando es necesaria.
+- Cada entrada curada lleva `verification`: `verified` (asociación a documento oficial confirmada), `partially_verified` (documento identificado, referencia específica pendiente) o `pending_verification`.
+- Si no hay fuente oficial suficiente, se deja `pending_verification`. No se inventan cláusulas, artículos ni numerales.
+
 ## Actualización futura
 
-Cuando se obtenga normativa más reciente:
+Cuando se obtenga normativa oficial más reciente:
 
-- no borres la fuente 2023;
-- agrega una fuente nueva;
-- actualiza la capa vigente;
-- conserva `manual-imss-2023` para trazabilidad;
-- registra `validFrom`, `validTo` o notas de vigencia cuando la arquitectura lo permita.
+- actualiza el registro en `sources.ts` (URL, vigencia, `verifiedAt`);
+- actualiza `verification` de las entradas afectadas;
+- registra notas de vigencia cuando la arquitectura lo permita;
+- conserva el índice provisional para trazabilidad histórica.

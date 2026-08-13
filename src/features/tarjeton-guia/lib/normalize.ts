@@ -36,7 +36,7 @@ export function looksLikeCode(raw: string): boolean {
   return /^\d{1,3}$/.test(t) || /^\d{3}/.test(t)
 }
 
-/** Limpia un nombre de concepto para comparar sin signos de puntuación raros del PDF ni prefijo de código del manual. */
+/** Limpia un nombre de concepto para comparar sin signos de puntuación raros del PDF ni prefijo de código. */
 export function cleanConceptName(raw: string): string {
   return raw
     .replace(/^\s*\d{1,3}\s+/, " ")

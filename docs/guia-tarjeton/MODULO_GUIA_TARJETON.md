@@ -24,8 +24,9 @@ Las páginas son **server components** delgados en `src/app/(dashboard)/guia/`
 
 ## 2. Arquitectura (reglas del monorepo)
 
-- **Datos**: `src/data/guia-tarjeton/` (semilla del Knowledge Pack Manual IMSS 2023,
-  verificada idéntica al pack; referencia educativa, **nunca** normativa productiva).
+- **Datos**: `src/data/guia-tarjeton/` (índice provisional de campos/códigos/temas;
+  registro de fuentes oficiales en `sources.ts`; referencia educativa, **nunca**
+  normativa productiva).
 - **Contenido curado**: `src/features/tarjeton-guia/data/`
   - `concept-details.ts` (~30 percepciones + ~25 deducciones curadas).
   - `field-details.ts` (~45 campos curados; el resto cae en "información insuficiente").
@@ -42,8 +43,8 @@ Las páginas son **server components** delgados en `src/app/(dashboard)/guia/`
 
 **Regla de oro**: los montos y fórmulas vigentes viven en los **motores** de La Veinte
 (Nómina/calculadoras). La guía solo explica y enlaza: un concepto sin motor validado
-se muestra como "referencia 2023, no vigente por sí sola" y redirige al simulador
-existente cuando aplica (`calculator` en los detalles).
+se muestra con su estado de verificación normativa (`pending_verification`) y redirige
+al simulador existente cuando aplica (`calculator` en los detalles).
 
 ## 3. Integración con el visor de tarjetón
 
@@ -76,7 +77,8 @@ existente cuando aplica (`calculator` en los detalles).
 - Para curar un concepto nuevo: editar `data/concept-details.ts` (o añadir
   `related` a `field-details.ts`) y correr `npm test` + `npm run typecheck`.
 - El Knowledge Pack (`src/data/guia-tarjeton/` + `docs/guia-tarjeton/`) es de solo
-  lectura: no editar, regenerar desde el pack 2023 si cambia.
+  lectura: índice provisional, no editar su contenido como si fuera normativa; para
+  cambios normativos actualizar `sources.ts` y los estados de verificación.
 - Si el bot / normativa cambia, actualizar **ambos** motores (regla 9) y NO copiar
   fórmulas a la guía.
 - `public/vendor/` y `supabase/.temp/` siguen gitignoreados y regenerados por prebuild.

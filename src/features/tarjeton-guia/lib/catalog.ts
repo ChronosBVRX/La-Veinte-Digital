@@ -1,15 +1,14 @@
 /**
  * Catálogo educativo de la Guía de mi Tarjetón.
  *
- * Une la base de conocimiento (Knowledge Pack del Manual IMSS 2023) con el
- * contenido curado del módulo. Los valores reales de un trabajador provienen
- * del parser/tarjetón de La Veinte, nunca de estos archivos.
+ * Los datos de src/data/guia-tarjeton son un ÍNDICE PROVISIONAL para descubrir
+ * conceptos/campos; no son autoridad normativa. La autoridad documental vive
+ * en guideSources y en los motores de La Veinte (nómina/calculadores).
  */
 import { guideConcepts, type GuideConcept } from "@/data/guia-tarjeton/concepts"
 import { guideFields } from "@/data/guia-tarjeton/fields"
 import { guideRelations } from "@/data/guia-tarjeton/relations"
 import { guideSections } from "@/data/guia-tarjeton/sections"
-import { guideSources } from "@/data/guia-tarjeton/sources"
 import { conceptDetails } from "@/features/tarjeton-guia/data/concept-details"
 import { fieldDetails } from "@/features/tarjeton-guia/data/field-details"
 import { normalizeCode } from "@/features/tarjeton-guia/lib/normalize"
@@ -49,27 +48,21 @@ export function getGuideField(id: string | number): (typeof guideFields)[number]
 /** Devuelve la descripción corta de un concepto para listas y resultados. */
 export function shortDescriptionFor(kind: GuideConceptCategory, code: string): string {
   if (kind === "perception" || kind === "deduction") {
-    const c = getGuideConcept(code)
-    if (!c) return ""
     const details = conceptDetails[normalizeCode(code) ?? ""]
-    if (details) return details.simple
-    const manual = c.manual2023.detail[0]?.text
-    if (manual) return manual.slice(0, 110).replace(/\s+/g, " ").trim() + "…"
-    return ""
+    return details ? details.simple : ""
   }
   const field = getGuideField(code)
   if (field) {
     const details = fieldDetails[String(field.id)]
-    if (details) return details.simple
-    if (field.sourceText) return field.sourceText.slice(0, 110).replace(/\s+/g, " ").trim() + "…"
+    return details ? details.simple : ""
   }
   return ""
 }
 
-/** Devuelve las relaciones navegables de un concepto (curadas + del Knowledge Pack). */
-export function getRelationsForConcept(code: string): Array<{ ref: GuideConceptRef; label: string; why?: string; source: "manual-2023-reference" | "curado" }> {
+/** Devuelve las relaciones navegables de un concepto (curadas + del índice provisional). */
+export function getRelationsForConcept(code: string): Array<{ ref: GuideConceptRef; label: string; why?: string; source: "pack-seed" | "curado" }> {
   const norm = normalizeCode(code)
-  const out: Array<{ ref: GuideConceptRef; label: string; why?: string; source: "manual-2023-reference" | "curado" }> = []
+  const out: Array<{ ref: GuideConceptRef; label: string; why?: string; source: "pack-seed" | "curado" }> = []
 
   const curated = conceptDetails[norm ?? ""]?.related
   for (const r of curated ?? []) {
@@ -81,7 +74,7 @@ export function getRelationsForConcept(code: string): Array<{ ref: GuideConceptR
     for (const to of rel.to) {
       const label = resolveRefLabel(to)
       if (label && !out.some((o) => o.ref === to)) {
-        out.push({ ref: to as GuideConceptRef, label, why: rel.basis, source: "manual-2023-reference" })
+        out.push({ ref: to as GuideConceptRef, label, why: rel.basis, source: "pack-seed" })
       }
     }
   }
@@ -90,8 +83,8 @@ export function getRelationsForConcept(code: string): Array<{ ref: GuideConceptR
 }
 
 /** Devuelve las relaciones navegables de un campo. */
-export function getRelationsForField(id: string | number): Array<{ ref: GuideConceptRef; label: string; why?: string; source: "manual-2023-reference" | "curado" }> {
-  const out: Array<{ ref: GuideConceptRef; label: string; why?: string; source: "manual-2023-reference" | "curado" }> = []
+export function getRelationsForField(id: string | number): Array<{ ref: GuideConceptRef; label: string; why?: string; source: "pack-seed" | "curado" }> {
+  const out: Array<{ ref: GuideConceptRef; label: string; why?: string; source: "pack-seed" | "curado" }> = []
 
   const curated = fieldDetails[String(id)]?.related
   for (const r of curated ?? []) {
@@ -103,7 +96,7 @@ export function getRelationsForField(id: string | number): Array<{ ref: GuideCon
     for (const to of rel.to) {
       const label = resolveRefLabel(to)
       if (label && !out.some((o) => o.ref === to)) {
-        out.push({ ref: to as GuideConceptRef, label, why: rel.basis, source: "manual-2023-reference" })
+        out.push({ ref: to as GuideConceptRef, label, why: rel.basis, source: "pack-seed" })
       }
     }
   }
@@ -135,11 +128,6 @@ export function resolveRefHref(ref: string): string | null {
   if (ref.startsWith("field:")) return `/guia/campos/${ref.slice(6)}`
   if (ref.startsWith("section:")) return `/guia/tarjeton#${ref.slice(8)}`
   return null
-}
-
-/** Fuente del catálogo por id (para integraciones de data, no se muestra como cita). */
-export function getSourceById(id: string) {
-  return guideSources.find((s) => s.id === id) ?? null
 }
 
 /** ¿El concepto requiere validación vigente? (para metadata interna, no alertas). */

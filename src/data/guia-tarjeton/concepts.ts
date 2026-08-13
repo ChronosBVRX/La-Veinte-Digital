@@ -1,6 +1,8 @@
-// AUTO-GENERATED knowledge seed from Manual de orientación al tarjetón de pago del trabajador del IMSS (2023).
-// IMPORTANT: This is REFERENCE content, not authoritative current payroll logic.
-// Current La Veinte Digital rules/calculators/normative data take precedence.
+﻿// ÍNDICE PROVISIONAL de conceptos para descubrimiento (códigos, nombres, temas).
+// NO es autoridad normativa: es el punto de partida para investigar cada
+// concepto ante las fuentes oficiales (CCT IMSS-SNTSS vigente, normas y
+// procedimientos del IMSS). La autoridad vive en guideSources y en los
+// motores de La Veinte Digital (nómina/calculadores).
 
 export type GuideConceptKind = 'perception' | 'deduction';
 
@@ -11,7 +13,7 @@ export type GuideConcept = {
   status: 'reference-only';
   requiresCurrentValidation: boolean;
   searchTerms: string[];
-  manual2023: { listed: boolean; detail: Array<{ page: number; text: string }> };
+  catalog: { listed: boolean; detail: Array<{ text: string }> };
 };
 
 export const guideConcepts: GuideConcept[] = [
@@ -19,11 +21,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "104",
     "name": "CRÉDITO HIPOTECARIO FOVI",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 29,
           "text": "CONCEPTO\n\n104      CRÉDITO HIPOTECARIO FOVI                   151     IMPUESTOS SOBRE LA RENTA (ISR)\n\n106      ENGANCHE DE CASA HABITACIÓN E.S.M.I.       152     FONDO DE JUBILACIÓN\n\n107      PROVISIÓN FONDO DE JUBILACIÓN              153     DESCUENTO COMPLEMEN ISR AÑO\n                                                            ANTERIOR\n108      PROVISIÓN RJP                              154     DESCUENTO CRÉDITO INFONAVIT\n\n109      PRIMA DE SEGURO DAÑOS DE VIVIENDA          155     DISPOSICIÓN JUDICIAL (PENSIÓN\n         INFONAVIT                                          ALIMENTICIA)\n110      CRÉDITO DE AUTOMOVIL CON TERCEROS          156     VIÁTICOS NO COMPROBADOS\n\n111      APORTACIÓN COMPLEMENTARIA AFORE            160     RECUPERACIÓN CL. 97 DEL CCT\n\n112      FONDO DE AYUDA SINDICAL POR                161     SUSPENSIÓN TEMPORAL\n         DEFUNCIÓN\n113      SEGURO DE GUARDERÍAS                       162     RESPONSABILIDAD SOBRE INSTRUMENTOS\n                                                            DE TRABAJO\n114      SEG. IND. VOL. GASTOS MÉDICOS MAYORES      164     SUSPENSIÓN SINDICAL\n\n116      SERVICIO DE TELECOMUNICACIONES             166     CASAS COMERCIALES (COMISIÓN PARITARIA)\n\n119      PRIMA DE SEGURO DE AUTOMOVIL               167     VÍVERES\n\n120      SEGURO MÉDICO                              168     ROPA\n\n121      SEGURO DE ENFERMERÍA                       169     RECUPERACIÓN VALE A CUENTA DE SUELDO\n\n122      CRED. TRAB. CONF.                          170     FONACOT\n\n125      RETENCIÓN A CUENTA DE TERCEROS             171     LICENCIA SIN SUELDO MENOR A (4) DÍAS\n\n126      SEGURO DE CAMILLERO EN UMH                 172     FALTA INJUSTIFICADA\n\n129      LICENCIA SIN SUELDO MAYOR 3 DÍAS           173     PASES DE SALIDA\n\n                                                   29"
         }
       ]
@@ -39,7 +40,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "106",
     "name": "ENGANCHE DE CASA HABITACIÓN E.S.M.I.",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -54,11 +55,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "107",
     "name": "PROVISIÓN FONDO DE JUBILACIÓN",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 30,
           "text": "Concepto 107 Fondo de jubilación. El convenio adicional para las jubilaciones y pensiones de los\n       trabajadores de base de nuevo ingreso del 14 de octubre de 2005, estableció que los\n       trabajadores en activo aumentarán su aportación del 3 al 10% al fondo de jubilación. Dicho\n       incrcemento fue del 1% anual hasta llegar al 7% más. El 3% de descuento con el cpto 152 y el\n       7% se descuenta con el cpto 107.\n\n                                       ¿Cómo calcularlo?\n       Sueldo tabular (002) + Cpto. 011 al 019 + 057 + 058 x 1.25 (aguinaldo) + 020 + 022 + 023\n                  + 050 + 062 + 063 x 0.07 = importe de descuento del cpto. 107."
         }
       ]
@@ -74,11 +74,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "108",
     "name": "PROVISIÓN RJP",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 30,
           "text": "Concepto 108 Fondo de jubilación. Provisión RJP 2005. Se establece que los trabajadores base de\n       nuevo ingreso que ingresarán a partir del 16 de octubre del 2005 y hasta el 31 de julio de 2008,\n       tendrían que aportar del 4 al 10% a un RJP modificado y cuyos requisitos principales son: el\n       derecho a la jubilación se obtendrá a partir de los 60 años de edad con 34 (mujeres) y 35\n       (varones) años de servicios, con una cuantía equivalente del 100%.\n\n                                                  30"
         }
       ]
@@ -94,7 +93,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "109",
     "name": "PRIMA DE SEGURO DAÑOS DE VIVIENDA INFONAVIT",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -109,7 +108,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "110",
     "name": "CRÉDITO DE AUTOMÓVIL CON TERCEROS",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -124,11 +123,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "111",
     "name": "APORTACIÓN COMPLEMENTARIA AFORE",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 31,
           "text": "Concepto 111 Aportación complementaria AFORE. Convenio del 27 de junio de 2008. Se estableció\n       que a partir del primero de agosto del 2008, los trabajadores de nuevo ingreso pertenecen a la\n       nueva generación, teniendo una aportación del 7% al 15% a un esquema de pensiones en la\n       Ley del Seguro Social.\n\n                                       ¿Cómo calcularlo?\n       Sueldo tabular (002) + Cpto. 011 al 019 + 057 + 058 x 1.25 (aguinaldo) + 020 + 022 + 023\n                  + 050 + 062 + 063 x 0.15 = importe de descuento del cpto. 111"
         }
       ]
@@ -144,11 +142,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "112",
     "name": "FONDO DE AYUDA SINDICAL POR DEFUNCIÓN",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 31,
           "text": "Concepto 112 Fondo de ayuda sindical por defunción. Artículo 8 del Reglamento de Fondo de\n       Trabajo. Este concepto sustituye a los conceptos 182 y 183. Actualmente el importe es de\n       $42.12 pesos quincenales. En caso de defunción de algun trabajador miembro del sindicato,\n       jubilado o pensionado, el fondo de ayuda sindical será por la cantidad de $160, 000.00 pesos."
         }
       ]
@@ -164,7 +161,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "113",
     "name": "SEGURO DE GUARDERÍAS",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -179,7 +176,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "114",
     "name": "SEG. IND. VOL. GASTOS MÉDICOS MAYORES",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -194,7 +191,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "116",
     "name": "SERVICIO DE TELECOMUNICACIONES",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -209,7 +206,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "119",
     "name": "PRIMA DE SEGURO DE AUTOMÓVIL",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -224,7 +221,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "120",
     "name": "SEGURO MÉDICO",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -239,7 +236,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "121",
     "name": "SEGURO DE ENFERMERÍA",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -254,7 +251,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "122",
     "name": "CRED. TRAB. CONF.",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -269,7 +266,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "125",
     "name": "RETENCIÓN A CUENTA DE TERCEROS",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -284,7 +281,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "126",
     "name": "SEGURO DE CAMILLERO EN UMH",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -299,7 +296,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "129",
     "name": "LICENCIA SIN SUELDO MAYOR 3 DÍAS",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -314,7 +311,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "130",
     "name": "CRÉDITO HIPOTECARIO E.S.M.I.",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -329,7 +326,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "131",
     "name": "FINAN. DE SEGURO DE VIDA CRÉD. HIP. E.S.M.I.",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -344,7 +341,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "132",
     "name": "FINAN. DE SEGURO DE DAÑOS CRÉD. HIP. E.S.M.I.",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -359,7 +356,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "133",
     "name": "AYUDA DE GASTOS DE ESCRITURACIÓN E.S.M.I.",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -374,7 +371,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "134",
     "name": "FINANCIAMIENTO DE AUTOMÓVIL",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -389,7 +386,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "136",
     "name": "PRÉSTAMOS PERSONALES A MEDIANO PLAZO E.S.M.I.",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -404,7 +401,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "137",
     "name": "SEGURO DE VIDA PRES. PPMP",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -419,7 +416,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "140",
     "name": "CENTROS VACACIONALES COMISIÓN PARITARIA",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -434,7 +431,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "141",
     "name": "VELATORIOS COMISIÓN PARITARIA",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -449,7 +446,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "142",
     "name": "ADEUDO DEL PERSONAL POR ACCIDENTES AUTOMOVILÍSTICOS",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -464,7 +461,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "143",
     "name": "ADEUDOS DEL PERSONAL POR FALTANTES DE CAJA O INVENTARIOS",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -479,7 +476,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "144",
     "name": "ADEUDOS DEL PERSONAL POR LLAMADAS TELEFÓNICAS",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -494,7 +491,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "145",
     "name": "LÍNEA BLANCA",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -509,7 +506,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "148",
     "name": "SEGURO DE VIDA COMISIÓN PARITARIA",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -524,7 +521,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "150",
     "name": "COBROS INDEBIDOS SIN AFEC. AGUINALDOS E ISPT",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -539,11 +536,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "151",
     "name": "IMPUESTOS SOBRE LA RENTA (ISR)",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 31,
           "text": "Concepto 151 Impuesto sobre la renta. Identifica el importe quincenal que retiene el instituto al\n       trabajador para su entrega a la Secretaría de Hacienda y Crédito Público, conforme a lo\n       establecido en la Ley de Impuesto sobre la Renta."
         }
       ]
@@ -559,11 +555,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "152",
     "name": "FONDO DE JUBILACIÓN",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 31,
           "text": "Concepto 152 Fondo de jubilación. Cláusula 110 CCT. Régimen de jubilaciones y pensiones. Los\n       trabajadores aportarán el 3% sobre los conceptos señalados en los incisos del a) al n) del\n       artículo 5 del régimen y además el mismo porcentaje del fondo de ahorro. Cuya aportación\n       será anual en a fecha de su pago (segunda quincena de julio).\n\n                                       ¿Cómo calcularlo?\n       Sueldo tabular (002) + Cpto. 011 al 019 + 057 + 058 x 1.25 (aguinaldo) + 020 + 022 + 023\n                  + 050 + 062 + 063 x 0.03 = importe de descuento del cpto. 152\n\n                                                  31"
         }
       ]
@@ -579,7 +574,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "153",
     "name": "DESCUENTO COMPLEMEN ISR AÑO ANTERIOR",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -594,7 +589,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "154",
     "name": "DESCUENTO CRÉDITO INFONAVIT",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -609,7 +604,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "155",
     "name": "DISPOSICIÓN JUDICIAL (PENSIÓN ALIMENTICIA)",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -624,7 +619,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "156",
     "name": "VIÁTICOS NO COMPROBADOS",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -639,7 +634,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "160",
     "name": "RECUPERACIÓN CL. 97 DEL CCT",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -654,7 +649,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "161",
     "name": "SUSPENSIÓN TEMPORAL",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -669,7 +664,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "162",
     "name": "RESPONSABILIDAD SOBRE INSTRUMENTOS DE TRABAJO",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -684,7 +679,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "164",
     "name": "SUSPENSIÓN SINDICAL",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -699,7 +694,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "166",
     "name": "CASAS COMERCIALES (COMISIÓN PARITARIA)",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -714,7 +709,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "167",
     "name": "VÍVERES",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -729,7 +724,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "168",
     "name": "ROPA",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -744,7 +739,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "169",
     "name": "RECUPERACIÓN VALE A CUENTA DE SUELDO",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -759,7 +754,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "170",
     "name": "FONACOT",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -774,7 +769,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "171",
     "name": "LICENCIA SIN SUELDO MENOR A (4) DÍAS",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -789,7 +784,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "172",
     "name": "FALTA INJUSTIFICADA",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -804,7 +799,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "173",
     "name": "PASES DE SALIDA",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -819,7 +814,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "174",
     "name": "RETARDOS",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -834,7 +829,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "175",
     "name": "BECAS SIN SUELDO",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -849,7 +844,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "176",
     "name": "DESCUENTO CONVENIO T.A.T.",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -864,7 +859,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "177",
     "name": "SALIDA ANTES",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -879,7 +874,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "178",
     "name": "REDUCCIÓN DE JORNADA",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -894,7 +889,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "179",
     "name": "NOTAS DE DEMÉRITO",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -909,7 +904,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "180",
     "name": "CUOTA SINDICAL",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -924,7 +919,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "187",
     "name": "CUOTA EXTRAORDINARIA SINDICAL",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -939,7 +934,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "189",
     "name": "APORTACIÓN AL INFONAVIT",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -954,7 +949,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "190",
     "name": "CAJA DE AHORRO (PRÉSTAMO)",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -969,7 +964,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "192",
     "name": "CAJA DE AHORRO (AHORRO)",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -984,7 +979,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "194",
     "name": "MUTUALIDAD DE BECARIOS",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -999,7 +994,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "195",
     "name": "SEGURO INDIVIDUAL VOLUNTARIO VIDA",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1014,7 +1009,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "197",
     "name": "RECUP. ANTICIPO DE AGUINALDO ENERO",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1029,7 +1024,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "199",
     "name": "RECUPERACIÓN VALE A CUENTA AGUINALDO",
     "kind": "deduction",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1044,11 +1039,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "001",
     "name": "SUELDO CONFIANZA",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 21,
           "text": "CONCEPTO\n\n 001     SUELDO CONFIANZA                               041   COMPLEMENTO DE AYUDA A BECARIO\n\n 002     SUELDO BASE                                    042   ANTICIPO DE SUELDO CL. 97 CCT\n\n 003     SUELDO TEMPORAL                                043   VALE A CUENTA DE AGUINALDO\n\n 005     SUELDO BECARIOS                                044   AYUDA PARA REFRIGERIO\n\n 007     SUELDO BECADOS                                 046   AYUDA DE ALOJAMIENTO A BECARIOS\n\n 008     SUELDO SUSTITUTOS                              047   ANTICIPO DE AGUINALDO DE ENERO\n\n                                                   21"
         }
       ]
@@ -1064,11 +1058,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "002",
     "name": "SUELDO BASE",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 22,
           "text": "Concepto 002 Sueldo Base. Tabulador de Sueldos del personal de base del IMSS que considera 339\ncategorías. Vigente a partir del 16 de octubre de cada año."
         }
       ]
@@ -1084,7 +1077,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "003",
     "name": "SUELDO TEMPORAL",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1099,7 +1092,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "005",
     "name": "SUELDO BECARIOS",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1114,7 +1107,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "007",
     "name": "SUELDO BECADOS",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1129,7 +1122,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "008",
     "name": "SUELDO SUSTITUTOS",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1144,7 +1137,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "009",
     "name": "SUELDO MÉDICO RESIDENTES",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1159,7 +1152,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "010",
     "name": "NIVELACIÓN PLAZA SUPERIOR",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1174,11 +1167,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "011",
     "name": "AYUDA DE RENTA CL. 63 BIS INC. B",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 22,
           "text": "Concepto 011 Ayuda de Renta. Cláusula 63 Bis Inc. B. – Ayuda para pago de renta de Casa-\nHabitación\n\n                                           ¿Cómo calcularlo?\n                                         Sueldo tabular (002) x 72.15\n\n        El porcentaje del concepto 011 por lo regular actualiza en cada revisión contractual y es vigente\n        a partir del 16 de octubre de cada año.\n\n                                                        22"
         }
       ]
@@ -1194,11 +1186,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "012",
     "name": "JORNADA DISCONTINUA",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 23,
           "text": "Concepto 012 Jornada Discontinua. Cláusula 28 – jornadas y horarios CCT\n       Las horas de trabajo serán continuas a menos que por necesidad del servicio tuviere que\n       laborarse horario discontinuo, en cuyo caso se requerirá de la aceptación previa del Sindicato,\n       percibiendo el trabajador que la labore en forma discontinua, un 15% más del sueldo de lo\n       normal.\n\n                                       ¿Cómo calcularlo?\n                                Sueldo tabular (002) + cpto. 011 x 15%"
         }
       ]
@@ -1214,7 +1205,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "013",
     "name": "SOBRESUELDO A MÉDICOS",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1229,7 +1220,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "014",
     "name": "INFECTOCONTAGIOSIDAD NO MÉDICA",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1244,7 +1235,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "015",
     "name": "ZONA AISLADA",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1259,7 +1250,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "016",
     "name": "ALTO COSTO DE VIDA",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1274,11 +1265,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "020",
     "name": "AYUDA DE RENTA CL. 63 BIS INC. A",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 23,
           "text": "Concepto 020 Ayuda de Renta. Cláusula 63 Bis Inc. A. – Ayuda para pago de renta casa-habitación\n                       Importe mensual: $500.00 pesos, $250.00 quincenales."
         }
       ]
@@ -1294,7 +1284,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "021",
     "name": "GASTOS DE MANUTENCIÓN",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1309,11 +1299,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "022",
     "name": "AYUDA DE RENTA CL. 63 BIS INC. C",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 23,
           "text": "Concepto 022 Ayuda de renta. Cláusula 63 Bis Inc. c. – Ayuda para pago de renta casa-habitación. El\n       factor para pago de antigüedad se calcula diviendo los días de estímulo entre 360. La\n       antigüedad se determina con base en la cláusula 30.\n\n                                       ¿Cómo calcularlo?\n        Sueldo tabular (002)   + cpto. 011 (o en su caso cpto. 013 + 057 + 058 + 061) x factor\n                                    correspondiente los años de servicio.\n\nEl Instituto otorgará a sus trabajadores, anualmente, una cantidad equivalente al número de días de\nsueldo señalados en la tabla siguiente, de acuerdo con su antigüedad efectiva:\n\n                                                  23"
         }
       ]
@@ -1329,7 +1318,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "024",
     "name": "COMPENSACIÓN",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1344,11 +1333,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "025",
     "name": "PAGO SUPLETORIO DE GUARDERÍA",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 24,
           "text": "Concepto 025 Pago supletorio de guardería. Cláusula 76 CCT. En aquellas guarderías en que no\n       hubiere cupo, el Instituto cubrirá al trabajador la cantidad de $1000.00 pesos mensuales por\n       cada hijo al que debiera dársele este servicio, previa comprobación de su derecho. Por lo\n       anterior, el importe quincenal es de $500.00 pesos."
         }
       ]
@@ -1364,11 +1352,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "026",
     "name": "PASAJES FIJOS",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 24,
           "text": "Concepto 026 Pasajes fijos. Cláusula 103 CCT. Los trabajadores que deban desempeñar sus tareas\n       fuera de los centros de trabajo, disfrutarán de una compensación mensual de $600.00 pesos\n       para pasajes. Estas prestaciones, no serán suspendidas en las vacaciones, en las licencias por\n       enfermedad o en aquellas menos de quince días. Por lo anterior, el importe quincenal es de\n       $300.00 pesos."
         }
       ]
@@ -1384,11 +1371,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "027",
     "name": "COMPENSACIÓN DE PASAJES",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 24,
           "text": "Concepto 027 Compensación por pasajes. Pago a los trabajadores que prestan sus servicios en un\n       municipio diferente al de su lugar de residencia, siempre y cuando sea colindante. El importe lo\n       determina la Comisión Nacional o Subcomisiones mixtas de Pasajes."
         }
       ]
@@ -1404,11 +1390,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "029",
     "name": "PRIMA VACACIONAL",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 24,
           "text": "Concepto 029 Prima de vacaciones. Cláusula 47- Vacaciones. Por cada año efectivo de servicios, los\n       trabajadores disfrutarán de un período mínimo de vacaciones que será de 16 días hábiles. Por\n       cada año de servicios, se aumentará en un día el período mínimo anual, el cual no podrá\n       exceder de 20 días hábiles. Los trabajadores tendrán derecho a percibir una prima de un 25%\n       sobre los salarios que les correspondan durante su periodo vacacional.\n\n                                        ¿Cómo calcularlo?\n             Salario Mensual Integrado entre 30 x número de días de vacaciones x 0.25"
         }
       ]
@@ -1424,11 +1409,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "030",
     "name": "PRIMA DOMINICAL",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 24,
           "text": "Concepto 030 Prima dominical. Cláusula 46 fracción II.- Descanso diario, semanal y obligatorio. Los\n       trabajadores que laboren los domingos disfrutarán de una prima dominical de un 25% sobre el\n       salario de un día ordinario de trabajo.\n\n                                        ¿Cómo calcularlo?\n        Sueldo tabular (002) + Cpto. 011 + (o en su caso, 012 + 013 + 014 + 015 + 016 + 022 +\n        023 + 054 + 057 + 058 + 061 + 063) + 020 + 050 entre 15, entre jornada reportada por\n                                   horas y décimas por el 0.25%.\n\n                                                  24"
         }
       ]
@@ -1444,11 +1428,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "031",
     "name": "CL. 99 CAMBIO DE LUGAR",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 25,
           "text": "Concepto 031 Cambio de lugar. Cláusula 99 CCT. Cuando para el desempeño de labores, el\n      sindicato acepte que un trabajador, previo su conocimiento, sea movilizado por necesidades\n      del servicio, del lugar donde reside a otro distinto, el instituto proporcionará lo mismo que a su\n      esposa o concubina, hijos y a sus padres que dependan económicamente del trabajador, el\n      impore del pasaje en primera clase, los gastos para el transporte de su menaje y el importe de\n      sesenta días de sueldo.\n\n                                       ¿Cómo calcularlo?\n              Sueldo tabular (002) + Cpto. 011 x cuatro quincenas (60 días de sueldo)."
         }
       ]
@@ -1464,11 +1447,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "032",
     "name": "ESTÍMULO POR ASISTENCIA",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 25,
           "text": "Concepto 032 Estímulo por asistencia. Artículo 91 Reglamento Interior de Trabajo del CCT. Cuando\n      el trabajador asista a laborar todos los días hábiles de una quincena, tendrá como estímulo 3\n      días de aguinaldo, cuyo pago se hará en la nómina de la siguiente quincena de aquella en la\n      que esto hubiere ocurrido. Se afecta el pago por faltas injustificadas, licencia sin sueldo,\n      incapacidades por enfermedad general, licencias con sueldo a excepción por fallecimiento de\n      padres, hijos o cónyuge.\n\n                                       ¿Cómo calcularlo?\n       Sueldo tabular (002) + Cpto. 011 (o en su caso cpto. 019 + 054 + 057 + 058 + 061) entre\n                                      15 x 3 días de estímulo."
         }
       ]
@@ -1484,11 +1466,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "033",
     "name": "ESTÍMULO POR PUNTUALIDAD",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 25,
           "text": "Concepto 033 Estímulo por puntualidad. Cláusula 38 y Artículo 93 Reglamento Interior de Trabajo\n      del CCT. Cuando el trabajador registre 10 veces su asistencia diaria hasta el minuto cinco, se le\n      otorgará como estímulo de puntualidad 2 días de aguinaldo.\n\n                                       ¿Cómo calcularlo?\n       Sueldo tabular (002) + Cpto. 011 (en su caso cpto. 019 + 054 + 057 + 058 + 061) entre\n                                     15 x 2 días de estímulo."
         }
       ]
@@ -1504,11 +1485,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "037",
     "name": "TIEMPO EXTRAORDINARIO",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 25,
           "text": "Concepto 037 Tiempo extraordinario. Cláusula 32 y Cláusula 33. Se considera como tiempo\n      extraordinario empleado al servicio del instituto el que exceda los límites de la jornada diaria\n      contratada y todo el tiempo laborado en días de descanso semanal y en días no laborales.\n\n                                                  25"
         }
       ]
@@ -1524,11 +1504,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "038",
     "name": "PAGO EN EFECTIVO DE VACACIONES",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": false,
       "detail": [
         {
-          "page": 26,
           "text": "Concepto 038 Pago en efectivo de vacaciones. Este concepto se paga únicamente al personal\n       comisionado del SNTSS por periodo anual el tiempo que dure la Comisión Sindical por\n       cláusula 42.\n\n                                       ¿Cómo calcularlo?\n       Sueldo tabular (002) + cpto. 011 (en su caso cpto. 019 + 023 + 054 + 057 + 058 + 061 +\n                             063) + 020 + 050 entre 15 x días a pagar."
         }
       ]
@@ -1544,11 +1523,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "039",
     "name": "BONIFICACIÓN DE GUARDERÍAS",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 26,
           "text": "Concepto 039 Bonificaciones de guarderías. $5.21 quincenal. Seguro de Responsabilidad Civil para\n       la rama de guarderías."
         }
       ]
@@ -1564,11 +1542,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "040",
     "name": "BONIFICACIÓN DE SEGURO MÉDICO",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 26,
           "text": "Concepto 040 Bonificación de Seguro Médico. $20.20 quincenal. Bonificación al personal médico\n       como protección a la práctica médica."
         }
       ]
@@ -1584,7 +1561,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "041",
     "name": "COMPLEMENTO DE AYUDA A BECARIO",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1599,11 +1576,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "042",
     "name": "ANTICIPO DE SUELDO CL. 97 CCT",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 26,
           "text": "Concepto 042 Anticipo de Sueldo. Cláusula 97 del CCT. Es hasta por tres meses de sueldo una sola\n       vez al año. Es facultativo para el trabajador de base, usar en una sola ocasión o en forma\n       fraccionada, el derecho que le otorga esta cláusula. Estos anticipos no devengarán intereses.\n\n                                       ¿Cómo calcularlo?\n               Sueldo tabular (002) + Cpto. 011 x 2 x el número de meses solicitados.\n                       Importe máximo de 3 meses. Antigüedad 23 quincenas."
         }
       ]
@@ -1619,11 +1595,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "043",
     "name": "VALE A CUENTA DE AGUINALDO",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 26,
           "text": "Concepto 043 Vale a cuenta de aguinaldo. Cláusula 107. El aguinaldo anual de los trabajadores será\n       de tres meses de sueldo nominal y proporcional a los sueldos percibidos. El pago se hará\n       anticipando medio mes en la quincena de enero (cpto. 047), un mes más en la primera\n       quincena de agosto a solicitud del trabajador (cpto. 043) y el saldo en la primera quincena del\n       mes de diciembre (cpto. 49). El aguinaldo se paga libre de impuestos, absorbiéndolos en\n       instituto."
         }
       ]
@@ -1639,11 +1614,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "044",
     "name": "AYUDA PARA REFRIGERIO",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 26,
           "text": "Concepto 044 Ayuda para refrigerio. A los trabajadores de guarderías que no perciben alimentos\n       en especie. Se afecta con las siguientes incidencias: incapacidades, comisiones, licencias con\n\n                                                  26"
         }
       ]
@@ -1659,7 +1633,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "046",
     "name": "AYUDA DE ALOJAMIENTO A BECARIOS",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1674,11 +1648,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "047",
     "name": "ANTICIPO DE AGUINALDO DE ENERO",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 27,
           "text": "Concepto 047 Anticipo de aguinaldo de enero. El aguinaldo anual de los trabajadores será de tres\n       meses de sueldo nominal y proporcional a los sueldos percibidos; el pago se hará anticipando\n       medio mes en la primera quincena de enero (cpto. 047). Es un pago automático."
         }
       ]
@@ -1694,11 +1667,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "048",
     "name": "AYUDA PARA ACTIVIDADES CULTURALES Y RECREATIVAS",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 27,
           "text": "Concepto 048 Ayuda para actividades culturales y recreativas. Cláusula 47. Los trabajadores\n       percibirán por concepto de “ayuda para actividades culturales y recreativas” los días de salario\n       que se indican en la siguiente tabla, de acuerdo a su antigüedad efectiva:\n\n                         ANTIGÜEDAD EFECTIVA EN AÑOS            DÍAS A PAGAR\n                                            1                         23\n\n                                            2                         25\n\n                                            3                         27\n                                            4                         29\n\n                                      5 y más                         31\n\n                                       ¿Cómo calcularlo?\n         Suma de los conceptos del Salario Mensual Integrado entre 30 x número de días de\n                                             ayuda."
         }
       ]
@@ -1714,11 +1686,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "049",
     "name": "AGUINALDO",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 27,
           "text": "Concepto 049 Aguinaldo. Cláusula 107. El aguinaldo anual de los trabajadores será de tres meses de\n       sueldo nominal y proporcional a los sueldos percibidos. El pago se hará anticipando medio mes\n       en la primera quincena del mes de diciembre.\n\n                                       ¿Cómo calcularlo?\n       Sueldo tabular (002) + Cpto. 011 (en su caso cpto. 019 + 054 + 057 + 058 + 061) x 2 x 3"
         }
       ]
@@ -1734,11 +1705,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "050",
     "name": "AYUDA PARA DESPENSA",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 27,
           "text": "Concepto 050 Ayuda para despensa. Cláusula 142 Bis. El importe mensual es de: $400.00."
         }
       ]
@@ -1754,11 +1724,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "052",
     "name": "NOTAS DE MÉRITO",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 27,
           "text": "Concepto 052 Notas de merito. Cláusula 126 y Artículo 97 Reglamento Interior de Trabajo del CCT.\n       Por cada nota de mérito que el trabajador obtenga dentro de un año calendario, tendrá\n       derecho a que se aumente un día adicional de aguinaldo."
         }
       ]
@@ -1774,11 +1743,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "053",
     "name": "LIQUIDACIONES FONDO DE RETIRO",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 27,
           "text": "Concepto 053 Liquidaciones fondo de retiro. Cláusula 143 y Capítulo V del Reglamento del fondo de\n       retiro para trabajadores del IMSS.\n\n                                                   27"
         }
       ]
@@ -1794,7 +1762,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "054",
     "name": "EMANACIONES RADIOACTIVAS NO MÉDICAS",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1809,11 +1777,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "055",
     "name": "FONDO DE AHORRO",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 28,
           "text": "Concepto 055 Fondo de ahorro. Cláusula 144 y Artículo 18 del Régimen de jubilaciones y pensiones\n       del CCT. El Instituto entregará a todos los trabajadores en la segunda quincena de julio de cada\n       año, el equivalente a 39 días de sueldo tabular, por concepto de Fondo de Ahorro, así como\n       cinco días adicionales de sueldo tabular en relación con los meses del año que tienen más de\n       treinta días, más dos días de sueldo tabular a partir de la vigencia del contrato 2021-2023\n       (dando un total de 46 días). La cantidad que por este concepto se entregue será libre de\n       impuestos y proporcional al tiempo laborado computado del 1ro de julio al 30 de junio del año\n       siguiente.\n\nLas incidencias que afectan el fondo de ahorro:\n\n    Lic. sin sueldo mayor a 3 días   cpto. 129\n    Lic. sin sueldo de 1 a 3 días    cpto. 171\n    Faltas                           cpto. 172\n    Becas sin sueldo                 cpto. 175\n\n                                        ¿Cómo calcularlo?\n                     Sueldo tabular (002) + Cpto. 011 entre 15 x 46 días = cpto. 055"
         }
       ]
@@ -1829,7 +1796,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "056",
     "name": "INTERESES DEL FONDO DE AHORRO",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1844,7 +1811,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "057",
     "name": "ATENCIÓN INTEGRAL",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1859,11 +1826,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "058",
     "name": "SOBRESUELDO DOCENCIA ENFERMERÍA",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 28,
           "text": "Concepto 058 Sobresueldo docencia enfermería. Cláusula 151. Los trabajadores en ciertas\n       categorías de enfermería recibirán un aumento del 31% en su salario base debido a su\n       participación en actividades docentes, de enseñanza e investigación.\n\n                                        ¿Cómo calcularlo?\n                           Sueldo tabular (002) + Cpto. 011 x 31% = cpto. 058"
         }
       ]
@@ -1879,7 +1845,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "059",
     "name": "COMPLEMENTO DE BECAS",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1894,7 +1860,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "062",
     "name": "AYUDA PARA LIBROS A MÉDICOS",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1909,7 +1875,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "063",
     "name": "EMANACIONES RADIOACTIVAS",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1924,7 +1890,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "064",
     "name": "MATERIAL DIDÁCTICO A MÉDICOS RESIDENTES",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1939,7 +1905,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "066",
     "name": "AYUDA PARA TRANSPORTE",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1954,7 +1920,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "067",
     "name": "ESTÍMULOS INSTRUCTORES TÉCNICOS",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -1969,11 +1935,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "070",
     "name": "DEVOLUCIONES ISPT AÑO ANTERIOR",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 28,
           "text": "Concepto 070 Devoluciones ISPT año anterior. Este concepto se genera de acuerdo a la mecánica\n       del cálculo del ISPT anual, si procede devolución de este concepto, se efectuará en la segunda\n       quincena de marzo del siguiente año correspondiente al ejercicio fiscal del año anterior."
         }
       ]
@@ -1989,7 +1954,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "071",
     "name": "SUBSIDIO PARA EL EMPLEO",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -2004,7 +1969,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "072",
     "name": "AYUDA PARA LIBROS NO MÉDICOS",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -2019,7 +1984,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "076",
     "name": "REINTEGRO CONVENIO T.A.T.",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -2034,7 +1999,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "078",
     "name": "ACTIVIDADES ACADÉMICAS",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -2049,7 +2014,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "080",
     "name": "PAGO DE SALARIO NO COBRADO",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -2064,7 +2029,7 @@ export const guideConcepts: GuideConcept[] = [
     "code": "083",
     "name": "SOBRESUELDO POR INVESTIGACIÓN Y DOCENCIA",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": []
     },
@@ -2079,11 +2044,10 @@ export const guideConcepts: GuideConcept[] = [
     "code": "084",
     "name": "ESTÍMULO A LA CALIDAD Y EFICIENCIA",
     "kind": "perception",
-    "manual2023": {
+    "catalog": {
       "listed": true,
       "detail": [
         {
-          "page": 28,
           "text": "Concepto 084 Estímulo a la calidad y eficiencia. Cláusula 18a Transitoria. Todos los trabajadores de\n       base del instituto tendrán derecho a un bono que incentive la productividad, eficiencia y\n       calidad de su trabajo, premiando los resultados excepcionales de acuerdo a sus funciones,\n       según lo establecido en el contrato.\n\n                                                   28"
         }
       ]

@@ -1,33 +1,33 @@
-# Créditos y procedencia documental
+﻿# Créditos y procedencia documental
 
-Agradecimientos, autoría y fuentes declaradas en el propio manual.
+Agradecimientos, autoría y fuentes declaradas en el propio documento de referencia.
 
-> Fuente: Manual de orientación al tarjetón de pago del trabajador del IMSS — 2023.
+> Fuente: transcripción de un documento de referencia NO oficial (solo histórico del índice). No es autoridad normativa.
 
 ## Página 39
 
 Agradecimientos
 
-Cultivando Talento agradece la confianza depositada en este manual. Este
+Cultivando Talento agradece la confianza depositada en el documento de referencia. Este
 documento ha sido elaborado con el objetivo de brindar información útil y
-actualizada sobre este importante recibo. Por ello, este manual ha sido
+actualizada sobre este importante recibo. Por ello, el documento de referencia ha sido
 elaborado con un lenguaje sencillo y accesible para todos los públicos.
 
 Se expresa el más sincero agradecimiento a todas las personas que
-contribuyeron a la creación de este manual de orientación. En particular,
+contribuyeron a la creación de el documento de referencia de orientación. En particular,
 deseo agradecer a las siguientes personas y entidades:
 
    Al IMSS, por brindarme la oportunidad de ser parte de su equipo como
    practicante. Durante mi tiempo en el IMSS, adquirí un valioso
    conocimiento y experiencia que fueron fundamentales para
-   comprender y elaborar este manual.
+   comprender y elaborar el documento de referencia.
    Al equipo administrativo de Guardería 002 de Obregón, que
    compartieron su experiencia, tiempo y conocimientos conmigo.
-   A todos los empleados del IMSS que utilizarán este manual. Mi objetivo
+   A todos los empleados del IMSS que utilizarán el documento de referencia. Mi objetivo
    principal al crear este recurso es ayudarles a comprender y gestionar de
    manera efectiva su información financiera a través del tarjetón de pago.
 
-Este manual no habría sido posible sin la colaboración y el apoyo de todos
+el documento de referencia no habría sido posible sin la colaboración y el apoyo de todos
 ustedes. Espero sinceramente que este recurso sea de utilidad y contribuya
 a simplificar el proceso de comprensión y gestión de su tarjetón de pago.
 

@@ -1,8 +1,8 @@
-# Percepciones y conceptos de pago
+﻿# Percepciones y conceptos de pago
 
-Catálogo de percepciones y explicaciones de conceptos seleccionados incluidas por el manual.
+Catálogo de percepciones y explicaciones de conceptos seleccionados incluidas en el documento de referencia.
 
-> Fuente: Manual de orientación al tarjetón de pago del trabajador del IMSS — 2023.
+> Fuente: transcripción de un documento de referencia NO oficial (solo histórico del índice). No es autoridad normativa.
 
 ## Página 20
 

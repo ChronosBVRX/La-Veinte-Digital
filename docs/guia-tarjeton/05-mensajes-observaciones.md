@@ -1,8 +1,8 @@
-# Mensajes y observaciones
+﻿# Mensajes y observaciones
 
 Significado de las secciones de Mensajes y Observaciones, incluyendo vencimiento, unidades, número de control, cargo inicial y observaciones.
 
-> Fuente: Manual de orientación al tarjetón de pago del trabajador del IMSS — 2023.
+> Fuente: transcripción de un documento de referencia NO oficial (solo histórico del índice). No es autoridad normativa.
 
 ## Página 32
 

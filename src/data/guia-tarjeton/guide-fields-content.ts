@@ -1,7 +1,8 @@
-// Capa editorial de campos del tarjetón para "Guía de mi Tarjetón".
-// El catálogo base de 77 campos vive en `fields.ts` (fuente: manual 2023).
+﻿// Capa editorial de campos del tarjetón para "Guía de mi Tarjetón".
+// ÍNDICE PROVISIONAL: el catálogo base de campos vive en `fields.ts`.
 // Aquí se agrega contenido educativo curado, la agrupación campo → sección
-// y datos de ejemplo anonimizados para el Explorador.
+// y datos de ejemplo anonimizados para el Explorador. No es autoridad
+// normativa.
 
 export interface GuideFieldContent {
   fieldId: number
@@ -113,7 +114,7 @@ export const GUIDE_FIELD_CONTENT_BY_ID: ReadonlyMap<number, GuideFieldContent> =
   GUIDE_FIELD_CONTENT.map((f) => [f.fieldId, f])
 )
 
-// Agrupación campo → sección del recibo (según la estructura del manual 2023).
+// Agrupación campo → sección del recibo (según la estructura del recibo).
 export const GUIDE_SECTION_FIELD_RANGES: Readonly<Record<string, number[]>> = {
   emisor: [],
   receptor: Array.from({ length: 59 }, (_, i) => i + 1),

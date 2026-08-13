@@ -1,8 +1,8 @@
-# Emisor, receptor y datos del trabajador
+﻿# Emisor, receptor y datos del trabajador
 
 Definiciones de los datos del receptor, plaza, incidencias, asistencia, licencias, vacaciones, crédito y sueldo mensual integrado.
 
-> Fuente: Manual de orientación al tarjetón de pago del trabajador del IMSS — 2023.
+> Fuente: transcripción de un documento de referencia NO oficial (solo histórico del índice). No es autoridad normativa.
 
 ## Página 9
 

@@ -5,7 +5,6 @@ export * from './sources';
 export * from './relations';
 export * from './lessons';
 export * from './tables';
-export * from './formulas-manual-2023';
 export * from './guide-content';
 export * from './guide-fields-content';
 export * from './guide-lessons';

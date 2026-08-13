@@ -51,7 +51,7 @@ describe("looksLikeCode", () => {
 })
 
 describe("cleanConceptName", () => {
-  it("recorta el prefijo de código de los nombres del manual", () => {
+  it("recorta el prefijo de código de los nombres de la guía", () => {
     const out = cleanConceptName("033 ESTÍMULO POR PUNTUALIDAD")
     expect(typeof out).toBe("string")
     expect(out.trim().length).toBeGreaterThan(0)
