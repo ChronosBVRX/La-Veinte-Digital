@@ -27,7 +27,7 @@ enum TarjetonDigitalJson {
 
     private static func jsonValue(_ s: String) -> Any? {
         guard let data = s.data(using: .utf8) else { return nil }
-        return try? JSONSerialization.jsonObject(with: data)
+        return try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed)
     }
 
     private static func asDict(_ s: String) -> [String: Any]? {
