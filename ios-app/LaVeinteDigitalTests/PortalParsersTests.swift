@@ -4,9 +4,8 @@ import XCTest
 final class PortalParsersTests: XCTestCase {
 
     private func jsonString(_ s: String) -> String {
-        let data = try! JSONSerialization.data(withJSONObject: [s])
-        let str = String(data: data, encoding: .utf8)! // ["..."]
-        return String(str.dropFirst().dropLast()) // "..."
+        let escaped = s.replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"" + escaped + "\""
     }
 
     // MARK: - TarjetonDigitalJson
