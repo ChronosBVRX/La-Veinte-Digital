@@ -67,18 +67,23 @@ android-app/app/src/main/java/com/laveintedigital/app/
 │   │   └── ImssCredentialUnlock.kt
 │   ├── portal/                # Automatización portales IMSS + captura PDF
 │   │   ├── TuPerfilFlowController.kt + TuPerfilFlowState.kt + TuPerfilPortalAdapter.kt
+│   │   ├── TarjetonDigitalFlowController.kt + TarjetonDigitalFlowState.kt
+│   │   ├── TarjetonDigitalLoginErrorParser.kt + TarjetonDigitalJson.kt + TarjetonDigitalBridge.kt
 │   │   ├── ImssPdfCaptureCoordinator.kt, ImssAuthDetector.kt, PortalDetectionRules.kt
 │   │   ├── ImssLoginAdapters.kt, NativeDomTapper.kt
 │   ├── payslips/              # Room + descarga de PDFs
 │   │   ├── PayslipDatabase.kt (PayslipDao + PayslipDocument)
 │   │   └── ImssPayslipDownloader.kt
-│   ├── tarjeton/              # modelos de captura (TarjetonCaptureSession, etc.)
+│   ├── tarjeton/              # modelos de captura + delegaciones
+│   │   ├── TarjetonModels.kt (TarjetonCaptureSession, PeriodParser, etc.)
+│   │   └── TarjetonDigitalDelegaciones.kt (catálogo + prettify)
 │   └── ui/                    # Pantallas compose
 │       ├── OfficialPayslipsScreen.kt + OfficialServiceCard.kt   # hub (claro)
 │       ├── ImssPortalScreen.kt, PayslipHistoryScreen.kt
 │       ├── PayslipViewerScreen.kt, SaveImssCredentialsScreen.kt
 │       ├── ManageImssCredentialsScreen.kt, TuPerfilLoginDialog.kt
-│       └── TuPerfilTarjetonOverlay.kt
+│       ├── TuPerfilTarjetonOverlay.kt
+│       └── TarjetonDigitalLoginDialog.kt + TarjetonDigitalLoginErrorDialog.kt + TarjetonDigitalTarjetonOverlay.kt
 ├── ui/theme/                  # Colores, tipografía, tema + StatusBarAppearance
 └── updates/                   # Lógica OTA
     ├── UpdateRepository.kt, UpdateManifest.kt, UpdateState.kt, UpdateCache.kt
@@ -452,7 +457,7 @@ Pantalla CLARA (diseño 1.0.46):
     `window.__LVD_CARD_RESULT__/__STATE__/__ERROR__` (polling desde Kotlin).
   - El overlay `TuPerfilTarjetonOverlay` permite cambiar OOAD/período,
     consultar, reintentar y abrir el "formulario original" del portal.
-- **Tarjetón Digital** → `TarjetonDigitalFlowController` (1.0.54). Portal
+- **Tarjetón Digital** → `TarjetonDigitalFlowController` (1.0.54–1.0.57). Portal
   ASP.NET WebForms: la página principal carga un iframe `#ifrPaginaSecundaria`
   cuyo `src` alterna entre `RegistroUsuarios/Web/wfrAcceso.aspx` (login) y
   `ComprobanteDigital/Web/wfrGenerarTarjeton.aspx` (consulta). El login NO es
@@ -474,6 +479,13 @@ Pantalla CLARA (diseño 1.0.46):
   - Consulta de tarjetones: lee periodos del jqGrid vía `getDataIDs` +
     `getRowData`; overlay `TarjetonDigitalTarjetonOverlay` (periodo + tipo
     Tarjetón/Conceptos/XML); formato fijo "Archivo" y pulsa `#btnAceptar`.
+  - **Parsing de resultados JS (fix 1.0.57, causa raíz de "no cargan tarjetones")**:
+    `WebView.evaluateJavascript` devuelve el resultado de `JSON.stringify(...)`
+    con DOBLE serialización (`"[{\"code\":...}]"`). `readPeriods`/`refreshDelegaciones`
+    intentaban leerlo como `JSONArray` directo y obtenían `null` (por eso la
+    grilla estaba visible pero Kotlin la veía vacía). Centralizado en
+    `TarjetonDigitalJson.parseArray/parseObject` (acepta array directo o string
+    con nivel extra) + tests `TarjetonDigitalJsonTest`.
   - PDF: `window.open('...wfrReporteTarjeton.aspx')` se intercepta dentro del
     iframe (`TarjetonDigitalBridge`, allowlist `rh.imss.gob.mx`) → descarga
     HTTP autenticada con cookies, valida `%PDF-`, SHA-256, dedup y guarda con
