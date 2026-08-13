@@ -51,6 +51,16 @@ contenido ya estaba aplicado). El contenido remoto está al día; el
 `db push` ni `migration repair` para evitar re-ejecutar migraciones cuyo
 contenido ya existe remotamente.
 
+**Actualización 2026-08-13**: se registraron las 22 migraciones locales
+(`001`–`017` + `20260804*` + `20260810*` + `20260812*`) en
+`supabase_migrations.schema_migrations` vía INSERT idempotente
+(`ON CONFLICT (version) DO NOTHING`), marcándolas como aplicadas sin
+re-ejecutar contenido. Quedan 7 entradas huérfanas `20260727*`
+(historia antigua de profiles/forum/chat/catálogo) que se conservan
+intactas — representan objetos aún existentes y sin equivalente local
+(p. ej. `catalogo_adscripciones`). Con esto `db push` ya no intenta
+re-aplicar migraciones locales cuyo contenido ya está en el esquema.
+
 ## Rollback
 
 - Código: redeploy del commit anterior con `vercel --prod`.
