@@ -3,11 +3,6 @@ import XCTest
 
 final class PortalParsersTests: XCTestCase {
 
-    private func jsonString(_ s: String) -> String {
-        let escaped = s.replacingOccurrences(of: "\"", with: "\\\"")
-        return "\"" + escaped + "\""
-    }
-
     // MARK: - TarjetonDigitalJson
 
     func testParseArrayDirect() {
@@ -16,16 +11,18 @@ final class PortalParsersTests: XCTestCase {
         XCTAssertEqual(arr?[0]["code"] as? String, "2026015")
     }
 
-    func testParseArrayDoubleSerialized() {
-        let raw = jsonString(#"[{"code":"2026015","fechas":"a","observaciones":"b"}]"#)
-        let arr = TarjetonDigitalJson.parseArray(raw)
-        XCTAssertEqual(arr?.count, 1)
-        XCTAssertEqual(arr?[0]["code"] as? String, "2026015")
+    func testParseArrayEmpty() {
+        let arr = TarjetonDigitalJson.parseArray("[]")
+        XCTAssertEqual(arr?.count, 0)
     }
 
-    func testParseArrayEmpty() {
-        let arr = TarjetonDigitalJson.parseArray(jsonString("[]"))
-        XCTAssertEqual(arr?.count, 0)
+    func testParseObjectDirect() {
+        let obj = TarjetonDigitalJson.parseObject(#"{"page":"tarjeton","message":""}"#)
+        XCTAssertEqual(obj?["page"] as? String, "tarjeton")
+    }
+
+    func testParseString() {
+        XCTAssertEqual(TarjetonDigitalJson.parseString("\"texto de error\""), "texto de error")
     }
 
     func testParseNull() {
@@ -33,12 +30,7 @@ final class PortalParsersTests: XCTestCase {
         XCTAssertNil(TarjetonDigitalJson.parseArray("null"))
         XCTAssertNil(TarjetonDigitalJson.parseObject(nil))
         XCTAssertNil(TarjetonDigitalJson.parseObject("null"))
-    }
-
-    func testParseObjectDoubleSerialized() {
-        let raw = jsonString(#"{"page":"tarjeton","message":""}"#)
-        let obj = TarjetonDigitalJson.parseObject(raw)
-        XCTAssertEqual(obj?["page"] as? String, "tarjeton")
+        XCTAssertNil(TarjetonDigitalJson.parseString("null"))
     }
 
     // MARK: - TarjetonDigitalLoginErrorParser

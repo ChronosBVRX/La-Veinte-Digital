@@ -2,23 +2,19 @@ import Foundation
 
 /// Parsing del resultado de `WKWebView.evaluateJavaScript`.
 ///
-/// Acepta tanto un objeto/array directo como un string JSON con un nivel extra
-/// (por si algún bridge intermedio lo re-serializa), centralizando el fix del
-/// bug de doble serialización (`TarjetonDigitalJson.kt`).
+/// En iOS, WKWebView devuelve el resultado de `JSON.stringify(...)` como un
+/// `String` directamente (a diferencia de Android, que doble-serializa). Estas
+/// funciones parsean ese string JSON.
 enum TarjetonDigitalJson {
 
     static func parseObject(_ raw: String?) -> [String: Any]? {
         guard let raw, raw != "null", raw != "undefined" else { return nil }
-        if let obj = asDict(raw) { return obj }
-        if let str = asString(raw), let obj = asDict(str) { return obj }
-        return nil
+        return asDict(raw)
     }
 
     static func parseArray(_ raw: String?) -> [[String: Any]]? {
         guard let raw, raw != "null", raw != "undefined" else { return nil }
-        if let arr = asArray(raw) { return arr }
-        if let str = asString(raw), let arr = asArray(str) { return arr }
-        return nil
+        return asArray(raw)
     }
 
     /// Decodifica un resultado `JSON.stringify("string")` (o una cadena ya JSON).
