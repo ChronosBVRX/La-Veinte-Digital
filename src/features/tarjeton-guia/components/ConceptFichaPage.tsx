@@ -8,7 +8,7 @@ import { Card } from "@/shared/components/ui/Card"
 import { Badge } from "@/shared/components/ui/Badge"
 import { ActionLink } from "@/shared/components/ui/ActionLink"
 import { Tabs } from "@/shared/components/ui/Tabs"
-import { getGuideConceptWithDetails, getRelationsForConcept, resolveRefHref, getManualSource } from "@/features/tarjeton-guia/lib/catalog"
+import { getGuideConceptWithDetails, getRelationsForConcept, resolveRefHref } from "@/features/tarjeton-guia/lib/catalog"
 import { normalizeCode } from "@/features/tarjeton-guia/lib/normalize"
 import type { GuideDetailContent } from "@/features/tarjeton-guia/data/concept-details"
 
@@ -33,8 +33,6 @@ export function ConceptFichaPage({ code }: { code: string }) {
 
   const kind = entry.kind === "perception" ? "Percepción" : "Deducción"
   const d = entry.details
-  const manual = entry.manual2023.detail
-  const manualSource = getManualSource()
   const relations = getRelationsForConcept(entry.code)
   const hasEnoughInfo = !!d?.simple
 
@@ -48,7 +46,6 @@ export function ConceptFichaPage({ code }: { code: string }) {
 
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap" }}>
         <Badge variant={kind === "Percepción" ? "info" : "warning"}>{kind}</Badge>
-        <Badge variant="neutral">Referencia educativa 2023</Badge>
       </div>
 
       {hasEnoughInfo ? (
@@ -61,11 +58,9 @@ export function ConceptFichaPage({ code }: { code: string }) {
           ]}
         >
           {(active) => {
-            if (active === "detallado") return <DetalladoTab d={d} manual={manual} />
-            if (active === "fundamento") return <FundamentoTab sources={d?.sources} manualPages={manual.map((m) => m.page)} manualSource={manualSource} />
-            return (
-              <FacilTab d={d} kindLabel={kind} manualPages={manual.map((m) => m.page)} />
-            )
+            if (active === "detallado") return <DetalladoTab d={d} />
+            if (active === "fundamento") return <FundamentoTab sources={d?.sources} />
+            return <FacilTab d={d} kindLabel={kind} />
           }}
         </Tabs>
       ) : (
@@ -74,11 +69,6 @@ export function ConceptFichaPage({ code }: { code: string }) {
           <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0, lineHeight: 1.6 }}>
             Tenemos identificado este concepto, pero todavía no contamos con información suficiente para ofrecer una explicación completa y confiable.
           </p>
-          {manual.length > 0 && (
-            <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.75rem 0 0", lineHeight: 1.5 }}>
-              Referencia del Manual de orientación al tarjetón (2023): páginas {unique(manual.map((m) => m.page)).join(", ")}.
-            </p>
-          )}
         </Card>
       )}
 
@@ -135,11 +125,7 @@ function displayName(name: string): string {
   return name.charAt(0) + name.slice(1).toLowerCase()
 }
 
-function unique(values: number[]): number[] {
-  return Array.from(new Set(values))
-}
-
-function FacilTab({ d, kindLabel, manualPages }: { d: GuideDetailContent | null; kindLabel: string; manualPages: number[] }) {
+function FacilTab({ d, kindLabel }: { d: GuideDetailContent | null; kindLabel: string }) {
   if (!d) return null
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -155,7 +141,6 @@ function FacilTab({ d, kindLabel, manualPages }: { d: GuideDetailContent | null;
         <p style={para()}>
           <Badge variant={kindLabel === "Percepción" ? "info" : "warning"}>{kindLabel}</Badge>{" "}
           En la sección correspondiente de tu tarjetón
-          {manualPages.length > 0 && <span style={{ color: "var(--muted)" }}> · manual 2023, págs. {unique(manualPages).join(", ")}</span>}
         </p>
       </Section>
     </div>
@@ -182,7 +167,7 @@ function para(extra: CSSProperties = {}): CSSProperties {
   return { ...paragraphStyle, ...extra }
 }
 
-function DetalladoTab({ d, manual }: { d: GuideDetailContent | null; manual: { page: number; text: string }[] }) {
+function DetalladoTab({ d }: { d: GuideDetailContent | null }) {
   if (!d) return null
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -214,50 +199,30 @@ function DetalladoTab({ d, manual }: { d: GuideDetailContent | null; manual: { p
           </p>
         ) : (
           <p style={para({ color: "var(--muted)" })}>
-            Disponemos de una referencia del manual 2023, pero no la presentamos como vigente hasta validarla con la normativa actual del proyecto. Si quieres calcular una prestación, usa el simulador correspondiente desde la ficha.
+            Aún no contamos con una fórmula vigente validada para este concepto. Si quieres calcular una prestación, usa el simulador correspondiente desde la ficha.
           </p>
         )}
       </Section>
-      {manual.length > 0 && (
-        <Section title="Referencia del manual">
-          <p style={para({ color: "var(--muted)" })}>
-            El manual 2023 aborda este concepto en {unique(manual.map((m) => m.page)).join(", ")} página(s).
-          </p>
-        </Section>
-      )}
     </div>
   )
 }
 
-function FundamentoTab({ sources, manualPages, manualSource }: { sources?: string[]; manualPages: number[]; manualSource: ReturnType<typeof getManualSource> }) {
+function FundamentoTab({ sources }: { sources?: string[] }) {
+  const labels: Record<string, string> = {
+    "cct-2023-2025-mentioned": "Contrato Colectivo de Trabajo 2023–2025",
+  }
+  const shown = (sources ?? []).filter((sid) => labels[sid])
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
       <Section title="Referencias">
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          {sources?.map((sid) => {
-            const items: Record<string, string> = {
-              "manual-imss-2023": "Manual de orientación al tarjetón de pago del trabajador del IMSS (2023)",
-              "cct-2023-2025-mentioned": "Contrato Colectivo de Trabajo 2023–2025 (mencionado por el manual)",
-              "rit-mentioned": "Reglamento Interior de Trabajo (citado por el manual)",
-            }
-            return (
-              <div key={sid} style={{ padding: "0.625rem 0.75rem", borderRadius: "var(--radius-sm)", background: "var(--accent)", fontSize: "0.8125rem", lineHeight: 1.5 }}>
-                {items[sid] ?? sid}
-              </div>
-            )
-          })}
-          {manualPages.length > 0 && (
-            <div style={{ padding: "0.625rem 0.75rem", borderRadius: "var(--radius-sm)", background: "var(--accent)", fontSize: "0.8125rem", lineHeight: 1.5 }}>
-              Manual de orientación al tarjetón · páginas {unique(manualPages).join(", ")}
+          {shown.map((sid) => (
+            <div key={sid} style={{ padding: "0.625rem 0.75rem", borderRadius: "var(--radius-sm)", background: "var(--accent)", fontSize: "0.8125rem", lineHeight: 1.5 }}>
+              {labels[sid]}
             </div>
-          )}
-          {manualSource?.notes && (
-            <div style={{ fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.5 }}>
-              {manualSource.notes}
-            </div>
-          )}
+          ))}
           <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
-            La información de este catálogo proviene de una fuente de referencia (2023). Las reglas vigentes de cálculo viven en los motores de La Veinte Digital.
+            Esta guía es educativa. Las reglas vigentes de cálculo viven en los motores de La Veinte Digital.
           </p>
         </div>
       </Section>

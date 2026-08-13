@@ -137,11 +137,7 @@ export function resolveRefHref(ref: string): string | null {
   return null
 }
 
-/** Fuente del manual 2023 con su estado (para la pestaña Fundamento). */
-export function getManualSource() {
-  return guideSources.find((s) => s.id === "manual-imss-2023") ?? null
-}
-
+/** Fuente del catálogo por id (para integraciones de data, no se muestra como cita). */
 export function getSourceById(id: string) {
   return guideSources.find((s) => s.id === id) ?? null
 }

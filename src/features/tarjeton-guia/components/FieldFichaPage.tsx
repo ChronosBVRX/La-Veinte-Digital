@@ -74,17 +74,6 @@ export function FieldFichaPage({ id }: { id: string | number }) {
               En la sección <strong>{section?.name ?? "del recibo"}</strong> de tu tarjetón.
             </p>
           </Card>
-
-          {(field.sourceText || field.sourcePage) && (
-            <Card padding="1.25rem 1.5rem" variant="subtle">
-              <SectionTitle>Referencia del manual 2023</SectionTitle>
-              {field.sourceText && <p style={para({ color: "var(--muted)" })}>{condense(field.sourceText)}</p>}
-              <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.5rem 0 0", lineHeight: 1.5 }}>
-                Manual de orientación al tarjetón{field.sourcePage ? ` · páginas ${field.sourcePage}` : ""}. Referencia educativa,
-                no normativa vigente del proyecto.
-              </p>
-            </Card>
-          )}
         </div>
       ) : (
         <Card padding="1.5rem" variant="subtle">

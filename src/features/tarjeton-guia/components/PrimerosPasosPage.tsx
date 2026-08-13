@@ -143,12 +143,6 @@ function LessonCard({
         ))}
       </div>
 
-      {lesson.sourcePages?.length ? (
-        <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.75rem 0 0", lineHeight: 1.5 }}>
-          Referencia: Manual de orientación al tarjetón (2023) · págs. {lesson.sourcePages.join(", ")}
-        </p>
-      ) : null}
-
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "1rem" }}>
         <button
           onClick={onComplete}
