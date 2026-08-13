@@ -144,7 +144,48 @@ GitHub Actions macOS (build + test + export IPA), Universal Links, App Store.
 
 ---
 
-## 5. Referencias
+## 5. Firma y distribución (Fase 6)
+
+**Requisito previo**: cuenta de Apple Developer (USD 99/año). Sin ella no hay
+firma ni App Store, con o sin Mac.
+
+### Secrets de GitHub Actions (no commitear)
+
+El workflow `.github/workflows/ios-release.yml` (disparo manual `workflow_dispatch`)
+firma y exporta el IPA. Configurar estos secrets en GitHub (Settings → Secrets):
+
+| Secret | Valor |
+|---|---|
+| `APPLE_CERTIFICATE_BASE64` | Certificado de firma `.p12` en base64 (`base64 cert.p12`) |
+| `APPLE_CERTIFICATE_PASSWORD` | Contraseña del `.p12` |
+| `APPLE_PROVISIONING_PROFILE_BASE64` | `.mobileprovision` en base64 (bundle `com.laveintedigital.app`) |
+| `APPLE_KEYCHAIN_PASSWORD` | Cualquier contraseña (keychain temporal del CI) |
+| `APPLE_TEAM_ID` | Team ID de Apple Developer |
+
+### Cómo obtenerlos
+
+1. En developer.apple.com → Certificates → crear "Apple Distribution" (o "iOS
+   Distribution") y exportar como `.p12` (con contraseña).
+2. En Profiles → crear provisioning profile **App Store** (o **Ad Hoc** para
+   instalar en dispositivos concretos) con el bundle id `com.laveintedigital.app`.
+3. Member Center → Membership → copiar el **Team ID**.
+
+### Publicar
+
+1. `Actions` → `iOS Release` → `Run workflow` → elegir `app-store-connect`.
+2. Descargar el artefacto `LaVeinteDigital.ipa`.
+3. Subirlo con [Transporter](https://apps.apple.com/app/transporter/id1450874784)
+   o `xcrun altool --upload-app`.
+
+### Universal Links (opcional)
+
+Para deep links `https://la-veinte-digital.vercel.app` en iOS hay que alojar
+`/.well-known/apple-app-site-association` y declarar `com.apple.developer.associated-domains`
+en entitlements. Pendiente de implementar cuando se quiera.
+
+---
+
+## 6. Referencias
 
 - `docs/ANDROID_APP.md` — fuente de verdad del shell Android.
 - `src/types/global.d.ts` — contrato `window.LaVeinteApp`.
