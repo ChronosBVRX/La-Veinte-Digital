@@ -1,18 +1,18 @@
 "use client"
 
-import { useActionState, useState } from "react"
+import { useActionState } from "react"
 import Link from "next/link"
 import { Mail, Lock, LogIn, AlertCircle, Download } from "lucide-react"
 import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
 import { signInAction } from "../actions"
 import { signInWithOAuth } from "@/lib/services/auth-client"
+import { useAppEnvironment } from "@/shared/hooks/useAppEnvironment"
 
 export function LoginForm() {
   const [state, formAction, pending] = useActionState(signInAction, undefined)
-  const [isAndroid] = useState(() =>
-    typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent)
-  )
+  const { environment, platform, resolved } = useAppEnvironment()
+  const shouldShowAndroidDownload = resolved && environment === "web" && platform === "android"
   return (
     <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       {state?.error && (
@@ -83,7 +83,7 @@ export function LoginForm() {
         </Link>
       </p>
 
-      {isAndroid && (
+      {shouldShowAndroidDownload && (
       <a
         href="/LaVeinteDigital.apk"
         style={{

@@ -36,6 +36,8 @@ import type {
 } from "@/features/tarjeton-guia/lib/types"
 
 export interface GuideDetailContent {
+  /** Descriptor breve para el badge de la ficha (clasificación visual, p. ej. "Crédito / Vivienda"). */
+  descriptor?: string
   simple: string
   whyItMatters?: string
   whyItAppears?: string
@@ -378,6 +380,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
 
   // ------------------------------------------------------------------ DEDUCCIONES
   "104": {
+    descriptor: "Crédito / Vivienda",
     simple: "Es el descuento del crédito hipotecario FOVI: el pago de un crédito de vivienda otorgado por el antiguo Fondo de Operación y Descuento Bancario a la Vivienda (FOVI), un esquema de financiamiento hipotecario creado en 1963.",
     whyItMatters:
       "Si aparece en tu tarjetón, corresponde a un crédito de vivienda de origen histórico: estos esquemas pasaron a la Sociedad Hipotecaria Federal (SHF) en 2002, por lo que la recuperación es una amortización ya en curso.",
@@ -399,6 +402,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     legacyConcept: false,
   },
   "106": {
+    descriptor: "Crédito / Vivienda",
     simple: "Es el descuento del enganche de tu casa-habitación bajo el esquema E.S.M.I. (Esquema Salario Mensual Integrado): cuando el IMSS te otorga el crédito, el enganche se recupera de tu nómina.",
     whyItMatters: "El IMSS otorga créditos para enganche de casa-habitación a trabajadores de base con 3+ años de antigüedad, y el enganche se descuenta quincenalmente.",
     whyItAppears:
@@ -422,6 +426,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     contextSource: ["proc-1a72-003-005"],
   },
   "109": {
+    descriptor: "Crédito / Vivienda",
     simple: "Es la prima de seguro de daños de vivienda INFONAVIT: la cobertura que protege tu vivienda financiada mientras pagas tu crédito.",
     whyItMatters: "Es un cargo ligado directamente a tu crédito INFONAVIT: mientras dure el crédito, también se cubre el seguro de daños a la vivienda.",
     whyItAppears: "Aparece mientras tengas un crédito INFONAVIT y la póliza de daños esté vigente.",
@@ -439,6 +444,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     contextSource: ["infonavit-reglamento-inscripcion"],
   },
   "130": {
+    descriptor: "Crédito / Vivienda",
     simple: "Es el descuento periódico de tu crédito hipotecario E.S.M.I. (Esquema Salario Mensual Integrado): el pago del préstamo hipotecario que el IMSS te otorgó para tu casa-habitación.",
     whyItMatters: "Es uno de los descuentos más grandes cuando tienes un crédito hipotecario del IMSS: su evolución se ve en las observaciones.",
     whyItAppears:
@@ -462,6 +468,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     contextSource: ["proc-1a72-003-005"],
   },
   "133": {
+    descriptor: "Crédito / Vivienda",
     simple: "Es la ayuda de gastos de escrituración E.S.M.I.: el apoyo que cubre los gastos notariales de tu crédito hipotecario del IMSS y que se recupera por nómina.",
     whyItMatters: "Los gastos de escrituración se financian y se recuperan en plazos, por lo que verás una deducción adicional ligada a tu crédito.",
     whyItAppears:
@@ -481,6 +488,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     contextSource: ["proc-1a72-003-005"],
   },
   "136": {
+    descriptor: "Crédito / Vivienda",
     simple: "Es el descuento de tu préstamo personal a mediano plazo E.S.M.I.: el pago de un crédito personal de vivienda que otorga el IMSS.",
     whyItMatters: "El IMSS concede créditos personales a mediano plazo para fines de vivienda (cláusula 81 CCT): aparecen como descuento quincenal.",
     whyItAppears:
@@ -500,6 +508,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     contextSource: ["proc-1a72-003-005"],
   },
   "107": {
+    descriptor: "Ahorro para el retiro",
     simple: "Es la provisión de tu fondo de jubilación: la parte de tu aportación al ahorro para el retiro que se descuenta por este concepto.",
     whyItMatters: "El convenio IMSS–SNTSS del 14 de octubre de 2005 aumentó gradualmente la aportación de los trabajadores de nuevo ingreso; esta provisión es parte de tu ahorro para el retiro.",
     whyItAppears: "Se descuenta a los trabajadores incorporados bajo el esquema del convenio adicional de 2005 para el régimen de jubilaciones y pensiones.",
@@ -518,6 +527,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     contextSource: ["imss-informe-2015-2016-c10", "cct-2025-2027"],
   },
   "108": {
+    descriptor: "Ahorro para el retiro",
     simple: "Es la provisión del Régimen de Jubilaciones y Pensiones (RJP) para trabajadores incorporados entre 2005 y 2008.",
     whyItMatters: "Define las condiciones de tu jubilación: edad y años de servicio requeridos, con cuantía hasta el 100% en esos esquemas.",
     whyItAppears: "Se descuenta a los trabajadores base de nuevo ingreso comprendidos en la fecha de incorporación del esquema RJP.",
@@ -536,6 +546,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     contextSource: ["imss-informe-2015-2016-c10"],
   },
   "111": {
+    descriptor: "Ahorro para el retiro",
     simple: "Es la aportación complementaria a tu Afore.",
     whyItMatters: "Es parte de tu ahorro para el retiro administrado en tu cuenta Afore.",
     whyItAppears: "Se descuenta conforme a las disposiciones vigentes del ahorro complementario.",
@@ -552,6 +563,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     sources: [], verification: "pending_verification",
   },
   "129": {
+    descriptor: "Asistencia",
     simple: "Es el descuento por licencia sin sueldo mayor a 3 días.",
     whyItMatters: "Cuando tomas una licencia sin goce de sueldo, se descuentan los días correspondientes.",
     whyItAppears: "Se genera cuando se autoriza una licencia sin sueldo mayor a 3 días.",
@@ -563,6 +575,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     sources: [], verification: "pending_verification",
   },
   "151": {
+    descriptor: "Impuestos",
     simple: "Es el Impuesto Sobre la Renta (ISR): la retención que el patrón hace de tu sueldo por concepto de impuestos.",
     whyItMatters: "Es normalmente el descuento más grande de tu tarjetón: entenderlo evita sorpresas.",
     whyItAppears: "El IMSS, como patrón, está obligado a retener el ISR de tus percepciones gravadas (artículo 96 de la LISR).",
@@ -582,6 +595,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     directSource: "ley-isr",
   },
   "152": {
+    descriptor: "Ahorro para el retiro",
     simple: "Es la aportación base a tu fondo de jubilación.",
     whyItMatters: "Es parte de tu ahorro para el retiro: conviene conocer cuánto se te descuenta por este fondo.",
     whyItAppears: "Se descuenta a los trabajadores de base conforme al Régimen de Jubilaciones y Pensiones (cláusula 110 del CCT) y el convenio de 2005.",
@@ -599,6 +613,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     contextSource: ["cct-2025-2027", "imss-informe-2015-2016-c10"],
   },
   "153": {
+    descriptor: "Impuestos",
     simple: "Es un descuento complementario de ISR del año anterior: corrige la retención cuando el cálculo anual resulta en un faltante.",
     whyItMatters: "Aparece como ajuste anual: no es un cargo nuevo, es la regularización de tu impuesto.",
     whyItAppears: "Se genera al regularizar la retención anual de impuestos conforme a la LISR.",
@@ -616,6 +631,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     contextSource: ["ley-isr"],
   },
   "154": {
+    descriptor: "Crédito / Vivienda",
     simple: "Es el descuento del crédito INFONAVIT: el pago mensual de tu crédito de vivienda.",
     whyItMatters: "Es un descuento recurrente mientras dure el crédito; su saldo se refleja en las observaciones.",
     whyItAppears: "Se descuenta cuando tienes un crédito INFONAVIT activo; el IMSS entero el descuento al INFONAVIT vía nómina.",
@@ -636,6 +652,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     contextSource: ["infonavit-reglamento-inscripcion"],
   },
   "155": {
+    descriptor: "Legal",
     simple: "Es un descuento por disposición judicial, como una pensión alimenticia dictada por un juez.",
     whyItMatters: "Es un descuento obligatorio: se aplica solo si existe una orden judicial, dentro de los límites legales.",
     whyItAppears: "Se retiene conforme a una disposición judicial notificada al IMSS, autorizada por la cláusula 106 del CCT.",
@@ -669,6 +686,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     contextSource: ["cct-2025-2027"],
   },
   "160": {
+    descriptor: "Anticipos",
     simple: "Es la recuperación de la cláusula 97 del CCT: el descuento que recupera los anticipos de sueldo que te concedió el IMSS.",
     whyItMatters: "Los anticipos a cuenta de sueldo (cláusula 97) no generan intereses y se recuperan en quincenas (10, 20, 30 o 40), sin afectar el derecho a otros descuentos.",
     whyItAppears: "Se descuenta para amortizar el anticipo de sueldo otorgado conforme a la cláusula 97 del CCT.",
@@ -723,6 +741,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     sources: [], verification: "pending_verification",
   },
   "170": {
+    descriptor: "Préstamos",
     simple: "Es el descuento de crédito FONACOT: el pago del crédito que te otorgó el Fondo de Fomento y Garantía para el Consumo de los Trabajadores, descontado por nómina.",
     whyItMatters: "Es un descuento recurrente mientras pagues tu crédito FONACOT; el FONACOT usa el sistema de afiliación y descuento vía nómina.",
     whyItAppears: "Se descuenta cuando tienes un crédito FONACOT activo, autorizado por la cláusula 106 del CCT (adeudos con instituciones de protección al salario).",
@@ -741,6 +760,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     contextSource: ["fonacot-comunicado", "cct-2025-2027"],
   },
   "166": {
+    descriptor: "Consumo",
     simple: "Es el descuento de compras en casas comerciales autorizadas por la Comisión Nacional Paritaria de Protección al Salario.",
     whyItMatters: "El IMSS avala créditos para adquirir bienes y servicios en condiciones favorables como protección al salario; el pago se descuenta por nómina.",
     whyItAppears:
@@ -760,6 +780,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     directSource: "cct-2025-2027",
   },
   "167": {
+    descriptor: "Consumo",
     simple: "Es el descuento de vales de tienda para víveres: por las compras de despensa realizadas con vales.",
     whyItMatters: "Los vales de tienda para víveres y ropa no limitan el derecho a anticipos de sueldo y se recuperan por nómina.",
     whyItAppears: "Se recuperan las compras con vales de tienda conforme a los esquemas de tiendas y protección al salario del CCT.",
@@ -777,6 +798,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     contextSource: ["cct-2025-2027"],
   },
   "168": {
+    descriptor: "Consumo",
     simple: "Es el descuento de vales de tienda para ropa: por las compras de ropa realizadas con vales.",
     whyItMatters: "Igual que los víveres, la recuperación de los vales de ropa se descuenta de tu nómina sin limitar otros derechos.",
     whyItAppears: "Se recuperan las compras de ropa con vales conforme a los esquemas de tiendas del CCT.",
@@ -794,6 +816,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     contextSource: ["cct-2025-2027"],
   },
   "180": {
+    descriptor: "Sindical",
     simple: "Es la cuota sindical: la aportación periódica a tu sindicato (SNTSS) que se descuenta de tu sueldo.",
     whyItMatters: "Se descuenta a petición del Sindicato; su monto y vigencia los define la organización sindical.",
     whyItAppears: "La cláusula 106 del CCT autoriza el descuento de cuotas sindicales a petición del Sindicato.",
@@ -810,6 +833,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     directSource: "cct-2025-2027",
   },
   "189": {
+    descriptor: "Vivienda",
     simple: "Es tu aportación al INFONAVIT: la aportación patronal y la parte que se destina a tu subcuenta de vivienda.",
     whyItMatters: "Aunque el descuento aparece en tu tarjetón, es una aportación que se entera al INFONAVIT como obligación legal.",
     whyItAppears: "El IMSS entera las aportaciones al INFONAVIT conforme al Reglamento de Inscripción, Pago de Aportaciones y Entero de Descuentos.",
@@ -827,6 +851,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     contextSource: ["infonavit-reglamento-inscripcion"],
   },
   "171": {
+    descriptor: "Asistencia",
     simple: "Es el descuento de licencias sin sueldo menores a 4 días.",
     whyItMatters: "Cuando tomas una licencia sin goce de sueldo corta, se descuentan los días.",
     whyItAppears: "Se genera cuando se autoriza una licencia sin sueldo menor a 4 días.",
@@ -838,6 +863,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     sources: [], verification: "pending_verification",
   },
   "172": {
+    descriptor: "Asistencia",
     simple: "Es la deducción por falta injustificada.",
     whyItMatters: "Las faltas injustificadas se descuentan de tu sueldo además de afectar estímulos como 032 y 033.",
     whyItAppears: "Se genera cuando se registra una falta sin justificación.",
@@ -851,6 +877,7 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     sources: [], verification: "pending_verification",
   },
   "173": {
+    descriptor: "Asistencia",
     simple: "Es la deducción por pases de salida.",
     whyItMatters: "Cuando sales del trabajo con pase autorizado (o no autorizado), los pases se descuentan o afectan estímulos.",
     whyItAppears: "Se genera cuando se registran pases de salida.",

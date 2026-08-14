@@ -4,6 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useEffect, useRef, useState } from "react"
 import { List, UserCircle, CaretDown, DeviceMobile } from "@phosphor-icons/react"
+import { useAppEnvironment } from "@/shared/hooks/useAppEnvironment"
 
 interface AppHeaderProps {
   fullName: string | null
@@ -13,9 +14,8 @@ interface AppHeaderProps {
 export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
   const firstName = fullName?.split(" ")[0] ?? ""
   const [profileOpen, setProfileOpen] = useState(false)
-  const [isAndroid] = useState(() =>
-    typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent)
-  )
+  const { environment, platform, resolved } = useAppEnvironment()
+  const shouldShowAndroidDownload = resolved && environment === "web" && platform === "android"
   const profileRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -112,7 +112,7 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-        {isAndroid && (
+        {shouldShowAndroidDownload && (
         <a
           href="/LaVeinteDigital.apk"
           title="Descargar app Android"

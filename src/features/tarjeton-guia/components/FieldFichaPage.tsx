@@ -82,9 +82,9 @@ export function FieldFichaPage({ id }: { id: string | number }) {
         </div>
       ) : (
         <Card padding="1.5rem" variant="subtle">
-          <p style={{ fontSize: "0.875rem", fontWeight: 600, margin: "0 0 0.375rem" }}>Información insuficiente</p>
+          <p style={{ fontSize: "0.875rem", fontWeight: 600, margin: "0 0 0.375rem" }}>Lo que sabemos de este campo</p>
           <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0, lineHeight: 1.6 }}>
-            Tenemos identificado este campo, pero todavía no contamos con información suficiente para ofrecer una explicación completa y confiable.
+            Tenemos identificado este campo y su explicación se está completando. La información mostrada es educativa.
           </p>
         </Card>
       )}

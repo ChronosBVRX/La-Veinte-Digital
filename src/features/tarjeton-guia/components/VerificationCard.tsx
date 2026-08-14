@@ -24,8 +24,8 @@ const VERIFICATION_META: Record<VerificationState, { icon: ReactNode; color: str
     icon: <HourglassMedium size={18} />,
     color: "var(--muted)",
     bg: "var(--accent)",
-    title: "En proceso de verificación con documentación oficial",
-    text: "Tenemos identificada esta información, pero su explicación normativa está en proceso de verificación con documentación oficial del IMSS y del CCT vigente. La información mostrada es educativa.",
+    title: "Verificación documental en curso",
+    text: "Tenemos identificada esta información y estamos verificando su base documental con fuentes oficiales del IMSS y del CCT vigente. La información mostrada es educativa.",
   },
 }
 
@@ -42,7 +42,7 @@ const LEVEL_META: Record<GuideVerificationLevel, { icon: ReactNode; color: strin
     color: "#b45309",
     bg: "#fffbeb",
     title: "Concepto histórico identificado",
-    text: "El concepto surge de un esquema o régimen histórico (p. ej. el FOVI, transferido a la SHF en 2002). La identificación es sólida a partir del contexto institucional; no existe una fórmula vigente ni un fundamento normativo específico aplicable.",
+    text: "El concepto surge de un esquema o régimen histórico (p. ej. el FOVI, transferido a la SHF en 2002). La identificación es sólida a partir del contexto institucional; su forma de cálculo depende del crédito o convenio específico.",
   },
   contextually_explained: {
     icon: <MagnifyingGlass size={18} weight="bold" />,
@@ -55,8 +55,8 @@ const LEVEL_META: Record<GuideVerificationLevel, { icon: ReactNode; color: strin
     icon: <HourglassMedium size={18} />,
     color: "var(--muted)",
     bg: "var(--accent)",
-    title: "Pendiente de identificación documental",
-    text: "Todavía no contamos con documentación oficial que lo identifique con precisión. La información mostrada es educativa y se actualizará cuando se identifique la fuente.",
+    title: "Referencia documental en precisión",
+    text: "Tenemos identificado el concepto y estamos precisando la referencia documental específica. La información mostrada es educativa y se actualizará cuando se confirme la fuente.",
   },
 }
 
