@@ -128,20 +128,26 @@ export function AguinaldoCalculator({ initialCategoria }: Props) {
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
           <ResultCard title="Resultado" rows={[
             { label: "Base (002 + 011)", value: result.base },
-            { label: "Aguinaldo total estimado", value: result.total, highlight: true },
+            { label: "Aguinaldo total estimado (factor reconstruido)", value: result.total, highlight: true },
             { label: "Concepto 047: anticipo de enero", value: result.anticipoEnero047 },
             { label: "Concepto 043: anticipo de agosto", value: result.anticipoAgosto043 },
             { label: "Concepto 049: resto de diciembre", value: result.restoDiciembre049 },
+            ...(result.documentedAlternative
+              ? [{ label: `Alternativa documentada (${result.documentedAlternative.label})`, value: result.documentedAlternative.total, format: "currency" as const }]
+              : []),
           ]} />
           <FormulaExplanation steps={[
             "Base = Concepto 002 + Concepto 011",
-            "Aguinaldo total = Base × 7.490956567109524",
+            `Aguinaldo total = Base × ${result.factor}`,
             "Concepto 047 (anticipo enero) = Total ÷ 6",
             "Concepto 043 (anticipo agosto) = Total ÷ 3",
             "Concepto 049 (resto diciembre) = Total ÷ 2",
+            "Alternativa documentada: Cláusula 107 (3 meses sueldo nominal) = Base × 6 — pendiente de validación",
           ]} />
           <div style={{ background: "var(--accent)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "0.75rem 1rem", fontSize: "0.8125rem", color: "var(--muted)" }}>
-            El factor utilizado fue reconstruido de la aplicación de referencia. El resultado es informativo y puede diferir por impuestos, incidencias o criterios institucionales.
+            El factor {result.factor} fue reconstruido de la aplicación de referencia y no tiene trazabilidad documental localizada.
+            No se sustituye sin evidencia. La Cláusula 107 (3 meses de sueldo nominal, factor 6) se muestra como dato de comparación pendiente de validación contra tarjetones reales.
+            El resultado es informativo y puede diferir por impuestos, incidencias o criterios institucionales.
           </div>
           <CalculatorDisclaimer />
         </div>

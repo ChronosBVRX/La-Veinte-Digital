@@ -727,7 +727,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       whenItAppears: "Según categoría y tablas vigentes.",
       calculation: {
         kind: "current",
-        engine: "Tabla de porcentajes de la app (concept-percentage-tables)",
+        engine: "Tabla de porcentajes de la app (institutional-percentage-tables: tabla por categoría del 062)",
       },
     },
     related: ["072", "002", "011"],
@@ -769,7 +769,7 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       whenItAppears: "Según categoría.",
       calculation: {
         kind: "current",
-        engine: "Tabla de porcentajes de la app (concept-percentage-tables)",
+        engine: "Tabla de porcentajes de la app (institutional-percentage-tables: Apéndice F, Tabla 07)",
       },
     },
     related: ["062", "002", "011"],

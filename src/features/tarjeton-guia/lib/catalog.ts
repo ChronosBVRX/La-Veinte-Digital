@@ -12,7 +12,7 @@ import { guideSections } from "@/data/guia-tarjeton/sections"
 import { conceptDetails } from "@/features/tarjeton-guia/data/concept-details"
 import { fieldDetails } from "@/features/tarjeton-guia/data/field-details"
 import { normalizeCode } from "@/features/tarjeton-guia/lib/normalize"
-import type { GuideConceptCategory, GuideConceptRef } from "@/features/tarjeton-guia/lib/types"
+import type { GuideConceptCategory, GuideConceptRef, GuideVerificationLevel } from "@/features/tarjeton-guia/lib/types"
 
 export interface GuideConceptEntry extends GuideConcept {
   details: (typeof conceptDetails)[string] | null
@@ -144,4 +144,27 @@ export function catalogCounts(): { perceptions: number; deductions: number } {
     else deductions++
   }
   return { perceptions, deductions }
+}
+
+/** Porcentaje de conceptos sin ficha completa (sin `simple`) entre los listados. */
+export function pendingIdentificationPercentage(): number {
+  const listed = guideConcepts.filter((c) => c.catalog.listed)
+  if (listed.length === 0) return 0
+  const pending = listed.filter((c) => !conceptDetails[normalizeCode(c.code) ?? ""]?.simple)
+  return Math.round((pending.length / listed.length) * 100)
+}
+
+/** Nivel documental derivado de una ficha (4 niveles), o pendiente si no hay ficha. */
+export function detailLevelFor(code: string): GuideVerificationLevel {
+  const d = conceptDetails[normalizeCode(code) ?? ""]
+  if (!d) return "pending_identification"
+  if (d.level) return d.level
+  switch (d.verification) {
+    case "verified":
+      return "officially_verified"
+    case "partially_verified":
+      return "contextually_explained"
+    default:
+      return "pending_identification"
+  }
 }

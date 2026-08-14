@@ -172,6 +172,17 @@ export interface EmployeePayrollProfile {
   recurringConcepts: RecurringConceptEvidence[]
   recurringConceptOverrides?: RecurringConceptOverride[]
 
+  /**
+   * Unidades computables del Fondo de Ahorro (055) en el periodo anual
+   * (1 jul – 30 jun), base de 360 días. Solo se escribe cuando hay un valor
+   * confirmado (tarjetón/captura); su ausencia activa el supuesto de 360.
+   */
+  fondoAhorro?: {
+    unidades?: number
+    regime?: "ordinario" | "confianza_a"
+    unitsConfirmed?: boolean
+  }
+
   lastPayslipId?: string
 
   createdAt: string

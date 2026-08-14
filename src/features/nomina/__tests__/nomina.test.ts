@@ -11,12 +11,8 @@ import { getAllRules } from "../lib/rules"
 import { topologicalSort, calculateProjection, detectCircularDependencies, dependenciesStatus, dependenciesChanged } from "../lib/engine"
 import { resolveCategory } from "../lib/category-resolver"
 import { CLAUSE_63_BIS_C_DAYS } from "../lib/types"
-import { getPercentageForCategory } from "../data/concept-percentage-tables"
 import { getFixedAmount } from "../data/fixed-concept-amounts"
-
-function getPercentageForConcept072(categoryId: string): number {
-  return getPercentageForCategory("concept_072_category_percentages", categoryId, categoryId) ?? 0.05
-}
+import { getPercentageForConcept072, getPercentageForConcept083 } from "../data/institutional-percentage-tables"
 import { getImpactMatrixEffectiveAt } from "../data/repercussion-matrix"
 import { evaluateEligibilityForConcept } from "../lib/eligibility"
 import { buildPendingQuestions } from "../lib/question-engine"
@@ -263,13 +259,30 @@ describe("Fórmula 054 - Emanaciones Radiactivas", () => {
 })
 
 describe("Fórmula 055 - Fondo de Ahorro", () => {
-  it("verificationStatus es app_reconstructed", () => {
+  it("verificationStatus es regulation_verified (proc. 1A74-003-024)", () => {
     const c002 = rule002.calculate(createMockContext())
     const ctx = createMockContext({ calculatedConcepts: new Map([["002", c002.concept]]) })
     const c011 = rule011.calculate(ctx)
     const ctx2 = createMockContext({ calculatedConcepts: new Map([["002", c002.concept], ["011", c011.concept]]) })
     const r = rule055.calculate(ctx2)
-    expect(r.concept.verificationStatus).toBe("app_reconstructed")
+    expect(r.concept.verificationStatus).toBe("regulation_verified")
+  })
+  it("base = 002 (NO integra 011 aunque esté disponible)", () => {
+    const c002 = rule002.calculate(createMockContext())
+    const ctx = createMockContext({ calculatedConcepts: new Map([["002", c002.concept]]) })
+    const c011 = rule011.calculate(ctx)
+    const ctx2 = createMockContext({ calculatedConcepts: new Map([["002", c002.concept], ["011", c011.concept]]) })
+    const r = rule055.calculate(ctx2)
+    expect(r.concept.dependencies).toEqual([{ code: "002", amount: mockCategory.biweeklyBaseSalary }])
+  })
+  it("sin unidades confirmadas presenta supuesto 360 y exige confirmación", () => {
+    const julyPeriod = getPayPeriod(2025, 7, 2)
+    const c002 = rule002.calculate(createMockContext())
+    const ctx = createMockContext({ period: julyPeriod, calculatedConcepts: new Map([["002", c002.concept]]) })
+    const r = rule055.calculate(ctx)
+    expect(r.concept.included).toBe(true)
+    expect(r.concept.confidence).toBe("requires_confirmation")
+    expect(r.concept.warnings.some((w) => w.toLowerCase().includes("supuesto"))).toBe(true)
   })
   it("no incluido fuera de segunda quincena de julio", () => {
     const janPeriod = getPayPeriod(2025, 1, 1)
@@ -282,9 +295,31 @@ describe("Fórmula 055 - Fondo de Ahorro", () => {
   })
 })
 
-describe("Fórmula 072 - Ayuda para Libros (Técnico Radiólogo)", () => {
-  it("porcentaje 5% para Técnico Radiólogo", () => {
-    expect(getPercentageForConcept072("TÉCNICO RADIÓLOGO 80")).toBe(0.05)
+describe("Fórmula 072 - Ayuda para Libros (Apéndice F, Tabla 07)", () => {
+  it("porcentaje 5% para Técnico Radiólogo por nombre exacto", () => {
+    const r = getPercentageForConcept072({ categoryName: "TÉCNICO RADIÓLOGO 80" })
+    expect(r.percentage).toBe(0.05)
+    expect(r.method).toBe("categoryName")
+    expect(r.requiresConfirmation).toBe(false)
+  })
+  it("porcentaje 5% para Técnico Radiólogo por categoryId estable", () => {
+    const r = getPercentageForConcept072({ categoryId: "TECNICO_RADIOLOGO_80" })
+    expect(r.percentage).toBe(0.05)
+    expect(r.method).toBe("categoryId")
+  })
+  it("porcentaje 15% para Psicólogo Clínico", () => {
+    const r = getPercentageForConcept072({ categoryName: "PSICOLOGO CLINICO 80" })
+    expect(r.percentage).toBe(0.15)
+  })
+  it("15% también por nombre con acentos/espacios", () => {
+    const r = getPercentageForConcept072({ categoryName: "Psicólogo  Clínico   80" })
+    expect(r.percentage).toBe(0.15)
+  })
+  it("categoría NO autorizada -> percentage null + requires_confirmation (sin default 5%)", () => {
+    const r = getPercentageForConcept072({ categoryName: "ABOGADO 80" })
+    expect(r.percentage).toBeNull()
+    expect(r.requiresConfirmation).toBe(true)
+    expect(r.method).toBe("not_found")
   })
   it("072 = (002 + 011) x 5% = $358.62 para ejemplo dado", () => {
     const c002Value = 3937.64
@@ -300,6 +335,49 @@ describe("Fórmula 072 - Ayuda para Libros (Técnico Radiólogo)", () => {
     const ctx2 = createMockContext({ calculatedConcepts: new Map([["002", c002.concept], ["011", c011.concept]]) })
     const result = rule072.calculate(ctx2)
     expect(result.concept.included).toBe(false)
+  })
+  it("regla sin porcentaje autorizado exige confirmación y no aplica 5% por defecto", () => {
+    const c002 = rule002.calculate(createMockContext())
+    const ctx = createMockContext({
+      calculatedConcepts: new Map([["002", c002.concept]]),
+      profile: addFact(createMockContext().profile, "concept_072_on_payslip", true),
+    })
+    const c011 = rule011.calculate(ctx)
+    const ctx2 = createMockContext({
+      calculatedConcepts: new Map([["002", c002.concept], ["011", c011.concept]]),
+      profile: ctx.profile,
+      category: { ...mockCategory, categoryName: "AUXILIAR DE FARMACIA 80", categoryId: "AUXILIAR_DE_FARMACIA_80" },
+    })
+    const result = rule072.calculate(ctx2)
+    // Aunque haya evidencia, sin porcentaje autorizado no produce importe por defecto.
+    expect(result.concept.verificationStatus).toBe("institutional_catalog_verified")
+    expect(result.concept.warnings.some((w) => w.includes("NO se aplica porcentaje por defecto"))).toBe(true)
+  })
+})
+
+describe("Fórmula 083 - Sobresueldo por Investigación y Docencia (Apéndice H, Tabla 67)", () => {
+  it("Psicólogo Clínico -> 3%", () => {
+    const r = getPercentageForConcept083({ categoryName: "PSICOLOGO CLINICO 80" })
+    expect(r.percentage).toBe(0.03)
+  })
+  it("Trabajadora Social -> 5%", () => {
+    const r = getPercentageForConcept083({ categoryName: "TRABAJADORA SOCIAL 80" })
+    expect(r.percentage).toBe(0.05)
+  })
+  it("Puericultura / Educadora -> 5%", () => {
+    const r = getPercentageForConcept083({ categoryName: "OFICIAL PUERICULTURA 80" })
+    expect(r.percentage).toBe(0.05)
+  })
+  it("título y cédula NO elevan al 20%", () => {
+    const r = getPercentageForConcept083({ categoryName: "NUTRICIONISTA DIETISTA 80" })
+    expect(r.percentage).toBe(0.05)
+    expect(r.percentage).not.toBe(0.20)
+  })
+  it("categoría desconocida -> NO cae a 5% de Trabajo Social; exige confirmación", () => {
+    const r = getPercentageForConcept083({ categoryName: "ABOGADO 80" })
+    expect(r.percentage).toBeNull()
+    expect(r.requiresConfirmation).toBe(true)
+    expect(r.method).toBe("not_found")
   })
 })
 
@@ -549,13 +627,13 @@ describe("Verification status de reglas", () => {
     const r = rule002.calculate(createMockContext())
     expect(r.concept.verificationStatus).toBe("contract_verified")
   })
-  it("055 es app_reconstructed", () => {
+  it("055 es regulation_verified", () => {
     const c002 = rule002.calculate(createMockContext())
     const ctx = createMockContext({ calculatedConcepts: new Map([["002", c002.concept]]) })
     const c011 = rule011.calculate(ctx)
     const ctx2 = createMockContext({ calculatedConcepts: new Map([["002", c002.concept], ["011", c011.concept]]) })
     const r = rule055.calculate(ctx2)
-    expect(r.concept.verificationStatus).toBe("app_reconstructed")
+    expect(r.concept.verificationStatus).toBe("regulation_verified")
   })
   it("050 es pending_validation", () => {
     const r = rule050.calculate(createMockContext())

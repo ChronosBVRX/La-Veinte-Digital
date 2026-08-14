@@ -33,7 +33,12 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": false,
     "searchTerms": [
       "104",
-      "crédito hipotecario fovi"
+      "crédito hipotecario fovi",
+      "fovi",
+      "hipoteca",
+      "hipotecario",
+      "vivienda",
+      "fondo de operación y descuento bancario a la vivienda"
     ]
   },
   {
@@ -48,7 +53,12 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": false,
     "searchTerms": [
       "106",
-      "enganche de casa habitación e.s.m.i."
+      "enganche de casa habitación e.s.m.i.",
+      "enganche",
+      "casa habitación",
+      "esmi",
+      "e.s.m.i.",
+      "crédito hipotecario"
     ]
   },
   {
@@ -67,7 +77,10 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": true,
     "searchTerms": [
       "107",
-      "provisión fondo de jubilación"
+      "provisión fondo de jubilación",
+      "jubilación",
+      "retiro",
+      "pensión"
     ]
   },
   {
@@ -86,7 +99,11 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": true,
     "searchTerms": [
       "108",
-      "provisión rjp"
+      "provisión rjp",
+      "rjp",
+      "régimen de jubilaciones y pensiones",
+      "jubilación",
+      "retiro"
     ]
   },
   {
@@ -319,7 +336,12 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": false,
     "searchTerms": [
       "130",
-      "crédito hipotecario e.s.m.i."
+      "crédito hipotecario e.s.m.i.",
+      "hipotecario",
+      "hipoteca",
+      "esmi",
+      "e.s.m.i.",
+      "vivienda"
     ]
   },
   {
@@ -364,7 +386,10 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": false,
     "searchTerms": [
       "133",
-      "ayuda de gastos de escrituración e.s.m.i."
+      "ayuda de gastos de escrituración e.s.m.i.",
+      "escrituración",
+      "notarial",
+      "gastos notariales"
     ]
   },
   {
@@ -394,7 +419,9 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": false,
     "searchTerms": [
       "136",
-      "préstamos personales a mediano plazo e.s.m.i."
+      "préstamos personales a mediano plazo e.s.m.i.",
+      "préstamo personal",
+      "mediano plazo"
     ]
   },
   {
@@ -548,7 +575,10 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": true,
     "searchTerms": [
       "151",
-      "impuestos sobre la renta (isr)"
+      "impuestos sobre la renta (isr)",
+      "isr",
+      "impuesto",
+      "impuestos"
     ]
   },
   {
@@ -567,7 +597,10 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": true,
     "searchTerms": [
       "152",
-      "fondo de jubilación"
+      "fondo de jubilación",
+      "jubilación",
+      "retiro",
+      "pensión"
     ]
   },
   {
@@ -597,7 +630,10 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": false,
     "searchTerms": [
       "154",
-      "descuento crédito infonavit"
+      "descuento crédito infonavit",
+      "infonavit",
+      "crédito",
+      "vivienda"
     ]
   },
   {
@@ -612,7 +648,11 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": false,
     "searchTerms": [
       "155",
-      "disposición judicial (pensión alimenticia)"
+      "disposición judicial (pensión alimenticia)",
+      "pensión alimenticia",
+      "alimenticia",
+      "alimentos",
+      "judicial"
     ]
   },
   {
@@ -642,7 +682,11 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": false,
     "searchTerms": [
       "160",
-      "recuperación cl. 97 del cct"
+      "recuperación cl. 97 del cct",
+      "cláusula 97",
+      "cl. 97",
+      "anticipo",
+      "anticipo de sueldo"
     ]
   },
   {
@@ -702,7 +746,11 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": false,
     "searchTerms": [
       "166",
-      "casas comerciales (comisión paritaria)"
+      "casas comerciales (comisión paritaria)",
+      "casas comerciales",
+      "comisión paritaria",
+      "tienda",
+      "compras"
     ]
   },
   {
@@ -762,7 +810,9 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": false,
     "searchTerms": [
       "170",
-      "fonacot"
+      "fonacot",
+      "fondo de fomento y garantía para el consumo de los trabajadores",
+      "credito nómina"
     ]
   },
   {
@@ -912,7 +962,10 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": false,
     "searchTerms": [
       "180",
-      "cuota sindical"
+      "cuota sindical",
+      "sindical",
+      "sindicato",
+      "sntss"
     ]
   },
   {
@@ -942,7 +995,10 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": false,
     "searchTerms": [
       "189",
-      "aportación al infonavit"
+      "aportación al infonavit",
+      "infonavit",
+      "subcuenta de vivienda",
+      "vivienda"
     ]
   },
   {
@@ -1588,7 +1644,10 @@ export const guideConcepts: GuideConcept[] = [
     "requiresCurrentValidation": true,
     "searchTerms": [
       "042",
-      "anticipo de sueldo cl. 97 cct"
+      "anticipo de sueldo cl. 97 cct",
+      "anticipo",
+      "anticipo de sueldo",
+      "cláusula 97"
     ]
   },
   {

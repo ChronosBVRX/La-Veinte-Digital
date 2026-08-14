@@ -1,56 +1,35 @@
 import type { PayrollRuleContext, RuleCalculationResult, CalculatedPayrollConcept, PayrollRule } from "../types"
 import { dependenciesStatus, resolveWithAnchor } from "../engine"
+import { getPercentageForConcept083, type PercentageResolution } from "../../data/institutional-percentage-tables"
 
-type Concept083Variant = "psychology_clinical" | "nutrition_without_credentials" | "nutrition_with_credentials" | "social_work"
-
-function select083Variant(ctx: PayrollRuleContext): {
-  variantId: Concept083Variant
-  percentage: number
-} {
-  const profile = ctx.profile
-  const categoryName = (ctx.category.categoryName ?? "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toUpperCase()
-
-  if (categoryName.includes("PSICOLOG") || categoryName.includes("PSIC CLINICA")) {
-    return { variantId: "psychology_clinical", percentage: 0.03 }
-  }
-
-  if (categoryName.includes("NUTRICION") || categoryName.includes("DIETETICA") || categoryName.includes("NUTRIOLOG")) {
-    const hasDegree = profile.facts.some((f) => f.key === "has_professional_degree" && f.value === true)
-    const hasLicense = profile.facts.some((f) => f.key === "has_professional_license" && f.value === true)
-
-    if (hasDegree && hasLicense) {
-      return { variantId: "nutrition_with_credentials", percentage: 0.20 }
-    }
-    return { variantId: "nutrition_without_credentials", percentage: 0.05 }
-  }
-
-  if (categoryName.includes("TRABAJADOR SOCIAL") || categoryName.includes("TRAB SOCIAL")) {
-    return { variantId: "social_work", percentage: 0.05 }
-  }
-
-  return { variantId: "social_work", percentage: 0.05 }
-}
-
-const VARIANT_NAMES: Record<Concept083Variant, string> = {
-  psychology_clinical: "Psicología Clínica",
-  nutrition_without_credentials: "Nutrición y Dietética (sin título/cédula)",
-  nutrition_with_credentials: "Nutrición y Dietética (con título y cédula)",
-  social_work: "Trabajo Social",
-}
-
+/**
+ * Sobresueldo por Investigación y Docencia (083) — Apéndice H, Tabla 67.
+ *
+ * El porcentaje se resuelve por categoría con coincidencia ESTRICTA. Se
+ * eliminaron dos comportamientos incorrectos:
+ *  - la elevación a 20% por tener título y cédula profesional, y
+ *  - el fallback de 5% de Trabajo Social para categorías desconocidas.
+ * Si la categoría no está en la tabla el resultado exige confirmación.
+ */
 export const concept083Rule: PayrollRule = {
   id: "083",
-  version: "1.0.0",
+  version: "2.0.0",
   effectiveFrom: "2025-01-01",
   dependencies: ["002"],
   calculate(ctx: PayrollRuleContext): RuleCalculationResult {
     const anchor = ctx.conceptAnchors.get("083")
-    const { variantId, percentage } = select083Variant(ctx)
+
+    const resolution: PercentageResolution = getPercentageForConcept083({
+      categoryId: ctx.category.categoryId,
+      categoryCode: ctx.category.categoryCode,
+      categoryName: ctx.category.categoryName,
+    })
+    const percentage = resolution.percentage
 
     const DEPS = ["002"]
 
     const c002 = ctx.calculatedConcepts.get("002")?.amount ?? 0
-    const formulaAmount = c002 * percentage
+    const formulaAmount = percentage === null ? 0 : c002 * percentage
 
     const isRecurring = ctx.profile.recurringConcepts.some(
       (rc) => rc.conceptCode === "083" && rc.confirmed && rc.appearsNormally === true
@@ -75,6 +54,13 @@ export const concept083Rule: PayrollRule = {
       )) ? "last_payslip" : formulaSource
 
     const warnings: string[] = [...resolutionWarnings]
+    if (percentage === null) {
+      warnings.push(
+        "Categoría no autorizada en la tabla oficial (Apéndice H, Tabla 67) — se requiere confirmación; NO se aplica porcentaje por defecto."
+      )
+    } else {
+      warnings.push(`Porcentaje según Apéndice H, Tabla 67: ${(percentage * 100).toFixed(1)}% (${resolution.role ?? "categoría"})`)
+    }
     if (!eligible) {
       warnings.push("Requiere confirmación de actividad profesional aplicable")
     }
@@ -87,24 +73,28 @@ export const concept083Rule: PayrollRule = {
 
     const concept: CalculatedPayrollConcept = {
       code: "083",
-      name: VARIANT_NAMES[variantId],
+      name: resolution.role ?? "Sobresueldo por Investigación y Docencia",
       type: "earning",
       nature: "derived",
       amount,
       included: eligible,
       source,
-      confidence: anchor || isRecurring ? "high" : "requires_confirmation",
-      verificationStatus: "contract_verified",
+      confidence: anchor || isRecurring ? "high" : (percentage === null ? "requires_confirmation" : "requires_confirmation"),
+      verificationStatus: "institutional_catalog_verified",
       elegibilitySource: anchor ? "payslip_confirmed" : (eligible ? "formula_deduced" : "unknown"),
       anchorAmount: anchor?.amount,
       anchorDate: anchor?.date,
       dependencies: [{ code: "002", amount: c002 }],
       calculationSteps: [
-        { label: `Variante: ${VARIANT_NAMES[variantId]}`, expression: `Porcentaje: ${(percentage * 100).toFixed(1)}%`, value: percentage },
-        { label: "083 = 002 × porcentaje", expression: `${c002} × ${percentage} = ${formulaAmount}`, value: formulaAmount },
-        ...(anchor ? [          { label: "Último tarjetón (referencia)", expression: `Ancla: ${anchor.amount}`, value: anchor.amount }] : []),
+        ...(percentage === null
+          ? [{ label: "Porcentaje", expression: "Sin porcentaje autorizado para esta categoría", value: 0 }]
+          : [
+              { label: `Categoría: ${resolution.role ?? "n/a"}`, expression: `Porcentaje: ${(percentage * 100).toFixed(1)}%`, value: percentage },
+              { label: "083 = 002 × porcentaje", expression: `${c002} × ${percentage} = ${formulaAmount}`, value: formulaAmount },
+            ]),
+        ...(anchor ? [{ label: "Último tarjetón (referencia)", expression: `Ancla: ${anchor.amount}`, value: anchor.amount }] : []),
       ],
-      legalBasis: [{ source: "CCT", title: "Concepto 083", reference: "Cláusula aplicable del CCT según categoría" }],
+      legalBasis: [resolution.legalBasis],
       warnings,
     }
     return { concept, dependencies: ["002"] }

@@ -16,8 +16,32 @@ export type GuideConceptCategory = "perception" | "deduction" | "field" | "secti
 /** Estado de verificación normativa de una ficha o dato. */
 export type VerificationState = "verified" | "partially_verified" | "pending_verification"
 
+/**
+ * Nivel de certeza documental de una entrada (clasificación de 4 niveles de la guía).
+ *
+ * - `officially_verified`: un documento oficial nombra/regula EXACTAMENTE este concepto.
+ * - `historically_identified`: identificación histórica/contextual sólida (p. ej. el FOVI,
+ *   desaparecido en 2002 cuando el fideicomiso pasó a la SHF); sin fórmula ni fundamento
+ *   normativo vigente preciso.
+ * - `contextually_explained`: se explica por contexto institucional, sin referenciación directa
+ *   al documento.
+ * - `pending_identification`: pendiente de identificar en documentación oficial.
+ */
+export type GuideVerificationLevel =
+  | "officially_verified"
+  | "historically_identified"
+  | "contextually_explained"
+  | "pending_identification"
+
+/** Estado de verificación de una faceta concreta (significado, fórmula o marco legal). */
+export type GuideAspectState =
+  | "verified"
+  | "partially_verified"
+  | "contextually_explained"
+  | "pending_verification"
+
 /** Institución emisora de una fuente oficial. */
-export type SourceInstitution = "IMSS" | "DOF" | "SAT" | "SCJN"
+export type SourceInstitution = "IMSS" | "DOF" | "SAT" | "SCJN" | "INFONAVIT" | "FONACOT" | "SHF" | "CNBV"
 
 /** Tipo de documento de una fuente oficial. */
 export type SourceKind =
@@ -29,6 +53,10 @@ export type SourceKind =
   | "LEY"
   | "JURISPRUDENCIA"
   | "PORTAL_IMSS"
+  | "REGLAMENTO"
+  | "INFORME"
+  | "COMUNICADO"
+  | "INFORMACION_INSTITUCIONAL"
 
 /**
  * Fuente oficial que respalda un concepto o campo de la guía.

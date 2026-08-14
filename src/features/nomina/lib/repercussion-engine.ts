@@ -4,7 +4,7 @@ import { getImpactMatrixEffectiveAt } from "../data/repercussion-matrix"
 export interface ConceptBaseResult {
   targetConceptCode: string
   baseAmount: number
-  integratedConcepts: { code: string; amount: number }[]
+  integratedConcepts: { code: string; amount: number; weight: number }[]
   pendingImpacts: string[]
 }
 
@@ -16,7 +16,7 @@ export function buildBaseForConcept(
   const impactMatrix = getImpactMatrixEffectiveAt(date)
   const relevantImpacts = impactMatrix.filter((i) => i.targetConceptCode === targetConceptCode)
 
-  const integratedConcepts: { code: string; amount: number }[] = []
+  const integratedConcepts: { code: string; amount: number; weight: number }[] = []
   const pendingImpacts: string[] = []
   let baseAmount = 0
 
@@ -25,8 +25,10 @@ export function buildBaseForConcept(
     if (!sourceConcept || !sourceConcept.included) continue
 
     if (impact.verificationStatus === "regulation_verified") {
-      baseAmount += sourceConcept.amount
-      integratedConcepts.push({ code: sourceConcept.code, amount: sourceConcept.amount })
+      const weight = impact.weight ?? 1
+      const weightedAmount = weight * sourceConcept.amount
+      baseAmount += weightedAmount
+      integratedConcepts.push({ code: sourceConcept.code, amount: weightedAmount, weight })
     } else {
       pendingImpacts.push(`${impact.sourceConceptCode} -> ${impact.targetConceptCode}`)
     }

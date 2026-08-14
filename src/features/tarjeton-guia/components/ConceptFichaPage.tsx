@@ -11,8 +11,19 @@ import { Tabs } from "@/shared/components/ui/Tabs"
 import { getGuideConceptWithDetails, getRelationsForConcept, resolveRefHref } from "@/features/tarjeton-guia/lib/catalog"
 import { normalizeCode } from "@/features/tarjeton-guia/lib/normalize"
 import type { GuideDetailContent } from "@/features/tarjeton-guia/data/concept-details"
-import type { VerificationState } from "@/features/tarjeton-guia/lib/types"
+import type { GuideVerificationLevel, VerificationState } from "@/features/tarjeton-guia/lib/types"
 import { VerificationCard } from "@/features/tarjeton-guia/components/VerificationCard"
+
+function levelFromVerification(v: VerificationState | undefined): GuideVerificationLevel {
+  switch (v) {
+    case "verified":
+      return "officially_verified"
+    case "partially_verified":
+      return "contextually_explained"
+    default:
+      return "pending_identification"
+  }
+}
 
 export function ConceptFichaPage({ code }: { code: string }) {
   const norm = normalizeCode(code)
@@ -36,7 +47,36 @@ export function ConceptFichaPage({ code }: { code: string }) {
   const kind = entry.kind === "perception" ? "Percepción" : "Deducción"
   const d = entry.details
   const relations = getRelationsForConcept(entry.code)
-  const hasEnoughInfo = !!d?.simple
+  const hasFullInfo = !!d?.simple
+  const hasPartialDetails = !!d && !d.simple
+  const level: GuideVerificationLevel = d?.level ?? levelFromVerification(d?.verification)
+  const referencesLabel = level === "officially_verified" ? "Fundamento" : "Fuentes de referencia"
+
+  if (hasPartialDetails) {
+    return (
+      <div style={{ maxWidth: 720, margin: "0 auto" }}>
+        <PageHeader
+          eyebrow="Guía de conceptos"
+          title={`${entry.code} · ${displayName(entry.name)}`}
+          backHref="/guia/conceptos"
+        />
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+          <Badge variant={kind === "Percepción" ? "info" : "warning"}>{kind}</Badge>
+        </div>
+        <Card padding="1.5rem" style={{ marginBottom: "1rem" }}>
+          <VerificationCard state="pending_verification" level={level} sources={d.sources} />
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0.75rem 0 0", lineHeight: 1.5 }}>
+            Aún estamos completando la explicación de este concepto. La información documental disponible se muestra arriba.
+          </p>
+        </Card>
+        {relations.length > 0 && <Relations relations={relations} />}
+        <div style={{ display: "flex", gap: "0.5rem", marginTop: "1.25rem", flexWrap: "wrap" }}>
+          <ActionLink href="/tarjeton" variant="secondary" size="md">Revisar en mi tarjetón</ActionLink>
+          <ActionLink href="/guia/conceptos" variant="ghost" size="md">Buscar otro concepto</ActionLink>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto" }}>
@@ -50,64 +90,33 @@ export function ConceptFichaPage({ code }: { code: string }) {
         <Badge variant={kind === "Percepción" ? "info" : "warning"}>{kind}</Badge>
       </div>
 
-      {hasEnoughInfo ? (
+      {hasFullInfo ? (
         <Tabs
           defaultTab="facil"
           tabs={[
             { id: "facil", label: "Fácil", icon: <ChalkboardTeacher size={16} /> },
             { id: "detallado", label: "Detallado", icon: <ArrowsClockwise size={16} /> },
-            { id: "fundamento", label: "Fundamento", icon: <Article size={16} /> },
+            { id: "referencias", label: referencesLabel, icon: <Article size={16} /> },
           ]}
         >
           {(active) => {
             if (active === "detallado") return <DetalladoTab d={d} />
-            if (active === "fundamento") return <FundamentoTab d={d} />
+            if (active === "referencias") return <FundamentoTab d={d} />
             return <FacilTab d={d} kindLabel={kind} />
           }}
         </Tabs>
       ) : (
-        <Card padding="1.5rem" variant="subtle">
-          <p style={{ fontSize: "0.875rem", fontWeight: 600, margin: "0 0 0.375rem" }}>Información insuficiente</p>
-          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0, lineHeight: 1.6 }}>
-            Tenemos identificado este concepto, pero todavía no contamos con información suficiente para ofrecer una explicación completa y confiable.
+        <Card padding="1.5rem" style={{ marginBottom: "1rem" }}>
+          <VerificationCard state="pending_verification" level={level} />
+          <p style={{ fontSize: "0.875rem", lineHeight: 1.6, margin: "0.75rem 0 0" }}>
+            Este concepto está identificado en tu tarjetón, pero todavía estamos localizando la documentación
+            oficial que permita explicarlo con certeza. Mientras tanto, en la <Link href="/guia/tarjeton">guía de tu
+            tarjetón</Link> puedes aprender a leer cada sección de tu recibo.
           </p>
         </Card>
       )}
 
-      {relations.length > 0 && (
-        <Card padding="1rem 1.25rem" style={{ marginTop: "1rem" }}>
-          <div style={{ fontWeight: 600, fontSize: "0.9375rem", margin: "0 0 0.625rem" }}>Esto se relaciona con…</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {relations.map((r) => {
-              const href = resolveRefHref(r.ref)
-              const label = r.label
-              if (!href || !label) return null
-              return (
-                <Link
-                  key={r.ref}
-                  href={href}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: "0.5rem",
-                    padding: "0.625rem 0.75rem",
-                    borderRadius: "var(--radius-sm)",
-                    background: "var(--accent)",
-                    textDecoration: "none",
-                  }}
-                >
-                  <span>
-                    <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)", display: "block" }}>{label}</span>
-                    {r.why && <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{r.why}</span>}
-                  </span>
-                  <CaretRight size={14} color="var(--muted)" style={{ flexShrink: 0 }} />
-                </Link>
-              )
-            })}
-          </div>
-        </Card>
-      )}
+      {relations.length > 0 && <Relations relations={relations} />}
 
       <div style={{ display: "flex", gap: "0.5rem", marginTop: "1.25rem", flexWrap: "wrap" }}>
         <ActionLink href="/tarjeton" variant="secondary" size="md">Revisar en mi tarjetón</ActionLink>
@@ -120,6 +129,43 @@ export function ConceptFichaPage({ code }: { code: string }) {
         )}
       </div>
     </div>
+  )
+}
+
+function Relations({ relations }: { relations: ReturnType<typeof getRelationsForConcept> }) {
+  return (
+    <Card padding="1rem 1.25rem" style={{ marginTop: "1rem" }}>
+      <div style={{ fontWeight: 600, fontSize: "0.9375rem", margin: "0 0 0.625rem" }}>Esto se relaciona con…</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        {relations.map((r) => {
+          const href = resolveRefHref(r.ref)
+          const label = r.label
+          if (!href || !label) return null
+          return (
+            <Link
+              key={r.ref}
+              href={href}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.5rem",
+                padding: "0.625rem 0.75rem",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--accent)",
+                textDecoration: "none",
+              }}
+            >
+              <span>
+                <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)", display: "block" }}>{label}</span>
+                {r.why && <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{r.why}</span>}
+              </span>
+              <CaretRight size={14} color="var(--muted)" style={{ flexShrink: 0 }} />
+            </Link>
+          )
+        })}
+      </div>
+    </Card>
   )
 }
 
@@ -212,11 +258,19 @@ function DetalladoTab({ d }: { d: GuideDetailContent | null }) {
 function FundamentoTab({ d }: { d: GuideDetailContent | null }) {
   if (!d) return null
   const state: VerificationState = d.verification ?? "pending_verification"
+  const level: GuideVerificationLevel = d.level ?? levelFromVerification(state)
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      <VerificationCard state={state} sources={d.sources} />
+      <div style={{ display: "flex", alignItems: "baseline", gap: "0.5rem", flexWrap: "wrap" }}>
+        <h3 style={{ fontSize: "0.9375rem", fontWeight: 700, margin: 0 }}>Fuentes de referencia</h3>
+        {level === "officially_verified" && (
+          <span style={{ fontSize: "0.6875rem", fontWeight: 600, color: "#16a34a" }}>· verificable en el documento</span>
+        )}
+      </div>
+      <VerificationCard state={state} level={level} sources={d.sources} />
       <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
-        Esta guía es educativa. Las reglas vigentes de cálculo viven en los motores de La Veinte Digital.
+        Esta guía es educativa. Las reglas vigentes de cálculo viven en los motores de La Veinte Digital. Los
+        conceptos históricos muestran sus fuentes de referencia en lugar de un fundamento normativo vigente.
       </p>
     </div>
   )

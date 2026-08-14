@@ -1,19 +1,19 @@
 {
   "channel": "stable",
-  "versionCode": 158,
-  "versionName": "1.0.58",
+  "versionCode": 160,
+  "versionName": "1.0.60",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-12T00:00:00Z",
+  "publishedAt": "2026-08-13T00:00:00Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "45249d06cd608ec2afb1021b9d154eca5296c37206db5f37461fe40ec50dc104",
-    "size": 66821732
+    "sha256": "486d21aa26789c2502da60977a998496eead9c1dd00c9e1bc885cba5d3712dd7",
+    "size": 67100256
   },
   "releaseNotes": [
-    "Nuevo: Tarjetón Digital IMSS con formulario nativo (Delegación, Usuario, Contraseña)",
-    "Consulta de tarjetones, captura del PDF oficial e integración con el histórico local",
-    "Autologin con verificación doble de campos y clasificación de errores del portal",
-    "El avance de descarga de actualización ahora se muestra correctamente"
+    "Registros biométricos: se corrige la carga intermitente de las quincenas de Tu Perfil IMSS",
+    "La selección de periodo ahora usa una lista propia de La Veinte Digital, más fácil y estable",
+    "Errores más claros cuando el portal tarda o cambia su formulario",
+    "El acceso de Tu Perfil IMSS se comparte entre Tarjetones y Registros biométricos"
   ]
 }

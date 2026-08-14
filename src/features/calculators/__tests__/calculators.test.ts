@@ -1,8 +1,12 @@
 import { describe, it, expect } from "vitest"
-import { calculateAguinaldo } from "../lib/aguinaldo"
-import { calculateSegundaJulio, calculateSegundaJulioProporcional, validateDiasLaborados } from "../lib/segundaJulio"
+import { calculateAguinaldo, FACTOR_AGUINALDO } from "../lib/aguinaldo"
+import { calculateSegundaJulio, calculateSegundaJulioProporcional, validateUnidades } from "../lib/segundaJulio"
 import { calculateClausula97 } from "../lib/clausula97"
-import { calculateTiempoExtra, calculateTiempoExtraLegacy, sumTiempoExtraConceptos, validateHorasExtra, JORNADAS } from "../lib/tiempoExtra"
+import {
+  calculateTiempoExtra, calculateTiempoExtraLegacy, sumTiempoExtraConceptos,
+  validateHorasExtra, validateHorasSemana, validateHorasExtraQuincena,
+  JORNADAS, MAX_HORAS_SEMANALES, MAX_HORAS_QUINCENALES,
+} from "../lib/tiempoExtra"
 import { roundCurrency, formatCurrency, parseCurrencyInput } from "../lib/money"
 import { calcularPrestamos, normalizeSearch, filterCategorias, mapJsonToPrestamoRecord } from "../lib/prestamos"
 import type { PrestamoCategoriaRecord, TiempoExtraInput } from "../lib/types"
@@ -42,40 +46,56 @@ describe("Aguinaldo", () => {
     const s = r.anticipoEnero047 + r.anticipoAgosto043 + r.restoDiciembre049
     expect(s).toBeCloseTo(r.total, 5)
   })
+  it("el factor se conserva sin sustituir", () => {
+    expect(r.factor).toBe(FACTOR_AGUINALDO)
+    expect(r.factor).toBe(7.490956567109524)
+  })
+  it("la evidencia declara el factor como app_reconstructed", () => {
+    expect(r.formulaEvidence.status).toBe("app_reconstructed")
+    expect(r.formulaEvidence.source).toBeTruthy()
+  })
+  it("entrega alternativa documentada (Cláusula 107, factor 6) pendiente de validación", () => {
+    expect(r.documentedAlternative).toBeDefined()
+    expect(r.documentedAlternative?.factor).toBe(6)
+    expect(r.documentedAlternative?.total).toBeCloseTo(72000, 2)
+    expect(r.documentedAlternative?.pendingValidation).toBe(true)
+  })
 })
 
-describe("Segunda de julio", () => {
-  it("calcula correctamente con 10000 y 2000", () => {
-    expect(calculateSegundaJulio({ concepto002: 10000, concepto011: 2000 })).toBe(36800)
+describe("Segunda de julio (Fondo de Ahorro, base = 002)", () => {
+  it("base = sueldo tabular (002); no integra 011", () => {
+    expect(calculateSegundaJulio({ concepto002: 10000 })).toBeCloseTo(30666.67, 2)
+    expect(calculateSegundaJulio({ concepto002: 10000 })).not.toBe(36800)
   })
   it("calcula correctamente con ceros", () => {
-    expect(calculateSegundaJulio({ concepto002: 0, concepto011: 0 })).toBe(0)
+    expect(calculateSegundaJulio({ concepto002: 0 })).toBe(0)
   })
 })
 
 describe("Segunda de julio proporcional", () => {
-  it("calcula 180 dias correctamente", () => {
-    const r = calculateSegundaJulioProporcional({ concepto002: 10000, concepto011: 2000, diasLaborados: 180 })
-    expect(r.base).toBe(12000)
-    expect(r.importeCompleto).toBe(36800)
+  it("calcula 180 unidades correctamente", () => {
+    const r = calculateSegundaJulioProporcional({ concepto002: 10000, unidades: 180 })
+    expect(r.base).toBe(10000)
+    expect(r.importeCompleto).toBeCloseTo(30666.67, 2)
     expect(r.proporcion).toBe(0.5)
-    expect(r.resultado).toBe(18400)
+    expect(r.resultado).toBeCloseTo(15333.33, 2)
   })
-  it("1 dia", () => {
-    const r = calculateSegundaJulioProporcional({ concepto002: 10000, concepto011: 2000, diasLaborados: 1 })
+  it("1 unidad", () => {
+    const r = calculateSegundaJulioProporcional({ concepto002: 10000, unidades: 1 })
     expect(r.resultado).toBeGreaterThan(0)
-    expect(r.resultado).toBeLessThan(36800)
+    expect(r.resultado).toBeLessThan(r.importeCompleto)
   })
-  it("360 dias igual al completo", () => {
-    const r = calculateSegundaJulioProporcional({ concepto002: 10000, concepto011: 2000, diasLaborados: 360 })
+  it("360 unidades igual al completo", () => {
+    const r = calculateSegundaJulioProporcional({ concepto002: 10000, unidades: 360 })
     expect(r.resultado).toBe(r.importeCompleto)
+    expect(r.proporcion).toBe(1)
   })
-  it("validacion: 0 dias falla", () => { expect(validateDiasLaborados(0)).not.toBeNull() })
-  it("validacion: 361 dias falla", () => { expect(validateDiasLaborados(361)).not.toBeNull() })
-  it("validacion: decimales fallan", () => { expect(validateDiasLaborados(1.5)).not.toBeNull() })
-  it("validacion: 1 y 360 dias pasan", () => {
-    expect(validateDiasLaborados(1)).toBeNull()
-    expect(validateDiasLaborados(360)).toBeNull()
+  it("validacion: 0 unidades falla", () => { expect(validateUnidades(0)).not.toBeNull() })
+  it("validacion: 361 unidades falla", () => { expect(validateUnidades(361)).not.toBeNull() })
+  it("validacion: decimales fallan", () => { expect(validateUnidades(1.5)).not.toBeNull() })
+  it("validacion: 1 y 360 unidades pasan", () => {
+    expect(validateUnidades(1)).toBeNull()
+    expect(validateUnidades(360)).toBeNull()
   })
 })
 
@@ -116,17 +136,64 @@ describe("Tiempo extra", () => {
     expect(JORNADAS).toContain(6)
     expect(calculateTiempoExtra({ ...input, jornada: 6 }).horasOrdinariasPeriodo).toBe(90)
   })
-  it("ningun NaN", () => {
+  it("ningun NaN en campos numéricos", () => {
     const r = calculateTiempoExtra(input)
-    expect(Object.values(r).every(v => !isNaN(v as number))).toBe(true)
+    const numeric = [
+      r.sumaConceptos, r.horasOrdinariasPeriodo, r.valorHora,
+      r.factor, r.horasExtra, r.pago,
+    ]
+    expect(numeric.every((v) => !isNaN(v))).toBe(true)
   })
   it("cero horas es invalido", () => {
     expect(validateHorasExtra(0)).not.toBeNull()
     expect(validateHorasExtra(-1)).not.toBeNull()
   })
-  it("maximo razonable de horas", () => {
+  it("maximo razonable de horas (legacy)", () => {
     expect(validateHorasExtra(24)).toBeNull()
     expect(validateHorasExtra(25)).not.toBeNull()
+  })
+  it("límite ordinario semanal de 9 horas", () => {
+    expect(MAX_HORAS_SEMANALES).toBe(9)
+    expect(validateHorasSemana(8)).toEqual({ valid: true })
+    expect(validateHorasSemana(10).valid).toBe(false)
+    expect(validateHorasSemana(10).requiresConfirmation).toBe(true)
+  })
+  it("límite ordinario quincenal de 20 horas", () => {
+    expect(MAX_HORAS_QUINCENALES).toBe(20)
+    expect(validateHorasExtraQuincena(20).valid).toBe(true)
+    expect(validateHorasExtraQuincena(15, null).valid).toBe(true)
+    const sinExcepcion = validateHorasExtraQuincena(21, null)
+    expect(sinExcepcion.valid).toBe(false)
+    expect(sinExcepcion.requiresConfirmation).toBe(true)
+  })
+  it("exceso de 20 h con excepción documentada se permite con advertencia", () => {
+    const conExcepcion = validateHorasExtraQuincena(21, "clausula_100_cct")
+    expect(conExcepcion.valid).toBe(true)
+    expect(conExcepcion.requiresConfirmation).toBe(true)
+    expect(conExcepcion.warning).toBeTruthy()
+  })
+  it("usa baseNormativa (motor de repercusiones 037) cuando se provee", () => {
+    const baseNormativa = {
+      conceptos: [
+        { code: "002", amount: 10000 },
+        { code: "011", amount: 2000 },
+        { code: "020", amount: 700 },
+        { code: "023", amount: 250 },
+        { code: "063", amount: 150 },
+        { code: "050", amount: 300 },
+      ],
+      baseAmount: 13400,
+    }
+    const r = calculateTiempoExtra({ ...input, baseNormativa })
+    expect(r.baseNormativaUsada).toBe(true)
+    expect(r.sumaConceptos).toBe(13400)
+    expect(r.conceptosIntegrados).toHaveLength(6)
+    expect(r.pago).toBeCloseTo((13400 / 120) * 2 * 5, 5)
+  })
+  it("sin baseNormativa la base es la suma manual", () => {
+    const r = calculateTiempoExtra(input)
+    expect(r.baseNormativaUsada).toBe(false)
+    expect(r.sumaConceptos).toBe(14000)
   })
   it("legacy difiere de corregida", () => {
     const legacy = calculateTiempoExtraLegacy(input)

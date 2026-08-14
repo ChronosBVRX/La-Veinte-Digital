@@ -1,10 +1,17 @@
 import type { PayrollRuleContext, RuleCalculationResult, CalculatedPayrollConcept, PayrollRule } from "../types"
 import { dependenciesStatus, resolveWithAnchor } from "../engine"
-import { getPercentageForCategory } from "../../data/concept-percentage-tables"
+import { getPercentageForConcept072 } from "../../data/institutional-percentage-tables"
 
+/**
+ * Ayuda para Libros no Médicos (072) — Apéndice F, Tabla numérica 07.
+ *
+ * El porcentaje se resuelve por categoría con coincidencia ESTRICTA
+ * (categoryId → categoryCode → nombre exacto → alias). Si la categoría no
+ * está en la tabla NO se aplica un 5% por defecto: se exige confirmación.
+ */
 export const concept072Rule: PayrollRule = {
   id: "072",
-  version: "1.0.0",
+  version: "2.0.0",
   effectiveFrom: "2025-01-01",
   dependencies: ["002", "011"],
   calculate(ctx: PayrollRuleContext): RuleCalculationResult {
@@ -17,8 +24,12 @@ export const concept072Rule: PayrollRule = {
       (f) => f.key === "concept_072_on_payslip" && f.value === true
     )
 
-    const categoryName = ctx.category.categoryName ?? ""
-    const percentage = getPercentageForCategory("concept_072_category_percentages", categoryName, ctx.category.categoryId)
+    const resolution = getPercentageForConcept072({
+      categoryId: ctx.category.categoryId,
+      categoryCode: ctx.category.categoryCode,
+      categoryName: ctx.category.categoryName,
+    })
+    const percentage = resolution.percentage
 
     const eligible = anchor ? true : (isRecurring || hasPayslipEvidence)
 
@@ -27,8 +38,7 @@ export const concept072Rule: PayrollRule = {
     const c002 = ctx.calculatedConcepts.get("002")?.amount ?? 0
     const c011 = ctx.calculatedConcepts.get("011")?.amount ?? 0
     const base = c002 + c011
-    const effectivePct = percentage ?? 0.05
-    const formulaAmount = base * effectivePct
+    const formulaAmount = percentage === null ? 0 : base * percentage
 
     const status = dependenciesStatus(DEPS, ctx)
     const { amount, warnings: resolutionWarnings } = resolveWithAnchor(
@@ -48,7 +58,11 @@ export const concept072Rule: PayrollRule = {
 
     const warnings: string[] = [...resolutionWarnings]
     if (percentage === null) {
-      warnings.push("Porcentaje no determinado para esta categoría — usando 5% por defecto")
+      warnings.push(
+        "Categoría no autorizada en la tabla oficial (Apéndice F, Tabla 07) — se requiere confirmación; NO se aplica porcentaje por defecto."
+      )
+    } else {
+      warnings.push(`Porcentaje según Apéndice F, Tabla 07: ${(percentage * 100).toFixed(1)}% (${resolution.role ?? "categoría"})`)
     }
     if (!eligible) {
       warnings.push("Requiere categoría autorizada o evidencia en tarjetón anterior")
@@ -64,8 +78,8 @@ export const concept072Rule: PayrollRule = {
       anchor ? "high" :
       isRecurring ? "high" :
       hasPayslipEvidence ? "high" :
-      percentage !== null ? "medium" :
-      "requires_confirmation"
+      percentage === null ? "requires_confirmation" :
+      "medium"
 
     const concept: CalculatedPayrollConcept = {
       code: "072",
@@ -76,18 +90,22 @@ export const concept072Rule: PayrollRule = {
       included: eligible,
       source,
       confidence,
-      verificationStatus: "contract_verified",
+      verificationStatus: "institutional_catalog_verified",
       elegibilitySource: anchor ? "payslip_confirmed" : (eligible ? "formula_deduced" : "unknown"),
       anchorAmount: anchor?.amount,
       anchorDate: anchor?.date,
       dependencies: [{ code: "002", amount: c002 }, { code: "011", amount: c011 }],
       calculationSteps: [
         { label: "Base", expression: `002 + 011 = ${c002} + ${c011} = ${base}`, value: base },
-        { label: "Porcentaje según categoría", expression: `${(effectivePct * 100).toFixed(1)}% = ${effectivePct}`, value: effectivePct },
-        { label: "072 = base × porcentaje", expression: `${base} × ${effectivePct} = ${formulaAmount}`, value: formulaAmount },
-        ...(anchor ? [          { label: "Último tarjetón (referencia)", expression: `Ancla: ${anchor.amount}`, value: anchor.amount }] : []),
+        ...(percentage === null
+          ? [{ label: "Porcentaje", expression: "Sin porcentaje autorizado para esta categoría", value: 0 }]
+          : [
+              { label: "Porcentaje según tabla", expression: `${((percentage) * 100).toFixed(1)}% (${resolution.role ?? "n/a"})`, value: percentage },
+              { label: "072 = base × porcentaje", expression: `${base} × ${percentage} = ${formulaAmount}`, value: formulaAmount },
+            ]),
+        ...(anchor ? [{ label: "Último tarjetón (referencia)", expression: `Ancla: ${anchor.amount}`, value: anchor.amount }] : []),
       ],
-      legalBasis: [{ source: "CCT", title: "Ayuda para Libros no Médicos", reference: "Cláusula aplicable del CCT" }],
+      legalBasis: [resolution.legalBasis],
       warnings,
     }
     return { concept, dependencies: ["002", "011"] }

@@ -16,8 +16,24 @@
  *
  * Este archivo es CONTENIDO educacional: las cantidades y fórmulas vigentes viven en los
  * motores de La Veinte (nominas/calculadores). Nunca colocar fórmulas de producción aquí.
+ *
+ * Verificación por facetas (mandato de la guía):
+ * - `level`: nivel de certeza documental de 4 niveles (officially_verified,
+ *   historically_identified, contextually_explained, pending_identification).
+ * - `meaningVerificationStatus` / `formulaVerificationStatus` / `legalVerificationStatus`:
+ *   estado por faceta (significado, fórmula, marco legal).
+ * - `directSource` (id único que nombra/regula el concepto) vs `contextSource` (ids de
+ *   contexto institucional). Un concepto histórico (p. ej. 104 FOVI) puede tener solo
+ *   `contextSource` y `level: "historically_identified"` sin fórmula.
+ * - `legacyConcept` / `legacyNotes` / `replacementConceptCodes`: conceptos sustituidos
+ *   (solo con evidencia).
  */
-import type { GuideConceptRef, VerificationState } from "@/features/tarjeton-guia/lib/types"
+import type {
+  GuideConceptRef,
+  GuideVerificationLevel,
+  GuideAspectState,
+  VerificationState,
+} from "@/features/tarjeton-guia/lib/types"
 
 export interface GuideDetailContent {
   simple: string
@@ -29,6 +45,20 @@ export interface GuideDetailContent {
   calculator?: { route: string; label: string }
   sources?: string[]
   verification?: VerificationState
+  /** Nivel de certeza documental (4 niveles). */
+  level?: GuideVerificationLevel
+  /** Verificación por faceta. */
+  meaningVerificationStatus?: GuideAspectState
+  formulaVerificationStatus?: GuideAspectState
+  legalVerificationStatus?: GuideAspectState
+  /** Fuente directa (documento que nombra/regula el concepto). */
+  directSource?: string
+  /** Fuentes de contexto institucional. */
+  contextSource?: string[]
+  /** Concepto histórico sustituido. */
+  legacyConcept?: boolean
+  legacyNotes?: string
+  replacementConceptCodes?: string[]
 }
 
 /** Contenido curado por código de concepto (3 dígitos). */
@@ -347,27 +377,163 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
   },
 
   // ------------------------------------------------------------------ DEDUCCIONES
+  "104": {
+    simple: "Es el descuento del crédito hipotecario FOVI: el pago de un crédito de vivienda otorgado por el antiguo Fondo de Operación y Descuento Bancario a la Vivienda (FOVI), un esquema de financiamiento hipotecario creado en 1963.",
+    whyItMatters:
+      "Si aparece en tu tarjetón, corresponde a un crédito de vivienda de origen histórico: estos esquemas pasaron a la Sociedad Hipotecaria Federal (SHF) en 2002, por lo que la recuperación es una amortización ya en curso.",
+    whyItAppears:
+      "El FOVI nació en 1963 como fideicomiso de la banca de desarrollo y en febrero de 2002 sus operaciones se transfirieron a la SHF. Este concepto aparece solo en tarjetones de trabajadores con créditos originados bajo ese esquema.",
+    whenItAppears: "Aparece quincenalmente mientras el crédito esté vigente, junto con las prestaciones hipotecarias del IMSS.",
+    related: [
+      { ref: "concept:106", label: "Enganche de casa habitación E.S.M.I.", why: "Otro esquema hipotecario del IMSS" },
+      { ref: "concept:130", label: "Crédito hipotecario E.S.M.I." },
+      { ref: "concept:154", label: "Descuento crédito INFONAVIT" },
+      { ref: "concept:133", label: "Ayuda de gastos de escrituración" },
+    ],
+    sources: ["fovi-shf", "cct-2025-2027", "proc-1a72-003-005", "proc-6c10-b03-002"],
+    level: "historically_identified",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "pending_verification",
+    legalVerificationStatus: "partially_verified",
+    contextSource: ["fovi-shf", "cct-2025-2027", "proc-1a72-003-005", "proc-6c10-b03-002"],
+    legacyConcept: false,
+  },
+  "106": {
+    simple: "Es el descuento del enganche de tu casa-habitación bajo el esquema E.S.M.I. (Esquema Salario Mensual Integrado): cuando el IMSS te otorga el crédito, el enganche se recupera de tu nómina.",
+    whyItMatters: "El IMSS otorga créditos para enganche de casa-habitación a trabajadores de base con 3+ años de antigüedad, y el enganche se descuenta quincenalmente.",
+    whyItAppears:
+      "Cubre los créditos para enganche previstos en la cláusula 81 del CCT (2,000 créditos de enganche) y regulados en el Reglamento de Préstamos para el Fomento de la Habitación (máximo 15 veces el salario mensual integrado).",
+    whenItAppears: "Aparece quincenalmente mientras se recupera el enganche del crédito.",
+    affects: ["Crédito liquidado", "Baja o adelanto de la deuda"],
+    related: [
+      { ref: "concept:104", label: "Crédito hipotecario FOVI" },
+      { ref: "concept:130", label: "Crédito hipotecario E.S.M.I." },
+      { ref: "concept:133", label: "Ayuda de gastos de escrituración" },
+      { ref: "concept:136", label: "Préstamos personales a mediano plazo" },
+      { ref: "field:57", label: "Sueldo mensual integrado", why: "Base del esquema E.S.M.I." },
+    ],
+    sources: ["cct-2025-2027", "proc-1a72-003-005"],
+    verification: "verified",
+    level: "officially_verified",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "partially_verified",
+    legalVerificationStatus: "verified",
+    directSource: "cct-2025-2027",
+    contextSource: ["proc-1a72-003-005"],
+  },
+  "109": {
+    simple: "Es la prima de seguro de daños de vivienda INFONAVIT: la cobertura que protege tu vivienda financiada mientras pagas tu crédito.",
+    whyItMatters: "Es un cargo ligado directamente a tu crédito INFONAVIT: mientras dure el crédito, también se cubre el seguro de daños a la vivienda.",
+    whyItAppears: "Aparece mientras tengas un crédito INFONAVIT y la póliza de daños esté vigente.",
+    whenItAppears: "Aparece quincenalmente mientras el crédito esté en curso.",
+    related: [
+      { ref: "concept:154", label: "Descuento crédito INFONAVIT", why: "Ambos dependen de tu crédito" },
+      { ref: "field:56", label: "Crédito INFONAVIT" },
+    ],
+    sources: ["infonavit-reglamento-inscripcion"],
+    verification: "partially_verified",
+    level: "contextually_explained",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "pending_verification",
+    legalVerificationStatus: "partially_verified",
+    contextSource: ["infonavit-reglamento-inscripcion"],
+  },
+  "130": {
+    simple: "Es el descuento periódico de tu crédito hipotecario E.S.M.I. (Esquema Salario Mensual Integrado): el pago del préstamo hipotecario que el IMSS te otorgó para tu casa-habitación.",
+    whyItMatters: "Es uno de los descuentos más grandes cuando tienes un crédito hipotecario del IMSS: su evolución se ve en las observaciones.",
+    whyItAppears:
+      "El IMSS otorga créditos hipotecarios a trabajadores de base (cláusula 81 CCT) con garantía hipotecaria, por hasta 75 veces el salario mensual integrado (ampliable a 90 veces con liquidez).",
+    whenItAppears: "Aparece quincenalmente mientras esté vigente el crédito hipotecario.",
+    affects: ["Crédito liquidado", "Reestructura del crédito"],
+    related: [
+      { ref: "concept:106", label: "Enganche de casa habitación E.S.M.I." },
+      { ref: "concept:133", label: "Ayuda de gastos de escrituración" },
+      { ref: "concept:136", label: "Préstamos personales a mediano plazo" },
+      { ref: "concept:104", label: "Crédito hipotecario FOVI" },
+      { ref: "field:57", label: "Sueldo mensual integrado" },
+    ],
+    sources: ["cct-2025-2027", "proc-1a72-003-005"],
+    verification: "verified",
+    level: "officially_verified",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "partially_verified",
+    legalVerificationStatus: "verified",
+    directSource: "cct-2025-2027",
+    contextSource: ["proc-1a72-003-005"],
+  },
+  "133": {
+    simple: "Es la ayuda de gastos de escrituración E.S.M.I.: el apoyo que cubre los gastos notariales de tu crédito hipotecario del IMSS y que se recupera por nómina.",
+    whyItMatters: "Los gastos de escrituración se financian y se recuperan en plazos, por lo que verás una deducción adicional ligada a tu crédito.",
+    whyItAppears:
+      "La ayuda de gastos de escrituración está prevista en la cláusula 81 Bis del CCT y regulada en el Reglamento de Préstamos para el Fomento de la Habitación.",
+    whenItAppears: "Aparece mientras se recupera el financiamiento de los gastos de escrituración.",
+    related: [
+      { ref: "concept:130", label: "Crédito hipotecario E.S.M.I." },
+      { ref: "concept:106", label: "Enganche de casa habitación" },
+    ],
+    sources: ["cct-2025-2027", "proc-1a72-003-005"],
+    verification: "partially_verified",
+    level: "officially_verified",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "pending_verification",
+    legalVerificationStatus: "verified",
+    directSource: "cct-2025-2027",
+    contextSource: ["proc-1a72-003-005"],
+  },
+  "136": {
+    simple: "Es el descuento de tu préstamo personal a mediano plazo E.S.M.I.: el pago de un crédito personal de vivienda que otorga el IMSS.",
+    whyItMatters: "El IMSS concede créditos personales a mediano plazo para fines de vivienda (cláusula 81 CCT): aparecen como descuento quincenal.",
+    whyItAppears:
+      "Se otorgan junto a los créditos hipotecarios y de enganche (3,750 créditos personales a mediano plazo en la vigencia del contrato), conforme al Reglamento de Préstamos para el Fomento de la Habitación.",
+    whenItAppears: "Aparece quincenalmente mientras esté vigente el préstamo.",
+    related: [
+      { ref: "concept:130", label: "Crédito hipotecario E.S.M.I." },
+      { ref: "concept:106", label: "Enganche de casa habitación" },
+    ],
+    sources: ["cct-2025-2027", "proc-1a72-003-005"],
+    verification: "verified",
+    level: "officially_verified",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "partially_verified",
+    legalVerificationStatus: "verified",
+    directSource: "cct-2025-2027",
+    contextSource: ["proc-1a72-003-005"],
+  },
   "107": {
-    simple: "Es la aportación complementaria a tu fondo de jubilación, además de la aportación base.",
-    whyItMatters: "Es parte de tu ahorro para el retiro: la aportación crece con el tiempo.",
-    whyItAppears: "Se descuenta a los trabajadores de nuevo ingreso conforme al convenio adicional de jubilaciones.",
+    simple: "Es la provisión de tu fondo de jubilación: la parte de tu aportación al ahorro para el retiro que se descuenta por este concepto.",
+    whyItMatters: "El convenio IMSS–SNTSS del 14 de octubre de 2005 aumentó gradualmente la aportación de los trabajadores de nuevo ingreso; esta provisión es parte de tu ahorro para el retiro.",
+    whyItAppears: "Se descuenta a los trabajadores incorporados bajo el esquema del convenio adicional de 2005 para el régimen de jubilaciones y pensiones.",
     whenItAppears: "Aparece quincenalmente como descuento.",
     related: [
       { ref: "concept:152", label: "Fondo de jubilación", why: "Aportación base del fondo" },
       { ref: "concept:108", label: "Provisión RJP" },
+      { ref: "concept:111", label: "Aportación complementaria AFORE" },
     ],
-    sources: [], verification: "pending_verification",
+    sources: ["imss-informe-2015-2016-c10", "cct-2025-2027"],
+    verification: "partially_verified",
+    level: "contextually_explained",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "pending_verification",
+    legalVerificationStatus: "partially_verified",
+    contextSource: ["imss-informe-2015-2016-c10", "cct-2025-2027"],
   },
   "108": {
     simple: "Es la provisión del Régimen de Jubilaciones y Pensiones (RJP) para trabajadores incorporados entre 2005 y 2008.",
-    whyItMatters: "Define las condiciones de tu jubilación: edad y años de servicio requeridos.",
-    whyItAppears: "Se descuenta a los trabajadores base de nuevo ingreso comprendidos en la fecha de incorporación del esquema.",
+    whyItMatters: "Define las condiciones de tu jubilación: edad y años de servicio requeridos, con cuantía hasta el 100% en esos esquemas.",
+    whyItAppears: "Se descuenta a los trabajadores base de nuevo ingreso comprendidos en la fecha de incorporación del esquema RJP.",
     whenItAppears: "Aparece quincenalmente como descuento.",
     related: [
       { ref: "concept:107", label: "Provisión fondo de jubilación" },
       { ref: "concept:152", label: "Fondo de jubilación" },
     ],
-    sources: [], verification: "pending_verification",
+    sources: ["cct-2025-2027", "imss-informe-2015-2016-c10"],
+    verification: "partially_verified",
+    level: "contextually_explained",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "pending_verification",
+    legalVerificationStatus: "partially_verified",
+    directSource: "cct-2025-2027",
+    contextSource: ["imss-informe-2015-2016-c10"],
   },
   "111": {
     simple: "Es la aportación complementaria a tu Afore.",
@@ -399,77 +565,127 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
   "151": {
     simple: "Es el Impuesto Sobre la Renta (ISR): la retención que el patrón hace de tu sueldo por concepto de impuestos.",
     whyItMatters: "Es normalmente el descuento más grande de tu tarjetón: entenderlo evita sorpresas.",
-    whyItAppears: "El IMSS, como patrón, está obligado a retener el ISR de tus percepciones gravadas.",
-    whenItAppears: "Aparece cada quincena cuando tus percepciones superan el monto exento.",
+    whyItAppears: "El IMSS, como patrón, está obligado a retener el ISR de tus percepciones gravadas (artículo 96 de la LISR).",
+    whenItAppears: "Aparece cada quincena cuando tus percepciones gravadas superan el monto correspondiente de la tarifa.",
     affects: ["Percepciones gravadas del periodo", "Tabulador de impuestos vigente"],
     related: [
       { ref: "concept:002", label: "Sueldo base", why: "Base de la retención" },
       { ref: "concept:070", label: "Devoluciones ISPT", why: "Ajuste cuando la retención fue de más" },
       { ref: "concept:153", label: "Descuento complementario ISR", why: "Ajuste de periodos anteriores" },
     ],
-    sources: [], verification: "pending_verification",
+    sources: ["ley-isr"],
+    verification: "partially_verified",
+    level: "officially_verified",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "contextually_explained",
+    legalVerificationStatus: "verified",
+    directSource: "ley-isr",
   },
   "152": {
     simple: "Es la aportación base a tu fondo de jubilación.",
     whyItMatters: "Es parte de tu ahorro para el retiro: conviene conocer cuánto se te descuenta por este fondo.",
-    whyItAppears: "Se descuenta a los trabajadores de base conforme al convenio de jubilaciones.",
+    whyItAppears: "Se descuenta a los trabajadores de base conforme al Régimen de Jubilaciones y Pensiones (cláusula 110 del CCT) y el convenio de 2005.",
     whenItAppears: "Aparece quincenalmente como descuento.",
     related: [
       { ref: "concept:107", label: "Provisión fondo de jubilación", why: "Aportación complementaria" },
       { ref: "concept:108", label: "Provisión RJP" },
     ],
-    sources: [], verification: "pending_verification",
+    sources: ["cct-2025-2027", "imss-informe-2015-2016-c10"],
+    verification: "partially_verified",
+    level: "contextually_explained",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "pending_verification",
+    legalVerificationStatus: "partially_verified",
+    contextSource: ["cct-2025-2027", "imss-informe-2015-2016-c10"],
   },
   "153": {
     simple: "Es un descuento complementario de ISR del año anterior: corrige la retención cuando el cálculo anual resulta en un faltante.",
     whyItMatters: "Aparece como ajuste anual: no es un cargo nuevo, es la regularización de tu impuesto.",
-    whyItAppears: "Se genera al regularizar la retención anual de impuestos.",
+    whyItAppears: "Se genera al regularizar la retención anual de impuestos conforme a la LISR.",
     whenItAppears: "Aparece en el periodo donde se aplica la regularización anual.",
     related: [
       { ref: "concept:151", label: "Impuesto sobre la renta (ISR)" },
       { ref: "concept:070", label: "Devoluciones ISPT", why: "Ajuste inverso a tu favor" },
     ],
-    sources: [], verification: "pending_verification",
+    sources: ["ley-isr"],
+    verification: "partially_verified",
+    level: "contextually_explained",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "pending_verification",
+    legalVerificationStatus: "partially_verified",
+    contextSource: ["ley-isr"],
   },
   "154": {
     simple: "Es el descuento del crédito INFONAVIT: el pago mensual de tu crédito de vivienda.",
     whyItMatters: "Es un descuento recurrente mientras dure el crédito; su saldo se refleja en las observaciones.",
-    whyItAppears: "Se descuenta cuando tienes un crédito INFONAVIT activo.",
+    whyItAppears: "Se descuenta cuando tienes un crédito INFONAVIT activo; el IMSS entero el descuento al INFONAVIT vía nómina.",
     whenItAppears: "Aparece quincenalmente mientras tu crédito esté vigente.",
     related: [
       { ref: "field:56", label: "Crédito INFONAVIT", why: "Dato de tu tarjetón" },
       { ref: "field:59", label: "Marca de crédito" },
       { ref: "field:74", label: "Unidades (observaciones)", why: "Las unidades registran el avance del crédito" },
+      { ref: "concept:109", label: "Prima de seguro de daños INFONAVIT" },
     ],
-    sources: ["proc-1a14-003-010"], verification: "verified",
+    sources: ["proc-1a14-003-010", "infonavit-reglamento-inscripcion"],
+    verification: "verified",
+    level: "officially_verified",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "contextually_explained",
+    legalVerificationStatus: "verified",
+    directSource: "proc-1a14-003-010",
+    contextSource: ["infonavit-reglamento-inscripcion"],
   },
   "155": {
     simple: "Es un descuento por disposición judicial, como una pensión alimenticia dictada por un juez.",
-    whyItMatters: "Es un descuento obligatorio: se aplica solo si existe una orden judicial.",
-    whyItAppears: "Se retiene conforme a una disposición judicial notificada al IMSS.",
+    whyItMatters: "Es un descuento obligatorio: se aplica solo si existe una orden judicial, dentro de los límites legales.",
+    whyItAppears: "Se retiene conforme a una disposición judicial notificada al IMSS, autorizada por la cláusula 106 del CCT.",
     whenItAppears: "Aparece mientras esté vigente la disposición judicial.",
-    related: [{ ref: "field:77", label: "Observaciones", why: "Puede detallar el cargo" }],
-    sources: [], verification: "pending_verification",
+    affects: ["Orden judicial revocada o modificada"],
+    related: [
+      { ref: "field:77", label: "Observaciones", why: "Puede detallar el cargo" },
+      { ref: "concept:106", label: "Deducciones del salario", why: "La cláusula 106 autoriza este descuento" },
+    ],
+    sources: ["ley-federal-trabajo", "cct-2025-2027"],
+    verification: "partially_verified",
+    level: "officially_verified",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "contextually_explained",
+    legalVerificationStatus: "verified",
+    directSource: "cct-2025-2027",
+    contextSource: ["ley-federal-trabajo"],
   },
   "156": {
     simple: "Es un descuento por viáticos no comprobados.",
     whyItMatters: "Cuando recibes viáticos y no compruebas su uso, se recupera el importe.",
-    whyItAppears: "Se genera cuando los viáticos entregados no se comprueban.",
+    whyItAppears: "Se genera cuando los viáticos entregados no se comprueban en tiempo y forma.",
     whenItAppears: "Aparece en la quincena donde se realiza la recuperación.",
     related: [{ ref: "field:77", label: "Observaciones" }],
-    sources: [], verification: "pending_verification",
+    sources: ["cct-2025-2027"],
+    verification: "partially_verified",
+    level: "contextually_explained",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "pending_verification",
+    legalVerificationStatus: "partially_verified",
+    contextSource: ["cct-2025-2027"],
   },
   "160": {
-    simple: "Es la recuperación de la cláusula 97 del CCT: descuentos relacionados con vale o anticipo de aguinaldo.",
-    whyItMatters: "Aparece en los periodos siguientes a recibir un vale: es la recuperación del adelanto.",
-    whyItAppears: "Se descuenta para recuperar los vales o anticipos otorgados conforme a la cláusula 97.",
-    whenItAppears: "Aparece en las quincenas donde se programó la recuperación.",
+    simple: "Es la recuperación de la cláusula 97 del CCT: el descuento que recupera los anticipos de sueldo que te concedió el IMSS.",
+    whyItMatters: "Los anticipos a cuenta de sueldo (cláusula 97) no generan intereses y se recuperan en quincenas (10, 20, 30 o 40), sin afectar el derecho a otros descuentos.",
+    whyItAppears: "Se descuenta para amortizar el anticipo de sueldo otorgado conforme a la cláusula 97 del CCT.",
+    whenItAppears: "Aparece en las quincenas donde se programó la recuperación del anticipo.",
+    affects: ["Anticipo liquidado anticipadamente (a petición del trabajador)"],
     related: [
-      { ref: "concept:043", label: "Vale a cuenta de aguinaldo", why: "El descuento recupera este adelanto" },
-      { ref: "concept:047", label: "Anticipo de aguinaldo" },
+      { ref: "concept:042", label: "Anticipo de sueldo Cl. 97 CCT", why: "El descuento recupera este adelanto" },
+      { ref: "concept:169", label: "Recuperación vale a cuenta de sueldo" },
     ],
     calculator: { route: "/calculadoras/clausula-97", label: "Calcular la recuperación Cl. 97" },
-    sources: ["cct-2025-2027"], verification: "partially_verified",
+    sources: ["cct-2025-2027"],
+    verification: "verified",
+    level: "officially_verified",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "verified",
+    legalVerificationStatus: "verified",
+    directSource: "cct-2025-2027",
   },
   "161": {
     simple: "Es un descuento por suspensión temporal de la relación laboral.",
@@ -507,15 +723,108 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     sources: [], verification: "pending_verification",
   },
   "170": {
-    simple: "Es el descuento de crédito FONACOT.",
-    whyItMatters: "Es un descuento recurrente mientras pagues tu crédito FONACOT.",
-    whyItAppears: "Se descuenta cuando tienes un crédito FONACOT activo.",
+    simple: "Es el descuento de crédito FONACOT: el pago del crédito que te otorgó el Fondo de Fomento y Garantía para el Consumo de los Trabajadores, descontado por nómina.",
+    whyItMatters: "Es un descuento recurrente mientras pagues tu crédito FONACOT; el FONACOT usa el sistema de afiliación y descuento vía nómina.",
+    whyItAppears: "Se descuenta cuando tienes un crédito FONACOT activo, autorizado por la cláusula 106 del CCT (adeudos con instituciones de protección al salario).",
     whenItAppears: "Aparece quincenalmente mientras tu crédito esté vigente.",
     related: [
-      { ref: "field:56", label: "Crédito INFONAVIT", why: "Otros créditos con descuento quincenal" },
+      { ref: "concept:154", label: "Descuento crédito INFONAVIT", why: "Otro crédito con descuento quincenal" },
       { ref: "field:73", label: "Vencimiento (observaciones)", why: "Fecha de fin del descuento" },
+      { ref: "concept:166", label: "Casas comerciales (Comisión Paritaria)" },
     ],
-    sources: [], verification: "pending_verification",
+    sources: ["fonacot-comunicado", "cct-2025-2027"],
+    verification: "partially_verified",
+    level: "contextually_explained",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "pending_verification",
+    legalVerificationStatus: "partially_verified",
+    contextSource: ["fonacot-comunicado", "cct-2025-2027"],
+  },
+  "166": {
+    simple: "Es el descuento de compras en casas comerciales autorizadas por la Comisión Nacional Paritaria de Protección al Salario.",
+    whyItMatters: "El IMSS avala créditos para adquirir bienes y servicios en condiciones favorables como protección al salario; el pago se descuenta por nómina.",
+    whyItAppears:
+      "Surge de la cláusula 141 Bis del CCT y su Reglamento: la Comisión Nacional Paritaria autoriza créditos para artículos de usos y servicios específicos con mejores condiciones de costo y pago.",
+    whenItAppears: "Aparece quincenalmente mientras se paga el crédito autorizado.",
+    related: [
+      { ref: "concept:167", label: "Víveres", why: "Compras con vales de tienda" },
+      { ref: "concept:168", label: "Ropa" },
+      { ref: "concept:170", label: "FONACOT", why: "Otro esquema de crédito al consumo" },
+    ],
+    sources: ["cct-2025-2027"],
+    verification: "verified",
+    level: "officially_verified",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "contextually_explained",
+    legalVerificationStatus: "verified",
+    directSource: "cct-2025-2027",
+  },
+  "167": {
+    simple: "Es el descuento de vales de tienda para víveres: por las compras de despensa realizadas con vales.",
+    whyItMatters: "Los vales de tienda para víveres y ropa no limitan el derecho a anticipos de sueldo y se recuperan por nómina.",
+    whyItAppears: "Se recuperan las compras con vales de tienda conforme a los esquemas de tiendas y protección al salario del CCT.",
+    whenItAppears: "Aparece en las quincenas donde se recupera el vale.",
+    related: [
+      { ref: "concept:166", label: "Casas comerciales (Comisión Paritaria)" },
+      { ref: "concept:168", label: "Ropa" },
+    ],
+    sources: ["cct-2025-2027"],
+    verification: "partially_verified",
+    level: "contextually_explained",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "pending_verification",
+    legalVerificationStatus: "partially_verified",
+    contextSource: ["cct-2025-2027"],
+  },
+  "168": {
+    simple: "Es el descuento de vales de tienda para ropa: por las compras de ropa realizadas con vales.",
+    whyItMatters: "Igual que los víveres, la recuperación de los vales de ropa se descuenta de tu nómina sin limitar otros derechos.",
+    whyItAppears: "Se recuperan las compras de ropa con vales conforme a los esquemas de tiendas del CCT.",
+    whenItAppears: "Aparece en las quincenas donde se recupera el vale.",
+    related: [
+      { ref: "concept:167", label: "Víveres" },
+      { ref: "concept:166", label: "Casas comerciales (Comisión Paritaria)" },
+    ],
+    sources: ["cct-2025-2027"],
+    verification: "partially_verified",
+    level: "contextually_explained",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "pending_verification",
+    legalVerificationStatus: "partially_verified",
+    contextSource: ["cct-2025-2027"],
+  },
+  "180": {
+    simple: "Es la cuota sindical: la aportación periódica a tu sindicato (SNTSS) que se descuenta de tu sueldo.",
+    whyItMatters: "Se descuenta a petición del Sindicato; su monto y vigencia los define la organización sindical.",
+    whyItAppears: "La cláusula 106 del CCT autoriza el descuento de cuotas sindicales a petición del Sindicato.",
+    whenItAppears: "Aparece quincenalmente mientras seas miembro activo del sindicato.",
+    related: [
+      { ref: "concept:187", label: "Cuota extraordinaria sindical", why: "Aportación adicional extraordinaria" },
+    ],
+    sources: ["cct-2025-2027"],
+    verification: "verified",
+    level: "officially_verified",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "contextually_explained",
+    legalVerificationStatus: "verified",
+    directSource: "cct-2025-2027",
+  },
+  "189": {
+    simple: "Es tu aportación al INFONAVIT: la aportación patronal y la parte que se destina a tu subcuenta de vivienda.",
+    whyItMatters: "Aunque el descuento aparece en tu tarjetón, es una aportación que se entera al INFONAVIT como obligación legal.",
+    whyItAppears: "El IMSS entera las aportaciones al INFONAVIT conforme al Reglamento de Inscripción, Pago de Aportaciones y Entero de Descuentos.",
+    whenItAppears: "Aparece periódicamente conforme a la obligación de enterar aportaciones de vivienda.",
+    related: [
+      { ref: "concept:154", label: "Descuento crédito INFONAVIT", why: "Crédito con descuento quincenal" },
+      { ref: "field:56", label: "Crédito INFONAVIT" },
+    ],
+    sources: ["infonavit-reglamento-inscripcion"],
+    verification: "partially_verified",
+    level: "contextually_explained",
+    meaningVerificationStatus: "verified",
+    formulaVerificationStatus: "contextually_explained",
+    legalVerificationStatus: "partially_verified",
+    contextSource: ["infonavit-reglamento-inscripcion"],
   },
   "171": {
     simple: "Es el descuento de licencias sin sueldo menores a 4 días.",
@@ -558,17 +867,6 @@ export const conceptDetails: Record<string, GuideDetailContent> = {
     whyItAppears: "Se descuenta cuando tienes un crédito de trabajadores de confianza.",
     whenItAppears: "Aparece quincenalmente mientras el crédito esté vigente.",
     related: [{ ref: "field:77", label: "Observaciones", why: "Puede detallar el saldo y el vencimiento" }],
-    sources: [], verification: "pending_verification",
-  },
-  "109": {
-    simple: "Es la prima de seguro de daños de vivienda INFONAVIT.",
-    whyItMatters: "Está ligada a tu crédito INFONAVIT: protege tu vivienda.",
-    whyItAppears: "Se descuenta cuando tienes un crédito INFONAVIT vigente.",
-    whenItAppears: "Aparece quincenalmente mientras esté vigente.",
-    related: [
-      { ref: "concept:154", label: "Descuento crédito INFONAVIT", why: "Ambos dependen de tu crédito" },
-      { ref: "field:56", label: "Crédito INFONAVIT" },
-    ],
     sources: [], verification: "pending_verification",
   },
 }

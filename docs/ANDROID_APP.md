@@ -3,7 +3,7 @@
 > Documentación técnica de referencia para agentes futuros.
 > Ámbito: `android-app/` (shell nativo Compose) que embebe el Home web
 > (`https://la-veinte-digital.vercel.app`) en un WebView persistente.
-> Última actualización: **2026-08-12 — v1.0.58 (versionCode 158)**.
+> Última actualización: **2026-08-13 — v1.0.60 (versionCode 160)**.
 
 Esta guía describe rutas, APIs, flujos de datos y convenciones del shell
 Android para que cualquier agente pueda retomar el trabajo **sin romper
@@ -66,11 +66,16 @@ android-app/app/src/main/java/com/laveintedigital/app/
 │   │   ├── ImssCredentialRepository.kt, ImssVaultManager.kt
 │   │   └── ImssCredentialUnlock.kt
 │   ├── portal/                # Automatización portales IMSS + captura PDF
-│   │   ├── TuPerfilFlowController.kt + TuPerfilFlowState.kt + TuPerfilPortalAdapter.kt
+│   │   ├── TuPerfilSessionController.kt + TuPerfilSessionState.kt  # SESIÓN COMPARTIDA (login único)
+│   │   ├── TuPerfilWebBridge.kt                    # helpers suspend evaluateJs/loadUrl
+│   │   ├── TuPerfilFlowController.kt + TuPerfilFlowState.kt + TuPerfilPortalAdapter.kt  # tarjetones (usa la sesión)
+│   │   ├── TuPerfilBiometricFlowController.kt + TuPerfilBiometricFlowState.kt  # biométricos (usa la sesión)
 │   │   ├── TarjetonDigitalFlowController.kt + TarjetonDigitalFlowState.kt
 │   │   ├── TarjetonDigitalLoginErrorParser.kt + TarjetonDigitalJson.kt + TarjetonDigitalBridge.kt
 │   │   ├── ImssPdfCaptureCoordinator.kt, ImssAuthDetector.kt, PortalDetectionRules.kt
 │   │   ├── ImssLoginAdapters.kt, NativeDomTapper.kt
+│   ├── biometric/             # modelos + parsers puros de Registros biométricos
+│   │   ├── BiometricModels.kt, BiometricJson.kt, BiometricFlowPolicy.kt
 │   ├── payslips/              # Room + descarga de PDFs
 │   │   ├── PayslipDatabase.kt (PayslipDao + PayslipDocument)
 │   │   └── ImssPayslipDownloader.kt
@@ -83,6 +88,7 @@ android-app/app/src/main/java/com/laveintedigital/app/
 │       ├── PayslipViewerScreen.kt, SaveImssCredentialsScreen.kt
 │       ├── ManageImssCredentialsScreen.kt, TuPerfilLoginDialog.kt
 │       ├── TuPerfilTarjetonOverlay.kt
+│       ├── TuPerfilBiometricScreen.kt + TuPerfilBiometricOverlay.kt  # Registros biométricos
 │       └── TarjetonDigitalLoginDialog.kt + TarjetonDigitalLoginErrorDialog.kt + TarjetonDigitalTarjetonOverlay.kt
 ├── ui/theme/                  # Colores, tipografía, tema + StatusBarAppearance
 └── updates/                   # Lógica OTA
@@ -148,9 +154,9 @@ Checklist de publicación (ejecutado en las versiones 1.0.44/145/146):
 7. **Verificar**: `HEAD https://la-veinte-digital.vercel.app/LaVeinteDigital.apk`
    → 200 y tamaño coincidente; GET `latest.json` → versionName/sha coincidentes.
 
-Estado actual de producción: **1.0.58 / 158** — SHA
-`45249d06cd608ec2afb1021b9d154eca5296c37206db5f37461fe40ec50dc104`,
-66,821,732 bytes.
+Estado actual de producción: **1.0.60 / 160** — SHA
+`486d21aa26789c2502da60977a998496eead9c1dd00c9e1bc885cba5d3712dd7`,
+67,100,256 bytes (publicado 2026-08-13, ver §10.6 Registros biométricos).
 
 **Canales**: `/android/{stable,beta,dev}/latest.json`. La app solo consulta
 `stable`. El `proxy` de Next.js excluye `.apk`/`.json` del matcher de auth.
@@ -167,6 +173,7 @@ Rutas definidas en `nav/NavRoute.kt` y grafo en `nav/AppNavHost.kt`.
 | `internal` | — | `InternalWebScreen` | — |
 | `external/{url}` | `Uri.encode(url)` | `ExternalBrowserScreen` | url (String) |
 | `official_payslips` | — | `OfficialPayslipsScreen` | — |
+| `tu_perfil_biometrics` | — | `TuPerfilBiometricScreen` | — |
 | `imss_portal/{portalId}/{autoLogin}` | `create(portalId, autoLogin)` | `ImssPortalScreen` | portalId, autoLogin (Bool, default false) |
 | `imss_save_creds/{portalId}` | `create(portalId)` | `SaveImssCredentialsScreen` | portalId |
 | `payslip_history` | — | `PayslipHistoryScreen` | — |
@@ -388,14 +395,16 @@ mime.
 
 ## 10. IMSS: portales, tarjetones y visor PDF
 
-### 10.1 Hub "Tarjetones oficiales" (`OfficialPayslipsScreen` + `OfficialServiceCard`)
+### 10.1 Hub "Servicios oficiales IMSS" (`OfficialPayslipsScreen` + `OfficialServiceCard`)
 
-Pantalla CLARA (diseño 1.0.46):
+Pantalla CLARA (diseño 1.0.46; título actualizado en 1.0.59):
 - Grid 2 columnas (compact < 360dp con paddings menores), altura celda =
   `ancho / 0.78`.
-- 4 tarjetas blancas: **Tu Perfil IMSS**, **Tarjetón Digital**, **Mis
-  tarjetones** (contador de documentos; singular: "1 documento guardado"),
-  **Administrar accesos** (con badge "Guardado" si hay credenciales).
+- 5 tarjetas blancas: **Tu Perfil IMSS**, **Tarjetón Digital**, **Registros
+  biométricos** (nueva 1.0.59, badge "Guardado" si hay credenciales
+  TU_PERFIL), **Mis tarjetones** (contador de documentos; singular:
+  "1 documento guardado"), **Administrar accesos** (con badge "Guardado" si
+  hay credenciales).
 - Card: fondo blanco, sombra 2dp + borde `outline` 1dp (alpha 0.7), esquinas
   16/20dp, título `onSurface`, descripción `onSurfaceVariant`, CTA texto
   `Primary` semibold 13-14sp + flecha (SIN cápsula outline), ilustración con
@@ -410,6 +419,14 @@ Pantalla CLARA (diseño 1.0.46):
   Tarjetón Digital `https://rh.imss.gob.mx/Personal/TarjetonDigital/`.
 - WebView con cookies compartidas (`CookieManager`), desktop viewport para Tu
   Perfil, debug remoto habilitado en DEBUG (`setWebContentsDebuggingEnabled`).
+- **Sesión compartida (refactor 1.0.59)**: el motor de login de Tu Perfil vive
+  ahora en `TuPerfilSessionController` + `TuPerfilSessionState` y es consumido
+  TANTO por `TuPerfilFlowController` (tarjetones) como por
+  `TuPerfilBiometricFlowController` (biométricos). Una sola cuenta, una sola
+  bóveda (`ImssPortal.TU_PERFIL`), un solo motor de login. El comportamiento
+  observable del tarjetón NO cambió: `TuPerfilFlowController` mapea los estados
+  de sesión a los mismos `TuPerfilFlowState` de siempre y conserva la
+  automatización de tarjetón intacta.
 - **Tu Perfil** → `TuPerfilFlowController`:
   - `CheckingSession` → intenta auto-login con credenciales guardadas
     (descifradas vía `ImssVaultManager`); si no, `LoginRequired` → diálogo
@@ -550,6 +567,190 @@ Compartir (FileProvider `application/vnd.android.package-archive` no —
   (FileProvider; ojo: el share sheet hace `onPause` — NO cerrar el visor al
   volver).
 
+### 10.6 Tu Perfil IMSS — Registros Biométricos (1.0.59)
+
+Función nativa de consulta de checadas sobre la ruta oficial
+`https://tuperfil.imss.gob.mx/guitpei-web/app/administration/biometric/consult-period`.
+
+**Principio**: La Veinte Digital controla la UX (pantalla, formulario de
+periodo, loading, resultados y errores son 100% Compose/LVD); Tu Perfil IMSS
+aporta autenticación y datos por debajo (mismo WebView, mismas cookies). El
+"formulario original" solo es fallback.
+
+#### Arquitectura
+
+```
+TuPerfilSessionController (login/sesión COMPARTIDA)
+      ├── TuPerfilFlowController     → /app/administration/card (tarjetones)
+      └── TuPerfilBiometricFlowController → /app/administration/biometric/consult-period
+```
+
+- **Credenciales compartidas**: NO existe identidad propia para biométricos.
+  Ambos flujos usan `ImssPortal.TU_PERFIL` (bóveda única Keystore+DataStore).
+  Guardar desde Tarjetones habilita el auto-login de Biométricos y viceversa.
+  "Olvidar acceso de Tu Perfil IMSS" (`ManageImssCredentialsScreen`) afecta a
+  AMBOS. Test de guarda: `TuPerfilSharedCredentialTest`.
+- **Motor de login**: el Mismo `TuPerfilSessionController` extraído de
+  Tarjetones (fill + doble verificación + reintentos + clasificación de
+  errores + guardado solo tras éxito). El diálogo es el mismo
+  `TuPerfilLoginDialog` con copy "Inicia sesión en Tu Perfil IMSS" /
+  "Usaremos este mismo acceso para Tarjetones y Registros biométricos."
+- **WebView**: pantalla propia `TuPerfilBiometricScreen` con WebView igual al
+  de Tarjetones (cookies compartidas — NUNCA `removeAllCookies()` al cambiar
+  de función) pero con **allowlist explícita de hosts** en
+  `shouldOverrideUrlLoading`: `tuperfil.imss.gob.mx` + `tpei.imss.gob.mx`
+  (`TuPerfilBiometricFlowController.ALLOWED_HOSTS`). Si el login llega a
+  redirigir a otro host oficial, añadirlo aquí.
+- Se inicia cargando el LOGIN_URL: si la sesión ya es válida el portal
+  redirige y el controlador entra directo; si no, auto-login con la bóveda; si
+  no hay credenciales → `TuPerfilLoginDialog`.
+
+#### Máquina de estados (`TuPerfilBiometricFlowState`)
+
+```
+CheckingSession → (Authenticating | LoginRequired | LoginError)
+Authenticated → OpeningBiometrics → WaitingBiometricDom → ReadingPeriods
+→ PeriodSelection(periods) → ApplyingPeriod → SubmittingQuery → WaitingResults
+→ ReadingResults → Results(period, records) | Empty(period) | Error(kind, msg)
+→ SessionExpired (reautenticación ≤1 por operación, restaura periodo)
+ManualMode = fallback "formulario original" (píldora "Volver a La Veinte")
+```
+
+#### Selectores reales y mecanismo de consulta
+
+El DOM real NO pudo inspeccionarse fuera del portal (Incapsula 403 + login).
+La automatización es **adaptativa** y diagnostica en DEBUG:
+
+- **Selector de periodo**: primer `mat-select[role=combobox]` cuyo
+  `formcontrolname`/texto/aria-label/placeholder contenga "periodo" o
+  "quincena"; fallback: primer mat-select; fallback: `<select>` nativo.
+  Opciones: `mat-option`/`<option>` reales (`{value, label}` — NO
+  hardcodeadas; `value` es el identificador interno del portal).
+- **Lectura de periodos (fix 1.0.60 — causa raíz del fallo intermitente)**:
+  Angular carga las opciones de forma asíncrona, así que una primera lectura
+  vacía NO es un error. `readPeriods()` hace polling acotado (~15s de
+  presupuesto): por cada intento limpia los globals JS
+  (`__LVD_BIO_PERIODS__`/`__LVD_BIO_READ_RUNNING__`), inyecta
+  `BIO_READ_PERIODS_JS` (abre el trigger, espera el overlay de
+  `.cdk-overlay-container` con hasta 3 reintentos de apertura, y para
+  `<select>` nativo espera a que `options.length > 0`) y vuelve a inyectar si
+  el resultado fue vacío/incompleto. Solo al agotar el presupuesto se falla,
+  clasificando el motivo: `PERIOD_CONTROL_NOT_FOUND` → DOM_NOT_RECOGNIZED;
+  selector vacío → PERIODS_NOT_READABLE; el resto → PERIODS_TIMEOUT
+  (`BiometricFlowPolicy.periodsFailureKind`).
+- **Antirace de generaciones (fix 1.0.60)**: cada operación (apertura,
+  lectura, consulta) toma una `generation`; los polls comprueban
+  `gen != generation` antes de escribir estado, los jobs viejos se cancelan
+  (single-flight `openingJob`/`queryJob`) y los globals JS se limpian antes
+  de reinyectar — un resultado tardío nunca sobrescribe un estado más nuevo.
+- **Aplicar periodo** (`BIO_APPLY_PERIOD_JS`, hasta 2 intentos Kotlin):
+  abrir trigger → buscar opción por label/value normalizados (NFD) con hasta
+  3 reintentos de apertura → click → **verificar** que el texto del trigger
+  contiene el label/value (mat) o que `select.value` quedó aplicado (nativo)
+  → solo entonces `applyPeriod success=true` y se pulsa Consultar.
+- **Botón de consulta** (`BIO_CLICK_CONSULT_JS`, 2 intentos): `button.primary`/
+  submit con texto normalizado ∈ {consultar, buscar, aceptar, generar,
+  enviar}; guard contra disabled y doble submit.
+- **Resultados** (`BIO_RESULT_SNAPSHOT_JS`, polling 600ms, timeout 35s):
+  detecta `mat-table`/`table` visible → columnas de `mat-header-cell`/`th` y
+  filas de `mat-row`/`tbody tr`; spinner visible → `loading`; mensajes
+  visibles de "sin registros"/"no se encontraron" (lista de claves
+  normalizadas) → `empty`; `mat-error`/alert visible persistente 3 muestras →
+  `error`; `#matricula` visible o path `/login` → sesión expirada.
+- **Diagnóstico DEBUG**: 
+  - Por cada intento de lectura de periodos: log `LVD_BIOMETRIC [gen]
+    attempt=N selector=… controlType=mat-select|select|none options=N
+    loading=… loginVisible=… errorText=… readyState=…` (JS estructurado
+    `BIO_DIAG_SNAPSHOT_JS`).
+  - Volcado estructural una vez por apertura: `LVD_TU_PERFIL_BIOMETRIC
+    BIOMETRIC_DIAG select[N]/button[N]/table[N]/input[N]` con
+    formcontrolname/aria-label/texto/encabezados (SANITIZADO, sin valores).
+  - `BIO_NET_MONITOR_JS` envuelve XHR/fetch registrando solo método+URL+status
+    (`BIOMETRIC_NET`) — sin headers ni cuerpos.
+  - Transiciones de estado: `LVD_BIOMETRIC [-] StateName` (y
+    `periodSelected label=…`, `applyPeriod success=true/false`, sin valores
+    personales).
+
+#### Parser (`imss/biometric/BiometricJson.kt`)
+
+- `parsePeriods`: acepta doble serialización de `evaluateJavascript`
+  (reutiliza `TarjetonDigitalJson`), tolerante a acentos y a value≠label.
+- `parseSnapshot`: columnas `{key,label}` + filas como arreglos alineados →
+  `BiometricRecord(fields: Map<String,String>)`; celdas extra → `extra_i`;
+  celdas vacías conservadas. Modelo genérico a propósito: NO se asumen
+  columnas "Entrada/Salida/Retardo" hasta confirmarlas contra el portal real.
+
+#### UI (`TuPerfilBiometricScreen` + `TuPerfilBiometricOverlay`)
+
+- Top bar navy LVD "Registros biométricos" / "Tu Perfil IMSS",
+  `StatusBarAppearance(lightIcons = false)`.
+- Loadings LVD: "Conectando con Tu Perfil IMSS…" (auth), "Preparando tus
+  registros…" (apertura/DOM/periodos), "Consultando registros biométricos…"
+  (consulta). Fallback "Entrar manualmente" tras 10s.
+- Selección de periodo: bottom sheet LVD con campo "Periodo" tappable →
+  **picker LVD** (bottom sheet con LazyColumn de TODAS las quincenas, fila
+  completa clickeable de 52dp, check azul en la seleccionada, Cancelar). Fix
+  1.0.60: reemplaza el dropdown flotante (frágil sobre WebView) y el estado
+  es Compose observable (`selectedPeriod` hoisted en la pantalla), así la
+  selección se refleja inmediatamente. Por defecto el último periodo que
+  ofrece el portal. `LvdPrimaryButton` "Consultar registros" (disabled hasta
+  elegir periodo y durante consulta — sin doble tap).
+- Resultados: panel nativo full-screen (WebView vivo por debajo): card resumen
+  "Periodo consultado + N registros" y lista de `LvdCard` por registro
+  (label+valor por columna; primera columna semibold). Acciones: Volver a
+  consultar / Cambiar periodo / Formulario original.
+- Vacío: "No encontramos registros en este periodo" + "Tu Perfil IMSS no
+  reportó checadas para el periodo seleccionado." (NO es error técnico).
+- Errores diferenciados (fix 1.0.60): "No pudimos cargar los periodos"
+  (PERIODS_TIMEOUT / PERIODS_NOT_READABLE) ≠ "No pudimos reconocer el
+  formulario de Biométricos" (DOM_NOT_RECOGNIZED) ≠ "No pudimos consultar tus
+  registros" (consulta). Reintentar es contextual: errores de periodos/DOM
+  reabren la lectura (`retryOpenBiometrics`), errores de consulta re-consultan
+  (`retryQuery`).
+- Sesión expirada: diálogo "Tu sesión de Tu Perfil IMSS terminó" +
+  "Volver a iniciar sesión" (aparece solo si la reautenticación automática
+  falló o no hay credenciales).
+
+#### Sesión expirada
+
+Detectada por: path `/login`, `#matricula` visible en el snapshot, o status
+`unauth`. Reautenticación automática **máx. 1 por operación**
+(`BiometricFlowPolicy.MAX_REAUTHS`): `session.reauthenticate()` → reabre la
+ruta biométricos → restaura el periodo previo (`restorePeriod`: value+label,
+luego value, luego label) → re-consulta automáticamente. Si falla →
+`SessionExpired` (diálogo).
+
+#### Privacidad y logs
+
+- Registros SOLO en memoria de la pantalla; se liberan al salir. NADA de
+  Room/Supabase/analytics ni histórico local (pendiente de decisión expresa).
+- Logs con tag `LVD_TU_PERFIL_BIOMETRIC` exclusivamente sanitizados:
+  `BIOMETRIC_FLOW state/periods=N/records=N`; NUNCA contraseña, matrícula,
+  cookies, tokens ni valores de registros.
+- Navegación limitada por allowlist de hosts (arriba).
+
+#### Tests
+
+`BiometricJsonTest` (17: periodos normales/vacíos/acentos/value≠label/doble
+serialización/strings vacíos; resultados 1 fila/múltiples/vacío/columnas
+extra/celdas vacías/especiales/error/loading/unauth), `BiometricFlowPolicyTest`
+(13: entrada sesión/autologin/login, olvidar acceso → login en ambos flujos,
+1 reauth, periodo por defecto, restauración, clasificación de fallos de
+lectura de periodos → kind correcto), `TuPerfilSharedCredentialTest` (4: la
+bóveda solo tiene `tuperfil`+`tarjetondigital`; no existe identidad separada
+de biométricos).
+
+#### Pendiente de verificación contra el portal REAL
+
+No se pudo validar contra una sesión real (Incapsula 403 + requiere
+matrícula). Para verificar (Prueba A/B/C): build debug → entrar con
+credenciales reales → abrir Registros biométricos y leer en logcat:
+`LVD_BIOMETRIC` (transiciones + `attempt=N selector=… options=N loading=…` +
+`applyPeriod success=…`) y `LVD_TU_PERFIL_BIOMETRIC` (`BIOMETRIC_DIAG` muestra
+los selectores/columnas reales; `BIOMETRIC_NET` los endpoints). Si el DOM
+difiere, ajustar los scripts del controlador y los fixtures de
+`BiometricJsonTest`.
+
 ---
 
 ## 11. Tema / Design System (política CLARA)
@@ -687,7 +888,8 @@ Solo se migró el flujo Tu Perfil (refactor visual, lógica intacta):
 | Gestos del visor | Motor 1:1 + `clampOffsets` + `listScrollEnabled` + `PDF_PAN_DEBUG`. Validar con el log en debug; no reintroducir la inercia (`FLING_ENABLED`) sin probar. |
 | Tema | `LaVeinteTheme` SIEMPRE claro; usar `StatusBarAppearance` por pantalla. |
 | OTA | `latest.json` EXACTO a la versión del APK publicado (codes crecientes, sha real, tamaño real). |
-| Bóveda IMSS | NUNCA subir credenciales; mantener Keystore + DataStore + dedupe por SHA. |
+| Bóveda IMSS | NUNCA subir credenciales; mantener Keystore + DataStore + dedupe por SHA. `TU_PERFIL` es UNA identidad compartida por Tarjetones y Biométricos (`TuPerfilSharedCredentialTest`). |
+| Sesión Tu Perfil | El login vive en `TuPerfilSessionController`; ambos consumidores (tarjetones/biométricos) dependen de él. No reintroducir motores de login paralelos. |
 | Captura PDF | Los scripts de monitoreo (`PDF_MONITOR_SCRIPT`) y el flujo Tu Perfil dependen del DOM del portal IMSS; no "mejorar" sin probar contra el portal real. |
 | Auth/Proxy | No exponer rutas por error (¡`latest.json`/APK son públicos a propósito!). |
 | Downgrade | versionCode nunca decrece; no instalar APK con firma distinta (el receiver ya lo detecta). |
