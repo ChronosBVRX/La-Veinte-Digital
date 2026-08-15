@@ -1,0 +1,683 @@
+﻿# BIBLIOTECA NORMATIVA IMSS/SNTSS — MANIFEST DE BOOTSTRAP
+# Fecha de corte inicial del corpus: 2026-08-14
+# Regla fundamental: LA IA NO ES LA FUENTE. LA FUENTE ES EL DOCUMENTO.
+#
+# Jerarquía de fuentes:
+#   NIVEL A (canónica): DOF, Cámara de Diputados, imss.gob.mx, reposipot.imss.gob.mx,
+#                       sntss.org.mx, media.sntss.org.mx, STPS/gob.mx
+#   NIVEL B (auxiliar):  fuentes institucionales que referencian al documento
+#   NIVEL C (descubrimiento): buscadores/web — NO se convierten en fuente normativa
+#
+# NOTAS DE VERIFICACIÓN (2026-08-14):
+# - CCT 2025-2027: vigente del 2025-10-16 al 2027-10-15 (firma IMSS-SNTSS).
+# - Estatutos SNTSS: la edición publicada actualmente por el SNTSS es octubre 2022.
+#   Durante 2026 existe proceso formal de modificación estatutaria. Estado: PENDING_REVIEW.
+# - Tabulador de Base: vigencia 2025-10-16 a 2026-10-15 (DISTINTA del CCT). Alertar antes de expirar.
+# - Leyes federales: usar compilaciones de Cámara de Diputados (LFT reforma DOF 2026-05-14;
+#   LSS 2026-01-15; CPEUM 2026-06-02). No usar copias viejas de portales sindicales.
+# - Dominios permitidos (allowlist): imss.gob.mx, reposipot.imss.gob.mx, sntss.org.mx,
+#   media.sntss.org.mx, diputados.gob.mx, dof.gob.mx, gob.mx, stps.gob.mx
+# - www.imss.gob.mx protege con Incapsula por frecuencia: descargas en serie, lentas.
+# - dof.gob.mx: algunas URLs fallan con "www." (ej. NOM-036): usar sin www.
+
+cutoff: "2026-08-14"
+
+settings:
+  download:
+    maxConcurrency: 1
+    minDelayMs: 15000         # imss.gob.mx penaliza ráfagas (Incapsula)
+    timeoutMs: 120000
+    maxRetries: 4
+    backoffBaseMs: 30000
+    cacheEnabled: true
+    allowlistDomains:
+      - imss.gob.mx
+      - reposipot.imss.gob.mx
+      - sntss.org.mx
+      - media.sntss.org.mx
+      - diputados.gob.mx
+      - dof.gob.mx
+      - gob.mx
+      - stps.gob.mx
+  alerts:
+    - id: TABULADOR-BASE-EXPIRA
+      document: IMSS-TABULADOR-BASE-2025-2026
+      expiresOn: "2026-10-15"
+      warnDaysBefore: 30
+      message: "EXPIRA PRÓXIMAMENTE — buscar nuevo tabulador oficial"
+    - id: CCT-FIN-VIGENCIA
+      document: CCT-IMSS-SNTSS-2025-2027
+      expiresOn: "2027-10-15"
+      warnDaysBefore: 90
+      message: "EL CCT SE ACERCA AL FIN DE SU VIGENCIA — buscar nueva versión"
+  monitors:
+    - id: ESTATUTOS-SNTSS-REFORMA
+      kind: keyword
+      urls:
+        - https://sntss.org.mx/documentos/
+        - https://www.sntss.org.mx/convocatorias
+        - https://sntss.org.mx/noticias/
+      keywords:
+        - Estatutos
+        - Estatutos 2026
+        - reforma estatutaria
+        - Congreso Nacional Extraordinario
+        - marco estatutario
+
+sources:
+  # ────────────────────────── FUENTES ÍNDICE ──────────────────────────
+  - id: IMSS-INDEX-LEGAL
+    title: Legislación vigente que rige el actuar de personas servidoras públicas
+    organization: IMSS
+    type: index
+    category: imss
+    url: https://www.imss.gob.mx/sites/all/statics/guiando/ordenamientos-juridicos-vigentes.pdf
+    canonical: true
+    autoDiscoverLinks: true
+    priority: critical
+
+  - id: IMSS-MARCO-NORMATIVO
+    title: Marco Normativo IMSS
+    organization: IMSS
+    type: index
+    category: imss
+    format: page
+    url: https://www.imss.gob.mx/conoce-al-imss/marco-normativo
+    canonical: true
+    autoDiscoverLinks: true
+    priority: critical
+
+  - id: SNTSS-DOCUMENTOS
+    title: Documentos oficiales SNTSS
+    organization: SNTSS
+    type: index
+    category: sntss
+    format: page
+    url: https://sntss.org.mx/documentos/
+    canonical: true
+    autoDiscoverLinks: true
+    priority: critical
+
+  - id: SNTSS-LEYES-REGLAMENTOS
+    title: Leyes y Reglamentos SNTSS
+    organization: SNTSS
+    type: index
+    category: sntss
+    format: page
+    url: https://sntss.org.mx/leyes-reglamentos
+    canonical: true
+    autoDiscoverLinks: true
+    priority: high
+
+  - id: CAMARA-LEYES
+    title: Leyes Federales Vigentes
+    organization: Cámara de Diputados
+    type: index
+    category: federal
+    format: page
+    url: https://www.diputados.gob.mx/LeyesBiblio/index.htm
+    canonical: true
+    autoDiscoverLinks: false
+    priority: critical
+
+  - id: IMSS-CONSEJO-TECNICO
+    title: Acuerdos públicos del H. Consejo Técnico del IMSS
+    organization: IMSS
+    type: index
+    category: imss
+    format: page
+    url: https://acuerdospublicos.imss.gob.mx/
+    canonical: true
+    priority: medium
+
+  # ────────────────────────── CCT (PRINCIPAL) ──────────────────────────
+  - id: CCT-IMSS-SNTSS-2025-2027
+    title: Contrato Colectivo de Trabajo IMSS-SNTSS 2025-2027
+    organization:
+      - IMSS
+      - SNTSS
+    type: collective_agreement
+    category: cct
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/CCT-2025-2027.pdf
+    mirror: https://media.sntss.org.mx/media/elements/contrato-colectivo-de-trabajo-2025-2027.pdf
+    effectiveFrom: 2025-10-16
+    effectiveUntil: 2027-10-15
+    status: current
+    canonical: true
+    priority: critical
+    parse:
+      detectClauses: true
+      detectClausesBis: true
+      detectTransitorios: true
+      detectReglamentos: true
+      detectTablas: true
+      detectProfesiogramas: true
+      detectJubilaciones: true
+      detectConveniosAnexos: true
+      virtualSubdocuments:
+        - CCT::RIT
+        - CCT::BOLSA
+        - CCT::ESCALAFON
+        - CCT::CAMBIO_RAMA
+        - CCT::JUBILACIONES
+        - CCT::INFECTOCONTAGIOSIDAD
+        - CCT::BECAS
+        - CCT::CAPACITACION
+
+  # ────────────────────────── SNTSS ──────────────────────────
+  - id: SNTSS-ESTATUTOS-2022
+    title: Estatutos SNTSS
+    edition: Octubre 2022
+    organization: SNTSS
+    type: union_statutes
+    category: sntss
+    url: https://media.sntss.org.mx/media/elements/estatutos-sntss-2022-kc64-image.pdf
+    canonical: true
+    verificationStatus: REVIEW_REQUIRED_2026
+    status: official_version_available_but_current_validity_requires_check
+    priority: critical
+    warning: "⚠ DOCUMENTO OFICIAL — VIGENCIA ACTUAL SUJETA A VERIFICACIÓN (proceso de reforma estatutaria 2026). No etiquetar como 'Estatutos Vigentes 2026'."
+
+  - id: SNTSS-HONOR-JUSTICIA
+    title: Comisión Nacional de Honor y Justicia
+    organization: SNTSS
+    type: union_regulation
+    category: sntss
+    url: https://media.sntss.org.mx/media/elements/comision-nacional-de-honor-y-justicia-mb4l-image.pdf
+    canonical: true
+    priority: high
+
+  - id: SNTSS-FAS-2025
+    title: Reglamento del Fondo de Ayuda Sindical por Defunción
+    edition: "2025"
+    organization: SNTSS
+    type: union_regulation
+    category: sntss
+    url: https://media.sntss.org.mx/media/elements/Reglamento%20FAS%202025%20VF%201.pdf
+    canonical: true
+    priority: high
+    topics:
+      - beneficiarios
+      - pliego_testamentario
+      - aportaciones
+      - defuncion
+      - requisitos
+      - tramites
+
+  # ────────────────────────── IMSS ──────────────────────────
+  - id: RIIMSS
+    title: Reglamento Interior del Instituto Mexicano del Seguro Social
+    organization: IMSS
+    type: institutional_regulation
+    category: imss
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/reglamentos/RIIMSS.pdf
+    canonical: true
+    priority: high
+    warning: "NO confundir con el Reglamento Interior de Trabajo del CCT. Son ordenamientos distintos."
+
+  - id: IMSS-CONFIANZA-A
+    title: Estatuto de Personas Trabajadoras de Confianza A del IMSS
+    organization: IMSS
+    type: employment_statute
+    category: imss
+    url: https://reposipot.imss.gob.mx/mando/UP/CNMEMPRH/AANM/Estatuto/Estatuto%20Personas%20Trabajadoras%20IMSS.pdf
+    canonical: true
+    priority: high
+    appliesTo:
+      - confianza_a
+    warning: "Diferenciar BASE / SUSTITUTO / TEMPORAL / CONFIANZA / CONFIANZA A. No trasladar reglas entre grupos."
+
+  - id: IMSS-CODIGO-CONDUCTA
+    title: Código de Conducta y de Prevención de Conflictos de Interés de las Personas Servidoras Públicas del IMSS
+    organization: IMSS
+    type: code_of_conduct
+    category: integridad
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/codigo-conducta.pdf
+    canonical: true
+    priority: high
+
+  # ────────────────────────── LEYES FEDERALES ──────────────────────────
+  - id: CPEUM
+    title: Constitución Política de los Estados Unidos Mexicanos
+    organization: Cámara de Diputados
+    type: federal_law
+    category: federal
+    url: https://www.diputados.gob.mx/LeyesBiblio/pdf/CPEUM.pdf
+    canonical: true
+    watchLastReform: true
+    priority: critical
+    topics:
+      - Articulo 1
+      - Articulo 5
+      - Articulo 16
+      - Articulo 123
+
+  - id: LFT
+    title: Ley Federal del Trabajo
+    organization: Cámara de Diputados
+    type: federal_law
+    category: federal
+    url: https://www.diputados.gob.mx/LeyesBiblio/pdf/LFT.pdf
+    canonical: true
+    watchLastReform: true
+    priority: critical
+    warning: "No usar copias históricas de portales sindicales si Cámara de Diputados tiene edición más reciente."
+
+  - id: LSS
+    title: Ley del Seguro Social
+    organization: Cámara de Diputados
+    type: federal_law
+    category: federal
+    url: https://www.diputados.gob.mx/LeyesBiblio/pdf/LSS.pdf
+    canonical: true
+    watchLastReform: true
+    priority: critical
+
+  - id: LGRA
+    title: Ley General de Responsabilidades Administrativas
+    organization: Cámara de Diputados
+    type: federal_law
+    category: federal
+    url: https://www.diputados.gob.mx/LeyesBiblio/pdf/LGRA.pdf
+    canonical: true
+    watchLastReform: true
+    priority: high
+
+  - id: LFPED
+    title: Ley Federal para Prevenir y Eliminar la Discriminación
+    organization: Cámara de Diputados
+    type: federal_law
+    category: federal
+    url: https://www.diputados.gob.mx/LeyesBiblio/pdf/LFPED.pdf
+    canonical: true
+    priority: medium
+
+  - id: LGS
+    title: Ley General de Salud
+    organization: Cámara de Diputados
+    type: federal_law
+    category: federal
+    url: https://www.diputados.gob.mx/LeyesBiblio/pdf/LGS.pdf
+    canonical: true
+    priority: medium
+
+  # ────────────────────────── TABULADOR ──────────────────────────
+  - id: IMSS-TABULADOR-BASE-2025-2026
+    title: Tabulador de Sueldos para Personal de Base
+    organization:
+      - IMSS
+      - SNTSS
+    type: salary_table
+    category: tabuladores
+    url: https://reposipot.imss.gob.mx/personales/UP/2025/Base_2025.pdf
+    effectiveFrom: 2025-10-16
+    effectiveUntil: 2026-10-15
+    status: current
+    canonical: true
+    priority: critical
+    warning: "Vigencia DISTINTA del CCT. Alertar 'EXPIRA PRÓXIMAMENTE' 30 días antes de 2026-10-15 y buscar sustituto."
+    parse:
+      fields:
+        - categoria
+        - jornada
+        - sueldo_hora_mes
+        - sueldo_mensual
+        - escalafon
+
+  # ────────────────────────── INTEGRIDAD / VIOLENCIA ──────────────────────────
+  - id: IMSS-SNTSS-PROTOCOLO-VIOLENCIA
+    title: Protocolo para la prevención, atención y eliminación de la violencia y el acoso en el mundo del trabajo del IMSS
+    organization:
+      - IMSS
+      - SNTSS
+    type: labor_protocol
+    category: integridad
+    format: page
+    landingPage: https://www.imss.gob.mx/prensa/archivo/202406/313
+    canonicalLandingPage: true
+    publicOriginalStatus: discover
+    priority: high
+    discovery:
+      hints:
+        - protocolo violencia
+        - protocolo acoso
+        - micrositio protocolo
+      domains:
+        - imss.gob.mx
+        - sntss.org.mx
+        - media.sntss.org.mx
+    warning: "No inventar URL. Si el íntegro no es público: originalAvailability=NOT_PUBLICLY_LOCATED; conservar la nota institucional como prueba de existencia."
+
+  - id: IMSS-GUIANDO-DENUNCIA
+    title: Guiando tu denuncia
+    organization: IMSS
+    type: institutional_guidance
+    category: integridad
+    format: page
+    url: https://www.imss.gob.mx/guiando-tu-denuncia/como-denunciar
+    canonical: true
+    priority: medium
+
+  - id: IMSS-MEDIDAS-PROTECCION-2026
+    title: Cuadernillo de Medidas de Protección para Personas Denunciantes
+    organization: IMSS
+    type: institutional_guidance
+    category: integridad
+    url: https://www.imss.gob.mx/sites/all/statics/guiando/herr-Cuadernillo-MedidasProteccion.pdf
+    canonical: true
+    priority: medium
+
+  # ────────────────────────── PROCEDIMIENTOS IMSS ──────────────────────────
+  - id: IMSS-1A75-003-010
+    key: 1A75-003-010
+    title: Procedimiento relacionado con Bolsa de Trabajo
+    titleFromDocument: true
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A75-003-010.pdf
+    canonical: true
+    priority: critical
+    relates:
+      - Reglamento de Bolsa de Trabajo
+      - CCT
+      - categorias
+      - aspirantes
+      - sustitutos
+      - propuestas
+      - contratacion
+      - movimientos
+
+  - id: IMSS-1A74-003-031
+    key: 1A74-003-031
+    title: Procedimiento para tiempo extraordinario
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A74-003-031.pdf
+    canonical: true
+    priority: critical
+    topics:
+      - concepto_37
+      - concepto_737
+      - autorizacion
+      - jornada
+      - descanso_semanal
+      - biometrico
+      - ausentismo
+      - responsables
+      - pago
+
+  - id: IMSS-1A31-003-007
+    key: 1A31-003-007
+    title: Procedimiento para permisos sindicales con goce de sueldo íntegro
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A31-003-007.pdf
+    canonical: true
+    priority: high
+    warning: "Objeto: permisos SINDICALES. NO catalogar como procedimiento general de permisos personales."
+
+  - id: IMSS-1A74-003-029
+    key: 1A74-003-029
+    title: Procedimiento para pago por cambio de lugar de residencia
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A74-003-029.pdf
+    canonical: true
+    priority: high
+    topics:
+      - cambio_residencia
+      - concepto_031
+      - clausula_99
+
+  - id: IMSS-1A74-003-030
+    key: 1A74-003-030
+    title: Procedimiento para actualización al Catálogo de Plazas
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A74-003-030.pdf
+    canonical: true
+    priority: high
+    topics:
+      - plantillas
+      - plazas
+      - categorias
+      - infectocontagiosidad
+      - emanaciones_radiactivas
+      - modificaciones
+      - CCT
+
+  - id: IMSS-1A74-003-032
+    key: 1A74-003-032
+    title: Procedimiento para la modificación de horarios institucionales
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A74-003-032.pdf
+    canonical: true
+    priority: critical
+    discoveryTargets:
+      - key: 1A74-003-034
+        title: Procedimiento para control de asistencia, puntualidad y sustituciones
+        urlPattern: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A74-003-034.pdf
+      - key: 1A74-003-033
+        title: Procedimiento para bajas, altas y cambios de trabajadores en nómina ordinaria
+        urlPattern: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A74-003-033.pdf
+
+  - id: IMSS-2900-B03-002
+    key: 2900-B03-002
+    title: Procedimiento de planeación y definición de plantillas de personal en unidades médicas
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/2900-B03-002.pdf
+    canonical: true
+    priority: high
+    parse:
+      indexAnexos: true
+    topics:
+      - asignacion_recursos_fisicos
+      - plantilla_personal
+      - indicadores_dotacion_rh
+      - plantilla_autorizada
+      - indicadores_enfermeria
+
+  - id: IMSS-3A21-003-010
+    key: 3A21-003-010
+    title: Procedimiento para la Dictaminación de los Accidentes de Trabajo
+    organization: IMSS
+    type: procedure
+    category: riesgos-trabajo
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/3A21-003-010.pdf
+    canonical: true
+    priority: critical
+    parse:
+      anexos:
+        - ST-2
+        - ST-3
+        - ST-5
+        - ST-7
+        - ST-8
+    topics:
+      - ST-7 aviso de atención médica inicial y calificación de probable accidente de trabajo
+
+  - id: IMSS-3A21-003-003
+    key: 3A21-003-003
+    title: Procedimiento para la Dictaminación de las Enfermedades de Trabajo
+    organization: IMSS
+    type: procedure
+    category: riesgos-trabajo
+    url: null
+    discoveryRequired: true
+    priority: critical
+    discovery:
+      hints:
+        - Procedimiento Dictaminación Enfermedades de Trabajo 3A21-003-003
+        - ST-9 aviso de atención médica inicial y calificación de probable enfermedad de trabajo
+      referenceDocument: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/9220-003-329.pdf
+      domains:
+        - imss.gob.mx
+      validate:
+        keyInText: true
+
+  - id: IMSS-9220-003-329
+    key: 9220-003-329
+    organization: IMSS
+    type: procedure
+    category: riesgos-trabajo
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/9220-003-329.pdf
+    canonical: true
+    priority: medium
+    topics:
+      - riesgos_de_trabajo
+      - enfermedades
+      - maternidad
+      - ST-7
+      - ST-9
+      - subsidios
+      - incapacidades
+
+  # ────────────────────────── REGLAMENTOS ──────────────────────────
+  - id: IMSS-REGLAMENTO-PRESTACIONES-MEDICAS
+    title: Reglamento de Prestaciones Médicas del Instituto Mexicano del Seguro Social
+    organization: IMSS
+    type: regulation
+    category: imss
+    url: https://media.sntss.org.mx/media/elements/reglamento-de-prestaciones-medicas-del-imss-eyei-image.pdf
+    canonical: false
+    preferredCanonicalDiscovery:
+      - DOF
+      - IMSS
+    verificationStatus: VERIFY_CURRENT_VERSION
+    priority: medium
+
+  - id: REGLAMENTO-LGS-SERVICIOS
+    title: Reglamento de la Ley General de Salud en Materia de Prestación de Servicios de Atención Médica
+    type: federal_regulation
+    category: federal
+    url: https://media.sntss.org.mx/media/elements/reglamento-de-la-ley-general-de-salud-en-materia-de-prestaci-yoxj-image.pdf
+    canonical: false
+    preferredCanonicalDiscovery:
+      - DOF
+      - Cámara de Diputados
+    verificationStatus: VERIFY_CURRENT_VERSION
+    priority: medium
+
+  - id: IMSS-REGLAMENTO-BECAS
+    title: Reglamento de Becas para la Capacitación
+    organization: IMSS
+    type: regulation
+    category: imss
+    url: https://www.imss.gob.mx/sites/all/statics/profesionalesSalud/investigacionSalud/becados/reglamentoBecas.pdf
+    canonical: true
+    verificationStatus: VERIFY_SCOPE_AND_VERSION
+    priority: medium
+    warning: "No asumir que aplica a todas las categorías. Determinar ámbito leyendo el documento."
+
+  # ────────────────────────── NOM ──────────────────────────
+  - id: NOM-035-STPS-2018
+    title: Factores de riesgo psicosocial en el trabajo
+    organization: STPS
+    type: NOM
+    category: nom
+    url: https://dof.gob.mx/normasOficiales/7415/stps2a11_C/stps2a11_C.html
+    canonical: true
+    format: html
+    priority: high
+
+  - id: NOM-019-STPS-2011
+    title: Comisiones de seguridad e higiene
+    organization: STPS
+    type: NOM
+    category: nom
+    url: https://dof.gob.mx/nota_detalle.php?codigo=5185903&fecha=13%2F04%2F2011
+    canonical: true
+    format: html
+    priority: high
+
+  - id: NOM-017-STPS-2024
+    title: Equipo de protección personal
+    organization: STPS
+    type: NOM
+    category: nom
+    url: https://dof.gob.mx/normasOficiales/9496/stps/stps.html
+    canonical: true
+    format: html
+    priority: high
+
+  - id: NOM-030-STPS-2009
+    title: Servicios preventivos de seguridad y salud en el trabajo
+    organization: STPS
+    type: NOM
+    category: nom
+    url: https://dof.gob.mx/normasOficiales/3923/stps/stps.htm
+    canonical: true
+    format: html
+    priority: medium
+
+  - id: NOM-036-1-STPS-2018
+    title: Factores de riesgo ergonómico por manejo manual de cargas
+    organization: STPS
+    type: NOM
+    category: nom
+    url: https://dof.gob.mx/normasOficiales/7468/stps11_C/stps11_C.html
+    canonical: true
+    format: html
+    priority: medium
+    warning: "URL sin 'www.' (la variante www.dof.gob.mx falla por red en esta ruta)."
+
+# ────────────────────────── DESCUBRIMIENTO POSTERIOR ──────────────────────────
+discovery:
+  maxDepth: 3
+  topicsPriority:
+    - relaciones_laborales
+    - pago
+    - nomina
+    - vacaciones
+    - asistencia
+    - puntualidad
+    - sustituciones
+    - bolsa
+    - escalafon
+    - cambio_de_rama
+    - jubilacion
+    - pensiones
+    - plantillas
+    - categorias
+    - riesgos_de_trabajo
+    - seguridad
+    - salud
+    - radiaciones
+    - infectocontagiosidad
+    - acoso
+    - violencia
+    - capacitacion
+    - becas
+  sanitaryNOMsResearch:
+    topics:
+      - seguridad_radiologica
+      - radiaciones_ionizantes
+      - RPBI
+      - expediente_clinico
+      - seguridad_hospitalaria
+      - manejo_sustancias_quimicas
+      - equipo_proteccion
+      - ergonomia
+      - riesgo_biologico
+      - salud_ocupacional
+    warning: "Verificar vigente/modificada/cancelada/sustituida/proyecto antes de incorporar. PROY-NOM no es norma vigente."
+  historicalCCT:
+    editions:
+      - 2023-2025
+      - 2021-2023
+      - 2019-2021
+      - 2017-2019
+      - 2015-2017
+      - 2013-2015
+    source: https://sntss.org.mx/documentos/
+    status: HISTORICAL
+    warning: "No mezclar en búsquedas de normativa vigente salvo includeHistorical=true."

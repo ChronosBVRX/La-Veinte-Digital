@@ -3,7 +3,7 @@
 > Documentación técnica de referencia para agentes futuros.
 > Ámbito: `android-app/` (shell nativo Compose) que embebe el Home web
 > (`https://la-veinte-digital.vercel.app`) en un WebView persistente.
-> Última actualización: **2026-08-13 — v1.0.60 (versionCode 160)**.
+> Última actualización: **2026-08-14 — v1.0.63 (versionCode 163)**.
 
 Esta guía describe rutas, APIs, flujos de datos y convenciones del shell
 Android para que cualquier agente pueda retomar el trabajo **sin romper
@@ -154,9 +154,10 @@ Checklist de publicación (ejecutado en las versiones 1.0.44/145/146):
 7. **Verificar**: `HEAD https://la-veinte-digital.vercel.app/LaVeinteDigital.apk`
    → 200 y tamaño coincidente; GET `latest.json` → versionName/sha coincidentes.
 
-Estado actual de producción: **1.0.60 / 160** — SHA
-`486d21aa26789c2502da60977a998496eead9c1dd00c9e1bc885cba5d3712dd7`,
-67,100,256 bytes (publicado 2026-08-13, ver §10.6 Registros biométricos).
+Estado actual de producción: **1.0.63 / 163** — SHA
+`0D801C58A0EFC48B813A3A75F46FADCDC876C0C4D2138855E6D8CC3517E85F01`,
+67,378,788 bytes (publicado 2026-08-14; OOAD 17 Michoacán antes del periodo en
+biométricos, ver §10.6).
 
 **Canales**: `/android/{stable,beta,dev}/latest.json`. La app solo consulta
 `stable`. El `proxy` de Next.js excluye `.apk`/`.json` del matcher de auth.
@@ -567,7 +568,7 @@ Compartir (FileProvider `application/vnd.android.package-archive` no —
   (FileProvider; ojo: el share sheet hace `onPause` — NO cerrar el visor al
   volver).
 
-### 10.6 Tu Perfil IMSS — Registros Biométricos (1.0.59)
+### 10.6 Tu Perfil IMSS — Registros Biométricos (1.0.59; descubrimiento 1.0.61; fases de consulta 1.0.62; OOAD 17 Michoacán 1.0.63; instrumentación diagnóstico 1.0.64)
 
 Función nativa de consulta de checadas sobre la ruta oficial
 `https://tuperfil.imss.gob.mx/guitpei-web/app/administration/biometric/consult-period`.
@@ -609,67 +610,155 @@ TuPerfilSessionController (login/sesión COMPARTIDA)
 
 ```
 CheckingSession → (Authenticating | LoginRequired | LoginError)
-Authenticated → OpeningBiometrics → WaitingBiometricDom → ReadingPeriods
-→ PeriodSelection(periods) → ApplyingPeriod → SubmittingQuery → WaitingResults
-→ ReadingResults → Results(period, records) | Empty(period) | Error(kind, msg)
+Authenticated → OpeningBiometrics → WaitingBiometricDom → ReadingOoads
+→ ApplyingOoad(17 Michoacán) → WaitingPeriodsForOoad → ReadingPeriods
+→ PeriodSelection(periods) → ApplyingPeriod → VerifyingPeriod → SubmittingQuery
+→ WaitingResults → ReadingResults → Results(period, records) | Empty(period) | Error(kind, msg)
 → SessionExpired (reautenticación ≤1 por operación, restaura periodo)
 ManualMode = fallback "formulario original" (píldora "Volver a La Veinte")
 ```
 
-#### Selectores reales y mecanismo de consulta
+#### Selectores reales y mecanismo de consulta (arquitectura de descubrimiento 1.0.61)
 
 El DOM real NO pudo inspeccionarse fuera del portal (Incapsula 403 + login).
-La automatización es **adaptativa** y diagnostica en DEBUG:
+La automatización es **adaptativa** y, desde 1.0.61, primero **descubre** el
+portal y luego actúa (`BiometricDiscovery.kt`):
 
-- **Selector de periodo**: primer `mat-select[role=combobox]` cuyo
-  `formcontrolname`/texto/aria-label/placeholder contenga "periodo" o
-  "quincena"; fallback: primer mat-select; fallback: `<select>` nativo.
-  Opciones: `mat-option`/`<option>` reales (`{value, label}` — NO
-  hardcodeadas; `value` es el identificador interno del portal).
-- **Lectura de periodos (fix 1.0.60 — causa raíz del fallo intermitente)**:
-  Angular carga las opciones de forma asíncrona, así que una primera lectura
-  vacía NO es un error. `readPeriods()` hace polling acotado (~15s de
-  presupuesto): por cada intento limpia los globals JS
-  (`__LVD_BIO_PERIODS__`/`__LVD_BIO_READ_RUNNING__`), inyecta
-  `BIO_READ_PERIODS_JS` (abre el trigger, espera el overlay de
-  `.cdk-overlay-container` con hasta 3 reintentos de apertura, y para
-  `<select>` nativo espera a que `options.length > 0`) y vuelve a inyectar si
-  el resultado fue vacío/incompleto. Solo al agotar el presupuesto se falla,
-  clasificando el motivo: `PERIOD_CONTROL_NOT_FOUND` → DOM_NOT_RECOGNIZED;
-  selector vacío → PERIODS_NOT_READABLE; el resto → PERIODS_TIMEOUT
-  (`BiometricFlowPolicy.periodsFailureKind`).
-- **Antirace de generaciones (fix 1.0.60)**: cada operación (apertura,
-  lectura, consulta) toma una `generation`; los polls comprueban
-  `gen != generation` antes de escribir estado, los jobs viejos se cancelan
-  (single-flight `openingJob`/`queryJob`) y los globals JS se limpian antes
-  de reinyectar — un resultado tardío nunca sobrescribe un estado más nuevo.
-- **Aplicar periodo** (`BIO_APPLY_PERIOD_JS`, hasta 2 intentos Kotlin):
-  abrir trigger → buscar opción por label/value normalizados (NFD) con hasta
-  3 reintentos de apertura → click → **verificar** que el texto del trigger
-  contiene el label/value (mat) o que `select.value` quedó aplicado (nativo)
-  → solo entonces `applyPeriod success=true` y se pulsa Consultar.
-- **Botón de consulta** (`BIO_CLICK_CONSULT_JS`, 2 intentos): `button.primary`/
+- **Selector de periodo por evidencia** (`__LVD_BIO_LIB__.findPeriodControl`):
+  se puntúa cada `mat-select[role=combobox]` por formcontrolname/texto/
+  aria-label/placeholder ("periodo"/"quincena") + label del `mat-form-field`
+  vecino + visibilidad. PROHIBIDO asumir que el primer mat-select es Periodo;
+  sin evidencia se registra la elección como `evidence=position/only-native`.
+- **OOAD primero — requisito confirmado (1.0.63)**: el formulario original
+  requiere seleccionar la **OOAD** y después el **Periodo** (el selector de
+  Periodo es dependiente de la OOAD y se repuebla al cambiar de delegación;
+  por eso la automatización anterior leía quincenas en un estado del
+  formulario y luego intentaba seleccionar sobre OTRO estado →
+  `PERIOD_OPTION_NOT_FOUND`). Nuestra OOAD por defecto continúa siendo
+  **17 — Michoacán** y se mantiene automática (como en Tarjetones): UI
+  discreta `OOAD / Michoacán ✓` fija, sin selector para el trabajador.
+  - `findOoadControl()` clasifica TODOS los selectores por label /
+    formcontrolname / aria-label ("ooad"/"delegación"/"regional"/exclusión de
+    Periodo); NUNCA asume `mat-select[0]` ni posiciones
+    (`mat-option:nth-child(17)` prohibido). `classifyControlsJs()` vuelca el
+    diagnóstico `MAT_SELECT #0 label=OOAD … #1 label=Periodo …` +
+    `SELECTORS ooad=found#0 … period=found#1`.
+  - `ReadingOoads` (`startOoadReadJs`/`readOoadStateJs`, start-una-vez/poll):
+    descubre el control real y sus opciones; resuelve Michoacán por
+    **valor real == "17"** (respaldo: label normalizado contiene
+    "michoacan"); si 17 no está → `OOAD_NOT_RESOLVED` (nunca se inventa
+    valor). `BiometricOoad(value, label)` + `BiometricFlowPolicy.selectOoad`.
+  - `ApplyingOoad` (`applyOoadJs` + `verifyOoadJs` independiente, hasta 2
+    intentos): abre el control real, busca la opción 17/Michoacán (comparación
+    NFD por value o label), click → verifica `expectedMatch` antes de seguir.
+  - `WaitingPeriodsForOoad` (`startPeriodRefreshJs`/poll): espera condiciones
+    `control encontrado AND options > 0 AND loading == false` (SIN
+    `delay(1000)` fijos) y correlaciona la petición que trae los periodos
+    (`OOAD_NET method=… path=… status=200`). Los periodos leídos ANTES de la
+    OOAD se descartan siempre: `ReadingPeriods` corre DESPUÉS del refresh y
+    cada script vuelve a localizar los controles (Angular reconstruye el
+    mat-select de Periodo al cambiar OOAD → prohibido conservar referencias
+    viejas).
+- **Lectura de periodos — start-una-vez + poll-estado (fix 1.0.61, causa raíz
+  del fallo intermitente)**: el código anterior reinyectaba el IIFE async en
+  cada poll de Kotlin, abriendo/cerrando el mat-select mientras Angular aún
+  hidrataba las opciones (por eso "una vez sí cargaba y las demás no").
+  Ahora `startDiscoveryJs(runId)` inyecta UNA corrida async por intento con
+  contrato explícito `{status:"working"|"success"|"error", runId, periods,
+  control, sampleClosed, samples, reason}`; Kotlin SOLO lee el estado con
+  `readDiscoveryStateJs()` y `working`/`missing` NUNCA son fallo. Las corridas
+  huérfanas se detectan por `runId` y se abortan solas.
+- **Muestreo A/B/C/D**: con el selector cerrado (A) y a 0/250/750ms tras
+  abrirlo (B/C/D), con `MutationObserver` sobre `.cdk-overlay-container`
+  (desconectado en success/error/orphan). Determina si las quincenas solo
+  existen con el desplegable abierto (`sampleClosed.exists=false`).
+- **Etapas de preparación**: `ROUTE_READY` (path real, no mientras se navega)
+  → `FORM_READY` → `PERIOD_CONTROL_READY` → `PERIOD_DATA_READY`. `ReadingPeriods`
+  solo termina con evidencia de `PERIOD_DATA_READY` (descubrimiento success).
+- **Antirace de generaciones**: cada operación (apertura, descubrimiento,
+  consulta) toma una `generation`; los polls comprueban `gen != generation`
+  antes de escribir estado, los jobs viejos se cancelan (single-flight
+  `openingJob`/`queryJob`) y las corridas JS async huérfanas se abortan por
+  `runId` — un resultado tardío nunca sobrescribe un estado más nuevo.
+- **Presupuestos**: 2 intentos de descubrimiento en ~18s; JS interno 5s
+  (control) + 7s (opciones). Fallos clasificados: `PERIOD_CONTROL_NOT_FOUND` →
+  DOM_NOT_RECOGNIZED; `NO_PERIOD_OPTIONS` → PERIODS_NOT_READABLE; resto →
+  PERIODS_TIMEOUT.
+- **Harness de estabilidad**: `DISCOVERY_VERIFY_OPENS` (0 en producción; poner
+  10 durante la Prueba) abre y lee el selector N veces seguidas registrando
+  `verifyPeriods OPEN #k → N periodos`, SIN consultar registros.
+- **Fase de consulta separada (1.0.62)**: `ApplyingPeriod → VerifyingPeriod →
+  SubmittingQuery → WaitingResults → ReadingResults` con evidencia por paso
+  (1.0.63: `VerifyingPeriod` explícito antes del submit) — la selección en
+  Compose NO implica que Angular tenga el periodo; nunca se pulsa Consultar
+  sin verificación.
+- **Aplicar periodo** (`applyPeriodJs`, hasta 2 intentos Kotlin): EMPIEZA desde
+  un estado conocido — pre-check `ooadStatusJs` (OOAD actual == 17 Michoacán);
+  si no → `WRONG_OOAD` y el controlador vuelve a `ApplyingOoad` + refresh
+  antes de reintentar. Después abre el selector real → busca la opción por
+  label/value normalizados (NFD) con hasta 3 reintentos de apertura → click.
+  Devuelve `{ok, controlFound, optionFound, clickPerformed, overlayClosed,
+  ooadVerified, ooadText, availableLabels}`; `availableLabels` (labels de
+  quincenas, no sensibles) alimenta el diagnóstico `AVAILABLE PERIODS`.
+- **Verificar periodo** (`verifyPeriodJs`, script INDEPENDIENTE): inspecciona
+  solo el control y devuelve `{found, displayText, expectedMatch, overlayOpen}`.
+  La condición real es que el texto/value visible del control cambió al
+  periodo solicitado (**click ejecutado != selección aplicada** en Angular).
+  Si `expectedMatch=false` → `PERIOD_NOT_VERIFIED` y NO se pulsa Consultar.
+- **Botón de consulta** (`clickConsultJs`, 2 intentos): `button.primary`/
   submit con texto normalizado ∈ {consultar, buscar, aceptar, generar,
-  enviar}; guard contra disabled y doble submit.
-- **Resultados** (`BIO_RESULT_SNAPSHOT_JS`, polling 600ms, timeout 35s):
-  detecta `mat-table`/`table` visible → columnas de `mat-header-cell`/`th` y
-  filas de `mat-row`/`tbody tr`; spinner visible → `loading`; mensajes
-  visibles de "sin registros"/"no se encontraron" (lista de claves
-  normalizadas) → `empty`; `mat-error`/alert visible persistente 3 muestras →
-  `error`; `#matricula` visible o path `/login` → sesión expirada.
-- **Diagnóstico DEBUG**: 
-  - Por cada intento de lectura de periodos: log `LVD_BIOMETRIC [gen]
-    attempt=N selector=… controlType=mat-select|select|none options=N
-    loading=… loginVisible=… errorText=… readyState=…` (JS estructurado
-    `BIO_DIAG_SNAPSHOT_JS`).
-  - Volcado estructural una vez por apertura: `LVD_TU_PERFIL_BIOMETRIC
-    BIOMETRIC_DIAG select[N]/button[N]/table[N]/input[N]` con
-    formcontrolname/aria-label/texto/encabezados (SANITIZADO, sin valores).
-  - `BIO_NET_MONITOR_JS` envuelve XHR/fetch registrando solo método+URL+status
-    (`BIOMETRIC_NET`) — sin headers ni cuerpos.
-  - Transiciones de estado: `LVD_BIOMETRIC [-] StateName` (y
-    `periodSelected label=…`, `applyPeriod success=true/false`, sin valores
-    personales).
+  enviar}; guard contra disabled y doble submit. Antes del click se vuelca
+  TODO botón visible (`dumpButtonsJs`: tag/id/type/text/disabled/
+  aria-disabled/class/boundingRect). Tras el click se busca efecto observable
+  (spinner / petición / mutación DOM); sin ninguno el timeout se clasifica
+  `RESULT_TIMEOUT_NO_ACTIVITY` (click que no llega al handler Angular).
+- **Resultados** (`resultSnapshotJs` v3, polling 600ms): statuses explícitos
+  `waiting|loading|results|empty|error|unauth` + `counts` (tables/matTables/
+  rows/matRows/roleTables/roleRows/cards/lists). `rows=0` o `waiting` NUNCA
+  son error; solo son terminales `results` (tabla visible con filas), `empty`
+  (mensaje vacío visible), `error` (3 muestras idénticas) y `unauth`. Ya NO
+  usa `document.body.innerText` global.
+- **Timeout con actividad (1.0.62)**: base 35s desde el submit, pospuesto
+  mientras haya mutaciones DOM frescas (hasta 90s). Se registra la línea de
+  tiempo: `TIMELINE submit+0ms XHR_START+Xms HTTP200+Xms DOM+Xms ROWS+Xms`.
+- **Comparación ORIGINAL vs NATIVO**: al entrar al "formulario original" se
+  vuelcan botones (`MANUAL_MODE_ENTERED`); al volver a La Veinte se captura
+  `MANUAL_RESULT_CAPTURE status=… tables=… matRows=… cards=… structure=…` +
+  `BIOMETRIC_NET` — los mismos tres datos que captura el flujo nativo
+  (control/request/estructura) para comparar sin adivinar.
+- **Errores con etapa/código en DEBUG**: los mensajes incluyen
+  `Etapa: READ_OOADS|APPLY_OOAD|WAIT_PERIODS|APPLY_PERIOD|SUBMIT_QUERY|
+  WAIT_RESULTS` y `Código: OOAD_CONTROL_NOT_FOUND|OOAD_OPTIONS_EMPTY|
+  OOAD_OPTION_NOT_FOUND|OOAD_NOT_VERIFIED|OOAD_NOT_RESOLVED|OOAD_TIMEOUT|
+  PERIOD_CONTROL_NOT_FOUND|PERIOD_OPTIONS_EMPTY|PERIOD_OPTION_NOT_FOUND|
+  PERIOD_NOT_VERIFIED|WRONG_OOAD|CONSULT_BUTTON_NOT_FOUND|
+  CONSULT_BUTTON_DISABLED|PORTAL_ERROR|RESULT_TIMEOUT|RESULT_TIMEOUT_NO_ACTIVITY`.
+  En release el detalle técnico desaparece.
+- **Diagnóstico DEBUG**:
+  - Volcado estructural UNA vez por apertura, en la ruta real:
+    `LVD_BIO_DIAG BIOMETRIC_DUMP url=… controls=…` + una línea `#i` por
+    control (select/option/mat-select/mat-option/combobox/listbox/option-role/
+    mat-form-field/input/textarea/button/tablas/encabezados) con tag/id/name/
+    role/formcontrolname/aria-label/placeholder/texto normalizado/value
+    (solo options, truncado)/visible/rect/children/cls. SANITIZADO: nada de
+    contraseñas, matrículas, cookies ni tokens (`sensitive=true`).
+  - Reporte `=== BIOMETRIC PORTAL DISCOVERY ===` tras una lectura exitosa:
+    URL final, CONTROL REAL DE PERIODO (kind/tag/id/formcontrolname/role/
+    label/evidence), ¿opciones con selector cerrado?, ¿dónde aparecen al
+    abrirlo? (S0/S1/S2), TOTAL DE QUINCENAS, PETICIÓN QUE LAS CARGA (match
+    best-effort contra la red), CAUSA PROBABLE DEL TIMEOUT ANTERIOR.
+  - Fase de consulta: `=== BIOMETRIC PORTAL DISCOVERY (consulta) ===` con
+    BOTÓN REAL DE CONSULTA, ESTRUCTURA REAL DE RESULTADOS y últimas entradas
+    `BIOMETRIC_NET`.
+  - `LVD_BIOMETRIC READY stage=ROUTE_READY|FORM_READY|… route=… form=…
+    periodControl=… periodData=… loading=…`.
+  - `BIOMETRIC_NET` (monitor de red v2) envuelve XHR/fetch registrando solo
+    método + pathname + status + Content-Type + tamaño aproximado + forma
+    JSON de nivel superior (`json=array count=N keys=[…]`) — sin headers de
+    autenticación, cookies ni cuerpos con datos personales.
+  - Transiciones de estado: `LVD_BIOMETRIC [-] StateName` (y `periodSelected
+    label=…`, `applyPeriod success=true/false`, `readPeriods attempt=N
+    closedCount=… S0/S1/S2`, sin valores personales).
 
 #### Parser (`imss/biometric/BiometricJson.kt`)
 
@@ -685,28 +774,31 @@ La automatización es **adaptativa** y diagnostica en DEBUG:
 - Top bar navy LVD "Registros biométricos" / "Tu Perfil IMSS",
   `StatusBarAppearance(lightIcons = false)`.
 - Loadings LVD: "Conectando con Tu Perfil IMSS…" (auth), "Preparando tus
-  registros…" (apertura/DOM/periodos), "Consultando registros biométricos…"
-  (consulta). Fallback "Entrar manualmente" tras 10s.
-- Selección de periodo: bottom sheet LVD con campo "Periodo" tappable →
-  **picker LVD** (bottom sheet con LazyColumn de TODAS las quincenas, fila
-  completa clickeable de 52dp, check azul en la seleccionada, Cancelar). Fix
-  1.0.60: reemplaza el dropdown flotante (frágil sobre WebView) y el estado
-  es Compose observable (`selectedPeriod` hoisted en la pantalla), así la
-  selección se refleja inmediatamente. Por defecto el último periodo que
-  ofrece el portal. `LvdPrimaryButton` "Consultar registros" (disabled hasta
-  elegir periodo y durante consulta — sin doble tap).
+  registros…" (apertura/DOM/**OOAD/refresh de periodos**), "Consultando
+  registros biométricos…" (consulta). Fallback "Entrar manualmente" tras 10s.
+- Selección de periodo: bottom sheet LVD con fila fija **OOAD / `label` ✓**
+  (1.0.63: Michoacán automático, invisible para el trabajador, con su
+  CheckCircle) y campo "Periodo" tappable → **picker LVD** (bottom sheet con
+  LazyColumn de TODAS las quincenas, fila completa clickeable de 52dp, check
+  azul en la seleccionada, Cancelar). Fix 1.0.60: reemplaza el dropdown
+  flotante (frágil sobre WebView) y el estado es Compose observable
+  (`selectedPeriod` hoisted en la pantalla), así la selección se refleja
+  inmediatamente. Por defecto el último periodo que ofrece el portal.
+  `LvdPrimaryButton` "Consultar registros" (disabled hasta elegir periodo y
+  durante consulta — sin doble tap).
+- Errores diferenciados (fix 1.0.60 + OOAD 1.0.63): "No pudimos cargar los
+  periodos" (PERIODS_TIMEOUT / PERIODS_NOT_READABLE) ≠ "No pudimos reconocer
+  el formulario de Biométricos" (DOM_NOT_RECOGNIZED) ≠ "No pudimos preparar
+  el formulario" (OOAD_NOT_READABLE / OOAD_REJECTED) ≠ "No pudimos consultar
+  tus registros" (consulta). Reintentar es contextual: errores de
+  periodos/DOM/OOAD reabren la lectura (`retryOpenBiometrics`), errores de
+  consulta re-consultan (`retryQuery`).
 - Resultados: panel nativo full-screen (WebView vivo por debajo): card resumen
   "Periodo consultado + N registros" y lista de `LvdCard` por registro
   (label+valor por columna; primera columna semibold). Acciones: Volver a
   consultar / Cambiar periodo / Formulario original.
 - Vacío: "No encontramos registros en este periodo" + "Tu Perfil IMSS no
   reportó checadas para el periodo seleccionado." (NO es error técnico).
-- Errores diferenciados (fix 1.0.60): "No pudimos cargar los periodos"
-  (PERIODS_TIMEOUT / PERIODS_NOT_READABLE) ≠ "No pudimos reconocer el
-  formulario de Biométricos" (DOM_NOT_RECOGNIZED) ≠ "No pudimos consultar tus
-  registros" (consulta). Reintentar es contextual: errores de periodos/DOM
-  reabren la lectura (`retryOpenBiometrics`), errores de consulta re-consultan
-  (`retryQuery`).
 - Sesión expirada: diálogo "Tu sesión de Tu Perfil IMSS terminó" +
   "Volver a iniciar sesión" (aparece solo si la reautenticación automática
   falló o no hay credenciales).
@@ -724,32 +816,110 @@ luego value, luego label) → re-consulta automáticamente. Si falla →
 
 - Registros SOLO en memoria de la pantalla; se liberan al salir. NADA de
   Room/Supabase/analytics ni histórico local (pendiente de decisión expresa).
-- Logs con tag `LVD_TU_PERFIL_BIOMETRIC` exclusivamente sanitizados:
-  `BIOMETRIC_FLOW state/periods=N/records=N`; NUNCA contraseña, matrícula,
-  cookies, tokens ni valores de registros.
+- Logs con tags `LVD_TU_PERFIL_BIOMETRIC`, `LVD_BIOMETRIC` y `LVD_BIO_DIAG`
+  exclusivamente sanitizados: estados, conteos, estructura del DOM y forma de
+  las respuestas JSON; NUNCA contraseña, matrícula, cookies, tokens ni
+  valores de registros.
 - Navegación limitada por allowlist de hosts (arriba).
 
 #### Tests
 
-`BiometricJsonTest` (17: periodos normales/vacíos/acentos/value≠label/doble
+`BiometricJsonTest` (20: periodos normales/vacíos/acentos/value≠label/doble
 serialización/strings vacíos; resultados 1 fila/múltiples/vacío/columnas
-extra/celdas vacías/especiales/error/loading/unauth), `BiometricFlowPolicyTest`
+extra/celdas vacías/especiales/error/loading/unauth/waiting/results),
+`BiometricFlowPolicyTest`
 (13: entrada sesión/autologin/login, olvidar acceso → login en ambos flujos,
 1 reauth, periodo por defecto, restauración, clasificación de fallos de
 lectura de periodos → kind correcto), `TuPerfilSharedCredentialTest` (4: la
 bóveda solo tiene `tuperfil`+`tarjetondigital`; no existe identidad separada
-de biométricos).
+de biométricos), `BiometricDiscoveryJsonTest` (22: contrato
+working/success/error/missing, control por evidencia, muestras A/B/C/D,
+doble serialización, dump sanitizado con `sensitive`, estructura de
+resultados, composición de scripts, detalle apply/verify, botones, conteos,
+red y línea de tiempo). 1.0.64: `BiometricTraceTest` (8: buffer ordenado/
+circular/reset/reporte agregado con secciones, operaciones y RESULT) y
+`BiometricDiscoveryDiagnosticsTest` (13: observer de resultados
+missing/working/stopped, eventos de descarga, hints Descargar/Compartir,
+errores JS, composición de `startResultsObserverJs`/`downloadMonitorJs`/
+`discoverDownloadJs`/`jsErrorMonitorJs`/`resetJsErrorsJs`).
+
+#### Instrumentación de diagnóstico 1.0.64 (DEBUG)
+
+Objetivo: diagnosticar el fallo posterior a la selección de periodo SIN
+cambiar delays ni lógica (primero evidencia, después corrección).
+
+- **`BiometricTrace.kt`** (nuevo): logger estructurado tag
+  `LVD_BIOMETRIC_TRACE` con eventos `(op=BIO#N, gen, stage, event, result,
+  details, d=ms)`; buffer circular de 200 eventos y reporte agregado
+  sanitizado (`copySanitizedReport`) con secciones ROUTE/FORM/OOAD/PERIODS/
+  NATIVE_SELECTION/APPLY_PERIOD/QUERY/DOWNLOAD/JS_ERRORS/NETWORK y RESULT
+  (stage+código del primer FAILED). No-op en release.
+- **`operationId` incremental** por consulta (`BIO#N` vía `genOps/opSeq`) con
+  `newGeneration()` en cada entrada (incluida la manual); toda transición de
+  estado se traza (`setState` → TRANSITION) y cada error usa `traceFailure`
+  con código granular (`OOAD_*`, `PERIOD_*`, `QUERY_CONTROL_NOT_FOUND`,
+  `QUERY_NOT_TRIGGERED`, `RESULT_CONTAINER_NOT_FOUND`, `RESULT_PARSE_FAILED`,
+  `RESULT_TIMEOUT[ _NO_ACTIVITY]`, `DOWNLOAD_*`).
+- **Trazas por etapa**: ROUTE (OPEN/REDIRECTED_TO_LOGIN/TIMEOUT/READY),
+  FORM (DOM_NOT_RECOGNIZED/READY + SELECTORS con índice y evidencia de OOAD/
+  Periodo), OOAD (READ/CONTROL_INFO/CONTROL_FOUND/OPTIONS/OPTION_FOUND/
+  CLICK/OVERLAY_CLOSED/VERIFIED/FAILED), PERIODS (DISCOVERED con `count` y
+  muestras de dónde aparecen, CONTROL_INFO), NATIVE_SELECTION (solo, sin
+  cambiar el modelo `BiometricPeriod(value,label)`), APPLY_PERIOD paso a paso
+  (`CONTROL_FOUND → OVERLAY_OPENED → OPTIONS count → OPTION_FOUND → CLICK →
+  OVERLAY_CLOSED → VERIFIED portalPeriodText → SUMMARY` con durationMs) y
+  SUBMIT_QUERY (CONTROL_FOUND/CLICKED). `details` NUNCA contiene matrícula,
+  nombre, IP biométrico, horarios ni cookies; los labels de periodos sí se
+  admiten en DEBUG.
+- **Actividad de red** (`traceNet`): método+path+status+durationMs de las
+  peticiones observadas por el monitor JS (SIN cuerpos), correlacionadas en
+  PERIODS/QUERY (`QUERY_ACTIVITY SAMPLE attempt/doms/spinner/netFresh`).
+- **`startResultsObserverJs`** (MutationObserver dedicado tras pulsar
+  Consultar): detecta "Registros localizados", tablas/rows/mat-row y los
+  controles Descargar/Compartir; se desconecta en éxito/vacío/error/timeout/
+  cancel. El framework SIEMPRE hace espera real de condiciones terminales:
+  el observer es diagnóstico, no condición.
+- **`discoverDownloadJs` + `downloadMonitorJs`**: `FIND_DOWNLOAD CONTROL`
+  (candidatos Descargar/Compartir: tag/id/href/role/hasOnclick/downloadAttr)
+  y eventos observados `window.open` / `URL.createObjectURL` /
+  `anchor.click` (URLs sanitizadas a scheme+host+pathname). NO se automatiza
+  la descarga todavía.
+- **`jsErrorMonitorJs`**: onerror/unhandledrejection/console.error
+  sanitizados (mensaje ≤200 chars, basename, línea) → secciones JS_ERRORS,
+  leídos en fallos de consulta y reseteado tras volcarlos. Consola del
+  WebView chrome → tag `LVD_BIO_JS` (DEBUG, sanitizada).
+- **UI**: botón "Copiar diagnóstico" en el panel de error SOLO `BuildConfig.DEBUG`
+  → copia `copyDiagnosticsReport()` al portapapeles (sin logcat).
 
 #### Pendiente de verificación contra el portal REAL
 
 No se pudo validar contra una sesión real (Incapsula 403 + requiere
-matrícula). Para verificar (Prueba A/B/C): build debug → entrar con
-credenciales reales → abrir Registros biométricos y leer en logcat:
-`LVD_BIOMETRIC` (transiciones + `attempt=N selector=… options=N loading=…` +
-`applyPeriod success=…`) y `LVD_TU_PERFIL_BIOMETRIC` (`BIOMETRIC_DIAG` muestra
-los selectores/columnas reales; `BIOMETRIC_NET` los endpoints). Si el DOM
-difiere, ajustar los scripts del controlador y los fixtures de
-`BiometricJsonTest`.
+matrícula). Para ejecutar la **Prueba de descubrimiento**:
+
+1. Build debug → instalar → entrar con credenciales reales → abrir Registros
+   biométricos (1.0.64: `LaVeinteDigital-debug-v1.0.64-debug.apk`).
+2. En logcat capturar:
+   - `LVD_BIO_DIAG BIOMETRIC_DUMP` (controles reales de la pantalla);
+   - `LVD_BIOMETRIC READY stage=…` (etapas de preparación);
+   - `LVD_BIOMETRIC readPeriods attempt=N result=ok|error closedCount=… S0/S1/S2`;
+   - `=== BIOMETRIC PORTAL DISCOVERY ===` (control real, opciones cerrado/
+     abierto, total de quincenas, petición que las carga, causa probable);
+   - `LVD_BIOMETRIC verifyPeriods OPEN #k → N periodos` (con
+     `DISCOVERY_VERIFY_OPENS = 10` en el controlador durante la prueba;
+     devolverlo a 0 después);
+   - fase de consulta: `selectedPeriod label="…"` → `applyPeriod
+     controlFound/optionFound/clickPerformed/overlayClosed/
+     portalSelectionVerified` → `consult buttonFound/buttonEnabled/
+     clickPerformed` → `resultAttempt attempt=N status=… tables=… matRows=…`
+     → `TIMELINE submit+0ms …` + `LVD_BIO_NETWORK QUERY_NET method=… path=…
+     status=… durationMs=…`;
+   - comparación manual: pulsar "Abrir formulario original", consultar a mano
+     y volver → `MANUAL_RESULT_CAPTURE status=… structure=…`.
+3. El último `true` antes del error (o la etapa/código del mensaje DEBUG)
+   identifica el paso que falla. Con ese reporte, ajustar `BiometricDiscovery.kt`
+   SOLO con evidencia (selectores/endpoints/estructura reales) y los fixtures
+   de los tests. No modificar login, bóveda, cookies, Tarjetones ni la
+   detección de periodos.
 
 ---
 

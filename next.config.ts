@@ -26,6 +26,11 @@ const cspDirectives = [
 ];
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    resolveAlias: {
+      "edge-tts": "edge-tts/out/index.js",
+    },
+  },
   async headers() {
     return [
       {

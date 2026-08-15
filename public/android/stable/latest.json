@@ -1,19 +1,18 @@
 {
   "channel": "stable",
-  "versionCode": 160,
-  "versionName": "1.0.60",
+  "versionCode": 163,
+  "versionName": "1.0.63",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-13T00:00:00Z",
+  "publishedAt": "2026-08-14T00:00:00Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "486d21aa26789c2502da60977a998496eead9c1dd00c9e1bc885cba5d3712dd7",
-    "size": 67100256
+    "sha256": "0D801C58A0EFC48B813A3A75F46FADCDC876C0C4D2138855E6D8CC3517E85F01",
+    "size": 67378788
   },
   "releaseNotes": [
-    "Registros biométricos: se corrige la carga intermitente de las quincenas de Tu Perfil IMSS",
-    "La selección de periodo ahora usa una lista propia de La Veinte Digital, más fácil y estable",
-    "Errores más claros cuando el portal tarda o cambia su formulario",
-    "El acceso de Tu Perfil IMSS se comparte entre Tarjetones y Registros biométricos"
+    "Registros biométricos: se selecciona primero la OOAD (17 Michoacán) y luego el Periodo, como lo exige el portal IMSS",
+    "El periodo se relee tras la OOAD con verificación previa a la consulta, para eliminar el error de periodo no disponible",
+    "Diagnóstico ampliado del flujo OOAD y Periodo para validar el funcionamiento en tu dispositivo"
   ]
 }

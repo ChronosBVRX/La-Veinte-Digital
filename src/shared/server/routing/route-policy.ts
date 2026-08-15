@@ -7,6 +7,17 @@ export const API_ACCESS = {
   "/api/tarjeton/confirm": "authenticated",
   "/api/tarjeton/delete": "authenticated",
   "/api/worker-context": "authenticated",
+  "/api/normativa/health": "authenticated",
+  "/api/normativa/search": "authenticated",
+  "/api/normativa/compare": "authenticated",
+  "/api/normativa/audio": "authenticated",
+  "/api/normativa/document": "authenticated",
+  "/api/normativa/evidence": "authenticated",
+  "/api/normativa/respuesta": "authenticated",
+  "/api/normativa/script": "authenticated",
+  "/api/normativa/tts": "authenticated",
+  "/api/normativa/sync": "authenticated",
+  "/api/normativa/visor": "authenticated",
 } as const
 
 export type ApiAccessLevel = (typeof API_ACCESS)[keyof typeof API_ACCESS]

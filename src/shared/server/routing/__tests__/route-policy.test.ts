@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs"
+﻿import { readFileSync, readdirSync } from "node:fs"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
 import {
@@ -29,6 +29,17 @@ describe("API route policy", () => {
       "/api/calendario": "public",
       "/api/calculator-prefill": "authenticated",
       "/api/consulta": "authenticated",
+      "/api/normativa/audio": "authenticated",
+      "/api/normativa/compare": "authenticated",
+      "/api/normativa/document": "authenticated",
+      "/api/normativa/evidence": "authenticated",
+      "/api/normativa/health": "authenticated",
+      "/api/normativa/respuesta": "authenticated",
+      "/api/normativa/sync": "authenticated",
+      "/api/normativa/script": "authenticated",
+      "/api/normativa/search": "authenticated",
+      "/api/normativa/tts": "authenticated",
+      "/api/normativa/visor": "authenticated",
       "/api/simulador": "authenticated",
       "/api/tarjeton/confirm": "authenticated",
       "/api/tarjeton/delete": "authenticated",

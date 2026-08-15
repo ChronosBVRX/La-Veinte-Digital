@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Bot, FileText, BookOpen, User, Target, Calculator, DollarSign, X, Calendar, CalendarCheck, Globe, ClipboardList, FileBadge, RefreshCw, type LucideIcon } from "lucide-react"
+import { Home, Bot, FileText, BookOpen, User, Target, Calculator, DollarSign, X, Calendar, CalendarCheck, Globe, ClipboardList, FileBadge, RefreshCw, Library, type LucideIcon } from "lucide-react"
 import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
 import type { CSSProperties } from "react"
 
@@ -32,6 +32,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     { href: "/nomina", label: "Nómina", icon: DollarSign },
     { href: "/escritos", label: "Generar Escritos", icon: FileText },
     { href: "/catalogo", label: "Catálogo", icon: BookOpen },
+    { href: "/biblioteca-normativa", label: "Biblioteca Normativa", icon: Library },
     { href: "/calendario", label: "Calendario", icon: Calendar },
     { href: "/facebook", label: "Noticias SNTSS", icon: Globe },
     { href: "/bitacora", label: "Bitácora", icon: ClipboardList },
