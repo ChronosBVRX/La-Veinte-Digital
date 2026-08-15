@@ -1,0 +1,25 @@
+<resources>
+    <string name="app_name">La Veinte Digital</string>
+
+    <!-- Internal WebView -->
+    <string name="internal_loading">Cargando La Veinte Digital…</string>
+    <string name="internal_retry">Reintentar</string>
+    <string name="internal_offline_title">Sin conexión</string>
+    <string name="internal_offline_msg">Verifica tu conexión a internet e inténtalo de nuevo.</string>
+
+    <!-- External browser screen -->
+    <string name="external_back">Atrás</string>
+    <string name="external_close">Volver a La Veinte</string>
+    <string name="external_open_external">Abrir en navegador del sistema</string>
+    <string name="external_secure_lock">Sitio seguro</string>
+
+    <!-- Notifications -->
+    <string name="download_channel_name">Descargas</string>
+    <string name="download_channel_desc">Notificaciones de descargas iniciadas desde La Veinte Digital</string>
+    <string name="download_in_progress">Descargando %1$s</string>
+    <string name="download_complete">Descarga completa: %1$s</string>
+    <string name="download_failed">Falló la descarga: %1$s</string>
+
+    <!-- PDF picker -->
+    <string name="pdf_picker_title">Selecciona un PDF de tarjetón</string>
+</resources>

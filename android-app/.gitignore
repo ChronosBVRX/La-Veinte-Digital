@@ -1,0 +1,33 @@
+# Built app artifacts
+/build
+/app/build
+/app/release
+
+# IDE
+/.idea
+*.iml
+.gradle
+
+# Local configuration
+local.properties
+
+# Keystore files
+*.jks
+*.keystore
+*.p12
+*.pfx
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated resources (if any)
+/app/src/main/res/raw/node_modules
+
+# Kotlin scratch files
+.kotlin
+
+# Play Store signing info
+/app/release/output-metadata.json
+
+.vercel

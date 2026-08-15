@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="bg">#F8FAFC</color>
+    <color name="fg">#0F172A</color>
+    <color name="primary">#2563EB</color>
+    <color name="primary_fg">#FFFFFF</color>
+    <color name="border">#E2E8F0</color>
+    <color name="muted">#64748B</color>
+    <color name="card">#FFFFFF</color>
+    <color name="accent">#F1F5F9</color>
+
+    <!-- Official brand palette -->
+    <color name="brand_navy">#17324D</color>
+    <color name="brand_blue">#2E4F77</color>
+    <color name="brand_cyan">#4DA1A8</color>
+    <color name="brand_surface">#F3F6F8</color>
+
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+</resources>
