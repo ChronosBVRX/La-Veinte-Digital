@@ -1,0 +1,13 @@
+{
+  "name": "radio-studio-sidecar",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node --no-warnings --import tsx src/index.ts",
+    "bundle": "node scripts/bundle.mjs",
+    "musica:benchmark": "node --no-warnings --import tsx scripts/musica-benchmark.ts"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

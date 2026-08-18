@@ -19,6 +19,14 @@ const eslintConfig = defineConfig([
     // Artefactos generados por Playwright (reportes/traces minificados).
     "playwright-report/**",
     "test-results/**",
+    // Artefacto empaquetado del sidecar del estudio (esbuild).
+    "apps/radio-studio/sidecar/dist/**",
+    "apps/radio-studio/dist/**",
+    "apps/radio-studio/src-tauri/target/**",
+    // Herramientas vendadas y entornos Python locales (nunca se lintan).
+    "tools/**",
+    "**/.venv/**",
+    "data/tts/venv/**",
   ]),
 ]);
 

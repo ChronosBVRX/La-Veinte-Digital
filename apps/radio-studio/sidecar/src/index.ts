@@ -1,0 +1,1742 @@
+/**
+ * Sidecar local de AI Radio Studio.
+ * HTTP en 127.0.0.1:3977 — ejecuta tts-core + corpus normativo fuera del webview.
+ * La app Tauri (o el navegador en dev) lo usa como puente hacia:
+ *   - Chatterbox LatAm (motor persistente, sesiones, caché, watchdog)
+ *   - Biblioteca Normativa (búsqueda, Evidence Pack, cobertura)
+ *   - Producción (guion → voces → master MP3)
+ */
+
+import http from "node:http";
+import path from "node:path";
+import fs from "node:fs";
+import { execFile, execFileSync } from "node:child_process";
+import { spawn } from "node:child_process";
+import os from "node:os";
+import { promisify } from "node:util";
+
+import {
+  ChatterboxEngine,
+  getChatterboxEngine,
+  detectHardware,
+  sentenceAwareChunk,
+  cleanTtsText,
+  synthesizeMp3,
+  DEFAULT_VOICES,
+} from "@la-veinte/tts-core";
+
+import { NormativeCatalog } from "../../../../src/features/normativa/services/catalog";
+import { buildCoverage } from "../../../../src/features/normativa/services/coverage";
+import { buildScriptFromEvidence } from "../../../../src/features/normativa/services/llm-provider";
+import { directRadioEpisode, analyzeDiversity, polishDialogue, sanitizeEditorialScript, editorialPromptRules, editorialSegmentGoal, validateCasting, VOICE_PERSONAS, GLOBAL_PRONUNCIATION_RULE, DEFAULT_SPEAKERS, type DirectorInput, type DialogueTurn, type EpisodeScript, type SpeakerProfile, type CitationMode, type VoiceSlot } from "@la-veinte/radio-core";
+import { resolveProvider } from "../../../../src/features/normativa/services/llm-provider";
+import { eliminarJob, leerJob, guardarJob, nuevoJob, resumenJob, type ProductionJob } from "../worker/job-store";
+import { leerJobMusica, guardarJobMusica, nuevoJobMusica, resumenJobMusica, type MusicaTipo } from "../worker/musica-job-store";
+import { createHash } from "node:crypto";
+
+const execFileAsync = promisify(execFile);
+const PORT = 3977;
+const REPO = path.resolve(__dirname, "../../../..");
+const ACE_API = "http://127.0.0.1:8001";
+
+let engine: ChatterboxEngine | null = null;
+let aceStepStartAttempt: { at: number; error: string | null } = { at: 0, error: null };
+
+function loadLocalEnv(file: string): void {
+  try {
+    if (!fs.existsSync(file)) return;
+    const text = fs.readFileSync(file, "utf8");
+    for (const line of text.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const m = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(trimmed);
+      if (!m || process.env[m[1]]) continue;
+      let value = m[2].trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      process.env[m[1]] = value;
+    }
+  } catch {
+    // Si el archivo no puede leerse, el director IA cae al modo determinista.
+  }
+}
+
+loadLocalEnv(path.join(REPO, ".env.local"));
+
+function ensureEngine(): ChatterboxEngine {
+  if (!engine) engine = getChatterboxEngine(REPO);
+  return engine;
+}
+
+/** Lanza el worker TTS como proceso independiente (el sidecar NO se bloquea). */
+function spawnWorker(): void {
+  const workerScript = path.join(__dirname, "..", "worker", "chatterbox_worker.ts");
+  const logPath = path.join(REPO, "data", "tts", "worker.log");
+  const child = spawn(process.execPath, ["--no-warnings", "--import", "tsx", workerScript], {
+    detached: true,
+    stdio: ["ignore", fs.openSync(logPath, "a"), fs.openSync(logPath, "a")],
+    windowsHide: true,
+  });
+  child.unref();
+}
+
+let workerVivoCache: { at: number; v: boolean } = { at: 0, v: false };
+
+function workerVivo(): boolean {
+  if (Date.now() - workerVivoCache.at < 5000) return workerVivoCache.v;
+  let vivo = false;
+  try {
+    const out = execFileSync("powershell", [
+      "-NoProfile", "-NonInteractive", "-Command",
+      "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'chatterbox_worker' } | Measure-Object | Select-Object -ExpandProperty Count",
+    ], { timeout: 8000, encoding: "utf8" });
+    vivo = Number(out.trim()) > 0;
+  } catch { /* no disponible */ }
+  workerVivoCache = { at: Date.now(), v: vivo };
+  return vivo;
+}
+
+function detenerWorkersProduccion(): void {
+  workerVivoCache = { at: 0, v: false };
+  try {
+    execFileSync("powershell", [
+      "-NoProfile", "-NonInteractive", "-Command",
+      "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'chatterbox_worker' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
+    ], { timeout: 10000, encoding: "utf8" });
+  } catch { /* sin worker activo o PowerShell no disponible */ }
+  workerVivoCache = { at: Date.now(), v: false };
+}
+
+function eliminarAudioDeJob(job: ProductionJob | null): number {
+  if (!job) return 0;
+  let eliminados = 0;
+  const vistos = new Set<string>();
+  for (const b of job.bloques) {
+    if (!b.wavPath || vistos.has(b.wavPath)) continue;
+    vistos.add(b.wavPath);
+    try {
+      if (fs.existsSync(b.wavPath)) {
+        fs.rmSync(b.wavPath, { force: true });
+        eliminados++;
+      }
+    } catch { /* caché ocupada; queda ignorada */ }
+  }
+  return eliminados;
+}
+
+/** Lanza el worker de música ACE-Step (proceso independiente, no bloquea al sidecar). */
+function spawnMusicaWorker(): void {
+  const workerScript = path.join(__dirname, "..", "worker", "musica_worker.ts");
+  const logPath = path.join(REPO, "data", "tts", "worker-musica.log");
+  const child = spawn(process.execPath, ["--no-warnings", "--import", "tsx", workerScript], {
+    detached: true,
+    stdio: ["ignore", fs.openSync(logPath, "a"), fs.openSync(logPath, "a")],
+    windowsHide: true,
+  });
+  child.unref();
+}
+
+let musicaWorkerVivoCache: { at: number; v: boolean } = { at: 0, v: false };
+
+function musicaWorkerVivo(): boolean {
+  if (Date.now() - musicaWorkerVivoCache.at < 5000) return musicaWorkerVivoCache.v;
+  let vivo = false;
+  try {
+    const out = execFileSync("powershell", [
+      "-NoProfile", "-NonInteractive", "-Command",
+      "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'musica_worker' } | Measure-Object | Select-Object -ExpandProperty Count",
+    ], { timeout: 8000, encoding: "utf8" });
+    vivo = Number(out.trim()) > 0;
+  } catch { /* no disponible */ }
+  musicaWorkerVivoCache = { at: Date.now(), v: vivo };
+  return vivo;
+}
+
+function startAceStepIfNeeded(): { starting: boolean; error: string | null } {
+  if (Date.now() - aceStepStartAttempt.at < 60000) {
+    return { starting: true, error: aceStepStartAttempt.error };
+  }
+
+  const aceDir = path.join(REPO, "tools", "ACE-Step-1.5");
+  if (!fs.existsSync(aceDir)) {
+    return { starting: false, error: `no encontré ACE-Step en ${aceDir}` };
+  }
+
+  const logPath = path.join(REPO, "data", "tts", "ace-step-api.log");
+  fs.mkdirSync(path.dirname(logPath), { recursive: true });
+
+  try {
+    const out = fs.openSync(logPath, "a");
+    const child = spawn("uv", ["run", "--no-sync", "acestep-api"], {
+      cwd: aceDir,
+      detached: true,
+      stdio: ["ignore", out, out],
+      windowsHide: true,
+      env: {
+        ...process.env,
+        ACESTEP_COMPILE_MODEL: "false",
+      },
+    });
+    child.unref();
+    aceStepStartAttempt = { at: Date.now(), error: null };
+    console.log(`[musica] arrancando ACE-Step API desde ${aceDir}`);
+    return { starting: true, error: null };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    aceStepStartAttempt = { at: Date.now(), error };
+    console.warn(`[musica] no pude iniciar ACE-Step: ${error}`);
+    return { starting: false, error };
+  }
+}
+
+async function readMusicaBenchmarkRtf(): Promise<number | null> {
+  try {
+    const p = path.join(REPO, "data", "tts", "benchmark", "musica-benchmark-report.json");
+    if (fs.existsSync(p)) {
+      const r = JSON.parse(fs.readFileSync(p, "utf8"));
+      if (typeof r.acumuladoRtf === "number") return r.acumuladoRtf;
+    }
+  } catch { /* default */ }
+  return null;
+}
+
+async function readBenchmarkRtf(): Promise<number> {
+  try {
+    const p = path.join(REPO, "data", "tts", "benchmark", "benchmark-report.json");
+    if (fs.existsSync(p)) {
+      const r = JSON.parse(fs.readFileSync(p, "utf8"));
+      return typeof r.conservativeRtf === "number" ? r.conservativeRtf : 1.96;
+    }
+  } catch { /* default */ }
+  return 1.96;
+}
+
+function json(res: http.ServerResponse, code: number, body: unknown) {
+  res.writeHead(code, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Max-Age": "86400",
+    "Cache-Control": "no-store",
+  });
+  res.end(JSON.stringify(body));
+}
+
+function corsPreflight(res: http.ServerResponse) {
+  res.writeHead(204, {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Max-Age": "86400",
+    "Cache-Control": "no-store",
+  });
+  res.end();
+}
+
+async function readBody(req: http.IncomingMessage): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  for await (const c of req) chunks.push(c as Buffer);
+  const raw = Buffer.concat(chunks).toString("utf8");
+  try {
+    return raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+async function handleStatus(res: http.ServerResponse) {
+  const hw = await detectHardware();
+  const catalog = new NormativeCatalog(REPO);
+  const health = catalog.health();
+  const sources = catalog.db.listSourceStates();
+  const bloqueadas = sources.filter((s) => s.state === "HTTP_403" || s.state === "WAF_BLOCK" || s.state === "TEMPORARY_BLOCK" || s.state === "RETRY_AFTER").length;
+  const docs = catalog.listDocuments();
+  const disponibles = docs.filter((d) => d.currentVersion).length;
+  const verificadas = health.versions;
+  const porRevisar = docs.filter((d) => !d.currentVersion || d.validity === "PENDING_REVIEW" || d.validity === "UNKNOWN" || d.verificationStatus).length;
+  const eng = ensureEngine();
+  let engStatus: Record<string, unknown> = { loaded: false };
+  try {
+    if (eng.isRunning) engStatus = { ...(await eng.status()) };
+  } catch { /* motor apagado */ }
+  json(res, 200, {
+    motor: {
+      provider: "chatterbox-local",
+      model: "ResembleAI/Chatterbox-Multilingual-es-mx-latam",
+      device: "cuda",
+      calidad: "GOOD",
+      offline: true,
+      costoApi: "$0.00",
+      vramTotalMb: hw.gpu.vramTotalMb,
+      vramUsadaMb: hw.gpu.vramUsedMb,
+      tempC: hw.gpu.tempC,
+      rtfConservador: await readBenchmarkRtf(),
+      estado: eng.isRunning ? "listo" : "apagado",
+      detalle: engStatus,
+    },
+    corpus: {
+      documentos: health.documents,
+      vigentes: health.vigentes,
+      pendientes: health.missingRefs + (health.revisar ?? 0),
+      disponibles,
+      verificadas,
+      bloqueadas,
+      porRevisar,
+      historicos: health.historicos,
+    },
+    cache: { hits: eng.cacheHits, misses: eng.cacheMisses, entries: eng.cache.stats().entries },
+    hardware: { perfil: hw.profile, gpu: hw.gpu.name, bateria: hw.isBattery },
+  });
+}
+
+async function handleInvestigar(res: http.ServerResponse, body: Record<string, unknown>) {
+  const tema = String(body.tema ?? "").trim();
+  if (!tema) return json(res, 400, { error: "tema vacío" });
+  const catalog = new NormativeCatalog(REPO);
+  const pack = catalog.buildEvidencePack(tema, { limit: 25 });
+  for (const q of expansionQueries(tema)) {
+    const extra = catalog.buildEvidencePack(q, { limit: 8 });
+    for (const c of extra.claims) {
+      if (!pack.claims.some((x) => x.text === c.text)) pack.claims.push(c);
+    }
+    for (const ch of extra.relevantChunks) {
+      if (!pack.relevantChunks.some((x) => x.id === ch.id)) pack.relevantChunks.push(ch);
+    }
+    for (const doc of extra.documents) {
+      if (!pack.documents.some((x) => x.id === doc.id)) pack.documents.push(doc);
+    }
+  }
+  const coverage = buildCoverage(catalog, tema);
+  let analisisIa: Record<string, unknown> | null = null;
+  let investigador = "solo-corpus";
+  const provider = resolveProvider("deepseek") ?? resolveProvider();
+  if (provider) {
+    investigador = provider.name;
+    try {
+      const mapaDocumental = catalog.listDocuments().slice(0, 160).map((d) => {
+        const ver = d.currentVersion ? catalog.getVersion(d.currentVersion) : null;
+        return `${d.id} | ${d.category} | ${d.validity} | ${d.title}${ver?.pages ? ` | ${ver.pages} pág.` : ""}`;
+      }).join("\n");
+      const evidencia = pack.claims.slice(0, 36).map((c, i) => {
+        const e = c.evidence[0];
+        return `E${i + 1} | ${e?.documentId ?? "?"}${e?.clause ? ` ${e.clause}` : ""}${e?.article ? ` ${e.article}` : ""}${e?.pdfPage != null ? ` pág.${e.pdfPage}` : ""} | ${c.text.slice(0, 520)}`;
+      }).join("\n");
+      const cobertura = coverage.items.map((i) => `${i.status.toUpperCase()} | ${i.id} | ${i.label}${i.note ? ` | ${i.note}` : ""}`).join("\n");
+      const raw = await provider.complete({
+        system: `Eres investigador editorial de La Veinte Digital. Tu audiencia son trabajadoras y trabajadores del IMSS. Analiza SOLO la evidencia documental recibida; no inventes derechos, plazos, requisitos ni cifras. Si falta soporte documental, dilo como faltante.`,
+        user: `TEMA: ${tema}
+
+COBERTURA DOCUMENTAL:
+${cobertura}
+
+MAPA COMPLETO DE LA BIBLIOTECA:
+${mapaDocumental}
+
+EVIDENCIA DEL CORPUS:
+${evidencia}
+
+Devuelve únicamente JSON con:
+{
+  "enfoque": "ángulo editorial útil para trabajadores",
+  "preguntasTrabajador": ["dudas reales que conviene responder"],
+  "subtemas": ["bloques sugeridos para que el programa no sea monótono"],
+  "fuentesClave": ["documentos del corpus que sí sostienen el episodio"],
+  "faltantes": ["documentos o temas que faltan antes de publicar, si aplica"],
+  "riesgos": ["riesgos de decir algo sin evidencia o confundir regímenes"],
+  "publicable": true|false
+}`,
+        json: true,
+        maxTokens: 2500,
+        temperature: 0.25,
+      });
+      analisisIa = JSON.parse(extraerJson(raw)) as Record<string, unknown>;
+    } catch (e) {
+      analisisIa = {
+        error: e instanceof Error ? e.message : "falló el análisis IA",
+        faltantes: coverage.critical.map((i) => i.label),
+        publicable: coverage.recommended,
+      };
+    }
+  }
+  json(res, 200, {
+    tema,
+    fragmentos: pack.relevantChunks.length,
+    afirmaciones: pack.claims.length,
+    investigador,
+    analisisIa,
+    cobertura: {
+      porcentaje: coverage.coverage,
+      recomendado: coverage.recommended,
+      items: coverage.items.map((i) => ({ label: i.label, estado: i.status === "available" ? "ok" : i.status === "review" ? "revisar" : "faltante" })),
+      advertencias: coverage.warnings,
+    },
+    evidencePack: pack,
+  });
+}
+
+async function handleGuion(res: http.ServerResponse, body: Record<string, unknown>) {
+  const tema = String(body.tema ?? "").trim();
+  if (!tema) return json(res, 400, { error: "tema vacío" });
+  const catalog = new NormativeCatalog(REPO);
+  const pack = catalog.buildEvidencePack(tema, { limit: 25 });
+  const script = buildScriptFromEvidence(tema, pack);
+  const citas: Record<string, { documento: string; clausula: string | null; articulo: string | null; pagina: number | null }> = {};
+  pack.claims.forEach((c, i) => {
+    const e = c.evidence[0];
+    citas[`C${i + 1}`] = {
+      documento: e?.documentId ?? "?",
+      clausula: e?.clause ?? null,
+      articulo: e?.article ?? null,
+      pagina: e?.pdfPage ?? null,
+    };
+  });
+  json(res, 200, { tema, guion: script, citas, cutoff: pack.cutoff, fuentes: pack.documents });
+}
+
+const REF_DIR = path.join(REPO, "data", "tts", "ref");
+const VOICE_SLOTS: Record<VoiceSlot, string> = { A: "eduardo.wav", B: "mariana.wav", N: "narrador.wav", C: "rodrigo.wav", P: "valeria.wav" };
+const BUILTIN_IDENTITY_SHA = createHash("sha256").update("chatterbox:builtin-multilingual").digest("hex");
+const MODEL_REVISION = "t3_es_mx_latam";
+
+const VOICE_IDENTITIES: Record<Exclude<VoiceSlot, "A">, { profileId: string; sourceId: string }> = {
+  B: { profileId: "ANDREA", sourceId: "piper:rhasspy/es_MX-claude-high" },
+  N: { profileId: "NARRADOR", sourceId: "piper:rhasspy/es_MX-ald-medium:narrator-serious" },
+  C: { profileId: "RODRIGO", sourceId: "piper:rhasspy/es_ES-davefx-medium:correspondent" },
+  P: { profileId: "VALERIA", sourceId: "piper:rhasspy/es_AR-daniela-high:commercial" },
+};
+
+function identidadParaVoz(voz: VoiceSlot): { profileId: string; referenceAudioSha256: string; voiceSourceId: string; modelRevision: string } | null {
+  if (voz === "A") {
+    return {
+      profileId: "EDUARDO",
+      referenceAudioSha256: BUILTIN_IDENTITY_SHA,
+      voiceSourceId: "chatterbox:builtin-multilingual",
+      modelRevision: MODEL_REVISION,
+    };
+  }
+  const refPath = path.join(REF_DIR, VOICE_SLOTS[voz]);
+  const refSha = sha256File(refPath);
+  if (!refSha) return null;
+  const identity = VOICE_IDENTITIES[voz];
+  return {
+    profileId: identity.profileId,
+    referenceAudioSha256: refSha,
+    voiceSourceId: identity.sourceId,
+    modelRevision: MODEL_REVISION,
+  };
+}
+
+function vozPorLocutor(locutor: string, voces: Record<string, VoiceSlot>): VoiceSlot {
+  const directa = voces[locutor] ?? voces[locutor.toUpperCase()];
+  if (directa) return directa;
+  const id = locutor.toUpperCase();
+  if (id.includes("NARRADOR")) return "N";
+  if (id.includes("RODRIGO") || id.includes("CORRESPONSAL") || id.includes("REPORTERO")) return "C";
+  if (id.includes("VALERIA") || id.includes("COMERCIAL") || id.includes("PATROCIN")) return "P";
+  if (id.includes("MARIANA") || id.includes("ANDREA")) return "B";
+  return "A";
+}
+
+function sha256File(p: string): string | null {
+  try {
+    return createHash("sha256").update(fs.readFileSync(p)).digest("hex");
+  } catch {
+    return null;
+  }
+}
+
+/** Resuelve los VoiceProfile por locutor con procedencia vocal real.
+ *  A = voz integrada de Chatterbox; B = Piper Claude; N = narrador; C = corresponsal; P = comerciales. */
+function resolveVoiceProfiles(speakers: SpeakerProfile[]): Array<{
+  id: string;
+  displayName: string;
+  role: string;
+  userAssignedVoiceRole?: string;
+  referenceAudioPath: string;
+  previewAudioPath: string;
+  referenceAudioSha256: string;
+  voiceSourceId: string;
+  voiceSourceType: "synthetic" | "human" | "builtin" | "unknown";
+  voiceSourceLabel: string;
+  provider: string;
+  modelId: string;
+  modelRevision: string;
+  language: string;
+  locale: string;
+}> {
+  const rolRole: Record<string, string> = { conductor: "male-host", "co-conductor": "female-cohost", narrador: "narrator" };
+  return speakers.map((s) => {
+    const slot: VoiceSlot = ["A", "B", "N", "C", "P"].includes(s.voz) ? s.voz : "A";
+    if (slot === "A") {
+      return {
+        id: s.id,
+        displayName: s.nombre,
+        role: s.rol,
+        userAssignedVoiceRole: rolRole[s.rol] ?? s.rol,
+        referenceAudioPath: "(builtin)",
+        previewAudioPath: path.join(REPO, "data", "tts", "casting", "voice-test-eduardo-v2.wav"),
+        referenceAudioSha256: BUILTIN_IDENTITY_SHA,
+        voiceSourceId: "chatterbox:builtin-multilingual",
+        voiceSourceType: "builtin",
+        voiceSourceLabel: "Chatterbox Multilingual — voz integrada",
+        provider: "chatterbox-local",
+        modelId: "Chatterbox-Multilingual-es-mx-latam",
+        modelRevision: "t3_es_mx_latam",
+        language: "es",
+        locale: "es-MX",
+      };
+    }
+    const refPath = path.join(REF_DIR, VOICE_SLOTS[slot]);
+    const identity = VOICE_IDENTITIES[slot];
+    const labelBySlot: Record<Exclude<VoiceSlot, "A">, string> = {
+      B: "Piper es_MX Claude High — Andrea expresiva",
+      N: "Piper es_MX Ald Medium — narrador premium serio",
+      C: "Piper es_ES DaveFX Medium — Rodrigo corresponsal",
+      P: "Piper es_AR Daniela High — Valeria comercial",
+    };
+    return {
+      id: s.id,
+      displayName: s.nombre,
+      role: s.rol,
+      userAssignedVoiceRole: rolRole[s.rol] ?? s.rol,
+      referenceAudioPath: refPath,
+      previewAudioPath: path.join(REPO, "data", "tts", "casting", `voice-test-${(s.id === "NARRADOR" ? "alonso" : s.id).toLowerCase()}-v2.wav`),
+      referenceAudioSha256: sha256File(refPath) ?? "missing",
+      voiceSourceId: identity.sourceId,
+      voiceSourceType: "synthetic",
+      voiceSourceLabel: labelBySlot[slot],
+      provider: "chatterbox-local",
+      modelId: "Chatterbox-Multilingual-es-mx-latam",
+      modelRevision: "t3_es_mx_latam",
+      language: "es",
+      locale: "es-MX",
+    };
+  });
+}
+
+async function handleCasting(res: http.ServerResponse) {
+  const speakers: SpeakerProfile[] = DEFAULT_SPEAKERS;
+  const perfiles = resolveVoiceProfiles(speakers);
+  const validacion = validateCasting(perfiles);
+  json(res, 200, {
+    perfiles,
+    casting: validacion,
+    personas: VOICE_PERSONAS,
+    reglaPronunciacion: GLOBAL_PRONUNCIATION_RULE,
+    criteriosReferencia: [
+      "una sola persona hablando",
+      "15–30 segundos de voz continua",
+      "sin música ni ruido de fondo",
+      "sin reverberación importante",
+      "ritmo natural y conversacional",
+      "español mexicano neutro, con /s/ claramente articulada",
+      "sin acento costeño/caribeño ni cantadito regional",
+    ],
+  });
+}
+
+async function handleGenerate(res: http.ServerResponse, body: Record<string, unknown>) {
+  const bloques = Array.isArray(body.bloques)
+    ? (body.bloques as Array<{ id: string; texto: string; locutor: string }>)
+    : [];
+  if (bloques.length === 0) return json(res, 400, { error: "sin bloques" });
+
+  const existente = leerJob();
+  if (existente && workerVivo()) return json(res, 409, { error: "ya hay una producción en curso", job: resumenJob(existente) });
+
+  const voces = (body.voces ?? {}) as Record<string, VoiceSlot>;
+  const perfiles = resolveVoiceProfiles(DEFAULT_SPEAKERS);
+  const perfilPorId = new Map(perfiles.map((p) => [p.id, p]));
+  const job = nuevoJob(
+    `ep-${Date.now()}`,
+    String(body.tema ?? "episodio"),
+    bloques.map((b) => {
+      const perfil = perfilPorId.get(b.locutor.toUpperCase());
+      return {
+        id: b.id,
+        texto: b.texto,
+        locutor: b.locutor,
+        voz: vozPorLocutor(b.locutor, voces),
+        voiceProfileId: perfil?.id,
+        referenceAudioSha256: perfil?.referenceAudioSha256,
+        voiceSourceId: perfil?.voiceSourceId,
+        modelRevision: perfil?.modelRevision,
+      };
+    }),
+    voces
+  );
+  guardarJob(job);
+  spawnWorker();
+
+  // El sidecar responde de inmediato; el worker genera en segundo plano.
+  json(res, 202, { iniciado: true, total: bloques.length, job: resumenJob(job) });
+}
+
+async function handleResume(res: http.ServerResponse) {
+  const job = leerJob();
+  if (!job) return json(res, 404, { error: "no hay trabajo interrumpido" });
+  if (job.estado !== "INTERRUPTED" && job.estado !== "PAUSED") {
+    if (workerVivo()) return json(res, 409, { error: "producción ya activa" });
+  }
+  job.estado = "QUEUED";
+  job.cancelado = false;
+  job.notas.push("reanudado — RESUMABLE");
+  guardarJob(job);
+  spawnWorker();
+  json(res, 202, { reanudado: true, job: resumenJob(job) });
+}
+
+async function handleProgress(res: http.ServerResponse) {
+  const job = leerJob();
+  if (!job) {
+    return json(res, 200, { running: false, done: 0, total: 0, estado: null });
+  }
+  const resumen = resumenJob(job);
+  const hw = await detectHardware();
+  json(res, 200, {
+    running: workerVivo(),
+    tema: job.tema,
+    done: resumen.done,
+    total: resumen.total,
+    estado: job.estado,
+    cacheHits: resumen.cacheHits,
+    generados: resumen.generados,
+    fallos: resumen.fallos,
+    porLocutor: job.bloques.reduce<Record<string, { hecho: number; total: number }>>((acc, b) => {
+      const l = acc[b.locutor] ?? { hecho: 0, total: 0 };
+      l.total++;
+      if (b.estado === "generado") l.hecho++;
+      acc[b.locutor] = l;
+      return acc;
+    }, {}),
+    gpu: { tempC: hw.gpu.tempC, vramUsadaMb: hw.gpu.vramUsedMb, vramTotalMb: hw.gpu.vramTotalMb },
+    rtfChatterbox: resumen.rtfChatterbox,
+    rtfReciente: resumen.rtfReciente,
+    audioPendienteEstimadoMs: resumen.audioPendienteEstimadoMs,
+    reiniciosPrevistos: resumen.reiniciosPrevistos,
+    etaMin: resumen.etaMin,
+    reiniciosWorker: job.reiniciosWorker,
+    vozAcumuladaDesdeReinicioMs: job.vozAcumuladaMsDesdeReinicio,
+    notas: job.notas.slice(-4),
+  });
+}
+
+async function handleCancel(res: http.ServerResponse) {
+  const job = leerJob();
+  if (!job) return json(res, 404, { error: "no hay trabajo" });
+  job.cancelado = true;
+  job.estado = "PAUSED";
+  job.notas.push("cancelado por el usuario — RESUMABLE");
+  guardarJob(job);
+  json(res, 200, { cancelado: true, job: resumenJob(job) });
+}
+
+async function handleDiscard(res: http.ServerResponse) {
+  const job = leerJob();
+  if (job) {
+    job.cancelado = true;
+    job.estado = "PAUSED";
+    job.notas.push("descartado por el usuario");
+    guardarJob(job);
+  }
+  detenerWorkersProduccion();
+  const wavsEliminados = eliminarAudioDeJob(job);
+  eliminarJob();
+  json(res, 200, { eliminado: true, wavsEliminados });
+}
+
+async function findFfmpeg(): Promise<string> {
+  const candidates = ["ffmpeg", path.join(os.homedir(), "AppData", "Local", "ffmpeg", "ffmpeg-8.1.1-essentials_build", "bin", "ffmpeg.exe")];
+  for (const c of candidates) {
+    try {
+      await execFileAsync(c, ["-version"], { timeout: 10000 });
+      return c;
+    } catch { /* probar */ }
+  }
+  throw new Error("ffmpeg no disponible");
+}
+
+function scoreBrandMusicFile(file: string, kind: "bed" | "jingle"): number {
+  const f = file.toLowerCase();
+  let score = 0;
+  if (f.startsWith(`${kind}-uniforme`)) score += 120;
+  if (f.includes("uniforme")) score += 80;
+  if (f.includes("la-veinte") || f.includes("laveinte") || f.includes("lv-theme") || f.includes("brand")) score += 70;
+  if (f.includes("vivo")) score += 30;
+  if (f.includes("ace")) score += 10;
+  if (/test|placeholder|prueba|cortinilla/i.test(file)) score -= 200;
+  score -= Math.min(20, Math.floor(file.length / 10));
+  return score;
+}
+
+function selectBrandMusicFile(musicDir: string, kind: "bed" | "jingle"): string | null {
+  if (!fs.existsSync(musicDir)) return null;
+  const prefix = kind === "bed" ? /^(bed|cama)-.*\.(wav|mp3)$/i : /^jingle-.*\.(wav|mp3)$/i;
+  const candidates = fs.readdirSync(musicDir)
+    .filter((f) => prefix.test(f))
+    .sort((a, b) => scoreBrandMusicFile(b, kind) - scoreBrandMusicFile(a, kind) || a.localeCompare(b));
+  return candidates[0] ?? null;
+}
+
+async function handleMaster(res: http.ServerResponse, body: Record<string, unknown>) {
+  const turns = Array.isArray(body.turns) ? (body.turns as Array<Partial<DialogueTurn> & { speaker: string; text: string }>) : [];
+  if (turns.length === 0) return json(res, 400, { error: "sin turnos" });
+
+  const voces = (body.voces ?? {}) as Record<string, VoiceSlot>;
+  const voiceGainDb = (body.voiceGainDb ?? {}) as Record<string, number>;
+  const kbps = [128, 192, 256, 320].includes(Number(body.kbps)) ? Number(body.kbps) : 192;
+  const formato = String(body.formato ?? "mp3") === "wav" ? "wav" : "mp3";
+  const duckingOn = body.ducking !== false;
+  const duckAttack = Number(body.duckAttack) || 120;
+  const duckRelease = Number(body.duckRelease) || 1400;
+  const musicDir = path.join(REPO, "data", "tts", "music");
+  const autoBed = body.bed === "auto" || body.bed === true || body.bed == null
+    ? selectBrandMusicFile(musicDir, "bed")
+    : null;
+  const autoJingle = body.jingle === "auto" || body.jingle === true || body.jingle == null
+    ? selectBrandMusicFile(musicDir, "jingle")
+    : null;
+  const bedFile = typeof body.bedFile === "string" && fs.existsSync(body.bedFile)
+    ? body.bedFile
+    : autoBed ? path.join(musicDir, autoBed) : null;
+  const jingleFile = typeof body.jingleFile === "string" && fs.existsSync(body.jingleFile)
+    ? body.jingleFile
+    : autoJingle ? path.join(musicDir, autoJingle) : null;
+  const bedGainDb = Number(body.bedGainDb) || -25;
+  const bedDuckDb = Number(body.bedDuckDb) || 6;
+
+  const eng = ensureEngine();
+  if (!eng.isRunning) {
+    await eng.start();
+    const warmup = await eng.warmup();
+    if (!warmup.ok) return json(res, 502, { error: `motor no disponible: ${warmup.error ?? "warmup"}` });
+  }
+
+  const ffmpeg = await findFfmpeg();
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "lv-mix-"));
+  const inputs: string[] = [];
+  const filtros: string[] = [];
+  const voiceLabels: string[] = [];
+  const turnosMezcla: Array<{ id: string; speaker: string; startMs: number; durMs: number; pauseBeforeMs: number; pauseAfterMs: number; canOverlap: boolean; transition: string | null; label: string }> = [];
+
+  try {
+    let cursor = 0;
+    let idx = 0;
+    for (const t of turns) {
+      const voz = vozPorLocutor(t.speaker, voces);
+      const identidad = identidadParaVoz(voz);
+      const chunks = sentenceAwareChunk(cleanTtsText(t.text), 120, 220);
+      const turnWavs: string[] = [];
+      let turnDurMs = 0;
+      for (const c of chunks) {
+        const r = await eng.generate(c, voz, {
+          voiceProfileId: identidad?.profileId,
+          referenceAudioSha256: identidad?.referenceAudioSha256,
+          voiceSourceId: identidad?.voiceSourceId,
+          modelRevision: identidad?.modelRevision,
+        });
+        if (r.ok && r.path && fs.existsSync(r.path)) {
+          turnWavs.push(r.path);
+          turnDurMs += Math.round((r.dur_s ?? 0) * 1000);
+        }
+      }
+      if (turnWavs.length === 0) {
+        cursor += t.pauseBeforeMs ?? 0;
+        continue;
+      }
+
+      let turnWav: string;
+      if (turnWavs.length === 1) {
+        turnWav = turnWavs[0];
+      } else {
+        const list = path.join(tmp, `t${idx}.txt`);
+        fs.writeFileSync(list, turnWavs.map((w) => `file '${w.replace(/'/g, "'\\''")}'`).join("\n"));
+        turnWav = path.join(tmp, `t${idx}.wav`);
+        await execFileAsync(ffmpeg, ["-y", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", turnWav], { timeout: 120000 });
+      }
+
+      inputs.push(turnWav);
+      cursor += t.pauseBeforeMs ?? 0;
+      const startMs = cursor;
+      const prev = turnosMezcla[turnosMezcla.length - 1];
+      let inicioMs = startMs;
+      if (t.canOverlap && prev && (t.text ?? "").trim().length <= 60) {
+        inicioMs = Math.max(prev.startMs, prev.startMs + prev.durMs - 120);
+      }
+      turnosMezcla.push({
+        id: t.id ?? `t${idx}`,
+        speaker: t.speaker,
+        startMs: inicioMs,
+        durMs: turnDurMs,
+        pauseBeforeMs: t.pauseBeforeMs ?? 0,
+        pauseAfterMs: t.pauseAfterMs ?? 0,
+        canOverlap: !!t.canOverlap,
+        transition: t.transition ?? null,
+        label: `${t.speaker}: ${(t.text ?? "").slice(0, 40)}`,
+      });
+      cursor = inicioMs + turnDurMs + (t.pauseAfterMs ?? 0);
+      idx++;
+    }
+
+    if (inputs.length === 0) return json(res, 502, { error: "no se generó audio para ningún turno" });
+
+    for (let i = 0; i < turnosMezcla.length; i++) {
+      const m = turnosMezcla[i];
+      const gain = voiceGainDb[m.speaker] ?? 0;
+      filtros.push(`[${i}:a]${gain !== 0 ? `volume=${gain}dB,` : ""}adelay=${m.startMs}|${m.startMs}[v${i}]`);
+      voiceLabels.push(`[v${i}]`);
+    }
+    const totalMs = turnosMezcla.reduce((a, m) => Math.max(a, m.startMs + m.durMs), 0) + 1500;
+
+    filtros.push(`${voiceLabels.join("")}amix=inputs=${voiceLabels.length}:normalize=0:dropout_transition=0[vmix]`);
+    if (bedFile && duckingOn) {
+      filtros.push(`[vmix]asplit=2[vmixout][sc]`);
+    } else {
+      filtros.push(`[vmix]anull[vmixout]`);
+    }
+
+    let bedIdx = -1;
+    const jingleIdx: number[] = [];
+    const finalInputs: string[] = [];
+    if (bedFile && duckingOn) {
+      bedIdx = inputs.length;
+      inputs.push(bedFile);
+      filtros.push(`[${bedIdx}:a]volume=${bedGainDb}dB,afade=t=in:d=1.5,afade=t=out:st=${Math.max(0, (totalMs - 2500) / 1000)}:d=2.5[bedpre]`);
+      filtros.push(`[bedpre][sc]sidechaincompress=threshold=0.03:ratio=3:attack=${duckAttack}:release=${duckRelease}:makeup=${bedDuckDb}[ducked]`);
+      finalInputs.push("[ducked]");
+    } else if (bedFile) {
+      bedIdx = inputs.length;
+      inputs.push(bedFile);
+      filtros.push(`[${bedIdx}:a]volume=${bedGainDb}dB,afade=t=in:d=1.5,afade=t=out:st=${Math.max(0, (totalMs - 2500) / 1000)}:d=2.5[ducked]`);
+      finalInputs.push("[ducked]");
+    }
+    if (jingleFile) {
+      const putJingle = (atMs: number, fadeOutSec: number, label: string) => {
+        const ji = inputs.length;
+        inputs.push(jingleFile);
+        jingleIdx.push(ji);
+        const st = (atMs / 1000).toFixed(2);
+        const fadeOutSt = Math.max(Number(st) + 1.2, Number(st) + fadeOutSec);
+        filtros.push(`[${ji}:a]adelay=${atMs}|${atMs},volume=-6dB,afade=t=out:st=${fadeOutSt.toFixed(2)}:d=${fadeOutSec}[jin${ji}]`);
+        finalInputs.push(`[jin${ji}]`);
+        return label;
+      };
+      putJingle(0, 1.2, "intro");
+      putJingle(Math.max(0, totalMs - 4500), 1.0, "outro");
+    }
+    finalInputs.unshift("[vmixout]");
+    filtros.push(`${finalInputs.join("")}amix=inputs=${finalInputs.length}:normalize=0:dropout_transition=0[mix]`);
+    filtros.push("[mix]loudnorm=I=-16:TP=-1.5:LRA=11[norm]");
+
+    const outDir = path.join(REPO, "data", "tts", "master");
+    fs.mkdirSync(outDir, { recursive: true });
+    const outFile = path.join(outDir, `programa-${Date.now()}.${formato}`);
+    const args = ["-y", ...inputs.flatMap((i) => ["-i", i]), "-filter_complex", filtros.join(";"), "-map", "[norm]"];
+    if (formato === "mp3") {
+      args.push("-codec:a", "libmp3lame", "-b:a", `${kbps}k`, outFile);
+    } else {
+      args.push("-codec:a", "pcm_s16le", outFile);
+    }
+    await execFileAsync(ffmpeg, args, { timeout: 900000 });
+
+    json(res, 200, {
+      master: outFile,
+      bytes: fs.statSync(outFile).size,
+      turnos: turnosMezcla.length,
+      duracionTotalMs: totalMs,
+      bedUsada: !!bedFile,
+      jingleUsado: jingleIdx.length > 0,
+      introOutro: jingleIdx.length,
+      cortinillas: 0,
+      formato,
+      kbps: formato === "mp3" ? kbps : null,
+    });
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+const TOPIC_EXPANSIONS: Record<string, string[]> = {
+  "tiempo extra": ["jornada de trabajo", "descanso semanal", "guardias", "pago de salario", "concepto 37", "biométrico asistencia", "ausentismo"],
+  extraordinario: ["jornada de trabajo", "descanso semanal", "guardias", "pago de salario", "concepto 37", "biométrico asistencia"],
+  horario: ["jornada de trabajo", "turnos", "descanso semanal", "tiempo extraordinario", "asistencia y puntualidad", "sustituciones"],
+  falta: ["retardos", "asistencia", "puntualidad", "biométrico", "sustituciones", "permisos"],
+  accidente: ["riesgos de trabajo", "incapacidad temporal", "ST-7", "dictaminación", "Ley del Seguro Social"],
+  "riesgo": ["accidentes de trabajo", "enfermedades de trabajo", "incapacidades", "equipo de protección", "comisiones de seguridad e higiene"],
+  bolsa: ["sustitutos", "aspirantes", "escalafón", "categorías", "contratación"],
+  jubila: ["pensiones", "régimen de jubilaciones", "fondo de ayuda", "beneficiarios"],
+  vacacion: ["días de descanso", "permisos", "prima vacacional"],
+  permis: ["licencias", "permisos sindicales", "faltas"],
+  sindica: ["comisión sindical", "honor y justicia", "derechos sindicales"],
+  nomina: ["pago de salario", "conceptos de nómina", "descuentos"],
+  violencia: ["acoso laboral", "hostigamiento", "denuncia", "protocolo"],
+};
+
+function expansionQueries(tema: string): string[] {
+  const t = tema.toLowerCase();
+  const found: string[] = [];
+  for (const [key, queries] of Object.entries(TOPIC_EXPANSIONS)) {
+    if (t.includes(key)) found.push(...queries);
+  }
+  return [...new Set(found)].slice(0, 8);
+}
+
+/** Extrae el primer objeto JSON {..} de la respuesta del LLM (los modelos pequeños
+ *  a veces envuelven el JSON en texto o lo cortan a mitad). */
+function extraerJson(raw: string): string {
+  const s = raw ?? "";
+  const ini = s.indexOf("{");
+  const fin = s.lastIndexOf("}");
+  if (ini === -1 || fin === -1 || fin <= ini) throw new Error("sin JSON en la respuesta");
+  return s.slice(ini, fin + 1);
+}
+
+function scriptScenesFromTurns(turns: DialogueTurn[]): EpisodeScript["scenes"] {
+  const scenes: EpisodeScript["scenes"] = [];
+  let current = { id: "s1", titulo: "Apertura", turns: [] as DialogueTurn[] };
+  for (const t of turns) {
+    if (current.turns.length > 0 && /cambio editorial|transici[oó]n|secci[oó]n/i.test(t.transition ?? "")) {
+      scenes.push(current);
+      current = { id: `s${scenes.length + 1}`, titulo: "Desarrollo", turns: [] };
+    }
+    current.turns.push(t);
+  }
+  if (current.turns.length > 0) scenes.push(current);
+  if (scenes.length > 0) scenes[0] = { ...scenes[0], titulo: "Apertura" };
+  if (scenes.length > 1) scenes[scenes.length - 1] = { ...scenes[scenes.length - 1], titulo: "Cierre" };
+  return scenes;
+}
+
+function speakerPromptLine(s: SpeakerProfile): string {
+  const extra = [
+    s.genero ? `género: ${s.genero}` : null,
+    s.timbre ? `timbre: ${s.timbre}` : null,
+    s.rangoEdad ? `edad vocal: ${s.rangoEdad}` : null,
+    s.acento ? `acento: ${s.acento}` : null,
+    s.ritmo ? `ritmo: ${s.ritmo}` : null,
+    s.energia ? `energía: ${s.energia}/5` : null,
+    s.autoridad ? `autoridad: ${s.autoridad}` : null,
+    s.cercania ? `cercanía: ${s.cercania}` : null,
+    s.especialidad ? `especialidad: ${s.especialidad}` : null,
+    s.funcionEditorial ? `función editorial: ${s.funcionEditorial}` : null,
+    s.frecuenciaPreguntas ? `preguntas: ${s.frecuenciaPreguntas}` : null,
+    s.longitud ? `turnos: ${s.longitud}` : null,
+    s.puedeInterrumpir ? "puede interrumpir con reacciones breves" : null,
+    s.puedeEjemplificar ? "puede poner ejemplos" : null,
+    s.puedeCerrar ? "puede cerrar bloques" : null,
+  ].filter(Boolean).join("; ");
+  return `- ${s.id} (${s.nombre}, ${s.rol}, voz ${s.voz}): ${s.personalidad}${extra ? ` [${extra}]` : ""}`;
+}
+
+function interactionStylePrompt(nivel: DirectorInput["nivel"]): string {
+  if (nivel === "informativo") {
+    return [
+      "FORMATO INFORMATIVO:",
+      "- Ritmo sereno, explicaciones ordenadas y pocas interrupciones.",
+      "- Turnos de 2 a 4 frases cuando haga falta explicar un punto.",
+      "- Pausas amplias: pauseBeforeMs y pauseAfterMs entre 380 y 620.",
+      "- energy 2, pace normal, canOverlap siempre false.",
+    ].join("\n");
+  }
+  if (nivel === "dinamico") {
+    return [
+      "FORMATO DINÁMICO:",
+      "- Ritmo ágil, respuestas breves, preguntas directas y cambios editoriales más visibles.",
+      "- Turnos de 1 a 2 frases; evita bloques largos.",
+      "- Pausas cortas: pauseBeforeMs y pauseAfterMs entre 60 y 200.",
+      "- energy 4, pace rapido; canOverlap true solo en reacciones muy cortas.",
+      "- Incluye más contraste entre duda, ejemplo práctico y resumen.",
+    ].join("\n");
+  }
+  return [
+    "FORMATO RADIO NATURAL:",
+    "- Conversación equilibrada, cercana y fluida.",
+    "- Turnos de 1 a 3 frases, con preguntas y ejemplos sin sonar acelerado.",
+    "- Pausas naturales: pauseBeforeMs y pauseAfterMs entre 140 y 320.",
+    "- energy 3, pace normal; canOverlap true solo en reacciones breves.",
+  ].join("\n");
+}
+
+function normalizeTurnByInteraction(t: DialogueTurn, nivel: DirectorInput["nivel"]): DialogueTurn {
+  if (nivel === "informativo") {
+    return {
+      ...t,
+      pauseBeforeMs: Math.max(380, Math.min(620, t.pauseBeforeMs)),
+      pauseAfterMs: Math.max(380, Math.min(620, t.pauseAfterMs)),
+      energy: Math.min(3, Math.max(1, t.energy)) as DialogueTurn["energy"],
+      pace: "normal",
+      canOverlap: false,
+    };
+  }
+  if (nivel === "dinamico") {
+    const breve = t.text.trim().split(/\s+/).length <= 12;
+    return {
+      ...t,
+      pauseBeforeMs: Math.max(60, Math.min(200, t.pauseBeforeMs)),
+      pauseAfterMs: Math.max(60, Math.min(220, t.pauseAfterMs)),
+      energy: Math.max(4, t.energy) as DialogueTurn["energy"],
+      pace: "rapido",
+      canOverlap: breve && t.canOverlap,
+    };
+  }
+  return {
+    ...t,
+    pauseBeforeMs: Math.max(140, Math.min(320, t.pauseBeforeMs)),
+    pauseAfterMs: Math.max(140, Math.min(320, t.pauseAfterMs)),
+    energy: Math.max(2, Math.min(4, t.energy)) as DialogueTurn["energy"],
+    pace: "normal",
+    canOverlap: t.text.trim().split(/\s+/).length <= 14 && t.canOverlap,
+  };
+}
+
+function estimateScriptDurationSec(turns: DialogueTurn[]): number {
+  return Math.round(turns.reduce((a, t) => a + t.text.trim().split(/\s+/).length / 2.6, 0));
+}
+
+function insertSponsorSlots(script: EpisodeScript, opts: { enabled: boolean; count?: number; durationSec?: number }): EpisodeScript {
+  if (!opts.enabled || script.turns.length < 14) return script;
+  if (script.turns.some((t) => t.adSlot)) return script;
+  const count = Math.max(1, Math.min(3, Math.round(opts.count ?? (script.turns.length >= 36 ? 2 : 1))));
+  const durationSec = Math.max(10, Math.min(90, Math.round(opts.durationSec ?? 30)));
+  const positions = count === 1
+    ? [Math.floor(script.turns.length * 0.55)]
+    : Array.from({ length: count }, (_, i) => Math.floor(script.turns.length * ((i + 1) / (count + 1))));
+  let added = 0;
+  const turns = [...script.turns];
+  for (const pos of positions.sort((a, b) => b - a)) {
+    const at = Math.min(Math.max(4, pos), turns.length - 4);
+    added += 1;
+    turns.splice(at, 0, {
+      id: `ad${String(added).padStart(2, "0")}`,
+      speaker: script.speakers.some((s) => s.id === "VALERIA") ? "VALERIA" : "NARRADOR",
+      text: `Espacio comercial disponible de ${durationSec} segundos. Edita este bloque cuando haya patrocinador.`,
+      kind: "ad",
+      adSlot: true,
+      adDurationSec: durationSec,
+      sponsorName: null,
+      pauseBeforeMs: 220,
+      pauseAfterMs: 220,
+      energy: 2,
+      pace: "normal",
+      canOverlap: false,
+      transition: "espacio comercial",
+      citations: [],
+    });
+  }
+  return {
+    ...script,
+    turns,
+    scenes: scriptScenesFromTurns(turns),
+    estimacionDurSec: estimateScriptDurationSec(turns) + count * durationSec,
+  };
+}
+
+function normalizeLlMTurns(input: Array<Partial<DialogueTurn> & { speaker?: string; text?: string }>, fallback: DialogueTurn[]): DialogueTurn[] {
+  const byId = new Map(fallback.map((t) => [t.id, t]));
+  return input
+    .filter((t) => String(t.text ?? "").trim().length > 0)
+    .map((t, i) => {
+      const prev = typeof t.id === "string" ? byId.get(t.id) : fallback[i];
+      return {
+        id: typeof t.id === "string" && t.id.trim() ? t.id : `aj${String(i + 1).padStart(3, "0")}`,
+        speaker: String(t.speaker ?? prev?.speaker ?? DEFAULT_SPEAKERS[i % 2].id),
+        text: String(t.text ?? prev?.text ?? "").trim(),
+        kind: t.kind === "ad" || prev?.kind === "ad" ? "ad" : "dialogue",
+        adSlot: typeof t.adSlot === "boolean" ? t.adSlot : !!prev?.adSlot,
+        adDurationSec: Number.isFinite(Number(t.adDurationSec)) ? Number(t.adDurationSec) : prev?.adDurationSec,
+        sponsorName: typeof t.sponsorName === "string" ? t.sponsorName : prev?.sponsorName ?? null,
+        pauseBeforeMs: Number.isFinite(Number(t.pauseBeforeMs)) ? Number(t.pauseBeforeMs) : (prev?.pauseBeforeMs ?? 120),
+        pauseAfterMs: Number.isFinite(Number(t.pauseAfterMs)) ? Number(t.pauseAfterMs) : (prev?.pauseAfterMs ?? 160),
+        energy: Math.min(5, Math.max(1, Number(t.energy) || prev?.energy || 3)) as 1 | 2 | 3 | 4 | 5,
+        pace: (["lento", "normal", "rapido"].includes(String(t.pace)) ? String(t.pace) : prev?.pace ?? "normal") as "lento" | "normal" | "rapido",
+        canOverlap: typeof t.canOverlap === "boolean" ? t.canOverlap : !!prev?.canOverlap,
+        transition: typeof t.transition === "string" ? t.transition : null,
+        citations: Array.isArray(t.citations) ? t.citations.map(String).filter((c) => /^E?\d+|C\d+$/i.test(c)) : (prev?.citations ?? []),
+      };
+    });
+}
+
+async function handleAjustarGuion(res: http.ServerResponse, body: Record<string, unknown>) {
+  const script = body.script as EpisodeScript | undefined;
+  const contexto = String(body.contexto ?? "").trim();
+  const scope = String(body.scope ?? "todo");
+  if (!script || !Array.isArray(script.turns) || script.turns.length === 0) return json(res, 400, { error: "guion vacío" });
+  if (!contexto) return json(res, 400, { error: "contexto vacío" });
+
+  const provider = resolveProvider("deepseek") ?? resolveProvider();
+  if (!provider) return json(res, 503, { error: "DeepSeek no está configurado y no hay proveedor alterno disponible" });
+
+  const catalog = new NormativeCatalog(REPO);
+  const pack = catalog.buildEvidencePack(`${script.tema} ${contexto}`, { limit: 30 });
+  const targetTurns = scope === "todo"
+    ? script.turns
+    : script.scenes.find((s) => s.id === scope)?.turns ?? script.turns.filter((t) => t.id === scope);
+  if (targetTurns.length === 0) return json(res, 400, { error: "no encontré la parte seleccionada" });
+
+  const evidencia = pack.claims.slice(0, 30).map((c, i) => {
+    const e = c.evidence[0];
+    return `E${i + 1} | ${e?.documentId ?? "?"}${e?.clause ? ` ${e.clause}` : ""}${e?.article ? ` ${e.article}` : ""}${e?.pdfPage != null ? ` pág.${e.pdfPage}` : ""} | ${c.text.slice(0, 500)}`;
+  }).join("\n");
+  const mapaDocumental = catalog.listDocuments().slice(0, 120).map((d) => {
+    const ver = d.currentVersion ? catalog.getVersion(d.currentVersion) : null;
+    return `${d.id} | ${d.category} | ${d.validity} | ${d.title}${ver?.pages ? ` | ${ver.pages} pág.` : ""}`;
+  }).join("\n");
+  const guionCompleto = script.turns.map((t) => `${t.id} | ${t.speaker}: ${t.text}`).join("\n");
+  const parte = targetTurns.map((t) => `${t.id} | ${t.speaker}: ${t.text}`).join("\n");
+  const speakerIds = script.speakers.map((s) => s.id).join("|");
+  const speakerLines = script.speakers.map(speakerPromptLine).join("\n");
+
+  const raw = await provider.complete({
+    system: `Eres editor de podcast de La Veinte Digital. Ajustas guiones para trabajadoras y trabajadores del IMSS usando SOLO el corpus recibido. Conserva el tono vivo, cercano y conversacional. No borres el guion completo si se pidió una parte. No inventes derechos, cifras, plazos, artículos ni cláusulas. Si el contexto pide algo sin soporte, conviértelo en duda o advertencia de cobertura.`,
+    user: `TEMA: ${script.tema}
+ALCANCE: ${scope === "todo" ? "todo el guion" : "solo la parte seleccionada"}
+LOCUTORES DISPONIBLES:
+${speakerLines}
+
+CONTEXTO NUEVO DEL USUARIO:
+${contexto}
+
+GUIÓN COMPLETO PARA CONTEXTO, NO LO REPITAS ENTERO SI EL ALCANCE ES PARCIAL:
+${guionCompleto.slice(0, 14000)}
+
+PARTE A AJUSTAR:
+${parte}
+
+EVIDENCIA DOCUMENTAL DISPONIBLE:
+${evidencia}
+
+MAPA COMPLETO DE LA BIBLIOTECA PARA UBICAR HUECOS O FUENTES RELACIONADAS:
+${mapaDocumental}
+
+Instrucciones:
+- Devuelve SOLO los turnos ajustados del alcance indicado.
+- Mantén los ids existentes cuando edites un turno.
+- Puedes añadir turnos nuevos si el contexto lo necesita; usa ids "new-1", "new-2", etc.
+- No cambies locutores fuera del alcance.
+- Usa solo estos locutores: ${speakerIds}.
+- No uses cortinillas internas; para cambio de bloque usa "cambio editorial".
+- Cada turno debe ser breve, natural y aportar algo nuevo.
+
+Devuelve únicamente JSON: {"turns":[{"id":"...","speaker":"${speakerIds}","text":"...","pauseBeforeMs":120,"pauseAfterMs":160,"energy":3,"pace":"normal","canOverlap":false,"transition":null,"citations":["E1"]}],"nota":"resumen breve del ajuste"}`,
+    json: true,
+    maxTokens: 7000,
+    temperature: 0.55,
+  });
+
+  const parsed = JSON.parse(extraerJson(raw)) as { turns?: Array<Partial<DialogueTurn> & { speaker?: string; text?: string }>; nota?: string };
+  if (!Array.isArray(parsed.turns) || parsed.turns.length === 0) return json(res, 502, { error: "DeepSeek no devolvió turnos útiles" });
+  let nuevos = normalizeLlMTurns(parsed.turns, targetTurns);
+
+  const targetIds = new Set(targetTurns.map((t) => t.id));
+  let newSeq = 0;
+  nuevos = nuevos.map((t) => {
+    if (!/^new-/i.test(t.id)) return t;
+    newSeq += 1;
+    return { ...t, id: `aj${Date.now()}-${newSeq}` };
+  });
+
+  const merged = scope === "todo"
+    ? nuevos
+    : script.turns.flatMap((t) => targetIds.has(t.id) && t.id === targetTurns[0].id ? nuevos : targetIds.has(t.id) ? [] : [t]);
+
+  const sanitized = sanitizeEditorialScript({
+    ...script,
+    turns: merged,
+    scenes: scriptScenesFromTurns(merged),
+    estimacionDurSec: estimateScriptDurationSec(merged),
+  });
+
+  const verificacion = sanitized.script.turns.map((t) => {
+    if (t.text.trim().length < 25) return { turnId: t.id, semaforo: "green" as const, detalle: null };
+    const check = catalog.verifyClaim(t.text);
+    if (check.state === "VERIFIED") return { turnId: t.id, semaforo: "green" as const, detalle: null };
+    if (t.citations.length > 0) return { turnId: t.id, semaforo: "yellow" as const, detalle: "Cita declarada sin soporte directo encontrado — revisar" };
+    return { turnId: t.id, semaforo: "yellow" as const, detalle: "Ajuste editorial sin soporte directo — revisar antes de producir" };
+  });
+
+  json(res, 200, {
+    script: sanitized.script,
+    nota: parsed.nota ?? "ajuste aplicado",
+    proveedor: provider.name,
+    editorialQa: sanitized.qa,
+    editorialCambios: sanitized.cambios,
+    verificacion,
+    fragmentos: pack.relevantChunks.length,
+  });
+}
+
+async function handleDirector(res: http.ServerResponse, body: Record<string, unknown>) {
+  const tema = String(body.tema ?? "").trim();
+  if (!tema) return json(res, 400, { error: "tema vacío" });
+  const nivel = (["informativo", "natural", "dinamico"].includes(String(body.nivel)) ? String(body.nivel) : "natural") as DirectorInput["nivel"];
+  const modoCita = (["natural", "documental", "tecnico"].includes(String(body.modoCita)) ? String(body.modoCita) : "natural") as CitationMode;
+  const modo = String(body.modo ?? "determinista") as "determinista" | "ia";
+  const ampliar = body.ampliar !== false;
+  const duracionMin = Number(body.duracionMin) > 0 ? Number(body.duracionMin) : 15;
+  const contextoExtra = String(body.contextoExtra ?? "").trim();
+  const comerciales = body.comerciales !== false;
+  const duracionComercialSec = Number(body.duracionComercialSec) > 0 ? Number(body.duracionComercialSec) : 30;
+
+  const catalog = new NormativeCatalog(REPO);
+  const pack = catalog.buildEvidencePack(contextoExtra ? `${tema} ${contextoExtra}` : tema, { limit: 24 });
+  if (ampliar && duracionMin >= 15) {
+    for (const q of expansionQueries(tema)) {
+      const extra = catalog.buildEvidencePack(q, { limit: 8 });
+      for (const c of extra.claims) {
+        if (!pack.claims.some((x) => x.text === c.text)) {
+          pack.claims.push(c);
+          pack.relevantChunks.push(...extra.relevantChunks.filter((ch) => !pack.relevantChunks.includes(ch)));
+        }
+        if (pack.claims.length >= 40) break;
+      }
+      if (pack.claims.length >= 40) break;
+    }
+  }
+  const coverage = buildCoverage(catalog, tema);
+  const mapaDocumental = catalog.listDocuments().slice(0, 140).map((d) => {
+    const ver = d.currentVersion ? catalog.getVersion(d.currentVersion) : null;
+    return `${d.id} | ${d.category} | ${d.validity} | ${d.title}${ver?.pages ? ` | ${ver.pages} pág.` : ""}`;
+  }).join("\n");
+
+  const speakers: SpeakerProfile[] = Array.isArray(body.speakers) && (body.speakers as SpeakerProfile[]).length > 0
+    ? (body.speakers as SpeakerProfile[]).filter((s) => s.participa !== false)
+    : DEFAULT_SPEAKERS;
+  const speakerIds = speakers.map((s) => s.id).join("|");
+
+  let claims = pack.claims.slice(0, 40).map((c) => ({
+    id: c.id,
+    texto: c.text,
+    documento: c.evidence[0]?.documentId ?? "?",
+    clausula: c.evidence[0]?.clause ?? null,
+    articulo: c.evidence[0]?.article ?? null,
+    pagina: c.evidence[0]?.pdfPage ?? null,
+  }));
+  if (/tiempo\s+extra|extraordinario/i.test(tema)) {
+    const offTopic = /\b(pilotos?|tripulantes?|avion|avión|vuelo|descanso horizontal|barco|buque|maritimo|marítimo|musico|músico|obra de teatro|art[ií]culo 39|contrato por tiempo determinado|tiempo indeterminado|temporada|funci[oó]n espec[ií]fica|revisi[oó]n del contrato colectivo|sesenta d[ií]as naturales)\b/i;
+    const focused = claims.filter((c) => !offTopic.test(c.texto));
+    if (focused.length >= 6) claims = focused;
+  }
+
+  let script = directRadioEpisode({
+    tema,
+    duracionMin,
+    speakers,
+    nivel,
+    claims,
+    cutoff: pack.cutoff,
+    fuentes: pack.documents,
+    modoCita,
+  });
+
+  let modoUsado: "determinista" | "ia" = "determinista";
+  let proveedorUsado: string | null = null;
+  const verificacion: Array<{ turnId: string; semaforo: "green" | "yellow" | "red"; detalle: string | null }> = [];
+
+  if (modo === "ia") {
+    const provider = resolveProvider();
+    if (provider) {
+      proveedorUsado = provider.name;
+      try {
+        // Generación POR SEGMENTOS: la evidencia se parte en lotes y cada lote produce
+        // una llamada LLM con ~20-30 turnos conversacionales. Se concatenan todos.
+        const LOTE = 3;
+        const lotes: Array<typeof claims> = [];
+        for (let i = 0; i < claims.length; i += LOTE) lotes.push(claims.slice(i, i + LOTE));
+        let llmTurns: DialogueTurn[] = [];
+        let idSeq = 0;
+
+        const systemIA = `Eres un DIRECTOR DE RADIO para trabajadores del IMSS. Recibes un lote de evidencia normativa verificada y escribes un SEGMENTO de diálogo entre locutores para un episodio de podcast.
+
+Personalidades:
+${speakers.map(speakerPromptLine).join("\n")}
+
+Tono: conversación ENTRE AMIGOS que se llevan bien y explican algo a otros compañeros de trabajo. NO eres locutor formal de radio. Habla natural, cercano, con humor ligero, como dos colegas platicando en un descanso. Evita fórmulas de locutor ("queridos audientes", "bienvenidos a", "sin más preámbulo", "para cerrar este segmento"). Evita repetir muletillas ("exacto", "claro que sí", "perfecto") más de una vez cada tres turnos.
+
+${interactionStylePrompt(nivel)}
+
+${editorialPromptRules()}
+
+Estructura permanente de La Veinte Digital:
+- El episodio completo debe sentirse como programa de revista laboral, no como lectura de artículos ni entrevista plana.
+- Secuencia base: Apertura breve -> Caso de arranque -> Qué dice la normativa -> Ojo con esto -> Caso práctico o consultorio -> Cómo documentarlo -> Cierre práctico.
+- Si el episodio dura 15 minutos o más, alterna subtemas relacionados dentro del mismo tema central para evitar monotonía: regla, excepción, trámite, error común, ejemplo de unidad, duda frecuente y paso práctico.
+- Cada segmento debe tener una función clara: plantear una duda real, explicar una regla, aterrizarla, advertir un error o decir qué revisar.
+- No repitas la misma dinámica dos segmentos seguidos. Después de una explicación debe venir pregunta, ejemplo, alerta o mini-resumen.
+- El cierre siempre deja 3 pasos accionables, sin convertirlo en asesoría individual.
+
+Reglas estrictas:
+- NO puedes añadir derechos, plazos, cantidades, porcentajes, requisitos, artículos o cláusulas que no estén en la evidencia del lote.
+- Para episodios sobre tiempo extraordinario, NO abras temas de contratos por temporada/duración, pilotos, barcos, músicos, revisión del contrato colectivo ni artículos laborales ajenos al pago/registro/jornada de tiempo extra.
+- PROHIBIDO decir "no sé", "no te sé decir" o dejar un dato normativo en duda. Si la evidencia no alcanza, cambia a una recomendación segura: revisar recibo, orden escrita y acudir a representación sindical.
+- PROHIBIDO narrar anécdotas o experiencias personales inventadas de los locutores ("a mí me pasó", "yo hablé con mi jefe", "la semana pasada intenté…"). Los locutores solo explican la norma con ejemplos hipotéticos claramente marcados ("por ejemplo, imagina que un compañero…"). NUNCA digas que tú o el otro locutor vivieron una situación.
+- Reformula el texto legal en lenguaje hablado; NUNCA lo leas literal.
+- Diálogo conversacional: preguntas, respuestas, reacciones cortas, ejemplos hipotéticos ("por ejemplo, imagina…"), variedad de inicios de frase y de estructura de oración.
+- VARIEDAD OBLIGATORIA: nunca repitas la misma pregunta, la misma respuesta o el mismo ejemplo dentro de un segmento. Cada turno debe aportar información o matiz nuevo. Si ya dijiste una idea, no la reformules otra vez; pasa a la siguiente.
+- Alternancia real: nunca dos turnos largos seguidos del mismo locutor; intercala preguntas cortas.
+- Usa exclusivamente estos personajes elegidos para este episodio: ${speakerIds}. No inventes invitados, expertos, representantes ni trabajadores con nombre propio. El narrador solo dice citas breves en modo natural ("De acuerdo con el Contrato Colectivo vigente."), sin leer cláusulas ni páginas al aire. Si Rodrigo Torres está en el reparto, úsalo solo cuando aporte reporte de campo, duda de unidad o contexto de piso; si Valeria Soto está en el reparto, no la uses en contenido editorial porque sus bloques comerciales se insertan aparte.
+- TRANSICIONES: no uses cortinillas internas. Cuando cambies de tema o de sección dentro del segmento, marca el turno con "transition": "cambio editorial". La música solo entra como intro y outro super cortos en la mezcla final.
+- La investigación considera el mapa completo de la biblioteca. Usa la evidencia relevante del lote para afirmar cosas y el mapa documental para detectar huecos o documentos relacionados.
+- Si hay espacios comerciales configurados, no los escribas como contenido editorial; se insertan aparte como bloques editables.
+- Escribe entre 8 y 14 turnos para cubrir TODO el lote de evidencia (turnos cortos y naturales, no bloques largos).
+- Cada turno: {"speaker": "${speakerIds}", "text": "...", "pauseBeforeMs": número, "pauseAfterMs": número, "energy": 1-5, "pace": "lento|normal|rapido", "canOverlap": bool (solo reacciones cortas), "transition": string|null, "citations": ["E1", ...]}
+
+Devuelve ÚNICAMENTE JSON: {"turns": [...]}`;
+
+        for (const [idx, lote] of lotes.entries()) {
+          const citationLines = lote
+            .map((c, i) => `E${idx * LOTE + i + 1} | ${c.documento}${c.clausula ? ` ${c.clausula}` : ""}${c.articulo ? ` ${c.articulo}` : ""}${c.pagina != null ? ` pág.${c.pagina}` : ""} | ${c.texto.slice(0, 420)}`)
+            .join("\n");
+          const esPrimero = idx === 0;
+          const esUltimo = idx === lotes.length - 1;
+          const instrucciones = [
+            `OBJETIVO EDITORIAL: ${editorialSegmentGoal(idx, lotes.length)}`,
+            esPrimero
+              ? "Este es el PRIMER segmento: SALUDA UNA SOLA VEZ y presenta el tema en 1-2 turnos; luego entra directo a la plática."
+              : "Este NO es el inicio: NO saludes de nuevo, NO vuelvas a presentar el tema ni digas 'bienvenidos'. Continúa la conversación exactamente donde quedó el contexto anterior.",
+            esUltimo ? "Este es el ÚLTIMO segmento: cierra con un breve resumen de 2-3 turnos y una despedida cálida entre amigos." : null,
+          ].filter(Boolean).join(" ");
+
+          // Contexto acumulado: evita repetir saludos, re-presentaciones y frases ya dichas.
+          const contextoPrevio = llmTurns.length > 0
+            ? llmTurns.slice(-4).map((t) => `${t.speaker}: ${t.text.slice(0, 110)}`).join("\n")
+            : "(ninguno — es el inicio)";
+
+          // Reintenta segmentos que el LLM trunque o devuelva vacíos.
+          let parsed: { turns?: Array<Partial<DialogueTurn> & { speaker: string; text: string }> } | null = null;
+          for (let intento = 1; intento <= 3; intento++) {
+            let raw: string;
+            try {
+              raw = await provider.complete({
+                system: systemIA,
+                user: `TEMA: ${tema}\nNIVEL: ${nivel}\nDURACIÓN OBJETIVO DEL EPISODIO: ${duracionMin} min (este es el segmento ${idx + 1} de ${lotes.length}).\n${contextoExtra ? `CONTEXTO EDITORIAL DEL USUARIO: ${contextoExtra}\n` : ""}${instrucciones}\n\nÚLTIMOS TURNOS YA DICHOS (no los repitas):\n${contextoPrevio}\n\nEVIDENCIA DEL LOTE:\n${citationLines}\n\nMAPA COMPLETO DE LA BIBLIOTECA (úsalo para saber qué documentos existen y qué podría faltar; no inventes contenido de documentos no citados en evidencia):\n${mapaDocumental}\n\nEscribe el segmento.`,
+                json: true,
+                maxTokens: 9000,
+                temperature: 0.8,
+              });
+            } catch (e) {
+              console.warn(`[director-ia] segmento ${idx + 1}: error de llamada LLM (${e instanceof Error ? e.message : e}), reintentando`);
+              continue;
+            }
+            try {
+              parsed = JSON.parse(extraerJson(raw)) as { turns?: Array<Partial<DialogueTurn> & { speaker: string; text: string }> };
+            } catch {
+              console.warn(`[director-ia] segmento ${idx + 1}: JSON inválido en intento ${intento}, reintentando`);
+              continue;
+            }
+            if (Array.isArray(parsed.turns) && parsed.turns.length >= 6) break;
+            console.warn(`[director-ia] segmento ${idx + 1}: intento ${intento} dio ${parsed.turns?.length ?? 0} turnos, reintentando`);
+          }
+          if (!parsed || !Array.isArray(parsed.turns) || parsed.turns.length < 3) {
+            throw new Error(`segmento ${idx + 1}: respuestas insuficientes tras reintentos (${parsed?.turns?.length ?? 0} turnos)`);
+          }
+          for (const t of parsed.turns) {
+            idSeq += 1;
+            const turno: DialogueTurn = {
+              id: `ia${String(idSeq).padStart(3, "0")}`,
+              speaker: t.speaker ?? speakers[0].id,
+              text: String(t.text ?? ""),
+              pauseBeforeMs: Number(t.pauseBeforeMs) || 200,
+              pauseAfterMs: Number(t.pauseAfterMs) || 200,
+              energy: Math.min(5, Math.max(1, Number(t.energy) || 3)) as 1 | 2 | 3 | 4 | 5,
+              pace: (["lento", "normal", "rapido"].includes(String(t.pace)) ? String(t.pace) : "normal") as "lento" | "normal" | "rapido",
+              canOverlap: !!t.canOverlap,
+              transition: typeof t.transition === "string" ? t.transition : null,
+              citations: Array.isArray(t.citations) ? t.citations.filter((c) => /^E\d+$/.test(String(c))) : [],
+            };
+            llmTurns.push(normalizeTurnByInteraction(turno, nivel));
+          }
+          console.log(`[director-ia] segmento ${idx + 1}/${lotes.length}: +${parsed.turns.length} turnos`);
+        }
+
+        if (llmTurns.length >= 20) {
+          // Deduplicación de turnos casi-idénticos: el LLM pequeño tiende a repetir
+          // la misma frase (sobre todo el narrador). Se conserva el primero de cada grupo.
+          const norm = (s: string) => s.toLowerCase().replace(/[^\w ]/g, " ").replace(/\s+/g, " ").trim();
+          const filtrados: DialogueTurn[] = [];
+          const vistos = new Set<string>();
+          for (const t of llmTurns) {
+            const k = norm(t.text);
+            if (k.length < 15) { filtrados.push(t); continue; }
+            const tokens = new Set(k.split(" "));
+            let duplicado = false;
+            for (const prevKey of vistos) {
+              const prevTokens = new Set(prevKey.split(" "));
+              const inter = [...tokens].filter((x) => prevTokens.has(x)).length;
+              const union = tokens.size + prevTokens.size - inter;
+              if (union > 0 && inter / union > 0.9) { duplicado = true; break; }
+            }
+            if (duplicado) continue;
+            vistos.add(k);
+            filtrados.push(t);
+          }
+          if (filtrados.length < 20) {
+            throw new Error(`dedup dejó pocos turnos (${filtrados.length})`);
+          }
+          llmTurns = filtrados;
+          console.log(`[director-ia] dedup: ${llmTurns.length} turnos tras eliminar repetidos`);
+        }
+
+        if (llmTurns.length >= 20) {
+          // ScriptVerifier: toda afirmación verificable debe tener soporte en el corpus.
+          for (const t of llmTurns) {
+            if (t.text.trim().length < 25) {
+              verificacion.push({ turnId: t.id, semaforo: "green", detalle: null });
+              continue;
+            }
+            const check = catalog.verifyClaim(t.text);
+            if (check.state === "VERIFIED") {
+              verificacion.push({ turnId: t.id, semaforo: "green", detalle: null });
+            } else if (t.citations.length > 0) {
+              verificacion.push({ turnId: t.id, semaforo: "yellow", detalle: "Cita declarada sin soporte directo encontrado — revisar" });
+            } else {
+              verificacion.push({ turnId: t.id, semaforo: "red", detalle: "Afirmación sin sustento en el corpus — NO VERIFICADO" });
+            }
+          }
+
+          const scenesIA = script.scenes.map((s, i) => ({
+            id: s.id,
+            titulo: i === 0 ? "Apertura" : i === script.scenes.length - 1 ? "Cierre" : "Desarrollo",
+            turns: [] as DialogueTurn[],
+          }));
+          script = {
+            ...script,
+            turns: llmTurns,
+            scenes: scenesIA.length > 0 ? scenesIA : [{ id: "s1", titulo: "Programa", turns: llmTurns }],
+            estimacionDurSec: Math.round(llmTurns.reduce((a, t) => a + t.text.trim().split(/\s+/).length / 2.6, 0)),
+          };
+          modoUsado = "ia";
+        } else {
+          throw new Error(`llamadas IA produjeron pocos turnos (${llmTurns.length})`);
+        }
+      } catch (e) {
+        // El director IA falló: se conserva el guion determinista (red de seguridad).
+        proveedorUsado = null;
+        console.warn(`[director-ia] fallback determinista: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+  }
+
+  const diversity = analyzeDiversity(script);
+
+  // Segunda pasada de naturalidad (opcional por defecto ACTIVADA):
+  // modifica estilo, no contenido factual; luego re-verifica.
+  let pulido = false;
+  let polishNote: string | null = null;
+  if (body.pulir !== false) {
+    const result = polishDialogue(script);
+    if (result.lineasFactualesIntactas) {
+      script = result.script;
+      pulido = result.cambios > 0;
+      if (pulido) {
+        for (const t of script.turns) {
+          if (t.citations.length === 0 && t.text.trim().length >= 25) {
+            const check = catalog.verifyClaim(t.text);
+            if (check.state !== "VERIFIED") {
+              verificacion.push({ turnId: t.id, semaforo: "yellow", detalle: "Línea pulida sin soporte directo — es estilo, revisar" });
+            }
+          }
+        }
+      }
+      polishNote = result.cambios > 0 ? `${result.cambios} ajustes de estilo aplicados (contenido factual intacto)` : "sin cambios de estilo necesarios";
+    } else {
+      polishNote = "polisher omitido: modificó líneas factuales — se conservó el original";
+    }
+  }
+
+  script = insertSponsorSlots(script, { enabled: comerciales, durationSec: duracionComercialSec });
+  const editorial = sanitizeEditorialScript(script);
+  script = editorial.script;
+  const diversitySanitized = analyzeDiversity(script);
+  const editorialQa = editorial.qa;
+
+  json(res, 200, {
+    script,
+    modoUsado,
+    proveedor: proveedorUsado,
+    verificacion,
+    diversity: diversitySanitized,
+    diversityAntes: pulido ? diversity : null,
+    pulido,
+    polishNote,
+    editorialQa,
+    editorialCambios: editorial.cambios,
+    recomendacion: duracionMin > 10 ? "ia" : "determinista",
+    recomendacionDetalle:
+      duracionMin > 10
+        ? "Para programas largos se recomienda 'Natural con IA' (el modo determinista tiende a repetirse). El determinista permanece como fallback offline."
+        : "El modo determinista es suficiente para programas cortos.",
+    cobertura: {
+      porcentaje: coverage.coverage,
+      recomendado: coverage.recommended,
+      items: coverage.items.map((i) => ({ label: i.label, estado: i.status === "available" ? "ok" : i.status === "review" ? "revisar" : "faltante" })),
+      advertencias: coverage.warnings,
+    },
+    fragmentos: pack.relevantChunks.length,
+  });
+}
+
+async function handleMedia(res: http.ServerResponse, url: URL) {
+  const file = url.searchParams.get("file") ?? "";
+  const allowed = [
+    path.join(REPO, "data", "tts", "cache"),
+    path.join(REPO, "data", "tts", "music"),
+    path.join(REPO, "data", "tts", "master"),
+    path.join(REPO, "data", "tts", "casting"),
+  ];
+  const target = path.resolve(file);
+  if (!allowed.some((a) => target.startsWith(a)) || !fs.existsSync(target)) {
+    return json(res, 404, { error: "archivo no disponible" });
+  }
+  const ext = path.extname(target).toLowerCase();
+  const mime = ext === ".wav" ? "audio/wav" : ext === ".mp3" ? "audio/mpeg" : "application/octet-stream";
+  const buf = fs.readFileSync(target);
+  res.writeHead(200, { "Content-Type": mime, "Content-Length": buf.length, "Access-Control-Allow-Origin": "*" });
+  res.end(buf);
+}
+
+const MUSICA_TIPOS: MusicaTipo[] = ["bed", "jingle", "sfx", "cortinilla", "ambiente"];
+
+/** Estado del motor ACE-Step (server local de música). */
+async function aceStepEstado(): Promise<Record<string, unknown>> {
+  try {
+    const health = await fetch(`${ACE_API}/health`, { signal: AbortSignal.timeout(5000) }).then((r) => r.json());
+    const d = (health.data ?? {}) as { service?: string; models_initialized?: boolean; loaded_model?: string };
+    return {
+      online: true,
+      servicio: d.service ?? "ACE-Step API",
+      modelo: d.loaded_model ?? null,
+      modelosCargados: d.models_initialized ?? false,
+    };
+  } catch {
+    return { online: false, servicio: null, modelo: null, modelosCargados: false, starting: false };
+  }
+}
+
+async function handleMusica(res: http.ServerResponse) {
+  const musicDir = path.join(REPO, "data", "tts", "music");
+  const items: Array<Record<string, unknown>> = [];
+  if (fs.existsSync(musicDir)) {
+    for (const f of fs.readdirSync(musicDir)) {
+      if (!/\.(wav|mp3|m4a)$/i.test(f)) continue;
+      const esAce = /-ace-/.test(f);
+      const esTest = /prueba|test/i.test(f);
+      items.push({
+        nombre: f,
+        categoria: /jingle/.test(f) ? "jingle" : /cortinilla/.test(f) ? "cortinilla" : /bed|cama/.test(f) ? "bed" : /sfx/.test(f) ? "sfx" : "ambiente",
+        duracionSec: null,
+        licencia: esAce ? "MIT — ACE-Step 1.5" : esTest ? "TEST_ONLY_PLACEHOLDER" : "UNKNOWN",
+        origen: esAce ? "generado localmente con ACE-Step 1.5 (acestep-v15-turbo, DiT, GTX 1650)" : esTest ? "sintetizado con ffmpeg (placeholder)" : "desconocido",
+        notas: esTest ? "PLACEHOLDER DE PRUEBA — sustituir por música licenciada" : "",
+        bytes: fs.statSync(path.join(musicDir, f)).size,
+      });
+    }
+  }
+  json(res, 200, items);
+}
+
+async function handleMusicaGenerar(res: http.ServerResponse, body: Record<string, unknown>) {
+  const prompt = String(body.prompt ?? "").trim();
+  if (!prompt) return json(res, 400, { error: "prompt vacío" });
+  const tipo = (MUSICA_TIPOS.includes(body.tipo as MusicaTipo) ? body.tipo : "bed") as MusicaTipo;
+  const duracionSec = Math.min(120, Math.max(2, Number(body.duracionSec) || 30));
+
+  const existente = leerJobMusica();
+  if (existente && musicaWorkerVivo()) return json(res, 409, { error: "ya hay una generación musical en curso", job: resumenJobMusica(existente) });
+  // El worker anterior murió (caída/cancelación forzada): el job queda en estado
+  // RUNNING sin proceso vivo. Se marca como interrumpido para no bloquear el siguiente.
+  if (existente && existente.estado === "RUNNING") {
+    existente.estado = "INTERRUPTED";
+    existente.error = "el worker murió sin finalizar la generación";
+    existente.notas.push("interrumpido: el worker se detuvo antes de completar");
+    guardarJobMusica(existente);
+    console.warn(`[musica] job previo ${existente.id} quedó interrumpido (worker muerto)`);
+  }
+
+  let motor = await aceStepEstado();
+  if (!motor.online) {
+    const start = startAceStepIfNeeded();
+    motor = { ...motor, starting: start.starting, startError: start.error };
+    return json(res, 503, { error: start.error ? `no pude encender ACE-Step: ${start.error}` : "ACE-Step se está encendiendo; espera unos segundos y vuelve a generar", motor });
+  }
+
+  const job = nuevoJobMusica({ prompt, duracionSec, tipo });
+  guardarJobMusica(job);
+  spawnMusicaWorker();
+  json(res, 202, { iniciado: true, job: resumenJobMusica(job) });
+}
+
+async function handleMusicaProgreso(res: http.ServerResponse) {
+  const job = leerJobMusica();
+  if (!job) return json(res, 200, { running: false, job: null });
+  const hw = await detectHardware();
+  json(res, 200, {
+    running: musicaWorkerVivo(),
+    gpu: { tempC: hw.gpu.tempC, vramUsadaMb: hw.gpu.vramUsedMb, vramTotalMb: hw.gpu.vramTotalMb },
+    job: resumenJobMusica(job),
+  });
+}
+
+async function handleMusicaMotor(res: http.ServerResponse) {
+  let motor = await aceStepEstado();
+  if (!motor.online) {
+    const start = startAceStepIfNeeded();
+    motor = { ...motor, starting: start.starting, startError: start.error };
+  }
+  const rtf = await readMusicaBenchmarkRtf();
+  json(res, 200, {
+    ...motor,
+    provider: "acestep-local",
+    modeloCompleto: "acestep-v15-turbo (DiT only, INT8, CPU offload, Tier 1)",
+    rtfBenchmark: rtf,
+    offline: true,
+    costoApi: "$0.00",
+  });
+}
+
+async function handleMusicaCancelar(res: http.ServerResponse) {
+  const job = leerJobMusica();
+  if (!job) return json(res, 404, { error: "no hay generación musical" });
+  job.estado = "PAUSED";
+  job.cancelado = true;
+  job.notas.push("cancelado por el usuario");
+  guardarJobMusica(job);
+  json(res, 200, { cancelado: true, job: resumenJobMusica(job) });
+}
+
+async function handleDocList(res: http.ServerResponse) {
+  const catalog = new NormativeCatalog(REPO);
+  const states = new Map(catalog.db.listSourceStates().map((s) => [s.id, s]));
+  json(res, 200, catalog.listDocuments().map((d) => {
+    const ver = d.currentVersion ? catalog.getVersion(d.currentVersion) : null;
+    const state = states.get(d.id);
+    return {
+      id: d.id,
+      title: d.title,
+      validity: d.validity,
+      category: d.category,
+      pages: ver?.pages ?? null,
+      versionLabel: ver?.label ?? null,
+      sourceState: state?.state ?? null,
+      lastError: state?.lastError ?? null,
+    };
+  }));
+}
+
+async function handleNormativaBuscar(res: http.ServerResponse, body: Record<string, unknown>) {
+  const query = String(body.query ?? "").trim();
+  if (!query) return json(res, 400, { error: "consulta vacía" });
+  const catalog = new NormativeCatalog(REPO);
+  const hits = catalog.searchNormativeCorpus(query, { limit: 20 });
+  json(res, 200, { total: hits.length, hits: hits.map((h) => ({
+    documentId: h.documentId,
+    documentTitle: h.documentTitle,
+    clause: h.clause,
+    article: h.article,
+    pdfPageIndex: h.pdfPageIndex,
+    printedPage: h.printedPage,
+    snippet: h.snippet.replace(/\[|\]/g, ""),
+    text: h.text,
+    validity: h.validity,
+  })) });
+}
+
+async function handleSistema(res: http.ServerResponse) {
+  const hw = await detectHardware();
+  let cpuLoad: number | null = null;
+  try {
+    const out = execFileSync("powershell", [
+      "-NoProfile", "-NonInteractive", "-Command",
+      "(Get-CimInstance Win32_Processor).LoadPercentage",
+    ], { timeout: 8000, encoding: "utf8" });
+    cpuLoad = Number(out.trim().split(/\s+/)[0]);
+    if (!Number.isFinite(cpuLoad)) cpuLoad = null;
+  } catch { /* no disponible */ }
+
+  const top: Array<{ nombre: string; cpuDelta: number }> = [];
+  try {
+    const out = execFileSync("powershell", [
+      "-NoProfile", "-NonInteractive", "-Command",
+      "$a=Get-Process | Select-Object Id,Name,CPU; Start-Sleep -Milliseconds 1200; $b=Get-Process | Select-Object Id,Name,CPU; $d=@{}; foreach($p in $a){$d[$p.Id]=$p.CPU}; foreach($p in $b){$delta=[math]::Round($p.CPU-($d[$p.Id]??0),2); if($delta -gt 0.05){[pscustomobject]@{N=$p.Name;C=$delta}}}; $r=Get-Process | Select-Object -First 0; (($b | ForEach-Object { $dd=[math]::Round($_.CPU-($d[$_.Id]??0),2); if($dd -gt 0.05){[pscustomobject]@{N=$_.Name;C=$dd}} }) | Sort-Object C -Descending | Select-Object -First 8 | ForEach-Object { \"$($_.N)=$($_.C)\" })",
+    ], { timeout: 15000, encoding: "utf8" });
+    for (const line of out.split(/\r?\n/)) {
+      const m = line.match(/^(.+)=([\d.]+)$/);
+      if (m) top.push({ nombre: m[1].trim(), cpuDelta: Number(m[2]) });
+    }
+  } catch { /* no disponible */ }
+
+  const cargaAlta = (cpuLoad != null && cpuLoad > 70) || top.some((t) => /docker|chrome|msedge|code|node|python/i.test(t.nombre) && t.cpuDelta > 1.5);
+  json(res, 200, {
+    cpuLoad,
+    ramLibreGb: hw.ramFreeGb,
+    gpu: { tempC: hw.gpu.tempC, vramUsadaMb: hw.gpu.vramUsedMb, vramTotalMb: hw.gpu.vramTotalMb, util: hw.gpu.gpuUtil },
+    procesosCompetidores: top.slice(0, 8),
+    cargaAlta,
+    aviso: cargaAlta
+      ? "⚠ Rendimiento TTS reducido por carga del sistema. Se recomienda cerrar Docker, procesos de compilación y aplicaciones pesadas antes de producir."
+      : null,
+  });
+}
+
+async function handleFallbackTts(res: http.ServerResponse, body: Record<string, unknown>) {
+  const escenas = Array.isArray(body.escenas) ? (body.escenas as Array<{ locutor: string; linea: string }>) : [];
+  if (escenas.length === 0) return json(res, 400, { error: "sin escenas" });
+  try {
+    const result = await synthesizeMp3(
+      escenas.map((s) => ({
+        text: cleanTtsText(s.linea),
+        voice: s.locutor.toUpperCase().includes("MARIANA") ? DEFAULT_VOICES.MARIANA.id : DEFAULT_VOICES.EDUARDO.id,
+      }))
+    );
+    const out = path.join(REPO, "data", "tts", "cache", `fallback-${Date.now()}.mp3`);
+    fs.writeFileSync(out, result.mp3);
+    json(res, 200, { engine: result.engine, mp3: out, bytes: result.mp3.length });
+  } catch (e) {
+    json(res, 502, { error: e instanceof Error ? e.message : String(e) });
+  }
+}
+
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url ?? "/", `http://127.0.0.1:${PORT}`);
+  // Robustez: un cliente que se desconecta a mitad de request (navegador cerrado,
+  // fetch abortado) no debe tumbar el sidecar.
+  req.on("error", () => {});
+  res.on("error", () => {});
+  res.on("close", () => { if (res.writableEnded === false) res.destroy(); });
+  try {
+    if (req.method === "OPTIONS") return corsPreflight(res);
+    if (req.method === "GET" && url.pathname === "/status") return await handleStatus(res);
+    if (req.method === "GET" && url.pathname === "/casting") return await handleCasting(res);
+    if (req.method === "GET" && url.pathname === "/progress") return await handleProgress(res);
+    if (req.method === "GET" && url.pathname === "/musica") return await handleMusica(res);
+    if (req.method === "GET" && url.pathname === "/musica/motor") return await handleMusicaMotor(res);
+    if (req.method === "GET" && url.pathname === "/musica/progreso") return await handleMusicaProgreso(res);
+    if (req.method === "POST" && url.pathname === "/musica/generar") return await handleMusicaGenerar(res, await readBody(req));
+    if (req.method === "POST" && url.pathname === "/musica/cancelar") return await handleMusicaCancelar(res);
+    if (req.method === "GET" && url.pathname === "/media") return await handleMedia(res, url);
+    if (req.method === "GET" && url.pathname === "/normativa/documentos") return await handleDocList(res);
+    if (req.method === "POST" && url.pathname === "/normativa/buscar") return await handleNormativaBuscar(res, await readBody(req));
+    if (req.method === "POST" && url.pathname === "/investigar") return await handleInvestigar(res, await readBody(req));
+    if (req.method === "POST" && url.pathname === "/guion") return await handleGuion(res, await readBody(req));
+    if (req.method === "POST" && url.pathname === "/director") return await handleDirector(res, await readBody(req));
+    if (req.method === "POST" && url.pathname === "/director/ajustar") return await handleAjustarGuion(res, await readBody(req));
+    if (req.method === "POST" && url.pathname === "/generate") return await handleGenerate(res, await readBody(req));
+    if (req.method === "POST" && url.pathname === "/resume") return await handleResume(res);
+    if (req.method === "GET" && url.pathname === "/sistema") return await handleSistema(res);
+    if (req.method === "POST" && url.pathname === "/cancel") return await handleCancel(res);
+    if (req.method === "POST" && url.pathname === "/discard") return await handleDiscard(res);
+    if (req.method === "POST" && url.pathname === "/master") return await handleMaster(res, await readBody(req));
+    if (req.method === "POST" && url.pathname === "/tts-fallback") return await handleFallbackTts(res, await readBody(req));
+    json(res, 404, { error: "ruta desconocida" });
+  } catch (e) {
+    json(res, 500, { error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+server.on("clientError", (_err, socket) => { socket.destroy(); });
+server.on("error", (e) => { console.error(`[sidecar] error de servidor: ${e.message}`); });
+
+server.listen(PORT, "127.0.0.1", () => {
+  console.log(`[sidecar] AI Radio Studio local en http://127.0.0.1:${PORT}`);
+});

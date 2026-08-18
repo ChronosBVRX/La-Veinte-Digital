@@ -61,6 +61,26 @@ next-env.d.ts
 *.b64
 
 
-# normativa (corpus documental descargado � no versionar originales)
-/data/
+# normativa y TTS runtime local
+# Por defecto no se versionan corpus descargado, caches, modelos, masters,
+# trabajos, instaladores ni entornos virtuales. Solo se permiten activos
+# editoriales estables que influyen directamente en la producción actual.
+/data/*
+!/data/tts/
+/data/tts/*
+!/data/tts/ref/
+/data/tts/ref/*
+!/data/tts/ref/mariana.wav
+!/data/tts/ref/narrador.wav
+!/data/tts/ref/rodrigo.wav
+!/data/tts/ref/valeria.wav
+!/data/tts/music/
+/data/tts/music/*
+!/data/tts/music/bed-uniforme-vivo.wav
+!/data/tts/music/jingle-uniforme-vivo.wav
+
+# modelos y herramientas locales pesadas/regenerables
+/tools/ACE-Step-1.5/
+/tools/piper/
+/spa.traineddata
 
