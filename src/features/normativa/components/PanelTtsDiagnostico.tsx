@@ -26,12 +26,15 @@ interface TtsStatus {
   }
   config: { preset: string; devicePriority: string; concurrency: number; chunkTargetMin: number; chunkTargetMax: number }
   benchmark: {
-    meanRtf: number
+    cumulativeRtf: number
+    perBlockMeanRtf: number
+    conservativeRtf: number
     peakVramMb: number
     peakRamGb: number
     peakTempC: number
     throttlingSuspect: boolean
     estimates: Record<string, number>
+    estimatesBasis?: string
     warmup: { load_s?: number }
   } | null
   engine: {
@@ -124,7 +127,8 @@ export function PanelTtsDiagnostico() {
             <div>
               <div style={labelStyle}>Generación (benchmark real)</div>
               <div style={monoStyle}>
-                RTF: {bench ? bench.meanRtf.toFixed(2) : "—"}<br />
+                RTF (acumulado): {bench ? bench.cumulativeRtf.toFixed(2) : "—"}<br />
+                RTF (media por bloque): {bench ? bench.perBlockMeanRtf.toFixed(2) : "—"}<br />
                 VRAM pico: {bench ? `${bench.peakVramMb} MB` : "—"}<br />
                 Temperatura máx: {bench ? `${bench.peakTempC} °C` : "—"}<br />
                 Cache: {cachePct != null ? `${cachePct}% (${engine?.cache.hits} hits / ${cachePct === 100 ? 0 : engine?.cache.misses} generados)` : "—"}<br />

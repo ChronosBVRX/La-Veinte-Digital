@@ -1,4 +1,4 @@
-﻿import type { DocumentChunk, DocumentCitation, DocumentSection, DocType } from "../core/types";
+import type { DocumentChunk, DocumentCitation, DocumentSection, DocType } from "../core/types";
 import type { PageText } from "./extractor";
 
 export interface StructureParseResult {
@@ -54,6 +54,7 @@ export function parseStructure(params: {
   const chunks: DocumentChunk[] = [];
   const citations: DocumentCitation[] = [];
   const stFormats = new Set<string>();
+  const docKeys = new Set<string>();
 
   const seen = new Map<string, string>();
   let sectionCounter = 0;
@@ -204,9 +205,12 @@ export function parseStructure(params: {
           lastReformDate = `${y}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
         }
       }
-      if (!docKey) {
+      {
         const m = line.match(RE.clave);
-        if (m) docKey = m[1];
+        if (m) {
+          docKeys.add(m[1]);
+          if (!docKey || (expectedKey && m[1] === expectedKey)) docKey = m[1];
+        }
       }
       for (const m of line.matchAll(RE.stFormat)) {
         stFormats.add(m[1]);
@@ -254,7 +258,7 @@ export function parseStructure(params: {
     lastReformDate,
     docTitle,
     docKey,
-    keyMatch: expectedKey ? docKey === expectedKey : docKey !== null,
+    keyMatch: expectedKey ? docKeys.has(expectedKey) : docKey !== null,
     stFormats: [...stFormats].sort(),
   };
 }

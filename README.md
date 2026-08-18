@@ -24,6 +24,31 @@ Plataforma digital de la comunidad SNTSS (Sindicato Nacional de Trabajadores del
 
 ---
 
+## AI Radio Studio
+
+El monorepo incluye `apps/radio-studio`, una app de escritorio Tauri para crear
+podcasts de La Veinte Digital con investigación normativa, DeepSeek, voces
+locales, música local y master final.
+
+Guía obligatoria para agentes antes de tocar este flujo:
+`docs/RADIO_STUDIO.md`.
+
+Reglas clave:
+
+- La IA no es fuente normativa; todo sale del corpus documental y Evidence Pack.
+- DeepSeek investiga, dirige y ajusta guiones cuando está configurado, con
+  fallback determinista.
+- No usar cortinillas internas por defecto: solo intro/outro musical breve.
+- Mantener cama ambiental uniforme y baja.
+- Permitir comerciales como espacios editables, no como contenido editorial fijo.
+- El ejecutable debe levantar el sidecar y ACE-Step automáticamente; no volver al
+  flujo manual como experiencia principal.
+- Mantener tres identidades de voz distintas en producción: Eduardo `A`,
+  Andrea `B` y Narrador `N`. El narrador usa `data/tts/ref/narrador.wav` y no
+  debe compartir la referencia de Andrea.
+
+---
+
 ## Estructura del Proyecto
 
 ```
@@ -127,6 +152,13 @@ la-veinte-digital/
 │   └── vectorstore/                # FAISS index (generado)
 │
 ├── public/                         # Assets estáticos
+├── apps/
+│   └── radio-studio/               # App Tauri de producción de podcasts
+├── packages/
+│   ├── radio-core/                 # Director, QA editorial, timeline
+│   └── tts-core/                   # Chatterbox local, chunker, caché, fallback
+├── tools/
+│   └── ACE-Step-1.5/               # Motor local de música
 ├── eslint.config.mjs               # ESLint flat config
 ├── postcss.config.mjs              # PostCSS + Tailwind
 ├── next.config.ts                  # Next.js config

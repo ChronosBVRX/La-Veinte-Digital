@@ -43,6 +43,20 @@ const RULES: CoverageRule[] = [
     ],
   },
   {
+    match: /vacaci[óo]n|vacaciones/i,
+    required: [
+      { id: "CCT-IMSS-SNTSS-2025-2027", label: "CCT 2025-2027" },
+      { id: "IMSS-1A74-003-025", label: "Procedimiento 1A74-003-025 (vacaciones)" },
+    ],
+  },
+  {
+    match: /guardia|guardias/i,
+    required: [
+      { id: "CCT-IMSS-SNTSS-2025-2027", label: "CCT 2025-2027" },
+      { id: "IMSS-1A74-003-023", label: "Procedimiento 1A74-003-023 (guardias)" },
+    ],
+  },
+  {
     match: /falta|retardo|asistencia|puntualidad|biom[ée]trico|checador|sustituc/i,
     required: [
       { id: "CCT-IMSS-SNTSS-2025-2027", label: "CCT 2025-2027" },
@@ -63,6 +77,14 @@ const RULES: CoverageRule[] = [
       { id: "LSS", label: "Ley del Seguro Social" },
       { id: "IMSS-3A21-003-003", label: "Procedimiento 3A21-003-003 (enfermedades de trabajo, ST-9)" },
     ],
+  },
+  {
+    match: /incapacidad|incapacidades|maternidad|enfermedad general/i,
+    required: [
+      { id: "LSS", label: "Ley del Seguro Social" },
+      { id: "IMSS-9220-003-329", label: "Procedimiento 9220-003-329 (subsidios e incapacidades)" },
+    ],
+    optional: [{ id: "IMSS-1A75-B03-013", label: "Procedimiento 1A75-B03-013 (bolsa, sustitutos y temporales)" }],
   },
   {
     match: /bolsa|sustituto|aspirante|candidato/i,
@@ -102,10 +124,47 @@ const RULES: CoverageRule[] = [
     ],
   },
   {
-    match: /n[óo]mina|alta|baja|pago/i,
+    match: /permiso|licencia/i,
+    required: [
+      { id: "CCT-IMSS-SNTSS-2025-2027", label: "CCT 2025-2027" },
+      { id: "IMSS-1A31-003-016", label: "Procedimiento 1A31-003-016 (permisos temporales CCT cláusula 41)" },
+      { id: "IMSS-1A31-003-003", label: "Procedimiento 1A31-003-003 (permisos sin goce)" },
+    ],
+  },
+  {
+    match: /sanci[óo]n|sanciones|reconsider/i,
+    required: [
+      { id: "CCT-IMSS-SNTSS-2025-2027", label: "CCT 2025-2027" },
+      { id: "IMSS-1A31-003-015", label: "Procedimiento 1A31-003-015 (reconsiderar sanciones laborales)" },
+    ],
+  },
+  {
+    match: /antig[üu]edad/i,
+    required: [
+      { id: "CCT-IMSS-SNTSS-2025-2027", label: "CCT 2025-2027" },
+      { id: "IMSS-1A31-003-001", label: "Procedimiento 1A31-003-001 (reconocimiento de antigüedad)" },
+    ],
+  },
+  {
+    match: /n[óo]mina|alta|baja|movimiento.*trabajador|SIAP/i,
     required: [
       { id: "IMSS-1A74-003-033", label: "Procedimiento 1A74-003-033 (altas, bajas y cambios en nómina)" },
       { id: "CCT-IMSS-SNTSS-2025-2027", label: "CCT 2025-2027" },
+    ],
+  },
+  {
+    match: /fondo de ahorro/i,
+    required: [
+      { id: "CCT-IMSS-SNTSS-2025-2027", label: "CCT 2025-2027" },
+      { id: "IMSS-1A74-003-024", label: "Procedimiento 1A74-003-024 (fondo de ahorro)" },
+    ],
+  },
+  {
+    match: /jubilaci[óo]n|pensi[óo]n|RJP/i,
+    required: [
+      { id: "CCT-IMSS-SNTSS-2025-2027", label: "CCT 2025-2027" },
+      { id: "IMSS-1A32-003-005", label: "Procedimiento 1A32-003-005 (RJP)" },
+      { id: "LSS", label: "Ley del Seguro Social" },
     ],
   },
   {

@@ -6,9 +6,9 @@ import path from "node:path"
 import { promisify } from "node:util"
 import { requireUser } from "@/shared/server/auth/require-user"
 import { privateJsonError } from "@/shared/lib/api-response"
-import { synthesizeMp3, DEFAULT_VOICES, cleanTtsText } from "@/features/normativa/services/tts"
-import { getChatterboxEngine } from "@/features/normativa/services/tts-chatterbox/singleton"
-import { sentenceAwareChunk } from "@/features/normativa/services/tts-chatterbox/chunker"
+import { synthesizeMp3, DEFAULT_VOICES, cleanTtsText } from "@la-veinte/tts-core"
+import { getChatterboxEngine } from "@la-veinte/tts-core"
+import { sentenceAwareChunk } from "@la-veinte/tts-core"
 
 export const runtime = "nodejs"
 

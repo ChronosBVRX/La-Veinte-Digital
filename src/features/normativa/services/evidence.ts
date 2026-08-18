@@ -41,15 +41,50 @@ function hitToEvidence(hit: SearchHit): Evidence {
   };
 }
 
+const DOMAIN_STOP_WORDS = new Set(
+  "imss instituto seguro social trabajador trabajadores trabajo trabajo persona personas trabajadoras como funciona quien cuando cuanto donde cual porque funciona derechos temas sobre para las los del las".split(" ")
+);
+
+export function topicToSearchTerms(topic: string): string[] {
+  return stripAccents(topic.toLowerCase())
+    .split(/[^a-z0-9ñáéíóúü]+/)
+    .filter((t) => t.length >= 4 && !DOMAIN_STOP_WORDS.has(t));
+}
+
 export function buildEvidencePack(
   db: NormativeDB,
   topic: string,
   opts: { cutoff?: string; episodeId?: string; includeHistorical?: boolean; limit?: number } = {}
 ): EpisodeEvidencePack {
-  const hits = db.search(topic, {
-    includeHistorical: opts.includeHistorical ?? false,
-    limit: opts.limit ?? 30,
-  });
+  // Consulta principal (AND) + consultas progresivas para temas en lenguaje natural:
+  // se recortan términos de derecha a izquierda y se fusionan resultados hasta
+  // alcanzar un mínimo de fragmentos relevantes.
+  const limit = opts.limit ?? 30;
+  const terms = topicToSearchTerms(topic);
+  const hits: SearchHit[] = [];
+  const seenChunks = new Set<string>();
+
+  const merge = (list: SearchHit[]) => {
+    for (const h of list) {
+      if (seenChunks.has(h.chunkId)) continue;
+      seenChunks.add(h.chunkId);
+      hits.push(h);
+    }
+  };
+
+  if (terms.length > 0) {
+    merge(db.search(terms.join(" "), { includeHistorical: opts.includeHistorical ?? false, limit }));
+    for (let cut = terms.length - 1; cut >= 1 && hits.length < 8; cut--) {
+      merge(db.search(terms.slice(0, cut).join(" "), { includeHistorical: opts.includeHistorical ?? false, limit }));
+    }
+    if (hits.length < 4) {
+      merge(db.search(terms[0], { includeHistorical: opts.includeHistorical ?? false, limit }));
+    }
+  }
+  if (hits.length === 0) {
+    merge(db.search(topic, { includeHistorical: opts.includeHistorical ?? false, limit }));
+  }
+  hits.length = Math.min(hits.length, limit);
 
   const byDoc = new Map<string, SearchHit[]>();
   for (const h of hits) {

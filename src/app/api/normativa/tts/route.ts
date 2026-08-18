@@ -3,9 +3,9 @@ import path from "node:path";
 import type { NextRequest } from "next/server"
 import { requireUser } from "@/shared/server/auth/require-user"
 import { privateJson, privateJsonError } from "@/shared/lib/api-response"
-import { detectHardware, configForProfile, type TtsPreset } from "@/features/normativa/services/tts-chatterbox/hardware"
-import { getChatterboxEngine } from "@/features/normativa/services/tts-chatterbox/singleton"
-import { sentenceAwareChunk } from "@/features/normativa/services/tts-chatterbox/chunker"
+import { detectHardware, configForProfile, type TtsPreset } from "@la-veinte/tts-core"
+import { getChatterboxEngine } from "@la-veinte/tts-core"
+import { sentenceAwareChunk } from "@la-veinte/tts-core"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"

@@ -468,6 +468,84 @@ sources:
         title: Procedimiento para bajas, altas y cambios de trabajadores en nómina ordinaria
         urlPattern: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A74-003-033.pdf
 
+  - id: IMSS-1A74-003-034
+    key: 1A74-003-034
+    title: Procedimiento para el control de asistencia, puntualidad y sustituciones
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A74-003-034.pdf
+    canonical: true
+    priority: critical
+    topics:
+      - asistencia
+      - puntualidad
+      - sustituciones
+      - biometrico
+      - retardos
+      - ausentismo
+
+  - id: IMSS-1A74-003-033
+    key: 1A74-003-033
+    title: Procedimiento para el trámite y operación de bajas, altas y cambios de las trabajadoras o los trabajadores en nómina ordinaria
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A74-003-033.pdf
+    canonical: true
+    priority: critical
+    topics:
+      - nomina
+      - altas
+      - bajas
+      - cambios
+      - SIAP
+
+  - id: IMSS-1A74-003-025
+    key: 1A74-003-025
+    title: Procedimiento para el trámite y otorgamiento de vacaciones
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A74-003-025.pdf
+    canonical: true
+    priority: critical
+    topics:
+      - vacaciones
+      - programacion
+      - autorizacion
+      - descanso
+
+  - id: IMSS-1A74-003-024
+    key: 1A74-003-024
+    title: Procedimiento para la aclaración y pago de fondo de ahorro
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A74-003-024.pdf
+    canonical: true
+    priority: high
+    topics:
+      - fondo_de_ahorro
+      - pago
+      - aclaracion
+      - nomina
+
+  - id: IMSS-1A74-003-023
+    key: 1A74-003-023
+    title: Procedimiento para la autorización de guardias
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A74-003-023.pdf
+    canonical: true
+    priority: high
+    topics:
+      - guardias
+      - autorizacion
+      - jornada
+      - pago
+
   - id: IMSS-2900-B03-002
     key: 2900-B03-002
     title: Procedimiento de planeación y definición de plantillas de personal en unidades médicas
@@ -526,6 +604,7 @@ sources:
 
   - id: IMSS-9220-003-329
     key: 9220-003-329
+    title: Procedimiento para la administración y otorgamiento de las prestaciones en dinero
     organization: IMSS
     type: procedure
     category: riesgos-trabajo
@@ -540,6 +619,165 @@ sources:
       - ST-9
       - subsidios
       - incapacidades
+
+  - id: IMSS-1A75-B03-013
+    key: 1A75-B03-013
+    title: Procedimiento para el trámite y pago de incapacidades temporales para el trabajo derivadas de riesgo de trabajo, enfermedad general o maternidad expedidas a bolsa de trabajo, personal sustituto y personal temporal
+    organization: IMSS
+    type: procedure
+    category: riesgos-trabajo
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A75-B03-013.pdf
+    canonical: true
+    priority: high
+    topics:
+      - incapacidades
+      - maternidad
+      - enfermedad_general
+      - riesgo_de_trabajo
+      - sustitutos
+      - temporales
+
+  - id: IMSS-1A31-003-016
+    key: 1A31-003-016
+    title: Procedimiento para el trámite de permisos temporales previstos en la Cláusula 41, Fracción I del Contrato Colectivo de Trabajo
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A31-003-016.pdf
+    canonical: true
+    priority: high
+    topics:
+      - permisos_temporales
+      - clausula_41
+      - CCT
+
+  - id: IMSS-1A31-003-003
+    key: 1A31-003-003
+    title: Procedimiento para el trámite de permisos temporales sin goce de sueldo y sin generación de antigüedad
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A31-003-003.pdf
+    canonical: true
+    priority: high
+    topics:
+      - permisos_temporales
+      - sin_goce
+      - antiguedad
+
+  - id: IMSS-1A31-003-015
+    key: 1A31-003-015
+    title: Procedimiento para reconsiderar las sanciones laborales
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A31-003-015.pdf
+    canonical: true
+    priority: high
+    topics:
+      - sanciones_laborales
+      - reconsideracion
+      - defensa
+
+  - id: IMSS-1A31-003-005
+    key: 1A31-003-005
+    title: Procedimiento para el seguimiento y control del Ausentismo No Programado de las personas trabajadoras del IMSS
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A31-003-005.pdf
+    canonical: true
+    priority: high
+    topics:
+      - ausentismo
+      - faltas
+      - seguimiento
+
+  - id: IMSS-1A31-003-001
+    key: 1A31-003-001
+    title: Procedimiento para el reconocimiento de antigüedad
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A31-003-001.pdf
+    canonical: true
+    priority: high
+    topics:
+      - antiguedad
+      - reconocimiento
+      - derechos_laborales
+
+  - id: IMSS-1A32-003-005
+    key: 1A32-003-005
+    title: Procedimiento para el trámite de prestaciones del Régimen de Jubilaciones y Pensiones
+    organization: IMSS
+    type: procedure
+    category: jubilaciones
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A32-003-005.pdf
+    canonical: true
+    priority: critical
+    topics:
+      - RJP
+      - jubilaciones
+      - pensiones
+      - prestaciones
+
+  - id: IMSS-1A32-A03-008
+    key: 1A32-A03-008
+    title: Procedimiento para el pago de pasajes y su inclusión en nómina
+    organization: IMSS
+    type: procedure
+    category: procedimientos
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A32-A03-008.pdf
+    canonical: true
+    priority: medium
+    topics:
+      - pasajes
+      - nomina
+      - pago
+
+  - id: IMSS-1A72-003-005
+    key: 1A72-003-005
+    title: Procedimiento para el trámite y recuperación de préstamos para el fomento a la habitación IMSS
+    organization: IMSS
+    type: procedure
+    category: prestaciones
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A72-003-005.pdf
+    canonical: true
+    priority: medium
+    topics:
+      - prestamos
+      - habitacion
+      - vivienda
+
+  - id: IMSS-1A72-003-014
+    key: 1A72-003-014
+    title: Procedimiento para el trámite y recuperación del financiamiento y seguro de vehículos automotores
+    organization: IMSS
+    type: procedure
+    category: prestaciones
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A72-003-014.pdf
+    canonical: true
+    priority: medium
+    topics:
+      - financiamiento
+      - vehiculos
+      - prestaciones
+
+  - id: IMSS-1A14-003-011
+    key: 1A14-003-011
+    title: Procedimiento para la recuperación del crédito FONACOT
+    organization: IMSS
+    type: procedure
+    category: prestaciones
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/1A14-003-011.pdf
+    canonical: true
+    priority: medium
+    topics:
+      - FONACOT
+      - credito
+      - descuentos
+      - nomina
 
   # ────────────────────────── REGLAMENTOS ──────────────────────────
   - id: IMSS-REGLAMENTO-PRESTACIONES-MEDICAS

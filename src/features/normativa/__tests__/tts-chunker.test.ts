@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { sentenceAwareChunk, blockCacheKey, BlockCache } from "@/features/normativa/services/tts-chatterbox/chunker"
+import { sentenceAwareChunk, blockCacheKey, BlockCache } from "@la-veinte/tts-core"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -39,20 +39,20 @@ describe("SentenceAwareChunker", () => {
 })
 
 describe("BlockCache", () => {
-  it("clave estable y dependiente de todos los parámetros", () => {
-    const a = blockCacheKey({ provider: "chatterbox-local", model: "m", device: "cuda", voice: "A", text: "hola" })
-    const b = blockCacheKey({ provider: "chatterbox-local", model: "m", device: "cuda", voice: "A", text: "hola" })
-    const c = blockCacheKey({ provider: "chatterbox-local", model: "m", device: "cuda", voice: "B", text: "hola" })
-    const d = blockCacheKey({ provider: "chatterbox-local", model: "m", device: "cuda", voice: "A", text: "hola " })
+  it("clave estable y dependiente de todos los parámetros", async () => {
+    const a = await blockCacheKey({ provider: "chatterbox-local", model: "m", device: "cuda", voice: "A", text: "hola" })
+    const b = await blockCacheKey({ provider: "chatterbox-local", model: "m", device: "cuda", voice: "A", text: "hola" })
+    const c = await blockCacheKey({ provider: "chatterbox-local", model: "m", device: "cuda", voice: "B", text: "hola" })
+    const d = await blockCacheKey({ provider: "chatterbox-local", model: "m", device: "cuda", voice: "A", text: "hola " })
     expect(a).toBe(b)
     expect(a).not.toBe(c)
     expect(a).not.toBe(d)
   })
 
-  it("put/get con persistencia", () => {
+  it("put/get con persistencia", async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lv-cache-"))
     const cache = new BlockCache(dir)
-    const key = blockCacheKey({ provider: "p", model: "m", device: "cuda", voice: "A", text: "x" })
+    const key = await blockCacheKey({ provider: "p", model: "m", device: "cuda", voice: "A", text: "x" })
     const wav = path.join(dir, "x.wav")
     fs.writeFileSync(wav, "fake")
     cache.put(key, { provider: "p", model: "m", device: "cuda", voice: "A", text: "x", wavPath: wav, createdAt: new Date().toISOString() })

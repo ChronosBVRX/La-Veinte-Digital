@@ -1,15 +1,15 @@
-﻿import fs from "node:fs"
+import fs from "node:fs"
 import path from "node:path"
 import { NormativeCatalog } from "../services/catalog"
 import { buildCoverage } from "../services/coverage"
 import { buildScriptFromEvidence } from "../services/llm-provider"
 import { classifyClaimType } from "../services/evidence"
-import { synthesizeMp3 } from "../services/tts"
+import { synthesizeMp3 } from "@la-veinte/tts-core"
 
 const PILOTOS = [
-  "Tiempo extraordinario en el IMSS: quÃ© es, cÃ³mo se autoriza y cÃ³mo se registra",
-  "Â¿Me pueden cambiar el horario?",
-  "Faltas, retardos, asistencia y biomÃ©trico",
+  "Tiempo extraordinario en el IMSS: qué es, cómo se autoriza y cómo se registra",
+  "¿Me pueden cambiar el horario?",
+  "Faltas, retardos, asistencia y biométrico",
   "Accidente de trabajo: ST-7",
   "Bolsa de Trabajo para sustitutos",
 ]
@@ -22,7 +22,7 @@ async function main() {
   const summary: Array<Record<string, string>> = []
 
   for (const topic of PILOTOS) {
-    console.log(`\nâ•â•â•â•â•â•â•â•â•â• PILOTO: ${topic}`)
+    console.log(`\n══════════ PILOTO: ${topic}`)
     const pack = catalog.buildEvidencePack(topic, { limit: 25 })
     const coverage = buildCoverage(catalog, topic)
     const script = buildScriptFromEvidence(topic, pack)
@@ -42,13 +42,13 @@ async function main() {
     const greens = verification.filter((v) => v.semaforo === "green").length
 
     console.log(`  cobertura: ${coverage.coverage}% (${coverage.available}/${coverage.total}) recomendado=${coverage.recommended}`)
-    for (const w of coverage.warnings) console.log(`  âš  ${w}`)
+    for (const w of coverage.warnings) console.log(`  ⚠ ${w}`)
     console.log(`  evidencia: ${pack.documents.length} docs, ${pack.relevantChunks.length} fragmentos, ${pack.claims.length} afirmaciones`)
-    console.log(`  guion: ${script.escenas.length} escenas | ðŸŸ¢${greens} ðŸŸ¡${verification.filter((v) => v.semaforo === "yellow").length} ðŸ”´${reds}`)
+    console.log(`  guion: ${script.escenas.length} escenas | 🟢${greens} 🟡${verification.filter((v) => v.semaforo === "yellow").length} 🔴${reds}`)
 
     const slug = topic
       .toLowerCase()
-      .replace(/[Â¿?Â¡!.,:]/g, "")
+      .replace(/[¿?¡!.,:]/g, "")
       .slice(0, 48)
       .replace(/\s+/g, "-")
       .replace(/^-+|-+$/g, "")
@@ -86,49 +86,49 @@ async function main() {
     const md = [
       `# ${topic}`,
       "",
-      `Cobertura documental: **${coverage.coverage}%** (${coverage.recommended ? "recomendado" : "NO recomendado para publicaciÃ³n"})`,
+      `Cobertura documental: **${coverage.coverage}%** (${coverage.recommended ? "recomendado" : "NO recomendado para publicación"})`,
       "",
       "| Fuente | Estado |",
       "|---|---|",
-      ...coverage.items.map((i) => `| ${i.label} | ${i.status === "available" ? "ðŸŸ¢" : i.status === "review" ? "ðŸŸ¡" : "ðŸ”´"}`),
+      ...coverage.items.map((i) => `| ${i.label} | ${i.status === "available" ? "🟢" : i.status === "review" ? "🟡" : "🔴"}`),
       "",
       "## Guion",
       "",
       ...script.escenas.map((s, i) => {
         const v = verification[i]
-        const dot = v.semaforo === "red" ? "ðŸ”´" : v.semaforo === "yellow" ? "ðŸŸ¡" : v.semaforo === "green" ? "ðŸŸ¢" : "â€¢"
-        return `**${dot} ${s.locutor}** â€” â€œ${s.linea}â€${s.citas.length ? ` *(citas: ${s.citas.join(", ")})*` : ""}`
+        const dot = v.semaforo === "red" ? "🔴" : v.semaforo === "yellow" ? "🟡" : v.semaforo === "green" ? "🟢" : "•"
+        return `**${dot} ${s.locutor}** — “${s.linea}”${s.citas.length ? ` *(citas: ${s.citas.join(", ")})*` : ""}`
       }),
       "",
       "## Ficha de fuentes",
       "",
       `Fecha de corte: ${pack.cutoff}`,
       "",
-      ...pack.documents.map((d, i) => `${i + 1}. ${d.title} â€” versiÃ³n ${d.versionLabel} â€” SHA-256 ${d.sha256.slice(0, 16)}â€¦`),
+      ...pack.documents.map((d, i) => `${i + 1}. ${d.title} — versión ${d.versionLabel} — SHA-256 ${d.sha256.slice(0, 16)}…`),
       "",
-      "Contenido informativo elaborado a partir de las fuentes indicadas. La aplicaciÃ³n conserva la versiÃ³n documental utilizada y la fecha de corte. Los casos individuales pueden requerir revisiÃ³n especÃ­fica.",
+      "Contenido informativo elaborado a partir de las fuentes indicadas. La aplicación conserva la versión documental utilizada y la fecha de corte. Los casos individuales pueden requerir revisión específica.",
       "",
     ]
     fs.writeFileSync(path.join(outDir, `${slug}.md`), md.join("\n"))
 
     try {
-      console.log(`  ðŸŽ™ sintetizando audioâ€¦`)
+      console.log(`  🎙 sintetizando audio…`)
       const audio = await synthesizeMp3(
         script.escenas.map((s) => ({ text: s.linea, voice: s.locutor.toUpperCase().includes("MARIANA") ? "es-MX-MarinaNeural" : "es-MX-JorgeNeural" })),
         { onProgress: (done, total) => console.log(`    audio ${done}/${total}`) }
       )
       fs.writeFileSync(path.join(outDir, `${slug}.mp3`), audio.mp3)
-      console.log(`  âœ… MP3 generado (${Math.round(audio.mp3.length / 1024)} KB, motor ${audio.engine})`)
-      summary.push({ tema: topic, cobertura: `${coverage.coverage}%`, publicable: coverage.recommended ? "SÃ" : "NO", escenas: String(script.escenas.length), rojos: String(reds), mp3: `${Math.round(audio.mp3.length / 1024)} KB` })
+      console.log(`  ✅ MP3 generado (${Math.round(audio.mp3.length / 1024)} KB, motor ${audio.engine})`)
+      summary.push({ tema: topic, cobertura: `${coverage.coverage}%`, publicable: coverage.recommended ? "SÍ" : "NO", escenas: String(script.escenas.length), rojos: String(reds), mp3: `${Math.round(audio.mp3.length / 1024)} KB` })
     } catch (err) {
-      console.log(`  âœ— audio: ${err instanceof Error ? err.message : err}`)
-      summary.push({ tema: topic, cobertura: `${coverage.coverage}%`, publicable: coverage.recommended ? "SÃ" : "NO", escenas: String(script.escenas.length), rojos: String(reds), mp3: "ERROR" })
+      console.log(`  ✗ audio: ${err instanceof Error ? err.message : err}`)
+      summary.push({ tema: topic, cobertura: `${coverage.coverage}%`, publicable: coverage.recommended ? "SÍ" : "NO", escenas: String(script.escenas.length), rojos: String(reds), mp3: "ERROR" })
     }
   }
 
   const csv = ["tema|cobertura|publicable|escenas|rojos|mp3", ...summary.map((s) => Object.values(s).join("|"))]
   fs.writeFileSync(path.join(outDir, "resumen-pilotos.csv"), csv.join("\n"))
-  console.log("\nâ•â•â•â•â•â•â•â• RESUMEN PILOTOS â•â•â•â•â•â•â•â•")
+  console.log("\n════════ RESUMEN PILOTOS ════════")
   for (const s of summary) console.log(`  ${s.cobertura} publicable=${s.publicable} rojos=${s.rojos} | ${s.tema.slice(0, 55)}`)
   console.log(`\nArtefactos en: ${outDir}`)
 }

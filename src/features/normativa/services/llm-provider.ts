@@ -28,14 +28,18 @@ function envKeys(names: string[]): Record<string, string> {
 
 async function postJson(url: string, headers: Record<string, string>, body: unknown): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 120000);
+  const timer = setTimeout(() => controller.abort(), 900000);
   try {
-    const res = await fetch(url, {
+    const requestInit: RequestInit & { headersTimeout?: number; bodyTimeout?: number } = {
       method: "POST",
       headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify(body),
       signal: controller.signal,
-    });
+      // undici: timeouts de header y body para LLMs locales lentos (Ollama en CPU)
+      headersTimeout: 900000,
+      bodyTimeout: 900000,
+    };
+    const res = await fetch(url, requestInit);
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       throw new Error(`LLM ${res.status}: ${text.slice(0, 200)}`);
@@ -82,7 +86,12 @@ function makeOllama(defaultModel: string): LLMProvider {
           model: process.env.OLLAMA_MODEL ?? defaultModel,
           stream: false,
           format: opts.json ? "json" : undefined,
-          options: { temperature: opts.temperature ?? 0.6 },
+          options: {
+            temperature: opts.temperature ?? 0.6,
+            num_predict: opts.maxTokens ?? 2500,
+            num_ctx: 16384,
+            num_gpu: 99,
+          },
           messages: [
             { role: "system", content: opts.system },
             { role: "user", content: opts.user },
@@ -121,8 +130,9 @@ function makeGemini(defaultModel: string): LLMProvider {
 }
 
 export function availableProviders(): string[] {
-  const keys = envKeys(["OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"]);
+  const keys = envKeys(["DEEPSEEK_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"]);
   const out: string[] = [];
+  if (keys.DEEPSEEK_API_KEY) out.push("deepseek");
   if (keys.OPENAI_API_KEY) out.push("openai");
   if (keys.GEMINI_API_KEY) out.push("gemini");
   if (keys.ANTHROPIC_API_KEY) out.push("anthropic");
@@ -133,8 +143,12 @@ export function availableProviders(): string[] {
 
 export function resolveProvider(preferred?: string): LLMProvider | null {
   const name = preferred?.toLowerCase();
-  const keys = envKeys(["OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"]);
+  const keys = envKeys(["DEEPSEEK_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"]);
 
+  // DeepSeek primero: barato (~$0.02/episodio) y coherente, API compatible con OpenAI.
+  if ((!name || name === "deepseek") && keys.DEEPSEEK_API_KEY) {
+    return makeOpenAICompatible("deepseek", "https://api.deepseek.com/v1", keys.DEEPSEEK_API_KEY, "deepseek-chat");
+  }
   if ((!name || name === "openai") && keys.OPENAI_API_KEY) {
     return makeOpenAICompatible("openai", "https://api.openai.com/v1", keys.OPENAI_API_KEY, "gpt-4o-mini");
   }

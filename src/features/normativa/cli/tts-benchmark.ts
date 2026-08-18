@@ -1,12 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
-import { ChatterboxEngine } from "../services/tts-chatterbox/engine";
-import { detectHardware, readGpuSnapshot } from "../services/tts-chatterbox/hardware";
+import { ChatterboxEngine } from "@la-veinte/tts-core";
+import { detectHardware, readGpuSnapshot } from "@la-veinte/tts-core";
 
 const REPO = process.cwd();
 const STATE = path.join(REPO, "data", "tts");
 const PYTHON = path.join(STATE, "venv", "Scripts", "python.exe");
-const ENGINE_SCRIPT = path.join(REPO, "src", "features", "normativa", "services", "tts-chatterbox", "engine.py");
+const ENGINE_SCRIPT = path.join(REPO, "packages", "tts-core", "engine", "chatterbox_engine.py");
 
 const TARGETS_DEFAULT = [
   { label: "30s", durSec: 30 },
@@ -133,14 +133,20 @@ async function main() {
     }
 
     while (targetIdx < TARGETS.length && totalDur >= TARGETS[targetIdx].durSec) {
-      const meanRtf = blocks.filter((b) => b.rtf != null && b.ok).reduce((a, b) => a + (b.rtf ?? 0), 0) /
+      // RTF honesto: tiempo de generación / duración de audio MEDIDA (WAV reales),
+      // no la duración objetivo. La duración objetivo solo marca cuándo registrar el corte.
+      const measuredAudioDur = Math.round(totalDur);
+      const rtfMeasured = measuredAudioDur > 0 ? totalGen / measuredAudioDur : null;
+      const perBlockMeanRtf = blocks.filter((b) => b.rtf != null && b.ok).reduce((a, b) => a + (b.rtf ?? 0), 0) /
         Math.max(1, blocks.filter((b) => b.rtf != null && b.ok).length);
       targetResults.push({
         target: TARGETS[targetIdx].label,
         blocks: blocks.length,
-        audioDur: Math.round(totalDur),
+        measuredAudioDurSec: measuredAudioDur,
+        targetAudioDurSec: TARGETS[targetIdx].durSec,
         genTimeSec: Math.round(totalGen),
-        meanRtf: Number(meanRtf.toFixed(3)),
+        rtf: rtfMeasured != null ? Number(rtfMeasured.toFixed(3)) : null,
+        perBlockMeanRtf: Number(perBlockMeanRtf.toFixed(3)),
         peakVramMb: peakVram,
         peakRamGb: Number(peakRam.toFixed(2)),
         peakTempC: peakTemp,
@@ -152,7 +158,7 @@ async function main() {
     }
     i++;
     if (i % 10 === 0) {
-      console.log(`bloque ${i}: dur acum ${Math.round(totalDur)}s, RTF medio ${(totalGen / Math.max(totalDur, 0.1)).toFixed(2)}`);
+      console.log(`bloque ${i}: dur acum ${Math.round(totalDur)}s, RTF acumulado ${(totalGen / Math.max(totalDur, 0.1)).toFixed(2)}`);
     }
   }
 
@@ -160,7 +166,11 @@ async function main() {
   const first5 = okBlocks.slice(0, 5);
   const last5 = okBlocks.slice(-5);
   const rtfOf = (arr: BlockMetric[]) => arr.reduce((a, b) => a + (b.rtf ?? 0), 0) / Math.max(1, arr.length);
-  const conservativeRtf = Math.max(rtfOf(okBlocks.filter((b) => b.rtf != null)), totalDur > 0 ? totalGen / totalDur : 0);
+  const cumulativeRtf = totalDur > 0 ? totalGen / totalDur : 0;
+  // Para planificación usamos la media por bloque (bloques cortos son menos eficientes);
+  // se reportan ambas métricas para transparencia.
+  const perBlockMeanRtf = rtfOf(okBlocks.filter((b) => b.rtf != null));
+  const conservativeRtf = Math.max(perBlockMeanRtf, cumulativeRtf);
 
   const report = {
     provider: "chatterbox-local",
@@ -176,7 +186,8 @@ async function main() {
     errors,
     degenerate,
     autoRestarts: engine.autoRestarts,
-    meanRtf: Number((totalGen / Math.max(totalDur, 0.1)).toFixed(3)),
+    cumulativeRtf: Number(cumulativeRtf.toFixed(3)),
+    perBlockMeanRtf: Number(perBlockMeanRtf.toFixed(3)),
     peakVramMb: peakVram,
     peakRamGb: Number(peakRam.toFixed(2)),
     peakTempC: peakTemp,
@@ -189,6 +200,7 @@ async function main() {
       "45min": Math.round(45 * conservativeRtf),
       "60min": Math.round(60 * conservativeRtf),
     },
+    estimatesBasis: `RTF conservador ${conservativeRtf.toFixed(2)} = máx(media por bloque ${perBlockMeanRtf.toFixed(2)}, acumulado ${cumulativeRtf.toFixed(2)}); duraciones de audio MEDIDAS de los WAV`,
     conservativeRtf: Number(conservativeRtf.toFixed(3)),
   };
 
@@ -199,7 +211,7 @@ async function main() {
     blocks.map((b) => JSON.stringify(b)).join("\n")
   );
   console.log("report:", out);
-  console.log(JSON.stringify({ summary: report.targets[report.targets.length - 1], meanRtf: report.meanRtf, throttlingSuspect: report.throttlingSuspect }));
+  console.log(JSON.stringify({ summary: report.targets[report.targets.length - 1], cumulativeRtf: report.cumulativeRtf, perBlockMeanRtf: report.perBlockMeanRtf, throttlingSuspect: report.throttlingSuspect }));
 
   await engine.shutdown();
 }
