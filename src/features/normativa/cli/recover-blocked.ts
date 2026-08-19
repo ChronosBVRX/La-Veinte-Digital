@@ -137,22 +137,32 @@ async function downloadWithPlaywright(
   }
 }
 
+function normalizeManualName(name: string): string {
+  // Chrome/Firefox añaden sufijos a descargas repetidas: "1A74-003-025 (6).pdf", "1A32-A03-008_0.pdf".
+  return name.replace(/\s*\(\d+\)(?=\.)/i, "").replace(/_\d+(?=\.)/i, "");
+}
+
 function findManualCandidate(spec: SourceSpec, manualDir: string | null): Candidate | null {
   if (!manualDir || !fs.existsSync(manualDir)) return null;
   const names = [
     `${spec.id}.pdf`,
     spec.key ? `${spec.key}.pdf` : "",
     spec.url ? spec.url.split("/").pop() ?? "" : "",
-  ].filter(Boolean);
-  for (const name of names) {
-    const file = path.join(manualDir, name);
-    if (!fs.existsSync(file)) continue;
-    const buf = fs.readFileSync(file);
+  ]
+    .filter(Boolean)
+    .map((n) => normalizeManualName(n).toLowerCase());
+  const files = fs.readdirSync(manualDir);
+  for (const file of files) {
+    const p = path.join(manualDir, file);
+    if (!fs.existsSync(p)) continue;
+    const normalized = normalizeManualName(file).toLowerCase();
+    if (!names.includes(normalized)) continue;
+    const buf = fs.readFileSync(p);
     if (!validPdf(buf)) continue;
     return {
       label: "manual",
       url: spec.url ?? spec.landingPage ?? file,
-      filePath: file,
+      filePath: p,
       bytes: buf.length,
       sha256: sha256Hex(buf),
     };
