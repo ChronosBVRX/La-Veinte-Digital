@@ -1,17 +1,17 @@
 {
   "channel": "stable",
-  "versionCode": 166,
-  "versionName": "1.0.66",
+  "versionCode": 167,
+  "versionName": "1.0.67",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-24T19:50:48Z",
+  "publishedAt": "2026-08-24T20:13:49Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "f37d6b5e9b8a7cc2ed06d5ee1e51328525ddde065a7cd22152273cadec31f807",
-    "size": 67493472
+    "sha256": "a60acc47f6dda0c275ebf2e2da8c58392af8458fc787250f4030132432afe8b9",
+    "size": 67493476
   },
   "releaseNotes": [
-    "Corrección instalador OTA: el sistema ahora muestra el diálogo de instalación al tocar Instalar ahora (receiver exportado y sesión con package name)",
-    "Mantiene fix biométricos 1.0.65 para selección de periodo tolerante"
+    "Fix biométricos: el periodo ahora se encuentra aunque esté fuera de la vista inicial (scroll automático del selector para periodos antiguos como 2025001)",
+    "Mantiene fix instalador OTA 1.0.66"
   ]
 }

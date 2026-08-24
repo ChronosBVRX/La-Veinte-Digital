@@ -804,22 +804,37 @@ async function openAndPick(c,targetLabel,targetValue){
     var anyAfterClick=function(){var o=Array.from(document.querySelectorAll('.cdk-overlay-pane'));return o.length>0};
     if(!out.overlayOpened)out.overlayOpened=anyAfterClick();
     try{
-      var hit=await waitFor(function(){
-        var o=Array.from(document.querySelectorAll('.cdk-overlay-container mat-option[role="option"], mat-option[role="option"]'));
-        if(o.length===0&&document.querySelector('.cdk-overlay-pane')){out.overlayOpened=true;return null}
-        for(var i=0;i<o.length;i++){
-          var x=o[i];var t=x.value;var vs=t===undefined||t===null?'':String(t);var isObj=vs.toLowerCase().indexOf('object')>=0;var v=isObj||vs.trim()===''?txt(x):vs;var ot=n(txt(x)),ov=n(v),ntv=n(targetValue),ntl=n(targetLabel);
-          if(ov===ntv||ot===ntl||ot===ntv||ov===ntl)return x;
-          if(ntv&&ov.indexOf(ntv)>=0)return x;
-          if(ntl&&ot.indexOf(ntl)>=0)return x;
-          if(ntv&&ot.indexOf(ntv)>=0)return x;
-          if(ntl&&ov.indexOf(ntl)>=0)return x;
-          var code=(ntl.match(/\b\d{6,7}\b/)||ntv.match(/\b\d{6,7}\b/)||[])[0];
-          if(code&&(ot.indexOf(code)>=0||ov.indexOf(code)>=0))return x;
+      var hit=await (async function(){
+        var deadline=Date.now()+4500;
+        var lastCount=0;
+        while(Date.now()<deadline){
+          var o=Array.from(document.querySelectorAll('.cdk-overlay-container mat-option[role="option"], mat-option[role="option"]'));
+          if(o.length===0&&document.querySelector('.cdk-overlay-pane')){out.overlayOpened=true;await sleep(150);continue}
+          if(o.length===0){await sleep(150);continue}
+          out.overlayOpened=true;
+          for(var i=0;i<o.length;i++){
+            var x=o[i];var t=x.value;var vs=t===undefined||t===null?'':String(t);var isObj=vs.toLowerCase().indexOf('object')>=0;var v=isObj||vs.trim()===''?txt(x):vs;var ot=n(txt(x)),ov=n(v),ntv=n(targetValue),ntl=n(targetLabel);
+            if(ov===ntv||ot===ntl||ot===ntv||ov===ntl)return x;
+            if(ntv&&ov.indexOf(ntv)>=0)return x;
+            if(ntl&&ot.indexOf(ntl)>=0)return x;
+            if(ntv&&ot.indexOf(ntv)>=0)return x;
+            if(ntl&&ov.indexOf(ntl)>=0)return x;
+            var code=(ntl.match(/\b\d{6,7}\b/)||ntv.match(/\b\d{6,7}\b/)||[])[0];
+            if(code&&(ot.indexOf(code)>=0||ov.indexOf(code)>=0))return x;
+          }
+          // No encontrado entre los visibles -> intenta hacer scroll dentro del panel virtualizado
+          var panel=document.querySelector('.cdk-overlay-pane .mat-mdc-select-panel')||document.querySelector('.cdk-overlay-pane .mat-select-panel')||document.querySelector('.cdk-overlay-pane');
+          if(panel&&o.length>lastCount){
+            lastCount=o.length;
+            try{panel.scrollTop=panel.scrollHeight}catch(e){}
+            await sleep(350);
+            continue;
+          }
+          if(o.length>0)return 'no-match';
+          await sleep(150);
         }
-        if(o.length>0)return 'no-match';
         return null;
-      },4000,100).catch(function(){return null});
+      })().catch(function(){return null});
       if(hit&&hit!=='no-match'){
         out.optionFound=true;
         hit.click();
