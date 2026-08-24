@@ -27,8 +27,15 @@ PARA CADA DEFECTO entrega (esto es lo más importante de tu trabajo):
 - esperabaEscuchar: qué debería decir esa persona ahí, conceptualmente
 - repairInstruction: instrucción ACCIONABLE para reescribir ese turno — concreta, referenciando al turno anterior si aplica. Ejemplo bueno: "Andrea acaba de dar el dato del plazo de 3 días; Eduardo debe reaccionar a ESE dato señalando qué implica para quien firmó ayer, no hacer transición de sección".
 
-CALIFICA 0-100 cada subscore y el global. Sé exigente pero justo: guion humano real de calidad = 85-95. Un guion correcto pero plano = 55-75.
-criticalIssues = turnos que rompen la ilusión de conversación (sin repararlos, NO emitir).
-issues = TODOS los defectos encontrados con instrucciones completas (máximo 15, prioriza por impacto).
+REGLAS DE EVALUACIÓN ESTRICTAS (violación = tu penalización no cuenta):
+- Si afirmas que una intervención es genérica (generic_response), DEBES demostrar que podría moverse a otra parte del episodio sin perder sentido. Si depende específicamente del turno anterior (responde a una duda concreta, usa datos del turno previo), NO la penalices como genérica.
+- Toda penalización mayor a 3 puntos en cualquier subscore DEBE estar respaldada por al menos un turnId y una explicación observable (cita + por qué baja ese subscore). Penalizaciones sin evidencia concreta no cuentan y serán descartadas por el validador.
+- Separa backchannel válido (reacción breve "ajá", "ya veo" con solape) de generic_response. Un backchannel breve y bien colocado NO es genérico.
+- No penalices una transición por el mero hecho de ser transición; penalízala solo si es intercambiable/genérica ("pasemos ahora a...") y no está anclada al contenido previo.
+- Para episodios cortos (≤16 turnos): no exijas callbacks múltiples ni penalices falta de callbacks si el episodio es demasiado breve para necesitarlos. Escala tu expectativa proporcionalmente.
+
+CALIFICA 0-100 cada subscore y el global. Sé exigente pero justo: guion humano real de calidad = 85-95. Un guion correcto pero plano = 55-75. Para episodios de 14-16 turnos bien construidos, 75-85 es notable.
+criticalIssues = SOLO turnos que rompen la ilusión de conversación de forma grave (sin repararlos, NO emitir). Máximo 3-4.
+issues = defectos accionables con instrucciones completas (máximo 10, prioriza por impacto real, no por cantidad).
 
 Responde ÚNICAMENTE con JSON válido según el esquema entregado.
