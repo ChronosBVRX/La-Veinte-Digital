@@ -844,7 +844,7 @@ async function handleMaster(res: http.ServerResponse, body: Record<string, unkno
   const duckAttack = Number(body.duckAttack) || 120;
   const duckRelease = Number(body.duckRelease) || 1400;
   const musicDir = path.join(REPO, "data", "tts", "music");
-  const autoBed = body.bed === "auto" || body.bed === true || body.bed == null
+  const autoBed = false // DESACTIVADO: cama musical durante diálogo genera tono "tenebroso". Solo intro/outro.
     ? selectBrandMusicFile(musicDir, "bed")
     : null;
   const autoJingle = body.jingle === "auto" || body.jingle === true || body.jingle == null
@@ -934,7 +934,16 @@ async function handleMaster(res: http.ServerResponse, body: Record<string, unkno
         chunkIdx++;
       }
       if (turnWavs.length === 0) {
-        cursor += t.pauseBeforeMs ?? 0;
+        // pausa variable con jitter: 180-350ms para handoff normal, 0-80ms para interrupciones
+      const esInterrupcion = t.overlapPreviousMs != null && t.overlapPreviousMs > 0;
+      let pauseReal = t.pauseBeforeMs ?? 0;
+      if (!esInterrupcion && pauseReal > 100) {
+        // variar entre 180-350 ms de forma determinista por turno
+        const seed = (t.id ?? `t${idx}`).split("").reduce((a,c)=>(a*31+c.charCodeAt(0))|0,7);
+        const jitter = Math.abs(seed % 170); // 0-169
+        pauseReal = Math.max(180, Math.min(350, pauseReal + jitter - 85));
+      }
+      cursor += pauseReal;
         continue;
       }
 
@@ -958,7 +967,16 @@ async function handleMaster(res: http.ServerResponse, body: Record<string, unkno
       }
 
       inputs.push(turnWav);
-      cursor += t.pauseBeforeMs ?? 0;
+      // pausa variable con jitter: 180-350ms para handoff normal, 0-80ms para interrupciones
+      const esInterrupcion = t.overlapPreviousMs != null && t.overlapPreviousMs > 0;
+      let pauseReal = t.pauseBeforeMs ?? 0;
+      if (!esInterrupcion && pauseReal > 100) {
+        // variar entre 180-350 ms de forma determinista por turno
+        const seed = (t.id ?? `t${idx}`).split("").reduce((a,c)=>(a*31+c.charCodeAt(0))|0,7);
+        const jitter = Math.abs(seed % 170); // 0-169
+        pauseReal = Math.max(180, Math.min(350, pauseReal + jitter - 85));
+      }
+      cursor += pauseReal;
       const startMs = cursor;
       const prev = turnosMezcla[turnosMezcla.length - 1];
       let inicioMs = startMs;
