@@ -1251,10 +1251,15 @@ class TuPerfilBiometricFlowController(
             Log.w(FLOW_TAG, "[$gen] applyPeriod attempt=$attempt reason=$lastReason")
         }
         Log.w(FLOW_TAG, "[$gen] applyPeriod success=false reason=$lastReason")
+        val sampleLabels = availableLabels.distinct().take(5).joinToString(" | ").take(120)
         trace(gen, "APPLY_PERIOD", "SUMMARY", result = false,
             details = "controlFound=$controlFound overlayOpened=$overlayOpened optionCount=$optionCount " +
-                "optionFound=$optionFound click=$clickPerformed overlayClosed=$overlayClosed verified=false reason=$lastReason",
+                "optionFound=$optionFound click=$clickPerformed overlayClosed=$overlayClosed verified=false reason=$lastReason samples=$sampleLabels",
             durationMs = System.currentTimeMillis() - startedAt)
+        // También deja las labels en el trace para que Copiar diagnóstico las incluya
+        if (availableLabels.isNotEmpty()) {
+            trace(gen, "APPLY_PERIOD", "LABELS", result = false, details = availableLabels.distinct().take(8).joinToString(" | ").take(200))
+        }
         return ApplyOutcome(false, controlFound, overlayOpened, optionCount, optionFound, clickPerformed, overlayClosed, false, lastReason, ooadVerified, ooadText, availableLabels)
     }
 

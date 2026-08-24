@@ -833,22 +833,29 @@ async function openAndPick(c,targetLabel,targetValue){
             }
           }
           if(scroller&&scroller.scrollHeight>scroller.clientHeight+5){
-            var prevTop=scroller.scrollTop;
             var atBottom=scroller.scrollTop+scroller.clientHeight>=scroller.scrollHeight-4;
             if(!atBottom){
               try{
-                // Intenta scroll incremental y también scrollIntoView del último visible para forzar carga
-                scroller.scrollTop=Math.min(scroller.scrollHeight, scroller.scrollTop+320);
-                try{o[o.length-1].scrollIntoView({block:'nearest'})}catch(e){}
+                // Salta directo al fondo para forzar carga de los periodos más antiguos (virtual scroll)
+                scroller.scrollTop=scroller.scrollHeight;
+                try{o[o.length-1].scrollIntoView({block:'end'})}catch(e){}
+                // También prueba scroll incremental por si el contenedor es otro
+                var alt=document.querySelector('.cdk-overlay-container');
+                if(alt&&alt.scrollHeight>alt.clientHeight) alt.scrollTop=alt.scrollHeight;
               }catch(e){}
-              await sleep(400);
-              // Si no avanzó y no hay más opciones, ya no hay más que cargar
-              if(scroller.scrollTop===prevTop&&o.length===lastCount){
-                return 'no-match';
-              }
+              await sleep(500);
+              // No salgas aunque el conteo no cambie (virtual scroll recicla nodos)
               lastCount=o.length;
               continue;
             }
+          } else if(o.length>0){
+            // No es scrolleable pero aún no se encontró -> intenta scrollIntoView del último
+            try{o[o.length-1].scrollIntoView({block:'end'})}catch(e){}
+            await sleep(300);
+            // Si sigue sin aparecer, es realmente no encontrado
+            var o2=Array.from(document.querySelectorAll('.cdk-overlay-container mat-option[role="option"], mat-option[role="option"]'));
+            if(o2.length===o.length) return 'no-match';
+            continue;
           }
           if(o.length>0)return 'no-match';
           await sleep(150);
