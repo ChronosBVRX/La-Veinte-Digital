@@ -696,12 +696,16 @@ function isPeriodLike(x){var a=n(String(x.getAttribute&&x.getAttribute('formcont
 function fieldLabel(x){var ff=x.closest?x.closest('mat-form-field'):null;if(!ff)return '';var l=ff.querySelector('mat-label,label');return l?txt(l):''}
 function findPeriodControl(){
   var mats=Array.from(document.querySelectorAll('mat-select[role="combobox"]'));
-  // Si hay exactamente 2, el de Periodo es el que NO es OOAD (evita confusión por formcontrolname vacío)
+  // Búsqueda directa por texto visible "periodo" (más fiable que formcontrolname vacío visto en prod)
+  for(var i=0;i<mats.length;i++){
+    var tx=n(txt(mats[i])); var lb=n(fieldLabel(mats[i]));
+    if(tx.indexOf('periodo')>=0||lb.indexOf('periodo')>=0) return {kind:'mat',el:mats[i],evidence:'text-periodo',label:fieldLabel(mats[i])};
+  }
+  // Si hay exactamente 2, el de Periodo es el que NO es OOAD
   if(mats.length===2){
     var aIsO=isOoadLike(mats[0]), bIsO=isOoadLike(mats[1]);
     if(aIsO&&!bIsO) return {kind:'mat',el:mats[1],evidence:'by-exclusion-2',label:fieldLabel(mats[1])};
     if(!aIsO&&bIsO) return {kind:'mat',el:mats[0],evidence:'by-exclusion-2',label:fieldLabel(mats[0])};
-    // Si ninguno es OOAD-like claro, el segundo suele ser Periodo (visto: id mat-select-2)
     if(!aIsO&&!bIsO){
       var lb1=n(fieldLabel(mats[1])); var tx1=n(txt(mats[1]));
       if(tx1.indexOf('periodo')>=0||lb1.indexOf('periodo')>=0) return {kind:'mat',el:mats[1],evidence:'second-is-period',label:fieldLabel(mats[1])};
@@ -812,7 +816,14 @@ async function openAndPick(c,targetLabel,targetValue){
     }
     return out;
   }
+  var triedAlt=false;
   for(var attempt=0;attempt<3&&!out.optionFound;attempt++){
+    // Si la vez anterior abrió OOAD por error, cambia al otro mat-select
+    if(triedAlt&&attempt===1){
+      var allMatsAlt=Array.from(document.querySelectorAll('mat-select[role="combobox"]'));
+      var otherAlt=allMatsAlt.find(function(x){return x!==c.el});
+      if(otherAlt){ c={kind:'mat',el:otherAlt,evidence:'fallback-other-ooad',label:fieldLabel(otherAlt)}; }
+    }
     var trigger=c.el.querySelector('.mat-select-trigger')||c.el;
     try{c.el.scrollIntoView({behavior:'auto',block:'center'})}catch(e){}
     trigger.click();
@@ -890,6 +901,16 @@ async function openAndPick(c,targetLabel,targetValue){
       out.availableLabels=out.availableLabels.concat(any.map(function(x){return txt(x)}).filter(function(t){return t.length>0}));
       out.optionCount=Math.max(out.optionCount,any.length);
       out.maxOptions=Math.max(out.maxOptions,any.length);
+    }
+    // Si se abrió el desplegable de OOAD por error (se detecta por sus opciones), reintenta con el otro mat-select
+    if(!out.optionFound && out.availableLabels.length>0 && !triedAlt){
+      var hasOoad = out.availableLabels.some(function(l){ var nl=n(l); return nl.indexOf('aguascalientes')>=0 || nl.indexOf('baja california')>=0; });
+      var hasPeriod = out.availableLabels.some(function(l){ return /\b\d{6,7}\b/.test(l); });
+      if(hasOoad && !hasPeriod){
+        triedAlt=true;
+        esc(); await sleep(350);
+        continue;
+      }
     }
     if(!out.optionFound){esc();await sleep(350);}
   }

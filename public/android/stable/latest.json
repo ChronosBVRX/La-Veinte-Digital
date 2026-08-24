@@ -1,16 +1,16 @@
 {
   "channel": "stable",
-  "versionCode": 171,
-  "versionName": "1.0.71",
+  "versionCode": 172,
+  "versionName": "1.0.72",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-24T21:07:17Z",
+  "publishedAt": "2026-08-24T21:15:42Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "7c78b4d72f2ae06823af0b575eb8683400624bac26a348fc4aa3861c20647989",
-    "size": 67526240
+    "sha256": "d42969688b2ab6ef0f0d118bfc1e40c5a46a4f9bf4c3517a0f54cb8e8ebf5ba1",
+    "size": 67542628
   },
   "releaseNotes": [
-    "Fix definitivo biométricos: identifica correctamente el selector de Periodo cuando hay 2 mat-select (evita abrir OOAD)"
+    "Fix biométricos: si abre OOAD por error detecta Aguascalientes y reintenta automáticamente con el selector de Periodo"
   ]
 }
