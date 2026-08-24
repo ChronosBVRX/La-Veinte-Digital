@@ -895,20 +895,37 @@ async function openAndPick(c,targetLabel,targetValue){
       if(hit&&hit!=='no-match'){
         out.optionFound=true;
         out.hitLabel=txt(hit);
-        // Click más realista para Angular Material (mousedown + mouseup + click)
+        try{ hit.scrollIntoView({block:'center', inline:'nearest'}); }catch(e){}
+        await sleep(150);
+        // Click más realista para Angular Material (mousedown + mouseup + click + ripple)
         try{
-          hit.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, view:window}));
-          hit.dispatchEvent(new MouseEvent('mouseup', {bubbles:true, cancelable:true, view:window}));
+          var ripple=hit.querySelector('.mat-option-text')||hit;
+          ripple.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, view:window}));
+          ripple.dispatchEvent(new MouseEvent('mouseup', {bubbles:true, cancelable:true, view:window}));
+          // Intenta también dispatch en el texto interno
+          var inner=hit.querySelector('.mat-option-text');
+          if(inner) inner.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, view:window}));
         }catch(e){}
         hit.click();
         out.clickPerformed=true;
         // Espera a que el overlay se cierre y Angular actualice el displayText
         var t0=Date.now();
-        while(Date.now()-t0<1200){
+        while(Date.now()-t0<1800){
           await sleep(150);
           if(!document.querySelector('.cdk-overlay-pane')) break;
         }
         out.overlayClosed=!document.querySelector('.cdk-overlay-pane');
+        // Si no se cerró, fuerza Escape y reintenta click con Enter
+        if(!out.overlayClosed){
+          try{
+            hit.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}));
+            await sleep(200);
+            if(!document.querySelector('.cdk-overlay-pane')) out.overlayClosed=true;
+          }catch(e){}
+        }
+        if(!out.overlayClosed){
+          try{ L.esc(); await sleep(400); out.overlayClosed=!document.querySelector('.cdk-overlay-pane'); }catch(e){}
+        }
       }
     }catch(e){}
     var any=Array.from(document.querySelectorAll('.cdk-overlay-container mat-option[role="option"], mat-option[role="option"]'));
