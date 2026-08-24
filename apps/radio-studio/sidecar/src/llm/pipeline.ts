@@ -259,6 +259,25 @@ export class ScriptPipeline {
       }
     }
 
+    // ── Saneo Alonso: institucional siempre, sin muletillas casuales ──
+    const CASUAL_PREFIX_RE = /^(¡)?(Exacto[^.!]*[.!]\s*|Muy bien[^.!]*[.!]\s*|Correcto[^.!]*[.!]\s*|Tienes toda la razón[^.!]*[.!]\s*)/i;
+    for (const t of draftTurns) {
+      if (/NARRADOR/i.test(t.speaker) && CASUAL_PREFIX_RE.test(t.text)) {
+        t.text = t.text.replace(CASUAL_PREFIX_RE, "").trim();
+        if (!t.text) t.text = "Conforme a la normativa vigente.";
+        t.text = t.text.charAt(0).toUpperCase() + t.text.slice(1);
+      }
+    }
+    // ── Colapso de monólogo NARRADOR: dos normativos seguidos → fusionar ──
+    for (let i = 0; i < draftTurns.length - 1; i++) {
+      if (/NARRADOR/i.test(draftTurns[i].speaker) && /NARRADOR/i.test(draftTurns[i + 1].speaker)) {
+        draftTurns[i].text = `${draftTurns[i].text.trim()} ${draftTurns[i + 1].text.trim()}`;
+        draftTurns[i].citations = [...new Set([...(draftTurns[i].citations ?? []), ...(draftTurns[i + 1].citations ?? [])])];
+        draftTurns.splice(i + 1, 1);
+        i--;
+      }
+    }
+
     // ── Normalización determinista de intents (alinear metadato con texto real) ──
     for (const t of draftTurns) {
       if ((t.intent === "question" || t.intent === "interrupt_question") && !ES_PREGUNTA_REAL(t.text)) {
@@ -299,6 +318,7 @@ export class ScriptPipeline {
                 user: `TURNO PROBLEMÁTICO:\n${JSON.stringify(draftTurns[idx])}\n\nANTERIOR:\n${JSON.stringify(draftTurns[idx - 1] ?? null)}\nPOSTERIOR:\n${JSON.stringify(draftTurns[idx + 1] ?? null)}\nMOTIVO: ${auditoria.issues.filter((i) => i.turnId === tid).map((i) => i.reason).join("; ")}\nEVIDENCIA RELEVANTE:\n${fuentes.slice(0, 3000)}`,
                 jsonSchema: toSchema(RepairedTurnsSchema),
                 validate: (raw) => RepairedTurnsSchema.parse(raw),
+                useCache: false,
               })
             );
             for (const rt of rep.turns) {
@@ -386,6 +406,7 @@ INSTRUCCIÓN DE REPARACIÓN: ${issue.repairInstruction}
 Reescribe SOLO el turno ${issue.turnId}. Debe reaccionar genuinamente a su contexto.`,
                 jsonSchema: toSchema(RepairedTurnsSchema),
                 validate: (raw) => RepairedTurnsSchema.parse(raw),
+                useCache: false,
               })
             );
             for (const rt of rep.turns) {
