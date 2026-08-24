@@ -822,13 +822,33 @@ async function openAndPick(c,targetLabel,targetValue){
             var code=(ntl.match(/\b\d{6,7}\b/)||ntv.match(/\b\d{6,7}\b/)||[])[0];
             if(code&&(ot.indexOf(code)>=0||ov.indexOf(code)>=0))return x;
           }
-          // No encontrado entre los visibles -> intenta hacer scroll dentro del panel virtualizado
-          var panel=document.querySelector('.cdk-overlay-pane .mat-mdc-select-panel')||document.querySelector('.cdk-overlay-pane .mat-select-panel')||document.querySelector('.cdk-overlay-pane');
-          if(panel&&o.length>lastCount){
-            lastCount=o.length;
-            try{panel.scrollTop=panel.scrollHeight}catch(e){}
-            await sleep(350);
-            continue;
+          // No encontrado -> intenta scroll incremental (virtual scroll) hasta cargar más opciones
+          var scroller=document.querySelector('.cdk-overlay-pane .mat-mdc-select-panel')||document.querySelector('.cdk-overlay-pane .mat-select-panel')||document.querySelector('.cdk-overlay-pane');
+          // Si el panel no es el scrolleable, busca el ancestro scrolleable de la primera opción
+          if(o.length>0){
+            var probe=o[0].parentElement;
+            while(probe&&probe!==document.body){
+              if(probe.scrollHeight>probe.clientHeight+5){scroller=probe;break}
+              probe=probe.parentElement;
+            }
+          }
+          if(scroller&&scroller.scrollHeight>scroller.clientHeight+5){
+            var prevTop=scroller.scrollTop;
+            var atBottom=scroller.scrollTop+scroller.clientHeight>=scroller.scrollHeight-4;
+            if(!atBottom){
+              try{
+                // Intenta scroll incremental y también scrollIntoView del último visible para forzar carga
+                scroller.scrollTop=Math.min(scroller.scrollHeight, scroller.scrollTop+320);
+                try{o[o.length-1].scrollIntoView({block:'nearest'})}catch(e){}
+              }catch(e){}
+              await sleep(400);
+              // Si no avanzó y no hay más opciones, ya no hay más que cargar
+              if(scroller.scrollTop===prevTop&&o.length===lastCount){
+                return 'no-match';
+              }
+              lastCount=o.length;
+              continue;
+            }
           }
           if(o.length>0)return 'no-match';
           await sleep(150);

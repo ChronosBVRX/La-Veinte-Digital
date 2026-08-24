@@ -1,17 +1,17 @@
 {
   "channel": "stable",
-  "versionCode": 167,
-  "versionName": "1.0.67",
+  "versionCode": 168,
+  "versionName": "1.0.68",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-24T20:13:49Z",
+  "publishedAt": "2026-08-24T20:22:18Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "a60acc47f6dda0c275ebf2e2da8c58392af8458fc787250f4030132432afe8b9",
-    "size": 67493476
+    "sha256": "49728b56f2fe533b47d7d15d9be3e29939dd462f84d725deae456ff724b71373",
+    "size": 67509860
   },
   "releaseNotes": [
-    "Fix biométricos: el periodo ahora se encuentra aunque esté fuera de la vista inicial (scroll automático del selector para periodos antiguos como 2025001)",
-    "Mantiene fix instalador OTA 1.0.66"
+    "Fix biométricos: scroll incremental real del listado virtualizado para encontrar periodos antiguos (2025001) fuera del viewport",
+    "Mantiene fix instalador OTA"
   ]
 }
