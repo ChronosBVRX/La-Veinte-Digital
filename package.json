@@ -37,7 +37,7 @@
     "tts:benchmark-laptop": "node --no-warnings --import tsx src/features/normativa/cli/tts-benchmark.ts",
     "studio:smoke": "bash apps/radio-studio/sidecar/scripts/studio-smoke.sh",
     "sidecar": "bash apps/radio-studio/sidecar/scripts/sidecarctl.sh",
-    "test:unit": "npx vitest run packages/radio-core packages/tts-core src/features/normativa/__tests__"
+    "test:unit": "npx vitest run packages/radio-core packages/tts-core src/features/normativa/__tests__ apps/radio-studio/sidecar/src/llm/__tests__"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",

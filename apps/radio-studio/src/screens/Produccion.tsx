@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { obtenerProgreso, cancelarProduccion, descartarProduccion, reanudarProduccion, masterPrograma, regenerarTurno, SIDECAR_URL_EXPORT, type ProgresoProduccion, type DialogueTurn, type MasterResult, type BloqueProgreso } from "../lib/studio-api";
+import { obtenerProgreso, cancelarProduccion, descartarProduccion, reanudarProduccion, masterPrograma, regenerarTurno, obtenerLlmSalud, type LlmHealthInfo, SIDECAR_URL_EXPORT, type ProgresoProduccion, type DialogueTurn, type MasterResult, type BloqueProgreso } from "../lib/studio-api";
 import type { VoiceSlot } from "@la-veinte/radio-core";
 import { MiniPlayer, colorDeLocutor, nombreCorto } from "../components/MiniPlayer";
 
@@ -48,6 +48,8 @@ export function Produccion() {
   const [indiceTodo, setIndiceTodo] = useState<number | null>(null);
   const [limiteSecuencia, setLimiteSecuencia] = useState<number | null>(null);
   const [modoDirector, setModoDirector] = useState(false);
+  const [llm, setLlm] = useState<LlmHealthInfo | null>(null);
+  const [verGpu, setVerGpu] = useState(false);
   const [regenerandoId, setRegenerandoId] = useState<string | null>(null);
   const guionMeta = useRef(leerGuion());
   const listaRef = useRef<HTMLDivElement | null>(null);
@@ -69,6 +71,13 @@ export function Produccion() {
 
   useEffect(() => {
     const t = setInterval(() => setTick((x) => x + 1), 1200);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    const load = () => void obtenerLlmSalud().then(setLlm);
+    load();
+    const t = setInterval(load, 20000);
     return () => clearInterval(t);
   }, []);
 
@@ -238,12 +247,43 @@ export function Produccion() {
               {running ? "El estudio está grabando las voces…" : done > 0 ? "Voces listas para mezclar." : "Primero crea un guion y lanza la generación."}
             </div>
           </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+          {llm && (
+            <button
+              className="pill-ia"
+              title={llm.health.ok ? `Ollama ${llm.health.version} · ${llm.config.model}` : (llm.health.error ?? "IA local no disponible")}
+              onClick={() => setVerGpu((v) => !v)}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 7,
+                padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 700, letterSpacing: "0.06em",
+                border: `1px solid ${llm.health.ok && llm.modeloObjetivoOk ? "rgba(52,211,153,.4)" : "rgba(239,68,68,.4)"}`,
+                background: llm.health.ok && llm.modeloObjetivoOk ? "rgba(16,185,129,.12)" : "rgba(239,68,68,.1)",
+                color: llm.health.ok && llm.modeloObjetivoOk ? "#34d399" : "#fca5a5",
+                cursor: "pointer",
+              }}
+            >
+              <span className="dot-ia" />
+              {llm.gpu.owner === "llm" ? "PENSANDO · QWEN" : llm.health.ok ? (llm.modeloObjetivoOk ? "IA LOCAL LISTA" : "MODELO NO INSTALADO") : "IA LOCAL OFF"}
+              {llm.health.ok && <span style={{ fontWeight: 500, textTransform: "none" }}>{llm.config.model}</span>}
+            </button>
+          )}
+          {verGpu && llm && (
+            <div className="gpu-card">
+              <div><span className="muted small">GPU:</span> RTX 3060</div>
+              <div><span className="muted small">Estado:</span> {llm.gpu.state} · dueño: <strong>{llm.gpu.owner ?? "LIBRE"}</strong></div>
+              {llm.stats.map((st) => (
+                <div key={st.name}><span className="muted small">{st.name}:</span> VRAM {(st.sizeVramMb ?? 0 / 1024 / 1024 / 1024).toFixed(1)} MB… </div>
+              ))}
+              <div className="muted small">Contexto: {llm.config.contextTokens} tokens · Proveedor remoto: {llm.config.remoteEnabled ? "ACTIVADO" : "desactivado"} · 100% local</div>
+            </div>
+          )}
           {total > 0 && (
             <div className={`prod-pill ${running ? "live" : ""}`}>
               {running && <span className="dot" />}
               {running ? "EN EL AIRE" : resumible ? "PAUSADO" : "LISTO"}
             </div>
           )}
+          </div>
         </div>
 
         {total > 0 && (

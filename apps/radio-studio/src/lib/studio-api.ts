@@ -501,6 +501,25 @@ export async function regenerarTurno(opts: {
   return post("/regenerate", opts, 120000);
 }
 
+// ─── IA local (Ollama/Qwen) ──────────────────────────────────────────────
+
+export interface LlmHealthInfo {
+  config: { model: string; enabled: boolean; remoteEnabled: boolean; contextTokens: number };
+  health: { ok: boolean; version?: string; error?: string };
+  modelos: string[];
+  modeloObjetivoOk: boolean;
+  gpu: { state: string; owner: string | null; lastError: string | null };
+  stats: Array<{ name: string; sizeVramMb: number | null }>;
+}
+
+export async function obtenerLlmSalud(): Promise<LlmHealthInfo | null> {
+  try {
+    return await get<LlmHealthInfo>("/llm/health", 5000);
+  } catch {
+    return null;
+  }
+}
+
 export async function obtenerProgreso(): Promise<ProgresoProduccion | null> {
   try {
     return await get<ProgresoProduccion>("/progress", 4000);
