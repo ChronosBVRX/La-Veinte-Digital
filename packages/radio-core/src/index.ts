@@ -166,3 +166,4 @@ export * from "./voice-profile";
 export * from "./personas";
 export * from "./voice-slots";
 export * from "./conversation";
+export * from "./human-gate";

@@ -16,6 +16,7 @@ export type SpeakerRole =
   | "conductor"
   | "co-conductor"
   | "narrador"
+  | "normative_analyst"
   | "invitado"
   | "reportero"
   | "corresponsal"
@@ -135,9 +136,9 @@ export const DEFAULT_SPEAKERS: SpeakerProfile[] = [
   },
   {
     id: "NARRADOR",
-    nombre: "Alonso",
-    rol: "narrador",
-    personalidad: "Alonso, narrador institucional: intervenciones breves con fechas, fundamentos y avisos editoriales.",
+    nombre: "Javier Ríos",
+    rol: "normative_analyst" as SpeakerRole,
+    personalidad: "Javier Ríos, analista normativo: interviene solo para precisar o demostrar algo con la fuente. Habla como una persona más en la mesa, serio y conciso. JAMÁS dice 'narrador', 'analista', 'voz N' ni explica su rol al aire.",
     voz: "N",
   },
   {
@@ -253,7 +254,7 @@ export function directRadioEpisode(input: DirectorInput): EpisodeScript {
   const p = LEVEL_PARAMS[input.nivel] ?? LEVEL_PARAMS.natural;
   const conductor = input.speakers.find((s) => s.rol === "conductor") ?? input.speakers[0];
   const co = input.speakers.find((s) => s.rol === "co-conductor") ?? input.speakers[1] ?? input.speakers[0];
-  const narrador = input.speakers.find((s) => s.rol === "narrador");
+  const narrador = input.speakers.find((s) => s.rol === "narrador" || s.rol === "normative_analyst");
   const corresponsal = input.speakers.find((s) => s.rol === "corresponsal");
   const scenes: Scene[] = [];
   const allTurns: DialogueTurn[] = [];
@@ -395,7 +396,7 @@ export function directRadioEpisode(input: DirectorInput): EpisodeScript {
     },
     {
       speaker: conductor.id,
-      text: `No, ojo: firmar no siempre significa aceptar todo. Depende de qué firmó y con qué información. Y justo para eso está Alonso después.`,
+      text: `No, ojo: firmar no siempre significa aceptar todo. Depende de qué firmó y con qué información. Y justo para eso está Javier después.`,
       intent: "clarification",
       respondsTo: null,
       energy: 3,
@@ -594,5 +595,5 @@ const PUENTES = [
   "Ahora, aquí viene el problema.",
   "Pero falta una pieza.",
   "Rodrigo investigó precisamente eso, y conecta con esto otro.",
-  "Alonso, detengámonos aquí porque hay una parte que cambia el escenario.",
+  "Javier, detengámonos aquí porque hay una parte que cambia el escenario.",
 ];

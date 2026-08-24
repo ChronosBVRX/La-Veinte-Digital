@@ -44,7 +44,8 @@ export const ConversationDirectionSchema = z.object({
     ]),
     respondsTo: z.string().nullable(),
     purpose: z.string().min(3),
-    energy: z.number().min(0).max(1),
+    /** El modelo a veces responde escala 0-5; se normaliza después */
+    energy: z.number().min(0).max(5),
     sourceIds: z.array(z.string()).default([]),
   })).min(6).max(120),
 });
@@ -68,8 +69,19 @@ export const NormativeAuditSchema = z.object({
   issues: z.array(z.object({
     turnId: z.string(),
     severity: z.enum(["critical", "warning"]),
-    type: z.enum(["unsupported_claim", "citation_mismatch", "invented_source", "norm_vs_recommendation"]),
+    type: z.enum([
+      "unsupported_claim", "citation_mismatch", "invented_source",
+      "norm_vs_recommendation",
+      /** La fuente existe pero NO trata el tema del turno (ej. salario citado para horario) */
+      "citation_hallucination",
+      /** La fuente es parcialmente pertinente pero no fundamenta la afirmación concreta */
+      "source_irrelevant_to_claim",
+    ]),
     reason: z.string(),
+    /** ¿El texto del documento implica realmente lo que el turno afirma? */
+    citationEntailmentScore: z.number().min(0).max(1).optional(),
+    /** ¿La fuente es pertinente al tema/problema del episodio? */
+    citationRelevanceScore: z.number().min(0).max(1).optional(),
   })),
 });
 

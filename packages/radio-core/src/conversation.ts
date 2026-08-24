@@ -6,7 +6,7 @@
  * Reglas clave (no negociables):
  *  - Ninguna cita normativa queda sin reacción posterior.
  *  - Andrea cuestiona, objeta y reacciona; nunca es solo eco de Eduardo.
- *  - Alonso solo fundamento; Eduardo dirige sin monopolizar;
+ *  - Javier solo fundamento; Eduardo dirige sin monopolizar;
  *    Rodrigo trae campo y mantiene conversación; Valeria SOLO comercial.
  *  - Longitudes variadas; pausas clasificadas; solapes con causa semántica.
  */
@@ -237,7 +237,7 @@ export function analyzeDistribution(turns: DialogueTurn[], _speakers: SpeakerPro
   }
   const alonsoTurns = editoriales.filter((t) => /NARRADOR|ALONSO/i.test(t.speaker));
   if (alonsoTurns.length > 0 && alonsoTurns.every((t) => (t.citations?.length ?? 0) === 0)) {
-    adv.push("Alonso aparece sin ninguna cita verificada.");
+    adv.push("Javier aparece sin ninguna cita verificada.");
   }
   const rodrigoTurns = editoriales.filter((t) => /RODRIGO/i.test(t.speaker));
   for (let i = 0; i < rodrigoTurns.length; i++) {
@@ -329,9 +329,9 @@ export function auditConversation(turns: DialogueTurn[]): QaLinea[] {
   const edPct = Object.entries(palabras).find(([k]) => /EDUARDO/i.test(k))?.[1] ?? 0;
   lineas.push({ check: "Eduardo dirige pero no monopoliza", pass: edPct <= 48, detalle: `${edPct}% del texto` });
 
-  // 7. Alonso solo fundamento
+  // 7. Javier solo fundamento
   const alonsoFuera = edit.filter((t) => /NARRADOR|ALONSO/i.test(t.speaker) && t.intent && !["normative_answer", "statement", "handoff"].includes(t.intent));
-  lineas.push({ check: "Alonso solamente aporta fundamento/contexto institucional", pass: alonsoFuera.length === 0, detalle: alonsoFuera.map((t) => t.id).join(", ") || "ok" });
+  lineas.push({ check: "Javier solamente aporta fundamento/contexto institucional", pass: alonsoFuera.length === 0, detalle: alonsoFuera.map((t) => t.id).join(", ") || "ok" });
 
   // 8. Firewall Valeria
   const fw = validateRoleFirewall(turns);
@@ -544,13 +544,13 @@ export function buildExchange(ctx: ExchangeContext, claim: EvidenceClaim, sceneT
     pauseAfterMs: randSeeded(s + 3, 220, 480),
   } as Draft);
 
-  // 4. Eduardo responde parcialmente y hace handoff a Alonso (variado)
+  // 4. Eduardo responde parcialmente y hace handoff a Javier (variado)
   const handoffs = [
-    `Buena pregunta, y justo ahí está el detalle. Alonso, ayúdanos con lo que dice la fuente sobre esto.`,
-    `Eso es importante. Alonso, ¿qué dice exactamente el documento?`,
-    `Espérame tantito, porque aquí conviene ir a la fuente. Alonso, danos el fundamento.`,
-    `Justo ahí hay un matiz que vale la pena leer tal cual está escrito. Alonso.`,
-    `Y para no quedarnos en comentarios: Alonso, ¿qué respaldo hay?`,
+    `Buena pregunta, y justo ahí está el detalle. Javier, ayúdanos con lo que dice la fuente sobre esto.`,
+    `Eso es importante. Javier, ¿qué dice exactamente el documento?`,
+    `Espérame tantito, porque aquí conviene ir a la fuente. Javier, danos el fundamento.`,
+    `Justo ahí hay un matiz que vale la pena leer tal cual está escrito. Javier.`,
+    `Y para no quedarnos en comentarios: Javier, ¿qué respaldo hay?`,
   ];
   push({
     speaker: E.id,
@@ -566,7 +566,7 @@ export function buildExchange(ctx: ExchangeContext, claim: EvidenceClaim, sceneT
     pauseAfterMs: randSeeded(s + 4, 300, 600),
   } as Draft);
 
-  // 5. Alonso fundamento exacto
+  // 5. Javier fundamento exacto
   if (N) {
     push({
       speaker: N.id,

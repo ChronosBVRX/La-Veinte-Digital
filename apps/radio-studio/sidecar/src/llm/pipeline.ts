@@ -12,6 +12,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import type { DialogueTurn, DirectorInput } from "@la-veinte/radio-core";
 import { conversationQualityScore, auditConversation, validateRoleFirewall } from "@la-veinte/radio-core";
+import { humanConversationGate, gateBloqueado } from "@la-veinte/radio-core";
 import { LocalLLMService } from "./local-llm";
 import { withGpu } from "./gpu-manager";
 import {
@@ -171,7 +172,7 @@ export class ScriptPipeline {
       direccion = await withGpu("llm", () =>
         this.llm.generateStructured({
           task: "direction",
-          system: prompt("director.v1.txt"),
+          system: prompt("director.v2.txt"),
           user: `ESCALETA:\n${JSON.stringify(plan)}\n\nHECHOS DISPONIBLES:\n${fuentes}\n\nGenera la dirección de turnos completa del episodio.`,
           jsonSchema: toSchema(ConversationDirectionSchema),
           validate: (raw) => ConversationDirectionSchema.parse(raw),
@@ -185,7 +186,7 @@ export class ScriptPipeline {
       textos = await withGpu("llm", () =>
         this.llm.generateStructured({
           task: "dialogue",
-          system: prompt("writer.v1.txt"),
+          system: prompt("writer.v2.txt"),
           user: `DIRECCIÓN DE TURNOS:\n${JSON.stringify(direccion.turns)}\n\nFUENTES:\n${fuentes}`,
           jsonSchema: toSchema(DialogueScriptSchema),
           validate: (raw) => DialogueScriptSchema.parse(raw),
@@ -223,7 +224,12 @@ export class ScriptPipeline {
       speaker: t.speaker,
       text: textos.get(t.id) ?? "",
       pauseBeforeMs: 250, pauseAfterMs: 250,
-      energy: Math.max(1, Math.min(5, Math.round(t.energy * 5))) as DialogueTurn["energy"],
+      // normalizar energía: si viene en 0-1 escalar a 1-5; si ya es 1-5, redondear
+      energy: (() => {
+        const e = t.energy;
+        if (e <= 1) return Math.max(1, Math.min(5, Math.round(e * 5))) as DialogueTurn["energy"];
+        return Math.max(1, Math.min(5, Math.round(e))) as DialogueTurn["energy"];
+      })(),
       pace: "normal",
       canOverlap: false,
       transition: null,
@@ -294,7 +300,7 @@ export class ScriptPipeline {
       auditoria = await withGpu("llm", () =>
         this.llm.generateStructured({
           task: "citation_audit",
-          system: prompt("normative-auditor.v1.txt"),
+          system: prompt("normative-auditor.v2.txt"),
           user: `TURNOS:\n${JSON.stringify(draftTurns.map((t) => ({ id: t.id, speaker: t.speaker, text: t.text, sourceIds: t.citations })))}\n\nEVIDENCIA:\n${fuentes}`,
           jsonSchema: toSchema(NormativeAuditSchema),
           validate: (raw) => NormativeAuditSchema.parse(raw),
@@ -428,11 +434,20 @@ Reescribe SOLO el turno ${issue.turnId}. Debe reaccionar genuinamente a su conte
     const scoreDeterminista = conversationQualityScore(draftTurns);
     const qaConv = auditConversation(draftTurns);
     const firewall = validateRoleFirewall(draftTurns);
+    // ── Human Conversation Gate (bloqueante pre-TTS) ──
+    const gateViolaciones = humanConversationGate(draftTurns);
+    const gate = gateBloqueado(gateViolaciones);
+
     const validacionFinal = {
       scoreDeterminista: scoreDeterminista.score,
       qaConversacional: qaConv,
       firewallValeria: firewall,
-      aprobado: scoreDeterminista.aprobarGeneracion && firewall.length === 0 && qaConv.every((q) => q.pass),
+      humanGate: { bloquear: gate.bloquear, fatales: gate.fatales, resumen: gate.resumen },
+      aprobado: scoreDeterminista.aprobarGeneracion
+        && firewall.length === 0
+        && qaConv.every((q) => q.pass)
+        && !gate.bloquear,
+      motivoBloqueo: gate.bloquear ? gate.resumen.filter((r) => r.startsWith("[fatal]")) : [],
     };
     this.artifact(artifactsDir, "08-validacion-final", validacionFinal);
 
