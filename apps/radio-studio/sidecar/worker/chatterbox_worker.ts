@@ -7,7 +7,7 @@
  * El sidecar NUNCA se bloquea: este worker puede estar ocupado horas.
  */
 import path from "node:path";
-import { ChatterboxEngine, sentenceAwareChunk, cleanTtsText } from "@la-veinte/tts-core";
+import { ChatterboxEngine, pythonBin, sentenceAwareChunk, cleanTtsText } from "@la-veinte/tts-core";
 import { leerJob, guardarJob } from "./job-store";
 
 const REPO = path.resolve(__dirname, "../../../..");
@@ -30,7 +30,7 @@ async function main() {
   }
 
   const engine = new ChatterboxEngine(
-    path.join(STATE, "venv", "Scripts", "python.exe"),
+    pythonBin(STATE),
     path.join(REPO, "packages", "tts-core", "engine", "chatterbox_engine.py"),
     STATE
   );

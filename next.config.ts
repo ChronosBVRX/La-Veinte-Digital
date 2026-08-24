@@ -27,6 +27,9 @@ const cspDirectives = [
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@la-veinte/tts-core", "@la-veinte/radio-core"],
+  outputFileTracingExcludes: {
+    "*": ["data/tts/**", "data/normativa/**", "tools/**"],
+  },
   turbopack: {
     resolveAlias: {
       "edge-tts": "edge-tts/out/index.js",

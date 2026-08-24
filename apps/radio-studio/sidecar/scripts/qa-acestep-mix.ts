@@ -12,8 +12,8 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-const REPO = "C:\\Users\\Axel Rosete\\Desktop\\La Veinte Digital";
-const FFMPEG = "C:\\Users\\Axel Rosete\\AppData\\Local\\ffmpeg\\ffmpeg-8.1.1-essentials_build\\bin\\ffmpeg.exe";
+const REPO = process.env.LVD_REPO_ROOT ?? path.resolve(__dirname, "../../../..");
+const FFMPEG = process.env.FFMPEG_PATH ?? "ffmpeg";
 const MUSIC = path.join(REPO, "data", "tts", "music");
 const CACHE = path.join(REPO, "data", "tts", "cache");
 const MASTER = path.join(REPO, "data", "tts", "master");
@@ -49,7 +49,9 @@ async function main() {
   // 2. Seleccionar fragmento: primeros N turnos hasta ~65s de audio
   const turnos: Array<{ id: string; speaker: string; text: string; wav: string; durSec: number }> = [];
   let totalSec = 0;
-  const ffprobe = FFMPEG.replace("ffmpeg.exe", "ffprobe.exe");
+  const ffprobe = FFMPEG.endsWith("ffmpeg.exe")
+    ? FFMPEG.replace("ffmpeg.exe", "ffprobe.exe")
+    : FFMPEG.replace(/ffmpeg$/, "ffprobe");
   for (const t of conVoz) {
     const wav = cache.get(t.text.trim());
     if (!wav) continue;

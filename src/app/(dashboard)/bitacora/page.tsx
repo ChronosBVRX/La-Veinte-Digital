@@ -26,9 +26,9 @@ export default async function BitacoraPage() {
           <ClipboardList size={20} color="white" />
         </div>
         <div>
-          <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>Bitácora</h1>
+          <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>Mi agenda</h1>
           <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0.125rem 0 0" }}>
-            Registro de incidencias laborales
+            Tu registro laboral: tiempo extra, vacaciones, TXT y más
           </p>
         </div>
       </div>

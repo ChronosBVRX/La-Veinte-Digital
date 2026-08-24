@@ -589,8 +589,8 @@ sources:
     organization: IMSS
     type: procedure
     category: riesgos-trabajo
-    url: null
-    discoveryRequired: true
+    url: https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/3A21-003-003.pdf
+    canonical: true
     priority: critical
     discovery:
       hints:

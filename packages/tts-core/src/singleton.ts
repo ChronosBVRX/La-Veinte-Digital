@@ -1,5 +1,6 @@
 import path from "node:path";
 import { ChatterboxEngine } from "./engine";
+import { pythonBin } from "./platform";
 
 const globalKey = Symbol.for("normativa.tts.engine");
 
@@ -11,7 +12,7 @@ export function getChatterboxEngine(repoRoot: string): ChatterboxEngine {
     const stateDir = path.join(repoRoot, "data", "tts");
     g[globalKey] = {
       engine: new ChatterboxEngine(
-        path.join(stateDir, "venv", "Scripts", "python.exe"),
+        pythonBin(stateDir),
         path.join(repoRoot, "packages", "tts-core", "engine", "chatterbox_engine.py"),
         stateDir,
         { devicePriority: "AUTO" }

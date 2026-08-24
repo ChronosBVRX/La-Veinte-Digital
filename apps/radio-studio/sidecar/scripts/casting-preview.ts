@@ -4,12 +4,12 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { ChatterboxEngine, sentenceAwareChunk, cleanTtsText, CHATTERBOX_MODEL_ID } from "@la-veinte/tts-core";
+import { ChatterboxEngine, pythonBin, sentenceAwareChunk, cleanTtsText, CHATTERBOX_MODEL_ID } from "@la-veinte/tts-core";
 import { createHash } from "node:crypto";
 
 const REPO = path.resolve(__dirname, "../../../..");
 const STATE = path.join(REPO, "data", "tts");
-const PYTHON = path.join(STATE, "venv", "Scripts", "python.exe");
+const PYTHON = pythonBin(STATE);
 const ENGINE = path.join(REPO, "packages", "tts-core", "engine", "chatterbox_engine.py");
 const REF_DIR = path.join(STATE, "ref");
 const OUT_DIR = path.join(STATE, "casting");

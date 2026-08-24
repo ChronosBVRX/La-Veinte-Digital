@@ -94,7 +94,7 @@ export function QuickActionsGrid() {
     },
     {
       icon: Notebook,
-      label: "Registrar\nincidencia",
+      label: "Registrar en\nmi agenda",
       href: "/bitacora",
       color: "var(--area-community)",
     },

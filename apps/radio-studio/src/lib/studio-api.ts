@@ -441,6 +441,19 @@ export async function listarDocumentos(): Promise<DocResumen[]> {
   }
 }
 
+export interface BloqueProgreso {
+  id: string;
+  texto: string;
+  locutor: string;
+  voz: string;
+  estado: "pendiente" | "generado" | "fallo";
+  durMs: number | null;
+  rtf: number | null;
+  cacheHit: boolean;
+  error: string | null;
+  wavPath: string | null;
+}
+
 export interface ProgresoProduccion {
   running: boolean;
   paused?: boolean;
@@ -454,6 +467,7 @@ export interface ProgresoProduccion {
   fallos: number;
   current: string | null;
   porLocutor: Record<string, { hecho: number; total: number }>;
+  bloques?: BloqueProgreso[];
   gpu: { tempC: number | null; vramUsadaMb: number | null; vramTotalMb: number | null };
   rtf?: number;
   rtfChatterbox?: number | null;
@@ -473,6 +487,18 @@ export async function iniciarGeneracion(
   voces: Record<string, VoiceSlot> = {}
 ): Promise<{ iniciado: boolean; total: number }> {
   return post<{ iniciado: boolean; total: number }>("/generate", { bloques, voces }, 15000);
+}
+
+/** Regenera una intervención pasando el contexto (anterior + siguiente) al motor. */
+export async function regenerarTurno(opts: {
+  turnId: string;
+  texto: string;
+  locutor: string;
+  prevTexto?: string;
+  nextTexto?: string;
+  voces?: Record<string, VoiceSlot>;
+}): Promise<{ regenerado: boolean; wavPath: string | null; url: string; durS: number | null }> {
+  return post("/regenerate", opts, 120000);
 }
 
 export async function obtenerProgreso(): Promise<ProgresoProduccion | null> {

@@ -75,7 +75,7 @@ export function BitacoraPanel({ userId, initialEntries = [] }: BitacoraPanelProp
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <ClipboardList size={16} style={{ color: "var(--primary)" }} />
-          <span style={{ fontSize: "0.9375rem", fontWeight: 600 }}>Bitácora personal</span>
+          <span style={{ fontSize: "0.9375rem", fontWeight: 600 }}>Mi agenda</span>
           <span style={{
             fontSize: "0.75rem", color: "var(--muted)",
             background: "var(--accent)", borderRadius: "9999px",

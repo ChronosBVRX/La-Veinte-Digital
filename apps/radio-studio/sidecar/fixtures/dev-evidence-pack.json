@@ -1,0 +1,24 @@
+{
+  "cutoff": "2026-08-14",
+  "claims": [
+    {
+      "id": "dev-c1",
+      "texto": "La jornada y su horario están definidos en el contrato individual y en el contrato colectivo; cualquier modificación requiere el procedimiento pactado.",
+      "documento": "CCT-IMSS-SNTSS-2025-2027",
+      "clausula": "Cláusula 21",
+      "articulo": null,
+      "pagina": 40
+    },
+    {
+      "id": "dev-c2",
+      "texto": "El patrón debe dar aviso con la anticipación prevista para modificar turnos, salvo casos de fuerza debidamente justificados.",
+      "documento": "LFT",
+      "clausula": null,
+      "articulo": "Artículo 502",
+      "pagina": 120
+    }
+  ],
+  "documents": [
+    { "id": "CCT-IMSS-SNTSS-2025-2027", "title": "CCT vigente", "versionLabel": "2025-2027", "sha256": "dev" }
+  ]
+}

@@ -35,7 +35,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     { href: "/biblioteca-normativa", label: "Biblioteca Normativa", icon: Library },
     { href: "/calendario", label: "Calendario", icon: Calendar },
     { href: "/facebook", label: "Noticias SNTSS", icon: Globe },
-    { href: "/bitacora", label: "Bitácora", icon: ClipboardList },
+    { href: "/bitacora", label: "Mi agenda", icon: ClipboardList },
     { href: "/vacaciones", label: "Vacaciones", icon: CalendarCheck },
   { href: "/profile", label: "Mi Perfil", icon: User },
   ...(isNative ? [

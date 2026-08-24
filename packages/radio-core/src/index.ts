@@ -165,3 +165,4 @@ export * from "./editorial-qa";
 export * from "./voice-profile";
 export * from "./personas";
 export * from "./voice-slots";
+export * from "./conversation";

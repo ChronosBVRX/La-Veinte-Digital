@@ -1,9 +1,9 @@
 import path from "node:path";
-import { ChatterboxEngine } from "@la-veinte/tts-core";
+import { ChatterboxEngine, pythonBin } from "@la-veinte/tts-core";
 
 const REPO = process.cwd();
 const STATE = path.join(REPO, "data", "tts");
-const PYTHON = path.join(STATE, "venv", "Scripts", "python.exe");
+const PYTHON = pythonBin(STATE);
 const ENGINE_SCRIPT = path.join(REPO, "packages", "tts-core", "engine", "chatterbox_engine.py");
 
 const SENTENCES = [

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { ChatterboxEngine } from "@la-veinte/tts-core";
 import { sentenceAwareChunk } from "@la-veinte/tts-core";
-import { cleanTtsText } from "@la-veinte/tts-core";
+import { cleanTtsText, pythonBin } from "@la-veinte/tts-core";
 import { execFile } from "node:child_process";
 import os from "node:os";
 import { promisify } from "node:util";
@@ -23,7 +23,7 @@ async function findFfmpeg(): Promise<string> {
 async function main() {
   const REPO = process.cwd();
   const STATE = path.join(REPO, "data", "tts");
-  const PYTHON = path.join(STATE, "venv", "Scripts", "python.exe");
+  const PYTHON = pythonBin(STATE);
   const ENGINE_SCRIPT = path.join(REPO, "packages", "tts-core", "engine", "chatterbox_engine.py");
 
   const pilotosDir = path.join(REPO, "data", "normativa", "pilotos");

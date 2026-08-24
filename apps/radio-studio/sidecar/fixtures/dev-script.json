@@ -1,0 +1,79 @@
+{
+  "tema": "cambio de horario sin aviso (DEV)",
+  "speakers": [
+    { "id": "EDUARDO", "nombre": "Eduardo", "rol": "conductor", "voz": "A" },
+    { "id": "ANDREA", "nombre": "Andrea", "rol": "co-conductor", "voz": "B" },
+    { "id": "NARRADOR", "nombre": "Alonso", "rol": "narrador", "voz": "N" }
+  ],
+  "scenes": [
+    { "id": "apertura", "titulo": "Apertura", "turns": [] },
+    { "id": "fundamento", "titulo": "Qué dice la normativa", "turns": [] }
+  ],
+  "cutoff": "2026-08-14",
+  "estimacionDurSec": 60,
+  "turns": [
+    {
+      "id": "d001", "speaker": "EDUARDO",
+      "text": "A ver, vamos con esto: te cambian el horario de la unidad sin avisarte y sin papel de por medio.",
+      "intent": "statement", "pauseBeforeMs": 0, "pauseAfterMs": 300,
+      "energy": 3, "pace": "normal", "canOverlap": false, "transition": null,
+      "citations": ["dev-c1"], "emotion": "conducción"
+    },
+    {
+      "id": "d002", "speaker": "ANDREA",
+      "text": "Ajá…",
+      "intent": "backchannel", "overlapPreviousMs": 180, "allowCutPrevious": false,
+      "pauseBeforeMs": 0, "pauseAfterMs": 0,
+      "energy": 3, "pace": "rapido", "canOverlap": true, "transition": null,
+      "citations": [], "emotion": "duda"
+    },
+    {
+      "id": "d003", "speaker": "ANDREA",
+      "text": "Pero espera, ¿y eso vale aunque sea rotación normal del área?",
+      "intent": "interrupt_question",
+      "pauseBeforeMs": 40, "pauseAfterMs": 350,
+      "energy": 4, "pace": "normal", "canOverlap": false, "transition": null,
+      "citations": [], "emotion": "curiosa"
+    },
+    {
+      "id": "d004", "speaker": "EDUARDO",
+      "text": "Buena pregunta. Alonso, ¿qué dice el documento sobre el cambio de horario?",
+      "intent": "normative_request", "respondsTo": "d003",
+      "pauseBeforeMs": 200, "pauseAfterMs": 450,
+      "energy": 3, "pace": "normal", "canOverlap": false, "transition": null,
+      "citations": [], "emotion": "conducción"
+    },
+    {
+      "id": "d005", "speaker": "NARRADOR",
+      "text": "De acuerdo con el Contrato Colectivo vigente, la jornada está pactada en contrato y su modificación sigue el procedimiento de cláusula expresa.",
+      "intent": "normative_answer", "respondsTo": "d004",
+      "pauseBeforeMs": 300, "pauseAfterMs": 400,
+      "energy": 2, "pace": "lento", "canOverlap": false, "transition": null,
+      "citations": ["dev-c1"], "emotion": "institucional"
+    },
+    {
+      "id": "d006", "speaker": "ANDREA",
+      "text": "Entonces sin aviso ni papel, eso no es un cambio válido. Eso cambia todo.",
+      "intent": "reaction", "respondsTo": "d005",
+      "pauseBeforeMs": 180, "pauseAfterMs": 280,
+      "energy": 4, "pace": "normal", "canOverlap": false, "transition": null,
+      "citations": ["dev-c1"], "emotion": "comprensión"
+    },
+    {
+      "id": "d007", "speaker": "EDUARDO",
+      "text": "Eso es: documento primero. Guarda tu nomina con el horario y cualquier mensaje donde te lo comuniquen.",
+      "intent": "summary",
+      "pauseBeforeMs": 220, "pauseAfterMs": 260,
+      "energy": 3, "pace": "normal", "canOverlap": false, "transition": null,
+      "citations": [], "emotion": "aterrizaje"
+    },
+    {
+      "id": "d008", "speaker": "ANDREA",
+      "text": "Y si mañana llegan con el cambio, que te lo den por escrito. Hasta ahí, una acción clara.",
+      "intent": "statement",
+      "pauseBeforeMs": 240, "pauseAfterMs": 0,
+      "energy": 3, "pace": "normal", "canOverlap": false, "transition": null,
+      "citations": [], "emotion": "cierre"
+    }
+  ]
+}

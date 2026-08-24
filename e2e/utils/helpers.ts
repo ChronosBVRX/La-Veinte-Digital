@@ -12,7 +12,7 @@ export const ALL_ROUTES = [
   { href: "/tarjeton", label: "Mi Tarjeton" },
   { href: "/calendario", label: "Calendario" },
   { href: "/vacaciones", label: "Vacaciones" },
-  { href: "/bitacora", label: "Mis incidencias" },
+  { href: "/bitacora", label: "Mi agenda" },
   { href: "/calculadoras", label: "Calculadoras" },
   { href: "/simulador-nomina", label: "Simulador de nomina" },
   { href: "/escritos", label: "Crear un escrito" },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { directRadioEpisode, polishDialogue, analyzeDiversity, DEFAULT_SPEAKERS, type EvidenceClaim } from "@la-veinte/radio-core"
+import { directRadioEpisode, polishDialogue, analyzeDiversity, DEFAULT_SPEAKERS, type EvidenceClaim, type EpisodeScript, type DialogueTurn } from "@la-veinte/radio-core"
 
 const CLAIMS: EvidenceClaim[] = Array.from({ length: 6 }, (_, i) => ({
   id: `C${i + 1}`,
@@ -26,15 +26,27 @@ describe("DialoguePolisher", () => {
   })
 
   it("mejora la diversidad de un guion monótono", () => {
-    const script = directRadioEpisode({
-      tema: "T", duracionMin: 15, speakers: DEFAULT_SPEAKERS, nivel: "natural", claims: CLAIMS,
-      cutoff: "2026-08-14", fuentes: [],
-    })
-    const antes = analyzeDiversity(script).score
-    const r = polishDialogue(script)
-    const despues = r.informe.score
+    // Guion sintético deliberadamente monótono (el director ya produce guiones variados)
+    const monotono: EpisodeScript = {
+      tema: "T", formato: "prueba", nivel: "natural", modoCita: "natural",
+      speakers: DEFAULT_SPEAKERS,
+      scenes: [{ id: "s1", titulo: "test", turns: [] }],
+      turns: [], cutoff: "2026-08-14", fuentes: [], estimacionDurSec: 0,
+    }
+    for (let i = 0; i < 10; i++) {
+      const t: DialogueTurn = {
+        id: `t${i}`, speaker: i % 2 ? "ANDREA" : "EDUARDO",
+        text: `Exacto, este es el punto número ${i + 1} del tema que estamos tratando hoy.`,
+        pauseBeforeMs: 200, pauseAfterMs: 200, energy: 3, pace: "normal",
+        canOverlap: false, transition: null, citations: [],
+      }
+      monotono.turns.push(t)
+      monotono.scenes[0].turns.push(t)
+    }
+    const antes = analyzeDiversity(monotono).score
+    const r = polishDialogue(monotono)
     expect(r.cambios).toBeGreaterThan(0)
-    expect(despues).toBeGreaterThanOrEqual(antes)
+    expect(r.informe.score).toBeGreaterThanOrEqual(antes)
   })
 
   it("es determinista con la misma semilla", () => {

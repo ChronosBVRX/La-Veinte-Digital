@@ -1,0 +1,7 @@
+{
+  "tema": "cambio de horario sin aviso (DEV)",
+  "duracionMin": 2,
+  "modo": "determinista",
+  "nivel": "natural",
+  "nota": "Episodio sintético de desarrollo: 8 intervenciones, 3 locutores, sin comerciales, sin RAG."
+}

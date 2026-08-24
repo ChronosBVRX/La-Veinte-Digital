@@ -214,7 +214,7 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
                 href="/profile/mi-informacion-laboral"
                 onClick={() => setProfileOpen(false)}
               />
-              <ProfileItem label="Mis incidencias" href="/bitacora" onClick={() => setProfileOpen(false)} />
+              <ProfileItem label="Mi agenda" href="/bitacora" onClick={() => setProfileOpen(false)} />
             </div>
           )}
         </div>

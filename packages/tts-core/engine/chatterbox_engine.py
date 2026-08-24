@@ -30,7 +30,9 @@ except Exception:
 import psutil
 import torch
 
-BASE = Path(r"C:\Users\Axel Rosete\Desktop\La Veinte Digital\data\tts")
+# BASE portable: override con TTS_DATA_DIR; por defecto <repo>/data/tts.
+_default_base = Path(__file__).resolve().parents[3] / "data" / "tts"
+BASE = Path(os.environ.get("TTS_DATA_DIR") or _default_base)
 MODEL_DIR = BASE / "models" / "latam"
 REF_DIR = BASE / "ref"
 CACHE_DIR = BASE / "cache"

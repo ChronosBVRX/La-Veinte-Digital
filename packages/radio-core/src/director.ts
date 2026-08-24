@@ -5,6 +5,12 @@
  */
 
 import type { VoiceSlot } from "./voice-slots";
+import { nuevoMemory, ReactionPool, buildExchange, type TurnIntent } from "./conversation";
+
+type Draft = Partial<Pick<DialogueTurn, "pauseBeforeMs" | "pauseAfterMs">> & Omit<DialogueTurn, "id" | "pauseBeforeMs" | "pauseAfterMs"> & {
+  intent: TurnIntent;
+  respondsTo?: string | null;
+};
 
 export type SpeakerRole =
   | "conductor"
@@ -60,6 +66,15 @@ export interface DialogueTurn {
   canOverlap: boolean;
   transition: string | null;
   citations: string[];
+  /** ── Dirección conversacional (opcional, compatible hacia atrás) ── */
+  intent?: TurnIntent;
+  respondsTo?: string | null;
+  emotion?: string;
+  overlapPreviousMs?: number;
+  allowCutPrevious?: boolean;
+  editorial?: boolean;
+  sceneId?: string;
+  seed?: number;
 }
 
 export interface Scene {
@@ -181,32 +196,6 @@ const LEVEL_PARAMS: Record<InteractionLevel, { pausa: [number, number]; reaccion
 
 export const REACCIONES = ["Exacto.", "Claro que sí.", "Mmm, ahí está el detalle.", "Eso mismo.", "Justo.", "Ajá, y eso es importante."];
 
-const INTROS_CONDUCTOR = [
-  "Vamos con un punto concreto: {x}",
-  "Aquí hay un dato clave: {x}",
-  "Y esto que viene es importante: {x}",
-  "Pon atención a esto: {x}",
-];
-
-const INTROS_COHOST = [
-  "Y aquí conviene separar dos cosas: lo que dicen los documentos y lo que mucha gente asume sin verificarlo.",
-  "Aquí hay un matiz que casi nadie conoce.",
-  "Y esto responde una duda muy frecuente.",
-  "Justo aquí es donde la gente suele confundirse.",
-];
-
-const EJEMPLOS = [
-  "Por ejemplo, imagina que tienes una situación concreta con esto. Lo primero sería revisar tu tipo de contratación, tu categoría y tu jornada, porque la regla no se aplica igual en todos los casos.",
-  "Pongamos un caso: alguien con jornada distinta a la tuya podría tener condiciones diferentes. Por eso siempre hay que revisar lo que aplica a cada situación.",
-  "Para aterrizarlo: si tu caso es distinto al del ejemplo, lo importante es verificar los documentos que te corresponden según tu categoría y antigüedad.",
-];
-
-const RESUMENES = [
-  "En resumen: para este tema lo importante es conocer la regla, revisar tu situación específica y, si algo no te cuadra, acercarte a tu representación sindical.",
-  "Para cerrar: conoce la regla, revisa tu caso y pregunta a tu sección sindical si algo no te cuadra.",
-  "Resumiendo: regla clara, revisión de tu caso y acompañamiento sindical si lo necesitas.",
-];
-
 const SEGMENTOS_PROGRAMA = [
   "Qué dice la normativa",
   "Ojo con esto",
@@ -221,15 +210,12 @@ const CASOS_ARRANQUE = [
   "Vamos a ponerlo en tierra: no como pleito ni como rumor, sino como una situación común que puede pasar en una unidad u hospital.",
 ];
 
-const OJO_CON_ESTO = [
-  "Ojo con esto: una cosa es lo que se acostumbra en el área y otra lo que se puede sostener con documento.",
-  "Aquí está la trampa común: quedarse solo con el comentario de pasillo y no revisar la fuente que aplica.",
-  "Este punto conviene tratarlo con cuidado, porque un detalle administrativo puede cambiar la lectura del caso.",
-];
+const CITAS_NATURALES_MARCO = ["De acuerdo con {f}.", "Conforme a {f}.", "Lo respalda {f}.", "Ahí es oficial: {f} lo establece.", "Y esto viene directo de {f}."];
 
-function citaNatural(c: EvidenceClaim): string {
+function citaNatural(c: EvidenceClaim, seed = 0): string {
   const fuente = c.documento.startsWith("CCT") ? "el Contrato Colectivo vigente" : c.documento === "LFT" ? "la Ley Federal del Trabajo" : c.documento === "LSS" ? "la Ley del Seguro Social" : "la normativa aplicable";
-  return `De acuerdo con ${fuente}.`;
+  const plantilla = CITAS_NATURALES_MARCO[Math.abs(seed) % CITAS_NATURALES_MARCO.length];
+  return plantilla.replace("{f}", fuente);
 }
 
 function citaDocumental(c: EvidenceClaim): string {
@@ -242,10 +228,14 @@ function citaTecnica(c: EvidenceClaim): string {
   return `Fuente: ${c.documento}${c.clausula ? `, ${c.clausula}` : ""}${c.articulo ? `, ${c.articulo}` : ""}${c.pagina != null ? `, página ${c.pagina}` : ""}.`;
 }
 
-function fraseCita(c: EvidenceClaim, modo: CitationMode): string {
+export function fraseCitaPublic(c: EvidenceClaim, modo: CitationMode, seed = 0): string {
+  return fraseCita(c, modo, seed);
+}
+
+function fraseCita(c: EvidenceClaim, modo: CitationMode, seed = 0): string {
   switch (modo) {
     case "natural":
-      return citaNatural(c);
+      return citaNatural(c, seed);
     case "documental":
       return citaDocumental(c);
     case "tecnico":
@@ -258,12 +248,6 @@ function estimaDurSec(texto: string): number {
   return palabras / 2.6;
 }
 
-function cleanEvidence(texto: string): string {
-  return texto
-    .replace(/\s+/g, " ")
-    .replace(/^CONTRATO COLECTIVO DE TRABAJO\s*/i, "")
-    .trim();
-}
 
 export function directRadioEpisode(input: DirectorInput): EpisodeScript {
   const p = LEVEL_PARAMS[input.nivel] ?? LEVEL_PARAMS.natural;
@@ -274,109 +258,203 @@ export function directRadioEpisode(input: DirectorInput): EpisodeScript {
   const scenes: Scene[] = [];
   const allTurns: DialogueTurn[] = [];
   let turn = 0;
+  const episodeSeed = 1000 + (input.tema.length * 37) % 900;
 
-  const add = (scene: Scene, t: Omit<DialogueTurn, "id">) => {
-    const full: DialogueTurn = {
-      id: `t${String(++turn).padStart(3, "0")}`,
-      ...t,
-    };
-    scene.turns.push(full);
-    allTurns.push(full);
-    return full;
+
+
+  // ── Escena 1: Apertura conversacional ─────────────────────────────────
+  const memory = nuevoMemory(`ep-${episodeSeed}`);
+  const pool = new ReactionPool(episodeSeed);
+  const contadores = { n: 0 };
+
+  const addDrafts = (scene: Scene, drafts: Draft[], sceneId: string): DialogueTurn[] => {
+    const ids: DialogueTurn[] = [];
+    for (const d of drafts) {
+      const full: DialogueTurn = {
+        id: `t${String(++turn).padStart(3, "0")}`,
+        ...d,
+        pauseBeforeMs: typeof d.pauseBeforeMs === "number" ? d.pauseBeforeMs : 300,
+        pauseAfterMs: typeof d.pauseAfterMs === "number" ? d.pauseAfterMs : 300,
+        sceneId,
+        editorial: d.speaker.toUpperCase().includes("VALERIA") ? false : true,
+      } as DialogueTurn;
+      ids.push(full);
+      scene.turns.push(full);
+      allTurns.push(full);
+    }
+    // ligar respondsTo con ids reales: cada intervención reactiva a la anterior relevante
+    for (let i = 1; i < ids.length; i++) {
+      const t = ids[i];
+      if (!t.respondsTo) {
+        const prev = ids[i - 1];
+        if (["reaction", "answer", "clarification", "agreement", "disagreement", "normative_answer"].includes(t.intent ?? "")) {
+          t.respondsTo = prev.id;
+        }
+      }
+    }
+    for (const t of ids) {
+      memory.speakerWords[t.speaker] = (memory.speakerWords[t.speaker] ?? 0) + t.text.trim().split(/\s+/).filter(Boolean).length;
+      memory.speakerLastTurn[t.speaker] = t.id;
+    }
+    return ids;
   };
 
-  const rand = (min: number, max: number) => Math.round(min + Math.random() * (max - min));
+  const seedRand = (min: number, max: number) => {
+    const s = episodeSeed + turn * 17;
+    const x = Math.sin(s) * 10000;
+    return Math.round(min + (x - Math.floor(x)) * (max - min));
+  };
 
-  // ── Escena 1: Apertura ────────────────────────────────────────────────
+  // ── Apertura ──
   const apertura: Scene = { id: "s1", titulo: "Apertura", turns: [] };
-  add(apertura, {
-    speaker: conductor.id,
-    text: `Bienvenidas y bienvenidos a La Veinte Radio. Hoy vamos a hablar de un tema que genera muchísimas dudas entre las personas trabajadoras del IMSS: ${input.tema}.`,
-    pauseBeforeMs: 0,
-    pauseAfterMs: rand(...p.pausa),
-    energy: 3,
-    pace: "normal",
-    canOverlap: false,
-    transition: "sintonía",
-    citations: [],
-  });
-  add(apertura, {
-    speaker: co.id,
-    text: `Y seguro más de una persona que nos escucha está pensando: "bueno, ¿y cómo funciona esto en mi caso?".`,
-    pauseBeforeMs: rand(...p.pausa),
-    pauseAfterMs: rand(...p.pausa),
-    energy: p.energia,
-    pace: p.pace,
-    canOverlap: false,
-    transition: null,
-    citations: [],
-  });
-  add(apertura, {
-    speaker: conductor.id,
-    text: `Exacto. Vamos a llevarlo como programa completo: primero el caso, luego la regla, después los errores comunes y al final los pasos prácticos.`,
-    pauseBeforeMs: rand(...p.pausa),
-    pauseAfterMs: rand(...p.pausa),
-    energy: p.energia,
-    pace: p.pace,
-    canOverlap: false,
-    transition: "a desarrollo",
-    citations: [],
-  });
-  scenes.push(apertura);
-
-  // ── Escena 2: Caso de arranque ───────────────────────────────────────
-  const caso: Scene = { id: "s2", titulo: "Caso de arranque", turns: [] };
-  add(caso, {
-    speaker: co.id,
-    text: CASOS_ARRANQUE[input.tema.length % CASOS_ARRANQUE.length],
-    pauseBeforeMs: rand(...p.pausa),
-    pauseAfterMs: rand(...p.pausa),
-    energy: p.energia,
-    pace: p.pace,
-    canOverlap: false,
-    transition: "cambio editorial",
-    citations: [],
-  });
-  add(caso, {
-    speaker: conductor.id,
-    text: `Y ahí es donde conviene ordenar la conversación: qué documento aplica, qué dato falta y qué puede hacer la persona antes de tomar una decisión.`,
-    pauseBeforeMs: rand(...p.pausa),
-    pauseAfterMs: rand(...p.pausa),
-    energy: p.energia,
-    pace: p.pace,
-    canOverlap: false,
-    transition: null,
-    citations: [],
-  });
-  if (corresponsal) {
-    add(caso, {
-      speaker: corresponsal.id,
-      text: `Desde campo, esta duda aparece mucho cuando el personal escucha versiones distintas en su unidad. Lo importante es ubicar el documento y no decidir solo con comentarios.`,
-      pauseBeforeMs: rand(...p.pausa),
-      pauseAfterMs: rand(...p.pausa),
+  addDrafts(apertura, [
+    {
+      speaker: conductor.id,
+      text: `Bienvenidas y bienvenidos a La Veinte Radio. Hoy vamos a hablar de un tema que genera muchísimas dudas entre las personas trabajadoras del IMSS: ${input.tema}.`,
+      intent: "statement",
+      pauseBeforeMs: 0,
+      pauseAfterMs: seedRand(260, 480),
       energy: 3,
+      pace: "normal",
+      canOverlap: false,
+      transition: "sintonía",
+      citations: [],
+      emotion: "bienvenida",
+    },
+    {
+      speaker: co.id,
+      text: `Y seguro más de una persona que nos escucha está pensando: "bueno, ¿y cómo funciona esto en mi caso?". Porque una cosa es la regla escrita y otra lo que te cuentan.`,
+      intent: "question",
+      pauseBeforeMs: seedRand(220, 420),
+      pauseAfterMs: seedRand(200, 420),
+      energy: p.energia,
       pace: p.pace,
       canOverlap: false,
       transition: null,
       citations: [],
-    });
-  }
-  if (narrador && input.fuentes.length > 0) {
-    add(caso, {
-      speaker: narrador.id,
-      text: `Para este episodio se usa la biblioteca local con fecha de corte ${input.cutoff}.`,
-      pauseBeforeMs: rand(...p.pausa),
-      pauseAfterMs: rand(...p.pausa),
-      energy: 2,
+      emotion: "cercanía",
+    },
+    {
+      speaker: conductor.id,
+      text: `Justo. Vamos a llevarlo como debe ser: primero un caso real de esos que llegan, luego qué dice el documento y al final qué puedes hacer mañana mismo.`,
+      intent: "answer",
+      pauseBeforeMs: seedRand(180, 380),
+      pauseAfterMs: seedRand(300, 560),
+      energy: p.energia,
+      pace: p.pace,
+      canOverlap: false,
+      transition: "a desarrollo",
+      citations: [],
+      emotion: "conducción",
+    },
+  ], "apertura");
+  scenes.push(apertura);
+
+  // ── Caso de arranque: persona → problema → pregunta ──
+  const caso: Scene = { id: "s2", titulo: "Caso de arranque", turns: [] };
+  const casoDetalle = CASOS_ARRANQUE[input.tema.length % CASOS_ARRANQUE.length];
+  addDrafts(caso, [
+    {
+      speaker: co.id,
+      text: casoDetalle,
+      intent: "statement",
+      pauseBeforeMs: seedRand(300, 600),
+      pauseAfterMs: seedRand(220, 460),
+      energy: p.energia,
+      pace: p.pace,
+      canOverlap: false,
+      transition: "cambio editorial",
+      citations: [],
+      emotion: "narración",
+    },
+    {
+      speaker: conductor.id,
+      text: `Y ahí es donde conviene ordenar la conversación: qué documento aplica, qué dato falta y qué puede hacer la persona antes de tomar una decisión.`,
+      intent: "statement",
+      pauseBeforeMs: seedRand(200, 420),
+      pauseAfterMs: seedRand(200, 400),
+      energy: p.energia,
+      pace: p.pace,
+      canOverlap: false,
+      transition: null,
+      citations: [],
+      emotion: "conducción",
+    },
+    {
+      speaker: co.id,
+      text: `Espera, ¿y si en medio de eso la persona ya firmó algo? Porque eso pasa muchísimo.`,
+      intent: "interrupt_question",
+      overlapPreviousMs: seedRand(120, 220),
+      allowCutPrevious: true,
+      energy: 4,
+      pace: "normal",
+      canOverlap: true,
+      transition: null,
+      citations: [],
+      emotion: "preocupada",
+    },
+    {
+      speaker: conductor.id,
+      text: `No, ojo: firmar no siempre significa aceptar todo. Depende de qué firmó y con qué información. Y justo para eso está Alonso después.`,
+      intent: "clarification",
+      respondsTo: null,
+      energy: 3,
       pace: "normal",
       canOverlap: false,
       transition: null,
       citations: [],
-    });
+      emotion: "aclarando",
+    },
+  ], "caso-arranque");
+  if (corresponsal) {
+    addDrafts(caso, [
+      {
+        speaker: corresponsal.id,
+        text: `Desde campo, esta duda aparece mucho cuando el personal escucha versiones distintas en su unidad. Lo importante es ubicar el documento y no decidir solo con comentarios.`,
+        intent: "field_report",
+        pauseBeforeMs: seedRand(240, 460),
+        pauseAfterMs: seedRand(200, 420),
+        energy: 3,
+        pace: p.pace,
+        canOverlap: false,
+        transition: null,
+        citations: [],
+        emotion: "reporte",
+      },
+      {
+        speaker: co.id,
+        text: `Eso conecta con el caso: sin documento, todo se queda en "según me dijeron".`,
+        intent: "reaction",
+        energy: 3,
+        pace: p.pace,
+        canOverlap: false,
+        transition: null,
+        citations: [],
+        emotion: "conexión",
+      },
+    ], "caso-arranque");
+  }
+  if (narrador && input.fuentes.length > 0) {
+    addDrafts(caso, [
+      {
+        speaker: narrador.id,
+        text: `Para este episodio se usa la biblioteca local con fecha de corte ${input.cutoff}.`,
+        intent: "statement",
+        pauseBeforeMs: seedRand(280, 520),
+        pauseAfterMs: seedRand(260, 500),
+        energy: 2,
+        pace: "lento",
+        canOverlap: false,
+        transition: null,
+        citations: [],
+        emotion: "institucional",
+      },
+    ], "caso-arranque");
   }
   scenes.push(caso);
+  memory.callbacksAvailable.push({ id: "cb-caso", resumen: "el caso inicial de la persona con versiones distintas", turnoId: allTurns[allTurns.length - 1]?.id ?? "" });
 
-  // ── Desarrollo por segmentos editoriales ──────────────────────────────
+  // ── Desarrollo por intercambios (uno por afirmación verificada) ──
   const budgetSec = input.duracionMin * 60 * 0.85;
   let acumSec = allTurns.reduce((a, t) => a + estimaDurSec(t.text), 0);
   let sc = 3;
@@ -385,134 +463,97 @@ export function directRadioEpisode(input: DirectorInput): EpisodeScript {
     if (acumSec >= budgetSec) break;
     const segmentTitle = SEGMENTOS_PROGRAMA[claimIdx % SEGMENTOS_PROGRAMA.length];
     const scene: Scene = { id: `s${sc++}`, titulo: segmentTitle, turns: [] };
-    const texto = cleanEvidence(claim.texto).slice(0, 320);
-
-    add(scene, {
-      speaker: conductor.id,
-      text: segmentTitle === "Ojo con esto"
-        ? OJO_CON_ESTO[claimIdx % OJO_CON_ESTO.length]
-        : INTROS_CONDUCTOR[claimIdx % INTROS_CONDUCTOR.length].replace("{x}", texto),
-      pauseBeforeMs: rand(...p.pausa),
-      pauseAfterMs: rand(...p.pausa),
-      energy: p.energia,
-      pace: p.pace,
-      canOverlap: false,
-      transition: claimIdx === 0 ? null : "cambio editorial",
-      citations: [claim.id],
-    });
-
-    add(scene, {
-      speaker: co.id,
-      text: segmentTitle === "Consultorio"
-        ? `La pregunta natural aquí sería: ¿qué reviso primero si esto me está pasando a mí?`
-        : INTROS_COHOST[claimIdx % INTROS_COHOST.length],
-      pauseBeforeMs: rand(...p.pausa),
-      pauseAfterMs: rand(...p.pausa),
-      energy: p.energia,
-      pace: p.pace,
-      canOverlap: false,
-      transition: null,
-      citations: [],
-    });
-
-    if (p.reacciones && claimIdx % 2 === 0) {
-      add(scene, {
-        speaker: conductor.id,
-        text: REACCIONES[claimIdx % REACCIONES.length],
-        pauseBeforeMs: rand(40, 120),
-        pauseAfterMs: rand(...p.pausa),
-        energy: 4,
-        pace: p.pace,
-        canOverlap: p.overlapMs > 0,
-        transition: "solape suave",
-        citations: [],
-      });
+    const drafts = buildExchange(
+      { conductor, coConductora: co, narrador, corresponsal, memory, pool, modoCita: input.modoCita ?? "natural", seedBase: episodeSeed },
+      claim,
+      segmentTitle,
+      contadores
+    );
+    const agregados = addDrafts(scene, drafts, scene.id);
+    // transición puente hacia el siguiente tema (pertenecen a la conversación)
+    if (claimIdx > 0) {
+      const primera = agregados[0];
+      if (primera) {
+        primera.transition = PUENTES[(claimIdx - 1) % PUENTES.length];
+      }
     }
-
-    if (corresponsal && claimIdx % 3 === 1) {
-      add(scene, {
-        speaker: corresponsal.id,
-        text: `En las áreas, la duda práctica suele ser cómo comprobar esto sin entrar en conflicto. Ahí sirven fechas, recibos, solicitudes y respuestas por escrito.`,
-        pauseBeforeMs: rand(...p.pausa),
-        pauseAfterMs: rand(...p.pausa),
-        energy: 3,
-        pace: p.pace,
-        canOverlap: false,
-        transition: "reporte de campo",
-        citations: [],
-      });
-    }
-
-    add(scene, {
-      speaker: co.id,
-      text: segmentTitle === "Cómo documentarlo"
-        ? `Para no quedarse solo con la palabra de alguien, conviene guardar recibos, solicitudes, respuestas por escrito y cualquier dato que ubique fecha, área y trámite.`
-        : EJEMPLOS[claimIdx % EJEMPLOS.length],
-      pauseBeforeMs: rand(...p.pausa),
-      pauseAfterMs: rand(...p.pausa),
-      energy: p.energia,
-      pace: p.pace,
-      canOverlap: false,
-      transition: null,
-      citations: [],
-    });
-
-    if (narrador) {
-      add(scene, {
-        speaker: narrador.id,
-        text: fraseCita(claim, input.modoCita ?? "natural"),
-        pauseBeforeMs: rand(...p.pausa),
-        pauseAfterMs: rand(...p.pausa),
-        energy: 2,
-        pace: "normal",
-        canOverlap: false,
-        transition: null,
-        citations: [claim.id],
-      });
-    }
-
     scenes.push(scene);
     acumSec += scene.turns.reduce((a, t) => a + estimaDurSec(t.text), 0);
     claimIdx++;
   }
 
-  // ── Escena final: resumen + aviso + despedida ─────────────────────────
+  // ── Cierre práctico: acciones + callback ──
   const cierre: Scene = { id: `s${sc++}`, titulo: "Cierre práctico", turns: [] };
-  add(cierre, {
-    speaker: co.id,
-    text: RESUMENES[claimIdx % RESUMENES.length],
-    pauseBeforeMs: rand(...p.pausa),
-    pauseAfterMs: rand(...p.pausa),
-    energy: p.energia,
-    pace: p.pace,
-    canOverlap: false,
-    transition: null,
-    citations: [],
-  });
-  if (narrador) {
-    add(cierre, {
-      speaker: narrador.id,
-      text: `Contenido informativo elaborado a partir de las fuentes indicadas. La aplicación conserva la versión documental utilizada y la fecha de corte. Los casos individuales pueden requerir revisión específica.`,
-      pauseBeforeMs: rand(...p.pausa),
-      pauseAfterMs: rand(...p.pausa),
-      energy: 2,
+  const callback = memory.callbacksAvailable.find((c) => c.id === "cb-caso");
+  addDrafts(cierre, [
+    {
+      speaker: conductor.id,
+      text: callback ? `¿Recuerdas el caso con el que arrancamos? ${callback.resumen}. Pues precisamente por eso todo lo que hablamos importa: sin documento, esa persona queda desprotegida.` : `Cerramos ordenando las ideas del programa de hoy.`,
+      intent: "statement",
+      pauseBeforeMs: seedRand(320, 620),
+      pauseAfterMs: seedRand(240, 480),
+      energy: 3,
+      pace: "normal",
+      canOverlap: false,
+      transition: "a cierre",
+      citations: [],
+      emotion: "recapitulación",
+    },
+    {
+      speaker: co.id,
+      text: `Y en acción, tres cosas concretas: revisa qué documento te aplica, guarda copia fechada de todo lo que firmes o recibas, y si algo no cuadra, acude a tu representación sindical antes de firmar o dejar pasar el plazo.`,
+      intent: "summary",
+      energy: 4,
       pace: "normal",
       canOverlap: false,
       transition: null,
       citations: [],
-    });
+      emotion: "práctica",
+    },
+    {
+      speaker: conductor.id,
+      text: `Exacto. Y si tu caso tiene detalles distintos, no te quedes con la duda: pregúntalo, porque cada situación puede cambiar la lectura.`,
+      intent: "statement",
+      energy: 3,
+      pace: "normal",
+      canOverlap: false,
+      transition: null,
+      citations: [],
+      emotion: "cierre cálido",
+    },
+  ], "cierre");
+  if (narrador) {
+    addDrafts(cierre, [
+      {
+        speaker: narrador.id,
+        text: `Contenido informativo elaborado a partir de las fuentes indicadas. La aplicación conserva la versión documental utilizada y la fecha de corte. Los casos individuales pueden requerir revisión específica.`,
+        intent: "statement",
+        pauseBeforeMs: seedRand(300, 560),
+        pauseAfterMs: seedRand(280, 520),
+        energy: 2,
+        pace: "lento",
+        canOverlap: false,
+        transition: null,
+        citations: [],
+        emotion: "institucional",
+      },
+    ], "cierre");
   }
-  add(cierre, {
-    speaker: conductor.id,
-    text: `Nos escuchamos en el próximo programa. Cuídate mucho y hasta la próxima.`,
-    pauseBeforeMs: rand(...p.pausa),
-    pauseAfterMs: 0,
-    energy: 3,
-    pace: "normal",
-    canOverlap: false,
-    transition: null,
-    citations: [],
-  });
+  addDrafts(cierre, [
+    {
+      speaker: conductor.id,
+      text: `Nos escuchamos en el próximo programa. Cuídate mucho y hasta la próxima.`,
+      intent: "handoff",
+      pauseBeforeMs: seedRand(240, 460),
+      pauseAfterMs: 0,
+      energy: 3,
+      pace: "normal",
+      canOverlap: false,
+      transition: null,
+      citations: [],
+      emotion: "despedida",
+    },
+  ], "cierre");
   scenes.push(cierre);
 
   return {
@@ -547,3 +588,11 @@ Reglas:
 
 Devuelve ÚNICAMENTE JSON: { "escenas": [ { "titulo": "...", "turns": [ { ...turno... } ] } ] }`;
 }
+
+const PUENTES = [
+  "Y esto nos lleva justamente a lo que sigue.",
+  "Ahora, aquí viene el problema.",
+  "Pero falta una pieza.",
+  "Rodrigo investigó precisamente eso, y conecta con esto otro.",
+  "Alonso, detengámonos aquí porque hay una parte que cambia el escenario.",
+];

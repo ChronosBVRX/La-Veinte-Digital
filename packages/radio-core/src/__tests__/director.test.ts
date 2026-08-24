@@ -89,20 +89,22 @@ describe("RadioDirector", () => {
     expect(citados.length).toBeGreaterThanOrEqual(CLAIMS.length)
   })
 
-  it("nivel informativo: pausas largas y sin solapes", () => {
-    const s = makeScript("informativo")
-    expect(s.turns.every((t) => !t.canOverlap)).toBe(true)
-    const pausas = s.turns.map((t) => t.pauseBeforeMs)
-    expect(Math.min(...pausas.filter((x) => x > 0))).toBeGreaterThanOrEqual(300)
-  })
-
-  it("nivel dinámico: reacciones cortas con solape permitido", () => {
-    const s = makeScript("dinamico")
-    expect(s.turns.some((t) => t.canOverlap)).toBe(true)
-    const reacciones = s.turns.filter((t) => t.canOverlap)
-    for (const r of reacciones) {
-      expect(r.text.trim().length).toBeLessThanOrEqual(30)
+  it("pausas clasificadas por intención y solapes solo en backchannel/interrupción", () => {
+    const s = makeScript("natural")
+    // toda intervención declara intención
+    for (const t of s.turns) {
+      expect(t.intent).toBeDefined()
     }
+    // los solapes tienen causa semántica: backchannel o interrupt, nunca statement largo
+    const conSolape = s.turns.filter((t) => t.canOverlap)
+    expect(conSolape.length).toBeGreaterThan(0)
+    for (const t of conSolape) {
+      expect(["backchannel", "interrupt_question", "interrupt_correction"]).toContain(t.intent)
+      expect(typeof t.overlapPreviousMs).toBe("number")
+    }
+    // la mayoría de cambios son limpios (sin solape) — interrupciones escasas
+    const pctSolapo = conSolape.length / s.turns.length
+    expect(pctSolapo).toBeLessThan(0.35)
   })
 
   it("estima duración y respeta el presupuesto de minutos", () => {
@@ -133,19 +135,28 @@ describe("buildMixPlan (mezcla multipista)", () => {
     for (let i = 1; i < plan.voices.length; i++) {
       const prev = plan.voices[i - 1]
       const cur = plan.voices[i]
-      expect(cur.startMs).toBeGreaterThanOrEqual(prev.startMs + prev.durMs)
+      // sin solapes declarados, la colocación es estrictamente secuencial
+      if ((s.turns[i].overlapPreviousMs ?? 0) === 0) {
+        expect(cur.startMs).toBeGreaterThanOrEqual(prev.startMs + prev.durMs)
+      }
     }
   })
 
-  it("aplica solape solo a reacciones cortas", () => {
+  it("buildMixPlan: solapes solo donde el turno declara overlapPreviousMs", () => {
     const s = makeScript("dinamico")
     const plan = buildMixPlan(s.turns, { overlapMs: 140 })
-    expect(plan.overlapMs).toBeGreaterThan(0)
+    const conSolapeDeclarado = s.turns.filter((t) => (t.overlapPreviousMs ?? 0) > 0)
+    if (conSolapeDeclarado.length > 0) {
+      expect(plan.overlapMs).toBeGreaterThan(0)
+    }
     for (let i = 1; i < plan.voices.length; i++) {
       const prev = plan.voices[i - 1]
       const cur = plan.voices[i]
       if (cur.startMs < prev.startMs + prev.durMs) {
-        expect(s.turns[i].text.trim().length).toBeLessThanOrEqual(60)
+        // todo solape debe provenir de un turno que lo declaró
+        expect(s.turns[i].canOverlap).toBe(true)
+      } else {
+        expect(cur.startMs).toBeGreaterThanOrEqual(prev.startMs + prev.durMs)
       }
     }
   })

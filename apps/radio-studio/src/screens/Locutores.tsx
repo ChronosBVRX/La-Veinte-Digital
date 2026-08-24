@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { DEFAULT_SPEAKERS } from "@la-veinte/radio-core";
 import { obtenerCasting, SIDECAR_URL_EXPORT, type CastingResult, type SpeakerProfile } from "../lib/studio-api";
+import { MiniPlayer, colorDeLocutor } from "../components/MiniPlayer";
 
 type Persona = SpeakerProfile & {
   participa: boolean;
@@ -79,11 +80,16 @@ export function Locutores() {
           const preview = perfil?.previewAudioPath ? `${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(perfil.previewAudioPath)}` : null;
           const fijo = FIJOS.has(p.id);
           return (
-            <section key={p.id} className={`voice-card ${p.participa ? "selected" : ""}`}>
+            <section key={p.id} className={`voice-card ${p.participa ? "selected" : ""}`} style={{ "--voz-accent": colorDeLocutor(p.id) } as CSSProperties}>
               <div className="voice-card-head">
-                <div>
-                  <h2>{p.nombre}</h2>
-                  <div className="muted small">{descripcionRol(p)}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span className="voice-avatar" style={{ background: `linear-gradient(135deg, ${colorDeLocutor(p.id)}, ${colorDeLocutor(p.id)}88)` }}>
+                    {p.nombre.charAt(0)}
+                  </span>
+                  <div>
+                    <h2 style={{ margin: 0 }}>{p.nombre}</h2>
+                    <div className="muted small">{descripcionRol(p)}</div>
+                  </div>
                 </div>
                 <label className="switch-line">
                   <input
@@ -102,7 +108,7 @@ export function Locutores() {
               </div>
               <p>{persona?.objetivo ?? p.funcionEditorial ?? p.personalidad}</p>
               {preview ? (
-                <audio controls preload="none" src={preview} />
+                <MiniPlayer src={preview} label="Muestra de voz" accent={colorDeLocutor(p.id)} />
               ) : (
                 <div className="muted small">Abre el motor local para escuchar la muestra.</div>
               )}

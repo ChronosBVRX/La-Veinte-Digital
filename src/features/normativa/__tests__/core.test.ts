@@ -76,8 +76,8 @@ describe("manifest", () => {
     const tabulador = m.sources.find((s) => s.id === "IMSS-TABULADOR-BASE-2025-2026")
     expect(tabulador?.effectiveUntil).toBe("2026-10-15")
     const st9 = m.sources.find((s) => s.id === "IMSS-3A21-003-003")
-    expect(st9?.url).toBeNull()
-    expect(st9?.discoveryRequired).toBe(true)
+    expect(st9?.url).toBe("https://www.imss.gob.mx/sites/all/statics/pdf/procedimientos/3A21-003-003.pdf")
+    expect(st9?.canonical).toBe(true)
   })
 })
 

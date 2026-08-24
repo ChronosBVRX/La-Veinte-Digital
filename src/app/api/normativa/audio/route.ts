@@ -6,7 +6,7 @@ import path from "node:path"
 import { promisify } from "node:util"
 import { requireUser } from "@/shared/server/auth/require-user"
 import { privateJsonError } from "@/shared/lib/api-response"
-import { synthesizeMp3, DEFAULT_VOICES, cleanTtsText } from "@la-veinte/tts-core"
+import { synthesizeMp3, DEFAULT_VOICES, cleanTtsText, pythonBin } from "@la-veinte/tts-core"
 import { getChatterboxEngine } from "@la-veinte/tts-core"
 import { sentenceAwareChunk } from "@la-veinte/tts-core"
 
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
 
   const useChatterbox =
     requestedEngine === "chatterbox" ||
-    (requestedEngine === "auto" && fs.existsSync(path.join(process.cwd(), "data", "tts", "venv", "Scripts", "python.exe")))
+    (requestedEngine === "auto" && fs.existsSync(pythonBin(path.join(process.cwd(), "data", "tts"))))
 
   if (useChatterbox) {
     const engine = getChatterboxEngine(process.cwd())

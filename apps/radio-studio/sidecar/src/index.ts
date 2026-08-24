@@ -29,6 +29,7 @@ import { NormativeCatalog } from "../../../../src/features/normativa/services/ca
 import { buildCoverage } from "../../../../src/features/normativa/services/coverage";
 import { buildScriptFromEvidence } from "../../../../src/features/normativa/services/llm-provider";
 import { directRadioEpisode, analyzeDiversity, polishDialogue, sanitizeEditorialScript, editorialPromptRules, editorialSegmentGoal, validateCasting, VOICE_PERSONAS, GLOBAL_PRONUNCIATION_RULE, DEFAULT_SPEAKERS, type DirectorInput, type DialogueTurn, type EpisodeScript, type SpeakerProfile, type CitationMode, type VoiceSlot } from "@la-veinte/radio-core";
+import { runMasterQa } from "./master-qa";
 import { resolveProvider } from "../../../../src/features/normativa/services/llm-provider";
 import { eliminarJob, leerJob, guardarJob, nuevoJob, resumenJob, type ProductionJob } from "../worker/job-store";
 import { leerJobMusica, guardarJobMusica, nuevoJobMusica, resumenJobMusica, type MusicaTipo } from "../worker/musica-job-store";
@@ -87,12 +88,17 @@ function workerVivo(): boolean {
   if (Date.now() - workerVivoCache.at < 5000) return workerVivoCache.v;
   let vivo = false;
   try {
-    const out = execFileSync("powershell", [
-      "-NoProfile", "-NonInteractive", "-Command",
-      "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'chatterbox_worker' } | Measure-Object | Select-Object -ExpandProperty Count",
-    ], { timeout: 8000, encoding: "utf8" });
-    vivo = Number(out.trim()) > 0;
-  } catch { /* no disponible */ }
+    if (process.platform === "win32") {
+      const out = execFileSync("powershell", [
+        "-NoProfile", "-NonInteractive", "-Command",
+        "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'chatterbox_worker' } | Measure-Object | Select-Object -ExpandProperty Count",
+      ], { timeout: 8000, encoding: "utf8" });
+      vivo = Number(out.trim()) > 0;
+    } else {
+      const out = execFileSync("pgrep", ["-f", "chatterbox_worker"], { timeout: 8000, encoding: "utf8" });
+      vivo = out.trim().length > 0;
+    }
+  } catch { /* no disponible o sin worker */ }
   workerVivoCache = { at: Date.now(), v: vivo };
   return vivo;
 }
@@ -100,11 +106,15 @@ function workerVivo(): boolean {
 function detenerWorkersProduccion(): void {
   workerVivoCache = { at: 0, v: false };
   try {
-    execFileSync("powershell", [
-      "-NoProfile", "-NonInteractive", "-Command",
-      "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'chatterbox_worker' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
-    ], { timeout: 10000, encoding: "utf8" });
-  } catch { /* sin worker activo o PowerShell no disponible */ }
+    if (process.platform === "win32") {
+      execFileSync("powershell", [
+        "-NoProfile", "-NonInteractive", "-Command",
+        "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'chatterbox_worker' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
+      ], { timeout: 10000, encoding: "utf8" });
+    } else {
+      execFileSync("pkill", ["-f", "chatterbox_worker"], { timeout: 10000, encoding: "utf8" });
+    }
+  } catch { /* sin worker activo */ }
   workerVivoCache = { at: Date.now(), v: false };
 }
 
@@ -143,12 +153,17 @@ function musicaWorkerVivo(): boolean {
   if (Date.now() - musicaWorkerVivoCache.at < 5000) return musicaWorkerVivoCache.v;
   let vivo = false;
   try {
-    const out = execFileSync("powershell", [
-      "-NoProfile", "-NonInteractive", "-Command",
-      "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'musica_worker' } | Measure-Object | Select-Object -ExpandProperty Count",
-    ], { timeout: 8000, encoding: "utf8" });
-    vivo = Number(out.trim()) > 0;
-  } catch { /* no disponible */ }
+    if (process.platform === "win32") {
+      const out = execFileSync("powershell", [
+        "-NoProfile", "-NonInteractive", "-Command",
+        "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'musica_worker' } | Measure-Object | Select-Object -ExpandProperty Count",
+      ], { timeout: 8000, encoding: "utf8" });
+      vivo = Number(out.trim()) > 0;
+    } else {
+      const out = execFileSync("pgrep", ["-f", "musica_worker"], { timeout: 8000, encoding: "utf8" });
+      vivo = out.trim().length > 0;
+    }
+  } catch { /* no disponible o sin worker */ }
   musicaWorkerVivoCache = { at: Date.now(), v: vivo };
   return vivo;
 }
@@ -544,7 +559,10 @@ async function handleGenerate(res: http.ServerResponse, body: Record<string, unk
   if (bloques.length === 0) return json(res, 400, { error: "sin bloques" });
 
   const existente = leerJob();
-  if (existente && workerVivo()) return json(res, 409, { error: "ya hay una producción en curso", job: resumenJob(existente) });
+  const ocupado = existente && workerVivo() && existente.estado !== "DONE";
+  if (ocupado && body.mock !== true) {
+    return json(res, 409, { error: "ya hay una producción en curso", job: resumenJob(existente) });
+  }
 
   const voces = (body.voces ?? {}) as Record<string, VoiceSlot>;
   const perfiles = resolveVoiceProfiles(DEFAULT_SPEAKERS);
@@ -568,6 +586,26 @@ async function handleGenerate(res: http.ServerResponse, body: Record<string, unk
     voces
   );
   guardarJob(job);
+
+  // ── MODO DEV (mock): sin worker ni TTS. Cada bloque toma un WAV real
+  // ya cacheado (rotación) para poder probar mezcla/QA/UI en segundos.
+  if (body.mock === true) {
+    const cacheDir = path.join(REPO, "data", "tts", "cache");
+    const wavs = fs.existsSync(cacheDir)
+      ? fs.readdirSync(cacheDir).filter((f) => f.endsWith(".wav") && !f.startsWith("warmup")).sort()
+      : [];
+    if (wavs.length === 0) return json(res, 502, { error: "mock: no hay WAVs cacheados en data/tts/cache" });
+    job.bloques.forEach((b, i) => {
+      b.estado = "generado";
+      b.wavPath = path.join(cacheDir, wavs[i % wavs.length]);
+      b.audioDurMs = 4000;
+      b.cacheHit = true;
+    });
+    job.estado = "DONE";
+    guardarJob(job);
+    return json(res, 200, { iniciado: true, mock: true, total: bloques.length });
+  }
+
   spawnWorker();
 
   // El sidecar responde de inmediato; el worker genera en segundo plano.
@@ -611,6 +649,18 @@ async function handleProgress(res: http.ServerResponse) {
       acc[b.locutor] = l;
       return acc;
     }, {}),
+    bloques: job.bloques.map((b) => ({
+      id: b.id,
+      texto: b.texto,
+      locutor: b.locutor,
+      voz: b.voz,
+      estado: b.estado,
+      durMs: b.audioDurMs,
+      rtf: b.rtf,
+      cacheHit: b.cacheHit,
+      error: b.error,
+      wavPath: b.wavPath,
+    })),
     gpu: { tempC: hw.gpu.tempC, vramUsadaMb: hw.gpu.vramUsedMb, vramTotalMb: hw.gpu.vramTotalMb },
     rtfChatterbox: resumen.rtfChatterbox,
     rtfReciente: resumen.rtfReciente,
@@ -620,6 +670,63 @@ async function handleProgress(res: http.ServerResponse) {
     reiniciosWorker: job.reiniciosWorker,
     vozAcumuladaDesdeReinicioMs: job.vozAcumuladaMsDesdeReinicio,
     notas: job.notas.slice(-4),
+  });
+}
+
+/**
+ * POST /regenerate — regenera UNA intervención con contexto (anterior + siguiente).
+ * La cache key incorpora el hash del contexto: cambiar el texto vecino invalida
+ * correctamente sin tocar el resto del episodio.
+ */
+async function handleRegenerate(res: http.ServerResponse, body: Record<string, unknown>) {
+  const turnId = String(body.turnId ?? "");
+  const texto = String(body.texto ?? "").trim();
+  const locutor = String(body.locutor ?? "");
+  const prevTexto = typeof body.prevTexto === "string" ? body.prevTexto : "";
+  const nextTexto = typeof body.nextTexto === "string" ? body.nextTexto : "";
+  if (!turnId || !texto || !locutor) return json(res, 400, { error: "faltan turnId/texto/locutor" });
+
+  // invalidar el bloque previo de esa intervención en la cola del job activo
+  const job = leerJob();
+  let wavPath: string | null = null;
+  if (job) {
+    const b = job.bloques.find((x) => x.id === turnId);
+    if (b) {
+      b.estado = "pendiente";
+      b.wavPath = null;
+      b.cacheHit = false;
+      guardarJob(job);
+    }
+  }
+
+  const eng = ensureEngine();
+  if (!eng.isRunning) {
+    await eng.start();
+    const warmup = await eng.warmup();
+    if (!warmup.ok) return json(res, 502, { error: `motor no disponible: ${warmup.error ?? "warmup"}` });
+  }
+
+  const voz = vozPorLocutor(locutor, (body.voces ?? {}) as Record<string, VoiceSlot>);
+  const identidad = identidadParaVoz(voz);
+  const ctxHash = [...`${prevTexto}||${texto}||${nextTexto}`].reduce((a, ch) => (a * 33 + ch.charCodeAt(0)) | 0, 5);
+  const seedTurno = Math.abs(ctxHash) % 100000;
+  const r = await eng.generate(cleanTtsText(texto), voz, {
+    voiceProfileId: identidad?.profileId,
+    referenceAudioSha256: identidad?.referenceAudioSha256,
+    voiceSourceId: identidad?.voiceSourceId,
+    modelRevision: identidad?.modelRevision,
+    seed: seedTurno,
+    generationSettings: { contextoHash: Math.abs(ctxHash) },
+  });
+  if (!r.ok || !r.path) return json(res, 502, { error: r.error ?? "generación fallida" });
+  wavPath = r.path ?? null;
+  json(res, 200, {
+    regenerado: true,
+    turnId,
+    wavPath,
+    url: `/media?file=${encodeURIComponent(wavPath ?? "")}`,
+    durS: r.dur_s ?? null,
+    conContexto: { prev: prevTexto.slice(0, 60), next: nextTexto.slice(0, 60) },
   });
 }
 
@@ -707,8 +814,19 @@ async function handleMaster(res: http.ServerResponse, body: Record<string, unkno
   const bedGainDb = Number(body.bedGainDb) || -25;
   const bedDuckDb = Number(body.bedDuckDb) || 6;
 
+  // ── MODO DEV (mock): sin motor TTS. Cada turno usa un WAV real cacheado.
+  const MOCK = body.mock === true;
+  let mockWavs: string[] = [];
+  if (MOCK) {
+    const cacheDir = path.join(REPO, "data", "tts", "cache");
+    mockWavs = fs.existsSync(cacheDir)
+      ? fs.readdirSync(cacheDir).filter((f) => f.endsWith(".wav") && !f.startsWith("warmup")).sort().slice(0, 12).map((f) => path.join(cacheDir, f))
+      : [];
+    if (mockWavs.length === 0) return json(res, 502, { error: "mock: no hay WAVs cacheados" });
+  }
+
   const eng = ensureEngine();
-  if (!eng.isRunning) {
+  if (!MOCK && !eng.isRunning) {
     await eng.start();
     const warmup = await eng.warmup();
     if (!warmup.ok) return json(res, 502, { error: `motor no disponible: ${warmup.error ?? "warmup"}` });
@@ -719,28 +837,56 @@ async function handleMaster(res: http.ServerResponse, body: Record<string, unkno
   const inputs: string[] = [];
   const filtros: string[] = [];
   const voiceLabels: string[] = [];
-  const turnosMezcla: Array<{ id: string; speaker: string; startMs: number; durMs: number; pauseBeforeMs: number; pauseAfterMs: number; canOverlap: boolean; transition: string | null; label: string }> = [];
+  const turnosMezcla: Array<{ id: string; speaker: string; startMs: number; durMs: number; pauseBeforeMs: number; pauseAfterMs: number; canOverlap: boolean; transition: string | null; label: string; solapeConAnterior?: number }> = [];
 
   try {
     let cursor = 0;
     let idx = 0;
+    // Trim de sonoridad percibida por locutor (medido sobre sus clips, cap ±5 dB)
+    const trimPorVoz: Record<string, number> = {};
+    const muestrasPorVoz: Record<string, number[]> = {};
     for (const t of turns) {
       const voz = vozPorLocutor(t.speaker, voces);
       const identidad = identidadParaVoz(voz);
       const chunks = sentenceAwareChunk(cleanTtsText(t.text), 120, 220);
       const turnWavs: string[] = [];
       let turnDurMs = 0;
-      for (const c of chunks) {
+      let chunkIdx = 0;
+      if (MOCK) {
+        // DEV: un WAV cacheado por turno — cero TTS, mezcla en segundos
+        const w = mockWavs[idx % mockWavs.length];
+        turnWavs.push(w);
+        try {
+          const { stdout: dur } = await execFileAsync(ffmpeg, ["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", w], { timeout: 15000 });
+          turnDurMs = Math.round(Number(dur.trim()) * 1000) || 3000;
+        } catch { turnDurMs = 3000; }
+      }
+      for (const c of MOCK ? [] : chunks) {
+        // seed determinista por episodio+turno+chunk: regenerable pero variado
+        const seedTurno = Math.abs(
+          [...`${t.id ?? idx}-${chunkIdx}`].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) | 0, 7)
+        ) % 100000;
         const r = await eng.generate(c, voz, {
           voiceProfileId: identidad?.profileId,
           referenceAudioSha256: identidad?.referenceAudioSha256,
           voiceSourceId: identidad?.voiceSourceId,
           modelRevision: identidad?.modelRevision,
+          seed: seedTurno,
         });
         if (r.ok && r.path && fs.existsSync(r.path)) {
+          // medir sonoridad del clip para trim por voz
+          try {
+            const { stdout: vdOut, stderr: vdErr } = await execFileAsync(ffmpeg, ["-i", r.path, "-af", "volumedetect", "-f", "null", "-"], { timeout: 30000 });
+            const m = /mean_volume:\s*(-?[\d.]+) dB/.exec(`${vdErr}\n${vdOut}`);
+            if (m) {
+              const mean = Number(m[1]);
+              (muestrasPorVoz[t.speaker] ??= []).push(mean);
+            }
+          } catch { /* sin medición: sin trim */ }
           turnWavs.push(r.path);
           turnDurMs += Math.round((r.dur_s ?? 0) * 1000);
         }
+        chunkIdx++;
       }
       if (turnWavs.length === 0) {
         cursor += t.pauseBeforeMs ?? 0;
@@ -751,10 +897,19 @@ async function handleMaster(res: http.ServerResponse, body: Record<string, unkno
       if (turnWavs.length === 1) {
         turnWav = turnWavs[0];
       } else {
-        const list = path.join(tmp, `t${idx}.txt`);
-        fs.writeFileSync(list, turnWavs.map((w) => `file '${w.replace(/'/g, "'\\''")}'`).join("\n"));
+        // unión con micro-crossfade en serie (evita clicks en costuras sin comerse consonantes)
         turnWav = path.join(tmp, `t${idx}.wav`);
-        await execFileAsync(ffmpeg, ["-y", "-f", "concat", "-safe", "0", "-i", list, "-c", "copy", turnWav], { timeout: 120000 });
+        const fcmd = ["-y", ...turnWavs.flatMap((w) => ["-i", w])];
+        let fl = "";
+        let prevLabel = "0:a";
+        turnWavs.forEach((_, i) => {
+          if (i === 0) return;
+          const outL = i === turnWavs.length - 1 ? "out" : `cf${i}`;
+          fl += `[${prevLabel}][${i}:a]acrossfade=d=0.03:c1=tri:c2=tri[${outL}]`;
+          prevLabel = outL;
+          if (i < turnWavs.length - 1) fl += ";";
+        });
+        await execFileAsync(ffmpeg, [...fcmd, "-filter_complex", fl, "-map", "[out]", turnWav], { timeout: 120000 });
       }
 
       inputs.push(turnWav);
@@ -762,8 +917,12 @@ async function handleMaster(res: http.ServerResponse, body: Record<string, unkno
       const startMs = cursor;
       const prev = turnosMezcla[turnosMezcla.length - 1];
       let inicioMs = startMs;
-      if (t.canOverlap && prev && (t.text ?? "").trim().length <= 60) {
-        inicioMs = Math.max(prev.startMs, prev.startMs + prev.durMs - 120);
+      // solape declarado por el director (overlapPreviousMs) o reacción corta clásica
+      const solapeDeclarado = t.overlapPreviousMs ?? 0;
+      if (prev && (solapeDeclarado > 0 || (t.canOverlap && (t.text ?? "").trim().length <= 60))) {
+        const ms = solapeDeclarado > 0 ? Math.min(solapeDeclarado, 300) : 120;
+        inicioMs = Math.max(prev.startMs, prev.startMs + prev.durMs - ms);
+        if (solapeDeclarado > 0) prev.solapeConAnterior = ms; // el mezclador bajará al interrumpido
       }
       turnosMezcla.push({
         id: t.id ?? `t${idx}`,
@@ -782,10 +941,30 @@ async function handleMaster(res: http.ServerResponse, body: Record<string, unkno
 
     if (inputs.length === 0) return json(res, 502, { error: "no se generó audio para ningún turno" });
 
+    // ── Trim de sonoridad percibida por locutor: objetivo mean_volume −18 dB,
+    // cap ±5 dB para no matar la dinámica natural. Corrige voces bajas (Alonso).
+    const OBJETIVO_MEAN_DB = -18;
+    for (const [voz, muestras] of Object.entries(muestrasPorVoz)) {
+      if (muestras.length === 0) continue;
+      const mediana = [...muestras].sort((a, b) => a - b)[Math.floor(muestras.length / 2)];
+      const trim = Math.max(-5, Math.min(5, OBJETIVO_MEAN_DB - mediana));
+      trimPorVoz[voz] = Math.round(trim * 10) / 10;
+    }
+
     for (let i = 0; i < turnosMezcla.length; i++) {
       const m = turnosMezcla[i];
-      const gain = voiceGainDb[m.speaker] ?? 0;
-      filtros.push(`[${i}:a]${gain !== 0 ? `volume=${gain}dB,` : ""}adelay=${m.startMs}|${m.startMs}[v${i}]`);
+      const gainManual = voiceGainDb[m.speaker] ?? 0;
+      const trim = trimPorVoz[m.speaker] ?? 0;
+      const gain = gainManual + trim;
+      let cadena = "";
+      // ducking del interrumpido durante la ventana en que lo solapan
+      if (m.solapeConAnterior && m.solapeConAnterior > 0) {
+        const finVentana = (m.startMs + m.durMs) / 1000;
+        const inicioVentana = Math.max(0, finVentana - m.solapeConAnterior / 1000);
+        cadena += `volume=-4dB:enable='between(t,${inicioVentana.toFixed(2)},${finVentana.toFixed(2)})',`;
+      }
+      cadena += gain !== 0 ? `volume=${gain}dB` : "anull";
+      filtros.push(`[${i}:a]${cadena},adelay=${m.startMs}|${m.startMs}[v${i}]`);
       voiceLabels.push(`[v${i}]`);
     }
     const totalMs = turnosMezcla.reduce((a, m) => Math.max(a, m.startMs + m.durMs), 0) + 1500;
@@ -841,6 +1020,12 @@ async function handleMaster(res: http.ServerResponse, body: Record<string, unkno
     }
     await execFileAsync(ffmpeg, args, { timeout: 900000 });
 
+    // ── QA automático del máster (Fase 3) ──
+    let qa: Awaited<ReturnType<typeof runMasterQa>> | null = null;
+    try {
+      qa = await runMasterQa(outFile, turnosMezcla, turns);
+    } catch { /* QA best-effort: no bloquea la entrega del máster */ }
+
     json(res, 200, {
       master: outFile,
       bytes: fs.statSync(outFile).size,
@@ -852,6 +1037,8 @@ async function handleMaster(res: http.ServerResponse, body: Record<string, unkno
       cortinillas: 0,
       formato,
       kbps: formato === "mp3" ? kbps : null,
+      trimPorVoz,
+      qa,
     });
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -1724,9 +1911,11 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/generate") return await handleGenerate(res, await readBody(req));
     if (req.method === "POST" && url.pathname === "/resume") return await handleResume(res);
     if (req.method === "GET" && url.pathname === "/sistema") return await handleSistema(res);
+    if (req.method === "GET" && url.pathname === "/health") return json(res, 200, { ok: true, pid: process.pid, ready: true, port: PORT, bundle: BUNDLE_MTIME });
     if (req.method === "POST" && url.pathname === "/cancel") return await handleCancel(res);
     if (req.method === "POST" && url.pathname === "/discard") return await handleDiscard(res);
     if (req.method === "POST" && url.pathname === "/master") return await handleMaster(res, await readBody(req));
+    if (req.method === "POST" && url.pathname === "/regenerate") return await handleRegenerate(res, await readBody(req));
     if (req.method === "POST" && url.pathname === "/tts-fallback") return await handleFallbackTts(res, await readBody(req));
     json(res, 404, { error: "ruta desconocida" });
   } catch (e) {
@@ -1735,8 +1924,39 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.on("clientError", (_err, socket) => { socket.destroy(); });
-server.on("error", (e) => { console.error(`[sidecar] error de servidor: ${e.message}`); });
+server.on("error", (e: NodeJS.ErrnoException) => {
+  if (e.code === "EADDRINUSE") {
+    // Ya hay un sidecar vivo: si responde sano, reutilizarlo y salir limpio.
+    fetch(`http://127.0.0.1:${PORT}/health`)
+      .then((r) => r.json())
+      .then(() => {
+        console.log(`[sidecar] ya hay una instancia sana en el puerto ${PORT} — reutilizando, saliendo.`);
+        process.exit(0);
+      })
+      .catch(() => {
+        console.error(`[sidecar] puerto ${PORT} ocupado por instancia NO sana. Aborta (no se duplica proceso).`);
+        process.exit(1);
+      });
+    return;
+  }
+  console.error(`[sidecar] error de servidor: ${e.message}`);
+});
+
+const PID_FILE = path.join(REPO, "data", "tts", "sidecar.pid");
+let BUNDLE_MTIME = 0;
+try { BUNDLE_MTIME = Math.floor(fs.statSync(__filename).mtimeMs); } catch {}
 
 server.listen(PORT, "127.0.0.1", () => {
-  console.log(`[sidecar] AI Radio Studio local en http://127.0.0.1:${PORT}`);
+  try { fs.mkdirSync(path.dirname(PID_FILE), { recursive: true }); fs.writeFileSync(PID_FILE, String(process.pid)); } catch {}
+  console.log(`[sidecar] AI Radio Studio local en http://127.0.0.1:${PORT} (pid ${process.pid})`);
 });
+
+// Shutdown limpio: liberar pid file y cerrar servidor.
+function shutdown(signal: string) {
+  console.log(`[sidecar] ${signal} recibido — apagando limpio…`);
+  try { if (fs.readFileSync(PID_FILE, "utf8").trim() === String(process.pid)) fs.rmSync(PID_FILE, { force: true }); } catch {}
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 3000);
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
