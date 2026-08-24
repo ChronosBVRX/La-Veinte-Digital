@@ -926,6 +926,24 @@ async function openAndPick(c,targetLabel,targetValue){
         if(!out.overlayClosed){
           try{ L.esc(); await sleep(400); out.overlayClosed=!document.querySelector('.cdk-overlay-pane'); }catch(e){}
         }
+        // Fallback directo por Angular si el click no aplicó la selección (overlay sigue abierto)
+        if(!out.overlayClosed){
+          try{
+            var comp = window.ng && window.ng.getComponent ? window.ng.getComponent(c.el) : null;
+            var targetVal = hit.value !== undefined && String(hit.value).trim()!=='' ? hit.value : (hit.getAttribute('ng-reflect-value') || targetValue);
+            if(comp){
+              try{ if(comp.writeValue) comp.writeValue(targetVal); else if('value' in comp) comp.value = targetVal; }catch(e){}
+              try{ if(comp._onChange) comp._onChange(targetVal); }catch(e){}
+              try{ comp.dispatchEvent && comp.dispatchEvent(new CustomEvent('selectionChange', {bubbles:true, detail:{value:targetVal}})); }catch(e){}
+            }
+            try{ c.el.setAttribute('value', String(targetVal)); }catch(e){}
+            c.el.dispatchEvent(new Event('change', {bubbles:true}));
+            c.el.dispatchEvent(new Event('selectionChange', {bubbles:true}));
+            await sleep(500);
+            out.overlayClosed = !document.querySelector('.cdk-overlay-pane');
+            if(!out.overlayClosed){ L.esc(); await sleep(300); out.overlayClosed=!document.querySelector('.cdk-overlay-pane'); }
+          }catch(e){}
+        }
       }
     }catch(e){}
     var any=Array.from(document.querySelectorAll('.cdk-overlay-container mat-option[role="option"], mat-option[role="option"]'));
