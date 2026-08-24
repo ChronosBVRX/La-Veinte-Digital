@@ -4,6 +4,27 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import http from "node:http";
+
+// fetch de larga duración: undici corta headers a los 5 min por defecto
+function postLargo(pUrl, body) {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(body);
+    const req = http.request("http://127.0.0.1:3977" + pUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) },
+      timeout: 3600_000,
+    }, (res) => {
+      let buf = "";
+      res.on("data", (c) => (buf += c));
+      res.on("end", () => { try { resolve(JSON.parse(buf)); } catch (e) { reject(e); } });
+    });
+    req.on("timeout", () => { req.destroy(new Error("timeout 1h")); });
+    req.on("error", reject);
+    req.write(data);
+    req.end();
+  });
+}
 
 const SIDE = "http://127.0.0.1:3977";
 const OUT = "/home/chronos/Escritorio/La Veinte/data/tts/benchmark";
@@ -22,7 +43,9 @@ const durMin = Number(process.argv[3] ?? 12);
 console.log(`═╡ PRUEBA DE ACEPTACIÓN — "${tema}" (${durMin} min objetivo)`);
 
 // 1) Guion con director conversacional
-const dir = await post("/director", { tema, modo: "determinista", nivel: "natural", duracionMin: durMin });
+const modo = process.argv[4] ?? "determinista";
+console.log("modo de guion:", modo);
+const dir = await postLargo("/director", { tema, modo, nivel: "natural", duracionMin: durMin, comerciales: false });
 if (!dir.script) throw new Error("sin guion: " + JSON.stringify(dir).slice(0, 200));
 const turns = dir.script.turns.filter((t) => !t.adSlot);
 console.log(`guion: ${turns.length} intervenciones editoriales`);

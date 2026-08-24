@@ -1065,6 +1065,14 @@ async function handleMaster(res: http.ServerResponse, body: Record<string, unkno
     }
     await execFileAsync(ffmpeg, args, { timeout: 900000 });
 
+    // ── Mix manifest: trazabilidad de colocación de cada turno ──
+    try {
+      fs.writeFileSync(
+        path.join(outDir, path.basename(outFile).replace(/\.(mp3|wav)$/, "") + "-mix.json"),
+        JSON.stringify({ generadoEn: new Date().toISOString(), totalMs, trimPorVoz, turnos: turnosMezcla }, null, 1)
+      );
+    } catch {}
+
     // ── QA automático del máster (Fase 3) ──
     let qa: Awaited<ReturnType<typeof runMasterQa>> | null = null;
     try {
