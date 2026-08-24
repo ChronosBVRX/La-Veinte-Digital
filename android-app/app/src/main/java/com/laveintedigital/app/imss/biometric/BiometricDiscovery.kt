@@ -699,13 +699,17 @@ function findPeriodControl(){
   var best=null;var bestScore=-999;
   for(var i=0;i<mats.length;i++){
     var m=mats[i];var lbl=fieldLabel(m);var score=0;
+    // Excluye controles OOAD de la búsqueda de Periodo (evita abrir Aguascalientes)
+    if(isOoadLike(m))score-=5;
     if(isPeriodLike(m))score+=3;
     var lb=n(lbl);
     if(lb&&(lb.indexOf('periodo')>=0||lb.indexOf('quincena')>=0))score+=2;
     if(vis(m))score+=1;
+    // Bonus si no es OOAD-like
+    if(!isOoadLike(m))score+=1;
     if(score>bestScore){bestScore=score;best={kind:'mat',el:m,evidence:score>=3?'text':(score>1?'label':'position'),label:lbl}}
   }
-  if(best)return best;
+  if(best&&bestScore>-2)return best;
   var sel=document.querySelector('select');
   return sel?{kind:'native',el:sel,evidence:'only-native',label:''}:null;
 }
