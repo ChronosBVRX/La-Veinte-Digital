@@ -1177,6 +1177,7 @@ class TuPerfilBiometricFlowController(
         var ooadVerified: Boolean? = null
         var ooadText: String? = null
         var availableLabels = emptyList<String>()
+        var hitLabel: String? = null
 
         while (attempt < MAX_APPLY_ATTEMPTS && System.currentTimeMillis() - startedAt < APPLY_BUDGET_MS) {
             if (gen != generation) return ApplyOutcome(false, false, null, null, false, false, false, false, "STALE", null, null, emptyList())
@@ -1201,6 +1202,7 @@ class TuPerfilBiometricFlowController(
             ooadVerified = detail?.ooadVerified
             ooadText = detail?.ooadText
             availableLabels = detail?.availableLabels.orEmpty()
+            hitLabel = detail?.hitLabel
             val ok = result.optBoolean("ok")
             lastReason = result.optString("reason", "")
 
@@ -1211,7 +1213,7 @@ class TuPerfilBiometricFlowController(
                     details = "count=$optionCount samples=${availableLabels.distinct().take(5).joinToString(" | ").take(120)}")
             }
             trace(gen, "APPLY_PERIOD", "OPTION_FOUND", result = optionFound,
-                details = "requestedLabel=${period.label}")
+                details = "requestedLabel=${period.label} hitLabel=${hitLabel ?: ""}")
             trace(gen, "APPLY_PERIOD", "CLICK", result = clickPerformed)
             trace(gen, "APPLY_PERIOD", "OVERLAY_CLOSED", result = overlayClosed)
 
@@ -1250,11 +1252,11 @@ class TuPerfilBiometricFlowController(
             }
             Log.w(FLOW_TAG, "[$gen] applyPeriod attempt=$attempt reason=$lastReason")
         }
-        Log.w(FLOW_TAG, "[$gen] applyPeriod success=false reason=$lastReason")
+        Log.w(FLOW_TAG, "[$gen] applyPeriod success=false reason=$lastReason hitLabel=${hitLabel ?: ""}")
         val sampleLabels = availableLabels.distinct().take(5).joinToString(" | ").take(120)
         trace(gen, "APPLY_PERIOD", "SUMMARY", result = false,
             details = "controlFound=$controlFound overlayOpened=$overlayOpened optionCount=$optionCount " +
-                "optionFound=$optionFound click=$clickPerformed overlayClosed=$overlayClosed verified=false reason=$lastReason samples=$sampleLabels",
+                "optionFound=$optionFound click=$clickPerformed overlayClosed=$overlayClosed verified=false reason=$lastReason hitLabel=${hitLabel ?: ""} samples=$sampleLabels",
             durationMs = System.currentTimeMillis() - startedAt)
         // También deja las labels en el trace para que Copiar diagnóstico las incluya
         if (availableLabels.isNotEmpty()) {

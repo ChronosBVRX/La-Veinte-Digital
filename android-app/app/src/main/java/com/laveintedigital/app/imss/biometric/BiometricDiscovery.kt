@@ -117,6 +117,7 @@ object BiometricDiscovery {
         val ooadVerified: Boolean?,
         val ooadText: String?,
         val availableLabels: List<String>,
+        val hitLabel: String? = null,
     )
 
     /** Inspección independiente del control tras aplicar (fase VERIFY). */
@@ -389,6 +390,7 @@ object BiometricDiscovery {
             ooadVerified = if (obj.has("ooadVerified")) obj.optBoolean("ooadVerified") else null,
             ooadText = obj.optString("ooadText", "").ifBlank { null },
             availableLabels = labels,
+            hitLabel = obj.optString("hitLabel", "").ifBlank { null },
         )
     }
 
@@ -787,7 +789,7 @@ function findOoadControl(){
   return sel?{kind:'native',el:sel,evidence:'only-native',label:''}:null;
 }
 async function openAndPick(c,targetLabel,targetValue){
-  var out={optionFound:false,clickPerformed:false,overlayClosed:false,overlayOpened:false,optionCount:0,availableLabels:[],maxOptions:0};
+  var out={optionFound:false,clickPerformed:false,overlayClosed:false,overlayOpened:false,optionCount:0,availableLabels:[],maxOptions:0,hitLabel:''};
   if(c.kind==='native'){
     var opts=Array.from(c.el.options||[]);
     out.availableLabels=opts.map(function(o){return String(o.textContent||o.text||'').replace(/\s+/g,' ').trim()}).filter(function(t){return t.length>0});
@@ -840,6 +842,8 @@ async function openAndPick(c,targetLabel,targetValue){
           out.overlayOpened=true;
           for(var i=0;i<o.length;i++){
             var x=o[i];var t=x.value;var vs=t===undefined||t===null?'':String(t);var isObj=vs.toLowerCase().indexOf('object')>=0;var v=isObj||vs.trim()===''?txt(x):vs;var ot=n(txt(x)),ov=n(v),ntv=n(targetValue),ntl=n(targetLabel);
+            // Evita falsos positivos: si la opción parece OOAD (Aguascalientes) no es un periodo
+            if(ot.indexOf('aguascalientes')>=0||ot.indexOf('baja california')>=0) continue;
             if(ov===ntv||ot===ntl||ot===ntv||ov===ntl)return x;
             if(ntv&&ov.indexOf(ntv)>=0)return x;
             if(ntl&&ot.indexOf(ntl)>=0)return x;
@@ -890,6 +894,7 @@ async function openAndPick(c,targetLabel,targetValue){
       })().catch(function(){return null});
       if(hit&&hit!=='no-match'){
         out.optionFound=true;
+        out.hitLabel=txt(hit);
         // Click más realista para Angular Material (mousedown + mouseup + click)
         try{
           hit.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, view:window}));
@@ -1153,7 +1158,7 @@ obs.observe(document.body,{childList:true,subtree:true});
 if(window.__LVD_BIO_APPLY_RUNNING__)return;
 window.__LVD_BIO_APPLY_RUNNING__=true;window.__LVD_BIO_APPLY_RESULT__=null;
 var L=window.__LVD_BIO_LIB__;
-var flags={controlFound:false,overlayOpened:false,optionCount:0,optionFound:false,clickPerformed:false,overlayClosed:false,ooadVerified:false,ooadText:'',availableLabels:[]};
+var flags={controlFound:false,overlayOpened:false,optionCount:0,optionFound:false,clickPerformed:false,overlayClosed:false,ooadVerified:false,ooadText:'',availableLabels:[],hitLabel:''};
 (async function(){
 try{
   var ooad=L.findOoadControl();
@@ -1167,11 +1172,11 @@ try{
   if(!c)throw new Error('PERIOD_CONTROL_NOT_FOUND');
   flags.controlFound=true;
   var pick=await L.openAndPick(c,TARGET_LABEL,TARGET_VALUE);
-  flags.optionFound=pick.optionFound;flags.clickPerformed=pick.clickPerformed;flags.overlayClosed=pick.overlayClosed;flags.overlayOpened=pick.overlayOpened;flags.optionCount=pick.optionCount;flags.availableLabels=pick.availableLabels;
+  flags.optionFound=pick.optionFound;flags.clickPerformed=pick.clickPerformed;flags.overlayClosed=pick.overlayClosed;flags.overlayOpened=pick.overlayOpened;flags.optionCount=pick.optionCount;flags.availableLabels=pick.availableLabels;flags.hitLabel=pick.hitLabel||'';
   if(!pick.optionFound)throw new Error(pick.maxOptions===0?'PERIOD_OPTIONS_EMPTY':'PERIOD_OPTION_NOT_FOUND');
-  window.__LVD_BIO_APPLY_RESULT__={ok:true,reason:'',controlFound:flags.controlFound,overlayOpened:flags.overlayOpened,optionCount:flags.optionCount,optionFound:flags.optionFound,clickPerformed:flags.clickPerformed,overlayClosed:flags.overlayClosed,ooadVerified:flags.ooadVerified,ooadText:flags.ooadText.slice(0,60),availableLabels:flags.availableLabels};
+  window.__LVD_BIO_APPLY_RESULT__={ok:true,reason:'',controlFound:flags.controlFound,overlayOpened:flags.overlayOpened,optionCount:flags.optionCount,optionFound:flags.optionFound,clickPerformed:flags.clickPerformed,overlayClosed:flags.overlayClosed,ooadVerified:flags.ooadVerified,ooadText:flags.ooadText.slice(0,60),availableLabels:flags.availableLabels,hitLabel:flags.hitLabel.slice(0,80)};
 }catch(e){
-  window.__LVD_BIO_APPLY_RESULT__={ok:false,reason:String(e&&e.message||e),controlFound:flags.controlFound,overlayOpened:flags.overlayOpened,optionCount:flags.optionCount,optionFound:flags.optionFound,clickPerformed:flags.clickPerformed,overlayClosed:flags.overlayClosed,ooadVerified:flags.ooadVerified,ooadText:flags.ooadText.slice(0,60),availableLabels:flags.availableLabels};
+  window.__LVD_BIO_APPLY_RESULT__={ok:false,reason:String(e&&e.message||e),controlFound:flags.controlFound,overlayOpened:flags.overlayOpened,optionCount:flags.optionCount,optionFound:flags.optionFound,clickPerformed:flags.clickPerformed,overlayClosed:flags.overlayClosed,ooadVerified:flags.ooadVerified,ooadText:flags.ooadText.slice(0,60),availableLabels:flags.availableLabels,hitLabel:flags.hitLabel||''};
 }
 finally{window.__LVD_BIO_APPLY_RUNNING__=false}
 })();

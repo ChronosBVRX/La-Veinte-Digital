@@ -1,16 +1,16 @@
 {
   "channel": "stable",
-  "versionCode": 173,
-  "versionName": "1.0.73",
+  "versionCode": 174,
+  "versionName": "1.0.74",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-24T21:22:21Z",
+  "publishedAt": "2026-08-24T21:30:03Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "e184bf8a79f514b40bfe3f314330352d541559b75ba1c4e1ac4b16ba7b3bbd7f",
-    "size": 67542628
+    "sha256": "236c6ed61b2c163c4a605b4adb258252b9bb2b8504dc908fa86df23a1c769e16",
+    "size": 67559012
   },
   "releaseNotes": [
-    "Fix biométricos: click realista (mousedown+mouseup+click) y espera a cierre del overlay para que la selección se aplique"
+    "Fix biométricos: evita falsos positivos de OOAD al buscar periodo y registra hitLabel para diagnóstico"
   ]
 }
