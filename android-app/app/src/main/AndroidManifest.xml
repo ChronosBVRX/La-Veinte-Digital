@@ -67,7 +67,7 @@
 
         <receiver
             android:name=".updates.UpdateInstallReceiver"
-            android:exported="false" />
+            android:exported="true" />
 
         <activity
             android:name=".MainActivity"

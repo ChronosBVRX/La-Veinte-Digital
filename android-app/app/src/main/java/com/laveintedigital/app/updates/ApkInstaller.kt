@@ -54,7 +54,12 @@ object ApkInstaller {
 
     private fun installViaSession(context: Context, file: File, manifest: UpdateManifest): Boolean {
         val installer = context.packageManager.packageInstaller
-        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
+            setAppPackageName(context.packageName)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                setInstallReason(android.content.pm.PackageManager.INSTALL_REASON_USER)
+            }
+        }
         val sessionId = installer.createSession(params)
         val session = installer.openSession(sessionId)
 

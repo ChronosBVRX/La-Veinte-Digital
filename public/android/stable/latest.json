@@ -1,17 +1,17 @@
 {
   "channel": "stable",
-  "versionCode": 165,
-  "versionName": "1.0.65",
+  "versionCode": 166,
+  "versionName": "1.0.66",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-24T19:26:29Z",
+  "publishedAt": "2026-08-24T19:50:48Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "0a9e913dfe967d9efc04d9556a3000b738f5ec3379110de8c6b07ef1dc368ac8",
-    "size": 67493476
+    "sha256": "f37d6b5e9b8a7cc2ed06d5ee1e51328525ddde065a7cd22152273cadec31f807",
+    "size": 67493472
   },
   "releaseNotes": [
-    "Corrección Registros biométricos: el periodo ya se selecciona aunque el portal use formatos con guiones o espacios distintos (fix APPLY_PERIOD/PERIOD_OPTION_NOT_FOUND)",
-    "Selección de periodo más tolerante por código (2025001) y texto normalizado, con soporte para valores del portal como [object Object]"
+    "Corrección instalador OTA: el sistema ahora muestra el diálogo de instalación al tocar Instalar ahora (receiver exportado y sesión con package name)",
+    "Mantiene fix biométricos 1.0.65 para selección de periodo tolerante"
   ]
 }
