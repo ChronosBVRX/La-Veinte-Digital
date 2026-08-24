@@ -696,20 +696,31 @@ function isPeriodLike(x){var a=n(String(x.getAttribute&&x.getAttribute('formcont
 function fieldLabel(x){var ff=x.closest?x.closest('mat-form-field'):null;if(!ff)return '';var l=ff.querySelector('mat-label,label');return l?txt(l):''}
 function findPeriodControl(){
   var mats=Array.from(document.querySelectorAll('mat-select[role="combobox"]'));
+  // Si hay exactamente 2, el de Periodo es el que NO es OOAD (evita confusión por formcontrolname vacío)
+  if(mats.length===2){
+    var aIsO=isOoadLike(mats[0]), bIsO=isOoadLike(mats[1]);
+    if(aIsO&&!bIsO) return {kind:'mat',el:mats[1],evidence:'by-exclusion-2',label:fieldLabel(mats[1])};
+    if(!aIsO&&bIsO) return {kind:'mat',el:mats[0],evidence:'by-exclusion-2',label:fieldLabel(mats[0])};
+    // Si ninguno es OOAD-like claro, el segundo suele ser Periodo (visto: id mat-select-2)
+    if(!aIsO&&!bIsO){
+      var lb1=n(fieldLabel(mats[1])); var tx1=n(txt(mats[1]));
+      if(tx1.indexOf('periodo')>=0||lb1.indexOf('periodo')>=0) return {kind:'mat',el:mats[1],evidence:'second-is-period',label:fieldLabel(mats[1])};
+    }
+  }
   var best=null;var bestScore=-999;
   for(var i=0;i<mats.length;i++){
     var m=mats[i];var lbl=fieldLabel(m);var score=0;
-    // Excluye controles OOAD de la búsqueda de Periodo (evita abrir Aguascalientes)
     if(isOoadLike(m))score-=5;
     if(isPeriodLike(m))score+=3;
     var lb=n(lbl);
     if(lb&&(lb.indexOf('periodo')>=0||lb.indexOf('quincena')>=0))score+=2;
     if(vis(m))score+=1;
-    // Bonus si no es OOAD-like
     if(!isOoadLike(m))score+=1;
     if(score>bestScore){bestScore=score;best={kind:'mat',el:m,evidence:score>=3?'text':(score>1?'label':'position'),label:lbl}}
   }
   if(best&&bestScore>-2)return best;
+  // Último recurso: si hay 2, devuelve el último (Periodo suele ser el segundo)
+  if(mats.length>=2) return {kind:'mat',el:mats[mats.length-1],evidence:'fallback-last',label:fieldLabel(mats[mats.length-1])};
   var sel=document.querySelector('select');
   return sel?{kind:'native',el:sel,evidence:'only-native',label:''}:null;
 }
