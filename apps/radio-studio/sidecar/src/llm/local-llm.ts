@@ -243,7 +243,17 @@ export class LocalLLMService {
         const j = (await r.json()) as { message?: { content?: string }; prompt_eval_count?: number; eval_count?: number; eval_duration?: number };
         const raw = j.message?.content ?? "";
         let parsed: unknown;
-        try { parsed = JSON.parse(raw); } catch { throw new Error("SCHEMA_FAIL: JSON inválido"); }
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          // modelos locales a veces envuelven el JSON en prosa/cerillas: extraer el objeto/array principal
+          const m = /(\{[\s\S]*\}|\[[\s\S]*\])/.exec(raw);
+          let ok = false;
+          if (m) {
+            try { parsed = JSON.parse(m[1]); ok = true; } catch { /* seguirá siendo fallo */ }
+          }
+          if (!ok) throw new Error("SCHEMA_FAIL: JSON inválido");
+        }
         const validated = opts.validate(parsed); // lanza si no cumple
         this.circuitRecord(true);
         fs.writeFileSync(cacheFile, JSON.stringify(validated));

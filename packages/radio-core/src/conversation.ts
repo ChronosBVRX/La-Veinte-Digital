@@ -279,7 +279,8 @@ export function auditConversation(turns: DialogueTurn[]): QaLinea[] {
     const esQ = t.intent === "question" || t.intent === "interrupt_question" || t.intent === "normative_request" || /\?\s*$/.test(t.text);
     if (!esQ) return;
     const respuestas = edit.slice(i + 1, i + 3);
-    const respondida = respuestas.some((r) => r.speaker !== t.speaker && (r.respondsTo === t.id || r.intent === "answer" || r.intent === "normative_answer" || r.intent === "clarification"));
+    // responde quien (a) declara responder a esta pregunta o (b) usa intención de respuesta
+    const respondida = respuestas.some((r) => r.speaker !== t.speaker && (r.respondsTo === t.id || r.intent === "answer" || r.intent === "normative_answer" || r.intent === "clarification" || r.intent === "field_report"));
     const abiertaDeliberada = i >= edit.length - 3; // cierre puede dejar abierta
     if (!respondida && !abiertaDeliberada) sinRespuesta.push(`${t.id} ("${t.text.slice(0, 32)}…")`);
   });
@@ -289,8 +290,11 @@ export function auditConversation(turns: DialogueTurn[]): QaLinea[] {
   const citasFrias: string[] = [];
   edit.forEach((t, i) => {
     if (t.intent !== "normative_answer") return;
-    const sig = edit[i + 1];
-    const reaccion = sig && sig.speaker !== t.speaker && ["reaction", "agreement", "clarification", "summary", "statement"].includes(sig.intent ?? "statement");
+    // la reacción puede llegar después de una segunda parte del propio fundamento
+    let posReaccion = i + 1;
+    while (posReaccion < edit.length && edit[posReaccion].speaker === t.speaker && posReaccion <= i + 2) posReaccion++;
+    const sig = edit[posReaccion];
+    const reaccion = sig && sig.speaker !== t.speaker && ["reaction", "agreement", "disagreement", "question", "interrupt_question", "clarification", "summary", "handoff", "statement"].includes(sig.intent ?? "statement");
     if (!reaccion) citasFrias.push(t.id);
   });
   lineas.push({ check: "ninguna cita importante queda sin reacción posterior", pass: citasFrias.length === 0, detalle: citasFrias.join(", ") || "ok" });

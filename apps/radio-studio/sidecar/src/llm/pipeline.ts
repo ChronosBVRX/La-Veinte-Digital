@@ -20,8 +20,49 @@ import {
   RepairedTurnsSchema,
 } from "./schemas";
 
-const PROMPTS_DIR = path.join(__dirname, "..", "prompts");
-const REPO_ROOT = path.resolve(__dirname, "..", "..", "..", "..");
+function resolverPromptsDir(): string {
+  // busca el directorio prompts subiendo desde __dirname hasta encontrarlo
+  let cur = __dirname;
+  for (let i = 0; i < 6; i++) {
+    const cand = path.join(cur, "prompts");
+    if (fs.existsSync(path.join(cand, "analyst.v1.txt"))) return cand;
+    const parent = path.dirname(cur);
+    if (parent === cur) break;
+    cur = parent;
+  }
+  return path.join(__dirname, "..", "prompts");
+}
+const PROMPTS_DIR = resolverPromptsDir();
+function resolverRepoRoot(): string {
+  // sube desde PROMPTS_DIR (sidecar/prompts) hasta encontrar package.json del repo
+  let cur = path.dirname(PROMPTS_DIR); // sidecar
+  for (let i = 0; i < 4; i++) {
+    if (fs.existsSync(path.join(cur, "resources", "normativa"))) return cur;
+    cur = path.dirname(cur);
+  }
+  return process.cwd();
+}
+const REPO_ROOT = process.env.LVD_REPO_ROOT ?? resolverRepoRoot();
+
+/** Carga artefactos previos para re-iterar sin repetir P1-P5. */
+export function cargarArtefactos(artifactsDir: string): {
+  analisis: unknown; plan: unknown; direccion: z_infer_Direction; textos: Map<string, string>; fuentes: string;
+} | null {
+  try {
+    const j = (f: string) => JSON.parse(fs.readFileSync(path.join(artifactsDir, f), "utf8"));
+    const analisis = j("01-analisis.json");
+    const plan = j("02-escaleta.json");
+    const direccionRaw = j("03-direccion.json");
+    const borrador = j("04-borrador.json");
+    const ep = j("00-evidence-pack.json") as EvidencePackV2;
+    const fuentes = ep.sources.map((s) => `[${s.sourceId}] ${s.document}${s.clause ? `, ${s.clause}` : ""}${s.article ? `, ${s.article}` : ""}: ${s.excerpt}`).join("\n\n");
+    const direccion: z_infer_Direction = { turns: direccionRaw.turns };
+    const textos = new Map<string, string>(Object.entries(borrador));
+    return { analisis, plan, direccion, textos, fuentes };
+  } catch {
+    return null;
+  }
+}
 import { loadLlmConfig } from "./local-llm";
 
 function prompt(name: string): string {
@@ -96,7 +137,6 @@ export class ScriptPipeline {
     let direccion!: z_infer_Direction;
     let textos!: Map<string, string>;
     let auditoria!: { valid: boolean; issues: NormativeIssueLite[] };
-    let critica!: Critique;
 
     // ── PASS 1: Analista ──
     await paso("P1-analista", async () => {
@@ -177,6 +217,7 @@ export class ScriptPipeline {
     }
 
     // ensamblar borrador como DialogueTurn[]
+    const ES_PREGUNTA_REAL = (texto: string) => /\?\s*$/.test(texto.trim()) || /^(qué |qué,|cómo |cuándo |dónde |quién |quién,|cuánto |por qué |y si )/i.test(texto.trim());
     const draftTurns: DialogueTurn[] = direccion.turns.map((t) => ({
       id: t.id,
       speaker: t.speaker,
@@ -192,6 +233,42 @@ export class ScriptPipeline {
       sceneId: t.sceneId,
       editorial: true,
     }));
+
+    // ── Saneo estructural: nadie se dirige a sí mismo por su nombre ──
+    for (let i = 1; i < draftTurns.length; i++) {
+      const t = draftTurns[i];
+      const m = /^(Rodrigo|Eduardo|Andrea|Alonso|Narrador)\b[,:]\s*/i.exec(t.text);
+      if (m) {
+        const mencionado = m[1].toUpperCase().replace("NARRADOR", "NARRADOR");
+        const propio = t.speaker.toUpperCase() === mencionado || (mencionado === "NARRADOR" && /NARRADOR/i.test(t.speaker));
+        if (propio && i > 0) {
+          // el texto estaba destinado a este locutor pero lo dice él mismo:
+          // reasignar al hablante anterior distinto (era un handoff mal asignado)
+          for (let j = i - 1; j >= 0; j--) {
+            if (draftTurns[j].speaker !== t.speaker) { t.speaker = draftTurns[j].speaker; break; }
+          }
+          if (t.intent === "question" || t.intent === "statement") t.intent = "handoff";
+        }
+      }
+    }
+    // pregunta respondida por el MISMO hablante inmediatamente → no era pregunta
+    for (let i = 0; i < draftTurns.length - 1; i++) {
+      const a = draftTurns[i], b = draftTurns[i + 1];
+      if (a.speaker === b.speaker && (a.intent === "question") && b.respondsTo === a.id) {
+        a.intent = "statement";
+      }
+    }
+
+    // ── Normalización determinista de intents (alinear metadato con texto real) ──
+    for (const t of draftTurns) {
+      if ((t.intent === "question" || t.intent === "interrupt_question") && !ES_PREGUNTA_REAL(t.text)) {
+        t.intent = t.speaker === "EDUARDO" ? "handoff" : "statement";
+      }
+      // un statement que sí es pregunta → question (para exigir respuesta)
+      if (t.intent === "statement" && ES_PREGUNTA_REAL(t.text)) {
+        t.intent = "question";
+      }
+    }
 
     // ── PASS 5: Auditor normativo ──
     await paso("P5-auditor", async () => {
@@ -233,48 +310,97 @@ export class ScriptPipeline {
       });
     }
 
-    // ── PASS 6: Crítico conversacional ──
+    // ── PASS 6/7: Crítico ↔ Reparación iterativa (máx 3 rondas) ──
+    let critica!: Critique;
     let intentosCritica = 0;
+    let mejorDraft = [...draftTurns];
+    let mejorScore = -1;
+
+    const clonar = (ts: DialogueTurn[]) => ts.map((t) => ({ ...t }));
+
     for (;;) {
-      await paso(`P6-critico${intentosCritica > 0 ? `-${intentosCritica}` : ""}`, async () => {
+      await paso(`P6-critico-${intentosCritica}`, async () => {
         critica = await withGpu("llm", () =>
           this.llm.generateStructured({
             task: "qa",
-            system: prompt("conversation-critic.v1.txt"),
+            system: prompt("conversation-critic.v2.txt"),
             user: `GUION:\n${JSON.stringify(draftTurns.map((t) => ({ id: t.id, speaker: t.speaker, intent: t.intent, respondsTo: t.respondsTo, text: t.text })))}`,
             jsonSchema: toSchema(ConversationCritiqueSchema),
             validate: (raw) => ConversationCritiqueSchema.parse(raw),
           })
         );
-        this.artifact(artifactsDir, `06-critica-${intentosCritica}`, critica);
+        this.artifact(artifactsDir, `06-critica-r${intentosCritica}`, critica);
       });
 
-      const cumpleUmbral = critica.conversationQualityScore >= 85 && critica.criticalIssues.length === 0;
-      if (cumpleUmbral || intentosCritica >= 3) break;
+      const scoreDeterministaRonda = conversationQualityScore(draftTurns).score;
+      // conservar la MEJOR versión (critic score + sin regresión determinista severa)
+      const scoreCombinado = Math.round(critica.conversationQualityScore * 0.6 + scoreDeterministaRonda * 0.4);
+      if (scoreCombinado > mejorScore) {
+        mejorScore = scoreCombinado;
+        mejorDraft = clonar(draftTurns);
+      }
 
-      // ── PASS 7: Reparación dirigida ──
+      const pasaUmbral =
+        critica.conversationQualityScore >= 85 &&
+        critica.criticalIssues.length === 0 &&
+        auditConversation(draftTurns).every((q) => q.pass);
+      if (pasaUmbral || intentosCritica >= 3) break;
+
+      // ── PASS 7: reparación por ventanas locales con instrucción concreta ──
       await paso(`P7-reparacion-${intentosCritica}`, async () => {
-        for (const r of critica.repairsNeeded.slice(0, 12)) {
-          const idx = draftTurns.findIndex((t) => t.id === r.turnId);
+        // cola combinada: issues del crítico LLM + fallos deterministas con instrucción local
+        const qaRonda = auditConversation(draftTurns);
+        const detIssues: Critique["issues"] = [];
+        for (const f of qaRonda.filter((q) => !q.pass)) {
+          const idsMencionados = (f.detalle.match(/t\d{3}/g) ?? []);
+          for (const tid of idsMencionados.slice(0, 4)) {
+            if (f.check.startsWith("cada pregunta")) {
+              detIssues.push({ turnId: tid, issueType: "unanswered_question", problema: "El guion plantea esto como pregunta pero nadie responde después", evidencia: f.detalle, esperabaEscuchar: "Otra persona responde con información concreta o se reconoce que quedará abierta", repairInstruction: "O bien convierte este turno en afirmación/handoff si no era pregunta real, o asegúrate de que el turno siguiente responda con contenido concreto.", severidad: "alta" });
+            } else if (f.check.startsWith("ninguna cita")) {
+              detIssues.push({ turnId: tid, issueType: "quote_without_landing", problema: "Alonso dio un fundamento y el turno siguiente no reacciona a ese dato", evidencia: f.detalle, esperabaEscuchar: "Eduardo o Andrea interpretan qué significa ese fundamento para el trabajador", repairInstruction: "El turno posterior a esta cita debe interpretar la consecuencia práctica del dato citado — no continuar como si nadie lo hubiera escuchado.", severidad: "alta" });
+            }
+          }
+        }
+        const todas = [...critica.issues, ...detIssues]
+          .filter((v, i, a) => a.findIndex((x) => x.turnId === v.turnId && x.issueType === v.issueType) === i)
+          .sort((a, b) => (a.severidad === b.severidad ? 0 : a.severidad === "alta" ? -1 : 1)).slice(0, 12);
+        for (const issue of todas) {
+          const idx = draftTurns.findIndex((t) => t.id === issue.turnId);
           if (idx < 0) continue;
+          const ventana = draftTurns.slice(Math.max(0, idx - 2), Math.min(draftTurns.length, idx + 3));
           try {
             const rep = await withGpu("llm", () =>
               this.llm.generateStructured({
                 task: "repair",
                 system: prompt("repair.v1.txt"),
-                user: `TURNO A REPARAR:\n${JSON.stringify(draftTurns[idx])}\nANTERIOR:\n${JSON.stringify(draftTurns[idx - 1]?.text ?? null)}\nPOSTERIOR:\n${JSON.stringify(draftTurns[idx + 1]?.text ?? null)}\nMOTIVO: ${r.motivo}`,
+                user: `VENTANA DE CONVERSACIÓN (±2 turnos):
+${JSON.stringify(ventana.map((t) => ({ id: t.id, speaker: t.speaker, intent: t.intent, respondsTo: t.respondsTo, text: t.text })))}
+
+TURNO A REPARAR: ${issue.turnId}
+TIPO DE DEFECTO: ${issue.issueType}
+PROBLEMA: ${issue.problema}
+EVIDENCIA: ${issue.evidencia}
+LO QUE SE ESPERABA ESCUCHAR: ${issue.esperabaEscuchar}
+INSTRUCCIÓN DE REPARACIÓN: ${issue.repairInstruction}
+
+Reescribe SOLO el turno ${issue.turnId}. Debe reaccionar genuinamente a su contexto.`,
                 jsonSchema: toSchema(RepairedTurnsSchema),
                 validate: (raw) => RepairedTurnsSchema.parse(raw),
               })
             );
             for (const rt of rep.turns) {
               const target = draftTurns.find((t) => t.id === rt.id);
-              if (target) target.text = rt.text;
+              if (target && rt.text.length > 2) target.text = rt.text;
             }
-          } catch { /* continuar con el siguiente */ }
+          } catch { /* un turno que no se pudo reparar no aborta el episodio */ }
         }
       });
       intentosCritica++;
+    }
+
+    // adoptar la mejor versión encontrada
+    for (let i = 0; i < draftTurns.length && i < mejorDraft.length; i++) {
+      draftTurns[i].text = mejorDraft[i].text;
     }
 
     // ── PASS 8: Validación final determinista (siempre en código, no LLM) ──
@@ -313,7 +439,10 @@ type Critique = {
   conversationQualityScore: number;
   subscores: Record<string, number>;
   criticalIssues: Array<{ turnId: string; issue: string }>;
-  repairsNeeded: Array<{ turnId: string; motivo: string }>;
+  issues: Array<{
+    turnId: string; issueType: string; problema: string; evidencia: string;
+    esperabaEscuchar: string; repairInstruction: string; severidad?: string;
+  }>;
 };
 
 /** Convierte un ZodObject a JSON Schema para structured outputs de Ollama. */

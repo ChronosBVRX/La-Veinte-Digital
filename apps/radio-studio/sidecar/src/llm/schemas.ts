@@ -86,10 +86,21 @@ export const ConversationCritiqueSchema = z.object({
     actionability: z.number().min(0).max(100),
   }),
   criticalIssues: z.array(z.object({ turnId: z.string(), issue: z.string() })),
-  repairsNeeded: z.array(z.object({
+  /** Cada issue trae instrucción de reparación concreta para el PASS 7. */
+  issues: z.array(z.object({
     turnId: z.string(),
-    motivo: z.string(),
-  })),
+    issueType: z.enum([
+      "generic_response", "unanswered_question", "quote_without_landing",
+      "muletilla", "repeated_start", "semantic_repetition", "ignores_previous",
+      "voice_change_without_reason", "monologue", "mechanical_transition",
+      "missing_callback", "unnatural_phrasing", "other",
+    ]),
+    problema: z.string().min(10),
+    evidencia: z.string(),
+    esperabaEscuchar: z.string().min(5),
+    repairInstruction: z.string().min(15),
+    severidad: z.enum(["alta", "media"]).default("alta"),
+  })).default([]),
 });
 
 export const RepairedTurnsSchema = z.object({
