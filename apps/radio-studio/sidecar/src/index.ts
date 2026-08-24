@@ -28,8 +28,11 @@ import {
 import { NormativeCatalog } from "../../../../src/features/normativa/services/catalog";
 import { buildCoverage } from "../../../../src/features/normativa/services/coverage";
 import { buildScriptFromEvidence } from "../../../../src/features/normativa/services/llm-provider";
-import { directRadioEpisode, analyzeDiversity, polishDialogue, sanitizeEditorialScript, editorialPromptRules, editorialSegmentGoal, validateCasting, VOICE_PERSONAS, GLOBAL_PRONUNCIATION_RULE, DEFAULT_SPEAKERS, type DirectorInput, type DialogueTurn, type EpisodeScript, type SpeakerProfile, type CitationMode, type VoiceSlot } from "@la-veinte/radio-core";
+import { directRadioEpisode, analyzeDiversity, polishDialogue, sanitizeEditorialScript, editorialPromptRules, editorialSegmentGoal, validateCasting, VOICE_PERSONAS, GLOBAL_PRONUNCIATION_RULE, DEFAULT_SPEAKERS, type DirectorInput, type DialogueTurn, type EpisodeScript, type SpeakerProfile, type CitationMode, type VoiceSlot, validateRoleFirewall } from "@la-veinte/radio-core";
 import { runMasterQa } from "./master-qa";
+import { loadLlmConfig, LocalLLMService } from "./llm/local-llm";
+import { getGpuManager } from "./llm/gpu-manager";
+import { ScriptPipeline, buildEvidencePackV2 } from "./llm/pipeline";
 import { resolveProvider } from "../../../../src/features/normativa/services/llm-provider";
 import { eliminarJob, leerJob, guardarJob, nuevoJob, resumenJob, type ProductionJob } from "../worker/job-store";
 import { leerJobMusica, guardarJobMusica, nuevoJobMusica, resumenJobMusica, type MusicaTipo } from "../worker/musica-job-store";
@@ -730,6 +733,48 @@ async function handleRegenerate(res: http.ServerResponse, body: Record<string, u
   });
 }
 
+
+function validacionLocalOk(turns: DialogueTurn[]): boolean {
+  const fw = validateRoleFirewall(turns);
+  if (fw.length > 0) return false;
+  // Alonso siempre con citas
+  for (const t of turns) {
+    if (/NARRADOR|ALONSO/i.test(t.speaker) && t.intent === "normative_answer" && (t.citations?.length ?? 0) === 0) return false;
+  }
+  return true;
+}
+
+function agruparEscenas(turns: DialogueTurn[]): Array<{ id: string; titulo: string; turns: DialogueTurn[] }> {
+  const map = new Map<string, { id: string; titulo: string; turns: DialogueTurn[] }>();
+  for (const t of turns) {
+    const key = t.sceneId ?? "s1";
+    if (!map.has(key)) map.set(key, { id: key, titulo: key, turns: [] });
+    map.get(key)!.turns.push(t);
+  }
+  return [...map.values()];
+}
+
+async function handleLlmHealth(res: http.ServerResponse) {
+  const llm = new LocalLLMService(loadLlmConfig(), path.join(REPO, "data", "tts"));
+  const health = await llm.health();
+  const models = health.ok ? await llm.listModels() : [];
+  json(res, 200, {
+    config: loadLlmConfig(),
+    health,
+    modelos: models,
+    modeloObjetivoOk: models.some((m) => m.startsWith(loadLlmConfig().model.split(":")[0])),
+    gpu: getGpuManager().status(),
+    stats: health.ok ? await llm.getStats() : [],
+  });
+}
+
+async function handleLlmUnload(res: http.ServerResponse) {
+  const llm = new LocalLLMService(loadLlmConfig(), path.join(REPO, "data", "tts"));
+  const liberado = await llm.unload();
+  getGpuManager().release("llm");
+  json(res, 200, { liberado, gpu: getGpuManager().status() });
+}
+
 async function handleCancel(res: http.ServerResponse) {
   const job = leerJob();
   if (!job) return json(res, 404, { error: "no hay trabajo" });
@@ -1417,6 +1462,39 @@ async function handleDirector(res: http.ServerResponse, body: Record<string, unk
     modoCita,
   });
 
+  // ── IA LOCAL PRIMERO (Qwen/Ollama): pipeline multipasso con auditoría ──
+  const llmCfg = loadLlmConfig();
+  let modoLlmUsado: string | null = null;
+  let pipelineArtifacts: string | null = null;
+  let pipelineScore: number | null = null;
+  if (modo === "ia" && llmCfg.enabled) {
+    const gpuMgr = getGpuManager();
+    try {
+      const episodeId = `ep-${Date.now()}`;
+      const artifactsDir = path.join(REPO, "data", "tts", "episodes", episodeId);
+      const pack2 = buildEvidencePackV2(episodeId, tema, claims, pack.cutoff);
+      const resultado = await new ScriptPipeline().run({
+        tema, duracionMin, speakers, nivel, claims,
+        cutoff: pack.cutoff, fuentes: pack.documents, modoCita,
+        evidencePack: pack2, artifactsDir,
+      });
+      if (resultado.turns.length >= 6 && validacionLocalOk(resultado.turns)) {
+        script = {
+          ...script,
+          scenes: agruparEscenas(resultado.turns),
+          turns: resultado.turns,
+          estimacionDurSec: Math.round(resultado.turns.reduce((a, t) => a + t.text.split(/\s+/).length / 2.6, 0)),
+        };
+        modoLlmUsado = `qwen-local (${resultado.scoreFinal}/100)`;
+        pipelineArtifacts = artifactsDir;
+        pipelineScore = resultado.scoreFinal;
+      }
+    } catch (e) {
+      console.log(`[director] IA local falló → fallback: ${e instanceof Error ? e.message : e}`);
+    }
+    void gpuMgr;
+  }
+
   let modoUsado: "determinista" | "ia" = "determinista";
   let proveedorUsado: string | null = null;
   const verificacion: Array<{ turnId: string; semaforo: "green" | "yellow" | "red"; detalle: string | null }> = [];
@@ -1640,6 +1718,9 @@ Devuelve ÚNICAMENTE JSON: {"turns": [...]}`;
 
   json(res, 200, {
     script,
+    modoLlmUsado,
+    pipelineArtifacts,
+    pipelineScore,
     modoUsado,
     proveedor: proveedorUsado,
     verificacion,
@@ -1912,6 +1993,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/resume") return await handleResume(res);
     if (req.method === "GET" && url.pathname === "/sistema") return await handleSistema(res);
     if (req.method === "GET" && url.pathname === "/health") return json(res, 200, { ok: true, pid: process.pid, ready: true, port: PORT, bundle: BUNDLE_MTIME });
+    if (req.method === "GET" && url.pathname === "/llm/health") return await handleLlmHealth(res);
+    if (req.method === "POST" && url.pathname === "/llm/unload") return await handleLlmUnload(res);
     if (req.method === "POST" && url.pathname === "/cancel") return await handleCancel(res);
     if (req.method === "POST" && url.pathname === "/discard") return await handleDiscard(res);
     if (req.method === "POST" && url.pathname === "/master") return await handleMaster(res, await readBody(req));
