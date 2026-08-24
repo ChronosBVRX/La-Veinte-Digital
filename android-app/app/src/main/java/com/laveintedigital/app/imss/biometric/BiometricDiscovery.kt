@@ -890,9 +890,19 @@ async function openAndPick(c,targetLabel,targetValue){
       })().catch(function(){return null});
       if(hit&&hit!=='no-match'){
         out.optionFound=true;
+        // Click más realista para Angular Material (mousedown + mouseup + click)
+        try{
+          hit.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, view:window}));
+          hit.dispatchEvent(new MouseEvent('mouseup', {bubbles:true, cancelable:true, view:window}));
+        }catch(e){}
         hit.click();
         out.clickPerformed=true;
-        await sleep(300);
+        // Espera a que el overlay se cierre y Angular actualice el displayText
+        var t0=Date.now();
+        while(Date.now()-t0<1200){
+          await sleep(150);
+          if(!document.querySelector('.cdk-overlay-pane')) break;
+        }
         out.overlayClosed=!document.querySelector('.cdk-overlay-pane');
       }
     }catch(e){}
