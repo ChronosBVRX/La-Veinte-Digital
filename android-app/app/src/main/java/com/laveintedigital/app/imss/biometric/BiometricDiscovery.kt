@@ -841,8 +841,7 @@ async function openAndPick(c,targetLabel,targetValue){
           if(o.length===0){await sleep(150);continue}
           out.overlayOpened=true;
           for(var i=0;i<o.length;i++){
-            var x=o[i];var t=x.value;var vs=t===undefined||t===null?'':String(t);var isObj=vs.toLowerCase().indexOf('object')>=0;var v=isObj||vs.trim()===''?txt(x):vs;var ot=n(txt(x)),ov=n(v),ntv=n(targetValue),ntl=n(targetLabel);
-            // Evita falsos positivos: si la opción parece OOAD (Aguascalientes) no es un periodo
+            var x=o[i];var t=x.getAttribute('ng-reflect-value')||x.value;var vs=t===undefined||t===null?'':String(t);var isObj=vs.toLowerCase().indexOf('object')>=0;var v=isObj||vs.trim()===''?txt(x):vs;var ot=n(txt(x)),ov=n(v),ntv=n(targetValue),ntl=n(targetLabel);
             if(ot.indexOf('aguascalientes')>=0||ot.indexOf('baja california')>=0) continue;
             if(ov===ntv||ot===ntl||ot===ntv||ov===ntl)return x;
             if(ntv&&ov.indexOf(ntv)>=0)return x;

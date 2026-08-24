@@ -1,16 +1,16 @@
 {
   "channel": "stable",
-  "versionCode": 176,
-  "versionName": "1.0.76",
+  "versionCode": 177,
+  "versionName": "1.0.77",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-24T21:43:22Z",
+  "publishedAt": "2026-08-24T21:59:07Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "be76c4c560f4180e521bfa4e8d510aa23aeb4612cfb3026c7765f18c409b708c",
+    "sha256": "5f07f314024aadf4b2725f3709c052a7d7077174ea4025f245b30727fc7d6dba",
     "size": 67575396
   },
   "releaseNotes": [
-    "Fix biométricos: fallback directo Angular si el click no cierra el overlay"
+    "Fix biométricos: usa ng-reflect-value para periodos y evita falsos positivos OOAD"
   ]
 }
