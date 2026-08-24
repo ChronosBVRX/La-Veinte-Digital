@@ -2,15 +2,17 @@
  * GpuResourceManager — mutex de VRAM entre LLM (Ollama/Qwen) y TTS (Chatterbox).
  *
  * Regla fundamental: LLM_ACTIVE && TTS_ACTIVE = false por defecto en 12 GB.
- * Estados: IDLE | LLM_ACTIVE | TTS_ACTIVE | ERROR
+ * Estados: IDLE | LLM_ACTIVE | TTS_ACTIVE
+ *
+ * Adquisición por polling (granularidad 50 ms): la conmutación de modelos en
+ * GPU tarda segundos, así que un poll corto es más simple y sin zombis.
  */
 
 export type GpuOwner = "llm" | "tts";
-export type GpuState = "IDLE" | "LLM_ACTIVE" | "TTS_ACTIVE" | "ERROR";
+export type GpuState = "IDLE" | "LLM_ACTIVE" | "TTS_ACTIVE";
 
 class GpuResourceManager {
   private owner: GpuOwner | null = null;
-  private queue: Array<() => void> = [];
   state: GpuState = "IDLE";
   lastError: string | null = null;
   changedAt = Date.now();
@@ -21,19 +23,20 @@ class GpuResourceManager {
     return {
       state: this.state,
       owner: this.owner,
-      waiting: this.queue.length,
       lastError: this.lastError,
       changedAt: new Date(this.changedAt).toISOString(),
     };
   }
 
-  /** Adquiere la GPU exclusivamente. Si otro dueño la tiene, espera su turno. */
+  /** Adquiere la GPU exclusivamente. Re-entrante para el mismo dueño. */
   async acquire(target: GpuOwner, timeoutMs = 600_000): Promise<void> {
-    if (this.owner === target) return; // re-entrante para el mismo dueño
+    if (this.owner === target) return;
     const start = Date.now();
     while (this.owner !== null && this.owner !== target) {
-      if (Date.now() - start > timeoutMs) throw new Error(`GPU_TIMEOUT: ${this.owner} no liberó en ${timeoutMs}ms`);
-      await new Promise<void>((resolve) => this.queue.push(resolve));
+      if (Date.now() - start > timeoutMs) {
+        throw new Error(`GPU_TIMEOUT: ${this.owner} no liberó en ${timeoutMs}ms`);
+      }
+      await new Promise((r) => setTimeout(r, 50));
     }
     this.owner = target;
     this.state = target === "llm" ? "LLM_ACTIVE" : "TTS_ACTIVE";
@@ -45,14 +48,12 @@ class GpuResourceManager {
     this.owner = null;
     this.state = "IDLE";
     this.changedAt = Date.now();
-    const next = this.queue.shift();
-    next?.();
   }
 
   fail(owner: GpuOwner, err: string): void {
     if (this.owner !== owner) return;
     this.lastError = err;
-    // NO quedamos en ERROR permanente: el error lo maneja el llamador; liberamos.
+    // el error lo maneja el llamador; la GPU se libera para no bloquear al otro
     this.release(owner);
   }
 }
@@ -63,10 +64,7 @@ const g = globalThis as unknown as G;
 if (!g.mgr) g.mgr = new GpuResourceManager();
 export function getGpuManager(): GpuResourceManager { return g.mgr!; }
 
-/**
- * withGpu("llm", fn): adquiere, ejecuta, libera. En esencia:
- *   await withGpu("tts", async () => { ...generar voces... })
- */
+/** withGpu(owner, fn): adquiere, ejecuta, libera siempre. */
 export async function withGpu<T>(owner: GpuOwner, fn: () => Promise<T>): Promise<T> {
   const mgr = getGpuManager();
   await mgr.acquire(owner);
