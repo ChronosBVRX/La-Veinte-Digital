@@ -687,7 +687,7 @@ object BiometricDiscovery {
 
     private const val LIB_JS = """(function(){
 if(window.__LVD_BIO_LIB__)return;
-function n(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase()}
+function n(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[\u2010-\u2015\u2013\u2014\u00AD]/g,'-').replace(/\u00A0/g,' ').replace(/\s+/g,' ').trim().toLowerCase()}
 function vis(el){if(!el)return false;if(el.offsetParent===null&&el.getClientRects().length===0)return false;var r=el.getBoundingClientRect();return r.width>0&&r.height>0}
 function txt(el){return (el.innerText||el.textContent||'').replace(/\s+/g,' ').trim()}
 function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
@@ -715,7 +715,7 @@ function collectOptions(c){
     var root=document.querySelector('.cdk-overlay-container');
     var opts=root?Array.from(root.querySelectorAll('mat-option[role="option"]')):[];
     if(opts.length===0)opts=Array.from(document.querySelectorAll('mat-option[role="option"]'));
-    out=opts.map(function(o){var t=txt(o);var v=o.value;var value=(v===undefined||v===null||String(v).trim()==='')?t:String(v);return{value:value,label:t}}).filter(function(x){return x.label.length>0});
+    out=opts.map(function(o){var t=txt(o);var v=o.value;var vs=v===undefined||v===null?'':String(v);var isObj=vs.toLowerCase().indexOf('object')>=0;var value=(vs.trim()===''||isObj)?t:vs;return{value:value,label:t}}).filter(function(x){return x.label.length>0});
   }else{
     out=Array.from(c.el.options||[]).map(function(o){return{value:String(o.value||''),label:String(o.textContent||o.text).replace(/\s+/g,' ').trim()}}).filter(function(x){return x.label.length>0});
   }
@@ -773,7 +773,17 @@ async function openAndPick(c,targetLabel,targetValue){
     var opts=Array.from(c.el.options||[]);
     out.availableLabels=opts.map(function(o){return String(o.textContent||o.text||'').replace(/\s+/g,' ').trim()}).filter(function(t){return t.length>0});
     out.maxOptions=opts.length;out.optionCount=opts.length;
-    var target=opts.find(function(o){return n(String(o.value||''))===n(targetValue)||n(String(o.textContent||o.text))===n(targetLabel)});
+    var target=opts.find(function(o){
+      var ot=n(String(o.textContent||o.text||'')),ov=n(String(o.value||'')),ntv=n(targetValue),ntl=n(targetLabel);
+      if(ov===ntv||ot===ntl||ot===ntv||ov===ntl)return true;
+      if(ntv&&ov.indexOf(ntv)>=0)return true;
+      if(ntl&&ot.indexOf(ntl)>=0)return true;
+      if(ntv&&ot.indexOf(ntv)>=0)return true;
+      if(ntl&&ov.indexOf(ntl)>=0)return true;
+      var code=(ntl.match(/\b\d{6,7}\b/)||ntv.match(/\b\d{6,7}\b/)||[])[0];
+      if(code&&(ot.indexOf(code)>=0||ov.indexOf(code)>=0))return true;
+      return false});
+
     if(target){
       out.optionFound=true;
       var d=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value');
@@ -798,8 +808,14 @@ async function openAndPick(c,targetLabel,targetValue){
         var o=Array.from(document.querySelectorAll('.cdk-overlay-container mat-option[role="option"], mat-option[role="option"]'));
         if(o.length===0&&document.querySelector('.cdk-overlay-pane')){out.overlayOpened=true;return null}
         for(var i=0;i<o.length;i++){
-          var x=o[i];var t=x.value;var v=(t===undefined||t===null||String(t).trim()==='')?txt(x):String(t);
-          if(n(v)===n(targetValue)||n(txt(x))===n(targetLabel))return x;
+          var x=o[i];var t=x.value;var vs=t===undefined||t===null?'':String(t);var isObj=vs.toLowerCase().indexOf('object')>=0;var v=isObj||vs.trim()===''?txt(x):vs;var ot=n(txt(x)),ov=n(v),ntv=n(targetValue),ntl=n(targetLabel);
+          if(ov===ntv||ot===ntl||ot===ntv||ov===ntl)return x;
+          if(ntv&&ov.indexOf(ntv)>=0)return x;
+          if(ntl&&ot.indexOf(ntl)>=0)return x;
+          if(ntv&&ot.indexOf(ntv)>=0)return x;
+          if(ntl&&ov.indexOf(ntl)>=0)return x;
+          var code=(ntl.match(/\b\d{6,7}\b/)||ntv.match(/\b\d{6,7}\b/)||[])[0];
+          if(code&&(ot.indexOf(code)>=0||ov.indexOf(code)>=0))return x;
         }
         if(o.length>0)return 'no-match';
         return null;

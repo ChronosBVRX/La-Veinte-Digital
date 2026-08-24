@@ -1,18 +1,17 @@
 {
   "channel": "stable",
-  "versionCode": 163,
-  "versionName": "1.0.63",
+  "versionCode": 165,
+  "versionName": "1.0.65",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-14T00:00:00Z",
+  "publishedAt": "2026-08-24T19:26:29Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "0D801C58A0EFC48B813A3A75F46FADCDC876C0C4D2138855E6D8CC3517E85F01",
-    "size": 67378788
+    "sha256": "0a9e913dfe967d9efc04d9556a3000b738f5ec3379110de8c6b07ef1dc368ac8",
+    "size": 67493476
   },
   "releaseNotes": [
-    "Registros biométricos: se selecciona primero la OOAD (17 Michoacán) y luego el Periodo, como lo exige el portal IMSS",
-    "El periodo se relee tras la OOAD con verificación previa a la consulta, para eliminar el error de periodo no disponible",
-    "Diagnóstico ampliado del flujo OOAD y Periodo para validar el funcionamiento en tu dispositivo"
+    "Corrección Registros biométricos: el periodo ya se selecciona aunque el portal use formatos con guiones o espacios distintos (fix APPLY_PERIOD/PERIOD_OPTION_NOT_FOUND)",
+    "Selección de periodo más tolerante por código (2025001) y texto normalizado, con soporte para valores del portal como [object Object]"
   ]
 }
