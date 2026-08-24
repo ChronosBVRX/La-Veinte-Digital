@@ -1710,9 +1710,18 @@ Devuelve ÚNICAMENTE JSON: {"turns": [...]}`;
     }
   }
 
+  const metaPreSanitize = new Map(script.turns.map((t) => [t.id, t]));
   script = insertSponsorSlots(script, { enabled: comerciales, durationSec: duracionComercialSec });
   const editorial = sanitizeEditorialScript(script);
   script = editorial.script;
+  // restaurar metadatos conversacionales que el sanitizador pudo perder
+  for (const t of script.turns) {
+    const prev = metaPreSanitize.get(t.id);
+    if (prev) {
+      t.intent = prev.intent; t.respondsTo = prev.respondsTo; t.emotion = prev.emotion;
+      t.overlapPreviousMs = prev.overlapPreviousMs; t.sceneId = prev.sceneId; t.editorial = prev.editorial;
+    }
+  }
   const diversitySanitized = analyzeDiversity(script);
   const editorialQa = editorial.qa;
 

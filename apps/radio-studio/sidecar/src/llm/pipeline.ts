@@ -154,6 +154,28 @@ export class ScriptPipeline {
       this.artifact(artifactsDir, "04-borrador", Object.fromEntries(textos));
     });
 
+    // ── Guardarrails de roles (determinista, antes del guionista) ──
+    // Alonso SOLO fundamento: cualquier otro intent suyo se convierte en normative_answer
+    // con la fuente más cercana declarada por dirección.
+    for (const t of direccion.turns) {
+      if (t.speaker === "NARRADOR" && !["normative_answer", "statement", "handoff"].includes(t.intent)) {
+        t.intent = "normative_answer";
+        if (t.sourceIds.length === 0) {
+          const conFuente = direccion.turns.filter((x) => x.sourceIds.length > 0);
+          if (conFuente.length > 0) {
+            const nearest = conFuente.reduce((a, b) =>
+              Math.abs(direccion.turns.indexOf(b) - direccion.turns.indexOf(t)) <
+              Math.abs(direccion.turns.indexOf(a) - direccion.turns.indexOf(t)) ? b : a);
+            t.sourceIds = [...nearest.sourceIds];
+          }
+        }
+      }
+      // NARRADOR no pregunta ni interrumpe
+      if (t.speaker === "NARRADOR" && ["interrupt_question", "interrupt_correction", "normative_request", "question"].includes(t.intent)) {
+        t.speaker = "EDUARDO";
+      }
+    }
+
     // ensamblar borrador como DialogueTurn[]
     const draftTurns: DialogueTurn[] = direccion.turns.map((t) => ({
       id: t.id,
