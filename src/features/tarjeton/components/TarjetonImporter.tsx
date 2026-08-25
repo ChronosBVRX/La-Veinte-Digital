@@ -1,5 +1,7 @@
 "use client"
 
+import { useEffect, useRef } from "react"
+import type { TarjetonImportSuccessMeta } from "@/shared/contracts/tarjeton-import"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
 import { useTarjetonImporter } from "@/features/tarjeton/hooks/useTarjetonImporter"
 import { Card } from "@/shared/components/ui/Card"
@@ -12,10 +14,29 @@ import { ImportSuccess } from "./ImportSuccess"
 
 interface TarjetonImporterProps {
   profile: TarjetonProfileSnapshot | null
+  /** Se dispara una sola vez cuando el tarjetón queda confirmado en el servidor. */
+  onSuccess?: (meta: TarjetonImportSuccessMeta) => void
 }
 
-export function TarjetonImporter({ profile }: TarjetonImporterProps) {
+export function TarjetonImporter({ profile, onSuccess }: TarjetonImporterProps) {
   const { state, start, confirm, reset } = useTarjetonImporter(profile)
+  const successNotifiedRef = useRef(false)
+
+  useEffect(() => {
+    if (!onSuccess) return
+    if (state.step !== "done" || successNotifiedRef.current) return
+    successNotifiedRef.current = true
+    onSuccess({
+      method: state.method,
+      confidence: state.parsed?.extraction.globalConfidence,
+      period: state.parsed?.document.periodRaw ?? null,
+    })
+  }, [state.step, state.method, state.parsed, onSuccess])
+
+  const handleReset = () => {
+    successNotifiedRef.current = false
+    reset()
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -35,7 +56,7 @@ export function TarjetonImporter({ profile }: TarjetonImporterProps) {
             <div style={{ color: "var(--muted)", fontSize: "0.8125rem" }}>
               {state.fileName} · {state.fileSize ? `${Math.round(state.fileSize / 1024)} KB` : ""}
             </div>
-            <Button variant="ghost" size="sm" onClick={reset}>Cancelar</Button>
+            <Button variant="ghost" size="sm" onClick={handleReset}>Cancelar</Button>
           </div>
         )}
 
@@ -59,7 +80,7 @@ export function TarjetonImporter({ profile }: TarjetonImporterProps) {
               profile={profile}
               confirming={state.step === "confirming"}
               onConfirm={confirm}
-              onCancel={reset}
+              onCancel={handleReset}
             />
             {state.step === "confirming" && (
               <ProgressBar progress={1} label="Guardando tarjetón…" />
@@ -68,7 +89,7 @@ export function TarjetonImporter({ profile }: TarjetonImporterProps) {
         )}
 
         {state.step === "done" && state.parsed && state.confirmResponse && (
-          <ImportSuccess parsed={state.parsed} response={state.confirmResponse} onStartOver={reset} />
+          <ImportSuccess parsed={state.parsed} response={state.confirmResponse} onStartOver={handleReset} />
         )}
       </Card>
 

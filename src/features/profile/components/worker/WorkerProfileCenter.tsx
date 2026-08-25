@@ -2,7 +2,10 @@
 
 import { useState } from "react"
 import dynamic from "next/dynamic"
+import { useRouter } from "next/navigation"
 import type { WorkerProfile, ProfileQuality, FieldRequirement, WorkerDataEvent, WorkerProfileMode } from "@/shared/domain/worker"
+import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
+import { Button } from "@/shared/components/ui/Button"
 import { BasicModeCard } from "./BasicModeCard"
 import { ProfileQualityCard } from "./ProfileQualityCard"
 import { ProfileFieldsList } from "./ProfileFieldsList"
@@ -26,15 +29,29 @@ interface WorkerProfileCenterProps {
   requirements: readonly FieldRequirement[]
   events: WorkerDataEvent[]
   returnTo?: string
+  profileSnapshot?: TarjetonProfileSnapshot | null
 }
 
-export function WorkerProfileCenter({ state, mode, profile, quality, requirements, events, returnTo }: WorkerProfileCenterProps) {
+export function WorkerProfileCenter({ state, mode, profile, quality, requirements, events, returnTo, profileSnapshot }: WorkerProfileCenterProps) {
   const [viewState, setViewState] = useState<WorkerState>(state)
   const [viewMode, setViewMode] = useState<WorkerProfileMode | null>(mode ?? null)
   const [showChangeDialog, setShowChangeDialog] = useState(false)
+  const router = useRouter()
+
+  const handleComplete = () => {
+    setViewState("basic")
+    setViewMode(null)
+    router.refresh()
+  }
 
   if (viewState === "unconfigured") {
-    return <OnboardingWizard returnTo={returnTo} onComplete={() => { setViewState("basic"); setViewMode(null) }} />
+    return (
+      <OnboardingWizard
+        returnTo={returnTo}
+        profileSnapshot={profileSnapshot}
+        onComplete={handleComplete}
+      />
+    )
   }
 
   if (viewState === "basic") {
@@ -52,6 +69,30 @@ export function WorkerProfileCenter({ state, mode, profile, quality, requirement
             {profile && <> · Actualizado {profile.updatedAt.slice(0, 10)}</>}
           </p>
         </div>
+      </div>
+
+      {/* CTA principal: mantener datos al día con el tarjetón */}
+      <div style={{
+        background: "linear-gradient(135deg, rgba(37,99,235,0.06), var(--card))",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-lg, var(--radius))",
+        padding: "1rem 1.25rem",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        flexWrap: "wrap", gap: "0.75rem",
+      }}>
+        <div style={{ minWidth: 220 }}>
+          <div style={{ fontWeight: 700, fontSize: "0.9375rem", marginBottom: "0.125rem" }}>
+            Mantén tus datos al día con tu tarjetón
+          </div>
+          <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+            Cada vez que subes un recibo nuevo, tu categoría, antigüedad, jornada y conceptos se actualizan solos.
+          </div>
+        </div>
+        <Button size="sm" onClick={() => {
+          document.getElementById("subir-tarjeton")?.scrollIntoView({ behavior: "smooth", block: "start" })
+        }}>
+          Subir tarjetón
+        </Button>
       </div>
 
       {quality && <ProfileQualityCard quality={quality} />}

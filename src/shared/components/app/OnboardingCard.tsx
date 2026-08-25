@@ -42,7 +42,7 @@ export function OnboardingCard({ hasAntiguedad, hasTarjeton, hasCategoria }: Onb
       label: "Importa tu tarjetón",
       description: "Importa tu tarjetón del IMSS y tus datos laborales se actualizan solos.",
       actionLabel: "Importar mi tarjetón",
-      href: "/tarjeton",
+      href: "/profile/mi-informacion-laboral",
     },
   ]
 

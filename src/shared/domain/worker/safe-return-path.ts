@@ -9,8 +9,9 @@
 export const ALLOWED_INTERNAL_RETURN_PATHS: readonly string[] = [
   "/",
   "/profile",
+  "/profile/mi-informacion-laboral",
   "/nomina",
-  "/nomina/perfil",
+  "/simulador-nomina",
   "/calculadoras",
   "/calculadoras/aguinaldo",
   "/calculadoras/clausula-97",

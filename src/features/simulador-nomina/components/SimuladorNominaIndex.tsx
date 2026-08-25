@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { IdentificationCard, ArrowRight, ArrowsLeftRight, CurrencyDollar, ClockCounterClockwise } from "@phosphor-icons/react"
 import { PageHeader } from "@/shared/components/app/PageHeader"
 import { SectionCard } from "@/shared/components/ui/SectionCard"
@@ -199,8 +200,15 @@ export function SimuladorNominaIndex() {
         />
         <EmptyState
           icon={<IdentificationCard weight="duotone" />}
-          title="Configura tu perfil primero"
-          description="Necesitas tener tu perfil laboral configurado para usar el simulador. Importa un tarjetón o captura tus datos manualmente."
+          title="Sube tu tarjetón para usar el simulador"
+          description="El simulador usa tu categoría, antigüedad y jornada actuales. Súbelo desde Mi información laboral y tus datos se actualizan automáticamente; también puedes capturarlos manualmente ahí."
+          action={
+            <Link href="/profile/mi-informacion-laboral" style={{ textDecoration: "none" }}>
+              <Button leadingIcon={<IdentificationCard size={16} weight="duotone" />}>
+                Subir mi tarjetón IMSS
+              </Button>
+            </Link>
+          }
         />
       </div>
     )
@@ -217,7 +225,7 @@ export function SimuladorNominaIndex() {
 
         {baseline && (
           <div style={{
-            display: "flex", gap: "1rem", marginBottom: "var(--space-6)", flexWrap: "wrap",
+            display: "flex", gap: "1rem", marginBottom: "var(--space-3)", flexWrap: "wrap",
           }}>
             <div style={{
               flex: 1, minWidth: 180, padding: "var(--space-4)", background: "var(--card)",
@@ -237,6 +245,26 @@ export function SimuladorNominaIndex() {
             </div>
           </div>
         )}
+
+        {/* Mantener datos al día: mismo lugar unificado de siempre */}
+        <div style={{ marginBottom: "var(--space-6)" }}>
+          <Link
+            href="/profile/mi-informacion-laboral"
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              gap: "0.75rem", flexWrap: "wrap", textDecoration: "none",
+              padding: "0.625rem 0.875rem", borderRadius: "var(--radius)",
+              border: "1px solid var(--border)", background: "var(--card)",
+            }}
+          >
+            <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)" }}>
+              ¿Cambió tu categoría o antigüedad? Sube tu último tarjetón y el simulador se actualiza solo.
+            </span>
+            <span style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--primary)", whiteSpace: "nowrap" }}>
+              Actualizar mis datos →
+            </span>
+          </Link>
+        </div>
 
         <SectionCard title="¿Qué quieres simular?" icon={<ArrowsLeftRight size={20} weight="duotone" />}>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>

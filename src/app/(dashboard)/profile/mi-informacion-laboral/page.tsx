@@ -3,6 +3,8 @@ import { WorkerProfileService } from "@/shared/server/worker-profile"
 import { WorkerProfileUnavailableError, WorkerProfileUnauthorizedError } from "@/shared/server/worker-profile/errors"
 import { isSafeInternalReturnPath } from "@/shared/domain/worker"
 import { WorkerProfileCenter } from "@/features/profile/components/worker/WorkerProfileCenter"
+import { TarjetonUploaderSection } from "@/features/profile/components/worker/TarjetonUploaderSection"
+import { TarjetonHistorySection } from "@/features/tarjeton/components/TarjetonHistorySection"
 import type { WorkerProfile, ProfileQuality, FieldRequirement, WorkerDataEvent, WorkerProfileMode } from "@/shared/domain/worker"
 
 interface PageProps {
@@ -61,8 +63,56 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
     )
   }
 
+  // Snapshot del perfil para detección de diferencias durante la importación.
+  const profileRes = await supabase
+    .from("profiles")
+    .select("full_name, matricula, categoria, antiguedad")
+    .eq("id", user.id)
+    .single()
+  const snapshot = {
+    fullName: profileRes.data?.full_name ?? null,
+    matricula: profileRes.data?.matricula ?? null,
+    categoria: profileRes.data?.categoria ?? null,
+    antiguedad: profileRes.data?.antiguedad ?? null,
+  }
+
+  // Historial de tarjetones confirmados (única fuente: imported_payslips).
+  const payslipsRes = await supabase
+    .from("imported_payslips")
+    .select("id, period_raw, extraction_method, global_confidence, created_at, employee_data, payroll_totals")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(10)
+
+  const previousImports = (payslipsRes.data ?? []).map((p) => ({
+    id: p.id,
+    periodRaw: p.period_raw,
+    extractionMethod: p.extraction_method,
+    globalConfidence: p.global_confidence,
+    createdAt: p.created_at,
+    employeeName: (p.employee_data as Record<string, unknown> | undefined)?.fullName as string ?? null,
+    totalNet: (p.payroll_totals as Record<string, number> | undefined)?.netPay ?? null,
+  }))
+
+  let latestConcepts: Array<{ code: string; description: string; amount: number; kind: "earning" | "deduction" }> = []
+  const latestRow = payslipsRes.data?.[0]
+  if (latestRow) {
+    const { data: lines } = await supabase
+      .from("imported_payslip_lines")
+      .select("concept_code, description, amount, kind")
+      .eq("payslip_id", latestRow.id)
+      .order("line_index", { ascending: true })
+      .limit(12)
+    latestConcepts = (lines ?? []).map((l) => ({
+      code: l.concept_code,
+      description: l.description,
+      amount: l.amount,
+      kind: l.kind === "deduction" ? ("deduction" as const) : ("earning" as const),
+    }))
+  }
+
   return (
-    <div style={{ maxWidth: "700px", margin: "0 auto", padding: "1.5rem 1rem" }}>
+    <div style={{ maxWidth: "700px", margin: "0 auto", padding: "1.5rem 1rem", display: "flex", flexDirection: "column", gap: "1.75rem" }}>
       <WorkerProfileCenter
         state={state}
         mode={mode}
@@ -71,7 +121,41 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
         requirements={requirements}
         events={events}
         returnTo={returnTo}
+        profileSnapshot={snapshot}
       />
+
+      {/* Sección unificada: aquí se sube el tarjetón y aquí se actualiza
+          toda la información laboral (categoría, antigüedad, jornada,
+          conceptos recurrentes). */}
+      <section id="subir-tarjeton" style={{
+        borderTop: "1px solid var(--border)",
+        paddingTop: "1.25rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "1rem",
+      }}>
+        <div>
+          <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.25rem" }}>
+            Subir tarjetón IMSS
+          </h2>
+          <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0, lineHeight: 1.55 }}>
+            Este es el lugar donde mantienes tu información laboral al día.
+            Cada vez que subes un nuevo tarjetón, tus datos se actualizan automáticamente:
+            categoría, antigüedad, jornada, conceptos recurrentes y contexto de nómina que
+            alimentan las calculadoras y el simulador. El PDF se procesa en tu dispositivo;
+            solo guardamos los datos que revisas y confirmas.
+          </p>
+        </div>
+
+        {previousImports.length > 0 && (
+          <TarjetonHistorySection
+            imports={previousImports}
+            latestConcepts={latestConcepts}
+          />
+        )}
+
+        <TarjetonUploaderSection profileSnapshot={snapshot} />
+      </section>
     </div>
   )
 }

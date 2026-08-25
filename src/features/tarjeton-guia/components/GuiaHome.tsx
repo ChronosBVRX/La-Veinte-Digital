@@ -116,7 +116,7 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
             <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: "0 0 0.875rem", lineHeight: 1.5 }}>
               Sube o consulta tu primer tarjetón para recibir una explicación personalizada.
             </p>
-            <ActionLink href="/tarjeton" size="md">
+            <ActionLink href="/profile/mi-informacion-laboral" size="md">
               Obtener mi tarjetón <CaretRight size={14} />
             </ActionLink>
           </div>

@@ -1,6 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
+import type { TarjetonImportSuccessMeta } from "@/shared/contracts/tarjeton-import"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
 
 const TarjetonImporterInner = dynamic(
@@ -28,8 +29,10 @@ const TarjetonImporterInner = dynamic(
 
 export function TarjetonImporterWrapper({
   profile,
+  onSuccess,
 }: {
-  profile: TarjetonProfileSnapshot
+  profile: TarjetonProfileSnapshot | null
+  onSuccess?: (meta: TarjetonImportSuccessMeta) => void
 }) {
-  return <TarjetonImporterInner profile={profile} />
+  return <TarjetonImporterInner profile={profile} onSuccess={onSuccess} />
 }

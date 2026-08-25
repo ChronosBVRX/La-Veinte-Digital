@@ -32,86 +32,75 @@ vi.mock("@/shared/server/worker-profile", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }))
 
 import {
-  confirmPayslipProfileAction,
+  completePayslipOnboardingAction,
 } from "@/features/profile/actions/worker-profile-actions"
-import { buildConfirmedPayslipProfileUpdate } from "../build-payslip-update"
 import { WorkerProfileUnauthorizedError } from "@/shared/server/worker-profile/errors"
 
-describe("confirmPayslipProfileAction metadata", () => {
+describe("completePayslipOnboardingAction — cierre unificado del flujo tarjetón", () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  const draft = {
-    mode: "payslip" as const,
-    identity: { categoria: "TECNICO" as string | null | undefined },
-    situation: { workdayHours: 8 as const, effectiveSeniorityDate: "2020-01-01" as string | null | undefined },
-    confirmedFields: ["categoria", "workdayHours", "effectiveSeniorityDate"] as Array<import("@/shared/domain/worker").WorkerFieldName>,
+  const minimalUpdateShape = () => {
+    const call = mocks.confirmPayslipProfile.mock.calls[0] as unknown[] | undefined
+    return call?.[0] as Record<string, unknown> | undefined
   }
 
-  it("method llega al método del servicio cuando existe", async () => {
-    const update = buildConfirmedPayslipProfileUpdate(draft, { method: "native_text" }, "1.0")
-    await confirmPayslipProfileAction(update, "native_text", undefined, undefined)
+  it("registra consentimiento store_tarjeton y luego marca configured/payslip", async () => {
+    await completePayslipOnboardingAction({ method: "native_text" })
+    expect(mocks.grantConsent).toHaveBeenCalledTimes(1)
+    expect(mocks.grantConsent).toHaveBeenCalledWith("store_tarjeton", expect.any(String))
+    expect(mocks.confirmPayslipProfile).toHaveBeenCalledTimes(1)
+    // El update es mínimo: no reescribe campos (ya los guardó la confirmación canónica).
+    const update = minimalUpdateShape()
+    expect(update).toBeDefined()
+    expect(update?.identity).toEqual({})
+    expect(update?.situation).toEqual({})
+    expect(update?.sources).toEqual({})
+    expect(update?.mode).toBe("payslip")
+  })
+
+  it("metadata de extracción viaja al servicio cuando es válida", async () => {
+    await completePayslipOnboardingAction({ method: "ocr", confidence: 0.95, period: "Q1 2026" })
     expect(mocks.confirmPayslipProfile).toHaveBeenCalledWith(
       expect.any(Object),
-      expect.objectContaining({ extractionMethod: "native_text" }),
+      expect.objectContaining({ extractionMethod: "ocr", confidence: 0.95, period: "Q1 2026" }),
     )
   })
 
-  it("confidence llega cuando existe", async () => {
-    const update = buildConfirmedPayslipProfileUpdate(draft, { method: "ocr", confidence: 0.95 }, "1.0")
-    await confirmPayslipProfileAction(update, "ocr", 0.95, undefined)
+  it("método inválido se descarta (la RPC solo acepta native_text|ocr|hybrid)", async () => {
+    await completePayslipOnboardingAction({ method: "desconocido" as never })
     expect(mocks.confirmPayslipProfile).toHaveBeenCalledWith(
       expect.any(Object),
-      expect.objectContaining({ confidence: 0.95 }),
+      expect.objectContaining({ extractionMethod: undefined }),
     )
   })
 
-  it("period llega cuando existe", async () => {
-    const update = buildConfirmedPayslipProfileUpdate(draft, { method: "native_text", period: "Q1 2026" }, "1.0")
-    await confirmPayslipProfileAction(update, "native_text", undefined, "Q1 2026")
+  it("confianza fuera de rango se descarta", async () => {
+    await completePayslipOnboardingAction({ confidence: 1.5 })
     expect(mocks.confirmPayslipProfile).toHaveBeenCalledWith(
       expect.any(Object),
-      expect.objectContaining({ period: "Q1 2026" }),
+      expect.objectContaining({ confidence: undefined }),
     )
   })
 
-  it("undefined/null cuando no existen", async () => {
-    const update = buildConfirmedPayslipProfileUpdate(draft, { method: "native_text" }, "1.0")
-    await confirmPayslipProfileAction(update, undefined, undefined, undefined)
+  it("sin metadata no inventa valores", async () => {
+    await completePayslipOnboardingAction()
     expect(mocks.confirmPayslipProfile).toHaveBeenCalledWith(
       expect.any(Object),
       expect.objectContaining({ extractionMethod: undefined, confidence: undefined, period: undefined }),
     )
   })
 
-  it("confirmar llama una sola vez a confirmPayslipProfileAction", async () => {
-    const update = buildConfirmedPayslipProfileUpdate(draft, { method: "ocr" }, "1.0")
-    await confirmPayslipProfileAction(update, "ocr", undefined, undefined)
-    expect(mocks.confirmPayslipProfile).toHaveBeenCalledTimes(1)
-    expect(mocks.grantConsent).not.toHaveBeenCalled()
-    expect(mocks.confirmManualProfile).not.toHaveBeenCalled()
-  })
-
-  it("nunca llama grantWorkerConsentAction", async () => {
-    const update = buildConfirmedPayslipProfileUpdate(draft, { method: "native_text" }, "1.0")
-    await confirmPayslipProfileAction(update, "native_text", undefined, undefined)
-    expect(mocks.grantConsent).not.toHaveBeenCalled()
-  })
-
-  it("error de la acción devuelve false y no avanza", async () => {
+  it("fallo al marcar onboarding devuelve error sin ocultar la causa técnica", async () => {
     mocks.confirmPayslipProfile.mockRejectedValue(new WorkerProfileUnauthorizedError())
-    const update = buildConfirmedPayslipProfileUpdate(draft, { method: "native_text" }, "1.0")
-    const result = await confirmPayslipProfileAction(update, "native_text", undefined, undefined)
+    const result = await completePayslipOnboardingAction({ method: "native_text" })
     expect(result.ok).toBe(false)
   })
 
   it("ningún objeto sensible viaja en los argumentos", async () => {
-    const update = buildConfirmedPayslipProfileUpdate(draft, { method: "native_text" }, "1.0")
-    await confirmPayslipProfileAction(update, "native_text", 0.5, "Q1")
-    const firstArg = mocks.confirmPayslipProfile.mock.calls.length > 0
-      ? (mocks.confirmPayslipProfile.mock.calls[0] as unknown[])[0] as unknown as Record<string, unknown>
-      : null
+    await completePayslipOnboardingAction({ method: "native_text", confidence: 0.5, period: "Q1" })
+    const firstArg = minimalUpdateShape()
     if (firstArg) {
       expect(firstArg).not.toHaveProperty("file")
       expect(firstArg).not.toHaveProperty("pdf")
@@ -120,34 +109,5 @@ describe("confirmPayslipProfileAction metadata", () => {
       expect(firstArg).not.toHaveProperty("parsed")
       expect(firstArg).not.toHaveProperty("userId")
     }
-  })
-})
-
-describe("buildConfirmedPayslipProfileUpdate — confirm integration", () => {
-  it("campos seleccionados aparecen en identity/situation filtrados", () => {
-    const d = {
-      mode: "payslip" as const,
-      identity: { matricula: "M1", categoria: "CAT", adscripcion: "A1" },
-      situation: { workdayHours: 8, shift: "matutino" as const, employmentType: "base" as const, effectiveSeniorityDate: "2021-01-01" },
-      confirmedFields: ["matricula", "categoria", "workdayHours"] as const,
-    }
-    const update = buildConfirmedPayslipProfileUpdate(d as unknown as import("@/shared/domain/worker").WorkerProfileDraft, { method: "native_text" }, "1.0")
-    expect(update.identity).toEqual({ matricula: "M1", categoria: "CAT" })
-    expect(update.identity).not.toHaveProperty("adscripcion")
-    expect(update.situation).toEqual({ workdayHours: 8 })
-    expect(update.sources).toEqual({ matricula: "payslip_confirmed", categoria: "payslip_confirmed", workdayHours: "payslip_confirmed" })
-  })
-
-  it("campo editado aparece corregido en el payload", () => {
-    const d = {
-      mode: "payslip" as const,
-      identity: { categoria: "ORIGINAL", matricula: "M1" },
-      situation: {},
-      confirmedFields: ["categoria", "matricula"] as const,
-    }
-    // Simula que el usuario editó categoria
-    d.identity.categoria = "CORREGIDO"
-    const update = buildConfirmedPayslipProfileUpdate(d as unknown as import("@/shared/domain/worker").WorkerProfileDraft, { method: "ocr" }, "1.0")
-    expect(update.identity?.categoria).toBe("CORREGIDO")
   })
 })

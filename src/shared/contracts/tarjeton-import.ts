@@ -227,6 +227,16 @@ export interface ConfirmTarjetonError {
   message: string
 }
 
+/**
+ * Metadata técnica que el cliente reporta tras una confirmación exitosa
+ * de tarjetón. Nunca incluye contenido del PDF ni datos sensibles.
+ */
+export interface TarjetonImportSuccessMeta {
+  method?: TarjetonExtractionMethod
+  confidence?: number
+  period?: string | null
+}
+
 /* ------------------------------------------------------------------ *
  * Validadores manuales (sin Zod; siguen el patrón del proyecto)
  * ------------------------------------------------------------------ */

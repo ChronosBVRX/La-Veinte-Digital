@@ -71,7 +71,7 @@ export function QuickActionsGrid() {
     {
       icon: IdentificationCard,
       label: "Importar\ntarjetón",
-      href: "/tarjeton",
+      href: "/profile/mi-informacion-laboral",
       color: "var(--area-tools)",
     },
     {

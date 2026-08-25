@@ -21,7 +21,7 @@ export function CalculatorsIndex({ hasTarjeton }: { hasTarjeton: boolean }) {
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0.25rem 0 0" }}>Herramientas informativas para estimar prestaciones.</p>
       </div>
 
-      <Link href="/tarjeton" style={{ textDecoration: "none", display: "block", marginBottom: "1.5rem" }}>
+      <Link href="/profile/mi-informacion-laboral" style={{ textDecoration: "none", display: "block", marginBottom: "1.5rem" }}>
         {hasTarjeton ? (
           <div style={{
             background: "var(--accent)", border: "1px solid var(--border)",

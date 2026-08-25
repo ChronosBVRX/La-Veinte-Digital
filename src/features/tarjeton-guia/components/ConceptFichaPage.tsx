@@ -139,7 +139,7 @@ export function ConceptFichaPage({ code }: { code: string }) {
       {relations.length > 0 && <Relations relations={relations} />}
 
       <div style={{ display: "flex", gap: "0.5rem", marginTop: "1.25rem", flexWrap: "wrap" }}>
-        <ActionLink href="/tarjeton" variant="secondary" size="md">Ver en mi tarjetón</ActionLink>
+        <ActionLink href="/profile/mi-informacion-laboral" variant="secondary" size="md">Ver en mi tarjetón</ActionLink>
         {d?.calculator && (
           <ActionLink href={d.calculator.route} size="md">
             <Calculator size={16} /> {d.calculator.label}

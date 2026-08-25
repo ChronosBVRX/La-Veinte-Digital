@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import type { ConfirmTarjetonResponse, ParsedImssTarjeton } from "@/shared/contracts/tarjeton-import"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
@@ -20,7 +21,10 @@ export function ImportSuccess({ parsed, response, onStartOver }: ImportSuccessPr
         <div style={{ fontSize: "2.5rem", lineHeight: 1 }}>✅</div>
         <div style={{ fontWeight: 800, fontSize: "1.125rem" }}>Tarjetón confirmado</div>
         <div style={{ color: "var(--muted)", fontSize: "0.875rem" }}>
-          El recibo de <strong>{periodLabel}</strong> quedó registrado en tu historial.
+          El recibo de <strong>{periodLabel}</strong> quedó registrado en tu historial
+          {response.profileUpdated || response.payrollContextUpdated
+            ? " y tu información laboral ya está actualizada."
+            : "."}
         </div>
         <div style={{ display: "flex", justifyContent: "center", gap: "0.5rem", flexWrap: "wrap" }}>
           <Badge variant="success">Guardado</Badge>
@@ -34,13 +38,16 @@ export function ImportSuccess({ parsed, response, onStartOver }: ImportSuccessPr
           </div>
         )}
       </Card>
-      <div style={{ display: "flex", justifyContent: "center", gap: "0.75rem" }}>
+      <div style={{ display: "flex", justifyContent: "center", gap: "0.75rem", flexWrap: "wrap" }}>
         <Button variant="secondary" onClick={onStartOver}>
           Subir otro tarjetón
         </Button>
-        <Button onClick={() => { window.location.href = "/nomina" }}>
-          Ver mi nómina
-        </Button>
+        <Link href="/simulador-nomina" style={{ textDecoration: "none" }}>
+          <Button>Ver mi nómina simulada</Button>
+        </Link>
+        <Link href="/profile/mi-informacion-laboral" style={{ textDecoration: "none" }}>
+          <Button variant="outline">Mi información laboral</Button>
+        </Link>
       </div>
     </div>
   )

@@ -41,7 +41,7 @@ export const guideTips: GuideTip[] = [
   {
     id: "conservar",
     text: "Guardar tus tarjetones te sirve como comprobante en trámites, aclaraciones y para verificar cada quincena.",
-    href: "/tarjeton",
+    href: "/profile/mi-informacion-laboral",
     cta: "Ir a mis tarjetones",
   },
 ]

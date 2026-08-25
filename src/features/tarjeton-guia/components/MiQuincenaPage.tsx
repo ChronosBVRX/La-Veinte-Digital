@@ -39,7 +39,7 @@ export function MiQuincenaPage({ serverPayslip, initialTab }: { serverPayslip: G
             Para explicarte tu pago necesitamos tu tarjetón actual. También puedes empezar con la guía desde cero mientras tanto.
           </p>
           <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center", flexWrap: "wrap" }}>
-            <ActionLink href="/tarjeton">Obtener mi tarjetón</ActionLink>
+            <ActionLink href="/profile/mi-informacion-laboral">Obtener mi tarjetón</ActionLink>
             <ActionLink href="/guia/aprender" variant="secondary">Aprende desde cero</ActionLink>
           </div>
         </Card>

@@ -149,7 +149,7 @@ export function DashboardStatsGrid({ profile }: DashboardStatsGridProps) {
         subtitle={hasTarjeton ? "Datos actualizados" : "Importa tu tarjetón IMSS"}
         color="var(--area-tools)"
         actionLabel={hasTarjeton ? "Actualizar" : "Importar"}
-        actionHref="/tarjeton"
+        actionHref="/profile/mi-informacion-laboral"
         empty={!hasTarjeton}
       />
 
