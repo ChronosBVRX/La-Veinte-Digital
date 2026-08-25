@@ -1658,6 +1658,14 @@ console.error=function(){
     /** Vacía el buffer de errores JS (tras volcarlos a la traza). */
     fun resetJsErrorsJs(): String = """(function(){window.__LVD_BIO_JSERR__=[];return '1'})()"""
 
+    /**
+     * Reinyecta SOLO la librería compartida `__LVD_BIO_LIB__`. Usada por
+     * [downloadControlJs] y [DOWNLOAD_TAP_SELECTOR] de NativeDomTapper, que
+     * dependen de sus helpers `n/txt/vis`. Una navegación de página completa
+     * puede limpiar los globals.
+     */
+    fun reinjectLibJs(): String = LIB_JS
+
     /* ── JS: click en el control "Descargar" del reporte de checadas ──────── */
 
     /**

@@ -321,6 +321,9 @@ class TuPerfilBiometricFlowController(
                 val wv = session.awaitWebView()
                 // 1) Asegura que el monitor de blobs PDF esté inyectado.
                 ImssPdfCaptureCoordinator.injectPdfMonitor(wv)
+                // 1b) Reinyecta la librería __LVD_BIO_LIB__ (la usan DOWNLOAD_TAP_SELECTOR
+                //     y clickDownloadJs). Una navegación de página la puede haber limpiado.
+                TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.reinjectLibJs())
                 // 2) Click REAL sobre "Descargar" (dispatchTouchEvent) — el click
                 //    sintético por evaluateJavascript NO dispara la descarga del blob.
                 val target = NativeDomTapper.locate(wv, NativeDomTapper.DOWNLOAD_TAP_SELECTOR)

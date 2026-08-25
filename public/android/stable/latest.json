@@ -1,18 +1,16 @@
 {
   "channel": "stable",
-  "versionCode": 182,
-  "versionName": "1.0.82",
+  "versionCode": 183,
+  "versionName": "1.0.83",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-25T23:20:08Z",
+  "publishedAt": "2026-08-25T23:54:49Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "ce0e9bb9043905634164cc38c1e5c1968bdc9606c55cb041ed8089a7ed0918ae",
+    "sha256": "1caa075f2a2a0d3db4a21d44af53e4b305707205184ff554e99133c98cdee312",
     "size": 67591780
   },
   "releaseNotes": [
-    "Fix guardar PDF de checadas: ahora usa un toque real sobre 'Descargar' (Android WebView) para que el portal genere el reporte PDF",
-    "Al guardar abre automáticamente el PDF para verlo, compartirlo o imprimirlo como un tarjetón",
-    "Si el PDF ya estaba guardado, lo reabre sin duplicar"
+    "Fix guardar PDF: se eliminó un bloqueo de hilo (deadlock) en NativeDomTapper.locate que impedía el toque real sobre 'Descargar'; ahora usa suspend y reinyecta la librería JS"
   ]
 }

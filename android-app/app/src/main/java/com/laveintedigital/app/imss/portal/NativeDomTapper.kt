@@ -7,6 +7,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 /**
  * Locates DOM elements via JavaScript and dispatches real Android touch events
@@ -14,30 +16,33 @@ import org.json.JSONObject
  */
 object NativeDomTapper {
 
-    data class TapTarget(val xRatio: Float, val yRatio: Float, val ok: Boolean)
+    data class TapTarget(val xRatio: Float, val yRatio: Float, val ok: Boolean, val width: Float = 0f, val height: Float = 0f)
 
     /**
      * Locates the center of a DOM element matched by [jsSelector] (returns a JS
      * object with {ok, xRatio, yRatio, width, height, ...}).
      * [jsSelector] must be a JS expression that returns a JSON string.
+     *
+     * Es SUSPEND y usa [suspendCoroutine] (resume en el hilo Main del WebView) en
+     * lugar de un CountDownLatch — evitar bloquear el hilo Main y causar un
+     * deadlock con el callback de `evaluateJavascript`.
      */
     suspend fun locate(wv: WebView, jsSelector: String): TapTarget = withContext(Dispatchers.Main.immediate) {
-        var result = TapTarget(0f, 0f, false)
-        val latch = java.util.concurrent.CountDownLatch(1)
-        wv.evaluateJavascript(jsSelector) { raw ->
-            try {
-                val cleaned = parseRaw(raw)
-                val j = JSONObject(cleaned)
-                result = TapTarget(
-                    xRatio = j.optDouble("xRatio", 0.0).toFloat().coerceIn(0f, 1f),
-                    yRatio = j.optDouble("yRatio", 0.0).toFloat().coerceIn(0f, 1f),
-                    ok = j.optBoolean("ok") && j.optDouble("width", 0.0) > 0 && j.optDouble("height", 0.0) > 0,
-                )
-            } catch (_: Exception) {}
-            latch.countDown()
+        val raw = suspendCoroutine<String?> { cont ->
+            wv.evaluateJavascript(jsSelector) { value -> cont.resume(value ?: "null") }
         }
-        latch.await(2, java.util.concurrent.TimeUnit.SECONDS)
-        result
+        if (raw == null || raw == "null" || raw == "null" || raw == "{}") return@withContext TapTarget(0f, 0f, false)
+        try {
+            val cleaned = parseRaw(raw)
+            val j = JSONObject(cleaned)
+            TapTarget(
+                xRatio = j.optDouble("xRatio", 0.0).toFloat().coerceIn(0f, 1f),
+                yRatio = j.optDouble("yRatio", 0.0).toFloat().coerceIn(0f, 1f),
+                ok = j.optBoolean("ok") && j.optDouble("width", 0.0) > 0 && j.optDouble("height", 0.0) > 0,
+                width = j.optDouble("width", 0.0).toFloat(),
+                height = j.optDouble("height", 0.0).toFloat(),
+            )
+        } catch (_: Exception) { TapTarget(0f, 0f, false) }
     }
 
     /**
