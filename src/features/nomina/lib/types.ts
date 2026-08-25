@@ -541,13 +541,17 @@ export interface SalaryHistoryEntry {
 }
 
 /**
- * Tabla de días por antigüedad (Cláusula 63 Bis, inciso c) — SOLO REFERENCIA.
+ * Tabla contractual de DÍAS por antigüedad (Cláusula 63 Bis, inciso c) —
+ * FUENTE DEL FACTOR quincenal del concepto 022:
  *
- * NO usar para proyección quincenal: el tarjetón real 2A-AGO-2026 refutó el
- * mecanismo anual lump-sum (el 022 se paga quincenalmente como 27.5% de la
- * base). La implementación anual quedó preservada en `lib/old-rules.ts`.
- * Retenida pendiente de revisión documental de una posible prestación anual
- * separada.
+ *   022 = trunc2(base × días(años cumplidos) ÷ 360)
+ *
+ * Calibrada con el tarjetón real 2A-AGO-2026: 14 años → 99 días → factor
+ * 0.2750000 → $1,972.41 sobre base 7,172.41. El crecimiento NO es lineal
+ * (15a=105d, 16a=114d): usar la tabla, jamás progresiones derivadas ni el
+ * máximo (270) como fallback para entradas ausentes (>40 años exige
+ * confirmación). La lectura anual lump-sum previa permanece como legado en
+ * `lib/old-rules.ts`.
  */
 export const CLAUSE_63_BIS_C_DAYS: Record<number, number> = {
   5: 60, 6: 63, 7: 66, 8: 69, 9: 72, 10: 75,

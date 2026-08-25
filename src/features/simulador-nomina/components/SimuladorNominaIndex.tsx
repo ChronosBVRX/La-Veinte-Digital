@@ -23,7 +23,7 @@ type Step = "loading" | "no-profile" | "select" | "result"
 
 const SCENARIO_PRESETS: { key: string; label: string; description: string; icon: typeof CurrencyDollar }[] = [
   { key: "category_change", label: "Cambio de categoría", description: "Simula cómo cambiaría tu quincena si tuvieras otra categoría.", icon: CurrencyDollar },
-  { key: "seniority_bump", label: "Más antigüedad", description: "Proyecta tu quincena cuando cumplas más años de servicio.", icon: ClockCounterClockwise },
+  { key: "seniority_bump", label: "Más antigüedad", description: "Simula tu quincena con N años TOTALES de antigüedad, manteniendo tu categoría y conceptos actuales.", icon: ClockCounterClockwise },
 ]
 
 interface InitialState {
@@ -459,7 +459,7 @@ export function SimuladorNominaIndex() {
         </SectionCard>
 
         <div style={{ marginTop: "var(--space-4)", fontSize: "var(--text-xs)", color: "var(--muted)" }}>
-          <strong>Cómo se calcula:</strong> Los montos son estimaciones basadas en el tabulador salarial 2025-2027 y las cláusulas del Contrato Colectivo de Trabajo. Los descuentos (ISR, cuotas IMSS) no están incluidos.
+          <strong>Cómo se calcula:</strong> Estimación con tu categoría, conceptos y tabulador actuales (no proyecta aumentos futuros), basada en el tabulador 2025-2027 y las cláusulas del CCT. Los descuentos (ISR, cuotas IMSS) no están incluidos.
         </div>
       </div>
     )

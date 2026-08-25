@@ -806,48 +806,73 @@ describe("Anclaje de tarjetón — elegibilidad confirmada, importe no congelado
     }
   })
 
-  // Test 6: Antigüedad ≥5 años habilita 022 quincenal (tarifa plana 27.5%
-  // calibrada con un solo punto real); otros conceptos no cambian.
-  it("022 quincenal: tarifa plana calibrada, misma cuantía a 10 y 15 años (con advertencia)", () => {
-    const seniority10 = { ...mockSeniority, years: 10 }
-    const seniority15 = { ...mockSeniority, years: 15 }
-
-    const baseCtx = createMockContext({ seniority: seniority10 })
+  // Test 6: 022 quincenal por TABLA contractual (factor = días ÷ 360),
+  // crecimiento NO lineal: 10a=75d, 15a=105d, 16a=114d.
+  it("022 usa la tabla contractual (no lineal): 10a=1494.25, 15a=2091.95, 16a=2271.26", () => {
+    const baseCtx = createMockContext()
     const r002 = rule002.calculate(baseCtx)
     const c011Calc = rule011.calculate(createMockContext({
-      seniority: seniority10,
       calculatedConcepts: new Map([["002", r002.concept]]),
     }))
-    const c002Map = new Map([["002", r002.concept], ["011", c011Calc.concept]])
+    const conceptMap = new Map([["002", r002.concept], ["011", c011Calc.concept]])
+    const base = mockCategory.biweeklyBaseSalary +
+      (mockCategory.conceptoTabular011 ?? mockCategory.biweeklyBaseSalary * 0.8215)
 
-    const r022_10 = rule022.calculate(createMockContext({
-      calculatedConcepts: c002Map,
-      seniority: seniority10,
+    const runWithYears = (years: number) => rule022.calculate(createMockContext({
+      seniority: { ...mockSeniority, years },
+      calculatedConcepts: conceptMap,
     }))
-    expect(r022_10.concept.amount).toBeGreaterThan(0)
-    expect(r022_10.concept.included).toBe(true)
+    const t2 = (v: number) => Math.floor((v + Number.EPSILON) * 100) / 100
 
-    const r022_15 = rule022.calculate(createMockContext({
-      calculatedConcepts: c002Map,
-      seniority: seniority15,
+    const r10 = runWithYears(10)
+    const r15 = runWithYears(15)
+    const r16 = runWithYears(16)
+
+    expect(r10.concept.amount).toBe(t2(base * 75 / 360))   // 1494.25
+    expect(r15.concept.amount).toBe(t2(base * 105 / 360))  // 2091.95
+    expect(r16.concept.amount).toBe(t2(base * 114 / 360))  // 2271.26
+    // Aceleración POR AÑO: 15→16 (+179.31/año) > 10→15 (+119.54/año).
+    // Una progresión lineal daría incrementos constantes por año.
+    const perYear1516 = r16.concept.amount - r15.concept.amount
+    const perYear1015 = (r15.concept.amount - r10.concept.amount) / 5
+    expect(perYear1516).toBeGreaterThan(perYear1015)
+    expect(r15.concept.warnings.some((w) => w.includes("Factor 105/360"))).toBe(true)
+  })
+
+  it("022 con años fraccionarios usa años COMPLETADOS (14.8 → 14) y jamás cae al máximo", () => {
+    const r002 = rule002.calculate(createMockContext())
+    const c011Calc = rule011.calculate(createMockContext({
+      calculatedConcepts: new Map([["002", r002.concept]]),
     }))
+    const r148 = rule022.calculate(createMockContext({
+      seniority: { ...mockSeniority, years: 14.8 },
+      calculatedConcepts: new Map([["002", r002.concept], ["011", c011Calc.concept]]),
+    }))
+    const base = mockCategory.biweeklyBaseSalary +
+      (mockCategory.conceptoTabular011 ?? mockCategory.biweeklyBaseSalary * 0.8215)
+    const expected14 = Math.floor((base * 99 / 360 + Number.EPSILON) * 100) / 100
+    expect(r148.concept.amount).toBe(expected14)
+    expect(r148.concept.warnings.some((w) => w.includes("Factor 99/360"))).toBe(true)
+  })
 
-    // Tarifa única 27.5% calibrada @14 años: mientras no exista evidencia de
-    // escala, la cuantía es la misma; la advertencia lo documenta.
-    expect(r022_15.concept.amount).toBe(r022_10.concept.amount)
-    expect(r022_10.concept.warnings.some((w) => w.includes("calibrada con un solo"))).toBe(true)
+  it("022 con antigüedad fuera de tabla (>40) exige confirmación SIN usar 270 días", () => {
+    const anchors = {
+      "022": { amount: 1972.41, date: "2025-01-10", occurrenceType: "variable" as const, eligibilityPersistence: "until_changed" as const },
+    }
+    const ctx = createMockContext({
+      conceptAnchors: new Map(Object.entries(anchors)),
+      seniority: { ...mockSeniority, years: 41 },
+    })
+    const r = rule022.calculate(ctx)
+    expect(r.concept.warnings.some((w) => w.includes("fuera de la tabla"))).toBe(true)
+    expect(r.concept.confidence).toBe("requires_confirmation")
+  })
 
-    // Fórmula exacta contra tarjetón real: base 002+011 × 27.5% truncado
-    const c011 = mockCategory.conceptoTabular011 ?? mockCategory.biweeklyBaseSalary * 0.8215
-    const expected = Math.floor(((mockCategory.biweeklyBaseSalary + c011) * 0.275 + Number.EPSILON) * 100) / 100
-    expect(r022_10.concept.amount).toBe(expected)
-
-    // Otros conceptos (020) no cambian por antigüedad
-    const r020 = rule020.calculate(createMockContext({ seniority: seniority15 }))
+  it("otros conceptos (020) no cambian por antigüedad", () => {
+    const r020 = rule020.calculate(createMockContext({ seniority: { ...mockSeniority, years: 15 } }))
     expect(r020.concept.amount).toBe(250)
   })
 
-  // Test 7: Tarjetón histórico → nunca se modifica retroactivamente
   it("el anchorAmount preserva el importe histórico sin modificarlo", () => {
     const historicalAmount = 1353.16
     const anchors = {

@@ -25,9 +25,9 @@ export interface ConceptDelta {
 export interface SimulationResult {
   baselineProjection: PayrollProjection
   scenarioProjection: PayrollProjection
-  /** Bruto CONFIRMADO del baseline (totals.confirmedGross). NO es neto: sin deducciones. */
+  /** Bruto posible del baseline (totals.possibleGross). NO es neto: sin deducciones. */
   baselineGross: number
-  /** Bruto CONFIRMADO del escenario (totals.confirmedGross). NO es neto: sin deducciones. */
+  /** Bruto posible del escenario (totals.possibleGross). NO es neto: sin deducciones. */
   scenarioGross: number
   grossDelta: number
   grossDeltaPercent: number
@@ -66,10 +66,12 @@ export function compareProjections(
   const allCodes = new Set([...baselineMap.keys(), ...scenarioMap.keys()])
 
   const conceptDeltas: ConceptDelta[] = []
-  // BRUTO CONFIRMADO (conceptos high-confidence incluidos): jamás incluye
-  // condicionales/anuales no confirmados que inflarían la comparación.
-  const baselineGross = baseline.totals.confirmedGross
-  const scenarioGross = scenario.totals.confirmedGross
+  // possibleGross = confirmados + probables (+ condicionales). Es la métrica
+  // correcta para COMPARAR escenarios: incluye proyecciones marcadas (ej. 022
+  // recalculado tras cambio de antigüedad). La inflación histórica quedó
+  // eliminada de raíz y el golden exige conditionalConcepts vacío.
+  const baselineGross = baseline.totals.possibleGross
+  const scenarioGross = scenario.totals.possibleGross
 
   for (const code of allCodes) {
     const baselineAmount = baselineMap.get(code) ?? 0
@@ -175,7 +177,7 @@ export function simulateScenario(
     }
 
     explanations.push(
-      `Antigüedad simulada: ${baselineProjection.seniorityAtPeriodEnd.years} → ${scenario.targetSeniorityYears} años`
+      `Antigüedad simulada: ${baselineProjection.seniorityAtPeriodEnd.years} → ${scenario.targetSeniorityYears} años TOTALES (semántica absoluta, no incrementos)`
     )
     if (scenario.targetSeniorityYears >= 5 && baselineProjection.seniorityAtPeriodEnd.years < 5) {
       explanations.push("Con 5+ años de antigüedad, aplica Ayuda de Renta por Antigüedad (022)")

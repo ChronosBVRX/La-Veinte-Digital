@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { calculateProjection } from "../lib/engine"
+import { simulateScenario, compareProjections } from "../../simulador-nomina/services/simulate"
 import { formatProjectionAudit } from "../lib/audit"
 import type { CalculatedPayrollConcept, EmployeePayrollProfile, PayPeriod, PayrollProjection, ProjectionMode } from "../lib/types"
 import {
@@ -29,13 +30,19 @@ function runProjection(overrides?: {
   category?: Partial<typeof GOLDEN_CATEGORY>
   mode?: ProjectionMode
   profile?: EmployeePayrollProfile
+  seniorityYears?: number
 }): PayrollProjection {
-  const { period = GOLDEN_PERIOD, category, mode = "assisted", profile = buildGoldenProfile() } = overrides ?? {}
+  const { period = GOLDEN_PERIOD, category, mode = "assisted", profile = buildGoldenProfile(), seniorityYears } = overrides ?? {}
+  const seniority = seniorityYears === undefined ? GOLDEN_SENIORITY : {
+    ...GOLDEN_SENIORITY,
+    years: seniorityYears,
+    totalDays: Math.round(seniorityYears * 365),
+  }
   const result = calculateProjection({
     profile,
     category: category ? { ...GOLDEN_CATEGORY, ...category } as typeof GOLDEN_CATEGORY : GOLDEN_CATEGORY,
     period,
-    seniority: GOLDEN_SENIORITY,
+    seniority,
     incidents: [],
     recurringConcepts: [],
     mode,
@@ -190,5 +197,97 @@ describe("Regresión ventana 055: ancla de julio vale CERO en agosto", () => {
     }
     // Y el total NO se infla con el fondo de ahorro:
     expect(result.projection.totals.possibleGross).toBeCloseTo(GOLDEN_EXPECTED_BASELINE.totalPercepciones, 1)
+  })
+})
+
+
+describe("Escenario Más antigüedad — tabla contractual 63 Bis c (días ÷ 360)", () => {
+  // Base real: 002+011 = 7,172.41 · factor = días/360
+  const CASES = [
+    { target: 15, days: 105, expected022: 2091.95, expectedGross: 14376.41 },
+    { target: 16, days: 114, expected022: 2271.26, expectedGross: 14555.72 },
+    { target: 20, days: 150, expected022: 2988.50, expectedGross: 15272.96 },
+  ] as const
+
+  for (const c of CASES) {
+    it(`${14}→${c.target}: 022=$${c.expected022.toFixed(2)} y gross=$${c.expectedGross.toFixed(2)}`, () => {
+      const projection = runProjection({ seniorityYears: c.target })
+      const c022 = conceptMap(projection).get("022")!
+
+      expect(c022.amount).toBeCloseTo(c.expected022, 2)
+      expect(totalPercepcionesIncluidas(projection)).toBeCloseTo(c.expectedGross, 2)
+      expect(projection.totals.possibleGross).toBeCloseTo(c.expectedGross, 2)
+      // El ancla NO congela el valor cuando cambió la dependencia antigüedad:
+      expect(c022.source).toBe("contract_rule")
+      if (c022.resolutionAudit) {
+        expect(c022.resolutionAudit.anchorValue).toBe(1972.41)
+        expect(c022.resolutionAudit.dependencyStatus).toBe("changed")
+        expect(c022.resolutionAudit.selectedSource).toBe("formula")
+        expect(c022.resolutionAudit.selectedValue).toBeCloseTo(c.expected022, 2)
+      }
+    })
+  }
+
+  it("14.8 años usa años COMPLETADOS (factor 99/360) — nunca 270 días", () => {
+    const projection = runProjection({ seniorityYears: 14.8 })
+    const c022 = conceptMap(projection).get("022")!
+    expect(c022.amount).toBe(1972.41)
+    expect(projection.totals.possibleGross).toBeCloseTo(14256.87, 2)
+  })
+
+  it("14→41 (fuera de tabla): exige confirmación SIN máximo silencioso", () => {
+    const projection = runProjection({ seniorityYears: 41 })
+    const c022 = conceptMap(projection).get("022")!
+    expect(c022.warnings.some((w) => w.includes("fuera de la tabla"))).toBe(true)
+    expect(c022.confidence).toBe("requires_confirmation")
+    // Ancla presente → se repite marcada; jamás 270 días:
+    expect(c022.resolutionAudit?.formulaComputable).toBe(false)
+    if (c022.resolutionAudit) expect(c022.resolutionAudit.reason).toContain("sin_formula")
+  })
+
+  it("14→14 conserva el ancla (dependencias idénticas)", () => {
+    const projection = runProjection({ seniorityYears: 14 })
+    const c022 = conceptMap(projection).get("022")!
+    expect(c022.amount).toBe(1972.41)
+    expect(c022.source).toBe("last_payslip")
+    expect(c022.resolutionAudit?.reason).toBe("dependencias_iguales_valor_persiste")
+  })
+
+  it("<5 años: excluido y en cero", () => {
+    const projection = runProjection({ seniorityYears: 4 })
+    const c022 = conceptMap(projection).get("022")!
+    expect(c022.included).toBe(false)
+    expect(c022.amount).toBe(0)
+  })
+
+  it("producto completo simulateScenario: baseline inmutable y delta +$119.54 para 14→15", async () => {
+    const profile = buildGoldenProfile()
+    const baselineProj = runProjection({})
+    const profileBefore = JSON.stringify(profile)
+
+    const sim = simulateScenario(
+      baselineProj,
+      {
+        type: "seniority_bump",
+        label: "Más antigüedad",
+        description: "15 años totales",
+        targetSeniorityYears: 15,
+      },
+      profile,
+      [],
+    )
+    expect("error" in sim).toBe(false)
+    if ("error" in sim) throw new Error(sim.error)
+
+    // Inmutabilidad: ni el perfil ni el baseline mutaron.
+    expect(JSON.stringify(profile)).toBe(profileBefore)
+    expect(baselineProj.seniorityAtPeriodEnd.years).toBe(14)
+    expect(sim.projection.seniorityAtPeriodEnd.years).toBe(15)
+
+    const comparison = compareProjections(baselineProj, sim.projection)
+    expect(comparison.scenarioGross).toBeCloseTo(14376.41, 2)
+    expect(comparison.grossDelta).toBeCloseTo(119.54, 2)
+    const d022 = comparison.conceptDeltas.find((d) => d.code === "022")!
+    expect(d022.delta).toBeCloseTo(119.54, 2)
   })
 })

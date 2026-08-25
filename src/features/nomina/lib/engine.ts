@@ -514,10 +514,14 @@ export function dependenciesStatus(
       continue
     }
 
-    // Dependencia de concepto: comparar valor actual contra ancla a centavos
+    // Dependencia de concepto: comparar valor actual contra ancla a centavos.
+    // Dependencia "en su caso" (p. ej. 013/057/058/061 para el 022): si NO
+    // estaba en el tarjetón (sin ancla) y TAMPOCO está incluida ahora, esa
+    // causa simplemente no aplica a este trabajador — no genera incertidumbre.
     const current = ctx.calculatedConcepts.get(dep)
     const anchor = ctx.conceptAnchors.get(dep)
 
+    if (!anchor && !current?.included) continue
     if (!current || !anchor) {
       unknown = true
       continue
