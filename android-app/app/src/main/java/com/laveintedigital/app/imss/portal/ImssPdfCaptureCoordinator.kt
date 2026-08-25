@@ -17,6 +17,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -198,80 +200,80 @@ object ImssPdfCaptureCoordinator {
     // ── Blob capture via FileReader + Base64 ────────────────────────────────
 
     /**
-     * Extrae un Blob PDF pendiente del monitor JS (channel leído por
-     * [pollPdfCandidates]) y lo persiste como **checadas** (source
-     * `TU_PERFIL_BIOMETRIC`), distinto de un tarjetón. El monitor debe haberse
-     * inyectado antes con [injectPdfMonitor]. Devuelve true si se guardó
-     * (ignora la UI: la decisión de qué periodo se muestra la toma el caller).
+     * Extrae un Blob PDF pendiente del monitor JS y lo persiste como **checadas**
+     * (source `TU_PERFIL_BIOMETRIC`), distinto de un tarjetón. El monitor debe
+     * haberse inyectado antes con [injectPdfMonitor]. Devuelve true si se guardó.
+     *
+     * Es SUSPEND y usa [suspendCoroutine] (resume en el hilo Main del WebView) en
+     * lugar de un CountDownLatch — evitar bloquear el hilo Main y causar un
+     * deadlock con el callback de `evaluateJavascript`.
      */
-    fun pollBiometricPdf(
+    suspend fun pollBiometricPdf(
         webView: WebView,
         context: Context,
         periodLabel: String? = null,
         onDuplicate: Boolean = false,
     ): Boolean {
-        var captured = false
-        val latch = java.util.concurrent.CountDownLatch(1)
         val appContext = context.applicationContext
-        webView.evaluateJavascript("""
-        (function(){
-            var keys = Object.keys(window.__LVD_PDFS__ || {});
-            if (keys.length === 0) return null;
-            var key = keys[0];
-            var data = window.__LVD_PDFS__[key];
-            delete window.__LVD_PDFS__[key];
-            return JSON.stringify({key: key, b64: data.b64, type: data.type, size: data.size});
-        })();
-        """.trimIndent()) { result ->
-            try {
-                if (result != null && result != "null") {
-                    val cleaned = result.trim('"').replace("\\\"", "\"")
-                    val json = org.json.JSONObject(cleaned)
-                    val b64 = json.optString("b64")
-                    if (b64.length >= 20) {
-                        val bytes = Base64.decode(b64, Base64.DEFAULT)
-                        if (bytes.size >= 5 && String(bytes, 0, 5) == "%PDF-") {
-                            val sha = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-                            kotlinx.coroutines.runBlocking(Dispatchers.IO) {
-                                val db = PayslipDatabase.getInstance(appContext)
-                                val existing = db.payslipDao().findByHash(sha)
-                                if (existing != null) {
-                                    Log.d(TAG, "BIOMETRIC_PDF_DUPLICATE sha=${sha.take(8)} docId=${existing.id}")
-                                    captured = onDuplicate
-                                } else {
-                                    val dir = File(appContext.filesDir, "$sessionDir/${ImssPortal.TU_PERFIL.id}/biometricos")
-                                    dir.mkdirs()
-                                    val file = atomicWrite(dir, "checadas", bytes)
-                                    if (file != null) {
-                                        val displayName = buildString {
-                                            append("Checadas")
-                                            if (!periodLabel.isNullOrBlank()) append(" — ").append(periodLabel)
-                                        }
-                                        db.payslipDao().insert(PayslipDocument(
-                                            source = "TU_PERFIL_BIOMETRIC",
-                                            displayName = displayName,
-                                            localPath = file.absolutePath,
-                                            fileSize = bytes.size.toLong(),
-                                            sha256 = sha,
-                                            mimeType = "application/pdf",
-                                            periodLabel = periodLabel,
-                                            sourceHost = ImssPortal.TU_PERFIL.host,
-                                        ))
-                                        Log.i(TAG, "BIOMETRIC_PDF_SAVED path=${file.absolutePath} sha=${sha.take(8)}")
-                                        captured = true
-                                    }
-                                }
-                            }
-                        } else {
-                            Log.w(TAG, "Blob biometric PDF invalid header")
-                        }
-                    }
-                }
-            } catch (e: Exception) { Log.w(TAG, "Blob decode error", e) }
-            finally { latch.countDown() }
+        val raw = withContext(Dispatchers.Main.immediate) {
+            suspendCoroutine<String?> { cont ->
+                webView.evaluateJavascript("""
+                (function(){
+                    var keys = Object.keys(window.__LVD_PDFS__ || {});
+                    if (keys.length === 0) return null;
+                    var key = keys[0];
+                    var data = window.__LVD_PDFS__[key];
+                    delete window.__LVD_PDFS__[key];
+                    return JSON.stringify({key: key, b64: data.b64, type: data.type, size: data.size});
+                })();
+                """.trimIndent()) { result -> cont.resume(result ?: "null") }
+            }
         }
-        latch.await()
-        return captured
+        if (raw == null || raw == "null") return false
+        return try {
+            val cleaned = raw.trim('"').replace("\\\"", "\"")
+            val json = org.json.JSONObject(cleaned)
+            val b64 = json.optString("b64")
+            if (b64.length < 20) return false
+            val bytes = Base64.decode(b64, Base64.DEFAULT)
+            if (bytes.size < 5 || String(bytes, 0, 5) != "%PDF-") {
+                Log.w(TAG, "Blob biometric PDF invalid header"); return false
+            }
+            val sha = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+            withContext(Dispatchers.IO) {
+                val db = PayslipDatabase.getInstance(appContext)
+                val existing = db.payslipDao().findByHash(sha)
+                if (existing != null) {
+                    Log.d(TAG, "BIOMETRIC_PDF_DUPLICATE sha=${sha.take(8)} docId=${existing.id}")
+                    onDuplicate
+                } else {
+                    val dir = File(appContext.filesDir, "$sessionDir/${ImssPortal.TU_PERFIL.id}/biometricos")
+                    dir.mkdirs()
+                    val file = atomicWrite(dir, "checadas", bytes)
+                    if (file != null) {
+                        val displayName = buildString {
+                            append("Checadas")
+                            if (!periodLabel.isNullOrBlank()) append(" — ").append(periodLabel)
+                        }
+                        db.payslipDao().insert(PayslipDocument(
+                            source = "TU_PERFIL_BIOMETRIC",
+                            displayName = displayName,
+                            localPath = file.absolutePath,
+                            fileSize = bytes.size.toLong(),
+                            sha256 = sha,
+                            mimeType = "application/pdf",
+                            periodLabel = periodLabel,
+                            sourceHost = ImssPortal.TU_PERFIL.host,
+                        ))
+                        Log.i(TAG, "BIOMETRIC_PDF_SAVED path=${file.absolutePath} sha=${sha.take(8)}")
+                        true
+                    } else false
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Blob decode error", e)
+            false
+        }
     }
 
     // ── (legacy) Blob capture via FileReader + Base64 ────────────────────────

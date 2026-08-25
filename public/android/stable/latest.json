@@ -1,17 +1,16 @@
 {
   "channel": "stable",
-  "versionCode": 180,
-  "versionName": "1.0.80",
+  "versionCode": 181,
+  "versionName": "1.0.81",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-25T22:32:24Z",
+  "publishedAt": "2026-08-25T22:53:24Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "4def27eda072b4c87b57df71efd366c16d142f92c4276ae816a4c61fffac1077",
+    "sha256": "a523bfc721cc1fe41a833f4f53522d2d1e252ea1a21c1eb61b2359e24befb4c6",
     "size": 67591780
   },
   "releaseNotes": [
-    "Guardar PDF de checadas: botón 'Guardar PDF de checadas' en los resultados de Registros biométricos guarda el reporte PDF de Tu Perfil IMSS",
-    "Se distingue de los tarjetones: aparece como 'Checadas — <periodo>' en 'Mis documentos' (antes 'Mis tarjetones'), con las mismas acciones Ver/Compartir/Eliminar"
+    "Fix guardar PDF de checadas: la app ya no se congela al pulsar 'Guardar PDF' (se eliminó un bloqueo del hilo principal, ahora es asíncrono suspend)"
   ]
 }
