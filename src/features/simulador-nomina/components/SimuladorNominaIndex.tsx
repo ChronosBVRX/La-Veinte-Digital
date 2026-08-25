@@ -17,6 +17,7 @@ import { calculateProjection } from "@/features/nomina/lib/engine"
 import { resolveCategory } from "@/features/nomina/lib/category-resolver"
 import { SALARY_DATA } from "@/features/nomina/data/salaries"
 import type { SimulationScenario, SimulationResult } from "../services/simulate"
+import { analyzeSeniorityImpact } from "@/features/nomina/lib/seniority-impact"
 import type { PayrollProjection, EmployeePayrollProfile, PayrollFact } from "@/features/nomina/lib/types"
 
 type Step = "loading" | "no-profile" | "select" | "result"
@@ -187,7 +188,10 @@ export function SimuladorNominaIndex() {
         return
       }
 
-      const comparison = compareProjections(baseline, simResult.projection)
+      const seniorityImpact = scenario.type === "seniority_bump" && !("error" in simResult)
+        ? analyzeSeniorityImpact(baseline, simResult.projection)
+        : undefined
+      const comparison = compareProjections(baseline, simResult.projection, { seniorityImpact })
       setResult(comparison)
       setStep("result")
     } catch (e) {
@@ -457,6 +461,60 @@ export function SimuladorNominaIndex() {
         <SectionCard title="Lo que más cambia" description="Los tres conceptos con mayor diferencia entre tu situación actual y el escenario.">
           <ScenarioComparison result={result} />
         </SectionCard>
+
+        {result.seniorityImpact && result.seniorityImpact.direct.length > 0 && (
+          <SectionCard title="Cambio directo en tu quincena" description="Conceptos de tu quincena ordinaria que cambian con la antigüedad simulada.">
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+              {result.seniorityImpact.direct.map((d) => (
+                <div key={d.code} style={{ display: "flex", justifyContent: "space-between", gap: "var(--space-3)", flexWrap: "wrap", padding: "var(--space-3)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "var(--text-sm)" }}>{d.code} · {d.name}</div>
+                    <div style={{ fontSize: "var(--text-xs)", color: "var(--muted)", marginTop: "0.125rem" }}>
+                      ${d.before.toLocaleString("es-MX", { minimumFractionDigits: 2 })} → ${d.after.toLocaleString("es-MX", { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                  <Badge variant={d.delta > 0 ? "success" : d.delta < 0 ? "error" : "neutral"}>
+                    {d.delta > 0 ? "+" : ""}${d.delta.toFixed(2)}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        )}
+
+        {result.seniorityImpact && result.seniorityImpact.indirect.length > 0 && (
+          <SectionCard title="También repercute en otras prestaciones" description="Prestaciones cuya base incluye un concepto que cambió. No suman a tu quincena ordinaria: se recalcularán cuando corresponda su pago.">
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+              {result.seniorityImpact.indirect.map((i) => (
+                <div key={i.code} style={{ padding: "var(--space-3)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
+                  <div style={{ fontWeight: 600, fontSize: "var(--text-sm)" }}>{i.code} · {i.name}</div>
+                  <div style={{ fontSize: "var(--text-xs)", color: "var(--muted)", marginTop: "0.25rem" }}>
+                    Su importe se recalculará cuando corresponda el pago porque el concepto {i.causeCodes.join(", ")} forma parte de su base ({i.evidence.reference}).
+                  </div>
+                  <div style={{ fontSize: "var(--text-xs)", color: "var(--muted)" }}>
+                    El importe depende del periodo y requiere confirmación.
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        )}
+
+        {result.seniorityImpact && result.seniorityImpact.milestones.length > 0 && (
+          <SectionCard title="Próximos cambios por antigüedad" description="Generado desde la tabla contractual 63 Bis c (días por años cumplidos).">
+            <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
+              {result.seniorityImpact.milestones.slice(0, 5).map((m) => (
+                <div key={m.year} style={{ fontSize: "var(--text-xs)", color: "var(--muted)" }}>
+                  <strong style={{ color: "var(--fg)" }}>{m.year} años:</strong>{" "}
+                  022 pasa al factor correspondiente a {m.days} días (+{m.factorDeltaDays} vs año anterior)
+                  {m.notes.map((n, idx) => (
+                    <span key={idx}> · {n.note}</span>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        )}
 
         <div style={{ marginTop: "var(--space-4)", fontSize: "var(--text-xs)", color: "var(--muted)" }}>
           <strong>Cómo se calcula:</strong> Estimación con tu categoría, conceptos y tabulador actuales (no proyecta aumentos futuros), basada en el tabulador 2025-2027 y las cláusulas del CCT. Los descuentos (ISR, cuotas IMSS) no están incluidos.

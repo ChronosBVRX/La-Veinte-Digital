@@ -1,4 +1,5 @@
 import type { EmployeePayrollProfile, ResolvedSalaryCategory, SeniorityResult, PayrollProjection } from "@/features/nomina/lib/types"
+import { analyzeSeniorityImpact, type SeniorityImpactReport } from "@/features/nomina/lib/seniority-impact"
 import { calculateProjection } from "@/features/nomina/lib/engine"
 
 export type ScenarioType = "category_change" | "seniority_bump"
@@ -25,6 +26,13 @@ export interface ConceptDelta {
 export interface SimulationResult {
   baselineProjection: PayrollProjection
   scenarioProjection: PayrollProjection
+  /**
+   * Impacto por antigüedad cuando el escenario es seniority_bump:
+   * direct (quincena ordinaria), indirect (recalcular-cuando-corresponda,
+   * con impactPath estructurado), milestones y métricas separadas.
+   * Los indirectos JAMÁS suman al bruto quincenal.
+   */
+  seniorityImpact?: SeniorityImpactReport
   /** Bruto posible del baseline (totals.possibleGross). NO es neto: sin deducciones. */
   baselineGross: number
   /** Bruto posible del escenario (totals.possibleGross). NO es neto: sin deducciones. */
@@ -54,7 +62,8 @@ function buildConceptNameMap(projection: PayrollProjection): Map<string, string>
 
 export function compareProjections(
   baseline: PayrollProjection,
-  scenario: PayrollProjection
+  scenario: PayrollProjection,
+  options?: { seniorityImpact?: SeniorityImpactReport }
 ): SimulationResult {
   const baselineMap = buildConceptMap(baseline)
   const scenarioMap = buildConceptMap(scenario)
@@ -99,6 +108,7 @@ export function compareProjections(
   return {
     baselineProjection: baseline,
     scenarioProjection: scenario,
+    seniorityImpact: options?.seniorityImpact,
     baselineGross,
     scenarioGross,
     grossDelta,
