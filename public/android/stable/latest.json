@@ -1,16 +1,17 @@
 {
   "channel": "stable",
-  "versionCode": 177,
-  "versionName": "1.0.77",
+  "versionCode": 179,
+  "versionName": "1.0.79",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-24T21:59:07Z",
+  "publishedAt": "2026-08-25T21:58:22Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "5f07f314024aadf4b2725f3709c052a7d7077174ea4025f245b30727fc7d6dba",
-    "size": 67575396
+    "sha256": "3656d721dbbedf4f107634e72d9893f5ba0a4f09d10be62ea61f02ecf76cc6b7",
+    "size": 67559012
   },
   "releaseNotes": [
-    "Fix biométricos: usa ng-reflect-value para periodos y evita falsos positivos OOAD"
+    "Fix biométricos: selección dual OOAD y Periodo validada contra el portal real (17-Michoacán y 2025001 ambos aplican y cierran el overlay)",
+    "Ya no confunde OOAD (match por value 17 / label Michoacán) con Periodo (match por código 2025001)"
   ]
 }

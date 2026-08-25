@@ -698,35 +698,25 @@ function isPeriodLike(x){var a=n(String(x.getAttribute&&x.getAttribute('formcont
 function fieldLabel(x){var ff=x.closest?x.closest('mat-form-field'):null;if(!ff)return '';var l=ff.querySelector('mat-label,label');return l?txt(l):''}
 function findPeriodControl(){
   var mats=Array.from(document.querySelectorAll('mat-select[role="combobox"]'));
-  // Búsqueda directa por texto visible "periodo" (más fiable que formcontrolname vacío visto en prod)
+  // VALIDADO contra el portal real: el de OOAD es "Selecciona un OOAD" (isOoadLike=true),
+  // el de Periodo es "Selecciona un período" (isPeriodLike=true). Nunca confundirlos.
+  if(mats.length===2){
+    var a=isPeriodLike(mats[0])&&!isOoadLike(mats[0]);
+    var b=isPeriodLike(mats[1])&&!isOoadLike(mats[1]);
+    if(b&&!a) return {kind:'mat',el:mats[1],evidence:'is-period-by-text',label:fieldLabel(mats[1])};
+    if(a&&!b) return {kind:'mat',el:mats[0],evidence:'is-period-by-text',label:fieldLabel(mats[0])};
+    // Si ninguno se marcó como periodo pero hay uno NO-ooad, ese es el de Periodo
+    var na=!isOoadLike(mats[0]), nb=!isOoadLike(mats[1]);
+    if(nb&&!na) return {kind:'mat',el:mats[1],evidence:'not-ooad',label:fieldLabel(mats[1])};
+    if(na&&!nb) return {kind:'mat',el:mats[0],evidence:'not-ooad',label:fieldLabel(mats[0])};
+    if(na&&nb) return {kind:'mat',el:mats[1],evidence:'neither-ooad-second',label:fieldLabel(mats[1])};
+  }
+  // 1 control o más de 2: por texto o exclusión
   for(var i=0;i<mats.length;i++){
     var tx=n(txt(mats[i])); var lb=n(fieldLabel(mats[i]));
-    if(tx.indexOf('periodo')>=0||lb.indexOf('periodo')>=0) return {kind:'mat',el:mats[i],evidence:'text-periodo',label:fieldLabel(mats[i])};
+    if((tx.indexOf('periodo')>=0||lb.indexOf('periodo')>=0)&&!isOoadLike(mats[i])) return {kind:'mat',el:mats[i],evidence:'text-periodo',label:fieldLabel(mats[i])};
   }
-  // Si hay exactamente 2, el de Periodo es el que NO es OOAD
-  if(mats.length===2){
-    var aIsO=isOoadLike(mats[0]), bIsO=isOoadLike(mats[1]);
-    if(aIsO&&!bIsO) return {kind:'mat',el:mats[1],evidence:'by-exclusion-2',label:fieldLabel(mats[1])};
-    if(!aIsO&&bIsO) return {kind:'mat',el:mats[0],evidence:'by-exclusion-2',label:fieldLabel(mats[0])};
-    if(!aIsO&&!bIsO){
-      var lb1=n(fieldLabel(mats[1])); var tx1=n(txt(mats[1]));
-      if(tx1.indexOf('periodo')>=0||lb1.indexOf('periodo')>=0) return {kind:'mat',el:mats[1],evidence:'second-is-period',label:fieldLabel(mats[1])};
-    }
-  }
-  var best=null;var bestScore=-999;
-  for(var i=0;i<mats.length;i++){
-    var m=mats[i];var lbl=fieldLabel(m);var score=0;
-    if(isOoadLike(m))score-=5;
-    if(isPeriodLike(m))score+=3;
-    var lb=n(lbl);
-    if(lb&&(lb.indexOf('periodo')>=0||lb.indexOf('quincena')>=0))score+=2;
-    if(vis(m))score+=1;
-    if(!isOoadLike(m))score+=1;
-    if(score>bestScore){bestScore=score;best={kind:'mat',el:m,evidence:score>=3?'text':(score>1?'label':'position'),label:lbl}}
-  }
-  if(best&&bestScore>-2)return best;
-  // Último recurso: si hay 2, devuelve el último (Periodo suele ser el segundo)
-  if(mats.length>=2) return {kind:'mat',el:mats[mats.length-1],evidence:'fallback-last',label:fieldLabel(mats[mats.length-1])};
+  for(var i=0;i<mats.length;i++){ if(!isOoadLike(mats[i])) return {kind:'mat',el:mats[i],evidence:'only-non-ooad',label:fieldLabel(mats[i])}; }
   var sel=document.querySelector('select');
   return sel?{kind:'native',el:sel,evidence:'only-native',label:''}:null;
 }
@@ -841,15 +831,20 @@ async function openAndPick(c,targetLabel,targetValue){
           if(o.length===0){await sleep(150);continue}
           out.overlayOpened=true;
           for(var i=0;i<o.length;i++){
-            var x=o[i];var t=x.getAttribute('ng-reflect-value')||x.value;var vs=t===undefined||t===null?'':String(t);var isObj=vs.toLowerCase().indexOf('object')>=0;var v=isObj||vs.trim()===''?txt(x):vs;var ot=n(txt(x)),ov=n(v),ntv=n(targetValue),ntl=n(targetLabel);
-            if(ot.indexOf('aguascalientes')>=0||ot.indexOf('baja california')>=0) continue;
-            if(ov===ntv||ot===ntl||ot===ntv||ov===ntl)return x;
-            if(ntv&&ov.indexOf(ntv)>=0)return x;
-            if(ntl&&ot.indexOf(ntl)>=0)return x;
+            var x=o[i];var ot=n(txt(x)),ntl=n(targetLabel),ntv=n(targetValue);
+            // DUAL (validado en portal real): el label de un PERIODO contiene un código 6-7
+            // dígitos (2025001); el de una DELEGACIÓN/OOAD no (Michoacán) pero el VALUE es
+            // un código corto (17). Nunca confundir: match por código de periodo cuando existe,
+            // si no, match por value/label de la OOAD.
+            var periodCode=ntl.match(/\b\d{6,7}\b/)?ntl.match(/\b\d{6,7}\b/)[0]:'';
+            if(periodCode){
+              if(ot.indexOf(periodCode)>=0)return x;
+              continue; // es un periodo: solo vale el código, no "Michoacán" ni otros
+            }
+            // Caso OOAD/delegación: match por value (17) o label (michoacan)
             if(ntv&&ot.indexOf(ntv)>=0)return x;
-            if(ntl&&ov.indexOf(ntl)>=0)return x;
-            var code=(ntl.match(/\b\d{6,7}\b/)||ntv.match(/\b\d{6,7}\b/)||[])[0];
-            if(code&&(ot.indexOf(code)>=0||ov.indexOf(code)>=0))return x;
+            if(ntl&&ot===ntl)return x;
+            if(ntl&&ntl.length>=4&&ot.indexOf(ntl)>=0)return x;
           }
           // No encontrado -> intenta scroll incremental (virtual scroll) hasta cargar más opciones
           var scroller=document.querySelector('.cdk-overlay-pane .mat-mdc-select-panel')||document.querySelector('.cdk-overlay-pane .mat-select-panel')||document.querySelector('.cdk-overlay-pane');
@@ -895,70 +890,35 @@ async function openAndPick(c,targetLabel,targetValue){
         out.optionFound=true;
         out.hitLabel=txt(hit);
         try{ hit.scrollIntoView({block:'center', inline:'nearest'}); }catch(e){}
-        await sleep(150);
-        // Click más realista para Angular Material (mousedown + mouseup + click + ripple)
-        try{
-          var ripple=hit.querySelector('.mat-option-text')||hit;
-          ripple.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true, view:window}));
-          ripple.dispatchEvent(new MouseEvent('mouseup', {bubbles:true, cancelable:true, view:window}));
-          // Intenta también dispatch en el texto interno
-          var inner=hit.querySelector('.mat-option-text');
-          if(inner) inner.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, view:window}));
-        }catch(e){}
+        await sleep(120);
+        // VALIDADO contra el portal: un solo element.click() cierra el overlay y aplica la selección.
         hit.click();
         out.clickPerformed=true;
         // Espera a que el overlay se cierre y Angular actualice el displayText
         var t0=Date.now();
-        while(Date.now()-t0<1800){
+        while(Date.now()-t0<1500){
           await sleep(150);
           if(!document.querySelector('.cdk-overlay-pane')) break;
         }
         out.overlayClosed=!document.querySelector('.cdk-overlay-pane');
-        // Si no se cerró, fuerza Escape y reintenta click con Enter
-        if(!out.overlayClosed){
-          try{
-            hit.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter', bubbles:true}));
-            await sleep(200);
-            if(!document.querySelector('.cdk-overlay-pane')) out.overlayClosed=true;
-          }catch(e){}
-        }
-        if(!out.overlayClosed){
-          try{ L.esc(); await sleep(400); out.overlayClosed=!document.querySelector('.cdk-overlay-pane'); }catch(e){}
-        }
-        // Fallback directo por Angular si el click no aplicó la selección (overlay sigue abierto)
-        if(!out.overlayClosed){
-          try{
-            var comp = window.ng && window.ng.getComponent ? window.ng.getComponent(c.el) : null;
-            var targetVal = hit.value !== undefined && String(hit.value).trim()!=='' ? hit.value : (hit.getAttribute('ng-reflect-value') || targetValue);
-            if(comp){
-              try{ if(comp.writeValue) comp.writeValue(targetVal); else if('value' in comp) comp.value = targetVal; }catch(e){}
-              try{ if(comp._onChange) comp._onChange(targetVal); }catch(e){}
-              try{ comp.dispatchEvent && comp.dispatchEvent(new CustomEvent('selectionChange', {bubbles:true, detail:{value:targetVal}})); }catch(e){}
-            }
-            try{ c.el.setAttribute('value', String(targetVal)); }catch(e){}
-            c.el.dispatchEvent(new Event('change', {bubbles:true}));
-            c.el.dispatchEvent(new Event('selectionChange', {bubbles:true}));
-            await sleep(500);
-            out.overlayClosed = !document.querySelector('.cdk-overlay-pane');
-            if(!out.overlayClosed){ L.esc(); await sleep(300); out.overlayClosed=!document.querySelector('.cdk-overlay-pane'); }
-          }catch(e){}
-        }
+        if(!out.overlayClosed){ try{ L.esc(); await sleep(400); out.overlayClosed=!document.querySelector('.cdk-overlay-pane'); }catch(e){} }
       }
     }catch(e){}
+    // Registra los labels visibles del overlay actual (periodos u OOAD), sin filtrar por código
     var any=Array.from(document.querySelectorAll('.cdk-overlay-container mat-option[role="option"], mat-option[role="option"]'));
-    if(any.length>0){
-      out.availableLabels=out.availableLabels.concat(any.map(function(x){return txt(x)}).filter(function(t){return t.length>0}));
+    var visibleLabels=any.map(function(x){return txt(x)}).filter(function(t){return t.length>0});
+    if(visibleLabels.length>0){
+      out.availableLabels=out.availableLabels.concat(visibleLabels);
       out.optionCount=Math.max(out.optionCount,any.length);
       out.maxOptions=Math.max(out.maxOptions,any.length);
     }
-    // Si se abrió el desplegable de OOAD por error (se detecta por sus opciones), reintenta con el otro mat-select
-    if(!out.optionFound && out.availableLabels.length>0 && !triedAlt){
-      var hasOoad = out.availableLabels.some(function(l){ var nl=n(l); return nl.indexOf('aguascalientes')>=0 || nl.indexOf('baja california')>=0; });
-      var hasPeriod = out.availableLabels.some(function(l){ return /\b\d{6,7}\b/.test(l); });
-      if(hasOoad && !hasPeriod){
-        triedAlt=true;
-        esc(); await sleep(350);
-        continue;
+    if(!out.optionFound && visibleLabels.length>0 && !triedAlt){
+      // Si el objetivo era un periodo (tiene código) y en el overlay NO aparece ese código,
+      // significa que se abrió el control equivocado -> reintenta con el otro mat-select.
+      var targetCode=(n(targetLabel).match(/\b\d{6,7}\b/)||[])[0];
+      if(targetCode){
+        var foundTarget=visibleLabels.some(function(l){ return n(l).indexOf(targetCode)>=0; });
+        if(!foundTarget){ triedAlt=true; esc(); await sleep(350); continue; }
       }
     }
     if(!out.optionFound){esc();await sleep(350);}
