@@ -1657,4 +1657,31 @@ console.error=function(){
 
     /** Vacía el buffer de errores JS (tras volcarlos a la traza). */
     fun resetJsErrorsJs(): String = """(function(){window.__LVD_BIO_JSERR__=[];return '1'})()"""
+
+    /* ── JS: click en el control "Descargar" del reporte de checadas ──────── */
+
+    /**
+     * Pulsa el control "Descargar" del reporte en el panel de resultados de
+     * biométricos. Validado contra el portal real: es un `span` con
+     * `cursor:pointer` (sin href) cuyo click dispara `POST
+     * /mstpei-biometricos/v1/biometricos/recuperar`, devolviendo un Blob PDF
+     * (~`URL.createObjectURL`). Devuelve el texto del control pulsado o '' si
+     * no se encontró.
+     */
+    fun clickDownloadJs(): String = LIB_JS + """(function(){
+var L=window.__LVD_BIO_LIB__;
+var spans=Array.from(document.querySelectorAll('span,div,a,button'));
+var target=null;
+for(var i=0;i<spans.length;i++){
+  var el=spans[i];
+  if(!L.vis(el))continue;
+  var t=L.n(L.txt(el));
+  var cls=L.n(String(el.className||''));
+  if(t==='descargar'||t==='descargar pdf'||cls.indexOf('download')>=0){target=el;break;}
+}
+if(!target)return JSON.stringify({ok:false,reason:'DOWNLOAD_CONTROL_NOT_FOUND'});
+try{target.scrollIntoView({block:'center'});}catch(e){}
+target.click();
+return JSON.stringify({ok:true,text:L.txt(target).slice(0,40)});
+})()"""
 }

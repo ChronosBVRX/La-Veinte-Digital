@@ -344,7 +344,10 @@ fun TuPerfilBiometricResultsPanel(
     onChangePeriod: () -> Unit,
     onQueryAgain: () -> Unit,
     onOpenFormularioOriginal: () -> Unit,
+    onSavePdf: (((Boolean) -> Unit) -> Unit)? = null,
 ) {
+    var savingPdf by remember { mutableStateOf(false) }
+    var savedPdf by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -408,6 +411,32 @@ fun TuPerfilBiometricResultsPanel(
         }
 
         Spacer(Modifier.height(LvdSpacing.Lg))
+
+        // Guardar el PDF de checadas que ofrece Tu Perfil IMSS (mismo lugar que tarjetones).
+        if (onSavePdf != null) {
+            if (savedPdf) {
+                LvdPrimaryButton(
+                    text = "PDF guardado",
+                    onClick = { }, // no-op; ya guardado
+                    fullWidth = true,
+                )
+            } else {
+                LvdSecondaryButton(
+                    text = if (savingPdf) "Guardando…" else "Guardar PDF de checadas",
+                    onClick = {
+                        if (!savingPdf) {
+                            savingPdf = true
+                            onSavePdf { ok ->
+                                savingPdf = false
+                                savedPdf = ok
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Spacer(Modifier.height(LvdSpacing.Sm))
+        }
 
         LvdPrimaryButton(
             text = "Volver a consultar",

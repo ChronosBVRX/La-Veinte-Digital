@@ -15,6 +15,7 @@ import com.laveintedigital.app.imss.biometric.BiometricQueryStatus
 import com.laveintedigital.app.imss.biometric.BiometricRecord
 import com.laveintedigital.app.imss.biometric.BiometricTrace
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
 import org.json.JSONObject
@@ -307,6 +309,32 @@ class TuPerfilBiometricFlowController(
 
     fun backToPeriodSelection() {
         setState(TuPerfilBiometricFlowState.PeriodSelection(periods))
+    }
+
+    // ── Guardar PDF de checadas (blob capturado del portal) ─────────────────
+
+    /** Guarda el reporte PDF de checadas del periodo consultado (blob). */
+    fun saveBiometricPdf(onResult: (Boolean) -> Unit) {
+        scope.launch {
+            try {
+                val wv = session.awaitWebView()
+                // 1) Asegura que el monitor de blobs PDF esté inyectado.
+                ImssPdfCaptureCoordinator.injectPdfMonitor(wv)
+                // 2) Click en el control "Descargar" del portal (span con cursor pointer).
+                TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.clickDownloadJs())
+                // 3) Poll del buffer de blobs PDF hasta que llegue el reporte.
+                var saved = false
+                val periodLabel = lastQueryPeriod?.label
+                for (attempt in 0 until 20) {
+                    delay(500)
+                    if (ImssPdfCaptureCoordinator.pollBiometricPdf(wv, context, periodLabel)) { saved = true; break }
+                }
+                withContext(Dispatchers.Main) { onResult(saved) }
+            } catch (e: Exception) {
+                Log.e(TAG, "SAVE_BIOMETRIC_PDF_FAILED", e)
+                withContext(Dispatchers.Main) { onResult(false) }
+            }
+        }
     }
 
     // ── Mapeo sesión compartida → máquina biométricos ──────────────────────

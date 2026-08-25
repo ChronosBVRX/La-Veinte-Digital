@@ -164,7 +164,7 @@ fun OfficialPayslipsScreen(
                         saved = hasTuPerfil,
                     ),
                     OfficialServiceUiModel(
-                        title = "Mis tarjetones",
+                        title = "Mis documentos",
                         description = if (docCount == 1) "1 documento guardado" else "$docCount documentos guardados",
                         accent = BrandNavy,
                         accentLight = LightBlue300,

@@ -1,17 +1,17 @@
 {
   "channel": "stable",
-  "versionCode": 179,
-  "versionName": "1.0.79",
+  "versionCode": 180,
+  "versionName": "1.0.80",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-25T21:58:22Z",
+  "publishedAt": "2026-08-25T22:32:24Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "3656d721dbbedf4f107634e72d9893f5ba0a4f09d10be62ea61f02ecf76cc6b7",
-    "size": 67559012
+    "sha256": "4def27eda072b4c87b57df71efd366c16d142f92c4276ae816a4c61fffac1077",
+    "size": 67591780
   },
   "releaseNotes": [
-    "Fix biométricos: selección dual OOAD y Periodo validada contra el portal real (17-Michoacán y 2025001 ambos aplican y cierran el overlay)",
-    "Ya no confunde OOAD (match por value 17 / label Michoacán) con Periodo (match por código 2025001)"
+    "Guardar PDF de checadas: botón 'Guardar PDF de checadas' en los resultados de Registros biométricos guarda el reporte PDF de Tu Perfil IMSS",
+    "Se distingue de los tarjetones: aparece como 'Checadas — <periodo>' en 'Mis documentos' (antes 'Mis tarjetones'), con las mismas acciones Ver/Compartir/Eliminar"
   ]
 }

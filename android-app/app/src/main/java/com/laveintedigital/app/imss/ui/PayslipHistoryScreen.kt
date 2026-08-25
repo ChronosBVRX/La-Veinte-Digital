@@ -80,7 +80,7 @@ fun PayslipHistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Mis tarjetones") },
+                title = { Text("Mis documentos") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
@@ -97,9 +97,9 @@ fun PayslipHistoryScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text("Sin tarjetones guardados", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                Text("Sin documentos guardados", fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 Spacer(Modifier.height(8.dp))
-                Text("Los PDF que descargues desde los portales IMSS aparecerán aquí.", color = Color.Gray, fontSize = 13.sp)
+                Text("Los PDF que descargues desde los portales IMSS (tarjetones y checadas) aparecerán aquí.", color = Color.Gray, fontSize = 13.sp)
             }
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -113,7 +113,7 @@ fun PayslipHistoryScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(doc.displayName, fontWeight = FontWeight.Medium, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
-                                "${if (doc.source == "TU_PERFIL") "Tu Perfil IMSS" else "Tarjetón Digital"} · ${df.format(Date(doc.downloadedAt))} · ${doc.fileSize / 1024} KB",
+                                "${sourceLabel(doc.source)} · ${df.format(Date(doc.downloadedAt))} · ${doc.fileSize / 1024} KB",
                                 fontSize = 12.sp, color = Color.Gray,
                             )
                         }
@@ -155,7 +155,7 @@ fun PayslipHistoryScreen(
     deleteTarget?.let { doc ->
         LvdDialog(
             onDismissRequest = { deleteTarget = null },
-            title = "Eliminar tarjetón",
+            title = "Eliminar documento",
             text = {
                 Text(
                     "Se eliminará únicamente de este dispositivo.",
@@ -184,4 +184,12 @@ fun PayslipHistoryScreen(
             },
         )
     }
+}
+
+/** Etiqueta de origen del documento (Tarjetón / Checadas / portal fuente). */
+private fun sourceLabel(source: String): String = when (source) {
+    "TU_PERFIL_BIOMETRIC" -> "Checadas · Tu Perfil IMSS"
+    "TU_PERFIL" -> "Tarjetón · Tu Perfil IMSS"
+    "TARJETON_DIGITAL" -> "Tarjetón · Tarjetón Digital"
+    else -> source
 }

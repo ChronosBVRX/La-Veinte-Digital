@@ -234,6 +234,9 @@ fun TuPerfilBiometricScreen(
                                 rawFormVisible = true
                                 controller.manualEntry()
                             },
+                            onSavePdf = { onResult ->
+                                controller.saveBiometricPdf(onResult)
+                            },
                         )
                     }
                     is TuPerfilBiometricFlowState.Empty -> {
