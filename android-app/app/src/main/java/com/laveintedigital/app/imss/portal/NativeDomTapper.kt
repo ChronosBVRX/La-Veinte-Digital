@@ -90,4 +90,13 @@ object NativeDomTapper {
     fun periodOptionSelector(code: String) = """
 (function(){var o=Array.from(document.querySelectorAll('.cdk-overlay-container mat-option[role="option"]')).find(function(x){return String(x.textContent||'').replace(/\s+/g,' ').trim().startsWith('$code')});if(!o)return JSON.stringify({ok:false});o.scrollIntoView({behavior:'auto',block:'center'});setTimeout(function(){},0);var r=o.getBoundingClientRect();return JSON.stringify({ok:true,xRatio:(r.left+r.width/2)/window.innerWidth,yRatio:(r.top+r.height/2)/window.innerHeight,width:r.width,height:r.height})})()
     """.trimIndent()
+
+    /**
+     * Locates the "Descargar" control of the biometric report. Es un `span` con
+     * `cursor:pointer` dentro de `div.text.download`. Su click real dispara el
+     * PDF del reporte. Devuelve la posición a tocar.
+     */
+    val DOWNLOAD_TAP_SELECTOR = """
+(function(){function n(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase()}if(!window.__LVD_BIO_LIB__){return JSON.stringify({ok:false,err:'no-lib'})}var L=window.__LVD_BIO_LIB__;var spans=Array.from(document.querySelectorAll('span,div,a,button'));var target=null;for(var i=0;i<spans.length;i++){var el=spans[i];if(!L.vis(el))continue;var t=n(L.txt(el));var cls=n(String(el.className||''));if(t==='descargar'||t==='descargar pdf'||cls.indexOf('download')>=0){target=el;break;}}if(!target)return JSON.stringify({ok:false});target.scrollIntoView({behavior:'auto',block:'center',inline:'center'});setTimeout(function(){},0);var r=target.getBoundingClientRect();return JSON.stringify({ok:true,xRatio:(r.left+r.width/2)/window.innerWidth,yRatio:(r.top+r.height/2)/window.innerHeight,width:r.width,height:r.height})})()
+    """.trimIndent()
 }

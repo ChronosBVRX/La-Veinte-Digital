@@ -84,6 +84,7 @@ fun AppNavHost(
             TuPerfilBiometricScreen(
                 onBack = { navController.popBackStack() },
                 onClose = { navController.popBackStack(NavRoute.Internal.route, inclusive = false) },
+                onViewPdf = { path -> navController.navigate(NavRoute.PayslipViewer.create(path)) },
             )
         }
 

@@ -202,7 +202,8 @@ object ImssPdfCaptureCoordinator {
     /**
      * Extrae un Blob PDF pendiente del monitor JS y lo persiste como **checadas**
      * (source `TU_PERFIL_BIOMETRIC`), distinto de un tarjetón. El monitor debe
-     * haberse inyectado antes con [injectPdfMonitor]. Devuelve true si se guardó.
+     * haberse inyectado antes con [injectPdfMonitor]. Devuelve la ruta local del
+     * PDF guardado, o null si no hay blob / ya estaba guardado / error.
      *
      * Es SUSPEND y usa [suspendCoroutine] (resume en el hilo Main del WebView) en
      * lugar de un CountDownLatch — evitar bloquear el hilo Main y causar un
@@ -212,8 +213,7 @@ object ImssPdfCaptureCoordinator {
         webView: WebView,
         context: Context,
         periodLabel: String? = null,
-        onDuplicate: Boolean = false,
-    ): Boolean {
+    ): String? {
         val appContext = context.applicationContext
         val raw = withContext(Dispatchers.Main.immediate) {
             suspendCoroutine<String?> { cont ->
@@ -229,15 +229,15 @@ object ImssPdfCaptureCoordinator {
                 """.trimIndent()) { result -> cont.resume(result ?: "null") }
             }
         }
-        if (raw == null || raw == "null") return false
+        if (raw == null || raw == "null") return null
         return try {
             val cleaned = raw.trim('"').replace("\\\"", "\"")
             val json = org.json.JSONObject(cleaned)
             val b64 = json.optString("b64")
-            if (b64.length < 20) return false
+            if (b64.length < 20) return null
             val bytes = Base64.decode(b64, Base64.DEFAULT)
             if (bytes.size < 5 || String(bytes, 0, 5) != "%PDF-") {
-                Log.w(TAG, "Blob biometric PDF invalid header"); return false
+                Log.w(TAG, "Blob biometric PDF invalid header"); return null
             }
             val sha = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
             withContext(Dispatchers.IO) {
@@ -245,7 +245,7 @@ object ImssPdfCaptureCoordinator {
                 val existing = db.payslipDao().findByHash(sha)
                 if (existing != null) {
                     Log.d(TAG, "BIOMETRIC_PDF_DUPLICATE sha=${sha.take(8)} docId=${existing.id}")
-                    onDuplicate
+                    existing.localPath.takeIf { it.isNotBlank() }
                 } else {
                     val dir = File(appContext.filesDir, "$sessionDir/${ImssPortal.TU_PERFIL.id}/biometricos")
                     dir.mkdirs()
@@ -266,13 +266,13 @@ object ImssPdfCaptureCoordinator {
                             sourceHost = ImssPortal.TU_PERFIL.host,
                         ))
                         Log.i(TAG, "BIOMETRIC_PDF_SAVED path=${file.absolutePath} sha=${sha.take(8)}")
-                        true
-                    } else false
+                        file.absolutePath
+                    } else null
                 }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Blob decode error", e)
-            false
+            null
         }
     }
 

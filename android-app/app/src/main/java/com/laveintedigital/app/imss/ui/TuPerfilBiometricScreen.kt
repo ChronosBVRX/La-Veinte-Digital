@@ -69,6 +69,7 @@ import kotlinx.coroutines.delay
 fun TuPerfilBiometricScreen(
     onBack: () -> Unit,
     onClose: () -> Unit,
+    onViewPdf: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -236,6 +237,10 @@ fun TuPerfilBiometricScreen(
                             },
                             onSavePdf = { onResult ->
                                 controller.saveBiometricPdf(onResult)
+                            },
+                            onOpenSavedPdf = { path ->
+                                // Abre el PDF recién guardado como tarjetón (ver/compartir/imprimir).
+                                onViewPdf(path)
                             },
                         )
                     }

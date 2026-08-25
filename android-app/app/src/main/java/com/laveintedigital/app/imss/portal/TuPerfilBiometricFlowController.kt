@@ -313,26 +313,35 @@ class TuPerfilBiometricFlowController(
 
     // ── Guardar PDF de checadas (blob capturado del portal) ─────────────────
 
-    /** Guarda el reporte PDF de checadas del periodo consultado (blob). */
-    fun saveBiometricPdf(onResult: (Boolean) -> Unit) {
+    /** Guarda el reporte PDF de checadas del periodo consultado (blob).
+     * Devuelve la ruta local del PDF guardado, o null si no se guardó. */
+    fun saveBiometricPdf(onResult: (String?) -> Unit) {
         scope.launch {
             try {
                 val wv = session.awaitWebView()
                 // 1) Asegura que el monitor de blobs PDF esté inyectado.
                 ImssPdfCaptureCoordinator.injectPdfMonitor(wv)
-                // 2) Click en el control "Descargar" del portal (span con cursor pointer).
-                TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.clickDownloadJs())
-                // 3) Poll del buffer de blobs PDF hasta que llegue el reporte.
-                var saved = false
-                val periodLabel = lastQueryPeriod?.label
-                for (attempt in 0 until 20) {
-                    delay(500)
-                    if (ImssPdfCaptureCoordinator.pollBiometricPdf(wv, context, periodLabel)) { saved = true; break }
+                // 2) Click REAL sobre "Descargar" (dispatchTouchEvent) — el click
+                //    sintético por evaluateJavascript NO dispara la descarga del blob.
+                val target = NativeDomTapper.locate(wv, NativeDomTapper.DOWNLOAD_TAP_SELECTOR)
+                if (!target.ok) {
+                    // fallback: click sintético como última opción
+                    TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.clickDownloadJs())
+                } else {
+                    NativeDomTapper.tap(wv, target)
                 }
-                withContext(Dispatchers.Main) { onResult(saved) }
+                // 3) Poll del buffer de blobs PDF hasta que llegue el reporte.
+                var path: String? = null
+                val periodLabel = lastQueryPeriod?.label
+                for (attempt in 0 until 24) {
+                    delay(500)
+                    val savedPath = ImssPdfCaptureCoordinator.pollBiometricPdf(wv, context, periodLabel)
+                    if (savedPath != null) { path = savedPath; break }
+                }
+                withContext(Dispatchers.Main) { onResult(path) }
             } catch (e: Exception) {
                 Log.e(TAG, "SAVE_BIOMETRIC_PDF_FAILED", e)
-                withContext(Dispatchers.Main) { onResult(false) }
+                withContext(Dispatchers.Main) { onResult(null) }
             }
         }
     }

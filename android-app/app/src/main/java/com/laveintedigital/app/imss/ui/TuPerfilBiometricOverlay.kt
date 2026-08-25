@@ -344,10 +344,12 @@ fun TuPerfilBiometricResultsPanel(
     onChangePeriod: () -> Unit,
     onQueryAgain: () -> Unit,
     onOpenFormularioOriginal: () -> Unit,
-    onSavePdf: (((Boolean) -> Unit) -> Unit)? = null,
+    onSavePdf: (((String?) -> Unit) -> Unit)? = null,
+    onOpenSavedPdf: ((String) -> Unit)? = null,
 ) {
     var savingPdf by remember { mutableStateOf(false) }
     var savedPdf by remember { mutableStateOf(false) }
+    var savedPdfPath by remember { mutableStateOf<String?>(null) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -414,21 +416,35 @@ fun TuPerfilBiometricResultsPanel(
 
         // Guardar el PDF de checadas que ofrece Tu Perfil IMSS (mismo lugar que tarjetones).
         if (onSavePdf != null) {
-            if (savedPdf) {
-                LvdPrimaryButton(
-                    text = "PDF guardado",
-                    onClick = { }, // no-op; ya guardado
-                    fullWidth = true,
-                )
+            if (savedPdf && savedPdfPath != null) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    LvdPrimaryButton(
+                        text = "Ver PDF de checadas",
+                        onClick = { onOpenSavedPdf?.invoke(savedPdfPath!!) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(LvdSpacing.Sm))
+                    LvdSecondaryButton(
+                        text = "Guardado ✓",
+                        onClick = { },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             } else {
                 LvdSecondaryButton(
-                    text = if (savingPdf) "Guardando…" else "Guardar PDF de checadas",
+                    text = if (savingPdf) "Generando PDF…" else "Guardar PDF de checadas",
                     onClick = {
                         if (!savingPdf) {
                             savingPdf = true
-                            onSavePdf { ok ->
+                            onSavePdf { path ->
                                 savingPdf = false
-                                savedPdf = ok
+                                if (path != null) {
+                                    savedPdf = true
+                                    savedPdfPath = path
+                                    onOpenSavedPdf?.invoke(path)
+                                } else {
+                                    savedPdf = false
+                                }
                             }
                         }
                     },

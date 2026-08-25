@@ -1,16 +1,18 @@
 {
   "channel": "stable",
-  "versionCode": 181,
-  "versionName": "1.0.81",
+  "versionCode": 182,
+  "versionName": "1.0.82",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-25T22:53:24Z",
+  "publishedAt": "2026-08-25T23:20:08Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "a523bfc721cc1fe41a833f4f53522d2d1e252ea1a21c1eb61b2359e24befb4c6",
+    "sha256": "ce0e9bb9043905634164cc38c1e5c1968bdc9606c55cb041ed8089a7ed0918ae",
     "size": 67591780
   },
   "releaseNotes": [
-    "Fix guardar PDF de checadas: la app ya no se congela al pulsar 'Guardar PDF' (se eliminó un bloqueo del hilo principal, ahora es asíncrono suspend)"
+    "Fix guardar PDF de checadas: ahora usa un toque real sobre 'Descargar' (Android WebView) para que el portal genere el reporte PDF",
+    "Al guardar abre automáticamente el PDF para verlo, compartirlo o imprimirlo como un tarjetón",
+    "Si el PDF ya estaba guardado, lo reabre sin duplicar"
   ]
 }
