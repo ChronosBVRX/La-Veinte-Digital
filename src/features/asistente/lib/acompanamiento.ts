@@ -48,7 +48,8 @@ const CHIPS_HOSTIGAMIENTO = [
 ]
 const CHIPS_VACACIONES = ["Calcular mis vacaciones", "¿Qué hago si me las niegan?"]
 const CHIPS_SANCIONES = ["Revisar mi caso", "¿Debo firmar el acta?", "Preparar mis antecedentes"]
-const CHIPS_EXTRAS = ["¿Qué hago ahora?", "¿Qué próxima paso conviene?"]
+const CHIPS_FUERA_CATEGORIA = ["¿Qué pruebas debo guardar?", "¿A quién reporto?", "Preparar un escrito"]
+const CHIPS_EXTRAS = ["¿Qué hago ahora?", "¿Qué próximo paso conviene?"]
 
 // ── Núcleo ─────────────────────────────────────────────────────────────
 
@@ -88,15 +89,18 @@ export function classifyAcompañamiento(
 
   if (isConflicto) {
     const esHostigamiento = /(hostig|acoso|agresi|amenaz|represali|maltrat|hostilidad|intimidaci|presi[oó]n)/i.test(question)
-    const esSancion = /(sanci[oó]n|acta|disciplinar|despido)/i.test(question)
+    const esSancion = /(sanci[oó]n|acta|disciplinar|despido|reconsiderar)/i.test(question)
     const esVacaciones = /vacaciones|permiso|descanso/i.test(question)
+    const esFueraCategoria = /(fuera de (mi )?categor|actividades que no|no corresponden a (mi )?categor|profesiograma|categor)/i.test(question)
     const chips = esHostigamiento
       ? CHIPS_HOSTIGAMIENTO
       : esSancion
         ? CHIPS_SANCIONES
         : esVacaciones
           ? CHIPS_VACACIONES
-          : CHIPS_EXTRAS
+          : esFueraCategoria
+            ? CHIPS_FUERA_CATEGORIA
+            : CHIPS_EXTRAS
 
     return {
       kind: "conflicto",
@@ -125,13 +129,17 @@ export function classifyAcompañamiento(
  * Guía de ESTRUCTURA para problemas laborales concretos (A–F).
  * Se inyecta al prompt cuando el caso lo amerita.
  */
-export const ESTRUCTURA_GUIA = `ESTRUCTURA RECOMENDADA para problemas personales/laborales concretos (usa las secciones que apliquen):
-A. ORIENTACIÓN INICIAL: una frase breve que diga que existe una forma ordenada de actuar. Evita frases vacías tipo "lamento mucho lo que vives" salvo que la gravedad lo amerite.
-B. QUÉ HACER AHORA: pasos concretos y entendibles.
-C. QUÉ EVIDENCIA CONSERVAR: solo cuando corresponda; menciona mensajes, correos, documentos, comunicaciones. NO afirmes automáticamente la validez legal de grabaciones; si se menciona, di: "conserva los elementos que ya tengas; si consideras grabar, evita poner en riesgo tu seguridad y no afirma su validez jurídica salvo respaldo normativo en el corpus".
-D. QUÉ DICE LA NORMATIVA: explicada en lenguaje normal, sustentada con [S#].
-E. CUÁNDO BUSCAR A TU REPRESENTACIÓN SINDICAL: cuando resulte pertinente (ver regla de acompañamiento).
-F. SIGUIENTE PASO: ofrece una acción concreta que el asistente pueda ayudar a realizar (ej. "si quieres, puedo ayudarte a armar una cronología de los hechos").`
+export const ESTRUCTURA_GUIA = `ESTRUCTURA COMO GUÍA INTERNA DE TRABAJO — úsala para organizar lo que dirás, PERO NO la escribas ni la etiquetes con letras. No digas "A. ORIENTACIÓN", "B. QUÉ HACER", etc. Narra en lenguaje natural y cercano, como un compañero que conversa.
+
+Ordena la respuesta así (incluye las secciones que apliquen, sin encabezados):
+1. primero una frase cálida de orientación inicial (que haya una forma ordenada de actuar). Evita clichés como "lamento mucho lo que vives" salvo que la gravedad lo amerite.
+2. luego pasos concretos de qué hacer ahora.
+3. qué evidencia conservar si aplica: mensajes, correos, documentos, comunicaciones. NO afirmes que toda grabación es legal; si se menciona, di: "conserva lo que ya tengas; si consideras grabar, evita poner en riesgo tu seguridad y no afirmes su validez jurídica salvo respaldo normativo del corpus".
+4. qué dice la normativa en lenguaje normal, cada afirmación con [S#].
+5. acompañamiento sindical cuando resulte pertinente: explica PARA QUÉ sirve, sin prometer resultados.
+6. cierra ofreciendo una acción concreta que el asistente pueda ayudar a hacer (ej. "si quieres, puedo ayudarte a armar una cronología de los hechos").
+
+Regla de CITAS: toda afirmación normativa, cifra, plazo o artículo debe llevar [S#]. Los consejos prácticos de sentido común (guardar mensajes, anotar fechas, no confrontar) no requieren cita, pero tampoco deben inventar requisitos legales.`
 
 /**
  * Señales usadas por el evaluador de acompañamiento (expuestas para tests).

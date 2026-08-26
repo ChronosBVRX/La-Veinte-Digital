@@ -27,6 +27,7 @@ describe("classifyAcompañamiento — casos semánticos (punto 12)", () => {
     )
     expect(ac.recomendarRepresentante).toBe(true)
     expect(ac.guidance).toMatch(/acompañamiento sindical/i)
+    expect(ac.chips.some((c) => /pruebas debo guardar/i.test(c))).toBe(true)
   })
 
   it("vacaciones negadas → explicar + representante si conflicto", () => {
