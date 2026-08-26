@@ -9,6 +9,7 @@ import {
   rowToSource,
   VALIDITY_WEIGHT,
   type RetrievedSource,
+  type RetrievalIntent,
   type RpcChunkRow,
 } from "./retrieval-sources"
 
@@ -35,7 +36,7 @@ export interface RetrievalMetrics {
   /** Filas devueltas por cada vía (evidencia de qué backend respondió). */
   rows: { exact: number; fts: number; vector: number }
   /** Intención clasificada (solo define estrategia de retrieval). */
-  intent: string
+  intent: RetrievalIntent
 }
 
 export interface RetrievalResult {
