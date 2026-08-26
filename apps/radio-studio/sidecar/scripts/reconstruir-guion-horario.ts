@@ -6,7 +6,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import path from "node:path";
-import { NormativeCatalog } from "/home/chronos/Escritorio/La Veinte/src/features/normativa/services/catalog.ts";
+import { NormativeCatalog } from "@/features/normativa/services/catalog";
 import { ScriptPipeline } from "../src/llm/pipeline";
 import { LocalLLMService } from "../src/llm/local-llm";
 import { conversationQualityScore, auditConversation, validateRoleFirewall, humanConversationGate, gateBloqueado } from "@la-veinte/radio-core";
@@ -51,13 +51,13 @@ async function main() {
   for (const q of queries) {
     for (const h of buscar(q)) {
       const docId = String(h.documentId ?? "?");
-      const key = `${docId}::${(h.sectionTitle ?? "").slice(0, 40)}::${normaliza(h.text).slice(0, 60)}`;
+      const key = `${docId}::${(h.section ?? "").slice(0, 40)}::${normaliza(h.text).slice(0, 60)}`;
       if (!vistos.has(key)) {
         vistos.set(key, {
           id: `src_${String(vistos.size + 1).padStart(3, "0")}`,
           texto: h.text,
           documento: docId,
-          seccion: h.sectionTitle ?? null,
+          seccion: h.section ?? null,
         });
       }
     }
