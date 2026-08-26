@@ -6,7 +6,7 @@ import { parseConsultaRequest, type ConsultaMessage } from "@/shared/contracts/c
 import {
   buildContextWithSources,
   fuentesPayload,
-  retrieveEvidence,
+  retrieveEvidenceWithMetrics,
   validateCitations,
 } from "@/features/asistente/lib/retrieval-pgvector"
 import { ASSISTANT_POLICY, trimHistoryByBudget, withAbortTimeout } from "@/features/asistente/lib/assistant-policy"
@@ -114,9 +114,14 @@ async function respondDirect(
   requestId: string,
   userId: string,
 ): Promise<NextResponse> {
+  const t0 = performance.now()
+  let embedMs = 0
+  let llmTtftMs = 0
+  let llmTotalMs = 0
   try {
     const openai = getOpenAI()
 
+    const tEmbed = performance.now()
     const embeddingResp = await withAbortTimeout(ASSISTANT_POLICY.embeddingTimeoutMs, (signal) =>
       openai.embeddings.create(
         {
@@ -126,6 +131,7 @@ async function respondDirect(
         { signal },
       ),
     )
+    embedMs = performance.now() - tEmbed
     const queryEmbedding = embeddingResp.data[0].embedding
 
     if (queryEmbedding.length !== ASSISTANT_POLICY.embeddingDimensions) {
@@ -136,10 +142,15 @@ async function respondDirect(
 
     // Retrieval híbrido server-side: exact-match → FTS → pgvector → fusión.
     // Las fuentes salen del retrieval; el LLM solo puede citar [S#] existentes.
-    const sources = await retrieveEvidence(question, queryEmbedding, {
-      limit: ASSISTANT_POLICY.maxContextChunks,
-    })
+    const { sources, metrics: retrievalMetrics } = await retrieveEvidenceWithMetrics(
+      question,
+      queryEmbedding,
+      { limit: ASSISTANT_POLICY.maxContextChunks },
+    )
     if (sources.length === 0) {
+      console.log(
+        `[consulta] ${requestId} user=${userId} sin_evidencia embed=${Math.round(embedMs)}ms retrieval=${Math.round(retrievalMetrics.totalMs)}ms total=${Math.round(performance.now() - t0)}ms`,
+      )
       return privateJson({ respuesta: NO_INFORMATION_RESPONSE, fuentes: [] })
     }
 
@@ -177,24 +188,46 @@ ${context}`
       })),
     ]
 
-    const completion = await withAbortTimeout(ASSISTANT_POLICY.completionTimeoutMs, (signal) =>
+    // LLM con streaming interno: el contrato de respuesta sigue siendo JSON,
+    // pero podemos medir TTFT real (primer delta) sin cambiar arquitectura.
+    const tLlm = performance.now()
+    const stream = await withAbortTimeout(ASSISTANT_POLICY.completionTimeoutMs, (signal) =>
       openai.chat.completions.create(
         {
           model: ASSISTANT_POLICY.chatModel,
           temperature: ASSISTANT_POLICY.temperature,
           messages,
+          stream: true,
         },
         { signal },
       ),
     )
 
-    const raw = completion.choices[0]?.message?.content ?? "Lo siento, no pude generar una respuesta."
+    let respuesta = ""
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content
+      if (delta && llmTtftMs === 0) {
+        llmTtftMs = performance.now() - tLlm
+      }
+      if (delta) respuesta += delta
+    }
+    llmTotalMs = performance.now() - tLlm
+    if (respuesta.length === 0) respuesta = "Lo siento, no pude generar una respuesta."
+
+    const totalMs = performance.now() - t0
+    console.log(
+      `[consulta] ${requestId} user=${userId} embed=${Math.round(embedMs)}ms ` +
+        `retrieval=${Math.round(retrievalMetrics.totalMs)}ms ` +
+        `(exact=${retrievalMetrics.exactMs === null ? "-" : Math.round(retrievalMetrics.exactMs)} ` +
+        `fts=${Math.round(retrievalMetrics.ftsMs)} vector=${retrievalMetrics.vectorMs === null ? "-" : Math.round(retrievalMetrics.vectorMs)} fusion=${Math.round(retrievalMetrics.fusionMs)}) ` +
+        `llm_ttft=${Math.round(llmTtftMs)}ms llm_total=${Math.round(llmTotalMs)}ms total=${Math.round(totalMs)}ms`,
+    )
 
     // El servidor valida cada [S#]: las referencias inventadas se eliminan
     // y las fuentes del JSON provienen del retrieval, nunca del texto.
-    const { respuesta, citedIds } = validateCitations(raw, sources)
+    const { respuesta: respuestaFinal, citedIds } = validateCitations(respuesta, sources)
 
-    return privateJson({ respuesta, fuentes: fuentesPayload(sources, citedIds) })
+    return privateJson({ respuesta: respuestaFinal, fuentes: fuentesPayload(sources, citedIds) })
   } catch (error) {
     const classified = classifyAssistantError(error)
     logAssistantError({

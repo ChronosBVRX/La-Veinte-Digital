@@ -45,9 +45,26 @@ vi.mock("@/features/asistente/lib/retrieval-pgvector", async (importOriginal) =>
   >()
   return {
     ...actual,
-    retrieveEvidence: vi.fn(),
+    retrieveEvidenceWithMetrics: vi.fn(),
   }
 })
+
+const RETRIEVAL_METRICS_FIXTURE = {
+  exactMs: null,
+  ftsMs: 1,
+  vectorMs: 2,
+  fusionMs: 0,
+  totalMs: 3,
+  rows: { exact: 0, fts: 5, vector: 5 },
+}
+
+function streamOf(text: string) {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield { choices: [{ delta: { content: text } }] }
+    },
+  }
+}
 
 const SOURCE_FIXTURE = {
   id: "S1",
@@ -68,7 +85,7 @@ const SOURCE_FIXTURE = {
 
 import { requireUser } from "@/shared/server/auth/require-user"
 import { createClient } from "@/lib/supabase/server"
-import { retrieveEvidence } from "@/features/asistente/lib/retrieval-pgvector"
+import { retrieveEvidenceWithMetrics } from "@/features/asistente/lib/retrieval-pgvector"
 
 const mockEmbeddingsCreate = vi.fn()
 const mockChatCompletionsCreate = vi.fn()
@@ -93,10 +110,11 @@ describe("POST /api/consulta", () => {
 
     vi.mocked(requireUser).mockReset()
     vi.mocked(createClient).mockReset()
-    vi.mocked(retrieveEvidence).mockReset()
-    vi.mocked(retrieveEvidence).mockResolvedValue([
-      { ...SOURCE_FIXTURE },
-    ])
+    vi.mocked(retrieveEvidenceWithMetrics).mockReset()
+    vi.mocked(retrieveEvidenceWithMetrics).mockResolvedValue({
+      sources: [{ ...SOURCE_FIXTURE }],
+      metrics: { ...RETRIEVAL_METRICS_FIXTURE },
+    })
     mockEmbeddingsCreate.mockReset()
     mockChatCompletionsCreate.mockReset()
   })
@@ -134,9 +152,7 @@ describe("POST /api/consulta", () => {
     mockEmbeddingsCreate.mockResolvedValue({
       data: [{ embedding: new Array(1536).fill(0.01) }],
     } as never)
-    mockChatCompletionsCreate.mockResolvedValue({
-      choices: [{ message: { content: "Respuesta directa [S1]" } }],
-    } as never)
+    mockChatCompletionsCreate.mockResolvedValue(streamOf("Respuesta directa [S1]"))
 
     const res = await POST(jsonRequest({ history: [{ role: "user", content: "hola" }] }))
     expect(res.status).toBe(200)
@@ -159,12 +175,8 @@ describe("POST /api/consulta", () => {
     mockEmbeddingsCreate.mockResolvedValue({
       data: [{ embedding: new Array(1536).fill(0.01) }],
     } as never)
-    mockChatCompletionsCreate.mockResolvedValue({
-      choices: [{ message: { content: "Inventado [S7] y válido [S1]" } }],
-    } as never)
-    mockChatCompletionsCreate.mockResolvedValue({
-      choices: [{ message: { content: "Inventado [S7] y válido [S1]" } }],
-    } as never)
+    mockChatCompletionsCreate.mockResolvedValue(streamOf("Inventado [S7] y válido [S1]"))
+    mockChatCompletionsCreate.mockResolvedValue(streamOf("Inventado [S7] y válido [S1]"))
 
     const res = await POST(jsonRequest({ history: [{ role: "user", content: "hola" }] }))
     const data = await res.json()
@@ -177,14 +189,15 @@ describe("POST /api/consulta", () => {
     vi.mocked(createClient).mockResolvedValue({
       rpc: vi.fn().mockResolvedValue({ data: true, error: null }),
     } as never)
-    vi.mocked(retrieveEvidence).mockResolvedValue([])
+    vi.mocked(retrieveEvidenceWithMetrics).mockResolvedValue({
+      sources: [],
+      metrics: { ...RETRIEVAL_METRICS_FIXTURE },
+    })
 
     mockEmbeddingsCreate.mockResolvedValue({
       data: [{ embedding: new Array(1536).fill(0.01) }],
     } as never)
-    mockChatCompletionsCreate.mockResolvedValue({
-      choices: [{ message: { content: "no debo llamarse" } }] as never,
-    })
+    mockChatCompletionsCreate.mockResolvedValue(streamOf("no debo llamarse"))
 
     const res = await POST(jsonRequest({ history: [{ role: "user", content: "tema raro" }] }))
     expect(res.status).toBe(200)
@@ -207,9 +220,7 @@ describe("POST /api/consulta", () => {
     mockEmbeddingsCreate.mockResolvedValue({
       data: [{ embedding: new Array(1536).fill(0.01) }],
     } as never)
-    mockChatCompletionsCreate.mockResolvedValue({
-      choices: [{ message: { content: "Respuesta fallback" } }],
-    } as never)
+    mockChatCompletionsCreate.mockResolvedValue(streamOf("Respuesta fallback"))
 
     const res = await POST(jsonRequest({ history: [{ role: "user", content: "¿Qué dice la cláusula 47?" }] }))
     expect(res.status).toBe(200)
@@ -268,7 +279,7 @@ describe("POST /api/consulta", () => {
 
     mockChatCompletionsCreate.mockImplementation(async (_params, options) => {
       chatSignal = options?.signal
-      return { choices: [{ message: { content: "ok" } }] } as never
+      return streamOf("ok")
     })
 
     const res = await POST(jsonRequest({ history: [{ role: "user", content: "hola" }] }))

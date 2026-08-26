@@ -66,6 +66,9 @@ create index if not exists normativa_chunks_fts_idx
 create index if not exists normativa_chunks_text_trgm_idx
   on public.normativa_chunks using gin (text gin_trgm_ops);
 
+create index if not exists normativa_chunks_chunk_id_trgm_idx
+  on public.normativa_chunks using gin (chunk_id gin_trgm_ops);
+
 -- Lookups exactos (NO únicos: una cláusula/artículo abarca muchos chunks)
 create index if not exists normativa_chunks_clause_lookup_idx
   on public.normativa_chunks (lower(clause))
@@ -281,28 +284,49 @@ returns setof public.normativa_chunks
 language sql stable security definer
 set search_path = extensions, public
 as $$
-  select *
-  from public.normativa_chunks c
-  where (p_include_historical or c.validity <> 'HISTORICAL')
-    and (
-      (p_clause is not null and lower(trim(c.clause)) = lower(trim(p_clause)))
-      or (p_article is not null and lower(trim(c.article)) = lower(trim(p_article)))
-      or (p_key is not null and (
-            c.document_id ilike p_key || '%'     -- identidad: el id COMIENZA con la clave
-         or c.chunk_id ilike '%' || p_key || '%'
-         or c.text ilike '%' || p_key || '%'     -- mención: menor prioridad (ver ORDER BY)
-      ))
-    )
-    and (p_document_id is null or c.document_id = p_document_id)
+  -- Cada brazo es independiente y usa SU índice; el OR entre ILIKEs
+  -- obligaba al planificador a un Seq Scan (~350ms sobre 22k filas).
+  -- Los duplicados se eliminan en la fusión de la aplicación (por chunk_id).
+  select * from (
+    (select c.* from public.normativa_chunks c
+      where (p_include_historical or c.validity <> 'HISTORICAL')
+        and p_clause is not null and lower(trim(c.clause)) = lower(trim(p_clause))
+        and (p_document_id is null or c.document_id = p_document_id)
+      limit 12)
+    union all
+    (select c.* from public.normativa_chunks c
+      where (p_include_historical or c.validity <> 'HISTORICAL')
+        and p_article is not null and lower(trim(c.article)) = lower(trim(p_article))
+        and (p_document_id is null or c.document_id = p_document_id)
+      limit 12)
+    union all
+    (select c.* from public.normativa_chunks c
+      where (p_include_historical or c.validity <> 'HISTORICAL')
+        and p_key is not null and c.document_id ilike p_key || '%'
+        and (p_document_id is null or c.document_id = p_document_id)
+      limit 12)
+    union all
+    (select c.* from public.normativa_chunks c
+      where (p_include_historical or c.validity <> 'HISTORICAL')
+        and p_key is not null and c.chunk_id ilike '%' || p_key || '%'
+        and (p_document_id is null or c.document_id = p_document_id)
+      limit 12)
+    union all
+    (select c.* from public.normativa_chunks c
+      where (p_include_historical or c.validity <> 'HISTORICAL')
+        and p_key is not null and c.text ilike '%' || p_key || '%'
+        and (p_document_id is null or c.document_id = p_document_id)
+      limit 6)
+  ) u
   order by
-    case when c.validity = 'CURRENT' then 0 when c.validity = 'PENDING_REVIEW' then 1 else 2 end,
+    case when u.validity = 'CURRENT' then 0 when u.validity = 'PENDING_REVIEW' then 1 else 2 end,
     case
-      when p_key is not null and c.document_id ilike p_key || '%' then 0
-      when p_key is not null and c.chunk_id ilike '%' || p_key || '%' then 1
+      when p_key is not null and u.document_id ilike p_key || '%' then 0
+      when p_key is not null and u.chunk_id ilike '%' || p_key || '%' then 1
       else 2
     end,
-    case when c.priority = 'critical' then 0 when c.priority = 'high' then 1 else 2 end,
-    c.page_start nulls last
+    case when u.priority = 'critical' then 0 when u.priority = 'high' then 1 else 2 end,
+    u.page_start nulls last
   limit least(greatest(p_match_count, 1), 20);
 $$;
 
