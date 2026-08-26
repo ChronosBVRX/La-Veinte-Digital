@@ -140,8 +140,7 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
             aria-haspopup="menu"
             aria-expanded={profileOpen}
             aria-label="Menú de perfil"
-            className="profile-trigger"
-            style={{
+            className="profile-trigger"            style={{
               display: "flex",
               alignItems: "center",
               gap: "0.5rem",
@@ -186,7 +185,7 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
           </button>
           {profileOpen && (
             <div
-              role="menu"
+              aria-label="Opciones de cuenta"
               style={{
                 position: "absolute",
                 top: "calc(100% + 0.5rem)",
@@ -233,7 +232,6 @@ function ProfileItem({ label, href, onClick }: { label: string; href: string; on
   return (
     <Link
       href={href}
-      role="menuitem"
       onClick={onClick}
       style={{
         display: "block",

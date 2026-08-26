@@ -11,7 +11,7 @@ import { TypingIndicator } from "./TypingIndicator"
 
 const INITIAL_MESSAGE = `¡Hola! 👋 Soy tu **asistente laboral**, aquí para acompañarte.
 
-Estoy para ayudarte a entender tus derechos y darte orientación sobre qué puedas hacer ante una situación en tu trabajo.
+Estoy para ayudarte a entender tus derechos y darte orientación sobre qué puedes hacer ante una situación en tu trabajo.
 
 Puedes contarme qué te pasa con tus propias palabras, o preguntarme directamente sobre el **Contrato Colectivo**, los **Estatutos** o cualquier duda laboral.`
 

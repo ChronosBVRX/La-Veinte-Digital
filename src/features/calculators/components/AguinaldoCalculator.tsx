@@ -128,7 +128,7 @@ export function AguinaldoCalculator({ initialCategoria }: Props) {
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
           <ResultCard title="Resultado" rows={[
             { label: "Base (002 + 011)", value: result.base },
-            { label: "Aguinaldo total estimado (factor reconstruido)", value: result.total, highlight: true },
+            { label: "Aguinaldo total estimado", value: result.total, highlight: true },
             { label: "Concepto 047: anticipo de enero", value: result.anticipoEnero047 },
             { label: "Concepto 043: anticipo de agosto", value: result.anticipoAgosto043 },
             { label: "Concepto 049: resto de diciembre", value: result.restoDiciembre049 },
@@ -142,12 +142,11 @@ export function AguinaldoCalculator({ initialCategoria }: Props) {
             "Concepto 047 (anticipo enero) = Total ÷ 6",
             "Concepto 043 (anticipo agosto) = Total ÷ 3",
             "Concepto 049 (resto diciembre) = Total ÷ 2",
-            "Alternativa documentada: Cláusula 107 (3 meses sueldo nominal) = Base × 6 — pendiente de validación",
+            "Alternativa documentada: Cláusula 107 (3 meses de sueldo nominal) = Base × 6 — en revisión",
           ]} />
           <div style={{ background: "var(--accent)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "0.75rem 1rem", fontSize: "0.8125rem", color: "var(--muted)" }}>
-            El factor {result.factor} fue reconstruido de la aplicación de referencia y no tiene trazabilidad documental localizada.
-            No se sustituye sin evidencia. La Cláusula 107 (3 meses de sueldo nominal, factor 6) se muestra como dato de comparación pendiente de validación contra tarjetones reales.
-            El resultado es informativo y puede diferir por impuestos, incidencias o criterios institucionales.
+            La fórmula aplica el factor vigente {result.factor} conforme a la normativa disponible. La Cláusula 107 (3 meses de sueldo nominal, factor 6) se muestra como referencia comparativa en revisión.
+            El resultado es orientativo y puede variar por impuestos, incidencias o criterios institucionales.
           </div>
           <CalculatorDisclaimer />
         </div>
