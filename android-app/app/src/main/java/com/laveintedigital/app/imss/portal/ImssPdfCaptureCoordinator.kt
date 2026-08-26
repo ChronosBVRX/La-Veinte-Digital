@@ -7,6 +7,7 @@ import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.URLUtil
 import android.webkit.WebView
+import com.laveintedigital.app.imss.biometric.BiometricDiscovery
 import com.laveintedigital.app.imss.credentials.ImssPortal
 import com.laveintedigital.app.imss.payslips.PayslipDatabase
 import com.laveintedigital.app.imss.payslips.PayslipDocument
@@ -24,6 +25,7 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import org.json.JSONObject
 
 object ImssPdfCaptureCoordinator {
 
@@ -215,7 +217,8 @@ object ImssPdfCaptureCoordinator {
         periodLabel: String? = null,
     ): String? {
         val appContext = context.applicationContext
-        val raw = withContext(Dispatchers.Main.immediate) {
+        // Fuente 1: buffer del monitor de blobs (URL.createObjectURL).
+        val mono = withContext(Dispatchers.Main.immediate) {
             suspendCoroutine<String?> { cont ->
                 webView.evaluateJavascript("""
                 (function(){
@@ -229,50 +232,45 @@ object ImssPdfCaptureCoordinator {
                 """.trimIndent()) { result -> cont.resume(result ?: "null") }
             }
         }
-        if (raw == null || raw == "null") return null
-        return try {
-            val cleaned = raw.trim('"').replace("\\\"", "\"")
-            val json = org.json.JSONObject(cleaned)
-            val b64 = json.optString("b64")
-            if (b64.length < 20) return null
-            val bytes = Base64.decode(b64, Base64.DEFAULT)
-            if (bytes.size < 5 || String(bytes, 0, 5) != "%PDF-") {
-                Log.w(TAG, "Blob biometric PDF invalid header"); return null
-            }
-            val sha = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-            withContext(Dispatchers.IO) {
-                val db = PayslipDatabase.getInstance(appContext)
-                val existing = db.payslipDao().findByHash(sha)
-                if (existing != null) {
-                    Log.d(TAG, "BIOMETRIC_PDF_DUPLICATE sha=${sha.take(8)} docId=${existing.id}")
-                    existing.localPath.takeIf { it.isNotBlank() }
-                } else {
-                    val dir = File(appContext.filesDir, "$sessionDir/${ImssPortal.TU_PERFIL.id}/biometricos")
-                    dir.mkdirs()
-                    val file = atomicWrite(dir, "checadas", bytes)
-                    if (file != null) {
-                        val displayName = buildString {
-                            append("Checadas")
-                            if (!periodLabel.isNullOrBlank()) append(" — ").append(periodLabel)
-                        }
-                        db.payslipDao().insert(PayslipDocument(
-                            source = "TU_PERFIL_BIOMETRIC",
-                            displayName = displayName,
-                            localPath = file.absolutePath,
-                            fileSize = bytes.size.toLong(),
-                            sha256 = sha,
-                            mimeType = "application/pdf",
-                            periodLabel = periodLabel,
-                            sourceHost = ImssPortal.TU_PERFIL.host,
-                        ))
-                        Log.i(TAG, "BIOMETRIC_PDF_SAVED path=${file.absolutePath} sha=${sha.take(8)}")
-                        file.absolutePath
-                    } else null
+        if (mono != null && mono != "null") {
+            val b64 = extractB64(mono) ?: return null
+            return saveBiometricBase64(appContext, b64, periodLabel)
+        }
+        // Fuente 2: buffer del DownloadListener (fetch del blob URL).
+        val dl = withContext(Dispatchers.Main.immediate) {
+            suspendCoroutine<String?> { cont ->
+                webView.evaluateJavascript(BiometricDiscovery.readBiometricPdfResultJs()) { result ->
+                    cont.resume(result ?: "null")
                 }
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "Blob decode error", e)
-            null
+        }
+        if (dl == null || dl == "null") return null
+        return try {
+            val j = JSONObject(dl.trim('"').replace("\\\"", "\""))
+            if (j.optBoolean("ok")) {
+                val b64 = j.optString("b64")
+                if (b64.length < 20) return null
+                saveBiometricBase64(appContext, b64, periodLabel)
+            } else null
+        } catch (e: Exception) { null }
+    }
+
+    private fun extractB64(raw: String): String? {
+        val cleaned = raw.trim('"').replace("\\\"", "\"")
+        val json = try { JSONObject(cleaned) } catch (e: Exception) { return null }
+        val b64 = json.optString("b64")
+        return b64.takeIf { it.length >= 20 }
+    }
+
+    /** Conecta un DownloadListener que, ante un blob PDF, lo lee vía JS y lo guarda. */
+    fun attachBiometricDownloadListener(webView: WebView, context: Context) {
+        webView.setDownloadListener { url, _, _, mimeType, _ ->
+            val isPdf = mimeType?.contains("pdf", ignoreCase = true) == true ||
+                    url?.contains(".pdf", ignoreCase = true) == true
+            if (isPdf && url != null && url.startsWith("blob:")) {
+                Log.i(TAG, "BIOMETRIC_DL_BLOB url=${url.take(40)}")
+                webView.evaluateJavascript(BiometricDiscovery.fetchBlobJs(url), null)
+            }
         }
     }
 

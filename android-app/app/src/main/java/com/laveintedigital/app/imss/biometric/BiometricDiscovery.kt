@@ -1731,6 +1731,14 @@ if(!s)return JSON.stringify({status:'missing'});
 return JSON.stringify({status:'done',ok:s.ok,reason:s.reason||'',b64:s.b64||'',msg:s.msg||''});
 })()"""
 
+    /**
+     * Descarga el contenido de una URL `blob:` del portal (entregada por el
+     * DownloadListener) mediante fetch dentro del WebView, y guarda el PDF en
+     * base64 en `window.__LVD_BIO_PDF__`. Retorna 1 si arrancó.
+     */
+    fun fetchBlobJs(blobUrl: String): String = LIB_JS +
+        "(function(){var U=" + JSONObject.quote(blobUrl) + ";fetch(U).then(function(r){return r.blob()}).then(function(b){var fr=new FileReader();fr.onload=function(){var s=fr.result;var b64=(s&&s.split)?s.split(',')[1]:null;window.__LVD_BIO_PDF__={ok:!!b64,b64:b64||'',msg:''};};fr.readAsDataURL(b)}).catch(function(e){window.__LVD_BIO_PDF__={ok:false,reason:String(e&&e.message||e)};});return '1'})()"
+
     /* ── JS: capturar el token Bearer real de la sesión (a prueba de fallos) ── */
 
     /**
