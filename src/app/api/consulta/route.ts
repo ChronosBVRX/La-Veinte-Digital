@@ -69,7 +69,7 @@ function getLastUserQuestion(history: ConsultaMessage[]): string | undefined {
   return [...history].reverse().find((m) => m.role === "user")?.content?.trim()
 }
 
-function baseObservability(intent: MotorObservability["intent"], t0: number): MotorObservability {
+function baseObservability(intent: MotorObservability["intent"]): MotorObservability {
   return {
     intent,
     fastPath: false,
@@ -101,7 +101,7 @@ function baseObservability(intent: MotorObservability["intent"], t0: number): Mo
 async function respondDirect(history: ConsultaMessage[], question: string, requestId: string, userId: string): Promise<NextResponse> {
   const t0 = performance.now()
   const intent = classifyRetrievalIntent(question)
-  const obs = baseObservability(intent, t0)
+  const obs = baseObservability(intent)
   try {
     const openai = getOpenAI()
     const refs = extractExactRefs(question)

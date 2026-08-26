@@ -156,7 +156,7 @@ describe("historial recortado (punto 11)", () => {
   })
 
   it("respeta el presupuesto duro de caracteres", () => {
-    const hist = Array.from({ length: 10 }, (_, i) => ({ role: "user", content: "x".repeat(2000) }))
+    const hist = Array.from({ length: 10 }, () => ({ role: "user", content: "x".repeat(2000) }))
     const out = trimHistory(hist, 20, 4000)
     expect(out.reduce((a, m) => a + m.content.length, 0)).toBeLessThanOrEqual(4000)
   })

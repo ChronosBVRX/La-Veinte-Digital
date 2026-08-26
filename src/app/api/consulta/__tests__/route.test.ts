@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { POST } from "../route"
 import { withAbortTimeout } from "@/features/asistente/lib/assistant-policy"
 import type { User } from "@supabase/supabase-js"
+import type { RetrievedSource } from "@/features/asistente/lib/retrieval-sources"
 
 const MOCK_USER = {
   id: "user-123",
@@ -30,7 +31,7 @@ vi.mock("@/features/asistente/lib/motor", async (importOriginal) => {
     ...actual,
     embedQueryLru: vi.fn(),
     retrieveHybrid: vi.fn(),
-    buildCompactEvidence: vi.fn((s) => s.map((x: any) => `[${x.id}] ${x.documento}`).join("\n")),
+    buildCompactEvidence: vi.fn((s) => s.map((x: RetrievedSource) => `[${x.id}] ${x.documento}`).join("\n")),
     buildPrompt: vi.fn((i, c) => `PROMPT(${i})\n${c}`),
     buildMessages: vi.fn((sys, hist) => [{ role: "system", content: sys }, ...hist]),
   }
@@ -195,15 +196,15 @@ describe("POST /api/consulta", () => {
     vi.mocked(embedQueryLru).mockResolvedValue({ embedding: new Array(1536).fill(0.01), skipped: false, cacheHit: false, ms: 10 })
     vi.mocked(retrieveHybrid).mockResolvedValue({ sources: [{ ...SOURCE_FIXTURE }], rpcMs: 20, rpcCalls: 1 })
 
-    let echoed: any
-    mockChatCompletionsCreate.mockImplementation(async (_p: any) => {
+    let echoed: Array<{ role: string; content: string }> = []
+    mockChatCompletionsCreate.mockImplementation(async (_p: { messages: Array<{ role: string; content: string }> }) => {
       echoed = _p.messages
       return streamOf("resp [S1]")
     })
 
     await POST(jsonRequest({ history: [{ role: "user", content: "Mi jefe me amenaza" }] }))
     // 'Mi jefe me amenaza' debe aparecer UNA sola vez como user.
-    const userMsgs = echoed.filter((m: any) => m.role === "user").map((m: any) => m.content)
+    const userMsgs = (echoed ?? []).filter((m) => m.role === "user").map((m) => m.content)
     expect(userMsgs.filter((c: string) => c === "Mi jefe me amenaza").length).toBeLessThanOrEqual(1)
   })
 

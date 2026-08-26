@@ -1,12 +1,10 @@
 import { createClient } from "@/lib/supabase/server"
 import {
-  classifyRetrievalIntent,
   extractExactRefs,
   rowToSource,
   dedupeByText,
   diversifyByDocument,
   buildCompactEvidence,
-  EVIDENCE_BUDGET,
   type RetrievedSource,
   type RetrievalIntent,
   type RpcChunkRow,
