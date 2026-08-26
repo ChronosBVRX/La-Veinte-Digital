@@ -276,6 +276,54 @@ object ImssPdfCaptureCoordinator {
         }
     }
 
+    /**
+     * Guarda un PDF de checadas a partir de su base64 (obtenido del endpoint
+     * `POST /biometricos/recuperar` → `data.archivoB64`). Valida la cabecera
+     * `%PDF-`, deduplica por SHA-256 y devuelve la ruta local, o null.
+     */
+    fun saveBiometricBase64(context: Context, base64: String, periodLabel: String?): String? {
+        val appContext = context.applicationContext
+        if (base64.length < 20) return null
+        return try {
+            val bytes = Base64.decode(base64, Base64.DEFAULT)
+            if (bytes.size < 5 || String(bytes, 0, 5) != "%PDF-") {
+                Log.w(TAG, "Biometric base64 invalid header"); return null
+            }
+            val sha = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+            val db = PayslipDatabase.getInstance(appContext)
+            val existing = kotlinx.coroutines.runBlocking(Dispatchers.IO) { db.payslipDao().findByHash(sha) }
+            if (existing != null) {
+                Log.d(TAG, "BIOMETRIC_PDF_DUPLICATE sha=${sha.take(8)} docId=${existing.id}")
+                existing.localPath.takeIf { it.isNotBlank() }
+            } else {
+                val dir = File(appContext.filesDir, "$sessionDir/${ImssPortal.TU_PERFIL.id}/biometricos")
+                dir.mkdirs()
+                val file = atomicWrite(dir, "checadas", bytes)
+                if (file != null) {
+                    val displayName = buildString {
+                        append("Checadas")
+                        if (!periodLabel.isNullOrBlank()) append(" — ").append(periodLabel)
+                    }
+                    kotlinx.coroutines.runBlocking(Dispatchers.IO) { db.payslipDao().insert(PayslipDocument(
+                        source = "TU_PERFIL_BIOMETRIC",
+                        displayName = displayName,
+                        localPath = file.absolutePath,
+                        fileSize = bytes.size.toLong(),
+                        sha256 = sha,
+                        mimeType = "application/pdf",
+                        periodLabel = periodLabel,
+                        sourceHost = ImssPortal.TU_PERFIL.host,
+                    )) }
+                    Log.i(TAG, "BIOMETRIC_PDF_SAVED path=${file.absolutePath} sha=${sha.take(8)}")
+                    file.absolutePath
+                } else null
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Biometric save error", e)
+            null
+        }
+    }
+
     // ── (legacy) Blob capture via FileReader + Base64 ────────────────────────
 
     val PDF_MONITOR_SCRIPT = """

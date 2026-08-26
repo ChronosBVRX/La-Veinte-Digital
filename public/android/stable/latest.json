@@ -1,16 +1,18 @@
 {
   "channel": "stable",
-  "versionCode": 183,
-  "versionName": "1.0.83",
+  "versionCode": 184,
+  "versionName": "1.0.84",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-25T23:54:49Z",
+  "publishedAt": "2026-08-26T00:14:35Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "1caa075f2a2a0d3db4a21d44af53e4b305707205184ff554e99133c98cdee312",
-    "size": 67591780
+    "sha256": "e7caae830413d6af2c2eac5687ea1ad08ba72fbb49a5983ebe1c837392377a12",
+    "size": 67608164
   },
   "releaseNotes": [
-    "Fix guardar PDF: se eliminó un bloqueo de hilo (deadlock) en NativeDomTapper.locate que impedía el toque real sobre 'Descargar'; ahora usa suspend y reinyecta la librería JS"
+    "Fix definitivo guardar PDF de checadas: se descarga directamente del endpoint real del portal (POST /biometricos/recuperar) usando la sesión del WebView, sin depender del tap ni del blob",
+    "Valida el PDF (cabecera %PDF-), lo guarda como 'Checadas — periodo' y abre el visor para compartir/imprimir",
+    "Solución robusta validada contra el portal: devuelve el PDF en base64 dentro de la respuesta"
   ]
 }

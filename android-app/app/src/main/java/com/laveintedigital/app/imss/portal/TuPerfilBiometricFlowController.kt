@@ -313,34 +313,36 @@ class TuPerfilBiometricFlowController(
 
     // ── Guardar PDF de checadas (blob capturado del portal) ─────────────────
 
-    /** Guarda el reporte PDF de checadas del periodo consultado (blob).
+    /** Guarda el reporte PDF de checadas del periodo consultado.
+     * Usa el endpoint REAL del portal (POST /biometricos/recuperar) ejecutado
+     * dentro del WebView para heredar la sesión, en vez de depender de un tap
+     * o de la captura de blob (que no disparan la descarga de forma fiable).
      * Devuelve la ruta local del PDF guardado, o null si no se guardó. */
     fun saveBiometricPdf(onResult: (String?) -> Unit) {
         scope.launch {
             try {
                 val wv = session.awaitWebView()
-                // 1) Asegura que el monitor de blobs PDF esté inyectado.
-                ImssPdfCaptureCoordinator.injectPdfMonitor(wv)
-                // 1b) Reinyecta la librería __LVD_BIO_LIB__ (la usan DOWNLOAD_TAP_SELECTOR
-                //     y clickDownloadJs). Una navegación de página la puede haber limpiado.
-                TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.reinjectLibJs())
-                // 2) Click REAL sobre "Descargar" (dispatchTouchEvent) — el click
-                //    sintético por evaluateJavascript NO dispara la descarga del blob.
-                val target = NativeDomTapper.locate(wv, NativeDomTapper.DOWNLOAD_TAP_SELECTOR)
-                if (!target.ok) {
-                    // fallback: click sintético como última opción
-                    TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.clickDownloadJs())
-                } else {
-                    NativeDomTapper.tap(wv, target)
-                }
-                // 3) Poll del buffer de blobs PDF hasta que llegue el reporte.
-                var path: String? = null
-                val periodLabel = lastQueryPeriod?.label
-                for (attempt in 0 until 24) {
+                val matricula = session.lastUsername ?: ""
+                val period = lastQueryPeriod ?: return@launch onResult(null)
+                val periodCode = period.value
+                val ooad = selectedOoad?.value ?: BiometricFlowPolicy.DEFAULT_OOAD_VALUE
+                if (matricula.isBlank() || periodCode.isBlank()) { onResult(null); return@launch }
+
+                // 1) Ejecuta el fetch del PDF en el contexto del WebView (misma sesión).
+                TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.fetchBiometricPdfJs(matricula, periodCode, ooad))
+
+                // 2) Poll del resultado hasta que el fetch devuelva el base64.
+                var b64: String? = null
+                for (attempt in 0 until 20) {
                     delay(500)
-                    val savedPath = ImssPdfCaptureCoordinator.pollBiometricPdf(wv, context, periodLabel)
-                    if (savedPath != null) { path = savedPath; break }
+                    val res = TarjetonDigitalJson.parseObject(TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.readBiometricPdfResultJs()))
+                    val status = res?.optString("status") ?: continue
+                    if (status == "done") { if (res.optBoolean("ok")) b64 = res.optString("b64") ; break }
                 }
+                if (b64.isNullOrBlank()) { onResult(null); return@launch }
+
+                // 3) Decodifica y guarda como PDF de checadas.
+                val path = withContext(Dispatchers.IO) { ImssPdfCaptureCoordinator.saveBiometricBase64(context, b64!!, period.label) }
                 withContext(Dispatchers.Main) { onResult(path) }
             } catch (e: Exception) {
                 Log.e(TAG, "SAVE_BIOMETRIC_PDF_FAILED", e)
