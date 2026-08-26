@@ -348,3 +348,87 @@ grant execute on function public.find_exact_normativa(text, text, text, text, in
 
 -- El upsert solo lo invoca el proceso de sincronización (service path);
 -- sin grant público: se ejecuta vía conexión administrativa.
+
+-- ═══════════ BÚSQUEDA HÍBRIDA UNIFICADA (punto 5) ═══════════
+-- Combina exact + FTS + vector en UNA sola RPC para el camino semántico.
+-- Cada brazo acota ANTES de unir (evita el timeout del union-all sin límite).
+-- Los duplicados se eliminan en la fusión de la aplicación (por chunk_id).
+
+create or replace function public.hybrid_normativa_search(
+  p_query text,
+  p_query_embedding extensions.vector(1536) default null,
+  p_clause text default null,
+  p_article text default null,
+  p_key text default null,
+  p_match_count int default 12,
+  p_min_similarity float default 0.25,
+  p_include_historical boolean default false
+)
+returns table (
+  chunk_id text, document_id text, document_title text, document_type text,
+  category text, version_id text, corpus_version text, validity text,
+  effective_from date, effective_until date, last_reform_date date,
+  section_type text, section_title text, article text, clause text,
+  fraction text, numeral text, page_start int, page_end int,
+  text text, source_url text, provenance text, priority text,
+  applies_to jsonb, topics jsonb,
+  score float, origin text
+)
+language sql stable security definer
+set search_path = extensions, public
+as $$
+  with bounds as (select least(greatest(p_match_count, 1), 40) as n),
+  exact_hits as (
+    select c.*, 1000::float as base, 'exact'::text as origin
+    from public.normativa_chunks c
+    where (p_include_historical or c.validity <> 'HISTORICAL')
+      and (
+        (p_clause is not null and lower(trim(c.clause)) = lower(trim(p_clause)))
+        or (p_article is not null and lower(trim(c.article)) = lower(trim(p_article)))
+        or (p_key is not null and (c.document_id ilike p_key || '%' or c.chunk_id ilike '%' || p_key || '%'))
+      )
+    limit (select n from bounds)
+  ),
+  fts_hits as (
+    select c.*, (30 + 150 * ts_rank_cd(to_tsvector('spanish', c.text), websearch_to_tsquery('spanish', p_query)))::float as base, 'fts'::text as origin
+    from public.normativa_chunks c
+    where (p_include_historical or c.validity <> 'HISTORICAL')
+      and to_tsvector('spanish', c.text) @@ websearch_to_tsquery('spanish', p_query)
+    order by ts_rank_cd(to_tsvector('spanish', c.text), websearch_to_tsquery('spanish', p_query)) desc
+    limit (select n from bounds)
+  ),
+  vector_hits as (
+    select c.*, (300 * (1 - (c.embedding <=> p_query_embedding)))::float as base, 'vector'::text as origin
+    from public.normativa_chunks c
+    where (p_include_historical or c.validity <> 'HISTORICAL')
+      and p_query_embedding is not null and c.embedding is not null
+      and (1 - (c.embedding <=> p_query_embedding)) >= p_min_similarity
+    order by c.embedding <=> p_query_embedding
+    limit (select n from bounds)
+  ),
+  merged as (
+    select * from exact_hits
+    union all
+    select * from fts_hits
+    union all
+    select * from vector_hits
+  ),
+  chosen as (
+    select distinct on (chunk_id) chunk_id, document_id, document_title, document_type,
+           category, version_id, corpus_version, validity, effective_from,
+           effective_until, last_reform_date, section_type, section_title,
+           article, clause, fraction, numeral, page_start, page_end, text,
+           source_url, provenance, priority, applies_to, topics, base, origin
+    from merged
+    order by chunk_id, base desc
+  )
+  select chunk_id, document_id, document_title, document_type, category,
+         version_id, corpus_version, validity, effective_from, effective_until,
+         last_reform_date, section_type, section_title, article, clause,
+         fraction, numeral, page_start, page_end, text, source_url, provenance,
+         priority, applies_to, topics,
+         base::float as score, origin
+  from chosen
+  order by base desc
+  limit (select n from bounds);
+$$;

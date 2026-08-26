@@ -153,12 +153,16 @@ describe("rowToSource + pesos de vigencia", () => {
 })
 
 describe("classifyRetrievalIntent — bug 'derechos laborales'", () => {
-  it("referencias exactas → EXACT_REFERENCE", () => {
-    expect(classifyRetrievalIntent("¿Qué dice la cláusula 63 bis?")).toBe("EXACT_REFERENCE")
-    expect(classifyRetrievalIntent("explícame el artículo 30")).toBe("EXACT_REFERENCE")
-    expect(classifyRetrievalIntent("procedimiento 1A74-003-031")).toBe("EXACT_REFERENCE")
-    expect(classifyRetrievalIntent("¿qué establece la NOM-229?")).toBe("EXACT_REFERENCE")
-    expect(classifyRetrievalIntent("¿qué dice la NOM-035?")).toBe("EXACT_REFERENCE")
+  it("referencias exactas con verbo explicar → EXACT_EXPLAIN", () => {
+    expect(classifyRetrievalIntent("¿Qué dice la cláusula 63 bis?")).toBe("EXACT_EXPLAIN")
+    expect(classifyRetrievalIntent("explícame el artículo 30")).toBe("EXACT_EXPLAIN")
+    expect(classifyRetrievalIntent("¿qué establece la NOM-229?")).toBe("EXACT_EXPLAIN")
+    expect(classifyRetrievalIntent("¿qué dice la NOM-035?")).toBe("EXACT_EXPLAIN")
+  })
+
+  it("referencia con verbo mostrar → EXACT_LOOKUP (fast path)", () => {
+    expect(classifyRetrievalIntent("Muéstrame la cláusula 63 Bis")).toBe("EXACT_LOOKUP")
+    expect(classifyRetrievalIntent("procedimiento 1A74-003-031")).toBe("EXACT_EXPLAIN")
   })
 
   it("temas concretos → SPECIFIC_TOPIC", () => {
@@ -166,6 +170,11 @@ describe("classifyRetrievalIntent — bug 'derechos laborales'", () => {
       "SPECIFIC_TOPIC",
     )
     expect(classifyRetrievalIntent("¿cómo funcionan las guardias festivas?")).toBe("SPECIFIC_TOPIC")
+  })
+
+  it("casos de conflicto laboral → LABOR_CASE", () => {
+    expect(classifyRetrievalIntent("Mi jefe me amenaza")).toBe("LABOR_CASE")
+    expect(classifyRetrievalIntent("Me quieren levantar un acta")).toBe("LABOR_CASE")
   })
 
   it('preguntas amplias → BROAD_TOPIC (el caso del bug)', () => {
