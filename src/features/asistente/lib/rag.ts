@@ -25,6 +25,32 @@ export function extractNumbers(text: string, pattern: RegExp): number[] {
   return [...new Set(nums)]
 }
 
+export interface ScoredCandidate {
+  score: number
+  cosine: number
+  idx: number
+}
+
+/**
+ * Selecciona hasta `k` candidatos cuyo cosine supere el umbral mínimo.
+ * El arreglo llega ordenado por `score` (que incluye aumentos heurísticos),
+ * NO por cosine: por eso un candidato con boost alto pero similitud baja
+ * debe DESCARTARSE (`continue`) y nunca cortar el recorrido (`break`).
+ */
+export function selectWithinThreshold(
+  scored: ScoredCandidate[],
+  chunks: string[],
+  k: number,
+): string[] {
+  const selected: string[] = []
+  for (const s of scored) {
+    if (!Number.isFinite(s.cosine) || s.cosine < MIN_COSINE_SIMILARITY) continue
+    selected.push(chunks[s.idx])
+    if (selected.length >= k) break
+  }
+  return selected
+}
+
 /**
  * Recupera los fragmentos más relevantes del vectorstore con un umbral
  * mínimo de similitud: preguntas sin relación con los documentos devuelven
@@ -63,16 +89,9 @@ export function retrieveTopChunks(queryEmbedding: number[], query: string, k = M
       }
     }
 
-    return { score, cosine, idx: i }
+    return { score, cosine, idx: i } satisfies ScoredCandidate
   })
   scored.sort((a, b) => b.score - a.score)
 
-  const selected: string[] = []
-  for (const s of scored) {
-    if (!Number.isFinite(s.cosine) || s.cosine < MIN_COSINE_SIMILARITY) break
-    if (selected.length >= k) break
-    selected.push(data.chunks[s.idx])
-  }
-
-  return selected
+  return selectWithinThreshold(scored, data.chunks, k)
 }

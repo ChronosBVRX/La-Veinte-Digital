@@ -1,0 +1,149 @@
+import { describe, it, expect } from "vitest"
+import {
+  buildContextWithSources,
+  extractExactRefs,
+  fuentesPayload,
+  rowToSource,
+  validateCitations,
+  VALIDITY_WEIGHT,
+  type RetrievedSource,
+} from "../lib/retrieval-sources"
+
+function makeSource(partial: Partial<RetrievedSource>): RetrievedSource {
+  return {
+    id: "S1",
+    chunkId: "CCT-IMSS-SNTSS-2025-2027@V1:10",
+    documentId: "CCT-IMSS-SNTSS-2025-2027",
+    documento: "Contrato Colectivo de Trabajo IMSS-SNTSS 2025-2027",
+    version: "CCT-IMSS-SNTSS-2025-2027@V1",
+    tipo: "clausula",
+    numero: "63 Bis",
+    paginaInicio: 123,
+    paginaFin: 124,
+    fragmento: "Los trabajadores disfrutarán de un período de vacaciones…",
+    sourceUrl: "https://www.imss.gob.mx/sites/all/statics/pdf/CCT-2025-2027.pdf",
+    validity: "CURRENT",
+    pendingReview: false,
+    score: 100,
+    ...partial,
+  }
+}
+
+describe("extractExactRefs", () => {
+  it("detecta cláusula con bis", () => {
+    expect(extractExactRefs("¿Qué dice la cláusula 63 bis?")).toEqual({ clause: "63 bis" })
+  })
+
+  it("detecta artículo simple", () => {
+    expect(extractExactRefs("explícame el artículo 30 de la LFT")).toEqual({ article: "30" })
+  })
+
+  it("detecta homoclave de procedimiento IMSS", () => {
+    expect(extractExactRefs("¿qué es el procedimiento 1A74-003-031?")).toEqual({
+      key: "1A74-003-031",
+    })
+  })
+
+  it("detecta claves de NOM cortas y completas", () => {
+    expect(extractExactRefs("¿qué establece la NOM-229?")).toEqual({ key: "NOM-229" })
+    expect(extractExactRefs("dime qué dice la NOM-087-SEMARNAT-SSA1-2002")).toEqual({
+      key: "NOM-087-SEMARNAT-SSA1-2002",
+    })
+  })
+
+  it("no inventa referencias cuando no hay", () => {
+    expect(extractExactRefs("¿cuántos días de vacaciones tengo?")).toEqual({})
+  })
+})
+
+describe("validateCitations — el LLM no puede inventar fuentes", () => {
+  const sources = [makeSource({ id: "S1" }), makeSource({ id: "S2" })]
+
+  it("conserva citas válidas y las reporta", () => {
+    const r = validateCitations("Tienes derecho a vacaciones [S1]. Ver también [S2].", sources)
+    expect(r.citedIds).toEqual(["S1", "S2"])
+    expect(r.invalidIdsRemoved).toEqual([])
+    expect(r.respuesta).toContain("[S1]")
+  })
+
+  it("elimina referencias inventadas ([S9] no recuperado)", () => {
+    const r = validateCitations("La cláusula dice X [S9] y también [S1]", sources)
+    expect(r.respuesta).not.toContain("[S9]")
+    expect(r.respuesta).toContain("[S1]")
+    expect(r.invalidIdsRemoved).toEqual(["S9"])
+  })
+
+  it("sin fuentes no hay cita válida posible", () => {
+    const r = validateCitations("todo [S1] es invención", [])
+    expect(r.respuesta).not.toContain("[S")
+    expect(r.citedIds).toEqual([])
+  })
+})
+
+describe("fuentesPayload", () => {
+  it("marca PENDING_REVIEW con advertencia explícita", () => {
+    const src = makeSource({ id: "S1", validity: "PENDING_REVIEW", pendingReview: true })
+    const out = fuentesPayload([src], ["S1"]) as Array<Record<string, unknown>>
+    expect(out[0].advertenciaVigencia).toBeTruthy()
+    expect(out[0].validity).toBe("PENDING_REVIEW")
+    expect(out[0].citada).toBe(true)
+  })
+
+  it("CURRENT no lleva advertencia", () => {
+    const out = fuentesPayload([makeSource({})], []) as Array<Record<string, unknown>>
+    expect(out[0].advertenciaVigencia).toBeUndefined()
+  })
+
+  it("expone página, tipo, número y URL para respuesta verificable", () => {
+    const out = fuentesPayload([makeSource({ numero: "63 Bis", paginaInicio: 123 })], [])
+      [0] as Record<string, unknown>
+    expect(out.tipo).toBe("clausula")
+    expect(out.numero).toBe("63 Bis")
+    expect(out.paginaInicio).toBe(123)
+    expect(String(out.sourceUrl)).toContain("imss.gob.mx")
+  })
+})
+
+describe("buildContextWithSources", () => {
+  it("etiqueta cada fragmento con su [S#] y badge de vigencia", () => {
+    const ctx = buildContextWithSources([
+      makeSource({ id: "S1" }),
+      makeSource({ id: "S2", pendingReview: true }),
+    ])
+    expect(ctx).toContain("[S1]")
+    expect(ctx).toContain("[S2]")
+    expect(ctx).toContain("[VIGENCIA POR REVISAR]")
+    expect(ctx).toContain("---")
+  })
+})
+
+describe("rowToSource + pesos de vigencia", () => {
+  it("HISTORICAL queda penalizado respecto a CURRENT", () => {
+    expect(VALIDITY_WEIGHT["HISTORICAL"]).toBeLessThan(VALIDITY_WEIGHT["CURRENT"])
+    expect(VALIDITY_WEIGHT["SUPERSEDED"]).toBeLessThan(VALIDITY_WEIGHT["PENDING_REVIEW"])
+  })
+
+  it("deriva tipo desde clause > article > section_type", () => {
+    const base = {
+      chunk_id: "x",
+      document_id: "d",
+      document_title: "t",
+      version_id: "v",
+      validity: "CURRENT",
+      section_type: "capitulo",
+      section_title: null,
+      article: "30",
+      clause: null,
+      numeral: null,
+      page_start: 5,
+      page_end: 5,
+      text: "texto",
+      source_url: null,
+    }
+    expect(rowToSource(base as never, "S1", 0).tipo).toBe("articulo")
+    expect(rowToSource({ ...base, article: null } as never, "S1", 0).tipo).toBe("capitulo")
+    expect(
+      rowToSource({ ...base, article: null, clause: "47" } as never, "S1", 0).numero,
+    ).toBe("47")
+  })
+})

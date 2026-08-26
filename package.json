@@ -34,6 +34,8 @@
     "normativa:discover": "node --no-warnings --import tsx src/features/normativa/cli/discover.ts",
     "normativa:report": "node --no-warnings --import tsx src/features/normativa/cli/report.ts",
     "normativa:coverage": "node --no-warnings --import tsx src/features/normativa/cli/coverage-report.ts",
+    "normativa:sync-pgvector": "node --no-warnings --import tsx src/features/normativa/cli/pgvector-sync.ts",
+    "normativa:verify-rag": "node --no-warnings --import tsx src/features/normativa/cli/pgvector-verify.ts",
     "normativa:search": "node --no-warnings --import tsx src/features/normativa/cli/search.ts",
     "tts:benchmark-laptop": "node --no-warnings --import tsx src/features/normativa/cli/tts-benchmark.ts",
     "studio:smoke": "bash apps/radio-studio/sidecar/scripts/studio-smoke.sh",

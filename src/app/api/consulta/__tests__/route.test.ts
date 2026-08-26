@@ -37,11 +37,38 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }))
 
-vi.mock("@/features/asistente/lib/rag", () => ({
-  retrieveTopChunks: vi.fn(() => ["fragmento de prueba"]),
-  MIN_COSINE_SIMILARITY: 0.25,
-  MAX_RETRIEVED_CHUNKS: 8,
-}))
+// El retrieval híbrido se mockea por completo: la ruta no debe tocar el
+// vectorstore legacy ni Supabase en estas pruebas unitarias.
+vi.mock("@/features/asistente/lib/retrieval-pgvector", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("@/features/asistente/lib/retrieval-pgvector")
+  >()
+  return {
+    ...actual,
+    retrieveEvidence: vi.fn(),
+  }
+})
+
+const SOURCE_FIXTURE = {
+  id: "S1",
+  chunkId: "CCT-IMSS-SNTSS-2025-2027@V1:10",
+  documentId: "CCT-IMSS-SNTSS-2025-2027",
+  documento: "Contrato Colectivo de Trabajo IMSS-SNTSS 2025-2027",
+  version: "CCT-IMSS-SNTSS-2025-2027@V1",
+  tipo: "clausula",
+  numero: "47",
+  paginaInicio: 30,
+  paginaFin: 31,
+  fragmento: "fragmento de prueba",
+  sourceUrl: "https://www.imss.gob.mx/sites/all/statics/pdf/CCT-2025-2027.pdf",
+  validity: "CURRENT",
+  pendingReview: false,
+  score: 100,
+}
+
+import { requireUser } from "@/shared/server/auth/require-user"
+import { createClient } from "@/lib/supabase/server"
+import { retrieveEvidence } from "@/features/asistente/lib/retrieval-pgvector"
 
 const mockEmbeddingsCreate = vi.fn()
 const mockChatCompletionsCreate = vi.fn()
@@ -55,8 +82,6 @@ vi.mock("openai", () => ({
   }),
 }))
 
-import { requireUser } from "@/shared/server/auth/require-user"
-import { createClient } from "@/lib/supabase/server"
 
 describe("POST /api/consulta", () => {
   beforeEach(() => {
@@ -68,6 +93,10 @@ describe("POST /api/consulta", () => {
 
     vi.mocked(requireUser).mockReset()
     vi.mocked(createClient).mockReset()
+    vi.mocked(retrieveEvidence).mockReset()
+    vi.mocked(retrieveEvidence).mockResolvedValue([
+      { ...SOURCE_FIXTURE },
+    ])
     mockEmbeddingsCreate.mockReset()
     mockChatCompletionsCreate.mockReset()
   })
@@ -106,12 +135,62 @@ describe("POST /api/consulta", () => {
       data: [{ embedding: new Array(1536).fill(0.01) }],
     } as never)
     mockChatCompletionsCreate.mockResolvedValue({
-      choices: [{ message: { content: "Respuesta directa" } }],
+      choices: [{ message: { content: "Respuesta directa [S1]" } }],
     } as never)
 
     const res = await POST(jsonRequest({ history: [{ role: "user", content: "hola" }] }))
     expect(res.status).toBe(200)
     expect(rpc).toHaveBeenCalledTimes(1)
+
+    // Las fuentes provienen del retrieval, no del texto del LLM.
+    const data = await res.json()
+    expect(Array.isArray(data.fuentes)).toBe(true)
+    expect(data.fuentes[0].documento).toContain("IMSS-SNTSS")
+    expect(data.fuentes[0].validity).toBe("CURRENT")
+    expect(data.respuesta).toContain("[S1]")
+  })
+
+  it("elimina citas [S#] que no corresponden a fuentes recuperadas", async () => {
+    vi.mocked(requireUser).mockResolvedValue({ user: MOCK_USER, response: null })
+    vi.mocked(createClient).mockResolvedValue({
+      rpc: vi.fn().mockResolvedValue({ data: true, error: null }),
+    } as never)
+
+    mockEmbeddingsCreate.mockResolvedValue({
+      data: [{ embedding: new Array(1536).fill(0.01) }],
+    } as never)
+    mockChatCompletionsCreate.mockResolvedValue({
+      choices: [{ message: { content: "Inventado [S7] y válido [S1]" } }],
+    } as never)
+    mockChatCompletionsCreate.mockResolvedValue({
+      choices: [{ message: { content: "Inventado [S7] y válido [S1]" } }],
+    } as never)
+
+    const res = await POST(jsonRequest({ history: [{ role: "user", content: "hola" }] }))
+    const data = await res.json()
+    expect(data.respuesta).not.toContain("[S7]")
+    expect(data.respuesta).toContain("[S1]")
+  })
+
+  it("sin evidencia recuperada no llama al LLM y avisa sin inventar", async () => {
+    vi.mocked(requireUser).mockResolvedValue({ user: MOCK_USER, response: null })
+    vi.mocked(createClient).mockResolvedValue({
+      rpc: vi.fn().mockResolvedValue({ data: true, error: null }),
+    } as never)
+    vi.mocked(retrieveEvidence).mockResolvedValue([])
+
+    mockEmbeddingsCreate.mockResolvedValue({
+      data: [{ embedding: new Array(1536).fill(0.01) }],
+    } as never)
+    mockChatCompletionsCreate.mockResolvedValue({
+      choices: [{ message: { content: "no debo llamarse" } }] as never,
+    })
+
+    const res = await POST(jsonRequest({ history: [{ role: "user", content: "tema raro" }] }))
+    expect(res.status).toBe(200)
+    expect(mockChatCompletionsCreate).not.toHaveBeenCalled()
+    const data = await res.json()
+    expect(data.fuentes).toEqual([])
   })
 
   it("envía question explícita al bot Python y hace fallback si falla", async () => {
