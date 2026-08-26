@@ -2,7 +2,7 @@
  * Sidecar local de AI Radio Studio.
  * HTTP en 127.0.0.1:3977 — ejecuta tts-core + corpus normativo fuera del webview.
  * La app Tauri (o el navegador en dev) lo usa como puente hacia:
- *   - Chatterbox LatAm (motor persistente, sesiones, caché, watchdog)
+ *   - Qwen Base clone (proceso desechable por bloque con watchdog)
  *   - Biblioteca Normativa (búsqueda, Evidence Pack, cobertura)
  *   - Producción (guion → voces → master MP3)
  */
@@ -16,13 +16,10 @@ import os from "node:os";
 import { promisify } from "node:util";
 
 import {
-  ChatterboxEngine,
-  getChatterboxEngine,
+  QwenEngine,
   detectHardware,
   sentenceAwareChunk,
   cleanTtsText,
-  synthesizeMp3,
-  DEFAULT_VOICES,
 } from "@la-veinte/tts-core";
 
 import { NormativeCatalog } from "../../../../src/features/normativa/services/catalog";
@@ -43,7 +40,7 @@ const PORT = 3977;
 const REPO = path.resolve(__dirname, "../../../..");
 const ACE_API = "http://127.0.0.1:8001";
 
-let engine: ChatterboxEngine | null = null;
+let engine: QwenEngine | null = null;
 let aceStepStartAttempt: { at: number; error: string | null } = { at: 0, error: null };
 
 function loadLocalEnv(file: string): void {
@@ -68,57 +65,26 @@ function loadLocalEnv(file: string): void {
 
 loadLocalEnv(path.join(REPO, ".env.local"));
 
-function ensureEngine(): ChatterboxEngine {
-  if (!engine) engine = getChatterboxEngine(REPO);
+function ensureEngine(): QwenEngine {
+  if (!engine) engine = new QwenEngine(process.cwd(), "", path.join(REPO, "data", "tts"));
   return engine;
 }
 
 /** Lanza el worker TTS como proceso independiente (el sidecar NO se bloquea). */
 function spawnWorker(): void {
-  const workerScript = path.join(__dirname, "..", "worker", "chatterbox_worker.ts");
-  const logPath = path.join(REPO, "data", "tts", "worker.log");
-  const child = spawn(process.execPath, ["--no-warnings", "--import", "tsx", workerScript], {
-    detached: true,
-    stdio: ["ignore", fs.openSync(logPath, "a"), fs.openSync(logPath, "a")],
-    windowsHide: true,
-  });
-  child.unref();
+  // Qwen genera en-request (proceso desechable por bloque). Sin worker persistente.
+  void 0;
 }
 
 let workerVivoCache: { at: number; v: boolean } = { at: 0, v: false };
 
 function workerVivo(): boolean {
-  if (Date.now() - workerVivoCache.at < 5000) return workerVivoCache.v;
-  let vivo = false;
-  try {
-    if (process.platform === "win32") {
-      const out = execFileSync("powershell", [
-        "-NoProfile", "-NonInteractive", "-Command",
-        "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'chatterbox_worker' } | Measure-Object | Select-Object -ExpandProperty Count",
-      ], { timeout: 8000, encoding: "utf8" });
-      vivo = Number(out.trim()) > 0;
-    } else {
-      const out = execFileSync("pgrep", ["-f", "chatterbox_worker"], { timeout: 8000, encoding: "utf8" });
-      vivo = out.trim().length > 0;
-    }
-  } catch { /* no disponible o sin worker */ }
-  workerVivoCache = { at: Date.now(), v: vivo };
-  return vivo;
+  return false;
 }
 
 function detenerWorkersProduccion(): void {
   workerVivoCache = { at: 0, v: false };
-  try {
-    if (process.platform === "win32") {
-      execFileSync("powershell", [
-        "-NoProfile", "-NonInteractive", "-Command",
-        "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'chatterbox_worker' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }",
-      ], { timeout: 10000, encoding: "utf8" });
-    } else {
-      execFileSync("pkill", ["-f", "chatterbox_worker"], { timeout: 10000, encoding: "utf8" });
-    }
-  } catch { /* sin worker activo */ }
-  workerVivoCache = { at: Date.now(), v: false };
+  void 0;
 }
 
 function eliminarAudioDeJob(job: ProductionJob | null): number {
@@ -281,8 +247,8 @@ async function handleStatus(res: http.ServerResponse) {
   } catch { /* motor apagado */ }
   json(res, 200, {
     motor: {
-      provider: "chatterbox-local",
-      model: "ResembleAI/Chatterbox-Multilingual-es-mx-latam",
+      provider: "qwen-base-clone",
+      model: "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
       device: "cuda",
       calidad: "GOOD",
       offline: true,
@@ -304,7 +270,7 @@ async function handleStatus(res: http.ServerResponse) {
       porRevisar,
       historicos: health.historicos,
     },
-    cache: { hits: eng.cacheHits, misses: eng.cacheMisses, entries: eng.cache.stats().entries },
+    cache: { hits: eng.cacheHits ?? 0, misses: eng.cacheMisses ?? 0, entries: eng.cache?.stats().entries ?? 0 },
     hardware: { perfil: hw.profile, gpu: hw.gpu.name, bateria: hw.isBattery },
   });
 }
@@ -415,33 +381,32 @@ async function handleGuion(res: http.ServerResponse, body: Record<string, unknow
 
 const REF_DIR = path.join(REPO, "data", "tts", "ref");
 const VOICE_SLOTS: Record<VoiceSlot, string> = { A: "eduardo.wav", B: "mariana.wav", N: "narrador.wav", C: "rodrigo.wav", P: "valeria.wav" };
-const BUILTIN_IDENTITY_SHA = createHash("sha256").update("chatterbox:builtin-multilingual").digest("hex");
-const MODEL_REVISION = "t3_es_mx_latam";
-
-const VOICE_IDENTITIES: Record<Exclude<VoiceSlot, "A">, { profileId: string; sourceId: string }> = {
-  B: { profileId: "ANDREA", sourceId: "piper:rhasspy/es_MX-claude-high" },
-  N: { profileId: "NARRADOR", sourceId: "piper:rhasspy/es_MX-ald-medium:narrator-serious" },
-  C: { profileId: "RODRIGO", sourceId: "piper:rhasspy/es_ES-davefx-medium:correspondent" },
-  P: { profileId: "VALERIA", sourceId: "piper:rhasspy/es_AR-daniela-high:commercial" },
+const QWEN_VOICES: Record<VoiceSlot, { profileId: string; label: string; refDir: string }> = {
+  A: { profileId: "EDUARDO", label: "Qwen Base clone", refDir: "eduardo" },
+  B: { profileId: "ANDREA", label: "Qwen Base clone — Andrea adulta", refDir: "andrea" },
+  N: { profileId: "JAVIER", label: "Qwen Base clone — narrador", refDir: "javier" },
+  C: { profileId: "RODRIGO", label: "Qwen Base clone — corresponsal", refDir: "rodrigo" },
+  P: { profileId: "ANDREA", label: "Qwen Base clone — comercial", refDir: "andrea" },
 };
+const MODEL_REVISION = "qwen3-tts-12hz-1.7b-base-v1";
+
+function sha256File(p: string): string | null {
+  try {
+    return createHash("sha256").update(fs.readFileSync(p)).digest("hex");
+  } catch {
+    return null;
+  }
+}
 
 function identidadParaVoz(voz: VoiceSlot): { profileId: string; referenceAudioSha256: string; voiceSourceId: string; modelRevision: string } | null {
-  if (voz === "A") {
-    return {
-      profileId: "EDUARDO",
-      referenceAudioSha256: BUILTIN_IDENTITY_SHA,
-      voiceSourceId: "chatterbox:builtin-multilingual",
-      modelRevision: MODEL_REVISION,
-    };
-  }
-  const refPath = path.join(REF_DIR, VOICE_SLOTS[voz]);
+  const meta = QWEN_VOICES[voz];
+  const refPath = path.join(REPO, "data", "tts", "voices", meta.refDir, "v1", "reference.wav");
   const refSha = sha256File(refPath);
   if (!refSha) return null;
-  const identity = VOICE_IDENTITIES[voz];
   return {
-    profileId: identity.profileId,
+    profileId: meta.profileId,
     referenceAudioSha256: refSha,
-    voiceSourceId: identity.sourceId,
+    voiceSourceId: `qwen:${meta.refDir}-v1`,
     modelRevision: MODEL_REVISION,
   };
 }
@@ -457,16 +422,7 @@ function vozPorLocutor(locutor: string, voces: Record<string, VoiceSlot>): Voice
   return "A";
 }
 
-function sha256File(p: string): string | null {
-  try {
-    return createHash("sha256").update(fs.readFileSync(p)).digest("hex");
-  } catch {
-    return null;
-  }
-}
-
-/** Resuelve los VoiceProfile por locutor con procedencia vocal real.
- *  A = voz integrada de Chatterbox; B = Piper Claude; N = narrador; C = corresponsal; P = comerciales. */
+/** Resuelve los VoiceProfile por locutor con procedencia vocal real (Qwen Base clone por referencia). */
 function resolveVoiceProfiles(speakers: SpeakerProfile[]): Array<{
   id: string;
   displayName: string;
@@ -487,47 +443,23 @@ function resolveVoiceProfiles(speakers: SpeakerProfile[]): Array<{
   const rolRole: Record<string, string> = { conductor: "male-host", "co-conductor": "female-cohost", narrador: "narrator" };
   return speakers.map((s) => {
     const slot: VoiceSlot = ["A", "B", "N", "C", "P"].includes(s.voz) ? s.voz : "A";
-    if (slot === "A") {
-      return {
-        id: s.id,
-        displayName: s.nombre,
-        role: s.rol,
-        userAssignedVoiceRole: rolRole[s.rol] ?? s.rol,
-        referenceAudioPath: "(builtin)",
-        previewAudioPath: path.join(REPO, "data", "tts", "casting", "voice-test-eduardo-v2.wav"),
-        referenceAudioSha256: BUILTIN_IDENTITY_SHA,
-        voiceSourceId: "chatterbox:builtin-multilingual",
-        voiceSourceType: "builtin",
-        voiceSourceLabel: "Chatterbox Multilingual — voz integrada",
-        provider: "chatterbox-local",
-        modelId: "Chatterbox-Multilingual-es-mx-latam",
-        modelRevision: "t3_es_mx_latam",
-        language: "es",
-        locale: "es-MX",
-      };
-    }
-    const refPath = path.join(REF_DIR, VOICE_SLOTS[slot]);
-    const identity = VOICE_IDENTITIES[slot];
-    const labelBySlot: Record<Exclude<VoiceSlot, "A">, string> = {
-      B: "Piper es_MX Claude High — Andrea expresiva",
-      N: "Piper es_MX Ald Medium — narrador premium serio",
-      C: "Piper es_ES DaveFX Medium — Rodrigo corresponsal",
-      P: "Piper es_AR Daniela High — Valeria comercial",
-    };
+    const meta = QWEN_VOICES[slot];
+    const refPath = path.join(REPO, "data", "tts", "voices", meta.refDir, "v1", "reference.wav");
+    const refSha = sha256File(refPath) ?? "missing";
     return {
       id: s.id,
       displayName: s.nombre,
       role: s.rol,
       userAssignedVoiceRole: rolRole[s.rol] ?? s.rol,
-      referenceAudioPath: refPath,
-      previewAudioPath: path.join(REPO, "data", "tts", "casting", `voice-test-${(s.id === "NARRADOR" ? "alonso" : s.id).toLowerCase()}-v2.wav`),
-      referenceAudioSha256: sha256File(refPath) ?? "missing",
-      voiceSourceId: identity.sourceId,
+      referenceAudioPath: refSha === "missing" ? "(no registrada)" : refPath,
+      previewAudioPath: path.join(REPO, "data", "tts", "voices", meta.refDir, "v1", "reference.wav"),
+      referenceAudioSha256: refSha,
+      voiceSourceId: `qwen:${meta.refDir}-v1`,
       voiceSourceType: "synthetic",
-      voiceSourceLabel: labelBySlot[slot],
-      provider: "chatterbox-local",
-      modelId: "Chatterbox-Multilingual-es-mx-latam",
-      modelRevision: "t3_es_mx_latam",
+      voiceSourceLabel: meta.label,
+      provider: "qwen-base-clone",
+      modelId: "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+      modelRevision: MODEL_REVISION,
       language: "es",
       locale: "es-MX",
     };
@@ -665,7 +597,7 @@ async function handleProgress(res: http.ServerResponse) {
       wavPath: b.wavPath,
     })),
     gpu: { tempC: hw.gpu.tempC, vramUsadaMb: hw.gpu.vramUsedMb, vramTotalMb: hw.gpu.vramTotalMb },
-    rtfChatterbox: resumen.rtfChatterbox,
+    rtf: resumen.rtf,
     rtfReciente: resumen.rtfReciente,
     audioPendienteEstimadoMs: resumen.audioPendienteEstimadoMs,
     reiniciosPrevistos: resumen.reiniciosPrevistos,
@@ -1985,16 +1917,15 @@ async function handleSistema(res: http.ServerResponse) {
 async function handleFallbackTts(res: http.ServerResponse, body: Record<string, unknown>) {
   const escenas = Array.isArray(body.escenas) ? (body.escenas as Array<{ locutor: string; linea: string }>) : [];
   if (escenas.length === 0) return json(res, 400, { error: "sin escenas" });
+  const eng = ensureEngine();
   try {
-    const result = await synthesizeMp3(
-      escenas.map((s) => ({
-        text: cleanTtsText(s.linea),
-        voice: s.locutor.toUpperCase().includes("MARIANA") ? DEFAULT_VOICES.MARIANA.id : DEFAULT_VOICES.EDUARDO.id,
-      }))
-    );
-    const out = path.join(REPO, "data", "tts", "cache", `fallback-${Date.now()}.mp3`);
-    fs.writeFileSync(out, result.mp3);
-    json(res, 200, { engine: result.engine, mp3: out, bytes: result.mp3.length });
+    const wavs: string[] = [];
+    for (let i = 0; i < escenas.length; i++) {
+      const r = await eng.generate(cleanTtsText(escenas[i].linea), escenas[i].locutor, { seed: i });
+      if (!r.ok || !r.path) continue;
+      wavs.push(r.path);
+    }
+    json(res, 200, { engine: "qwen-base-clone", wavs, blocks: wavs.length, total: escenas.length });
   } catch (e) {
     json(res, 502, { error: e instanceof Error ? e.message : String(e) });
   }

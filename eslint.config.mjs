@@ -25,7 +25,7 @@ const eslintConfig = defineConfig([
     "apps/radio-studio/src-tauri/target/**",
     // Herramientas vendadas y entornos Python locales (nunca se lintan).
     "tools/**",
-    "**/.venv/**",
+    "**/.venv*/**",
     "data/tts/venv/**",
   ]),
 ]);

@@ -40,10 +40,10 @@ describe("SentenceAwareChunker", () => {
 
 describe("BlockCache", () => {
   it("clave estable y dependiente de todos los parámetros", async () => {
-    const a = await blockCacheKey({ provider: "chatterbox-local", model: "m", device: "cuda", voice: "A", text: "hola" })
-    const b = await blockCacheKey({ provider: "chatterbox-local", model: "m", device: "cuda", voice: "A", text: "hola" })
-    const c = await blockCacheKey({ provider: "chatterbox-local", model: "m", device: "cuda", voice: "B", text: "hola" })
-    const d = await blockCacheKey({ provider: "chatterbox-local", model: "m", device: "cuda", voice: "A", text: "hola " })
+    const a = await blockCacheKey({ provider: "qwen-base-clone", model: "m", device: "cuda", voice: "A", text: "hola" })
+    const b = await blockCacheKey({ provider: "qwen-base-clone", model: "m", device: "cuda", voice: "A", text: "hola" })
+    const c = await blockCacheKey({ provider: "qwen-base-clone", model: "m", device: "cuda", voice: "B", text: "hola" })
+    const d = await blockCacheKey({ provider: "qwen-base-clone", model: "m", device: "cuda", voice: "A", text: "hola " })
     expect(a).toBe(b)
     expect(a).not.toBe(c)
     expect(a).not.toBe(d)

@@ -1,10 +1,26 @@
 import fs from "node:fs"
 import path from "node:path"
+import os from "node:os"
+import { execFile } from "node:child_process"
+import { promisify } from "node:util"
 import { NormativeCatalog } from "../services/catalog"
 import { buildCoverage } from "../services/coverage"
 import { buildScriptFromEvidence } from "../services/llm-provider"
 import { classifyClaimType } from "../services/evidence"
-import { synthesizeMp3 } from "@la-veinte/tts-core"
+import { QwenEngine, cleanTtsText } from "@la-veinte/tts-core"
+
+const execFileAsync = promisify(execFile)
+
+async function findFfmpeg(): Promise<string> {
+  const candidates = ["ffmpeg", path.join(os.homedir(), "AppData", "Local", "ffmpeg", "ffmpeg-8.1.1-essentials_build", "bin", "ffmpeg.exe")]
+  for (const c of candidates) {
+    try {
+      await execFileAsync(c, ["-version"], { timeout: 10000 })
+      return c
+    } catch { /* probar siguiente */ }
+  }
+  throw new Error("ffmpeg no disponible")
+}
 
 const PILOTOS = [
   "Tiempo extraordinario en el IMSS: qué es, cómo se autoriza y cómo se registra",
@@ -18,6 +34,9 @@ async function main() {
   const catalog = new NormativeCatalog(process.cwd())
   const outDir = path.join(process.cwd(), "data", "normativa", "pilotos")
   fs.mkdirSync(outDir, { recursive: true })
+  const engine = new QwenEngine(process.cwd(), "", path.join(process.cwd(), "data", "tts"))
+  const tts = (locutor: string, linea: string, i: number): Promise<string> =>
+    engine.generate(cleanTtsText(linea), locutor, { seed: Math.abs(linea.length * 13 + i) % 100000 }).then((r) => (r.ok && r.path ? r.path : ""))
 
   const summary: Array<Record<string, string>> = []
 
@@ -113,13 +132,22 @@ async function main() {
 
     try {
       console.log(`  🎙 sintetizando audio…`)
-      const audio = await synthesizeMp3(
-        script.escenas.map((s) => ({ text: s.linea, voice: s.locutor.toUpperCase().includes("MARIANA") ? "es-MX-MarinaNeural" : "es-MX-JorgeNeural" })),
-        { onProgress: (done, total) => console.log(`    audio ${done}/${total}`) }
-      )
-      fs.writeFileSync(path.join(outDir, `${slug}.mp3`), audio.mp3)
-      console.log(`  ✅ MP3 generado (${Math.round(audio.mp3.length / 1024)} KB, motor ${audio.engine})`)
-      summary.push({ tema: topic, cobertura: `${coverage.coverage}%`, publicable: coverage.recommended ? "SÍ" : "NO", escenas: String(script.escenas.length), rojos: String(reds), mp3: `${Math.round(audio.mp3.length / 1024)} KB` })
+      const wavs: string[] = []
+      for (let i = 0; i < script.escenas.length; i++) {
+        const w = await tts(script.escenas[i].locutor, script.escenas[i].linea, i)
+        if (w) wavs.push(w)
+        console.log(`    audio ${i + 1}/${script.escenas.length}`)
+      }
+      const outMp3 = path.join(outDir, `${slug}.mp3`)
+      if (wavs.length > 0) {
+        const ffmpeg = await findFfmpeg()
+        const list = wavs.map((w) => `file '${w.replace(/'/g, "'\\''")}'`).join("\n")
+        fs.writeFileSync(path.join(outDir, `${slug}.txt`), list)
+        await execFileAsync(ffmpeg, ["-y", "-f", "concat", "-safe", "0", "-i", path.join(outDir, `${slug}.txt`), "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-codec:a", "libmp3lame", "-b:a", "128k", outMp3], { timeout: 600000 })
+      }
+      const mp3Bytes = fs.existsSync(outMp3) ? fs.statSync(outMp3).size : 0
+      console.log(`  ✅ MP3 generado (${Math.round(mp3Bytes / 1024)} KB, motor qwen-base-clone)`)
+      summary.push({ tema: topic, cobertura: `${coverage.coverage}%`, publicable: coverage.recommended ? "SÍ" : "NO", escenas: String(script.escenas.length), rojos: String(reds), mp3: `${Math.round(mp3Bytes / 1024)} KB` })
     } catch (err) {
       console.log(`  ✗ audio: ${err instanceof Error ? err.message : err}`)
       summary.push({ tema: topic, cobertura: `${coverage.coverage}%`, publicable: coverage.recommended ? "SÍ" : "NO", escenas: String(script.escenas.length), rojos: String(reds), mp3: "ERROR" })

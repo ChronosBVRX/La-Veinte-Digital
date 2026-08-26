@@ -1,6 +1,6 @@
 /**
  * Benchmark de generación de música local — ACE-Step 1.5 (API 127.0.0.1:8001).
- * Igual filosofía que el benchmark de Chatterbox: medir tiempos REALES en la GTX 1650,
+ * Igual filosofía que el benchmark del TTS Qwen: medir tiempos REALES,
  * guardar el audio generado en data/tts/music para escuchar y reportar VRAM/RTF.
  * Uso: node --import tsx apps/radio-studio/sidecar/scripts/musica-benchmark.ts [segundos]
  */

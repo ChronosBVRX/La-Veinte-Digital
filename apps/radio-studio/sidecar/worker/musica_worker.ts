@@ -2,7 +2,7 @@
  * Música Worker — proceso INDEPENDIENTE del sidecar HTTP.
  * Consume la cola persistente (musica-actual.json), encola la tarea en ACE-Step
  * (API 127.0.0.1:8001), espera el resultado y guarda el WAV + metadata en
- * data/tts/music. Mismo patrón que chatterbox_worker.ts.
+ * data/tts/music. Mismo patrón que el worker del TTS Qwen.
  *
  * El sidecar NUNCA se bloquea: la generación de 60s tarda ~2-3 min aquí.
  */

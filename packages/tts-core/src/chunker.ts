@@ -133,3 +133,14 @@ export class BlockCache {
     return { entries: files.length, hits: 0, misses: 0 };
   }
 }
+
+/** Normaliza texto para síntesis: espacios, comillas curvas, guiones largos. */
+export function cleanTtsText(input: string): string {
+  return input
+    .replace(/\s+/g, " ")
+    .replace(/[“”«»]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[\u2010-\u2015]/g, "–")
+    .replace(/\s+([.,;:!?])/g, "$1")
+    .trim();
+}

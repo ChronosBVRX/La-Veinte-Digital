@@ -1,6 +1,6 @@
 /**
  * VoiceCastingService — generación, evaluación y promoción de candidatos de voz.
- * FASE A: Chatterbox builtin con seeds variados (candidatos inmediatos).
+ * Casting de voces con Qwen Base clone por referencia (candidatos)..
  * FASE B (futura): Qwen3-TTS VoiceDesign como generador de referencias sintéticas.
  */
 import fs from "node:fs";

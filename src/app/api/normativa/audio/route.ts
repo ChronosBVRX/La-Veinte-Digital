@@ -6,9 +6,7 @@ import path from "node:path"
 import { promisify } from "node:util"
 import { requireUser } from "@/shared/server/auth/require-user"
 import { privateJsonError } from "@/shared/lib/api-response"
-import { synthesizeMp3, DEFAULT_VOICES, cleanTtsText, pythonBin } from "@la-veinte/tts-core"
-import { getChatterboxEngine } from "@la-veinte/tts-core"
-import { sentenceAwareChunk } from "@la-veinte/tts-core"
+import { cleanTtsText, qwenRenderLine } from "@la-veinte/tts-core"
 
 export const runtime = "nodejs"
 
@@ -53,91 +51,50 @@ export async function POST(req: NextRequest) {
     return privateJsonError(400, "No hay escenas para sintetizar", crypto.randomUUID(), "bad_request")
   }
 
-  const requestedEngine = body.engine ?? "auto"
   const voces = body.voces ?? {}
-  const voiceFor = (locutor: string) => voces[locutor] ?? (locutor.toUpperCase().includes("MARIANA") ? DEFAULT_VOICES.MARIANA.id : DEFAULT_VOICES.EDUARDO.id)
+  void voces
 
-  const useChatterbox =
-    requestedEngine === "chatterbox" ||
-    (requestedEngine === "auto" && fs.existsSync(pythonBin(path.join(process.cwd(), "data", "tts"))))
+  const wavs: string[] = []
+  let resolvedBlocks = 0
+  const tmpCache = path.join(process.cwd(), "data", "tts", "cache")
+  fs.mkdirSync(tmpCache, { recursive: true })
 
-  if (useChatterbox) {
-    const engine = getChatterboxEngine(process.cwd())
-    const wavs: string[] = []
-    let chatterboxBlocks = 0
-    let fallbackBlocks = 0
-    const fallbackLines: Array<{ text: string; voice: string }> = []
-
-    try {
-      if (!engine.isRunning) {
-        await engine.start()
-        const warmup = await engine.warmup()
-        if (!warmup.ok) throw new Error(`warmup falló: ${warmup.error ?? "desconocido"}`)
-      }
-
-      for (const s of escenas) {
-        const chunks = sentenceAwareChunk(cleanTtsText(s.linea), 120, 220)
-        for (const c of chunks) {
-          const r = await engine.generate(c, s.locutor.toUpperCase().includes("MARIANA") ? "B" : "A")
-          if (r.ok && r.path) {
-            wavs.push(r.path)
-            chatterboxBlocks++
-          } else {
-            fallbackBlocks++
-            fallbackLines.push({ text: c, voice: voiceFor(s.locutor) })
-          }
-        }
-      }
-
-      if (fallbackLines.length > 0) {
-        const fb = await synthesizeMp3(fallbackLines.map((l) => ({ text: l.text, voice: l.voice })))
-        const fbFile = path.join(process.cwd(), "data", "tts", "cache", `fallback-${Date.now()}.mp3`)
-        fs.writeFileSync(fbFile, fb.mp3)
-        wavs.push(fbFile)
-      }
-
-      const outMp3 = path.join(process.cwd(), "data", "tts", "cache", `episodio-${Date.now()}.mp3`)
-      await concatWavsToMp3(wavs, outMp3)
-      const mp3 = fs.readFileSync(outMp3)
-      fs.rmSync(outMp3, { force: true })
-
-      return new NextResponse(new Uint8Array(mp3), {
-        headers: {
-          "Content-Type": "audio/mpeg",
-          "Content-Disposition": `inline; filename="episodio-la-veinte.mp3"`,
-          "Cache-Control": "private, no-store",
-          "X-Audio-Engine": fallbackBlocks > 0 ? "mixed" : "chatterbox-local",
-          "X-Audio-Model": "ResembleAI/Chatterbox-Multilingual-es-mx-latam",
-          "X-Audio-Device": "cuda",
-          "X-Chatterbox-Blocks": String(chatterboxBlocks),
-          "X-Fallback-Blocks": String(fallbackBlocks),
-        },
-      })
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      return privateJsonError(
-        502,
-        `Chatterbox no pudo generar (${msg.slice(0, 160)}). Usa el motor fallback (edge/SAPI) o reintenta.`,
-        crypto.randomUUID(),
-        "chatterbox_error"
-      )
-    }
-  }
-
-  const lines = escenas.map((s) => ({ text: cleanTtsText(s.linea), voice: voiceFor(s.locutor) }))
   try {
-    const result = await synthesizeMp3(lines)
-    return new NextResponse(new Uint8Array(result.mp3), {
+    for (const s of escenas) {
+      const wav = await qwenRenderLine(cleanTtsText(s.linea), s.locutor, Math.abs(1 + s.linea.length * 13) % 100000)
+      if (wav) {
+        wavs.push(wav)
+        resolvedBlocks++
+      }
+    }
+
+    if (wavs.length === 0) {
+      return privateJsonError(502, "Qwen no generó ningún fragmento de audio", crypto.randomUUID(), "tts_error")
+    }
+
+    const outMp3 = path.join(tmpCache, `episodio-${Date.now()}.mp3`)
+    await concatWavsToMp3(wavs, outMp3)
+    const mp3 = fs.readFileSync(outMp3)
+    fs.rmSync(outMp3, { force: true })
+
+    return new NextResponse(new Uint8Array(mp3), {
       headers: {
         "Content-Type": "audio/mpeg",
         "Content-Disposition": `inline; filename="episodio-la-veinte.mp3"`,
         "Cache-Control": "private, no-store",
-        "X-Audio-Engine": result.engine,
-        "X-Audio-Device": "cpu/network",
-        "X-Audio-Model": "edge-tts/sapi",
+        "X-Audio-Engine": "qwen-base-clone",
+        "X-Audio-Model": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+        "X-Audio-Device": "cuda",
+        "X-Qwen-Blocks": String(resolvedBlocks),
       },
     })
   } catch (err) {
-    return privateJsonError(502, `Síntesis de voz falló: ${err instanceof Error ? err.message : String(err)}`, crypto.randomUUID(), "tts_error")
+    const msg = err instanceof Error ? err.message : String(err)
+    return privateJsonError(
+      502,
+      `Qwen no pudo generar (${msg.slice(0, 160)}).`,
+      crypto.randomUUID(),
+      "qwen_error"
+    )
   }
 }

@@ -2,7 +2,7 @@
  * HumanConversationGate — validador pre-TTS.
  * Rechaza texto que delata generación: meta-lenguaje de rol, auto-dirección,
  * residuos de metadatos, repeticiones semánticas y monólogos normativos largos.
- * Todo fallo aquí detiene la producción antes de gastar Chatterbox.
+ * Todo fallo aquí detiene la producción antes de gastar TTS.
  */
 import type { DialogueTurn } from "./director";
 import { normalizarTexto } from "./conversation";

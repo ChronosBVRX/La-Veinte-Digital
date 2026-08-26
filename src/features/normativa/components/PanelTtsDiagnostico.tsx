@@ -39,8 +39,7 @@ interface TtsStatus {
   } | null
   engine: {
     running: boolean
-    cache: { hits: number; misses: number; entries: number }
-    status: { loaded?: boolean; device?: string; cuda?: boolean; gpu?: string | null; torch?: string | null; peakVramMb?: number; ramUsedGb?: number; gpuTempC?: number | null; lastError?: string | null } | null
+    cache?: { hits: number; misses: number; entries: number }
     warningLowVram: string | null
     batteryWarning: string | null
   }
@@ -90,8 +89,8 @@ export function PanelTtsDiagnostico() {
   const hw = status?.hardware
   const bench = status?.benchmark
   const engine = status?.engine
-  const cacheTotal = (engine?.cache.hits ?? 0) + (engine?.cache.misses ?? 0)
-  const cachePct = cacheTotal > 0 ? Math.round(((engine?.cache.hits ?? 0) / cacheTotal) * 100) : null
+  const cacheTotal = ((engine?.cache?.hits ?? 0) + (engine?.cache?.misses ?? 0))
+  const cachePct = cacheTotal > 0 ? Math.round(((engine?.cache?.hits ?? 0) / cacheTotal) * 100) : null
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -112,14 +111,14 @@ export function PanelTtsDiagnostico() {
                 {hw.gpu.vramFreeMb != null ? ` · libre ${(hw.gpu.vramFreeMb / 1024).toFixed(1)} GB` : ""}<br />
                 Memoria compartida posible: no se cuenta como VRAM<br />
                 Disco libre: {hw.diskFreeGb ?? "n/d"} GB<br />
-                CUDA: {engine?.status?.cuda ? "✅ Disponible" : "❌ No disponible"}
+                 CUDA: {hw.gpu.name ? "✅ GPU detectada" : "❌ No detectada"}
               </div>
             </div>
             <div>
               <div style={labelStyle}>Motor</div>
               <div style={monoStyle}>
-                Motor: Chatterbox LatAm (es-MX)<br />
-                Estado: {engine?.running ? "🟢 Listo" : "⚪ Apagado"}<br />
+                Motor: Qwen Base clone (es-MX)<br />
+                Estado: {engine?.running ? "🟢 Listo" : "⚪ Sin warmup"}<br />
                 Perfil: {hw.profile}<br />
                 Preset: {status?.config.preset} · concurrency {status?.config.concurrency}
               </div>
@@ -131,8 +130,7 @@ export function PanelTtsDiagnostico() {
                 RTF (media por bloque): {bench ? bench.perBlockMeanRtf.toFixed(2) : "—"}<br />
                 VRAM pico: {bench ? `${bench.peakVramMb} MB` : "—"}<br />
                 Temperatura máx: {bench ? `${bench.peakTempC} °C` : "—"}<br />
-                Cache: {cachePct != null ? `${cachePct}% (${engine?.cache.hits} hits / ${cachePct === 100 ? 0 : engine?.cache.misses} generados)` : "—"}<br />
-                Último error: {engine?.status?.lastError ?? "Ninguno"}
+                Cache: {cachePct != null ? `${cachePct}% (${engine?.cache?.hits} hits / ${cachePct === 100 ? 0 : engine?.cache?.misses} generados)` : "—"}
               </div>
             </div>
           </div>
@@ -168,7 +166,7 @@ export function PanelTtsDiagnostico() {
         <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem", flexWrap: "wrap" }}>
           {!engine?.running ? (
             <button onClick={() => act("start")} disabled={busy} style={primaryBtn}>
-              <Play size={15} /> Iniciar motor Chatterbox
+              <Play size={15} /> Iniciar motor Qwen
             </button>
           ) : (
             <button onClick={() => act("restart")} disabled={busy} style={secondaryBtn}>
@@ -183,7 +181,7 @@ export function PanelTtsDiagnostico() {
         <div style={{ fontSize: "0.8rem", display: "flex", gap: "0.4rem", alignItems: "flex-start" }}>
           <TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 1, color: "#92400e" }} />
           <span>
-            Chatterbox se ejecuta localmente (costo API $0, funciona offline). El motor permanece cargado durante la sesión y usa caché por bloque: corregir una frase solo regenera esa frase. Si otro programa ocupa la GPU, cierra aplicaciones con aceleración gráfica o usa CPU.
+            Qwen (Qwen3-TTS-12Hz-1.7B-Base) se ejecuta localmente en GPU (costo API $0, funciona offline). Cada bloque se genera en un proceso desechable con watchdog externo; el launcher corta al grupo completo si algo se cuelga. Si otro programa ocupa la GPU, cierra aplicaciones con aceleración gráfica.
           </span>
         </div>
       </div>

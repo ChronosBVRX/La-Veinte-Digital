@@ -1,7 +1,7 @@
 /**
  * Cola persistente de producción (archivo en disco).
  * Cada bloque confirmado se guarda INMEDIATAMENTE (escritura atómica),
- * así una caída de Windows/Tauri/Chatterbox deja el trabajo RESUMABLE.
+ * así una caída de Windows/Tauri/Qwen deja el trabajo RESUMABLE.
  */
 
 import fs from "node:fs";
@@ -172,7 +172,7 @@ export function resumenJob(job: ProductionJob): Record<string, unknown> {
     cacheHits: generados.filter((b) => b.cacheHit).length,
     generados: genReal.length,
     fallos: job.bloques.filter((b) => b.estado === "fallo").length,
-    rtfChatterbox: audioMs > 0 ? Number((genMs / audioMs).toFixed(3)) : null,
+    rtf: audioMs > 0 ? Number((genMs / audioMs).toFixed(3)) : null,
     rtfReciente: recientes.length > 0 ? Number(rtfReciente.toFixed(3)) : null,
     audioPendienteEstimadoMs: Math.round(audioPendienteMs),
     reiniciosPrevistos,

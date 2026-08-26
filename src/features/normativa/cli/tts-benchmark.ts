@@ -1,17 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
-import { ChatterboxEngine, pythonBin } from "@la-veinte/tts-core";
+import { QwenEngine } from "@la-veinte/tts-core";
 import { detectHardware, readGpuSnapshot } from "@la-veinte/tts-core";
 
 const REPO = process.cwd();
 const STATE = path.join(REPO, "data", "tts");
-const PYTHON = pythonBin(STATE);
-const ENGINE_SCRIPT = path.join(REPO, "packages", "tts-core", "engine", "chatterbox_engine.py");
 
 const TARGETS_DEFAULT = [
   { label: "30s", durSec: 30 },
-  { label: "2min", durSec: 120 },
-  { label: "5min", durSec: 300 },
+  { label: "90s", durSec: 90 },
 ];
 
 function buildTargets(): Array<{ label: string; durSec: number }> {
@@ -35,20 +32,6 @@ const SENTENCES = [
   "El Contrato Colectivo de Trabajo protege nuestros derechos laborales desde el primer día.",
   "La Comisión Mixta revisa las plantillas y las categorías en cada unidad.",
   "El escalafón ordena las promociones conforme a la antigüedad y la capacidad.",
-  "Las vacaciones se disfrutan conforme a los días que marca la cláusula correspondiente.",
-  "Los permisos sindicales requieren una autorización expresa de la representación.",
-  "El cambio de residencia implica un pago especial que debemos tramitar con tiempo.",
-  "La bolsa de trabajo es la puerta de entrada para las y los aspirantes.",
-  "Los accidentes de trabajo deben notificarse de inmediato con el formato correspondiente.",
-  "La prevención de riesgos psicosociales es responsabilidad de toda la institución.",
-  "El equipo de protección personal se entrega sin costo para la persona trabajadora.",
-  "Las comisiones de seguridad e higiene vigilan las condiciones de cada área.",
-  "La capacitación continua mejora nuestras condiciones y oportunidades de desarrollo.",
-  "El régimen de jubilaciones y pensiones depende de tu fecha de ingreso.",
-  "El pliego testamentario protege a tus beneficiarios ante cualquier eventualidad.",
-  "La Comisión Nacional de Honor y Justicia vigila el cumplimiento de los estatutos.",
-  "La igualdad sustantiva es un principio que atraviesa todas nuestras normas.",
-  "El acoso laboral debe denunciarse por los canales institucionales establecidos.",
 ];
 
 interface BlockMetric {
@@ -69,12 +52,7 @@ async function main() {
   const hw = await detectHardware(true);
   console.log(JSON.stringify({ hw }, null, 2));
 
-  if (!fs.existsSync(PYTHON)) {
-    console.error("venv de TTS no existe en data/tts/venv");
-    process.exit(1);
-  }
-
-  const engine = new ChatterboxEngine(PYTHON, ENGINE_SCRIPT, STATE, { devicePriority: "AUTO" });
+  const engine = new QwenEngine(REPO, "", STATE);
 
   const t0 = Date.now();
   await engine.start();
@@ -91,11 +69,8 @@ async function main() {
   let totalDur = 0;
   let totalGen = 0;
   let peakVram = 0;
-  let peakRam = 0;
   let peakTemp = 0;
   let errors = 0;
-  let degenerate = 0;
-  let cacheHitBlocks = 0;
   let targetIdx = 0;
   const targetResults: Array<Record<string, unknown>> = [];
   const MAX_BLOCKS = TARGETS[TARGETS.length - 1].durSec >= 600 ? 1200 : 600;
@@ -110,31 +85,26 @@ async function main() {
     peakVram = Math.max(peakVram, g.vramUsedMb ?? 0);
     peakTemp = Math.max(peakTemp, g.tempC ?? 0);
 
-    const r = await engine.generate(text, voice);
-    const st = await engine.status();
-    peakRam = Math.max(peakRam, st.ramUsedGb ?? 0);
+    const tGen = Date.now();
+    const r = await engine.generate(text, voice, { seed: i });
+    const genMs = Date.now() - tGen;
 
     const metric: BlockMetric = {
-      i, text: sentence, voice, gen_s: r.gen_s ?? null, dur_s: r.dur_s ?? null,
-      rtf: r.rtf ?? null, vramUsedMb: g.vramUsedMb, tempC: g.tempC, ok: r.ok, error: r.error,
+      i, text: sentence, voice,
+      gen_s: r.ok ? genMs / 1000 : null,
+      dur_s: r.dur_s ?? null,
+      rtf: r.ok && r.dur_s ? (genMs / 1000) / r.dur_s : null,
+      vramUsedMb: g.vramUsedMb, tempC: g.tempC, ok: r.ok, error: r.error,
     };
     blocks.push(metric);
-    if (r.fromCache && r.dur_s != null) {
-      cacheHitBlocks++;
+    if (r.ok && r.dur_s) {
       totalDur += r.dur_s;
-    } else if (r.ok && r.dur_s) {
-      totalDur += r.dur_s;
-      totalGen += r.gen_s ?? 0;
-    } else if (r.error && /degenerada/i.test(r.error)) {
-      degenerate++;
-      errors++;
+      totalGen += genMs / 1000;
     } else {
       errors++;
     }
 
     while (targetIdx < TARGETS.length && totalDur >= TARGETS[targetIdx].durSec) {
-      // RTF honesto: tiempo de generación / duración de audio MEDIDA (WAV reales),
-      // no la duración objetivo. La duración objetivo solo marca cuándo registrar el corte.
       const measuredAudioDur = Math.round(totalDur);
       const rtfMeasured = measuredAudioDur > 0 ? totalGen / measuredAudioDur : null;
       const perBlockMeanRtf = blocks.filter((b) => b.rtf != null && b.ok).reduce((a, b) => a + (b.rtf ?? 0), 0) /
@@ -148,7 +118,6 @@ async function main() {
         rtf: rtfMeasured != null ? Number(rtfMeasured.toFixed(3)) : null,
         perBlockMeanRtf: Number(perBlockMeanRtf.toFixed(3)),
         peakVramMb: peakVram,
-        peakRamGb: Number(peakRam.toFixed(2)),
         peakTempC: peakTemp,
         errors,
         elapsedMin: Number(((Date.now() - t0) / 60000).toFixed(1)),
@@ -167,29 +136,21 @@ async function main() {
   const last5 = okBlocks.slice(-5);
   const rtfOf = (arr: BlockMetric[]) => arr.reduce((a, b) => a + (b.rtf ?? 0), 0) / Math.max(1, arr.length);
   const cumulativeRtf = totalDur > 0 ? totalGen / totalDur : 0;
-  // Para planificación usamos la media por bloque (bloques cortos son menos eficientes);
-  // se reportan ambas métricas para transparencia.
   const perBlockMeanRtf = rtfOf(okBlocks.filter((b) => b.rtf != null));
   const conservativeRtf = Math.max(perBlockMeanRtf, cumulativeRtf);
 
   const report = {
-    provider: "chatterbox-local",
-    model: "ResembleAI/Chatterbox-Multilingual-es-mx-latam",
+    provider: "qwen-base-clone",
+    model: "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
     device: "cuda",
     hardware: hw,
     warmup,
     targets: targetResults,
     totalBlocks: blocks.length,
-    cacheHits: engine.cacheHits,
-    cacheMisses: engine.cacheMisses,
-    cacheHitBlocks,
     errors,
-    degenerate,
-    autoRestarts: engine.autoRestarts,
     cumulativeRtf: Number(cumulativeRtf.toFixed(3)),
     perBlockMeanRtf: Number(perBlockMeanRtf.toFixed(3)),
     peakVramMb: peakVram,
-    peakRamGb: Number(peakRam.toFixed(2)),
     peakTempC: peakTemp,
     rtfFirst5: Number(rtfOf(first5).toFixed(3)),
     rtfLast5: Number(rtfOf(last5).toFixed(3)),

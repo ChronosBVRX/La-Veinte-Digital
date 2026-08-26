@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest"
 import { validateCasting, voiceIdentityCacheKey } from "@la-veinte/radio-core"
 
 const BASE = {
-  provider: "chatterbox-local",
-  modelId: "Chatterbox-Multilingual-es-mx-latam",
-  modelRevision: "t3_es_mx_latam",
+  provider: "qwen-base-clone",
+  modelId: "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+  modelRevision: "qwen3-tts-12hz-1.7b-base-v1",
   generationSettings: {},
 }
 
@@ -21,7 +21,7 @@ describe("validateCasting (procedencia vocal)", () => {
 
   it("fuentes distintas → PASS", () => {
     const r = validateCasting([
-      { id: "EDUARDO", displayName: "Eduardo", role: "conductor", referenceAudioSha256: "a", voiceSourceId: "chatterbox:builtin-multilingual" },
+      { id: "EDUARDO", displayName: "Eduardo", role: "conductor", referenceAudioSha256: "a", voiceSourceId: "qwen:eduardo-v1" },
       { id: "ANDREA", displayName: "Andrea", role: "co-conductor", referenceAudioSha256: "b", voiceSourceId: "sapi:Microsoft-Sabina-Desktop" },
     ])
     expect(r.ok).toBe(true)

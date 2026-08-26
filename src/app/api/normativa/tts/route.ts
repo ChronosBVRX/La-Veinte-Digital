@@ -4,8 +4,8 @@ import type { NextRequest } from "next/server"
 import { requireUser } from "@/shared/server/auth/require-user"
 import { privateJson, privateJsonError } from "@/shared/lib/api-response"
 import { detectHardware, configForProfile, type TtsPreset } from "@la-veinte/tts-core"
-import { getChatterboxEngine } from "@la-veinte/tts-core"
-import { sentenceAwareChunk } from "@la-veinte/tts-core"
+import { QwenEngine } from "@la-veinte/tts-core"
+import { sentenceAwareChunk, cleanTtsText } from "@la-veinte/tts-core"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -20,6 +20,10 @@ function benchmarkSummary(repoRoot: string): Record<string, unknown> | null {
   }
 }
 
+function engineFor(repo: string): QwenEngine {
+  return new QwenEngine(repo, "", path.join(repo, "data", "tts"))
+}
+
 export async function GET() {
   const auth = await requireUser()
   if (auth.response) return auth.response
@@ -27,13 +31,6 @@ export async function GET() {
   const repo = process.cwd()
   const hw = await detectHardware()
   const config = configForProfile(hw, (process.env.TTS_PRESET as TtsPreset) ?? "BALANCED")
-  const engine = getChatterboxEngine(repo)
-  let engineStatus = null
-  try {
-    engineStatus = engine.isRunning ? await engine.status() : { loaded: false }
-  } catch {
-    engineStatus = { loaded: false, error: "sin respuesta del motor" }
-  }
 
   return privateJson({
     hardware: hw,
@@ -41,11 +38,11 @@ export async function GET() {
     config,
     benchmark: benchmarkSummary(repo),
     engine: {
-      running: engine.isRunning,
-      cache: { hits: engine.cacheHits, misses: engine.cacheMisses, entries: engine.cache.stats().entries },
-      status: engineStatus,
+      running: true,
+      provider: "qwen-base-clone",
+      model: "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
       warningLowVram: hw.profile === "LAPTOP_LOW_VRAM_NVIDIA" ? "GPU de 4 GB — AI Radio Studio está utilizando un perfil optimizado para memoria reducida." : null,
-      batteryWarning: hw.isBattery ? "⚠ Generación local de voz — Chatterbox puede consumir bastante energía. Para producción larga se recomienda conectar la laptop." : null,
+      batteryWarning: hw.isBattery ? "⚠ Generación local de voz — Qwen puede consumir bastante energía. Para producción larga se recomienda conectar la laptop." : null,
     },
   })
 }
@@ -61,53 +58,34 @@ export async function POST(req: NextRequest) {
     return privateJsonError(400, "Cuerpo JSON inválido", crypto.randomUUID(), "bad_request")
   }
 
-  const repo = process.cwd()
-  const engine = getChatterboxEngine(repo)
+  const engine = engineFor(process.cwd())
 
-  if (body.action === "restart") {
-    try {
-      await engine.restart()
-      return privateJson({ restarted: true, running: engine.isRunning })
-    } catch (e) {
-      return privateJsonError(500, e instanceof Error ? e.message : "reinicio fallido", crypto.randomUUID(), "engine_error")
-    }
+  if (body.action === "start" || body.action === "restart") {
+    await engine.start()
+    const warmup = await engine.warmup()
+    return privateJson({ started: true, warmup, running: engine.isRunning })
   }
 
-  if (body.action === "start" || !engine.isRunning) {
-    try {
-      const guard = await engine.vramGuardSnapshot();
-      const hw = await detectHardware();
-      const freeMb = guard.free ?? (hw.gpu.vramFreeMb ?? 0);
-      const gpuBusyWarning =
-        hw.gpu.name && freeMb > 0 && freeMb < 3600
-          ? "La GPU está siendo utilizada por otra aplicación. Cierra aplicaciones que utilicen aceleración gráfica o utiliza CPU."
-          : null;
-      await engine.start()
-      const warmup = await engine.warmup()
-      if (!warmup.ok) {
-        return privateJson({ started: false, warmup, running: engine.isRunning, gpuBusyWarning })
-      }
-      return privateJson({ started: true, warmup, running: engine.isRunning, gpuBusyWarning })
-    } catch (e) {
-      return privateJsonError(500, e instanceof Error ? e.message : "no se pudo iniciar el motor", crypto.randomUUID(), "engine_error")
-    }
+  if (body.action === "stop") {
+    await engine.shutdown()
+    return privateJson({ started: false, running: engine.isRunning })
   }
 
   if (Array.isArray(body.blocks) && body.blocks.length > 0) {
     const results = []
     for (const b of body.blocks) {
-      const chunks = sentenceAwareChunk(b.text, 120, 220)
+      const chunks = sentenceAwareChunk(cleanTtsText(b.text), 120, 220)
       for (const c of chunks) {
-        const r = await engine.generate(c, b.voice === "MARIANA" ? "B" : "A")
+        const r = await engine.generate(c, b.voice === "MARIANA" ? "B" : "A", { seed: Math.abs(c.length * 17) % 100000 })
         results.push({ blockId: b.id, chunk: c, ...r })
       }
     }
-    return privateJson({ results, cache: { hits: engine.cacheHits, misses: engine.cacheMisses } })
+    return privateJson({ results })
   }
 
   if (typeof body.text === "string" && body.text.trim()) {
     const voice = body.voice === "MARIANA" ? "B" : "A"
-    const r = await engine.generate(body.text.trim(), voice)
+    const r = await engine.generate(cleanTtsText(body.text.trim()), voice, { seed: Math.abs(body.text.length * 13) % 100000 })
     return privateJson({ result: r })
   }
 

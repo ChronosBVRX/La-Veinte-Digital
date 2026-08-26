@@ -441,7 +441,7 @@ export function CrearEpisodio({ temaInicial, onProducir }: Props) {
           {sistema?.cargaAlta && (
             <div className="card" style={{ borderColor: "#f59e0b", background: "#1c1917" }}>
               <div className="scene-title">Antes de generar audio</div>
-              <div className="muted small">Chatterbox utiliza GPU y CPU.</div>
+              <div className="muted small">Qwen utiliza GPU y CPU.</div>
               <div className="warn small">⚠ Se detectó una carga elevada del sistema ({sistema.cpuLoad != null ? `CPU ${sistema.cpuLoad}%` : ""}{sistema.ramLibreGb ? ` · RAM libre ${sistema.ramLibreGb} GB` : ""}).</div>
               <div className="muted small" style={{ marginTop: 6 }}>
                 Para acelerar la producción puedes cerrar temporalmente:

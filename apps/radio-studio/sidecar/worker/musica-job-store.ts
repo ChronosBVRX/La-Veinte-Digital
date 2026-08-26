@@ -1,7 +1,7 @@
 /**
  * Cola persistente de generación de música local (ACE-Step 1.5).
  * Un solo job a la vez (la GPU no da para dos), escritura atómica en disco.
- * Mismo patrón que job-store.ts de Chatterbox.
+ * Mismo patrón que job-store.ts del TTS Qwen.
  */
 
 import fs from "node:fs";

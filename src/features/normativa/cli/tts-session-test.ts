@@ -1,37 +1,34 @@
 import path from "node:path";
-import { ChatterboxEngine, pythonBin } from "@la-veinte/tts-core";
+import { QwenEngine } from "@la-veinte/tts-core";
 
 const REPO = process.cwd();
 const STATE = path.join(REPO, "data", "tts");
-const PYTHON = pythonBin(STATE);
-const ENGINE_SCRIPT = path.join(REPO, "packages", "tts-core", "engine", "chatterbox_engine.py");
 
 const SENTENCES = [
-  "Primera frase de prueba para la sesión de reinicio programado.",
-  "Segunda frase que acumula audio para llegar al umbral de sesión.",
+  "Primera frase de prueba para la generación por proceso desechable.",
+  "Segunda frase que acumula audio para cubrir un bloque completo.",
   "Tercera frase con contenido suficiente para el test de estabilidad.",
-  "Cuarta frase que sigue acumulando voz en el motor local.",
-  "Quinta frase para cruzar el umbral de reinicio automático.",
-  "Sexta frase después del reinicio, debe sonar normal.",
-  "Séptima frase de verificación post reinicio del modelo.",
+  "Cuarta frase que sigue cubriendo voz en el motor local.",
+  "Quinta frase para cubrir el watchdog del proceso de generación.",
+  "Sexta frase después del watchdog, debe sonar normal.",
+  "Séptima frase de verificación post timeout del modelo.",
   "Octava frase final para confirmar continuidad sin errores.",
 ];
 
 async function main() {
-  const engine = new ChatterboxEngine(PYTHON, ENGINE_SCRIPT, STATE);
-  engine.sessionMaxAudioSec = Number(process.env.SESSION_MAX ?? 30);
+  const engine = new QwenEngine(REPO, "", STATE);
   await engine.start();
   const warmup = await engine.warmup();
-  console.log(JSON.stringify({ warmupOk: warmup.ok, sessionMaxAudioSec: engine.sessionMaxAudioSec }));
+  console.log(JSON.stringify({ warmupOk: warmup.ok, provider: "qwen-base-clone" }));
 
   const results: string[] = [];
   for (let i = 0; i < SENTENCES.length; i++) {
-    const r = await engine.generate(SENTENCES[i] + ` [run${process.pid}]`, i % 2 === 0 ? "A" : "B");
-    results.push(`bloque ${i + 1}: ok=${r.ok} dur=${r.dur_s ?? "-"}s gen=${r.gen_s ?? "-"}s ${r.error ?? ""}${r.fromCache ? " (cache)" : ""}`);
+    const r = await engine.generate(SENTENCES[i] + ` [run${process.pid}]`, i % 2 === 0 ? "A" : "B", { seed: i });
+    results.push(`bloque ${i + 1}: ok=${r.ok} dur=${r.dur_s ?? "-"}s ${r.error ?? ""}`);
     console.log(results[results.length - 1]);
   }
 
-  console.log(JSON.stringify({ autoRestarts: engine.autoRestarts, cacheHits: engine.cacheHits, errors: results.filter((r) => r.includes("ok=false")).length }));
+  console.log(JSON.stringify({ errors: results.filter((r) => r.includes("ok=false")).length }));
   await engine.shutdown();
 }
 

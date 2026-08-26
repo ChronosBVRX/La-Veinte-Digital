@@ -72,7 +72,7 @@ export function Inicio({ status, onCrear }: Props) {
         <div className="status-row">
           <span className={`status-dot ${listo ? "ok" : "warn"}`} />
           <span>{listo ? "Motor local conectado" : "El motor local está iniciando"}</span>
-          <span className="muted">Voz: {motor?.provider === "chatterbox-local" ? "Chatterbox LatAm" : motor?.provider ?? "pendiente"}</span>
+          <span className="muted">Voz: {motor?.provider === "qwen-base-clone" ? "Qwen Base clone" : motor?.provider ?? "pendiente"}</span>
           <span className="muted">Documentos listos: {listo ? `${disponibles}/${corpus?.documentos ?? 0}` : "..."}</span>
           {bloqueadas > 0 && <span className="muted">Bloqueados por portal oficial: {bloqueadas}</span>}
         </div>

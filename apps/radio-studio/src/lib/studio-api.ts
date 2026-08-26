@@ -97,8 +97,8 @@ export interface StudioStatus {
 
 const DEMO_STATUS: StudioStatus = {
   motor: {
-    provider: "chatterbox-local",
-    model: "ResembleAI/Chatterbox-Multilingual-es-mx-latam",
+    provider: "qwen-base-clone",
+    model: "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
     device: "cuda",
     calidad: "GOOD",
     offline: true,
@@ -470,7 +470,7 @@ export interface ProgresoProduccion {
   bloques?: BloqueProgreso[];
   gpu: { tempC: number | null; vramUsadaMb: number | null; vramTotalMb: number | null };
   rtf?: number;
-  rtfChatterbox?: number | null;
+  rtf?: number | null;
   rtfReciente?: number | null;
   audioPendienteEstimadoMs?: number;
   reiniciosPrevistos?: number;

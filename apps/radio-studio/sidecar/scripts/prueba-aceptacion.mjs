@@ -79,7 +79,7 @@ for (;;) {
   await sleep(15000);
   progreso = await get("/progress");
   const pctDone = progreso.total ? Math.round((progreso.done / progreso.total) * 100) : 0;
-  console.log(`  ${new Date().toISOString().slice(11, 19)} ${pctDone}% (${progreso.done}/${progreso.total}) rtf=${progreso.rtfChatterbox?.toFixed?.(2) ?? "?"} estado=${progreso.estado}`);
+  console.log(`  ${new Date().toISOString().slice(11, 19)} ${pctDone}% (${progreso.done}/${progreso.total}) rtf=${progreso.rtf?.toFixed?.(2) ?? "?"} estado=${progreso.estado}`);
   if (!progreso.running && progreso.done >= progreso.total && progreso.total > 0) break;
   if (progreso.estado === "PAUSED" && progreso.done < progreso.total) {
     console.log("pausado — reanudando…");

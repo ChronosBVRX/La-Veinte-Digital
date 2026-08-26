@@ -315,7 +315,7 @@ export function Produccion() {
               {durTotalGeneradaMs > 0 && <div><span className="big">{Math.round(durTotalGeneradaMs / 60000 * 10) / 10} min</span><span className="muted"> de voz generada</span></div>}
               {temp != null && <div><span className="big">{temp}°</span><span className="muted"> GPU</span></div>}
               {vramUsada != null && <div><span className="muted">VRAM</span><span className="big">{(vramUsada / 1024).toFixed(1)}</span><span className="muted">/{((vramTotal ?? 4096) / 1024).toFixed(1)} GB</span></div>}
-              {p?.rtfChatterbox != null && <div><span className="big">{p.rtfChatterbox.toFixed(2)}×</span><span className="muted"> velocidad real</span></div>}
+              {p?.rtf != null && <div><span className="big">{p.rtf.toFixed(2)}×</span><span className="muted"> velocidad real</span></div>}
             </div>
           </>
         )}

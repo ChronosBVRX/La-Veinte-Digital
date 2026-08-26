@@ -2,7 +2,7 @@
 
 Aplicación de escritorio para Windows: estudio de producción de episodios de radio
 para La Veinte Digital, con Biblioteca Normativa IMSS/SNTSS, investigación con
-DeepSeek cuando está configurado, voces locales Chatterbox LatAm, música local
+DeepSeek cuando está configurado, voces locales Qwen Base clone, música local
 ACE-Step y master final listo para publicar.
 
 La meta editorial actual es que el programa se sienta vivo: conversación natural,
@@ -18,7 +18,7 @@ La-Veinte-Digital/
 ├── apps/
 │   └── radio-studio/ → esta app (Tauri 2 + React + Vite)
 ├── packages/
-│   ├── tts-core/     → motores TTS (Chatterbox local + edge/SAPI fallback), chunker, cache
+│   ├── tts-core/     → motor TTS Qwen Base clone (proceso desechable), chunker, cache
 │   ├── radio-core/   → episodios, plan de producción por sesiones, timeline
 │   └── (normative-core/ → próxima extracción desde src/features/normativa)
 └── tools/
@@ -34,7 +34,7 @@ $env:PATH = "C:\Users\Axel Rosete\msys64\msys64\mingw64\bin;$env:USERPROFILE\.ca
 cd apps/radio-studio
 npm install        # desde la raíz del monorepo (workspaces)
 
-# sidecar local en desarrollo (motor Chatterbox + corpus normativo) — HTTP 127.0.0.1:3977
+# sidecar local en desarrollo (motor Qwen + corpus normativo) — HTTP 127.0.0.1:3977
 cd sidecar && npm run dev        # o: node scripts/bundle.mjs && node dist/sidecar.js
 
 # en otra terminal: frontend o ventana nativa
@@ -112,7 +112,7 @@ corpus descargado en `data/normativa/`. El corpus se reconstruye desde
 | `/guion` | POST `{tema}` | guion determinista con citas C1..Cn y ficha de fuentes |
 | `/director` | POST `{tema,nivel,duracionMin,modo,contextoExtra,comerciales,duracionComercialSec,speakers}` | investigación + guion dirigido por IA/determinista |
 | `/director/ajustar` | POST `{script,contexto,scope}` | ajuste parcial o total sin borrar todo el guion |
-| `/generate` | POST `{bloques,voces}` | producción Chatterbox (cola serial, sesiones ~13 min, watchdog) |
+| `/generate` | POST `{bloques,voces}` | producción Qwen Base clone (cola serial, watchdog externo) |
 | `/progress` | GET | progreso por locutor, caché, GPU, tiempo restante |
 | `/cancel` | POST | pausar producción y dejarla reanudable |
 | `/discard` | POST | detener worker, eliminar job activo y limpiar la producción actual |
@@ -204,8 +204,8 @@ registro en `data/normativa/catalog.sqlite`.
 
 - **Sidecar local (`sidecar/`)**: proceso Node (se empaqueta con esbuild en
   `dist/sidecar.js`) que expone HTTP en `127.0.0.1:3977`. Reutiliza
-  `@la-veinte/tts-core` (motor Chatterbox persistente, sesiones de ~13 min,
-  watchdog anti-degeneración, caché por bloque) y el corpus normativo
+  `@la-veinte/tts-core` (motor Qwen Base clone por referencia, proceso desechable
+  por bloque con watchdog externo, caché por bloque) y el corpus normativo
   (`NormativeCatalog`, búsqueda FTS5, cobertura documental). En esta máquina,
   Tauri lo arranca automáticamente con `node` local; empaquetar `node.exe` como
   recurso distribuible queda como siguiente endurecimiento si se instala en
@@ -223,24 +223,15 @@ registro en `data/normativa/catalog.sqlite`.
 - **radio-core**: `buildProductionPlan` (bloques de voz + sesiones de modelo),
   `buildTimeline` (voz + música/jingle/fx con volumen), `DialogueDiversityAnalyzer`,
   `DialoguePolisher`, QA editorial y estimaciones con RTF real.
-- **Motor de voz**: Chatterbox LatAm en NVIDIA GTX 1650 (VRAM pico 3.6/4.0 GB,
-  RTF ~2× por bloque), offline, $0; fallback edge-tts → SAPI siempre marcado.
-  Identidades actuales: `A` Eduardo (voz integrada Chatterbox), `B` Andrea
-  (`data/tts/ref/mariana.wav`, Piper `es_MX-claude-high`), `N` Alonso narrador
-  (`data/tts/ref/narrador.wav`, Piper `es_MX-ald-medium`), `C` Rodrigo Torres
-  corresponsal (`data/tts/ref/rodrigo.wav`, Piper `es_ES-davefx-medium`) y `P`
-  Valeria Soto comercial (`data/tts/ref/valeria.wav`, Piper
-  `es_AR-daniela-high`).
-  El narrador no debe compartir `mariana.wav`; `/generate` debe recibir el mapa
-  `voces` y, como defensa, el sidecar resuelve `NARRADOR` como `N`. La voz del
-  narrador debe proyectar seriedad: adulto, grave, institucional y
-  latinoamericano neutro; regenerar la referencia con
-  `scripts/generate-narrador-piper-ref.ps1` si se detecta un tono agudo o
-  caricaturizado. Si Andrea suena plana o con poca energia, regenerar su
-  referencia con `scripts/generate-andrea-piper-ref.ps1`. Rodrigo y Valeria se
-  regeneran con `scripts/generate-extra-premium-voice-refs.ps1`.
-  Producto final publicable: usar Chatterbox LatAm. SAPI/edge-tts solo son
-  maqueta o emergencia marcada, salvo aprobación explícita del usuario.
+- **Motor de voz**: Qwen3-TTS-12Hz-1.7B-Base (`generate_voice_clone`) en NVIDIA
+  GPU (RTX 3060, offline, $0). Cada bloque se genera en un proceso desechable con
+  watchdog externo (SIGTERM → SIGKILL) que evita cuelgues; el launcher corta al
+  grupo de procesos completo. Referencias vocales registradas en
+  `data/tts/voices/*/v1/reference.wav` con SHA-256 validado: `EDUARDO`,
+  `ANDREA`, `JAVIER` (narrador) y `RODRIGO` (corresponsal). Auto-reintentos
+  (2 intentos por bloque) y modo por cláusula como amortiguador de fallos.
+  Producto final publicable: Qwen Base clone. edge/SAPI no se usan salvo
+  maqueta o emergencia marcada y con aprobación explícita del usuario.
 - **Motor de música**: ACE-Step 1.5 local en `tools/ACE-Step-1.5`, API
   `127.0.0.1:8001`, generación por worker independiente y cola persistente en
   `data/tts/jobs/musica-actual.json`.

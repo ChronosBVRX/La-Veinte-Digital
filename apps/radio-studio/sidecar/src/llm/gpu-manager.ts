@@ -1,5 +1,5 @@
 /**
- * GpuResourceManager — mutex de VRAM entre LLM (Ollama/Qwen) y TTS (Chatterbox).
+ * GpuResourceManager — mutex de VRAM entre LLM (Ollama/Qwen) y TTS (Qwen).
  *
  * Regla fundamental: LLM_ACTIVE && TTS_ACTIVE = false por defecto en 12 GB.
  * Estados: IDLE | LLM_ACTIVE | TTS_ACTIVE

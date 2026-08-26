@@ -36,7 +36,7 @@ export interface ProductionBlock {
   wavPath?: string;
   durSec?: number;
   genSec?: number;
-  motor?: "chatterbox" | "edge" | "sapi";
+  motor?: "qwen" | "edge" | "sapi";
 }
 
 export interface ProductionSession {

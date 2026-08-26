@@ -10,9 +10,9 @@
     "node": ">=22"
   },
   "scripts": {
-    "predev": "node scripts/copy-vendor.mjs",
+    "predev": "node scripts/copy-vendor.mjs && node scripts/init-qwen-env.mjs",
     "dev": "next dev",
-    "prebuild": "node scripts/copy-vendor.mjs",
+    "prebuild": "node scripts/copy-vendor.mjs && node scripts/init-qwen-env.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

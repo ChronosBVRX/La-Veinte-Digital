@@ -1,6 +1,6 @@
 export * from "./hardware";
 export * from "./platform";
 export * from "./chunker";
-export * from "./fallback";
-export { ChatterboxEngine, CHATTERBOX_MODEL_ID, type EngineGenerateResult, type EngineStatus } from "./engine";
-export { getChatterboxEngine } from "./singleton";
+export { QwenEngine, type QwenEngineResult } from "./qwen-engine";
+export { qwenRenderLine, mapWebVoice } from "./web-qwen";
+export { qwenEnv, killProcessGroupUnblocking } from "./qwen-env";
