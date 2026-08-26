@@ -45,6 +45,7 @@ export function EscritosGenerator() {
   const [mostrarAvanzado, setMostrarAvanzado] = useState(false)
   const [mostrarVistaPrevia, setMostrarVistaPrevia] = useState(false)
   const [fotos, setFotos] = useState<string[]>([])
+  const [formKey, setFormKey] = useState(0)
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -121,6 +122,7 @@ export function EscritosGenerator() {
     setForm({ destino: "", fecha: institutionalToday().toISOString().slice(0, 10), ciudad: "", detalle: "", atencion: "", copia: "" })
     setTextoGenerado("")
     setFotos([])
+    setFormKey((k) => k + 1)
   }, [])
 
   if (cargandoPerfil) {
@@ -165,6 +167,7 @@ export function EscritosGenerator() {
       </div>
 
       <EscritosForm
+        key={formKey}
         profile={profile}
         destino={form.destino}
         fecha={form.fecha}

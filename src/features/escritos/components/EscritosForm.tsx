@@ -1,7 +1,9 @@
 "use client"
 
+import { useState } from "react"
 import { Select, Input, Textarea } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
+import { COMITE_SECCIONAL, VALOR_DESTINO_MANUAL } from "@/features/escritos/data/comite-seccional"
 import type { ChangeEvent } from "react"
 
 interface ProfileData {
@@ -31,63 +33,40 @@ interface EscritosFormProps {
   onClear: () => void
 }
 
-const DESTINOS = [
-  { group: "Secretarías", items: [
-    { value: "Secretaría General|Dr. Juan Gerardo García González", label: "Secretaría General" },
-    { value: "Secretaría de Interior y Propaganda|M.N.F. Amin Uriel Morales Sánchez", label: "Secretaría de Interior y Propaganda" },
-    { value: "Secretaría de Conflictos|J.G.E. Arturo Ochoa Huacuz", label: "Secretaría de Conflictos" },
-    { value: "Secretaría de Trabajo|E.G. Cándido Mora Alcauter", label: "Secretaría de Trabajo" },
-    { value: "Secretaría del Exterior|M.N.F. Ignacio Agustín Orozco Pérez", label: "Secretaría del Exterior" },
-    { value: "Tesorería|EST. Azucena Herrera Martínez", label: "Tesorería" },
-    { value: "Secretaría de Previsión Social|A.M. Fabiola Farías Ambriz", label: "Secretaría de Previsión Social" },
-    { value: "Secretaría de Igualdad Sustantiva|M.F. Gabriela Durán Negrete", label: "Secretaría de Igualdad Sustantiva" },
-    { value: "Secretaría de Asuntos Técnicos|M.N.F. Horacio Peña Alfaro", label: "Secretaría de Asuntos Técnicos" },
-    { value: "Secretaría de Actas y Acuerdos|M.G. César Augusto Contreras Flores", label: "Secretaría de Actas y Acuerdos" },
-    { value: "Secretaría de Prensa|A.M. Yolanda Morelos Palomares", label: "Secretaría de Prensa" },
-    { value: "Secretaría de Puestos Periféricos|M.N.F. Alejandra Johnson Aguirre", label: "Secretaría de Puestos Periféricos" },
-    { value: "Secretaría de Admisión y Cambios|C.C. Uriel Tapia Pérez", label: "Secretaría de Admisión y Cambios" },
-    { value: "Secretaría de Capacitación y Adiestramiento|O.P. América Hilda Reyes Reyes", label: "Secretaría de Capacitación y Adiestramiento" },
-    { value: "Secretaría de Calidad y Modernización|Q.C. Gerardo Ordaz Salazar", label: "Secretaría de Calidad y Modernización" },
-    { value: "Secretaría de Acción Social|E.E. Claudia Denisse Torres Rangel", label: "Secretaría de Acción Social" },
-  ]},
-  { group: "Comisiones", items: [
-    { value: "Comisión de Honor y Justicia — Presidencia|J.G.S.T. José Francisco Ruiz Domínguez", label: "Honor y Justicia" },
-    { value: "Comisión de Vigilancia — Presidencia|T.R. Eduardo Bolaños Vázquez", label: "Vigilancia" },
-    { value: "Comisión de Fomento a la Seguridad Social — Presidencia|M.N.F. Carlos Mojica Rodríguez", label: "Fomento a la Seg. Social" },
-    { value: "Comisión de Hacienda — Presidencia|A.L. Ángeles Alejandra Ledesma Torres", label: "Hacienda" },
-    { value: "Comisión de Deportes — Presidencia|J.G.P. Roberto Carlos Reyes Ortiz", label: "Deportes" },
-    { value: "Comisión de Acción Política — Presidencia|M.N.F. Verónica Diosdado Minguela", label: "Acción Política" },
-  ]},
-  { group: "Subcomisiones Mixtas", items: [
-    { value: "Subcomisión Mixta de Becas — Representación Comunitaria|M.F. Jorge Héctor Zaragoza Palacios", label: "Becas" },
-    { value: "Bolsa de Trabajo|C.C. M. Guadalupe Calderón Ayala", label: "Bolsa de Trabajo" },
-    { value: "Subcomisión Mixta de Puestos de Confianza 'B' — Representación Comunitaria|M.F. Jorge Hugo Ruiz Saenz", label: "Puestos de Confianza 'B'" },
-    { value: "Subcomisión Mixta de Capacitación y Adiestramiento — Representación Comunitaria|A.E.G. Juan Onofre Baez", label: "Capacitación y Adiestramiento" },
-    { value: "Subcomisión Mixta de Seguridad e Higiene — Representación Comunitaria|A.U.O Betsabe Hernández Flores", label: "Seguridad e Higiene" },
-    { value: "Subcomisión Mixta Disciplinaria — Representación Comunitaria|Cont. Juan Carlos Servín Juárez", label: "Disciplinaria" },
-    { value: "Subcomisión Mixta de Escalafón — Representación Comunitaria|E.G. Hilda Ontiveros Cuellar", label: "Escalafón" },
-    { value: "Subcomisión Mixta Paritaria de Protección al Salario — Representación Comunitaria|E.E. Dinorah Alduenda Guiza", label: "Protección al Salario" },
-    { value: "Subcomisión Mixta de Pasajes — Representación Comunitaria|O.A. José Antonio Carrillo Bejarano", label: "Pasajes" },
-    { value: "Subcomisión Mixta de Ropa de Trabajo y Uniformes — Representación Comunitaria|A.A. Julio Cesar García Salgado", label: "Ropa de Trabajo y Uniformes" },
-    { value: "Subcomisión Mixta de Selec. Recursos Humanos para Cambios de Rama — Representación Comunitaria|C.C. Alicia Martínez Correa", label: "Cambios de Rama" },
-    { value: "Subcomisión Mixta de Tiendas — Representación Comunitaria|P.E.F.B. Humberto Guerrero Linares", label: "Tiendas" },
-    { value: "Subcomisión Mixta de Jubilaciones y Pensiones — Representación Comunitaria|E.G.C. Maricela Navarrete Mora", label: "Jubilaciones y Pensiones" },
-    { value: "Subcomisión Mixta de Revisión de Plantillas — Representación Comunitaria|E.G. Luis Fernando García Cervantes", label: "Revisión de Plantillas" },
-  ]},
-]
-
 export function EscritosForm({
   profile, destino, fecha, ciudad, detalle, textoGenerado,
   atencion, copia, fotos, loading, mostrarAvanzado,
   onChange, onGenerate, onPreview, onToggleAvanzado, onFotosChange, onClear,
 }: EscritosFormProps) {
-  const destinoOptions = DESTINOS.map((g) => (
+  const [modoManual, setModoManual] = useState(false)
+  const [cargoManual, setCargoManual] = useState("")
+  const [nombreManual, setNombreManual] = useState("")
+
+  const destinoOptions = COMITE_SECCIONAL.map((g) => (
     <optgroup key={g.group} label={g.group}>
       {g.items.map((i) => (
         <option key={i.value} value={i.value}>{i.label}</option>
       ))}
     </optgroup>
   ))
+
+  const handleDestinoChange = (value: string) => {
+    if (value === VALOR_DESTINO_MANUAL) {
+      setModoManual(true)
+      onChange("destino", "")
+      return
+    }
+    setModoManual(false)
+    onChange("destino", value)
+  }
+
+  const updateManualDestino = (campo: "cargo" | "nombre", value: string) => {
+    const cargo = campo === "cargo" ? value : cargoManual
+    const nombre = campo === "nombre" ? value : nombreManual
+    if (campo === "cargo") setCargoManual(value)
+    else setNombreManual(value)
+    onChange("destino", cargo.trim() && nombre.trim() ? `${cargo.trim()}|${nombre.trim()}` : "")
+  }
 
   return (
     <div>
@@ -111,11 +90,35 @@ export function EscritosForm({
         </div>
 
         <div style={{ marginBottom: "1rem" }}>
-          <Select label="¿A quién va dirigido?" value={destino} onChange={(e) => onChange("destino", e.target.value)}>
+          <Select label="¿A quién va dirigido?" value={modoManual ? VALOR_DESTINO_MANUAL : destino} onChange={(e) => handleDestinoChange(e.target.value)}>
             <option value="">— Selecciona —</option>
             {destinoOptions}
+            <option value={VALOR_DESTINO_MANUAL}>— Otra persona (fuera del Comité Seccional) —</option>
           </Select>
         </div>
+
+        {modoManual ? (
+          <div
+            style={{
+              display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem",
+              marginBottom: "1rem", padding: "1rem", background: "var(--accent)",
+              borderRadius: "0.375rem",
+            }}
+          >
+            <Input
+              label="Cargo (ej. Presidente del Comité Delegacional)"
+              value={cargoManual}
+              onChange={(e) => updateManualDestino("cargo", e.target.value)}
+              placeholder="Ej. Comité Delegacional de Morelia"
+            />
+            <Input
+              label="Nombre del destinatario"
+              value={nombreManual}
+              onChange={(e) => updateManualDestino("nombre", e.target.value)}
+              placeholder="Ej. Lic. Juan Pérez López"
+            />
+          </div>
+        ) : null}
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
           <Input label="Fecha del escrito" type="date" value={fecha} onChange={(e) => onChange("fecha", e.target.value)} />
