@@ -4,6 +4,7 @@ import {
   classifyRetrievalIntent,
   dedupeByText,
   diversifyByDocument,
+  expandForRetrieval,
   extractExactRefs,
   fuentesPayload,
   rowToSource,
@@ -252,5 +253,21 @@ describe("diversificación para BROAD_TOPIC", () => {
     const b = mk("CCT", 99)
     b.fragmento = a.fragmento
     expect(dedupeByText([a, b])).toHaveLength(1)
+  })
+})
+
+describe("expandForRetrieval — solo retrieval, nunca redacción", () => {
+  it("BROAD_TOPIC añade conceptos del corpus", () => {
+    const q = "¿Cuáles son mis derechos laborales?"
+    const out = expandForRetrieval(q, classifyRetrievalIntent(q))
+    expect(out).toContain(q)
+    expect(out).toContain("prestaciones")
+  })
+
+  it("SPECIFIC_TOPIC y EXACT no se expanden", () => {
+    expect(expandForRetrieval("¿cuántos días de vacaciones?", classifyRetrievalIntent("¿cuántos días de vacaciones?"))).toBe(
+      "¿cuántos días de vacaciones?",
+    )
+    expect(expandForRetrieval("cláusula 63 bis", classifyRetrievalIntent("cláusula 63 bis"))).toBe("cláusula 63 bis")
   })
 })

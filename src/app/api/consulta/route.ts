@@ -5,6 +5,8 @@ import { requireUser } from "@/shared/server/auth/require-user"
 import { parseConsultaRequest, type ConsultaMessage } from "@/shared/contracts/consulta"
 import {
   buildContextWithSources,
+  classifyRetrievalIntent,
+  expandForRetrieval,
   fuentesPayload,
   retrieveEvidenceWithMetrics,
   validateCitations,
@@ -68,11 +70,14 @@ async function respondDirect(
     const openai = getOpenAI()
 
     const tEmbed = performance.now()
+    // Expansión SOLO para retrieval en preguntas amplias; la respuesta
+    // siempre sale de evidencias reales.
+    const retrievalQuery = expandForRetrieval(question, classifyRetrievalIntent(question))
     const embeddingResp = await withAbortTimeout(ASSISTANT_POLICY.embeddingTimeoutMs, (signal) =>
       openai.embeddings.create(
         {
           model: ASSISTANT_POLICY.embeddingModel,
-          input: question,
+          input: retrievalQuery,
         },
         { signal },
       ),

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import {
   buildContextWithSources,
   classifyRetrievalIntent,
+  expandForRetrieval,
   dedupeByText,
   diversifyByDocument,
   extractExactRefs,
@@ -114,7 +115,7 @@ export async function retrieveEvidenceWithMetrics(
   jobs.push(
     timed(
       rpcSafe<FtsRow>(supabase, "search_normativa_fts", {
-        p_query: question,
+        p_query: expandForRetrieval(question, intent),
         p_match_count: perPathLimit,
       }),
       (ms) => {
@@ -122,9 +123,13 @@ export async function retrieveEvidenceWithMetrics(
       },
     ).then((r) => {
       metrics.rows.fts = r.value?.length ?? 0
-      return (r.value ?? []).map((row) => ({
+      const rows = r.value ?? []
+      // Rank normalizado: el FTS bruto escala distinto por query y un
+      // puntaje plano ahogaba al vectorial en preguntas amplias.
+      const maxRank = Math.max(...rows.map((x) => x.rank ?? 0), 1e-6)
+      return rows.map((row) => ({
         row: row as unknown as RpcChunkRow,
-        score: 200 + ((row as FtsRow).rank ?? 0),
+        score: 30 + 150 * ((row.rank ?? 0) / maxRank),
       }))
     }),
   )

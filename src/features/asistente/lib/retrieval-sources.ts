@@ -234,3 +234,15 @@ export function fuentesPayload(sources: RetrievedSource[], citedIds: string[]) {
     citada: cited.size > 0 ? cited.has(s.id) : undefined,
   }))
 }
+
+/**
+ * Expansión de consulta SOLO para retrieval (nunca para redactar):
+ * las preguntas amplias se enriquecen con conceptos del corpus para que
+ * FTS/vector encuentren evidencia representativa.
+ */
+export const BROAD_EXPANSION_TERMS =
+  " derechos obligaciones trabajadores prestaciones salario jornada vacaciones aguinaldo prima dominical descanso seguridad social capacitacion escalafon"
+
+export function expandForRetrieval(question: string, intent: RetrievalIntent): string {
+  return intent === "BROAD_TOPIC" ? `${question} ${BROAD_EXPANSION_TERMS}` : question
+}
