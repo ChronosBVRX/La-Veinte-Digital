@@ -1,99 +1,81 @@
 import type { PayrollRuleContext, RuleCalculationResult, CalculatedPayrollConcept, PayrollRule } from "../types"
-import { CLAUSE_63_BIS_C_DAYS } from "../types"
 import { dependenciesStatus, resolveWithAnchor } from "../engine"
 import { buildBaseForConcept } from "../repercussion-engine"
-
-function round2(v: number): number {
-  return Math.round((v + Number.EPSILON) * 100) / 100
-}
-
-/**
- * Derecho ANUAL contractual: días de ayuda de renta según la antigüedad
- * cumplida (Cláusula 63 Bis, inciso c). 0 días si < 5 años.
- */
-export function calculateAnnualSeniorityEntitlement(input: {
-  base: number
-  completedYears: number
-}): { days: number; annualAmount: number } {
-  const days = input.completedYears < 5 ? 0 : (CLAUSE_63_BIS_C_DAYS[input.completedYears] ?? 270)
-  const dailyValue = input.base / 15
-  const annualAmount = round2(dailyValue * days)
-  return { days, annualAmount }
-}
-
-/**
- * Componente QUINCENAL del derecho anual. No existe evidencia documental del
- * mecanismo de distribución (el repo no la contiene), por lo que este cálculo
- * es una ESTIMACIÓN de comprobación y siempre se marca como
- * pending_validation / requires_confirmation.
- */
-export function calculateBiweeklySeniorityComponent(input: {
-  annualAmount: number
-  totalPaychecks?: number
-}): { biweeklyComponent: number; totalPaychecks: number; pendingValidation: true } {
-  const totalPaychecks = input.totalPaychecks ?? 24
-  return {
-    biweeklyComponent: round2(input.annualAmount / totalPaychecks),
-    totalPaychecks,
-    pendingValidation: true,
-  }
-}
+import { truncateCurrency } from "../money"
 
 /**
  * Ayuda de Renta por Antigüedad (022) — Cláusula 63 Bis, inciso c.
  *
- * La regla proyecta el DERECHO ANUAL (días × base ÷ 15). El derecho anual es
- * una prestación que NO aparece como percepción quincenal recurrente; si se
- * quiere un componente quincenal solo puede estimarse con
- * `calculateBiweeklySeniorityComponent`, marcado como pending_validation.
+ * ## Lectura QUINCENAL (vigente, calibrada con tarjetón real)
  *
- * La base se resuelve con el motor de repercusiones (002 + 011, y en su caso
- * 013 + 057 + 058 + 061), NO se asume únicamente el 002.
+ * El tarjetón real 2A-AGO-2026 (TÉCNICO RADIÓLOGO 80, 14 años de antigüedad,
+ * 15 días pagados) muestra el 022 como percepción QUINCENAL recurrente:
+ *
+ *   base = 002 + 011 = 3,937.64 + 3,234.77 = 7,172.41
+ *   022  = trunc2(7172.41 × 27.5%) = $1,972.41 ✓
+ *
+ * Esto REFUTA la interpretación anterior que trataba el 022 como un derecho
+ * anual lump-sum (tabla de días × valor diario) y lo acumulaba en una sola
+ * quincena — mecanismo que inflaba el total proyectado en decenas de miles.
+ *
+ * La tarifa 27.5% está calibrada con UN SOLO punto de observación (14 años).
+ * Hasta contar con más tarjetones de distintas antigüedades se aplica plana
+ * para antigüedad ≥ 5 años, con advertencia explícita. La implementación
+ * anual previa se preservó en `old-rules.ts` para referencia documental.
  */
 export const rule022: PayrollRule = {
   id: "022",
-  version: "2.0.0",
+  version: "4.0.0",
   effectiveFrom: "2025-01-01",
   dependencies: ["002", "011", "013", "057", "058", "061"],
+  valuePersistence: "while_dependencies_unchanged",
   calculate(ctx: PayrollRuleContext): RuleCalculationResult {
-    const c002 = ctx.calculatedConcepts.get("002")?.amount ?? 0
-    const completedYears = ctx.seniority.years
+    const completedYears = Math.floor(ctx.seniority.years)
 
-    // Base normativa del 022 según la matriz de repercusiones.
+    // Base normativa del 022 según la matriz de repercusiones (002 + 011,
+    // y en su caso 013 + 057 + 058 + 061); observado empíricamente 002+011.
     const baseResult = buildBaseForConcept("022", ctx.calculatedConcepts, ctx.period.endDate)
+    const c002 = ctx.calculatedConcepts.get("002")?.amount ?? 0
     const base = baseResult.baseAmount > 0 ? baseResult.baseAmount : c002
 
-    const { days, annualAmount } = calculateAnnualSeniorityEntitlement({ base, completedYears })
-    const { biweeklyComponent } = calculateBiweeklySeniorityComponent({ annualAmount })
+    const RATE = 0.275 // calibrado empíricamente @ 14 años (tarjetón 2A-AGO-2026)
+    const eligible = completedYears >= 5
+    const formulaAmount = truncateCurrency(base * RATE)
 
     const anchor = ctx.conceptAnchors.get("022")
 
-    const DEPS = ["seniority"]
+    const DEPS = ["002", "011", "013", "057", "058", "061", "seniority"]
     const status = dependenciesStatus(DEPS, ctx)
-    const { amount, warnings: resolutionWarnings } = resolveWithAnchor(
+    const resolution = resolveWithAnchor({
+      conceptCode: "022",
+      ruleId: "022",
       anchor,
-      annualAmount,
+      formulaAmount,
+      formulaComputable: true,
+      eligibleNow: eligible,
       status,
-      ctx.mode,
-    )
+      mode: ctx.mode,
+      valuePersistence: "while_dependencies_unchanged",
+      period: ctx.period,
+    })
 
-    const source =
-      (anchor && (
-        ctx.mode === "baseline" ||
-        status === "unchanged" ||
-        (status === "unknown" && ctx.mode !== "exploratory")
-      )) ? "last_payslip" : "contract_rule"
+    const source = resolution.usedAnchor ? "last_payslip" : "contract_rule"
+
+    let confidence: CalculatedPayrollConcept["confidence"] =
+      anchor ? "high" : eligible ? "medium" : "requires_confirmation"
+    if (resolution.requiresConfirmation) confidence = "requires_confirmation"
 
     const warnings: string[] = [
-      "Prestación anual — no reflejada como percepción quincenal recurrente",
-      "Componente quincenal estimado (24 quincenas) solo como referencia: pendiente de validación del mecanismo de pago",
-      `Componente quincenal estimado: ${biweeklyComponent.toFixed(2)} (pending_validation)`,
-      ...resolutionWarnings,
+      ...resolution.warnings,
+      "Tarifa 27.5% calibrada con un solo tarjetón (14 años, 2A-AGO-2026): pendiente validar si escala por antigüedad.",
     ]
-    if (anchor) {
-      const discrepancy = Math.abs(annualAmount - anchor.amount)
+    if (!eligible) {
+      warnings.push("Ayuda de Renta por Antigüedad requiere 5+ años de servicio (Cláusula 63 Bis, inciso c)")
+    }
+    if (anchor && eligible) {
+      const discrepancy = Math.abs(formulaAmount - anchor.amount)
       if (discrepancy > 0.50) {
-        warnings.push(`Diferencia entre fórmula (${annualAmount.toFixed(2)}) y último tarjetón (${anchor.amount.toFixed(2)}): ${discrepancy.toFixed(2)}`)
+        warnings.push(`Diferencia entre fórmula (${formulaAmount.toFixed(2)}) y último tarjetón (${anchor.amount.toFixed(2)}): ${discrepancy.toFixed(2)}`)
       }
     }
 
@@ -102,24 +84,40 @@ export const rule022: PayrollRule = {
       name: "Ayuda de Renta por Antigüedad (Cláusula 63 Bis, inciso c)",
       type: "earning",
       nature: "seniority_based",
-      amount,
-      included: false,
+      amount: resolution.amount,
+      included: eligible,
       source,
-      confidence: "requires_confirmation",
-      verificationStatus: "contract_verified",
-      elegibilitySource: anchor ? "payslip_confirmed" : "formula_deduced",
+      confidence,
+      verificationStatus: "empirically_verified",
+      elegibilitySource: eligible ? "contract_rule" : "unknown",
       anchorAmount: anchor?.amount,
       anchorDate: anchor?.date,
       dependencies: baseResult.integratedConcepts.map((i) => ({ code: i.code, amount: i.amount })),
+      resolutionAudit: resolution.audit,
       calculationSteps: [
         { label: "Antigüedad cumplida", expression: `${completedYears} años`, value: completedYears },
-        { label: "Días según tabla", expression: `${days} días`, value: days },
-        { label: "Base (repercusiones)", expression: `${baseResult.integratedConcepts.map((i) => `${i.code}=${i.amount.toFixed(2)}`).join(" + ")} = ${base}`, value: base },
-        { label: "Valor diario", expression: `${base} ÷ 15 = ${round2(base / 15)}`, value: round2(base / 15) },
-        { label: "Derecho anual", expression: `${round2(base / 15)} × ${days} = ${annualAmount}`, value: annualAmount },
+        ...baseResult.integratedConcepts.map((i) => ({
+          label: `Base: ${i.code}`,
+          expression: `${i.code} = ${i.amount.toFixed(2)}${i.weight !== 1 ? ` (×${i.weight})` : ""}`,
+          value: i.amount,
+        })),
+        {
+          label: "Base total (repercusiones)",
+          expression: `${baseResult.integratedConcepts.map((i) => i.code).join(" + ") || "002"} = ${base}`,
+          value: base,
+        },
+        { label: "022 = base × 27.5%", expression: `${base} × 0.275 = ${formulaAmount} (truncado a centavos)`, value: formulaAmount },
         ...(anchor ? [{ label: "Último tarjetón (referencia)", expression: `Ancla: ${anchor.amount}`, value: anchor.amount }] : []),
       ],
-      legalBasis: [{ source: "CCT", title: "Ayuda de Renta por antigüedad", reference: "Cláusula 63 Bis, inciso c" }],
+      legalBasis: [
+        {
+          source: "CCT",
+          title: "Ayuda de Renta por antigüedad",
+          reference: "Cláusula 63 Bis, inciso c",
+          notes:
+            "Percepción quincenal confirmada en tarjetón real 2A-AGO-2026. La lectura anual lump-sum previa quedó refutada; ver old-rules.ts.",
+        },
+      ],
       warnings,
     }
     return { concept, dependencies: ["002", "011", "013", "057", "058", "061"] }

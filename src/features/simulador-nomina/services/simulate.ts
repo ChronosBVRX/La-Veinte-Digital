@@ -25,10 +25,12 @@ export interface ConceptDelta {
 export interface SimulationResult {
   baselineProjection: PayrollProjection
   scenarioProjection: PayrollProjection
-  baselineNet: number
-  scenarioNet: number
-  netDelta: number
-  netDeltaPercent: number
+  /** Bruto CONFIRMADO del baseline (totals.confirmedGross). NO es neto: sin deducciones. */
+  baselineGross: number
+  /** Bruto CONFIRMADO del escenario (totals.confirmedGross). NO es neto: sin deducciones. */
+  scenarioGross: number
+  grossDelta: number
+  grossDeltaPercent: number
   conceptDeltas: ConceptDelta[]
   increasedConcepts: ConceptDelta[]
   decreasedConcepts: ConceptDelta[]
@@ -64,8 +66,10 @@ export function compareProjections(
   const allCodes = new Set([...baselineMap.keys(), ...scenarioMap.keys()])
 
   const conceptDeltas: ConceptDelta[] = []
-  const baselineNet = baseline.totals.possibleGross
-  const scenarioNet = scenario.totals.possibleGross
+  // BRUTO CONFIRMADO (conceptos high-confidence incluidos): jamás incluye
+  // condicionales/anuales no confirmados que inflarían la comparación.
+  const baselineGross = baseline.totals.confirmedGross
+  const scenarioGross = scenario.totals.confirmedGross
 
   for (const code of allCodes) {
     const baselineAmount = baselineMap.get(code) ?? 0
@@ -87,16 +91,16 @@ export function compareProjections(
 
   conceptDeltas.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
 
-  const netDelta = scenarioNet - baselineNet
-  const netDeltaPercent = baselineNet > 0 ? Math.round((netDelta / baselineNet) * 1000) / 10 : 0
+  const grossDelta = scenarioGross - baselineGross
+  const grossDeltaPercent = baselineGross > 0 ? Math.round((grossDelta / baselineGross) * 1000) / 10 : 0
 
   return {
     baselineProjection: baseline,
     scenarioProjection: scenario,
-    baselineNet,
-    scenarioNet,
-    netDelta,
-    netDeltaPercent,
+    baselineGross,
+    scenarioGross,
+    grossDelta,
+    grossDeltaPercent,
     conceptDeltas,
     increasedConcepts: conceptDeltas.filter((c) => c.delta > 0 && !c.appeared),
     decreasedConcepts: conceptDeltas.filter((c) => c.delta < 0 && !c.disappeared),
@@ -121,6 +125,10 @@ export function simulateScenario(
 ): { projection: PayrollProjection; explanation: string[] } | { error: string } {
   if (!profile) return { error: "Perfil no disponible para simular." }
 
+  // Trabajar SIEMPRE sobre una copia: el perfil del llamador (estado de React
+  // o caché local) nunca debe mutarse al simular.
+  const scenarioProfile: EmployeePayrollProfile = { ...profile }
+
   const explanations: string[] = []
 
   if (scenario.type === "category_change" && scenario.targetCategoryName) {
@@ -129,10 +137,10 @@ export function simulateScenario(
     )
     if (!target) return { error: `Categoría "${scenario.targetCategoryName}" no encontrada.` }
 
-    profile.categoryId = target.categoryId
-    profile.categoryName = target.categoryName
+    scenarioProfile.categoryId = target.categoryId
+    scenarioProfile.categoryName = target.categoryName
     if (target.workdayHours === 6 || target.workdayHours === 6.5 || target.workdayHours === 8 || target.workdayHours === 12) {
-      profile.workdayHours = target.workdayHours
+      scenarioProfile.workdayHours = target.workdayHours
     }
 
     explanations.push(
@@ -145,7 +153,7 @@ export function simulateScenario(
     const period = baselineProjection.period
     const seniority = baselineProjection.seniorityAtPeriodEnd
     const result = calculateProjection({
-      profile,
+      profile: scenarioProfile,
       category: target as ResolvedSalaryCategory,
       period,
       seniority,
@@ -174,7 +182,7 @@ export function simulateScenario(
     }
 
     const result = calculateProjection({
-      profile,
+      profile: scenarioProfile,
       category: baselineProjection.category,
       period,
       seniority,
@@ -186,4 +194,22 @@ export function simulateScenario(
   }
 
   return { error: "Tipo de escenario no soportado." }
+}
+
+/**
+ * Total de percepciones COMPROBADO del último tarjetón real: suma de los
+ * importes ancla confirmados (excluye one_time). Este — y nunca
+ * possibleGross — es el número de la portada cuando no hay escenario.
+ */
+export function sumComprobadoTarjeton(profile: EmployeePayrollProfile | null): number | null {
+  if (!profile?.recurringConcepts?.length) return null
+  let total = 0
+  let any = false
+  for (const rc of profile.recurringConcepts) {
+    if (!rc.confirmed || rc.lastAmount === undefined) continue
+    if (rc.occurrenceType === "one_time") continue
+    total += rc.lastAmount
+    any = true
+  }
+  return any ? total : null
 }

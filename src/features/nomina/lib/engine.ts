@@ -11,21 +11,32 @@
  * `referenceSnapshot` almacena antigüedad, categoría, versiones de tablas — no
  * importes de conceptos. Los importes van en `conceptAnchors`.
  *
- * **3. Si falta una causa histórica necesaria para comparar, `dependenciesStatus`
- * retorna `"unknown"`, no `"unchanged"`.**
- * La política para `unknown` depende de `ProjectionMode`: `strict` y `assisted`
- * conservan el ancla con advertencia; `exploratory` usa la fórmula marcada como
- * estimación.
+ * **3. Separación de tres preguntas que NUNCA se mezclan:**
+ *   a) ¿El trabajador sigue teniendo DERECHO al concepto? → elegibilidad
+ *      evaluada con evidencia ACTUAL; la existencia de un ancla NO otorga derecho.
+ *   b) ¿La fórmula/base sigue siendo la misma? → dependencias expandidas
+ *      transitivamente (`buildDependencyClosure`) comparadas a centavos.
+ *   c) ¿El IMPORTE histórico sigue siendo reutilizable? → `resolveWithAnchor`:
+ *      solo en `baseline` sobre el MISMO periodo, o con dependencias
+ *      `"unchanged"` cuando la regla declara
+ *      `valuePersistence: "while_dependencies_unchanged"`.
+ *
+ * **4. La incertidumbre nunca se convierte en certeza financiera.**
+ * Si `dependenciesStatus` retorna `"unknown"`, el importe se recalcula con la
+ * fórmula y se marca `requires_confirmation`; jamás se conserva silenciosamente
+ * el importe histórico por falta de información.
  *
  * ## Criterio rector
  *
  * ```
  * Tarjetón → anclas + snapshot
  *              ↓
- *     ¿cambió alguna dependencia?
- *      ├── no  → conserva ancla
- *      ├── sí  → aplica regla vigente
- *      └── ?   → política según modo
+ *     ¿derecho vigente con evidencia actual?
+ *      ├── no  → importe 0 (el ancla no revive derechos)
+ *      └── sí  → ¿cambiaron las dependencias (cadena completa)?
+ *                ├── sí      → fórmula vigente
+ *                ├── unknown → fórmula + requiere confirmación
+ *                └── no      → según valuePersistence de la regla
  *
  * En paralelo:
  *   importe real vs fórmula → discrepancia → warning (nunca modifica importe)
@@ -37,14 +48,14 @@ import type {
   ResolvedSalaryCategory, PayPeriod, SeniorityResult,
   PayrollIncident, RecurringConceptOverride,
   ProjectionMode, ConceptAnchor, PayrollReferenceSnapshot,
+  ValuePersistence, ResolutionAudit, ResolutionSelectedSource,
 } from "./types"
 import { evaluateEligibilityForConcept, type EligibilityResult } from "./eligibility"
 import { buildPendingQuestions, type ConditionalPayrollQuestion } from "./question-engine"
 import { calculateProjectionTotals, validateProjectionTotals } from "./totals"
 import { getAllRules } from "./rules"
-import { reconstructEffectiveDate, calculateSeniority } from "./seniority"
-import { getFixedAmount } from "../data/fixed-concept-amounts"
-import { CLAUSE_63_BIS_C_DAYS } from "./types"
+import { calculateSeniority } from "./seniority"
+import { getFixedAmount, FIXED_CONCEPT_AMOUNTS } from "../data/fixed-concept-amounts"
 
 export function topologicalSort(rules: PayrollRule[]): PayrollRule[] {
   const visited = new Set<string>()
@@ -115,6 +126,61 @@ export function detectCircularDependencies(rules: PayrollRule[]): string[] {
   return errors
 }
 
+/**
+ * Dependencias especiales que viajan con un concepto: si una regla depende de
+ * "020" también debe vigilar la versión de su tabla fija; si depende de
+ * "022", la antigüedad que define su derecho.
+ */
+const SPECIAL_DEPS: Record<string, string[]> = {
+  "020": ["fixedTable:020"],
+  "050": ["fixedTable:050"],
+  "022": ["seniority"],
+}
+
+/**
+ * Cierre transitivo del grafo de dependencias declarado por las reglas.
+ * Para cada id de regla devuelve TODAS sus dependencias (directas e
+ * indirectas), incluyendo las dependencias especiales asociadas.
+ *
+ * Esto evita falsos `"unchanged"` cuando la lista de dependencias directa de
+ * una regla está incompleta: el cambio se detecta por toda la cadena causal,
+ * no solo por los padres inmediatos.
+ */
+export function buildDependencyClosure(
+  rules: PayrollRule[],
+): Map<string, Set<string>> {
+  const ruleIds = new Set(rules.map((r) => r.id))
+  const ruleMap = new Map(rules.map((r) => [r.id, r]))
+  const memo = new Map<string, Set<string>>()
+
+  function close(id: string, stack: Set<string>): Set<string> {
+    const cached = memo.get(id)
+    if (cached) return cached
+    if (stack.has(id)) return new Set()
+    stack.add(id)
+    const out = new Set<string>()
+    const rule = ruleMap.get(id)
+    if (rule) {
+      for (const dep of rule.dependencies) {
+        out.add(dep)
+        for (const special of SPECIAL_DEPS[dep] ?? []) out.add(special)
+        if (ruleIds.has(dep)) {
+          for (const transitive of close(dep, stack)) out.add(transitive)
+        }
+      }
+    }
+    stack.delete(id)
+    memo.set(id, out)
+    return out
+  }
+
+  const result = new Map<string, Set<string>>()
+  for (const rule of rules) {
+    result.set(rule.id, close(rule.id, new Set()))
+  }
+  return result
+}
+
 export function getUnresolvedConcepts(
   rules: PayrollRule[],
   profile: EmployeePayrollProfile,
@@ -153,6 +219,7 @@ export function calculateProjection(input: PayrollProjectionInput): PayrollProje
 
   const rules = getAllRules()
   const sorted = topologicalSort(rules)
+  const dependencyClosure = buildDependencyClosure(sorted)
   const calculatedConcepts = new Map<string, CalculatedPayrollConcept>()
   const warnings: string[] = []
   const unresolvedConcepts: string[] = []
@@ -194,11 +261,13 @@ export function calculateProjection(input: PayrollProjectionInput): PayrollProje
       refSeniority = { years: seniority.years, months: seniority.months, days: seniority.days }
     }
 
-    // Versiones de tablas fijas
+    // Versiones de TODAS las tablas de importes fijos versionadas.
     const fixedTableVersions: Record<string, string> = {}
-    const entry020 = getFixedAmount("020", refDate)
-    if (entry020) {
-      fixedTableVersions["020"] = entry020.version ?? "default"
+    for (const code of Object.keys(FIXED_CONCEPT_AMOUNTS)) {
+      const entry = getFixedAmount(code, refDate)
+      if (entry) {
+        fixedTableVersions[code] = entry.version ?? "default"
+      }
     }
 
     referenceSnapshot = {
@@ -221,6 +290,7 @@ export function calculateProjection(input: PayrollProjectionInput): PayrollProje
     conceptAnchors,
     mode,
     referenceSnapshot,
+    dependencyClosure,
   }
 
   for (const rule of sorted) {
@@ -280,7 +350,14 @@ export function calculateProjection(input: PayrollProjectionInput): PayrollProje
     } else if (concept.type === "earning") {
       if (concept.included && concept.confidence === "high") {
         earnings.push(concept)
-      } else if (concept.included && concept.confidence === "medium") {
+      } else if (
+        concept.included &&
+        (concept.confidence === "medium" ||
+         concept.confidence === "low" ||
+         concept.confidence === "requires_confirmation")
+      ) {
+        // Incluidos con confianza media/baja/por-confirmar: probables,
+        // nunca silenciosos ni huérfanos fuera de los totales.
         probableConcepts.push(concept)
       } else if (!concept.included && concept.amount > 0) {
         conditionalConcepts.push(concept)
@@ -369,10 +446,31 @@ function getSeniorityBracket(years: number): number {
 }
 
 /**
+ * Expande la lista de dependencias usando el cierre transitivo del grafo de
+ * reglas (si está disponible en el contexto). Así, un cambio en cualquier
+ * eslabón de la cadena causal invalida el ancla, no solo cambios en los
+ * padres directos declarados.
+ */
+function expandDependencies(deps: string[], ctx: PayrollRuleContext): string[] {
+  const closure = ctx.dependencyClosure
+  if (!closure || closure.size === 0) return deps
+  const out = new Set<string>()
+  for (const dep of deps) {
+    out.add(dep)
+    const transitive = closure.get(dep)
+    if (transitive) {
+      for (const t of transitive) out.add(t)
+    }
+  }
+  return Array.from(out)
+}
+
+/**
  * Determina el estado de las dependencias de un concepto respecto al tarjetón de referencia.
  *
  * Compara el valor actual de cada dependencia contra su valor ancla (del último tarjetón)
- * usando comparación exacta a centavos.
+ * usando comparación exacta a centavos. Las dependencias se expanden transitivamente
+ * cuando el contexto provee `dependencyClosure`.
  *
  * Dependencias especiales:
  * - `"seniority"`: compara años de antigüedad actual vs ancla del concepto 022.
@@ -388,7 +486,7 @@ export function dependenciesStatus(
 ): DependencyStatus {
   let unknown = false
 
-  for (const dep of deps) {
+  for (const dep of expandDependencies(deps, ctx)) {
     // Dependencia especial: antigüedad
     if (dep === "seniority") {
       const ref = ctx.referenceSnapshot
@@ -436,49 +534,233 @@ export function dependenciesStatus(
   return unknown ? "unknown" : "unchanged"
 }
 
+/** true si el ancla pertenece al mismo periodo quincenal que se proyecta. */
+export function anchorCoversPeriod(
+  anchor: ConceptAnchor,
+  period: Pick<PayPeriod, "id" | "startDate" | "endDate">,
+): boolean {
+  if (anchor.sourcePeriodId) return anchor.sourcePeriodId === period.id
+  return anchor.date >= period.startDate && anchor.date <= period.endDate
+}
+
+export interface ResolveWithAnchorArgs {
+  /** Código del concepto (para auditoría). */
+  conceptCode: string
+  ruleId?: string
+  /** Ancla del último tarjetón real, si existe. */
+  anchor?: ConceptAnchor
+  /** Importe que produce la fórmula vigente para el escenario ACTUAL. */
+  formulaAmount: number
+  /** false cuando la regla no tiene fórmula configurada (ej. 050 sin catálogo). */
+  formulaComputable?: boolean
+  /**
+   * Elegibilidad evaluada con evidencia ACTUAL (hechos, condiciones,
+   * recurrencia confirmada). NUNCA derivada de la existencia del ancla.
+   */
+  eligibleNow?: boolean
+  status: DependencyStatus
+  mode: ProjectionMode
+  valuePersistence?: ValuePersistence
+  period: Pick<PayPeriod, "id" | "startDate" | "endDate" | "label">
+}
+
+export interface AnchorResolution {
+  amount: number
+  warnings: string[]
+  usedAnchor: boolean
+  requiresConfirmation: boolean
+  audit: ResolutionAudit
+}
+
 /**
- * Resuelve el importe de un concepto con ancla, aplicando política según el modo.
+ * Resuelve ancla-vs-fórmula bajo el contrato nuevo:
  *
- * - `baseline`: siempre usa el anchor (el tarjetón es la verdad).
- * - `strict`: si `unknown`, conserva anchor con advertencia fuerte.
- * - `assisted`: si `unknown`, conserva anchor con advertencia de dato faltante.
- * - `exploratory`: si `unknown`, usa fórmula marcada como estimación.
+ * 1. Sin ancla → fórmula (o cero si no hay fórmula computable).
+ * 2. `baseline` SOLO reproduce el ancla si es el MISMO periodo; en otro
+ *    periodo cae al flujo normal de proyección.
+ * 3. La elegibilidad se evalúa con evidencia actual, independiente del ancla.
+ *    Perder o no tener derecho ⇒ importe cero, nunca el histórico.
+ * 4. Dependencias `"changed"` ⇒ jamás se conserva el importe histórico.
+ * 5. Dependencias `"unknown"` ⇒ NUNCA equivale a certeza financiera: se
+ *    recalcula con la fórmula y se marca `requires_confirmation`
+ *    (en `exploratory` queda como estimación advertida); si no hay fórmula,
+ *    el ancla se repite marcada para confirmación.
+ * 6. Dependencias `"unchanged"` ⇒ el importe histórico persiste solo si la
+ *    regla declara `valuePersistence: "while_dependencies_unchanged"`
+ *    (mismos insumos → mismo importe REAL comprobado). Con `replay_only`
+ *    siempre recalcula.
  */
 export function resolveWithAnchor(
-  anchor: { amount: number } | undefined,
-  formulaAmount: number,
-  status: DependencyStatus,
-  mode: ProjectionMode,
-): { amount: number; warnings: string[] } {
+  args: ResolveWithAnchorArgs,
+): AnchorResolution {
+  const {
+    conceptCode,
+    ruleId,
+    anchor,
+    formulaAmount,
+    formulaComputable = true,
+    eligibleNow = true,
+    status,
+    mode,
+    valuePersistence = "replay_only",
+    period,
+  } = args
+
   const warnings: string[] = []
+  const anchorInTargetPeriod = anchor ? anchorCoversPeriod(anchor, period) : false
 
-  if (mode === "baseline" && anchor) {
-    return { amount: anchor.amount, warnings }
+  function buildAudit(
+    selectedValue: number,
+    selectedSource: ResolutionSelectedSource,
+    reason: string,
+    effectiveDependencyStatus: DependencyStatus | "none",
+  ): ResolutionAudit {
+    return {
+      ruleId,
+      conceptCode,
+      targetPeriodId: period.id,
+      targetPeriodLabel: period.label,
+      hadAnchor: !!anchor,
+      anchorValue: anchor?.amount,
+      anchorDate: anchor?.date,
+      anchorInTargetPeriod,
+      eligibleNow,
+      dependencyStatus: anchor ? effectiveDependencyStatus : "none",
+      formulaComputable,
+      formulaValue: formulaAmount,
+      valuePersistence,
+      selectedValue,
+      selectedSource,
+      reason,
+    }
   }
 
-  if (status === "unchanged" && anchor) {
-    return { amount: anchor.amount, warnings }
+  // 1. Sin ancla: fórmula pura.
+  if (!anchor) {
+    const amount = eligibleNow && formulaComputable ? formulaAmount : 0
+    const reason = !eligibleNow
+      ? "no_elegible_ahora_sin_ancla"
+      : !formulaComputable
+        ? "sin_ancla_y_sin_formula"
+        : "sin_ancla_formula_vigente"
+    return {
+      amount,
+      warnings,
+      usedAnchor: false,
+      requiresConfirmation: false,
+      audit: buildAudit(amount, amount === 0 ? "zero" : "formula", reason, "none"),
+    }
   }
 
+  // 2. Baseline reproduciendo EL MISMO periodo: el tarjetón es la verdad.
+  if (mode === "baseline" && anchorInTargetPeriod) {
+    return {
+      amount: anchor.amount,
+      warnings,
+      usedAnchor: true,
+      requiresConfirmation: false,
+      audit: buildAudit(anchor.amount, "anchor", "baseline_replay_mismo_periodo", status),
+    }
+  }
+
+  // 3. Elegibilidad actual independiente del ancla.
+  if (!eligibleNow) {
+    warnings.push("El derecho no aplica en el periodo proyectado según la evidencia actual; no se reutiliza el importe histórico.")
+    return {
+      amount: 0,
+      warnings,
+      usedAnchor: false,
+      requiresConfirmation: false,
+      audit: buildAudit(0, "zero", "no_elegible_ahora", status),
+    }
+  }
+
+  // 4. Cambio probado: jamás conservar el importe histórico.
   if (status === "changed") {
-    return { amount: formulaAmount, warnings }
+    if (formulaComputable) {
+      warnings.push(`Las dependencias cambiaron desde el último tarjetón; se recalcula con la fórmula vigente (ancla: ${anchor.amount.toFixed(2)}).`)
+      return {
+        amount: formulaAmount,
+        warnings,
+        usedAnchor: false,
+        requiresConfirmation: false,
+        audit: buildAudit(formulaAmount, "formula", "dependencias_cambiadas_recalculo", status),
+      }
+    }
+    // Cambio probado pero sin fórmula: repetir el ancla sería presentedarlo
+    // como válido para un escenario distinto → requiere confirmación.
+    warnings.push("Las dependencias cambiaron y esta regla no tiene fórmula configurada; el importe mostrado es el último comprobado y DEBE confirmarse.")
+    return {
+      amount: anchor.amount,
+      warnings,
+      usedAnchor: true,
+      requiresConfirmation: true,
+      audit: buildAudit(anchor.amount, "anchor", "dependencias_cambiadas_sin_formula_requiere_confirmacion", status),
+    }
   }
 
-  // status === "unknown"
-  if (mode === "exploratory") {
-    warnings.push("Importe estimado por fórmula — no se pudo verificar el estado anterior de las dependencias.")
-    return { amount: formulaAmount, warnings }
+  // 5. Incertidumbre tampoco equivale a importe válido.
+  if (status === "unknown") {
+    if (formulaComputable) {
+      if (mode === "exploratory") {
+        warnings.push("No se pudo verificar el estado anterior de las dependencias; estimación por fórmula.")
+        return {
+          amount: formulaAmount,
+          warnings,
+          usedAnchor: false,
+          requiresConfirmation: false,
+          audit: buildAudit(formulaAmount, "formula", "dependencias_desconocidas_estimacion_exploratoria", status),
+        }
+      }
+      warnings.push("No se pudo verificar el estado anterior de las dependencias; se recalcula por fórmula y requiere confirmación.")
+      return {
+        amount: formulaAmount,
+        warnings,
+        usedAnchor: false,
+        requiresConfirmation: true,
+        audit: buildAudit(formulaAmount, "formula", "dependencias_desconocidas_recalculo_requiere_confirmacion", status),
+      }
+    }
+    warnings.push("Sin fórmula configurada ni dependencias verificables; se repite el último importe comprobado y DEBE confirmarse.")
+    return {
+      amount: anchor.amount,
+      warnings,
+      usedAnchor: true,
+      requiresConfirmation: true,
+      audit: buildAudit(anchor.amount, "anchor", "sin_formula_dependencias_desconocidas_requiere_confirmacion", status),
+    }
   }
 
-  // strict o assisted: conservar anchor, advertir
-  if (anchor) {
-    const severity = mode === "strict" ? "No se recomienda modificar sin evidencia." : "Verifica los datos del perfil para mejorar la precisión."
-    warnings.push(`No se pudo verificar si las dependencias cambiaron. Se conserva el último importe comprobado. ${severity}`)
-    return { amount: anchor.amount, warnings }
+  // 6. Unchanged: decidir explícitamente si el VALOR puede persistir.
+  if (valuePersistence === "while_dependencies_unchanged") {
+    return {
+      amount: anchor.amount,
+      warnings,
+      usedAnchor: true,
+      requiresConfirmation: false,
+      audit: buildAudit(anchor.amount, "anchor", "dependencias_iguales_valor_persiste", status),
+    }
   }
 
-  // Sin anchor y unknown: usar fórmula
-  return { amount: formulaAmount, warnings }
+  if (formulaComputable) {
+    return {
+      amount: formulaAmount,
+      warnings,
+      usedAnchor: false,
+      requiresConfirmation: false,
+      audit: buildAudit(formulaAmount, "formula", "valor_no_persiste_recalculo", status),
+    }
+  }
+
+  // Unchanged + replay_only + sin fórmula: lo único disponible es el ancla.
+  warnings.push("Sin fórmula configurada; se repite el último importe comprobado.")
+  return {
+    amount: anchor.amount,
+    warnings,
+    usedAnchor: true,
+    requiresConfirmation: false,
+    audit: buildAudit(anchor.amount, "anchor", "sin_formula_replay_unico", status),
+  }
 }
 
 /**

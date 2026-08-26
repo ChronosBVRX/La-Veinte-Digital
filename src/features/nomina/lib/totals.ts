@@ -7,7 +7,10 @@ export function calculateProjectionTotals(
     (c) => c.type === "earning" && c.included && c.confidence === "high"
   )
   const probableEarnings = concepts.filter(
-    (c) => c.type === "earning" && (c.included && c.confidence === "medium")
+    (c) =>
+      c.type === "earning" &&
+      c.included &&
+      (c.confidence === "medium" || c.confidence === "low" || c.confidence === "requires_confirmation")
   )
   const conditionalEarnings = concepts.filter(
     (c) => c.type === "earning" && !c.included && c.amount > 0

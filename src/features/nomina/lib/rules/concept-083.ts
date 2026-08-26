@@ -1,5 +1,6 @@
 import type { PayrollRuleContext, RuleCalculationResult, CalculatedPayrollConcept, PayrollRule } from "../types"
 import { dependenciesStatus, resolveWithAnchor } from "../engine"
+import { truncateCurrency } from "../money"
 import { getPercentageForConcept083, type PercentageResolution } from "../../data/institutional-percentage-tables"
 
 /**
@@ -29,7 +30,7 @@ export const concept083Rule: PayrollRule = {
     const DEPS = ["002"]
 
     const c002 = ctx.calculatedConcepts.get("002")?.amount ?? 0
-    const formulaAmount = percentage === null ? 0 : c002 * percentage
+    const formulaAmount = percentage === null ? 0 : truncateCurrency(c002 * percentage)
 
     const isRecurring = ctx.profile.recurringConcepts.some(
       (rc) => rc.conceptCode === "083" && rc.confirmed && rc.appearsNormally === true

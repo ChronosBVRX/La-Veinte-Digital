@@ -11,7 +11,7 @@ import { Badge } from "@/shared/components/ui/Badge"
 import { Spinner } from "@/shared/components/ui/Spinner"
 import { EmptyState } from "@/shared/components/feedback/EmptyState"
 import { ScenarioComparison } from "./ScenarioComparison"
-import { simulateScenario, compareProjections } from "../services/simulate"
+import { simulateScenario, compareProjections, sumComprobadoTarjeton } from "../services/simulate"
 import { getCurrentPayPeriod } from "@/features/nomina/lib/periods"
 import { calculateProjection } from "@/features/nomina/lib/engine"
 import { resolveCategory } from "@/features/nomina/lib/category-resolver"
@@ -113,13 +113,22 @@ export function SimuladorNominaIndex() {
         if (!ctx?.employment || !ctx?.payroll) return
         const emp = ctx.employment as Record<string, unknown>
         const pay = ctx.payroll as Record<string, unknown>
-        // Sync to localStorage as cache
+        // Sync to localStorage as cache. NUNCA pisar listas locales con
+        // arrays vacíos del API (evita borrar evidencia válida si el servidor
+        // aún no tiene contexto persistido).
+        const prev = (() => {
+          try { return JSON.parse(localStorage.getItem("nomina_profile") || "{}") as Partial<EmployeePayrollProfile> }
+          catch { return {} as Partial<EmployeePayrollProfile> }
+        })()
+        const apiRc = (pay.recurringConcepts as EmployeePayrollProfile["recurringConcepts"]) || []
+        const apiFacts = (pay.payrollFacts as EmployeePayrollProfile["facts"]) || []
         const profileData = {
-          categoryName: emp.categoryName,
-          workdayHours: emp.workdayHours,
-          effectiveSeniorityDate: emp.effectiveSeniorityDate,
-          facts: pay.payrollFacts || [],
-          recurringConcepts: pay.recurringConcepts || [],
+          ...prev,
+          categoryName: emp.categoryName ?? prev.categoryName,
+          workdayHours: emp.workdayHours ?? prev.workdayHours,
+          effectiveSeniorityDate: emp.effectiveSeniorityDate ?? prev.effectiveSeniorityDate,
+          facts: apiFacts.length > 0 ? apiFacts : (prev.facts ?? []),
+          recurringConcepts: apiRc.length > 0 ? apiRc : (prev.recurringConcepts ?? []),
         }
         localStorage.setItem("nomina_profile", JSON.stringify(profileData))
         // Reload from updated localStorage
@@ -238,9 +247,9 @@ export function SimuladorNominaIndex() {
               flex: 1, minWidth: 180, padding: "var(--space-4)", background: "var(--card)",
               border: "1px solid var(--border)", borderRadius: "var(--radius-lg)",
             }}>
-              <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)", textTransform: "uppercase", fontWeight: 600 }}>Quincena estimada</span>
+              <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)", textTransform: "uppercase", fontWeight: 600 }}>Quincena comprobada (tarjetón)</span>
               <div style={{ fontSize: "var(--text-xl)", fontWeight: 700, marginTop: "0.25rem", color: "var(--area-work)" }}>
-                ${baseline.totals.possibleGross.toLocaleString("es-MX")}
+                ${(sumComprobadoTarjeton(profile) ?? baseline.totals.confirmedGross).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             </div>
           </div>

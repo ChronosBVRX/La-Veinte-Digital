@@ -103,10 +103,21 @@ const SMI_GROUP_X1_25 = ["002", "011", "012", "013", "014", "015", "016", "017",
 const SMI_GROUP_X1 = ["020", "022", "023", "050", "062", "063"]
 
 /**
- * Grupo "en su caso" del aguinaldo (043/047/049) y de los estímulos (032/033):
+ * Grupo "en su caso" del aguinaldo (043/047/049):
  * "Sueldo tabular (002) + cpto. 011 (en su caso cpto. 019 + 054 + 057 + 058 + 061)".
  */
 const AGUINALDO_EN_SU_CASO = ["002", "011", "019", "054", "057", "058", "061"]
+
+/**
+ * Base de los estímulos 032/033 REFUTADA empíricamente en su versión
+ * extendida: el tarjetón real 2A-AGO-2026 (TÉCNICO RADIÓLOGO 80, con 054 y
+ * 072 presentes) muestra base = 002 + 011 únicamente:
+ *   032 = trunc2(7172.41 × 24%) = $1,721.37
+ *   033 = trunc2(7172.41 × 16%) = $1,147.58
+ * El grupo previo [002, 011, 019, 054, 057, 058, 061] habría producido una
+ * base mayor. Se retiene solo la composición observada.
+ */
+const ESTIMULOS_BASE = ["002", "011"]
 
 /** Grupo de base de tiempo extraordinario según las cláusulas 32-33. */
 const TIEMPO_EXTRA_BASE = ["002", "011", "019", "023", "054", "063", "020", "050"]
@@ -157,9 +168,11 @@ const MATRIX: ConceptImpactRule[] = [
   ).map(([s, t, r]) => verified(s, t, CCT_2025_2027, r)),
 
   // ── 032 Estímulo a la Asistencia (Art. 91 RIT) y 033 Puntualidad (Art. 93 RIT) ──
-  ...pairList(AGUINALDO_EN_SU_CASO, ["032"], "Art. 91 del RIT (estímulo asistencia)")
+  // Base = 002 + 011 (composición observada en tarjetón real; grupo extendido
+  // previo refutado empíricamente — ver ESTIMULOS_BASE).
+  ...pairList(ESTIMULOS_BASE, ["032"], "Art. 91 del RIT (estímulo asistencia)")
     .map(([s, t, r]) => verified(s, t, CCT_2025_2027, r)),
-  ...pairList(AGUINALDO_EN_SU_CASO, ["033"], "Art. 93 del RIT (estímulo puntualidad)")
+  ...pairList(ESTIMULOS_BASE, ["033"], "Art. 93 del RIT (estímulo puntualidad)")
     .map(([s, t, r]) => verified(s, t, CCT_2025_2027, r)),
 
   // ── 043/047/049 Aguinaldo (Cláusula 107 del CCT) ─────────────────────────────

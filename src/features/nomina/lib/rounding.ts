@@ -19,3 +19,15 @@ export function parseCurrencyInput(raw: string): number | null {
   if (!Number.isFinite(num) || num < 0) return null
   return num
 }
+
+/**
+ * Truncamiento a centavos (NO redondeo).
+ *
+ * La nómina del IMSS trunca los conceptos derivados por porcentaje:
+ *   7172.41 × 24% = 1721.3784 → $1,721.37 (Math.round daría $1,721.38)
+ *   7172.41 × 16% = 1147.5856 → $1,147.58 (Math.round daría $1,147.59)
+ * Evidencia: tarjetón real 2A-AGO-2026, TÉCNICO RADIÓLOGO 80.
+ */
+export function truncateCurrency(value: number): number {
+  return Math.floor((value + Number.EPSILON) * 100) / 100
+}

@@ -277,3 +277,42 @@ export const rule050: PayrollRule = {
     return { concept, dependencies: [] }
   },
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LEGADO — Interpretación ANUAL del 022 (REFUTADA empíricamente)
+//
+// El tarjetón real 2A-AGO-2026 muestra el 022 como percepción QUINCENAL
+// (trunc2((002+011) × 27.5%) = $1,972.41), no como acumulado anual de días.
+// Se preserva esta implementación por su valor documental: la tabla
+// CLAUSE_63_BIS_C_DAYS podría corresponder a una prestación anual SEPARADA
+// que requiere revisión documental antes de descartarse. NUNCA usar para
+// proyección quincenal sin evidencia nueva.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * @deprecated Refutada por tarjetón 2A-AGO-2026. Ver rules/concept-022.ts.
+ */
+export function calculateAnnualSeniorityEntitlement(input: {
+  base: number
+  completedYears: number
+}): { days: number; annualAmount: number } {
+  const days = input.completedYears < 5 ? 0 : (CLAUSE_63_BIS_C_DAYS[input.completedYears] ?? 270)
+  const dailyValue = input.base / 15
+  const annualAmount = Math.round((dailyValue * days + Number.EPSILON) * 100) / 100
+  return { days, annualAmount }
+}
+
+/**
+ * @deprecated Refutada por tarjetón 2A-AGO-2026. Ver rules/concept-022.ts.
+ */
+export function calculateBiweeklySeniorityComponent(input: {
+  annualAmount: number
+  totalPaychecks?: number
+}): { biweeklyComponent: number; totalPaychecks: number; pendingValidation: true } {
+  const totalPaychecks = input.totalPaychecks ?? 24
+  return {
+    biweeklyComponent: Math.round((input.annualAmount / totalPaychecks + Number.EPSILON) * 100) / 100,
+    totalPaychecks,
+    pendingValidation: true,
+  }
+}

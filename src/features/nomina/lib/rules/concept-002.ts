@@ -1,9 +1,5 @@
 import type { PayrollRuleContext, RuleCalculationResult, CalculatedPayrollConcept, PayrollRule } from "../types"
 
-function round2(v: number): number {
-  return Math.round((v + Number.EPSILON) * 100) / 100
-}
-
 export const rule002: PayrollRule = {
   id: "002",
   version: "1.0.0",

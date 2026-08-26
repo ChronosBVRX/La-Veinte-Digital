@@ -1,33 +1,9 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
-import type { Database } from "@/lib/supabase/types"
+import { buildWorkerContextPayroll, type PayslipLineRow, type WorkerContext } from "./worker-context-builder"
 
-export interface WorkerContext {
-  profile: {
-    fullName: string | null
-    matricula: string | null
-    categoria: string | null
-    antiguedad: string | null
-  } | null
-  employment: {
-    categoryName: string | null
-    categoryCode: string | null
-    workdayHours: number | null
-    employmentType: string | null
-    entryDate: string | null
-    effectiveSeniorityDate: string | null
-    seniorityRaw: string | null
-  } | null
-  payroll: {
-    latestPeriod: string | null
-    totalEarnings: number | null
-    totalDeductions: number | null
-    netPay: number | null
-    recurringConcepts: unknown[]
-    payrollFacts: unknown[]
-  } | null
-}
+export type { WorkerContext } from "./worker-context-builder"
 
 export async function getWorkerContext(): Promise<WorkerContext> {
   const supabase = await createClient()
@@ -43,6 +19,19 @@ export async function getWorkerContext(): Promise<WorkerContext> {
   const profile = profileRes.data
   const ctx = ctxRes.data
   const latest = payslipRes.data?.[0]
+
+  // Líneas completas del tarjetón más reciente (verdad de terreno).
+  let payslipLines: PayslipLineRow[] = []
+  if (latest?.id) {
+    const linesRes = await supabase
+      .from("imported_payslip_lines")
+      .select("concept_code, description, amount, kind, confirmed_by_user")
+      .eq("payslip_id", latest.id)
+      .order("line_index")
+    if (!linesRes.error && Array.isArray(linesRes.data)) {
+      payslipLines = linesRes.data as PayslipLineRow[]
+    }
+  }
 
   return {
     profile: profile ? {
@@ -60,13 +49,16 @@ export async function getWorkerContext(): Promise<WorkerContext> {
       effectiveSeniorityDate: ctx.effective_seniority_date,
       seniorityRaw: (latest?.employee_data as Record<string, unknown> | undefined)?.seniority as string ?? null,
     } : null,
-    payroll: {
-      latestPeriod: latest?.period_raw ?? null,
-      totalEarnings: (latest?.payroll_totals as Record<string, number> | undefined)?.totalEarnings ?? null,
-      totalDeductions: (latest?.payroll_totals as Record<string, number> | undefined)?.totalDeductions ?? null,
-      netPay: (latest?.payroll_totals as Record<string, number> | undefined)?.netPay ?? null,
-      recurringConcepts: (ctx?.recurring_concepts as unknown[]) ?? [],
-      payrollFacts: (ctx?.payroll_facts as unknown[]) ?? [],
-    },
+    payroll: buildWorkerContextPayroll(
+      latest
+        ? {
+            period_raw: latest.period_raw ?? null,
+            payroll_totals: (latest.payroll_totals as Record<string, number> | undefined) ?? null,
+          }
+        : null,
+      (ctx?.recurring_concepts as unknown[]) ?? [],
+      (ctx?.payroll_facts as unknown[]) ?? [],
+      payslipLines,
+    ),
   }
 }

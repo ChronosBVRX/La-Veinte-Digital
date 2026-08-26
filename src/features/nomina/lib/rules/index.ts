@@ -9,6 +9,8 @@ import { concept013Rule } from "./concept-013"
 import { concept051Rule } from "./concept-051"
 import { rule054 } from "./concept-054"
 import { rule055 } from "./concept-055"
+import { concept032Rule } from "./concept-032"
+import { concept033Rule } from "./concept-033"
 import { concept057Rule } from "./concept-057"
 import { concept058Rule } from "./concept-058"
 import { concept061Rule } from "./concept-061"
@@ -25,6 +27,8 @@ export {
   concept013Rule as rule013,
   concept051Rule as rule051,
   rule054, rule055, rule050,
+  concept032Rule as rule032,
+  concept033Rule as rule033,
   concept057Rule as rule057,
   concept058Rule as rule058,
   concept061Rule as rule061,
@@ -37,6 +41,7 @@ export {
 export function getAllRules(): PayrollRule[] {
   return [
     rule002, rule011, rule020, rule022,
+    concept032Rule, concept033Rule,
     rule054, rule055, rule050,
     concept02Rule, concept012Rule, concept013Rule, concept051Rule,
     concept057Rule, concept058Rule, concept061Rule, concept062Rule,

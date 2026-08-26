@@ -13,6 +13,16 @@ export const FIXED_CONCEPT_AMOUNTS: Record<string, FixedConceptAmountEntry[]> = 
       frequency: "biweekly",
     },
   ],
+  // Ayuda para Despensa (050): importe observado en tarjetón real
+  // 2A-AGO-2026 ($200.00 quincenales). Pendiente confirmar contra catálogo
+  // oficial; versionado para poder actualizar sin romper reproducciones.
+  "050": [
+    {
+      effectiveFrom: "2025-01-01",
+      amount: 200,
+      frequency: "biweekly",
+    },
+  ],
 }
 
 export function getFixedAmount(

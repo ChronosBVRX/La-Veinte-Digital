@@ -8,10 +8,11 @@
  *
  * Es cliente y puro: no llama a la red.
  */
-import type { ImportedPayslip, EmployeePayrollProfile, PayrollFact, RecurringConceptEvidence, ConceptOccurrenceType, EligibilityPersistence } from "@/features/nomina/lib/types"
+import type { ImportedPayslip, EmployeePayrollProfile, PayrollFact, RecurringConceptEvidence } from "@/features/nomina/lib/types"
 import type { ConfirmTarjetonRequest, ConfirmTarjetonResponse, ParsedImssTarjeton } from "@/shared/contracts/tarjeton-import"
 import { getPayPeriod } from "@/features/nomina/lib/periods"
 import { institutionalToday } from "@/shared/lib/dates"
+import { PAYSLIP_FACT_CODES, classifyOccurrence, classifyPersistence } from "@/shared/lib/recurring-concept-classifier"
 import { getProfile, savePayslip, saveProfile } from "@/shared/services/local-storage"
 
 export interface PayslipSyncResult {
@@ -65,55 +66,6 @@ export function buildImportedPayslip(
     source: "pdf",
     confirmedByUser: true,
   }
-}
-
-/**
- * Códigos de conceptos que, además de guardarse como ancla de importe,
- * deben registrarse también como hecho booleano (concept_XXX_on_payslip)
- * para alimentar el motor de elegibilidad existente.
- *
- * Solo se incluyen los códigos que tienen entrada correspondiente en
- * PayrollFactKey — 002, 011, 020, 022, 050, 055 no necesitan hecho
- * booleano porque su elegibilidad se determina por otras vías.
- */
-const PAYSLIP_FACT_CODES = new Set([
-  "02", "012", "013",
-  "051", "054", "057", "058",
-  "061", "062", "072", "078", "083",
-])
-
-/**
- * Clasifica el tipo de ocurrencia de un concepto según su código.
- *
- * - recurring: aparece en cada tarjetón siempre (base, ayuda de renta, despensa).
- * - periodic: solo en quincenas específicas (aguinaldo anual, fondo de ahorro julio).
- * - variable: aparece regularmente pero el importe depende de la base (conceptos derivados).
- * - unknown: conceptos no clasificados (deducciones, horas extra, retroactivos, etc.).
- */
-function classifyOccurrence(code: string): ConceptOccurrenceType {
-  const recurring = new Set(["002", "011", "020", "050", "023", "063"])
-  if (recurring.has(code)) return "recurring"
-
-  const periodic = new Set(["022", "055"])
-  if (periodic.has(code)) return "periodic"
-
-  const variable = new Set(["02", "012", "013", "051", "054", "057", "058", "061", "062", "072", "078", "083"])
-  if (variable.has(code)) return "variable"
-
-  return "unknown"
-}
-
-/**
- * Clasifica la persistencia de elegibilidad según el código del concepto.
- */
-function classifyPersistence(code: string): EligibilityPersistence {
-  const persistent = new Set(["002", "011", "020"])
-  if (persistent.has(code)) return "persistent"
-  const periodScoped = new Set(["022", "055"])
-  if (periodScoped.has(code)) return "period_scoped"
-  const untilChanged = new Set(["02", "012", "013", "050", "023", "063", "051", "054", "057", "058", "061", "062", "072", "078", "083"])
-  if (untilChanged.has(code)) return "until_changed"
-  return "event_scoped"
 }
 
 /** Fusiona la evidencia del tarjetón en el perfil de nómina local. */

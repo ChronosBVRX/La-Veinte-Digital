@@ -1,5 +1,6 @@
 import type { PayrollRuleContext, RuleCalculationResult, CalculatedPayrollConcept, PayrollRule } from "../types"
 import { dependenciesStatus, resolveWithAnchor } from "../engine"
+import { truncateCurrency } from "../money"
 import { getPercentageForConcept072 } from "../../data/institutional-percentage-tables"
 
 /**
@@ -38,7 +39,7 @@ export const concept072Rule: PayrollRule = {
     const c002 = ctx.calculatedConcepts.get("002")?.amount ?? 0
     const c011 = ctx.calculatedConcepts.get("011")?.amount ?? 0
     const base = c002 + c011
-    const formulaAmount = percentage === null ? 0 : base * percentage
+    const formulaAmount = percentage === null ? 0 : truncateCurrency(base * percentage)
 
     const status = dependenciesStatus(DEPS, ctx)
     const { amount, warnings: resolutionWarnings } = resolveWithAnchor(

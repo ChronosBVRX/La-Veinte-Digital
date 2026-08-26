@@ -1,5 +1,6 @@
 import type { PayrollRuleContext, RuleCalculationResult, CalculatedPayrollConcept, PayrollRule } from "../types"
 import { dependenciesStatus, resolveWithAnchor } from "../engine"
+import { truncateCurrency } from "../money"
 
 export const concept078Rule: PayrollRule = {
   id: "078",
@@ -26,7 +27,7 @@ export const concept078Rule: PayrollRule = {
     const c002 = ctx.calculatedConcepts.get("002")?.amount ?? 0
     const c011 = ctx.calculatedConcepts.get("011")?.amount ?? 0
     const base = c002 + c011
-    const formulaAmount = base * 0.10
+    const formulaAmount = truncateCurrency(base * 0.10)
 
     const status = dependenciesStatus(DEPS, ctx)
     const { amount, warnings: resolutionWarnings } = resolveWithAnchor(

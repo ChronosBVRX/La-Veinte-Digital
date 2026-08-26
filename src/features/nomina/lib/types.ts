@@ -540,6 +540,15 @@ export interface SalaryHistoryEntry {
   calculatedConcept011?: number
 }
 
+/**
+ * Tabla de días por antigüedad (Cláusula 63 Bis, inciso c) — SOLO REFERENCIA.
+ *
+ * NO usar para proyección quincenal: el tarjetón real 2A-AGO-2026 refutó el
+ * mecanismo anual lump-sum (el 022 se paga quincenalmente como 27.5% de la
+ * base). La implementación anual quedó preservada en `lib/old-rules.ts`.
+ * Retenida pendiente de revisión documental de una posible prestación anual
+ * separada.
+ */
 export const CLAUSE_63_BIS_C_DAYS: Record<number, number> = {
   5: 60, 6: 63, 7: 66, 8: 69, 9: 72, 10: 75,
   11: 81, 12: 87, 13: 93, 14: 99, 15: 105,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { roundCurrency, formatCurrency, parseCurrencyInput } from "../lib/money"
+import { roundCurrency, formatCurrency, parseCurrencyInput, truncateCurrency } from "../lib/money"
 import { calculateSeniority, reconstructEffectiveDate } from "../lib/seniority"
 import { getPayPeriod, getCurrentPayPeriod, getNextPayPeriod } from "../lib/periods"
 import {
@@ -8,7 +8,7 @@ import {
   rule072,
 } from "../lib/rules"
 import { getAllRules } from "../lib/rules"
-import { topologicalSort, calculateProjection, detectCircularDependencies, dependenciesStatus, dependenciesChanged } from "../lib/engine"
+import { topologicalSort, calculateProjection, detectCircularDependencies, dependenciesStatus, dependenciesChanged, buildDependencyClosure } from "../lib/engine"
 import { resolveCategory } from "../lib/category-resolver"
 import { CLAUSE_63_BIS_C_DAYS } from "../lib/types"
 import { getFixedAmount } from "../data/fixed-concept-amounts"
@@ -90,6 +90,16 @@ type AnchorRecord = Record<string, {
   eligibilityPersistence: "persistent" | "until_changed" | "period_scoped" | "event_scoped";
 }>
 
+function conceptForTest(amount: number): CalculatedPayrollConcept {
+  return {
+    code: "X", name: "X", type: "earning", nature: "base",
+    amount, included: true, source: "salary_table",
+    confidence: "high", verificationStatus: "contract_verified",
+    elegibilitySource: "tabular_value",
+    dependencies: [], calculationSteps: [], legalBasis: [], warnings: [],
+  }
+}
+
 function ctxWithAnchors(anchors: AnchorRecord) {
   return createMockContext({
     conceptAnchors: new Map(Object.entries(anchors)),
@@ -129,6 +139,12 @@ describe("money utils", () => {
     expect(parseCurrencyInput("$12,345.67")).toBe(12345.67)
     expect(parseCurrencyInput("")).toBeNull()
     expect(parseCurrencyInput("-100")).toBeNull()
+  })
+  it("truncateCurrency reproduce el truncamiento del IMSS (tarjetón 2A-AGO-2026)", () => {
+    expect(truncateCurrency(7172.41 * 0.24)).toBe(1721.37)
+    expect(truncateCurrency(7172.41 * 0.16)).toBe(1147.58)
+    expect(truncateCurrency(7172.41 * 0.275)).toBe(1972.41)
+    expect(roundCurrency(7172.41 * 0.24)).toBe(1721.38) // el redondeo NO coincide con nómina
   })
 })
 
@@ -215,7 +231,9 @@ describe("Fórmula 022 - Ayuda de Renta por antigüedad", () => {
     const ctx = createMockContext({ calculatedConcepts: new Map([["002", c002.concept]]) })
     const result = rule022.calculate(ctx)
     expect(result.concept.amount).toBeGreaterThan(0)
-    expect(result.concept.included).toBe(false)
+    // Percepción QUINCENAL confirmada por tarjetón real 2A-AGO-2026:
+    // con antigüedad >= 5 años SÍ se incluye en la proyección.
+    expect(result.concept.included).toBe(true)
   })
 })
 
@@ -656,40 +674,83 @@ describe("Anclaje de tarjetón — elegibilidad confirmada, importe no congelado
     expect(c011Again.concept.amount).toBe(c011.concept.amount)
   })
 
-  // Test 2: Sin cambio en dependencias → mantiene el anchor aunque la fórmula difiera
-  it("sin cambio en dependencias mantiene el anchor aunque la fórmula difiera", () => {
-    const old002 = mockCategory.biweeklyBaseSalary
-
-    // Simular tarjetón anterior: 054 anclado a $1,300
+  // Test 2: Dependencias desconocidas NUNCA conservan el importe histórico.
+  it("dependencias desconocidas → recalcula por fórmula y exige confirmación", () => {
+    // Simular tarjetón anterior: 054 anclado a $1,300, pero SIN anclas de sus
+    // dependencias (002, 011) → el estado de las dependencias es "unknown".
     const anchors = {
       "054": { amount: 1300, date: "2025-06-30", occurrenceType: "variable" as const, eligibilityPersistence: "until_changed" as const },
     }
 
-    const ctx = ctxWithConcepts(
-      { "002": old002, "011": mockCategory.conceptoTabular011 ?? old002 * 0.8215 },
-      anchors,
-    )
+    // Evidencia ACTUAL de elegibilidad (el ancla por sí sola ya no otorga derecho).
+    const profile = addFact(createMockContext().profile, "permanent_radiation_exposure", true)
+    const ctx = createMockContext({
+      profile,
+      conceptAnchors: new Map(Object.entries(anchors)),
+      calculatedConcepts: new Map(Object.entries({
+        "002": conceptForTest(mockCategory.biweeklyBaseSalary),
+        "011": conceptForTest(mockCategory.conceptoTabular011 ?? mockCategory.biweeklyBaseSalary * 0.8215),
+      })),
+    })
     const r = rule054.calculate(ctx)
 
-    // Ancla confirma elegibilidad
-    expect(r.concept.included).toBe(true)
-    expect(r.concept.elegibilitySource).toBe("payslip_confirmed")
-    // Como las dependencias (002, 011) no tienen ancla, no se detecta cambio: se conserva el importe del tarjetón
-    expect(r.concept.amount).toBe(1300)
-    // anchorAmount se conserva como referencia
+    // La ausencia de información no es certeza financiera: se recalcula.
+    const expectedFormula = ((mockCategory.biweeklyBaseSalary + (mockCategory.conceptoTabular011 ?? mockCategory.biweeklyBaseSalary * 0.8215)) * 0.2)
+    expect(r.concept.amount).toBeCloseTo(expectedFormula, 2)
+    expect(r.concept.amount).not.toBe(1300)
+    // ...y queda marcado para confirmación manual.
+    expect(r.concept.confidence).toBe("requires_confirmation")
+    if (r.concept.resolutionAudit) {
+      expect(r.concept.resolutionAudit.dependencyStatus).toBe("unknown")
+      expect(r.concept.resolutionAudit.selectedSource).toBe("formula")
+      expect(r.concept.resolutionAudit.reason).toBe("dependencias_desconocidas_recalculo_requiere_confirmacion")
+    }
+    // El ancla se conserva como evidencia de verificación.
     expect(r.concept.anchorAmount).toBe(1300)
     expect(r.concept.anchorDate).toBe("2025-06-30")
   })
 
-  // Test 3: Concepto fijo → conserva el ancla mientras su tabla no cambie
-  it("concepto fijo 020 conserva el ancla mientras la tabla no cambie", () => {
+  // Test 2b: Dependencias IDÉNTICAS a centavos → sí conserva el importe REAL.
+  it("dependencias idénticas conservan el importe comprobado del tarjetón", () => {
+    const c002 = 1300
+    const c011 = 1000
+    const anchors = {
+      "054": { amount: 999.99, date: "2025-06-30", occurrenceType: "variable" as const, eligibilityPersistence: "until_changed" as const },
+      "002": { amount: c002, date: "2025-06-30", occurrenceType: "recurring" as const, eligibilityPersistence: "persistent" as const },
+      "011": { amount: c011, date: "2025-06-30", occurrenceType: "recurring" as const, eligibilityPersistence: "persistent" as const },
+    }
+    const profile = addFact(createMockContext().profile, "permanent_radiation_exposure", true)
+    const ctx = createMockContext({
+      profile,
+      conceptAnchors: new Map(Object.entries(anchors)),
+      calculatedConcepts: new Map(Object.entries({
+        "002": conceptForTest(c002),
+        "011": conceptForTest(c011),
+      })),
+    })
+    const r = rule054.calculate(ctx)
+
+    // Mismos insumos que el tarjetón real → mismo importe REAL.
+    expect(r.concept.amount).toBe(999.99)
+    expect(r.concept.source).toBe("last_payslip")
+    if (r.concept.resolutionAudit) {
+      expect(r.concept.resolutionAudit.reason).toBe("dependencias_iguales_valor_persiste")
+    }
+  })
+
+  // Test 3: Concepto fijo 020 → siempre recalcula desde su tabla versionada.
+  it("concepto fijo 020 recalcula desde la tabla vigente (no congela el ancla)", () => {
     const ctx = ctxWithAnchors({
       "020": { amount: 250, date: "2025-06-30", occurrenceType: "recurring", eligibilityPersistence: "persistent" as const },
     })
     const r = rule020.calculate(ctx)
     expect(r.concept.amount).toBe(250)
     expect(r.concept.included).toBe(true)
-    expect(r.concept.source).toBe("last_payslip")
+    // El importe viene del catálogo CCT, no de repetir el histórico.
+    expect(r.concept.source).toBe("contract_rule")
+    if (r.concept.resolutionAudit) {
+      expect(r.concept.resolutionAudit.valuePersistence).toBe("replay_only")
+    }
   })
 
   // Test 4: Concepto one_time no reaparece automáticamente
@@ -745,31 +806,44 @@ describe("Anclaje de tarjetón — elegibilidad confirmada, importe no congelado
     }
   })
 
-  // Test 6: Cambio de antigüedad → solo recalcula conceptos afectados (022)
-  it("cambio de antigüedad solo afecta 022, no congela otros conceptos", () => {
+  // Test 6: Antigüedad ≥5 años habilita 022 quincenal (tarifa plana 27.5%
+  // calibrada con un solo punto real); otros conceptos no cambian.
+  it("022 quincenal: tarifa plana calibrada, misma cuantía a 10 y 15 años (con advertencia)", () => {
     const seniority10 = { ...mockSeniority, years: 10 }
     const seniority15 = { ...mockSeniority, years: 15 }
 
-    const ctx10 = createMockContext({ seniority: seniority10 })
-    const r002 = rule002.calculate(ctx10)
-    const ctx10With002 = createMockContext({
-      calculatedConcepts: new Map([["002", r002.concept]]),
+    const baseCtx = createMockContext({ seniority: seniority10 })
+    const r002 = rule002.calculate(baseCtx)
+    const c011Calc = rule011.calculate(createMockContext({
       seniority: seniority10,
-    })
-
-    const r022_10 = rule022.calculate(ctx10With002)
-    expect(r022_10.concept.amount).toBeGreaterThan(0)
-
-    const ctx15 = createMockContext({
       calculatedConcepts: new Map([["002", r002.concept]]),
-      seniority: seniority15,
-    })
-    const r022_15 = rule022.calculate(ctx15)
+    }))
+    const c002Map = new Map([["002", r002.concept], ["011", c011Calc.concept]])
 
-    // Con más antigüedad, el importe de 022 debe ser mayor
-    expect(r022_15.concept.amount).toBeGreaterThan(r022_10.concept.amount)
+    const r022_10 = rule022.calculate(createMockContext({
+      calculatedConcepts: c002Map,
+      seniority: seniority10,
+    }))
+    expect(r022_10.concept.amount).toBeGreaterThan(0)
+    expect(r022_10.concept.included).toBe(true)
+
+    const r022_15 = rule022.calculate(createMockContext({
+      calculatedConcepts: c002Map,
+      seniority: seniority15,
+    }))
+
+    // Tarifa única 27.5% calibrada @14 años: mientras no exista evidencia de
+    // escala, la cuantía es la misma; la advertencia lo documenta.
+    expect(r022_15.concept.amount).toBe(r022_10.concept.amount)
+    expect(r022_10.concept.warnings.some((w) => w.includes("calibrada con un solo"))).toBe(true)
+
+    // Fórmula exacta contra tarjetón real: base 002+011 × 27.5% truncado
+    const c011 = mockCategory.conceptoTabular011 ?? mockCategory.biweeklyBaseSalary * 0.8215
+    const expected = Math.floor(((mockCategory.biweeklyBaseSalary + c011) * 0.275 + Number.EPSILON) * 100) / 100
+    expect(r022_10.concept.amount).toBe(expected)
+
     // Otros conceptos (020) no cambian por antigüedad
-    const r020 = rule020.calculate(ctx15)
+    const r020 = rule020.calculate(createMockContext({ seniority: seniority15 }))
     expect(r020.concept.amount).toBe(250)
   })
 
@@ -893,10 +967,16 @@ describe("Reglas: discrepancia no modifica, dependencias sí", () => {
       "011": { amount: mockCategory.conceptoTabular011 ?? mockCategory.biweeklyBaseSalary * 0.8215, date: "2025-06-30", occurrenceType: "recurring" as const, eligibilityPersistence: "persistent" as const },
     }
 
-    const ctx = ctxWithConcepts(
-      { "002": mockCategory.biweeklyBaseSalary, "011": mockCategory.conceptoTabular011 ?? mockCategory.biweeklyBaseSalary * 0.8215 },
-      anchors,
-    )
+    // Evidencia ACTUAL de elegibilidad (el ancla por sí sola ya no otorga derecho).
+    const profile = addFact(createMockContext().profile, "permanent_radiation_exposure", true)
+    const ctx = createMockContext({
+      profile,
+      conceptAnchors: new Map(Object.entries(anchors)),
+      calculatedConcepts: new Map(Object.entries({
+        "002": conceptForTest(mockCategory.biweeklyBaseSalary),
+        "011": conceptForTest(mockCategory.conceptoTabular011 ?? mockCategory.biweeklyBaseSalary * 0.8215),
+      })),
+    })
     const r = rule054.calculate(ctx)
 
     // Dependencias sin cambios → conserva el anchor aunque la fórmula discrepe
@@ -918,10 +998,15 @@ describe("Reglas: discrepancia no modifica, dependencias sí", () => {
       "011": { amount: mockCategory.conceptoTabular011 ?? mockCategory.biweeklyBaseSalary * 0.8215, date: "2025-06-30", occurrenceType: "recurring" as const, eligibilityPersistence: "persistent" as const },
     }
 
-    const ctx = ctxWithConcepts(
-      { "002": new002, "011": new011 },
-      anchors,
-    )
+    const profile = addFact(createMockContext().profile, "permanent_radiation_exposure", true)
+    const ctx = createMockContext({
+      profile,
+      conceptAnchors: new Map(Object.entries(anchors)),
+      calculatedConcepts: new Map(Object.entries({
+        "002": conceptForTest(new002),
+        "011": conceptForTest(new011),
+      })),
+    })
     const r = rule054.calculate(ctx)
 
     // 002 cambió → 054 debe recalcularse (no conservar el anchor de 1353.16)
@@ -930,10 +1015,10 @@ describe("Reglas: discrepancia no modifica, dependencias sí", () => {
     expect(r.concept.amount).toBeCloseTo(expected, 2)
   })
 
-  it("baseline siempre reproduce el importe observado del tarjetón", () => {
+  it("baseline reproduce el importe observado SOLO del mismo periodo del tarjetón", () => {
     const anchor054 = 1353.16
     const anchors = {
-      "054": { amount: anchor054, date: "2025-06-30", occurrenceType: "variable" as const, eligibilityPersistence: "until_changed" as const },
+      "054": { amount: anchor054, date: "2025-01-10", occurrenceType: "variable" as const, eligibilityPersistence: "until_changed" as const },
     }
 
     const ctx = createMockContext({
@@ -948,5 +1033,104 @@ describe("Reglas: discrepancia no modifica, dependencias sí", () => {
     const r = rule054.calculate(ctx)
     // Baseline: el tarjetón manda, sin importar la fórmula
     expect(r.concept.amount).toBe(anchor054)
+  })
+})
+
+describe("Contrato de anclas — decisiones documentadas", () => {
+  function conceptOf(code: string, amount: number) {
+    return { code, name: code, type: "earning" as const, nature: "base" as const, amount, included: true, source: "salary_table" as const, confidence: "high" as const, verificationStatus: "contract_verified" as const, elegibilitySource: "tabular_value" as const, dependencies: [], calculationSteps: [], legalBasis: [], warnings: [] }
+  }
+
+  it("baseline en OTRO periodo: replay sólo vía valuePersistence, nunca via replay de periodo", () => {
+    // Ancla de junio, periodo de enero. Con dependencias IDÉNTICAS el valor
+    // persiste por la regla 6 (dependencias_iguales_valor_persiste), NO porque
+    // baseline reproduzca el tarjetón de otro periodo.
+    const anchors = {
+      "054": { amount: 9999, date: "2025-06-30", occurrenceType: "variable" as const, eligibilityPersistence: "until_changed" as const },
+      "002": { amount: mockCategory.biweeklyBaseSalary, date: "2025-06-30", occurrenceType: "recurring" as const, eligibilityPersistence: "persistent" as const },
+      "011": { amount: mockCategory.conceptoTabular011 ?? mockCategory.biweeklyBaseSalary * 0.8215, date: "2025-06-30", occurrenceType: "recurring" as const, eligibilityPersistence: "persistent" as const },
+    }
+    const profile = addFact(createMockContext().profile, "permanent_radiation_exposure", true)
+    const ctxIguales = createMockContext({
+      profile,
+      conceptAnchors: new Map(Object.entries(anchors)),
+      mode: "baseline",
+      calculatedConcepts: new Map(Object.entries({
+        "002": conceptOf("002", mockCategory.biweeklyBaseSalary),
+        "011": conceptOf("011", mockCategory.conceptoTabular011 ?? mockCategory.biweeklyBaseSalary * 0.8215),
+      })),
+    })
+    const rIguales = rule054.calculate(ctxIguales)
+    expect(rIguales.concept.amount).toBe(9999)
+    expect(rIguales.concept.resolutionAudit?.reason).toBe("dependencias_iguales_valor_persiste")
+    expect(rIguales.concept.resolutionAudit?.anchorInTargetPeriod).toBe(false)
+
+    // Con dependencias CAMBIADAS, ni baseline ni persistencia salvan el histórico.
+    const ctxCambiadas = createMockContext({
+      profile,
+      conceptAnchors: new Map(Object.entries(anchors)),
+      mode: "baseline",
+      calculatedConcepts: new Map(Object.entries({
+        "002": conceptOf("002", mockCategory.biweeklyBaseSalary + 500),
+        "011": conceptOf("011", mockCategory.conceptoTabular011 ?? mockCategory.biweeklyBaseSalary * 0.8215),
+      })),
+    })
+    const rCambiadas = rule054.calculate(ctxCambiadas)
+    expect(rCambiadas.concept.amount).not.toBe(9999)
+    expect(rCambiadas.concept.resolutionAudit?.reason).toBe("dependencias_cambiadas_recalculo")
+  })
+
+  it("el ancla NO otorga elegibilidad: 054 sin evidencia actual queda excluido", () => {
+    const anchors = {
+      "054": { amount: 1353.16, date: "2025-01-10", occurrenceType: "variable" as const, eligibilityPersistence: "until_changed" as const },
+      "002": { amount: mockCategory.biweeklyBaseSalary, date: "2025-01-10", occurrenceType: "recurring" as const, eligibilityPersistence: "persistent" as const },
+      "011": { amount: mockCategory.conceptoTabular011 ?? mockCategory.biweeklyBaseSalary * 0.8215, date: "2025-01-10", occurrenceType: "recurring" as const, eligibilityPersistence: "persistent" as const },
+    }
+    // Perfil SIN hechos ni condiciones ni recurrencia de 054:
+    const ctx = createMockContext({
+      conceptAnchors: new Map(Object.entries(anchors)),
+      calculatedConcepts: new Map(Object.entries({
+        "002": conceptOf("002", mockCategory.biweeklyBaseSalary),
+        "011": conceptOf("011", mockCategory.conceptoTabular011 ?? mockCategory.biweeklyBaseSalary * 0.8215),
+      })),
+    })
+    const r = rule054.calculate(ctx)
+    expect(r.concept.included).toBe(false)
+    expect(r.concept.amount).toBe(0)
+    if (r.concept.resolutionAudit) {
+      expect(r.concept.resolutionAudit.eligibleNow).toBe(false)
+      expect(r.concept.resolutionAudit.selectedSource).toBe("zero")
+      expect(r.concept.resolutionAudit.reason).toBe("no_elegible_ahora")
+    }
+  })
+
+  it("cierre transitivo: cambio en 002 invalida dependientes indirectos", () => {
+    // 054 depende declaradamente de [002, 011]; con closure, un cambio solo
+    // en 002 basta para invalidar aunque la lista directa estuviera incompleta.
+    const closure = new Map<string, Set<string>>([
+      ["054", new Set(["002", "011"])],
+    ])
+    const anchors = new Map([
+      ["002", { amount: 3000, date: "2025-06-30", occurrenceType: "recurring" as const, eligibilityPersistence: "persistent" as const }],
+      ["054", { amount: 1000, date: "2025-06-30", occurrenceType: "variable" as const, eligibilityPersistence: "until_changed" as const }],
+    ])
+    const concepts = new Map<string, CalculatedPayrollConcept>([
+      ["002", conceptOf("002", 3937.64)],
+    ])
+    const ctx = createMockContext({
+      conceptAnchors: anchors,
+      calculatedConcepts: concepts,
+      dependencyClosure: closure,
+    })
+    // Sin closure, dep "011" daría unknown; con closure, 002 cambió → changed.
+    expect(dependenciesStatus(["002"], ctx)).toBe("changed")
+  })
+
+  it("buildDependencyClosure expande la cadena causal completa", () => {
+    const closure = buildDependencyClosure(getAllRules())
+    const c054 = closure.get("054")
+    expect(c054).toBeDefined()
+    expect(c054!.has("002")).toBe(true)
+    expect(c054!.has("011")).toBe(true)
   })
 })
