@@ -7,16 +7,16 @@ import { CALENDARIOS, EVENT_LABELS, EVENT_COLORS } from "@/shared/data/calendari
 import type { CalendarEventType } from "@/shared/data/calendario"
 import { createClient } from "@/lib/supabase/client"
 
-const STORAGE_KEY = "calendar_filters_v1"
+const STORAGE_KEY = "calendar_filters_v2"
 
 const MONTH_NAMES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
 const DAY_HEADERS = ["L", "M", "M", "J", "V", "S", "D"]
 
 const PAYMENT_TYPES = new Set<CalendarEventType>(["santander", "otros", "cheque", "jubilados"])
 
-type FilterKey = "payments" | "interactivo" | "vacacional" | "txt_substitution" | "overtime" | "shift_change" | "other"
+type FilterKey = "payments" | "interactivo" | "vacacional" | "txt_substitution" | "overtime" | "shift_change" | "guardia_festiva" | "falta_injustificada" | "incapacidad" | "pase_salida" | "vacaciones" | "no_pagado" | "other"
 
-const AGENDA_KEYS: FilterKey[] = ["txt_substitution", "overtime", "shift_change", "other"]
+const AGENDA_KEYS: FilterKey[] = ["txt_substitution", "overtime", "shift_change", "guardia_festiva", "falta_injustificada", "incapacidad", "pase_salida", "vacaciones", "no_pagado", "other"]
 
 const FILTER_DEFS: { key: FilterKey; label: string; color: string; group: "institucional" | "agenda" }[] = [
   { key: "payments", label: "Pagos", color: "#ef4444", group: "institucional" },
@@ -25,6 +25,12 @@ const FILTER_DEFS: { key: FilterKey; label: string; color: string; group: "insti
   { key: "txt_substitution", label: "TxT", color: "#3b82f6", group: "agenda" },
   { key: "overtime", label: "T. extra", color: "#f97316", group: "agenda" },
   { key: "shift_change", label: "Turno", color: "#8b5cf6", group: "agenda" },
+  { key: "guardia_festiva", label: "Guardia", color: "#ec4899", group: "agenda" },
+  { key: "falta_injustificada", label: "Falta", color: "#f43f5e", group: "agenda" },
+  { key: "incapacidad", label: "Incapacidad", color: "#14b8a6", group: "agenda" },
+  { key: "pase_salida", label: "Pases", color: "#0ea5e9", group: "agenda" },
+  { key: "vacaciones", label: "Mis vacaciones", color: "#84cc16", group: "agenda" },
+  { key: "no_pagado", label: "No pagado", color: "#b45309", group: "agenda" },
   { key: "other", label: "Otros", color: "#64748b", group: "agenda" },
 ]
 
@@ -108,13 +114,7 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
               const start = new Date(c.start_at)
               const end = new Date(c.end_at)
               const isNightShift = start.getDate() !== end.getDate() && end.getHours() < start.getHours()
-              const typeMap: Record<string, FilterKey> = {
-                txt_substitution: "txt_substitution",
-                overtime: "overtime",
-                shift_change: "shift_change",
-                other: "other",
-              }
-              const agendaType = typeMap[c.type] ?? "other"
+              const agendaType = (AGENDA_KEYS as string[]).includes(c.type) ? (c.type as FilterKey) : "other"
               const color = FILTER_DEFS.find((f) => f.key === agendaType)?.color ?? "#64748b"
               return {
                 id: `agenda-${c.id}`,

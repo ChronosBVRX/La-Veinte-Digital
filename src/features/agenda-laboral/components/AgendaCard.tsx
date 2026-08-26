@@ -138,7 +138,7 @@ export function AgendaCard({ userId, commitments, onCommitmentsChange, onAdd }: 
         )}
 
         <p style={{ fontSize: "0.625rem", color: "var(--muted)", margin: "0.5rem 0 0", textAlign: "center" }}>
-          Tus compromisos se guardan solo en este dispositivo.
+          Tus compromisos se guardan en tu cuenta y aparecen en tu calendario.
         </p>
       </div>
 

@@ -1,7 +1,7 @@
 import { chromium } from 'playwright';
 const M=process.env.MATRICULA, P=process.env.PASS;
 const browser = await chromium.launch({ headless:true, args:['--no-sandbox','--disable-blink-features=AutomationControlled'] });
-const ctx = await browser.newContext({ userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36', viewport:{width:1280,height:900}, locale:'es-MX', acceptDownloads:true });
+const ctx = await browser.newContext({ userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36', viewport:{width:1280,height:900}, locale:'es-MX' });
 const page = await ctx.newPage();
 const log=(...a)=>console.log(...a);
 
@@ -11,8 +11,9 @@ await page.locator('#matricula').fill(M); await page.locator('#password').fill(P
 await page.locator('button:has-text("Iniciar sesión")').first().click();
 await page.waitForTimeout(5000);
 await page.goto('https://tuperfil.imss.gob.mx/guitpei-web/app/administration/biometric/consult-period',{waitUntil:'domcontentloaded',timeout:30000});
-await page.waitForTimeout(4000);
+await page.waitForTimeout(5000);
 
+// do the query fully
 await page.evaluate(async ()=>{
   function n(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase()}
   function txt(e){return (e.innerText||e.textContent||'').replace(/\s+/g,' ').trim()}
@@ -25,29 +26,26 @@ const btn=page.locator('button.primary:has-text("Buscar"), button:has-text("Busc
 if(await btn.count()>0) await btn.first().click();
 await page.waitForTimeout(6000);
 
-// dump ALL anchors/buttons/links that contain descargar/compartir (case-insensitive), with outerHTML
-const raw = await page.evaluate(()=>{
-  function vis(e){return e&&e.getClientRects().length>0}
-  const cands=[...document.querySelectorAll('a,button,mat-icon,mat-icon-button,[role="button"],i,span')].filter(vis);
-  const hits=[];
-  for(const c of cands){
-    const t=(c.innerText||c.textContent||'').replace(/\s+/g,' ').trim();
-    const cls=String(c.className||'');
-    const id=c.id||'';
-    if(/descargar|compartir|download|export|pdf|\.pdf|\.aspx/i.test(t+' '+cls+' '+id)){
-      hits.push({tag:c.tagName, id:c.id, cls:cls.slice(0,80), text:t.slice(0,40), outerHTML:c.outerHTML.slice(0,700)});
-    }
-  }
-  return hits;
+// Inspect sessionStorage + try the EXACT app JS fetch logic
+const res = await page.evaluate(async ()=>{
+  const out={};
+  out.tokenInSession = !!sessionStorage.getItem('token');
+  out.tokenKey = sessionStorage.getItem('token')? sessionStorage.getItem('token').slice(0,20):null;
+  // EXACT copy of app fetchBiometricPdfJs logic
+  const token = sessionStorage.getItem('token') || sessionStorage.getItem('access_token') || null;
+  const headers={'Content-Type':'application/json'};
+  if(token)headers['Authorization']=token;
+  const body=JSON.stringify({matricula:'98173968',idPeriodo:'2025001',tipoConsuta:2,fechaInicial:'-',fechaFinal:'-',ooad:'17'});
+  try{
+    const r=await fetch('/mstpei-biometricos/v1/biometricos/recuperar',{method:'POST',headers:headers,body:body,credentials:'include'});
+    const txt=await r.text();
+    let j; try{j=JSON.parse(txt);}catch(e){return {...out, fetchStatus:r.status, notJson:txt.slice(0,40)};}
+    const b=j.data&&j.data.archivoB64;
+    if(!b)return {...out, fetchStatus:r.status, msg:j.message, noB64:true};
+    const bytes=atob(b);
+    const head=String.fromCharCode(bytes.charCodeAt(0),bytes.charCodeAt(1),bytes.charCodeAt(2),bytes.charCodeAt(3),bytes.charCodeAt(4));
+    return {...out, fetchStatus:r.status, isPdf:head==='%PDF-', len:bytes.length, usedToken:'SESSION', head};
+  }catch(e){ return {...out, err:String(e)}; }
 });
-log('MATCHES:', raw.length);
-for(const h of raw){ log('---'); log('tag='+h.tag+' id='+h.id+' cls="'+h.cls+'" text="'+h.text+'"'); log('HTML: '+h.outerHTML); }
-
-// Also dump the whole row near "Descargar" (parent container)
-const ctxHtml = await page.evaluate(()=>{
-  function vis(e){return e&&e.getClientRects().length>0}
-  const el=[...document.querySelectorAll('*')].find(e=>vis(e)&&/descargar/i.test(e.textContent||'')&&e.querySelector('a,button,mat-icon'));
-  return el? el.parentElement ? el.parentElement.outerHTML.slice(0,1500):'no-parent' : 'no-el';
-});
-log('CONTEXT HTML:', ctxHtml);
+log('RESULT:', JSON.stringify(res));
 await browser.close();

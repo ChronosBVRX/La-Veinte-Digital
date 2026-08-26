@@ -1,9 +1,32 @@
 import { createClient } from "@/lib/supabase/client"
 import type { Tables, TablesInsert, TablesUpdate } from "@/lib/supabase/types"
+import type { WorkerCommitment } from "../types"
 
 export type CommitmentRow = Tables<"worker_commitments">
 export type CommitmentInsert = TablesInsert<"worker_commitments">
 export type CommitmentUpdate = TablesUpdate<"worker_commitments">
+
+export function rowToCommitment(row: CommitmentRow): WorkerCommitment {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    type: row.type as WorkerCommitment["type"],
+    title: row.title,
+    startAt: row.start_at,
+    endAt: row.end_at,
+    workplace: row.workplace ?? "",
+    service: row.service ?? "",
+    substituteWorkerName: row.substitute_worker_name ?? "",
+    notes: row.notes ?? "",
+    reminder: {
+      dayBefore: row.reminder_day_before,
+      hoursBefore: row.reminder_hours_before,
+      atStart: row.reminder_at_start,
+    },
+    status: row.status as WorkerCommitment["status"],
+    createdAt: row.created_at,
+  }
+}
 
 export type FetchResult =
   | { ok: true; data: CommitmentRow[] }

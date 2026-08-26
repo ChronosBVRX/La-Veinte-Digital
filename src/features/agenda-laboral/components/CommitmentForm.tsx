@@ -109,7 +109,13 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
     { key: "txt_substitution", label: "Sustitución TxT", icon: "🔄", desc: "Cubrir el turno de otro compañero" },
     { key: "overtime", label: "Tiempo extra", icon: "⏱", desc: "Horas adicionales fuera de tu jornada" },
     { key: "shift_change", label: "Cambio de turno", icon: "🔀", desc: "Turno distinto a tu jornada habitual" },
-    { key: "other", label: "Otro compromiso", icon: "📌", desc: "Guardia, capacitación, reunión, etc." },
+    { key: "guardia_festiva", label: "Guardia festiva", icon: "🎉", desc: "Guardia en día festivo o descanso" },
+    { key: "falta_injustificada", label: "Falta injustificada", icon: "🚫", desc: "Registro de ausencia sin justificar" },
+    { key: "incapacidad", label: "Incapacidad", icon: "🏥", desc: "Incapacidad médica (IMSS o particular)" },
+    { key: "pase_salida", label: "Pase de salida/entrada", icon: "🚪", desc: "Permiso durante la jornada" },
+    { key: "vacaciones", label: "Vacaciones", icon: "🏖", desc: "Periodo vacacional programado o tomado" },
+    { key: "no_pagado", label: "No pagado", icon: "⚠️", desc: "Concepto con reclamación en proceso" },
+    { key: "other", label: "Otro registro", icon: "📌", desc: "Capacitación, comisión, reunión, etc." },
   ]
 
   return (

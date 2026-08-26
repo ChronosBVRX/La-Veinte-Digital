@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react"
 import type { WorkerCommitment } from "../types"
-import type { CommitmentInsert, CommitmentUpdate } from "../services/commitments-supabase"
+import type { CommitmentInsert, CommitmentUpdate, CommitmentRow } from "../services/commitments-supabase"
 import {
   fetchCommitments,
+  rowToCommitment,
   insertCommitment as supabaseInsert,
   updateCommitment as supabaseUpdate,
   deleteCommitment as supabaseDelete,
@@ -14,42 +15,21 @@ import { getCommitments as getLocal, clearLocalForUser } from "../services/commi
 
 type MigrationState = "pending" | "running" | "completed" | "failed"
 
-function rowToCommitment(row: { id: string; user_id: string; type: string; title: string; start_at: string; end_at: string; workplace: string | null; service: string | null; substitute_worker_name: string | null; notes: string | null; reminder_day_before: boolean; reminder_hours_before: boolean; reminder_at_start: boolean; status: string; created_at: string }): WorkerCommitment {
-  return {
-    id: row.id,
-    userId: row.user_id,
-    type: row.type as WorkerCommitment["type"],
-    title: row.title,
-    startAt: row.start_at,
-    endAt: row.end_at,
-    workplace: row.workplace ?? "",
-    service: row.service ?? "",
-    substituteWorkerName: row.substitute_worker_name ?? "",
-    notes: row.notes ?? "",
-    reminder: {
-      dayBefore: row.reminder_day_before,
-      hoursBefore: row.reminder_hours_before,
-      atStart: row.reminder_at_start,
-    },
-    status: row.status as WorkerCommitment["status"],
-    createdAt: row.created_at,
-  }
+function filterUpcoming(all: WorkerCommitment[]): WorkerCommitment[] {
+  const now = new Date().toISOString()
+  return all
+    .filter((c) => c.status === "active" && c.startAt > now)
+    .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
+    .slice(0, 3)
 }
 
-export function useCommitments(userId: string) {
-  const [commitments, setCommitments] = useState<WorkerCommitment[]>([])
-  const [upcoming, setUpcoming] = useState<WorkerCommitment[]>([])
-  const [loading, setLoading] = useState(true)
+export function useCommitments(userId: string, initialRows?: CommitmentRow[]) {
+  const initial = initialRows?.length ? initialRows.map(rowToCommitment) : []
+  const [commitments, setCommitments] = useState<WorkerCommitment[]>(initial)
+  const [upcoming, setUpcoming] = useState<WorkerCommitment[]>(initialRows?.length ? filterUpcoming(initial) : [])
+  const [loading, setLoading] = useState(!initialRows)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [migration, setMigration] = useState<MigrationState>("pending")
-
-  const filterUpcoming = useCallback((all: WorkerCommitment[]) => {
-    const now = new Date().toISOString()
-    return all
-      .filter((c) => c.status === "active" && c.startAt > now)
-      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
-      .slice(0, 3)
-  }, [])
 
   const refresh = useCallback(async () => {
     const result = await fetchCommitments(userId)
@@ -63,7 +43,7 @@ export function useCommitments(userId: string) {
     setCommitments(mapped)
     setUpcoming(filterUpcoming(mapped))
     setLoading(false)
-  }, [userId, filterUpcoming])
+  }, [userId])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async refresh on mount

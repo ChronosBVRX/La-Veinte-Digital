@@ -4,6 +4,7 @@ const browser = await chromium.launch({ headless:true, args:['--no-sandbox','--d
 const ctx = await browser.newContext({ userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36', viewport:{width:1280,height:900}, locale:'es-MX', acceptDownloads:true });
 const page = await ctx.newPage();
 const log=(...a)=>console.log(...a);
+page.on('download', async d=>{ log('DL:', d.suggestedFilename()); try{await d.saveAs('/tmp/chk.pdf'); log('saved');}catch(e){} });
 
 await page.goto('https://tuperfil.imss.gob.mx/guitpei-web/login',{waitUntil:'domcontentloaded',timeout:30000});
 await page.waitForTimeout(3000);
@@ -11,8 +12,7 @@ await page.locator('#matricula').fill(M); await page.locator('#password').fill(P
 await page.locator('button:has-text("Iniciar sesión")').first().click();
 await page.waitForTimeout(5000);
 await page.goto('https://tuperfil.imss.gob.mx/guitpei-web/app/administration/biometric/consult-period',{waitUntil:'domcontentloaded',timeout:30000});
-await page.waitForTimeout(4000);
-
+await page.waitForTimeout(5000);
 await page.evaluate(async ()=>{
   function n(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase()}
   function txt(e){return (e.innerText||e.textContent||'').replace(/\s+/g,' ').trim()}
@@ -25,27 +25,25 @@ const btn=page.locator('button.primary:has-text("Buscar"), button:has-text("Busc
 if(await btn.count()>0) await btn.first().click();
 await page.waitForTimeout(6000);
 
-// Find the span "Descargar" and dump ancestors up to 6 levels with tag/id/class
-const anc = await page.evaluate(()=>{
-  function vis(e){return e&&e.getClientRects().length>0}
-  const span=[...document.querySelectorAll('span')].find(e=>vis(e)&&/^\s*Descargar\s*$/i.test(e.textContent||''));
-  if(!span) return 'no-span';
-  let out=[]; let cur=span;
-  for(let i=0;i<7&&cur;i++){
-    out.push(`L${i}: <${cur.tagName}> id=${cur.id||''} cls="${String(cur.className||'').slice(0,100)}" onclick=${cur.getAttribute&&cur.getAttribute('onclick')||''}`);
-    cur=cur.parentElement;
-  }
-  return out.join('\n');
-});
-log('ANCESTORS of Descargar:\n'+anc);
-
-// instrument and click the span, watch network + blob + window.open + download
-await page.evaluate(()=>{ window.__ev=[]; const p=u=>window.__ev.push(u); const ow=window.open; window.open=function(u,...a){p('window.open:'+u);try{return ow.apply(this,[u,...a])}catch(e){return null}}; if(window.URL){const oc=window.URL.createObjectURL;window.URL.createObjectURL=function(b){const r=oc.apply(this,arguments);p('blob:mime='+(b&&b.type)+'(this read)');return r;}} });
-page.on('download',d=>log('DOWNLOAD:', d.suggestedFilename(), d.url()));
-page.on('request',r=>{ if(/pdf|aspx|reporte|download|descargar/i.test(r.url())||r.method()==='POST'){ log('REQ:', r.method(), r.url()); return; } });
-const clicked=await page.evaluate(()=>{ function vis(e){return e&&e.getClientRects().length>0} const span=[...document.querySelectorAll('span')].find(e=>vis(e)&&/^\s*Descargar\s*$/i.test(e.textContent||'')); if(!span){return 'no-span'} span.click(); return 'clicked span'; });
-log('click result:', clicked);
+// click Descargar via real gesture
+const span=page.locator('span').filter({hasText:/^\s*Descargar\s*$/i}).first();
+if(await span.count()>0){ await span.click(); log('clicked Descargar'); }
 await page.waitForTimeout(5000);
-const ev=await page.evaluate(()=>window.__ev);
-log('EVENTS after click:', JSON.stringify(ev));
+
+// NOW try fetch with sessionStorage.token
+const res = await page.evaluate(async ()=>{
+  const token=sessionStorage.getItem('token')||null;
+  const headers={'Content-Type':'application/json'};
+  if(token)headers['Authorization']=token;
+  const body=JSON.stringify({matricula:'98173968',idPeriodo:'2025001',tipoConsuta:2,fechaInicial:'-',fechaFinal:'-',ooad:'17'});
+  const r=await fetch('/mstpei-biometricos/v1/biometricos/recuperar',{method:'POST',headers:headers,body:body,credentials:'include'});
+  const txt=await r.text();
+  let j; try{j=JSON.parse(txt);}catch(e){return {status:r.status, notJson:txt.slice(0,50)};}
+  const b=j.data&&j.data.archivoB64;
+  if(!b)return {status:r.status, msg:j.message, noB64:true};
+  const bytes=atob(b); const head=String.fromCharCode(bytes.charCodeAt(0),bytes.charCodeAt(1),bytes.charCodeAt(2),bytes.charCodeAt(3),bytes.charCodeAt(4));
+  return {status:r.status, isPdf:head==='%PDF-', len:bytes.length};
+});
+log('fetch after Descargar click:', JSON.stringify(res));
+console.log('--- file ---');
 await browser.close();
