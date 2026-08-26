@@ -56,6 +56,7 @@ const RETRIEVAL_METRICS_FIXTURE = {
   fusionMs: 0,
   totalMs: 3,
   rows: { exact: 0, fts: 5, vector: 5 },
+  intent: "SPECIFIC_TOPIC",
 }
 
 function streamOf(text: string) {
@@ -206,7 +207,9 @@ describe("POST /api/consulta", () => {
     expect(data.fuentes).toEqual([])
   })
 
-  it("envía question explícita al bot Python y hace fallback si falla", async () => {
+  it("REGRESIÓN: el sidecar Python NUNCA interviene aunque existan sus env vars", async () => {
+    // El flujo obligatorio es auth/cuota → retrieval pgvector → LLM → [S#].
+    // El bot legacy no puede bypasearlo ni siquiera con BOT_API_URL configurado.
     vi.mocked(requireUser).mockResolvedValue({ user: MOCK_USER, response: null })
     const rpc = vi.fn().mockResolvedValue({ data: true, error: null })
     vi.mocked(createClient).mockResolvedValue({ rpc } as never)
@@ -214,39 +217,24 @@ describe("POST /api/consulta", () => {
     process.env.BOT_API_URL = "https://bot.example.com"
     process.env.BOT_API_SHARED_SECRET = "secret"
 
-    vi.mocked(fetch as unknown as ReturnType<typeof vi.fn>)
-      .mockResolvedValueOnce(jsonResponse(503, { error: "busy" }))
+    const fetchSpy = vi.mocked(fetch as unknown as ReturnType<typeof vi.fn>)
 
     mockEmbeddingsCreate.mockResolvedValue({
       data: [{ embedding: new Array(1536).fill(0.01) }],
     } as never)
-    mockChatCompletionsCreate.mockResolvedValue(streamOf("Respuesta fallback"))
+    mockChatCompletionsCreate.mockResolvedValue(streamOf("Respuesta directa pgvector [S1]"))
 
     const res = await POST(jsonRequest({ history: [{ role: "user", content: "¿Qué dice la cláusula 47?" }] }))
     expect(res.status).toBe(200)
-
-    const pythonCall = vi.mocked(fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
-    const body = JSON.parse(pythonCall[1]?.body as string)
-    expect(body.question).toBe("¿Qué dice la cláusula 47?")
-    expect(body.history).toHaveLength(1)
-  })
-
-  it("devuelve respuesta del bot Python cuando responde", async () => {
-    vi.mocked(requireUser).mockResolvedValue({ user: MOCK_USER, response: null })
-    const rpc = vi.fn().mockResolvedValue({ data: true, error: null })
-    vi.mocked(createClient).mockResolvedValue({ rpc } as never)
-
-    process.env.BOT_API_URL = "https://bot.example.com"
-    process.env.BOT_API_SHARED_SECRET = "secret"
-
-    vi.mocked(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
-      jsonResponse(200, { respuesta: "Respuesta Python" }),
-    )
-
-    const res = await POST(jsonRequest({ history: [{ role: "user", content: "hola" }] }))
-    expect(res.status).toBe(200)
     const data = await res.json()
-    expect(data.respuesta).toBe("Respuesta Python")
+    expect(data.respuesta).toContain("pgvector")
+
+    // Ningún fetch al sidecar: el único fetch saliente permitido sería OpenAI
+    // (que aquí está mockeado a nivel SDK, no global).
+    const llamadasASidecar = fetchSpy.mock.calls.filter(
+      (c) => String(c[0]).includes("bot.example.com"),
+    )
+    expect(llamadasASidecar).toHaveLength(0)
   })
 
   it("aplica Cache-Control private, no-store a respuestas exitosas", async () => {
@@ -254,11 +242,10 @@ describe("POST /api/consulta", () => {
     const rpc = vi.fn().mockResolvedValue({ data: true, error: null })
     vi.mocked(createClient).mockResolvedValue({ rpc } as never)
 
-    process.env.BOT_API_URL = "https://bot.example.com"
-    process.env.BOT_API_SHARED_SECRET = "secret"
-    vi.mocked(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
-      jsonResponse(200, { respuesta: "ok" }),
-    )
+    mockEmbeddingsCreate.mockResolvedValue({
+      data: [{ embedding: new Array(1536).fill(0.01) }],
+    } as never)
+    mockChatCompletionsCreate.mockResolvedValue(streamOf("ok"))
 
     const res = await POST(jsonRequest({ history: [{ role: "user", content: "hola" }] }))
     expect(res.headers.get("Cache-Control")).toContain("no-store")

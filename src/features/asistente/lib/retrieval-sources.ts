@@ -73,6 +73,94 @@ export const VALIDITY_WEIGHT: Record<string, number> = {
   HISTORICAL: -20,
 }
 
+/** Tipo de pregunta: define estrategia de retrieval y guía del LLM. */
+export type RetrievalIntent =
+  | "EXACT_REFERENCE"
+  | "SPECIFIC_TOPIC"
+  | "BROAD_TOPIC"
+  | "FOLLOW_UP"
+
+const BROAD_SIGNALS =
+  /\bderechos?\b|\bprestaciones\b|\bbeneficios?\b|me corresponde|qué me toca|condiciones (de trabajo|laborales)|marco laboral|en general/i
+
+const SPECIFIC_SIGNALS =
+  /vacaciones|guardia|tiempo extraordinario|horas extra|fondo de ahorro|aguinaldo|sanci[óo]n|antig[üu]edad|escalaf[óo]n|bolsa de trabajo|jubilaci[óo]n|pensi[óo]n|infonavit|afore|sar\b|fonacot|rpbi|rayos ?x|teletrabajo|discapacidad|acoso|hostigamiento|licencia|permiso|turno|horario|residencia|beca|capacitaci[óo]n|profesiograma|plantilla|categor[íi]a|nom-\d{3}|cl[áa]usula \d+|art[íi]culo \d+/i
+
+/**
+ * Clasifica la intención SOLO para decidir estrategia de retrieval:
+ * no altera la relevancia ni inventa evidencias.
+ */
+export function classifyRetrievalIntent(question: string): RetrievalIntent {
+  const refs = extractExactRefs(question)
+  if (refs.clause || refs.article || refs.key) return "EXACT_REFERENCE"
+
+  const hasSpecific = SPECIFIC_SIGNALS.test(question)
+  const hasBroad = BROAD_SIGNALS.test(question)
+
+  // Seguimiento: arranca con conectivo y no aporta tema propio.
+  const words = question.trim().split(/\s+/).length
+  const startsConnective = /^¿?\s*(y|pero|entonces|ahora bien|qué pasa si|y si)\b/i.test(question.trim())
+  if (!hasSpecific && !hasBroad && (words <= 5 || startsConnective)) {
+    return "FOLLOW_UP"
+  }
+  if (hasBroad && !hasSpecific) return "BROAD_TOPIC"
+  return "SPECIFIC_TOPIC"
+}
+
+/**
+ * Elimina chunks con texto idéntico (mismo documento repite el mismo
+ * encabezado en varias páginas): conserva la primera aparición.
+ */
+export function dedupeByText<T extends { documentId: string; fragmento: string }>(sources: T[]): T[] {
+  const seen = new Set<string>()
+  const out: T[] = []
+  for (const s of sources) {
+    const key = `${s.documentId}::${s.fragmento.slice(0, 120).toLowerCase()}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(s)
+  }
+  return out
+}
+
+/**
+ * Diversificación para preguntas amplias (round-robin por documento):
+ * ronda 1 = mejor chunk de cada documento; ronda 2 = segundo de cada uno…
+ * Así ningún documento monopoliza el contexto y los duplicados solo
+ * aparecen después de que todos los documentos tuvieron su turno.
+ * El orden dentro de cada bucket respeta el score global ya calculado.
+ */
+export function diversifyByDocument<T extends { documentId: string }>(ranked: T[], k: number): T[] {
+  const buckets = new Map<string, T[]>()
+  const order: string[] = []
+  for (const s of ranked) {
+    let b = buckets.get(s.documentId)
+    if (!b) {
+      b = []
+      buckets.set(s.documentId, b)
+      order.push(s.documentId)
+    }
+    b.push(s)
+  }
+
+  const out: T[] = []
+  let round = 0
+  while (out.length < k) {
+    let addedThisRound = false
+    for (const id of order) {
+      const b = buckets.get(id)!
+      if (round < b.length) {
+        out.push(b[round])
+        addedThisRound = true
+        if (out.length >= k) break
+      }
+    }
+    if (!addedThisRound) break
+    round++
+  }
+  return out
+}
+
 export function rowToSource(row: RpcChunkRow, id: string, score: number): RetrievedSource {
   return {
     id,

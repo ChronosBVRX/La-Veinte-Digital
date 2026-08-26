@@ -13,6 +13,6 @@ El escrito debe:
 5. NO incluir encabezado, destinatario, fecha, lugar, despedida, ni firma
 6. NO usar markdown ni formato especial — solo texto plano`
 
-  const respuesta = await consultarBot([{ role: "user", content: prompt }])
+  const { respuesta } = await consultarBot([{ role: "user", content: prompt }])
   return respuesta
 }

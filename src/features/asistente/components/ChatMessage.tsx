@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import Markdown from "react-markdown"
 import { Bot, User } from "lucide-react"
 import type { BotMessage } from "../services/bot"
@@ -8,8 +9,17 @@ interface ChatMessageProps {
   message: BotMessage
 }
 
+const VALIDITY_LABELS: Record<string, string> = {
+  CURRENT: "",
+  PENDING_REVIEW: "⚠ vigencia por revisar",
+  UNKNOWN: "vigencia sin confirmar",
+  HISTORICAL: "histórico",
+}
+
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user"
+  const [showFuentes, setShowFuentes] = useState(false)
+  const fuentes = !isUser ? (message.fuentes ?? []) : []
 
   const avatarGradient = isUser
     ? "linear-gradient(135deg, #3b82f6, #2563eb)"
@@ -52,6 +62,54 @@ export function ChatMessage({ message }: ChatMessageProps) {
             {message.content}
           </Markdown>
         </div>
+
+        {fuentes.length > 0 && (
+          <div style={{ marginTop: "0.5rem", borderTop: "1px solid var(--border)", paddingTop: "0.375rem" }}>
+            <button
+              type="button"
+              onClick={() => setShowFuentes((v) => !v)}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                color: "var(--muted)",
+                fontSize: "0.75rem",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              📄 Fuentes verificadas ({fuentes.length}) {showFuentes ? "▲" : "▼"}
+            </button>
+            {showFuentes && (
+              <ul style={{ listStyle: "none", margin: "0.375rem 0 0", padding: 0, display: "grid", gap: "0.3125rem" }}>
+                {fuentes.map((f, i) => {
+                  const advertencia = f.advertenciaVigencia ?? VALIDITY_LABELS[f.validity ?? ""] ?? ""
+                  return (
+                    <li key={f.id ?? i} style={{ fontSize: "0.75rem", lineHeight: 1.45 }}>
+                      <span style={{ fontWeight: 600 }}>{f.documento}</span>
+                      {f.numero ? ` — ${f.tipo === "articulo" ? "Artículo" : f.tipo === "clausula" ? "Cláusula" : ""} ${f.numero}` : ""}
+                      {f.paginaInicio != null ? ` · pág. ${f.paginaInicio}` : ""}
+                      {advertencia && <span style={{ color: "#b45309" }}> · {advertencia}</span>}
+                      {f.sourceUrl && (
+                        <>
+                          {" "}
+                          <a
+                            href={f.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: "var(--primary)" }}
+                          >
+                            [Ver fuente]
+                          </a>
+                        </>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

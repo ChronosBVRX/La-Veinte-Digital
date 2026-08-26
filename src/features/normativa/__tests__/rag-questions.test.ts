@@ -202,4 +202,24 @@ describe.skipIf(!HAS_CORPUS)("Ampliación 2026-08-25 — leyes, NOMs y Ley Silla
     const hits = catalog.searchNormativeCorpus("discriminación laboral", {})
     expect(hits.length).toBeGreaterThan(0)
   })
+
+  it("REGRESIÓN '¿Cuáles son mis derechos laborales?': el corpus SÍ contiene evidencia de derechos", () => {
+    // El retrieval (FTS local) debe encontrar chunks de derechos/obligaciones
+    // en documentos laborales. Si esto falla, el problema es de retrieval,
+    // no del prompt.
+    const hits = catalog.searchNormativeCorpus(
+      "derechos y obligaciones de los trabajadores",
+      { limit: 10 },
+    )
+    expect(hits.length).toBeGreaterThan(0)
+    const laborales = hits.filter((h) =>
+      /CCT|LFT|ESTATUTOS|RIIMSS/i.test(h.documentId),
+    )
+    expect(laborales.length).toBeGreaterThan(0)
+  })
+
+  it("REGRESIÓN broad: 'prestaciones' recupera CCT/LSS, no leyes ajenas al tema", () => {
+    const hits = catalog.searchNormativeCorpus("prestaciones trabajadores derecho", { limit: 10 })
+    expect(hits.length).toBeGreaterThan(0)
+  })
 })

@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest"
 import {
   buildContextWithSources,
+  classifyRetrievalIntent,
+  dedupeByText,
+  diversifyByDocument,
   extractExactRefs,
   fuentesPayload,
   rowToSource,
@@ -145,5 +148,109 @@ describe("rowToSource + pesos de vigencia", () => {
     expect(
       rowToSource({ ...base, article: null, clause: "47" } as never, "S1", 0).numero,
     ).toBe("47")
+  })
+})
+
+describe("classifyRetrievalIntent — bug 'derechos laborales'", () => {
+  it("referencias exactas → EXACT_REFERENCE", () => {
+    expect(classifyRetrievalIntent("¿Qué dice la cláusula 63 bis?")).toBe("EXACT_REFERENCE")
+    expect(classifyRetrievalIntent("explícame el artículo 30")).toBe("EXACT_REFERENCE")
+    expect(classifyRetrievalIntent("procedimiento 1A74-003-031")).toBe("EXACT_REFERENCE")
+    expect(classifyRetrievalIntent("¿qué establece la NOM-229?")).toBe("EXACT_REFERENCE")
+    expect(classifyRetrievalIntent("¿qué dice la NOM-035?")).toBe("EXACT_REFERENCE")
+  })
+
+  it("temas concretos → SPECIFIC_TOPIC", () => {
+    expect(classifyRetrievalIntent("¿cuántos días de vacaciones me corresponden?")).toBe(
+      "SPECIFIC_TOPIC",
+    )
+    expect(classifyRetrievalIntent("¿cómo funcionan las guardias festivas?")).toBe("SPECIFIC_TOPIC")
+  })
+
+  it('preguntas amplias → BROAD_TOPIC (el caso del bug)', () => {
+    expect(classifyRetrievalIntent("¿Cuáles son mis derechos laborales?")).toBe("BROAD_TOPIC")
+    expect(classifyRetrievalIntent("¿Qué prestaciones tengo?")).toBe("BROAD_TOPIC")
+    expect(classifyRetrievalIntent("¿Qué me corresponde por trabajar en el IMSS?")).toBe("BROAD_TOPIC")
+    expect(classifyRetrievalIntent("Explícame mis principales derechos")).toBe("BROAD_TOPIC")
+    expect(classifyRetrievalIntent("¿Qué beneficios establece el contrato colectivo?")).toBe("BROAD_TOPIC")
+  })
+
+  it("seguimientos cortos sin tema propio → FOLLOW_UP", () => {
+    expect(classifyRetrievalIntent("¿y si soy trabajador de base?")).toBe("FOLLOW_UP")
+    expect(classifyRetrievalIntent("¿pero y eso aplica a sustitutos?")).toBe("FOLLOW_UP")
+  })
+})
+
+describe("diversificación para BROAD_TOPIC", () => {
+  function mk(doc: string, i: number): RetrievedSource & { fragmento: string } {
+    return rowToSource(
+      {
+        chunk_id: `${doc}@V1:${i}`,
+        document_id: doc,
+        document_title: `Título ${doc}`,
+        version_id: `${doc}@V1`,
+        validity: "CURRENT",
+        section_type: "capitulo",
+        section_title: null,
+        article: null,
+        clause: null,
+        numeral: null,
+        page_start: i,
+        page_end: i,
+        text: `texto-${i}-${Math.random()}`,
+        source_url: null,
+      },
+      "",
+      100 - i,
+    )
+  }
+
+  const ranked = [
+    mk("CCT-IMSS-SNTSS-2025-2027", 1),
+    mk("CCT-IMSS-SNTSS-2025-2027", 2),
+    mk("CCT-IMSS-SNTSS-2025-2027", 3),
+    mk("CCT-IMSS-SNTSS-2025-2027", 4),
+    mk("LFT", 5),
+    mk("NOM-035-STPS-2018", 6),
+    mk("SNTSS-ESTATUTOS-2022", 7),
+    mk("IMSS-CODIGO-CONDUCTA", 8),
+  ]
+
+  it("round-robin: los primeros puestos cubren TODOS los documentos", () => {
+    const docs = new Set(ranked.map((r) => r.documentId))
+    const out = diversifyByDocument(ranked as RetrievedSource[], 8)
+    const primeros = new Set(out.slice(0, docs.size).map((s) => s.documentId))
+    expect(primeros.size).toBe(docs.size)
+  })
+
+  it("los duplicados de un documento llegan solo tras agotar los demás", () => {
+    const out = diversifyByDocument(ranked as RetrievedSource[], 8)
+    // CCT tiene 4 candidatos y los demás 1: tras la primera ronda (5 docs),
+    // solo quedan duplicados de CCT para rellenar.
+    const porDoc = new Map<string, number>()
+    for (const s of out) porDoc.set(s.documentId, (porDoc.get(s.documentId) ?? 0) + 1)
+    expect(porDoc.get("CCT-IMSS-SNTSS-2025-2027")).toBe(4)
+    expect(porDoc.get("LFT")).toBe(1)
+    expect(out).toHaveLength(8)
+    // Ningún duplicado antes de la posición docs.size
+    const vistos = new Set<string>()
+    let i = 0
+    for (; i < out.length; i++) {
+      if (vistos.has(out[i].documentId) && vistos.size < new Set(ranked.map((r) => r.documentId)).size) break
+      vistos.add(out[i].documentId)
+    }
+    expect(vistos.size).toBe(new Set(ranked.map((r) => r.documentId)).size)
+  })
+
+  it("k menor que documentos: solo los mejores de cada doc", () => {
+    const out = diversifyByDocument(ranked as RetrievedSource[], 3)
+    expect(new Set(out.map((s) => s.documentId)).size).toBe(3)
+  })
+
+  it("dedupeByText elimina fragmentos repetidos del mismo documento", () => {
+    const a = mk("CCT", 1)
+    const b = mk("CCT", 99)
+    b.fragmento = a.fragmento
+    expect(dedupeByText([a, b])).toHaveLength(1)
   })
 })

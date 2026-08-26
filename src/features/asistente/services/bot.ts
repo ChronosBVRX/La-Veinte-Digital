@@ -1,6 +1,23 @@
 export interface BotMessage {
   role: "user" | "assistant"
   content: string
+  /** Fuentes verificables (solo mensajes del asistente). */
+  fuentes?: BotFuente[]
+}
+
+/** Espejo del payload `fuentes[]` que entrega /api/consulta. */
+export interface BotFuente {
+  id?: string
+  documento?: string
+  version?: string
+  tipo?: string
+  numero?: string
+  paginaInicio?: number
+  paginaFin?: number
+  fragmento?: string
+  sourceUrl?: string
+  validity?: string
+  advertenciaVigencia?: string
 }
 
 export type BotErrorCode = "network" | "quota" | "server" | "empty"
@@ -28,7 +45,7 @@ export function botErrorMessage(code: BotErrorCode): string {
   }
 }
 
-export async function consultarBot(history: BotMessage[]): Promise<string> {
+export async function consultarBot(history: BotMessage[]): Promise<{ respuesta: string; fuentes: BotFuente[] }> {
   let res: Response
   try {
     res = await fetch("/api/consulta", {
@@ -52,5 +69,6 @@ export async function consultarBot(history: BotMessage[]): Promise<string> {
   if (!respuesta) {
     throw new BotError("empty", "Empty response")
   }
-  return respuesta
+  const fuentes = Array.isArray(data?.fuentes) ? (data.fuentes as BotFuente[]) : []
+  return { respuesta, fuentes }
 }

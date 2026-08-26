@@ -15,9 +15,20 @@ describe("bot service", () => {
     vi.unstubAllGlobals()
   })
 
-  it("devuelve la respuesta del servidor", async () => {
+  it("devuelve la respuesta del servidor junto con sus fuentes", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, { respuesta: "Hola", fuentes: [{ documento: "CCT" }] })))
+    await expect(consultarBot([{ role: "user", content: "hola" }])).resolves.toEqual({
+      respuesta: "Hola",
+      fuentes: [{ documento: "CCT" }],
+    })
+  })
+
+  it("fuentes ausentes se normalizan a arreglo vacío", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, { respuesta: "Hola" })))
-    await expect(consultarBot([{ role: "user", content: "hola" }])).resolves.toBe("Hola")
+    await expect(consultarBot([{ role: "user", content: "hola" }])).resolves.toEqual({
+      respuesta: "Hola",
+      fuentes: [],
+    })
   })
 
   it("clasifica 429 como cuota agotada", async () => {

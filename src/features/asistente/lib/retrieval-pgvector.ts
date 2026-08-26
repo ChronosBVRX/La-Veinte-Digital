@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server"
 import {
   buildContextWithSources,
+  classifyRetrievalIntent,
+  dedupeByText,
+  diversifyByDocument,
   extractExactRefs,
   rowToSource,
   VALIDITY_WEIGHT,
@@ -30,6 +33,8 @@ export interface RetrievalMetrics {
   totalMs: number
   /** Filas devueltas por cada vía (evidencia de qué backend respondió). */
   rows: { exact: number; fts: number; vector: number }
+  /** Intención clasificada (solo define estrategia de retrieval). */
+  intent: string
 }
 
 export interface RetrievalResult {
@@ -71,6 +76,10 @@ export async function retrieveEvidenceWithMetrics(
   const supabase = await createClient()
 
   const refs = extractExactRefs(question)
+  const intent = classifyRetrievalIntent(question)
+  // Preguntas amplias: pedir más candidatos para poder diversificar
+  // por documento sin perder cobertura.
+  const perPathLimit = intent === "BROAD_TOPIC" ? 16 : 10
 
   type Cand = { row: RpcChunkRow; score: number }
   const jobs: Array<Promise<Cand[]>> = []
@@ -81,6 +90,7 @@ export async function retrieveEvidenceWithMetrics(
     fusionMs: 0,
     totalMs: 0,
     rows: { exact: 0, fts: 0, vector: 0 },
+    intent,
   }
 
   if (refs.clause || refs.article || refs.key) {
@@ -105,7 +115,7 @@ export async function retrieveEvidenceWithMetrics(
     timed(
       rpcSafe<FtsRow>(supabase, "search_normativa_fts", {
         p_query: question,
-        p_match_count: 10,
+        p_match_count: perPathLimit,
       }),
       (ms) => {
         metrics.ftsMs = ms
@@ -124,7 +134,7 @@ export async function retrieveEvidenceWithMetrics(
       timed(
         rpcSafe<VectorRow>(supabase, "match_normativa_chunks", {
           p_query_embedding: queryEmbedding,
-          p_match_count: 10,
+          p_match_count: perPathLimit,
           p_min_similarity: 0.25,
         }),
         (ms) => {
@@ -162,9 +172,16 @@ export async function retrieveEvidenceWithMetrics(
     }
   }
 
-  const ranked = [...byChunk.values()]
-    .sort((a, b) => b.score - a.score)
-    .slice(0, Math.max(5, Math.min(limit, 8)))
+  const fused = [...byChunk.values()].sort((a, b) => b.score - a.score)
+
+  // Dedupe de texto idéntico + diversificación por documento para preguntas
+  // amplias (evita 8 chunks del mismo capítulo). SPECIFIC/EXACT conservan
+  // ranking puro.
+  const deduped = dedupeByText(fused)
+  const ranked =
+    intent === "BROAD_TOPIC"
+      ? diversifyByDocument(deduped, Math.max(5, Math.min(limit, 8)))
+      : deduped.slice(0, Math.max(5, Math.min(limit, 8)))
 
   ranked.forEach((s, i) => {
     s.id = `S${i + 1}`
@@ -174,7 +191,8 @@ export async function retrieveEvidenceWithMetrics(
   metrics.totalMs = performance.now() - t0Total
 
   console.log(
-    `[consulta:retrieval] backend=pgvector exact=${metrics.exactMs === null ? "-" : Math.round(metrics.exactMs) + "ms"} ` +
+    `[consulta:retrieval] backend=pgvector intent=${intent} ` +
+      `exact=${metrics.exactMs === null ? "-" : Math.round(metrics.exactMs) + "ms"} ` +
       `fts=${Math.round(metrics.ftsMs)}ms vector=${metrics.vectorMs === null ? "-" : Math.round(metrics.vectorMs) + "ms"} ` +
       `fusion=${Math.round(metrics.fusionMs)}ms total=${Math.round(metrics.totalMs)}ms ` +
       `rows(e/f/v)=${metrics.rows.exact}/${metrics.rows.fts}/${metrics.rows.vector}`,
