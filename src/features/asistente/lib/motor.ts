@@ -87,13 +87,13 @@ export async function embedQueryLru(question: string, intent: RetrievalIntent): 
 }
 
 /** Recupera evidencias vía RPC híbrida única (punto 5). */
-export async function retrieveHybrid(question: string, embedding: number[], intent: RetrievalIntent, refs: ReturnType<typeof extractExactRefs>, limit: number): Promise<{ sources: RetrievedSource[]; rpcMs: number; rpcCalls: number }> {
+export async function retrieveHybrid(question: string, embedding: number[] | null, intent: RetrievalIntent, refs: ReturnType<typeof extractExactRefs>, limit: number): Promise<{ sources: RetrievedSource[]; rpcMs: number; rpcCalls: number }> {
   const t0 = performance.now()
   const supabase = await createClient()
   const call = supabase.rpc as unknown as (this: unknown, f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>
   const { data, error } = await call.call(supabase, "hybrid_normativa_search", {
     p_query: question,
-    p_query_embedding: embedding,
+    p_query_embedding: embedding && embedding.length === 1536 ? embedding : null,
     p_clause: refs.clause ?? null,
     p_article: refs.article ?? null,
     p_key: refs.key ?? null,

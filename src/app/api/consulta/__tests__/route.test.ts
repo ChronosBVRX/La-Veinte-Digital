@@ -147,6 +147,22 @@ describe("POST /api/consulta", () => {
     expect(data.respuesta).toContain("No encontré evidencia")
   })
 
+  it("ESTRUCTURA: evidencia irrelevante (score bajo) → 0 LLM (fail closed por umbral)", async () => {
+    vi.mocked(requireUser).mockResolvedValue({ user: MOCK_USER, response: null } as never)
+    const rpc = vi.fn().mockResolvedValue({ data: true, error: null })
+    vi.mocked(createClient).mockResolvedValue({ rpc } as never)
+    vi.mocked(embedQueryLru).mockResolvedValue({ embedding: new Array(1536).fill(0.01), skipped: false, cacheHit: false, ms: 10 })
+    // score=30 < umbral 140 → no-evidence
+    vi.mocked(retrieveHybrid).mockResolvedValue({ sources: [{ ...SOURCE_FIXTURE, score: 30 }], rpcMs: 20, rpcCalls: 1 })
+
+    const res = await POST(jsonRequest({ history: [{ role: "user", content: "pregunta sin respaldo" }] }))
+    expect(res.status).toBe(200)
+    expect(mockChatCompletionsCreate).not.toHaveBeenCalled()
+    const data = await res.json()
+    expect(data.fuentes).toEqual([])
+    expect(data.respuesta).toContain("No encontré evidencia")
+  })
+
   it("ESTRUCTURA: SPECIFIC_TOPIC → ≤1 embedding, ≤1 LLM, híbrido 1 RPC", async () => {
     standardSetup()
     const res = await POST(jsonRequest({ history: [{ role: "user", content: "¿Cuántos días de vacaciones tengo?" }] }))

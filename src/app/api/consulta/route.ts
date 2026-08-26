@@ -102,7 +102,7 @@ async function respondDirect(history: ConsultaMessage[], question: string, reque
 
     // ── 1. FAST PATH: EXACT_LOOKUP → 0 embedding, 0 LLM ──
     if (intent === "EXACT_LOOKUP") {
-      const { sources } = await retrieveHybrid(question, [], intent, refs, 3)
+      const { sources } = await retrieveHybrid(question, null, intent, refs, 3)
       obs.fastPath = true
       obs.embeddingSkipped = true
       obs.evidenceCount = sources.length
@@ -121,14 +121,18 @@ async function respondDirect(history: ConsultaMessage[], question: string, reque
     obs.embeddingMs = emb.ms
 
     // ── 3. RETRIEVAL HÍBRIDO (1 RPC) ──
-    const budget = { min: 3, max: 8 }
-    const { sources, rpcMs } = await retrieveHybrid(question, emb.embedding ?? [], intent, refs, 8)
+    const { sources, rpcMs } = await retrieveHybrid(question, emb.embedding, intent, refs, 8)
     obs.retrievalMs = rpcMs
     obs.evidenceCount = sources.length
     obs.evidenceChars = sources.reduce((a, s) => a + s.fragmento.length, 0)
 
-    // ── 4. FAIL CLOSED: 0 evidence → 0 LLM ──
-    if (sources.length === 0) {
+    // ── 4. FAIL CLOSED: 0 evidence o evidencia irrelevante → 0 LLM ──
+    // Umbral de relevancia: si ni la mejor evidencia alcanza puntaje
+    // significativo, no hay contexto real. Preguntas reales ~157-219;
+    // consultas sin relación ~109-118. 140 separa ambos grupos sin falsos
+    // positivos (evita responder con respaldo inventado).
+    const MIN_RELEVANT_SCORE = 140
+    if (sources.length === 0 || sources[0].score < MIN_RELEVANT_SCORE) {
       obs.totalMs = performance.now() - t0
       return privateJson({ respuesta: NO_EVIDENCE_RESPONSE, fuentes: [], chips: [] })
     }
