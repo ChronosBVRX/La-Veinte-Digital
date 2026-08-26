@@ -3,6 +3,6 @@
  * Se actualiza antes de cada despliegue (ver scripts/set-app-version.mjs
  * invocado manualmente o por CI); fallback "dev" en local.
  */
-export const APP_COMMIT_SHA = process.env.APP_COMMIT_SHA ?? "7a2b6d5"
+export const APP_COMMIT_SHA = process.env.APP_COMMIT_SHA ?? "34fa2ad"
 export const RAG_BACKEND = "pgvector" as const
 export const LLM_PROVIDER = "openai" as const
