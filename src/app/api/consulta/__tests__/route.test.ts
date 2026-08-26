@@ -49,14 +49,14 @@ vi.mock("@/features/asistente/lib/retrieval-pgvector", async (importOriginal) =>
   }
 })
 
-const RETRIEVAL_METRICS_FIXTURE = {
+const RETRIEVAL_METRICS_FIXTURE: RetrievalMetrics = {
   exactMs: null,
   ftsMs: 1,
   vectorMs: 2,
   fusionMs: 0,
   totalMs: 3,
   rows: { exact: 0, fts: 5, vector: 5 },
-  intent: "SPECIFIC_TOPIC",
+  intent: "SPECIFIC_TOPIC" as const,
 }
 
 function streamOf(text: string) {
@@ -87,6 +87,7 @@ const SOURCE_FIXTURE = {
 import { requireUser } from "@/shared/server/auth/require-user"
 import { createClient } from "@/lib/supabase/server"
 import { retrieveEvidenceWithMetrics } from "@/features/asistente/lib/retrieval-pgvector"
+import type { RetrievalMetrics } from "@/features/asistente/lib/retrieval-pgvector"
 
 const mockEmbeddingsCreate = vi.fn()
 const mockChatCompletionsCreate = vi.fn()
@@ -165,6 +166,31 @@ describe("POST /api/consulta", () => {
     expect(data.fuentes[0].documento).toContain("IMSS-SNTSS")
     expect(data.fuentes[0].validity).toBe("CURRENT")
     expect(data.respuesta).toContain("[S1]")
+    // Consulta informativa → sin chips de acompañamiento.
+    expect(data.chips).toEqual([])
+  })
+
+  it("consulta de conflicto laboral → devuelve chips de acompañamiento", async () => {
+    vi.mocked(requireUser).mockResolvedValue({ user: MOCK_USER, response: null })
+    vi.mocked(createClient).mockResolvedValue({
+      rpc: vi.fn().mockResolvedValue({ data: true, error: null }),
+    } as never)
+    vi.mocked(retrieveEvidenceWithMetrics).mockResolvedValue({
+      sources: [{ ...SOURCE_FIXTURE }],
+      metrics: { ...RETRIEVAL_METRICS_FIXTURE },
+    })
+
+    mockEmbeddingsCreate.mockResolvedValue({
+      data: [{ embedding: new Array(1536).fill(0.01) }],
+    } as never)
+    mockChatCompletionsCreate.mockResolvedValue(streamOf("Puedes documentarlo desde ahora [S1]"))
+
+    const res = await POST(jsonRequest({ history: [{ role: "user", content: "Mi jefe me amenaza." }] }))
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(Array.isArray(data.chips)).toBe(true)
+    expect(data.chips.length).toBeGreaterThan(0)
+    expect(data.chips.length).toBeLessThanOrEqual(4)
   })
 
   it("elimina citas [S#] que no corresponden a fuentes recuperadas", async () => {

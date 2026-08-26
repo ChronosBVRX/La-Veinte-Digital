@@ -25,8 +25,8 @@ export function useChat(initialMessages: BotMessage[]) {
     setLoading(true)
 
     try {
-      const { respuesta, fuentes } = await consultarBot(updatedHistory)
-      setMessages((prev) => [...prev, { role: "assistant", content: respuesta, fuentes }])
+      const { respuesta, fuentes, chips } = await consultarBot(updatedHistory)
+      setMessages((prev) => [...prev, { role: "assistant", content: respuesta, fuentes, chips }])
     } catch (err) {
       const code = err instanceof BotError ? err.code : "server"
       setMessages((prev) => [

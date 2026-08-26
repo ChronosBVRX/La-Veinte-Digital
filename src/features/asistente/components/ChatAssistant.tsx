@@ -3,22 +3,19 @@
 import { useEffect, useRef } from "react"
 import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
-import { MessageSquare, Send } from "lucide-react"
+import { ChatTeardropText, PaperPlaneRight } from "@phosphor-icons/react"
 import { useChat } from "../hooks/useChat"
 import { ChatMessage } from "./ChatMessage"
 import { ChatSuggestions } from "./ChatSuggestions"
 import { TypingIndicator } from "./TypingIndicator"
 
-const INITIAL_MESSAGE = `¡Hola! 👋 Soy tu **Asistente SNTSS**, tu aliado en temas laborales del IMSS.
+const INITIAL_MESSAGE = `¡Hola! 👋 Soy tu **Asistente SNTSS**, tu orientación laboral y sindical.
 
-Tengo acceso al **Contrato Colectivo de Trabajo** y a los **Estatutos del SNTSS** para orientarte sobre tus derechos, prestaciones y obligaciones.
+Estoy aquí para ayudarte a entender tus derechos y orientarte sobre qué puedes hacer ante una situación laboral.
 
-¿En qué puedo ayudarte hoy? Puedes preguntarme sobre:
-- 📅 **Vacaciones, aguinaldo y prestaciones**
-- ⚖️ **Derechos y obligaciones laborales**
-- 🏛️ **Estructura y funciones del sindicato**
-- 📋 **Clausulas específicas del CCT**
-- 🗳️ **Asambleas, elecciones y comités**`
+Consulto el **CCT**, **reglamentos**, **procedimientos IMSS**, **legislación laboral** y **normativa aplicable** para darte respuestas con fuentes verificables.
+
+Puedes contarme qué está pasando con tus propias palabras.`
 
 export function ChatAssistant() {
   const { messages, input, setInput, loading, send, inputRef } = useChat([{ role: "assistant", content: INITIAL_MESSAGE }])
@@ -32,17 +29,17 @@ export function ChatAssistant() {
     <div style={{ height: "calc(100dvh - var(--nav-height) - 3rem)", display: "flex", flexDirection: "column" }}>
       <div style={{ marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.75rem" }}>
         <div style={{
-          width: 40, height: 40, borderRadius: "0.75rem",
+          width: 44, height: 44, borderRadius: "0.75rem",
           background: "linear-gradient(135deg, var(--primary), #6366f1)",
           display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
         }}>
-          <MessageSquare size={20} color="white" />
+          <ChatTeardropText size={24} color="white" weight="duotone" />
         </div>
         <div>
           <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>Asistente SNTSS</h1>
-          <p style={{ fontSize: "0.8rem", color: "var(--muted)", margin: 0, display: "flex", alignItems: "center", gap: "0.35rem" }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
-            CCT + Estatutos del Sindicato
+          <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: "0.125rem 0 0", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
+            Orientación laboral y sindical
           </p>
         </div>
       </div>
@@ -53,7 +50,7 @@ export function ChatAssistant() {
         display: "flex", flexDirection: "column", gap: "0.75rem",
       }}>
         {messages.map((msg, i) => (
-          <ChatMessage key={i} message={msg} />
+          <ChatMessage key={i} message={msg} onChip={(t) => send(t)} />
         ))}
         {loading && <TypingIndicator />}
         <div ref={bottomRef} />
@@ -73,7 +70,7 @@ export function ChatAssistant() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={loading}
-            placeholder="Pregunta sobre el CCT o Estatutos del SNTSS..."
+            placeholder="Cuéntame qué necesitas consultar..."
             style={{ borderRadius: "0.75rem" }}
           />
         </div>
@@ -81,10 +78,11 @@ export function ChatAssistant() {
           type="submit"
           disabled={loading || !input.trim()}
           loading={loading}
-          size="sm"
-          style={{ height: 42, width: 42, padding: 0, borderRadius: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 42 }}
+          size="md"
+          aria-label="Enviar pregunta"
+          style={{ height: 44, width: 44, padding: 0, borderRadius: "0.75rem", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 44 }}
         >
-          <Send size={18} />
+          <PaperPlaneRight size={20} weight="bold" />
         </Button>
       </form>
     </div>

@@ -3,6 +3,8 @@ export interface BotMessage {
   content: string
   /** Fuentes verificables (solo mensajes del asistente). */
   fuentes?: BotFuente[]
+  /** Chips de acción (solo mensajes del asistente). */
+  chips?: string[]
 }
 
 /** Espejo del payload `fuentes[]` que entrega /api/consulta. */
@@ -45,7 +47,7 @@ export function botErrorMessage(code: BotErrorCode): string {
   }
 }
 
-export async function consultarBot(history: BotMessage[]): Promise<{ respuesta: string; fuentes: BotFuente[] }> {
+export async function consultarBot(history: BotMessage[]): Promise<{ respuesta: string; fuentes: BotFuente[]; chips: string[] }> {
   let res: Response
   try {
     res = await fetch("/api/consulta", {
@@ -70,5 +72,6 @@ export async function consultarBot(history: BotMessage[]): Promise<{ respuesta: 
     throw new BotError("empty", "Empty response")
   }
   const fuentes = Array.isArray(data?.fuentes) ? (data.fuentes as BotFuente[]) : []
-  return { respuesta, fuentes }
+  const chips = Array.isArray(data?.chips) ? (data.chips as string[]) : []
+  return { respuesta, fuentes, chips }
 }

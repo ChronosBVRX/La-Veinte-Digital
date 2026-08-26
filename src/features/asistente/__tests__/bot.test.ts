@@ -16,10 +16,11 @@ describe("bot service", () => {
   })
 
   it("devuelve la respuesta del servidor junto con sus fuentes", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, { respuesta: "Hola", fuentes: [{ documento: "CCT" }] })))
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse(200, { respuesta: "Hola", fuentes: [{ documento: "CCT" }], chips: ["Ayúdame"] })))
     await expect(consultarBot([{ role: "user", content: "hola" }])).resolves.toEqual({
       respuesta: "Hola",
       fuentes: [{ documento: "CCT" }],
+      chips: ["Ayúdame"],
     })
   })
 
@@ -28,6 +29,7 @@ describe("bot service", () => {
     await expect(consultarBot([{ role: "user", content: "hola" }])).resolves.toEqual({
       respuesta: "Hola",
       fuentes: [],
+      chips: [],
     })
   })
 

@@ -7,23 +7,34 @@ import type { BotMessage } from "../services/bot"
 
 interface ChatMessageProps {
   message: BotMessage
+  onChip?: (text: string) => void
 }
 
-const VALIDITY_LABELS: Record<string, string> = {
-  CURRENT: "",
-  PENDING_REVIEW: "⚠ vigencia por revisar",
-  UNKNOWN: "vigencia sin confirmar",
-  HISTORICAL: "histórico",
+/** Punto 8: traducción clara del estado de vigencia. */
+const VALIDITY_LABELS: Record<string, { label: string; color: string }> = {
+  CURRENT: { label: "Vigente", color: "#16a34a" },
+  PENDING_REVIEW: { label: "Vigencia en revisión", color: "#b45309" },
+  HISTORICAL: { label: "Versión histórica", color: "#64748b" },
+  SUPERSEDED: { label: "Sustituida", color: "#b45309" },
+  UNKNOWN: { label: "Normativa vigente", color: "#64748b" },
 }
 
-export function ChatMessage({ message }: ChatMessageProps) {
+/** Punto 7: número de fuentes visibles inicialmente (2-4). */
+const FUENTES_INICIALES = 3
+
+export function ChatMessage({ message, onChip }: ChatMessageProps) {
   const isUser = message.role === "user"
-  const [showFuentes, setShowFuentes] = useState(false)
+  const [mostrarTodas, setMostrarTodas] = useState(false)
   const fuentes = !isUser ? (message.fuentes ?? []) : []
+  const visibles = mostrarTodas ? fuentes : fuentes.slice(0, FUENTES_INICIALES)
+  const chips = !isUser ? (message.chips ?? []) : []
 
   const avatarGradient = isUser
     ? "linear-gradient(135deg, #3b82f6, #2563eb)"
     : "linear-gradient(135deg, var(--primary), #6366f1)"
+
+  const tipoLabel = (tipo?: string, numero?: string) =>
+    numero ? `${tipo === "articulo" ? "Artículo" : tipo === "clausula" ? "Cláusula" : ""} ${numero}` : ""
 
   return (
     <div style={{
@@ -63,50 +74,79 @@ export function ChatMessage({ message }: ChatMessageProps) {
           </Markdown>
         </div>
 
+        {chips.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem", marginTop: "0.625rem" }}>
+            {chips.map((chip, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => onChip?.(chip)}
+                style={{
+                  background: "var(--card)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "999px",
+                  padding: "0.25rem 0.625rem",
+                  fontSize: "0.78rem",
+                  color: "var(--primary)",
+                  cursor: "pointer",
+                  transition: "background 0.15s",
+                }}
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+        )}
+
         {fuentes.length > 0 && (
           <div style={{ marginTop: "0.5rem", borderTop: "1px solid var(--border)", paddingTop: "0.375rem" }}>
-            <button
-              type="button"
-              onClick={() => setShowFuentes((v) => !v)}
-              style={{
-                background: "none",
-                border: "none",
-                padding: 0,
-                color: "var(--muted)",
-                fontSize: "0.75rem",
-                cursor: "pointer",
-                fontWeight: 600,
-              }}
-            >
-              📄 Fuentes verificadas ({fuentes.length}) {showFuentes ? "▲" : "▼"}
-            </button>
-            {showFuentes && (
-              <ul style={{ listStyle: "none", margin: "0.375rem 0 0", padding: 0, display: "grid", gap: "0.3125rem" }}>
-                {fuentes.map((f, i) => {
-                  const advertencia = f.advertenciaVigencia ?? VALIDITY_LABELS[f.validity ?? ""] ?? ""
-                  return (
-                    <li key={f.id ?? i} style={{ fontSize: "0.75rem", lineHeight: 1.45 }}>
-                      <span style={{ fontWeight: 600 }}>{f.documento}</span>
-                      {f.numero ? ` — ${f.tipo === "articulo" ? "Artículo" : f.tipo === "clausula" ? "Cláusula" : ""} ${f.numero}` : ""}
-                      {f.paginaInicio != null ? ` · pág. ${f.paginaInicio}` : ""}
-                      {advertencia && <span style={{ color: "#b45309" }}> · {advertencia}</span>}
-                      {f.sourceUrl && (
-                        <>
-                          {" "}
-                          <a
-                            href={f.sourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ color: "var(--primary)" }}
-                          >
-                            [Ver fuente]
-                          </a>
-                        </>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600, marginBottom: "0.25rem" }}>
+              📄 Fuentes consultadas
+            </div>
+            <ul style={{ listStyle: "none", margin: "0 0 0", padding: 0, display: "grid", gap: "0.3125rem" }}>
+              {visibles.map((f, i) => {
+                const vinfo = VALIDITY_LABELS[f.validity ?? ""] ?? VALIDITY_LABELS.UNKNOWN
+                const advertencia = f.advertenciaVigencia ?? vinfo?.label
+                const numero = tipoLabel(f.tipo, f.numero)
+                return (
+                  <li key={f.id ?? i} style={{ fontSize: "0.75rem", lineHeight: 1.45 }}>
+                    <span style={{ fontWeight: 600 }}>{f.documento}</span>
+                    {numero ? ` — ${numero}` : ""}
+                    {f.paginaInicio != null ? ` · pág. ${f.paginaInicio}` : ""}
+                    {advertencia && <span style={{ color: vinfo?.color ?? "var(--muted)" }}> · {advertencia}</span>}
+                    {f.sourceUrl && (
+                      <>
+                        {" "}
+                        <a
+                          href={f.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: "var(--primary)" }}
+                        >
+                          [Ver fuente]
+                        </a>
+                      </>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+            {fuentes.length > FUENTES_INICIALES && (
+              <button
+                type="button"
+                onClick={() => setMostrarTodas((v) => !v)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: "0.25rem 0 0",
+                  color: "var(--primary)",
+                  fontSize: "0.72rem",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                {mostrarTodas ? "▲ Ocultar fuentes" : `Ver todas las fuentes (${fuentes.length})`}
+              </button>
             )}
           </div>
         )}
