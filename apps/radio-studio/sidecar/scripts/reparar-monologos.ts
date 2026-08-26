@@ -16,7 +16,7 @@ async function main() {
   const dir = path.join("/home/chronos/Escritorio/La Veinte/data/tts/episodes", EP);
   const guionPath = path.join(dir, "guion-final.json");
   const g = JSON.parse(fs.readFileSync(guionPath, "utf8"));
-  let turns = g.turns as Array<{ id: string; speaker: string; text: string; intent?: string; respondsTo?: string | null; citations?: string[]; pauseBeforeMs?: number; pauseAfterMs?: number; energy?: number; pace?: string; canOverlap?: boolean; transition?: string | null; sceneId?: string; editorial?: boolean }>;
+  const turns = g.turns as Array<{ id: string; speaker: string; text: string; intent?: string; respondsTo?: string | null; citations?: string[]; pauseBeforeMs?: number; pauseAfterMs?: number; energy?: number; pace?: string; canOverlap?: boolean; transition?: string | null; sceneId?: string; editorial?: boolean }>;
 
   const llm = new LocalLLMService(loadLlmConfig(), "/home/chronos/Escritorio/La Veinte/data/tts");
 

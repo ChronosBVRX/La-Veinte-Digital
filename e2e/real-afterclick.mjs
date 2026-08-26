@@ -4,7 +4,7 @@ const browser = await chromium.launch({ headless:true, args:['--no-sandbox','--d
 const ctx = await browser.newContext({ userAgent:'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36', viewport:{width:1280,height:900}, locale:'es-MX', acceptDownloads:true });
 const page = await ctx.newPage();
 const log=(...a)=>console.log(...a);
-page.on('download', async d=>{ log('DL:', d.suggestedFilename()); try{await d.saveAs('/tmp/chk.pdf'); log('saved');}catch(e){} });
+page.on('download', async d=>{ log('DL:', d.suggestedFilename()); try{await d.saveAs('/tmp/chk.pdf'); log('saved');}catch{} });
 
 await page.goto('https://tuperfil.imss.gob.mx/guitpei-web/login',{waitUntil:'domcontentloaded',timeout:30000});
 await page.waitForTimeout(3000);
@@ -38,7 +38,7 @@ const res = await page.evaluate(async ()=>{
   const body=JSON.stringify({matricula:'98173968',idPeriodo:'2025001',tipoConsuta:2,fechaInicial:'-',fechaFinal:'-',ooad:'17'});
   const r=await fetch('/mstpei-biometricos/v1/biometricos/recuperar',{method:'POST',headers:headers,body:body,credentials:'include'});
   const txt=await r.text();
-  let j; try{j=JSON.parse(txt);}catch(e){return {status:r.status, notJson:txt.slice(0,50)};}
+    let j; try{j=JSON.parse(txt);}catch{return {status:r.status, notJson:txt.slice(0,50)};}
   const b=j.data&&j.data.archivoB64;
   if(!b)return {status:r.status, msg:j.message, noB64:true};
   const bytes=atob(b); const head=String.fromCharCode(bytes.charCodeAt(0),bytes.charCodeAt(1),bytes.charCodeAt(2),bytes.charCodeAt(3),bytes.charCodeAt(4));

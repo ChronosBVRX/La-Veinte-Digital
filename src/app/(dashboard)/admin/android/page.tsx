@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Card } from "@/shared/components/ui/Card"
-import { Button } from "@/shared/components/ui/Button"
 
 interface AndroidManifest {
   versionCode: number

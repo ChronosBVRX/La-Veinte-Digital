@@ -321,7 +321,7 @@ async function main() {
     if (f.endsWith(".tmp.wav")) fs.unlinkSync(path.join(outDir, f));
   }
 
-  let needsReview = [];
+  const needsReview: string[] = [];
   for (const turn of guion.turns) {
     acquireLock();
     try {

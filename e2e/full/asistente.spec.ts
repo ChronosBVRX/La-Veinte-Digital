@@ -135,7 +135,7 @@ test.describe("Asistente IA - Privacidad", () => {
     // Mock /api/consulta and verify headers via the mock
     let capturedHeaders: Record<string, string> = {}
 
-    await page.route("**/api/consulta", async (route, _request) => {
+    await page.route("**/api/consulta", async (route) => {
       const responseBody = JSON.stringify(MOCK_RESPONSE)
 
       await route.fulfill({

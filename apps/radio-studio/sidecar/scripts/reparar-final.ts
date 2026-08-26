@@ -15,7 +15,7 @@ const dir = path.join("/home/chronos/Escritorio/La Veinte/data/tts/episodes", EP
 const guionPath = path.join(dir, "guion-final.json");
 const d = JSON.parse(fs.readFileSync(guionPath, "utf8"));
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let turns: any[] = d.turns as any[];
+const turns: any[] = d.turns as any[];
 const llm = new LocalLLMService(loadLlmConfig(), "/home/chronos/Escritorio/La Veinte/data/tts");
 
 const RepairSeq = z.object({

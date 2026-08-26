@@ -67,7 +67,7 @@ test.describe("Responsive — Mobile (390x844)", () => {
     await page.goto("/")
     await page.waitForLoadState("networkidle")
 
-    const mobileOnly = await page.evaluate(() => {
+    await page.evaluate(() => {
       const nav = document.querySelector(".mobile-only nav")
       return !!nav
     })

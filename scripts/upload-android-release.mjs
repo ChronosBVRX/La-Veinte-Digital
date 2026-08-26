@@ -14,7 +14,6 @@
 
 import { createClient } from "@supabase/supabase-js"
 import { readFileSync } from "fs"
-import { basename } from "path"
 import { createHash } from "crypto"
 
 const apkPath = process.argv[2]

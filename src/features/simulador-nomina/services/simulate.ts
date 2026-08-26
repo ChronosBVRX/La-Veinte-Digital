@@ -1,5 +1,5 @@
 import type { EmployeePayrollProfile, ResolvedSalaryCategory, SeniorityResult, PayrollProjection } from "@/features/nomina/lib/types"
-import { analyzeSeniorityImpact, type SeniorityImpactReport } from "@/features/nomina/lib/seniority-impact"
+import type { SeniorityImpactReport } from "@/features/nomina/lib/seniority-impact"
 import { calculateProjection } from "@/features/nomina/lib/engine"
 
 export type ScenarioType = "category_change" | "seniority_bump"

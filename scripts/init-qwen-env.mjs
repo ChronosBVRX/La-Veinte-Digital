@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
 
 const repo = process.cwd();
 const venv = path.join(repo, ".venv-qwen-voice-design");

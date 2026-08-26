@@ -8,7 +8,6 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { NormativeCatalog } from "@/features/normativa/services/catalog";
 import { ScriptPipeline } from "../src/llm/pipeline";
-import { LocalLLMService } from "../src/llm/local-llm";
 import { conversationQualityScore, auditConversation, validateRoleFirewall, humanConversationGate, gateBloqueado } from "@la-veinte/radio-core";
 
 const REPO = "/home/chronos/Escritorio/La Veinte";

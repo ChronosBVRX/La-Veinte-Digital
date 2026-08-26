@@ -39,7 +39,7 @@ const res = await page.evaluate(async ()=>{
   try{
     const r=await fetch('/mstpei-biometricos/v1/biometricos/recuperar',{method:'POST',headers:headers,body:body,credentials:'include'});
     const txt=await r.text();
-    let j; try{j=JSON.parse(txt);}catch(e){return {...out, fetchStatus:r.status, notJson:txt.slice(0,40)};}
+    let j; try{j=JSON.parse(txt);}catch{return {...out, fetchStatus:r.status, notJson:txt.slice(0,40)};}
     const b=j.data&&j.data.archivoB64;
     if(!b)return {...out, fetchStatus:r.status, msg:j.message, noB64:true};
     const bytes=atob(b);

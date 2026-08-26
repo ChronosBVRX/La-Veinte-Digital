@@ -15,8 +15,8 @@ await page.waitForTimeout(5000);
 await page.evaluate(()=>{
   if(window.__LVD_BIO_AUTH_HOOKED__)return;
   window.__LVD_BIO_AUTH_HOOKED__=true; window.__LVD_BIO_AUTH__=null;
-  var ox=XMLHttpRequest.prototype.open, os=XMLHttpRequest.prototype.send;
-  XMLHttpRequest.prototype.open=function(m,u){ this.__lvdUrl=u; var self=this; var origSet=this.setRequestHeader; if(origSet){ try{ this.setRequestHeader=function(n,v){ if(/authorization/i.test(n)&&/bearer/i.test(v))window.__LVD_BIO_AUTH__=v; return origSet.apply(this,arguments); }; }catch(e){} } return ox.apply(this,arguments); };
+  var ox=XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open=function(m,u){ this.__lvdUrl=u; var origSet=this.setRequestHeader; if(origSet){ try{ this.setRequestHeader=function(n,v){ if(/authorization/i.test(n)&&/bearer/i.test(v))window.__LVD_BIO_AUTH__=v; return origSet.apply(this,arguments); }; }catch{} } return ox.apply(this,arguments); };
 });
 
 await page.goto('https://tuperfil.imss.gob.mx/guitpei-web/app/administration/biometric/consult-period',{waitUntil:'domcontentloaded',timeout:30000});

@@ -1,11 +1,9 @@
 import { test, expect, type Page, assertPageLoaded } from "../fixtures/test"
 import path from "path"
-import fs from "fs"
 import { jsPDF } from "jspdf"
 
 // ── Unique PDF generation per run (avoids hash collisions across CI runs) ──
 
-const PDF_DIR = path.join(__dirname, "..", "fixtures", "pdfs")
 const RUN_ID = Date.now().toString(36)
 
 function makeValidPdf(workerName: string, period: string): Buffer {

@@ -9,7 +9,7 @@
  *   $env:E2E_EXTERNAL='1'
  *   npx playwright test e2e/manual/tarjeton-real.spec.ts --project=chromium-desktop --headed
  */
-import { test, expect, type Page } from "@playwright/test"
+import { test, expect } from "@playwright/test"
 
 const PDF_PATH = process.env.E2E_REAL_TARJETON_PATH
 

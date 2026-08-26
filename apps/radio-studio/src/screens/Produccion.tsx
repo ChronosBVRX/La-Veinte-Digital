@@ -51,7 +51,7 @@ export function Produccion() {
   const [llm, setLlm] = useState<LlmHealthInfo | null>(null);
   const [verGpu, setVerGpu] = useState(false);
   const [regenerandoId, setRegenerandoId] = useState<string | null>(null);
-  const guionMeta = useRef(leerGuion());
+  const [guionMeta] = useState(leerGuion);
   const listaRef = useRef<HTMLDivElement | null>(null);
   const audioTodoRef = useRef<HTMLAudioElement | null>(null);
 
@@ -144,7 +144,7 @@ export function Produccion() {
     setRegenerandoId(b.id);
     setError(null);
     try {
-      const orden = guionMeta.current?.orden ?? [];
+      const orden = guionMeta?.orden ?? [];
       const i = orden.indexOf(b.id);
       const prevId = i > 0 ? orden[i - 1] : undefined;
       const nextId = i >= 0 && i < orden.length - 1 ? orden[i + 1] : undefined;
@@ -340,7 +340,7 @@ export function Produccion() {
                 const color = colorDeLocutor(b.locutor);
                 const esActual = running && i === actualIdx;
                 const sonandoIndice = reproduciendoTodo && indiceTodo === i;
-                const meta = guionMeta.current?.porId.get(b.id);
+                const meta = guionMeta?.porId.get(b.id);
                 const badges = badgeDeMeta(meta);
                 const enRegeneracion = regenerandoId === b.id;
                 return (

@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useRef } from "react"
 import { motion, useReducedMotion } from "framer-motion"
-import { X, Article, ArrowsClockwise, ShieldCheck, UserCircle, Briefcase, Newspaper } from "@phosphor-icons/react"
+import { X, Article, ArrowsClockwise, UserCircle, Briefcase, Newspaper } from "@phosphor-icons/react"
 import { MOBILE_SHEET_GROUPS } from "./navigation"
 import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
 

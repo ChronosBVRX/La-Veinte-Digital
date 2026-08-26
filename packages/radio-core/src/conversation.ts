@@ -455,7 +455,7 @@ export function buildExchange(ctx: ExchangeContext, claim: EvidenceClaim, sceneT
   const drafts: Draft[] = [];
   const s = ctx.seedBase + contadores.n * 97;
   let prevSpeaker = "";
-  let ultimoId = ""; // se resuelve después con ids reales
+  const ultimoId = ""; // se resuelve después con ids reales
 
   const push = (d: Draft) => {
     const cambia = prevSpeaker !== d.speaker;
