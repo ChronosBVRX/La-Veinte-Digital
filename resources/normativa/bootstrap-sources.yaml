@@ -16,9 +16,19 @@
 # - Leyes federales: usar compilaciones de Cámara de Diputados (LFT reforma DOF 2026-05-14;
 #   LSS 2026-01-15; CPEUM 2026-06-02). No usar copias viejas de portales sindicales.
 # - Dominios permitidos (allowlist): imss.gob.mx, reposipot.imss.gob.mx, sntss.org.mx,
-#   media.sntss.org.mx, diputados.gob.mx, dof.gob.mx, gob.mx, stps.gob.mx
+#   media.sntss.org.mx, diputados.gob.mx, dof.gob.mx, gob.mx, stps.gob.mx, economia.gob.mx
 # - www.imss.gob.mx protege con Incapsula por frecuencia: descargas en serie, lentas.
 # - dof.gob.mx: algunas URLs fallan con "www." (ej. NOM-036): usar sin www.
+#
+# AMPLIACIÓN (2026-08-25) — corpus completo normativo/legal para el asistente:
+# - Leyes nuevas desde Cámara de Diputados (URLs verificadas 2026-08-25):
+#   LIFNVT (INFONAVIT, reforma DOF 21-02-2025), LSAR (reforma DOF 14-11-2025),
+#   LIFNCT (FONACOT, reforma DOF 03-01-2024), LGAMVLV, LGIPD, LIC.
+# - Disposiciones de bipedestación ("Ley Silla"): DOF 17-07-2025 (codigo=5763187). VIGENTE.
+# - NOMs STPS/salud: estado VIGENTE confirmado en PLATIICA el 2026-08-25;
+#   landingPage = ficha PLATIICA (verificador de vigencia); url = publicación DOF (fuente primaria).
+#   Excepción NOM-087: PDF oficial de PLATIICA (la nota DOF 2003 no sirve por https).
+# - NOM-017-STPS-2024 (vigente) SUSTITUYÓ a NOM-017-STPS-2008. Nunca tratar ambas como vigentes.
 
 cutoff: "2026-08-14"
 
@@ -39,6 +49,7 @@ settings:
       - dof.gob.mx
       - gob.mx
       - stps.gob.mx
+      - economia.gob.mx        # PLATIICA — verificador de vigencia de NOM (ampliación 2026-08-25)
   alerts:
     - id: TABULADOR-BASE-EXPIRA
       document: IMSS-TABULADOR-BASE-2025-2026
@@ -846,6 +857,13 @@ sources:
     canonical: true
     format: html
     priority: high
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-017-stps-2024/
+    warning: "SUSTITUYÓ a la NOM-017-STPS-2008 (vigente desde DOF 2025). NUNCA citar la 2008 como vigente."
+    relates:
+      - NOM-018-STPS-2015
+      - NOM-019-STPS-2011
+      - NOM-030-STPS-2009
+      - DISPOSICIONES-BIPEDESTACION-2025
 
   - id: NOM-030-STPS-2009
     title: Servicios preventivos de seguridad y salud en el trabajo
@@ -867,6 +885,454 @@ sources:
     format: html
     priority: medium
     warning: "URL sin 'www.' (la variante www.dof.gob.mx falla por red en esta ruta)."
+
+  # ────────────────────────── LEYES FEDERALES COMPLEMENTARIAS (ampliación 2026-08-25) ──────────────────────────
+  - id: LEY-INFONAVIT
+    title: Ley del Instituto del Fondo Nacional de la Vivienda para los Trabajadores
+    organization: Cámara de Diputados
+    type: federal_law
+    category: federal
+    url: https://www.diputados.gob.mx/LeyesBiblio/pdf/LIFNVT.pdf
+    canonical: true
+    watchLastReform: true
+    priority: critical
+    topics:
+      - vivienda
+      - credito_infonavit
+      - subsidio_vivienda
+      - ahorro_vivienda
+      - aportaciones_patronales
+    appliesTo:
+      - base
+      - confianza
+      - temporal
+      - sustituto
+    relates:
+      - LFT
+      - IMSS-1A72-003-005
+
+  - id: LSAR
+    title: Ley de los Sistemas de Ahorro para el Retiro
+    organization: Cámara de Diputados
+    type: federal_law
+    category: federal
+    url: https://www.diputados.gob.mx/LeyesBiblio/pdf/LSAR.pdf
+    canonical: true
+    watchLastReform: true
+    priority: high
+    topics:
+      - afore
+      - sar
+      - retiro
+      - cuenta_individual
+      - pensiones
+      - comisiones_afore
+    appliesTo:
+      - base
+      - confianza
+      - temporal
+      - sustituto
+    relates:
+      - LSS
+      - CCT::JUBILACIONES
+
+  - id: LEY-FONACOT
+    title: Ley del Instituto del Fondo Nacional para el Consumo de los Trabajadores
+    organization: Cámara de Diputados
+    type: federal_law
+    category: federal
+    url: https://www.diputados.gob.mx/LeyesBiblio/pdf/LIFNCT.pdf
+    canonical: true
+    watchLastReform: true
+    priority: medium
+    topics:
+      - fonacot
+      - credito_consumo
+      - descuentos_nomina
+    relates:
+      - IMSS-1A14-003-011
+
+  - id: LGAMVLV
+    title: Ley General de Acceso de las Mujeres a una Vida Libre de Violencias
+    organization: Cámara de Diputados
+    type: federal_law
+    category: federal
+    url: https://www.diputados.gob.mx/LeyesBiblio/pdf/LGAMVLV.pdf
+    canonical: true
+    watchLastReform: true
+    priority: medium
+    topics:
+      - violencia_laboral
+      - acoso
+      - hostigamiento
+      - igualdad
+    relates:
+      - IMSS-SNTSS-PROTOCOLO-VIOLENCIA
+      - LFT
+      - NOM-035-STPS-2018
+
+  - id: LGIPD
+    title: Ley General para la Inclusión de las Personas con Discapacidad
+    organization: Cámara de Diputados
+    type: federal_law
+    category: federal
+    url: https://www.diputados.gob.mx/LeyesBiblio/pdf/LGIPD.pdf
+    canonical: true
+    watchLastReform: true
+    priority: low
+    topics:
+      - discapacidad
+      - inclusion_laboral
+      - acceso
+    relates:
+      - NOM-034-STPS-2016
+
+  - id: LICNQC
+    title: Ley de Infraestructura de la Calidad
+    organization: Cámara de Diputados
+    type: federal_law
+    category: federal
+    url: https://www.diputados.gob.mx/LeyesBiblio/pdf/LIC.pdf
+    canonical: true
+    watchLastReform: true
+    priority: low
+    topics:
+      - normalizacion
+      - nom
+      - evaluacion_conformidad
+    warning: "Solo usar como contexto del sistema de NOMs (vigencia/conformidad). No responder preguntas laborales con esta ley."
+
+  # ────────────────────────── STPS — LEY SILLA / BIPEDESTACIÓN (ampliación 2026-08-25) ──────────────────────────
+  - id: DISPOSICIONES-BIPEDESTACION-2025
+    title: Disposiciones sobre los factores de riesgos de trabajo para garantizar el derecho al descanso durante la jornada laboral de las personas trabajadoras en bipedestación en los sectores de servicios, comercio, centros de trabajo análogos y establecimientos que integran las cadenas de suministro
+    edition: "DOF 17-07-2025"
+    organization: STPS
+    type: NOM
+    category: seguridad-salud
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=5763187&fecha=17%2F07%2F2025
+    canonical: true
+    priority: critical
+    topics:
+      - bipedestacion
+      - descanso_jornada
+      - sillas_taburetes
+      - pausas_activas
+      - enfermeria
+      - radiologia
+      - laboratorio
+      - farmacia
+      - urgencias
+      - quirofano
+      - atencion_ventanilla
+      - almacen
+    warning: "Conservar título jurídico oficial; 'Ley Silla' es solo nombre popular. Vigencia inmediata desde publicación (transitorios)."
+    relates:
+      - LFT
+      - NOM-019-STPS-2011
+      - NOM-030-STPS-2009
+      - NOM-017-STPS-2024
+      - NOM-036-1-STPS-2018
+
+  # ────────────────────────── NOM STPS ADICIONALES (ampliación 2026-08-25) ──────────────────────────
+  # Estado VIGENTE confirmado en PLATIICA (economia.gob.mx) el 2026-08-25 para todas.
+
+  - id: NOM-018-STPS-2015
+    title: Condiciones de higiene y seguridad en los centros de trabajo donde se manejen, transporten, procesen o almacenen sustancias químicas capaces de generar contaminación en el medio ambiente laboral
+    organization: STPS
+    type: NOM
+    category: nom
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=5411121&fecha=09%2F10%2F2015
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-018-stps-2015/
+    canonical: true
+    priority: high
+    topics:
+      - sustancias_quimicas
+      - hojas_datos_seguridad
+      - laboratorio
+      - comunicacion_peligros
+
+  - id: NOM-012-STPS-2012
+    title: Condiciones de seguridad y salud en los centros de trabajo donde se generen radiaciones ionizantes
+    organization: STPS
+    type: NOM
+    category: nom
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=5276080&fecha=31%2F10%2F2012
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-012-stps-2012/
+    canonical: true
+    priority: high
+    topics:
+      - radiaciones_ionizantes
+      - radiologia
+      - dosimetria
+      - zonas_controladas
+    relates:
+      - NOM-229-SSA1-2002
+      - CCT::INFECTOCONTAGIOSIDAD
+
+  - id: NOM-010-STPS-2014
+    title: Agentes químicos contaminantes del ambiente laboral
+    organization: STPS
+    type: NOM
+    category: nom
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=5342372&fecha=28%2F04%2F2014
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-010-stps-2014/
+    canonical: true
+    priority: medium
+    topics:
+      - agentes_quimicos
+      - limites_exposicion
+      - higiene_industrial
+
+  - id: NOM-011-STPS-2001
+    title: Condiciones de seguridad e higiene en los centros de trabajo donde se genere ruido
+    organization: STPS
+    type: NOM
+    category: nom
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=734536&fecha=17%2F04%2F2002
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-011-stps-2001/
+    canonical: true
+    priority: medium
+    topics:
+      - ruido
+      - audiometria
+      - proteccion_auditiva
+
+  - id: NOM-025-STPS-2008
+    title: Condiciones de iluminación en los centros de trabajo
+    organization: STPS
+    type: NOM
+    category: nom
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=5076393&fecha=30%2F12%2F2008
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-025-stps-2008/
+    canonical: true
+    priority: medium
+    topics:
+      - iluminacion
+      - niveles_iluminancia
+
+  - id: NOM-026-STPS-2008
+    title: Colores y señales de seguridad e higiene, e identificación de riesgos por fluidos conducidos en tuberías
+    organization: STPS
+    type: NOM
+    category: nom
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=5070081&fecha=25%2F11%2F2008
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-026-stps-2008/
+    canonical: true
+    priority: medium
+    topics:
+      - senaletica
+      - colores_seguridad
+      - tuberias
+
+  - id: NOM-002-STPS-2010
+    title: Prevención y protección contra incendios en los centros de trabajo
+    organization: STPS
+    type: NOM
+    category: nom
+    format: html
+    url: http://diariooficial.gob.mx/nota_detalle.php?codigo=5170410&fecha=09%2F12%2F2010
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-002-stps-2010/
+    canonical: true
+    priority: medium
+    topics:
+      - incendios
+      - extintores
+      - brigadas
+      - evacuacion
+
+  - id: NOM-001-STPS-2008
+    title: Condiciones de seguridad e higiene en edificios, locales, instalaciones y áreas en los centros de trabajo
+    organization: STPS
+    type: NOM
+    category: nom
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=5069976&fecha=24%2F11%2F2008
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-001-stps-2008/
+    canonical: true
+    priority: medium
+    topics:
+      - edificios
+      - instalaciones
+      - areas_trabajo
+      - escaleras
+      - pisos
+
+  - id: NOM-034-STPS-2016
+    title: Acceso de las personas con discapacidad a los centros de trabajo, así como prevención de riesgos de trabajo y condiciones de seguridad y salud para su desempeño laboral
+    organization: STPS
+    type: NOM
+    category: nom
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=5445287&fecha=20%2F07%2F2016
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-034-stps-2016/
+    canonical: true
+    priority: medium
+    topics:
+      - discapacidad
+      - inclusion_laboral
+      - accesibilidad
+    relates:
+      - LGIPD
+
+  - id: NOM-037-STPS-2023
+    title: Teletrabajo-Condiciones de seguridad y salud en el trabajo
+    organization: STPS
+    type: NOM
+    category: nom
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=5691672&fecha=08%2F06%2F2023
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-037-stps-2023/
+    canonical: true
+    priority: medium
+    topics:
+      - teletrabajo
+      - ergonomia_remota
+      - puesto_remoto
+
+  # ────────────────────────── NOM SALUD (ampliación 2026-08-25) ──────────────────────────
+  # Estado VIGENTE confirmado en PLATIICA el 2026-08-25. NOM-229 reportada VIGENTE
+  # con revisión sistemática confirmatoria (no asumir que "2002" implica derogada).
+
+  - id: NOM-004-SSA3-2012
+    title: Del expediente clínico
+    organization: Secretaría de Salud
+    type: NOM
+    category: seguridad-salud
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=5272787&fecha=15%2F10%2F2012
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-004-ssa3-2012/
+    canonical: true
+    priority: high
+    topics:
+      - expediente_clinico
+      - notas_medicas
+      - confidencialidad
+      - hoja_enfermeria
+
+  - id: NOM-019-SSA3-2013
+    title: Que establece los lineamientos técnicos y administrativos para la práctica de enfermería en los establecimientos para la atención médica
+    organization: Secretaría de Salud
+    type: NOM
+    category: seguridad-salud
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=5312523&fecha=02%2F09%2F2013
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-019-ssa3-2013/
+    canonical: true
+    priority: high
+    topics:
+      - enfermeria
+      - practica_enfermeria
+      - cuidados
+      - registro_enfermeria
+
+  - id: NOM-022-SSA3-2012
+    title: Que establece las buenas prácticas para la seguridad de los pacientes durante el proceso de terapia de infusión en los establecimientos para la atención médica
+    organization: Secretaría de Salud
+    type: NOM
+    category: seguridad-salud
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=5268977&fecha=18%2F09%2F2012
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-022-ssa3-2012/
+    canonical: true
+    priority: medium
+    topics:
+      - terapia_infusion
+      - seguridad_paciente
+      - enfermeria
+
+  - id: NOM-027-SSA3-2013
+    title: Que establece los lineamientos técnicos y administrativos para la organización y funcionamiento de los servicios de urgencias en los establecimientos para la atención médica
+    organization: Secretaría de Salud
+    type: NOM
+    category: seguridad-salud
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=5312893&fecha=04%2F09%2F2013
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-027-ssa3-2013/
+    canonical: true
+    priority: medium
+    topics:
+      - urgencias
+      - triage
+      - organizacion_servicio
+
+  - id: NOM-016-SSA3-2012
+    title: Que establece los requisitos mínimos indispensables para la habilitación de los establecimientos de atención médica de hospitalización, consulta externa, cirugía ambulatoria y urgencias
+    organization: Secretaría de Salud
+    type: NOM
+    category: seguridad-salud
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=5284306&fecha=08%2F01%2F2013
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-016-ssa3-2012/
+    canonical: true
+    priority: medium
+    topics:
+      - infraestructura_hospitalaria
+      - equipamiento
+      - habilitacion_establecimientos
+
+  - id: NOM-253-SSA1-2012
+    title: Para la disposición de sangre humana y sus componentes con fines terapéuticos
+    organization: Secretaría de Salud
+    type: NOM
+    category: seguridad-salud
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=5275587&fecha=26%2F10%2F2012
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-253-ssa1-2012/
+    canonical: true
+    priority: medium
+    topics:
+      - banco_sangre
+      - componentes_sanguineos
+      - laboratorio
+      - transfusion
+
+  - id: NOM-087-SEMARNAT-SSA1-2002
+    title: Protección ambiental-Salud ambiental-Residuos peligrosos biológico-infecciosos-Clasificación y especificaciones de manejo
+    organization:
+      - SEMARNAT
+      - COFEPRIS
+    type: NOM
+    category: seguridad-salud
+    url: https://platiica.economia.gob.mx/wp-content/uploads/sites/2/PDF_Normas_Publicas/087-ecoli-ssa-2003.pdf
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-087-semarnat-ssa1-2002/
+    canonical: true
+    verificationStatus: VERIFIED_VIGENTE_PLATIICA_2026-08-25
+    priority: high
+    topics:
+      - RPBI
+      - residuos_peligrosos
+      - bioseguridad
+      - punzocortantes
+      - laboratorio
+      - hospitales
+    warning: "PDF oficial alojado por PLATIICA (Secretaría de Economía). Publicación original: DOF 17-02-2003 (codigo=704675). VIGENTE con revisión sistemática confirmatoria 2023."
+
+  - id: NOM-229-SSA1-2002
+    title: Seguridad radiológica. Requisitos y condiciones para el uso diagnóstico de rayos X en establecimientos de atención médica
+    organization: Secretaría de Salud
+    type: NOM
+    category: seguridad-salud
+    format: html
+    url: https://dof.gob.mx/nota_detalle.php?codigo=4931612&fecha=15%2F09%2F2006
+    landingPage: https://platiica.economia.gob.mx/normalizacion/nom-229-ssa1-2002/
+    canonical: true
+    priority: high
+    topics:
+      - rayos_x
+      - seguridad_radiologica
+      - radiologia
+      - imagen_diagnostica
+    warning: "VIGENTE según PLATIICA (revisión sistemática confirmatoria 2024). NO asumir que '2002' significa derogada."
+    relates:
+      - NOM-012-STPS-2012
+      - CCT::INFECTOCONTAGIOSIDAD
 
 # ────────────────────────── DESCUBRIMIENTO POSTERIOR ──────────────────────────
 discovery:

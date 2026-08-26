@@ -174,7 +174,106 @@ const RULES: CoverageRule[] = [
   {
     match: /violencia|acoso|hostigamiento|denuncia|represalia/i,
     required: [{ id: "IMSS-SNTSS-PROTOCOLO-VIOLENCIA", label: "Protocolo IMSS-SNTSS violencia y acoso" }],
-    optional: [{ id: "CCT-IMSS-SNTSS-2025-2027", label: "CCT 2025-2027" }],
+    optional: [
+      { id: "CCT-IMSS-SNTSS-2025-2027", label: "CCT 2025-2027" },
+      { id: "LGAMVLV", label: "Ley General de Acceso de las Mujeres a una Vida Libre de Violencias" },
+    ],
+  },
+  // ───────── Reglas ampliación 2026-08-25 ─────────
+  {
+    match: /vivienda|infonavit|cr[eé]dito.*vivienda/i,
+    required: [
+      { id: "LEY-INFONAVIT", label: "Ley del INFONAVIT" },
+      { id: "IMSS-1A72-003-005", label: "Procedimiento 1A72-003-005 (préstamos habitación IMSS)" },
+    ],
+  },
+  {
+    match: /afore|sar|ahorro para el retiro|cuenta individual/i,
+    required: [
+      { id: "LSAR", label: "Ley de los Sistemas de Ahorro para el Retiro" },
+      { id: "LSS", label: "Ley del Seguro Social" },
+    ],
+    optional: [{ id: "CCT::JUBILACIONES", label: "Régimen de Jubilaciones y Pensiones (CCT)" }],
+  },
+  {
+    match: /fonacot|cr[eé]dito.*consumo/i,
+    required: [
+      { id: "LEY-FONACOT", label: "Ley del INFONACOT/FONACOT" },
+      { id: "IMSS-1A14-003-011", label: "Procedimiento 1A14-003-011 (recuperación crédito FONACOT)" },
+    ],
+  },
+  {
+    match: /rayos? ?x|radiolog[ií]a|imagen diagn[óo]stica|seguridad radiol[óo]gica/i,
+    required: [
+      { id: "NOM-229-SSA1-2002", label: "NOM-229-SSA1-2002 (rayos X diagnóstico, VIGENTE)" },
+      { id: "NOM-012-STPS-2012", label: "NOM-012-STPS-2012 (radiaciones ionizantes STPS)" },
+      { id: "CCT::INFECTOCONTAGIOSIDAD", label: "Reglamento de Infectocontagiosidad y Emanaciones Radiactivas (CCT)" },
+    ],
+  },
+  {
+    match: /rpbi|residuos.*(biol[óo]gico|peligroso)|punzocortante|bioseguridad/i,
+    required: [{ id: "NOM-087-SEMARNAT-SSA1-2002", label: "NOM-087-SEMARNAT-SSA1-2002 (RPBI)" }],
+    optional: [{ id: "NOM-017-STPS-2024", label: "NOM-017-STPS-2024 (EPP)" }],
+  },
+  {
+    match: /bipedestaci[óo]n|ley silla|sentarme|estar de pie|silla|taburete|pausas/i,
+    required: [
+      { id: "DISPOSICIONES-BIPEDESTACION-2025", label: "Disposiciones de bipedestación STPS (DOF 17-07-2025)" },
+      { id: "LFT", label: "Ley Federal del Trabajo" },
+    ],
+    optional: [
+      { id: "NOM-036-1-STPS-2018", label: "NOM-036-1-STPS-2018 (ergonomía, manejo manual de cargas)" },
+      { id: "NOM-019-STPS-2011", label: "NOM-019-STPS-2011 (comisiones de seguridad e higiene)" },
+    ],
+  },
+  {
+    match: /teletrabajo|trabajo en casa|casa.*remoto/i,
+    required: [
+      { id: "NOM-037-STPS-2023", label: "NOM-037-STPS-2023 (teletrabajo)" },
+      { id: "LFT", label: "Ley Federal del Trabajo (capítulo XII-B)" },
+    ],
+  },
+  {
+    match: /discapacidad|inclusi[óo]n.*laboral/i,
+    required: [
+      { id: "NOM-034-STPS-2016", label: "NOM-034-STPS-2016 (personas con discapacidad en centros de trabajo)" },
+    ],
+    optional: [{ id: "LGIPD", label: "Ley General para la Inclusión de las Personas con Discapacidad" }],
+  },
+  {
+    match: /expediente cl[ií]nico|nota m[eé]dica|historia cl[ií]nica/i,
+    required: [{ id: "NOM-004-SSA3-2012", label: "NOM-004-SSA3-2012 (expediente clínico)" }],
+  },
+  {
+    match: /enfermer[íi]a|pr[áa]ctica de enfermer/i,
+    required: [
+      { id: "NOM-019-SSA3-2013", label: "NOM-019-SSA3-2013 (práctica de enfermería)" },
+      { id: "IMSS-2900-B03-002", label: "Procedimiento 2900-B03-002 (plantillas, indicadores enfermería)" },
+    ],
+  },
+  {
+    match: /urgencias|triage/i,
+    required: [{ id: "NOM-027-SSA3-2013", label: "NOM-027-SSA3-2013 (servicios de urgencias)" }],
+  },
+  {
+    match: /sangre|transfusi[óo]n|banco de sangre/i,
+    required: [{ id: "NOM-253-SSA1-2012", label: "NOM-253-SSA1-2012 (disposición de sangre humana)" }],
+  },
+  {
+    match: /infusi[óo]n|venoclisis/i,
+    required: [{ id: "NOM-022-SSA3-2012", label: "NOM-022-SSA3-2012 (terapia de infusión)" }],
+  },
+  {
+    match: /40 horas|jornada.*reducida|reforma.*jornada|reforma.*2026/i,
+    required: [
+      { id: "CPEUM", label: "CPEUM Artículo 123 (reforma 2026-06-02)" },
+      { id: "LFT", label: "Ley Federal del Trabajo (texto reformado + transitorios)" },
+      { id: "CCT-IMSS-SNTSS-2025-2027", label: "CCT 2025-2027" },
+    ],
+  },
+  {
+    match: /discriminaci[óo]n|igualdad|no discrimin/i,
+    required: [{ id: "LFPED", label: "Ley Federal para Prevenir y Eliminar la Discriminación" }],
   },
 ];
 
@@ -190,21 +289,25 @@ export function buildCoverage(catalog: NormativeCatalog, topic: string): Coverag
   const rule = RULES.find((r) => r.match.test(topic)) ?? DEFAULT_RULE;
   const items: CoverageItem[] = [];
 
+  // Los subdocumentos virtuales (CCT::*) no tienen versión propia: heredan la del CCT padre.
+  const isAvailable = (id: string): boolean => {
+    const doc = catalog.getDocument(id);
+    return !!doc && (!!doc.currentVersion || doc.validity === "CURRENT");
+  };
+
   for (const req of rule.required) {
-    const doc = catalog.getDocument(req.id);
-    if (doc?.currentVersion) {
+    if (isAvailable(req.id)) {
       items.push({ id: req.id, label: req.label, status: req.review ? "review" : "available", note: req.review ? "documento oficial — vigencia sujeta a verificación" : undefined });
     } else {
       items.push({ id: req.id, label: req.label, status: "unavailable", note: "no disponible en el corpus (pendiente de descarga o descubrimiento)" });
     }
   }
   for (const opt of rule.optional ?? []) {
-    const doc = catalog.getDocument(opt.id);
     items.push({
       id: opt.id,
       label: opt.label,
-      status: doc?.currentVersion ? "available" : "unavailable",
-      note: doc?.currentVersion ? "fuente complementaria" : "fuente complementaria pendiente",
+      status: isAvailable(opt.id) ? "available" : "unavailable",
+      note: isAvailable(opt.id) ? "fuente complementaria" : "fuente complementaria pendiente",
     });
   }
 

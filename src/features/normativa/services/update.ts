@@ -20,8 +20,9 @@ export async function runUpdate(
   repoRoot: string,
   manifest: BootstrapManifest,
   mode: "all" | "critical" | "expiring",
-  opts: { log: (msg: string) => void } = { log: () => {} }
+  opts: { log?: (msg: string) => void; ids?: string[] } = {}
 ): Promise<UpdateSummary> {
+  const log = opts.log ?? (() => {});
   const root = normativaRoot(repoRoot);
   const db = new NormativeDB(path.join(root, "catalog.sqlite"));
   const downloader = new NormativeDownloader({
@@ -39,6 +40,7 @@ export async function runUpdate(
 
   const specs = manifest.sources.filter((s) => {
     if (s.url == null) return false;
+    if (opts.ids && !opts.ids.includes(s.id)) return false;
     if (mode === "critical") return (s.priority ?? "medium") === "critical";
     if (mode === "expiring") return s.effectiveUntil != null;
     return true;
@@ -46,7 +48,10 @@ export async function runUpdate(
 
   for (const spec of specs) {
     try {
-      const item = await bootstrapSource(db, downloader, spec, root, manifest.settings.download.allowlistDomains, opts);
+      const item = await bootstrapSource(db, downloader, spec, root, manifest.settings.download.allowlistDomains, {
+        log,
+        force: opts.ids != null,
+      });
       summary.checked++;
       if (item.status === "DOWNLOADED") {
         if (item.changed) {
@@ -79,7 +84,7 @@ export async function runUpdate(
       });
     } catch (err) {
       summary.errors++;
-      opts.log(`${spec.id}: ERROR — ${err instanceof Error ? err.message : String(err)}`);
+      log(`${spec.id}: ERROR — ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -94,6 +99,35 @@ export async function runUpdate(
         severity: days < 0 ? "expired" : "expiring",
         message: `${alert.message} (${alert.expiresOn}, faltan ${days} días)`,
       });
+    }
+  }
+
+  // Monitores de palabras clave (p. ej. reforma estatutaria SNTSS tras el Congreso 2026).
+  // Nunca detienen la actualización: un fallo de red se ignora silenciosamente.
+  const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+  for (const monitor of manifest.settings.monitors) {
+    for (const url of monitor.urls) {
+      try {
+        const res = await fetch(url, {
+          headers: { "user-agent": "Mozilla/5.0 AILaVeinte/Normativa" },
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (res.ok) {
+          const html = (await res.text()).toLowerCase();
+          const found = monitor.keywords.filter((k) => html.includes(k.toLowerCase()));
+          if (found.length > 0) {
+            summary.alerts.push({
+              id: `MON-${monitor.id}`,
+              document: monitor.id,
+              severity: "changed",
+              message: `Monitor ${monitor.id}: coincidencias [${found.join(", ")}] en ${url} — revisar si hay nueva edición publicada`,
+            });
+          }
+        }
+      } catch {
+        // sin conexión o timeout: el monitor no bloquea
+      }
+      await sleep(2000);
     }
   }
 
