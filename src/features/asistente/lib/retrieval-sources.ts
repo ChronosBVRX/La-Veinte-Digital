@@ -288,6 +288,39 @@ export function validateCitations(
   }
 }
 
+/**
+ * Punto 18+.5: resolución de citaciones con FAIL-CLOSED.
+ *
+ * - Si la primera pasada tiene ≥1 cita válida (o no hay evidencia normativa),
+ *   se entrega el texto saneado (los [S#] inválidos ya fueron removidos).
+ * - Si NO hay citas válidas, se regenera UNA vez (`regenResposta`).
+ * - Si tras la regeneración sigue sin cita válida → FAIL-CLOSED: nunca se
+ *   entrega orientación normativa factual sin una fuente validada.
+ *
+ * Máximo: 1 generación inicial + 1 regeneración. Sin tercera llamada.
+ */
+export type CitationOutcome =
+  | { kind: "deliver"; respuesta: string; citedIds: string[] }
+  | { kind: "fail_closed"; respuesta: string; invalidIds: string[] }
+
+export function finalizeCitation(
+  respuesta: string,
+  sources: RetrievedSource[],
+  regenResposta: string | null,
+): CitationOutcome {
+  const first = validateCitations(respuesta, sources)
+  if (first.citedIds.length > 0 || sources.length === 0) {
+    return { kind: "deliver", respuesta: first.respuesta, citedIds: first.citedIds }
+  }
+  if (regenResposta != null) {
+    const second = validateCitations(regenResposta, sources)
+    if (second.citedIds.length > 0) {
+      return { kind: "deliver", respuesta: second.respuesta, citedIds: second.citedIds }
+    }
+  }
+  return { kind: "fail_closed", respuesta: first.respuesta, invalidIds: first.invalidIdsRemoved }
+}
+
 /** JSON de fuentes para la respuesta API — derivado del retrieval, no del texto. */
 export function fuentesPayload(sources: RetrievedSource[], citedIds: string[]) {
   const cited = new Set(citedIds)

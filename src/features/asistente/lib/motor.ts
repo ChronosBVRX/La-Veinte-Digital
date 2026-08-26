@@ -48,6 +48,7 @@ export interface MotorObservability {
   thinkingMode: string | null
   retryCount: number
   citationValidationPassed: boolean
+  citationFailClosed: boolean
   outputBudgetTokens: number
   maxTokens: number
 }

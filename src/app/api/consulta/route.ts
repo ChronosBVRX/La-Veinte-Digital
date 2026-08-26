@@ -6,6 +6,7 @@ import { parseConsultaRequest, type ConsultaMessage } from "@/shared/contracts/c
 import {
   fuentesPayload,
   validateCitations,
+  finalizeCitation,
   classifyRetrievalIntent,
   extractExactRefs,
   buildCompactEvidence,
@@ -30,6 +31,10 @@ import { classifyAssistantError, logAssistantError } from "@/features/asistente/
 import { privateJson, privateJsonError } from "@/shared/lib/api-response"
 
 type QuotaResult = "allowed" | "exceeded" | "error"
+
+/** Fail-closed tras validación de citas sin resultado (punto 18+.5). */
+const CITATION_FAILED_RESPONSE =
+  "Encontré información relacionada en el corpus, pero no pude validar con suficiente seguridad las referencias de la respuesta. Prefiero no darte una orientación normativa sin fuentes verificables. Puedes intentarlo de nuevo o reformular la pregunta."
 
 function getOpenAI() {
   const apiKey = process.env.OPENAI_API_KEY
@@ -87,6 +92,7 @@ function baseObservability(intent: MotorObservability["intent"], t0: number): Mo
     thinkingMode: null,
     retryCount: 0,
     citationValidationPassed: false,
+    citationFailClosed: false,
     outputBudgetTokens: outputTokensForIntent(intent),
     maxTokens: outputTokensForIntent(intent),
   }
@@ -161,27 +167,38 @@ async function respondDirect(history: ConsultaMessage[], question: string, reque
     let respuesta = comp.text
     if (!respuesta) respuesta = "Lo siento, no pude generar una respuesta."
 
-    // ── 7. VALIDACIÓN DE CITAS (sin judge LLM). Si la primera pasada no cita,
-    //        UNA sola regeneración con énfasis explícito (punto 18). ──
+    // ── 7. VALIDACIÓN DE CITAS + FAIL-CLOSED. Sin judge LLM. Si la primera
+    //        pasada no cita, UNA sola regeneración (punto 18); si tras ella
+    //        sigue sin cita válida → no se entrega texto normativo sin fuente
+    //        validada (punto 18+.5). Máximo 2 llamadas LLM. ──
     const first = validateCitations(respuesta, sources)
-    let respuestaFinal = first.respuesta
-    let citedIds = first.citedIds
     let retries = 0
+    let regenText: string | null = null
     if (first.citedIds.length === 0 && sources.length > 0) {
       retries = 1
       const regenMessages = [{ role: "system", content: messages[0].content + "\n\nIMPORTANTE: cita al menos una vez con [S#] cada afirmación factual. Si no puedes citar, responde de forma breve." }, ...messages.slice(1)] as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
       const regen = await runCompletion(openai, regenMessages, maxTokens)
-      if (regen.text) {
-        const second = validateCitations(regen.text, sources)
-        // conservar la regeneración solo si mejora las citas; si no, usar la primera.
-        if (second.citedIds.length >= first.citedIds.length) {
-          respuestaFinal = second.respuesta
-          citedIds = second.citedIds
-          obs.llmTotalMs += regen.total
-        }
-      }
+      if (regen.text) obs.llmTotalMs += regen.total
+      regenText = regen.text ?? null
     }
+
+    const outcome = finalizeCitation(respuesta, sources, regenText)
+    if (outcome.kind === "fail_closed") {
+      obs.retryCount = retries
+      obs.citationFailClosed = true
+      obs.citationValidationPassed = false
+      obs.totalMs = performance.now() - t0
+      logObservability(requestId, userId, obs)
+      return privateJson({
+        respuesta: CITATION_FAILED_RESPONSE,
+        fuentes: fuentesPayload(sources, []),
+        chips: [],
+      })
+    }
+    const respuestaFinal = outcome.respuesta
+    const citedIds = outcome.citedIds
     obs.retryCount = retries
+    obs.citationFailClosed = false
     obs.citationValidationPassed = citedIds.length > 0 || sources.length === 0
 
     obs.totalMs = performance.now() - t0
@@ -230,7 +247,7 @@ function logObservability(requestId: string, userId: string, obs: MotorObservabi
     `embMs=${Math.round(obs.embeddingMs)}`, `retMs=${Math.round(obs.retrievalMs)}`,
     `ttft=${Math.round(obs.llmTtftMs)}`, `llmMs=${Math.round(obs.llmTotalMs)}`, `total=${Math.round(obs.totalMs)}`,
     `prov=${obs.provider}`, `model=${obs.model}`, `think=${obs.thinkingMode ?? "-"}`,
-    `retry=${obs.retryCount}`, `citeOK=${obs.citationValidationPassed}`, `maxTk=${obs.maxTokens}`,
+    `retry=${obs.retryCount}`, `citeOK=${obs.citationValidationPassed}`, `citeFailClosed=${obs.citationFailClosed}`, `maxTk=${obs.maxTokens}`,
   ].join(" "))
 }
 
