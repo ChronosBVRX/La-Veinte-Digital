@@ -145,7 +145,10 @@ export async function retrieveEvidenceWithMetrics(
   const byChunk = new Map<string, RetrievedSource>()
 
   for (const job of settled) {
-    if (job.status !== "fulfilled") continue
+    if (job.status !== "fulfilled") {
+      console.warn(`[consulta:retrieval] vía rechazada: ${String(job.reason)}`)
+      continue
+    }
     for (const cand of job.value) {
       const existing = byChunk.get(cand.row.chunk_id)
       if (existing) {
@@ -192,16 +195,19 @@ export async function retrieveEvidence(
 
 async function rpcSafe<T>(
   // Las RPCs de normativa se agregan por migración y aún no existen en el
-  // Database generado; se invoca con firma libre y se valida el error.
+  // Database generado; se valida el error manteniendo la firma libre.
+  // IMPORTANTE: invocar supabaseClient.rpc(...) directamente (bound) —
+  // extraer el método pierde `this` y rompe en runtime.
   supabaseClient: Awaited<ReturnType<typeof createClient>>,
   fn: string,
   args: Record<string, unknown>,
 ): Promise<T[]> {
-  const call = supabaseClient.rpc as unknown as (
+  const caller = supabaseClient.rpc as unknown as (
+    this: unknown,
     f: string,
     a: Record<string, unknown>,
   ) => Promise<{ data: unknown; error: { message: string } | null }>
-  const { data, error } = await call(fn, args)
+  const { data, error } = await caller.call(supabaseClient, fn, args)
   if (error) throw new Error(`RPC ${fn}: ${error.message}`)
   return (data ?? []) as T[]
 }
