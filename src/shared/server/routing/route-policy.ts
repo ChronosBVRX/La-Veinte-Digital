@@ -27,6 +27,8 @@ export type ApiAccessLevel = (typeof API_ACCESS)[keyof typeof API_ACCESS]
 export const PUBLIC_PAGE_PATHS = [
   "/login",
   "/register",
+  "/recuperar-password",
+  "/restablecer-password",
   "/health",
   "/transfer",
 ] as const

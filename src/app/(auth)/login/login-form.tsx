@@ -2,7 +2,7 @@
 
 import { useActionState } from "react"
 import Link from "next/link"
-import { Mail, Lock, LogIn, AlertCircle, Download } from "lucide-react"
+import { EnvelopeSimple, Lock, SignIn, WarningCircle, DownloadSimple } from "@phosphor-icons/react"
 import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
 import { signInAction } from "../actions"
@@ -22,7 +22,7 @@ export function LoginForm() {
           background: "#fef2f2", padding: "0.75rem 1rem",
           borderRadius: "var(--radius-sm)",
         }}>
-          <AlertCircle size={16} style={{ flexShrink: 0 }} />
+          <WarningCircle size={18} weight="fill" style={{ flexShrink: 0 }} />
           <span>{state.error}</span>
         </div>
       )}
@@ -34,21 +34,36 @@ export function LoginForm() {
         type="email"
         required
         autoComplete="email"
-        icon={<Mail size={16} />}
+        icon={<EnvelopeSimple size={18} />}
       />
 
-      <Input
-        id="password"
-        name="password"
-        label="Contraseña"
-        type="password"
-        required
-        autoComplete="current-password"
-        icon={<Lock size={16} />}
-      />
+      <div>
+        <Input
+          id="password"
+          name="password"
+          label="Contraseña"
+          type="password"
+          required
+          autoComplete="current-password"
+          icon={<Lock size={16} />}
+        />
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.375rem" }}>
+          <Link
+            href="/recuperar-password"
+            style={{
+              fontSize: "var(--text-xs)",
+              color: "var(--primary)",
+              textDecoration: "none",
+              fontWeight: 500,
+            }}
+          >
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </div>
+      </div>
 
       <Button type="submit" loading={pending} style={{ width: "100%", justifyContent: "center" }}>
-        {pending ? "Entrando..." : <><LogIn size={16} /> Iniciar sesión</>}
+        {pending ? "Entrando..." : <><SignIn size={18} weight="bold" /> Iniciar sesión</>}
       </Button>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -101,7 +116,7 @@ export function LoginForm() {
           textDecoration: "none",
         }}
       >
-        <Download size={16} />
+        <DownloadSimple size={18} weight="bold" />
         Descargar app Android
       </a>
       )}

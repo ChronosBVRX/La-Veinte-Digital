@@ -14,6 +14,7 @@ const ALLOWED_INTERNAL_PATHS = [
   "/tarjeton",
   "/escritos",
   "/guia",
+  "/restablecer-password",
 ]
 
 function isSafeInternalPath(path: string | null): boolean {

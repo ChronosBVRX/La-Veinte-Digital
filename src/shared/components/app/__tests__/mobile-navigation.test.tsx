@@ -96,7 +96,7 @@ describe("HomeQuickActions — Punto 2", () => {
   it("muestra el encabezado '¿Qué necesitas hoy?' y los 4 accesos", () => {
     render(<HomeQuickActions />)
     expect(screen.getByText("¿Qué necesitas hoy?")).toBeTruthy()
-    for (const label of ["Calculadoras", "Preguntas del CCT IA-Assistant", "Registrar eventos en mi agenda", "Transferir documentos"]) {
+    for (const label of ["Calculadoras", "Pregunta sobre tus derechos", "Registrar incidencia", "Transferir documentos"]) {
       expect(screen.getByText(label)).toBeTruthy()
     }
   })

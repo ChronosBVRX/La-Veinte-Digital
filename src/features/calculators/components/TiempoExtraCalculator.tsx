@@ -300,7 +300,7 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
             "Límites ordinarios: 9 h/semana y 20 h/quincena (proc. 1A74-003-031)",
           ]} />
           <div style={{ background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.2)", borderRadius: "var(--radius)", padding: "0.75rem 1rem", fontSize: "0.8125rem", color: "var(--muted)" }}>
-            <strong>Nota:</strong> Esta plataforma usa la fórmula corregida (valor hora × 2 × horas extra). La aplicación de referencia anulaba el efecto de las horas.
+            <strong>Nota:</strong> El pago de las horas extra estima el doble del valor de una hora ordinaria, conforme a lo dispuesto en el convenio colectivo.
           </div>
           <CalculatorDisclaimer />
         </div>

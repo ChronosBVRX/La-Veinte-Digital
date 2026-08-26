@@ -32,7 +32,8 @@
   --area-work: #16856b;
   --area-tools: #3568c0;
   --area-assistance: #7557c8;
-  --area-community: #cf6c4c;
+  --area-community: #b85433;
+  --area-community-bg: #faede9;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -196,11 +197,24 @@ a:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skeleton-pulse {
-    animation: none;
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
-  .pressable:active {
-    transform: none;
+  .skeleton-pulse {
+    animation: none !important;
+  }
+  .typing-dot {
+    animation: none !important;
+  }
+  .pressable:active,
+  .hover-lift:hover,
+  .hover-scale:hover {
+    transform: none !important;
   }
 }
 

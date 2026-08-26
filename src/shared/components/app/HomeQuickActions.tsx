@@ -2,8 +2,8 @@
 
 import Link from "next/link"
 import type { IconProps } from "@phosphor-icons/react"
-import { Calculator, Sparkle, Notebook, Article, ArrowsClockwise, ArrowsLeftRight } from "@phosphor-icons/react"
-import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
+import { Calculator, Sparkle, Notebook, Article, ArrowsLeftRight } from "@phosphor-icons/react"
+import { useIsNativeApp } from "@/shared/hooks/useIsNativeApp"
 import { TransferDocumentsButton } from "@/features/transferir/components/TransferDocumentsButton"
 
 type IconType = React.ComponentType<IconProps & { size?: number; weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone" }>
@@ -21,13 +21,12 @@ interface QuickTile {
 
 const TILES: QuickTile[] = [
   { icon: Calculator, label: "Calculadoras", href: "/calculadoras", color: "var(--area-tools)" },
-  { icon: Sparkle, label: "Preguntas del CCT IA-Assistant", href: "/asistente", color: "var(--area-assistance)" },
-  { icon: Notebook, label: "Registrar eventos en mi agenda", href: "/bitacora", color: "var(--brand-cyan)" },
+  { icon: Sparkle, label: "Pregunta sobre tus derechos", href: "/asistente", color: "var(--area-assistance)" },
+  { icon: Notebook, label: "Registrar incidencia", href: "/bitacora", color: "var(--area-work)" },
 ]
 
 export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuickActionsProps) {
   const isNative = useIsNativeApp()
-  const platform = useNativePlatform()
   return (
     <section style={{ marginBottom: "var(--space-6)" }}>
       <h2
@@ -146,31 +145,6 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
             </span>
             <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, textAlign: "center", lineHeight: 1.25 }}>
               Consulta tu tarjetón
-            </span>
-          </button>
-        )}
-        {isNative && platform === "android" && (
-          <button
-            onClick={() => { window.LaVeinteApp?.checkForUpdate?.() }}
-            className="hover-lift pressable"
-            style={{
-              display: "flex", flexDirection: "column", alignItems: "center",
-              justifyContent: "center", gap: "0.5rem", minHeight: 92,
-              padding: "0.875rem 0.5rem", background: "var(--card)",
-              border: "1px solid var(--border)", borderRadius: "var(--radius-lg)",
-              cursor: "pointer", color: "var(--fg)", fontFamily: "inherit",
-              transition: "transform var(--transition), box-shadow var(--transition)",
-            }}
-          >
-            <span style={{
-              width: 44, height: 44, borderRadius: "var(--radius)",
-              background: "linear-gradient(135deg, var(--brand-cyan)1f, var(--brand-cyan)14)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <ArrowsClockwise size={24} weight="duotone" color="var(--brand-cyan)" />
-            </span>
-            <span style={{ fontSize: "var(--text-sm)", fontWeight: 600, textAlign: "center", lineHeight: 1.25 }}>
-              Actualizar APP
             </span>
           </button>
         )}

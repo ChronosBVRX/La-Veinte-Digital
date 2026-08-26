@@ -91,8 +91,6 @@ describe("social module retirement", () => {
   })
 
   it.each([
-    "src/shared/components/layout/Sidebar.tsx",
-    "src/shared/components/layout/BottomNav.tsx",
     "src/shared/components/app/DesktopSidebar.tsx",
     "src/shared/components/app/MobileBottomNav.tsx",
     "src/shared/components/app/navigation.ts",

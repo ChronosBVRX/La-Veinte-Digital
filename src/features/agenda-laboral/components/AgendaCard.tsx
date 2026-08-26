@@ -50,15 +50,15 @@ export function AgendaCard({ userId, commitments, onCommitmentsChange, onAdd }: 
             textTransform: "uppercase",
             letterSpacing: "0.06em",
           }}>
-            Mi agenda laboral
+            Compromisos e incidencias
           </span>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setShowForm(true)}
-            leadingIcon={<Plus size={14} />}
+            leadingIcon={<Plus size={16} weight="bold" />}
           >
-            Agregar compromiso
+            Registrar
           </Button>
         </div>
 
@@ -70,11 +70,11 @@ export function AgendaCard({ userId, commitments, onCommitmentsChange, onAdd }: 
             borderRadius: "var(--radius-lg)",
             textAlign: "center",
           }}>
-            <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: "0 0 0.5rem" }}>
-              No tienes turnos extra ni sustituciones próximas.
+            <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: "0 0 0.75rem" }}>
+              No tienes incidencias ni turnos programados para hoy.
             </p>
             <Button variant="outline" size="sm" onClick={() => setShowForm(true)}>
-              Agregar TxT o tiempo extra
+              <Plus size={14} weight="bold" /> Registrar incidencia
             </Button>
           </div>
         ) : (

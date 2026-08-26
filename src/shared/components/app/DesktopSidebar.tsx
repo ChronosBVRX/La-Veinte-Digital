@@ -124,61 +124,49 @@ export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
       ))}
 
       {isNative && (
-        <>
         <div style={{ marginTop: "1rem" }}>
           <span style={{
-            fontSize: "0.6875rem", fontWeight: 700, color: "var(--area-work)",
+            fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--brand-navy)",
             textTransform: "uppercase", letterSpacing: "0.08em", padding: "0 0.625rem",
-            marginBottom: "0.25rem", display: "block",
+            marginBottom: "0.375rem", display: "block",
           }}>
-            APP MÓVIL
+            FUNCIONES DE LA APP
           </span>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.0625rem" }}>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.125rem" }}>
             <li>
               <button
                 onClick={() => { window.LaVeinteApp?.openOfficialPayslips() }}
                 style={{
                   display: "flex", alignItems: "center", gap: "0.625rem", width: "100%",
-                  padding: "0.5rem 0.625rem", borderRadius: "var(--radius)",
+                  padding: "0.625rem 0.75rem", borderRadius: "var(--radius)",
                   background: "transparent", border: "none", cursor: "pointer",
-                  fontSize: "0.8125rem", color: "var(--fg)", textDecoration: "none",
+                  fontSize: "var(--text-sm)", color: "var(--fg)", textDecoration: "none",
+                  textAlign: "left", fontFamily: "inherit",
                 }}
               >
                 <Article size={20} weight="regular" style={{ color: "var(--area-work)", flexShrink: 0 }} />
-                Tarjetones IMSS
+                Tarjetones oficiales IMSS
               </button>
             </li>
+            {platform === "android" && (
+              <li>
+                <button
+                  onClick={() => { window.LaVeinteApp?.checkForUpdate?.() }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "0.625rem", width: "100%",
+                    padding: "0.625rem 0.75rem", borderRadius: "var(--radius)",
+                    background: "transparent", border: "none", cursor: "pointer",
+                    fontSize: "var(--text-sm)", color: "var(--fg)", textDecoration: "none",
+                    textAlign: "left", fontFamily: "inherit",
+                  }}
+                >
+                  <ArrowsClockwise size={20} weight="regular" style={{ color: "var(--brand-cyan)", flexShrink: 0 }} />
+                  Buscar actualización
+                </button>
+              </li>
+            )}
           </ul>
         </div>
-
-        {platform === "android" && (
-        <div style={{ marginTop: "1rem" }}>
-          <span style={{
-            fontSize: "0.6875rem", fontWeight: 700, color: "var(--brand-cyan)",
-            textTransform: "uppercase", letterSpacing: "0.08em", padding: "0 0.625rem",
-            marginBottom: "0.25rem", display: "block",
-          }}>
-            ACTUALIZAR
-          </span>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.0625rem" }}>
-            <li>
-              <button
-                onClick={() => { window.LaVeinteApp?.checkForUpdate?.() }}
-                style={{
-                  display: "flex", alignItems: "center", gap: "0.625rem", width: "100%",
-                  padding: "0.5rem 0.625rem", borderRadius: "var(--radius)",
-                  background: "transparent", border: "none", cursor: "pointer",
-                  fontSize: "0.8125rem", color: "var(--fg)", textDecoration: "none",
-                }}
-              >
-                <ArrowsClockwise size={20} weight="regular" style={{ color: "var(--brand-cyan)", flexShrink: 0 }} />
-                Buscar actualización
-              </button>
-            </li>
-          </ul>
-        </div>
-        )}
-        </>
       )}
 
       <div style={{ marginTop: "1rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem" }}>
@@ -295,11 +283,12 @@ function NavItem({
         display: "flex",
         alignItems: "center",
         gap: "0.625rem",
-        padding: "0.5rem 0.625rem",
+        padding: "0.625rem 0.75rem",
         borderRadius: "var(--radius)",
         textDecoration: "none",
-        fontSize: "0.8125rem",
-        fontWeight: isActive ? 600 : 400,
+        fontSize: "var(--text-sm)",
+        fontWeight: isActive ? 600 : 500,
+        minHeight: 40,
         transition: "all var(--transition)",
         ...activeStyle,
       }}

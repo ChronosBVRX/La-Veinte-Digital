@@ -17,8 +17,8 @@ export default function HerramientasPage() {
     <div style={{ maxWidth: "700px", margin: "0 auto" }}>
       <PageHeader
         eyebrow="Herramientas"
-        title="Todas las herramientas"
-        description="Explora cada herramienta disponible para tu gestión laboral."
+        title="Herramientas laborales"
+        description="Explora las herramientas disponibles para tu gestión y cálculo laboral."
       />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>

@@ -3,19 +3,17 @@
 import { useEffect, useRef } from "react"
 import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
-import { ChatTeardropText, PaperPlaneRight } from "@phosphor-icons/react"
+import { Sparkle, PaperPlaneRight } from "@phosphor-icons/react"
 import { useChat } from "../hooks/useChat"
 import { ChatMessage } from "./ChatMessage"
 import { ChatSuggestions } from "./ChatSuggestions"
 import { TypingIndicator } from "./TypingIndicator"
 
-const INITIAL_MESSAGE = `¡Hola! 👋 Soy tu **Asistente SNTSS**, tu orientación laboral y sindical.
+const INITIAL_MESSAGE = `¡Hola! 👋 Soy tu **asistente laboral**, aquí para acompañarte.
 
-Estoy aquí para ayudarte a entender tus derechos y orientarte sobre qué puedes hacer ante una situación laboral.
+Estoy para ayudarte a entender tus derechos y darte orientación sobre qué puedas hacer ante una situación en tu trabajo.
 
-Consulto el **CCT**, **reglamentos**, **procedimientos IMSS**, **legislación laboral** y **normativa aplicable** para darte respuestas con fuentes verificables.
-
-Puedes contarme qué está pasando con tus propias palabras.`
+Puedes contarme qué te pasa con tus propias palabras, o preguntarme directamente sobre el **Contrato Colectivo**, los **Estatutos** o cualquier duda laboral.`
 
 export function ChatAssistant() {
   const { messages, input, setInput, loading, send, inputRef } = useChat([{ role: "assistant", content: INITIAL_MESSAGE }])
@@ -33,13 +31,13 @@ export function ChatAssistant() {
           background: "linear-gradient(135deg, var(--primary), #6366f1)",
           display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
         }}>
-          <ChatTeardropText size={24} color="white" weight="duotone" />
+          <Sparkle size={24} color="white" weight="duotone" />
         </div>
         <div>
-          <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>Asistente SNTSS</h1>
+          <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>Asistente laboral</h1>
           <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: "0.125rem 0 0", display: "flex", alignItems: "center", gap: "0.35rem" }}>
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#22c55e", display: "inline-block" }} />
-            Orientación laboral y sindical
+            Consulta información del CCT, Estatutos y normativa disponible.
           </p>
         </div>
       </div>
@@ -70,7 +68,7 @@ export function ChatAssistant() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={loading}
-            placeholder="Cuéntame qué necesitas consultar..."
+            placeholder="Pregunta sobre tus derechos laborales, CCT o Estatutos..."
             style={{ borderRadius: "0.75rem" }}
           />
         </div>

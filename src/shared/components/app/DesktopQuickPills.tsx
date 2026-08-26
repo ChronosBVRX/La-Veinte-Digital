@@ -5,8 +5,8 @@ import { ArrowRight, ArrowsLeftRight } from "@phosphor-icons/react"
 import { TransferDocumentsButton } from "@/features/transferir/components/TransferDocumentsButton"
 
 const PILLS = [
-  { href: "/bitacora", label: "Registrar eventos en mi agenda" },
-  { href: "/asistente", label: "Preguntas del CCT IA-Assistant" },
+  { href: "/bitacora", label: "Registrar incidencia" },
+  { href: "/asistente", label: "Pregunta sobre tus derechos" },
 ]
 
 export function DesktopQuickPills() {

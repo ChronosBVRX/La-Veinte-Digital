@@ -59,16 +59,18 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
             background: "none",
             border: "none",
             cursor: "pointer",
-            padding: "0.375rem",
+            padding: "0.5rem",
             borderRadius: "var(--radius-sm)",
             color: "var(--fg)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            minWidth: 44,
+            minHeight: 44,
           }}
           aria-label="Abrir menú"
         >
-          <List size={22} weight="regular" />
+          <List size={24} weight="bold" />
         </button>
 
         <Link
@@ -116,19 +118,20 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
         <a
           href="/LaVeinteDigital.apk"
           title="Descargar app Android"
+          aria-label="Descargar app Android"
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            width: 32,
-            height: 32,
+            width: 44,
+            height: 44,
             borderRadius: "50%",
             background: "var(--accent)",
-            color: "var(--muted)",
-            transition: "color 0.15s",
+            color: "var(--brand-navy)",
+            transition: "color var(--transition), background var(--transition)",
           }}
         >
-          <DeviceMobile size={18} weight="fill" />
+          <DeviceMobile size={22} weight="fill" />
         </a>
         )}
         <div ref={profileRef} style={{ position: "relative" }}>
@@ -136,6 +139,7 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
             onClick={() => setProfileOpen((v) => !v)}
             aria-haspopup="menu"
             aria-expanded={profileOpen}
+            aria-label="Menú de perfil"
             className="profile-trigger"
             style={{
               display: "flex",
@@ -148,8 +152,9 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
               cursor: "pointer",
               color: "var(--fg)",
               fontFamily: "inherit",
-              fontSize: "0.8125rem",
+              fontSize: "var(--text-sm)",
               fontWeight: 500,
+              minHeight: 44,
               transition: "all var(--transition)",
             }}
             onMouseEnter={(e) => {
@@ -165,8 +170,8 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
               {firstName}
             </span>
             <span style={{
-              width: 28,
-              height: 28,
+              width: 32,
+              height: 32,
               borderRadius: "50%",
               background: "linear-gradient(135deg, var(--brand-navy), var(--brand-blue))",
               display: "flex",
@@ -175,9 +180,9 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
               color: "var(--primary-fg)",
               boxShadow: "0 2px 6px rgba(23,50,77,0.2)",
             }}>
-              <UserCircle size={16} weight="fill" />
+              <UserCircle size={18} weight="fill" />
             </span>
-            <CaretDown size={10} weight="bold" style={{ color: "var(--muted)", marginLeft: "-0.125rem" }} />
+            <CaretDown size={12} weight="bold" style={{ color: "var(--muted)", marginLeft: "-0.125rem" }} />
           </button>
           {profileOpen && (
             <div
@@ -186,7 +191,7 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
                 position: "absolute",
                 top: "calc(100% + 0.5rem)",
                 right: 0,
-                minWidth: 180,
+                minWidth: 200,
                 background: "var(--card)",
                 border: "1px solid var(--border)",
                 borderRadius: "var(--radius-md)",
@@ -201,9 +206,10 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
                 style={{
                   fontSize: "var(--text-xs)",
                   color: "var(--muted)",
-                  padding: "0.25rem 0.625rem 0.5rem",
+                  padding: "0.5rem 0.625rem",
                   borderBottom: "1px solid var(--border)",
                   marginBottom: "0.25rem",
+                  fontWeight: 600,
                 }}
               >
                 {fullName || "Tu cuenta"}
@@ -214,7 +220,7 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
                 href="/profile/mi-informacion-laboral"
                 onClick={() => setProfileOpen(false)}
               />
-              <ProfileItem label="Mi agenda" href="/bitacora" onClick={() => setProfileOpen(false)} />
+              <ProfileItem label="Mis incidencias" href="/bitacora" onClick={() => setProfileOpen(false)} />
             </div>
           )}
         </div>

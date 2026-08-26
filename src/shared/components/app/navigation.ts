@@ -38,7 +38,7 @@ export const DESKTOP_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/calendario", label: "Calendario", icon: CalendarDots },
       { href: "/vacaciones", label: "Vacaciones", icon: AirplaneTilt },
-      { href: "/bitacora", label: "Mi agenda", icon: Notebook },
+      { href: "/bitacora", label: "Mis incidencias", icon: Notebook },
     ],
   },
   {
@@ -50,6 +50,7 @@ export const DESKTOP_NAV_GROUPS: NavGroup[] = [
       { href: "/simulador-nomina", label: "Simulador de nómina", icon: ArrowsLeftRight },
       { href: "/escritos", label: "Crear un escrito", icon: FileText },
       { href: "/guia", label: "Guía de mi Tarjetón", icon: Books },
+      { href: "/simulador", label: "Practicar una audiencia", icon: Scales },
     ],
   },
   {
@@ -58,7 +59,6 @@ export const DESKTOP_NAV_GROUPS: NavGroup[] = [
     color: "var(--area-assistance)",
     items: [
       { href: "/asistente", label: "Preguntar sobre mis derechos", icon: Sparkle },
-      { href: "/simulador", label: "Practicar una audiencia", icon: Scales },
     ],
   },
   {
@@ -88,17 +88,15 @@ export const MOBILE_SHEET_GROUPS: Record<string, { label: string; color: string;
   herramientas: {
     label: "Herramientas",
     color: "var(--area-tools)",
-    items: [
-      ...DESKTOP_NAV_GROUPS[1].items,
-      { href: "/simulador", label: "Practicar una audiencia", icon: Scales },
-    ],
+    items: DESKTOP_NAV_GROUPS[1].items,
   },
   mas: {
     label: "Más",
     color: "var(--muted)",
     items: [
       ...DESKTOP_NAV_GROUPS[3].items,
-      { href: "/profile", label: "Mi Perfil", icon: UserCircle },
+      { href: "/profile", label: "Mi perfil", icon: UserCircle },
+      { href: "/profile/mi-informacion-laboral", label: "Mi información laboral", icon: Briefcase },
     ],
   },
 }

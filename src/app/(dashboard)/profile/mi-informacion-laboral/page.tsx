@@ -136,14 +136,12 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
       }}>
         <div>
           <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.25rem" }}>
-            Subir tarjetón IMSS
+            Importar mi tarjetón IMSS
           </h2>
-          <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0, lineHeight: 1.55 }}>
-            Este es el lugar donde mantienes tu información laboral al día.
-            Cada vez que subes un nuevo tarjetón, tus datos se actualizan automáticamente:
-            categoría, antigüedad, jornada, conceptos recurrentes y contexto de nómina que
-            alimentan las calculadoras y el simulador. El PDF se procesa en tu dispositivo;
-            solo guardamos los datos que revisas y confirmas.
+          <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: 0, lineHeight: 1.55 }}>
+            Sube tu archivo PDF de tarjetón para mantener tu información laboral al día.
+            Tus datos se sincronizan de manera segura en tu dispositivo (categoría, antigüedad, jornada y conceptos)
+            para alimentar las calculadoras y el simulador de nómina.
           </p>
         </div>
 
