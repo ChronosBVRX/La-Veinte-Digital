@@ -1,18 +1,16 @@
 {
   "channel": "stable",
-  "versionCode": 184,
-  "versionName": "1.0.84",
+  "versionCode": 185,
+  "versionName": "1.0.85",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-26T00:14:35Z",
+  "publishedAt": "2026-08-26T00:38:16Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "e7caae830413d6af2c2eac5687ea1ad08ba72fbb49a5983ebe1c837392377a12",
-    "size": 67608164
+    "sha256": "1ae7ada58c76ac0a52db127584dab45115561f36ffea9b78bbd3ffe669c6486c",
+    "size": 67624548
   },
   "releaseNotes": [
-    "Fix definitivo guardar PDF de checadas: se descarga directamente del endpoint real del portal (POST /biometricos/recuperar) usando la sesión del WebView, sin depender del tap ni del blob",
-    "Valida el PDF (cabecera %PDF-), lo guarda como 'Checadas — periodo' y abre el visor para compartir/imprimir",
-    "Solución robusta validada contra el portal: devuelve el PDF en base64 dentro de la respuesta"
+    "Fix guardar PDF de checadas: usa un toque real sobre 'Descargar' (igual que el que funciona contra el portal) y captura el PDF del reporte, con diagnóstico del resultado en Copiar diagnóstico"
   ]
 }

@@ -314,35 +314,36 @@ class TuPerfilBiometricFlowController(
     // ── Guardar PDF de checadas (blob capturado del portal) ─────────────────
 
     /** Guarda el reporte PDF de checadas del periodo consultado.
-     * Usa el endpoint REAL del portal (POST /biometricos/recuperar) ejecutado
-     * dentro del WebView para heredar la sesión, en vez de depender de un tap
-     * o de la captura de blob (que no disparan la descarga de forma fiable).
+     * Hace un toque REAL sobre el control "Descargar" del portal (el sintético
+     * no dispara la descarga) y captura el PDF que el WebView recibe como blob
+     * vía [ImssPdfCaptureCoordinator.injectPdfMonitor] (URL.createObjectURL).
      * Devuelve la ruta local del PDF guardado, o null si no se guardó. */
     fun saveBiometricPdf(onResult: (String?) -> Unit) {
         scope.launch {
             try {
                 val wv = session.awaitWebView()
-                val matricula = session.lastUsername ?: ""
-                val period = lastQueryPeriod ?: return@launch onResult(null)
-                val periodCode = period.value
-                val ooad = selectedOoad?.value ?: BiometricFlowPolicy.DEFAULT_OOAD_VALUE
-                if (matricula.isBlank() || periodCode.isBlank()) { onResult(null); return@launch }
-
-                // 1) Ejecuta el fetch del PDF en el contexto del WebView (misma sesión).
-                TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.fetchBiometricPdfJs(matricula, periodCode, ooad))
-
-                // 2) Poll del resultado hasta que el fetch devuelva el base64.
-                var b64: String? = null
-                for (attempt in 0 until 20) {
-                    delay(500)
-                    val res = TarjetonDigitalJson.parseObject(TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.readBiometricPdfResultJs()))
-                    val status = res?.optString("status") ?: continue
-                    if (status == "done") { if (res.optBoolean("ok")) b64 = res.optString("b64") ; break }
+                val period = lastQueryPeriod
+                val periodLabel = period?.label
+                // 1) Monitor de blobs PDF (captura el blob que genera el download).
+                ImssPdfCaptureCoordinator.injectPdfMonitor(wv)
+                // 2) Reinyecta la librería JS que usa el selector de tap.
+                TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.reinjectLibJs())
+                // 3) Primero intenta toque REAL sobre "Descargar".
+                val target = NativeDomTapper.locate(wv, NativeDomTapper.DOWNLOAD_TAP_SELECTOR)
+                val tapped = if (target.ok) { NativeDomTapper.tap(wv, target) } else false
+                if (!tapped) {
+                    // 4) Fallback sintético (por si el tap no da en el elemento).
+                    TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.clickDownloadJs())
                 }
-                if (b64.isNullOrBlank()) { onResult(null); return@launch }
-
-                // 3) Decodifica y guarda como PDF de checadas.
-                val path = withContext(Dispatchers.IO) { ImssPdfCaptureCoordinator.saveBiometricBase64(context, b64!!, period.label) }
+                // 5) Poll del buffer de blobs PDF hasta que llegue el reporte.
+                var path: String? = null
+                for (attempt in 0 until 24) {
+                    delay(500)
+                    val savedPath = ImssPdfCaptureCoordinator.pollBiometricPdf(wv, context, periodLabel)
+                    if (savedPath != null) { path = savedPath; break }
+                }
+                Log.i(FLOW_TAG, "saveBiometricPdf tapped=$tapped targetOk=${target.ok} path=${path != null} attemptDone=true")
+                // 6) Si el blob no llegó y falló todo, no guardar (onResult null).
                 withContext(Dispatchers.Main) { onResult(path) }
             } catch (e: Exception) {
                 Log.e(TAG, "SAVE_BIOMETRIC_PDF_FAILED", e)
@@ -1635,11 +1636,13 @@ class TuPerfilBiometricFlowController(
     }
 
     private suspend fun injectMonitors(wv: WebView) {
-        if (!BuildConfig.DEBUG) return
-        TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.netMonitorJs())
-        TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.activityMonitorJs())
-        TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.downloadMonitorJs())
-        TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.jsErrorMonitorJs())
+        TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.authTokenMonitorJs())
+        if (BuildConfig.DEBUG) {
+            TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.netMonitorJs())
+            TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.activityMonitorJs())
+            TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.downloadMonitorJs())
+            TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.jsErrorMonitorJs())
+        }
     }
 
     /** Errores JS del portal capturados (sanitizados) → traza DEBUG (tag LVD_BIO_JS). */

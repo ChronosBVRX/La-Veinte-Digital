@@ -1666,6 +1666,24 @@ console.error=function(){
      */
     fun reinjectLibJs(): String = LIB_JS
 
+    /** Pulsa el control "Descargar" (click sintético; fallback si el tap real no da). */
+    fun clickDownloadJs(): String = LIB_JS + """(function(){
+var L=window.__LVD_BIO_LIB__;
+var spans=Array.from(document.querySelectorAll('span,div,a,button'));
+var target=null;
+for(var i=0;i<spans.length;i++){
+  var el=spans[i];
+  if(!L.vis(el))continue;
+  var t=L.n(L.txt(el));
+  var cls=L.n(String(el.className||''));
+  if(t==='descargar'||t==='descargar pdf'||cls.indexOf('download')>=0){target=el;break;}
+}
+if(!target)return JSON.stringify({ok:false,reason:'DOWNLOAD_CONTROL_NOT_FOUND'});
+try{target.scrollIntoView({block:'center'});}catch(e){}
+target.click();
+return JSON.stringify({ok:true,text:L.txt(target).slice(0,40)});
+})()"""
+
     /* ── JS: descargar PDF de checadas vía fetch del endpoint real ────────── */
 
     /**
@@ -1678,17 +1696,18 @@ console.error=function(){
      * header Authorization inyectado por Angular), sin tocar el tap ni el blob.
      */
     fun fetchBiometricPdfJs(matricula: String, periodCode: String, ooadCode: String): String =
-        "(function(){return JSON.stringify({ok:false,reason:'start'});})()" + LIB_JS +
+        LIB_JS +
         """(function(){
 var matricula=""" + JSONObject.quote(matricula) + """;
 var idPeriodo=""" + JSONObject.quote(periodCode) + """;
 var ooad=""" + JSONObject.quote(ooadCode) + """;
 var url='/mstpei-biometricos/v1/biometricos/recuperar';
 var token=null;
-try{token=sessionStorage.getItem('token')||null;}catch(e){}
+try{token=window.__LVD_BIO_AUTH__||null;}catch(e){}
+if(!token){try{token=sessionStorage.getItem('token')||null;}catch(e){}}
 if(!token){try{token=sessionStorage.getItem('access_token')||null;}catch(e){}}
 var headers={'Content-Type':'application/json'};
-if(token)headers['Authorization']='Bearer '+token;
+if(token)headers['Authorization']=token;
 var body=JSON.stringify({matricula:matricula,idPeriodo:idPeriodo,tipoConsuta:2,fechaInicial:'-',fechaFinal:'-',ooad:ooad});
 fetch(url,{method:'POST',headers:headers,body:body,credentials:'include'})
   .then(function(r){return r.text()})
@@ -1702,7 +1721,7 @@ fetch(url,{method:'POST',headers:headers,body:body,credentials:'include'})
     }catch(e){window.__LVD_BIO_PDF__={ok:false,reason:String(e&&e.message||e)};}
   })
   .catch(function(e){window.__LVD_BIO_PDF__={ok:false,reason:String(e&&e.message||e)};});
-return JSON.stringify({ok:true,started:true,hasToken:!!token});
+return JSON.stringify({ok:true,started:true,hasToken:!!token,auth:token?(token.slice(0,10)+'...'):''});
 })()"""
 
     /** Lee el resultado del fetch del PDF (lectura del buffer web). */
@@ -1710,5 +1729,54 @@ return JSON.stringify({ok:true,started:true,hasToken:!!token});
 var s=window.__LVD_BIO_PDF__;
 if(!s)return JSON.stringify({status:'missing'});
 return JSON.stringify({status:'done',ok:s.ok,reason:s.reason||'',b64:s.b64||'',msg:s.msg||''});
+})()"""
+
+    /* ── JS: capturar el token Bearer real de la sesión (a prueba de fallos) ── */
+
+    /**
+     * Intercepta XHR/fetch a `/mstpei-biometricos/` y guarda el header
+     * `Authorization: Bearer <token>` que Angular inyecta en la consulta real.
+     * Ese token es el MISMO que la app ya usó para mostrar los resultados, así
+     * que no depende de sessionStorage. Se guarda en `window.__LVD_BIO_AUTH__`.
+     */
+    fun authTokenMonitorJs(): String = """(function(){
+if(window.__LVD_BIO_AUTH_HOOKED__)return;
+window.__LVD_BIO_AUTH_HOOKED__=true;
+window.__LVD_BIO_AUTH__=null;
+function grab(u,headers){
+  var h=headers||null;
+  var s=String(u||'');
+  if(s.indexOf('/biometricos')<0&&s.indexOf('recuperar')<0)return;
+  var auth=null;
+  if(h&&h['Authorization'])auth=h['Authorization'];
+  else if(h&&h['authorization'])auth=h['authorization'];
+  if(auth&&auth.indexOf('Bearer ')===0){window.__LVD_BIO_AUTH__=auth;}
+  else if(auth&&auth.indexOf('Bearer')===0){window.__LVD_BIO_AUTH__='Bearer '+auth.slice(6).trim();}
+}
+var ox=window.XMLHttpRequest.prototype.open;
+var os=window.XMLHttpRequest.prototype.send;
+window.XMLHttpRequest.prototype.open=function(m,u){
+  var self=this;
+  try{self.__lvdUrl=u;}catch(e){}
+  var origSet=null;
+  try{
+    origSet=this.setRequestHeader;
+    this.setRequestHeader=function(n,v){try{if(/authorization/i.test(n)&&/bearer/i.test(v)){window.__LVD_BIO_AUTH__=v;}}catch(e){}return origSet.apply(this,arguments)};
+  }catch(e){}
+  return ox.apply(this,arguments);
+};
+var of=window.fetch;
+window.fetch=function(u,o){
+  try{ if(o&&(o.headers||{})){ var h=o.headers; var a=(h['Authorization']||h['authorization']||''); if(/bearer/i.test(a)&&s(o&&o.url||u))window.__LVD_BIO_AUTH__=a; if(typeof h==='object'&&!Array.isArray(h)){var hs=h; try{if(a)window.__LVD_BIO_AUTH__=a;}catch(e){}} } }catch(e){}
+  return of.apply(this,arguments);
+};
+function s(u){return String(u||'').indexOf('biometricos')>=0||String(u||'').indexOf('recuperar')>=0}
+})()"""
+
+    /** Lee el token Bearer capturado (o vacío). */
+    fun readAuthTokenJs(): String = """(function(){
+var a=window.__LVD_BIO_AUTH__;
+if(!a)return JSON.stringify({token:''});
+return JSON.stringify({token:a});
 })()"""
 }
