@@ -75,6 +75,15 @@ export const VALIDITY_WEIGHT: Record<string, number> = {
 
 /** Tipo de pregunta: define estrategia de retrieval y guía del LLM. */
 export type RetrievalIntent =
+  | "EXACT_LOOKUP"
+  | "EXACT_EXPLAIN"
+  | "SPECIFIC_TOPIC"
+  | "BROAD_TOPIC"
+  | "LABOR_CASE"
+  | "FOLLOW_UP"
+
+/** Histórico: alias para compatibilidad con código anterior. */
+export type LegacyRetrievalIntent =
   | "EXACT_REFERENCE"
   | "SPECIFIC_TOPIC"
   | "BROAD_TOPIC"
@@ -84,28 +93,65 @@ const BROAD_SIGNALS =
   /\bderechos?\b|\bprestaciones\b|\bbeneficios?\b|me corresponde|qué me toca|condiciones (de trabajo|laborales)|marco laboral|en general/i
 
 const SPECIFIC_SIGNALS =
-  /vacaciones|guardia|tiempo extraordinario|horas extra|fondo de ahorro|aguinaldo|sanci[óo]n|antig[üu]edad|escalaf[óo]n|bolsa de trabajo|jubilaci[óo]n|pensi[óo]n|infonavit|afore|sar\b|fonacot|rpbi|rayos ?x|teletrabajo|discapacidad|acoso|hostigamiento|licencia|permiso|turno|horario|residencia|beca|capacitaci[óo]n|profesiograma|plantilla|categor[íi]a|nom-\d{3}|cl[áa]usula \d+|art[íi]culo \d+/i
+  /vacaciones|guardia|tiempo extraordinario|horas extra|fondo de ahorro|aguinaldo|sanci[óo]n|antig[üu]edad|escalaf[óo]n|bolsa de trabajo|jubilaci[óo]n|pensi[óo]n|infonavit|afore|sar\b|fonacot|rpbi|rayos ?x|teletrabajo|discapacidad|acoso|hostigamiento|licencia|permiso|turno|horario|residencia|beca|capacitaci[óo]n|profesiograma|plantilla|categor[íi]a|nom-\d{3}|cl[áa]usula \d+|art[íi]culo \d+|jornada|40 horas|reforma|horas de trabajo/i
+
+/** Señales de caso laboral (conflicto) — solapan con acompanamiento pero NO lo modifican. */
+const LABOR_CASE_SIGNALS =
+  /hostig|acoso|agres|amenaz|represali|sanci[oó]n|acta\b|disciplin|fuera de (mi )?categ|actividades (que no|fuera)|cambio injustificado|negaron|negan|neg[oó]|no (quieren|quiere) (respetar|darme|autoriz)|conflicto con (mi )?jef|jefatura|riesgo de trabajo|accidente|discriminaci[oó]n|maltrat|despido|intimid|presi[oó]n|le[oó]n|agredid/i
+
+/** Verbo de LOOKUP: pedir mostrar/recuperar un documento o dato concreto. */
+const LOOKUP_VERBS = /mu[eé]strame|ens[eé][nñ]ame|dame|d[aa]me el|ver|abre|recupera|cu[aá]l es el texto|b[uú]scame la/i
+/** Verbo de EXPLAIN: pedir explicar/definir. */
+const EXPLAIN_VERBS = /expl[íi]came|qu[eé] es|qu[eé] significa|d[ií]me qu[eé]|c[oó]mo funciona|ent[eé]ndeme|def[ií]neme|a qu[eé] se refiere|por qu[eé]/i
 
 /**
- * Clasifica la intención SOLO para decidir estrategia de retrieval:
- * no altera la relevancia ni inventa evidencias.
+ * Clasifica la intención SOLO para decidir estrategia de retrieval y budget:
+ * no altera la relevancia ni inventa evidencias. Determinista, sin LLM.
  */
 export function classifyRetrievalIntent(question: string): RetrievalIntent {
   const refs = extractExactRefs(question)
-  if (refs.clause || refs.article || refs.key) return "EXACT_REFERENCE"
+  if (refs.clause || refs.article || refs.key) {
+    return LOOKUP_VERBS.test(question) && !EXPLAIN_VERBS.test(question)
+      ? "EXACT_LOOKUP"
+      : "EXACT_EXPLAIN"
+  }
 
   const hasSpecific = SPECIFIC_SIGNALS.test(question)
   const hasBroad = BROAD_SIGNALS.test(question)
+  const hasLaborCase = LABOR_CASE_SIGNALS.test(question) || hasSpecific && /(conflicto|problema|violaci[oó]n|no me|me neg|mi jefe|me pusieron|me quieren|me obligan|me cambiaron)/i.test(question)
 
   // Seguimiento: arranca con conectivo y no aporta tema propio.
   const words = question.trim().split(/\s+/).length
   const startsConnective = /^¿?\s*(y|pero|entonces|ahora bien|qué pasa si|y si)\b/i.test(question.trim())
-  if (!hasSpecific && !hasBroad && (words <= 5 || startsConnective)) {
+  if (!hasSpecific && !hasBroad && !hasLaborCase && (words <= 5 || startsConnective)) {
     return "FOLLOW_UP"
   }
+  if (hasLaborCase) return "LABOR_CASE"
   if (hasBroad && !hasSpecific) return "BROAD_TOPIC"
   return "SPECIFIC_TOPIC"
 }
+
+/** Presupuesto de tokens de salida por intención (punto 14). */
+export const OUTPUT_BUDGET: Record<RetrievalIntent, number> = {
+  EXACT_LOOKUP: 300,
+  EXACT_EXPLAIN: 300,
+  SPECIFIC_TOPIC: 400,
+  BROAD_TOPIC: 500,
+  LABOR_CASE: 550,
+  FOLLOW_UP: 450,
+}
+
+/** Presupuesto de evidencias por intención (punto 7). Hard max 8. */
+export const EVIDENCE_BUDGET: Record<RetrievalIntent, { min: number; max: number }> = {
+  EXACT_LOOKUP: { min: 1, max: 3 },
+  EXACT_EXPLAIN: { min: 3, max: 5 },
+  SPECIFIC_TOPIC: { min: 4, max: 6 },
+  BROAD_TOPIC: { min: 5, max: 8 },
+  LABOR_CASE: { min: 5, max: 8 },
+  FOLLOW_UP: { min: 4, max: 6 },
+}
+
+export const HARD_MAX_EVIDENCE = 8
 
 /**
  * Elimina chunks con texto idéntico (mismo documento repite el mismo
@@ -186,6 +232,35 @@ export function buildContextWithSources(sources: RetrievedSource[]): string {
     .map((s) => {
       const badge = s.pendingReview ? " [VIGENCIA POR REVISAR]" : ""
       return `[${s.id}] ${s.documento} (${s.version})${badge}\n${s.fragmento}`
+    })
+    .join("\n\n---\n\n")
+}
+
+/** Ubicación corta de una evidencia: tipo + número + página. */
+export function evidenceLocation(s: RetrievedSource): string {
+  const parts: string[] = []
+  if (s.numero) {
+    const label =
+      s.tipo === "articulo" ? "Artículo" : s.tipo === "clausula" ? "Cláusula" : s.tipo
+    parts.push(`${label} ${s.numero}`)
+  }
+  if (s.paginaInicio != null) parts.push(`pág. ${s.paginaInicio}`)
+  return parts.join(" · ")
+}
+
+/**
+ * Evidencia COMPACTA para el LLM (punto 9): solo lo esencial.
+ * Sin UUID/SHA/scores/URLs largas/timestamps/JSON interno.
+ * El modelo ya no ve cadenas de servicio; solo etiqueta + documento + cita + texto.
+ */
+export function buildCompactEvidence(sources: RetrievedSource[]): string {
+  return sources
+    .map((s) => {
+      const loc = evidenceLocation(s)
+      const head = `[${s.id}] ${s.documento}`
+      const ref = loc ? ` · ${loc}` : ""
+      const badge = s.pendingReview ? " · [VIGENCIA POR REVISAR]" : ""
+      return `${head}${ref}${badge}\n${s.fragmento}`
     })
     .join("\n\n---\n\n")
 }

@@ -59,7 +59,7 @@ export function isInformativa(
   hasSpecific: boolean,
 ): boolean {
   // Referencia exacta o consulta de derecho concreto sin señales de conflicto.
-  if (intent === "EXACT_REFERENCE") return !NEGATIVA_RE.test(question) && !CONFLICTO_RE.test(question)
+  if (intent === "EXACT_LOOKUP" || intent === "EXACT_EXPLAIN") return !NEGATIVA_RE.test(question) && !CONFLICTO_RE.test(question)
   if (hasSpecific && !CONFLICTO_RE.test(question) && !NEGATIVA_RE.test(question)) return true
   // Consulta corta de monto/dato: aguinaldo, días, cláusula.
   if (/\b(cu[aá]nto|cu[aá]ntos|qu[eé] d[ií]ce|cu[aá]l es|qu[eé] es|cu[aá]ndo me corresponde)\b/i.test(question)) {
