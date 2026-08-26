@@ -407,9 +407,9 @@ export function SimuladorNominaIndex() {
               Situación actual
             </span>
             <div style={{ fontSize: "var(--text-2xl)", fontWeight: 700, marginTop: "0.25rem" }}>
-              ${result.baselineNet.toLocaleString("es-MX")}
+              ${result.baselineGross.toLocaleString("es-MX")}
             </div>
-            <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)" }}>quincenal estimado</span>
+            <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)" }}>bruto posible quincenal</span>
           </div>
           <div style={{
             padding: "var(--space-4)", background: "var(--card)", border: "1px solid var(--border)",
@@ -420,15 +420,15 @@ export function SimuladorNominaIndex() {
             </span>
             <div style={{
               fontSize: "var(--text-2xl)", fontWeight: 700, marginTop: "0.25rem",
-              color: result.netDelta > 0 ? "var(--success)" : result.netDelta < 0 ? "var(--error)" : "var(--fg)",
+              color: result.grossDelta > 0 ? "var(--success)" : result.grossDelta < 0 ? "var(--error)" : "var(--fg)",
             }}>
-              ${result.scenarioNet.toLocaleString("es-MX")}
+              ${result.scenarioGross.toLocaleString("es-MX")}
             </div>
             <div style={{ marginTop: "0.25rem" }}>
-              <Badge variant={result.netDelta > 0 ? "success" : result.netDelta < 0 ? "error" : "neutral"}>
-                {result.netDelta > 0 ? "+" : ""}
-                ${result.netDelta.toLocaleString("es-MX")}
-                {" "}({result.netDeltaPercent > 0 ? "+" : ""}{result.netDeltaPercent}%)
+              <Badge variant={result.grossDelta > 0 ? "success" : result.grossDelta < 0 ? "error" : "neutral"}>
+                {result.grossDelta > 0 ? "+" : ""}
+                ${result.grossDelta.toLocaleString("es-MX")}
+                {" "}({result.grossDeltaPercent > 0 ? "+" : ""}{result.grossDeltaPercent}%)
               </Badge>
             </div>
           </div>
@@ -448,13 +448,13 @@ export function SimuladorNominaIndex() {
           <div style={{
             fontSize: "var(--text-2xl)",
             fontWeight: 800,
-            color: result.netDelta > 0 ? "var(--success)" : result.netDelta < 0 ? "var(--error)" : "var(--fg)",
+            color: result.grossDelta > 0 ? "var(--success)" : result.grossDelta < 0 ? "var(--error)" : "var(--fg)",
             marginBottom: "0.125rem",
           }}>
-            {result.netDelta > 0 ? "+" : ""}${result.netDelta.toLocaleString("es-MX")} por quincena
+            {result.grossDelta > 0 ? "+" : ""}${result.grossDelta.toLocaleString("es-MX")} por quincena
           </div>
-          <Badge variant={result.netDelta > 0 ? "success" : result.netDelta < 0 ? "error" : "neutral"}>
-            {result.netDeltaPercent > 0 ? "+" : ""}{result.netDeltaPercent}% que ahora
+          <Badge variant={result.grossDelta > 0 ? "success" : result.grossDelta < 0 ? "error" : "neutral"}>
+            {result.grossDeltaPercent > 0 ? "+" : ""}{result.grossDeltaPercent}% que ahora
           </Badge>
         </div>
 

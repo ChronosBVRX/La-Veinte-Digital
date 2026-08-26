@@ -11,12 +11,18 @@ import { getPercentageForConcept083, type PercentageResolution } from "../../dat
  *  - la elevación a 20% por tener título y cédula profesional, y
  *  - el fallback de 5% de Trabajo Social para categorías desconocidas.
  * Si la categoría no está en la tabla el resultado exige confirmación.
+ *
+ * CONTRATO DE ANCLA: elegibilidad por evidencia ACTUAL; el ancla NO otorga
+ * derecho. Con porcentaje autorizado y dependencias idénticas se conserva el
+ * importe REAL comprobado; sin porcentaje la regla no es computable y el
+ * ancla solo se repite marcada para confirmación.
  */
 export const concept083Rule: PayrollRule = {
   id: "083",
-  version: "2.0.0",
+  version: "3.0.0",
   effectiveFrom: "2025-01-01",
   dependencies: ["002"],
+  valuePersistence: "while_dependencies_unchanged",
   calculate(ctx: PayrollRuleContext): RuleCalculationResult {
     const anchor = ctx.conceptAnchors.get("083")
 
@@ -36,25 +42,31 @@ export const concept083Rule: PayrollRule = {
       (rc) => rc.conceptCode === "083" && rc.confirmed && rc.appearsNormally === true
     )
 
-    const eligible = anchor ? true : isRecurring
+    const eligible = isRecurring
 
     const status = dependenciesStatus(DEPS, ctx)
-    const { amount, warnings: resolutionWarnings } = resolveWithAnchor(
+    const anchorResolution = resolveWithAnchor({
+      conceptCode: "083",
+      ruleId: "083",
       anchor,
-      eligible ? formulaAmount : 0,
+      formulaAmount,
+      formulaComputable: percentage !== null,
+      eligibleNow: eligible,
       status,
-      ctx.mode,
-    )
+      mode: ctx.mode,
+      valuePersistence: "while_dependencies_unchanged",
+      period: ctx.period,
+    })
 
-    const formulaSource = isRecurring ? "last_payslip" : "contract_rule"
-    const source =
-      (anchor && (
-        ctx.mode === "baseline" ||
-        status === "unchanged" ||
-        (status === "unknown" && ctx.mode !== "exploratory")
-      )) ? "last_payslip" : formulaSource
+    const source = anchorResolution.usedAnchor ? "last_payslip" : "contract_rule"
 
-    const warnings: string[] = [...resolutionWarnings]
+    let confidence: CalculatedPayrollConcept["confidence"] =
+      isRecurring ? "high" :
+      percentage === null ? "requires_confirmation" :
+      "medium"
+    if (anchorResolution.requiresConfirmation) confidence = "requires_confirmation"
+
+    const warnings: string[] = [...anchorResolution.warnings]
     if (percentage === null) {
       warnings.push(
         "Categoría no autorizada en la tabla oficial (Apéndice H, Tabla 67) — se requiere confirmación; NO se aplica porcentaje por defecto."
@@ -65,7 +77,7 @@ export const concept083Rule: PayrollRule = {
     if (!eligible) {
       warnings.push("Requiere confirmación de actividad profesional aplicable")
     }
-    if (anchor) {
+    if (anchor && eligible && percentage !== null) {
       const discrepancy = Math.abs(formulaAmount - anchor.amount)
       if (discrepancy > 0.50) {
         warnings.push(`Diferencia entre fórmula (${formulaAmount.toFixed(2)}) y último tarjetón (${anchor.amount.toFixed(2)}): ${discrepancy.toFixed(2)}`)
@@ -77,21 +89,24 @@ export const concept083Rule: PayrollRule = {
       name: resolution.role ?? "Sobresueldo por Investigación y Docencia",
       type: "earning",
       nature: "derived",
-      amount,
+      amount: anchorResolution.amount,
       included: eligible,
       source,
-      confidence: anchor || isRecurring ? "high" : (percentage === null ? "requires_confirmation" : "requires_confirmation"),
+      confidence,
       verificationStatus: "institutional_catalog_verified",
-      elegibilitySource: anchor ? "payslip_confirmed" : (eligible ? "formula_deduced" : "unknown"),
+      elegibilitySource: eligible ? (isRecurring ? "payslip_confirmed" : "formula_deduced") : "unknown",
       anchorAmount: anchor?.amount,
       anchorDate: anchor?.date,
       dependencies: [{ code: "002", amount: c002 }],
+      resolutionAudit: anchorResolution.audit,
       calculationSteps: [
+        { label: "Base: 002", expression: `002 = ${c002.toFixed(2)}`, value: c002 },
+        { label: "Base total", expression: `${c002}`, value: c002 },
         ...(percentage === null
           ? [{ label: "Porcentaje", expression: "Sin porcentaje autorizado para esta categoría", value: 0 }]
           : [
               { label: `Categoría: ${resolution.role ?? "n/a"}`, expression: `Porcentaje: ${(percentage * 100).toFixed(1)}%`, value: percentage },
-              { label: "083 = 002 × porcentaje", expression: `${c002} × ${percentage} = ${formulaAmount}`, value: formulaAmount },
+              { label: "083 = base × porcentaje", expression: `${c002} × ${percentage} = ${formulaAmount}`, value: formulaAmount },
             ]),
         ...(anchor ? [{ label: "Último tarjetón (referencia)", expression: `Ancla: ${anchor.amount}`, value: anchor.amount }] : []),
       ],

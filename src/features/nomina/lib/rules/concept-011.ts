@@ -1,14 +1,21 @@
 import type { PayrollRuleContext, RuleCalculationResult, CalculatedPayrollConcept, PayrollRule } from "../types"
+import { anchorCoversPeriod } from "../engine"
 
 function round2(v: number): number {
   return Math.round((v + Number.EPSILON) * 100) / 100
 }
 
+/**
+ * Ayuda de Renta (011). Prioridad documental: valor TABULAR del catálogo
+ * sobre la fórmula reconstruida; el ancla solo reproduce el tarjetón en
+ * `baseline` sobre el MISMO periodo (contrato de anclas).
+ */
 export const rule011: PayrollRule = {
   id: "011",
-  version: "1.0.0",
+  version: "2.0.0",
   effectiveFrom: "2025-01-01",
   dependencies: ["002"],
+  valuePersistence: "replay_only",
   calculate(ctx: PayrollRuleContext): RuleCalculationResult {
     const c002 = ctx.calculatedConcepts.get("002")?.amount ?? 0
     const formulaAmount = round2(c002 * 0.8215)
@@ -20,7 +27,7 @@ export const rule011: PayrollRule = {
     let source: CalculatedPayrollConcept["source"]
     let elegibilitySource: CalculatedPayrollConcept["elegibilitySource"]
 
-    if (ctx.mode === "baseline" && anchor) {
+    if (ctx.mode === "baseline" && anchor && anchorCoversPeriod(anchor, ctx.period)) {
       amount = anchor.amount
       source = "last_payslip"
       elegibilitySource = "payslip_confirmed"

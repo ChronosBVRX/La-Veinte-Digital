@@ -2,11 +2,18 @@ import type { PayrollRuleContext, RuleCalculationResult, CalculatedPayrollConcep
 import { dependenciesStatus, resolveWithAnchor } from "../engine"
 import { truncateCurrency } from "../money"
 
+/**
+ * Actividades Académicas (078).
+ *
+ * CONTRATO DE ANCLA: elegibilidad por evidencia ACTUAL; el ancla NO otorga
+ * derecho. Dependencias idénticas → importe REAL comprobado.
+ */
 export const concept078Rule: PayrollRule = {
   id: "078",
-  version: "1.0.0",
+  version: "2.0.0",
   effectiveFrom: "2025-01-01",
   dependencies: ["002", "011"],
+  valuePersistence: "while_dependencies_unchanged",
   calculate(ctx: PayrollRuleContext): RuleCalculationResult {
     const profile = ctx.profile
     const anchor = ctx.conceptAnchors.get("078")
@@ -20,7 +27,7 @@ export const concept078Rule: PayrollRule = {
       (f) => f.key === "concept_078_on_payslip" && f.value === true
     )
 
-    const eligible = anchor ? true : (isRecurring || (hasFact && hasPayslipEvidence))
+    const eligible = isRecurring || (hasFact && hasPayslipEvidence)
 
     const DEPS = ["002", "011"]
 
@@ -30,26 +37,30 @@ export const concept078Rule: PayrollRule = {
     const formulaAmount = truncateCurrency(base * 0.10)
 
     const status = dependenciesStatus(DEPS, ctx)
-    const { amount, warnings: resolutionWarnings } = resolveWithAnchor(
+    const resolution = resolveWithAnchor({
+      conceptCode: "078",
+      ruleId: "078",
       anchor,
-      eligible ? formulaAmount : 0,
+      formulaAmount,
+      formulaComputable: true,
+      eligibleNow: eligible,
       status,
-      ctx.mode,
-    )
+      mode: ctx.mode,
+      valuePersistence: "while_dependencies_unchanged",
+      period: ctx.period,
+    })
 
-    const formulaSource = isRecurring ? "last_payslip" : "contract_rule"
-    const source =
-      (anchor && (
-        ctx.mode === "baseline" ||
-        status === "unchanged" ||
-        (status === "unknown" && ctx.mode !== "exploratory")
-      )) ? "last_payslip" : formulaSource
+    const source = resolution.usedAnchor ? "last_payslip" : "contract_rule"
 
-    const warnings: string[] = [...resolutionWarnings]
+    let confidence: CalculatedPayrollConcept["confidence"] =
+      isRecurring || hasPayslipEvidence ? "high" : "medium"
+    if (resolution.requiresConfirmation) confidence = "requires_confirmation"
+
+    const warnings: string[] = [...resolution.warnings]
     if (!eligible) {
       warnings.push("Requiere unidad autorizada de Medicina Física y Rehabilitación y actividades académicas regulares")
     }
-    if (anchor) {
+    if (anchor && eligible) {
       const discrepancy = Math.abs(formulaAmount - anchor.amount)
       if (discrepancy > 0.50) {
         warnings.push(`Diferencia entre fórmula (${formulaAmount.toFixed(2)}) y último tarjetón (${anchor.amount.toFixed(2)}): ${discrepancy.toFixed(2)}`)
@@ -61,19 +72,22 @@ export const concept078Rule: PayrollRule = {
       name: "Actividades Académicas",
       type: "earning",
       nature: "derived",
-      amount,
+      amount: resolution.amount,
       included: eligible,
       source,
-      confidence: anchor || isRecurring ? "high" : "medium",
+      confidence,
       verificationStatus: "contract_verified",
-      elegibilitySource: anchor ? "payslip_confirmed" : (eligible ? "formula_deduced" : "unknown"),
+      elegibilitySource: eligible ? (isRecurring || hasPayslipEvidence ? "payslip_confirmed" : "formula_deduced") : "unknown",
       anchorAmount: anchor?.amount,
       anchorDate: anchor?.date,
       dependencies: [{ code: "002", amount: c002 }, { code: "011", amount: c011 }],
+      resolutionAudit: resolution.audit,
       calculationSteps: [
-        { label: "Base", expression: `002 + 011 = ${c002} + ${c011} = ${base}`, value: base },
+        { label: "Base: 002", expression: `002 = ${c002.toFixed(2)}`, value: c002 },
+        { label: "Base: 011", expression: `011 = ${c011.toFixed(2)}`, value: c011 },
+        { label: "Base total", expression: `${c002} + ${c011} = ${base}`, value: base },
         { label: "078 = base × 10%", expression: `${base} × 0.10 = ${formulaAmount}`, value: formulaAmount },
-        ...(anchor ? [          { label: "Último tarjetón (referencia)", expression: `Ancla: ${anchor.amount}`, value: anchor.amount }] : []),
+        ...(anchor ? [{ label: "Último tarjetón (referencia)", expression: `Ancla: ${anchor.amount}`, value: anchor.amount }] : []),
       ],
       legalBasis: [{ source: "CCT", title: "Actividades Académicas", reference: "Cláusula aplicable del CCT" }],
       warnings,

@@ -4,9 +4,10 @@ import { getFixedAmount } from "../../data/fixed-concept-amounts"
 
 export const rule020: PayrollRule = {
   id: "020",
-  version: "1.0.0",
+  version: "2.0.0",
   effectiveFrom: "2025-01-01",
   dependencies: [],
+  valuePersistence: "replay_only",
   calculate(ctx: PayrollRuleContext): RuleCalculationResult {
     const entry = getFixedAmount("020", ctx.period.startDate)
     const fixedAmount = entry?.amount ?? 250
@@ -14,21 +15,22 @@ export const rule020: PayrollRule = {
 
     const DEPS = ["fixedTable:020"]
     const status = dependenciesStatus(DEPS, ctx)
-    const { amount, warnings: resolutionWarnings } = resolveWithAnchor(
+    const resolution = resolveWithAnchor({
+      conceptCode: "020",
+      ruleId: "020",
       anchor,
-      fixedAmount,
+      formulaAmount: fixedAmount,
+      formulaComputable: true,
+      eligibleNow: true,
       status,
-      ctx.mode,
-    )
+      mode: ctx.mode,
+      valuePersistence: "replay_only",
+      period: ctx.period,
+    })
 
-    const source =
-      (anchor && (
-        ctx.mode === "baseline" ||
-        status === "unchanged" ||
-        (status === "unknown" && ctx.mode !== "exploratory")
-      )) ? "last_payslip" : "contract_rule"
+    const source = resolution.usedAnchor ? "last_payslip" : "contract_rule"
 
-    const warnings: string[] = [...resolutionWarnings]
+    const warnings: string[] = [...resolution.warnings]
     if (anchor) {
       const discrepancy = Math.abs(fixedAmount - anchor.amount)
       if (discrepancy > 0.50) {
@@ -43,7 +45,7 @@ export const rule020: PayrollRule = {
       name: "Ayuda de Renta (Cláusula 63 Bis, inciso a)",
       type: "earning",
       nature: "fixed",
-      amount,
+      amount: resolution.amount,
       included: true,
       source,
       confidence: "high",
@@ -52,6 +54,7 @@ export const rule020: PayrollRule = {
       anchorAmount: anchor?.amount,
       anchorDate: anchor?.date,
       dependencies: [],
+      resolutionAudit: resolution.audit,
       calculationSteps: [
         { label: "Monto mensual CCT", expression: "$500 mensuales", value: 500 },
         { label: "Importe quincenal", expression: `$${fixedAmount}`, value: fixedAmount },

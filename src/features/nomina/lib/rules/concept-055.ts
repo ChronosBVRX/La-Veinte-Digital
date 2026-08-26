@@ -11,12 +11,19 @@ import { calculateFondoAhorro, FONDO_AHORRO_CONSTANTS } from "@/shared/lib/fondo
  * julio. Si no hay unidades confirmadas se presenta el escenario de año
  * completo como supuesto (requires_confirmation). El 022 (ayuda de renta
  * anual) nunca integra esta base.
+ *
+ * CONTRATO DE ANCLA: la elegibilidad depende ÚNICAMENTE de la ventana de pago
+ * (2ª quincena de julio). Que exista un ancla de un julio anterior NO hace
+ * que exista julio ahora; el ancla solo verifica/calibra el importe dentro
+ * de la ventana. Fuera de la ventana el importe es 0 y el concepto queda
+ * excluido, con auditoría de la decisión.
  */
 export const rule055: PayrollRule = {
   id: "055",
-  version: "2.1.0",
+  version: "3.0.0",
   effectiveFrom: "2025-01-01",
   dependencies: ["002"],
+  valuePersistence: "replay_only",
   calculate(ctx: PayrollRuleContext): RuleCalculationResult {
     const c002 = ctx.calculatedConcepts.get("002")?.amount ?? 0
     const anchor = ctx.conceptAnchors.get("055")
@@ -38,30 +45,33 @@ export const rule055: PayrollRule = {
       ctx.period.month === FONDO_AHORRO_CONSTANTS.MONTH_PAYMENT &&
       ctx.period.half === FONDO_AHORRO_CONSTANTS.HALF_PAYMENT
 
-    const eligible = anchor ? true : isJulySecondHalf
+    const eligible = isJulySecondHalf
 
     const DEPS = ["002"]
     const status = dependenciesStatus(DEPS, ctx)
-    const { amount, warnings: resolutionWarnings } = resolveWithAnchor(
+    const resolution = resolveWithAnchor({
+      conceptCode: "055",
+      ruleId: "055",
       anchor,
-      eligible ? formulaAmount : 0,
+      formulaAmount,
+      formulaComputable: true,
+      eligibleNow: eligible,
       status,
-      ctx.mode,
-    )
+      mode: ctx.mode,
+      valuePersistence: "replay_only",
+      period: ctx.period,
+    })
 
-    const source =
-      (anchor && (
-        ctx.mode === "baseline" ||
-        status === "unchanged" ||
-        (status === "unknown" && ctx.mode !== "exploratory")
-      )) ? "last_payslip" : "regulation_rule"
+    const source = resolution.usedAnchor ? "last_payslip" : "regulation_rule"
 
     const warnings: string[] = [
       ...derivation.warnings,
-      ...resolutionWarnings,
-      ...(isJulySecondHalf || anchor ? [] : ["Corresponde a la segunda quincena de julio — no aplica en esta quincena"]),
+      ...resolution.warnings,
+      ...(eligible
+        ? []
+        : ["Corresponde a la segunda quincena de julio — no aplica en esta quincena"]),
     ]
-    if (anchor) {
+    if (anchor && eligible) {
       const discrepancy = Math.abs(formulaAmount - anchor.amount)
       if (discrepancy > 0.50) {
         warnings.push(`Diferencia entre fórmula (${formulaAmount.toFixed(2)}) y último tarjetón (${anchor.amount.toFixed(2)}): ${discrepancy.toFixed(2)}`)
@@ -69,8 +79,9 @@ export const rule055: PayrollRule = {
     }
 
     const confidence: "high" | "medium" | "low" | "requires_confirmation" =
-      anchor ? "high" :
       !eligible ? "low" :
+      resolution.requiresConfirmation ? "requires_confirmation" :
+      anchor ? "high" :
       derivation.requiresConfirmation ? "requires_confirmation" :
       "medium"
 
@@ -79,21 +90,23 @@ export const rule055: PayrollRule = {
       name: "Fondo de Ahorro",
       type: "earning",
       nature: "periodic",
-      amount,
+      amount: resolution.amount,
       included: eligible,
       source,
       confidence,
       verificationStatus: "regulation_verified",
-      elegibilitySource: anchor ? "payslip_confirmed" : "formula_deduced",
+      elegibilitySource: anchor ? "payslip_confirmed" : "contract_rule",
       anchorAmount: anchor?.amount,
       anchorDate: anchor?.date,
       dependencies: [{ code: "002", amount: base }],
+      resolutionAudit: resolution.audit,
       calculationSteps: [
         { label: "Base (régimen ordinario)", expression: `002 (sueldo tabular) = ${base}`, value: base },
         { label: "Valor diario", expression: `${base} ÷ 15 = ${derivation.dailyValue}`, value: derivation.dailyValue },
         { label: "Importe completo (46 días)", expression: `${derivation.dailyValue} × 46 = ${fullAmount}`, value: fullAmount },
         { label: "Unidades computables", expression: `${derivation.unidades} ÷ 360 = ${derivation.proporcion}`, value: derivation.proporcion },
         { label: "Importe del periodo", expression: `${fullAmount} × ${derivation.proporcion} = ${formulaAmount}`, value: formulaAmount },
+        { label: "Ventana de pago", expression: isJulySecondHalf ? "2ª quincena de julio → aplica" : "Fuera de la 2ª quincena de julio → no aplica", value: isJulySecondHalf ? 1 : 0 },
         ...(anchor ? [{ label: "Último tarjetón (referencia)", expression: `Ancla: ${anchor.amount}`, value: anchor.amount }] : []),
       ],
       legalBasis: [derivation.legalBasis],

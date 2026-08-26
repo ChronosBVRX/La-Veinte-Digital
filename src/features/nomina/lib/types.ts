@@ -308,6 +308,8 @@ export interface CalculatedPayrollConcept {
   anchorDate?: string
   /** Origen de la elegibilidad del concepto. */
   elegibilitySource: "payslip_confirmed" | "contract_rule" | "tabular_value" | "user_reported" | "formula_deduced" | "unknown"
+  /** Auditoría de la decisión ancla-vs-fórmula (presente si hubo ancla). */
+  resolutionAudit?: ResolutionAudit
 }
 
 /** Par de anclaje: importe comprobado + fecha de evidencia. */
@@ -318,6 +320,8 @@ export interface ConceptAnchor {
   occurrenceType: ConceptOccurrenceType
   /** Hasta cuándo se asume que el trabajador mantiene la elegibilidad. */
   eligibilityPersistence: EligibilityPersistence
+  /** Id del periodo quincenal del tarjetón (opcional; si falta se usa `date`). */
+  sourcePeriodId?: string
 }
 
 /** Clasifica la frecuencia con que un concepto aparece en el tarjetón. */
@@ -334,6 +338,52 @@ export type EligibilityPersistence =
   | "until_changed"  // mantiene mientras no haya evidencia de cambio (054, 072, etc.)
   | "period_scoped"  // solo en el periodo específico (055 julio, 022 anual)
   | "event_scoped"   // condicionado a un hecho con vigencia limitada (incidencias)
+
+/**
+ * Define si el IMPORTE histórico del tarjetón puede reutilizarse en una
+ * proyección, separado de la persistencia de la ELEGIBILIDAD.
+ *
+ * - `replay_only`: el ancla solo puede reproducirse en `baseline` sobre el
+ *   mismo periodo. En cualquier otro caso el importe debe recalcularse con la
+ *   fórmula vigente; el ancla queda como evidencia de verificación.
+ * - `while_dependencies_unchanged`: si las dependencias coinciden a centavos
+ *   con el tarjetón de referencia, el importe comprobado se conserva (los
+ *   mismos insumos produjeron ese importe REAL); con dependencias cambiadas
+ *   o desconocidas se recalcula.
+ */
+export type ValuePersistence =
+  | "replay_only"
+  | "while_dependencies_unchanged"
+
+/** Fuente del importe seleccionado tras resolver ancla vs fórmula. */
+export type ResolutionSelectedSource = "anchor" | "formula" | "zero"
+
+/**
+ * Auditoría de resolución de un concepto: explica por qué el importe
+ * proyectado es el que es (ancla vs fórmula), con el estado de las
+ * dependencias y la razón de la decisión.
+ */
+export interface ResolutionAudit {
+  ruleId?: string
+  conceptCode: string
+  targetPeriodId: string
+  targetPeriodLabel?: string
+  hadAnchor: boolean
+  anchorValue?: number
+  anchorDate?: string
+  /** true si el ancla pertenece al MISMO periodo que se proyecta. */
+  anchorInTargetPeriod: boolean
+  /** Elegibilidad evaluada con evidencia ACTUAL, independiente del ancla. */
+  eligibleNow: boolean
+  dependencyStatus: "unchanged" | "changed" | "unknown" | "none"
+  formulaComputable: boolean
+  formulaValue: number
+  valuePersistence: ValuePersistence
+  selectedValue: number
+  selectedSource: ResolutionSelectedSource
+  /** Razón legible de la decisión (códigos estables para tests). */
+  reason: string
+}
 
 /**
  * Instantánea del estado de referencia (último tarjetón) usada para detectar
@@ -373,6 +423,13 @@ export interface PayrollRuleContext {
   mode: ProjectionMode
   /** Instantánea del estado de referencia para comparar causas externas. */
   referenceSnapshot?: PayrollReferenceSnapshot
+  /**
+   * Cierre transitivo de dependencias por regla (id → dependencias indirectas
+   * incluidas las especiales `seniority` / `fixedTable:*`). Permite que
+   * `dependenciesStatus` detecte cambios en toda la cadena causal, no solo en
+   * los padres directos.
+   */
+  dependencyClosure?: ReadonlyMap<string, ReadonlySet<string>>
 }
 
 export interface RuleCalculationResult {
@@ -386,6 +443,11 @@ export interface PayrollRule {
   effectiveFrom: string
   effectiveTo?: string
   dependencies: string[]
+  /**
+   * Política de reutilización del importe histórico del tarjetón.
+   * Default: `"replay_only"` (la fórmula vigente recalcula siempre que pueda).
+   */
+  valuePersistence?: ValuePersistence
   calculate: (context: PayrollRuleContext) => RuleCalculationResult
 }
 

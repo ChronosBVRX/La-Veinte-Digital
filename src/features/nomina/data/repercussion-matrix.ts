@@ -199,6 +199,15 @@ const MATRIX: ConceptImpactRule[] = [
   ...["107", "108", "111", "152", "155", "164"].map((t) =>
     pending("072", t, CCT_2025_2027, "Grupo de compensaciones [072, 083, 020, 050, 112] — integración individual pendiente"),
   ),
+
+  // ── Bases usadas por reglas sin evidencia documental individual ─────────────
+  // Las reglas derivadas calculan base = 002 + 011 (algunas solo 002) y lo
+  // muestran explícitamente en sus calculationSteps. La composición está
+  // DECLARADA por la regla pero PENDIENTE de evidencia documental individual;
+  // al integrarse dinero solo cuando hay regulation_verified, estas filas no
+  // alteran cálculos: existen para hacer visible la deuda de evidencia.
+  ...pairList(["002", "011"], ["02", "012", "013", "051", "054", "057", "058", "061", "062", "072", "078"], "Base declarada por la regla; evidencia documental individual pendiente")
+    .map(([s, t, r]) => pending(s, t, CCT_2025_2027, r)),
 ]
 
 export function getImpactMatrixEffectiveAt(date: string): ConceptImpactRule[] {

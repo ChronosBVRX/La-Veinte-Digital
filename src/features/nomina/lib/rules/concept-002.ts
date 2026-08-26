@@ -1,16 +1,19 @@
 import type { PayrollRuleContext, RuleCalculationResult, CalculatedPayrollConcept, PayrollRule } from "../types"
+import { anchorCoversPeriod } from "../engine"
 
 export const rule002: PayrollRule = {
   id: "002",
-  version: "1.0.0",
+  version: "2.0.0",
   effectiveFrom: "2025-01-01",
   dependencies: [],
+  valuePersistence: "replay_only",
   calculate(ctx: PayrollRuleContext): RuleCalculationResult {
     const catalogAmount = ctx.category.biweeklyBaseSalary
     const anchor = ctx.conceptAnchors.get("002")
     const warnings: string[] = []
 
-    if (ctx.mode === "baseline" && anchor) {
+    // Baseline reproduce el ancla SOLO si es el mismo periodo del tarjetón.
+    if (ctx.mode === "baseline" && anchor && anchorCoversPeriod(anchor, ctx.period)) {
       const amount = anchor.amount
       const source = "last_payslip"
 
