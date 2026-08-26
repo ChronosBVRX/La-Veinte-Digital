@@ -46,6 +46,7 @@ import com.laveintedigital.app.BuildConfig
 import com.laveintedigital.app.imss.portal.TuPerfilBiometricFlowController
 import com.laveintedigital.app.imss.portal.TuPerfilBiometricFlowState
 import com.laveintedigital.app.imss.portal.TuPerfilSessionController
+import com.laveintedigital.app.imss.portal.ImssPdfCaptureCoordinator
 import com.laveintedigital.app.ui.lvd.LvdColors
 import com.laveintedigital.app.ui.lvd.LvdLoadingState
 import com.laveintedigital.app.ui.lvd.LvdSpacing
@@ -54,6 +55,7 @@ import com.laveintedigital.app.ui.theme.StatusBarAppearance
 import com.laveintedigital.app.util.Hosts
 import com.laveintedigital.app.util.configureForLaVeinte
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Pantalla nativa "Registros biométricos" (checadas de Tu Perfil IMSS).
@@ -134,6 +136,10 @@ fun TuPerfilBiometricScreen(
                         settings.loadWithOverviewMode = true
                         settings.builtInZoomControls = true
                         settings.displayZoomControls = false
+                        settings.setSupportMultipleWindows(true)
+                        settings.javaScriptCanOpenWindowsAutomatically = true
+                        settings.allowFileAccess = true
+                        settings.allowContentAccess = true
                         setInitialScale(0)
                         if (BuildConfig.DEBUG) {
                             WebView.setWebContentsDebuggingEnabled(true)
@@ -149,9 +155,34 @@ fun TuPerfilBiometricScreen(
                             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                                 val url = request?.url?.toString() ?: return false
                                 if (url.startsWith("about:blank")) return false
+                                if (url.startsWith("blob:")) return false
                                 val host = Hosts.hostOf(url) ?: return true
                                 return !TuPerfilBiometricFlowController.ALLOWED_HOSTS.contains(host)
                             }
+                        }
+
+                        // onCreateWindow: permite ventanas/popups SOLO de hosts permitidos
+                        // (blob:, about:blank, tuperfil.imss.gob.mx, tpei.imss.gob.mx).
+                        webChromeClient = object : android.webkit.WebChromeClient() {
+                            override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message): Boolean {
+                                return true
+                            }
+                            override fun onGeolocationPermissionsShowPrompt(origin: String?, callback: android.webkit.GeolocationPermissions.Callback?) {
+                                callback?.invoke(origin, false, false)
+                            }
+                        }
+
+                        // Captura del PDF: DownloadListener HTTP (autenticado) + monitor de blobs.
+                        scope.launch {
+                            ImssPdfCaptureCoordinator.injectBiometricPdfMonitor(wv)
+                            wv.setDownloadListener(
+                                ImssPdfCaptureCoordinator.createBiometricDownloadListener(
+                                    context = context,
+                                    scope = scope,
+                                    pageUrlProvider = { wv.url },
+                                    periodLabelProvider = { controller.lastQueryPeriod?.label },
+                                )
+                            )
                         }
                         // Se inicia en el login: si hay sesión válida el portal redirige
                         // y el controlador entra directo; si no, auto-login.

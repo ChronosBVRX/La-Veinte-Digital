@@ -46,7 +46,9 @@ object NativeDomTapper {
     }
 
     /**
-     * Dispatches ACTION_DOWN + ACTION_UP to the WebView at normalized coordinates.
+     * Dispatches a real tap (DOWN → MOVE → UP) to the WebView at the element's
+     * center. angular/Material necesita que el WebView sintetice un `click`, lo
+     * que requiere una secuencia de toque con leve movimiento y pausas reales.
      */
     suspend fun tap(wv: WebView, target: TapTarget): Boolean = withContext(Dispatchers.Main.immediate) {
         if (!target.ok || wv.width <= 0 || wv.height <= 0) return@withContext false
@@ -54,13 +56,18 @@ object NativeDomTapper {
         val y = target.yRatio * wv.height
         val downTime = SystemClock.uptimeMillis()
         val down = MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0)
-        val handled = wv.dispatchTouchEvent(down)
+        wv.dispatchTouchEvent(down)
         down.recycle()
-        delay(50)
+        delay(90)
+        val move = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_MOVE, x, y, 0)
+        wv.dispatchTouchEvent(move)
+        move.recycle()
+        delay(60)
         val upTime = SystemClock.uptimeMillis()
         val up = MotionEvent.obtain(downTime, upTime, MotionEvent.ACTION_UP, x, y, 0)
-        wv.dispatchTouchEvent(up)
+        val handled = wv.dispatchTouchEvent(up)
         up.recycle()
+        delay(40)
         handled
     }
 
@@ -97,11 +104,11 @@ object NativeDomTapper {
     """.trimIndent()
 
     /**
-     * Locates the "Descargar" control of the biometric report. Es un `span` con
-     * `cursor:pointer` dentro de `div.text.download`. Su click real dispara el
-     * PDF del reporte. Devuelve la posición a tocar.
+     * Locates el control "Descargar" del reporte biométrico. El handler de
+     * Angular está en el `<a>` (sin href) dentro de `div.download`. Devuelve la
+     * posición a tocar. Se reinyecta window.__LVD_BIO_LIB__ antes de usarla.
      */
     val DOWNLOAD_TAP_SELECTOR = """
-(function(){function n(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase()}if(!window.__LVD_BIO_LIB__){return JSON.stringify({ok:false,err:'no-lib'})}var L=window.__LVD_BIO_LIB__;var spans=Array.from(document.querySelectorAll('span,div,a,button'));var target=null;for(var i=0;i<spans.length;i++){var el=spans[i];if(!L.vis(el))continue;var t=n(L.txt(el));var cls=n(String(el.className||''));if(t==='descargar'||t==='descargar pdf'||cls.indexOf('download')>=0){target=el;break;}}if(!target)return JSON.stringify({ok:false});target.scrollIntoView({behavior:'auto',block:'center',inline:'center'});setTimeout(function(){},0);var r=target.getBoundingClientRect();return JSON.stringify({ok:true,xRatio:(r.left+r.width/2)/window.innerWidth,yRatio:(r.top+r.height/2)/window.innerHeight,width:r.width,height:r.height})})()
+(function(){function n(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase()}function vis(e){if(!e)return false;return e.getBoundingClientRect().width>0&&e.getBoundingClientRect().height>0}var a=document.querySelector('div.download a')||document.querySelector('.download a');if(!a||!vis(a))return JSON.stringify({ok:false});a.scrollIntoView({behavior:'auto',block:'center',inline:'center'});setTimeout(function(){},0);var r=a.getBoundingClientRect();return JSON.stringify({ok:true,xRatio:(r.left+r.width/2)/window.innerWidth,yRatio:(r.top+r.height/2)/window.innerHeight,width:r.width,height:r.height})})()
     """.trimIndent()
 }

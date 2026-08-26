@@ -330,11 +330,24 @@ class TuPerfilBiometricFlowController(
                 ImssPdfCaptureCoordinator.attachBiometricDownloadListener(wv, context)
                 // 2) Reinyecta la librería JS que usa el selector de tap.
                 TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.reinjectLibJs())
+                // 2b) (DEBUG) Instala hooks para diagnosticar la vía de la descarga.
+                if (BuildConfig.DEBUG) {
+                    TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.installDownloadDebugHooksJs())
+                    TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.netMonitorJs())
+                }
                 // 3) Toque REAL sobre "Descargar".
                 val target = NativeDomTapper.locate(wv, NativeDomTapper.DOWNLOAD_TAP_SELECTOR)
                 val tapped = if (target.ok) { NativeDomTapper.tap(wv, target) } else false
-                if (!tapped) {
-                    TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.clickDownloadJs())
+                // Refuerzo: click sintético sobre el control (en WebView Android sí
+                // dispara el handler de Angular para generar la descarga).
+                val clickRes = TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.clickDownloadJs())
+                Log.i(FLOW_TAG, "saveBiometricPdf tapped=$tapped targetOk=${target.ok} clickRes=$clickRes")
+                // 3b) (DEBUG) Actividad de red observada tras el click (qué llama el portal).
+                if (BuildConfig.DEBUG) {
+                    delay(2500)
+                    val net = TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.readNetJs()) ?: "[]"
+                    val debugLog = TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.readDebugDownloadJs()) ?: "[]"
+                    Log.i(FLOW_TAG, "DL_DEBUG $debugLog  NET::$net")
                 }
                 // 4) Poll de ambos buffers hasta que llegue el reporte.
                 var path: String? = null
@@ -424,6 +437,10 @@ class TuPerfilBiometricFlowController(
             // ROUTE_READY: ya estamos en la ruta real (no mientras navegamos).
             logReadiness(wv, gen, "ROUTE_READY")
             trace(gen, "ROUTE", "ROUTE_READY", result = true)
+            // El SPA de Angular no garantiza onPageFinished por cada cambio de ruta:
+            // re-inyectamos el monitor de PDFs cada vez que llega a la ruta real.
+            ImssPdfCaptureCoordinator.injectBiometricPdfMonitor(wv)
+            Log.i(TAG, "BIO_PDF_MONITOR_INSTALLED")
 
             // 2) Esperar el DOM reconocible.
             setState(TuPerfilBiometricFlowState.WaitingBiometricDom, gen)

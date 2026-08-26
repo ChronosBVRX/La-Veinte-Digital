@@ -1,17 +1,18 @@
 {
   "channel": "stable",
-  "versionCode": 186,
-  "versionName": "1.0.86",
+  "versionCode": 189,
+  "versionName": "1.0.89",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-26T00:48:53Z",
+  "publishedAt": "2026-08-26T01:26:06Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "f2f2fffac054bb36f0cdf810463db05a99038e0cd7fac051646a5ab023b4f758",
-    "size": 67640932
+    "sha256": "643df1a30779d1da25e1f4060d8fbefa854a487eacbed88b70a4d8f2bfbe202b",
+    "size": 67673700
   },
   "releaseNotes": [
-    "Fix guardar PDF de checadas: además del monitor de blobs, se añade un DownloadListener que captura el PDF descargado (blob) mediante fetch dentro del WebView",
-    "Dos vías de captura para mayor fiabilidad al pulsar 'Guardar PDF de checadas'"
+    "Guardar PDF de checadas funcionando: se captura del portal, se guarda como 'Checadas — periodo' y se abre el visor ya titulado 'Checadas'",
+    "El PDF se guarda en el mismo lugar que los tarjetones (Mis documentos) distinguiendo checadas vs tarjetones",
+    "Fixes de captura: monitor ampliado (blob/window.open/fetch/XHR), DownloadListener autenticado y click correcto sobre el control Descargar"
   ]
 }

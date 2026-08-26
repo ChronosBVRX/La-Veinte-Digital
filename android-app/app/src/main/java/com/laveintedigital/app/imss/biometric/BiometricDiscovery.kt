@@ -1666,23 +1666,42 @@ console.error=function(){
      */
     fun reinjectLibJs(): String = LIB_JS
 
-    /** Pulsa el control "Descargar" (click sintético; fallback si el tap real no da). */
+    /** Pulsa el control "Descargar" sobre el <a> real (validado: el handler de
+     * Angular está en el <a> dentro de div.download; el span/div NO lo dispara).
+     * Usa mousedown+mouseup+click. */
     fun clickDownloadJs(): String = LIB_JS + """(function(){
 var L=window.__LVD_BIO_LIB__;
-var spans=Array.from(document.querySelectorAll('span,div,a,button'));
-var target=null;
-for(var i=0;i<spans.length;i++){
-  var el=spans[i];
-  if(!L.vis(el))continue;
-  var t=L.n(L.txt(el));
-  var cls=L.n(String(el.className||''));
-  if(t==='descargar'||t==='descargar pdf'||cls.indexOf('download')>=0){target=el;break;}
+// El handler está en el <a> (sin href) dentro del contenedor con clase 'download'.
+var a=document.querySelector('div.download a')||document.querySelector('.download a');
+if(!a){
+  // fallback: cualquier elemento con texto 'descargar'
+  var spans=Array.from(document.querySelectorAll('a,span,div,button'));
+  for(var i=0;i<spans.length;i++){var el=spans[i];if(!L.vis(el))continue;var t=L.n(L.txt(el));if(t==='descargar'||t==='descargar pdf'){a=el;break;}}
 }
-if(!target)return JSON.stringify({ok:false,reason:'DOWNLOAD_CONTROL_NOT_FOUND'});
-try{target.scrollIntoView({block:'center'});}catch(e){}
-target.click();
-return JSON.stringify({ok:true,text:L.txt(target).slice(0,40)});
+if(!a)return JSON.stringify({ok:false,reason:'DOWNLOAD_CONTROL_NOT_FOUND'});
+try{a.scrollIntoView({block:'center'});}catch(e){}
+a.dispatchEvent(new MouseEvent('mousedown',{bubbles:true,cancelable:true,view:window}));
+a.dispatchEvent(new MouseEvent('mouseup',{bubbles:true,cancelable:true,view:window}));
+a.click();
+return JSON.stringify({ok:true,tag:a.tagName});
 })()"""
+
+    /** Instala hooks de instrumentación de la descarga SIN hacer click (DEBUG). */
+    fun installDownloadDebugHooksJs(): String = LIB_JS + """(function(){
+var L=window.__LVD_BIO_LIB__;
+window.__LVD_DL_DEBUG__=[];
+var p=function(s){window.__LVD_DL_DEBUG__.push(s)};
+try{
+  var ow=window.open; window.open=function(u){p('window.open:'+u);try{return ow.apply(this,arguments)}catch(e){return null}};
+  var oc=URL.createObjectURL; URL.createObjectURL=function(b){var r=oc.apply(this,arguments);p('createObjectURL mime='+(b&&b.type));return r};
+  var ac=HTMLAnchorElement.prototype.click; HTMLAnchorElement.prototype.click=function(){p('anchor.click href='+(this.href||'')+' dl='+(this.download||''));return ac.apply(this,arguments)};
+  var of=window.fetch; window.fetch=function(u,o){p('fetch '+String(u).slice(0,80));return of.apply(this,arguments)};
+}catch(e){p('hookerr:'+e.message)}
+return '1';
+})()"""
+
+    /** Lee el log de instrumentación de la descarga (DEBUG). */
+    fun readDebugDownloadJs(): String = """(function(){return JSON.stringify(window.__LVD_DL_DEBUG__||[])})()"""
 
     /* ── JS: descargar PDF de checadas vía fetch del endpoint real ────────── */
 

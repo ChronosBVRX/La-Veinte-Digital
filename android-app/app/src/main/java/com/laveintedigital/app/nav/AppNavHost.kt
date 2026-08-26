@@ -84,7 +84,7 @@ fun AppNavHost(
             TuPerfilBiometricScreen(
                 onBack = { navController.popBackStack() },
                 onClose = { navController.popBackStack(NavRoute.Internal.route, inclusive = false) },
-                onViewPdf = { path -> navController.navigate(NavRoute.PayslipViewer.create(path)) },
+                onViewPdf = { path -> navController.navigate(NavRoute.PayslipViewer.create(path, title = "Checadas")) },
             )
         }
 
@@ -134,11 +134,16 @@ fun AppNavHost(
         }
 
         composable(NavRoute.PayslipViewer.route,
-            arguments = listOf(navArgument("filePath") { type = NavType.StringType }),
+            arguments = listOf(
+                navArgument("filePath") { type = NavType.StringType },
+                navArgument("title") { type = NavType.StringType; defaultValue = "" },
+            ),
         ) { backStackEntry ->
             val filePath = backStackEntry.arguments?.getString("filePath") ?: return@composable
+            val title = backStackEntry.arguments?.getString("title") ?: ""
             PayslipViewerScreen(
                 filePath = filePath,
+                title = title.ifBlank { "Tarjetón" },
                 onBack = { navController.popBackStack() },
             )
         }

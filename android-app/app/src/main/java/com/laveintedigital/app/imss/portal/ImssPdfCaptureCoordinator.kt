@@ -171,6 +171,102 @@ object ImssPdfCaptureCoordinator {
         } catch (e: Exception) { null }
     }
 
+    /**
+     * Descarga HTTP autenticada SIN depender de ".pdf" en la URL: usa las
+     * cookies reales del CookieManager, conserva un User-Agent de WebView y el
+     * Referer de la página biométrica. Devuelve los bytes, o null si no es PDF
+     * válido (magic header %PDF-, min 5 bytes).
+     */
+    private fun downloadPdfAuthenticated(url: String, pageUrl: String, userAgent: String?): ByteArray? {
+        return try {
+            val cookies = CookieManager.getInstance().getCookie(url)
+            val conn = URL(url).openConnection() as HttpURLConnection
+            conn.connectTimeout = 15_000; conn.readTimeout = 60_000
+            conn.instanceFollowRedirects = true
+            if (cookies != null) conn.setRequestProperty("Cookie", cookies)
+            conn.setRequestProperty("User-Agent", userAgent ?: "LaVeinteDigitalAndroid/1.0.0")
+            conn.setRequestProperty("Referer", pageUrl)
+            if (conn.responseCode !in 200..399) { conn.disconnect(); return null }
+            val bytes = conn.inputStream.readBytes()
+            conn.disconnect()
+            if (bytes.size < 5 || String(bytes, 0, 5) != "%PDF-") {
+                Log.w(TAG, "BIO_PDF_INVALID_HEADER size=${bytes.size}")
+                return null
+            }
+            bytes
+        } catch (e: Exception) { null }
+    }
+
+    /** Guarda bytes ya validados (%PDF-) como checadas (TU_PERFIL_BIOMETRIC). */
+    private suspend fun saveBiometricBytes(
+        context: Context, bytes: ByteArray, periodLabel: String?,
+    ): String? {
+        val appContext = context.applicationContext
+        if (bytes.size < 5 || String(bytes, 0, 5) != "%PDF-") return null
+        val sha = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        val db = PayslipDatabase.getInstance(appContext)
+        val existing = db.payslipDao().findByHash(sha)
+        if (existing != null) {
+            Log.d(TAG, "BIO_PDF_DUPLICATE sha=${sha.take(8)} docId=${existing.id}")
+            return existing.localPath.takeIf { it.isNotBlank() }
+        }
+        val dir = File(appContext.filesDir, "$sessionDir/${ImssPortal.TU_PERFIL.id}/biometricos")
+        dir.mkdirs()
+        val file = atomicWrite(dir, "checadas", bytes)
+        if (file == null) return null
+        val displayName = buildString {
+            append("Checadas")
+            if (!periodLabel.isNullOrBlank()) append(" — ").append(periodLabel)
+        }
+        db.payslipDao().insert(PayslipDocument(
+            source = "TU_PERFIL_BIOMETRIC",
+            displayName = displayName,
+            localPath = file.absolutePath,
+            fileSize = bytes.size.toLong(),
+            sha256 = sha,
+            mimeType = "application/pdf",
+            periodLabel = periodLabel,
+            sourceHost = ImssPortal.TU_PERFIL.host,
+        ))
+        Log.i(TAG, "BIO_PDF_SAVED path=${file.absolutePath} sha=${sha.take(8)}")
+        return file.absolutePath
+    }
+
+    /**
+     * DownloadListener para Registros biométricos: descarga HTTP autenticada con
+     * cookies/UA/Referer propios del WebView, valida %PDF- (sin depender de ".pdf")
+     * y guarda como checadas. Nunca loguea cookies ni credenciales.
+     */
+    fun createBiometricDownloadListener(
+        context: Context, scope: CoroutineScope,
+        pageUrlProvider: () -> String?,
+        periodLabelProvider: () -> String?,
+        onSaved: (String?) -> Unit = {},
+    ): DownloadListener = DownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
+        if (url == null || url.startsWith("blob:")) return@DownloadListener // blob: lo captura el monitor JS
+        val isAllowed = url.startsWith("https://tuperfil.imss.gob.mx") || url.startsWith("https://tpei.imss.gob.mx")
+        if (!isAllowed) { Log.w(TAG, "BIO_PDF_URL_BLOCKED host=${java.net.URI(url).host}"); return@DownloadListener }
+        val isLikelyPdf = mimeType?.contains("pdf", true) == true ||
+                contentDisposition?.contains("pdf", true) == true ||
+                url.contains(".pdf", true) == true ||
+                mimeType?.contains("octet-stream", true) == true
+        if (!isLikelyPdf) return@DownloadListener
+        val periodLabel = periodLabelProvider()
+        Log.d(TAG, "BIO_PDF_DOWNLOAD_CALLBACK url=${url.take(80)} mime=$mimeType")
+        scope.launch {
+            try {
+                val pageUrl = pageUrlProvider() ?: "https://tuperfil.imss.gob.mx/guitpei-web/app/administration/biometric/consult-period"
+                val bytes = withContext(Dispatchers.IO) { downloadPdfAuthenticated(url, pageUrl, userAgent) } ?: run {
+                    Log.w(TAG, "BIO_PDF_HTTP_DOWNLOAD_FAILED")
+                    return@launch
+                }
+                val path = saveBiometricBytes(context, bytes, periodLabel)
+                if (path != null) { Log.i(TAG, "BIO_PDF_HTTP_CAPTURED size=${bytes.size} path=${path}") }
+                withContext(Dispatchers.Main) { onSaved(path) }
+            } catch (e: Exception) { Log.w(TAG, "BIO_PDF_HTTP_ERR", e) }
+        }
+    }
+
     /** Saves an HTTP-downloaded PDF (no capture session) straight to Room with a real local path. */
     private suspend fun saveHttpPdf(
         context: Context, portal: ImssPortal, bytes: ByteArray, onSaved: (String) -> Unit,
@@ -234,9 +330,10 @@ object ImssPdfCaptureCoordinator {
         }
         if (mono != null && mono != "null") {
             val b64 = extractB64(mono) ?: return null
-            return saveBiometricBase64(appContext, b64, periodLabel)
+            val bytes = try { Base64.decode(b64, Base64.DEFAULT) } catch (e: Exception) { return null }
+            return saveBiometricBytes(appContext, bytes, periodLabel)
         }
-        // Fuente 2: buffer del DownloadListener (fetch del blob URL).
+        // Fuente 3: buffer del DownloadListener (fetch del blob URL).
         val dl = withContext(Dispatchers.Main.immediate) {
             suspendCoroutine<String?> { cont ->
                 webView.evaluateJavascript(BiometricDiscovery.readBiometricPdfResultJs()) { result ->
@@ -250,7 +347,8 @@ object ImssPdfCaptureCoordinator {
             if (j.optBoolean("ok")) {
                 val b64 = j.optString("b64")
                 if (b64.length < 20) return null
-                saveBiometricBase64(appContext, b64, periodLabel)
+                val bytes = try { Base64.decode(b64, Base64.DEFAULT) } catch (e: Exception) { return null }
+                saveBiometricBytes(appContext, bytes, periodLabel)
             } else null
         } catch (e: Exception) { null }
     }
@@ -351,8 +449,111 @@ object ImssPdfCaptureCoordinator {
 })();
     """.trimIndent()
 
+    /**
+     * Monitor ampliado de PDFs para Regístros biométricos. Cubre TODAS las vías
+     * de entrega del reporte que usa Tu Perfil IMSS: `window.open(blob:)`,
+     * `URL.createObjectURL(Blob PDF)`, `<a href=blob: download>` y respuestas
+     * fetch/XHR con `Content-Type: application/pdf`. Todo se normaliza a base64
+     * en `window.__LVD_PDFS__` (mismo canal que [pollPdfCandidates]).
+     * Nunca loguea cookies, tokens, matrícula ni contenido del PDF.
+     */
+    val BIOMETRIC_PDF_MONITOR_SCRIPT = """
+(function(){
+    if (window.__LVD_BIO_PDF_MONITOR__) return;
+    window.__LVD_BIO_PDF_MONITOR__ = true;
+    window.__LVD_PDFS__ = window.__LVD_PDFS__ || {};
+
+    function store(b64, type, size) {
+        if (!b64 || b64.length < 20) return;
+        var id = 'pdf_' + Date.now() + '_' + Math.random().toString(36).substr(2,6);
+        window.__LVD_PDFS__[id] = { b64: b64, type: type || 'application/pdf', size: size || 0 };
+    }
+    function blobToB64(blob, done) {
+        var reader = new FileReader();
+        reader.onload = function() { done(reader.result.split(',')[1], blob.type, blob.size); };
+        reader.readAsDataURL(blob);
+    }
+    function isPdfBlob(blob) { return blob && blob.type && blob.type.indexOf('pdf') !== -1; }
+
+    // 1) window.open — se intercepta y, si trae PDF, se lee el blob.
+    var ow = window.open;
+    window.open = function(url, name, features) {
+        try { if (String(url||'').indexOf('blob:') === 0) { /* el blob se captura vía createObjectURL */ } } catch(e) {}
+        return ow.apply(this, arguments);
+    };
+
+    // 2) URL.createObjectURL(Blob PDF) — vía más común de Angular.
+    if (window.URL && URL.createObjectURL) {
+        var oc = URL.createObjectURL;
+        URL.createObjectURL = function(obj) {
+            var result = oc.apply(this, arguments);
+            try {
+                if (isPdfBlob(obj)) blobToB64(obj, function(b64,type,size){ store(b64,type,size); });
+            } catch(e) {}
+            return result;
+        };
+    }
+
+    // 3) Clicks de <a href=blob: download> — lectura del blob resuelto.
+    if (HTMLAnchorElement && HTMLAnchorElement.prototype) {
+        var ac = HTMLAnchorElement.prototype.click;
+        HTMLAnchorElement.prototype.click = function() {
+            var self = this;
+            try {
+                if (self.download || String(self.href||'').indexOf('blob:') === 0) {
+                    fetch(self.href).then(function(r){ return r.blob(); }).then(function(b){
+                        if (isPdfBlob(b)) blobToB64(b, function(b64,type,size){ store(b64,type,size); });
+                    }).catch(function(){});
+                }
+            } catch(e) {}
+            return ac.apply(this, arguments);
+        };
+    }
+
+    // 4) fetch — respuestas con Content-Type application/pdf se leen como blob.
+    var ofet = window.fetch;
+    window.fetch = function(input, init) {
+        var p = ofet.apply(this, arguments);
+        try {
+            p.then(function(resp){
+                if (!resp) return;
+                var ct = (resp.headers && resp.headers.get && resp.headers.get('content-type')) || '';
+                if (ct.indexOf('pdf') !== -1) {
+                    resp.clone().blob().then(function(b){ if (isPdfBlob(b)) blobToB64(b, function(b64,type,size){ store(b64,type,size); }); }).catch(function(){});
+                }
+            }).catch(function(){});
+        } catch(e) {}
+        return p;
+    };
+
+    // 5) XHR — respuestas con Content-Type application/pdf.
+    var oxo = XMLHttpRequest.prototype.open;
+    var oxs = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.open = function(m,u){ this.__url=u; return oxo.apply(this,arguments); };
+    XMLHttpRequest.prototype.send = function(){
+        var self = this;
+        this.addEventListener('load', function(){
+            try {
+                var ct = ('xhrResponseType' in self && self.responseType==='blob') ? (self.response && self.response.type) : (self.getResponseHeader && self.getResponseHeader('Content-Type') || '');
+                if (ct && ct.indexOf('pdf') !== -1) {
+                    var blob = self.response && self.responseType==='blob' ? self.response : null;
+                    if (blob) blobToB64(blob, function(b64,type,size){ store(b64,type,size); });
+                }
+            } catch(e) {}
+        });
+        return oxs.apply(this, arguments);
+    };
+})();
+    """.trimIndent()
+
     fun injectPdfMonitor(webView: WebView) {
         webView.evaluateJavascript(PDF_MONITOR_SCRIPT, null)
+        webView.evaluateJavascript(BIOMETRIC_PDF_MONITOR_SCRIPT, null)
+    }
+
+    /** Inyecta solamente el monitor ampliado de biométricos. */
+    fun injectBiometricPdfMonitor(webView: WebView) {
+        webView.evaluateJavascript(BIOMETRIC_PDF_MONITOR_SCRIPT, null)
     }
 
     /** Polls for ALL pending base64 PDFs from the JS map and processes them. */
