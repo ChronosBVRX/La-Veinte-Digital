@@ -40,6 +40,7 @@ import { CommercialLibraryService } from "./services/commercial-service";
 import { LocalEditorialLLM } from "./llm/editorial/editorial-llm";
 import { routeProject, friendlyProjectError, type ProjectRouteCtx } from "./routes/project-routes";
 import { routeCommercial, type CommercialRouteCtx } from "./routes/commercial-routes";
+import { resolveMediaSafe } from "./services/media-security";
 import type { Script as StudioScript, ProgressEventType } from "@la-veinte/studio-contract";
 
 const execFileAsync = promisify(execFile);
@@ -1832,26 +1833,10 @@ function mediaRoots(): string[] {
 }
 
 async function handleMedia(res: http.ServerResponse, url: URL) {
-  const raw = url.searchParams.get("file") ?? "";
-  let file = raw;
-  try { file = decodeURIComponent(raw); } catch { /* ya decodificado */ }
-  if (!file) return json(res, 400, { error: "file requerido" });
-  // 1. resolver la ruta real del objetivo (evita ../../etc/passwd y symlinks maliciosos)
-  let target: string;
-  try {
-    target = fs.realpathSync(path.resolve(file));
-  } catch {
-    return json(res, 404, { error: "archivo no disponible" });
-  }
-  // 2. el objetivo (ya REAL) debe vivir dentro de una raíz autorizada (también resuelta)
-  const inAllowed = mediaRoots().some((root) => {
-    let realRoot = root;
-    try { realRoot = fs.realpathSync(root); } catch { /* raíz no creada */ }
-    return target === realRoot || target.startsWith(realRoot + path.sep);
-  });
-  if (!inAllowed || !fs.existsSync(target) || !fs.statSync(target).isFile()) {
-    return json(res, 404, { error: "archivo no disponible" });
-  }
+  const raw = decodeURIComponent(url.searchParams.get("file") ?? "");
+  if (!raw) return json(res, 400, { error: "file requerido" });
+  const target = resolveMediaSafe(raw, mediaRoots());
+  if (!target) return json(res, 404, { error: "archivo no disponible" });
   const ext = path.extname(target).toLowerCase();
   const mime = ext === ".wav" ? "audio/wav" : ext === ".mp3" ? "audio/mpeg" : ext === ".m4a" ? "audio/mp4" : "application/octet-stream";
   const buf = fs.readFileSync(target);
