@@ -178,11 +178,12 @@ export class LocalLLMService {
   }
 
   // ── generación ───────────────────────────────────────────────────────────
-  private cacheKey(task: string, system: string, user: string, schemaName: string | null, temp: number): string {
+  private cacheKey(task: string, system: string, user: string, schemaName: string | null, temp: number, schema?: object): string {
     return crypto.createHash("sha256").update([
       this.cfg.model, this.promptsVersion, task, schemaName ?? "text", String(temp),
       crypto.createHash("sha256").update(system).digest("hex").slice(0, 16),
       crypto.createHash("sha256").update(user).digest("hex"),
+      schema ? crypto.createHash("sha256").update(JSON.stringify(schema)).digest("hex").slice(0, 16) : "",
     ].join("|")).digest("hex");
   }
 
@@ -205,7 +206,7 @@ export class LocalLLMService {
   }): Promise<T> {
     this.circuitCheck();
     const profile = TASK_PROFILES[opts.task] ?? TASK_PROFILES.dialogue;
-    const key = this.cacheKey(opts.task, opts.system, opts.user, "schema", profile.temperature);
+    const key = this.cacheKey(opts.task, opts.system, opts.user, "schema", profile.temperature, opts.jsonSchema);
     const cacheFile = path.join(this.cacheDir, `${key}.json`);
     if (opts.useCache !== false && fs.existsSync(cacheFile)) {
       try {

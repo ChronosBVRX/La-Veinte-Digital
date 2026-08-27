@@ -75,16 +75,18 @@ const BridgeSchema = z.object({
 });
 
 const LooseProposalSchema = z.object({
-  enfoque: z.string().optional(),
-  formato: z.enum(["EXPLICADOR", "CASO_PRACTICO", "CONSULTORIO", "GUIA_PASO_A_PASO", "DEBATE", "BOLETIN", "ENTREVISTA_SIMULADA"]).optional(),
-  duracionEstimadaMin: z.number().optional(),
-  participantes: z.array(z.object({ id: z.string().optional(), nombre: z.string().optional(), rol: z.string().optional(), funcionEditorial: z.string().nullable().optional(), voz: z.string().nullable().optional(), participa: z.boolean().optional() })).optional(),
-  estructura: z.array(z.object({ seccion: z.string().optional(), proposito: z.string().optional(), notas: z.string().nullable().optional() })).optional(),
-  fuentes: z.array(z.string()).optional(),
-  huecos: z.array(z.string()).optional(),
-  advertencias: z.array(z.string()).optional(),
-  publicable: z.boolean().optional(),
-}).partial().passthrough();
+  enfoque: z.string().min(20),
+  formato: z.enum(["EXPLICADOR", "CASO_PRACTICO", "CONSULTORIO", "GUIA_PASO_A_PASO", "DEBATE", "BOLETIN", "ENTREVISTA_SIMULADA"]),
+  duracionEstimadaMin: z.number().min(5).max(90),
+  participantes: z.array(z.object({
+    id: z.string(), nombre: z.string(), rol: z.string(), funcionEditorial: z.string().nullable(), voz: z.string().nullable(), participa: z.boolean(),
+  })).min(2).max(6),
+  estructura: z.array(z.object({ seccion: z.string(), proposito: z.string(), notas: z.string().nullable() })).min(3).max(9),
+  fuentes: z.array(z.string()).max(12),
+  huecos: z.array(z.string()).max(12),
+  advertencias: z.array(z.string()).max(8),
+  publicable: z.boolean(),
+});
 
 export class LocalEditorialLLM {
   constructor(private llm: LocalLLMService) {}
