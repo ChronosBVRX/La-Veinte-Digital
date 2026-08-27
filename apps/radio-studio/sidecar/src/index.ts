@@ -34,6 +34,13 @@ import { resolveProvider } from "../../../../src/features/normativa/services/llm
 import { eliminarJob, leerJob, guardarJob, nuevoJob, resumenJob, type ProductionJob } from "../worker/job-store";
 import { leerJobMusica, guardarJobMusica, nuevoJobMusica, resumenJobMusica, type MusicaTipo } from "../worker/musica-job-store";
 import { createHash } from "node:crypto";
+import { makeProjectStoreForRepo, ProjectStore } from "./services/project-store";
+import { ProjectWorkflowService } from "./services/project-workflow";
+import { CommercialLibraryService } from "./services/commercial-service";
+import { LocalEditorialLLM } from "./llm/editorial/editorial-llm";
+import { routeProject, friendlyProjectError, type ProjectRouteCtx } from "./routes/project-routes";
+import { routeCommercial, type CommercialRouteCtx } from "./routes/commercial-routes";
+import type { Script as StudioScript, ProgressEventType } from "@la-veinte/studio-contract";
 
 const execFileAsync = promisify(execFile);
 const PORT = 3977;
@@ -64,6 +71,38 @@ function loadLocalEnv(file: string): void {
 }
 
 loadLocalEnv(path.join(REPO, ".env.local"));
+
+// ── Servicios del flujo de episodio (proposal-first) ──
+const projectStore = makeProjectStoreForRepo(REPO);
+const commercialService = new CommercialLibraryService(path.join(REPO, "data", "tts", "commercials"));
+const editorialLlm = LocalEditorialLLM.create(REPO);
+let workflowSingleton: ProjectWorkflowService | null = null;
+function getWorkflow(): ProjectWorkflowService {
+  if (!workflowSingleton) {
+    workflowSingleton = new ProjectWorkflowService(projectStore, REPO, new NormativeCatalog(REPO), editorialLlm, commercialService);
+  }
+  return workflowSingleton;
+}
+export { getWorkflow };
+
+// ── Bus de eventos SSE ──
+interface SseClient { id: number; res: http.ServerResponse }
+let sseSeq = 0;
+const sseClients = new Map<number, SseClient>();
+function broadcastEvent(event: { type: ProgressEventType | "state.changed"; projectId: string; data?: unknown }): void {
+  const payload = JSON.stringify({ ...event, ts: new Date().toISOString(), projectId: event.projectId ?? "" });
+  for (const c of sseClients.values()) {
+    try {
+      c.res.write(`event: ${event.type}\n`);
+      c.res.write(`data: ${payload}\n\n`);
+    } catch { /* cliente desconectado — se limpia en /events close */ }
+  }
+}
+function projectLog(projectId: string, type: ProgressEventType | "state.changed", data?: unknown): void {
+  if (!projectId) return;
+  try { projectStore.logEvent(projectId, { type, data }); } catch { /* mejor esfuerzo */ }
+  broadcastEvent({ type, projectId, data });
+}
 
 function ensureEngine(): QwenEngine {
   if (!engine) engine = new QwenEngine(process.cwd(), "", path.join(REPO, "data", "tts"));
@@ -1784,24 +1823,37 @@ Devuelve ÚNICAMENTE JSON: {"turns": [...]}`;
   });
 }
 
+/** Raíces autorizadas para servir audio/media. Se resuelven con realpath. */
+function mediaRoots(): string[] {
+  return [
+    path.join(REPO, "data", "tts"),
+    path.join(REPO, "data", "projects"),
+  ].map((p) => path.resolve(p));
+}
+
 async function handleMedia(res: http.ServerResponse, url: URL) {
   const raw = url.searchParams.get("file") ?? "";
   let file = raw;
   try { file = decodeURIComponent(raw); } catch { /* ya decodificado */ }
-  const allowed = [
-    path.join(REPO, "data", "tts", "cache"),
-    path.join(REPO, "data", "tts", "music"),
-    path.join(REPO, "data", "tts", "master"),
-    path.join(REPO, "data", "tts", "casting"),
-    path.join(REPO, "data", "tts", "voices"),
-    path.join(REPO, "data", "tts", "ref"),
-  ];
-  const target = path.resolve(file);
-  if (!allowed.some((a) => target.startsWith(a)) || !fs.existsSync(target)) {
+  if (!file) return json(res, 400, { error: "file requerido" });
+  // 1. resolver la ruta real del objetivo (evita ../../etc/passwd y symlinks maliciosos)
+  let target: string;
+  try {
+    target = fs.realpathSync(path.resolve(file));
+  } catch {
+    return json(res, 404, { error: "archivo no disponible" });
+  }
+  // 2. el objetivo (ya REAL) debe vivir dentro de una raíz autorizada (también resuelta)
+  const inAllowed = mediaRoots().some((root) => {
+    let realRoot = root;
+    try { realRoot = fs.realpathSync(root); } catch { /* raíz no creada */ }
+    return target === realRoot || target.startsWith(realRoot + path.sep);
+  });
+  if (!inAllowed || !fs.existsSync(target) || !fs.statSync(target).isFile()) {
     return json(res, 404, { error: "archivo no disponible" });
   }
   const ext = path.extname(target).toLowerCase();
-  const mime = ext === ".wav" ? "audio/wav" : ext === ".mp3" ? "audio/mpeg" : "application/octet-stream";
+  const mime = ext === ".wav" ? "audio/wav" : ext === ".mp3" ? "audio/mpeg" : ext === ".m4a" ? "audio/mp4" : "application/octet-stream";
   const buf = fs.readFileSync(target);
   res.writeHead(200, { "Content-Type": mime, "Content-Length": buf.length, "Access-Control-Allow-Origin": "*" });
   res.end(buf);
@@ -1812,8 +1864,8 @@ const MUSICA_TIPOS: MusicaTipo[] = ["bed", "jingle", "sfx", "cortinilla", "ambie
 /** Estado del motor ACE-Step (server local de música). */
 async function aceStepEstado(): Promise<Record<string, unknown>> {
   try {
-    const health = await fetch(`${ACE_API}/health`, { signal: AbortSignal.timeout(5000) }).then((r) => r.json());
-    const d = (health.data ?? {}) as { service?: string; models_initialized?: boolean; loaded_model?: string };
+    const health = await fetch(`${ACE_API}/health`, { signal: AbortSignal.timeout(5000) }).then((r) => r.json()) as { data?: { service?: string; models_initialized?: boolean; loaded_model?: string } };
+    const d = health.data ?? {};
     return {
       online: true,
       servicio: d.service ?? "ACE-Step API",
@@ -2025,6 +2077,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/musica/generar") return await handleMusicaGenerar(res, await readBody(req));
     if (req.method === "POST" && url.pathname === "/musica/cancelar") return await handleMusicaCancelar(res);
     if (req.method === "GET" && url.pathname === "/media") return await handleMedia(res, url);
+    if (req.method === "GET" && url.pathname === "/events") return await handleSse(res, req);
     if (req.method === "GET" && url.pathname === "/normativa/documentos") return await handleDocList(res);
     if (req.method === "POST" && url.pathname === "/normativa/buscar") return await handleNormativaBuscar(res, await readBody(req));
     if (req.method === "POST" && url.pathname === "/investigar") return await handleInvestigar(res, await readBody(req));
@@ -2042,11 +2095,89 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/master") return await handleMaster(res, await readBody(req));
     if (req.method === "POST" && url.pathname === "/regenerate") return await handleRegenerate(res, await readBody(req));
     if (req.method === "POST" && url.pathname === "/tts-fallback") return await handleFallbackTts(res, await readBody(req));
+    // ── Rutas de proyecto (proposal-first) ──
+    const pctx: ProjectRouteCtx = {
+      store: projectStore,
+      workflow: getWorkflow(),
+      commercials: commercialService,
+      json,
+      startProduction: startProjectProduction,
+    };
+    if (await routeProject(url, req, res, pctx, () => readBody(req))) return;
+    const cctx: CommercialRouteCtx = { commercials: commercialService, json };
+    if (await routeCommercial(url, req, res, cctx, () => readBody(req))) return;
     json(res, 404, { error: "ruta desconocida" });
   } catch (e) {
+    if (url.pathname.startsWith("/projects")) {
+      const friendly = friendlyProjectError(e);
+      json(res, 500, friendly);
+      return;
+    }
     json(res, 500, { error: e instanceof Error ? e.message : String(e) });
   }
 });
+
+/**
+ * Inicia la producción TTS real de un proyecto en la cola existente.
+ * Reutiliza job-store + worker Qwen: GUIÓN → bloques → voces (resumible).
+ */
+async function startProjectProduction(id: string, script: StudioScript): Promise<{ started: boolean; total: number }> {
+  const voces: Record<string, VoiceSlot> = {};
+  for (const t of script.turns) {
+    if (!voces[t.speaker]) voces[t.speaker] = vozPorLocutor(t.speaker, {});
+  }
+  const bloques = script.turns.filter((t) => !t.adSlot).map((t) => ({ id: t.id, texto: t.ttsText ?? t.displayText, locutor: t.speaker }));
+  const existente = leerJob();
+  if (existente && workerVivo() && existente.estado !== "DONE") {
+    throw new Error("ya hay una producción en curso");
+  }
+  const perfiles = resolveVoiceProfiles(DEFAULT_SPEAKERS);
+  const perfilPorId = new Map(perfiles.map((p) => [p.id, p]));
+  const job = nuevoJob(
+    id,
+    script.topic,
+    bloques.map((b) => {
+      const perfil = perfilPorId.get(b.locutor.toUpperCase());
+      return {
+        id: b.id,
+        texto: b.texto,
+        locutor: b.locutor,
+        voz: vozPorLocutor(b.locutor, voces),
+        voiceProfileId: perfil?.id,
+        referenceAudioSha256: perfil?.referenceAudioSha256,
+        voiceSourceId: perfil?.voiceSourceId,
+        modelRevision: perfil?.modelRevision,
+      };
+    }),
+    voces
+  );
+  guardarJob(job);
+  spawnWorker();
+  projectLog(id, "production.started", { total: bloques.length });
+  return { started: true, total: bloques.length };
+}
+
+/** SSE — progreso en tiempo real para el frontend. */
+async function handleSse(res: http.ServerResponse, req: import("node:http").IncomingMessage): Promise<void> {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+    "Access-Control-Allow-Origin": "*",
+  });
+  res.write("retry: 3000\n\n");
+  const client: SseClient = { id: ++sseSeq, res };
+  sseClients.set(client.id, client);
+  res.write(`event: ready\ndata: ${JSON.stringify({ ts: new Date().toISOString(), clients: sseClients.size })}\n\n`);
+  const ping = setInterval(() => {
+    try { res.write(": keepalive\n\n"); } catch { /* muted */ }
+  }, 15000);
+  req.on("close", () => {
+    clearInterval(ping);
+    sseClients.delete(client.id);
+    try { res.end(); } catch { /* muted */ }
+  });
+}
 
 server.on("clientError", (_err, socket) => { socket.destroy(); });
 server.on("error", (e: NodeJS.ErrnoException) => {

@@ -103,8 +103,8 @@ async function main() {
   log(`generando ${tipoDeArchivo(job.tipo)} ${job.duracionSec}s → ${job.prompt.slice(0, 80)}…`);
 
   try {
-    const health = await fetch(`${API}/health`, { signal: AbortSignal.timeout(5000) }).then((r) => r.json());
-    const model = (health.data as { loaded_model?: string }).loaded_model ?? "?";
+    const health = await fetch(`${API}/health`, { signal: AbortSignal.timeout(5000) }).then((r) => r.json()) as { data?: { loaded_model?: string } };
+    const model = health.data?.loaded_model ?? "?";
     log(`ACE-Step OK: ${model}`);
   } catch {
     throw new Error("el API de ACE-Step no responde en 127.0.0.1:8001 — arranca primero: cd tools/ACE-Step-1.5 && uv run --no-sync acestep-api");
