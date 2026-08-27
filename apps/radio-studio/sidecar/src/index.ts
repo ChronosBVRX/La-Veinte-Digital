@@ -72,19 +72,91 @@ function ensureEngine(): QwenEngine {
 
 /** Lanza el worker TTS como proceso independiente (el sidecar NO se bloquea). */
 function spawnWorker(): void {
-  // Qwen genera en-request (proceso desechable por bloque). Sin worker persistente.
-  void 0;
+  // Qwen genera en-request (proceso desechable por bloque). El procesamiento
+  // de la cola lo hace el propio sidecar en background (ver procesarProduccion).
+  void procesarProduccion();
+}
+
+/** Procesa la cola de producción con el motor Qwen (proceso desechable por bloque). */
+let produccionEnCurso = false;
+async function procesarProduccion(): Promise<void> {
+  if (produccionEnCurso) return;
+  produccionEnCurso = true;
+  try {
+    const eng = ensureEngine();
+    if (!eng.isRunning) {
+      await eng.start();
+      const warmup = await eng.warmup();
+      if (!warmup.ok) throw new Error(`motor no disponible: ${warmup.error ?? "warmup"}`);
+    }
+    const job = leerJob();
+    if (!job || job.estado === "DONE" || job.estado === "FAILED") return;
+    job.estado = "RUNNING";
+    guardarJob(job);
+    for (let i = 0; i < job.bloques.length; i++) {
+      const b = job.bloques[i];
+      if (b.estado === "generado") continue;
+      if (job.cancelado) { job.estado = "PAUSED"; guardarJob(job); return; }
+      job.bloqueActual = i;
+      guardarJob(job);
+      let ultimoError: string | null = null;
+      for (let intento = 0; intento < 4; intento++) {
+        try {
+          const t0 = Date.now();
+          const seed = Math.abs(b.chars * 13 + i * 7 + intento * 104729) % 100000;
+          const r = await eng.generate(cleanTtsText(b.texto), b.voz, {
+            voiceProfileId: b.voiceProfileId,
+            referenceAudioSha256: b.referenceAudioSha256,
+            voiceSourceId: b.voiceSourceId,
+            modelRevision: b.modelRevision,
+            seed,
+          });
+          if (r.ok && r.path) {
+            b.estado = "generado";
+            b.wavPath = r.path;
+            b.audioDurMs = r.dur_s ? Math.round(r.dur_s * 1000) : null;
+            b.genMs = Date.now() - t0;
+            b.rtf = b.audioDurMs && b.genMs ? Number((b.genMs / b.audioDurMs).toFixed(3)) : null;
+            b.cacheHit = false;
+            b.error = null;
+            break;
+          }
+          ultimoError = r.error ?? "generación fallida";
+        } catch (e) {
+          ultimoError = e instanceof Error ? e.message : String(e);
+        }
+        b.error = ultimoError;
+        guardarJob(job);
+      }
+      if (b.estado !== "generado") b.estado = "fallo";
+      guardarJob(job);
+    }
+    job.estado = job.bloques.some((b) => b.estado === "fallo") ? "FAILED" : "DONE";
+    guardarJob(job);
+  } catch (e) {
+    const job = leerJob();
+    if (job) { job.estado = "FAILED"; job.notas.push(`worker: ${e instanceof Error ? e.message : String(e)}`); guardarJob(job); }
+  } finally {
+    produccionEnCurso = false;
+  }
 }
 
 let workerVivoCache: { at: number; v: boolean } = { at: 0, v: false };
 
 function workerVivo(): boolean {
-  return false;
+  if (produccionEnCurso) return true;
+  const job = leerJob();
+  return !!job && job.estado === "RUNNING";
 }
 
 function detenerWorkersProduccion(): void {
   workerVivoCache = { at: 0, v: false };
-  void 0;
+  const job = leerJob();
+  if (job && job.estado !== "DONE") {
+    job.estado = "PAUSED";
+    job.notas.push("detenido por el usuario — RESUMABLE");
+    guardarJob(job);
+  }
 }
 
 function eliminarAudioDeJob(job: ProductionJob | null): number {
@@ -1713,12 +1785,16 @@ Devuelve ÚNICAMENTE JSON: {"turns": [...]}`;
 }
 
 async function handleMedia(res: http.ServerResponse, url: URL) {
-  const file = url.searchParams.get("file") ?? "";
+  const raw = url.searchParams.get("file") ?? "";
+  let file = raw;
+  try { file = decodeURIComponent(raw); } catch { /* ya decodificado */ }
   const allowed = [
     path.join(REPO, "data", "tts", "cache"),
     path.join(REPO, "data", "tts", "music"),
     path.join(REPO, "data", "tts", "master"),
     path.join(REPO, "data", "tts", "casting"),
+    path.join(REPO, "data", "tts", "voices"),
+    path.join(REPO, "data", "tts", "ref"),
   ];
   const target = path.resolve(file);
   if (!allowed.some((a) => target.startsWith(a)) || !fs.existsSync(target)) {

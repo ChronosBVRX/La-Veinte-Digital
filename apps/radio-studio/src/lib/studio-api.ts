@@ -469,7 +469,6 @@ export interface ProgresoProduccion {
   porLocutor: Record<string, { hecho: number; total: number }>;
   bloques?: BloqueProgreso[];
   gpu: { tempC: number | null; vramUsadaMb: number | null; vramTotalMb: number | null };
-  rtf?: number;
   rtf?: number | null;
   rtfReciente?: number | null;
   audioPendienteEstimadoMs?: number;

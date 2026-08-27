@@ -6,7 +6,7 @@ import { qwenEnv } from "./qwen-env";
 const REPO = path.resolve(process.cwd());
 export const RENDER_PY = qwenEnv(REPO).renderPy;
 export const QWEN_PYTHON = qwenEnv(REPO).python;
-const TIMEOUT_MS = 120_000;
+const TIMEOUT_MS = 300_000;
 
 const VOICE_MAP: Record<string, string> = {
   EDUARDO: "EDUARDO",

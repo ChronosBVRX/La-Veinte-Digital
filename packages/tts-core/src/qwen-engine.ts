@@ -8,7 +8,7 @@ import fs from "node:fs";
 import { spawn, execSync } from "node:child_process";
 import { qwenEnv, killProcessGroupUnblocking } from "./qwen-env";
 
-const TIMEOUT_MS = 180_000;
+const TIMEOUT_MS = 300_000;
 
 export interface QwenEngineResult {
   ok: boolean;
@@ -97,7 +97,9 @@ export class QwenEngine {
           try { renameSyncSafe(tmpWav, finalWav); } catch {}
           resolve({ ok: true, id: outId, voice, path: finalWav, dur_s: this.duration(finalWav) });
         } else {
-          resolve({ ok: false, id: outId, voice, error: (stderr || `exit ${code}`).slice(0, 200) });
+          const lines = stderr.split("\n").filter((l) => l && !/sox|requires|http:\/\/|path variables|double-check|earlier/i.test(l));
+          const reason = (lines.find((l) => /QA_FAIL|Exception|Error|Invalid|Traceback/i.test(l)) || lines[0] || "").slice(0, 200);
+          resolve({ ok: false, id: outId, voice, error: reason || `exit ${code}` });
         }
       });
     });

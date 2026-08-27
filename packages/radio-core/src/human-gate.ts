@@ -54,7 +54,7 @@ function bigramSim(a: string, b: string): number {
   let hits = 0;
   for (let i = 0; i < wa.length - 1; i++) {
     const bi = `${wa[i]} ${wa[i + 1]}`;
-    if (bagB.has(`${wa[i]} ${wa[i + 1]}`)) hits++;
+    if (bagB.has(bi)) hits++;
   }
   return hits / Math.max(1, Math.min(wa.length - 1, wb.length - 1));
 }
