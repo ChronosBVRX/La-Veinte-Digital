@@ -198,6 +198,16 @@ export class ProjectWorkflowService {
     return { project: next, proposal };
   }
 
+  async updateProposal(id: string, patch: Partial<Proposal>): Promise<Project> {
+    const p = this.store.get(id);
+    if (!p) throw new Error("PROJECT_NOT_FOUND");
+    const current = this.store.readArtifact<Proposal>(id, "proposal.json") ?? p.proposal;
+    if (!current) throw new Error("PROPOSAL_REQUIRED");
+    const merged: Proposal = { ...current, ...patch, topic: p.topic };
+    this.store.writeProposal(id, merged);
+    return this.store.update(id, { proposal: merged, state: "PROPOSAL_READY" })!;
+  }
+
   async approve(id: string): Promise<Project> {
     const p = this.store.get(id);
     if (!p) throw new Error("PROJECT_NOT_FOUND");
@@ -266,7 +276,9 @@ export class ProjectWorkflowService {
     const lib = this.commercials.list({ onlyActive: true });
     let placements: CommercialPlacement[] = [];
     if (selections.enabled && lib.length > 0) {
-      const chosen = selections.allowDirectorChoice ? lib : lib.filter((c) => selections.ids.includes(c.id));
+      // Autorizados: los ids elegidos por el usuario; si no eligió, todos los activos.
+      const authorized = selections.ids.length > 0 ? lib.filter((c) => selections.ids.includes(c.id)) : lib;
+      const chosen = authorized.length > 0 ? authorized : lib;
       placements = planCommercialPlacements(studioScript.turns.map((t) => ({ id: t.id, speaker: t.speaker, text: t.displayText, adSlot: t.adSlot })), selections, chosen);
       applyCommercials(studioScript, placements, chosen, this.commercials);
     }

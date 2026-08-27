@@ -27,8 +27,9 @@ function fecha(p: Project): string {
   return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
 }
 
-export function Inicio({ onCrear, onOpen }: { onCrear: (tema: string) => void; onOpen: (id: string) => void }) {
+export function Inicio({ onCrear, onOpen }: { onCrear: (tema: string, comerciales: boolean) => void; onOpen: (id: string) => void }) {
   const [tema, setTema] = useState("");
+  const [comerciales, setComerciales] = useState(false);
   const [recent, setRecent] = useState<Project[]>([]);
   const sugerencias = ["¿Qué pasa si me cambian de horario?", "Cómo solicitar vacaciones", "Accidente de trabajo: ST-7", "Tiempo extraordinario en el IMSS"];
 
@@ -52,12 +53,16 @@ export function Inicio({ onCrear, onOpen }: { onCrear: (tema: string) => void; o
           <span>Tema del episodio</span>
           <input value={tema} onChange={(e) => setTema(e.target.value)} placeholder="Ej. ¿Qué pasa si me cambian de horario sin avisarme?" autoFocus />
         </label>
-        <button className="btn-primary btn-main-action" onClick={() => onCrear(tema.trim())} disabled={!tema.trim()}>
+        <button className="btn-primary btn-main-action" onClick={() => onCrear(tema.trim(), comerciales)} disabled={!tema.trim()}>
           INVESTIGAR Y PREPARAR EPISODIO
         </button>
+        <label className="check" style={{ marginTop: 10 }}>
+          <input type="checkbox" checked={comerciales} onChange={(e) => setComerciales(e.target.checked)} />
+          Incluir anuncios opcionales (los elige el director entre los autorizados)
+        </label>
         <div className="quick-topics">
           <span className="muted">O prueba:</span>
-          {sugerencias.map((s) => <button key={s} className="chip" onClick={() => onCrear(s)}>{s}</button>)}
+          {sugerencias.map((s) => <button key={s} className="chip" onClick={() => onCrear(s, comerciales)}>{s}</button>)}
         </div>
       </section>
 

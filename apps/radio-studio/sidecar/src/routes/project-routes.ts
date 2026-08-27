@@ -61,10 +61,18 @@ export async function routeProject(url: URL, req: import("node:http").IncomingMe
 
   if (method === "POST" && segments.length === 3 && !id) return false;
   const action = segments[2];
+  const subAction = segments[3];
 
   if (action === "research") {
     const { project, research } = await ctx.workflow.research(id);
     ctx.json(res, 200, { project, research });
+    return true;
+  }
+  if (action === "proposal" && subAction === "update") {
+    const body = await readBody();
+    const patch = (body.patch ?? body) as Partial<import("@la-veinte/studio-contract").Proposal>;
+    const project = await ctx.workflow.updateProposal(id, patch);
+    ctx.json(res, 200, project);
     return true;
   }
   if (action === "proposal") {

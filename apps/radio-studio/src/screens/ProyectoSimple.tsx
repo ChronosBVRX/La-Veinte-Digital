@@ -6,12 +6,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   getProject, projectResearch, projectProposal, projectApprove, projectScript,
-  projectVerify, projectProduce, obtenerProgreso, obtenerLlmSalud,
+  projectVerify, projectProduce, projectProposalUpdate, obtenerProgreso, obtenerLlmSalud,
   SIDECAR_URL_EXPORT, type LlmHealthInfo,
 } from "../lib/studio-api";
-import type { Project, VerifyResult, Turn } from "@la-veinte/studio-contract";
+import type { Project, Proposal, VerifyResult, Turn } from "@la-veinte/studio-contract";
 import {
-  FORMAT_LABELS, NIVEL_LABELS,
+  FORMAT_LABELS, NIVEL_LABELS, EDITORIAL_FORMATS,
 } from "@la-veinte/studio-contract";
 
 const STEPS = [
@@ -54,6 +54,10 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
   const [progress, setProgress] = useState<{ done: number; total: number; estado: string | null } | null>(null);
   const [llm, setLlm] = useState<LlmHealthInfo | null>(null);
   const [fuenteAbierta, setFuenteAbierta] = useState<string | null>(null);
+  const [editandoPropuesta, setEditandoPropuesta] = useState(false);
+  const [editFormato, setEditFormato] = useState<string>("");
+  const [editDuracion, setEditDuracion] = useState(15);
+  const [editEnfoque, setEditEnfoque] = useState("");
 
   const refresh = async () => {
     const p = await getProject(projectId);
@@ -222,10 +226,42 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
             </div>
           )}
           <div className="row" style={{ marginTop: 16 }}>
+            <button className="btn-secondary" disabled={!!busy} onClick={() => {
+              setEditandoPropuesta((v) => !v);
+              if (!editandoPropuesta && proposal) {
+                setEditFormato(proposal.formato);
+                setEditDuracion(proposal.duracionEstimadaMin);
+                setEditEnfoque(proposal.enfoque);
+              }
+            }}>
+              {editandoPropuesta ? "CERRAR" : "MODIFICAR"}
+            </button>
             <button className="btn-primary" disabled={!!busy || project?.state === "PROPOSAL_APPROVED" || project?.state === "SCRIPT_READY"} onClick={() => run("Aprobando", () => projectApprove(projectId))}>
               {busy === "Aprobando" ? "Guardando…" : "APROBAR PROPUESTA"}
             </button>
           </div>
+          {editandoPropuesta && (
+            <div className="card" style={{ marginTop: 12, background: "var(--panel-2)" }}>
+              <div className="scene-title">Ajustar propuesta</div>
+              <label className="field">
+                <span>Formato</span>
+                <select value={editFormato} onChange={(e) => setEditFormato(e.target.value)}>
+                  {EDITORIAL_FORMATS.map((f) => <option key={f} value={f}>{FORMAT_LABELS[f] ?? f}</option>)}
+                </select>
+              </label>
+              <label className="field">
+                <span>Duración estimada (min)</span>
+                <input type="number" value={editDuracion} min={5} max={60} onChange={(e) => setEditDuracion(Number(e.target.value))} />
+              </label>
+              <label className="field">
+                <span>Enfoque</span>
+                <textarea value={editEnfoque} rows={3} onChange={(e) => setEditEnfoque(e.target.value)} />
+              </label>
+              <button className="btn-primary" disabled={!!busy} onClick={() => run("Guardando", () => projectProposalUpdate(projectId, { formato: editFormato as Proposal["formato"], duracionEstimadaMin: editDuracion, enfoque: editEnfoque }))}>
+                {busy === "Guardando" ? "Guardando…" : "GUARDAR CAMBIOS"}
+              </button>
+            </div>
+          )}
         </section>
       )}
 

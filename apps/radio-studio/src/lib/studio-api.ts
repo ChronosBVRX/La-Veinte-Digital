@@ -623,6 +623,10 @@ export async function projectProposal(id: string): Promise<{ project: Project; p
   return post<{ project: Project; proposal: Proposal }>(`/projects/${id}/proposal`, {}, 300000, 3);
 }
 
+export async function projectProposalUpdate(id: string, patch: Partial<Proposal>): Promise<Project> {
+  return post<Project>(`/projects/${id}/proposal/update`, { patch }, 20000, 3);
+}
+
 export async function projectApprove(id: string): Promise<Project> {
   return post<Project>(`/projects/${id}/approve`, {}, 20000, 3);
 }

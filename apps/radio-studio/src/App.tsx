@@ -50,10 +50,23 @@ export default function App() {
     return () => { mounted = false; clearInterval(t); };
   }, []);
 
-  const abrirNuevoTema = async (tema: string) => {
+  const abrirNuevoTema = async (tema: string, comerciales = false) => {
     if (!tema) return;
     try {
-      const p = await createProject({ topic: tema });
+      const p = await createProject({
+        topic: tema,
+        config: {
+          comerciales: {
+            enabled: comerciales,
+            ids: [],
+            allowDirectorChoice: true,
+            count: "auto",
+            ubicacion: "auto",
+            interaccion: "natural",
+            duracionSec: 30,
+          },
+        },
+      });
       setProjectId(p.id);
       setScreen("proyecto");
     } catch {
@@ -99,7 +112,7 @@ export default function App() {
       <main className="content">
         {mode === "simple" && screen === "inicio" && <Inicio onCrear={abrirNuevoTema} onOpen={(id) => { setProjectId(id); setScreen("proyecto"); }} />}
         {mode === "simple" && screen === "proyecto" && (projectId ? <ProyectoSimple projectId={projectId} onBack={() => setScreen("inicio")} /> : <p className="muted">Abre o crea un episodio desde Inicio.</p>)}
-        {mode === "simple" && screen === "biblioteca" && <BibliotecaNormativaStudio onCrearEpisodio={(t) => void abrirNuevoTema(t)} />}
+        {mode === "simple" && screen === "biblioteca" && <BibliotecaNormativaStudio onCrearEpisodio={(t) => void abrirNuevoTema(t, false)} />}
 
         {mode === "estudio" && (
           <>
@@ -108,7 +121,7 @@ export default function App() {
             {screen === "crear" && <CrearEpisodio key={workId} temaInicial={crearTema} status={status} onProducir={() => setScreen("produccion")} />}
             {screen === "produccion" && <Produccion />}
             {screen === "timeline" && <Timeline />}
-            {screen === "biblioteca" && <BibliotecaNormativaStudio onCrearEpisodio={(t) => void abrirNuevoTema(t)} />}
+            {screen === "biblioteca" && <BibliotecaNormativaStudio onCrearEpisodio={(t) => void abrirNuevoTema(t, false)} />}
             {screen === "locutores" && <Locutores />}
             {screen === "audio" && <BibliotecaAudio />}
           </>

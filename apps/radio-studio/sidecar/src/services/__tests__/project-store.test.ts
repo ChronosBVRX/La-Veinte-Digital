@@ -32,8 +32,9 @@ describe("ProjectStore", () => {
     expect(store.readClaims(p.id)).not.toBeNull();
   });
 
-  it("lista ordenado por actualización descendente", () => {
+  it("lista ordenado por actualización descendente", async () => {
     const a = store.create({ topic: "A" });
+    await new Promise((r) => setTimeout(r, 8));
     const b = store.create({ topic: "B" });
     const list = store.list();
     expect(list[0].id).toBe(b.id);

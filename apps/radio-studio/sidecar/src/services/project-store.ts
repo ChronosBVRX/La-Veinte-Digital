@@ -109,7 +109,12 @@ export class ProjectStore {
         const p = this.get(entry);
         if (p) out.push(p);
       }
-      return out.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+      return out.sort((a, b) => {
+        if (a.updatedAt !== b.updatedAt) return a.updatedAt < b.updatedAt ? 1 : -1;
+        // tiebreaker determinista para escrituras en el mismo milisegundo
+        if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+        return a.id < b.id ? 1 : -1;
+      });
     } catch {
       return [];
     }
