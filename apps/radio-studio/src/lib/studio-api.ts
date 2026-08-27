@@ -567,3 +567,86 @@ export async function masterEpisodio(bloques: Array<{ texto: string; locutor: st
 }
 
 export const SIDECAR_URL_EXPORT = SIDECAR_URL;
+
+// ─── Proyecto (flujo proposal-first) ─────────────────────────────────────────
+
+import type {
+  Project,
+  ProjectConfig,
+  ResearchBundle,
+  Proposal,
+  VerifyResult,
+  Script,
+  Commercial,
+} from "@la-veinte/studio-contract";
+
+export interface CreateProjectInput {
+  topic: string;
+  config?: Partial<ProjectConfig>;
+}
+
+export async function createProject(input: CreateProjectInput): Promise<Project> {
+  return post<Project>("/projects", {
+    topic: input.topic,
+    config: {
+      duracionMin: 15,
+      nivel: "natural",
+      contextoExtra: "",
+      modo: "ia",
+      comerciales: { enabled: false, ids: [], allowDirectorChoice: true, count: "auto", ubicacion: "auto", interaccion: "natural", duracionSec: 30 },
+      ...(input.config ?? {}),
+    },
+  }, 20000, 3);
+}
+
+export async function listProjects(): Promise<Project[]> {
+  try {
+    return await get<Project[]>("/projects", 5000);
+  } catch {
+    return [];
+  }
+}
+
+export async function getProject(id: string): Promise<Project | null> {
+  try {
+    return await get<Project>(`/projects/${id}`, 5000);
+  } catch {
+    return null;
+  }
+}
+
+export async function projectResearch(id: string): Promise<{ project: Project; research: ResearchBundle }> {
+  return post<{ project: Project; research: ResearchBundle }>(`/projects/${id}/research`, {}, 90000, 3);
+}
+
+export async function projectProposal(id: string): Promise<{ project: Project; proposal: Proposal }> {
+  return post<{ project: Project; proposal: Proposal }>(`/projects/${id}/proposal`, {}, 300000, 3);
+}
+
+export async function projectApprove(id: string): Promise<Project> {
+  return post<Project>(`/projects/${id}/approve`, {}, 20000, 3);
+}
+
+export async function projectScript(id: string): Promise<{ project: Project; script: Script; verify: VerifyResult }> {
+  return post<{ project: Project; script: Script; verify: VerifyResult }>(`/projects/${id}/script`, {}, 300000, 3);
+}
+
+export async function projectVerify(id: string): Promise<VerifyResult> {
+  return post<VerifyResult>(`/projects/${id}/verify`, {}, 60000, 3);
+}
+
+export async function projectProduce(id: string): Promise<{ project: Project; started?: { started: boolean; total: number } }> {
+  return post<{ project: Project; started?: { started: boolean; total: number } }>(`/projects/${id}/produce`, {}, 30000, 3);
+}
+
+export async function listCommercials(): Promise<Commercial[]> {
+  try {
+    return await get<Commercial[]>("/commercials", 5000);
+  } catch {
+    return [];
+  }
+}
+
+export async function seedCommercials(): Promise<{ added: number; items: Commercial[] }> {
+  return post<{ added: number; items: Commercial[] }>("/commercials?seed=true", {}, 10000).catch(() => ({ added: 0, items: [] } as { added: number; items: Commercial[] }));
+}

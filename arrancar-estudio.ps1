@@ -1,6 +1,6 @@
 # Arranque de AI Radio Studio (producción local)
 # 1. ACE-Step 1.5 (motor de música local) si no está corriendo
-# 2. Sidecar (TTS Chatterbox + corpus + música) con DeepSeek (guion) + Ollama (fallback)
+# 2. Sidecar (TTS Qwen Base clone local + corpus + música) con Ollama (editorial) 
 # 3. Vite dev de la UI (radio-studio) en http://localhost:1420
 
 $ErrorActionPreference = "Continue"

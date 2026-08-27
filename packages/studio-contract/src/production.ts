@@ -2,7 +2,6 @@
  * Estado de producción, master y progreso en tiempo real.
  */
 import { z } from "zod";
-import { SourceRefSchema } from "./script";
 
 export const PRODUCTION_STAGES = ["voces", "mezcla", "comerciales", "master", "qa", "done"] as const;
 export type ProductionStage = (typeof PRODUCTION_STAGES)[number];

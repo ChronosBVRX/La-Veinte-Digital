@@ -156,7 +156,7 @@ de preguntas ni en lectura de artículos.
    `comerciales !== false`.
 8. `/director/ajustar` recibe `script`, `contexto` y `scope`; ajusta solo el
    alcance indicado y re-verifica el resultado.
-9. `/generate` produce voces con Chatterbox por worker independiente.
+9. `/generate` produce voces con Qwen Base (clon de voz) por worker independiente (proceso desechable por bloque con watchdog).
 10. `/master` mezcla voces con cama uniforme, intro/outro breve, loudnorm y
     exportación MP3/WAV.
 
@@ -194,8 +194,8 @@ desconocido no deben exportarse sin confirmar licencia.
 
 Calidad vocal obligatoria:
 
-- Un episodio publicable debe producirse con Chatterbox LatAm y el reparto
-  oficial: Eduardo (`A`), Andrea (`B`), Alonso (`N`), Rodrigo Torres (`C`) y
+- Un episodio publicable debe producirse con Qwen Base (clon de voz) y el reparto
+  oficial: Eduardo (`A`), Andrea (`B`), Alonso/Javier (`N`), Rodrigo Torres (`C`) y
   Valeria Soto (`P`).
 - SAPI/edge-tts son fallback técnico de emergencia o maqueta, no producto final
   publicable, salvo que el usuario acepte explícitamente esa calidad.
@@ -344,7 +344,7 @@ en DeepSeek.
 
 Asignación obligatoria actual:
 
-- `A`: Eduardo, voz integrada de Chatterbox.
+- `A`: Eduardo, voz integrada de Qwen Base clone.
 - `B`: Andrea, referencia `data/tts/ref/mariana.wav`, generada desde Piper
   `es_MX-claude-high` para tener una co-conductora mas expresiva y con mejor
   energia que la voz SAPI anterior.
@@ -507,7 +507,7 @@ Prueba manual:
 - `apps/radio-studio/src/lib/studio-api.ts`: cliente HTTP del sidecar.
 - `apps/radio-studio/sidecar/src/index.ts`: endpoints locales, DeepSeek,
   director, master, música y auto-arranque ACE-Step.
-- `apps/radio-studio/sidecar/worker/chatterbox_worker.ts`: producción TTS.
+- `apps/radio-studio/sidecar/worker/job-store.ts`: cola Qwen TTS (proceso desechable por bloque, resumible).
 - `apps/radio-studio/sidecar/worker/musica_worker.ts`: generación musical.
 - `packages/radio-core/src/director.ts`: tipos de guion, turnos, personas y
   director determinista.

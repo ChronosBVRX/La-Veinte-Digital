@@ -1,8 +1,8 @@
 # PUENTE Windows → Linux (La Veinte Digital)
 
 ## ESTADO ACTUAL (2026-08-23): el stack TTS/música YA FUNCIONA en Linux — el puente es OPCIONAL
-- ✅ Chatterbox LatAm operativo en RTX 3060 (venv en `data/tts/venv`, torch 2.6.0+cu126).
-- ✅ `t3_es_mx_latam.safetensors` descargado de HuggingFace (`ResembleAI/Chatterbox-Multilingual-es-mx-latam`).
+- ✅ Qwen Base (clon de voz) operativo en RTX 3060 (venv en `.venv-qwen-voice-design`, torch con CUDA).
+- ✅ Modelo Qwen3-TTS-12Hz-1.7B-Base descargado de HuggingFace (`Qwen/Qwen3-TTS-12Hz-1.7B-Base`).
 - ✅ ACE-Step 1.5 con código oficial + pesos re-descargados; API genera música OK.
 - ✅ SSH server activo en esta máquina (192.168.1.126, usuario `chronos`).
 - El puente SOLO queda para rescatar activos editoriales únicos de Windows: masters, previews, jobs, benchmarks, casting.
@@ -18,8 +18,7 @@ Transferir de Windows a Linux SOLO lo que no se puede regenerar fácilmente o qu
 
 ### A. Modelos TTS/voz — YA NO NECESARIO (re-descargados de HF)
 ```
-data\tts\models\              → modelos locales (t3_es_mx_latam.safetensors, etc.)
-%USERPROFILE%\.cache\huggingface\hub\models--resembleai--chatterbox*   → si existe
+data\tts\models\              → modelos locales (qwen-tts-base, qwen-voice-design, etc.)
 tools\piper\**\*.onnx + *.json (SOLO voces ONNX: es_MX-claude-high, es_MX-ald-medium,
                                 es_ES-davefx-medium, es_AR-daniela-high)
 ```

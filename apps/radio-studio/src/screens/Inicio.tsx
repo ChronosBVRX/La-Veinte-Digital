@@ -1,85 +1,85 @@
-import { useState } from "react";
-import type { StudioStatus } from "../lib/studio-api";
+import { useEffect, useState } from "react";
+import { listProjects } from "../lib/studio-api";
+import type { Project } from "@la-veinte/studio-contract";
 
-interface Props {
-  status: StudioStatus | null;
-  onCrear: (tema: string) => void;
+const STATE_LABELS: Record<string, string> = {
+  DRAFT: "Borrador",
+  RESEARCHING: "Investigando…",
+  RESEARCHED: "Fuentes listas",
+  PROPOSAL_READY: "Propuesta lista",
+  PROPOSAL_APPROVED: "Propuesta aprobada",
+  SCRIPT_GENERATING: "Escribiendo guion…",
+  SCRIPT_READY: "Guion listo",
+  SCRIPT_APPROVED: "Guion aprobado",
+  PRODUCING: "Generando audio…",
+  NEEDS_REVIEW: "Guion por revisar",
+  MASTERING: "Mezclando…",
+  DONE: "Listo",
+  FAILED: "No disponible",
+};
+
+function titleOf(p: Project): string {
+  return p.titulo || p.topic;
 }
 
-export function Inicio({ status, onCrear }: Props) {
-  const motor = status?.motor;
+function fecha(p: Project): string {
+  const d = new Date(p.updatedAt ?? p.createdAt);
+  return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
+}
+
+export function Inicio({ onCrear, onOpen }: { onCrear: (tema: string) => void; onOpen: (id: string) => void }) {
   const [tema, setTema] = useState("");
-  const temas = ["Cláusula 97", "Accidente de trabajo: ST-7", "Tiempo extraordinario en el IMSS", "¿Me pueden cambiar el horario?", "Faltas, retardos y biométrico", "Bolsa de Trabajo para sustitutos"];
-  const listo = !!status;
-  const corpus = status?.corpus;
-  const disponibles = corpus?.disponibles ?? 0;
-  const bloqueadas = corpus?.bloqueadas ?? 0;
+  const [recent, setRecent] = useState<Project[]>([]);
+  const sugerencias = ["¿Qué pasa si me cambian de horario?", "Cómo solicitar vacaciones", "Accidente de trabajo: ST-7", "Tiempo extraordinario en el IMSS"];
+
+  useEffect(() => {
+    void listProjects().then((ps) => setRecent(ps.slice(0, 6)));
+  }, []);
 
   return (
     <div className="screen">
       <div className="home-hero">
         <div>
-          <h1>Crear un episodio de podcast</h1>
-          <p className="muted">Escribe un tema laboral, revisa el guion y genera el audio final con voces, música breve y fuentes verificadas.</p>
+          <div className="brand-title" style={{ fontSize: 20, marginBottom: 2 }}>LA VEINTE RADIO</div>
+          <h1>¿Qué episodio quieres crear?</h1>
+          <p className="muted">Escribe un tema laboral. Yo investigo nuestras bibliotecas, te digo qué puedo demostrar y qué no, y preparo el programa.</p>
         </div>
-        <div className={`ready-pill ${listo ? "ok" : "warn"}`}>{listo ? "Listo" : "Preparando"}</div>
+        <div className="ready-pill ok">Listo para trabajar</div>
       </div>
 
       <section className="card start-card">
         <label className="field">
           <span>Tema del episodio</span>
-          <input value={tema} onChange={(e) => setTema(e.target.value)} placeholder="Ej. Cláusula 97, accidente de trabajo, tiempo extra..." />
+          <input value={tema} onChange={(e) => setTema(e.target.value)} placeholder="Ej. ¿Qué pasa si me cambian de horario sin avisarme?" autoFocus />
         </label>
         <button className="btn-primary btn-main-action" onClick={() => onCrear(tema.trim())} disabled={!tema.trim()}>
-          EMPEZAR EPISODIO
+          INVESTIGAR Y PREPARAR EPISODIO
         </button>
         <div className="quick-topics">
-          <span className="muted">O elige un tema:</span>
-          {temas.map((t) => (
-            <button key={t} className="chip" onClick={() => onCrear(t)}>{t}</button>
-          ))}
+          <span className="muted">O prueba:</span>
+          {sugerencias.map((s) => <button key={s} className="chip" onClick={() => onCrear(s)}>{s}</button>)}
         </div>
       </section>
 
-      <div className="step-strip">
-        <section className="step-card">
-          <span className="step-num">1</span>
-          <div>
-            <h2>Guion</h2>
-            <p className="muted small">DeepSeek investiga y arma la conversación.</p>
+      <section>
+        <div className="scene-title" style={{ margin: "18px 0 10px" }}>Episodios recientes</div>
+        {recent.length === 0 ? (
+          <div className="muted small">Todavía no tienes episodios. Escribe un tema arriba y comienza.</div>
+        ) : (
+          <div className="step-strip" style={{ flexDirection: "column", gap: 10 }}>
+            {recent.map((p) => (
+              <section key={p.id} className="card" style={{ padding: 14 }}>
+                <div className="row" style={{ justifyContent: "space-between", width: "100%" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700 }}>{titleOf(p)}</div>
+                    <div className="muted small">{STATE_LABELS[p.state] ?? p.state} · {fecha(p)}</div>
+                    {p.proposal && <div className="muted small">~{p.proposal.duracionEstimadaMin} min</div>}
+                  </div>
+                  <button className="btn-secondary" onClick={() => onOpen(p.id)}>CONTINUAR</button>
+                </div>
+              </section>
+            ))}
           </div>
-        </section>
-
-        <section className="step-card">
-          <span className="step-num">2</span>
-          <div>
-            <h2>Revisión</h2>
-            <p className="muted small">Puedes editar textos, voces y comerciales.</p>
-          </div>
-        </section>
-
-        <section className="step-card">
-          <span className="step-num">3</span>
-          <div>
-            <h2>Audio final</h2>
-            <p className="muted small">La app genera voces y mezcla el master.</p>
-          </div>
-        </section>
-      </div>
-
-      <section className="card quiet-card">
-        <h2>Estado del estudio</h2>
-        <div className="status-row">
-          <span className={`status-dot ${listo ? "ok" : "warn"}`} />
-          <span>{listo ? "Motor local conectado" : "El motor local está iniciando"}</span>
-          <span className="muted">Voz: {motor?.provider === "qwen-base-clone" ? "Qwen Base clone" : motor?.provider ?? "pendiente"}</span>
-          <span className="muted">Documentos listos: {listo ? `${disponibles}/${corpus?.documentos ?? 0}` : "..."}</span>
-          {bloqueadas > 0 && <span className="muted">Bloqueados por portal oficial: {bloqueadas}</span>}
-        </div>
-        {bloqueadas > 0 && (
-          <p className="muted small">
-            La app ya usa los documentos verificados. Algunos PDFs oficiales del IMSS no se pudieron bajar automáticamente porque el portal rechazó la descarga; puedes seguir creando borradores, pero esos temas quedan marcados como pendientes hasta cargar la fuente.
-          </p>
         )}
       </section>
     </div>

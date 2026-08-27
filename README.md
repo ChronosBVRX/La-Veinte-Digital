@@ -156,7 +156,7 @@ la-veinte-digital/
 │   └── radio-studio/               # App Tauri de producción de podcasts
 ├── packages/
 │   ├── radio-core/                 # Director, QA editorial, timeline
-│   └── tts-core/                   # Chatterbox local, chunker, caché, fallback
+│   └── tts-core/                   # Qwen Base clone local, chunker, caché, fallback
 ├── tools/
 │   └── ACE-Step-1.5/               # Motor local de música
 ├── eslint.config.mjs               # ESLint flat config

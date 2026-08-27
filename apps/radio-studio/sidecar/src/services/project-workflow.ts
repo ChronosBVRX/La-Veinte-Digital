@@ -150,9 +150,10 @@ export class ProjectWorkflowService {
 
     const base = deterministicProposal(project, research, hasLegal);
     let proposal: Proposal = base;
-    try {
-      const available = await this.llm.isAvailable();
-      if (!available) throw new Error("LOCAL_LLM_UNAVAILABLE");
+    if (project.config.modo === "ia") {
+      try {
+        const available = await this.llm.isAvailable();
+        if (!available) throw new Error("LOCAL_LLM_UNAVAILABLE");
       const analysis = await this.llm.analyzeTopic(project.topic, claimsFlat(research.claims));
       const evaluation = await this.llm.evaluateEvidence(project.topic, claimsFlat(research.claims));
       const partial = await this.llm.createProposal({
@@ -182,9 +183,13 @@ export class ProjectWorkflowService {
         publicable: partial.publicable ?? base.publicable,
         decisionRationale: [...base.decisionRationale, "propuesta generada por el motor local"],
       };
-    } catch (e) {
+      } catch (e) {
+        proposal = base;
+        proposal.decisionRationale.push(`propuesta determinista (${e instanceof Error ? e.message : "motor local no disponible"})`);
+      }
+    } else {
       proposal = base;
-      proposal.decisionRationale.push(`propuesta determinista (${e instanceof Error ? e.message : "motor local no disponible"})`);
+      proposal.decisionRationale.push("propuesta determinista (modo determinista)");
     }
     proposal.topic = project.topic;
     proposal.createdAt = new Date().toISOString();

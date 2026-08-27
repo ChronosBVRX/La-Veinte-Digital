@@ -1006,3 +1006,16 @@ h2 { font-size: 16px; margin: 0 0 10px; }
   display: flex; flex-direction: column; gap: 3px;
   min-width: 220px;
 }
+
+/* ═══ Flujo simple (proposal-first) ═══ */
+.step-card { transition: border-color .18s, background .18s; }
+.step-card.active { border-color: var(--primary); background: rgba(59,130,246,.08); }
+.step-card.done { border-color: rgba(34,197,94,.5); }
+.step-card.active .step-num, .step-card.done .step-num { color: var(--primary-fg); background: var(--primary); }
+.stat-mini { display: flex; flex-direction: column; align-items: center; padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; min-width: 84px; }
+.stat-mini .big { font-size: 22px; font-weight: 800; }
+.tag-fmt { color: #93c5fd; border-color: rgba(59,130,246,.4); }
+.tag-fmt::before { content: "▸ "; }
+.coverage.ok .bar-fill, .bar-fill.green { background: #22c55e; }
+.row.mt { margin-top: 14px; }
+.audio-master { background: rgba(16,185,129,.12); border: 1px solid rgba(34,197,94,.35); border-radius: 10px; padding: 12px; margin-top: 12px; }
