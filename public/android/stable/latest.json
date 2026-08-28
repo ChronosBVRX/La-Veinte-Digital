@@ -4,10 +4,10 @@
   "versionName": "1.0.90",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-28T03:35:00Z",
+  "publishedAt": "2026-08-28T05:28:00Z",
   "apk": {
-    "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "2e1821c33272f2bda3fce21c5b604374d5d3d05319cec18072fb721526d9c976",
+    "url": "https://ragktminwduiggvaoeix.supabase.co/storage/v1/object/public/android-releases/stable/1.0.90/LaVeinteDigital-1.0.90.apk",
+    "sha256": "76a3a849a4e7d501c9aeca84a97403f9f63cf682e7741d6bb11ce4278f13723a",
     "size": 24015620
   },
   "releaseNotes": [
