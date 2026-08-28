@@ -46,19 +46,22 @@ describe("waitForLaVeinteNativeBridge", () => {
   })
 
   it("resolves native+ready when the native-ready event fires", async () => {
-    let onReady: (() => void) | null = null
+    let onReady: (() => void) | undefined
+    let dispatchReady: (() => void) | undefined
     const restore = setup({
       addEventListener: (evt, cb) => {
-        if (evt === NATIVE_READY_EVENT) onReady = cb
+        if (evt === NATIVE_READY_EVENT) onReady = cb as () => void
       },
       removeEventListener: () => {},
     })
     try {
+      dispatchReady = () => {
+        ;(globalThis as unknown as { window: FakeWin }).window.LaVeinteApp = { __isInjected: true }
+        onReady?.()
+      }
       const promise = waitForLaVeinteNativeBridge(200)
-      // simulate Android injecting the bridge shortly after
       await new Promise((r) => setTimeout(r, 20))
-      ;(globalThis as unknown as { window: FakeWin }).window.LaVeinteApp = { __isInjected: true }
-      onReady?.()
+      dispatchReady()
       expect(await promise).toEqual({ isNative: true, ready: true, timedOut: false })
     } finally {
       restore()

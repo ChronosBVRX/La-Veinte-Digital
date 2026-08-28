@@ -87,23 +87,32 @@ export function PrintSendPanel() {
         return
       }
       setPermanentlyDenied(false)
-      startScanner(attempt)
+      // 6. only now start the scanner.
+      const scanner = new Html5Qrcode("print-qr-reader", false)
+      scannerRef.current = scanner
+
+      scanner
+        .start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 220, height: 320 } },
+          onQr,
+          () => {},
+        )
+        .then(() => {
+          if (!cancelled) {
+            setStatus("scanning")
+            console.log("PRINT_FLOW scanner_started")
+          }
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) {
+            setStatus("error")
+            setMessage(describeScannerError(error, ctx))
+          }
+        })
     }
 
-    run()
-
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attempt])
-
-  const startScanner = (attemptIdx: number) => {
-    handledRef.current = false
-    const scanner = new Html5Qrcode("print-qr-reader", false)
-    scannerRef.current = scanner
-
-    const onSuccess = async (decodedText: string) => {
+    const onQr = async (decodedText: string) => {
       if (handledRef.current) return
       const token = extractTransferToken(decodedText)
       if (!token) {
@@ -140,24 +149,14 @@ export function PrintSendPanel() {
       }
     }
 
-    scanner
-      .start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 220, height: 320 } },
-        onSuccess,
-        () => {},
-      )
-      .then(() => {
-        if (attemptIdx === attempt) setStatus("scanning")
-        console.log("PRINT_FLOW scanner_started")
-      })
-      .catch((error: unknown) => {
-        if (attemptIdx === attempt) {
-          setStatus("error")
-          setMessage(describeScannerError(error, ctx))
-        }
-      })
-  }
+    run()
+
+    return () => {
+      cancelled = true
+      scannerRef.current?.stop().then(() => scannerRef.current?.clear()).catch(() => {})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attempt])
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>

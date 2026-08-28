@@ -11,7 +11,6 @@ export interface ScannerErrorContext {
  */
 export function describeScannerError(err: unknown, ctx: ScannerErrorContext): string {
   const name = err instanceof Error ? err.name : "unknown"
-  // eslint-disable-next-line no-console
   console.error(
     "PRINT_FLOW scanner_error",
     "name=", name,

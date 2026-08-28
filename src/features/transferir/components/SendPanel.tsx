@@ -42,7 +42,7 @@ export function SendPanel() {
   const [message, setMessage] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [permanentlyDenied, setPermanentlyDenied] = useState(false)
-  const [ctx, setCtx] = useState<ScannerErrorContext>({ bridgeReady: false, nativeShell: false })
+  const ctxRef = useRef<ScannerErrorContext>({ bridgeReady: false, nativeShell: false })
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const handledRef = useRef(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -82,7 +82,7 @@ export function SendPanel() {
         .catch((error: unknown) => {
           if (!cancelled) {
             setStatus("error")
-            setMessage(describeScannerError(error, ctx))
+            setMessage(describeScannerError(error, ctxRef.current))
           }
         })
 
@@ -90,7 +90,7 @@ export function SendPanel() {
       // Wait for the native bridge — never treat a temporarily-absent bridge as browser.
       const bridge = await waitForLaVeinteNativeBridge()
       if (cancelled) return
-      setCtx({ bridgeReady: bridge.ready, nativeShell: bridge.isNative })
+      ctxRef.current = { bridgeReady: bridge.ready, nativeShell: bridge.isNative }
       // Gate camera permission BEFORE getUserMedia so the OS prompt is answered first.
       const gate = await requestCameraGate()
       if (cancelled) return
