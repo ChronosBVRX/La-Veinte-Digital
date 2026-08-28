@@ -4,10 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Html5Qrcode } from "html5-qrcode"
 import {
   ArrowsClockwise,
+  Camera,
   Image as ImageIcon,
+  GearSix,
   WarningCircle,
 } from "@phosphor-icons/react"
 import { Button } from "@/shared/components/ui/Button"
+import { extractUploadUrl } from "@/features/transferir/lib/transfer"
+import { requestCameraGate } from "./camera"
 
 const STEP_STYLE: React.CSSProperties = {
   display: "flex",
@@ -30,38 +34,11 @@ const STEP_NUM: React.CSSProperties = {
   marginTop: 1,
 }
 
-/**
- * Official hosts that a transfer QR URL may come from. We do NOT trust the current page origin
- * blindly: `www`, the main domain and any Vercel-preview alias are the only acceptable hosts, so
- * a pasted/forged QR pointing to an arbitrary origin is rejected.
- */
-const ALLOWED_TRANSFER_HOSTS = [
-  "la-veinte-digital.vercel.app",
-  "laveinte-digital.vercel.app",
-  "la-veinte-digital.pages.dev",
-  "la20.com.mx",
-  "www.la20.com.mx",
-]
-
-function extractUploadUrl(text: string): string | null {
-  try {
-    const url = new URL(text)
-    if (!ALLOWED_TRANSFER_HOSTS.includes(url.hostname)) {
-      return null
-    }
-    if (url.pathname !== "/transfer") return null
-    const token = url.searchParams.get("t")
-    if (!token) return null
-    return `${url.origin}/transfer?t=${encodeURIComponent(token)}`
-  } catch {
-    return null
-  }
-}
-
 export function SendPanel() {
-  const [status, setStatus] = useState<"starting" | "scanning" | "error">("starting")
+  const [status, setStatus] = useState<"starting" | "scanning" | "denied" | "error">("starting")
   const [message, setMessage] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
+  const [permanentlyDenied, setPermanentlyDenied] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const handledRef = useRef(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -83,37 +60,40 @@ export function SendPanel() {
         return
       }
       handledRef.current = true
+      console.log("PRINT_FLOW qr_valid")
       window.location.assign(target)
     }
 
-    // In the native app, ask for camera permission deterministically before getUserMedia runs.
-    // The WebView's onPermissionRequest stays as a fallback.
-    if (typeof window !== "undefined" && window.LaVeinteApp?.requestCameraPermission) {
-      try {
-        window.LaVeinteApp.requestCameraPermission()
-      } catch {
-        /* ignore — WebView fallback handles it */
-      }
-    }
+    const startScanner = () =>
+      scanner
+        .start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 220, height: 220 } },
+          onSuccess,
+          () => {},
+        )
+        .then(() => {
+          if (!cancelled) setStatus("scanning")
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setStatus("error")
+            setMessage(
+              "No se pudo acceder a la cámara. Permite el acceso o usa un dispositivo con cámara.",
+            )
+          }
+        })
 
-    scanner
-      .start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 220, height: 220 } },
-        onSuccess,
-        () => {},
-      )
-      .then(() => {
-        if (!cancelled) setStatus("scanning")
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setStatus("error")
-          setMessage(
-            "No se pudo acceder a la cámara. Permite el acceso o usa un dispositivo con cámara.",
-          )
-        }
-      })
+    // Gate camera permission BEFORE calling getUserMedia so the OS prompt is answered first.
+    requestCameraGate().then((gate) => {
+      if (cancelled) return
+      if (!gate.granted) {
+        setPermanentlyDenied(gate.permanentlyDenied)
+        setStatus("denied")
+        return
+      }
+      startScanner()
+    })
 
     return () => {
       cancelled = true
@@ -192,6 +172,47 @@ export function SendPanel() {
           </div>
         )}
       </div>
+
+      {status === "denied" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
+              background: "var(--state-error-bg)",
+              color: "var(--error)",
+            }}
+          >
+            <Camera size={24} />
+          </div>
+          <p style={{ color: "var(--muted)", fontSize: "0.8125rem", margin: 0, textAlign: "center" }}>
+            Necesitamos acceso a la cámara para escanear el código.
+          </p>
+          {permanentlyDenied ? (
+            <p style={{ color: "var(--muted)", fontSize: "0.75rem", margin: 0, textAlign: "center" }}>
+              Lo denegaste permanentemente. Actívala desde Ajustes del dispositivo.
+            </p>
+          ) : null}
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => {
+              if (permanentlyDenied) {
+                window.LaVeinteApp?.openAppSettings?.()
+                return
+              }
+              setAttempt((a) => a + 1)
+            }}
+          >
+            <GearSix size={14} />
+            {permanentlyDenied ? "Abrir ajustes" : "Permitir cámara"}
+          </Button>
+        </div>
+      )}
 
       {status === "error" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "center" }}>

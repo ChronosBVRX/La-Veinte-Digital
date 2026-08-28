@@ -94,29 +94,77 @@ fun InternalWebScreen(
     val enrollmentDone by BiometricPreferences.isEnabled(context).collectAsState(false)
 
     // Set up bridge handlers (reliable JS injection, no addJavascriptInterface)
+    var pendingCameraReq by remember { mutableStateOf<String?>(null) }
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
-    ) { /* camera grant result consumed by the WebView's onPermissionRequest fallback */ }
+    ) { granted ->
+        val req = pendingCameraReq
+        pendingCameraReq = null
+        if (req != null && webView != null) {
+            val payload = JSONObject().put("granted", granted).toString()
+            webView?.post { webView?.evaluateJavascript("window.__laveinteBridgeResult('$req', '$payload')", null) }
+        }
+    }
+    val cameraPermissionResolver = remember {
+        object : (WebView?, String) -> Unit {
+            override fun invoke(wv: WebView?, req: String) {
+                val state = PermissionCoordinator.cameraState(activity)
+                when (state) {
+                    PermissionCoordinator.CameraState.GRANTED -> {
+                        android.util.Log.i("PRINT_FLOW", "camera_permission=granted")
+                        val payload = JSONObject().put("granted", true).toString()
+                        wv?.post { wv.evaluateJavascript("window.__laveinteBridgeResult('$req', '$payload')", null) }
+                    }
+                    PermissionCoordinator.CameraState.PERMANENTLY_DENIED -> {
+                        android.util.Log.i("PRINT_FLOW", "camera_permission=permanently_denied")
+                        val payload = JSONObject().put("granted", false).put("permanentlyDenied", true).toString()
+                        wv?.post { wv.evaluateJavascript("window.__laveinteBridgeResult('$req', '$payload')", null) }
+                        // The web shows an "Abrir ajustes" path; do not auto-open Settings here so the
+                        // user stays on the scanner screen and can decide.
+                    }
+                    PermissionCoordinator.CameraState.SHOW_REQUEST -> {
+                        android.util.Log.i("PRINT_FLOW", "camera_permission=show_request")
+                        PermissionCoordinator.markCameraAsked(activity)
+                        pendingCameraReq = req
+                        // Launch always on main thread; result is delivered via the launcher above.
+                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    }
+                }
+            }
+        }
+    }
+
+    val internalOrigin = remember(initialUrl) { laveinteOrigin(initialUrl) }
+
+    // Pending "Imprimir" (send via QR): the native viewer stored the doc and popped back to this
+    // WebView. When the WebView exists and the pending generation has not been consumed, load the
+    // transfer send flow exactly once. No callback, no dependence on a live parent Composable.
+    LaunchedEffect(webView) {
+        val wv = webView ?: return@LaunchedEffect
+        android.util.Log.i("PRINT_FLOW", "internal_recreated")
+        val generation = com.laveintedigital.app.imss.payslips.NativeDocuments.PendingPrint.pendingGeneration()
+        if (generation < 0L) return@LaunchedEffect
+        if (com.laveintedigital.app.imss.payslips.NativeDocuments.PendingPrint.alreadyConsumed(generation)) {
+            return@LaunchedEffect
+        }
+        if (com.laveintedigital.app.imss.payslips.NativeDocuments.PendingPrint.get() == null) {
+            return@LaunchedEffect
+        }
+        com.laveintedigital.app.imss.payslips.NativeDocuments.PendingPrint.consume(generation)
+        android.util.Log.i("PRINT_FLOW", "loading_transfer=${internalOrigin}/transfer?print=1")
+        wv.post { wv.loadUrl("$internalOrigin/transfer?print=1") }
+    }
 
     DisposableEffect(Unit) {
         BridgeHandler.onOpenOfficialPayslips = { onOpenOfficialPayslips() }
         BridgeHandler.onCheckForUpdate = { UpdateTrigger.request() }
-        // Native "Imprimir" (send via QR): the native viewer stored the pending doc and popped back
-        // to this WebView; load the transfer send flow.
-        com.laveintedigital.app.imss.payslips.NativeDocuments.PendingPrint.navigator = { path ->
-            val origin = initialUrl.substringBeforeLast('/')
-            webView?.post { webView?.loadUrl("$origin$path") }
-        }
-        BridgeHandler.onRequestCameraPermission = {
-            PermissionCoordinator.requestCamera(activity) { perms ->
-                cameraPermissionLauncher.launch(perms[0])
-            }
-        }
         BridgeHandler.onRequestNotificationsPermission = {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                 PermissionCoordinator.requestNotificationsFromSettings(activity)
             }
         }
+        BridgeHandler.onOpenAppSettings = { PermissionCoordinator.openAppSettings(activity) }
+        BridgeHandler.onRequestCameraPermission = cameraPermissionResolver
         BridgeHandler.onListNativeDocuments = { wv, req ->
             scope.launch {
                 val payload = runCatching { com.laveintedigital.app.imss.payslips.NativeDocuments.list(context).toString() }
@@ -157,13 +205,13 @@ fun InternalWebScreen(
             showEnrollmentInvite = false
         }
         onDispose {
-            com.laveintedigital.app.imss.payslips.NativeDocuments.PendingPrint.navigator = null
             BridgeHandler.onOpenOfficialPayslips = null
             BridgeHandler.onCheckForUpdate = null
             BridgeHandler.onAuthenticated = null
             BridgeHandler.onLoggedOut = null
             BridgeHandler.onRequestCameraPermission = null
             BridgeHandler.onRequestNotificationsPermission = null
+            BridgeHandler.onOpenAppSettings = null
             BridgeHandler.onListNativeDocuments = null
             BridgeHandler.onReadNativeDocument = null
             BridgeHandler.onGetPendingPrintDoc = null
@@ -411,3 +459,26 @@ private fun String.toRuntimePermission(): String? =
         PermissionRequest.RESOURCE_AUDIO_CAPTURE -> Manifest.permission.RECORD_AUDIO
         else -> null
     }
+
+/**
+ * Builds the origin (scheme://authority) of an internal URL. Given
+ * `https://la-veinte-digital.vercel.app` this returns `https://la-veinte-digital.vercel.app`
+ * — `substringBeforeLast('/')` is NOT suitable because it corrupts a bare origin into `https:/`.
+ *
+ * Implemented with plain string parsing (no android.net.Uri) so it is deterministic and unit-testable
+ * on the JVM. Accepts URLs with or without a path.
+ */
+internal fun laveinteOrigin(rawUrl: String): String {
+    val trimmed = rawUrl.trim()
+    val noTrailing = trimmed.trimEnd('/')
+    // If there's a scheme:// prefix, take scheme + authority only.
+    val schemeMatch = Regex("^(https?|laveinte)://").find(noTrailing)
+    if (schemeMatch == null) {
+        // Already a bare host/authority, or a path-only input → return as is.
+        return noTrailing
+    }
+    val scheme = schemeMatch.value.removeSuffix("://")
+    val rest = noTrailing.substring(schemeMatch.range.last + 1)
+    val authority = rest.substringBefore('/')
+    return "$scheme://$authority"
+}

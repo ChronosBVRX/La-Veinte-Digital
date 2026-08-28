@@ -157,12 +157,14 @@ fun AppNavHost(
 }
 
 /**
- * Marks [path] as the document to send via QR and pops back to the internal WebView (which holds
- * the bridge navigator) so it can load /transfer?print=1 and let the user scan the PC's QR.
+ * Marks [path] as the document to send via QR and pops back to the internal WebView. The re-mounted
+ * `InternalWebScreen` observes [NativeDocuments.PendingPrint.pendingGeneration] and loads
+ * `/transfer?print=1` reactively, so no callback (and no live Composable) is required here.
  */
 private fun openInternalPrint(navController: NavHostController, path: String) {
-    // Keep only the Internal route on the stack so the WebView (and its navigator) is visible.
-    navController.popBackStack(NavRoute.Internal.route, inclusive = false)
+    // Store the pending document BEFORE navigating so it survives the WebView recomposition.
     NativeDocuments.PendingPrint.set(path)
-    NativeDocuments.PendingPrint.navigator?.invoke("/transfer?print=1")
+    android.util.Log.i("PRINT_FLOW", "selected=$path")
+    // Keep only the Internal route on the stack so the WebView is visible again.
+    navController.popBackStack(NavRoute.Internal.route, inclusive = false)
 }

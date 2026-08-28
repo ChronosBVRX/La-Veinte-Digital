@@ -44,7 +44,11 @@ object LaVeinteBridgeInjector {
     onLoggedOut: function() { window.location.href = 'laveinte://bridge/onLoggedOut'; },
     log: function(msg) { console.log('[LaVeinte] ' + msg); },
     requestCameraPermission: function() {
-      window.location.href = 'laveinte://bridge/requestCameraPermission';
+      return new Promise(function(resolve) {
+        var id = 'req' + (++__seq);
+        __pending[id] = function(p) { try { resolve(JSON.parse(p || '{"granted":false}')); } catch(e) { resolve({granted:false}); } };
+        window.location.href = 'laveinte://bridge/requestCameraPermission?req=' + id;
+      });
     },
     requestNotificationsPermission: function() {
       window.location.href = 'laveinte://bridge/requestNotificationsPermission';
@@ -72,6 +76,9 @@ object LaVeinteBridgeInjector {
     },
     clearPendingPrintDoc: function() {
       window.location.href = 'laveinte://bridge/clearPendingPrintDoc';
+    },
+    openAppSettings: function() {
+      window.location.href = 'laveinte://bridge/openAppSettings';
     }
   };
   window.dispatchEvent(new Event('laveinte:native-ready'));
@@ -96,7 +103,10 @@ fun handleBridgeUrl(url: String, webView: WebView?): Boolean {
         "/checkForUpdate" -> BridgeHandler.onCheckForUpdate?.invoke()
         "/onAuthenticated" -> BridgeHandler.onAuthenticated?.invoke()
         "/onLoggedOut" -> BridgeHandler.onLoggedOut?.invoke()
-        "/requestCameraPermission" -> BridgeHandler.onRequestCameraPermission?.invoke()
+        "/requestCameraPermission" -> {
+            val req = uri.getQueryParameter("req") ?: return true
+            BridgeHandler.onRequestCameraPermission?.invoke(webView, req)
+        }
         "/requestNotificationsPermission" -> BridgeHandler.onRequestNotificationsPermission?.invoke()
         "/listNativeDocuments" -> {
             val req = uri.getQueryParameter("req") ?: return true
@@ -114,6 +124,7 @@ fun handleBridgeUrl(url: String, webView: WebView?): Boolean {
         "/clearPendingPrintDoc" -> {
             com.laveintedigital.app.imss.payslips.NativeDocuments.PendingPrint.clear()
         }
+        "/openAppSettings" -> BridgeHandler.onOpenAppSettings?.invoke()
         "/hasImssCredentials" -> {
             val portalId = uri.getQueryParameter("portalId") ?: return true
             // Just consume, the JS side doesn't need the result
@@ -132,9 +143,10 @@ object BridgeHandler {
     var onCheckForUpdate: (() -> Unit)? = null
     var onAuthenticated: (() -> Unit)? = null
     var onLoggedOut: (() -> Unit)? = null
-    var onRequestCameraPermission: (() -> Unit)? = null
+    var onRequestCameraPermission: ((WebView?, String) -> Unit)? = null
     var onRequestNotificationsPermission: (() -> Unit)? = null
     var onListNativeDocuments: ((WebView?, String) -> Unit)? = null
     var onReadNativeDocument: ((WebView?, String, String) -> Unit)? = null
     var onGetPendingPrintDoc: ((WebView?, String) -> Unit)? = null
+    var onOpenAppSettings: (() -> Unit)? = null
 }

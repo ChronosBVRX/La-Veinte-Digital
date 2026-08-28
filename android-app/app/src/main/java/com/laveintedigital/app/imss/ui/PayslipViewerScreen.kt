@@ -26,7 +26,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -180,9 +179,6 @@ fun PayslipViewerScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { resetZoom() }) {
-                        Icon(Icons.Filled.Fullscreen, "Ajustar", tint = Color.White)
-                    }
                     IconButton(onClick = { sharePdf() }) {
                         Icon(Icons.Filled.Share, "Compartir", tint = Color.White)
                     }

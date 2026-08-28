@@ -2,44 +2,25 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Html5Qrcode } from "html5-qrcode"
-import { ArrowsClockwise, FileText, Printer, WarningCircle } from "@phosphor-icons/react"
+import { ArrowsClockwise, Camera, FileText, GearSix, Printer, WarningCircle } from "@phosphor-icons/react"
 import { Button } from "@/shared/components/ui/Button"
 import {
   readNativeDocumentAsFile,
   uploadTransferFile,
 } from "@/features/transferir/services/transfer"
-import { formatBytes } from "@/features/transferir/lib/transfer"
+import { requestCameraGate } from "./camera"
+import { extractTransferToken, formatBytes } from "@/features/transferir/lib/transfer"
 import type { TransferFileMeta } from "@/features/transferir/lib/transfer"
-
-const ALLOWED_TRANSFER_HOSTS = [
-  "la-veinte-digital.vercel.app",
-  "laveinte-digital.vercel.app",
-  "la-veinte-digital.pages.dev",
-  "la20.com.mx",
-  "www.la20.com.mx",
-]
-
-function extractUploadUrl(text: string): string | null {
-  try {
-    const url = new URL(text)
-    if (!ALLOWED_TRANSFER_HOSTS.includes(url.hostname)) return null
-    if (url.pathname !== "/transfer") return null
-    const token = url.searchParams.get("t")
-    if (!token) return null
-    return token
-  } catch {
-    return null
-  }
-}
 
 /**
  * "Enviar a imprimir" flow: shows the native doc to send, then scans the PC's transfer QR. Once a
  * valid token is detected, the pending native document is read and uploaded automatically.
  */
 export function PrintSendPanel() {
-  const [status, setStatus] = useState<"scanning" | "uploading" | "sent" | "error">("scanning")
+  const [status, setStatus] = useState<"scanning" | "permission" | "uploading" | "sent" | "error">("scanning")
   const [message, setMessage] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
+  const [permanentlyDenied, setPermanentlyDenied] = useState(false)
   const [doc, setDoc] = useState<{ name: string; localPath: string; fileSize: number } | null>(null)
   const [uploaded, setUploaded] = useState<TransferFileMeta[]>([])
   const scannerRef = useRef<Html5Qrcode | null>(null)
@@ -71,17 +52,9 @@ export function PrintSendPanel() {
     const scanner = new Html5Qrcode("print-qr-reader", false)
     scannerRef.current = scanner
 
-    if (typeof window !== "undefined" && window.LaVeinteApp?.requestCameraPermission) {
-      try {
-        window.LaVeinteApp.requestCameraPermission()
-      } catch {
-        /* fallback below */
-      }
-    }
-
     const onSuccess = async (decodedText: string) => {
       if (cancelled || handledRef.current) return
-      const token = extractUploadUrl(decodedText)
+      const token = extractTransferToken(decodedText)
       if (!token) {
         setMessage("Ese código no es válido. Escanea el código de 'Recibir' de la computadora.")
         return
@@ -109,28 +82,42 @@ export function PrintSendPanel() {
         window.LaVeinteApp?.clearPendingPrintDoc?.()
         setUploaded([meta])
         setStatus("sent")
+        console.log("PRINT_FLOW upload_success")
       } catch (e) {
         setStatus("error")
         setMessage(e instanceof Error ? e.message : "No se pudo enviar el documento.")
       }
     }
 
-    scanner
-      .start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 220, height: 220 } },
-        onSuccess,
-        () => {},
-      )
-      .then(() => {
-        if (!cancelled) setStatus("scanning")
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setStatus("error")
-          setMessage("No se pudo acceder a la cámara. Permite el acceso o usa otro dispositivo.")
-        }
-      })
+    const startScanner = () =>
+      scanner
+        .start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: { width: 220, height: 220 } },
+          onSuccess,
+          () => {},
+        )
+        .then(() => {
+          if (!cancelled) setStatus("scanning")
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setStatus("error")
+            setMessage("No se pudo acceder a la cámara. Permite el acceso o usa otro dispositivo.")
+          }
+        })
+
+    // Camera is gated BEFORE getUserMedia so the OS prompt is answered first.
+    requestCameraGate().then((gate) => {
+      if (cancelled) return
+      if (gate.granted) {
+        setPermanentlyDenied(false)
+        startScanner()
+      } else {
+        setPermanentlyDenied(gate.permanentlyDenied)
+        setStatus("permission")
+      }
+    })
 
     return () => {
       cancelled = true
@@ -229,6 +216,47 @@ export function PrintSendPanel() {
               Imprímelo desde la computadora.
             </p>
           </div>
+        </div>
+      )}
+
+      {status === "permission" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "center", padding: "1rem 0" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 48,
+              height: 48,
+              borderRadius: "50%",
+              background: "var(--state-error-bg)",
+              color: "var(--error)",
+            }}
+          >
+            <Camera size={24} />
+          </div>
+          <p style={{ color: "var(--muted)", fontSize: "0.8125rem", margin: 0, textAlign: "center" }}>
+            Necesitamos acceso a la cámara para escanear el código.
+          </p>
+          {permanentlyDenied && (
+            <p style={{ color: "var(--muted)", fontSize: "0.75rem", margin: 0, textAlign: "center" }}>
+              Lo denegaste permanentemente. Actívala desde Ajustes del dispositivo.
+            </p>
+          )}
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => {
+              if (permanentlyDenied) {
+                window.LaVeinteApp?.openAppSettings?.()
+                return
+              }
+              setAttempt((a) => a + 1)
+            }}
+          >
+            <GearSix size={14} />
+            {permanentlyDenied ? "Abrir ajustes" : "Permitir cámara"}
+          </Button>
         </div>
       )}
 

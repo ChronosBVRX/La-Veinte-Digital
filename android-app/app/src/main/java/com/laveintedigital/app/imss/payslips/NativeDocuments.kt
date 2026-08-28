@@ -72,25 +72,41 @@ object NativeDocuments {
     /**
      * The document the user asked to "Imprimir" (send via QR) — stored by the native viewer so the
      * web `/transfer?print=1` flow can auto-send exactly that file after scanning. It must be
-     * cleared once used. Kept in a process-wide holder; survives only while the app is alive.
+     * cleared only after a successful upload.
+     *
+     * This is a process-wide holder of *state*, NOT a callback. The `InternalWebScreen` observes it
+     * when it is (re)mounted and loads `/transfer?print=1` reactively, so there is no reliance on a
+     * Composable being alive at the moment the user taps "print".
+     *
+     * [generation] is a monotonically-increasing id so a freshly-mounted InternalWebScreen loads the
+     * transfer flow exactly once per "print" request (not on every recomposition).
      */
     object PendingPrint {
         @Volatile private var path: String? = null
+        @Volatile private var generation: Long = 0L
+        @Volatile private var lastConsumedGeneration: Long = -1L
 
-        /** Wired by InternalWebScreen so the native viewer can load /transfer?print=1. */
-        @Volatile var navigator: ((String) -> Unit)? = null
-
-        fun set(localPath: String) { path = localPath }
-        fun get(): String? = path
-        fun clear() { path = null }
-
-        /**
-         * Marks [localPath] as the document to send and asks the internal WebView to open the
-         * transfer send flow. Safe to call from any native screen.
-         */
-        fun setAndOpen(localPath: String, internalOrigin: String) {
+        /** Marks [localPath] as the document to send. Calling this bumps [generation]. */
+        fun set(localPath: String) {
             path = localPath
-            navigator?.invoke("$internalOrigin/transfer?print=1")
+            generation++
+            lastConsumedGeneration = -1L
+        }
+
+        fun get(): String? = path
+
+        /** Returns the pending generation if it has NOT been consumed yet. */
+        fun pendingGeneration(): Long = generation
+
+        /** Confirms [generation] was handled; prevents re-loading on recomposition. */
+        fun consume(generation: Long) { lastConsumedGeneration = generation }
+
+        fun alreadyConsumed(generation: Long): Boolean = generation == lastConsumedGeneration
+
+        /** Clears the pending document after a successful upload / explicit cancel. */
+        fun clear() {
+            path = null
+            generation++
         }
     }
 }
