@@ -1,16 +1,18 @@
 {
   "channel": "stable",
-  "versionCode": 190,
-  "versionName": "1.0.90",
+  "versionCode": 191,
+  "versionName": "1.0.91",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-28T05:28:00Z",
+  "publishedAt": "2026-08-28T10:40:00Z",
   "apk": {
-    "url": "https://ragktminwduiggvaoeix.supabase.co/storage/v1/object/public/android-releases/stable/1.0.90/LaVeinteDigital-1.0.90.apk",
-    "sha256": "76a3a849a4e7d501c9aeca84a97403f9f63cf682e7741d6bb11ce4278f13723a",
-    "size": 24015620
+    "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
+    "sha256": "2b597a483674b28983e124384393df62d1135b9a69aa948be0cb5b9cc5e2c994",
+    "size": 24048388
   },
   "releaseNotes": [
-    "Al escanear el QR para enviar un documento, la app ahora solicita el permiso de cámara en tiempo real y la cámara abre correctamente en Android"
+    "Enviar a imprimir: desde tus tarjetones y checadas guardados ahora puedes escanear el código QR de una computadora y enviar el documento directamente para imprimirlo",
+    "Al escanear el QR, la app muestra tus documentos guardados (sin buscar archivos manualmente) y pide el permiso de cámara de forma clara",
+    "Permiso de notificaciones solicitado al abrir la app (Android 13+)"
   ]
 }
