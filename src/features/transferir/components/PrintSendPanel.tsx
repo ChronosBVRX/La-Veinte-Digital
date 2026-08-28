@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Html5Qrcode } from "html5-qrcode"
 import { ArrowsClockwise, FileText, Printer, WarningCircle } from "@phosphor-icons/react"
 import { Button } from "@/shared/components/ui/Button"

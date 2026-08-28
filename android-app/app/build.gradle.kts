@@ -22,8 +22,8 @@ android {
         applicationId = "com.laveintedigital.app"
         minSdk = 29
         targetSdk = 35
-        versionCode = 190
-        versionName = "1.0.90"
+        versionCode = 191
+        versionName = "1.0.91"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }

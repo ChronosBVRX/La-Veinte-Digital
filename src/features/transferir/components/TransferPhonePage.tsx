@@ -26,16 +26,6 @@ function nativeSourceLabel(source: string): string {
   return source || "Documento"
 }
 
-function nativeDocToMeta(doc: NativeDocumentMeta): TransferFileMeta {
-  return {
-    id: `native-${doc.id}`,
-    name: doc.name,
-    contentType: doc.mimeType || "application/pdf",
-    sizeBytes: doc.fileSize,
-    createdAt: new Date(doc.downloadedAt).toISOString(),
-  }
-}
-
 export function TransferPhonePage({ token }: { token: string }) {
   const [nativeDocs, setNativeDocs] = useState<NativeDocumentMeta[] | null>(null)
   const [uploaded, setUploaded] = useState<TransferFileMeta[]>([])

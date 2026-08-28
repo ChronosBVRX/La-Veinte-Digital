@@ -18,6 +18,8 @@ object Domains {
         "laveinte-digital.vercel.app",
         "la-veinte-digital.pages.dev",
         "la-veinte-digital.localhost",
+        "la20.com.mx",
+        "www.la20.com.mx",
     )
 
     // Hosts whose pages we want to display inside the La Veinte integrated external browser
