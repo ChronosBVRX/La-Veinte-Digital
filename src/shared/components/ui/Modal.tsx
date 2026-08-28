@@ -114,10 +114,13 @@ export function Modal({
           zIndex: 1000,
           background: "rgba(0,0,0,0.4)",
           display: "flex",
-          alignItems: "center",
+          alignItems: "flex-start",
           justifyContent: "center",
-          padding: "1rem",
-        }}
+          padding: "max(1rem, 3dvh) 1rem",
+          overflowY: "auto",
+          overscrollBehavior: "contain",
+          WebkitOverflowScrolling: "touch" as unknown as string,
+        } as CSSProperties}
       >
         <div
           ref={dialogRef}
@@ -132,10 +135,12 @@ export function Modal({
             boxShadow: "var(--shadow-lg)",
             width: "100%",
             maxWidth: sizeMap[size],
-            maxHeight: "90dvh",
+            maxHeight: "min(90dvh, calc(100dvh - 2rem))",
             overflow: "auto",
             display: "flex",
             flexDirection: "column",
+            margin: "auto",
+            flexShrink: 0,
             ...style,
           }}
         >
@@ -213,14 +218,16 @@ export function Modal({
       <style>{`
         @media (max-width: 768px) {
           .ui-modal-overlay {
-            align-items: flex-end !important;
-            padding: 0 !important;
+            align-items: flex-start !important;
+            padding: max(1rem, 2dvh) 1rem max(1rem, env(safe-area-inset-bottom)) !important;
+            overflow-y: auto !important;
           }
           .ui-modal-dialog {
-            border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
-            max-height: 85dvh !important;
-            padding-bottom: env(safe-area-inset-bottom) !important;
-            animation: slideUp 0.25s ease forwards !important;
+            border-radius: var(--radius-lg) !important;
+            max-height: min(85dvh, calc(100dvh - 2rem)) !important;
+            margin: auto !important;
+            flex-shrink: 0 !important;
+            animation: scaleIn 0.2s ease forwards !important;
           }
         }
       `}</style>
