@@ -112,8 +112,16 @@ export async function routeProject(url: URL, req: import("node:http").IncomingMe
   if (action === "produce") {
     const project = await ctx.workflow.produce(id);
     if (ctx.startProduction && project.script) {
-      const started = await ctx.startProduction(id, project.script);
-      ctx.json(res, 202, { project, started });
+      try {
+        const started = await ctx.startProduction(id, project.script);
+        ctx.json(res, 202, { project, started });
+      } catch (e) {
+        if (/producción en curso|produccion en curso/i.test(e instanceof Error ? e.message : String(e))) {
+          ctx.json(res, 409, { error: "ya hay una producción en curso", project });
+          return true;
+        }
+        throw e;
+      }
       return true;
     }
     ctx.json(res, 202, project);
@@ -133,6 +141,8 @@ export function friendlyProjectError(e: unknown): { code: string; message: strin
     PROPOSAL_REQUIRED: { code: "UNKNOWN", userMessage: "Falta aprobar la propuesta antes de generar el guion." },
     LOCAL_LIBRARY_UNAVAILABLE: { code: "LOCAL_LIBRARY_UNAVAILABLE", userMessage: "No encuentro la biblioteca necesaria para investigar este tema." },
     LOCAL_LLM_UNAVAILABLE: { code: "MOTOR_UNAVAILABLE", userMessage: "El motor local no está disponible. Puedo armar la propuesta de forma simple por ahora." },
+    "producción en curso": { code: "UNKNOWN", userMessage: "Ya hay un episodio en producción. Espera a que termine o detén la producción actual." },
+    "produccion en curso": { code: "UNKNOWN", userMessage: "Ya hay un episodio en producción. Espera a que termine o detén la producción actual." },
   };
   for (const [k, v] of Object.entries(codeMap)) {
     if (msg.includes(k)) return { ...v, message: msg };

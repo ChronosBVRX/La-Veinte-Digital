@@ -121,6 +121,9 @@ let produccionEnCurso = false;
 // Flag global de cancelación: el worker en memoria lo respeta aunque otra
 // operación (eliminar/descartar/cancelar) use un objeto job distinto en disco.
 let cancelRequested = false;
+// Latido real del worker: si no hay loop vivo, un job RUNNING en disco no debe
+// contarse como "producción en curso" (evita 500 por trabajos obsoletos).
+let lastWorkerBeat = 0;
 
 function requestProductionCancel(): void { cancelRequested = true; }
 function clearProductionCancel(): void { cancelRequested = false; }
@@ -145,6 +148,7 @@ async function procesarProduccion(): Promise<void> {
       if (cancelRequested || job.cancelado) { clearProductionCancel(); return; }
       job.bloqueActual = i;
       guardarJob(job);
+      lastWorkerBeat = Date.now();
       let ultimoError: string | null = null;
       for (let intento = 0; intento < 4; intento++) {
         try {
@@ -157,6 +161,10 @@ async function procesarProduccion(): Promise<void> {
             modelRevision: b.modelRevision,
             seed,
           });
+          lastWorkerBeat = Date.now();
+          // Si llegó una cancelación mientras se generaba, NO persistir el bloque
+          // (evita dejar un job RUNNING fantasma tras un borrado).
+          if (cancelRequested || job.cancelado) { clearProductionCancel(); return; }
           if (r.ok && r.path) {
             b.estado = "generado";
             b.wavPath = r.path;
@@ -184,6 +192,7 @@ async function procesarProduccion(): Promise<void> {
     if (job) { job.estado = "FAILED"; job.notas.push(`worker: ${e instanceof Error ? e.message : String(e)}`); guardarJob(job); }
   } finally {
     produccionEnCurso = false;
+    lastWorkerBeat = 0;
   }
 }
 
@@ -191,8 +200,8 @@ let workerVivoCache: { at: number; v: boolean } = { at: 0, v: false };
 
 function workerVivo(): boolean {
   if (produccionEnCurso) return true;
-  const job = leerJob();
-  return !!job && job.estado === "RUNNING";
+  // Un job RUNNING en disco NO basta: debe haber un loop vivo y reciente.
+  return lastWorkerBeat > 0 && Date.now() - lastWorkerBeat < 60000;
 }
 
 function detenerWorkersProduccion(): void {
@@ -824,6 +833,7 @@ async function handleLlmUnload(res: http.ServerResponse) {
 async function handleCancel(res: http.ServerResponse) {
   const job = leerJob();
   if (!job) return json(res, 404, { error: "no hay trabajo" });
+  requestProductionCancel();
   job.cancelado = true;
   job.estado = "PAUSED";
   job.notas.push("cancelado por el usuario — RESUMABLE");
