@@ -311,7 +311,7 @@ function json(res: http.ServerResponse, code: number, body: unknown) {
   res.writeHead(code, {
     "Content-Type": "application/json; charset=utf-8",
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Max-Age": "86400",
     "Cache-Control": "no-store",
@@ -322,7 +322,7 @@ function json(res: http.ServerResponse, code: number, body: unknown) {
 function corsPreflight(res: http.ServerResponse) {
   res.writeHead(204, {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Max-Age": "86400",
     "Cache-Control": "no-store",
@@ -1875,6 +1875,7 @@ const server = http.createServer(async (req, res) => {
       commercials: commercialService,
       json,
       startProduction: startProjectProduction,
+      onDelete: deleteProjectCleanup,
     };
     if (await routeProject(url, req, res, pctx, () => readBody(req))) return;
     const cctx: CommercialRouteCtx = { commercials: commercialService, json };
@@ -1928,6 +1929,22 @@ async function startProjectProduction(id: string, script: StudioScript): Promise
   spawnWorker();
   projectLog(id, "production.started", { total: bloques.length });
   return { started: true, total: bloques.length };
+}
+
+/** Limpia el trabajo de producción del proyecto si se elimina desde la lista. */
+function deleteProjectCleanup(id: string): void {
+  const job = leerJob();
+  if (job && job.id === id) {
+    try {
+      job.estado = "PAUSED";
+      job.cancelado = true;
+      job.notas.push("proyecto eliminado");
+      guardarJob(job);
+      detenerWorkersProduccion();
+      eliminarAudioDeJob(job);
+      eliminarJob();
+    } catch { /* mejor esfuerzo */ }
+  }
 }
 
 /** SSE — progreso en tiempo real para el frontend. */

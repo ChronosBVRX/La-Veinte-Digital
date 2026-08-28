@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { listProjects } from "../lib/studio-api";
+import { listProjects, deleteProject } from "../lib/studio-api";
 import type { Project } from "@la-veinte/studio-contract";
 
 const STATE_LABELS: Record<string, string> = {
@@ -31,11 +31,30 @@ export function Inicio({ onCrear, onOpen }: { onCrear: (tema: string, comerciale
   const [tema, setTema] = useState("");
   const [comerciales, setComerciales] = useState(false);
   const [recent, setRecent] = useState<Project[]>([]);
+  const [eliminando, setEliminando] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const sugerencias = ["¿Qué pasa si me cambian de horario?", "Cómo solicitar vacaciones", "Accidente de trabajo: ST-7", "Tiempo extraordinario en el IMSS"];
 
+  const recargar = () => void listProjects().then((ps) => setRecent(ps.slice(0, 6)));
+
   useEffect(() => {
-    void listProjects().then((ps) => setRecent(ps.slice(0, 6)));
+    recargar();
   }, []);
+
+  const eliminar = async (p: Project) => {
+    const ok = window.confirm(`¿Eliminar el episodio "${titleOf(p)}"? Su borrador, guion y audio se quitarán.`);
+    if (!ok) return;
+    setEliminando(p.id);
+    setError(null);
+    try {
+      await deleteProject(p.id);
+      setRecent((prev) => prev.filter((x) => x.id !== p.id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo eliminar el episodio");
+    } finally {
+      setEliminando(null);
+    }
+  };
 
   return (
     <div className="screen">
@@ -68,19 +87,30 @@ export function Inicio({ onCrear, onOpen }: { onCrear: (tema: string, comerciale
 
       <section>
         <div className="scene-title" style={{ margin: "18px 0 10px" }}>Episodios recientes</div>
+        {error && <div className="error" style={{ marginBottom: 8 }}>{error}</div>}
         {recent.length === 0 ? (
           <div className="muted small">Todavía no tienes episodios. Escribe un tema arriba y comienza.</div>
         ) : (
           <div className="step-strip" style={{ flexDirection: "column", gap: 10 }}>
             {recent.map((p) => (
               <section key={p.id} className="card" style={{ padding: 14 }}>
-                <div className="row" style={{ justifyContent: "space-between", width: "100%" }}>
+                <div className="row" style={{ justifyContent: "space-between", width: "100%", gap: 10 }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 700 }}>{titleOf(p)}</div>
                     <div className="muted small">{STATE_LABELS[p.state] ?? p.state} · {fecha(p)}</div>
                     {p.proposal && <div className="muted small">~{p.proposal.duracionEstimadaMin} min</div>}
                   </div>
-                  <button className="btn-secondary" onClick={() => onOpen(p.id)}>CONTINUAR</button>
+                  <div className="row" style={{ gap: 8, flexShrink: 0 }}>
+                    <button className="btn-secondary" onClick={() => onOpen(p.id)}>CONTINUAR</button>
+                    <button
+                      className="btn-danger"
+                      disabled={eliminando === p.id}
+                      title="Eliminar este episodio"
+                      onClick={() => void eliminar(p)}
+                    >
+                      {eliminando === p.id ? "…" : "ELIMINAR"}
+                    </button>
+                  </div>
                 </div>
               </section>
             ))}

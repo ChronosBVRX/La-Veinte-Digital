@@ -20,6 +20,8 @@ export interface ProjectRouteCtx {
   json: (res: ServerResponse, code: number, body: unknown) => void;
   /** Dispara la cola de producción TTS real (implementada en index.ts). */
   startProduction?: (id: string, script: Script) => Promise<{ started: boolean; total: number }>;
+  /** Limpia un trabajo de producción activo asociado al proyecto (implementada en index.ts). */
+  onDelete?: (id: string) => void;
 }
 
 function parseId(raw: string): string {
@@ -43,6 +45,16 @@ export async function routeProject(url: URL, req: import("node:http").IncomingMe
     const project = ctx.store.get(id);
     if (!project) { ctx.json(res, 404, { error: "PROJECT_NOT_FOUND" }); return true; }
     ctx.json(res, 200, project);
+    return true;
+  }
+
+  if (method === "DELETE" && segments.length === 2 && id) {
+    const project = ctx.store.get(id);
+    if (!project) { ctx.json(res, 404, { error: "PROJECT_NOT_FOUND" }); return true; }
+    // limpiar un trabajo de producción activo de este proyecto antes de borrar el disco
+    try { ctx.onDelete?.(id); } catch { /* mejor esfuerzo */ }
+    ctx.store.delete(id);
+    ctx.json(res, 200, { deleted: true, id });
     return true;
   }
 

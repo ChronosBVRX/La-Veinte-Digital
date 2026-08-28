@@ -615,6 +615,22 @@ export async function getProject(id: string): Promise<Project | null> {
   }
 }
 
+async function del<T>(path: string, timeoutMs = 6000): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${SIDECAR_URL}${path}`, { method: "DELETE", signal: controller.signal });
+    if (!res.ok) throw await parseError(res);
+    return (await res.json()) as T;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function deleteProject(id: string): Promise<{ deleted: boolean; id: string }> {
+  return del<{ deleted: boolean; id: string }>(`/projects/${id}`);
+}
+
 export async function projectResearch(id: string): Promise<{ project: Project; research: ResearchBundle }> {
   return post<{ project: Project; research: ResearchBundle }>(`/projects/${id}/research`, {}, 90000, 3);
 }
