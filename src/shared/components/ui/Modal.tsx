@@ -112,12 +112,12 @@ export function Modal({
           position: "fixed",
           inset: 0,
           zIndex: 1000,
-          background: "rgba(0,0,0,0.4)",
+          background: "rgba(0,0,0,0.45)",
           display: "flex",
           alignItems: "flex-start",
           justifyContent: "center",
-          // PT < PB para sesgo visual ligeramente arriba del centro exacto
-          padding: "max(1rem, 2dvh) 1rem max(1.5rem, 5dvh) 1rem",
+          // PT < PB + margen inferior mayor para que no quede pegado abajo
+          padding: "max(1rem, 2.5dvh) 1rem max(2.5rem, 7dvh) 1rem",
           overflowY: "auto",
           overscrollBehavior: "contain",
           WebkitOverflowScrolling: "touch" as unknown as string,
@@ -136,14 +136,14 @@ export function Modal({
             boxShadow: "var(--shadow-lg)",
             width: "100%",
             maxWidth: sizeMap[size],
-            maxHeight: "min(86dvh, calc(100dvh - 3.5rem))",
+            maxHeight: "min(78dvh, calc(100dvh - 5rem))",
             overflow: "auto",
             display: "flex",
             flexDirection: "column",
             margin: "auto",
             flexShrink: 0,
-            // nudge visual ~1vh arriba del centro geométrico
-            transform: "translateY(-1vh)",
+            // sube 4vh para que no tape el borde inferior en tu captura
+            transform: "translateY(-4vh)",
             ...style,
           }}
         >
@@ -222,15 +222,15 @@ export function Modal({
         @media (max-width: 768px) {
           .ui-modal-overlay {
             align-items: flex-start !important;
-            padding: max(1rem, 2dvh) 1rem max(1rem, env(safe-area-inset-bottom)) !important;
+            padding: max(1rem, 2dvh) 1rem max(1.5rem, env(safe-area-inset-bottom)) !important;
             overflow-y: auto !important;
           }
           .ui-modal-dialog {
             border-radius: var(--radius-lg) !important;
-            max-height: min(86dvh, calc(100dvh - 3rem)) !important;
+            max-height: min(80dvh, calc(100dvh - 4rem)) !important;
             margin: auto !important;
             flex-shrink: 0 !important;
-            transform: translateY(0) !important;
+            transform: translateY(-1vh) !important;
             animation: scaleIn 0.2s ease forwards !important;
           }
         }
