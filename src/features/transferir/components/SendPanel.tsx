@@ -30,14 +30,29 @@ const STEP_NUM: React.CSSProperties = {
   marginTop: 1,
 }
 
+/**
+ * Official hosts that a transfer QR URL may come from. We do NOT trust the current page origin
+ * blindly: `www`, the main domain and any Vercel-preview alias are the only acceptable hosts, so
+ * a pasted/forged QR pointing to an arbitrary origin is rejected.
+ */
+const ALLOWED_TRANSFER_HOSTS = [
+  "la-veinte-digital.vercel.app",
+  "laveinte-digital.vercel.app",
+  "la-veinte-digital.pages.dev",
+  "la20.com.mx",
+  "www.la20.com.mx",
+]
+
 function extractUploadUrl(text: string): string | null {
   try {
     const url = new URL(text)
-    if (url.origin !== window.location.origin) return null
+    if (!ALLOWED_TRANSFER_HOSTS.includes(url.hostname)) {
+      return null
+    }
     if (url.pathname !== "/transfer") return null
     const token = url.searchParams.get("t")
     if (!token) return null
-    return `${window.location.origin}/transfer?t=${encodeURIComponent(token)}`
+    return `${url.origin}/transfer?t=${encodeURIComponent(token)}`
   } catch {
     return null
   }
@@ -69,6 +84,16 @@ export function SendPanel() {
       }
       handledRef.current = true
       window.location.assign(target)
+    }
+
+    // In the native app, ask for camera permission deterministically before getUserMedia runs.
+    // The WebView's onPermissionRequest stays as a fallback.
+    if (typeof window !== "undefined" && window.LaVeinteApp?.requestCameraPermission) {
+      try {
+        window.LaVeinteApp.requestCameraPermission()
+      } catch {
+        /* ignore — WebView fallback handles it */
+      }
     }
 
     scanner

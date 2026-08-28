@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.webkit.PermissionRequest
 import androidx.activity.ComponentActivity
 import androidx.core.content.ContextCompat
+import org.json.JSONObject
 import android.graphics.Color as AndroidColor
 import android.webkit.CookieManager
 import android.view.ViewGroup
@@ -62,6 +63,7 @@ import com.laveintedigital.app.security.AppLockManager
 import com.laveintedigital.app.security.BiometricKeyStore
 import com.laveintedigital.app.security.BiometricPreferences
 import com.laveintedigital.app.security.LaveinteBiometricManager
+import com.laveintedigital.app.security.PermissionCoordinator
 import com.laveintedigital.app.security.BiometricEnrollment
 import com.laveintedigital.app.ui.theme.BrandBlue
 import com.laveintedigital.app.ui.theme.BrandNavy
@@ -85,15 +87,62 @@ fun InternalWebScreen(
     var pendingFileCallback by remember { mutableStateOf<ValueCallback<Array<android.net.Uri>>?>(null) }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val activity = context as ComponentActivity
 
     // Enrollment state: show invitation dialog after web reports authenticated
     var showEnrollmentInvite by remember { mutableStateOf(false) }
     val enrollmentDone by BiometricPreferences.isEnabled(context).collectAsState(false)
 
     // Set up bridge handlers (reliable JS injection, no addJavascriptInterface)
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { /* camera grant result consumed by the WebView's onPermissionRequest fallback */ }
+
     DisposableEffect(Unit) {
         BridgeHandler.onOpenOfficialPayslips = { onOpenOfficialPayslips() }
         BridgeHandler.onCheckForUpdate = { UpdateTrigger.request() }
+        // Native "Imprimir" (send via QR): the native viewer stored the pending doc and popped back
+        // to this WebView; load the transfer send flow.
+        com.laveintedigital.app.imss.payslips.NativeDocuments.PendingPrint.navigator = { path ->
+            val origin = initialUrl.substringBeforeLast('/')
+            webView?.post { webView?.loadUrl("$origin$path") }
+        }
+        BridgeHandler.onRequestCameraPermission = {
+            PermissionCoordinator.requestCamera(activity) { perms ->
+                cameraPermissionLauncher.launch(perms[0])
+            }
+        }
+        BridgeHandler.onRequestNotificationsPermission = {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                PermissionCoordinator.requestNotificationsFromSettings(activity)
+            }
+        }
+        BridgeHandler.onListNativeDocuments = { wv, req ->
+            scope.launch {
+                val payload = runCatching { com.laveintedigital.app.imss.payslips.NativeDocuments.list(context).toString() }
+                    .getOrDefault("[]")
+                wv?.post { wv.evaluateJavascript("window.__laveinteBridgeResult('$req', '$payload')", null) }
+            }
+        }
+        BridgeHandler.onReadNativeDocument = { wv, req, path ->
+            scope.launch {
+                val payload = runCatching {
+                    val doc = com.laveintedigital.app.imss.payslips.NativeDocuments.read(context, path)
+                    doc?.toString() ?: "null"
+                }.getOrDefault("null")
+                wv?.post { wv.evaluateJavascript("window.__laveinteBridgeResult('$req', '$payload')", null) }
+            }
+        }
+        BridgeHandler.onGetPendingPrintDoc = { wv, req ->
+            scope.launch {
+                val payload = runCatching {
+                    val path = com.laveintedigital.app.imss.payslips.NativeDocuments.PendingPrint.get()
+                    if (path == null) "null"
+                    else JSONObject().put("localPath", path).toString()
+                }.getOrDefault("null")
+                wv?.post { wv.evaluateJavascript("window.__laveinteBridgeResult('$req', '$payload')", null) }
+            }
+        }
         BridgeHandler.onAuthenticated = {
             if (!enrollmentDone && LaveinteBiometricManager.canAuthenticateStrong(context)) {
                 showEnrollmentInvite = true
@@ -108,10 +157,16 @@ fun InternalWebScreen(
             showEnrollmentInvite = false
         }
         onDispose {
+            com.laveintedigital.app.imss.payslips.NativeDocuments.PendingPrint.navigator = null
             BridgeHandler.onOpenOfficialPayslips = null
             BridgeHandler.onCheckForUpdate = null
             BridgeHandler.onAuthenticated = null
             BridgeHandler.onLoggedOut = null
+            BridgeHandler.onRequestCameraPermission = null
+            BridgeHandler.onRequestNotificationsPermission = null
+            BridgeHandler.onListNativeDocuments = null
+            BridgeHandler.onReadNativeDocument = null
+            BridgeHandler.onGetPendingPrintDoc = null
         }
     }
 
@@ -180,7 +235,6 @@ fun InternalWebScreen(
     }
 
     // Back press: WebView history first, then let the system handle (exit / NavHost pop)
-    val activity = LocalContext.current as ComponentActivity
     DisposableEffect(activity) {
         val callback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {

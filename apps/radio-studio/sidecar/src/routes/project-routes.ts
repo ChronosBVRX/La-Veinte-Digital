@@ -98,7 +98,9 @@ export async function routeProject(url: URL, req: import("node:http").IncomingMe
     return true;
   }
   if (action === "script") {
-    const { project, script, verify } = await ctx.workflow.generateScript(id);
+    const body = await readBody();
+    const modo = body.modo === "ia" || body.modo === "determinista" ? body.modo : undefined;
+    const { project, script, verify } = await ctx.workflow.generateScript(id, modo);
     ctx.json(res, 200, { project, script, verify });
     return true;
   }

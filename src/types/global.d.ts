@@ -23,6 +23,28 @@ declare global {
     openOfficialPayslips(): void
     hasImssCredentials(portalId: string): boolean
     checkForUpdate(): void
+    requestCameraPermission(): void
+    requestNotificationsPermission(): void
+    listNativeDocuments(): Promise<NativeDocumentMeta[]>
+    readNativeDocument(localPath: string): Promise<NativeDocumentContent | null>
+    getPendingPrintDoc(): Promise<{ localPath: string } | null>
+    clearPendingPrintDoc(): void
+  }
+
+  interface NativeDocumentMeta {
+    id: number
+    name: string
+    localPath: string
+    source: string
+    fileSize: number
+    downloadedAt: number
+    mimeType: string
+  }
+
+  interface NativeDocumentContent {
+    name: string
+    mimeType: string
+    data: string
   }
 
   interface Window {

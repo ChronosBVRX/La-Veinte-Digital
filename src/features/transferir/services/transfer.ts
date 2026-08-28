@@ -167,6 +167,27 @@ function base64ToBlob(data: string, contentType: string): Blob {
   return new Blob([bytes], { type: contentType })
 }
 
+/**
+ * Reads a document saved natively by the app (tarjetón / checadas) and returns it as a File so it
+ * can be sent through the same transfer upload path. No-ops (returns null) outside the native app
+ * or when the file can't be read.
+ */
+export async function readNativeDocumentAsFile(
+  meta: { name: string; mimeType: string; localPath: string },
+): Promise<File | null> {
+  if (typeof window === "undefined" || !window.LaVeinteApp?.readNativeDocument) return null
+  try {
+    const content = await window.LaVeinteApp.readNativeDocument(meta.localPath)
+    if (!content?.data) return null
+    const blob = base64ToBlob(content.data, content.mimeType || meta.mimeType || "application/pdf")
+    return new File([blob], content.name || meta.name || "documento", {
+      type: content.mimeType || meta.mimeType || "application/pdf",
+    })
+  } catch {
+    return null
+  }
+}
+
 export function downloadTransferFile(file: TransferFile): void {
   const blob = base64ToBlob(file.data, file.contentType)
   const url = URL.createObjectURL(blob)

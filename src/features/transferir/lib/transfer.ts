@@ -31,6 +31,16 @@ export interface TransferFile extends TransferFileMeta {
   data: string
 }
 
+export interface NativeDocumentMeta {
+  id: number
+  name: string
+  localPath: string
+  source: string
+  fileSize: number
+  downloadedAt: number
+  mimeType: string
+}
+
 export function isAllowedType(mime: string): boolean {
   return (ALLOWED_CONTENT_TYPES as readonly string[]).includes(mime)
 }

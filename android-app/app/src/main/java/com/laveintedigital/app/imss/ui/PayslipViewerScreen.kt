@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -84,6 +85,7 @@ fun PayslipViewerScreen(
     filePath: String,
     title: String = "Tarjetón",
     onBack: () -> Unit,
+    onPrint: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val file = remember(filePath) { File(filePath) }
@@ -183,6 +185,9 @@ fun PayslipViewerScreen(
                     }
                     IconButton(onClick = { sharePdf() }) {
                         Icon(Icons.Filled.Share, "Compartir", tint = Color.White)
+                    }
+                    IconButton(onClick = { onPrint(filePath) }) {
+                        Icon(Icons.Filled.Print, "Enviar a imprimir", tint = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = BrandNavy, titleContentColor = Color.White, navigationIconContentColor = Color.White),

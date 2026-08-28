@@ -268,12 +268,13 @@ export class ProjectWorkflowService {
     return this.store.update(id, { state: "PROPOSAL_APPROVED" })!;
   }
 
-  async generateScript(id: string): Promise<{ project: Project; script: Script; verify: VerifyResult }> {
+  async generateScript(id: string, modoOverride?: "determinista" | "ia"): Promise<{ project: Project; script: Script; verify: VerifyResult }> {
     const project = this.store.get(id);
     if (!project) throw new Error("PROJECT_NOT_FOUND");
     const proposal = project.proposal;
     const research = this.store.readArtifact<ResearchBundle>(id, "research.json");
     if (!proposal || !research) throw new Error("PROPOSAL_OR_RESEARCH_REQUIRED");
+    const modo = modoOverride ?? project.config.modo;
     this.store.updateState(id, "SCRIPT_GENERATING");
 
     const claims = research.claims.map((c) => ({
@@ -297,7 +298,7 @@ export class ProjectWorkflowService {
     });
 
     let modoUsado = "determinista";
-    if (project.config.modo === "ia") {
+    if (modo === "ia") {
       try {
         const pack2 = buildEvidencePackV2(`p-${id}`, project.topic, claims, research.cutoff);
         const artifactsDir = this.store.artifactPaths(id).logsDir;

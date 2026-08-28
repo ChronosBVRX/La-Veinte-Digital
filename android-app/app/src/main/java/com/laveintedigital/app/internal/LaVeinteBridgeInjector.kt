@@ -4,23 +4,28 @@ import android.net.Uri
 import android.webkit.WebView
 
 /**
- * Injects JavaScript that creates window.LaVeinteApp directly in the page.
- * This is more reliable than addJavascriptInterface across Android versions.
+ * JS object injected as `window.LaVeinteApp`. Native→web replies are delivered by calling
+ * `window.__laveinteBridgeResult(reqId, jsonString)` from the native side via evaluateJavascript.
  *
- * Methods communicate back to native via custom URL scheme interception:
- * laveinte://bridge/openOfficialPayslips
- * laveinte://bridge/checkForUpdate
- * laveinte://bridge/hasImssCredentials?portalId=...
- * laveinte://bridge/onAuthenticated
- * laveinte://bridge/onLoggedOut
+ * A small request/response registry lets JS await a native round-trip (e.g. listing or reading
+ * native saved documents) without blocking the UI thread.
  */
 object LaVeinteBridgeInjector {
+
+    private const val JS_OBJ = "window.LaVeinteApp"
 
     fun inject(webView: WebView) {
         val js = """
 (function() {
-  if (window.LaVeinteApp) return;
+  if (window.LaVeinteApp && window.LaVeinteApp.__isInjected) return;
+  var __seq = 0;
+  var __pending = {};
+  window.__laveinteBridgeResult = function(reqId, payload) {
+    var cb = __pending[reqId];
+    if (cb) { delete __pending[reqId]; cb(payload); }
+  };
   window.LaVeinteApp = {
+    __isInjected: true,
     appPlatform: function() { return 'android'; },
     appVersion: function() { return '1.0.1'; },
     sdkVersion: function() { return ${android.os.Build.VERSION.SDK_INT}; },
@@ -37,7 +42,37 @@ object LaVeinteBridgeInjector {
     },
     onAuthenticated: function() { window.location.href = 'laveinte://bridge/onAuthenticated'; },
     onLoggedOut: function() { window.location.href = 'laveinte://bridge/onLoggedOut'; },
-    log: function(msg) { console.log('[LaVeinte] ' + msg); }
+    log: function(msg) { console.log('[LaVeinte] ' + msg); },
+    requestCameraPermission: function() {
+      window.location.href = 'laveinte://bridge/requestCameraPermission';
+    },
+    requestNotificationsPermission: function() {
+      window.location.href = 'laveinte://bridge/requestNotificationsPermission';
+    },
+    listNativeDocuments: function() {
+      return new Promise(function(resolve) {
+        var id = 'req' + (++__seq);
+        __pending[id] = function(p) { try { resolve(JSON.parse(p || '[]')); } catch(e) { resolve([]); } };
+        window.location.href = 'laveinte://bridge/listNativeDocuments?req=' + id;
+      });
+    },
+    readNativeDocument: function(localPath) {
+      return new Promise(function(resolve) {
+        var id = 'req' + (++__seq);
+        __pending[id] = function(p) { try { resolve(JSON.parse(p || 'null')); } catch(e) { resolve(null); } };
+        window.location.href = 'laveinte://bridge/readNativeDocument?req=' + id + '&path=' + encodeURIComponent(localPath);
+      });
+    },
+    getPendingPrintDoc: function() {
+      return new Promise(function(resolve) {
+        var id = 'req' + (++__seq);
+        __pending[id] = function(p) { try { resolve(JSON.parse(p || 'null')); } catch(e) { resolve(null); } };
+        window.location.href = 'laveinte://bridge/getPendingPrintDoc?req=' + id;
+      });
+    },
+    clearPendingPrintDoc: function() {
+      window.location.href = 'laveinte://bridge/clearPendingPrintDoc';
+    }
   };
   window.dispatchEvent(new Event('laveinte:native-ready'));
 })();
@@ -48,9 +83,10 @@ object LaVeinteBridgeInjector {
 
 /**
  * Called from LaVeinteInternalWebViewClient.shouldOverrideUrlLoading when a bridge URL is detected.
- * Returns true if the URL was handled.
+ * Returns true if the URL was handled. The [webView] is needed to push async native replies back
+ * to the page via evaluateJavascript.
  */
-fun handleBridgeUrl(url: String): Boolean {
+fun handleBridgeUrl(url: String, webView: WebView?): Boolean {
     val uri = Uri.parse(url) ?: return false
     if (uri.scheme != "laveinte" || uri.host != "bridge") return false
 
@@ -60,6 +96,24 @@ fun handleBridgeUrl(url: String): Boolean {
         "/checkForUpdate" -> BridgeHandler.onCheckForUpdate?.invoke()
         "/onAuthenticated" -> BridgeHandler.onAuthenticated?.invoke()
         "/onLoggedOut" -> BridgeHandler.onLoggedOut?.invoke()
+        "/requestCameraPermission" -> BridgeHandler.onRequestCameraPermission?.invoke()
+        "/requestNotificationsPermission" -> BridgeHandler.onRequestNotificationsPermission?.invoke()
+        "/listNativeDocuments" -> {
+            val req = uri.getQueryParameter("req") ?: return true
+            BridgeHandler.onListNativeDocuments?.invoke(webView, req)
+        }
+        "/readNativeDocument" -> {
+            val req = uri.getQueryParameter("req") ?: return true
+            val p = uri.getQueryParameter("path") ?: return true
+            BridgeHandler.onReadNativeDocument?.invoke(webView, req, p)
+        }
+        "/getPendingPrintDoc" -> {
+            val req = uri.getQueryParameter("req") ?: return true
+            BridgeHandler.onGetPendingPrintDoc?.invoke(webView, req)
+        }
+        "/clearPendingPrintDoc" -> {
+            com.laveintedigital.app.imss.payslips.NativeDocuments.PendingPrint.clear()
+        }
         "/hasImssCredentials" -> {
             val portalId = uri.getQueryParameter("portalId") ?: return true
             // Just consume, the JS side doesn't need the result
@@ -70,11 +124,17 @@ fun handleBridgeUrl(url: String): Boolean {
 }
 
 /**
- * Global bridge handlers set by InternalWebScreen.
+ * Global bridge handlers set by InternalWebScreen. Async responses are pushed back to the WebView
+ * via `evaluateJavascript("window.__laveinteBridgeResult(reqId, json)")`.
  */
 object BridgeHandler {
     var onOpenOfficialPayslips: (() -> Unit)? = null
     var onCheckForUpdate: (() -> Unit)? = null
     var onAuthenticated: (() -> Unit)? = null
     var onLoggedOut: (() -> Unit)? = null
+    var onRequestCameraPermission: (() -> Unit)? = null
+    var onRequestNotificationsPermission: (() -> Unit)? = null
+    var onListNativeDocuments: ((WebView?, String) -> Unit)? = null
+    var onReadNativeDocument: ((WebView?, String, String) -> Unit)? = null
+    var onGetPendingPrintDoc: ((WebView?, String) -> Unit)? = null
 }

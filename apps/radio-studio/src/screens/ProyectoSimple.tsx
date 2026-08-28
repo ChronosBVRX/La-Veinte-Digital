@@ -56,6 +56,7 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
   const [llm, setLlm] = useState<LlmHealthInfo | null>(null);
   const [fuenteAbierta, setFuenteAbierta] = useState<string | null>(null);
   const [editandoPropuesta, setEditandoPropuesta] = useState(false);
+  const [usarIA, setUsarIA] = useState(false);
   const [editFormato, setEditFormato] = useState<string>("");
   const [editProfundidad, setEditProfundidad] = useState<Profundidad>("estandar");
   const [editEnfoque, setEditEnfoque] = useState("");
@@ -220,10 +221,17 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
           )}
           {proposal.comerciales.length > 0 && <div className="muted small" style={{ marginTop: 10 }}>Con bloques comerciales.</div>}
           {project?.state === "PROPOSAL_APPROVED" && (
-            <div className="row" style={{ marginTop: 16 }}>
-              <button className="btn-primary" disabled={!!busy} onClick={() => run("Escribiendo guion", () => projectScript(projectId).then((r) => { setVerify(r.verify); }))}>
-                {busy === "Escribiendo guion" ? "Escribiendo guion…" : "GENERAR GUION"}
-              </button>
+            <div style={{ marginTop: 16 }}>
+              <label className="check" style={{ marginBottom: 8 }}>
+                <input type="checkbox" checked={usarIA} onChange={(e) => setUsarIA(e.target.checked)} />
+                Mejorar el guion con IA local (más lento, puede tardar varios minutos)
+              </label>
+              <div className="row">
+                <button className="btn-primary" disabled={!!busy} onClick={() => run("Escribiendo guion", () => projectScript(projectId, usarIA ? "ia" : "determinista").then((r) => { setVerify(r.verify); }))}>
+                  {busy === "Escribiendo guion" ? (usarIA ? "Generando con IA (minutos)…" : "Escribiendo guion…") : "GENERAR GUION"}
+                </button>
+              </div>
+              {usarIA && <div className="muted small" style={{ marginTop: 8 }}>La IA local tarda unos minutos; el guion aparecerá aquí al terminar. Si prefieres algo inmediato, deja esta opción desactivada.</div>}
             </div>
           )}
           <div className="row" style={{ marginTop: 16 }}>

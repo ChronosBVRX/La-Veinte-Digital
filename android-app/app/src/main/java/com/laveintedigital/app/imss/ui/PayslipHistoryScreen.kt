@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.DropdownMenu
@@ -64,6 +65,7 @@ import java.util.Locale
 fun PayslipHistoryScreen(
     onViewPdf: (String) -> Unit,
     onBack: () -> Unit,
+    onPrint: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -125,6 +127,11 @@ fun PayslipHistoryScreen(
                                 Text("⋮", fontSize = 20.sp, color = Color.Gray)
                             }
                             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Enviar a imprimir") },
+                                    leadingIcon = { Icon(Icons.Filled.Print, null) },
+                                    onClick = { menuOpen = false; onPrint(doc.localPath) },
+                                )
                                 DropdownMenuItem(
                                     text = { Text("Compartir") },
                                     leadingIcon = { Icon(Icons.Filled.Share, null) },

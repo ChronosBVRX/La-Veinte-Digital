@@ -16,6 +16,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.laveintedigital.app.external.ExternalBrowserScreen
 import com.laveintedigital.app.imss.credentials.ImssPortal
+import com.laveintedigital.app.imss.payslips.NativeDocuments
 import com.laveintedigital.app.imss.ui.ManageImssCredentialsScreen
 import com.laveintedigital.app.imss.ui.ImssPortalScreen
 import com.laveintedigital.app.imss.ui.OfficialPayslipsScreen
@@ -129,6 +130,7 @@ fun AppNavHost(
         composable(NavRoute.PayslipHistory.route) {
             PayslipHistoryScreen(
                 onViewPdf = { path -> navController.navigate(NavRoute.PayslipViewer.create(path)) },
+                onPrint = { path -> openInternalPrint(navController, path) },
                 onBack = { navController.popBackStack() },
             )
         }
@@ -144,6 +146,7 @@ fun AppNavHost(
             PayslipViewerScreen(
                 filePath = filePath,
                 title = title.ifBlank { "Tarjetón" },
+                onPrint = { printPath -> openInternalPrint(navController, printPath) },
                 onBack = { navController.popBackStack() },
             )
         }
@@ -151,4 +154,15 @@ fun AppNavHost(
             ManageImssCredentialsScreen(onBack = { navController.popBackStack() })
         }
     }
+}
+
+/**
+ * Marks [path] as the document to send via QR and pops back to the internal WebView (which holds
+ * the bridge navigator) so it can load /transfer?print=1 and let the user scan the PC's QR.
+ */
+private fun openInternalPrint(navController: NavHostController, path: String) {
+    // Keep only the Internal route on the stack so the WebView (and its navigator) is visible.
+    navController.popBackStack(NavRoute.Internal.route, inclusive = false)
+    NativeDocuments.PendingPrint.set(path)
+    NativeDocuments.PendingPrint.navigator?.invoke("/transfer?print=1")
 }

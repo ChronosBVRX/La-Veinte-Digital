@@ -6,6 +6,8 @@ import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -26,6 +28,7 @@ import com.laveintedigital.app.security.AppLockManager
 import com.laveintedigital.app.security.BiometricPreferences
 import com.laveintedigital.app.security.BiometricUnlockScreen
 import com.laveintedigital.app.security.LockState
+import com.laveintedigital.app.security.PermissionCoordinator
 import com.laveintedigital.app.ui.theme.LaVeinteTheme
 import com.laveintedigital.app.updates.UpdateManifest
 import com.laveintedigital.app.updates.UpdateState
@@ -126,6 +129,18 @@ private fun MainScreen() {
         val updateState by updateManager.state.collectAsState()
         val scope = rememberCoroutineScope()
         var checked by remember { mutableStateOf(false) }
+
+        // POST_NOTIFICATIONS (Android 13+) — ask once, after the bootloader.
+        val notificationsLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission(),
+        ) { /* result intentionally ignored; channel is created regardless */ }
+        LaunchedEffect(bootloaderDone) {
+            if (bootloaderDone) {
+                PermissionCoordinator.maybeRequestNotifications(activity) { perm ->
+                    notificationsLauncher.launch(perm)
+                }
+            }
+        }
 
         LaunchedEffect(bootloaderDone) {
             if (bootloaderDone && !checked) {

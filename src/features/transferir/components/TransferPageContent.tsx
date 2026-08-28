@@ -3,11 +3,21 @@
 import { useSearchParams } from "next/navigation"
 import { WarningCircle } from "@phosphor-icons/react"
 import { TransferPhonePage } from "./TransferPhonePage"
+import { PrintSendPanel } from "./PrintSendPanel"
 import { TransferShell } from "./TransferShell"
 
 export function TransferPageContent() {
   const params = useSearchParams()
   const token = params.get("t")
+  const printMode = params.get("print")
+
+  if (printMode === "1") {
+    return (
+      <TransferShell>
+        <PrintSendPanel />
+      </TransferShell>
+    )
+  }
 
   if (token) return <TransferPhonePage token={token} />
 

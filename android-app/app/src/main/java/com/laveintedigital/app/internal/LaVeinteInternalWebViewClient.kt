@@ -24,7 +24,7 @@ class LaVeinteInternalWebViewClient(
     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
         val url = request?.url?.toString() ?: return false
         // Bridge URLs have highest priority
-        if (handleBridgeUrl(url)) return true
+        if (handleBridgeUrl(url, view)) return true
 
         val host = request.url?.host?.lowercase()
         val scheme = request.url?.scheme?.lowercase().orEmpty()
@@ -50,7 +50,7 @@ class LaVeinteInternalWebViewClient(
     @Suppress("DEPRECATION")
     override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
         if (url == null) return false
-        if (handleBridgeUrl(url)) return true
+        if (handleBridgeUrl(url, view)) return true
         val host = runCatching { Uri.parse(url).host?.lowercase() }.getOrNull()
         if (Domains.isCustomTab(host)) {
             onCustomTab(url)

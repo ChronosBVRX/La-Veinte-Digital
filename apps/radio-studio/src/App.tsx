@@ -59,6 +59,7 @@ export default function App() {
         config: {
           duracionMin: PROFUNDIDAD_MIN[profundidad] ?? 15,
           profundidad,
+          modo: "determinista",
           comerciales: {
             enabled: comerciales,
             ids: [],
