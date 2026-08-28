@@ -170,14 +170,19 @@ function base64ToBlob(data: string, contentType: string): Blob {
 /**
  * Reads a document saved natively by the app (tarjetón / checadas) and returns it as a File so it
  * can be sent through the same transfer upload path. No-ops (returns null) outside the native app
- * or when the file can't be read.
+ * or when the file can't be read. A hard timeout guarantees the caller never hangs on a stuck bridge
+ * round-trip (which previously left the scanner on "Preparando…").
  */
 export async function readNativeDocumentAsFile(
   meta: { name: string; mimeType: string; localPath: string },
+  timeoutMs = 6000,
 ): Promise<File | null> {
   if (typeof window === "undefined" || !window.LaVeinteApp?.readNativeDocument) return null
   try {
-    const content = await window.LaVeinteApp.readNativeDocument(meta.localPath)
+    const content = await withTimeout(
+      window.LaVeinteApp.readNativeDocument(meta.localPath),
+      timeoutMs,
+    )
     if (!content?.data) return null
     const blob = base64ToBlob(content.data, content.mimeType || meta.mimeType || "application/pdf")
     return new File([blob], content.name || meta.name || "documento", {
@@ -186,6 +191,23 @@ export async function readNativeDocumentAsFile(
   } catch {
     return null
   }
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("bridge_timeout")), ms)
+  })
+  try {
+    return await Promise.race([promise, timeout])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+/** Exposed so callers can bound other native bridge round-trips (e.g. getPendingPrintDoc). */
+export function nativeWithTimeout<T>(promise: Promise<T>, ms = 6000): Promise<T> {
+  return withTimeout(promise, ms)
 }
 
 export function downloadTransferFile(file: TransferFile): void {

@@ -101,9 +101,8 @@ fun InternalWebScreen(
         android.util.Log.i("PRINT_FLOW", "camera_result=$granted")
         val req = pendingCameraReq
         pendingCameraReq = null
-        if (req != null && webView != null) {
-            val payload = JSONObject().put("granted", granted).toString()
-            webView?.post { webView?.evaluateJavascript("window.__laveinteBridgeResult('$req', '$payload')", null) }
+        if (req != null) {
+            pushBridgeResult(webView, req, JSONObject().put("granted", granted).toString())
         }
     }
     val cameraPermissionResolver = remember {
@@ -113,13 +112,11 @@ fun InternalWebScreen(
                 when (state) {
                     PermissionCoordinator.CameraState.GRANTED -> {
                         android.util.Log.i("PRINT_FLOW", "camera_permission=granted")
-                        val payload = JSONObject().put("granted", true).toString()
-                        wv?.post { wv.evaluateJavascript("window.__laveinteBridgeResult('$req', '$payload')", null) }
+                        pushBridgeResult(wv, req, JSONObject().put("granted", true).toString())
                     }
                     PermissionCoordinator.CameraState.PERMANENTLY_DENIED -> {
                         android.util.Log.i("PRINT_FLOW", "camera_permission=permanently_denied")
-                        val payload = JSONObject().put("granted", false).put("permanentlyDenied", true).toString()
-                        wv?.post { wv.evaluateJavascript("window.__laveinteBridgeResult('$req', '$payload')", null) }
+                        pushBridgeResult(wv, req, JSONObject().put("granted", false).put("permanentlyDenied", true).toString())
                         // The web shows an "Abrir ajustes" path; do not auto-open Settings here so the
                         // user stays on the scanner screen and can decide.
                     }
@@ -170,7 +167,7 @@ fun InternalWebScreen(
             scope.launch {
                 val payload = runCatching { com.laveintedigital.app.imss.payslips.NativeDocuments.list(context).toString() }
                     .getOrDefault("[]")
-                wv?.post { wv.evaluateJavascript("window.__laveinteBridgeResult('$req', '$payload')", null) }
+                pushBridgeResult(wv, req, payload)
             }
         }
         BridgeHandler.onReadNativeDocument = { wv, req, path ->
@@ -179,7 +176,7 @@ fun InternalWebScreen(
                     val doc = com.laveintedigital.app.imss.payslips.NativeDocuments.read(context, path)
                     doc?.toString() ?: "null"
                 }.getOrDefault("null")
-                wv?.post { wv.evaluateJavascript("window.__laveinteBridgeResult('$req', '$payload')", null) }
+                pushBridgeResult(wv, req, payload)
             }
         }
         BridgeHandler.onGetPendingPrintDoc = { wv, req ->
@@ -189,7 +186,7 @@ fun InternalWebScreen(
                     if (path == null) "null"
                     else JSONObject().put("localPath", path).toString()
                 }.getOrDefault("null")
-                wv?.post { wv.evaluateJavascript("window.__laveinteBridgeResult('$req', '$payload')", null) }
+                pushBridgeResult(wv, req, payload)
             }
         }
         BridgeHandler.onAuthenticated = {
@@ -466,6 +463,22 @@ private fun String.toRuntimePermission(): String? =
         PermissionRequest.RESOURCE_AUDIO_CAPTURE -> Manifest.permission.RECORD_AUDIO
         else -> null
     }
+
+/**
+ * Pushes an async bridge result to the page. [payload] is a JSON string (e.g. from JSONObject) and
+ * is delivered as a JavaScript string so `JSON.parse` on the JS side reconstructs it. Using
+ * [JSONObject.quote] escapes the JSON into a valid JS string literal, preventing `'`, `"`, `\n`,
+ * base64 `/+=\n` etc. from corrupting the `evaluateJavascript` expression (which previously left the
+ * Promise pending forever → the scanner stuck on "Preparando…").
+ */
+internal fun pushBridgeResult(wv: WebView?, req: String, payload: String) {
+    val js = bridgeResultJs(req, payload)
+    wv?.post { wv.evaluateJavascript(js, null) }
+}
+
+/** Pure pure-JVM builder of the JS expression, kept separate so it is unit-testable. */
+internal fun bridgeResultJs(req: String, payload: String): String =
+    "window.__laveinteBridgeResult(${JSONObject.quote(req)}, ${JSONObject.quote(payload)})"
 
 /**
  * Builds the origin (scheme://authority) of an internal URL. Given

@@ -3,6 +3,7 @@ package com.laveintedigital.app.internal
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
+import android.webkit.ConsoleMessage
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -20,6 +21,16 @@ class LaVeinteChromeClient : WebChromeClient() {
         fileChooserParams: FileChooserParams?,
     ): Boolean {
         return onLaunchFilePicker?.invoke(filePathCallback, fileChooserParams) ?: false
+    }
+
+    override fun onConsoleMessage(message: ConsoleMessage?): Boolean {
+        // Forward page console output (including our PRINT_FLOW diagnostics) to logcat so the
+        // web-side flow can be debugged from adb.
+        message?.let {
+            val tag = "LVD-WEB[${it.messageLevel()}]"
+            android.util.Log.i(tag, it.message() ?: "")
+        }
+        return true
     }
 
     override fun onPermissionRequest(request: PermissionRequest?) {

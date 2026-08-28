@@ -42,13 +42,14 @@ object NativeDocuments {
 
     fun read(context: Context, localPath: String): JSONObject? {
         if (localPath.isBlank()) return null
-        // Guard against path traversal: only allow files under filesDir.
-        val base = context.filesDir
+        // Guard against path traversal: only allow files that resolve under app filesDir. Saved
+        // documents live in BOTH `files/tarjetones` (ImssPayslipDownloader) and
+        // `files/Tarjetones/<portal>/<ooad>/<periodo>` (ImssPdfCaptureCoordinator, capital T), so we
+        // must accept any sub-path under filesDir — never an absolute/../ escape.
+        val base = context.filesDir.canonicalFile
         val file = try { java.io.File(localPath).canonicalFile } catch (e: Exception) { return null }
-        java.io.File(base, "tarjetones").mkdirs()
-        val allowedRoot = java.io.File(base, "tarjetones").canonicalFile
-        if (!file.path.startsWith(allowedRoot.path)) {
-            Log.w(TAG, "read rejected: outside tarjetones dir: ${file.path}")
+        if (!file.path.startsWith(base.path)) {
+            Log.w(TAG, "read rejected: outside filesDir: ${file.path}")
             return null
         }
         if (!file.exists() || file.length() == 0L) return null

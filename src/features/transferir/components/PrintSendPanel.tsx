@@ -7,6 +7,7 @@ import { Button } from "@/shared/components/ui/Button"
 import {
   readNativeDocumentAsFile,
   uploadTransferFile,
+  nativeWithTimeout,
 } from "@/features/transferir/services/transfer"
 import { requestCameraGate } from "./camera"
 import { waitForLaVeinteNativeBridge } from "./native"
@@ -16,6 +17,19 @@ import { extractTransferToken, formatBytes } from "@/features/transferir/lib/tra
 import type { TransferFileMeta } from "@/features/transferir/lib/transfer"
 
 type Status = "boot" | "no-doc" | "permission" | "scanning" | "uploading" | "sent" | "error"
+
+const overlayStyle: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "0.5rem",
+  color: "#94a3b8",
+  fontSize: "0.875rem",
+  background: "rgba(15,23,42,0.7)",
+}
 
 /**
  * "Enviar a imprimir" flow. Strict ordering (instruction #2):
@@ -42,24 +56,29 @@ export function PrintSendPanel() {
 
     const run = async () => {
       if (typeof window === "undefined") return
+      console.log("PRINT_FLOW run_start nativeUa=" + (typeof navigator !== "undefined" ? navigator.userAgent.includes("LaVeinteDigitalAndroid/") : false))
       // 1 + 2. wait for the native bridge (never treat missing bridge as browser when native).
       const bridge = await waitForLaVeinteNativeBridge()
       if (cancelled) return
       const nativeShell = bridge.isNative
+      console.log("PRINT_FLOW bridge isNative=" + bridge.isNative + " ready=" + bridge.ready + " timedOut=" + bridge.timedOut)
       setCtx({ bridgeReady: bridge.ready, nativeShell })
 
       // 3. readiness gate: read the pending document before touching the camera.
       let pending: { localPath: string } | null = null
       if (bridge.isNative && bridge.ready && window.LaVeinteApp?.getPendingPrintDoc) {
         try {
-          pending = await window.LaVeinteApp.getPendingPrintDoc()
-        } catch {
+          pending = await nativeWithTimeout(window.LaVeinteApp.getPendingPrintDoc(), 6000)
+          console.log("PRINT_FLOW getPendingPrintDoc localPath=" + (pending?.localPath ?? "null"))
+        } catch (e) {
+          console.log("PRINT_FLOW getPendingPrintDoc threw=" + (e instanceof Error ? e.message : String(e)))
           pending = null
         }
       }
       if (cancelled) return
 
       if (bridge.isNative && !pending?.localPath) {
+        console.log("PRINT_FLOW no_document_found")
         setStatus("no-doc")
         setMessage("No encontramos el documento que quieres enviar. Vuelve a intentarlo desde el visor.")
         return
@@ -67,20 +86,24 @@ export function PrintSendPanel() {
 
       // Show the doc card only after we truly know which file will be sent.
       if (pending?.localPath) {
+        console.log("PRINT_FLOW reading_doc=" + pending.localPath)
         const file = await readNativeDocumentAsFile({
           name: pending.localPath.split("/").pop() || "documento",
           mimeType: "application/pdf",
           localPath: pending.localPath,
         })
         if (cancelled) return
+        console.log("PRINT_FLOW read_doc_file=" + (file ? file.name + " " + file.size + "B" : "null"))
         if (file) {
           setDoc({ name: file.name, localPath: pending.localPath, fileSize: file.size })
         }
       }
 
       // 4 + 5. camera gate (waits for the grant, never races getUserMedia).
+      console.log("PRINT_FLOW requesting_camera")
       const gate = await requestCameraGate()
       if (cancelled) return
+      console.log("PRINT_FLOW camera gate granted=" + gate.granted + " permDenied=" + gate.permanentlyDenied + " bridgeReady=" + gate.bridgeReady)
       if (!gate.granted) {
         setPermanentlyDenied(gate.permanentlyDenied)
         setStatus("permission")
@@ -88,6 +111,7 @@ export function PrintSendPanel() {
       }
       setPermanentlyDenied(false)
       // 6. only now start the scanner.
+      console.log("PRINT_FLOW starting_scanner")
       const scanner = new Html5Qrcode("print-qr-reader", false)
       scannerRef.current = scanner
 
@@ -114,11 +138,14 @@ export function PrintSendPanel() {
 
     const onQr = async (decodedText: string) => {
       if (handledRef.current) return
+      console.log("PRINT_FLOW qr_decoded text=" + decodedText)
       const token = extractTransferToken(decodedText)
       if (!token) {
+        console.log("PRINT_FLOW qr_invalid text=" + decodedText)
         setMessage("Ese código no es válido. Escanea el código de 'Recibir' de la computadora.")
         return
       }
+      console.log("PRINT_FLOW qr_valid token=" + token)
       handledRef.current = true
       setStatus("uploading")
       try {
@@ -200,7 +227,7 @@ export function PrintSendPanel() {
         </div>
       )}
 
-      {status === "scanning" && (
+      {(status === "scanning" || status === "boot" || status === "permission") && (
         <div
           style={{
             position: "relative",
@@ -210,21 +237,25 @@ export function PrintSendPanel() {
             minHeight: 260,
           }}
         >
+          {/* Always mount the reader container so Html5Qrcode can find it whenever the scanner
+              starts — creating it before React paints the element throws "id not found". */}
           <div id="print-qr-reader" style={{ width: "100%", minHeight: 260 }} />
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#94a3b8",
-              fontSize: "0.875rem",
-              background: "rgba(15,23,42,0.7)",
-            }}
-          >
-            Apunta la cámara al código QR…
-          </div>
+          {status === "boot" && (
+            <div style={{ ...overlayStyle, background: "rgba(15,23,42,0.7)" }}>
+              Preparando cámara…
+            </div>
+          )}
+          {status === "permission" && (
+            <div style={{ ...overlayStyle }}>
+              <Camera size={24} />
+              <span>Para escanear necesitas la cámara.</span>
+            </div>
+          )}
+          {status === "scanning" && (
+            <div style={{ ...overlayStyle, background: "rgba(15,23,42,0.7)" }}>
+              Apunta la cámara al código QR…
+            </div>
+          )}
         </div>
       )}
 
