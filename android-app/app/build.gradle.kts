@@ -9,10 +9,10 @@ plugins {
 }
 
 // Release signing — credentials from environment variables (never committed)
-val keystoreBase64: String? = System.getenv("LAVEINTE_KEYSTORE_BASE64")
-val keystorePassword: String? = System.getenv("LAVEINTE_KEYSTORE_PASSWORD")
-val keyAlias: String? = System.getenv("LAVEINTE_KEY_ALIAS")
-val keyPassword: String? = System.getenv("LAVEINTE_KEY_PASSWORD")
+val keystoreBase64Env: String? = System.getenv("LAVEINTE_KEYSTORE_BASE64")
+val keystorePasswordEnv: String? = System.getenv("LAVEINTE_KEYSTORE_PASSWORD")
+val releaseKeyAliasEnv: String? = System.getenv("LAVEINTE_KEY_ALIAS")
+val releaseKeyPasswordEnv: String? = System.getenv("LAVEINTE_KEY_PASSWORD")
 
 android {
     namespace = "com.laveintedigital.app"
@@ -31,14 +31,15 @@ android {
 
     signingConfigs {
         create("release") {
-            if (keystoreBase64 != null && keystorePassword != null && keyAlias != null && keyPassword != null) {
-                val keystoreFile = File.createTempFile("laveinte", ".jks")
-                keystoreFile.deleteOnExit()
-                keystoreFile.outputStream().use { it.write(Base64.getDecoder().decode(keystoreBase64)) }
+            if (keystoreBase64Env != null && keystorePasswordEnv != null && releaseKeyAliasEnv != null && releaseKeyPasswordEnv != null) {
+                val keystoreDir = File(rootDir, "build/keystore")
+                keystoreDir.mkdirs()
+                val keystoreFile = File(keystoreDir, "laveinte-release.jks")
+                keystoreFile.outputStream().use { it.write(Base64.getDecoder().decode(keystoreBase64Env)) }
                 storeFile = keystoreFile
-                storePassword = keystorePassword
-                keyAlias = keyAlias
-                keyPassword = keyPassword
+                storePassword = keystorePasswordEnv
+                keyAlias = releaseKeyAliasEnv
+                keyPassword = releaseKeyPasswordEnv
             }
         }
     }
@@ -57,7 +58,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.getByName("release")
+            if (keystoreBase64Env != null && keystorePasswordEnv != null && releaseKeyAliasEnv != null && releaseKeyPasswordEnv != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
         create("releaseDebug") {
             initWith(buildTypes.getByName("release"))
