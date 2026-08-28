@@ -25,9 +25,9 @@ export default async function BitacoraPage() {
           <Notebook size={24} color="white" weight="duotone" />
         </div>
         <div>
-          <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>Mis incidencias</h1>
+          <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>Mi Agenda</h1>
           <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: "0.125rem 0 0" }}>
-            Tu registro de incidencias laborales: tiempo extra, vacaciones, cambios de turno y más
+            Tu registro de compromisos laborales: tiempo extra, vacaciones, cambios de turno y más
           </p>
         </div>
       </div>

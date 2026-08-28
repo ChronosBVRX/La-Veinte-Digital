@@ -38,7 +38,7 @@ export const DESKTOP_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/calendario", label: "Calendario", icon: CalendarDots },
       { href: "/vacaciones", label: "Vacaciones", icon: AirplaneTilt },
-      { href: "/bitacora", label: "Mis incidencias", icon: Notebook },
+      { href: "/bitacora", label: "Mi Agenda", icon: Notebook },
     ],
   },
   {

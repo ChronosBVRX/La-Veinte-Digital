@@ -89,7 +89,7 @@ export function EscritosForm({
           </div>
         </div>
 
-        <div style={{ marginBottom: "1rem" }}>
+        <div style={{ marginBottom: "0.5rem" }}>
           <Select label="¿A quién va dirigido?" value={modoManual ? VALOR_DESTINO_MANUAL : destino} onChange={(e) => handleDestinoChange(e.target.value)}>
             <option value="">— Selecciona —</option>
             {destinoOptions}
@@ -97,28 +97,92 @@ export function EscritosForm({
           </Select>
         </div>
 
-        {modoManual ? (
-          <div
+        {!modoManual ? (
+          <button
+            type="button"
+            onClick={() => { setModoManual(true); onChange("destino", "") }}
             style={{
-              display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem",
-              marginBottom: "1rem", padding: "1rem", background: "var(--accent)",
-              borderRadius: "0.375rem",
+              background: "none", border: "none", color: "var(--primary)",
+              fontSize: "0.8125rem", cursor: "pointer", padding: 0, marginBottom: "1rem",
+              fontWeight: 600, textDecoration: "underline", textUnderlineOffset: "2px",
             }}
           >
-            <Input
-              label="Cargo (ej. Presidente del Comité Delegacional)"
-              value={cargoManual}
-              onChange={(e) => updateManualDestino("cargo", e.target.value)}
-              placeholder="Ej. Comité Delegacional de Morelia"
-            />
-            <Input
-              label="Nombre del destinatario"
-              value={nombreManual}
-              onChange={(e) => updateManualDestino("nombre", e.target.value)}
-              placeholder="Ej. Lic. Juan Pérez López"
-            />
+            ¿Destinatario fuera del Comité Seccional? Llenar manualmente →
+          </button>
+        ) : (
+          <div style={{ marginBottom: "1rem" }}>
+            <div
+              style={{
+                display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem",
+                padding: "1rem", background: "var(--accent)",
+                borderRadius: "0.375rem", border: "1px solid var(--border)",
+              }}
+            >
+              <div style={{ gridColumn: "1 / -1", fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                Llenado manual — destinatario fuera del Comité
+              </div>
+              <Input
+                label="Cargo (ej. Presidente del Comité Delegacional)"
+                value={cargoManual}
+                onChange={(e) => updateManualDestino("cargo", e.target.value)}
+                placeholder="Ej. Comité Delegacional de Morelia"
+              />
+              <Input
+                label="Nombre del destinatario"
+                value={nombreManual}
+                onChange={(e) => updateManualDestino("nombre", e.target.value)}
+                placeholder="Ej. Lic. Juan Pérez López"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => { setModoManual(false); setCargoManual(""); setNombreManual(""); onChange("destino", "") }}
+              style={{
+                background: "none", border: "none", color: "var(--muted)",
+                fontSize: "0.8125rem", cursor: "pointer", padding: 0, marginTop: "0.5rem",
+                fontWeight: 500,
+              }}
+            >
+              ← Volver a lista del Comité Seccional
+            </button>
           </div>
-        ) : null}
+        )}
+
+        {(() => {
+          const visor = (() => {
+            if (modoManual) {
+              if (!cargoManual.trim() || !nombreManual.trim()) return null
+              return { cargo: cargoManual.trim(), nombre: nombreManual.trim(), manual: true }
+            }
+            if (!destino || !destino.includes("|")) return null
+            const [cargo, nombre] = destino.split("|")
+            if (!cargo || !nombre) return null
+            return { cargo, nombre, manual: false }
+          })()
+          if (!visor) return null
+          return (
+            <div style={{
+              marginBottom: "1rem", padding: "0.75rem 1rem",
+              background: "var(--card)", border: "1px solid var(--border)",
+              borderLeft: "3px solid var(--primary)", borderRadius: "0.375rem",
+              display: "flex", gap: "0.75rem", alignItems: "center",
+            }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: "50%", background: "var(--accent)",
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: "1.1rem",
+              }}>
+                ✉
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: "0.68rem", color: "var(--muted)", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                  {visor.manual ? "Dirigido a (manual)" : "Dirigido a"}
+                </div>
+                <div style={{ fontSize: "0.875rem", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{visor.nombre}</div>
+                <div style={{ fontSize: "0.8125rem", color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{visor.cargo}</div>
+              </div>
+            </div>
+          )
+        })()}
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
           <Input label="Fecha del escrito" type="date" value={fecha} onChange={(e) => onChange("fecha", e.target.value)} />
