@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useId, useRef } from "react"
+import { createPortal } from "react-dom"
 import { X } from "@phosphor-icons/react"
 import type { CSSProperties, ReactNode } from "react"
 
@@ -102,12 +103,13 @@ export function Modal({
     if (e.target === overlayRef.current && closeOnOverlay) onClose()
   }
 
-  return (
+  const content = (
     <>
       <div
         ref={overlayRef}
         onClick={overlayClick}
         className="ui-modal-overlay"
+        data-version="grid-v5"
         style={{
           position: "fixed",
           inset: 0,
@@ -237,5 +239,11 @@ export function Modal({
         }
       `}</style>
     </>
-  )
+    )
+
+  // Portal a body garantiza fixed = viewport real, no contenedor con transform/backdrop-filter
+  if (typeof document !== "undefined" && document.body) {
+    return createPortal(content, document.body)
+  }
+  return content
 }
