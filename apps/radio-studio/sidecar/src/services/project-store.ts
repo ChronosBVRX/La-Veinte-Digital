@@ -140,6 +140,7 @@ export class ProjectStore {
     const now = new Date().toISOString();
     const config = input.config ?? {
       duracionMin: 15,
+      profundidad: "estandar",
       nivel: "natural",
       contextoExtra: "",
       modo: "ia",

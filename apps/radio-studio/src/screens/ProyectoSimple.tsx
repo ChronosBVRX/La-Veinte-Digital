@@ -12,6 +12,7 @@ import {
 import type { Project, Proposal, VerifyResult, Turn } from "@la-veinte/studio-contract";
 import {
   FORMAT_LABELS, NIVEL_LABELS, EDITORIAL_FORMATS,
+  PROFUNDIDAD_LABELS, PROFUNDIDAD_MIN, type Profundidad,
 } from "@la-veinte/studio-contract";
 
 const STEPS = [
@@ -56,7 +57,7 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
   const [fuenteAbierta, setFuenteAbierta] = useState<string | null>(null);
   const [editandoPropuesta, setEditandoPropuesta] = useState(false);
   const [editFormato, setEditFormato] = useState<string>("");
-  const [editDuracion, setEditDuracion] = useState(15);
+  const [editProfundidad, setEditProfundidad] = useState<Profundidad>("estandar");
   const [editEnfoque, setEditEnfoque] = useState("");
 
   const refresh = async () => {
@@ -230,7 +231,7 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
               setEditandoPropuesta((v) => !v);
               if (!editandoPropuesta && proposal) {
                 setEditFormato(proposal.formato);
-                setEditDuracion(proposal.duracionEstimadaMin);
+                setEditProfundidad("estandar");
                 setEditEnfoque(proposal.enfoque);
               }
             }}>
@@ -250,14 +251,16 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
                 </select>
               </label>
               <label className="field">
-                <span>Duración estimada (min)</span>
-                <input type="number" value={editDuracion} min={5} max={60} onChange={(e) => setEditDuracion(Number(e.target.value))} />
+                <span>Profundidad (aproximada)</span>
+                <select value={editProfundidad} onChange={(e) => setEditProfundidad(e.target.value as Profundidad)}>
+                  {(["breve", "estandar", "profundo"] as Profundidad[]).map((d) => <option key={d} value={d}>{PROFUNDIDAD_LABELS[d]} · ~{PROFUNDIDAD_MIN[d]} min</option>)}
+                </select>
               </label>
               <label className="field">
                 <span>Enfoque</span>
                 <textarea value={editEnfoque} rows={3} onChange={(e) => setEditEnfoque(e.target.value)} />
               </label>
-              <button className="btn-primary" disabled={!!busy} onClick={() => run("Guardando", () => projectProposalUpdate(projectId, { formato: editFormato as Proposal["formato"], duracionEstimadaMin: editDuracion, enfoque: editEnfoque }))}>
+              <button className="btn-primary" disabled={!!busy} onClick={() => run("Guardando", () => projectProposalUpdate(projectId, { formato: editFormato as Proposal["formato"], duracionEstimadaMin: PROFUNDIDAD_MIN[editProfundidad] ?? proposal.duracionEstimadaMin, enfoque: editEnfoque }))}>
                 {busy === "Guardando" ? "Guardando…" : "GUARDAR CAMBIOS"}
               </button>
             </div>

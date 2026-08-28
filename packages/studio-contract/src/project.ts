@@ -9,8 +9,26 @@ import { ScriptSchema, type Script } from "./script";
 import { ProductionStateSchema, MasterResultSchema, type ProductionState, type MasterResult } from "./production";
 import { CommercialSelectionSchema, type CommercialSelection } from "./commercial";
 
+export const PROFUNDIDADES = ["breve", "estandar", "profundo"] as const;
+export type Profundidad = (typeof PROFUNDIDADES)[number];
+export const ProfundidadSchema = z.enum(PROFUNDIDADES);
+
+/** Duración objetivo (aproximada) por profundidad — es una guía, nunca un tope. */
+export const PROFUNDIDAD_MIN: Record<Profundidad, number> = {
+  breve: 8,
+  estandar: 15,
+  profundo: 25,
+};
+
+export const PROFUNDIDAD_LABELS: Record<Profundidad, string> = {
+  breve: "Breve — lo esencial",
+  estandar: "Estándar — buen balance",
+  profundo: "A fondo — explicación completa",
+};
+
 export const ProjectConfigSchema = z.object({
   duracionMin: z.number().default(15),
+  profundidad: ProfundidadSchema.default("estandar"),
   nivel: InteractionLevelSchema.default("natural"),
   contextoExtra: z.string().default(""),
   modo: z.enum(["determinista", "ia"]).default("ia"),

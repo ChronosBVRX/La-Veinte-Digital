@@ -590,6 +590,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
     topic: input.topic,
     config: {
       duracionMin: 15,
+      profundidad: "estandar",
       nivel: "natural",
       contextoExtra: "",
       modo: "ia",

@@ -1019,3 +1019,24 @@ h2 { font-size: 16px; margin: 0 0 10px; }
 .coverage.ok .bar-fill, .bar-fill.green { background: #22c55e; }
 .row.mt { margin-top: 14px; }
 .audio-master { background: rgba(16,185,129,.12); border: 1px solid rgba(34,197,94,.35); border-radius: 10px; padding: 12px; margin-top: 12px; }
+
+/* ── Contraste de controles de formulario (dark theme) ── */
+.field > span, label > span { color: #cbd5e1; }
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+.field select { color: var(--fg); }
+/* El desplegable nativo usa un popup blanco: las opciones deben ser oscuras
+   para no quedar texto claro sobre blanco. */
+.field select option,
+select option,
+option {
+  color: #0f172a;
+  background: #ffffff;
+}
+option:disabled { color: #64748b; background: #f1f5f9; }
+
+/* Etiquetas de opción (chips/toggles) más legibles */
+.check { color: #e2e8f0; }
+.muted { color: #a3afc0; }

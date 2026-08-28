@@ -14,7 +14,7 @@ afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }); });
 
 describe("ProjectStore", () => {
   it("crea y persiste un proyecto", () => {
-    const p = store.create({ topic: "Cambio de horario", config: { duracionMin: 15, nivel: "natural", contextoExtra: "", modo: "ia", comerciales: { enabled: false, ids: [], allowDirectorChoice: true, count: "auto", ubicacion: "auto", interaccion: "natural", duracionSec: 30 } } });
+    const p = store.create({ topic: "Cambio de horario", config: { duracionMin: 15, profundidad: "estandar", nivel: "natural", contextoExtra: "", modo: "ia", comerciales: { enabled: false, ids: [], allowDirectorChoice: true, count: "auto", ubicacion: "auto", interaccion: "natural", duracionSec: 30 } } });
     expect(p.state).toBe("DRAFT");
     expect(store.get(p.id)?.topic).toBe("Cambio de horario");
     expect(store.has(p.id)).toBe(true);
@@ -68,11 +68,11 @@ describe("autoFormat", () => {
 });
 
 describe("autoCast", () => {
-  it("incluye a Javier cuando hay claims legales", () => {
+  it("incluye al especialista normativo cuando hay claims legales", () => {
     const ids = autoCast("horario", true, false);
     expect(ids).toContain("EDUARDO");
     expect(ids).toContain("ANDREA");
-    expect(ids).toContain("JAVIER");
+    expect(ids).toContain("NARRADOR");
     expect(ids).not.toContain("VALERIA");
   });
 
@@ -90,7 +90,7 @@ describe("deterministicProposal", () => {
       coverage: { percentage: 100, recommended: true, items: [], known: [], missing: [], strong: [], partial: [], unanswered: [], warnings: [], confirmed: 1, withoutSupport: 0 },
       documents: [], discarded: [], createdAt: new Date().toISOString(),
     } as ResearchBundle;
-    const project = store.create({ topic: "Cambio de horario", config: { duracionMin: 15, nivel: "natural", contextoExtra: "", modo: "ia", comerciales: { enabled: false, ids: [], allowDirectorChoice: true, count: "auto", ubicacion: "auto", interaccion: "natural", duracionSec: 30 } } });
+    const project = store.create({ topic: "Cambio de horario", config: { duracionMin: 15, profundidad: "estandar", nivel: "natural", contextoExtra: "", modo: "ia", comerciales: { enabled: false, ids: [], allowDirectorChoice: true, count: "auto", ubicacion: "auto", interaccion: "natural", duracionSec: 30 } } });
     const p = deterministicProposal(project, research, true);
     expect(p.participantes.length).toBeGreaterThanOrEqual(3);
     expect(p.estructura.length).toBeGreaterThanOrEqual(3);

@@ -34,6 +34,7 @@ async function baseProject(comerciales: boolean) {
     topic: TOPIC,
     config: {
       duracionMin: 15,
+      profundidad: "estandar",
       nivel: "natural",
       contextoExtra: "",
       modo: "determinista",
@@ -57,7 +58,7 @@ describe("E2E determinista del flujo de episodio", () => {
     const pr = await workflow.createProposal(p.id);
     expect(pr.project.state).toBe("PROPOSAL_READY");
     expect(pr.proposal.participantes.length).toBeGreaterThanOrEqual(3);
-    expect(["EDUARDO", "ANDREA", "JAVIER"]).toContain(pr.proposal.participantes[0].id);
+    expect(["EDUARDO", "ANDREA", "NARRADOR"]).toContain(pr.proposal.participantes[0].id);
 
     const ap = await workflow.approve(p.id);
     expect(ap.state).toBe("PROPOSAL_APPROVED");

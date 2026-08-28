@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { StudioStatus } from "../lib/studio-api";
 import { ajustarGuion, investigar, dirigirPrograma, iniciarGeneracion, obtenerSistema, obtenerCasting, SIDECAR_URL_EXPORT, type ResearchResult, type DirectorResult, type SistemaInfo, type SpeakerProfile, type CastingResult } from "../lib/studio-api";
 import { DEFAULT_SPEAKERS, type VoiceSlot } from "@la-veinte/radio-core";
+import { PROFUNDIDAD_LABELS, type Profundidad } from "@la-veinte/studio-contract";
 
 interface Props {
   temaInicial: string;
@@ -239,9 +240,11 @@ export function CrearEpisodio({ temaInicial, onProducir }: Props) {
         </label>
         <div className="row">
           <label className="field">
-            <span>Duración aproximada</span>
+            <span>Profundidad (aproximada)</span>
             <select value={duracion} onChange={(e) => setDuracion(Number(e.target.value))}>
-              {[10, 15, 20, 30, 45, 60].map((d) => <option key={d} value={d}>{d} minutos</option>)}
+              {[["breve", 8], ["estandar", 15], ["profundo", 25]].map(([d, m]) => (
+                <option key={d} value={m}>{PROFUNDIDAD_LABELS[d as Profundidad]} · ~{m} min</option>
+              ))}
             </select>
           </label>
           <label className="field">

@@ -40,8 +40,10 @@ import {
   type Script,
   type Turn,
   type VerifyResult,
+  type ProjectConfig,
   EDITORIAL_FORMATS,
   EditorialFormatSchema,
+  PROFUNDIDAD_MIN,
 } from "@la-veinte/studio-contract";
 import { planCommercialPlacements } from "./commercial-service";
 import { verifyScript, type VerifierContext } from "./factual-verifier";
@@ -81,16 +83,59 @@ export function autoFormat(topic: string): (typeof EDITORIAL_FORMATS)[number] {
 const FIELD_WORDS = /unidad|hospital|guardia|terapia|piso|quir[oó]fano|urgencias|centro de salud|servicio|turno pr[aá]ctico|cl[ií]nica/i;
 
 export function autoCast(topic: string, hasLegalClaims: boolean, comerciales: boolean): string[] {
-  const ids = ["EDUARDO", "ANDREA"];
-  if (hasLegalClaims) ids.push("JAVIER");
+  const ids: string[] = ["EDUARDO", "ANDREA"];
+  if (hasLegalClaims) ids.push("NARRADOR"); // especialista normativo (id oficial "NARRADOR")
   if (FIELD_WORDS.test(topic.toLowerCase())) ids.push("RODRIGO");
   if (comerciales) ids.push("VALERIA");
   return ids;
 }
 
+/** Resuelve nombres/aliases a los ids oficiales del reparto (JAVIER ↔ NARRADOR, etc.). */
+function canonicalSpeakerId(idOrName: string): string {
+  const t = (idOrName ?? "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (t.includes("JAVIER") || t.includes("NARRADOR") || t.includes("ALONSO") || t.includes("RÍOS")) return "NARRADOR";
+  if (t.includes("RODRIGO") || t.includes("CORRESPONSAL")) return "RODRIGO";
+  if (t.includes("VALERIA") || t.includes("COMERCIAL") || t.includes("PATROCIN")) return "VALERIA";
+  if (t.includes("ANDREA") || t.includes("MARIANA")) return "ANDREA";
+  return "EDUARDO";
+}
+
+/** Duración objetivo (aproximada) desde la profundidad — es una guía, nunca un tope. */
+function guiaMinutos(config: ProjectConfig): number {
+  return (config && config.profundidad && PROFUNDIDAD_MIN[config.profundidad]) || config.duracionMin || 15;
+}
+
 function participantsToSpeakers(ids: string[], comerciales: boolean): SpeakerProfile[] {
   const byId = new Map(DEFAULT_SPEAKERS.map((s) => [s.id.toUpperCase(), s]));
-  return ids.map((id) => byId.get(id.toUpperCase())).filter(Boolean) as SpeakerProfile[];
+  const resolved: SpeakerProfile[] = [];
+  const seen = new Set<string>();
+  for (const raw of ids) {
+    const sp = byId.get(canonicalSpeakerId(raw));
+    if (!sp || seen.has(sp.id)) continue;
+    seen.add(sp.id);
+    resolved.push(sp);
+  }
+  // garantía mínima de reparto: conductor + co-conductora
+  const has = (i: string) => seen.has(i);
+  if (!has("EDUARDO")) { resolved.unshift(byId.get("EDUARDO")!); seen.add("EDUARDO"); }
+  if (!has("ANDREA")) { resolved.splice(1, 0, byId.get("ANDREA")!); seen.add("ANDREA"); }
+  return resolved.filter(Boolean);
+}
+
+/** Convierte participantes del LLM (ids posiblemente vacíos) a ids oficiales del reparto. */
+function normalizeParticipantes(participantes: Proposal["participantes"]): Proposal["participantes"] | null {
+  if (!participantes || participantes.length === 0) return null;
+  const byId = new Map(DEFAULT_SPEAKERS.map((s) => [s.id.toUpperCase(), s]));
+  const out: Proposal["participantes"] = [];
+  const seen = new Set<string>();
+  for (const p of participantes) {
+    const officialId = canonicalSpeakerId(p.nombre || p.id || "");
+    const sp = byId.get(officialId);
+    if (!sp || seen.has(sp.id)) continue;
+    seen.add(sp.id);
+    out.push({ ...p, id: sp.id, nombre: sp.nombre, rol: sp.rol, voz: sp.voz, participa: true });
+  }
+  return out.length > 0 ? out : null;
 }
 
 function voiceSlotForSpeaker(speaker: string): VoiceSlot {
@@ -166,7 +211,7 @@ export class ProjectWorkflowService {
         enfoque: analysis.enfoque,
         coverageSummary: coverageFlat(coverage),
         claimsFlat: claimsFlat(research.claims),
-        duracionMin: project.config.duracionMin,
+        duracionMin: guiaMinutos(project.config),
         nivel: project.config.nivel,
         comerciales: project.config.comerciales,
         participants: base.participantes.map((p) => p.id),
@@ -196,6 +241,9 @@ export class ProjectWorkflowService {
       proposal = base;
       proposal.decisionRationale.push("propuesta determinista (modo determinista)");
     }
+    // Los participantes del LLM pueden venir con id vacío; los normalizamos a ids
+    // oficiales del reparto (por nombre) y descartamos los que no cuadran.
+    proposal.participantes = normalizeParticipantes(proposal.participantes) ?? base.participantes;
     proposal.topic = project.topic;
     proposal.createdAt = new Date().toISOString();
     this.store.writeProposal(id, proposal);
@@ -233,7 +281,7 @@ export class ProjectWorkflowService {
       clausula: c.evidence[0]?.clause ?? null, articulo: c.evidence[0]?.article ?? null, pagina: c.evidence[0]?.page ?? null,
     }));
 
-    const speakers = participantsToSpeakers(proposal.participantes.map((p) => p.id), project.config.comerciales.enabled);
+    const speakers = participantsToSpeakers((proposal.participantes ?? []).map((p) => p.id), project.config.comerciales.enabled);
     const nivel = proposal.nivel as "informativo" | "natural" | "dinamico";
     const duracionMin = proposal.duracionEstimadaMin;
 
@@ -350,7 +398,7 @@ export function deterministicProposal(project: Project, research: ResearchBundle
     enfoque: `Explicar el tema de forma clara y cercana para trabajadoras y trabajadores: qué dice la normativa, cómo se aplica en la práctica y qué conviene revisar.`,
     formato: EditorialFormatSchema.parse(format),
     nivel: project.config.nivel as "informativo" | "natural" | "dinamico",
-    duracionEstimadaMin: project.config.duracionMin,
+    duracionEstimadaMin: guiaMinutos(project.config),
     participantes: ids.map((id) => {
       const s = DEFAULT_SPEAKERS.find((x) => x.id.toUpperCase() === id.toUpperCase());
       return { id: s?.id ?? id, nombre: s?.nombre ?? id, rol: s?.rol ?? "participante", funcionEditorial: s?.funcionEditorial ?? null, voz: s?.voz ?? voiceSlotForSpeaker(id), participa: true };

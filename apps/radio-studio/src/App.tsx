@@ -8,6 +8,7 @@ import { BibliotecaAudio } from "./screens/BibliotecaAudio";
 import { BibliotecaNormativaStudio } from "./screens/BibliotecaNormativaStudio";
 import { Locutores } from "./screens/Locutores";
 import { fetchStudioStatus, createProject, type StudioStatus } from "./lib/studio-api";
+import { PROFUNDIDAD_MIN, type Profundidad } from "@la-veinte/studio-contract";
 import "./studio.css";
 
 type Screen = "inicio" | "proyecto" | "crear" | "produccion" | "timeline" | "biblioteca" | "locutores" | "audio";
@@ -50,12 +51,14 @@ export default function App() {
     return () => { mounted = false; clearInterval(t); };
   }, []);
 
-  const abrirNuevoTema = async (tema: string, comerciales = false) => {
+  const abrirNuevoTema = async (tema: string, comerciales = false, profundidad: Profundidad = "estandar") => {
     if (!tema) return;
     try {
       const p = await createProject({
         topic: tema,
         config: {
+          duracionMin: PROFUNDIDAD_MIN[profundidad] ?? 15,
+          profundidad,
           comerciales: {
             enabled: comerciales,
             ids: [],
