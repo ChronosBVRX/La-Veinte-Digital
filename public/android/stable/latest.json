@@ -1,18 +1,16 @@
 {
   "channel": "stable",
-  "versionCode": 189,
-  "versionName": "1.0.89",
+  "versionCode": 190,
+  "versionName": "1.0.90",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-26T01:26:06Z",
+  "publishedAt": "2026-08-28T03:35:00Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "643df1a30779d1da25e1f4060d8fbefa854a487eacbed88b70a4d8f2bfbe202b",
-    "size": 67673700
+    "sha256": "2e1821c33272f2bda3fce21c5b604374d5d3d05319cec18072fb721526d9c976",
+    "size": 24015620
   },
   "releaseNotes": [
-    "Guardar PDF de checadas funcionando: se captura del portal, se guarda como 'Checadas — periodo' y se abre el visor ya titulado 'Checadas'",
-    "El PDF se guarda en el mismo lugar que los tarjetones (Mis documentos) distinguiendo checadas vs tarjetones",
-    "Fixes de captura: monitor ampliado (blob/window.open/fetch/XHR), DownloadListener autenticado y click correcto sobre el control Descargar"
+    "Al escanear el QR para enviar un documento, la app ahora solicita el permiso de cámara en tiempo real y la cámara abre correctamente en Android"
   ]
 }
