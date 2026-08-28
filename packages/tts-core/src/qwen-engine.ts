@@ -27,6 +27,7 @@ export class QwenEngine {
   cacheHits = 0;
   cacheMisses = 0;
   cache = { stats: () => ({ entries: 0 }) };
+  private currentPid: number | null = null;
 
   constructor(_python: string, _engineScript: string, stateDir: string, _opts?: { devicePriority?: string }) {
     void _python; void _engineScript; void _opts;
@@ -83,6 +84,7 @@ export class QwenEngine {
       const pid = child.pid;
       child.unref();
       if (pid == null) { resolve({ ok: false, id: outId, voice, error: "no se pudo lanzar el proceso" }); return; }
+      this.currentPid = pid;
       let stderr = "";
       child.stderr.on("data", (d) => (stderr += d));
 
@@ -92,6 +94,7 @@ export class QwenEngine {
 
       child.on("exit", (code) => {
         clearTimeout(timer);
+        if (this.currentPid === pid) this.currentPid = null;
         const finalWav = tmpWav.replace(".tmp.wav", ".wav");
         if (code === 0 && existsSyncSafe(tmpWav)) {
           try { renameSyncSafe(tmpWav, finalWav); } catch {}
@@ -103,6 +106,13 @@ export class QwenEngine {
         }
       });
     });
+  }
+
+  /** Mata la generación en curso (proceso hijo de render.py), solo su process group. */
+  abortCurrent(): boolean {
+    if (this.currentPid == null) return false;
+    killProcessGroupUnblocking(this.currentPid, 1500, "SIGTERM");
+    return true;
   }
 
   private mapVoice(voz: string): string {

@@ -98,6 +98,7 @@ fun InternalWebScreen(
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
     ) { granted ->
+        android.util.Log.i("PRINT_FLOW", "camera_result=$granted")
         val req = pendingCameraReq
         pendingCameraReq = null
         if (req != null && webView != null) {
@@ -218,7 +219,9 @@ fun InternalWebScreen(
         }
     }
 
-    val chromeClient = remember { LaVeinteChromeClient() }
+    val chromeClient = remember {
+        LaVeinteChromeClient().also { it.attachActivity(activity) }
+    }
 
     val fileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
@@ -250,6 +253,7 @@ fun InternalWebScreen(
             ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
         }
         if (missing.isEmpty()) {
+            android.util.Log.i("PRINT_FLOW", "web_permission_granted resources=${request.resources?.joinToString(",")}")
             request.grant(request.resources)
         } else {
             pendingWebPermission = request
@@ -424,6 +428,9 @@ fun InternalWebScreen(
                     )
                     webChromeClient = chromeClient
                     attachDownloadListener(ctx)
+                    // Inject the native bridge at DOCUMENT START so it exists before Next.js hydrates,
+                    // removing the bridge-missing race in the QR scanner. Falls back to onPageFinished.
+                    LaVeinteBridgeInjector.installAtDocumentStart(wv)
                     loadUrl(initialUrl)
                 }.also { webView = it }
             },

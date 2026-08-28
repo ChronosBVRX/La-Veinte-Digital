@@ -1,31 +1,42 @@
 "use client"
 
+import { waitForLaVeinteNativeBridge } from "./native"
+import type { CameraGate } from "./types"
+
 /**
  * Camera permission gate used by the transfer QR scanners.
  *
- * In the native app the bridge exposes `requestCameraPermission()` which resolves with
- * `{ granted, permanentlyDenied }` ONLY after the system dialog is answered — so the scanner does
- * not race `getUserMedia` against the OS prompt. Outside the native app this resolves immediately
- * (the browser owns the permission via getUserMedia).
+ * Native shell:
+ *   1. wait for the Android bridge (document-start or onPageFinished injection).
+ *   2. ask the native bridge for CAMERA and wait for the system dialog result.
+ *   3. the scanner starts ONLY after `granted === true`.
+ *
+ * Browser (non-native): resolves immediately with granted=true (getUserMedia owns permission).
+ *
+ * If the UA is native but the bridge never became ready, we treat it as NOT granted — a missing
+ * bridge must never be mistaken for "the browser already has camera".
  */
-export interface CameraGate {
-  granted: boolean
-  permanentlyDenied: boolean
-  isNative: boolean
-}
-
 export async function requestCameraGate(): Promise<CameraGate> {
-  if (typeof window !== "undefined" && window.LaVeinteApp?.requestCameraPermission) {
-    try {
-      const result = await window.LaVeinteApp.requestCameraPermission()
-      return {
-        granted: !!result?.granted,
-        permanentlyDenied: !!result?.permanentlyDenied,
-        isNative: true,
-      }
-    } catch {
-      return { granted: false, permanentlyDenied: false, isNative: true }
-    }
+  if (typeof window === "undefined") {
+    return { granted: false, permanentlyDenied: false, isNative: false, bridgeReady: false }
   }
-  return { granted: true, permanentlyDenied: false, isNative: false }
+  const bridge = await waitForLaVeinteNativeBridge()
+  if (!bridge.isNative) {
+    // Desktop / plain browser — the browser handles getUserMedia itself.
+    return { granted: true, permanentlyDenied: false, isNative: false, bridgeReady: true }
+  }
+  if (!bridge.ready || !window.LaVeinteApp?.requestCameraPermission) {
+    return { granted: false, permanentlyDenied: false, isNative: true, bridgeReady: false }
+  }
+  try {
+    const result = await window.LaVeinteApp.requestCameraPermission()
+    return {
+      granted: !!result?.granted,
+      permanentlyDenied: !!result?.permanentlyDenied,
+      isNative: true,
+      bridgeReady: true,
+    }
+  } catch {
+    return { granted: false, permanentlyDenied: false, isNative: true, bridgeReady: true }
+  }
 }

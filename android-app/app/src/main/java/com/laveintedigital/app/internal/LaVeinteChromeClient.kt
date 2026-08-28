@@ -23,6 +23,24 @@ class LaVeinteChromeClient : WebChromeClient() {
     }
 
     override fun onPermissionRequest(request: PermissionRequest?) {
-        request?.let { onWebPermissionRequest?.invoke(it) ?: it.deny() }
+        val r = request ?: return
+        val cameraGranted = android.content.pm.PackageManager.PERMISSION_GRANTED ==
+            webViewContext()?.let {
+                androidx.core.content.ContextCompat.checkSelfPermission(
+                    it, android.Manifest.permission.CAMERA,
+                )
+            }
+        android.util.Log.i(
+            "PRINT_FLOW",
+            "web_permission_request origin=${r.origin} resources=${r.resources?.joinToString(",")} androidCameraGranted=$cameraGranted",
+        )
+        onWebPermissionRequest?.invoke(r) ?: run {
+            android.util.Log.i("PRINT_FLOW", "web_permission_denied (no handler)")
+            r.deny()
+        }
     }
+
+    private var hostActivity: android.app.Activity? = null
+    fun attachActivity(activity: android.app.Activity?) { hostActivity = activity }
+    private fun webViewContext(): android.content.Context? = hostActivity
 }

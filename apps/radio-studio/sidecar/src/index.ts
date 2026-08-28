@@ -206,6 +206,7 @@ function workerVivo(): boolean {
 
 function detenerWorkersProduccion(): void {
   requestProductionCancel();
+  try { ensureEngine().abortCurrent(); } catch { /* motor no disponible */ }
   workerVivoCache = { at: 0, v: false };
   const job = leerJob();
   if (job && job.estado !== "DONE") {

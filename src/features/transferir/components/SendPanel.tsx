@@ -12,6 +12,9 @@ import {
 import { Button } from "@/shared/components/ui/Button"
 import { extractUploadUrl } from "@/features/transferir/lib/transfer"
 import { requestCameraGate } from "./camera"
+import { waitForLaVeinteNativeBridge } from "./native"
+import { describeScannerError } from "./scannerError"
+import type { ScannerErrorContext } from "./scannerError"
 
 const STEP_STYLE: React.CSSProperties = {
   display: "flex",
@@ -39,6 +42,7 @@ export function SendPanel() {
   const [message, setMessage] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [permanentlyDenied, setPermanentlyDenied] = useState(false)
+  const [ctx, setCtx] = useState<ScannerErrorContext>({ bridgeReady: false, nativeShell: false })
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const handledRef = useRef(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -75,17 +79,20 @@ export function SendPanel() {
         .then(() => {
           if (!cancelled) setStatus("scanning")
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           if (!cancelled) {
             setStatus("error")
-            setMessage(
-              "No se pudo acceder a la cámara. Permite el acceso o usa un dispositivo con cámara.",
-            )
+            setMessage(describeScannerError(error, ctx))
           }
         })
 
-    // Gate camera permission BEFORE calling getUserMedia so the OS prompt is answered first.
-    requestCameraGate().then((gate) => {
+    const run = async () => {
+      // Wait for the native bridge — never treat a temporarily-absent bridge as browser.
+      const bridge = await waitForLaVeinteNativeBridge()
+      if (cancelled) return
+      setCtx({ bridgeReady: bridge.ready, nativeShell: bridge.isNative })
+      // Gate camera permission BEFORE getUserMedia so the OS prompt is answered first.
+      const gate = await requestCameraGate()
       if (cancelled) return
       if (!gate.granted) {
         setPermanentlyDenied(gate.permanentlyDenied)
@@ -93,7 +100,8 @@ export function SendPanel() {
         return
       }
       startScanner()
-    })
+    }
+    run()
 
     return () => {
       cancelled = true

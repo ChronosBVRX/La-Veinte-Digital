@@ -2,6 +2,7 @@ package com.laveintedigital.app.internal
 
 import android.net.Uri
 import android.webkit.WebView
+import androidx.webkit.WebViewCompat
 
 /**
  * JS object injected as `window.LaVeinteApp`. Native→web replies are delivered by calling
@@ -15,7 +16,29 @@ object LaVeinteBridgeInjector {
     private const val JS_OBJ = "window.LaVeinteApp"
 
     fun inject(webView: WebView) {
-        val js = """
+        val js = bridgeScript()
+        webView.evaluateJavascript(js, null)
+    }
+
+    /**
+     * Registers the bridge at DOCUMENT START so it exists before Next.js hydrates. This removes the
+     * race in which PrintSendPanel's useEffect ran before `LaVeinteApp` was injected, and the native
+     * shell was misdetected as a browser. Falls back to `inject()` (onPageFinished) for WebViews that
+     * don't support document-start scripts.
+     */
+    fun installAtDocumentStart(webView: WebView) {
+        val js = bridgeScript()
+        runCatching {
+            WebViewCompat.addDocumentStartJavaScript(webView, js, setOf("*"))
+        }.onSuccess {
+            android.util.Log.i("LaVeinteBridge", "document_start_script_installed")
+        }.onFailure { e ->
+            android.util.Log.w("LaVeinteBridge", "document_start_script_failed, will fallback to onPageFinished", e)
+        }
+    }
+
+    private fun bridgeScript(): String {
+        return """
 (function() {
   if (window.LaVeinteApp && window.LaVeinteApp.__isInjected) return;
   var __seq = 0;
@@ -84,7 +107,6 @@ object LaVeinteBridgeInjector {
   window.dispatchEvent(new Event('laveinte:native-ready'));
 })();
         """.trimIndent()
-        webView.evaluateJavascript(js, null)
     }
 }
 

@@ -6,6 +6,7 @@ declare global {
    * `window.LaVeinteApp` (JavascriptInterface de Android).
    */
   interface LaVeinteNativeApp {
+    __isInjected?: boolean
     appPlatform(): string
     appVersion(): string
     sdkVersion(): number

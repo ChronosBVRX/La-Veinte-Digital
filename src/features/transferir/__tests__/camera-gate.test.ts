@@ -2,20 +2,31 @@ import { afterEach, describe, expect, it } from "vitest"
 import { requestCameraGate } from "../components/camera"
 
 interface FakeLaVeinteApp {
-  requestCameraPermission: () => Promise<{ granted: boolean; permanentlyDenied?: boolean }>
+  requestCameraPermission?: () => Promise<{ granted: boolean; permanentlyDenied?: boolean }>
+  __isInjected?: boolean
 }
 
-function withWindow(app: FakeLaVeinteApp | undefined, run: () => Promise<void>) {
-  const OriginalWindow = globalThis.window
-  const w = OriginalWindow as unknown as Record<string, unknown>
+const NATIVE_UA = "Mozilla/5.0 (Linux; Android 14) LaVeinteDigitalAndroid/1.0.93"
+
+function setNativeEnv(app: FakeLaVeinteApp | undefined, nativeUa = true) {
+  const w = globalThis as Record<string, unknown>
+  const prevWindow = w.window
+  const prevNav = w.navigator
   if (app === undefined) {
-    delete (globalThis as Record<string, unknown>).window
+    delete w.window
   } else {
-    ;(globalThis as Record<string, unknown>).window = { LaVeinteApp: app } as unknown as Window
+    w.window = { LaVeinteApp: app } as unknown as Window
   }
-  return run().finally(() => {
-    ;(globalThis as Record<string, unknown>).window = w
-  })
+  const newNavigator = { userAgent: nativeUa ? NATIVE_UA : "Mozilla/5.0 (X11; Linux x86_64) Chrome/120" } as Navigator
+  Object.defineProperty(w, "navigator", { value: newNavigator, configurable: true })
+  return () => {
+    if (app === undefined) {
+      delete w.window
+    } else {
+      w.window = prevWindow
+    }
+    Object.defineProperty(w, "navigator", { value: prevNav, configurable: true })
+  }
 }
 
 describe("requestCameraGate", () => {
@@ -23,44 +34,53 @@ describe("requestCameraGate", () => {
     delete (globalThis as Record<string, unknown>).window
   })
 
-  it("grants immediately outside the native app", async () => {
-    await withWindow(undefined, async () => {
-      expect(await requestCameraGate()).toEqual({ granted: true, permanentlyDenied: false, isNative: false })
-    })
+  it("grants immediately in a plain browser (non-native UA)", async () => {
+    const restore = setNativeEnv(undefined, false)
+    try {
+      expect(await requestCameraGate()).toEqual({ granted: true, permanentlyDenied: false, isNative: false, bridgeReady: true })
+    } finally {
+      restore()
+    }
+  })
+
+  it("is NOT granted when the shell is native but the bridge is missing (race)", async () => {
+    const restore = setNativeEnv(undefined, true)
+    try {
+      expect(await requestCameraGate()).toEqual({ granted: false, permanentlyDenied: false, isNative: true, bridgeReady: false })
+    } finally {
+      restore()
+    }
   })
 
   it("resolves the native grant result", async () => {
-    await withWindow(
-      {
-        requestCameraPermission: async () => ({ granted: true }),
-      },
-      async () => {
-        expect(await requestCameraGate()).toEqual({ granted: true, permanentlyDenied: false, isNative: true })
-      },
-    )
+    const restore = setNativeEnv({ __isInjected: true, requestCameraPermission: async () => ({ granted: true }) })
+    try {
+      expect(await requestCameraGate()).toEqual({ granted: true, permanentlyDenied: false, isNative: true, bridgeReady: true })
+    } finally {
+      restore()
+    }
   })
 
   it("reports permanent denial from native", async () => {
-    await withWindow(
-      {
-        requestCameraPermission: async () => ({ granted: false, permanentlyDenied: true }),
-      },
-      async () => {
-        expect(await requestCameraGate()).toEqual({ granted: false, permanentlyDenied: true, isNative: true })
-      },
-    )
+    const restore = setNativeEnv({ __isInjected: true, requestCameraPermission: async () => ({ granted: false, permanentlyDenied: true }) })
+    try {
+      expect(await requestCameraGate()).toEqual({ granted: false, permanentlyDenied: true, isNative: true, bridgeReady: true })
+    } finally {
+      restore()
+    }
   })
 
-  it("treats a throwing bridge as not granted", async () => {
-    await withWindow(
-      {
-        requestCameraPermission: async () => {
-          throw new Error("bridge missing")
-        },
+  it("treats a throwing bridge as not granted (native but bridge failed)", async () => {
+    const restore = setNativeEnv({
+      __isInjected: true,
+      requestCameraPermission: async () => {
+        throw new Error("bridge failed")
       },
-      async () => {
-        expect(await requestCameraGate()).toEqual({ granted: false, permanentlyDenied: false, isNative: true })
-      },
-    )
+    })
+    try {
+      expect(await requestCameraGate()).toEqual({ granted: false, permanentlyDenied: false, isNative: true, bridgeReady: true })
+    } finally {
+      restore()
+    }
   })
 })

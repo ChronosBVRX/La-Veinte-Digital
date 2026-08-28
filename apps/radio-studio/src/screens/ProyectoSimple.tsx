@@ -52,7 +52,9 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [verify, setVerify] = useState<VerifyResult | null>(null);
-  const [progress, setProgress] = useState<{ done: number; total: number; estado: string | null } | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number; estado: string | null; etaMin: number | null; rtf: number | null } | null>(null);
+  const [inicioProduce, setInicioProduce] = useState<number | null>(null);
+  const [ahora, setAhora] = useState(Date.now());
   const [llm, setLlm] = useState<LlmHealthInfo | null>(null);
   const [fuenteAbierta, setFuenteAbierta] = useState<string | null>(null);
   const [editandoPropuesta, setEditandoPropuesta] = useState(false);
@@ -70,7 +72,11 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
   useEffect(() => { void refresh(); }, [projectId]);
   useEffect(() => { void obtenerLlmSalud().then(setLlm); }, []);
   useEffect(() => {
-    const t = setInterval(() => { void refresh(); void obtenerProgreso().then((r) => r && setProgress({ done: r.done, total: r.total, estado: r.estado ?? null })); }, 4000);
+    const t = setInterval(() => {
+      void refresh();
+      void obtenerProgreso().then((r) => r && setProgress({ done: r.done, total: r.total, estado: r.estado ?? null, etaMin: r.etaMin ?? null, rtf: r.rtfReciente ?? null }));
+      setAhora(Date.now());
+    }, 4000);
     return () => clearInterval(t);
   }, [projectId]);
 
@@ -94,7 +100,8 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
     try {
       const r = await projectProduce(projectId);
       await refresh();
-      setProgress({ done: 0, total: r.started?.total ?? 0, estado: "RUNNING" });
+      setProgress({ done: 0, total: r.started?.total ?? 0, estado: "RUNNING", etaMin: null, rtf: null });
+      setInicioProduce(Date.now());
       setTimeout(() => audioRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
     } catch (e) { setError(e instanceof Error ? e.message : "No pude iniciar la producción"); }
     finally { setBusy(null); }
@@ -337,7 +344,12 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
               <div className="bar" style={{ margin: "12px 0 6px" }}>
                 <div className="bar-fill green" style={{ width: `${progress.total > 0 ? (progress.done / progress.total) * 100 : 0}%` }} />
               </div>
-              <div className="muted small">{progress.done}/{progress.total} voces · {progress.estado}</div>
+              <div className="muted small" style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+                <span>{progress.done}/{progress.total} voces</span>
+                {inicioProduce && <span>Lleva ~{Math.round((ahora - inicioProduce) / 60000)} min</span>}
+                {progress.etaMin != null && progress.etaMin > 0 && <span>· falta ~{progress.etaMin} min</span>}
+                {progress.rtf != null && <span>· {progress.rtf.toFixed(2)}× velocidad</span>}
+              </div>
             </>
           )}
           {master ? (

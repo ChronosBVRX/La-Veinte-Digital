@@ -41,6 +41,7 @@ import {
   type Turn,
   type VerifyResult,
   type ProjectConfig,
+  type Profundidad,
   EDITORIAL_FORMATS,
   EditorialFormatSchema,
   PROFUNDIDAD_MIN,
@@ -104,6 +105,9 @@ function canonicalSpeakerId(idOrName: string): string {
 function guiaMinutos(config: ProjectConfig): number {
   return (config && config.profundidad && PROFUNDIDAD_MIN[config.profundidad]) || config.duracionMin || 15;
 }
+
+/** Máximo de intervenciones por profundidad (cada una es un clip TTS costoso). */
+const TURN_CAP: Record<Profundidad, number> = { breve: 22, estandar: 36, profundo: 60 };
 
 function participantsToSpeakers(ids: string[], comerciales: boolean): SpeakerProfile[] {
   const byId = new Map(DEFAULT_SPEAKERS.map((s) => [s.id.toUpperCase(), s]));
@@ -321,6 +325,16 @@ export class ProjectWorkflowService {
     if (polished.lineasFactualesIntactas) script = polished.script;
 
     script = sanitizeEditorialScript(script).script;
+
+    // Limitar el número de intervenciones según la profundidad. Cada intervención
+    // es UN clip TTS (proceso Qwen desechable que recarga el modelo), así que un
+    // guion de 150 turnos tardaría horas en producirse. La profundidad marca el
+    // alcance: breve/esencial, estándar/balance, a fondo.
+    const cap = TURN_CAP[project.config.profundidad] ?? TURN_CAP.estandar;
+    if (script.turns.length > cap) {
+      const turns = script.turns.slice(0, cap);
+      script = { ...script, turns, scenes: groupScenes(turns), estimacionDurSec: Math.round(turns.reduce((a, t) => a + t.text.split(/\s+/).length / 2.6, 0)) };
+    }
 
     // map to studio contract
     const studioScript: Script = mapEpisodeScriptToStudio(script, project);

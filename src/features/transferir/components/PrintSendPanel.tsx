@@ -9,51 +9,102 @@ import {
   uploadTransferFile,
 } from "@/features/transferir/services/transfer"
 import { requestCameraGate } from "./camera"
+import { waitForLaVeinteNativeBridge } from "./native"
+import { describeScannerError } from "./scannerError"
+import type { ScannerErrorContext } from "./scannerError"
 import { extractTransferToken, formatBytes } from "@/features/transferir/lib/transfer"
 import type { TransferFileMeta } from "@/features/transferir/lib/transfer"
 
+type Status = "boot" | "no-doc" | "permission" | "scanning" | "uploading" | "sent" | "error"
+
 /**
- * "Enviar a imprimir" flow: shows the native doc to send, then scans the PC's transfer QR. Once a
- * valid token is detected, the pending native document is read and uploaded automatically.
+ * "Enviar a imprimir" flow. Strict ordering (instruction #2):
+ *   1. detect native shell (by UA)
+ *   2. wait for the native bridge (document-start or onPageFinished injection)
+ *   3. read the pending document (getPendingPrintDoc) — this is a readiness gate
+ *   4. if there's no pending doc, show "no encontramos el documento" and STOP (no camera)
+ *   5. request CAMERA and wait for the grant
+ *   6. only when granted === true → Html5Qrcode.start()
  */
 export function PrintSendPanel() {
-  const [status, setStatus] = useState<"scanning" | "permission" | "uploading" | "sent" | "error">("scanning")
+  const [status, setStatus] = useState<Status>("boot")
   const [message, setMessage] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [permanentlyDenied, setPermanentlyDenied] = useState(false)
   const [doc, setDoc] = useState<{ name: string; localPath: string; fileSize: number } | null>(null)
   const [uploaded, setUploaded] = useState<TransferFileMeta[]>([])
+  const [ctx, setCtx] = useState<ScannerErrorContext>({ bridgeReady: false, nativeShell: false })
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const handledRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
-    window.LaVeinteApp?.getPendingPrintDoc?.()
-      .then((pending) => {
-        if (cancelled || !pending?.localPath) return
-        return readNativeDocumentAsFile({
+
+    const run = async () => {
+      if (typeof window === "undefined") return
+      // 1 + 2. wait for the native bridge (never treat missing bridge as browser when native).
+      const bridge = await waitForLaVeinteNativeBridge()
+      if (cancelled) return
+      const nativeShell = bridge.isNative
+      setCtx({ bridgeReady: bridge.ready, nativeShell })
+
+      // 3. readiness gate: read the pending document before touching the camera.
+      let pending: { localPath: string } | null = null
+      if (bridge.isNative && bridge.ready && window.LaVeinteApp?.getPendingPrintDoc) {
+        try {
+          pending = await window.LaVeinteApp.getPendingPrintDoc()
+        } catch {
+          pending = null
+        }
+      }
+      if (cancelled) return
+
+      if (bridge.isNative && !pending?.localPath) {
+        setStatus("no-doc")
+        setMessage("No encontramos el documento que quieres enviar. Vuelve a intentarlo desde el visor.")
+        return
+      }
+
+      // Show the doc card only after we truly know which file will be sent.
+      if (pending?.localPath) {
+        const file = await readNativeDocumentAsFile({
           name: pending.localPath.split("/").pop() || "documento",
           mimeType: "application/pdf",
           localPath: pending.localPath,
-        }).then((file) => {
-          if (cancelled || !file) return
-          setDoc({ name: file.name, localPath: pending.localPath, fileSize: file.size })
         })
-      })
-      .catch(() => {})
+        if (cancelled) return
+        if (file) {
+          setDoc({ name: file.name, localPath: pending.localPath, fileSize: file.size })
+        }
+      }
+
+      // 4 + 5. camera gate (waits for the grant, never races getUserMedia).
+      const gate = await requestCameraGate()
+      if (cancelled) return
+      if (!gate.granted) {
+        setPermanentlyDenied(gate.permanentlyDenied)
+        setStatus("permission")
+        return
+      }
+      setPermanentlyDenied(false)
+      startScanner(attempt)
+    }
+
+    run()
+
     return () => {
       cancelled = true
     }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attempt])
 
-  useEffect(() => {
+  const startScanner = (attemptIdx: number) => {
     handledRef.current = false
-    let cancelled = false
     const scanner = new Html5Qrcode("print-qr-reader", false)
     scannerRef.current = scanner
 
     const onSuccess = async (decodedText: string) => {
-      if (cancelled || handledRef.current) return
+      if (handledRef.current) return
       const token = extractTransferToken(decodedText)
       if (!token) {
         setMessage("Ese código no es válido. Escanea el código de 'Recibir' de la computadora.")
@@ -64,8 +115,8 @@ export function PrintSendPanel() {
       try {
         const pending = await window.LaVeinteApp?.getPendingPrintDoc?.()
         if (!pending?.localPath) {
-          setStatus("error")
-          setMessage("No se encontró el documento que querías enviar. Vuelve a intentarlo.")
+          setStatus("no-doc")
+          setMessage("No encontramos el documento que quieres enviar. Vuelve a intentarlo.")
           return
         }
         const file = await readNativeDocumentAsFile({
@@ -89,41 +140,24 @@ export function PrintSendPanel() {
       }
     }
 
-    const startScanner = () =>
-      scanner
-        .start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 220, height: 220 } },
-          onSuccess,
-          () => {},
-        )
-        .then(() => {
-          if (!cancelled) setStatus("scanning")
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setStatus("error")
-            setMessage("No se pudo acceder a la cámara. Permite el acceso o usa otro dispositivo.")
-          }
-        })
-
-    // Camera is gated BEFORE getUserMedia so the OS prompt is answered first.
-    requestCameraGate().then((gate) => {
-      if (cancelled) return
-      if (gate.granted) {
-        setPermanentlyDenied(false)
-        startScanner()
-      } else {
-        setPermanentlyDenied(gate.permanentlyDenied)
-        setStatus("permission")
-      }
-    })
-
-    return () => {
-      cancelled = true
-      scanner.stop().then(() => scanner.clear()).catch(() => {})
-    }
-  }, [attempt])
+    scanner
+      .start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 220, height: 320 } },
+        onSuccess,
+        () => {},
+      )
+      .then(() => {
+        if (attemptIdx === attempt) setStatus("scanning")
+        console.log("PRINT_FLOW scanner_started")
+      })
+      .catch((error: unknown) => {
+        if (attemptIdx === attempt) {
+          setStatus("error")
+          setMessage(describeScannerError(error, ctx))
+        }
+      })
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -136,6 +170,12 @@ export function PrintSendPanel() {
           </span>
         </div>
       </div>
+
+      {status === "boot" && (
+        <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: 0, textAlign: "center" }}>
+          Preparando…
+        </p>
+      )}
 
       {doc && (
         <div
@@ -251,12 +291,23 @@ export function PrintSendPanel() {
                 window.LaVeinteApp?.openAppSettings?.()
                 return
               }
+              setStatus("boot")
+              setMessage(null)
               setAttempt((a) => a + 1)
             }}
           >
             <GearSix size={14} />
             {permanentlyDenied ? "Abrir ajustes" : "Permitir cámara"}
           </Button>
+        </div>
+      )}
+
+      {status === "no-doc" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "center" }}>
+          <p style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--error)", fontSize: "0.8125rem", margin: 0, textAlign: "center" }}>
+            <WarningCircle size={16} style={{ flexShrink: 0 }} />
+            <span>{message}</span>
+          </p>
         </div>
       )}
 
@@ -270,7 +321,7 @@ export function PrintSendPanel() {
             size="sm"
             variant="outline"
             onClick={() => {
-              setStatus("scanning")
+              setStatus("boot")
               setMessage(null)
               setAttempt((a) => a + 1)
             }}
