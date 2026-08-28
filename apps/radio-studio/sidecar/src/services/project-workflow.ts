@@ -370,12 +370,16 @@ export class ProjectWorkflowService {
   async produce(id: string): Promise<Project> {
     const project = this.store.get(id);
     if (!project) throw new Error("PROJECT_NOT_FOUND");
-    if (project.state !== "SCRIPT_APPROVED" && project.state !== "SCRIPT_READY") {
-      throw new Error("PRODUCTION_REQUIRES_SCRIPT_APPROVED");
+    if (!project.script) throw new Error("PRODUCTION_REQUIRES_SCRIPT_APPROVED");
+    // Idempotente: si ya está produciendo (o listo/mézclando), no falla.
+    // Un segundo clic en "CREAR EPISODIO" reanuda la producción existente.
+    if (project.state === "PRODUCING" || project.state === "MASTERING" || project.state === "DONE") {
+      return this.store.update(id, { state: "PRODUCING" })!;
     }
-    this.store.updateState(id, "PRODUCING");
-    // La producción real la gestiona la cola existente (handleGenerate). Aquí solo
-    // dejamos el proyecto listo para que el route /project/:id/produce la dispare.
+    // Sólo se aprueba la producción desde un guion aprobado/listo.
+    if (project.state !== "SCRIPT_APPROVED" && project.state !== "SCRIPT_READY") {
+      return project;
+    }
     return this.store.update(id, { state: "PRODUCING" })!;
   }
 }

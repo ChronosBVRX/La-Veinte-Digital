@@ -1902,7 +1902,13 @@ async function startProjectProduction(id: string, script: StudioScript): Promise
   }
   const bloques = script.turns.filter((t) => !t.adSlot).map((t) => ({ id: t.id, texto: t.ttsText ?? t.displayText, locutor: t.speaker }));
   const existente = leerJob();
-  if (existente && workerVivo() && existente.estado !== "DONE") {
+  // Ya hay producción de ESTE proyecto activa → reanudar, no fallar (idempotente).
+  if (existente && existente.estado !== "DONE" && existente.id === id) {
+    spawnWorker();
+    projectLog(id, "production.started", { total: existente.bloques.length, resumido: true });
+    return { started: true, total: existente.bloques.length };
+  }
+  if (existente && workerVivo() && existente.estado !== "DONE" && existente.id !== id) {
     throw new Error("ya hay una producción en curso");
   }
   const perfiles = resolveVoiceProfiles(DEFAULT_SPEAKERS);
