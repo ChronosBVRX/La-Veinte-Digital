@@ -98,17 +98,34 @@ function baseObservability(intent: MotorObservability["intent"]): MotorObservabi
   }
 }
 
+function getQueryForRetrieval(history: ConsultaMessage[], question: string, intent: ReturnType<typeof classifyRetrievalIntent>): string {
+  if (intent !== "FOLLOW_UP") return question
+  // FOLLOW_UP muy corto ("y si?", "ya tengo mensajes") pierde contexto para FTS/vector.
+  // Hereda la última pregunta sustantiva del historial para que el retrieval siga en el mismo caso.
+  for (let i = history.length - 2; i >= 0; i--) {
+    const m = history[i]
+    if (m.role !== "user") continue
+    const c = m.content.trim()
+    if (c.length < 10) continue
+    const prevIntent = classifyRetrievalIntent(c)
+    if (prevIntent !== "FOLLOW_UP") return `${c}\n${question}`
+  }
+  const prev = [...history].reverse().find((m) => m.role === "user" && m.content.trim() !== question.trim())
+  return prev ? `${prev.content.trim()}\n${question}` : question
+}
+
 async function respondDirect(history: ConsultaMessage[], question: string, requestId: string, userId: string): Promise<NextResponse> {
   const t0 = performance.now()
   const intent = classifyRetrievalIntent(question)
+  const retrievalQuery = getQueryForRetrieval(history, question, intent)
   const obs = baseObservability(intent)
   try {
     const openai = getOpenAI()
-    const refs = extractExactRefs(question)
+    const refs = extractExactRefs(retrievalQuery)
 
     // ── 1. FAST PATH: EXACT_LOOKUP → 0 embedding, 0 LLM ──
     if (intent === "EXACT_LOOKUP") {
-      const { sources } = await retrieveHybrid(question, null, intent, refs, 3)
+      const { sources } = await retrieveHybrid(retrievalQuery, null, intent, refs, 3)
       obs.fastPath = true
       obs.embeddingSkipped = true
       obs.evidenceCount = sources.length
@@ -121,13 +138,13 @@ async function respondDirect(history: ConsultaMessage[], question: string, reque
     }
 
     // ── 2. EMBEDDING (LRU) ──
-    const emb = await embedQueryLru(question, intent)
+    const emb = await embedQueryLru(retrievalQuery, intent)
     obs.embeddingSkipped = emb.skipped
     obs.embeddingCacheHit = emb.cacheHit
     obs.embeddingMs = emb.ms
 
     // ── 3. RETRIEVAL HÍBRIDO (1 RPC) ──
-    const { sources, rpcMs } = await retrieveHybrid(question, emb.embedding, intent, refs, 8)
+    const { sources, rpcMs } = await retrieveHybrid(retrievalQuery, emb.embedding, intent, refs, 8)
     obs.retrievalMs = rpcMs
     obs.evidenceCount = sources.length
     obs.evidenceChars = sources.reduce((a, s) => a + s.fragmento.length, 0)

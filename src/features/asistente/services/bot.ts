@@ -48,12 +48,22 @@ export function botErrorMessage(code: BotErrorCode): string {
 }
 
 export async function consultarBot(history: BotMessage[]): Promise<{ respuesta: string; fuentes: BotFuente[]; chips: string[] }> {
+  // Sanea el historial: @/shared/contracts/consulta valida que cada mensaje
+  // tenga EXACTAMENTE {role, content} y 1..2000 chars. BotMessage trae
+  // fuentes/chips en respuestas del asistente; si se reenvían tal cual,
+  // el segundo turno falla con 400 "Cada mensaje debe tener únicamente
+  // role y content". También recorta a 2000 para evitar rechazos cuando
+  // la respuesta del asistente (hasta 550 tokens) roza el límite.
+  const cleanHistory = history.map(({ role, content }) => ({
+    role,
+    content: content.slice(0, 2000),
+  }))
   let res: Response
   try {
     res = await fetch("/api/consulta", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ history }),
+      body: JSON.stringify({ history: cleanHistory }),
     })
   } catch (err) {
     throw new BotError("network", err instanceof Error ? err.message : "Network error")
