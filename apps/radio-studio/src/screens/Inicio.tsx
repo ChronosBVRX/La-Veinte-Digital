@@ -32,6 +32,7 @@ export function Inicio({ onCrear, onOpen }: { onCrear: (tema: string, comerciale
   const [comerciales, setComerciales] = useState(false);
   const [recent, setRecent] = useState<Project[]>([]);
   const [eliminando, setEliminando] = useState<string | null>(null);
+  const [confirmando, setConfirmando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const sugerencias = ["¿Qué pasa si me cambian de horario?", "Cómo solicitar vacaciones", "Accidente de trabajo: ST-7", "Tiempo extraordinario en el IMSS"];
 
@@ -41,14 +42,14 @@ export function Inicio({ onCrear, onOpen }: { onCrear: (tema: string, comerciale
     recargar();
   }, []);
 
+  // Confirmación IN-UI (en el webview de Tauri window.confirm no funciona).
   const eliminar = async (p: Project) => {
-    const ok = window.confirm(`¿Eliminar el episodio "${titleOf(p)}"? Su borrador, guion y audio se quitarán.`);
-    if (!ok) return;
     setEliminando(p.id);
     setError(null);
     try {
       await deleteProject(p.id);
       setRecent((prev) => prev.filter((x) => x.id !== p.id));
+      setConfirmando(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo eliminar el episodio");
     } finally {
@@ -102,14 +103,23 @@ export function Inicio({ onCrear, onOpen }: { onCrear: (tema: string, comerciale
                   </div>
                   <div className="row" style={{ gap: 8, flexShrink: 0 }}>
                     <button className="btn-secondary" onClick={() => onOpen(p.id)}>CONTINUAR</button>
-                    <button
-                      className="btn-danger"
-                      disabled={eliminando === p.id}
-                      title="Eliminar este episodio"
-                      onClick={() => void eliminar(p)}
-                    >
-                      {eliminando === p.id ? "…" : "ELIMINAR"}
-                    </button>
+                    {confirmando === p.id ? (
+                      <>
+                        <button className="btn-danger" disabled={eliminando === p.id} onClick={() => void eliminar(p)}>
+                          {eliminando === p.id ? "Borrando…" : "SÍ, BORRAR"}
+                        </button>
+                        <button className="btn-secondary" disabled={eliminando === p.id} onClick={() => setConfirmando(null)}>NO</button>
+                      </>
+                    ) : (
+                      <button
+                        className="btn-danger"
+                        disabled={eliminando === p.id}
+                        title="Eliminar este episodio"
+                        onClick={() => setConfirmando(p.id)}
+                      >
+                        ELIMINAR
+                      </button>
+                    )}
                   </div>
                 </div>
               </section>
