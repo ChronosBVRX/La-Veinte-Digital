@@ -10,13 +10,24 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function isNetworkStartupError(e: unknown): boolean {
+/** Conexión realmente caída (el sidecar no responde en la red), NO un timeout. */
+function isNetworkDown(e: unknown): boolean {
   if (!(e instanceof Error)) return false;
-  return /failed to fetch|load failed|networkerror|aborterror/i.test(`${e.name} ${e.message}`);
+  return /failed to fetch|load failed|networkerror/i.test(`${e.name} ${e.message}`);
+}
+
+/** Tiempo de espera agotado (el motor sigue trabajando; no es conexión perdida). */
+function isTimeout(e: unknown): boolean {
+  if (!(e instanceof Error)) return false;
+  return e.name === "AbortError" || /abort|timeout|timed out/i.test(`${e.name} ${e.message}`);
 }
 
 function motorLocalError(): Error {
   return new Error("No pude conectar con el motor local. Cierra y vuelve a abrir AI Radio Studio; si sigue igual, revisa que el sidecar esté iniciado.");
+}
+
+function motorWorkingError(): Error {
+  return new Error("El motor local está trabajando en tu solicitud. Espera un momento; la conexión sigue activa.");
 }
 
 async function parseError(res: Response): Promise<Error> {
@@ -42,8 +53,11 @@ async function post<T>(path: string, body: unknown, timeoutMs = 15000, startupRe
         if (!res.ok) throw await parseError(res);
         return (await res.json()) as T;
       } catch (e) {
-        if (attempt >= startupRetries || !isNetworkStartupError(e)) {
-          if (isNetworkStartupError(e)) throw motorLocalError();
+        // Un timeout NO significa que el sidecar esté caído: el motor puede estar
+        // generando con el LLM local y tardar varios minutos.
+        if (isTimeout(e)) throw motorWorkingError();
+        if (attempt >= startupRetries || !isNetworkDown(e)) {
+          if (isNetworkDown(e)) throw motorLocalError();
           throw e;
         }
         await sleep(Math.min(1200 + attempt * 700, 3500));
@@ -637,7 +651,7 @@ export async function projectResearch(id: string): Promise<{ project: Project; r
 }
 
 export async function projectProposal(id: string): Promise<{ project: Project; proposal: Proposal }> {
-  return post<{ project: Project; proposal: Proposal }>(`/projects/${id}/proposal`, {}, 300000, 3);
+  return post<{ project: Project; proposal: Proposal }>(`/projects/${id}/proposal`, {}, 900000, 2);
 }
 
 export async function projectProposalUpdate(id: string, patch: Partial<Proposal>): Promise<Project> {
@@ -649,7 +663,7 @@ export async function projectApprove(id: string): Promise<Project> {
 }
 
 export async function projectScript(id: string): Promise<{ project: Project; script: Script; verify: VerifyResult }> {
-  return post<{ project: Project; script: Script; verify: VerifyResult }>(`/projects/${id}/script`, {}, 300000, 3);
+  return post<{ project: Project; script: Script; verify: VerifyResult }>(`/projects/${id}/script`, {}, 900000, 2);
 }
 
 export async function projectVerify(id: string): Promise<VerifyResult> {
