@@ -113,11 +113,9 @@ export function Modal({
           inset: 0,
           zIndex: 1000,
           background: "rgba(0,0,0,0.45)",
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "center",
-          // PT < PB + margen inferior mayor para que no quede pegado abajo
-          padding: "max(1rem, 2.5dvh) 1rem max(2.5rem, 7dvh) 1rem",
+          display: "grid",
+          placeItems: "center",
+          padding: "max(1.25rem, 3dvh) 1rem max(2rem, 5dvh) 1rem",
           overflowY: "auto",
           overscrollBehavior: "contain",
           WebkitOverflowScrolling: "touch" as unknown as string,
@@ -140,10 +138,11 @@ export function Modal({
             overflow: "auto",
             display: "flex",
             flexDirection: "column",
-            margin: "auto",
-            flexShrink: 0,
-            // sube 4vh para que no tape el borde inferior en tu captura
-            transform: "translateY(-4vh)",
+            margin: 0,
+            alignSelf: "center",
+            justifySelf: "center",
+            // sube 2.5vh para centrado levemente arriba
+            transform: "translateY(-2.5vh)",
             ...style,
           }}
         >
@@ -221,15 +220,17 @@ export function Modal({
       <style>{`
         @media (max-width: 768px) {
           .ui-modal-overlay {
-            align-items: flex-start !important;
+            display: grid !important;
+            place-items: center !important;
             padding: max(1rem, 2dvh) 1rem max(1.5rem, env(safe-area-inset-bottom)) !important;
             overflow-y: auto !important;
           }
           .ui-modal-dialog {
             border-radius: var(--radius-lg) !important;
             max-height: min(80dvh, calc(100dvh - 4rem)) !important;
-            margin: auto !important;
-            flex-shrink: 0 !important;
+            margin: 0 !important;
+            align-self: center !important;
+            justify-self: center !important;
             transform: translateY(-1vh) !important;
             animation: scaleIn 0.2s ease forwards !important;
           }
