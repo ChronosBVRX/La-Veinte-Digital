@@ -1,19 +1,19 @@
 {
   "channel": "stable",
-  "versionCode": 192,
-  "versionName": "1.0.92",
+  "versionCode": 193,
+  "versionName": "1.0.93",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-28T18:10:00Z",
+  "publishedAt": "2026-08-28T15:20:00Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "5a042c23dfb17a4d0c5b8e9b5cb48821f5b4f5f881d63dc139150489afd1e39a",
+    "sha256": "7db14276063e2ee780f8b726b99604e2bee373a2a6d54c375e48f0dcfc9a498c",
     "size": 24048388
   },
   "releaseNotes": [
-    "Reparado el flujo Enviar a imprimir: al tocar el icono de impresora ahora se abre el escáner QR (antes volvía a la pantalla principal)",
-    "La cámara se solicita de forma correcta y clara: distingue la primera vez, denegada y denegada permanentemente (con opción de abrir Ajustes)",
-    "El documento pendiente se conserva durante toda la transferencia y solo se borra tras enviarlo con éxito",
-    "Se eliminó el botón de cuadro que solo hacía zoom"
+    "Reparado por completo el flujo Enviar a imprimir: ya funciona de principio a fin en el teléfono",
+    "Se corrigió el permiso de cámara que bloqueaba el escáner (la cámara ahora abre correctamente al escanear)",
+    "El documento seleccionado se lee desde tu tarjetón/checada guardado y se envía directo a la computadora al escanear el QR",
+    "Mejor manejo de errores de cámara y del documento para que nunca se quede cargando"
   ]
 }
