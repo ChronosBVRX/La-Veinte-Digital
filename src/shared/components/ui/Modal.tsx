@@ -116,7 +116,8 @@ export function Modal({
           display: "flex",
           alignItems: "flex-start",
           justifyContent: "center",
-          padding: "max(1rem, 3dvh) 1rem",
+          // PT < PB para sesgo visual ligeramente arriba del centro exacto
+          padding: "max(1rem, 2dvh) 1rem max(1.5rem, 5dvh) 1rem",
           overflowY: "auto",
           overscrollBehavior: "contain",
           WebkitOverflowScrolling: "touch" as unknown as string,
@@ -135,12 +136,14 @@ export function Modal({
             boxShadow: "var(--shadow-lg)",
             width: "100%",
             maxWidth: sizeMap[size],
-            maxHeight: "min(90dvh, calc(100dvh - 2rem))",
+            maxHeight: "min(86dvh, calc(100dvh - 3.5rem))",
             overflow: "auto",
             display: "flex",
             flexDirection: "column",
             margin: "auto",
             flexShrink: 0,
+            // nudge visual ~1vh arriba del centro geométrico
+            transform: "translateY(-1vh)",
             ...style,
           }}
         >
@@ -224,9 +227,10 @@ export function Modal({
           }
           .ui-modal-dialog {
             border-radius: var(--radius-lg) !important;
-            max-height: min(85dvh, calc(100dvh - 2rem)) !important;
+            max-height: min(86dvh, calc(100dvh - 3rem)) !important;
             margin: auto !important;
             flex-shrink: 0 !important;
+            transform: translateY(0) !important;
             animation: scaleIn 0.2s ease forwards !important;
           }
         }
