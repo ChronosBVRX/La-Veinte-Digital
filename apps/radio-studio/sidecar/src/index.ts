@@ -118,6 +118,13 @@ function spawnWorker(): void {
 
 /** Procesa la cola de producción con el motor Qwen (proceso desechable por bloque). */
 let produccionEnCurso = false;
+// Flag global de cancelación: el worker en memoria lo respeta aunque otra
+// operación (eliminar/descartar/cancelar) use un objeto job distinto en disco.
+let cancelRequested = false;
+
+function requestProductionCancel(): void { cancelRequested = true; }
+function clearProductionCancel(): void { cancelRequested = false; }
+
 async function procesarProduccion(): Promise<void> {
   if (produccionEnCurso) return;
   produccionEnCurso = true;
@@ -135,7 +142,7 @@ async function procesarProduccion(): Promise<void> {
     for (let i = 0; i < job.bloques.length; i++) {
       const b = job.bloques[i];
       if (b.estado === "generado") continue;
-      if (job.cancelado) { job.estado = "PAUSED"; guardarJob(job); return; }
+      if (cancelRequested || job.cancelado) { clearProductionCancel(); return; }
       job.bloqueActual = i;
       guardarJob(job);
       let ultimoError: string | null = null;
@@ -189,6 +196,7 @@ function workerVivo(): boolean {
 }
 
 function detenerWorkersProduccion(): void {
+  requestProductionCancel();
   workerVivoCache = { at: 0, v: false };
   const job = leerJob();
   if (job && job.estado !== "DONE") {
@@ -643,6 +651,7 @@ async function handleResume(res: http.ServerResponse) {
   }
   job.estado = "QUEUED";
   job.cancelado = false;
+  clearProductionCancel();
   job.notas.push("reanudado — RESUMABLE");
   guardarJob(job);
   spawnWorker();
@@ -1896,6 +1905,7 @@ const server = http.createServer(async (req, res) => {
  * Reutiliza job-store + worker Qwen: GUIÓN → bloques → voces (resumible).
  */
 async function startProjectProduction(id: string, script: StudioScript): Promise<{ started: boolean; total: number }> {
+  clearProductionCancel();
   const voces: Record<string, VoiceSlot> = {};
   for (const t of script.turns) {
     if (!voces[t.speaker]) voces[t.speaker] = vozPorLocutor(t.speaker, {});
@@ -1939,6 +1949,7 @@ async function startProjectProduction(id: string, script: StudioScript): Promise
 
 /** Limpia el trabajo de producción del proyecto si se elimina desde la lista. */
 function deleteProjectCleanup(id: string): void {
+  requestProductionCancel();
   const job = leerJob();
   if (job && job.id === id) {
     try {
@@ -1950,7 +1961,12 @@ function deleteProjectCleanup(id: string): void {
       eliminarAudioDeJob(job);
       eliminarJob();
     } catch { /* mejor esfuerzo */ }
+  } else {
+    detenerWorkersProduccion();
   }
+  // El worker (en memoria) puede reescribir el archivo una vez antes de frenar
+  // al terminar el bloque en curso; lo limpiamos poco después.
+  setTimeout(() => { try { eliminarJob(); } catch { /* mejor esfuerzo */ } }, 1600);
 }
 
 /** SSE — progreso en tiempo real para el frontend. */

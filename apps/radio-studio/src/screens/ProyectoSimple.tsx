@@ -3,7 +3,7 @@
  * Sin jerga técnica: "Fuentes encontradas", "Información verificada", "Voz", "Motor local".
  * El usuario solo escribe un tema y confirma en cada paso.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getProject, projectResearch, projectProposal, projectApprove, projectScript,
   projectVerify, projectProduce, projectProposalUpdate, obtenerProgreso, obtenerLlmSalud,
@@ -87,11 +87,15 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
     finally { setBusy(null); }
   };
 
+  const audioRef = useRef<HTMLDivElement | null>(null);
+
   const runProduce = async () => {
     setBusy("Creando episodio"); setError(null);
     try {
       const r = await projectProduce(projectId);
+      await refresh();
       setProgress({ done: 0, total: r.started?.total ?? 0, estado: "RUNNING" });
+      setTimeout(() => audioRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
     } catch (e) { setError(e instanceof Error ? e.message : "No pude iniciar la producción"); }
     finally { setBusy(null); }
   };
@@ -277,7 +281,7 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
       )}
 
       {/* ═══ GUION ═══ */}
-      {stepIdx >= 2 && stepIdx <= 3 && script && (
+      {stepIdx >= 2 && stepIdx < 3 && script && (
         <section className="card">
           <div className="scene-title">Guion</div>
           <div className="muted small" style={{ marginBottom: 10 }}>
@@ -326,7 +330,7 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
 
       {/* ═══ AUDIO / PRODUCCIÓN ═══ */}
       {stepIdx >= 3 && (
-        <section className="card">
+        <section className="card" ref={audioRef}>
           <div className="scene-title">Audio del episodio</div>
           {progress && progress.total > 0 && (
             <>
