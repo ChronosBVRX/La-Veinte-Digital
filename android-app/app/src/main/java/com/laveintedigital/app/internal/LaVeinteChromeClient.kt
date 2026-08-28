@@ -12,6 +12,8 @@ class LaVeinteChromeClient : WebChromeClient() {
 
     internal var onLaunchFilePicker: ((ValueCallback<Array<Uri>>?, FileChooserParams?) -> Boolean)? = null
 
+    internal var onWebPermissionRequest: ((PermissionRequest) -> Unit)? = null
+
     override fun onShowFileChooser(
         webView: WebView?,
         filePathCallback: ValueCallback<Array<Uri>>?,
@@ -21,6 +23,6 @@ class LaVeinteChromeClient : WebChromeClient() {
     }
 
     override fun onPermissionRequest(request: PermissionRequest?) {
-        request?.grant(request.resources)
+        request?.let { onWebPermissionRequest?.invoke(it) ?: it.deny() }
     }
 }

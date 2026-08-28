@@ -1,8 +1,12 @@
 package com.laveintedigital.app.internal
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.pm.PackageManager
+import android.webkit.PermissionRequest
 import androidx.activity.ComponentActivity
+import androidx.core.content.ContextCompat
 import android.graphics.Color as AndroidColor
 import android.webkit.CookieManager
 import android.view.ViewGroup
@@ -119,6 +123,35 @@ fun InternalWebScreen(
         val uris = WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data)
         pendingFileCallback?.onReceiveValue(uris)
         pendingFileCallback = null
+    }
+
+    // A pending WebView permission request (e.g. getUserMedia camera) awaiting the runtime grant.
+    var pendingWebPermission by remember { mutableStateOf<PermissionRequest?>(null) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants ->
+        val request = pendingWebPermission
+        pendingWebPermission = null
+        if (request != null) {
+            val allGranted = grants.values.all { it } || grants.isEmpty()
+            if (allGranted) request.grant(request.resources) else request.deny()
+        }
+    }
+
+    chromeClient.onWebPermissionRequest = { request ->
+        val needed = request.resources
+            .mapNotNull { it.toRuntimePermission() }
+            .toSet()
+        val missing = needed.filter {
+            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isEmpty()) {
+            request.grant(request.resources)
+        } else {
+            pendingWebPermission = request
+            permissionLauncher.launch(missing.toTypedArray())
+        }
     }
 
     chromeClient.onLaunchFilePicker = { callback, params ->
@@ -316,3 +349,11 @@ fun InternalWebScreen(
         }
     }
 }
+
+// Maps a WebView permission resource to the Android runtime permission it requires.
+private fun String.toRuntimePermission(): String? =
+    when (this) {
+        PermissionRequest.RESOURCE_VIDEO_CAPTURE -> Manifest.permission.CAMERA
+        PermissionRequest.RESOURCE_AUDIO_CAPTURE -> Manifest.permission.RECORD_AUDIO
+        else -> null
+    }
