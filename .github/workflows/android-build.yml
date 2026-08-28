@@ -107,8 +107,10 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
-          node ../scripts/upload-android-release.mjs "$APK" "${{ github.event.inputs.channel }}" "${{ steps.version.outputs.versionName }}"
+          APK=$(realpath "$(find app/build/outputs/apk/release -name '*.apk' | head -1)")
+          cd ..
+          npm install --no-audit --no-fund --ignore-scripts --no-save @supabase/supabase-js
+          node scripts/upload-android-release.mjs "$APK" "${{ github.event.inputs.channel }}" "${{ steps.version.outputs.versionName }}"
 
       - name: Print release summary
         if: github.event_name == 'workflow_dispatch'
