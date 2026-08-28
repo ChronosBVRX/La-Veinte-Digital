@@ -30,7 +30,6 @@ import { runMasterQa } from "./master-qa";
 import { loadLlmConfig, LocalLLMService } from "./llm/local-llm";
 import { getGpuManager } from "./llm/gpu-manager";
 import { ScriptPipeline, buildEvidencePackV2 } from "./llm/pipeline";
-import { resolveProvider } from "../../../../src/features/normativa/services/llm-provider";
 import { eliminarJob, leerJob, guardarJob, nuevoJob, resumenJob, type ProductionJob } from "../worker/job-store";
 import { leerJobMusica, guardarJobMusica, nuevoJobMusica, resumenJobMusica, type MusicaTipo } from "../worker/musica-job-store";
 import { createHash } from "node:crypto";
@@ -407,54 +406,31 @@ async function handleInvestigar(res: http.ServerResponse, body: Record<string, u
   const coverage = buildCoverage(catalog, tema);
   let analisisIa: Record<string, unknown> | null = null;
   let investigador = "solo-corpus";
-  const provider = resolveProvider("deepseek") ?? resolveProvider();
-  if (provider) {
-    investigador = provider.name;
-    try {
-      const mapaDocumental = catalog.listDocuments().slice(0, 160).map((d) => {
-        const ver = d.currentVersion ? catalog.getVersion(d.currentVersion) : null;
-        return `${d.id} | ${d.category} | ${d.validity} | ${d.title}${ver?.pages ? ` | ${ver.pages} pág.` : ""}`;
-      }).join("\n");
-      const evidencia = pack.claims.slice(0, 36).map((c, i) => {
+  try {
+    if (await editorialLlm.isAvailable()) {
+      const claimsFlat = pack.claims.map((c) => {
         const e = c.evidence[0];
-        return `E${i + 1} | ${e?.documentId ?? "?"}${e?.clause ? ` ${e.clause}` : ""}${e?.article ? ` ${e.article}` : ""}${e?.pdfPage != null ? ` pág.${e.pdfPage}` : ""} | ${c.text.slice(0, 520)}`;
+        return `[${c.id}] ${c.text.slice(0, 300)}${e ? ` — ${e.documentId}${e.clause ? ` ${e.clause}` : ""}${e.article ? ` ${e.article}` : ""}` : ""}`;
       }).join("\n");
-      const cobertura = coverage.items.map((i) => `${i.status.toUpperCase()} | ${i.id} | ${i.label}${i.note ? ` | ${i.note}` : ""}`).join("\n");
-      const raw = await provider.complete({
-        system: `Eres investigador editorial de La Veinte Digital. Tu audiencia son trabajadoras y trabajadores del IMSS. Analiza SOLO la evidencia documental recibida; no inventes derechos, plazos, requisitos ni cifras. Si falta soporte documental, dilo como faltante.`,
-        user: `TEMA: ${tema}
-
-COBERTURA DOCUMENTAL:
-${cobertura}
-
-MAPA COMPLETO DE LA BIBLIOTECA:
-${mapaDocumental}
-
-EVIDENCIA DEL CORPUS:
-${evidencia}
-
-Devuelve únicamente JSON con:
-{
-  "enfoque": "ángulo editorial útil para trabajadores",
-  "preguntasTrabajador": ["dudas reales que conviene responder"],
-  "subtemas": ["bloques sugeridos para que el programa no sea monótono"],
-  "fuentesClave": ["documentos del corpus que sí sostienen el episodio"],
-  "faltantes": ["documentos o temas que faltan antes de publicar, si aplica"],
-  "riesgos": ["riesgos de decir algo sin evidencia o confundir regímenes"],
-  "publicable": true|false
-}`,
-        json: true,
-        maxTokens: 2500,
-        temperature: 0.25,
-      });
-      analisisIa = JSON.parse(extraerJson(raw)) as Record<string, unknown>;
-    } catch (e) {
+      const analysis = await editorialLlm.analyzeTopic(tema, claimsFlat.slice(0, 6000));
+      const ev = await editorialLlm.evaluateEvidence(tema, claimsFlat.slice(0, 6000));
       analisisIa = {
-        error: e instanceof Error ? e.message : "falló el análisis IA",
-        faltantes: coverage.critical.map((i) => i.label),
-        publicable: coverage.recommended,
+        enfoque: analysis.enfoque,
+        preguntasTrabajador: analysis.preguntas,
+        subtemas: analysis.subtemas,
+        fuentesClave: ev.fuerte,
+        faltantes: [...new Set([...ev.faltantes, ...coverage.critical.map((i) => i.label)])],
+        riesgos: analysis.riesgos,
+        publicable: analysis.publicable,
       };
+      investigador = "ollama:qwen3.5:9b";
     }
+  } catch (e) {
+    analisisIa = {
+      error: e instanceof Error ? e.message : "falló el análisis IA",
+      faltantes: coverage.critical.map((i) => i.label),
+      publicable: coverage.recommended,
+    };
   }
   json(res, 200, {
     tema,
@@ -799,14 +775,31 @@ function agruparEscenas(turns: DialogueTurn[]): Array<{ id: string; titulo: stri
 }
 
 async function handleLlmHealth(res: http.ServerResponse) {
-  const llm = new LocalLLMService(loadLlmConfig(), path.join(REPO, "data", "tts"));
+  const cfg = loadLlmConfig();
+  const llm = new LocalLLMService(cfg, path.join(REPO, "data", "tts"));
   const health = await llm.health();
   const models = health.ok ? await llm.listModels() : [];
+  const modelFamily = cfg.model.split(":")[0];
+  const modeloObjetivoOk = models.some((m) => m.startsWith(modelFamily));
   json(res, 200, {
-    config: loadLlmConfig(),
+    config: cfg,
     health,
     modelos: models,
-    modeloObjetivoOk: models.some((m) => m.startsWith(loadLlmConfig().model.split(":")[0])),
+    modeloObjetivoOk,
+    // El modelo editorial se verifica en runtime contra Ollama (ollama list). Nunca
+    // se usa una constante: si el modelo no está instalado, NO hay fallback remoto.
+    editorial: {
+      provider: "ollama",
+      model: cfg.model,
+      label: "Qwen 3.5 9B",
+      available: health.ok && modeloObjetivoOk,
+      installedModels: models,
+      diagnostic: !health.ok
+        ? `Ollama no responde en ${cfg.baseUrl} (${health.error ?? "sin respuesta"})`
+        : !modeloObjetivoOk
+          ? `El modelo ${cfg.model} no está instalado en Ollama. Ejecuta: ollama pull ${cfg.model}`
+          : null,
+    },
     gpu: getGpuManager().status(),
     stats: health.ok ? await llm.getStats() : [],
   });
@@ -1185,16 +1178,6 @@ function expansionQueries(tema: string): string[] {
   return [...new Set(found)].slice(0, 8);
 }
 
-/** Extrae el primer objeto JSON {..} de la respuesta del LLM (los modelos pequeños
- *  a veces envuelven el JSON en texto o lo cortan a mitad). */
-function extraerJson(raw: string): string {
-  const s = raw ?? "";
-  const ini = s.indexOf("{");
-  const fin = s.lastIndexOf("}");
-  if (ini === -1 || fin === -1 || fin <= ini) throw new Error("sin JSON en la respuesta");
-  return s.slice(ini, fin + 1);
-}
-
 function scriptScenesFromTurns(turns: DialogueTurn[]): EpisodeScript["scenes"] {
   const scenes: EpisodeScript["scenes"] = [];
   let current = { id: "s1", titulo: "Apertura", turns: [] as DialogueTurn[] };
@@ -1367,9 +1350,6 @@ async function handleAjustarGuion(res: http.ServerResponse, body: Record<string,
   if (!script || !Array.isArray(script.turns) || script.turns.length === 0) return json(res, 400, { error: "guion vacío" });
   if (!contexto) return json(res, 400, { error: "contexto vacío" });
 
-  const provider = resolveProvider("deepseek") ?? resolveProvider();
-  if (!provider) return json(res, 503, { error: "DeepSeek no está configurado y no hay proveedor alterno disponible" });
-
   const catalog = new NormativeCatalog(REPO);
   const pack = catalog.buildEvidencePack(`${script.tema} ${contexto}`, { limit: 30 });
   const targetTurns = scope === "todo"
@@ -1377,59 +1357,30 @@ async function handleAjustarGuion(res: http.ServerResponse, body: Record<string,
     : script.scenes.find((s) => s.id === scope)?.turns ?? script.turns.filter((t) => t.id === scope);
   if (targetTurns.length === 0) return json(res, 400, { error: "no encontré la parte seleccionada" });
 
-  const evidencia = pack.claims.slice(0, 30).map((c, i) => {
-    const e = c.evidence[0];
-    return `E${i + 1} | ${e?.documentId ?? "?"}${e?.clause ? ` ${e.clause}` : ""}${e?.article ? ` ${e.article}` : ""}${e?.pdfPage != null ? ` pág.${e.pdfPage}` : ""} | ${c.text.slice(0, 500)}`;
-  }).join("\n");
-  const mapaDocumental = catalog.listDocuments().slice(0, 120).map((d) => {
-    const ver = d.currentVersion ? catalog.getVersion(d.currentVersion) : null;
-    return `${d.id} | ${d.category} | ${d.validity} | ${d.title}${ver?.pages ? ` | ${ver.pages} pág.` : ""}`;
-  }).join("\n");
-  const guionCompleto = script.turns.map((t) => `${t.id} | ${t.speaker}: ${t.text}`).join("\n");
-  const parte = targetTurns.map((t) => `${t.id} | ${t.speaker}: ${t.text}`).join("\n");
   const speakerIds = script.speakers.map((s) => s.id).join("|");
-  const speakerLines = script.speakers.map(speakerPromptLine).join("\n");
+  const claimsFlat = pack.claims.slice(0, 30).map((c, i) => {
+    const e = c.evidence[0];
+    return `E${i + 1} | ${e?.documentId ?? "?"}${e?.clause ? ` ${e.clause}` : ""}${e?.article ? ` ${e.article}` : ""}${e?.pdfPage != null ? ` pág.${e.pdfPage}` : ""} | ${c.text.slice(0, 420)}`;
+  }).join("\n");
+  const memory = targetTurns.slice(-6).map((t) => `${t.speaker}: ${t.text.slice(0, 110)}`).join("\n");
 
-  const raw = await provider.complete({
-    system: `Eres editor de podcast de La Veinte Digital. Ajustas guiones para trabajadoras y trabajadores del IMSS usando SOLO el corpus recibido. Conserva el tono vivo, cercano y conversacional. No borres el guion completo si se pidió una parte. No inventes derechos, cifras, plazos, artículos ni cláusulas. Si el contexto pide algo sin soporte, conviértelo en duda o advertencia de cobertura.`,
-    user: `TEMA: ${script.tema}
-ALCANCE: ${scope === "todo" ? "todo el guion" : "solo la parte seleccionada"}
-LOCUTORES DISPONIBLES:
-${speakerLines}
+  // Migrado a LocalEditorialLLM: la edición usa SIEMPRE el motor local (qwen3.5:9b).
+  if (!(await editorialLlm.isAvailable())) {
+    return json(res, 503, { error: "El modelo editorial local no está disponible.", code: "MOTOR_UNAVAILABLE" });
+  }
+  const rawTurns = await editorialLlm.writeSection({
+    topic: script.tema,
+    seccion: scope === "todo" ? "todo el guion" : scope,
+    proposito: contexto,
+    claims: claimsFlat,
+    speakers: speakerIds,
+    memory: `GUIÓN PREVIO (no lo repitas entero):\n${memory}`,
+    comercial: null,
+  }).catch((e) => { throw new Error(`EDICION_LLM_FAILED: ${e instanceof Error ? e.message : e}`); });
 
-CONTEXTO NUEVO DEL USUARIO:
-${contexto}
-
-GUIÓN COMPLETO PARA CONTEXTO, NO LO REPITAS ENTERO SI EL ALCANCE ES PARCIAL:
-${guionCompleto.slice(0, 14000)}
-
-PARTE A AJUSTAR:
-${parte}
-
-EVIDENCIA DOCUMENTAL DISPONIBLE:
-${evidencia}
-
-MAPA COMPLETO DE LA BIBLIOTECA PARA UBICAR HUECOS O FUENTES RELACIONADAS:
-${mapaDocumental}
-
-Instrucciones:
-- Devuelve SOLO los turnos ajustados del alcance indicado.
-- Mantén los ids existentes cuando edites un turno.
-- Puedes añadir turnos nuevos si el contexto lo necesita; usa ids "new-1", "new-2", etc.
-- No cambies locutores fuera del alcance.
-- Usa solo estos locutores: ${speakerIds}.
-- No uses cortinillas internas; para cambio de bloque usa "cambio editorial".
-- Cada turno debe ser breve, natural y aportar algo nuevo.
-
-Devuelve únicamente JSON: {"turns":[{"id":"...","speaker":"${speakerIds}","text":"...","pauseBeforeMs":120,"pauseAfterMs":160,"energy":3,"pace":"normal","canOverlap":false,"transition":null,"citations":["E1"]}],"nota":"resumen breve del ajuste"}`,
-    json: true,
-    maxTokens: 7000,
-    temperature: 0.55,
-  });
-
-  const parsed = JSON.parse(extraerJson(raw)) as { turns?: Array<Partial<DialogueTurn> & { speaker?: string; text?: string }>; nota?: string };
-  if (!Array.isArray(parsed.turns) || parsed.turns.length === 0) return json(res, 502, { error: "DeepSeek no devolvió turnos útiles" });
-  let nuevos = normalizeLlMTurns(parsed.turns, targetTurns);
+  if (!rawTurns || rawTurns.length === 0) return json(res, 502, { error: "El motor local no devolvió turnos útiles" });
+  const parsed = { turns: rawTurns, nota: "ajuste generado por el motor local" };
+  let nuevos = normalizeLlMTurns(parsed.turns as Array<Partial<DialogueTurn> & { speaker?: string; text?: string }>, targetTurns);
 
   const targetIds = new Set(targetTurns.map((t) => t.id));
   let newSeq = 0;
@@ -1461,7 +1412,7 @@ Devuelve únicamente JSON: {"turns":[{"id":"...","speaker":"${speakerIds}","text
   json(res, 200, {
     script: sanitized.script,
     nota: parsed.nota ?? "ajuste aplicado",
-    proveedor: provider.name,
+    proveedor: "ollama:qwen3.5:9b",
     editorialQa: sanitized.qa,
     editorialCambios: sanitized.cambios,
     verificacion,
@@ -1569,186 +1520,23 @@ async function handleDirector(res: http.ServerResponse, body: Record<string, unk
   let proveedorUsado: string | null = null;
   const verificacion: Array<{ turnId: string; semaforo: "green" | "yellow" | "red"; detalle: string | null }> = [];
 
-  if (modo === "ia") {
-    const provider = resolveProvider();
-    if (provider) {
-      proveedorUsado = provider.name;
-      try {
-        // Generación POR SEGMENTOS: la evidencia se parte en lotes y cada lote produce
-        // una llamada LLM con ~20-30 turnos conversacionales. Se concatenan todos.
-        const LOTE = 3;
-        const lotes: Array<typeof claims> = [];
-        for (let i = 0; i < claims.length; i += LOTE) lotes.push(claims.slice(i, i + LOTE));
-        let llmTurns: DialogueTurn[] = [];
-        let idSeq = 0;
-
-        const systemIA = `Eres un DIRECTOR DE RADIO para trabajadores del IMSS. Recibes un lote de evidencia normativa verificada y escribes un SEGMENTO de diálogo entre locutores para un episodio de podcast.
-
-Personalidades:
-${speakers.map(speakerPromptLine).join("\n")}
-
-Tono: conversación ENTRE AMIGOS que se llevan bien y explican algo a otros compañeros de trabajo. NO eres locutor formal de radio. Habla natural, cercano, con humor ligero, como dos colegas platicando en un descanso. Evita fórmulas de locutor ("queridos audientes", "bienvenidos a", "sin más preámbulo", "para cerrar este segmento"). Evita repetir muletillas ("exacto", "claro que sí", "perfecto") más de una vez cada tres turnos.
-
-${interactionStylePrompt(nivel)}
-
-${editorialPromptRules()}
-
-Estructura permanente de La Veinte Digital:
-- El episodio completo debe sentirse como programa de revista laboral, no como lectura de artículos ni entrevista plana.
-- Secuencia base: Apertura breve -> Caso de arranque -> Qué dice la normativa -> Ojo con esto -> Caso práctico o consultorio -> Cómo documentarlo -> Cierre práctico.
-- Si el episodio dura 15 minutos o más, alterna subtemas relacionados dentro del mismo tema central para evitar monotonía: regla, excepción, trámite, error común, ejemplo de unidad, duda frecuente y paso práctico.
-- Cada segmento debe tener una función clara: plantear una duda real, explicar una regla, aterrizarla, advertir un error o decir qué revisar.
-- No repitas la misma dinámica dos segmentos seguidos. Después de una explicación debe venir pregunta, ejemplo, alerta o mini-resumen.
-- El cierre siempre deja 3 pasos accionables, sin convertirlo en asesoría individual.
-
-Reglas estrictas:
-- NO puedes añadir derechos, plazos, cantidades, porcentajes, requisitos, artículos o cláusulas que no estén en la evidencia del lote.
-- Para episodios sobre tiempo extraordinario, NO abras temas de contratos por temporada/duración, pilotos, barcos, músicos, revisión del contrato colectivo ni artículos laborales ajenos al pago/registro/jornada de tiempo extra.
-- PROHIBIDO decir "no sé", "no te sé decir" o dejar un dato normativo en duda. Si la evidencia no alcanza, cambia a una recomendación segura: revisar recibo, orden escrita y acudir a representación sindical.
-- PROHIBIDO narrar anécdotas o experiencias personales inventadas de los locutores ("a mí me pasó", "yo hablé con mi jefe", "la semana pasada intenté…"). Los locutores solo explican la norma con ejemplos hipotéticos claramente marcados ("por ejemplo, imagina que un compañero…"). NUNCA digas que tú o el otro locutor vivieron una situación.
-- Reformula el texto legal en lenguaje hablado; NUNCA lo leas literal.
-- Diálogo conversacional: preguntas, respuestas, reacciones cortas, ejemplos hipotéticos ("por ejemplo, imagina…"), variedad de inicios de frase y de estructura de oración.
-- VARIEDAD OBLIGATORIA: nunca repitas la misma pregunta, la misma respuesta o el mismo ejemplo dentro de un segmento. Cada turno debe aportar información o matiz nuevo. Si ya dijiste una idea, no la reformules otra vez; pasa a la siguiente.
-- Alternancia real: nunca dos turnos largos seguidos del mismo locutor; intercala preguntas cortas.
-- Usa exclusivamente estos personajes elegidos para este episodio: ${speakerIds}. No inventes invitados, expertos, representantes ni trabajadores con nombre propio. El narrador solo dice citas breves en modo natural ("De acuerdo con el Contrato Colectivo vigente."), sin leer cláusulas ni páginas al aire. Si Rodrigo Torres está en el reparto, úsalo solo cuando aporte reporte de campo, duda de unidad o contexto de piso; si Valeria Soto está en el reparto, no la uses en contenido editorial porque sus bloques comerciales se insertan aparte.
-- TRANSICIONES: no uses cortinillas internas. Cuando cambies de tema o de sección dentro del segmento, marca el turno con "transition": "cambio editorial". La música solo entra como intro y outro super cortos en la mezcla final.
-- La investigación considera el mapa completo de la biblioteca. Usa la evidencia relevante del lote para afirmar cosas y el mapa documental para detectar huecos o documentos relacionados.
-- Si hay espacios comerciales configurados, no los escribas como contenido editorial; se insertan aparte como bloques editables.
-- Escribe entre 8 y 14 turnos para cubrir TODO el lote de evidencia (turnos cortos y naturales, no bloques largos).
-- Cada turno: {"speaker": "${speakerIds}", "text": "...", "pauseBeforeMs": número, "pauseAfterMs": número, "energy": 1-5, "pace": "lento|normal|rapido", "canOverlap": bool (solo reacciones cortas), "transition": string|null, "citations": ["E1", ...]}
-
-Devuelve ÚNICAMENTE JSON: {"turns": [...]}`;
-
-        for (const [idx, lote] of lotes.entries()) {
-          const citationLines = lote
-            .map((c, i) => `E${idx * LOTE + i + 1} | ${c.documento}${c.clausula ? ` ${c.clausula}` : ""}${c.articulo ? ` ${c.articulo}` : ""}${c.pagina != null ? ` pág.${c.pagina}` : ""} | ${c.texto.slice(0, 420)}`)
-            .join("\n");
-          const esPrimero = idx === 0;
-          const esUltimo = idx === lotes.length - 1;
-          const instrucciones = [
-            `OBJETIVO EDITORIAL: ${editorialSegmentGoal(idx, lotes.length)}`,
-            esPrimero
-              ? "Este es el PRIMER segmento: SALUDA UNA SOLA VEZ y presenta el tema en 1-2 turnos; luego entra directo a la plática."
-              : "Este NO es el inicio: NO saludes de nuevo, NO vuelvas a presentar el tema ni digas 'bienvenidos'. Continúa la conversación exactamente donde quedó el contexto anterior.",
-            esUltimo ? "Este es el ÚLTIMO segmento: cierra con un breve resumen de 2-3 turnos y una despedida cálida entre amigos." : null,
-          ].filter(Boolean).join(" ");
-
-          // Contexto acumulado: evita repetir saludos, re-presentaciones y frases ya dichas.
-          const contextoPrevio = llmTurns.length > 0
-            ? llmTurns.slice(-4).map((t) => `${t.speaker}: ${t.text.slice(0, 110)}`).join("\n")
-            : "(ninguno — es el inicio)";
-
-          // Reintenta segmentos que el LLM trunque o devuelva vacíos.
-          let parsed: { turns?: Array<Partial<DialogueTurn> & { speaker: string; text: string }> } | null = null;
-          for (let intento = 1; intento <= 3; intento++) {
-            let raw: string;
-            try {
-              raw = await provider.complete({
-                system: systemIA,
-                user: `TEMA: ${tema}\nNIVEL: ${nivel}\nDURACIÓN OBJETIVO DEL EPISODIO: ${duracionMin} min (este es el segmento ${idx + 1} de ${lotes.length}).\n${contextoExtra ? `CONTEXTO EDITORIAL DEL USUARIO: ${contextoExtra}\n` : ""}${instrucciones}\n\nÚLTIMOS TURNOS YA DICHOS (no los repitas):\n${contextoPrevio}\n\nEVIDENCIA DEL LOTE:\n${citationLines}\n\nMAPA COMPLETO DE LA BIBLIOTECA (úsalo para saber qué documentos existen y qué podría faltar; no inventes contenido de documentos no citados en evidencia):\n${mapaDocumental}\n\nEscribe el segmento.`,
-                json: true,
-                maxTokens: 9000,
-                temperature: 0.8,
-              });
-            } catch (e) {
-              console.warn(`[director-ia] segmento ${idx + 1}: error de llamada LLM (${e instanceof Error ? e.message : e}), reintentando`);
-              continue;
-            }
-            try {
-              parsed = JSON.parse(extraerJson(raw)) as { turns?: Array<Partial<DialogueTurn> & { speaker: string; text: string }> };
-            } catch {
-              console.warn(`[director-ia] segmento ${idx + 1}: JSON inválido en intento ${intento}, reintentando`);
-              continue;
-            }
-            if (Array.isArray(parsed.turns) && parsed.turns.length >= 6) break;
-            console.warn(`[director-ia] segmento ${idx + 1}: intento ${intento} dio ${parsed.turns?.length ?? 0} turnos, reintentando`);
-          }
-          if (!parsed || !Array.isArray(parsed.turns) || parsed.turns.length < 3) {
-            throw new Error(`segmento ${idx + 1}: respuestas insuficientes tras reintentos (${parsed?.turns?.length ?? 0} turnos)`);
-          }
-          for (const t of parsed.turns) {
-            idSeq += 1;
-            const turno: DialogueTurn = {
-              id: `ia${String(idSeq).padStart(3, "0")}`,
-              speaker: t.speaker ?? speakers[0].id,
-              text: String(t.text ?? ""),
-              pauseBeforeMs: Number(t.pauseBeforeMs) || 200,
-              pauseAfterMs: Number(t.pauseAfterMs) || 200,
-              energy: Math.min(5, Math.max(1, Number(t.energy) || 3)) as 1 | 2 | 3 | 4 | 5,
-              pace: (["lento", "normal", "rapido"].includes(String(t.pace)) ? String(t.pace) : "normal") as "lento" | "normal" | "rapido",
-              canOverlap: !!t.canOverlap,
-              transition: typeof t.transition === "string" ? t.transition : null,
-              citations: Array.isArray(t.citations) ? t.citations.filter((c) => /^E\d+$/.test(String(c))) : [],
-            };
-            llmTurns.push(normalizeTurnByInteraction(turno, nivel));
-          }
-          console.log(`[director-ia] segmento ${idx + 1}/${lotes.length}: +${parsed.turns.length} turnos`);
-        }
-
-        if (llmTurns.length >= 20) {
-          // Deduplicación de turnos casi-idénticos: el LLM pequeño tiende a repetir
-          // la misma frase (sobre todo el narrador). Se conserva el primero de cada grupo.
-          const norm = (s: string) => s.toLowerCase().replace(/[^\w ]/g, " ").replace(/\s+/g, " ").trim();
-          const filtrados: DialogueTurn[] = [];
-          const vistos = new Set<string>();
-          for (const t of llmTurns) {
-            const k = norm(t.text);
-            if (k.length < 15) { filtrados.push(t); continue; }
-            const tokens = new Set(k.split(" "));
-            let duplicado = false;
-            for (const prevKey of vistos) {
-              const prevTokens = new Set(prevKey.split(" "));
-              const inter = [...tokens].filter((x) => prevTokens.has(x)).length;
-              const union = tokens.size + prevTokens.size - inter;
-              if (union > 0 && inter / union > 0.9) { duplicado = true; break; }
-            }
-            if (duplicado) continue;
-            vistos.add(k);
-            filtrados.push(t);
-          }
-          if (filtrados.length < 20) {
-            throw new Error(`dedup dejó pocos turnos (${filtrados.length})`);
-          }
-          llmTurns = filtrados;
-          console.log(`[director-ia] dedup: ${llmTurns.length} turnos tras eliminar repetidos`);
-        }
-
-        if (llmTurns.length >= 20) {
-          // ScriptVerifier: toda afirmación verificable debe tener soporte en el corpus.
-          for (const t of llmTurns) {
-            if (t.text.trim().length < 25) {
-              verificacion.push({ turnId: t.id, semaforo: "green", detalle: null });
-              continue;
-            }
-            const check = catalog.verifyClaim(t.text);
-            if (check.state === "VERIFIED") {
-              verificacion.push({ turnId: t.id, semaforo: "green", detalle: null });
-            } else if (t.citations.length > 0) {
-              verificacion.push({ turnId: t.id, semaforo: "yellow", detalle: "Cita declarada sin soporte directo encontrado — revisar" });
-            } else {
-              verificacion.push({ turnId: t.id, semaforo: "red", detalle: "Afirmación sin sustento en el corpus — NO VERIFICADO" });
-            }
-          }
-
-          const scenesIA = script.scenes.map((s, i) => ({
-            id: s.id,
-            titulo: i === 0 ? "Apertura" : i === script.scenes.length - 1 ? "Cierre" : "Desarrollo",
-            turns: [] as DialogueTurn[],
-          }));
-          script = {
-            ...script,
-            turns: llmTurns,
-            scenes: scenesIA.length > 0 ? scenesIA : [{ id: "s1", titulo: "Programa", turns: llmTurns }],
-            estimacionDurSec: Math.round(llmTurns.reduce((a, t) => a + t.text.trim().split(/\s+/).length / 2.6, 0)),
-          };
-          modoUsado = "ia";
-        } else {
-          throw new Error(`llamadas IA produjeron pocos turnos (${llmTurns.length})`);
-        }
-      } catch (e) {
-        // El director IA falló: se conserva el guion determinista (red de seguridad).
-        proveedorUsado = null;
-        console.warn(`[director-ia] fallback determinista: ${e instanceof Error ? e.message : e}`);
+  if (modoLlmUsado) {
+    // La ruta IA usa SIEMPRE el motor local (qwen3.5:9b vía Ollama), sin APIs remotas.
+    modoUsado = "ia";
+    proveedorUsado = "ollama:qwen3.5:9b";
+    // Verificación determinista de cada turno contra el corpus local (sin LLM remoto).
+    for (const t of script.turns) {
+      if (t.text.trim().length < 25) {
+        verificacion.push({ turnId: t.id, semaforo: "green", detalle: null });
+        continue;
+      }
+      const check = catalog.verifyClaim(t.text);
+      if (check.state === "VERIFIED") {
+        verificacion.push({ turnId: t.id, semaforo: "green", detalle: null });
+      } else if (t.citations.length > 0) {
+        verificacion.push({ turnId: t.id, semaforo: "yellow", detalle: "Cita declarada sin soporte directo encontrado — revisar" });
+      } else {
+        verificacion.push({ turnId: t.id, semaforo: "red", detalle: "Afirmación sin sustento en el corpus — NO VERIFICADO" });
       }
     }
   }

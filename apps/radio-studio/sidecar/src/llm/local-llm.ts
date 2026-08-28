@@ -34,7 +34,6 @@ export interface LocalLlmConfig {
   baseUrl: string;
   contextTokens: number;
   enabled: boolean;
-  remoteEnabled: boolean;
 }
 
 export function loadLlmConfig(): LocalLlmConfig {
@@ -44,7 +43,6 @@ export function loadLlmConfig(): LocalLlmConfig {
     baseUrl: process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434",
     contextTokens: Number(process.env.LOCAL_LLM_CONTEXT ?? 16384),
     enabled: (process.env.LOCAL_LLM_ENABLED ?? "true") !== "false",
-    remoteEnabled: (process.env.REMOTE_LLM_ENABLED ?? "false") === "true",
   };
 }
 

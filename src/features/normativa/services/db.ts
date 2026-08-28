@@ -1,4 +1,6 @@
 import { DatabaseSync } from "node:sqlite";
+import fs from "node:fs";
+import path from "node:path";
 import type {
   DocumentChunk,
   DocumentCitation,
@@ -16,6 +18,12 @@ export class NormativeDB {
   readonly db: DatabaseSync;
 
   constructor(pathOrDb: string | DatabaseSync) {
+    if (typeof pathOrDb === "string") {
+      // El corpus puede no existir (instalación sin biblioteca). Creamos el
+      // directorio para abrir una BD vacía y fallar de forma controlada
+      // (0 documentos → LOCAL_LIBRARY_UNAVAILABLE) en vez de crashear el sidecar.
+      fs.mkdirSync(path.dirname(path.resolve(pathOrDb)), { recursive: true });
+    }
     this.db = typeof pathOrDb === "string" ? new DatabaseSync(pathOrDb) : pathOrDb;
     this.db.exec("PRAGMA journal_mode = WAL;");
     this.migrate();

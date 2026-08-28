@@ -1,8 +1,8 @@
 # AI Radio Studio (Tauri 2)
 
-Aplicación de escritorio para Windows: estudio de producción de episodios de radio
-para La Veinte Digital, con Biblioteca Normativa IMSS/SNTSS, investigación con
-DeepSeek cuando está configurado, voces locales Qwen Base clone, música local
+Aplicación de escritorio: estudio de producción de episodios de radio
+para La Veinte Digital, con Biblioteca Normativa IMSS/SNTSS, investigación y
+guion 100% local (qwen3.5:9b vía Ollama), voces locales Qwen Base clone, música local
 ACE-Step y master final listo para publicar.
 
 La meta editorial actual es que el programa se sienta vivo: conversación natural,
@@ -108,7 +108,7 @@ corpus descargado en `data/normativa/`. El corpus se reconstruye desde
 | Ruta | Método | Descripción |
 |---|---|---|
 | `/status` | GET | motor (VRAM/temp/RTF), corpus, caché, hardware |
-| `/investigar` | POST `{tema}` | Evidence Pack + cobertura documental + análisis DeepSeek si hay provider |
+| `/investigar` | POST `{tema}` | Evidence Pack + cobertura documental + análisis editorial local (qwen3.5:9b) |
 | `/guion` | POST `{tema}` | guion determinista con citas C1..Cn y ficha de fuentes |
 | `/director` | POST `{tema,nivel,duracionMin,modo,contextoExtra,comerciales,duracionComercialSec,speakers}` | investigación + guion dirigido por IA/determinista |
 | `/director/ajustar` | POST `{script,contexto,scope}` | ajuste parcial o total sin borrar todo el guion |
@@ -148,8 +148,9 @@ corpus descargado en `data/normativa/`. El corpus se reconstruye desde
   pregunta/respuesta, casos concretos, resumen práctico y dudas frecuentes.
 - Los comerciales son espacios editables, no contenido editorial inventado:
   `kind: "ad"`, `adSlot: true`, `adDurationSec`.
-- DeepSeek puede proponer enfoque, preguntas y subtemas, pero no puede inventar
-  derechos, cifras, plazos, artículos ni cláusulas fuera del Evidence Pack.
+- El motor local (qwen3.5:9b) puede proponer enfoque, preguntas y subtemas, pero
+  no puede inventar derechos, cifras, plazos, artículos ni cláusulas fuera del
+  Evidence Pack.
 - Si el usuario agrega contexto, usar `/director/ajustar` para modificar solo
   el alcance pedido (`all` o una escena), conservando el resto del guion.
 
@@ -163,7 +164,7 @@ El estado de documentos se muestra en lenguaje operativo:
   IMSS respondió `HTTP_403` o `WAF_BLOCK`.
 - `Por revisar`: falta URL, vigencia, validación editorial o carga manual.
 
-No usar DeepSeek para rellenar contenido de fuentes bloqueadas. Las páginas
+No usar el motor local para rellenar contenido de fuentes bloqueadas. Las páginas
 índice del IMSS pueden confirmar que una clave existe, pero el contenido solo se
 cita cuando el PDF original queda integrado al corpus. Para completar esos
 casos: `npm run normativa:update`, luego `npm run normativa:discover`, y si el
@@ -210,14 +211,15 @@ registro en `data/normativa/catalog.sqlite`.
   Tauri lo arranca automáticamente con `node` local; empaquetar `node.exe` como
   recurso distribuible queda como siguiente endurecimiento si se instala en
   otra PC.
-- **DeepSeek/LLM**: se resuelve con `resolveProvider` desde la configuración
-  existente. DeepSeek es preferente para investigación, dirección y ajustes de
-  guion cuando está configurado. Siempre recibe Evidence Pack y mapa documental;
-  si falla, el director conserva fallback determinista.
+- **Editorial local (qwen3.5:9b vía Ollama)**: se resuelve con
+  `LocalEditorialLLM` (capa única hacia Ollama). Es el único cerebro editorial:
+  análisis, evaluación de evidencia, propuesta, guion y ajustes. Siempre recibe
+  Evidence Pack y el corpus; nunca usa APIs remotas; si falla, se conserva el
+  fallback determinista "solo corpus".
 - **UI** (`src/`): Inicio · Crear episodio (tema/duración/contexto/comerciales/
-  cobertura/CREAR GUION CON DEEPSEEK como acción principal; REVISAR FUENTES y
+  cobertura/CREAR GUION CON MOTOR LOCAL como acción principal; REVISAR FUENTES y
   ARMAR GUION RÁPIDO como herramientas secundarias → guion editable por turnos
-  y escenas → ajuste parcial con DeepSeek → GENERAR EPISODIO) ·
+  y escenas → ajuste parcial con el motor local → GENERAR EPISODIO) ·
   Producción (progreso real por locutor, caché, GPU/VRAM/temp, tiempo restante,
   master MP3/WAV) · Biblioteca Normativa · Locutores · Biblioteca de audio.
 - **radio-core**: `buildProductionPlan` (bloques de voz + sesiones de modelo),
@@ -252,5 +254,5 @@ Al probar manualmente:
 - Entrar a Biblioteca de audio y esperar que ACE-Step pase de `encendiendo` a
   `en línea`.
 - Generar un jingle corto antes de intentar una cama larga.
-- Crear un episodio desde `Nuevo episodio` con DeepSeek, contexto adicional y
-  comerciales habilitados.
+- Crear un episodio desde `Nuevo episodio` con el motor local (qwen3.5:9b),
+  contexto adicional y comerciales habilitados.

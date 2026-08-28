@@ -117,6 +117,7 @@ export function friendlyProjectError(e: unknown): { code: string; message: strin
     PROJECT_NOT_FOUND: { code: "UNKNOWN", userMessage: "No encuentro ese episodio. Vuelve a abrirlo desde la lista." },
     RESEARCH_REQUIRED: { code: "UNKNOWN", userMessage: "Primero reviso las fuentes antes de armar la propuesta." },
     PROPOSAL_REQUIRED: { code: "UNKNOWN", userMessage: "Falta aprobar la propuesta antes de generar el guion." },
+    LOCAL_LIBRARY_UNAVAILABLE: { code: "LOCAL_LIBRARY_UNAVAILABLE", userMessage: "No encuentro la biblioteca necesaria para investigar este tema." },
     LOCAL_LLM_UNAVAILABLE: { code: "MOTOR_UNAVAILABLE", userMessage: "El motor local no está disponible. Puedo armar la propuesta de forma simple por ahora." },
   };
   for (const [k, v] of Object.entries(codeMap)) {

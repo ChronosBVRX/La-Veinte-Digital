@@ -118,6 +118,11 @@ export class ProjectWorkflowService {
   async research(id: string): Promise<{ project: Project; research: ResearchBundle }> {
     const project = this.store.get(id);
     if (!project) throw new Error("PROJECT_NOT_FOUND");
+    // Corpus ausente: fail-closed. Sin biblioteca no se investiga — nunca se usa
+    // el conocimiento paramétrico del LLM para inventar contenido.
+    let docsCount = 0;
+    try { docsCount = this.catalog.listDocuments().length; } catch { docsCount = 0; }
+    if (docsCount === 0) throw new Error("LOCAL_LIBRARY_UNAVAILABLE");
     this.store.updateState(id, "RESEARCHING");
     const topic = project.topic;
     const pack = this.catalog.buildEvidencePack(topic, { limit: 25 });

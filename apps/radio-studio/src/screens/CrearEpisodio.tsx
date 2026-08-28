@@ -253,14 +253,14 @@ export function CrearEpisodio({ temaInicial, onProducir }: Props) {
           <label className="field">
             <span>Cómo escribir el guion</span>
             <select value={modoDirector} onChange={(e) => setModoDirector(e.target.value as "determinista" | "ia")}>
-              <option value="ia">Con DeepSeek</option>
+              <option value="ia">Con motor local (Qwen 3.5)</option>
               <option value="determinista">Borrador rápido sin IA</option>
             </select>
           </label>
         </div>
         {duracion > 10 && modoDirector === "determinista" && (
           <div className="warn small" style={{ marginBottom: 10 }}>
-            Para programas largos conviene usar DeepSeek; el borrador rápido puede sentirse repetitivo.
+            Para programas largos conviene usar el motor local; el borrador rápido puede sentirse repetitivo.
           </div>
         )}
         <div className="muted small" style={{ marginBottom: 12 }}>
@@ -358,7 +358,7 @@ export function CrearEpisodio({ temaInicial, onProducir }: Props) {
         <div className="form-step-title"><span>4</span> Crear</div>
         <div className="episode-actions">
           <button className="btn-primary btn-main-action" onClick={runInvestigarYDirigir} disabled={investigando || escribiendo || !tema.trim()}>
-            {investigando || escribiendo ? "Creando guion…" : "CREAR GUION CON DEEPSEEK"}
+            {investigando || escribiendo ? "Creando guion…" : "CREAR GUION CON MOTOR LOCAL (QWEN)"}
           </button>
           <details className="advanced-actions">
             <summary>Opciones adicionales</summary>

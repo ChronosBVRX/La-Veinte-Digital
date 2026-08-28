@@ -274,7 +274,7 @@ export function Produccion() {
               {llm.stats.map((st) => (
                 <div key={st.name}><span className="muted small">{st.name}:</span> VRAM {(st.sizeVramMb ?? 0 / 1024 / 1024 / 1024).toFixed(1)} MB… </div>
               ))}
-              <div className="muted small">Contexto: {llm.config.contextTokens} tokens · Proveedor remoto: {llm.config.remoteEnabled ? "ACTIVADO" : "desactivado"} · 100% local</div>
+              <div className="muted small">Contexto: {llm.config.contextTokens} tokens · 100% local</div>
             </div>
           )}
           {total > 0 && (

@@ -503,7 +503,7 @@ export async function regenerarTurno(opts: {
 // ─── IA local (Ollama/Qwen) ──────────────────────────────────────────────
 
 export interface LlmHealthInfo {
-  config: { model: string; enabled: boolean; remoteEnabled: boolean; contextTokens: number };
+  config: { model: string; enabled: boolean; contextTokens: number };
   health: { ok: boolean; version?: string; error?: string };
   modelos: string[];
   modeloObjetivoOk: boolean;

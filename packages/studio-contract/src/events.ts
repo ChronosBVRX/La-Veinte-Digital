@@ -46,6 +46,7 @@ export const STUDIO_ERROR_CODES = [
   "HUMAN_REVIEW_REQUIRED",
   "MEDIA_FORBIDDEN",
   "MOTOR_UNAVAILABLE",
+  "LOCAL_LIBRARY_UNAVAILABLE",
   "UNKNOWN",
 ] as const;
 export type StudioErrorCode = (typeof STUDIO_ERROR_CODES)[number];
