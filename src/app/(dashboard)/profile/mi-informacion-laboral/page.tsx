@@ -1,10 +1,10 @@
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { WorkerProfileService } from "@/shared/server/worker-profile"
 import { WorkerProfileUnavailableError, WorkerProfileUnauthorizedError } from "@/shared/server/worker-profile/errors"
 import { isSafeInternalReturnPath } from "@/shared/domain/worker"
 import { WorkerProfileCenter } from "@/features/profile/components/worker/WorkerProfileCenter"
 import { TarjetonUploaderSection } from "@/features/profile/components/worker/TarjetonUploaderSection"
-import { TarjetonHistorySection } from "@/features/tarjeton/components/TarjetonHistorySection"
 import type { WorkerProfile, ProfileQuality, FieldRequirement, WorkerDataEvent, WorkerProfileMode } from "@/shared/domain/worker"
 
 interface PageProps {
@@ -76,41 +76,6 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
     antiguedad: profileRes.data?.antiguedad ?? null,
   }
 
-  // Historial de tarjetones confirmados (única fuente: imported_payslips).
-  const payslipsRes = await supabase
-    .from("imported_payslips")
-    .select("id, period_raw, extraction_method, global_confidence, created_at, employee_data, payroll_totals")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(10)
-
-  const previousImports = (payslipsRes.data ?? []).map((p) => ({
-    id: p.id,
-    periodRaw: p.period_raw,
-    extractionMethod: p.extraction_method,
-    globalConfidence: p.global_confidence,
-    createdAt: p.created_at,
-    employeeName: (p.employee_data as Record<string, unknown> | undefined)?.fullName as string ?? null,
-    totalNet: (p.payroll_totals as Record<string, number> | undefined)?.netPay ?? null,
-  }))
-
-  let latestConcepts: Array<{ code: string; description: string; amount: number; kind: "earning" | "deduction" }> = []
-  const latestRow = payslipsRes.data?.[0]
-  if (latestRow) {
-    const { data: lines } = await supabase
-      .from("imported_payslip_lines")
-      .select("concept_code, description, amount, kind")
-      .eq("payslip_id", latestRow.id)
-      .order("line_index", { ascending: true })
-      .limit(12)
-    latestConcepts = (lines ?? []).map((l) => ({
-      code: l.concept_code,
-      description: l.description,
-      amount: l.amount,
-      kind: l.kind === "deduction" ? ("deduction" as const) : ("earning" as const),
-    }))
-  }
-
   return (
     <div style={{ maxWidth: "700px", margin: "0 auto", padding: "1.5rem 1rem", display: "flex", flexDirection: "column", gap: "1.75rem" }}>
       <WorkerProfileCenter
@@ -145,14 +110,19 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
           </p>
         </div>
 
-        {previousImports.length > 0 && (
-          <TarjetonHistorySection
-            imports={previousImports}
-            latestConcepts={latestConcepts}
-          />
-        )}
-
         <TarjetonUploaderSection profileSnapshot={snapshot} />
+
+        <Link
+          href="/documentos-personales"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: "0.375rem",
+            fontSize: "var(--text-sm)", fontWeight: 600,
+            color: "var(--primary)", textDecoration: "none",
+            width: "fit-content",
+          }}
+        >
+          Ver mis documentos personales →
+        </Link>
       </section>
     </div>
   )

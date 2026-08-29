@@ -21,10 +21,12 @@ export function TarjetonHistorySection({
   imports: initial,
   latestConcepts = [],
   onUploadNew,
+  uploadHref,
 }: {
   imports: PreviousImport[]
   latestConcepts?: Array<{ code: string; description: string; amount: number; kind: "earning" | "deduction" }>
   onUploadNew?: () => void
+  uploadHref?: string
 }) {
   const [imports, setImports] = useState(initial)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -63,7 +65,17 @@ export function TarjetonHistorySection({
           <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: "0 0 1rem", lineHeight: 1.4 }}>
             Importa tu primer tarjetón para consultar tus conceptos y utilizar las herramientas de nómina.
           </p>
-          {onUploadNew && (
+          {uploadHref && (
+            <Link href={uploadHref} style={{
+              display: "inline-flex", alignItems: "center", gap: "0.5rem",
+              padding: "0.5rem 1rem", borderRadius: "0.5rem",
+              background: "var(--primary)", color: "var(--primary-fg)",
+              textDecoration: "none", fontWeight: 600, fontSize: "var(--text-sm)",
+            }}>
+              <Plus size={18} weight="bold" /> Importar mi tarjetón
+            </Link>
+          )}
+          {onUploadNew && !uploadHref && (
             <Button variant="primary" onClick={onUploadNew}>
               <Plus size={18} weight="bold" /> Importar mi tarjetón
             </Button>
@@ -187,11 +199,23 @@ export function TarjetonHistorySection({
       )}
 
       {/* Upload new button */}
-      {onUploadNew && (
+      {(uploadHref || onUploadNew) && (
         <div style={{ marginBottom: imports.length > 1 ? "1.5rem" : 0 }}>
-          <Button variant="secondary" size="md" onClick={onUploadNew}>
-            <Plus size={18} weight="bold" /> Subir otro tarjetón
-          </Button>
+          {uploadHref ? (
+            <Link href={uploadHref} style={{
+              display: "inline-flex", alignItems: "center", gap: "0.5rem",
+              padding: "0.5rem 1rem", borderRadius: "0.5rem",
+              border: "1px solid var(--border)",
+              color: "var(--fg)", textDecoration: "none",
+              fontWeight: 600, fontSize: "var(--text-sm)",
+            }}>
+              <Plus size={18} weight="bold" /> Subir otro tarjetón
+            </Link>
+          ) : (
+            <Button variant="secondary" size="md" onClick={onUploadNew}>
+              <Plus size={18} weight="bold" /> Subir otro tarjetón
+            </Button>
+          )}
         </div>
       )}
 

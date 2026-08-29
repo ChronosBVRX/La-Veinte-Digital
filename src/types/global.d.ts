@@ -28,6 +28,8 @@ declare global {
     requestNotificationsPermission(): void
     listNativeDocuments(): Promise<NativeDocumentMeta[]>
     readNativeDocument(localPath: string): Promise<NativeDocumentContent | null>
+    deleteNativeDocument(localPath: string): Promise<boolean>
+    getFcmToken(): Promise<{ token: string }>
     getPendingPrintDoc(): Promise<{ localPath: string } | null>
     clearPendingPrintDoc(): void
     openAppSettings(): void

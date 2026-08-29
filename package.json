@@ -47,6 +47,7 @@
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.111.0",
     "edge-tts": "^1.0.1",
+    "firebase-admin": "^13.10.0",
     "framer-motion": "^12.43.0",
     "html2canvas": "^1.4.1",
     "html5-qrcode": "^2.3.8",

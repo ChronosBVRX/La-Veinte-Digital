@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { DashboardShell } from "@/shared/components/layout/DashboardShell"
 import { ToastProvider } from "@/shared/components/ui/Toast"
+import { PushTokenSync } from "@/features/push/components/PushTokenSync"
 import type { ReactNode } from "react"
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
@@ -20,6 +21,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       <DashboardShell fullName={profile?.full_name ?? null}>
         {children}
       </DashboardShell>
+      <PushTokenSync />
     </ToastProvider>
   )
 }

@@ -2,6 +2,9 @@
 
 import { useRef, useEffect, useState, useCallback } from "react"
 import html2canvas from "html2canvas"
+import type { EscritoGuardado } from "../services/escritos-storage"
+
+export type EscritoASalvar = Omit<EscritoGuardado, "id" | "createdAt">
 
 interface EscritosResultProps {
   cuerpo: string
@@ -15,17 +18,23 @@ interface EscritosResultProps {
   atencion: string
   copia: string
   fotos?: string[]
+  firmaInicial?: string
+  escritoId?: string
+  onGuardar?: (payload: { escritoId?: string; escrito: EscritoASalvar }) => void
   onClose: () => void
 }
 
 export function EscritosResult({
   cuerpo, destino, ciudad, fecha, nombre, matricula,
-  categoria, adscripcion, atencion, copia, fotos, onClose,
+  categoria, adscripcion, atencion, copia, fotos, firmaInicial, escritoId, onGuardar, onClose,
 }: EscritosResultProps) {
   const pageRef = useRef<HTMLDivElement>(null)
-  const [firmaUrl, setFirmaUrl] = useState("")
+  const [firmaUrl, setFirmaUrl] = useState(firmaInicial ?? "")
   const [mostrarFirma, setMostrarFirma] = useState(false)
   const [descargando, setDescargando] = useState(false)
+  const [mostrarGuardar, setMostrarGuardar] = useState(false)
+  const [tituloGuardar, setTituloGuardar] = useState("")
+  const [guardando, setGuardando] = useState(false)
 
   const [cargo, nombreDestino] = (destino || "|").split("|")
 
@@ -114,6 +123,35 @@ export function EscritosResult({
     setMostrarFirma(true)
   }
 
+  const abrirGuardar = () => {
+    setTituloGuardar(`Oficio a ${nombreDestino ?? ""} - ${fecha ? new Date(fecha + "T12:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }) : ""}`.trim())
+    setMostrarGuardar(true)
+  }
+
+  const confirmarGuardar = () => {
+    if (!onGuardar) return
+    setGuardando(true)
+    const titulo = tituloGuardar.trim() || `Escrito ${new Date().toLocaleDateString("es-MX")}`
+    const escrito: EscritoASalvar = {
+      titulo,
+      cuerpo,
+      destino,
+      ciudad,
+      fecha,
+      nombre,
+      matricula,
+      categoria,
+      adscripcion,
+      atencion,
+      copia,
+      fotos: fotos ?? [],
+      firmaUrl,
+    }
+    onGuardar({ escritoId, escrito })
+    setGuardando(false)
+    setMostrarGuardar(false)
+  }
+
   const guardarFirma = () => {
     const c = document.getElementById("pad-firma") as HTMLCanvasElement
     if (!c) return
@@ -177,6 +215,16 @@ export function EscritosResult({
                 }}
               >
                 ✍ Añadir Firma
+              </button>
+              <button onClick={abrirGuardar}
+                style={{
+                  padding: "0.5rem 1rem", borderRadius: "0.5rem",
+                  border: "1px solid var(--border)",
+                  background: "transparent", color: "#f1f5f9", cursor: "pointer", fontSize: "0.8125rem",
+                  fontWeight: 600, display: "flex", alignItems: "center", gap: "0.375rem",
+                }}
+              >
+                💾 Guardar
               </button>
               <button onClick={onClose}
                 style={{
@@ -388,6 +436,62 @@ export function EscritosResult({
                 }}
               >
                 Aplicar Firma
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {mostrarGuardar && onGuardar && (
+        <div
+          style={{
+            position: "fixed", inset: 0, background: "rgba(10, 15, 25, 0.98)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            zIndex: 1100, padding: "1.25rem",
+          }}
+        >
+          <div style={{
+            background: "#1e293b", borderRadius: "1.25rem", maxWidth: 500,
+            width: "100%", padding: "1.5rem",
+          }}>
+            <h3 style={{ color: "#fff", margin: "0 0 0.25rem" }}>Guardar ✓</h3>
+            <p style={{ color: "var(--muted)", fontSize: "0.8125rem", marginBottom: "1.25rem" }}>
+              Este escrito quedará guardado en este dispositivo para que puedas reimprimirlo cuando quieras.
+            </p>
+            <label style={{
+              display: "block", color: "#cbd5e1", fontSize: "0.8125rem",
+              fontWeight: 600, marginBottom: "0.375rem",
+            }}>
+              Título del escrito
+            </label>
+            <input
+              value={tituloGuardar}
+              onChange={(e) => setTituloGuardar(e.target.value)}
+              placeholder="Ej. Solicitud de cambio de adscripción"
+              style={{
+                width: "100%", padding: "0.625rem 0.875rem", borderRadius: "0.5rem",
+                border: "1px solid var(--border)", background: "#0f172a", color: "#f1f5f9",
+                fontSize: "0.875rem", marginBottom: "1.25rem", outline: "none",
+              }}
+            />
+            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+              <button onClick={() => setMostrarGuardar(false)}
+                style={{
+                  padding: "0.5rem 1.25rem", borderRadius: "0.5rem",
+                  border: "1px solid var(--border)", background: "transparent",
+                  color: "#f1f5f9", cursor: "pointer", fontWeight: 600,
+                }}
+              >
+                Cancelar
+              </button>
+              <button onClick={confirmarGuardar} disabled={guardando}
+                style={{
+                  padding: "0.5rem 1.25rem", borderRadius: "0.5rem",
+                  background: "var(--primary)", border: "none",
+                  color: "var(--primary-fg)", cursor: guardando ? "not-allowed" : "pointer",
+                  fontWeight: 600, opacity: guardando ? 0.7 : 1,
+                }}
+              >
+                {guardando ? "Guardando..." : "Guardar escrito"}
               </button>
             </div>
           </div>

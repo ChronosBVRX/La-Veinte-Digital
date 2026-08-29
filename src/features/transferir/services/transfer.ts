@@ -193,6 +193,19 @@ export async function readNativeDocumentAsFile(
   }
 }
 
+/**
+ * Elimina un documento guardado nativamente (tarjetón/checada) vía el bridge.
+ * Devuelve false si la app actual no expone el método o falla.
+ */
+export async function deleteNativeDocument(localPath: string): Promise<boolean> {
+  if (typeof window === "undefined" || !window.LaVeinteApp?.deleteNativeDocument) return false
+  try {
+    return await window.LaVeinteApp.deleteNativeDocument(localPath)
+  } catch {
+    return false
+  }
+}
+
 async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_, reject) => {

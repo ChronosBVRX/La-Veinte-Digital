@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useRef } from "react"
 import { motion, useReducedMotion } from "framer-motion"
-import { X, Article, ArrowsClockwise, UserCircle, Briefcase, Newspaper } from "@phosphor-icons/react"
+import { X, Article, ArrowsClockwise, UserCircle, Briefcase, Newspaper, FolderOpen } from "@phosphor-icons/react"
 import { MOBILE_SHEET_GROUPS } from "./navigation"
 import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
 
@@ -379,6 +379,35 @@ export function MobileNavigationSheet({ openKey, onClose, onNavigate }: MobileNa
                         </div>
                       </div>
                     </button>
+
+                    <Link
+                      href="/documentos-personales"
+                      onClick={() => {
+                        onClose()
+                        onNavigate()
+                      }}
+                      className="pressable"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.75rem",
+                        padding: "0.75rem",
+                        borderRadius: "var(--radius)",
+                        textDecoration: "none",
+                        color: "var(--fg)",
+                        fontSize: "var(--text-sm)",
+                        fontWeight: 500,
+                        minHeight: 48,
+                      }}
+                    >
+                      <FolderOpen size={22} weight="duotone" color="var(--primary)" />
+                      <div>
+                        <div style={{ fontWeight: 600 }}>Documentos personales</div>
+                        <div style={{ fontSize: "var(--text-xs)", color: "var(--muted)" }}>
+                          Tarjetones, checadas y escritos guardados
+                        </div>
+                      </div>
+                    </Link>
 
                     {platform === "android" && (
                       <button

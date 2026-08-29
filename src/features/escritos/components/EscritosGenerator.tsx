@@ -5,8 +5,12 @@ import { createClient } from "@/lib/supabase/client"
 import { generarEscrito } from "@/features/escritos/services/generarEscrito"
 import { institutionalToday } from "@/shared/lib/dates"
 import { EscritosForm } from "./EscritosForm"
-import { EscritosResult } from "./EscritosResult"
+import { EscritosResult, type EscritoASalvar } from "./EscritosResult"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
+import {
+  getEscritosGuardados, guardarEscrito, eliminarEscrito, nuevoIdEscrito,
+  type EscritoGuardado,
+} from "@/features/escritos/services/escritos-storage"
 import type { ChangeEvent } from "react"
 
 interface Profile {
@@ -46,6 +50,15 @@ export function EscritosGenerator() {
   const [mostrarVistaPrevia, setMostrarVistaPrevia] = useState(false)
   const [fotos, setFotos] = useState<string[]>([])
   const [formKey, setFormKey] = useState(0)
+
+  const [escritos, setEscritos] = useState<EscritoGuardado[]>([])
+  const [escritoEnVista, setEscritoEnVista] = useState<EscritoGuardado | null>(null)
+  const [guardadoMsg, setGuardadoMsg] = useState("")
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- hidratación local desde localStorage (solo cliente)
+    setEscritos(getEscritosGuardados())
+  }, [])
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -125,6 +138,27 @@ export function EscritosGenerator() {
     setFormKey((k) => k + 1)
   }, [])
 
+  const handleGuardar = useCallback(({ escritoId, escrito }: { escritoId?: string; escrito: EscritoASalvar }) => {
+    const existente = escritoId ? escritos.find((e) => e.id === escritoId) : undefined
+    const nuevo: EscritoGuardado = {
+      ...escrito,
+      id: escritoId ?? nuevoIdEscrito(),
+      createdAt: existente?.createdAt ?? new Date().toISOString(),
+    }
+    setEscritos(guardarEscrito(nuevo))
+    setGuardadoMsg("✓ Escrito guardado en este dispositivo")
+    window.setTimeout(() => setGuardadoMsg(""), 3000)
+  }, [escritos])
+
+  const abrirEscrito = useCallback((escrito: EscritoGuardado) => {
+    setEscritoEnVista(escrito)
+  }, [])
+
+  const eliminarEscritoGuardado = useCallback((id: string) => {
+    setEscritos(eliminarEscrito(id))
+    setEscritoEnVista((actual) => (actual?.id === id ? null : actual))
+  }, [])
+
   if (cargandoPerfil) {
     return <LoadingSpinner text="Verificando credenciales..." />
   }
@@ -200,8 +234,41 @@ export function EscritosGenerator() {
           atencion={form.atencion}
           copia={form.copia}
           fotos={fotos}
+          onGuardar={handleGuardar}
           onClose={() => setMostrarVistaPrevia(false)}
         />
+      )}
+
+      {escritoEnVista && (
+        <EscritosResult
+          key={escritoEnVista.id}
+          cuerpo={escritoEnVista.cuerpo}
+          destino={escritoEnVista.destino}
+          ciudad={escritoEnVista.ciudad}
+          fecha={escritoEnVista.fecha}
+          nombre={escritoEnVista.nombre}
+          matricula={escritoEnVista.matricula}
+          categoria={escritoEnVista.categoria}
+          adscripcion={escritoEnVista.adscripcion}
+          atencion={escritoEnVista.atencion}
+          copia={escritoEnVista.copia}
+          fotos={escritoEnVista.fotos}
+          firmaInicial={escritoEnVista.firmaUrl}
+          escritoId={escritoEnVista.id}
+          onGuardar={handleGuardar}
+          onClose={() => setEscritoEnVista(null)}
+        />
+      )}
+
+      {guardadoMsg && (
+        <div style={{
+          position: "fixed", bottom: "1.5rem", left: "50%", transform: "translateX(-50%)",
+          background: "#16a34a", color: "#fff", padding: "0.625rem 1.25rem",
+          borderRadius: "999px", fontSize: "0.875rem", fontWeight: 600,
+          boxShadow: "0 8px 30px rgba(0,0,0,0.25)", zIndex: 1200,
+        }}>
+          {guardadoMsg}
+        </div>
       )}
 
       {fotos.length > 0 && (
@@ -222,6 +289,78 @@ export function EscritosGenerator() {
           </div>
         </div>
       )}
+
+      <div style={{
+        background: "var(--card)", border: "1px solid var(--border)",
+        borderRadius: "0.5rem", padding: "1.25rem", marginTop: "1rem",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+          <h2 style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}>
+            📂 Mis escritos guardados
+            <span style={{
+              marginLeft: "0.5rem", fontSize: "0.75rem", fontWeight: 600,
+              color: "var(--primary)", background: "var(--accent)",
+              padding: "0.125rem 0.5rem", borderRadius: "999px",
+            }}>
+              {escritos.length}
+            </span>
+          </h2>
+          <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+            Guardados en este dispositivo
+          </span>
+        </div>
+
+        {escritos.length === 0 ? (
+          <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0, lineHeight: 1.6 }}>
+            Aún no tienes escritos guardados. Genera uno y usa el botón <strong>💾 Guardar</strong> en la previsualización para conservarlo aquí.
+          </p>
+        ) : (
+          <div style={{ display: "grid", gap: "0.625rem" }}>
+            {escritos.map((e) => {
+              const fechaDisplay = e.fecha
+                ? new Date(e.fecha + "T12:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })
+                : ""
+              return (
+                <div key={e.id} style={{
+                  display: "flex", alignItems: "center", gap: "0.75rem",
+                  padding: "0.75rem 1rem", background: "var(--bg)",
+                  border: "1px solid var(--border)", borderRadius: "0.5rem",
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: "0.875rem", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {e.titulo}
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                      {fechaDisplay}
+                      {e.matricula ? ` · Mat. ${e.matricula}` : ""}
+                    </div>
+                  </div>
+                  <button onClick={() => abrirEscrito(e)}
+                    style={{
+                      padding: "0.375rem 0.875rem", borderRadius: "0.5rem",
+                      background: "var(--primary)", border: "none",
+                      color: "var(--primary-fg)", cursor: "pointer",
+                      fontSize: "0.8125rem", fontWeight: 600, flexShrink: 0,
+                    }}
+                  >
+                    🖨 Ver / Imprimir
+                  </button>
+                  <button onClick={() => eliminarEscritoGuardado(e.id)}
+                    aria-label="Eliminar escrito"
+                    style={{
+                      padding: "0.375rem 0.625rem", borderRadius: "0.5rem",
+                      border: "1px solid #ef4444", background: "transparent",
+                      color: "#ef4444", cursor: "pointer", fontSize: "0.8125rem", flexShrink: 0,
+                    }}
+                  >
+                    🗑
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -7,6 +7,8 @@ export const API_ACCESS = {
   "/api/tarjeton/confirm": "authenticated",
   "/api/tarjeton/delete": "authenticated",
   "/api/worker-context": "authenticated",
+  "/api/push/register": "authenticated",
+  "/api/push/send": "authenticated",
   "/api/normativa/health": "authenticated",
   "/api/normativa/search": "authenticated",
   "/api/normativa/compare": "authenticated",

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { House, UserCircle, X, Article, ArrowsClockwise } from "@phosphor-icons/react"
+import { House, UserCircle, X, Article, ArrowsClockwise, FolderOpen } from "@phosphor-icons/react"
 import { DESKTOP_NAV_GROUPS } from "./navigation"
 import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
 import type { CSSProperties } from "react"
@@ -147,6 +147,22 @@ export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
                 <Article size={20} weight="regular" style={{ color: "var(--area-work)", flexShrink: 0 }} />
                 Tarjetones oficiales IMSS
               </button>
+            </li>
+            <li>
+              <Link
+                href="/documentos-personales"
+                onClick={onClose}
+                style={{
+                  display: "flex", alignItems: "center", gap: "0.625rem", width: "100%",
+                  padding: "0.625rem 0.75rem", borderRadius: "var(--radius)",
+                  background: "transparent", border: "none", cursor: "pointer",
+                  fontSize: "var(--text-sm)", color: "var(--fg)", textDecoration: "none",
+                  textAlign: "left", fontFamily: "inherit",
+                }}
+              >
+                <FolderOpen size={20} weight="regular" style={{ color: "var(--primary)", flexShrink: 0 }} />
+                Documentos personales
+              </Link>
             </li>
             {platform === "android" && (
               <li>
