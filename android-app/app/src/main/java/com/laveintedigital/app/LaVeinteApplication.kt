@@ -1,32 +1,22 @@
 package com.laveintedigital.app
 
 import android.app.Application
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.os.Build
-import com.laveintedigital.app.R
+import com.google.firebase.messaging.FirebaseMessaging
+import com.laveintedigital.app.push.LaVeinteNotificationManager
+import com.laveintedigital.app.push.PushTokenStore
 
 class LaVeinteApplication : Application() {
     override fun onCreate() {
         super.onCreate()
-        createDownloadChannel()
-    }
-
-    private fun createDownloadChannel() {
-        val nm = getSystemService(NotificationManager::class.java) ?: return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_DOWNLOADS,
-                getString(R.string.download_channel_name),
-                NotificationManager.IMPORTANCE_LOW,
-            ).apply {
-                description = getString(R.string.download_channel_desc)
-            }
-            nm.createNotificationChannel(channel)
-        }
+        LaVeinteNotificationManager.createChannels(this)
+        // Fetch/rotate the FCM token so the web (via the bridge getFcmToken()) can register it.
+        FirebaseMessaging.getInstance().token
+            .addOnSuccessListener { token -> PushTokenStore.saveToken(this, token) }
+            .addOnFailureListener { /* FCM not ready yet; onNewToken will populate it. */ }
     }
 
     companion object {
+        @Deprecated("Use LaVeinteNotificationManager.CHANNEL_DOWNLOADS")
         const val CHANNEL_DOWNLOADS = "la_veinte_downloads"
     }
 }

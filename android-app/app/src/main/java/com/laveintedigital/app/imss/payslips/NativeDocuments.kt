@@ -70,6 +70,24 @@ object NativeDocuments {
         }
     }
 
+    /** Deletes a saved document (and its optional concepts PDF) by path. Returns true if removed. */
+    suspend fun delete(context: Context, localPath: String): Boolean {
+        if (localPath.isBlank()) return false
+        val base = context.filesDir.canonicalFile
+        val file = runCatching { java.io.File(localPath).canonicalFile }.getOrNull() ?: return false
+        if (!file.path.startsWith(base.path)) {
+            Log.w(TAG, "delete rejected: outside filesDir: ${file.path}")
+            return false
+        }
+        val db = PayslipDatabase.getInstance(context)
+        val doc = db.payslipDao().getAll().firstOrNull { it.localPath == file.path } ?: return false
+        db.payslipDao().delete(doc)
+        doc.conceptsPath?.takeIf { it.isNotBlank() }?.let { runCatching { java.io.File(it).delete() } }
+        runCatching { if (file.exists()) file.delete() }
+        Log.i(TAG, "doc_deleted path=${file.path}")
+        return true
+    }
+
     /**
      * The document the user asked to "Imprimir" (send via QR) — stored by the native viewer so the
      * web `/transfer?print=1` flow can auto-send exactly that file after scanning. It must be

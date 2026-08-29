@@ -2,6 +2,9 @@ package com.laveintedigital.app.imss.portal
 
 import android.util.Log
 import android.webkit.WebView
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import com.laveintedigital.app.BuildConfig
 import com.laveintedigital.app.imss.tarjeton.ImssPeriodOption
 import com.laveintedigital.app.imss.tarjeton.PeriodParser
@@ -43,10 +46,10 @@ class TuPerfilFlowController(
 
     val lastUsername: String? get() = session.lastUsername
 
-    var ooadOptions = listOf<PortalOoad>()
-    var selectedOoad: PortalOoad? = null
-    var periodOptions = listOf<ImssPeriodOption>()
-    var selectedPeriod: ImssPeriodOption? = null
+    var ooadOptions by mutableStateOf(listOf<PortalOoad>())
+    var selectedOoad by mutableStateOf<PortalOoad?>(null)
+    var periodOptions by mutableStateOf(listOf<ImssPeriodOption>())
+    var selectedPeriod by mutableStateOf<ImssPeriodOption?>(null)
 
     init {
         // Mapea la sesión compartida a la máquina de estados del tarjetón.

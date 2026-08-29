@@ -76,7 +76,6 @@ fun AppNavHost(
                 onOpenBiometrics = { navController.navigate(NavRoute.TuPerfilBiometrics.route) },
                 onSaveCredentials = { portal -> navController.navigate(NavRoute.ImssSaveCreds.create(portal.id)) },
                 onManageCredentials = { navController.navigate(NavRoute.ManageImssCreds.route) },
-                onOpenHistory = { navController.navigate(NavRoute.PayslipHistory.route) },
                 onBack = { navController.popBackStack() },
             )
         }

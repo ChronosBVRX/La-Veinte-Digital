@@ -60,16 +60,19 @@ import com.laveintedigital.app.R
 import com.laveintedigital.app.downloads.attachDownloadListener
 import com.laveintedigital.app.routing.NavigationTarget
 import com.laveintedigital.app.security.AppLockManager
-import com.laveintedigital.app.security.BiometricKeyStore
 import com.laveintedigital.app.security.BiometricPreferences
 import com.laveintedigital.app.security.LaveinteBiometricManager
 import com.laveintedigital.app.security.PermissionCoordinator
-import com.laveintedigital.app.security.BiometricEnrollment
 import com.laveintedigital.app.ui.theme.BrandBlue
 import com.laveintedigital.app.ui.theme.BrandNavy
 import com.laveintedigital.app.ui.theme.Primary
 import com.laveintedigital.app.util.configureForLaVeinte
+import androidx.biometric.BiometricPrompt
+import androidx.fragment.app.FragmentActivity
+import android.util.Log
+import java.util.concurrent.Executors
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -189,18 +192,30 @@ fun InternalWebScreen(
                 pushBridgeResult(wv, req, payload)
             }
         }
+        BridgeHandler.onDeleteNativeDocument = { wv, req, path ->
+            scope.launch {
+                val payload = runCatching {
+                    com.laveintedigital.app.imss.payslips.NativeDocuments.delete(context, path).toString()
+                }.getOrDefault("false")
+                pushBridgeResult(wv, req, payload)
+            }
+        }
+        BridgeHandler.onGetFcmToken = { wv, req ->
+            val token = com.laveintedigital.app.push.PushTokenStore.getToken(context) ?: ""
+            org.json.JSONObject().put("token", token).let { pushBridgeResult(wv, req, it.toString()) }
+        }
         BridgeHandler.onAuthenticated = {
-            if (!enrollmentDone && LaveinteBiometricManager.canAuthenticateStrong(context)) {
+            if (!enrollmentDone && LaveinteBiometricManager.canAuthenticate(context)) {
                 showEnrollmentInvite = true
             }
         }
         BridgeHandler.onLoggedOut = {
-            scope.launch {
-                try { BiometricKeyStore.deleteKey() } catch (_: Exception) {}
-                BiometricPreferences.clearAll(context)
-            }
-            AppLockManager.lock()
             showEnrollmentInvite = false
+            AppLockManager.pendingDeepLink = null
+            scope.launch {
+                BiometricPreferences.clearLegacyEnrollment(context)
+                BiometricPreferences.setEnabled(context, false)
+            }
         }
         onDispose {
             BridgeHandler.onOpenOfficialPayslips = null
@@ -212,6 +227,8 @@ fun InternalWebScreen(
             BridgeHandler.onOpenAppSettings = null
             BridgeHandler.onListNativeDocuments = null
             BridgeHandler.onReadNativeDocument = null
+            BridgeHandler.onDeleteNativeDocument = null
+            BridgeHandler.onGetFcmToken = null
             BridgeHandler.onGetPendingPrintDoc = null
         }
     }
@@ -356,36 +373,56 @@ fun InternalWebScreen(
             }
         }
 
-        // Biometric enrollment invitation — shown once after first login
+        // Biometric enrollment invitation — shown once after first login. Runs a REAL
+        // BiometricPrompt; only onAuthenticationSucceeded persists biometric_enabled=true.
         if (showEnrollmentInvite) {
+            val enrollmentPrompt = remember {
+                runCatching {
+                    val fragActivity = context as FragmentActivity
+                    BiometricPrompt(
+                        fragActivity,
+                        Executors.newSingleThreadExecutor(),
+                        object : BiometricPrompt.AuthenticationCallback() {
+                            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                                Log.d("APP_LOCK", "APP_LOCK enrollment_success")
+                                scope.launch { BiometricPreferences.setEnabled(context, true) }
+                            }
+                            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                                Log.w("APP_LOCK", "APP_LOCK enrollment_error=$errorCode")
+                            }
+                            override fun onAuthenticationFailed() {}
+                        },
+                    )
+                }.getOrNull()
+            }
+            val enrollmentPromptInfo = remember {
+                BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("Protege La Veinte Digital")
+                    .setSubtitle("Usa tu huella, rostro o bloqueo seguro para proteger tu información")
+                    .setAllowedAuthenticators(LaveinteBiometricManager.ALLOWED_AUTHENTICATORS)
+                    .build()
+            }
+
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { showEnrollmentInvite = false },
-                title = { Text("Acceso más rápido") },
+                title = { Text("Protege La Veinte Digital") },
                 text = {
                     Text(
-                        "Usa tu huella o rostro para proteger y abrir La Veinte Digital. " +
-                        "No guardamos tu contraseña."
+                        "Usa la huella, el rostro o el bloqueo seguro de tu teléfono para proteger " +
+                        "tu información. No guardamos tu contraseña."
                     )
                 },
                 confirmButton = {
                     androidx.compose.material3.TextButton(
                         onClick = {
                             showEnrollmentInvite = false
-                            scope.launch {
-                                try {
-                                BiometricKeyStore.createKey()
-                                val secret = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
-                                val (ct, iv) = BiometricKeyStore.encrypt(secret)
-                                BiometricPreferences.saveEnrollment(
-                                    context,
-                                    BiometricEnrollment(ct, iv, System.currentTimeMillis())
-                                )
-                                } catch (_: Exception) {
-                                    // Enrollment failed silently — user can retry later
-                                }
+                            val p = enrollmentPrompt
+                            if (p != null) {
+                                runCatching { p.authenticate(enrollmentPromptInfo) }
+                                    .onFailure { Log.w("APP_LOCK", "APP_LOCK enrollment_prompt_failed", it) }
                             }
                         }
-                    ) { Text("Activar biometría") }
+                    ) { Text("Activar") }
                 },
                 dismissButton = {
                     androidx.compose.material3.TextButton(

@@ -22,7 +22,6 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FilePresent
 import androidx.compose.material.icons.filled.Fingerprint
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
@@ -54,12 +53,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.laveintedigital.app.imss.credentials.ImssPortal
 import com.laveintedigital.app.imss.credentials.ImssVaultManager
-import com.laveintedigital.app.imss.payslips.PayslipDatabase
 import com.laveintedigital.app.imss.portal.ImssPdfCaptureCoordinator
 import com.laveintedigital.app.ui.theme.BrandBlue
 import com.laveintedigital.app.ui.theme.BrandCyan
 import com.laveintedigital.app.ui.theme.BrandNavy
-import com.laveintedigital.app.ui.theme.LightBlue300
 import com.laveintedigital.app.ui.theme.Primary
 import com.laveintedigital.app.ui.theme.SkyBlue
 import com.laveintedigital.app.ui.theme.SteelBlue
@@ -74,19 +71,16 @@ fun OfficialPayslipsScreen(
     onOpenBiometrics: () -> Unit,
     onSaveCredentials: (ImssPortal) -> Unit,
     onManageCredentials: () -> Unit,
-    onOpenHistory: () -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     com.laveintedigital.app.ui.theme.StatusBarAppearance(lightIcons = true)
-    var docCount by remember { mutableStateOf(0) }
     var hasTuPerfil by remember { mutableStateOf(false) }
     var hasTarjeton by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         scope.launch {
-            docCount = PayslipDatabase.getInstance(context).payslipDao().count()
             hasTuPerfil = ImssVaultManager.hasCredentials(context, ImssPortal.TU_PERFIL)
             hasTarjeton = ImssVaultManager.hasCredentials(context, ImssPortal.TARJETON_DIGITAL)
         }
@@ -128,7 +122,7 @@ fun OfficialPayslipsScreen(
             val cellWidth = (maxWidth - outerPad * 2 - gridSpacing) / 2f
             val cellHeight = cellWidth / CARD_RATIO
 
-            val cards = remember(docCount, hasTuPerfil, hasTarjeton) {
+            val cards = remember(hasTuPerfil, hasTarjeton) {
                 listOf(
                     OfficialServiceUiModel(
                         title = "Tu Perfil IMSS",
@@ -162,16 +156,6 @@ fun OfficialPayslipsScreen(
                         accentIcons = listOf(Icons.Filled.Schedule, Icons.Filled.Person),
                         onClick = onOpenBiometrics,
                         saved = hasTuPerfil,
-                    ),
-                    OfficialServiceUiModel(
-                        title = "Mis documentos",
-                        description = if (docCount == 1) "1 documento guardado" else "$docCount documentos guardados",
-                        accent = BrandNavy,
-                        accentLight = LightBlue300,
-                        actionLabel = "Ver historial",
-                        mainIcon = Icons.Filled.Folder,
-                        accentIcons = listOf(Icons.Filled.Schedule, Icons.Filled.Description),
-                        onClick = onOpenHistory,
                     ),
                     OfficialServiceUiModel(
                         title = "Administrar accesos",

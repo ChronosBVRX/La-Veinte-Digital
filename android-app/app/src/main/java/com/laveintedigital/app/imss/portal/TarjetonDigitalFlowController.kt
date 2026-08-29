@@ -2,6 +2,9 @@ package com.laveintedigital.app.imss.portal
 
 import android.util.Log
 import android.webkit.WebView
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import com.laveintedigital.app.imss.credentials.*
 import com.laveintedigital.app.imss.tarjeton.TarjetonDigitalDelegaciones
 import kotlinx.coroutines.*
@@ -67,7 +70,7 @@ try{
     var lastUsername: String? = null
     var delegaciones = TarjetonDigitalDelegaciones.FALLBACK
     var periods = listOf<TarjetonPeriod>()
-    var selectedPeriod: TarjetonPeriod? = null
+    var selectedPeriod by mutableStateOf<TarjetonPeriod?>(null)
 
     fun attachWebView(wv: WebView) { if (!webViewReady.isCompleted) webViewReady.complete(wv) }
 

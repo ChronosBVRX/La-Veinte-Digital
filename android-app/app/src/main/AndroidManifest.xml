@@ -72,6 +72,21 @@
             android:name=".updates.UpdateInstallReceiver"
             android:exported="true" />
 
+        <service
+            android:name=".push.LaVeinteFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="la_veinte_avisos" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification_laveinte" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
