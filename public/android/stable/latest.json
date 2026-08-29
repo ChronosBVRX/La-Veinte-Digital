@@ -1,19 +1,19 @@
 {
   "channel": "stable",
-  "versionCode": 193,
-  "versionName": "1.0.93",
+  "versionCode": 198,
+  "versionName": "1.0.98",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-08-28T15:20:00Z",
+  "publishedAt": "2026-08-29T02:47:10Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "7db14276063e2ee780f8b726b99604e2bee373a2a6d54c375e48f0dcfc9a498c",
-    "size": 24048388
+    "sha256": "ad41b06613116837802d4e57d6d306e57743b0cde22b38adf763194f142e9422",
+    "size": 24522145
   },
   "releaseNotes": [
-    "Reparado por completo el flujo Enviar a imprimir: ya funciona de principio a fin en el teléfono",
-    "Se corrigió el permiso de cámara que bloqueaba el escáner (la cámara ahora abre correctamente al escanear)",
-    "El documento seleccionado se lee desde tu tarjetón/checada guardado y se envía directo a la computadora al escanear el QR",
-    "Mejor manejo de errores de cámara y del documento para que nunca se quede cargando"
+    "Notificaciones push reales (FCM): canales, token, deep links y permiso en Android 13+",
+    "Bloqueo biométrico nativo reforzado: cold start, timeout en background y BIOMETRIC_WEAK|DEVICE_CREDENTIAL",
+    "Documentos personales: tarjetones, checadas y escritos; imprimir, cargar al perfil y eliminar",
+    "Arreglos visuales y agrupación de menú (Documentos personales en Funciones de la app)"
   ]
 }
