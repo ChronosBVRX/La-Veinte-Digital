@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { requireUser } from "@/shared/server/auth/require-user"
 import { sendBroadcast, sendToUser, sendToUsers, sanitizeDestination, type PushPayload, type PushType } from "@/features/push/services/push-admin"
 
 const VALID_TYPES: PushType[] = ["GENERAL", "IMPORTANT_ALERT", "AGENDA", "DOCUMENT", "UPDATE"]
@@ -7,10 +8,14 @@ const VALID_TYPES: PushType[] = ["GENERAL", "IMPORTANT_ALERT", "AGENDA", "DOCUME
  * POST /api/push/send
  *
  * Envío de notificaciones. Autorización en el SERVIDOR (ocultar el botón en el frontend NO es
- * seguridad): se exige la cabecera `X-Push-Admin-Key` === `PUSH_ADMIN_KEY` del entorno. La clave
- * nunca se expone al cliente; el panel admin usa una server action que la inyecta server-side.
+ * seguridad): se exige una sesión de usuario autenticada (defensa en profundidad, Rule 6) y la
+ * cabecera `X-Push-Admin-Key` === `PUSH_ADMIN_KEY` del entorno. La clave nunca se expone al
+ * cliente; el panel admin usa una server action que la inyecta server-side.
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireUser()
+  if (auth.response) return auth.response
+
   const adminKey = process.env.PUSH_ADMIN_KEY
   if (!adminKey) {
     return NextResponse.json({ error: "PUSH_ADMIN_NOT_CONFIGURED" }, { status: 503 })
