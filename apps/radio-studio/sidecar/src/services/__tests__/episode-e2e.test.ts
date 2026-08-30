@@ -10,6 +10,10 @@ import { NormativeCatalog } from "../../../../../../src/features/normativa/servi
 
 const REPO = path.resolve(__dirname, "..", "..", "..", "..", "..", "..");
 
+// Requiere el corpus local (data/normativa/catalog.sqlite, generado con
+// `npm run normativa:bootstrap`). En CI sin corpus se omite (integración local).
+const HAS_CORPUS = fs.existsSync(path.join(REPO, "data", "normativa", "catalog.sqlite"));
+
 // Tema pequeño y determinista para el E2E (sin Qwen TTS real; guion determinista).
 const TOPIC = "¿Qué pasa si me cambian de horario sin avisarme?";
 
@@ -45,7 +49,7 @@ async function baseProject(comerciales: boolean) {
   });
 }
 
-describe("E2E determinista del flujo de episodio", () => {
+describe.skipIf(!HAS_CORPUS)("E2E determinista del flujo de episodio", () => {
   it("recorre crear -> investigar -> propuesta -> aprobar -> guion -> verificar (sin comerciales)", async () => {
     const p = await baseProject(false);
     expect(p.state).toBe("DRAFT");
