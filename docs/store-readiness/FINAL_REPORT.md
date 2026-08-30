@@ -122,17 +122,19 @@ IOS PORT READINESS:     6/10
 | Account Deletion | ✅ RPC + UI + `/eliminar-cuenta` (live) |
 | Screenshots | ⚠️ parcial (ver bloqueo abajo) |
 | Feature Graphic | ⚠️ pendiente (no se generó; ver bloqueo de assets) |
-| App Links | ✅ assetlinks.json correcto (upload key) **desplegado** |
+| App Links | ✅ `assetlinks.json` publicado con las **3 huellas de Play App Signing** + la upload key del canal `directRelease`; HTTP 200, JSON válido (desplegado). Verificación en dispositivo (Internal Testing) pendiente de Android físico. |
 
 ### Bloqueos externos (lo que NO pude hacer)
 1. **Play Console / 2FA** — `MOTIVO:` requiere login 2FA de la cuenta comercial.
    `QUÉ INTENTASTE:` verificar CLI/sesiones (gcloud/fastlane/credenciales); no hay ninguna.
    `POR QUÉ ES IMPOSIBLE AUTOMATIZAR:` la plataforma exige autenticación interactiva con 2FA que
    solo puede aprobar el titular. `ESTADO:` pendiente (todo lo demás está listo).
-2. **Fingerprint del App Signing de Google** — `MOTIVO:` solo existe después de subir el AAB a Play.
-   `QUÉ INTENTASTE:` incluir el de la upload key en assetlinks (válido para el canal direct).
-   `POR QUÉ ES IMPOSIBLE AUTOMATIZAR:` Google lo genera en Play Console. `ESTADO:` el AAB ya lleva el
-   fingerprint de la upload key para Direct; hay que añadir el de Play Signing tras subir.
+2. **Verificación de App Links en dispositivo (Internal Testing)** — `MOTIVO:` no hay un Android físico
+   conectado a este entorno (`adb devices` vacío; el emulador no arranca sin KVM). `QUÉ INTENTASTE:`
+   `adb shell pm verify-app-links --re-verify` y `pm get-app-links`; `adb` responde "no devices/emulators
+   found". `POR QUÉ ES IMPOSIBLE AUTOMATIZAR:` requiere un dispositivo del titular con la build de Play
+   instalada. `ESTADO:` la mitad servidora (assetlinks 200 + JSON válido con las 3 huellas) está ✓;
+   la mitad cliente (resolución por Android) queda pendiente de dispositivo.
 3. **Screenshots con datos + E2E HTTP de login/registro** — `MOTIVO:` esta máquina NO puede alcanzar
    `*.supabase.co` (curl → http=000, timeout; `api.supabase.com` sí se alcanza).
    `QUÉ INTENTASTE:` curl por DNS/verbose, Management API, emulador.

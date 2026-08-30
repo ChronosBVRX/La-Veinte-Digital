@@ -99,7 +99,7 @@ Checklist maestra para subir el AAB a Google Play. Marca `[x]` SOLO lo verificad
 - [x] Firma release por variables de entorno (sin secrets en Git)
 - [x] Doc `PLAY_APP_SIGNING.md`
 - [x] Upload keystore generado y guardado en `$HOME/.laveinte/keystore/` (privado, sin password en Git)
-- [x] Fingerprint SHA-256 de la upload key calculado y publicado en `assetlinks.json` (desplegado). App Signing de Play pendiente de subir el AAB
+- [x] App Links: `assetlinks.json` publicado con las **3 huellas de Play App Signing** (FF:A7:…, 09:0E:…, 75:DD:…) **+** la upload key del canal `directRelease`; HTTP 200 y JSON válido. Verificación en dispositivo (Internal Testing) pendiente de Android físico.
 
 ## AAB
 
