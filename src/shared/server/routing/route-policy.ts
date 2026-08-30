@@ -33,6 +33,12 @@ export const PUBLIC_PAGE_PATHS = [
   "/restablecer-password",
   "/health",
   "/transfer",
+  // Public legal/support pages (Phase 9 / 13). Plain http routes, no account required.
+  "/privacidad",
+  "/terminos",
+  "/soporte",
+  "/acerca-de",
+  "/eliminar-cuenta",
 ] as const
 
 export const PUBLIC_AUTH_ROUTE_PATHS = ["/callback"] as const

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { User, Shield } from "lucide-react"
+import { User, Shield, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { ProfileForm } from "@/features/profile/components/ProfileForm"
 
@@ -82,6 +82,29 @@ export default async function ProfilePage() {
         <div style={{ padding: "1.5rem" }}>
           <ProfileForm profile={profile} />
         </div>
+      </div>
+
+      {/* Privacidad y cuenta */}
+      <div style={{
+        background: "var(--card)", border: "1px solid var(--border)",
+        borderRadius: "var(--radius)", padding: "1rem 1.25rem", marginTop: "1.5rem",
+      }}>
+        <div style={{ fontSize: "0.9375rem", fontWeight: 700, marginBottom: "0.625rem" }}>
+          Privacidad y cuenta
+        </div>
+        <Link href="/eliminar-cuenta" style={{
+          display: "flex", alignItems: "center", gap: "0.5rem", textDecoration: "none",
+          fontSize: "0.875rem", color: "#dc2626", padding: "0.375rem 0",
+        }}>
+          <Trash2 size={16} />
+          Eliminar mi cuenta
+        </Link>
+        <Link href="/privacidad" style={{
+          display: "flex", alignItems: "center", gap: "0.5rem", textDecoration: "none",
+          fontSize: "0.875rem", color: "var(--muted)", padding: "0.375rem 0",
+        }}>
+          Política de privacidad
+        </Link>
       </div>
     </div>
   )

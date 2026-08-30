@@ -1149,6 +1149,8 @@ export type Database = {
         }
         Returns: undefined
       }
+      // → hand-added pending `supabase gen types` after migration 20260830000000_account_deletion.sql
+      delete_my_account: { Args: never; Returns: undefined }
       delete_worker_data: { Args: never; Returns: undefined }
       ensure_profile_exists: { Args: never; Returns: boolean }
       erase_user_payroll_data: { Args: never; Returns: undefined }
