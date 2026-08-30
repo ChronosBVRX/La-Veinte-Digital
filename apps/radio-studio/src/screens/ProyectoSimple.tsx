@@ -54,7 +54,7 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
   const [verify, setVerify] = useState<VerifyResult | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number; estado: string | null; etaMin: number | null; rtf: number | null } | null>(null);
   const [inicioProduce, setInicioProduce] = useState<number | null>(null);
-  const [ahora, setAhora] = useState(Date.now());
+  const [ahora, setAhora] = useState<number>(() => Date.now());
   const [llm, setLlm] = useState<LlmHealthInfo | null>(null);
   const [fuenteAbierta, setFuenteAbierta] = useState<string | null>(null);
   const [editandoPropuesta, setEditandoPropuesta] = useState(false);

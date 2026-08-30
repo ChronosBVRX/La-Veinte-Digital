@@ -39,7 +39,11 @@ BEGIN
 
   -- 1) Datos efímeros / compartidos (FK a auth.users o a profiles).
   DELETE FROM public.bitacora_entries WHERE user_id = v_uid;
-  DELETE FROM public.worker_commitments WHERE user_id = v_uid;
+  IF to_regclass('public.worker_commitments') IS NOT NULL THEN
+    -- worker_commitments fue creado out-of-band en el proyecto real (no está en migraciones
+    -- versionadas), por lo que en un replay desde cero podría no existir. Se borra solo si existe.
+    DELETE FROM public.worker_commitments WHERE user_id = v_uid;
+  END IF;
   DELETE FROM public.imported_payslips WHERE user_id = v_uid;          -- cascada líneas+observaciones
   DELETE FROM public.payroll_contexts WHERE user_id = v_uid;
   DELETE FROM public.vacation_simulations WHERE user_id = v_uid;       -- cascada eventos
