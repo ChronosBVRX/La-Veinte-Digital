@@ -140,6 +140,24 @@ IOS PORT READINESS:     6/10
    proyecto; el login del reviewer y las capturas de pantalla con datos reales requieren ese canal.
    `ESTADO:` intento de screenshots pre-auth en emulador en curso; las demás quedan documentadas.
 
+## CI / Integración (GitHub Actions, main)
+
+| Workflow | Resultado |
+|----------|-----------|
+| `ci.yml` (validate + python + supabase-db) | ✅ **verde** (las tres jobs pasan) |
+| `android-build.yml` | ✅ **verde** (build de canales play/direct + AAB) |
+| `release-gate.yml` (unit tests, policy, release lint, assemble+bundle, 16 KB) | ✅ **verde** |
+| `npm test` (suite por defecto) | ✅ sin infra local (corpus/LLM → suite de integración opcional) |
+
+Se corrigieron defectos preexistentes que dejaban `ci.yml` rojo:
+- Lint de pureza React en `apps/radio-studio` (`Date.now` en render).
+- `episode-e2e` dependiente de corpus/LLM → suite de integración opcional (`test:integration`).
+- `worker_commitments` no versionado en migraciones → migración `IF NOT EXISTS` (drift).
+- Falta la extensión `pg_trgm` en la migración pgvector.
+- Check obsoleto de `ci.yml` que esperaba tablas eliminadas (`chat_messages`/`forum_posts`).
+- Matcher del proxy que interceptaba estáticos (`.pdf`).
+- Timeout del test de corpus.
+
 ## Testing (síntesis)
 
 | Suite | Resultado |
