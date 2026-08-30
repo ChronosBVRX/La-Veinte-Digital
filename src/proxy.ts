@@ -98,6 +98,6 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/api/:path*",
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|apk|json)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|apk|json|pdf|txt|csv|zip|woff|woff2|ttf|otf|eot|ico|xml|wasm|mp3|mp4|webm)$).*)",
   ],
 }

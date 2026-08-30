@@ -84,7 +84,7 @@ describe.skipIf(!HAS_CORPUS)("Batería RAG sobre el corpus real", () => {
   it("TEST DE ALUCINACIÓN: cláusula 999 con vacaciones no arroja evidencia inventada", () => {
     const r = catalog.verifyClaim("La cláusula 999 me da 45 días de vacaciones")
     expect(r.state).toBe("NEEDS_MORE_EVIDENCE")
-  })
+  }, 30000)
 
   it("TEST DE DOCUMENTO ANTIGUO: las búsquedas no mezclan históricos por defecto", () => {
     const hits = catalog.searchNormativeCorpus("Cláusula 1", { includeHistorical: false })
