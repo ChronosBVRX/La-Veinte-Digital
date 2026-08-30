@@ -7,9 +7,17 @@ Digital. **No hay contraseñas reales en Git**; los campos marcados se completan
 
 ## Cuenta de revisión
 
-- Correo de acceso (demo): `[PENDIENTE — correo demo]`
-- Contraseña (demo): `[PENDIENTE — contraseña demo, NO commitear]`
-- El dueño puede crearla/manejar en Supabase Auth.
+- Correo de acceso (demo): `play.reviewer@laveinte.demo`
+- Contraseña (demo): guardada en el almacén **privado** del propietario:
+  `$HOME/.laveinte/keystore/reviewer_creds.txt` (línea 2; NO se versiona en Git).
+- El dueño puede cambiarla/recuperarla desde el panel de Supabase Auth.
+- Datos del perfil: `full_name = "Usuario Demo Play"`, marcado como `demo`, sin datos personales reales.
+
+## Datos demo publicados
+
+- PDF de demostración (ficticio): `https://la-veinte-digital.vercel.app/demo/demo-tarjeton-imss.pdf`
+  (marca "DOCUMENTO DE DEMOSTRACIÓN — DATOS FICTICIOS").
+- QR de demostración: `https://la-veinte-digital.vercel.app/demo/demo-qr-transfer.png`.
 
 ## Pasos de inicio
 
