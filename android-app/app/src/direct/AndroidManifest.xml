@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DIRECT distribution channel — sideload builds that keep the self-update pipeline.
+  This file only participates in `direct` variants. It must NEVER be merged into `playRelease`.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Self-update (PackageInstaller) — only allowed on direct builds, forbidden by Google Play. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application>
+        <!-- Receives the PackageInstaller.Session commit result. It is NOT exported: the system
+             delivers it through the PendingIntent identity, and no external app should be able to
+             trigger an install result notification. -->
+        <receiver
+            android:name=".updates.UpdateInstallReceiver"
+            android:exported="false" />
+    </application>
+
+</manifest>

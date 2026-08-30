@@ -17,17 +17,35 @@ val releaseKeyPasswordEnv: String? = System.getenv("LAVEINTE_KEY_PASSWORD")
 
 android {
     namespace = "com.laveintedigital.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.laveintedigital.app"
         minSdk = 29
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 198
         versionName = "1.0.98"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+    }
+
+    // Two independent distribution channels. `play` must comply with Google Play policy (no
+    // self-update, no REQUEST_INSTALL_PACKAGES, no installer). `direct` is the sideload channel
+    // that keeps the full self-update pipeline. The concrete behavior is chosen per source set via
+    // `UpdateCoordinatorProvider` (`src/play`, `src/direct`), NOT scattered `if(BuildConfig)`.
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("play") {
+            dimension = "distribution"
+            buildConfigField("String", "DISTRIBUTION_CHANNEL", "\"play\"")
+            buildConfigField("boolean", "SELF_UPDATE_ENABLED", "false")
+        }
+        create("direct") {
+            dimension = "distribution"
+            buildConfigField("String", "DISTRIBUTION_CHANNEL", "\"direct\"")
+            buildConfigField("boolean", "SELF_UPDATE_ENABLED", "true")
+        }
     }
 
     signingConfigs {
@@ -71,8 +89,11 @@ android {
 
     applicationVariants.all {
         outputs.all {
-            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
-                "LaVeinteDigital-${buildType.name}-v${versionName}.apk"
+            // Only rename APK outputs; bundle (.aab) outputs do not expose outputFileName.
+            if (outputFile?.name?.endsWith(".apk") == true) {
+                (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
+                    "LaVeinteDigital-${flavorName}-${buildType.name}-v${versionName}.apk"
+            }
         }
     }
 
@@ -94,12 +115,73 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+    // Release lint is enabled (see docs/store-readiness for the rationale).
     lint {
-        checkReleaseBuilds = false
+        checkReleaseBuilds = true
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+}
+
+// ----------------------------------------------------------------------------------------------
+// Distribution-policy validation: fails the build if the merged manifest drifts out of compliance.
+//   play  → must NOT contain REQUEST_INSTALL_PACKAGES or the self-update receiver.
+//   direct → MUST contain REQUEST_INSTALL_PACKAGES and the self-update receiver.
+// This runs automatically as part of `check` and can be run alone via `validateDistributionPolicy*`.
+// It inspects the FINAL merged manifest, so it is the source of truth for what a reviewer scans.
+// ----------------------------------------------------------------------------------------------
+androidComponents {
+    onVariants { variant ->
+        val variantName = variant.name
+        val capitalized = variantName.replaceFirstChar { it.uppercase() }
+        val taskName = "validateDistributionPolicy${capitalized}"
+        val manifestPath = layout.buildDirectory.file(
+            "intermediates/merged_manifests/$variantName/process${capitalized}Manifest/AndroidManifest.xml",
+        )
+        tasks.register(taskName) {
+            group = "verification"
+            description = "Assert the merged manifest respects the distribution-channel policy."
+            dependsOn("process${capitalized}Manifest")
+            doLast {
+                val file = manifestPath.get().asFile
+                if (!file.exists()) {
+                    throw GradleException("Merged manifest not found for $variantName: $file")
+                }
+                val text = file.readText()
+                val isPlay = variantName.startsWith("play")
+
+                // Ignore the explanatory XML comments; strip comments before the real check.
+                val noComments = text.replace(Regex("<!--[\\s\\S]*?-->"), "")
+                val effectiveInstall = noComments.contains("android.permission.REQUEST_INSTALL_PACKAGES")
+                val effectiveReceiver = noComments.matches(Regex(".*<receiver\\s+android:name=\"[^\"]*UpdateInstallReceiver\".*", RegexOption.DOT_MATCHES_ALL))
+
+                if (isPlay) {
+                    if (effectiveInstall || effectiveReceiver) {
+                        throw GradleException(
+                            "[POLICY FAIL] $variantName (Google Play) must NOT declare " +
+                                "REQUEST_INSTALL_PACKAGES or register UpdateInstallReceiver.",
+                        )
+                    }
+                } else {
+                    if (!effectiveInstall || !effectiveReceiver) {
+                        throw GradleException(
+                            "[POLICY FAIL] $variantName (direct) MUST declare REQUEST_INSTALL_PACKAGES " +
+                                "and register UpdateInstallReceiver.",
+                        )
+                    }
+                }
+                logger.lifecycle(
+                    "[$taskName] OK: $variantName " +
+                        "installPermission=$effectiveInstall receiver=$effectiveReceiver",
+                )
+            }
+        }
+    }
+}
+
+tasks.named("check") {
+    dependsOn(tasks.matching { it.name.startsWith("validateDistributionPolicy") })
 }
 
 dependencies {

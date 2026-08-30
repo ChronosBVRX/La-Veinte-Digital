@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.navigation.compose.rememberNavController
+import com.laveintedigital.app.distribution.UpdateCoordinatorProvider
 import com.laveintedigital.app.intents.IntentLauncher
 import com.laveintedigital.app.nav.AppNavHost
 import com.laveintedigital.app.security.AppLockManager
@@ -31,7 +32,6 @@ import com.laveintedigital.app.security.LaveinteBiometricManager
 import com.laveintedigital.app.security.LockState
 import com.laveintedigital.app.security.PermissionCoordinator
 import com.laveintedigital.app.ui.theme.LaVeinteTheme
-import com.laveintedigital.app.updates.UpdateManifest
 import com.laveintedigital.app.updates.UpdateState
 import android.widget.Toast
 import kotlinx.coroutines.flow.first
@@ -120,9 +120,9 @@ private fun MainScreen() {
             }
         }
 
-        // Update check
-        val updateManager = remember { UpdateManager(channel = "stable") }
-        val updateState by updateManager.state.collectAsState()
+        // Update check — delegated to the build-selected distribution policy (play vs direct).
+        val updateCoordinator = remember { UpdateCoordinatorProvider.provide() }
+        val updateState by updateCoordinator.state.collectAsState()
         val scope = rememberCoroutineScope()
         var checked by remember { mutableStateOf(false) }
 
@@ -141,18 +141,18 @@ private fun MainScreen() {
         LaunchedEffect(bootloaderDone) {
             if (bootloaderDone && !checked) {
                 checked = true
-                updateManager.check(activity, scope)
+                updateCoordinator.check(activity, scope)
             }
         }
 
-        // Manual update trigger from web bridge
+        // Manual update trigger from web bridge — the flavor decides what "check for updates" means.
         val manualUpdateRequest by UpdateTrigger.pending.collectAsState()
+        var manualCheckPending by remember { mutableStateOf(false) }
         LaunchedEffect(manualUpdateRequest) {
             if (manualUpdateRequest) {
                 UpdateTrigger.consume()
-                updateManager.reset()
-                updateManager.check(activity, scope)
-                Toast.makeText(activity, "Buscando actualización...", Toast.LENGTH_SHORT).show()
+                manualCheckPending = true
+                updateCoordinator.onManualCheckRequested(activity, scope)
             }
         }
 
@@ -196,13 +196,13 @@ private fun MainScreen() {
                     if (manifest.forceUpdate) {
                         ForceUpdateDialog(
                             manifest = manifest,
-                            onDownload = { updateManager.download(activity, manifest, scope) },
+                            onDownload = { updateCoordinator.download(activity, manifest, scope) },
                         )
                     } else {
                         UpdateAvailableDialog(
                             manifest = manifest,
-                            onDownload = { updateManager.download(activity, manifest, scope) },
-                            onDismiss = { updateManager.reset() },
+                            onDownload = { updateCoordinator.download(activity, manifest, scope) },
+                            onDismiss = { updateCoordinator.reset() },
                         )
                     }
                 }
@@ -210,26 +210,27 @@ private fun MainScreen() {
                 is UpdateState.Verifying -> VerifyingDialog()
                 is UpdateState.ReadyToInstall -> ReadyToInstallDialog(
                     manifest = st.manifest,
-                    onInstall = { updateManager.install(activity, st.manifest) },
+                    onInstall = { updateCoordinator.install(activity, st.manifest) },
                 )
                 is UpdateState.Error -> {
                     if (st.recoverable) {
                         androidx.compose.material3.AlertDialog(
-                            onDismissRequest = { updateManager.reset() },
+                            onDismissRequest = { updateCoordinator.reset() },
                             title = { androidx.compose.material3.Text("Error") },
                             text = { androidx.compose.material3.Text(st.message) },
                             confirmButton = {
                                 androidx.compose.material3.TextButton(
-                                    onClick = { updateManager.reset() }
+                                    onClick = { updateCoordinator.reset() }
                                 ) { androidx.compose.material3.Text("OK") }
                             },
                         )
                     }
                 }
                 else -> {
-                    if (st is UpdateState.UpToDate && manualUpdateRequest) {
+                    if (st is UpdateState.UpToDate && manualCheckPending) {
                         Toast.makeText(activity, "Ya tienes la última versión", Toast.LENGTH_SHORT).show()
-                        updateManager.reset()
+                        updateCoordinator.reset()
+                        manualCheckPending = false
                     }
                 }
             }

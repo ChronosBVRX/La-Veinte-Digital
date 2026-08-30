@@ -6,7 +6,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Simple trigger that the web bridge can fire to request an update check.
- * MainScreen observes this and calls UpdateManager.check() when true.
+ * MainActivity observes this and delegates to the build-selected
+ * `UpdateCoordinatorProvider` (Play = no-op, Direct = full self-update check).
  */
 object UpdateTrigger {
     private val _pending = MutableStateFlow(false)
