@@ -55,36 +55,36 @@ jobs:
           echo "versionCode=${VCODE}  versionName=${VNAME}"
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug
+        run: ./gradlew :app:assemblePlayDebug :app:assembleDirectDebug
 
-      - name: Build release APK
+      - name: Build release APK (play + direct) and Play AAB
         if: github.event_name == 'workflow_dispatch'
         env:
           LAVEINTE_KEYSTORE_BASE64: ${{ secrets.LAVEINTE_KEYSTORE_BASE64 }}
           LAVEINTE_KEYSTORE_PASSWORD: ${{ secrets.LAVEINTE_KEYSTORE_PASSWORD }}
           LAVEINTE_KEY_ALIAS: ${{ secrets.LAVEINTE_KEY_ALIAS }}
           LAVEINTE_KEY_PASSWORD: ${{ secrets.LAVEINTE_KEY_PASSWORD }}
-        run: ./gradlew assembleRelease
+        run: ./gradlew :app:assemblePlayRelease :app:assembleDirectRelease :app:bundlePlayRelease
 
       - name: Verify release signature
         if: github.event_name == 'workflow_dispatch'
         run: |
-          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          APK=$(find app/build/outputs/apk/direct/release -name "*.apk" | head -1)
           echo "=== Cert info ==="
-          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose --print-certs "$APK"
+          $ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose --print-certs "$APK"
           echo "=== Verification passed ==="
 
       - name: Compute APK hashes and size
         if: github.event_name == 'workflow_dispatch'
         id: apk
         run: |
-          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          APK=$(find app/build/outputs/apk/direct/release -name "*.apk" | head -1)
           SHA=$(sha256sum "$APK" | cut -d' ' -f1)
           SIZE=$(stat -c%s "$APK")
           echo "sha256=${SHA}" >> $GITHUB_OUTPUT
           echo "size=${SIZE}" >> $GITHUB_OUTPUT
           echo "apk_path=${APK}" >> $GITHUB_OUTPUT
-          echo "=== APK ==="
+          echo "=== APK (channel direct) ==="
           echo "SHA-256: $SHA"
           echo "Size:    $(echo "scale=1; $SIZE/1048576" | bc) MB"
 
@@ -92,14 +92,19 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: android-app/app/build/outputs/apk/debug/*.apk
+          path: |
+            android-app/app/build/outputs/apk/play/debug/*.apk
+            android-app/app/build/outputs/apk/direct/debug/*.apk
 
-      - name: Upload release artifact
+      - name: Upload release artifacts
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: android-app/app/build/outputs/apk/release/*.apk
+          path: |
+            android-app/app/build/outputs/apk/play/release/*.apk
+            android-app/app/build/outputs/apk/direct/release/*.apk
+            android-app/app/build/outputs/bundle/playRelease/*.aab
 
       - name: Upload to Supabase Storage
         if: github.event_name == 'workflow_dispatch'
