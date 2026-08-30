@@ -1,4 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Legacy full-backup rules. NOT ACTIVE.
+
+  `android:allowBackup` is set to `false` in the merged manifest, so cloud backup is disabled for the
+  whole app: labor documents, IMSS credentials (AES-GCM/AndroidKeyStore), WebView auth cookies, FCM
+  tokens and device-bound data must never travel to a cloud backup or an Android device-to-device
+  transfer.
+
+  This file is kept only so that if `allowBackup` is ever re-enabled, the default remains to EXCLUDE
+  everything rather than silently guessing at safety. Keep it in sync with data_extraction_rules.xml.
+-->
 <full-backup-content>
-    <include domain="sharedpref" path="la_veinte_prefs.xml" />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="database" path="." />
+    <exclude domain="file" path="." />
+    <exclude domain="external" path="." />
+    <exclude domain="root" path="." />
 </full-backup-content>

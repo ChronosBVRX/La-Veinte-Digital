@@ -297,7 +297,16 @@ fun InternalWebScreen(
     LaunchedEffect(deepLink) {
         val uri = deepLink ?: return@LaunchedEffect
         DeepLinkBus.consume()
-        webView?.loadUrl(uri.toString())
+        val url = uri.toString()
+        // Security: never feed an externally-authored deep link straight into the privileged internal
+        // WebView. Only our own `laveinte://` bridge protocol and https deep links on OUR OWN domain
+        // (verified App Link / OAuth callback) are allowed. This blocks `file://`, `javascript://`,
+        // `content://`, arbitrary custom schemes and any https host we do not own.
+        if (isDeepLinkLoadAllowed(uri.scheme, uri.host, url)) {
+            webView?.loadUrl(url)
+        } else {
+            android.util.Log.w(InternalWebScreenTAG, "Ignoring deep link with disallowed scheme/host: ${uri.scheme}://${uri.host}")
+        }
     }
 
     // Back press: WebView history first, then let the system handle (exit / NavHost pop)
@@ -539,3 +548,5 @@ internal fun laveinteOrigin(rawUrl: String): String {
     val authority = rest.substringBefore('/')
     return "$scheme://$authority"
 }
+
+private const val InternalWebScreenTAG = "InternalWebScreen"

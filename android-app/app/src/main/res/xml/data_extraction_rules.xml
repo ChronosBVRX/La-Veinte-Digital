@@ -1,9 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Data extraction (cloud backup + device-to-device transfer) rules. NOT ACTIVE.
+
+  `android:allowBackup` is `false` in the merged manifest, so the app data never leaves the device.
+  This file is kept so that if backup is ever re-enabled the default is to EXCLUDE everything:
+  documents, credential vault, WebView cookies, FCM tokens and all database/shared-pref data are
+  sensitive or device-bound and must not be restored onto another device (doing so would also break
+  AndroidKeyStore-backed decryption). Keep in sync with backup_rules.xml.
+-->
 <data-extraction-rules>
     <cloud-backup>
-        <include domain="sharedpref" path="la_veinte_prefs.xml" />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="root" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_sharedpref" path="." />
+        <exclude domain="device_database" path="." />
     </cloud-backup>
     <device-transfer>
-        <include domain="sharedpref" path="la_veinte_prefs.xml" />
+        <exclude domain="sharedpref" path="." />
+        <exclude domain="database" path="." />
+        <exclude domain="file" path="." />
+        <exclude domain="external" path="." />
+        <exclude domain="root" path="." />
+        <exclude domain="device_root" path="." />
+        <exclude domain="device_file" path="." />
+        <exclude domain="device_sharedpref" path="." />
+        <exclude domain="device_database" path="." />
     </device-transfer>
 </data-extraction-rules>
