@@ -13,6 +13,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    exclude: ["**/e2e/**", "**/node_modules/**"],
+    // `.integration.test.ts` (corpus/LLM-dependent) runs only via `npm run test:integration`
+    // (vitest.integration.config.ts), so the default CI suite stays green without local infra.
+    include: ["**/*.test.ts", "**/*.test.tsx"],
+    exclude: ["**/e2e/**", "**/node_modules/**", "**/*.integration.test.ts"],
   },
 })

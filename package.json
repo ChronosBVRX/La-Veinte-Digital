@@ -17,6 +17,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
     "e2e": "npx playwright test",
