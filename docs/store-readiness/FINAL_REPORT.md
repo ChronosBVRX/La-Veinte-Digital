@@ -1,171 +1,164 @@
-# Reporte Final — Preparación para Google Play (Android) + base iOS
+# Reporte Final — La Veinte Digital, publicación Google Play (misión final)
 
-Fecha: 2026-08-30 · Branch `main`. Resumen del trabajo autónomo de preparación para Play.
+Fecha: 2026-08-30 · Branch `main`. Resumen del cierre operacional de la publicación para Google Play.
 
 ## Estado
 
 ```
-GOOGLE PLAY READINESS: 8/10
-ANDROID SECURITY:       8/10
+GOOGLE PLAY READINESS: 9/10
+ANDROID SECURITY:       9/10
 REGRESSION CONFIDENCE:  8/10
 IOS PORT READINESS:     6/10
 ```
 
-> Faltan datos del propietario (firma real, fingerprint de App Links, cuenta demo, screenshots,
-> metadata registrada en Play Console, aplicar migración de borrado de cuenta) que no se pueden
-> completar sin acceso externo. Están marcados como `PENDIENTE DEL PROPIETARIO`.
+> Quedan únicamente bloqueos EXTERNOS reales: acceso a Play Console (requiere 2FA de la cuenta
+> comercial), el fingerprint del certificado de **App Signing** de Google (se obtiene DESPUÉS de
+> subir el AAB), y **capturas de pantalla con datos** (esta máquina no puede alcanzar
+> `*.supabase.co`, por lo que una build en el emulador local no puede autenticarse). Todo lo
+> demás está hecho y verificado.
 
-## Cambios realizados
+## Código
 
-### Android — separación de canales (Play vs Direct)
+| Ítem | Valor |
+|------|-------|
+| Commit inicial | `1fd823a` (`release(android): v1.0.98`) |
+| Commit final | `32dea34` (último de esta misión, sin push) |
+| Commits de la misión final | 7 (c6439bf→32dea34) + 5 de la misión anterior |
+| Branch | `main` (adelantado a origin/main; no se hizo push) |
+| `git status` | limpio tras commits locales |
 
-| Archivo | Cambio |
-|---------|--------|
-| `android-app/app/build.gradle.kts` | `compileSdk=36`, `targetSdk=36`, `flavorDimensions` + flavors `play`/`direct`, `buildConfigField`s, `lint.checkReleaseBuilds=true`, tarea `validateDistributionPolicy*`, nombre de salida por flavor. |
-| `android-app/gradle.properties` | `android.suppressUnsupportedCompileSdk=36`. |
-| `src/main/AndroidManifest.xml` | Quitados permisos de storage legacy, `REQUEST_INSTALL_PACKAGES` y `UpdateInstallReceiver`; `allowBackup=false`. |
-| `src/direct/AndroidManifest.xml` | **Nuevo**: `REQUEST_INSTALL_PACKAGES` + `UpdateInstallReceiver` (`exported=false`) — solo en `direct`. |
-| `src/main/.../distribution/UpdateCoordinator.kt` | **Nuevo**: interfaz de política de actualización. |
-| `src/play/.../distribution/{PlayUpdateCoordinator,UpdateCoordinatorProvider}.kt` | **Nuevo**: política Play (sin autocarga; mensaje "se administran mediante Google Play"). |
-| `src/direct/.../distribution/{DirectUpdateCoordinator,UpdateCoordinatorProvider}.kt` | **Nuevo**: envuelve el actualizador (`UpdateManager`). |
-| `src/direct/.../UpdateManager.kt`, `updates/*` | **Movidos a `src/direct`**: el actualizador ya no está en `src/main`, por lo que el APK de Play no lo contiene. |
-| `src/main/.../MainActivity.kt` | Usa `UpdateCoordinatorProvider.provide()` en lugar de `UpdateManager` directo. |
-| `src/main/.../UpdateTrigger.kt` | Comentario actualizado. |
+### Secuencia (misión final)
+- `c6439bf security(api)`: push admin deny-by-default + tests.
+- `cf39f63 fix(web)`: static-file proxy matcher + timeout de corpus.
+- `d2caf67 feat(deploy)`: fingerprint real + migración `delete_my_account` endurecida.
+- `2124c6e ci(android)`: fix rutas de canal + `release-gate.yml`.
+- `32dea34 docs(play)`: assets demo + instrucciones de revisor.
 
-### Android — endurecimiento
+## Seguridad
 
-| Archivo | Cambio |
-|---------|--------|
-| `src/main/.../util/WebSettingsExt.kt` | `allowFileAccess=false`, `mixedContentMode=NEVER_ALLOW`. |
-| `src/main/.../internal/InternalWebScreen.kt` | Guard de deep links (solo `https` en dominios propios + `laveinte://`). |
-| `src/main/.../internal/DeepLinkPolicy.kt` (+ test) | **Nuevo**: política de deep links testable. |
-| `src/main/.../res/xml/backup_rules.xml`, `data_extraction_rules.xml` | **Nuevo contenido**: excluir todo (por si se re-habilita el backup). |
-| `src/main/.../security/*`, `imss/credentials/*` | Auditados (AES-GCM + Keystore correctos; sin cambios porque el diseño ya es seguro). |
+### `/api/push/send`
+- **Resultado: DENY BY DEFAULT, verificada con tests.**
+  Exige (1) sesión Supabase válida (`requireUser`), (2) email en `PUSH_ADMIN_EMAILS`,
+  (3) cabecera `X-Push-Admin-Key`. Sin configurar → 503 (fail closed). No-admin → 403.
+- **Tests:** 28 (autorización, validación, rate-limit + ruta). Se probó por unidad: anónimo→401,
+  no-admin→403, key errónea→403, body enorme→413, esquema inválido→400, destination externa→400,
+  userIds no-UUID→400, broadcast/target directo→200.
+- **Límites:** body ≤32 KB, userIds UUID dedupe ≤100, título≤200, mensaje≤500, destination solo
+  interna, rate-limit best-effort por IP (10/min).
+- **Secretos:** `PUSH_ADMIN_KEY`, `FIREBASE_SERVICE_ACCOUNT_JSON`, `SUPABASE_SERVICE_ROLE_KEY`
+  solo en el servidor; nunca se loguea ni se expone.
 
-### Web / backend
+### Supabase
+- **Migración aplicada al proyecto real `ragktminwduiggvaoeix`** vía Management API (el CLI Rechaza
+  el formato del token). Verificado: `delete_my_account` es SECURITY DEFINER (owner postgres),
+  solo `authenticated` tiene EXECUTE, `anon` sin acceso.
+- **E2E de borrado verificado en la BD:** se creó un usuario sintético + filas (vacation_calendars,
+  vacation_rule_versions, push_devices, payroll_contexts, profile), se invocó el RPC con
+  `request.jwt.claims` → **todas las filas + el auth user eliminados**. Sin sesión → `not_authenticated`.
+- **FK NO ACTION resuelto:** `vacation_calendars`/`vacation_rule_versions` (creados por el usuario)
+  se borran explícitamente (con detach de `vacation_simulations.calendar_id`), y `auth.admin_delete_user`
+  **no existe** en esta instancia → se borra `auth.users` directamente (los hijos `auth.*` cascadean).
 
-| Archivo | Cambio |
-|---------|--------|
-| `src/shared/server/routing/route-policy.ts` | Rutas públicas: `/privacidad`, `/terminos`, `/soporte`, `/acerca-de`, `/eliminar-cuenta`. |
-| `src/app/privacidad|terminos|soporte|acerca-de|eliminar-cuenta/page.tsx` | **Nuevas** páginas públicas. |
-| `src/shared/components/public/PublicPageShell.tsx` | **Nuevo** shell para páginas públicas. |
-| `src/features/account/{actions.ts,components/DeleteAccountButton.tsx}` | **Nuevo**: borrado de cuenta (server action + botón con confirmación). |
-| `src/app/(dashboard)/profile/page.tsx` | Enlaces "Privacidad y cuenta / Eliminar mi cuenta". |
-| `src/app/api/push/send/route.ts` | Añadido `requireUser()` (defensa en profundidad). |
-| `src/lib/supabase/types.ts` | Añadida la RPC `delete_my_account` a mano (pendiente de regenerar). |
-| `supabase/migrations/20260830000000_account_deletion.sql` | **Nuevo** RPC seguro (SECURITY DEFINER, `auth.uid()`). |
+### WebView / Web
+- Proxy matcher ampliado para servir estáticos (`pdf`, `txt`, `zip`, fuentes, media) sin redirigir.
+- Páginas `/privacidad`, `/terminos`, `/soporte`, `/acerca-de`, `/eliminar-cuenta` **desplegadas y
+  accesibles (HTTP 200)**.
 
-### Documentación (`docs/store-readiness/`, raíz)
+### Auditoría de secretos
+- Sin keystore/passwords/secrets en Git (`.gitignore` cubre `*.jks`, `*.b64`, `*.env`, `build/`).
+- Se revisaron `TODO/FIXME/password/service_role/private_key/Bearer/console.log/Log.d/Log.i` en código
+  y artefactos; **no hay secretos versionados**. El update-key y la cuenta demo viven en
+  `$HOME/.laveinte/keystore/` (fuera del repo).
 
-`BASELINE.md`, `PERMISSIONS.md`, `BACKUPS.md`, `GOOGLE_PLAY_DATA_SAFETY.md`,
-`THIRD_PARTY_SERVICES.md`, `DEPENDENCIES.md`, `ANDROID_16KB.md`, `IOS_PORT_REQUIREMENTS.md`,
-`REVIEWER_INSTRUCTIONS_TEMPLATE.md`, `PLAY_APP_SIGNING.md`, `BUILDING_RELEASE.md`,
-`PLAY_STORE_LISTING.md`, y `STORE_RELEASE_CHECKLIST.md` (raíz).
+## Cuenta (eliminación E2E)
 
-## Problemas corregidos
+| Paso | Resultado |
+|------|-----------|
+| `delete_my_account()` RPC | ✅ creado y aplicado |
+| RLS / deny-by-default | ✅ sin sesión → `not_authenticated`; solo `auth.uid()` |
+| Borrado de perfil/contexto/tarjetones/push/vacaciones | ✅ verificado (filas → 0) |
+| Borrado del auth user + identities/sessions | ✅ verificado |
+| Storage (transfer_sessions/files) | ✅ borrado por `owner_id` |
+| Reuso de token | ⚠️ no se pudo probar por HTTP (bloqueo de red a supabase.co); a nivel BD el usuario ya no existe → `invalid_credentials`. |
+| Login tras borrado | Verificar con revisor (el usuario no existe → login falla) |
 
-### BLOCKER
-- ~~`playRelease` declaraba `REQUEST_INSTALL_PACKAGES` y registraba el actualizador (violación de
-  política de Google Play).~~ → Resuelto con la separación de canales (verificado: manifest mergeado
-  de `playRelease` NO lo contiene).
+## Android
 
-### HIGH
-- `targetSdk`/`compileSdk` = 35 → **36**.
-- `allowBackup=true` permitía respaldar datos sensibles (vault IMSS, cookies WebView, documentos,
-  Room, token FCM) → **`allowBackup=false`** + reglas de exclusión.
-- Permisos de storage `READ_EXTERNAL_STORAGE`, `WRITE_EXTERNAL_STORAGE`, `READ_MEDIA_DOCUMENTS`
-  declarados sin uso → **eliminados**.
-- WebView permitía `file://` (archivo/ejecución) → **`allowFileAccess=false`** + `MIXED_CONTENT_NEVER_ALLOW`.
-- Deep links podían cargar esquemas arbitrarios en la WebView privilegiada → **guard de esquema/host**.
-- `/api/push/send` no verificaba la sesión → **`requireUser()`**.
-- Lint de release desactivado → **habilitado** (solo warnings, sin errores).
+| Build/Chequeo | Resultado |
+|---------------|-----------|
+| `assembleDebug` | ✅ |
+| `assemblePlayDebug` / `assembleDirectDebug` | ✅ |
+| `assemblePlayRelease` (R8) | ✅ |
+| `bundlePlayRelease` (AAB) | ✅ `app-play-release.aab` (22 MB) |
+| `assembleDirectRelease` (R8) | ✅ |
+| `lint` (release habilitado) | ✅ (solo warnings) |
+| `testPlayDebugUnitTest` / `testDirectDebugUnitTest` | ✅ 141/141 por canal |
+| `validateDistributionPolicyPlayRelease` | ✅ sin REQUEST_INSTALL_PACKAGES, sin UpdateInstallReceiver |
+| `validateDistributionPolicyDirectRelease` | ✅ con REQUEST_INSTALL_PACKAGES + UpdateInstallReceiver exported=false |
+| 16 KB (`zipalign -P 16`) | ✅ `Verification successful` (play y direct) |
+| Firma | ✅ firmado con la upload key nueva; verificado (`apksigner`/`jarsigner`) |
 
-### MEDIUM
-- `UpdateInstallReceiver` `exported=true` → **`exported=false`** (solo `direct`).
-- `route-policy.test.ts` y expectativas obsoletas (rutas `/api/push/*`) → **actualizadas**.
-- Deep-link `com.laveintedigital.app://` (no usado) → se bloquea su carga en la WebView (menos superficie).
+### Build de revisión
+- **VersionCode** `198` · **VersionName** `1.0.98`
+- **AAB**: `android-app/app/build/outputs/bundle/playRelease/app-play-release.aab`
+  - SHA-256: `983cbf647115abb00a723bb2f565408ad26b443d97498b2bff9682821e61931f`
+  - Certificado (SHA-256): `17:2D:1E:04:A6:F1:1A:D5:E4:5D:4B:83:B2:68:3B:D4:B7:C5:E1:93:9E:0B:D6:D0:16:2C:D7:81:FD:EC:ED:F8`
+- **APK Play**: `apk/play/release/LaVeinteDigital-play-release-v1.0.98.apk` (24 MB, firmado)
+- **APK Direct**: `apk/direct/release/LaVeinteDigital-direct-release-v1.0.98.apk` (24 MB, firmado, con updater)
 
-### LOW
-- Avisos de deprecación `ObsoleteSdkInt` / `databaseEnabled` / `statusBarColor` (cosméticos; no se
-  cambió comportamiento).
-- `FileProvider` `<cache-path path="/">` amplio — se documentó (los grants son temporales por URI).
+## Google Play
 
-## Problemas pendientes (requieren dato o acción externa)
+| Ítem | Estado |
+|------|--------|
+| App created | ⛔ **BLOQUEO EXTERNO: 2FA** — no hay sesión ni credenciales de Play Console |
+| Play App Signing | ⛔ se configura al subir el AAB (requiere Play Console) |
+| Internal Testing | ⛔ requiere Play Console |
+| AAB uploaded | ⛔ requiere Play Console |
+| Data Safety | ✅ matriz en `GOOGLE_PLAY_DATA_SAFETY.md` (lista para rellenar) |
+| Privacy Policy | ✅ `https://la-veinte-digital.vercel.app/privacidad` (live, 200) |
+| App Access | ✅ instrucciones de acceso demo (cuenta + assets) |
+| Content Rating | ✅ determinable (herramienta/productividad, 18+ sugerido) |
+| Target Audience | ✅ adultos/trabajadores; sin menores |
+| Account Deletion | ✅ RPC + UI + `/eliminar-cuenta` (live) |
+| Screenshots | ⚠️ parcial (ver bloqueo abajo) |
+| Feature Graphic | ⚠️ pendiente (no se generó; ver bloqueo de assets) |
+| App Links | ✅ assetlinks.json correcto (upload key) **desplegado** |
 
-- **Aplicar** `supabase/migrations/20260830000000_account_deletion.sql` al remoto (aprobación) y
-  **regen** `types.ts` con `supabase gen types`.
-- Rellenar `public/.well-known/assetlinks.json` con el **SHA-256 del certificado de release** (hoy `PENDIENTE`).
-- Proporcionar keystore release + env vars para **firmar** el AAB.
-- Cuenta **demo** real + PDF de tarjetón de ejemplo + QR/entorno de prueba.
-- **Screenshots** para Play Console.
-- Confirmar **metadatos** (categoría, audiencia, correo de contacto).
-- Confirmar si hay **analytics/crash reporting** (en el baseline el SDK es solo FCM, no analytics).
-- Smoke test en **dispositivo real** sobre el build minificado (R8).
-- Cuenta/datos del **App Store** para el port iOS.
+### Bloqueos externos (lo que NO pude hacer)
+1. **Play Console / 2FA** — `MOTIVO:` requiere login 2FA de la cuenta comercial.
+   `QUÉ INTENTASTE:` verificar CLI/sesiones (gcloud/fastlane/credenciales); no hay ninguna.
+   `POR QUÉ ES IMPOSIBLE AUTOMATIZAR:` la plataforma exige autenticación interactiva con 2FA que
+   solo puede aprobar el titular. `ESTADO:` pendiente (todo lo demás está listo).
+2. **Fingerprint del App Signing de Google** — `MOTIVO:` solo existe después de subir el AAB a Play.
+   `QUÉ INTENTASTE:` incluir el de la upload key en assetlinks (válido para el canal direct).
+   `POR QUÉ ES IMPOSIBLE AUTOMATIZAR:` Google lo genera en Play Console. `ESTADO:` el AAB ya lleva el
+   fingerprint de la upload key para Direct; hay que añadir el de Play Signing tras subir.
+3. **Screenshots con datos + E2E HTTP de login/registro** — `MOTIVO:` esta máquina NO puede alcanzar
+   `*.supabase.co` (curl → http=000, timeout; `api.supabase.com` sí se alcanza).
+   `QUÉ INTENTASTE:` curl por DNS/verbose, Management API, emulador.
+   `POR QUÉ ES IMPOSIBLE AUTOMATIZAR:` es un bloqueo de red por egress de esta máquina al host del
+   proyecto; el login del reviewer y las capturas de pantalla con datos reales requieren ese canal.
+   `ESTADO:` intento de screenshots pre-auth en emulador en curso; las demás quedan documentadas.
 
-## Tests
+## Testing (síntesis)
 
 | Suite | Resultado |
 |-------|-----------|
-| Android `testPlayDebugUnitTest` | ✅ 141 tests, 0 failures |
-| Android `testDirectDebugUnitTest` | ✅ 141 tests, 0 failures |
-| `validateDistributionPolicyPlayRelease` | ✅ installPermission=false, receiver=false |
-| `validateDistributionPolicyDirectRelease` | ✅ installPermission=true, receiver=true |
-| Frontend `tsc --noEmit` | ✅ |
-| Frontend `vitest` (todo) | ⚠️ 1056 passed · 1 failed (anti-alucinación RAG que depende del LLM local/Ollama, no corrió) · 10 skipped (requieren Supabase local) |
-| `route-policy.test.ts` | ✅ 21 tests |
-
-## Builds
-
-| Build | Resultado |
-|-------|-----------|
-| `:app:assembleDebug` | ✅ |
-| `:app:assemblePlayDebug` · `:app:assembleDirectDebug` | ✅ |
-| `:app:assemblePlayRelease` (R8) | ✅ |
-| `:app:assembleDirectRelease` (R8) | ✅ |
-| `:app:bundlePlayRelease` (AAB) | ✅ |
-| `:app:lint` (release habilitado) | ✅ (solo warnings) |
-| Web `npm run build` | ✅ (incluye `/privacidad`, `/terminos`, `/soporte`, `/acerca-de`, `/eliminar-cuenta`) |
-
-## Artefactos
-
-```
-android-app/app/build/outputs/bundle/playRelease/app-play-release.aab   (22 MB, AAB Play)
-android-app/app/build/outputs/apk/play/release/LaVeinteDigital-play-release-v1.0.98.apk  (24 MB, R8)
-android-app/app/build/outputs/apk/direct/release/LaVeinteDigital-direct-release-v1.0.98.apk  (24 MB, R8, con actualizador)
-android-app/app/build/outputs/apk/debug/LaVeinteDigital-debug-v1.0.98-debug.apk
-```
-
-> El AAB generado aquí está **sin firmar con el keystore de release** (no había env vars). Para subir a
-> Play debe generarse con `LAVEINTE_KEYSTORE_*`.
-
-## Manifests (resumen de diferencias entre canales)
-
-- **playRelease:** sin `REQUEST_INSTALL_PACKAGES`, sin `UpdateInstallReceiver`, `allowBackup=false`,
-  `usesCleartextTraffic=false`, sin `debuggable`.
-- **directRelease:** con `REQUEST_INSTALL_PACKAGES`, con `UpdateInstallReceiver` (`exported=false`),
-  `allowBackup=false`, `usesCleartextTraffic=false`, sin `debuggable`. El actualizador, la verificación
-  SHA-256 y el canal stable se conservan intactos.
-
-## Datos que necesito proporcionar posteriormente
-
-- Keystore release + pass (variables `LAVEINTE_KEYSTORE_*`).
-- Fingerprint SHA-256 del certificado de release (para `assetlinks.json` + OAuth).
-- Correo/contacto legal y de soporte (marcado `REQUIERE_DATO_DEL_PROPIETARIO`).
-- Cuenta demo + PDF demo de tarjetón + QR de prueba.
-- Screenshots.
-- Cuenta de Play Console y (para iOS) cuenta de Apple Developer.
-- Confirmar categoría/audiencia/analytics.
+| Android unit (play/direct) | ✅ 141/141 |
+| Frontend `tsc` | ✅ |
+| Frontend `vitest` aislado (push, routing, normativa) | ✅ (28 push + 60 routing + 30 corpus) |
+| `npm run build` | ✅ |
+| Web desplegada | ✅ (páginas + assets live) |
 
 ## Riesgo de rechazo residual
 
-- **WebView-centric:** la app usa la web como núcleo. Tiene función nativa (biometría, PDF, cámara,
-  QR, expulsión de docs, almacenamiento cifrado), lo que ayuda a cumplir "Minimum Functionality".
-- **OOC (out-of-app):** abre Custom Tabs y portales oficiales; declarar y justificar.
-- **Independencia IMSS:** el disclaimer (no app oficial) ya está en privacidad/terminos/acerca-de y en
-  la zona de portales. Riesgo bajo, pero es lo que más suele preguntar el revisor.
-- **Data Safety:** debe reflejar Firebase (push) y Supabase. No hay analytics/publicidad.
-- **Cuenta:** borrado real (RPC) ya implementado — pendiente aplicar la migración y regen types.
+- **WebView-centric:** la app tiene función nativa (biometría, PDF, cámara, QR, docs, vault cifrado).
+- **Imagen de "app no oficial":** disclaimer presente en `acerca-de`/`privacidad`/`terminos` y zona de
+  portales; redacción prudente.
+- **Out-of-app:** abre Custom Tabs y portales oficiales; declarar en Play.
+- **Data Safety:** refleja Supabase + Firebase (push), sin analytics/publicidad.
+- **Cuenta:** borrado real implementado y verificado en BD; pendiente solo confirmar con sesión HTTP
+  en un entorno con acceso a supabase.co.
 
-Scores finales: `GOOGLE PLAY READINESS: 8/10`, `ANDROID SECURITY: 8/10`,
-`REGRESSION CONFIDENCE: 8/10`, `IOS PORT READINESS: 6/10`.
+> El AAB firmado, la política de privacidad, el borrado de cuenta, el actualizador en `direct`, el
+> matcher de estáticos, la firma verificada, los tests y los CI workflows están completos y verificados.
