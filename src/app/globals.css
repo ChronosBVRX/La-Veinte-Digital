@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 :root {
+  --visual-viewport-height: 100dvh;
+  --keyboard-height: 0px;
   --bg: #f8fafc;
   --fg: #0f172a;
   --primary: #2563eb;
@@ -290,4 +292,117 @@ a:focus-visible {
   .app-header .desktop-only {
     font-size: 0.875rem !important;
   }
+}
+
+/* ── Mobile app shell: keyboard awareness & safe areas ── */
+html {
+  height: 100%;
+  height: 100dvh;
+}
+
+body {
+  min-height: 100%;
+  min-height: 100dvh;
+  /* Evita bounce en iOS dentro de shell fijo */
+  overscroll-behavior-y: none;
+}
+
+/* Shell móvil: altura real del viewport visual */
+.mobile-app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  height: var(--visual-viewport-height, 100dvh);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mobile-app-shell__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  /* Padding inferior ya reservado por main; keyboard lo ajusta vía JS */
+}
+
+/* Cuando el teclado está abierto, oculta bottom nav y ajusta padding */
+.keyboard-open .mobile-bottom-nav {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mobile-bottom-nav {
+  transition: transform 0.25s ease, opacity 0.2s ease;
+}
+
+/* Diálogos: respetar viewport visual con teclado */
+.keyboard-open .ui-modal-overlay {
+  align-items: flex-start !important;
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0px)) !important;
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px)) !important;
+}
+
+.keyboard-open .ui-modal-dialog {
+  max-height: calc(var(--visual-viewport-height, 100dvh) - 1rem) !important;
+}
+
+/* Chat composer: siempre sobre el teclado */
+.chat-composer {
+  flex-shrink: 0;
+  background: var(--card);
+  padding-bottom: max(0px, env(safe-area-inset-bottom, 0px));
+}
+
+.keyboard-open .chat-composer {
+  padding-bottom: 0;
+}
+
+/* Inputs desplazables al foco: margen seguro para que no queden detrás del teclado */
+@media (max-width: 768px) {
+  input:focus,
+  textarea:focus,
+  select:focus {
+    scroll-margin-bottom: calc(var(--keyboard-height, 0px) + 1rem);
+  }
+}
+
+/* Safe area para header en dispositivos con notch */
+.app-header {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Grid de calculadoras móvil 2 columnas — 2 col desde 340px */
+@media (max-width: 640px) {
+  .calculators-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.625rem !important;
+  }
+}
+
+@media (max-width: 339px) {
+  .calculators-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Chips horizontales para sugerencias de chat */
+.chat-suggestions-scroll {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 0.25rem;
+  flex-wrap: nowrap !important;
+}
+
+.chat-suggestions-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.chat-suggestions-scroll button {
+  flex-shrink: 0;
+  white-space: nowrap;
 }

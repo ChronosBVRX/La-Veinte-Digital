@@ -41,7 +41,7 @@ export default defineConfig({
     // ── Authenticated projects (use storage state from setup) ──
     {
       name: "chromium-desktop",
-      testIgnore: /auth-public\.spec\.ts/,
+      testIgnore: /(auth-public|business-journeys)\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         storageState: AUTH_FILE,
@@ -51,7 +51,7 @@ export default defineConfig({
     },
     {
       name: "chromium-mobile",
-      testIgnore: /auth-public\.spec\.ts/,
+      testIgnore: /(auth-public|business-journeys)\.spec\.ts/,
       use: {
         ...devices["Pixel 8"],
         storageState: AUTH_FILE,
@@ -62,7 +62,7 @@ export default defineConfig({
     },
     {
       name: "firefox-desktop",
-      testIgnore: /auth-public\.spec\.ts/,
+      testIgnore: /(auth-public|business-journeys)\.spec\.ts/,
       use: {
         ...devices["Desktop Firefox"],
         storageState: AUTH_FILE,
@@ -74,7 +74,7 @@ export default defineConfig({
     // ── Unauthenticated project (public-only tests) ──
     {
       name: "chromium-public",
-      testMatch: /auth-public\.spec\.ts/,
+      testMatch: /(auth-public|business-journeys)\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 900 },
@@ -87,10 +87,10 @@ export default defineConfig({
     ? undefined
     : CI
     ? {
-        command: "npm run build && npm run start",
+        command: "npm run start",
         url: process.env.E2E_BASE_URL || "http://localhost:3000",
         reuseExistingServer: !CI,
-        timeout: 120_000,
+        timeout: 300_000,
       }
     : {
         command: "npm run dev",

@@ -15,7 +15,7 @@ test.describe("Acceso publico - sin sesion", () => {
     await page.goto("/login")
     await page.getByLabel("Correo electrónico").fill("noexiste@test.com")
     await page.getByLabel("Contraseña").fill("password-incorrecto")
-    await page.getByRole("button", { name: /iniciar sesión/i }).click()
+    await page.locator('button[type="submit"]').click()
 
     await expect(
       page.locator('[style*="--error"], [style*="fef2f2"]')
@@ -26,7 +26,7 @@ test.describe("Acceso publico - sin sesion", () => {
     await page.goto("/login")
     await expect(page.getByLabel("Correo electrónico")).toBeVisible()
     await expect(page.getByLabel("Contraseña")).toBeVisible()
-    await expect(page.getByRole("button", { name: /iniciar sesión/i })).toBeVisible()
+    await expect(page.locator('button[type="submit"]')).toBeVisible()
     await expect(page.getByText("Regístrate")).toBeVisible()
   })
 

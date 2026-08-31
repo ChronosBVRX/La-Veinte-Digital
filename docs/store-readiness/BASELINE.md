@@ -14,7 +14,7 @@ Estado del repositorio y de las validaciones al inicio de la misión de preparac
 ## Contexto de la app en el baseline
 
 - Android: `android-app/` (Kotlin, Compose, un único flavour `main`).
-- `compileSdk = 35`, `targetSdk = 35`, `minSdk = 29`, `versionCode = 198`, `versionName = 1.0.98`.
+- `compileSdk = 36`, `targetSdk = 36`, `minSdk = 29`, `versionCode = 198`, `versionName = 1.0.98`.
 - Un solo canal de distribución: **actualizador propio** (UpdateManager + manifest remoto + PackageInstaller + `REQUEST_INSTALL_PACKAGES` + `UpdateInstallReceiver` exportado).
 - `lint { checkReleaseBuilds = false }` (lint de release desactivado).
 - Firma de release solo por variables de entorno (`LAVEINTE_KEYSTORE_BASE64`/`PASSWORD`/`KEY_ALIAS`/`KEY_PASSWORD`) — no había keystore en el repo.

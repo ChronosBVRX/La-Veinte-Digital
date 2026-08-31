@@ -16,14 +16,14 @@ const calculators = [
 export function CalculatorsIndex({ hasTarjeton }: { hasTarjeton: boolean }) {
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-      <div style={{ marginBottom: "2rem" }}>
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0 }}>Calculadoras Laborales</h1>
-        <p style={{ color: "var(--muted)", fontSize: "var(--text-sm)", margin: "0.25rem 0 0" }}>
+      <div style={{ marginBottom: "1.25rem" }}>
+        <h1 style={{ fontSize: "clamp(1.25rem, 4vw, 1.5rem)", fontWeight: 700, margin: 0, lineHeight: 1.2 }}>Calculadoras Laborales</h1>
+        <p style={{ color: "var(--muted)", fontSize: "var(--text-sm)", margin: "0.25rem 0 0", lineHeight: 1.4 }}>
           Herramientas informativas para estimar tus prestaciones laborales.
         </p>
       </div>
 
-      <Link href="/profile/mi-informacion-laboral" style={{ textDecoration: "none", display: "block", marginBottom: "1.5rem" }}>
+      <Link href="/profile/mi-informacion-laboral" style={{ textDecoration: "none", display: "block", marginBottom: "1rem", gridColumn: "1 / -1" }}>
         {hasTarjeton ? (
           <div style={{
             background: "var(--accent)", border: "1px solid var(--border)",
@@ -58,7 +58,7 @@ export function CalculatorsIndex({ hasTarjeton }: { hasTarjeton: boolean }) {
         )}
       </Link>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "1rem" }}>
+      <div className="calculators-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "1rem" }}>
         {calculators.map((c) => <CalculatorCard key={c.href} {...c} />)}
       </div>
 
