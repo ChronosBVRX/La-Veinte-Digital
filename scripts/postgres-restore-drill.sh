@@ -48,7 +48,7 @@ docker exec -i "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres <
     ('00000000-0000-0000-0000-000000000001', 'ENF-GRAL', 8.0)
   ON CONFLICT (user_id) DO UPDATE SET category_id = EXCLUDED.category_id;
   INSERT INTO public.worker_commitments (id, user_id, type, title, start_at, end_at, status) VALUES
-    ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-000000000001', 'shift', 'Permuta programada A', now(), now() + interval '8 hours', 'active')
+    ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-000000000001', 'shift_change', 'Permuta programada A', now(), now() + interval '8 hours', 'active')
   ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title;
 
   -- Fixture Usuario B
@@ -59,7 +59,7 @@ docker exec -i "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres <
     ('00000000-0000-0000-0000-000000000002', 'MED-ESP', 6.5)
   ON CONFLICT (user_id) DO UPDATE SET category_id = EXCLUDED.category_id;
   INSERT INTO public.worker_commitments (id, user_id, type, title, start_at, end_at, status) VALUES
-    ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-000000000002', 'shift', 'Revisión escalafón B', now(), now() + interval '8 hours', 'pending')
+    ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-000000000002', 'shift_change', 'Revisión escalafón B', now(), now() + interval '8 hours', 'pending')
   ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title;
 EOF
 
