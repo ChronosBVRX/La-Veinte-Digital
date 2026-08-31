@@ -14,7 +14,7 @@ export function MobileBottomNav({ onSheetOpen }: MobileBottomNavProps) {
 
   return (
     <nav
-      className="mobile-only"
+      className="mobile-only mobile-bottom-nav"
       style={{
         position: "fixed",
         bottom: 0,

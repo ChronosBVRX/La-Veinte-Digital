@@ -123,100 +123,103 @@ export function Modal({
           WebkitOverflowScrolling: "touch" as unknown as string,
         } as CSSProperties}
       >
-        <div
-          ref={dialogRef}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-          aria-describedby={description ? descId : undefined}
-          className="ui-modal-dialog animate-scale-in"
-          style={{
-            background: "var(--card)",
-            borderRadius: "var(--radius-lg)",
-            boxShadow: "var(--shadow-lg)",
-            width: "100%",
-            maxWidth: sizeMap[size],
-            maxHeight: "min(78dvh, calc(100dvh - 5rem))",
-            overflow: "auto",
-            display: "flex",
-            flexDirection: "column",
-            margin: 0,
-            alignSelf: "center",
-            justifySelf: "center",
-            // sube 2.5vh para centrado levemente arriba
-            transform: "translateY(-2.5vh)",
-            ...style,
-          }}
-        >
           <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            aria-describedby={description ? descId : undefined}
+            className="ui-modal-dialog animate-scale-in"
             style={{
+              background: "var(--card)",
+              borderRadius: "var(--radius-lg)",
+              boxShadow: "var(--shadow-lg)",
+              width: "100%",
+              maxWidth: sizeMap[size],
+              maxHeight: "min(78dvh, calc(100dvh - 5rem))",
+              overflow: "hidden",
               display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "1rem 1.25rem",
-              borderBottom: "1px solid var(--border)",
-              flexShrink: 0,
+              flexDirection: "column",
+              margin: 0,
+              alignSelf: "center",
+              justifySelf: "center",
+              transform: "translateY(-2.5vh)",
+              ...style,
             }}
           >
-            <h2
-              id={titleId}
-              style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}
-            >
-              {title ?? ""}
-            </h2>
-            <button
-              onClick={onClose}
-              style={{
-                background: "var(--accent)",
-                border: "none",
-                borderRadius: "50%",
-                width: 32,
-                height: 32,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                color: "var(--muted)",
-                transition: "background var(--transition)",
-              }}
-              aria-label="Cerrar"
-            >
-              <X size={16} />
-            </button>
-          </div>
-          {description && (
-            <p
-              id={descId}
-              style={{
-                margin: 0,
-                padding: "0.75rem 1.25rem 0",
-                fontSize: "var(--text-sm)",
-                color: "var(--muted)",
-              }}
-            >
-              {description}
-            </p>
-          )}
-          {children && (
-            <div style={{ padding: "1.25rem", flex: 1, minHeight: 0 }}>
-              {children}
-            </div>
-          )}
-          {footer && (
             <div
               style={{
-                padding: "1rem 1.25rem",
-                borderTop: "1px solid var(--border)",
                 display: "flex",
-                justifyContent: "flex-end",
-                gap: "0.5rem",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "1rem 1.25rem",
+                borderBottom: "1px solid var(--border)",
                 flexShrink: 0,
               }}
             >
-              {footer}
+              <h2
+                id={titleId}
+                style={{ fontSize: "1rem", fontWeight: 700, margin: 0, minWidth: 0, overflowWrap: "anywhere" }}
+              >
+                {title ?? ""}
+              </h2>
+              <button
+                onClick={onClose}
+                style={{
+                  background: "var(--accent)",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: 32,
+                  height: 32,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  color: "var(--muted)",
+                  transition: "background var(--transition)",
+                  flexShrink: 0,
+                }}
+                aria-label="Cerrar"
+              >
+                <X size={16} />
+              </button>
             </div>
-          )}
-        </div>
+            {description && (
+              <p
+                id={descId}
+                style={{
+                  margin: 0,
+                  padding: "0.75rem 1.25rem 0",
+                  fontSize: "var(--text-sm)",
+                  color: "var(--muted)",
+                  flexShrink: 0,
+                }}
+              >
+                {description}
+              </p>
+            )}
+            {children && (
+              <div style={{ padding: "1.25rem", flex: 1, minHeight: 0, overflowY: "auto" } as React.CSSProperties}>
+                {children}
+              </div>
+            )}
+            {footer && (
+              <div
+                style={{
+                  padding: "1rem 1.25rem",
+                  paddingBottom: "max(1rem, env(safe-area-inset-bottom, 0px))",
+                  borderTop: "1px solid var(--border)",
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "0.5rem",
+                  flexShrink: 0,
+                  background: "var(--card)",
+                }}
+              >
+                {footer}
+              </div>
+            )}
+          </div>
       </div>
 
       <style>{`
@@ -230,11 +233,21 @@ export function Modal({
           .ui-modal-dialog {
             border-radius: var(--radius-lg) !important;
             max-height: min(80dvh, calc(100dvh - 4rem)) !important;
+            max-height: min(80dvh, calc(var(--visual-viewport-height, 100dvh) - 2rem)) !important;
             margin: 0 !important;
             align-self: center !important;
             justify-self: center !important;
             transform: translateY(-1vh) !important;
             animation: scaleIn 0.2s ease forwards !important;
+          }
+        }
+        @media (max-width: 768px) and (max-height: 600px) {
+          .ui-modal-overlay {
+            place-items: start center !important;
+            align-content: start !important;
+          }
+          .ui-modal-dialog {
+            max-height: calc(var(--visual-viewport-height, 100dvh) - 1rem) !important;
           }
         }
       `}</style>
