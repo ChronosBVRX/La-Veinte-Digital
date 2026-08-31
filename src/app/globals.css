@@ -373,7 +373,7 @@ body {
   padding-top: env(safe-area-inset-top, 0px);
 }
 
-/* Grid de calculadoras móvil 2 columnas */
+/* Grid de calculadoras móvil 2 columnas — 2 col desde 340px */
 @media (max-width: 640px) {
   .calculators-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
@@ -381,7 +381,7 @@ body {
   }
 }
 
-@media (max-width: 360px) {
+@media (max-width: 339px) {
   .calculators-grid {
     grid-template-columns: 1fr !important;
   }
