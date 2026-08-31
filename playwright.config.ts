@@ -86,11 +86,10 @@ export default defineConfig({
   webServer: process.env.E2E_EXTERNAL === "1"
     ? undefined
     : CI
-    ? {
         command: "npm run build && npm run start",
         url: process.env.E2E_BASE_URL || "http://localhost:3000",
         reuseExistingServer: !CI,
-        timeout: 120_000,
+        timeout: 300_000,
       }
     : {
         command: "npm run dev",

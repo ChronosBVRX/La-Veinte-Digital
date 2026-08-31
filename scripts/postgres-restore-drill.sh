@@ -32,19 +32,27 @@ if [ -z "$db_container" ]; then
 fi
 
 # 2. Insertar fixtures sintéticos multi-usuario con relaciones
-echo "2. Insertando fixtures sintéticos (Perfiles, Contextos, Compromisos)..."
+echo "2. Insertando fixtures sintéticos (Auth, Perfiles, Contextos, Compromisos)..."
 docker exec -i "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres << 'EOF'
+  -- Auth Users
+  INSERT INTO auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) VALUES
+    ('00000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'trabajador.a@test.laveinte.org', '', now(), '{}', '{"email":"trabajador.a@test.laveinte.org"}', now(), now()),
+    ('00000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'trabajador.b@test.laveinte.org', '', now(), '{}', '{"email":"trabajador.b@test.laveinte.org"}', now(), now())
+  ON CONFLICT (id) DO NOTHING;
+
   -- Fixture Usuario A
-  INSERT INTO public.profiles (id, email) VALUES
-    ('00000000-0000-0000-0000-000000000001', 'trabajador.a@test.laveinte.org');
+  INSERT INTO public.profiles (id, full_name, matricula) VALUES
+    ('00000000-0000-0000-0000-000000000001', 'Trabajador A', 'MATR-A001')
+  ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
   INSERT INTO public.payroll_contexts (id, user_id, categoria_id, jornada, antiguedad_anios) VALUES
     ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 'ENF-GRAL', '8.0', 5);
   INSERT INTO public.worker_commitments (id, user_id, title, status) VALUES
     ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-000000000001', 'Permuta programada A', 'active');
 
   -- Fixture Usuario B
-  INSERT INTO public.profiles (id, email) VALUES
-    ('00000000-0000-0000-0000-000000000002', 'trabajador.b@test.laveinte.org');
+  INSERT INTO public.profiles (id, full_name, matricula) VALUES
+    ('00000000-0000-0000-0000-000000000002', 'Trabajador B', 'MATR-B002')
+  ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
   INSERT INTO public.payroll_contexts (id, user_id, categoria_id, jornada, antiguedad_anios) VALUES
     ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000002', 'MED-ESP', '6.5', 10);
   INSERT INTO public.worker_commitments (id, user_id, title, status) VALUES
@@ -66,9 +74,9 @@ docker exec -i "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres <
 
 # 6. Comprobar integridad de conteos y relaciones FK
 echo "6. Comprobando integridad referencial post-restore..."
-p_count=$(supabase db query --local --output-format json "SELECT count(*) FROM public.profiles;" | grep -o '"count": *[0-9]*' | grep -o '[0-9]*')
-ctx_count=$(supabase db query --local --output-format json "SELECT count(*) FROM public.payroll_contexts;" | grep -o '"count": *[0-9]*' | grep -o '[0-9]*')
-com_count=$(supabase db query --local --output-format json "SELECT count(*) FROM public.worker_commitments;" | grep -o '"count": *[0-9]*' | grep -o '[0-9]*')
+p_count=$(docker exec -i "$db_container" psql -U postgres -d postgres -t -c "SELECT count(*) FROM public.profiles;" | tr -d '[:space:]')
+ctx_count=$(docker exec -i "$db_container" psql -U postgres -d postgres -t -c "SELECT count(*) FROM public.payroll_contexts;" | tr -d '[:space:]')
+com_count=$(docker exec -i "$db_container" psql -U postgres -d postgres -t -c "SELECT count(*) FROM public.worker_commitments;" | tr -d '[:space:]')
 
 if [ "$p_count" -ne 2 ] || [ "$ctx_count" -ne 2 ] || [ "$com_count" -ne 2 ]; then
   echo "::error::Integridad fallida: esperados 2/2/2, encontrados $p_count/$ctx_count/$com_count"
@@ -77,13 +85,13 @@ fi
 
 # 7. Validar aislamiento RLS post-restore (Usuario A vs Usuario B)
 echo "7. Validando aislamiento RLS post-restore..."
-db_test_sql="
+docker exec -i "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres << 'EOF'
   -- Simular autenticación como Usuario A
-  SET LOCAL ROLE authenticated;
-  SET LOCAL \"request.jwt.claim.sub\" = '00000000-0000-0000-0000-000000000001';
+  SET ROLE authenticated;
+  SET request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
 
   -- Usuario A debe ver únicamente su compromiso
-  DO \$\$
+  DO $$
   DECLARE
     cnt integer;
   BEGIN
@@ -92,14 +100,14 @@ db_test_sql="
       RAISE EXCEPTION 'RLS Falló: Usuario A vio % compromisos (esperado 1)', cnt;
     END IF;
   END
-  \$\$;
+  $$;
 
   -- Usuario A intenta modificar indebidamente el compromiso de Usuario B
   UPDATE public.worker_commitments SET title = 'Hackeado' WHERE id = '00000000-0000-0000-0000-0000000000c2';
 
   -- Verificar que no se modificó nada de Usuario B
-  SET LOCAL ROLE postgres;
-  DO \$\$
+  SET ROLE postgres;
+  DO $$
   DECLARE
     t text;
   BEGIN
@@ -108,9 +116,7 @@ db_test_sql="
       RAISE EXCEPTION 'RLS Falló: Usuario A pudo modificar compromiso de Usuario B';
     END IF;
   END
-  \$\$;
-"
-
-docker exec -i "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "$db_test_sql"
+  $$;
+EOF
 
 echo "=== POSTGRESQL DISASTER RECOVERY & ISOLATION DRILL: 100% PASS ==="
