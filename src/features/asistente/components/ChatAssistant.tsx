@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useRef } from "react"
-import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
 import { Sparkle, PaperPlaneRight } from "@phosphor-icons/react"
 import { useChat } from "../hooks/useChat"
@@ -34,7 +33,7 @@ export function ChatAssistant() {
   }, [messages, loading])
 
   return (
-    <div style={{ height: "calc(var(--visual-viewport-height, 100dvh) - var(--nav-height) - 1.5rem)", maxHeight: "calc(100dvh - var(--nav-height) - 1.5rem)", display: "flex", flexDirection: "column", minHeight: 0 }}>
+    <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", flex: 1 }}>
       <div style={{ marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.625rem", flexShrink: 0 }}>
         <div style={{
           width: 40, height: 40, borderRadius: "0.65rem",

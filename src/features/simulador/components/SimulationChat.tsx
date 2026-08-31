@@ -59,8 +59,12 @@ export function SimulationChat({ messages, loading, error, difficulty, onSend, o
 
   return (
     <div style={{
-      height: "calc(100dvh - var(--nav-height) - 3rem)",
-      display: "flex", flexDirection: "column", gap: "0.75rem",
+      height: "100%",
+      minHeight: 0,
+      flex: 1,
+      display: "flex",
+      flexDirection: "column",
+      gap: "0.75rem",
     }}>
       <motion.div
         layout
