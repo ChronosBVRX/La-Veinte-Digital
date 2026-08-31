@@ -26,7 +26,7 @@ web del mismo producto).
 - **Stack**: Kotlin 2.0.21, Jetpack Compose (BOM 2024.09.03, Material 3),
   Navigation Compose 2.8.2, Room 2.6.1, DataStore 1.1.1, Biometric 1.1.0,
   AndroidX WebKit 1.11.0, Browser (Custom Tabs) 1.8.0. AGP 8.10.0.
-- **SDKs**: `compileSdk 35`, `minSdk 29`, `targetSdk 35`. Java/Kotlin target 17.
+- **SDKs**: `compileSdk 36`, `minSdk 29`, `targetSdk 36`. Java/Kotlin target 17.
 
 ---
 
