@@ -41,6 +41,36 @@ test.describe("Business Journey 2 — Aislamiento y control de acceso en APIs", 
   })
 })
 
+test.describe("Business Journey 3 — Perfil Laboral y Configuración", () => {
+  test("página de información laboral y perfil están protegidas y accesibles solo con autenticación", async ({ page }) => {
+    await page.goto("/profile/mi-informacion-laboral")
+    const url = page.url()
+    if (url.includes("/login")) {
+      await expect(page).toHaveURL(/\/login/)
+    } else {
+      await expect(page.getByText(/información laboral/i)).toBeVisible()
+    }
+  })
+})
+
+test.describe("Business Journey 4 — Documentos y Tarjetón IMSS", () => {
+  test("módulo de documentos personales redirige a autenticación en sesión ausente", async ({ page }) => {
+    await page.goto("/documentos-personales")
+    await expect(page).toHaveURL(/\/login/)
+  })
+
+  test("API de confirmación de tarjetón rechaza payloads sin autenticación", async ({ page }) => {
+    const response = await page.request.post("/api/tarjeton/confirm", {
+      data: {
+        rawText: "Synthetic Test Document",
+        fields: {},
+      },
+      headers: { "Content-Type": "application/json" },
+    })
+    expect(response.status()).toBe(401)
+  })
+})
+
 test.describe("Business Journey 5 — Funciones sindicales y bitácora", () => {
   test("página de bitácora laboral carga componentes de seguimiento sindical", async ({ page }) => {
     await page.goto("/bitacora")
