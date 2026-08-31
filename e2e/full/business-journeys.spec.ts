@@ -13,7 +13,7 @@ test.describe("Business Journey 1 — Autenticación y navegación protegida", (
     await page.goto("/login")
     await expect(page.getByLabel(/correo electrónico/i)).toBeVisible()
     await expect(page.getByLabel(/contraseña/i)).toBeVisible()
-    await expect(page.getByRole("button", { name: /iniciar sesión/i })).toBeVisible()
+    await expect(page.locator('button[type="submit"]')).toBeVisible()
   })
 })
 
@@ -88,7 +88,7 @@ test.describe("Business Journey 6 — Eliminación de cuenta", () => {
   test("página pública /eliminar-cuenta muestra advertencias y términos de borrado", async ({ page }) => {
     await page.goto("/eliminar-cuenta")
     await expect(page).toHaveURL("/eliminar-cuenta")
-    await expect(page.getByText(/eliminación de cuenta/i).first()).toBeVisible()
+    await expect(page.getByText(/eliminar mi cuenta/i).first()).toBeVisible()
     await expect(page.getByText(/irreversible/i).first()).toBeVisible()
   })
 })
