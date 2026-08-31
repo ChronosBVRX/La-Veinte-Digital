@@ -70,7 +70,7 @@ supabase db dump --local --data-only -f .temp/backup_drill.sql
 
 # 4. Destrucción total de tablas en cascada
 echo "4. Vaciando tablas en cascada (simulación de pérdida total)..."
-docker exec -i "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "TRUNCATE public.profiles CASCADE;"
+docker exec -i "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "TRUNCATE auth.users CASCADE; TRUNCATE public.profiles CASCADE;"
 
 # 5. Restauración del dump
 echo "5. Restaurando desde dump SQL..."
