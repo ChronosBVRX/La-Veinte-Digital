@@ -27,5 +27,7 @@ describe("Security Headers and CSP configuration", () => {
     expect(csp).toContain("base-uri 'self'")
     expect(csp).toContain("form-action 'self'")
     expect(csp).toContain("connect-src")
+    expect(csp).not.toContain("'unsafe-eval'")
+    expect(csp).toContain("script-src 'self' 'unsafe-inline'")
   })
 })
