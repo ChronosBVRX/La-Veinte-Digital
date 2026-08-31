@@ -14,17 +14,17 @@ interface ChatSuggestionsProps {
 
 export function ChatSuggestions({ onSelect }: ChatSuggestionsProps) {
   return (
-    <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
+    <div className="chat-suggestions-scroll" style={{ marginBottom: "0.5rem" }} aria-label="Sugerencias">
       {SUGGESTIONS.map((s, i) => (
         <button
           key={i}
           onClick={() => onSelect(s.text)}
           style={{
             display: "flex", alignItems: "center", gap: "0.375rem",
-            padding: "0.4rem 0.75rem", borderRadius: "1rem",
+            padding: "0.45rem 0.75rem", borderRadius: "999px",
             border: "1px solid var(--border)", background: "var(--card)",
-            color: "var(--fg)", fontSize: "0.8rem", cursor: "pointer",
-            transition: "all 0.15s",
+            color: "var(--fg)", fontSize: "0.78rem", cursor: "pointer",
+            transition: "all 0.15s", minHeight: 32, flexShrink: 0,
           }}
           onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--primary)"; e.currentTarget.style.background = "var(--accent)" }}
           onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.background = "var(--card)" }}
