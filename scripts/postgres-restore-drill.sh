@@ -25,9 +25,15 @@ fi
 echo "1. Reseteando base de datos y aplicando migraciones..."
 supabase db reset
 
+db_container=$(docker ps --format '{{.Names}}' | grep -E 'supabase_db_' | head -1)
+if [ -z "$db_container" ]; then
+  echo "::error::No se encontró el contenedor supabase_db_"
+  exit 1
+fi
+
 # 2. Insertar fixtures sintéticos multi-usuario con relaciones
 echo "2. Insertando fixtures sintéticos (Perfiles, Contextos, Compromisos)..."
-supabase db query --local "
+docker exec -i "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres << 'EOF'
   -- Fixture Usuario A
   INSERT INTO public.profiles (id, email) VALUES
     ('00000000-0000-0000-0000-000000000001', 'trabajador.a@test.laveinte.org');
@@ -43,7 +49,7 @@ supabase db query --local "
     ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000002', 'MED-ESP', '6.5', 10);
   INSERT INTO public.worker_commitments (id, user_id, title, status) VALUES
     ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-000000000002', 'Revisión escalafón B', 'pending');
-"
+EOF
 
 # 3. Producir dump real
 echo "3. Generando dump SQL de la base de datos..."
@@ -52,12 +58,11 @@ supabase db dump --local --data-only -f .temp/backup_drill.sql
 
 # 4. Destrucción total de tablas en cascada
 echo "4. Vaciando tablas en cascada (simulación de pérdida total)..."
-supabase db query --local "TRUNCATE public.profiles CASCADE;"
+docker exec -i "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres -c "TRUNCATE public.profiles CASCADE;"
 
 # 5. Restauración del dump
 echo "5. Restaurando desde dump SQL..."
-db_container=$(docker ps --format '{{.Names}}' | grep -E 'supabase_db_' | head -1)
-docker exec -i "$db_container" psql -U postgres -d postgres < .temp/backup_drill.sql
+docker exec -i "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres < .temp/backup_drill.sql
 
 # 6. Comprobar integridad de conteos y relaciones FK
 echo "6. Comprobando integridad referencial post-restore..."

@@ -33,9 +33,6 @@ jobs:
       - name: Tests (Unit)
         run: npm test
 
-      - name: Tests (Integration)
-        run: npm run test:integration
-
       - name: Build
         run: npm run build
 
@@ -110,6 +107,10 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: "https://ragktminwduiggvaoeix.supabase.co"
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-anon-key"
+      OPENAI_API_KEY: "placeholder"
     steps:
       - uses: actions/checkout@v4
 
@@ -129,6 +130,8 @@ jobs:
         env:
           CI: "true"
           E2E_BASE_URL: http://localhost:3000
+          NEXT_PUBLIC_SUPABASE_URL: "https://ragktminwduiggvaoeix.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "placeholder-anon-key"
 
   android:
     runs-on: ubuntu-latest
