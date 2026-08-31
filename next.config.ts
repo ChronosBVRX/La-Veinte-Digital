@@ -9,11 +9,9 @@ const connectSources = [
   "https://cdn.jsdelivr.net",
 ].join(" ");
 
-const isProd = process.env.NODE_ENV === "production";
-
 const cspDirectives = [
   "default-src 'self'",
-  isProd ? "script-src 'self' 'unsafe-inline'" : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "script-src 'self' 'unsafe-inline'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
@@ -24,7 +22,6 @@ const cspDirectives = [
   "base-uri 'self'",
   "form-action 'self'",
   "object-src 'none'",
-  ...(isProd ? ["upgrade-insecure-requests"] : []),
 ];
 
 const nextConfig: NextConfig = {

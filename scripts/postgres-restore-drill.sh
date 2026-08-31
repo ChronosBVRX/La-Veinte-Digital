@@ -44,19 +44,23 @@ docker exec -i "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres <
   INSERT INTO public.profiles (id, full_name, matricula) VALUES
     ('00000000-0000-0000-0000-000000000001', 'Trabajador A', 'MATR-A001')
   ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
-  INSERT INTO public.payroll_contexts (id, user_id, categoria_id, jornada, antiguedad_anios) VALUES
-    ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000001', 'ENF-GRAL', '8.0', 5);
-  INSERT INTO public.worker_commitments (id, user_id, title, status) VALUES
-    ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-000000000001', 'Permuta programada A', 'active');
+  INSERT INTO public.payroll_contexts (user_id, category_id, workday_hours) VALUES
+    ('00000000-0000-0000-0000-000000000001', 'ENF-GRAL', 8.0)
+  ON CONFLICT (user_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+  INSERT INTO public.worker_commitments (id, user_id, type, title, start_at, end_at, status) VALUES
+    ('00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-000000000001', 'shift', 'Permuta programada A', now(), now() + interval '8 hours', 'active')
+  ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title;
 
   -- Fixture Usuario B
   INSERT INTO public.profiles (id, full_name, matricula) VALUES
     ('00000000-0000-0000-0000-000000000002', 'Trabajador B', 'MATR-B002')
   ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
-  INSERT INTO public.payroll_contexts (id, user_id, categoria_id, jornada, antiguedad_anios) VALUES
-    ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000002', 'MED-ESP', '6.5', 10);
-  INSERT INTO public.worker_commitments (id, user_id, title, status) VALUES
-    ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-000000000002', 'Revisión escalafón B', 'pending');
+  INSERT INTO public.payroll_contexts (user_id, category_id, workday_hours) VALUES
+    ('00000000-0000-0000-0000-000000000002', 'MED-ESP', 6.5)
+  ON CONFLICT (user_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+  INSERT INTO public.worker_commitments (id, user_id, type, title, start_at, end_at, status) VALUES
+    ('00000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-000000000002', 'shift', 'Revisión escalafón B', now(), now() + interval '8 hours', 'pending')
+  ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title;
 EOF
 
 # 3. Producir dump real
