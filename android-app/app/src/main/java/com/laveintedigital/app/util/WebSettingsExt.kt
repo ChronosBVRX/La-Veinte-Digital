@@ -16,13 +16,17 @@ import android.webkit.WebView
 fun WebSettings.configureForLaVeinte(appVersion: String) {
     javaScriptEnabled = true
     domStorageEnabled = true
-    databaseEnabled = true
     // The internal app only loads https:// resources from our own domains and trusted gov portals.
     // File access from the WebView is not required (the PDF/document picker uses the Storage Access
     // Framework, and documents are stored in app-private storage), so we disable it. This also
     // blocks `file://` navigation from any injected script or deep link.
     allowFileAccess = false
     allowContentAccess = true
+    @Suppress("DEPRECATION")
+    allowFileAccessFromFileURLs = false
+    @Suppress("DEPRECATION")
+    allowUniversalAccessFromFileURLs = false
+    safeBrowsingEnabled = true
     // Block mixed content (http subresources on an https page).
     mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
     mediaPlaybackRequiresUserGesture = false

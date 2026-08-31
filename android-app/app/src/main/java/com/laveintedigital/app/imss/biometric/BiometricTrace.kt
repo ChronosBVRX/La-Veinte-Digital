@@ -25,7 +25,11 @@ object BiometricTrace {
     /** Máximo de eventos en memoria. */
     const val CAPACITY = 200
 
-    private val ENABLED = BuildConfig.DEBUG
+    @Volatile
+    var enabledOverride: Boolean? = null
+
+    private val isEnabled: Boolean
+        get() = enabledOverride ?: BuildConfig.DEBUG
 
     /** Un evento estructurado de la traza. */
     data class TraceEvent(
@@ -54,7 +58,7 @@ object BiometricTrace {
 
     /** Limpia el buffer (al entrar a la pantalla). */
     fun reset() {
-        if (!ENABLED) return
+        if (!isEnabled) return
         synchronized(ring) { ring.clear() }
     }
 
@@ -71,7 +75,7 @@ object BiometricTrace {
         details: String? = null,
         durationMs: Long? = null,
     ) {
-        if (!ENABLED) return
+        if (!isEnabled) return
         val e = TraceEvent(
             at = System.currentTimeMillis(),
             op = op,
@@ -100,7 +104,7 @@ object BiometricTrace {
      * portapapeles. Formato agregado, sin datos personales.
      */
     fun copySanitizedReport(): String = synchronized(ring) {
-        if (!ENABLED) return "=== LVD BIOMETRIC TRACE ===\n(disponible solo en builds DEBUG)"
+        if (!isEnabled) return "=== LVD BIOMETRIC TRACE ===\n(disponible solo en builds DEBUG)"
         val events = ring.toList()
         if (events.isEmpty()) return "=== LVD BIOMETRIC TRACE ===\nsin eventos registrados"
         buildReport(events)

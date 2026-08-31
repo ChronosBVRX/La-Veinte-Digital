@@ -1,16 +1,29 @@
 package com.laveintedigital.app.imss.biometric
 
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 class BiometricTraceTest {
 
+    @Before
+    fun setUp() {
+        BiometricTrace.enabledOverride = true
+        BiometricTrace.reset()
+    }
+
+    @After
+    fun tearDown() {
+        BiometricTrace.reset()
+        BiometricTrace.enabledOverride = null
+    }
+
     @Test
     fun `buffer en memoria conserva el orden de eventos`() {
-        BiometricTrace.reset()
         BiometricTrace.trace(op = 41, gen = 1, stage = "ROUTE", event = "ROUTE_READY", result = true)
         BiometricTrace.trace(op = 41, gen = 1, stage = "FORM", event = "FORM_READY", result = true)
         BiometricTrace.trace(op = 41, gen = 1, stage = "OOAD", event = "READ", result = false, details = "code=OOAD_NOT_RESOLVED")
