@@ -17,7 +17,7 @@ describe("Security Headers and CSP configuration", () => {
     expect(headersMap.get("Referrer-Policy")).toBe("strict-origin-when-cross-origin")
     expect(headersMap.get("Permissions-Policy")).toContain("camera=(self)")
     expect(headersMap.get("Permissions-Policy")).toContain("geolocation=()")
-    expect(headersMap.get("Strict-Transport-Security")).toBe("max-age=63072000; includeSubDomains; preload")
+    expect(headersMap.get("Strict-Transport-Security")).toBe("max-age=31536000; includeSubDomains")
 
     const csp = headersMap.get("Content-Security-Policy")
     expect(csp).toBeDefined()
