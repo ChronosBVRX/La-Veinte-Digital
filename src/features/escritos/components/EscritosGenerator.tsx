@@ -191,11 +191,11 @@ export function EscritosGenerator() {
 
   return (
     <div style={{ maxWidth: 900, margin: "0 auto" }}>
-      <div style={{ marginBottom: "1.5rem" }}>
-        <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>
-          Generador de Escritos PDF
+      <div style={{ marginBottom: "1rem" }}>
+        <h1 style={{ fontSize: "clamp(1.15rem, 4vw, 1.35rem)", fontWeight: 700, margin: 0, lineHeight: 1.2 }}>
+          Generador de Escritos
         </h1>
-        <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>
+        <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0.2rem 0 0", lineHeight: 1.4 }}>
           Redacta documentos formales con apoyo de IA, ed&iacute;talos y desc&aacute;rgalos en PDF
         </p>
       </div>

@@ -118,8 +118,8 @@ export function BottomSheet({
           boxShadow: "var(--shadow-lg)",
           width: "100%",
           maxWidth: 600,
-          maxHeight: heightMap[height],
-          overflow: "auto",
+          maxHeight: heightMap[height] ?? "calc(var(--visual-viewport-height, 100dvh) - 2rem)",
+          overflow: "hidden",
           display: "flex",
           flexDirection: "column",
           paddingBottom: "env(safe-area-inset-bottom)",
@@ -184,7 +184,7 @@ export function BottomSheet({
           </button>
         </div>
         {children && (
-          <div style={{ padding: "0 1.25rem 1.25rem", flex: 1, minHeight: 0 }}>
+          <div style={{ padding: "0 1.25rem 1.25rem", flex: 1, minHeight: 0, overflowY: "auto" } as React.CSSProperties}>
             {children}
           </div>
         )}

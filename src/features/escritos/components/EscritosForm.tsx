@@ -71,25 +71,44 @@ export function EscritosForm({
   return (
     <div>
       <div style={{
-        background: "var(--card)", border: "1px solid var(--border)", borderRadius: "0.5rem",
-        padding: "1.5rem", marginBottom: "1.5rem",
+        background: "var(--card)", border: "1px solid var(--border)", borderRadius: "0.75rem",
+        padding: "1.25rem", marginBottom: "1rem",
       }}>
+        {/* Perfil compacto */}
         <div style={{
-          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: "1rem", marginBottom: "1.5rem",
-          padding: "1rem", background: "var(--accent)", borderRadius: "0.375rem",
+          display: "flex", gap: "0.75rem", alignItems: "flex-start",
+          padding: "0.875rem 1rem", background: "var(--accent)", borderRadius: "0.5rem",
+          border: "1px solid var(--border)", marginBottom: "1.25rem",
         }}>
-          <div style={{ gridColumn: "1 / -1" }}>
-            <Input label="Nombre del trabajador" value={profile?.full_name ?? ""} readOnly />
+          <div style={{
+            width: 38, height: 38, borderRadius: "50%", background: "linear-gradient(135deg, var(--brand-navy), var(--brand-blue))",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "#fff", fontSize: "1rem",
+          }}>
+            👤
           </div>
-          <Input label="Matrícula" value={profile?.matricula ?? ""} readOnly />
-          <Input label="Categoría" value={profile?.categoria ?? ""} readOnly />
-          <div style={{ gridColumn: "1 / -1" }}>
-            <Input label="Adscripción" value={profile?.adscripcion ?? ""} readOnly />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: "0.875rem", fontWeight: 700, lineHeight: 1.3, overflowWrap: "anywhere" }}>{profile?.full_name ?? "—"}</div>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.15rem", lineHeight: 1.4, overflowWrap: "anywhere" }}>
+              {profile?.matricula ? `Mat. ${profile.matricula}` : ""}{profile?.matricula && profile?.categoria ? " · " : ""}{profile?.categoria ?? ""}
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.4, overflowWrap: "anywhere" }}>{profile?.adscripcion ?? ""}</div>
           </div>
+          <a
+            href="/profile"
+            style={{
+              fontSize: "0.75rem", fontWeight: 600, color: "var(--primary)", textDecoration: "none",
+              border: "1px solid var(--border)", borderRadius: "999px", padding: "0.3rem 0.625rem",
+              background: "var(--card)", flexShrink: 0, whiteSpace: "nowrap",
+            }}
+          >
+            Editar
+          </a>
         </div>
 
-        <div style={{ marginBottom: "0.5rem" }}>
+        {/* Paso 1: Destinatario */}
+        <div style={{ marginBottom: "1rem" }}>
+          <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: "0.5rem" }}>1 · Destinatario</div>
+
           <Select label="¿A quién va dirigido?" value={modoManual ? VALOR_DESTINO_MANUAL : destino} onChange={(e) => handleDestinoChange(e.target.value)}>
             <option value="">— Selecciona —</option>
             {destinoOptions}
@@ -184,12 +203,18 @@ export function EscritosForm({
           )
         })()}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-          <Input label="Fecha del escrito" type="date" value={fecha} onChange={(e) => onChange("fecha", e.target.value)} />
-          <Input label="Lugar (Municipio)" value={ciudad} onChange={(e) => onChange("ciudad", e.target.value)} placeholder="Ej. Morelia" />
+        {/* Paso 2: Datos del escrito */}
+        <div style={{ marginBottom: "1rem" }}>
+          <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: "0.5rem" }}>2 · Datos del escrito</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+            <Input label="Fecha del escrito" type="date" value={fecha} onChange={(e) => onChange("fecha", e.target.value)} />
+            <Input label="Lugar (Municipio)" value={ciudad} onChange={(e) => onChange("ciudad", e.target.value)} placeholder="Ej. Morelia" />
+          </div>
         </div>
 
+        {/* Paso 3: Situación */}
         <div style={{ marginBottom: "1rem" }}>
+          <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: "0.5rem" }}>3 · Situación / hechos</div>
           <Textarea
             label="Descripción de los hechos"
             value={detalle}
@@ -241,9 +266,9 @@ export function EscritosForm({
           </div>
         )}
 
-        <div style={{ display: "flex", gap: "0.5rem", marginTop: "1.5rem" }}>
-          <Button onClick={onGenerate} disabled={loading || !destino || !detalle.trim()} loading={loading}>
-            {loading ? "Redactando con IA..." : "Redactar con IA"}
+        <div style={{ display: "flex", gap: "0.5rem", marginTop: "1.25rem", flexWrap: "wrap" }}>
+          <Button onClick={onGenerate} disabled={loading || !destino || !detalle.trim()} loading={loading} style={{ flex: 1, minWidth: 160 }}>
+            {loading ? "Redactando con IA..." : "✦ Generar borrador"}
           </Button>
           <Button variant="secondary" onClick={onClear} disabled={loading}>
             Limpiar
