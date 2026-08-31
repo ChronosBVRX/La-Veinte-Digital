@@ -323,7 +323,13 @@ body {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-  /* Padding inferior ya reservado por main; keyboard lo ajusta vía JS */
+}
+
+.mobile-app-shell__scroll > .animate-fade-in {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 /* Cuando el teclado está abierto, oculta bottom nav y ajusta padding */
@@ -331,6 +337,12 @@ body {
   transform: translateY(100%);
   opacity: 0;
   pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .keyboard-open main {
+    padding-bottom: 1rem !important;
+  }
 }
 
 .mobile-bottom-nav {
@@ -359,13 +371,12 @@ body {
   padding-bottom: 0;
 }
 
-/* Inputs desplazables al foco: margen seguro para que no queden detrás del teclado */
-@media (max-width: 768px) {
-  input:focus,
-  textarea:focus,
-  select:focus {
-    scroll-margin-bottom: calc(var(--keyboard-height, 0px) + 1rem);
-  }
+/* Inputs: margen seguro uniforme y predecible al recibir foco */
+input,
+textarea,
+select {
+  scroll-margin-top: 12px;
+  scroll-margin-bottom: 12px;
 }
 
 /* Safe area para header en dispositivos con notch */

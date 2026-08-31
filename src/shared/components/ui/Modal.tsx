@@ -136,7 +136,7 @@ export function Modal({
               boxShadow: "var(--shadow-lg)",
               width: "100%",
               maxWidth: sizeMap[size],
-              maxHeight: "min(78dvh, calc(100dvh - 5rem))",
+              maxHeight: "min(85dvh, calc(var(--visual-viewport-height, 100dvh) - 2rem))",
               overflow: "hidden",
               display: "flex",
               flexDirection: "column",

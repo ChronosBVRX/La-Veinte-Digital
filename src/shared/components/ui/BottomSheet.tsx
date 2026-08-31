@@ -118,7 +118,10 @@ export function BottomSheet({
           boxShadow: "var(--shadow-lg)",
           width: "100%",
           maxWidth: 600,
-          maxHeight: heightMap[height] ?? "calc(var(--visual-viewport-height, 100dvh) - 2rem)",
+          maxHeight:
+            height === "auto"
+              ? "calc(var(--visual-viewport-height, 100dvh) - 1rem)"
+              : `min(${heightMap[height] ?? "85dvh"}, calc(var(--visual-viewport-height, 100dvh) - 1rem))`,
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
