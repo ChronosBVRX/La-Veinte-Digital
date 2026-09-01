@@ -1,18 +1,46 @@
-import { consultarBot } from "@/features/asistente/services/bot"
+import type {
+  GenerarEscritoRequest,
+  GenerarEscritoResponse,
+} from "@/shared/contracts/escrito-draft"
+import { generateBasicFallbackEscrito } from "@/features/escritos/lib/fallback-generator"
 
-export async function generarEscrito(hechos: string): Promise<string> {
-  const prompt = `Genera el cuerpo de un escrito formal con los siguientes hechos:
+export async function generarEscrito(
+  req: GenerarEscritoRequest
+): Promise<GenerarEscritoResponse> {
+  try {
+    const res = await fetch("/api/escritos/generar", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify(req),
+    })
 
-${hechos}
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      const errorMessage = data.error || `Error ${res.status}: No fue posible generar el escrito.`
 
-El escrito debe:
-1. Ser formal y profesional, redactado en primera persona
-2. Estructura clara: exposición de hechos y solicitud
-3. Máximo 4 párrafos, directo al grano
-4. Incluir fundamentos legales basados en el CCT o Estatutos cuando aplique
-5. NO incluir encabezado, destinatario, fecha, lugar, despedida, ni firma
-6. NO usar markdown ni formato especial — solo texto plano`
+      // No enmascarar errores de autorización o cuota con fallback silencioso
+      if (res.status === 401 || res.status === 403 || res.status === 429) {
+        throw new Error(errorMessage)
+      }
 
-  const { respuesta } = await consultarBot([{ role: "user", content: prompt }])
-  return respuesta
+      console.warn("[generarEscrito] Error del servidor, usando generador básico:", errorMessage)
+      const fallback = generateBasicFallbackEscrito(req)
+      return {
+        ...fallback,
+        advertencias: [errorMessage, ...fallback.advertencias],
+      }
+    }
+
+    const data = (await res.json()) as GenerarEscritoResponse
+    return data
+  } catch (err: unknown) {
+    if (err instanceof Error && (err.message.includes("401") || err.message.includes("Inicia sesión") || err.message.includes("cuota"))) {
+      throw err
+    }
+    console.warn("[generarEscrito] Error de red o ejecución, usando fallback:", err)
+    return generateBasicFallbackEscrito(req)
+  }
 }

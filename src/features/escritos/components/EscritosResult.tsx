@@ -1,502 +1,451 @@
 "use client"
 
-import { useRef, useEffect, useState, useCallback } from "react"
-import html2canvas from "html2canvas"
-import type { EscritoGuardado } from "../services/escritos-storage"
+import { useState } from "react"
+import { Button } from "@/shared/components/ui/Button"
+import { Card } from "@/shared/components/ui/Card"
+import type { EscritoDraftV2 } from "@/shared/contracts/escrito-draft"
+import {
+  generarNombreArchivoPdf,
+  imprimirEscrito,
+  renderStoredEscritoToPdfFile,
+} from "@/shared/lib/escrito-pdf-renderer"
+import { SignaturePadModal } from "./SignaturePadModal"
+import { deleteBlobResource } from "../services/escritos-indexeddb"
 
-export type EscritoASalvar = Omit<EscritoGuardado, "id" | "createdAt">
-
-interface EscritosResultProps {
-  cuerpo: string
-  destino: string
-  ciudad: string
-  fecha: string
-  nombre: string
-  matricula: string
-  categoria: string
-  adscripcion: string
-  atencion: string
-  copia: string
-  fotos?: string[]
-  firmaInicial?: string
-  escritoId?: string
-  onGuardar?: (payload: { escritoId?: string; escrito: EscritoASalvar }) => void
-  onClose: () => void
+export interface EscritosResultProps {
+  userId: string
+  draft: EscritoDraftV2
+  onUpdateDraft: (updated: Partial<EscritoDraftV2>) => void
+  onSaveDraft: () => void
+  onBackToEditor: () => void
+  workerProfile?: {
+    nombre?: string
+    matricula?: string
+    categoria?: string
+    adscripcion?: string
+    seccion?: string
+  }
 }
 
 export function EscritosResult({
-  cuerpo, destino, ciudad, fecha, nombre, matricula,
-  categoria, adscripcion, atencion, copia, fotos, firmaInicial, escritoId, onGuardar, onClose,
+  userId,
+  draft,
+  onUpdateDraft,
+  onSaveDraft,
+  onBackToEditor,
+  workerProfile,
 }: EscritosResultProps) {
-  const pageRef = useRef<HTMLDivElement>(null)
-  const [firmaUrl, setFirmaUrl] = useState(firmaInicial ?? "")
-  const [mostrarFirma, setMostrarFirma] = useState(false)
-  const [descargando, setDescargando] = useState(false)
-  const [mostrarGuardar, setMostrarGuardar] = useState(false)
-  const [tituloGuardar, setTituloGuardar] = useState("")
-  const [guardando, setGuardando] = useState(false)
+  const [viewMode, setViewMode] = useState<"mobile" | "sheet">("sheet")
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false)
+  const [isPrinting, setIsPrinting] = useState(false)
+  const [isDownloading, setIsDownloading] = useState(false)
 
-  const [cargo, nombreDestino] = (destino || "|").split("|")
+  const handleSaveSignature = (firmaRef: string, previewUrl: string) => {
+    onUpdateDraft({
+      firmaRef,
+      firmaPreviewUrl: previewUrl,
+    })
+  }
 
-  const fechaLarga = fecha
-    ? new Date(fecha + "T12:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" })
-    : ""
+  const handleRemoveSignature = async () => {
+    if (draft.firmaRef) {
+      await deleteBlobResource(userId, draft.firmaRef).catch(() => {})
+    }
+    if (draft.firmaPreviewUrl && draft.firmaPreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(draft.firmaPreviewUrl)
+    }
+    onUpdateDraft({
+      firmaRef: undefined,
+      firmaPreviewUrl: undefined,
+    })
+  }
 
-  const atnHtml = atencion
-    ? atencion.split("|")[1]
-    : null
-  const atnCargo = atencion
-    ? atencion.split("|")[0]
-    : null
-  const ccpLabel = copia
-    ? copia.split("|")[1]
-    : null
-  const ccpCargo = copia
-    ? copia.split("|")[0]
-    : null
-
-  const ajustarEscala = useCallback(() => {
-    const el = pageRef.current
-    if (!el) return
-    const container = el.parentElement
-    if (!container) return
-    const availableWidth = container.clientWidth - 40
-    const sheetWidth = 816
-    const scale = availableWidth < sheetWidth ? availableWidth / sheetWidth : 1
-    el.style.transform = `scale(${scale})`
-    el.style.transformOrigin = "top center"
-  }, [])
-
-  useEffect(() => {
-    ajustarEscala()
-    window.addEventListener("resize", ajustarEscala)
-    return () => window.removeEventListener("resize", ajustarEscala)
-  }, [ajustarEscala])
-
-  const handleDescargar = async () => {
-    const el = pageRef.current
-    if (!el) return
-    setDescargando(true)
-    const origTransform = el.style.transform
-    el.style.transform = "scale(1)"
-
+  const handleDownloadPdf = async () => {
+    setIsDownloading(true)
     try {
-      const { jsPDF: JsPDF } = await import("jspdf")
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff" })
-      el.style.transform = origTransform
+      const file = await renderStoredEscritoToPdfFile(draft, userId, {
+        nombreTrabajador: workerProfile?.nombre,
+        nombre: workerProfile?.nombre,
+        matricula: workerProfile?.matricula,
+        categoria: workerProfile?.categoria,
+        adscripcion: workerProfile?.adscripcion,
+      })
 
-      const doc = new JsPDF({ unit: "pt", format: "letter" })
-      const imgData = canvas.toDataURL("image/jpeg", 1.0)
-      const pdfW = 612
-      const ratio = pdfW / canvas.width
-      const imgH = canvas.height * ratio
-
-      let heightLeft = imgH
-      let position = 0
-      doc.addImage(imgData, "JPEG", 0, position, pdfW, imgH)
-      heightLeft -= 792
-      while (heightLeft > 0) {
-        position = heightLeft - imgH
-        doc.addPage()
-        doc.addImage(imgData, "JPEG", 0, position, pdfW, imgH)
-        heightLeft -= 792
-      }
-
-      doc.save(`Oficio_PSC_${matricula}.pdf`)
-    } catch (e) {
-      console.error(e)
-      alert("Error al descargar PDF")
-      el.style.transform = origTransform
+      const url = URL.createObjectURL(file)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = generarNombreArchivoPdf(draft)
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error("Error descargando PDF:", err)
+      alert("No se pudo generar el archivo PDF. Intenta nuevamente.")
     } finally {
-      setDescargando(false)
+      setIsDownloading(false)
     }
   }
 
-  const handlePrint = () => {
-    const originalTitle = document.title
-    document.title = `Oficio_PSC_${matricula}`
-    window.print()
-    document.title = originalTitle
-  }
-
-  const iniciarPad = () => {
-    setMostrarFirma(true)
-  }
-
-  const abrirGuardar = () => {
-    setTituloGuardar(`Oficio a ${nombreDestino ?? ""} - ${fecha ? new Date(fecha + "T12:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }) : ""}`.trim())
-    setMostrarGuardar(true)
-  }
-
-  const confirmarGuardar = () => {
-    if (!onGuardar) return
-    setGuardando(true)
-    const titulo = tituloGuardar.trim() || `Escrito ${new Date().toLocaleDateString("es-MX")}`
-    const escrito: EscritoASalvar = {
-      titulo,
-      cuerpo,
-      destino,
-      ciudad,
-      fecha,
-      nombre,
-      matricula,
-      categoria,
-      adscripcion,
-      atencion,
-      copia,
-      fotos: fotos ?? [],
-      firmaUrl,
+  const handlePrint = async () => {
+    setIsPrinting(true)
+    try {
+      await imprimirEscrito(draft, userId, {
+        nombreTrabajador: workerProfile?.nombre,
+        nombre: workerProfile?.nombre,
+        matricula: workerProfile?.matricula,
+        categoria: workerProfile?.categoria,
+        adscripcion: workerProfile?.adscripcion,
+      })
+    } catch (err) {
+      console.error("Error al imprimir:", err)
+      alert("No fue posible iniciar la impresión directa.")
+    } finally {
+      setIsPrinting(false)
     }
-    onGuardar({ escritoId, escrito })
-    setGuardando(false)
-    setMostrarGuardar(false)
   }
 
-  const guardarFirma = () => {
-    const c = document.getElementById("pad-firma") as HTMLCanvasElement
-    if (!c) return
-    setFirmaUrl(c.toDataURL("image/png"))
-    setMostrarFirma(false)
-  }
+  const handleNativeShare = async () => {
+    try {
+      const file = await renderStoredEscritoToPdfFile(draft, userId, {
+        nombreTrabajador: workerProfile?.nombre,
+        nombre: workerProfile?.nombre,
+        matricula: workerProfile?.matricula,
+        categoria: workerProfile?.categoria,
+        adscripcion: workerProfile?.adscripcion,
+      })
 
-  const limpiarFirma = () => {
-    const c = document.getElementById("pad-firma") as HTMLCanvasElement
-    if (!c) return
-    const ctx = c.getContext("2d")
-    if (!ctx) return
-    ctx.clearRect(0, 0, c.width, c.height)
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: draft.titulo,
+          text: `Escrito formal: ${draft.asunto || draft.titulo}`,
+        })
+      } else {
+        // Fallback a descarga si no soporta Web Share API con archivos
+        handleDownloadPdf()
+      }
+    } catch (err) {
+      console.error("Error compartiendo:", err)
+    }
   }
 
   return (
-    <>
-      <div
-        style={{
-          position: "fixed", inset: 0, background: "rgba(10, 15, 25, 0.98)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 1000, padding: "1.25rem",
-        }}
-      >
-        <div style={{
-          background: "#1e293b", borderRadius: "1.25rem", width: "100%",
-          maxWidth: 1000, padding: "1.5rem", display: "flex", flexDirection: "column",
-          maxHeight: "95vh",
-        }}>
-          <div style={{
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-            marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.75rem",
-          }}>
-            <h3 style={{ color: "#fff", margin: 0, fontSize: "1.125rem" }}>Vista Previa del Oficio</h3>
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              <button onClick={handlePrint}
-                style={{
-                  padding: "0.5rem 1rem", borderRadius: "0.5rem", border: "1px solid var(--border)",
-                  background: "transparent", color: "#f1f5f9", cursor: "pointer", fontSize: "0.8125rem",
-                  fontWeight: 600, display: "flex", alignItems: "center", gap: "0.375rem",
-                }}
-              >
-                🖨 Imprimir
-              </button>
-              <button onClick={handleDescargar} disabled={descargando}
-                style={{
-                  padding: "0.5rem 1rem", borderRadius: "0.5rem", border: "1px solid var(--border)",
-                  background: "transparent", color: "#f1f5f9", cursor: descargando ? "not-allowed" : "pointer",
-                  fontSize: "0.8125rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.375rem",
-                  opacity: descargando ? 0.6 : 1,
-                }}
-              >
-                {descargando ? "⏳" : "⬇"} {descargando ? "Generando PDF..." : "Guardar PDF"}
-              </button>
-              <button onClick={iniciarPad}
-                style={{
-                  padding: "0.5rem 1rem", borderRadius: "0.5rem",
-                  background: "var(--primary)", border: "none",
-                  color: "var(--primary-fg)", cursor: "pointer", fontSize: "0.8125rem",
-                  fontWeight: 600, display: "flex", alignItems: "center", gap: "0.375rem",
-                }}
-              >
-                ✍ Añadir Firma
-              </button>
-              <button onClick={abrirGuardar}
-                style={{
-                  padding: "0.5rem 1rem", borderRadius: "0.5rem",
-                  border: "1px solid var(--border)",
-                  background: "transparent", color: "#f1f5f9", cursor: "pointer", fontSize: "0.8125rem",
-                  fontWeight: 600, display: "flex", alignItems: "center", gap: "0.375rem",
-                }}
-              >
-                💾 Guardar
-              </button>
-              <button onClick={onClose}
-                style={{
-                  padding: "0.5rem", borderRadius: "0.5rem", border: "1px solid #ef4444",
-                  background: "transparent", color: "#ef4444", cursor: "pointer", fontSize: "1rem",
-                  display: "flex", alignItems: "center", lineHeight: 1,
-                }}
-              >
-                ✕
-              </button>
-            </div>
-          </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      {/* Selector de modo de vista y Acciones Principales */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+        <div style={{ display: "flex", gap: "0.375rem", background: "var(--card)", padding: "0.25rem", borderRadius: "0.5rem", border: "1px solid var(--border)" }}>
+          <button
+            type="button"
+            onClick={() => setViewMode("sheet")}
+            style={{
+              padding: "0.375rem 0.75rem",
+              borderRadius: "0.375rem",
+              border: "none",
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+              background: viewMode === "sheet" ? "var(--primary)" : "transparent",
+              color: viewMode === "sheet" ? "var(--primary-fg)" : "var(--muted)",
+              cursor: "pointer",
+            }}
+          >
+            📄 Hoja Carta (Oficio)
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("mobile")}
+            style={{
+              padding: "0.375rem 0.75rem",
+              borderRadius: "0.375rem",
+              border: "none",
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+              background: viewMode === "mobile" ? "var(--primary)" : "transparent",
+              color: viewMode === "mobile" ? "var(--primary-fg)" : "var(--muted)",
+              cursor: "pointer",
+            }}
+          >
+            📱 Lectura Móvil
+          </button>
+        </div>
 
-          <div style={{
-            flex: 1, overflow: "auto", display: "flex", justifyContent: "center",
-            background: "#334155", borderRadius: "0.75rem", padding: "1.25rem",
-            margin: "0.75rem 0", minHeight: 400,
-          }}>
-            <div ref={pageRef} id="page-carta" className="page-carta"
-              style={{
-                width: 816, background: "#fff", color: "#111",
-                boxShadow: "0 10px 40px rgba(0,0,0,0.5)", flexShrink: 0,
-                transformOrigin: "top center",
-              }}
-            >
-              <div style={{
-                padding: "50px 64px", fontFamily: "'Times New Roman', Times, serif",
-                fontSize: "12pt", lineHeight: 1.5, minHeight: 1056,
-                display: "flex", flexDirection: "column", color: "#000",
-              }}>
-                <header style={{ textAlign: "right", fontWeight: "bold", marginBottom: 30 }}>
-                  <div id="folio-doc" style={{ color: "#991b1b", fontSize: "13pt", marginBottom: 16, minHeight: 25 }} />
-                  {ciudad}, a {fechaLarga}
-                </header>
-
-                <div style={{ fontWeight: "bold", textTransform: "uppercase" }}>{nombreDestino}</div>
-                <div style={{ fontWeight: "bold", marginBottom: 5 }}>{cargo}</div>
-                <div>Presente.</div>
-
-                {atnHtml && (
-                  <div style={{ marginTop: 15, fontWeight: "bold" }}>
-                    At&apos;n: {atnHtml}<br />
-                    <span style={{ fontWeight: "normal", fontSize: "11pt" }}>{atnCargo}</span>
-                  </div>
-                )}
-
-                <div style={{ textAlign: "justify", whiteSpace: "pre-wrap", marginTop: 20 }}>{cuerpo}</div>
-
-                {firmaUrl && (
-                  <div style={{ marginTop: 40 }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={firmaUrl} alt="Firma" style={{ maxHeight: 80, display: "block", margin: "0 auto 5px" }} />
-                  </div>
-                )}
-
-                <div style={{ marginTop: "auto", paddingTop: 50, textAlign: "center", fontWeight: "bold" }}>
-                  ATENTAMENTE
-                  <div style={{ margin: "10px auto 5px", width: 250, borderBottom: "2px solid black" }} />
-                  {nombre}<br />
-                  Matrícula: {matricula}<br />
-                  {categoria}<br />
-                  {adscripcion}
-                </div>
-
-                {ccpLabel && (
-                  <div style={{ fontSize: "8pt", marginTop: 40, textAlign: "left" }}>
-                    c.c.p. {ccpLabel} - {ccpCargo}. Para su conocimiento e intervención.
-                  </div>
-                )}
-              </div>
-
-              {(fotos && fotos.length > 0) && (
-                <div style={{
-                  padding: "50px 64px", fontFamily: "'Times New Roman', Times, serif",
-                  fontSize: "12pt", lineHeight: 1.5, color: "#000",
-                  borderTop: "2px solid #ccc", marginTop: 20,
-                }}>
-                  <div style={{ textAlign: "center", marginBottom: 20 }}>
-                    <h2 style={{ fontSize: "16pt", fontWeight: 700, margin: 0 }}>ANEXOS</h2>
-                    <p style={{ fontSize: "10pt", color: "#555", margin: "4px 0 0" }}>
-                      Evidencia fotográfica
-                    </p>
-                  </div>
-                  <div style={{ fontSize: "10pt", marginBottom: 16 }}>
-                    {fotos.map((_, i) => (
-                      <span key={i}>Anexo {i + 1}{i < fotos.length - 1 ? ", " : ""}</span>
-                    ))}
-                  </div>
-                  {fotos.map((foto, i) => (
-                    <div key={i} style={{
-                      marginBottom: 30, textAlign: "center",
-                      pageBreakInside: "avoid",
-                    }}>
-                      <p style={{ fontWeight: 600, fontSize: "10pt", margin: "0 0 8px", textAlign: "left" }}>
-                        Anexo {i + 1}
-                      </p>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={foto}
-                        alt={`Anexo ${i + 1}`}
-                        style={{
-                          maxWidth: "100%", maxHeight: 400,
-                          border: "1px solid #ccc", objectFit: "contain",
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <Button variant="secondary" size="sm" onClick={handlePrint} loading={isPrinting}>
+            🖨 Imprimir
+          </Button>
+          <Button variant="secondary" size="sm" onClick={handleNativeShare}>
+            📲 Compartir
+          </Button>
+          <Button variant="primary" size="sm" onClick={handleDownloadPdf} loading={isDownloading}>
+            📥 Descargar PDF
+          </Button>
         </div>
       </div>
 
-      {mostrarFirma && (
+      {/* Renderizado Vista Hoja Carta (Formato Oficio Fiel al PDF) */}
+      {viewMode === "sheet" ? (
         <div
           style={{
-            position: "fixed", inset: 0, background: "rgba(10, 15, 25, 0.98)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            zIndex: 1100, padding: "1.25rem",
+            background: "#ffffff",
+            color: "#0f172a",
+            borderRadius: "0.75rem",
+            padding: "2.5rem 2rem",
+            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)",
+            border: "1px solid var(--border)",
+            fontFamily: "Times New Roman, Times, serif",
+            fontSize: "1rem",
+            lineHeight: 1.5,
+            maxWidth: "700px",
+            margin: "0 auto",
+            width: "100%",
+            boxSizing: "border-box",
           }}
         >
-          <div style={{
-            background: "#1e293b", borderRadius: "1.25rem", maxWidth: 500,
-            width: "100%", padding: "1.5rem", textAlign: "center",
-          }}>
-            <h3 style={{ color: "#fff", margin: "0 0 0.25rem" }}>Firma Digital</h3>
-            <p style={{ color: "var(--muted)", fontSize: "0.8125rem", marginBottom: "1.25rem" }}>
-              Dibuja tu firma para el documento
-            </p>
-            <canvas
-              id="pad-firma"
-              width={400}
-              height={180}
-              style={{
-                background: "#fff", width: "100%", height: 160,
-                borderRadius: "0.625rem", border: "2px dashed #94a3b8",
-                cursor: "crosshair", marginBottom: "1.25rem",
-              }}
-              onMouseDown={(e) => {
-                const c = e.currentTarget
-                const ctx = c.getContext("2d")
-                if (!ctx) return
-                ctx.beginPath()
-                const rect = c.getBoundingClientRect()
-                const x = (e.clientX - rect.left) * (c.width / rect.width)
-                const y = (e.clientY - rect.top) * (c.height / rect.height)
-                ctx.moveTo(x, y)
-                c.onmousemove = (ev) => {
-                  const ctx2 = c.getContext("2d")
-                  if (!ctx2) return
-                  const r = c.getBoundingClientRect()
-                  const x2 = (ev.clientX - r.left) * (c.width / r.width)
-                  const y2 = (ev.clientY - r.top) * (c.height / r.height)
-                  ctx2.lineTo(x2, y2)
-                  ctx2.stroke()
-                }
-              }}
-              onMouseUp={(e) => { e.currentTarget.onmousemove = null }}
-              onMouseLeave={(e) => { e.currentTarget.onmousemove = null }}
-              onTouchStart={(e) => {
-                const c = e.currentTarget
-                const ctx = c.getContext("2d")
-                if (!ctx) return
-                const touch = e.touches[0]
-                const rect = c.getBoundingClientRect()
-                const x = (touch.clientX - rect.left) * (c.width / rect.width)
-                const y = (touch.clientY - rect.top) * (c.height / rect.height)
-                ctx.beginPath()
-                ctx.moveTo(x, y)
-                c.ontouchmove = (ev) => {
-                  ev.preventDefault()
-                  const ctx2 = c.getContext("2d")
-                  if (!ctx2) return
-                  const t = ev.touches[0]
-                  const r = c.getBoundingClientRect()
-                  const x2 = (t.clientX - r.left) * (c.width / r.width)
-                  const y2 = (t.clientY - r.top) * (c.height / r.height)
-                  ctx2.lineTo(x2, y2)
-                  ctx2.stroke()
-                }
-              }}
-              onTouchEnd={(e) => { e.currentTarget.ontouchmove = null }}
-            />
-            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
-              <button onClick={() => { limpiarFirma() }}
-                style={{
-                  padding: "0.5rem 1.25rem", borderRadius: "0.5rem",
-                  border: "1px solid var(--border)", background: "transparent",
-                  color: "#f1f5f9", cursor: "pointer", fontWeight: 600,
-                }}
-              >
-                Limpiar
-              </button>
-              <button onClick={() => setMostrarFirma(false)}
-                style={{
-                  padding: "0.5rem 1.25rem", borderRadius: "0.5rem",
-                  border: "1px solid var(--border)", background: "transparent",
-                  color: "#f1f5f9", cursor: "pointer", fontWeight: 600,
-                }}
-              >
-                Cancelar
-              </button>
-              <button onClick={guardarFirma}
-                style={{
-                  padding: "0.5rem 1.25rem", borderRadius: "0.5rem",
-                  background: "var(--primary)", border: "none",
-                  color: "var(--primary-fg)", cursor: "pointer", fontWeight: 600,
-                }}
-              >
-                Aplicar Firma
-              </button>
+          {/* Lugar y Fecha */}
+          <div style={{ textAlign: "right", marginBottom: "0.75rem", fontSize: "0.9375rem" }}>
+            {draft.ciudad ? `${draft.ciudad}, ` : ""}
+            {draft.fecha}
+          </div>
+
+          {/* Asunto */}
+          {draft.asunto && (
+            <div style={{ textAlign: "right", fontWeight: "bold", marginBottom: "1.75rem", fontSize: "0.9375rem" }}>
+              ASUNTO: {draft.asunto}
+            </div>
+          )}
+
+          {/* Destinatario Principal */}
+          <div style={{ marginBottom: "1.25rem" }}>
+            {draft.destino.nombre && (
+              <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: "1rem" }}>
+                {draft.destino.nombre}
+              </div>
+            )}
+            {draft.destino.cargo && (
+              <div style={{ fontSize: "0.9375rem" }}>
+                {draft.destino.cargo}
+              </div>
+            )}
+
+            {/* Atenciones Múltiples */}
+            {draft.atencion.length > 0 && (
+              <div style={{ marginTop: "0.5rem", fontStyle: "italic", fontSize: "0.875rem" }}>
+                {draft.atencion.map((at) => (
+                  <div key={at.id}>
+                    AT&apos;N: {at.nombre} {at.cargo ? `(${at.cargo})` : ""}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ fontWeight: "bold", marginTop: "0.75rem", letterSpacing: "1px" }}>
+              P R E S E N T E .
             </div>
           </div>
-        </div>
-      )}
-      {mostrarGuardar && onGuardar && (
-        <div
-          style={{
-            position: "fixed", inset: 0, background: "rgba(10, 15, 25, 0.98)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            zIndex: 1100, padding: "1.25rem",
-          }}
-        >
-          <div style={{
-            background: "#1e293b", borderRadius: "1.25rem", maxWidth: 500,
-            width: "100%", padding: "1.5rem",
-          }}>
-            <h3 style={{ color: "#fff", margin: "0 0 0.25rem" }}>Guardar ✓</h3>
-            <p style={{ color: "var(--muted)", fontSize: "0.8125rem", marginBottom: "1.25rem" }}>
-              Este escrito quedará guardado en este dispositivo para que puedas reimprimirlo cuando quieras.
-            </p>
-            <label style={{
-              display: "block", color: "#cbd5e1", fontSize: "0.8125rem",
-              fontWeight: 600, marginBottom: "0.375rem",
-            }}>
-              Título del escrito
-            </label>
-            <input
-              value={tituloGuardar}
-              onChange={(e) => setTituloGuardar(e.target.value)}
-              placeholder="Ej. Solicitud de cambio de adscripción"
-              style={{
-                width: "100%", padding: "0.625rem 0.875rem", borderRadius: "0.5rem",
-                border: "1px solid var(--border)", background: "#0f172a", color: "#f1f5f9",
-                fontSize: "0.875rem", marginBottom: "1.25rem", outline: "none",
-              }}
-            />
-            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-              <button onClick={() => setMostrarGuardar(false)}
-                style={{
-                  padding: "0.5rem 1.25rem", borderRadius: "0.5rem",
-                  border: "1px solid var(--border)", background: "transparent",
-                  color: "#f1f5f9", cursor: "pointer", fontWeight: 600,
-                }}
-              >
-                Cancelar
-              </button>
-              <button onClick={confirmarGuardar} disabled={guardando}
-                style={{
-                  padding: "0.5rem 1.25rem", borderRadius: "0.5rem",
-                  background: "var(--primary)", border: "none",
-                  color: "var(--primary-fg)", cursor: guardando ? "not-allowed" : "pointer",
-                  fontWeight: 600, opacity: guardando ? 0.7 : 1,
-                }}
-              >
-                {guardando ? "Guardando..." : "Guardar escrito"}
-              </button>
-            </div>
+
+          {/* Cuerpo del Documento */}
+          <div style={{ textAlign: "justify", marginBottom: "2.5rem" }}>
+            {draft.cuerpo.split(/\n\s*\n/).map((para, idx) => (
+              <p key={idx} style={{ margin: "0 0 1rem", textIndent: "1.5rem" }}>
+                {para}
+              </p>
+            ))}
           </div>
+
+          {/* Bloque de Despedida y Firma */}
+          <div style={{ textAlign: "center", marginTop: "2rem", pageBreakInside: "avoid" }}>
+            <div style={{ fontWeight: "bold", marginBottom: "0.5rem", letterSpacing: "1px" }}>
+              A T E N T A M E N T E
+            </div>
+
+            {/* Firma Gráfica */}
+            <div style={{ minHeight: "60px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", margin: "0.75rem 0" }}>
+              {draft.firmaPreviewUrl ? (
+                <div>
+                  <img
+                    src={draft.firmaPreviewUrl}
+                    alt="Firma del trabajador"
+                    style={{ maxHeight: "60px", maxWidth: "160px", objectFit: "contain" }}
+                  />
+                  <div style={{ marginTop: "0.25rem" }}>
+                    <Button variant="ghost" size="sm" onClick={() => setIsSignatureModalOpen(true)}>
+                      Cambiar firma
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={handleRemoveSignature}>
+                      Quitar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setIsSignatureModalOpen(true)}
+                  style={{ border: "1px dashed var(--border)" }}
+                >
+                  ✍️ Insertar firma digitalizada
+                </Button>
+              )}
+            </div>
+
+            {/* Línea de firma */}
+            <div style={{ width: "220px", borderTop: "1px solid #0f172a", margin: "0 auto 0.5rem" }} />
+
+            <div style={{ fontWeight: "bold", fontSize: "0.9375rem", textTransform: "uppercase" }}>
+              {workerProfile?.nombre || "NOMBRE DEL TRABAJADOR"}
+            </div>
+            {workerProfile?.matricula && (
+              <div style={{ fontSize: "0.8125rem", color: "#475569" }}>
+                Matrícula: {workerProfile.matricula}
+              </div>
+            )}
+            {workerProfile?.categoria && (
+              <div style={{ fontSize: "0.8125rem", color: "#475569" }}>
+                Categoría: {workerProfile.categoria}
+              </div>
+            )}
+            {workerProfile?.adscripcion && (
+              <div style={{ fontSize: "0.8125rem", color: "#475569" }}>
+                Adscripción: {workerProfile.adscripcion}
+              </div>
+            )}
+          </div>
+
+          {/* Copias (c.c.p.) */}
+          {draft.copias.length > 0 && (
+            <div style={{ marginTop: "2rem", borderTop: "1px solid #e2e8f0", paddingTop: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontStyle: "italic" }}>
+              <div>c.c.p.</div>
+              {draft.copias.map((cp) => (
+                <div key={cp.id}>
+                  - {cp.nombre} {cp.cargo ? `(${cp.cargo})` : ""}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Galería de Anexos Adjuntos */}
+          {draft.anexos.length > 0 && (
+            <div style={{ marginTop: "2.5rem", borderTop: "2px dashed #cbd5e1", paddingTop: "1.5rem" }}>
+              <div style={{ fontWeight: "bold", fontSize: "0.875rem", textTransform: "uppercase", marginBottom: "1rem", color: "#334155" }}>
+                Anexos adjuntos ({draft.anexos.length})
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                {draft.anexos.map((anx, i) => (
+                  <div key={anx.id} style={{ background: "#f8fafc", padding: "1rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0" }}>
+                    <div style={{ fontWeight: 600, fontSize: "0.875rem", marginBottom: "0.25rem" }}>
+                      Anexo {i + 1}: {anx.nombre}
+                    </div>
+                    {anx.descripcion && (
+                      <div style={{ fontSize: "0.8125rem", color: "#64748b", fontStyle: "italic", marginBottom: "0.75rem" }}>
+                        {anx.descripcion}
+                      </div>
+                    )}
+                    {anx.previewUrl && (
+                      <img
+                        src={anx.previewUrl}
+                        alt={anx.nombre}
+                        style={{ maxWidth: "100%", maxHeight: "350px", objectFit: "contain", borderRadius: "0.375rem", border: "1px solid #cbd5e1", display: "block" }}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
+      ) : (
+        /* Renderizado Vista Lectura Móvil */
+        <Card padding="1.5rem">
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "1px solid var(--border)", paddingBottom: "0.75rem" }}>
+              <div>
+                <div style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--fg)" }}>
+                  {draft.titulo}
+                </div>
+                <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+                  Para: {draft.destino.nombre || draft.destino.cargo || "Destinatario"}
+                </div>
+              </div>
+              <span style={{ fontSize: "0.75rem", background: "var(--accent)", padding: "0.25rem 0.5rem", borderRadius: "0.375rem", color: "var(--muted)" }}>
+                {draft.fecha}
+              </span>
+            </div>
+
+            {draft.asunto && (
+              <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--primary)" }}>
+                Asunto: {draft.asunto}
+              </div>
+            )}
+
+            <div style={{ whiteSpace: "pre-wrap", fontSize: "0.9375rem", lineHeight: 1.6, color: "var(--fg)" }}>
+              {draft.cuerpo}
+            </div>
+
+            {draft.anexos.length > 0 && (
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
+                <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.5rem" }}>
+                  Anexos fotográficos ({draft.anexos.length}):
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "0.5rem" }}>
+                  {draft.anexos.map((anx) => (
+                    <div key={anx.id} style={{ border: "1px solid var(--border)", borderRadius: "0.5rem", overflow: "hidden" }}>
+                      {anx.previewUrl ? (
+                        <img src={anx.previewUrl} alt={anx.nombre} style={{ width: "100%", height: "90px", objectFit: "cover" }} />
+                      ) : (
+                        <div style={{ height: "90px", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>📷</div>
+                      )}
+                      <div style={{ padding: "0.25rem", fontSize: "0.6875rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {anx.nombre}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
       )}
-    </>
+
+      {/* Modal de Firma */}
+      <SignaturePadModal
+        userId={userId}
+        escritoId={draft.id}
+        isOpen={isSignatureModalOpen}
+        onClose={() => setIsSignatureModalOpen(false)}
+        onSave={handleSaveSignature}
+      />
+
+      {/* Barra de Acciones Final */}
+      <div
+        style={{
+          position: "sticky",
+          bottom: "1rem",
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: "0.75rem",
+          padding: "0.875rem 1rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "0.75rem",
+          boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
+          zIndex: 10,
+        }}
+      >
+        <Button variant="ghost" size="sm" onClick={onBackToEditor}>
+          ✏ Volver al editor
+        </Button>
+
+        <div style={{ display: "flex", gap: "0.75rem" }}>
+          <Button variant="secondary" size="md" onClick={onSaveDraft}>
+            💾 Guardar en mis documentos
+          </Button>
+          <Button variant="primary" size="md" onClick={handleDownloadPdf} loading={isDownloading}>
+            📥 Descargar PDF Carta
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }

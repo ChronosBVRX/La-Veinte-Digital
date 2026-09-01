@@ -56,7 +56,7 @@ const steps: GateStep[] = [
   },
   {
     name: "Next.js Production Build",
-    command: "npm run build",
+    command: "rm -rf .next && npm run build",
   },
   {
     name: "Android Unit Tests (All Flavors)",
@@ -85,7 +85,7 @@ async function main() {
     const start = Date.now()
     try {
       if (step.command) {
-        execSync(step.command, { stdio: "pipe", encoding: "utf-8" })
+        execSync(step.command, { stdio: "pipe", encoding: "utf-8", maxBuffer: 64 * 1024 * 1024 })
       } else if (step.action) {
         await step.action()
       }

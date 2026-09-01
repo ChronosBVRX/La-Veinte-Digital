@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
-import { FileText, FolderOpen, Printer, Clock, Trash, PencilLine, DotsThree, UploadSimple } from "@phosphor-icons/react"
+import { FileText, FolderOpen, Printer, Clock, Trash, PencilLine, DotsThree, UploadSimple, PencilSimple } from "@phosphor-icons/react"
 import { getEscritosGuardados, eliminarEscrito } from "@/features/escritos/services/escritos-storage"
 import { readNativeDocumentAsFile, deleteNativeDocument } from "@/features/transferir/services/transfer"
 import { SendPrintModal } from "./SendPrintModal"
@@ -28,6 +29,7 @@ const TIPO_COLOR: Record<DocTipo, string> = {
 
 export function DocumentosPersonales() {
   const supabase = createClient()
+  const [userId, setUserId] = useState<string | null>(null)
   const [nativos, setNativos] = useState<DocumentoPersonalItem[]>([])
   const [escritos, setEscritos] = useState<DocumentoPersonalItem[]>([])
   const [cargando, setCargando] = useState(true)
@@ -46,12 +48,54 @@ export function DocumentosPersonales() {
       .catch(() => setNativos([]))
   }
 
+  // 1. Cargar sesión de usuario antes de leer datos privados
   useEffect(() => {
-    if (!isNative) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- detección de shell nativo (solo cliente)
+    let cancelled = false
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (cancelled) return
+      if (user) {
+        setUserId(user.id)
+        const userEscritos = getEscritosGuardados(user.id)
+        setEscritos(
+          userEscritos.map((e) => ({
+            kind: "escrito",
+            tipo: "escrito",
+            id: e.id,
+            titulo: e.titulo,
+            fecha: e.fecha,
+            escrito: e,
+          }))
+        )
+
+        const { data: p } = await supabase
+          .from("profiles")
+          .select("full_name, matricula, categoria, antiguedad")
+          .eq("id", user.id)
+          .maybeSingle()
+
+        if (!cancelled && p) {
+          setProfile({
+            fullName: p.full_name ?? null,
+            matricula: p.matricula ?? null,
+            categoria: p.categoria ?? null,
+            antiguedad: p.antiguedad ?? null,
+          })
+        }
+      } else {
+        setUserId("anonymous")
+        setEscritos([])
+      }
       setCargando(false)
-      return
+    })
+
+    return () => {
+      cancelled = true
     }
+  }, [supabase])
+
+  // 2. Cargar documentos nativos si está en el contenedor móvil
+  useEffect(() => {
+    if (!isNative) return
     let cancelled = false
     window.LaVeinteApp!.listNativeDocuments()
       .then((docs) => {
@@ -59,33 +103,8 @@ export function DocumentosPersonales() {
         setNativos((docs ?? []).map(toNativo).filter((d): d is NonNullable<typeof d> => !!d))
       })
       .catch(() => { if (!cancelled) setNativos([]) })
-      .finally(() => { if (!cancelled) setCargando(false) })
     return () => { cancelled = true }
   }, [isNative])
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- hidratación local desde localStorage (solo cliente)
-    setEscritos(getEscritosGuardados().map((e) => ({
-      kind: "escrito", tipo: "escrito", id: e.id, titulo: e.titulo, fecha: e.fecha, escrito: e,
-    })))
-  }, [])
-
-  useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return
-      const { data: p } = await supabase
-        .from("profiles")
-        .select("full_name, matricula, categoria, antiguedad")
-        .eq("id", user.id)
-        .maybeSingle()
-      setProfile({
-        fullName: p?.full_name ?? null,
-        matricula: p?.matricula ?? null,
-        categoria: p?.categoria ?? null,
-        antiguedad: p?.antiguedad ?? null,
-      })
-    })
-  }, [supabase])
 
   const items = useMemo(() => {
     const todos = [...nativos, ...escritos]
@@ -104,7 +123,11 @@ export function DocumentosPersonales() {
       if (doc.kind === "nativo") {
         return readNativeDocumentAsFile({ name: doc.name, mimeType: doc.mimeType, localPath: doc.localPath })
       }
-      return escritoToPdfFile(doc.escrito)
+      return escritoToPdfFile(doc.escrito, userId ?? "anonymous", {
+        nombre: profile?.fullName ?? undefined,
+        matricula: profile?.matricula ?? undefined,
+        categoria: profile?.categoria ?? undefined,
+      })
     }
     setSendDoc({ doc, getFile })
     setMenuDoc(null)
@@ -122,10 +145,18 @@ export function DocumentosPersonales() {
     setBorrandoId(doc.id)
     try {
       if (doc.kind === "escrito") {
-        eliminarEscrito(doc.id)
-        setEscritos(getEscritosGuardados().map((e) => ({
-          kind: "escrito", tipo: "escrito", id: e.id, titulo: e.titulo, fecha: e.fecha, escrito: e,
-        })))
+        eliminarEscrito(doc.id, userId || undefined)
+        const updated = getEscritosGuardados(userId || undefined)
+        setEscritos(
+          updated.map((e) => ({
+            kind: "escrito",
+            tipo: "escrito",
+            id: e.id,
+            titulo: e.titulo,
+            fecha: e.fecha,
+            escrito: e,
+          }))
+        )
       } else {
         const ok = await deleteNativeDocument(doc.localPath)
         if (ok) reloadNativos()
@@ -140,13 +171,14 @@ export function DocumentosPersonales() {
   const fecha = (doc: DocumentoPersonalItem) =>
     doc.kind === "nativo" ? formatFecha(doc.downloadedAt) : formatFechaEscrito(doc.escrito.fecha)
   const detalle = (doc: DocumentoPersonalItem) =>
-    doc.kind === "nativo" ? formatBytes(doc.fileSize) : "Guardado"
+    doc.kind === "nativo" ? formatBytes(doc.fileSize) : "Borrador guardado"
   const puedeBorrarNativo = typeof window !== "undefined" && !!window.LaVeinteApp?.deleteNativeDocument
 
   const iconBtn: React.CSSProperties = {
     display: "inline-flex", alignItems: "center", justifyContent: "center",
     width: 38, height: 38, borderRadius: "0.625rem",
     border: "none", cursor: "pointer", padding: 0, flexShrink: 0,
+    textDecoration: "none",
   }
 
   return (
@@ -169,40 +201,51 @@ export function DocumentosPersonales() {
         </div>
       </div>
 
-      {!isNative && (
+      {!isNative && nativos.length === 0 && (
         <div style={{
-          background: "var(--card)", border: "1px solid var(--border)",
-          borderRadius: "0.75rem", padding: "2rem 1.5rem", textAlign: "center",
+          background: "var(--accent)", border: "1px solid var(--border)",
+          borderRadius: "0.75rem", padding: "1rem 1.25rem",
         }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: "0.75rem", margin: "0 auto 0.75rem",
-            background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <FolderOpen size={24} weight="duotone" style={{ color: "var(--primary)" }} />
-          </div>
-          <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
-            Esta sección es exclusiva de la app La Veinte Digital. Ábrela desde la aplicación en tu teléfono.
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
+            📱 Los tarjetones y checadas descargados del IMSS se sincronizan en la aplicación móvil instalada. Aquí puedes gestionar tus escritos redactados.
           </p>
         </div>
       )}
 
-      {isNative && cargando && (
+      {cargando && (
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", textAlign: "center", padding: "2rem 0" }}>Cargando documentos…</p>
       )}
 
-      {isNative && !cargando && items.length === 0 && (
+      {!cargando && items.length === 0 && (
         <div style={{
           background: "var(--card)", border: "1px solid var(--border)",
           borderRadius: "0.75rem", padding: "2.5rem 1.5rem", textAlign: "center",
         }}>
           <h2 style={{ fontSize: "1.0625rem", fontWeight: 700, margin: "0 0 0.25rem" }}>Aún no tienes documentos</h2>
-          <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
-            Cuando descargues tarjetones o checadas del IMSS, o guardes un escrito, aparecerán aquí.
+          <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: "0 0 1.25rem", lineHeight: 1.5 }}>
+            Cuando descargues tarjetones o checadas del IMSS, o redactes un escrito, aparecerán aquí.
           </p>
+          <Link
+            href="/escritos"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              padding: "0.625rem 1.25rem",
+              background: "var(--primary)",
+              color: "var(--primary-fg)",
+              borderRadius: "0.5rem",
+              fontWeight: 600,
+              fontSize: "0.875rem",
+              textDecoration: "none",
+            }}
+          >
+            ✏️ Redactar un nuevo escrito
+          </Link>
         </div>
       )}
 
-      {isNative && !cargando && items.length > 0 && (
+      {!cargando && items.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem" }}>
           {(Object.keys(grouped) as Array<keyof typeof grouped>).map((tipo) => {
             const list = grouped[tipo]
@@ -265,6 +308,23 @@ export function DocumentosPersonales() {
 
                         {/* Acciones */}
                         <div style={{ display: "flex", gap: "0.375rem", flexShrink: 0, alignItems: "center" }}>
+                          {/* Botón Editar para escritos */}
+                          {doc.tipo === "escrito" && (
+                            <Link
+                              href={`/escritos?id=${doc.id}`}
+                              title="Editar escrito"
+                              aria-label="Editar escrito"
+                              style={{
+                                ...iconBtn,
+                                background: "var(--accent)",
+                                color: "var(--primary)",
+                                border: "1px solid var(--border)",
+                              }}
+                            >
+                              <PencilSimple size={18} weight="bold" />
+                            </Link>
+                          )}
+
                           {hasMenu && (
                             <div style={{ position: "relative" }}>
                               <button
@@ -309,8 +369,8 @@ export function DocumentosPersonales() {
 
                           <button
                             onClick={() => handleSend(doc)}
-                            title="Enviar a imprimir"
-                            aria-label="Enviar a imprimir"
+                            title="Enviar a imprimir o transferir"
+                            aria-label="Enviar a imprimir o transferir"
                             style={{ ...iconBtn, background: "var(--primary)", color: "var(--primary-fg)", boxShadow: "0 2px 6px rgba(37,99,235,0.25)" }}
                           >
                             <Printer size={18} weight="bold" />
