@@ -102,20 +102,20 @@ test.describe("Generador de Escritos V2 (Flujo Completo)", () => {
 
     // Probar herramienta de IA con propuesta no destructiva (Descartar y Aceptar)
     await page.getByRole("button", { name: "👔 Tono más formal" }).click()
-    await expect(page.getByRole("heading", { name: /Propuesta de redacción IA/i })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Hacer más formal" })).toBeVisible()
     expect(lastRevisionRequest).not.toBeNull()
     const revReq = lastRevisionRequest as { mode?: string; cuerpoActual?: string } | null
     expect(revReq?.mode).toBe("revise")
     expect(revReq?.cuerpoActual).toContain("Párrafo añadido manualmente")
 
     // Descartar propuesta
-    await page.getByRole("button", { name: "✕ Descartar propuesta" }).click()
-    await expect(page.getByRole("heading", { name: /Propuesta de redacción IA/i })).not.toBeVisible()
+    await page.getByRole("button", { name: "Descartar cambios" }).click()
+    await expect(page.getByRole("heading", { name: "Hacer más formal" })).not.toBeVisible()
 
     // Volver a solicitar y Aceptar propuesta
     await page.getByRole("button", { name: "👔 Tono más formal" }).click()
-    await expect(page.getByRole("heading", { name: /Propuesta de redacción IA/i })).toBeVisible()
-    await page.getByRole("button", { name: "✓ Aceptar y aplicar cambios" }).click()
+    await expect(page.getByRole("heading", { name: "Hacer más formal" })).toBeVisible()
+    await page.getByRole("button", { name: "Aplicar propuesta" }).click()
     await expect(textarea).toHaveValue(/\[Texto ajustado formalmente conforme a la normativa vigente\]/)
 
     // 6. Guardar borrador

@@ -2,6 +2,7 @@
  * Servicio compartido de almacenamiento local para escritos V2.
  * Aislado estrictamente por usuario en localStorage.
  * Las firmas y fotos se guardan en IndexedDB (shared/services/blob-storage).
+ * Implementa una migración de dos fases, idempotente y recuperable con journal por usuario.
  * La Veinte Digital
  */
 
@@ -16,6 +17,7 @@ import {
   deleteEscritoBlobs,
   duplicateEscritoBlobs,
   saveBlobResource,
+  getBlobResource,
   deleteBlobResource,
   dataUrlToBlob,
 } from "@/shared/services/blob-storage"
@@ -24,9 +26,45 @@ export const STORAGE_PREFIX = "la_veinte_escritos_v2"
 export const LEGACY_STORAGE_KEY = "escritos_guardados"
 export const MIGRATION_FLAG_KEY = "escritos_guardados_migrated_to"
 
+export type MigrationJournalState = "pending" | "blobs_verified" | "metadata_committed" | "completed"
+
+export interface MigrationJournal {
+  userId: string
+  state: MigrationJournalState
+  startedAt: string
+  updatedAt: string
+  blobKeys: string[]
+  draftsCount: number
+}
+
 export function getStorageKey(userId?: string): string {
   const safeUser = userId && userId.trim() ? userId.trim() : "anonymous"
   return `${STORAGE_PREFIX}_${safeUser}`
+}
+
+export function getJournalKey(userId: string): string {
+  const safeUser = userId.trim() || "anonymous"
+  return `${STORAGE_PREFIX}_journal_${safeUser}`
+}
+
+export function getMigrationJournal(userId: string): MigrationJournal | null {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = localStorage.getItem(getJournalKey(userId))
+    if (!raw) return null
+    return JSON.parse(raw) as MigrationJournal
+  } catch {
+    return null
+  }
+}
+
+export function saveMigrationJournal(journal: MigrationJournal): void {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem(getJournalKey(journal.userId), JSON.stringify(journal))
+  } catch (e) {
+    console.warn("[escritos-storage] No se pudo guardar journal de migración:", e)
+  }
 }
 
 export function nuevoIdEscrito(): string {
@@ -52,17 +90,96 @@ export function sanitizarParaLocalStorage(draft: EscritoDraftV2): EscritoDraftV2
 }
 
 /**
- * Migración transaccional de dos fases para escritos legados (V1 -> V2).
- * Guarda las firmas y fotos como Blobs en IndexedDB antes de eliminar la clave legada.
- * Si ocurre un error, ejecuta un rollback eliminando los blobs creados y conservando los datos originales.
+ * Genera una representación serializada canónica y estable del borrador para
+ * detección precisa de cambios sin guardar (isDirty), ignorando campos volátiles (URLs blob:).
+ */
+export function serializePersistableDraft(draft: EscritoDraftV2): string {
+  return JSON.stringify({
+    tipo: draft.tipo || "solicitud",
+    titulo: (draft.titulo || "").trim(),
+    asunto: (draft.asunto || "").trim(),
+    destino: {
+      nombre: (draft.destino?.nombre || "").trim(),
+      cargo: (draft.destino?.cargo || "").trim(),
+    },
+    ciudad: (draft.ciudad || "").trim(),
+    fecha: (draft.fecha || "").trim(),
+    hechos: (draft.hechos || "").trim(),
+    peticion: (draft.peticion || "").trim(),
+    cuerpo: (draft.cuerpo || "").trim(),
+    firmaRef: (draft.firmaRef || "").trim(),
+    incluirFundamentos: Boolean(draft.incluirFundamentos),
+    atencion: (draft.atencion || []).map((a) => ({
+      nombre: (a.nombre || "").trim(),
+      cargo: (a.cargo || "").trim(),
+    })),
+    copias: (draft.copias || []).map((c) => ({
+      nombre: (c.nombre || "").trim(),
+      cargo: (c.cargo || "").trim(),
+    })),
+    anexos: (draft.anexos || []).map((anx) => ({
+      id: anx.id,
+      nombre: anx.nombre.trim(),
+      descripcion: (anx.descripcion || "").trim(),
+      tipo: anx.tipo,
+      size: anx.size,
+      storageRef: anx.storageRef,
+    })),
+  })
+}
+
+/**
+ * Migración de dos fases, idempotente y recuperable para escritos legados (V1 -> V2).
+ * Fase 1: Guarda firmas y fotos en IndexedDB y verifica inmediatamente su lectura (read-back).
+ * Fase 2: Compromete los metadatos en localStorage del usuario.
+ * Si ocurre un error antes de comprometer metadatos, revierte los blobs creados.
+ * Si los metadatos ya fueron comprometidos, no destruye los blobs y completa el proceso en el reintento.
  */
 export async function migrarEscritosLegadosSiEsNecesario(
   userId: string
 ): Promise<{ success: boolean; migratedCount: number; error?: string }> {
   if (typeof window === "undefined") return { success: true, migratedCount: 0 }
 
+  const now = new Date().toISOString()
+  let journal = getMigrationJournal(userId)
+
+  // Si ya se había completado la migración para este usuario
+  if (journal && journal.state === "completed") {
+    localStorage.removeItem(LEGACY_STORAGE_KEY)
+    localStorage.setItem(MIGRATION_FLAG_KEY, userId)
+    return { success: true, migratedCount: journal.draftsCount }
+  }
+
+  // Si los metadatos ya fueron comprometidos en un intento previo que falló al limpiar la clave global
+  if (journal && journal.state === "metadata_committed") {
+    try {
+      localStorage.removeItem(LEGACY_STORAGE_KEY)
+      localStorage.setItem(MIGRATION_FLAG_KEY, userId)
+      journal.state = "completed"
+      journal.updatedAt = now
+      saveMigrationJournal(journal)
+      return { success: true, migratedCount: journal.draftsCount }
+    } catch (e) {
+      return {
+        success: false,
+        migratedCount: journal.draftsCount,
+        error: e instanceof Error ? e.message : "Error completando limpieza de migración previa.",
+      }
+    }
+  }
+
   const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY)
   if (!legacyRaw) {
+    if (!journal) {
+      saveMigrationJournal({
+        userId,
+        state: "completed",
+        startedAt: now,
+        updatedAt: now,
+        blobKeys: [],
+        draftsCount: 0,
+      })
+    }
     return { success: true, migratedCount: 0 }
   }
 
@@ -72,6 +189,14 @@ export async function migrarEscritosLegadosSiEsNecesario(
     if (!Array.isArray(legacyParsed) || legacyParsed.length === 0) {
       localStorage.removeItem(LEGACY_STORAGE_KEY)
       localStorage.setItem(MIGRATION_FLAG_KEY, userId)
+      saveMigrationJournal({
+        userId,
+        state: "completed",
+        startedAt: now,
+        updatedAt: now,
+        blobKeys: [],
+        draftsCount: 0,
+      })
       return { success: true, migratedCount: 0 }
     }
   } catch (e) {
@@ -97,7 +222,19 @@ export async function migrarEscritosLegadosSiEsNecesario(
   const createdBlobKeys: string[] = []
   const newMigratedDrafts: EscritoDraftV2[] = []
 
+  // Inicializar journal en pending
+  journal = {
+    userId,
+    state: "pending",
+    startedAt: now,
+    updatedAt: now,
+    blobKeys: [],
+    draftsCount: 0,
+  }
+  saveMigrationJournal(journal)
+
   try {
+    // ── FASE 1: Guardado y Verificación Read-back de Blobs en IndexedDB ──
     for (const rawItem of legacyParsed) {
       if (!rawItem || typeof rawItem !== "object") continue
       const legacyItem = rawItem as LegacyEscritoV1
@@ -116,6 +253,13 @@ export async function migrarEscritosLegadosSiEsNecesario(
       if (legacyItem.firmaUrl && typeof legacyItem.firmaUrl === "string" && legacyItem.firmaUrl.startsWith("data:")) {
         const blob = dataUrlToBlob(legacyItem.firmaUrl)
         const firmaRef = await saveBlobResource(userId, draft.id, "firma", "legacy_sig", blob)
+
+        // Read-back verification
+        const verifiedFirma = await getBlobResource(userId, firmaRef)
+        if (!verifiedFirma || verifiedFirma.size === 0) {
+          throw new Error(`Verificación fallida al releer la firma migrada (${firmaRef}).`)
+        }
+
         draft.firmaRef = firmaRef
         createdBlobKeys.push(firmaRef)
       }
@@ -129,6 +273,13 @@ export async function migrarEscritosLegadosSiEsNecesario(
             const photoBlob = dataUrlToBlob(fotoDataUrl)
             const photoId = `legacy_photo_${i + 1}`
             const photoRef = await saveBlobResource(userId, draft.id, "anexo", photoId, photoBlob)
+
+            // Read-back verification
+            const verifiedPhoto = await getBlobResource(userId, photoRef)
+            if (!verifiedPhoto || verifiedPhoto.size === 0) {
+              throw new Error(`Verificación fallida al releer la foto migrada ${i + 1} (${photoRef}).`)
+            }
+
             createdBlobKeys.push(photoRef)
             anexos.push({
               id: `anx_${photoId}`,
@@ -147,24 +298,43 @@ export async function migrarEscritosLegadosSiEsNecesario(
       existingIds.add(draft.id)
     }
 
-    // Fase 2: Persistencia en localStorage
+    // Blobs verificados
+    journal.state = "blobs_verified"
+    journal.blobKeys = createdBlobKeys
+    journal.draftsCount = newMigratedDrafts.length
+    journal.updatedAt = new Date().toISOString()
+    saveMigrationJournal(journal)
+
+    // ── FASE 2: Compromiso de Metadatos en localStorage y Finalización ──
     const finalList = [...newMigratedDrafts, ...userList]
     localStorage.setItem(userKey, JSON.stringify(finalList.map(sanitizarParaLocalStorage)))
 
-    // Limpieza atómica de la clave global únicamente tras éxito completo
+    journal.state = "metadata_committed"
+    journal.updatedAt = new Date().toISOString()
+    saveMigrationJournal(journal)
+
+    // Limpieza atómica de la clave global únicamente tras confirmación de metadatos
     localStorage.removeItem(LEGACY_STORAGE_KEY)
     localStorage.setItem(MIGRATION_FLAG_KEY, userId)
+
+    journal.state = "completed"
+    journal.updatedAt = new Date().toISOString()
+    saveMigrationJournal(journal)
 
     return {
       success: true,
       migratedCount: newMigratedDrafts.length,
     }
   } catch (err) {
-    console.error("[escritos-storage] Error en migración transaccional. Ejecutando rollback:", err)
+    console.error("[escritos-storage] Error en migración recuperable:", err)
 
-    // Rollback: Eliminar blobs parcialmente creados
-    for (const key of createdBlobKeys) {
-      await deleteBlobResource(userId, key).catch(() => {})
+    // Si el error ocurrió antes de escribir metadatos (state = 'pending' o 'blobs_verified')
+    if (journal.state === "pending" || journal.state === "blobs_verified") {
+      // Rollback seguro de blobs creados para evitar fugas en IndexedDB
+      for (const key of createdBlobKeys) {
+        await deleteBlobResource(userId, key).catch(() => {})
+      }
+      // Conservar LEGACY_STORAGE_KEY intacto para permitir reintento
     }
 
     return {

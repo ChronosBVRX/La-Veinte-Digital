@@ -1,6 +1,6 @@
 /**
  * Servicio de generación de escritos con IA y RAG normativo estricto.
- * Anti-inyección de prompt, sanitización XML, verificación de citas y grounding.
+ * Anti-inyección de prompt, sanitización XML, verificación de citas y grounding contra campos estructurados.
  * Soporta mode: "create" | "revise".
  * La Veinte Digital
  */
@@ -61,6 +61,15 @@ function sanitizeString(str: unknown, maxLen: number): string {
   return str.trim().slice(0, maxLen)
 }
 
+function normalizeElement(str: string): string {
+  return str
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
 export function validateGenerarEscritoRequest(req: unknown): {
   valid: boolean
   error?: string
@@ -79,32 +88,44 @@ export function validateGenerarEscritoRequest(req: unknown): {
   const mode = r.mode === "revise" ? "revise" : "create"
   const cuerpoActual = sanitizeString(r.cuerpoActual, 10000)
   const instruccionAjuste = sanitizeString(r.instruccionAjuste, 1000)
-
-  if (mode === "revise") {
-    if (cuerpoActual.length < 5) {
-      return { valid: false, error: "Se requiere el contenido actual del texto para revisarlo." }
-    }
-  } else {
-    const hechos = sanitizeString(r.hechos, 5000)
-    const peticion = sanitizeString(r.peticion, 2000)
-    if (hechos.length < 5 && peticion.length < 5) {
-      return { valid: false, error: "Debes proporcionar hechos o una petición concreta." }
-    }
-  }
-
+  const hechos = sanitizeString(r.hechos, 5000)
+  const peticion = sanitizeString(r.peticion, 2000)
   const destinoNombre = sanitizeString(r.destino?.nombre, 150)
   const destinoCargo = sanitizeString(r.destino?.cargo, 150)
   const ciudad = sanitizeString(r.ciudad, 100)
   const fecha = sanitizeString(r.fecha, 50)
   const asunto = sanitizeString(r.asunto, 200)
 
+  if (mode === "revise") {
+    if (cuerpoActual.length < 5) {
+      return { valid: false, error: "Se requiere el contenido actual del texto para revisarlo." }
+    }
+  } else {
+    // Modo create exige todos los campos obligatorios en el servidor
+    if (hechos.length < 5) {
+      return { valid: false, error: "Debes proporcionar la exposición de hechos o antecedentes." }
+    }
+    if (peticion.length < 5) {
+      return { valid: false, error: "Debes proporcionar una petición concreta." }
+    }
+    if (!destinoNombre && !destinoCargo) {
+      return { valid: false, error: "Debes especificar a quién va dirigido el escrito." }
+    }
+    if (ciudad.length < 2) {
+      return { valid: false, error: "Debes indicar el lugar o ciudad de emisión." }
+    }
+    if (fecha.length < 4) {
+      return { valid: false, error: "Debes indicar la fecha de emisión." }
+    }
+  }
+
   return {
     valid: true,
     data: {
       mode,
       tipo: r.tipo,
-      hechos: sanitizeString(r.hechos, 5000),
-      peticion: sanitizeString(r.peticion, 2000),
+      hechos,
+      peticion,
       destino: { nombre: destinoNombre, cargo: destinoCargo },
       ciudad,
       fecha,
@@ -166,7 +187,7 @@ ${escapeXml(req.peticion)}
   return prompt
 }
 
-function extractReferencedLegalElements(text: string): { clauses: string[]; articles: string[] } {
+export function extractReferencedLegalElements(text: string): { clauses: string[]; articles: string[] } {
   const clauses: string[] = []
   const clauseMatches = text.matchAll(/cl[áa]usula\s+(\d+\s*(?:bis|ter|quater)?)/gi)
   for (const m of clauseMatches) {
@@ -182,13 +203,7 @@ function extractReferencedLegalElements(text: string): { clauses: string[]; arti
   return { clauses, articles }
 }
 
-function matchesExactNumber(numStr: string, text: string): boolean {
-  const escaped = numStr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  const regex = new RegExp(`\\b${escaped}\\b`, "i")
-  return regex.test(text)
-}
-
-function verifyGrounding(
+export function verifyGrounding(
   generatedText: string,
   evidence: RetrievedNormativaSource[]
 ): { isGrounded: boolean; unsupportedRefs: string[] } {
@@ -199,21 +214,30 @@ function verifyGrounding(
     return { isGrounded: allDetected.length === 0, unsupportedRefs: allDetected }
   }
 
-  const evidenceText = evidence
-    .map((e) => `${e.documento} ${e.numero || ""} ${e.fragmento}`)
-    .join(" ")
-    .toLowerCase()
+  const validClauses = new Set(
+    evidence
+      .map((e) => (e.clause ? normalizeElement(e.clause) : null))
+      .filter((c): c is string => Boolean(c))
+  )
+
+  const validArticles = new Set(
+    evidence
+      .map((e) => (e.article ? normalizeElement(e.article) : null))
+      .filter((a): a is string => Boolean(a))
+  )
 
   const unsupportedRefs: string[] = []
 
   for (const c of clauses) {
-    if (!matchesExactNumber(c, evidenceText)) {
+    const norm = normalizeElement(c)
+    if (!validClauses.has(norm)) {
       unsupportedRefs.push(`Cláusula ${c}`)
     }
   }
 
   for (const a of articles) {
-    if (!matchesExactNumber(a, evidenceText)) {
+    const norm = normalizeElement(a)
+    if (!validArticles.has(norm)) {
       unsupportedRefs.push(`Artículo ${a}`)
     }
   }
@@ -310,7 +334,7 @@ export async function generarEscritoService(
       return generateBasicFallbackEscrito(req)
     }
 
-    // Verificación estricta de Grounding
+    // Verificación estricta de Grounding contra campos estructurados
     let grounding = verifyGrounding(cuerpoLimpio, evidence)
 
     // Reintento único si el modelo intentó inventar referencias
@@ -333,11 +357,26 @@ export async function generarEscritoService(
       grounding = verifyGrounding(cuerpoLimpio, evidence)
     }
 
-    // Si aún después del reintento contiene referencias no fundamentadas, eliminarlas del cuerpo
+    // Si aún después del reintento contiene referencias no fundamentadas, eliminarlas y volver a verificar
     if (!grounding.isGrounded) {
       cuerpoLimpio = stripUnsupportedLegalReferences(cuerpoLimpio, grounding.unsupportedRefs)
+      grounding = verifyGrounding(cuerpoLimpio, evidence)
+
+      // Si después de la limpieza persisten citas inválidas, usar fallback seguro
+      if (!grounding.isGrounded) {
+        if (req.mode === "revise" && req.cuerpoActual) {
+          return {
+            cuerpo: req.cuerpoActual,
+            fuentes: [],
+            advertencias: ["No fue posible validar con certeza las referencias normativas. Se conservó el texto."],
+            generationMode: "basic_fallback",
+          }
+        }
+        return generateBasicFallbackEscrito(req)
+      }
+
       advertencias.push(
-        `Se eliminaron menciones normativas no respaldadas por el catálogo oficial (${grounding.unsupportedRefs.join(", ")}).`
+        "Se eliminaron menciones normativas no respaldadas por el catálogo oficial."
       )
       hasSources = false
     }

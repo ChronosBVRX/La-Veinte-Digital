@@ -471,6 +471,11 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
             }
           }
         )
+    }).catch(() => {
+      if (!cancelled) {
+        setAgendaCount(0)
+        setAgendaLoaded(true)
+      }
     })
     return () => {
       cancelled = true
@@ -519,6 +524,8 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
             if (!cancelled) setTarjetonStatus(null)
           }
         )
+    }).catch(() => {
+      if (!cancelled) setTarjetonStatus(null)
     })
     return () => {
       cancelled = true

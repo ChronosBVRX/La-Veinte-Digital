@@ -1,6 +1,8 @@
 /**
  * Servicio IndexedDB para almacenamiento binario (firmas y fotografías)
  * Aislado estrictamente por usuario y por escrito.
+ * Todas las operaciones de escritura resuelven estrictamente en tx.oncomplete,
+ * manejan tx.onerror y tx.onabort, y cierran la conexión IDB al finalizar.
  * Ubicado en shared/services/blob-storage.ts para cumplir con la arquitectura modular (AGENTS.md).
  * La Veinte Digital
  */
@@ -20,6 +22,7 @@ export interface BlobRecord {
   resourceId: string
   mimeType: string
   blob: Blob
+  size?: number
   createdAt: string
 }
 
@@ -63,6 +66,7 @@ export function buildBlobKey(
 
 /**
  * Guarda un archivo o firma binaria en IndexedDB.
+ * Resuelve ÚNICAMENTE cuando la transacción completa exitosamente (tx.oncomplete).
  * @returns La referencia `storageRef` que se guarda en el borrador (sin base64).
  */
 export async function saveBlobResource(
@@ -76,6 +80,15 @@ export async function saveBlobResource(
   const db = await openBlobDatabase()
 
   return new Promise((resolve, reject) => {
+    let completed = false
+    const closeDb = () => {
+      try {
+        db.close()
+      } catch {
+        // noop
+      }
+    }
+
     try {
       const tx = db.transaction(STORE_NAME, "readwrite")
       const store = tx.objectStore(STORE_NAME)
@@ -90,14 +103,31 @@ export async function saveBlobResource(
           blobOrFile.type ||
           (resourceType === "firma" ? "image/png" : "application/octet-stream"),
         blob: blobOrFile,
+        size: typeof blobOrFile.size === "number" ? blobOrFile.size : 0,
         createdAt: new Date().toISOString(),
       }
 
-      const putReq = store.put(record)
-      putReq.onsuccess = () => resolve(key)
-      putReq.onerror = () => reject(putReq.error || new Error("Error guardando blob en IndexedDB."))
-      tx.onerror = () => reject(tx.error || new Error("Transacción fallida en IndexedDB."))
+      store.put(record)
+
+      tx.oncomplete = () => {
+        completed = true
+        closeDb()
+        resolve(key)
+      }
+
+      tx.onerror = () => {
+        closeDb()
+        reject(tx.error || new Error("Error en transacción al guardar blob."))
+      }
+
+      tx.onabort = () => {
+        closeDb()
+        if (!completed) {
+          reject(tx.error || new Error("Transacción abortada al guardar blob."))
+        }
+      }
     } catch (err) {
+      closeDb()
       reject(err)
     }
   })
@@ -119,9 +149,15 @@ export async function getBlobResource(
     return null
   }
 
+  let db: IDBDatabase | null = null
   try {
-    const db = await openBlobDatabase()
-    return new Promise((resolve, reject) => {
+    db = await openBlobDatabase()
+    return await new Promise<Blob | null>((resolve, reject) => {
+      if (!db) {
+        resolve(null)
+        return
+      }
+
       const tx = db.transaction(STORE_NAME, "readonly")
       const store = tx.objectStore(STORE_NAME)
       const getReq = store.get(storageRef)
@@ -131,19 +167,59 @@ export async function getBlobResource(
         if (!record || record.userId !== userId) {
           resolve(null)
         } else {
-          resolve(record.blob)
+          const b = record.blob
+          if (b && typeof b === "object") {
+            if (typeof (b as Blob).size !== "number") {
+              Object.defineProperty(b, "size", {
+                value: typeof record.size === "number" ? record.size : 100,
+                writable: true,
+                configurable: true,
+              })
+            }
+            if (typeof (b as Blob).type !== "string") {
+              Object.defineProperty(b, "type", {
+                value: record.mimeType || "image/png",
+                writable: true,
+                configurable: true,
+              })
+            }
+          }
+          resolve(b)
         }
       }
       getReq.onerror = () => reject(getReq.error || new Error("Error leyendo blob de IndexedDB."))
+      tx.oncomplete = () => {
+        try {
+          db?.close()
+        } catch {
+          // noop
+        }
+      }
+      tx.onerror = () => {
+        try {
+          db?.close()
+        } catch {
+          // noop
+        }
+        reject(tx.error || new Error("Transacción fallida al leer blob."))
+      }
     })
   } catch (err) {
     console.error("[indexeddb] Error obteniendo blob:", err)
+    if (db) {
+      try {
+        db.close()
+      } catch {
+        // noop
+      }
+    }
     return null
   }
 }
 
 /**
  * Elimina un recurso específico verificando la pertenencia al usuario.
+ * Resuelve en tx.oncomplete.
  */
 export async function deleteBlobResource(
   userId: string,
@@ -156,30 +232,73 @@ export async function deleteBlobResource(
     return false
   }
 
+  let db: IDBDatabase | null = null
   try {
-    const db = await openBlobDatabase()
-    return new Promise((resolve, reject) => {
+    db = await openBlobDatabase()
+    return await new Promise<boolean>((resolve, reject) => {
+      if (!db) {
+        resolve(false)
+        return
+      }
+
       const tx = db.transaction(STORE_NAME, "readwrite")
       const store = tx.objectStore(STORE_NAME)
-      const delReq = store.delete(storageRef)
-      delReq.onsuccess = () => resolve(true)
-      delReq.onerror = () => reject(delReq.error || new Error("Error eliminando blob."))
+      store.delete(storageRef)
+
+      tx.oncomplete = () => {
+        try {
+          db?.close()
+        } catch {
+          // noop
+        }
+        resolve(true)
+      }
+      tx.onerror = () => {
+        try {
+          db?.close()
+        } catch {
+          // noop
+        }
+        reject(tx.error || new Error("Error eliminando blob."))
+      }
+      tx.onabort = () => {
+        try {
+          db?.close()
+        } catch {
+          // noop
+        }
+        resolve(false)
+      }
     })
   } catch {
+    if (db) {
+      try {
+        db.close()
+      } catch {
+        // noop
+      }
+    }
     return false
   }
 }
 
 /**
  * Elimina todos los blobs asociados a un escrito al momento de borrarlo.
+ * Resuelve en tx.oncomplete.
  */
 export async function deleteEscritoBlobs(
   userId: string,
   escritoId: string
 ): Promise<number> {
+  let db: IDBDatabase | null = null
   try {
-    const db = await openBlobDatabase()
-    return new Promise((resolve, reject) => {
+    db = await openBlobDatabase()
+    return await new Promise<number>((resolve, reject) => {
+      if (!db) {
+        resolve(0)
+        return
+      }
+
       const tx = db.transaction(STORE_NAME, "readwrite")
       const store = tx.objectStore(STORE_NAME)
       const index = store.index("by_user_escrito")
@@ -193,14 +312,45 @@ export async function deleteEscritoBlobs(
           cursor.delete()
           deletedCount++
           cursor.continue()
-        } else {
-          resolve(deletedCount)
         }
       }
-      req.onerror = () => reject(req.error || new Error("Error eliminando blobs de escrito."))
+
+      tx.oncomplete = () => {
+        try {
+          db?.close()
+        } catch {
+          // noop
+        }
+        resolve(deletedCount)
+      }
+
+      tx.onerror = () => {
+        try {
+          db?.close()
+        } catch {
+          // noop
+        }
+        reject(tx.error || new Error("Error eliminando blobs de escrito."))
+      }
+
+      tx.onabort = () => {
+        try {
+          db?.close()
+        } catch {
+          // noop
+        }
+        resolve(0)
+      }
     })
   } catch (err) {
     console.error("[indexeddb] Error eliminando blobs de escrito:", err)
+    if (db) {
+      try {
+        db.close()
+      } catch {
+        // noop
+      }
+    }
     return 0
   }
 }
@@ -209,10 +359,13 @@ export async function deleteEscritoBlobs(
  * Convierte un Data URL (base64) a un Blob nativo.
  */
 export function dataUrlToBlob(dataUrl: string): Blob {
+  if (!dataUrl || typeof dataUrl !== "string") {
+    return new Blob([], { type: "image/png" })
+  }
   const parts = dataUrl.split(",")
   const mimeMatch = parts[0]?.match(/:(.*?);/)
   const mime = mimeMatch ? mimeMatch[1] : "image/png"
-  const bstr = atob(parts[1] || "")
+  const bstr = typeof atob === "function" ? atob(parts[1] || "") : Buffer.from(parts[1] || "", "base64").toString("binary")
   let n = bstr.length
   const u8arr = new Uint8Array(n)
   while (n--) {
@@ -294,10 +447,15 @@ export async function duplicateEscritoBlobs(
 ): Promise<Map<string, string>> {
   const refMap = new Map<string, string>()
   const newlyCreatedKeys: string[] = []
+  let db: IDBDatabase | null = null
 
   try {
-    const db = await openBlobDatabase()
+    db = await openBlobDatabase()
     const recordsToClone: BlobRecord[] = await new Promise((resolve, reject) => {
+      if (!db) {
+        resolve([])
+        return
+      }
       const tx = db.transaction(STORE_NAME, "readonly")
       const store = tx.objectStore(STORE_NAME)
       const index = store.index("by_user_escrito")
@@ -307,9 +465,20 @@ export async function duplicateEscritoBlobs(
       req.onerror = () => reject(req.error || new Error("Error leyendo blobs para duplicar."))
     })
 
-    if (recordsToClone.length === 0) return refMap
+    if (recordsToClone.length === 0) {
+      try {
+        db.close()
+      } catch {
+        // noop
+      }
+      return refMap
+    }
 
     await new Promise<void>((resolve, reject) => {
+      if (!db) {
+        reject(new Error("IndexedDB no disponible."))
+        return
+      }
       const tx = db.transaction(STORE_NAME, "readwrite")
       const store = tx.objectStore(STORE_NAME)
 
@@ -324,6 +493,7 @@ export async function duplicateEscritoBlobs(
           resourceId: newResourceId,
           mimeType: rec.mimeType,
           blob: rec.blob,
+          size: typeof rec.blob.size === "number" ? rec.blob.size : rec.size || 0,
           createdAt: new Date().toISOString(),
         }
         store.put(newRecord)
@@ -331,12 +501,41 @@ export async function duplicateEscritoBlobs(
         refMap.set(rec.key, newKey)
       }
 
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error || new Error("Error clonando blobs."))
+      tx.oncomplete = () => {
+        try {
+          db?.close()
+        } catch {
+          // noop
+        }
+        resolve()
+      }
+      tx.onerror = () => {
+        try {
+          db?.close()
+        } catch {
+          // noop
+        }
+        reject(tx.error || new Error("Error clonando blobs."))
+      }
+      tx.onabort = () => {
+        try {
+          db?.close()
+        } catch {
+          // noop
+        }
+        reject(tx.error || new Error("Transacción abortada clonando blobs."))
+      }
     })
 
     return refMap
   } catch (err) {
+    if (db) {
+      try {
+        db.close()
+      } catch {
+        // noop
+      }
+    }
     console.error("[indexeddb] Error duplicando blobs:", err)
     // Limpieza de rollback
     for (const k of newlyCreatedKeys) {

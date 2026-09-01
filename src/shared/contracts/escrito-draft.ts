@@ -140,6 +140,13 @@ export interface EscritoDraftV2 {
   status: "draft" | "completed"
   generationMode: GenerationMode
   advertencias?: string[]
+  workerProfile?: {
+    nombre?: string
+    matricula?: string
+    categoria?: string
+    adscripcion?: string
+    seccion?: string
+  }
   createdAt: string
   updatedAt: string
 }

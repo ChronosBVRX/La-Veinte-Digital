@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useTransition } from "react"
+import { useState, useEffect, useCallback, useMemo, useTransition } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/shared/components/ui/Button"
@@ -17,6 +17,7 @@ import {
   eliminarEscrito,
   duplicarEscrito,
   migrarEscritosLegadosSiEsNecesario,
+  serializePersistableDraft,
 } from "../services/escritos-storage"
 import {
   hydrateEscritoBlobs,
@@ -54,47 +55,72 @@ export function EscritosGenerator() {
   // 1. Cargar sesión de usuario y perfil de forma segura
   useEffect(() => {
     let cancelled = false
-    const supabase = createClient()
+    const authTimeout = setTimeout(() => {
+      if (!cancelled) setAuthResolved(true)
+    }, 4000)
 
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (cancelled) return
-      if (!user) {
-        setAuthResolved(true)
-        return
-      }
+    try {
+      const supabase = createClient()
+      supabase.auth
+        .getUser()
+        .then(async ({ data: { user } }) => {
+          if (cancelled) return
+          clearTimeout(authTimeout)
 
-      setUserId(user.id)
-      setDraft((prev) => ({ ...prev, ownerId: user.id }))
+          if (!user) {
+            setAuthResolved(true)
+            return
+          }
 
-      // Ejecutar migración transaccional de legados
-      await migrarEscritosLegadosSiEsNecesario(user.id)
+          setUserId(user.id)
+          setDraft((prev) => ({ ...prev, ownerId: user.id }))
 
-      try {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name,matricula,categoria,adscripcion")
-          .eq("id", user.id)
-          .maybeSingle()
-
-        if (profile && !cancelled) {
-          setWorkerProfile({
-            nombre: profile.full_name ?? undefined,
-            matricula: profile.matricula ?? undefined,
-            categoria: profile.categoria ?? undefined,
-            adscripcion: profile.adscripcion ?? undefined,
+          // Ejecutar migración transaccional de legados
+          await migrarEscritosLegadosSiEsNecesario(user.id).catch((err) => {
+            console.warn("[EscritosGenerator] Error en migración:", err)
           })
-        }
-      } catch (err) {
-        console.warn("[EscritosGenerator] No se pudo cargar perfil:", err)
-      } finally {
+
+          try {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("full_name,matricula,categoria,adscripcion")
+              .eq("id", user.id)
+              .maybeSingle()
+
+            if (profile && !cancelled) {
+              setWorkerProfile({
+                nombre: profile.full_name ?? undefined,
+                matricula: profile.matricula ?? undefined,
+                categoria: profile.categoria ?? undefined,
+                adscripcion: profile.adscripcion ?? undefined,
+              })
+            }
+          } catch (err) {
+            console.warn("[EscritosGenerator] No se pudo cargar perfil:", err)
+          } finally {
+            if (!cancelled) {
+              setAuthResolved(true)
+            }
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            clearTimeout(authTimeout)
+            setAuthResolved(true)
+          }
+        })
+    } catch {
+      queueMicrotask(() => {
         if (!cancelled) {
+          clearTimeout(authTimeout)
           setAuthResolved(true)
         }
-      }
-    })
+      })
+    }
 
     return () => {
       cancelled = true
+      clearTimeout(authTimeout)
     }
   }, [])
 
@@ -115,23 +141,23 @@ export function EscritosGenerator() {
     if (found) {
       hydrateEscritoBlobs(found, userId).then((hydrated) => {
         setDraft(hydrated)
-        setLastSavedSnapshot(JSON.stringify(hydrated))
+        setLastSavedSnapshot(serializePersistableDraft(hydrated))
         setStage("editor")
       })
     }
   }, [urlId, userId])
 
-  // Detección de cambios sin guardar
+  // Detección canónica de cambios sin guardar
+  const currentSnapshot = useMemo(() => serializePersistableDraft(draft), [draft])
+  const emptySnapshot = useMemo(
+    () => serializePersistableDraft(createEmptyEscritoDraftV2(userId || "anonymous")),
+    [userId]
+  )
+
   const isDirty = Boolean(
     lastSavedSnapshot
-      ? JSON.stringify(draft) !== lastSavedSnapshot
-      : Boolean(
-          draft.hechos.trim() ||
-          draft.peticion.trim() ||
-          draft.cuerpo.trim() ||
-          draft.anexos.length > 0 ||
-          draft.firmaRef
-        )
+      ? currentSnapshot !== lastSavedSnapshot
+      : currentSnapshot !== emptySnapshot
   )
 
   useEffect(() => {
@@ -187,7 +213,7 @@ export function EscritosGenerator() {
     try {
       const updatedList = guardarEscrito(draft, userId)
       setSavedList(updatedList)
-      setLastSavedSnapshot(JSON.stringify(draft))
+      setLastSavedSnapshot(serializePersistableDraft(draft))
       setSaveToast("Borrador guardado correctamente en tu dispositivo.")
       setTimeout(() => setSaveToast(null), 3000)
     } catch (e) {
@@ -218,7 +244,7 @@ export function EscritosGenerator() {
     revokeEscritoBlobs(draft)
     const hydrated = await hydrateEscritoBlobs(item, userId)
     setDraft(hydrated)
-    setLastSavedSnapshot(JSON.stringify(hydrated))
+    setLastSavedSnapshot(serializePersistableDraft(hydrated))
     setStage(targetStage)
   }
 

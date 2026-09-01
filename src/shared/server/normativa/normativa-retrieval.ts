@@ -2,7 +2,8 @@
  * Servicio compartido de recuperación de fuentes normativas en servidor.
  * Consulta directamente el catálogo SQLite local (catalog.sqlite) sin importar módulos de features/
  * de acuerdo con la Regla 2 de AGENTS.md.
- * Filtra fuentes vigentes y verificadas, cerrando DatabaseSync en bloque finally.
+ * Filtra fuentes vigentes y verificadas mediante INNER JOIN con versions (v.status = 'VERIFIED'),
+ * cerrando DatabaseSync en bloque finally.
  * La Veinte Digital
  */
 
@@ -18,6 +19,8 @@ export interface RetrievedNormativaSource {
   version: string
   tipo: string | null
   numero: string | null
+  clause: string | null
+  article: string | null
   paginaInicio: number | null
   paginaFin: number | null
   fragmento: string
@@ -32,13 +35,22 @@ export interface ExactNormativaRefs {
   key?: string
 }
 
+export function normalizeLegalRef(ref: string): string {
+  return ref
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
 export function extractExactNormativaRefs(text: string): ExactNormativaRefs {
   const refs: ExactNormativaRefs = {}
   const clause = text.match(/cl[áa]usula\s+(\d+\s*(?:bis|ter|quater)?)/i)
-  if (clause) refs.clause = clause[1].replace(/\s+/g, " ").trim()
+  if (clause) refs.clause = normalizeLegalRef(clause[1])
 
   const article = text.match(/art[íi]culo\s+("?\d+(?:\s*(?:bis|ter))?"?)/i)
-  if (article) refs.article = article[1].replace(/"/g, "").trim()
+  if (article) refs.article = normalizeLegalRef(article[1].replace(/"/g, ""))
 
   const homoclave = text.match(/\b\d[AB]\d{2}-\d{3}-\d{3}\b/i)
   if (homoclave) refs.key = homoclave[0]
@@ -55,16 +67,16 @@ export function extractExactNormativaRefs(text: string): ExactNormativaRefs {
 
 /**
  * Recupera fuentes normativas vigentes desde catalog.sqlite.
- * Excluye explícitamente documentos en PENDING_REVIEW, HISTORICAL o UNKNOWN
- * y une con tabla versions exigiendo status 'VERIFIED'.
+ * Exige INNER JOIN con versions donde status = 'VERIFIED' y documentos con vigencia 'CURRENT' o 'VIGENTE'.
  */
 export async function retrieveNormativaSources(
   query: string,
-  limit = 5
+  limit = 5,
+  customDbPath?: string
 ): Promise<RetrievedNormativaSource[]> {
   let db: DatabaseSync | null = null
   try {
-    const catalogPath = path.resolve(process.cwd(), "data", "normativa", "catalog.sqlite")
+    const catalogPath = customDbPath || path.resolve(process.cwd(), "data", "normativa", "catalog.sqlite")
     if (!fs.existsSync(catalogPath)) {
       return []
     }
@@ -80,7 +92,7 @@ export async function retrieveNormativaSources(
 
     if (tokens.length === 0) return []
 
-    // 1. Búsqueda con FTS5 uniendo con documents y versions
+    // Búsqueda con FTS5 uniendo estrictamente con documents y versions verificadas
     const quoted = tokens.map((t) => `"${t}"`).join(" OR ")
 
     const sql = `
@@ -91,10 +103,10 @@ export async function retrieveNormativaSources(
       FROM chunks_fts f
       JOIN chunks c ON c.id = f.rowid
       JOIN documents d ON d.id = c.document_id
-      LEFT JOIN versions v ON v.id = c.version_id
+      JOIN versions v ON v.id = c.version_id
       WHERE chunks_fts MATCH ?
         AND d.validity IN ('CURRENT', 'VIGENTE')
-        AND (v.status = 'VERIFIED' OR v.status IS NULL)
+        AND v.status = 'VERIFIED'
         AND d.verification_status IS NULL
       ORDER BY rank ASC
       LIMIT ?
@@ -111,6 +123,9 @@ export async function retrieveNormativaSources(
       const rankVal = typeof r.rank === "number" ? r.rank : 0
       const score = Math.max(1, Math.round(100 - rankVal * 10))
 
+      const rawClause = r.clause ? String(r.clause).trim() : null
+      const rawArticle = r.article ? String(r.article).trim() : null
+
       return {
         id: String(r.chunk_id || ""),
         chunkId: String(r.chunk_id || ""),
@@ -118,7 +133,9 @@ export async function retrieveNormativaSources(
         documento: String(r.document_title || ""),
         version: String(r.version_id || ""),
         tipo: r.section_label ? String(r.section_label) : null,
-        numero: r.clause ? `Cláusula ${r.clause}` : r.article ? `Artículo ${r.article}` : null,
+        numero: rawClause ? `Cláusula ${rawClause}` : rawArticle ? `Artículo ${rawArticle}` : null,
+        clause: rawClause,
+        article: rawArticle,
         paginaInicio: pageNum,
         paginaFin: pageNum,
         fragmento: String(r.text || ""),

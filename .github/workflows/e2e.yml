@@ -61,11 +61,11 @@ jobs:
             test-results/
           retention-days: 7
 
-  # ── E2E: authenticated (requires secrets, only on internal branches) ──
-  e2e-authenticated:
-    name: E2E Authenticated (Chrome, Firefox, Mobile)
+  # ── E2E: authenticated smoke ──
+  e2e-authenticated-smoke:
+    name: E2E Smoke (Desktop + Mobile)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     needs: check
     if: github.event.pull_request.head.repo.full_name == github.repository
     steps:
@@ -90,8 +90,37 @@ jobs:
           E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-      - name: Run E2E full tests
-        run: npx playwright test e2e/full/ --project=chromium-desktop
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-smoke-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  # ── E2E: Escritos Full (independiente de smoke) ──
+  e2e-escritos-full:
+    name: E2E Escritos Full
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: check
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build Next.js
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://ragktminwduiggvaoeix.supabase.co' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
+      - run: npx playwright install --with-deps
+      - name: Run E2E Escritos full test
+        run: npx playwright test e2e/full/escritos-generator.spec.ts --project=chromium-desktop
         env:
           CI: "true"
           E2E_BASE_URL: http://localhost:3000
@@ -102,7 +131,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: e2e-auth-report
+          name: e2e-escritos-report
           path: |
             playwright-report/
             test-results/
