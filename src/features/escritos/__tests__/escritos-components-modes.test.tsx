@@ -5,6 +5,8 @@ import { render, screen, fireEvent } from "@testing-library/react"
 import { DestinatarioResumen } from "../components/DestinatarioResumen"
 import { EscritosForm } from "../components/EscritosForm"
 import { EscritosEditor } from "../components/EscritosEditor"
+import { DestinatarioSelectorModal } from "../components/DestinatarioSelectorModal"
+import { EscritosProposalModal } from "../components/EscritosProposalModal"
 import { createEmptyEscritoDraftV2 } from "@/shared/contracts/escrito-draft"
 
 describe("Componentes de UI del Generador de Escritos (DestinatarioResumen, Form y Editor)", () => {
@@ -121,18 +123,107 @@ describe("Componentes de UI del Generador de Escritos (DestinatarioResumen, Form
       { documento: "CCT 2025-2027", version: "VIGENTE", fragmento: "Cláusula 40" },
     ]
 
+    const onBackToForm = vi.fn()
+
     render(
       <EscritosEditor
         draft={draft}
         onUpdateDraft={vi.fn()}
         onSaveDraft={vi.fn()}
         onGoToPreview={vi.fn()}
-        onBackToForm={vi.fn()}
+        onBackToForm={onBackToForm}
       />
     )
 
     expect(screen.getByText(/Dr\. Simbad Solorio Vargas/i)).toBeDefined()
     expect(screen.getByText(/Redactado con IA y fuentes verificadas/i)).toBeDefined()
     expect(screen.getByText(/1 norma citada/i)).toBeDefined()
+
+    // Cambiar destinatario desde el editor regresa al formulario sin perder el borrador
+    const btnCambiar = screen.getByRole("button", { name: /Cambiar/i })
+    fireEvent.click(btnCambiar)
+    expect(onBackToForm).toHaveBeenCalledTimes(1)
+  })
+
+  it("DestinatarioSelectorModal oculta categorías vacías y no muestra comités delegacionales sin datos", () => {
+    const onSelect = vi.fn()
+    const onClose = vi.fn()
+
+    render(
+      <DestinatarioSelectorModal
+        isOpen={true}
+        onClose={onClose}
+        currentDestino={{ cargo: "", nombre: "" }}
+        onSelectDestino={onSelect}
+      />
+    )
+
+    // Secciones oficiales con integrantes deben ser visibles
+    expect(screen.getAllByText(/Comité Ejecutivo/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Secretarías/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Comisiones/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Subcomisiones/i).length).toBeGreaterThan(0)
+
+    // La categoría comités delegacionales (con 0 elementos) debe estar oculta
+    expect(screen.queryByText(/Comités Delegacionales/i)).toBeNull()
+  })
+
+  it("DestinatarioSelectorModal permite capturar y aplicar un destinatario manual", () => {
+    const onSelect = vi.fn()
+    const onClose = vi.fn()
+
+    render(
+      <DestinatarioSelectorModal
+        isOpen={true}
+        onClose={onClose}
+        currentDestino={{ cargo: "", nombre: "" }}
+        onSelectDestino={onSelect}
+        initialTab="manual"
+      />
+    )
+
+    const cargoInput = screen.getByLabelText(/Cargo o puesto del destinatario/i)
+    const nombreInput = screen.getByLabelText(/Nombre del destinatario/i)
+
+    fireEvent.change(cargoInput, { target: { value: "Director HGZ No. 83" } })
+    fireEvent.change(nombreInput, { target: { value: "Dr. Manuel Torres" } })
+
+    const aplicarBtn = screen.getByRole("button", { name: /Aplicar destinatario/i })
+    fireEvent.click(aplicarBtn)
+
+    expect(onSelect).toHaveBeenCalledWith({
+      cargo: "Director HGZ No. 83",
+      nombre: "Dr. Manuel Torres",
+    })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it("EscritosProposalModal permite comparar propuesta, aceptar y rechazar", () => {
+    const onAccept = vi.fn()
+    const onDiscard = vi.fn()
+
+    render(
+      <EscritosProposalModal
+        isOpen={true}
+        title="Propuesta de redacción formal"
+        description="Ajuste de registro institucional"
+        originalText="Texto original con errores"
+        proposedText="Texto formalmente pulido y corregido."
+        onAccept={onAccept}
+        onDiscard={onDiscard}
+      />
+    )
+
+    expect(screen.getByText(/Propuesta de redacción formal/i)).toBeDefined()
+    expect(screen.getByText(/Texto original con errores/i)).toBeDefined()
+    expect(screen.getByText(/Texto formalmente pulido y corregido\./i)).toBeDefined()
+
+    const btnAccept = screen.getByRole("button", { name: /Aplicar propuesta/i })
+    fireEvent.click(btnAccept)
+    expect(onAccept).toHaveBeenCalledTimes(1)
+
+    const btnDiscard = screen.getByRole("button", { name: /Descartar cambios/i })
+    fireEvent.click(btnDiscard)
+    expect(onDiscard).toHaveBeenCalledTimes(1)
   })
 })
