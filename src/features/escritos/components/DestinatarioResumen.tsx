@@ -72,9 +72,12 @@ export function DestinatarioResumen({
             : "👤"}
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1 }}>
+        <div style={{ display: "flex", flexDirection: "column", minWidth: 0, flex: 1, overflow: "hidden" }}>
           <div
             style={{
+              display: "block",
+              width: "100%",
+              maxWidth: "100%",
               fontSize: "0.875rem",
               fontWeight: 600,
               color: "var(--fg)",
@@ -84,24 +87,33 @@ export function DestinatarioResumen({
             }}
             title={`Para: ${displayName}`}
           >
-            <span style={{ color: "var(--muted)", fontWeight: 500, marginRight: "0.25rem" }}>Para:</span>
+            <span style={{ color: "var(--muted)", fontWeight: 500, marginRight: "0.25rem", display: "inline-block" }}>Para:</span>
             {displayName}
           </div>
 
           <div
             style={{
+              display: "flex",
+              alignItems: "baseline",
+              gap: "0.25rem",
+              width: "100%",
+              maxWidth: "100%",
+              minWidth: 0,
               fontSize: "0.75rem",
               color: "var(--muted)",
-              whiteSpace: "nowrap",
+              fontStyle: isManual ? "italic" : "normal",
               overflow: "hidden",
-              textOverflow: "ellipsis",
             }}
             title={`${displayCargo}${displayOrgano ? ` · ${displayOrgano}` : ""}`}
           >
-            {displayCargo}
-            {displayCargo && displayOrgano && " · "}
+            {displayCargo && (
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0 }}>
+                {displayCargo}
+              </span>
+            )}
+            {displayCargo && displayOrgano && <span style={{ flexShrink: 0 }}>·</span>}
             {displayOrgano && (
-              <span style={{ fontStyle: isManual ? "italic" : "normal" }}>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 2, minWidth: 0 }}>
                 {displayOrgano}
               </span>
             )}

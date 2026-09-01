@@ -243,19 +243,23 @@ export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
 
       <div
         className="sidebar-drawer"
+        aria-hidden={!open}
         style={{
           position: "fixed",
           top: 0,
           left: 0,
           bottom: 0,
           width: "280px",
+          maxWidth: "85vw",
+          boxSizing: "border-box",
           background: "var(--card)",
           zIndex: 50,
           borderRight: "1px solid var(--border)",
           paddingTop: "var(--nav-height)",
           overflowY: "auto",
+          visibility: open ? "visible" : "hidden",
           transform: open ? "translateX(0)" : "translateX(-100%)",
-          transition: "transform 0.25s ease",
+          transition: "transform 0.25s ease, visibility 0.25s ease",
           pointerEvents: open ? "auto" : "none",
           paddingBottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px))",
         }}

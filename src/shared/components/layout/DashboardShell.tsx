@@ -44,11 +44,26 @@ export function DashboardShell({ fullName, children }: DashboardShellProps) {
             className="mobile-app-shell__scroll"
             style={{
               flex: 1,
-              padding: "clamp(1rem, 2vw, 1.5rem)",
+              padding: "clamp(0.75rem, 2vw, 1.5rem)",
               minWidth: 0,
+              width: "100%",
+              maxWidth: "100%",
+              boxSizing: "border-box",
+              overflowX: "hidden",
             }}
           >
-            <div className="animate-fade-in">{children}</div>
+            <div
+              className="animate-fade-in"
+              style={{
+                width: "100%",
+                maxWidth: "100%",
+                minWidth: 0,
+                boxSizing: "border-box",
+                overflowX: "hidden",
+              }}
+            >
+              {children}
+            </div>
           </main>
         </div>
 

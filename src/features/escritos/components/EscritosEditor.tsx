@@ -112,7 +112,7 @@ export function EscritosEditor({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
       {/* Visor Compacto del Destinatario */}
       <DestinatarioResumen
         destino={draft.destino}
@@ -120,7 +120,7 @@ export function EscritosEditor({
       />
 
       {/* Indicador discreto de modo de redacción */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem", width: "100%", boxSizing: "border-box" }}>
         <div
           style={{
             display: "inline-flex",
@@ -168,7 +168,7 @@ export function EscritosEditor({
       </div>
 
       {/* Cabecera del Editor con Undo/Redo y Estadísticas */}
-      <Card padding="1rem" style={{ background: "var(--card)" }}>
+      <Card padding="1rem" style={{ background: "var(--card)", width: "100%", boxSizing: "border-box" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
           <div>
             <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "var(--fg)" }}>
@@ -179,8 +179,8 @@ export function EscritosEditor({
             </p>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span style={{ fontSize: "0.75rem", color: "var(--muted)", marginRight: "0.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+            <span style={{ fontSize: "0.75rem", color: "var(--muted)", marginRight: "0.25rem" }}>
               {wordCount} palabras • {charCount} caracteres
             </span>
             <Button
@@ -205,15 +205,16 @@ export function EscritosEditor({
         </div>
       </Card>
 
-      {/* Herramientas de IA no destructivas */}
-      <div>
+      {/* Herramientas de IA no destructivas en cuadrícula adaptable */}
+      <div style={{ width: "100%", boxSizing: "border-box" }}>
         <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.5rem" }}>
           ✨ Asistente de redacción (propuestas con vista previa):
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 135px), 1fr))", gap: "0.5rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
           <Button
             variant="secondary"
             size="sm"
+            style={{ width: "100%", minWidth: 0 }}
             onClick={() =>
               handleAiTool(
                 "ortografia",
@@ -231,6 +232,7 @@ export function EscritosEditor({
           <Button
             variant="secondary"
             size="sm"
+            style={{ width: "100%", minWidth: 0 }}
             onClick={() =>
               handleAiTool(
                 "formal",
@@ -248,6 +250,7 @@ export function EscritosEditor({
           <Button
             variant="secondary"
             size="sm"
+            style={{ width: "100%", minWidth: 0 }}
             onClick={() =>
               handleAiTool(
                 "resumir",
@@ -265,6 +268,7 @@ export function EscritosEditor({
           <Button
             variant="secondary"
             size="sm"
+            style={{ width: "100%", minWidth: 0 }}
             onClick={() =>
               handleAiTool(
                 "expandir",
@@ -282,20 +286,22 @@ export function EscritosEditor({
       </div>
 
       {/* Área principal de texto enriquecido */}
-      <div style={{ position: "relative" }}>
+      <div style={{ position: "relative", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          rows={14}
+          rows={12}
           style={{
             width: "100%",
-            padding: "1rem",
+            maxWidth: "100%",
+            minWidth: 0,
+            padding: "0.875rem 1rem",
             borderRadius: "0.75rem",
             border: "1px solid var(--border)",
             background: "var(--card)",
             color: "var(--fg)",
-            fontSize: "0.9375rem",
+            fontSize: "1rem",
             lineHeight: 1.6,
             fontFamily: "inherit",
             resize: "vertical",
@@ -326,7 +332,7 @@ export function EscritosEditor({
           background: "var(--card)",
           border: "1px solid var(--border)",
           borderRadius: "0.75rem",
-          padding: "0.875rem 1rem",
+          padding: "0.75rem 0.875rem",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -334,13 +340,17 @@ export function EscritosEditor({
           gap: "0.75rem",
           boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
           zIndex: 10,
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          boxSizing: "border-box",
         }}
       >
         <Button variant="ghost" size="sm" onClick={onBackToForm}>
           ⬅ Volver al formulario
         </Button>
 
-        <div style={{ display: "flex", gap: "0.75rem" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
           <Button variant="secondary" size="md" onClick={onSaveDraft}>
             💾 Guardar borrador
           </Button>

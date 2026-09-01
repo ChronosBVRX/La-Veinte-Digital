@@ -47,6 +47,9 @@ function getVariantStyle(variant: CardVariant): CSSProperties {
     background: "var(--card)",
     border: "1px solid var(--border)",
     borderRadius: "var(--radius-lg)",
+    boxSizing: "border-box",
+    maxWidth: "100%",
+    minWidth: 0,
   }
 
   switch (variant) {

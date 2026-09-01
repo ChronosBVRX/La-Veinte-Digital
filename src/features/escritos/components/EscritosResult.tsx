@@ -132,22 +132,23 @@ export function EscritosResult({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
       {/* Selector de modo de vista y Acciones Principales */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
-        <div style={{ display: "flex", gap: "0.375rem", background: "var(--card)", padding: "0.25rem", borderRadius: "0.5rem", border: "1px solid var(--border)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", width: "100%", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", gap: "0.25rem", background: "var(--card)", padding: "0.25rem", borderRadius: "0.5rem", border: "1px solid var(--border)" }}>
           <button
             type="button"
             onClick={() => setViewMode("sheet")}
             style={{
-              padding: "0.375rem 0.75rem",
+              padding: "0.375rem 0.625rem",
               borderRadius: "0.375rem",
               border: "none",
-              fontSize: "0.8125rem",
+              fontSize: "clamp(0.72rem, 2.5vw, 0.8125rem)",
               fontWeight: 600,
               background: viewMode === "sheet" ? "var(--primary)" : "transparent",
               color: viewMode === "sheet" ? "var(--primary-fg)" : "var(--muted)",
               cursor: "pointer",
+              whiteSpace: "nowrap",
             }}
           >
             📄 Hoja Carta (Oficio)
@@ -156,21 +157,22 @@ export function EscritosResult({
             type="button"
             onClick={() => setViewMode("mobile")}
             style={{
-              padding: "0.375rem 0.75rem",
+              padding: "0.375rem 0.625rem",
               borderRadius: "0.375rem",
               border: "none",
-              fontSize: "0.8125rem",
+              fontSize: "clamp(0.72rem, 2.5vw, 0.8125rem)",
               fontWeight: 600,
               background: viewMode === "mobile" ? "var(--primary)" : "transparent",
               color: viewMode === "mobile" ? "var(--primary-fg)" : "var(--muted)",
               cursor: "pointer",
+              whiteSpace: "nowrap",
             }}
           >
             📱 Lectura Móvil
           </button>
         </div>
 
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
           <Button variant="secondary" size="sm" onClick={handlePrint} loading={isPrinting}>
             🖨 Imprimir
           </Button>
@@ -190,16 +192,19 @@ export function EscritosResult({
             background: "#ffffff",
             color: "#0f172a",
             borderRadius: "0.75rem",
-            padding: "2.5rem 2rem",
+            padding: "clamp(1.25rem, 4vw, 2.5rem) clamp(0.875rem, 3vw, 2rem)",
             boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)",
             border: "1px solid var(--border)",
             fontFamily: "Times New Roman, Times, serif",
-            fontSize: "1rem",
+            fontSize: "clamp(0.875rem, 2.5vw, 1rem)",
             lineHeight: 1.5,
             maxWidth: "700px",
             margin: "0 auto",
             width: "100%",
+            minWidth: 0,
             boxSizing: "border-box",
+            overflowWrap: "break-word",
+            wordBreak: "break-word",
           }}
         >
           {/* Lugar y Fecha */}
@@ -210,7 +215,7 @@ export function EscritosResult({
 
           {/* Asunto */}
           {draft.asunto && (
-            <div style={{ textAlign: "right", fontWeight: "bold", marginBottom: "1.75rem", fontSize: "0.9375rem" }}>
+            <div style={{ textAlign: "right", fontWeight: "bold", marginBottom: "1.5rem", fontSize: "0.9375rem" }}>
               ASUNTO: {draft.asunto}
             </div>
           )}
@@ -245,9 +250,9 @@ export function EscritosResult({
           </div>
 
           {/* Cuerpo del Documento */}
-          <div style={{ textAlign: "justify", marginBottom: "2.5rem" }}>
+          <div style={{ textAlign: "justify", marginBottom: "2rem" }}>
             {draft.cuerpo.split(/\n\s*\n/).map((para, idx) => (
-              <p key={idx} style={{ margin: "0 0 1rem", textIndent: "1.5rem" }}>
+              <p key={idx} style={{ margin: "0 0 1rem", textIndent: "clamp(0.75rem, 3vw, 1.5rem)" }}>
                 {para}
               </p>
             ))}
@@ -268,7 +273,7 @@ export function EscritosResult({
                     alt="Firma del trabajador"
                     style={{ maxHeight: "60px", maxWidth: "160px", objectFit: "contain" }}
                   />
-                  <div style={{ marginTop: "0.25rem" }}>
+                  <div style={{ marginTop: "0.25rem", display: "flex", gap: "0.25rem", justifyContent: "center" }}>
                     <Button variant="ghost" size="sm" onClick={() => setIsSignatureModalOpen(true)}>
                       Cambiar firma
                     </Button>
@@ -290,7 +295,7 @@ export function EscritosResult({
             </div>
 
             {/* Línea de firma */}
-            <div style={{ width: "220px", borderTop: "1px solid #0f172a", margin: "0 auto 0.5rem" }} />
+            <div style={{ width: "clamp(160px, 45vw, 220px)", borderTop: "1px solid #0f172a", margin: "0 auto 0.5rem" }} />
 
             <div style={{ fontWeight: "bold", fontSize: "0.9375rem", textTransform: "uppercase" }}>
               {workerProfile?.nombre || "NOMBRE DEL TRABAJADOR"}
@@ -326,18 +331,18 @@ export function EscritosResult({
 
           {/* Galería de Anexos Adjuntos */}
           {draft.anexos.length > 0 && (
-            <div style={{ marginTop: "2.5rem", borderTop: "2px dashed #cbd5e1", paddingTop: "1.5rem" }}>
+            <div style={{ marginTop: "2.5rem", borderTop: "2px dashed #cbd5e1", paddingTop: "1.5rem", width: "100%", boxSizing: "border-box" }}>
               <div style={{ fontWeight: "bold", fontSize: "0.875rem", textTransform: "uppercase", marginBottom: "1rem", color: "#334155" }}>
                 Anexos adjuntos ({draft.anexos.length})
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", boxSizing: "border-box" }}>
                 {draft.anexos.map((anx, i) => (
-                  <div key={anx.id} style={{ background: "#f8fafc", padding: "1rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0" }}>
-                    <div style={{ fontWeight: 600, fontSize: "0.875rem", marginBottom: "0.25rem" }}>
+                  <div key={anx.id} style={{ background: "#f8fafc", padding: "0.875rem", borderRadius: "0.5rem", border: "1px solid #e2e8f0", width: "100%", boxSizing: "border-box" }}>
+                    <div style={{ fontWeight: 600, fontSize: "0.875rem", marginBottom: "0.25rem", overflowWrap: "break-word" }}>
                       Anexo {i + 1}: {anx.nombre}
                     </div>
                     {anx.descripcion && (
-                      <div style={{ fontSize: "0.8125rem", color: "#64748b", fontStyle: "italic", marginBottom: "0.75rem" }}>
+                      <div style={{ fontSize: "0.8125rem", color: "#64748b", fontStyle: "italic", marginBottom: "0.75rem", overflowWrap: "break-word" }}>
                         {anx.descripcion}
                       </div>
                     )}
@@ -345,7 +350,7 @@ export function EscritosResult({
                       <img
                         src={anx.previewUrl}
                         alt={anx.nombre}
-                        style={{ maxWidth: "100%", maxHeight: "350px", objectFit: "contain", borderRadius: "0.375rem", border: "1px solid #cbd5e1", display: "block" }}
+                        style={{ maxWidth: "100%", maxHeight: "350px", height: "auto", objectFit: "contain", borderRadius: "0.375rem", border: "1px solid #cbd5e1", display: "block" }}
                       />
                     )}
                   </div>
@@ -356,10 +361,10 @@ export function EscritosResult({
         </div>
       ) : (
         /* Renderizado Vista Lectura Móvil */
-        <Card padding="1.5rem">
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: "0.75rem" }}>
-              <div style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--fg)" }}>
+        <Card padding="1.25rem" style={{ width: "100%", boxSizing: "border-box" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%", boxSizing: "border-box" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", borderBottom: "1px solid var(--border)", paddingBottom: "0.75rem" }}>
+              <div style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--fg)", overflowWrap: "break-word" }}>
                 {draft.titulo}
               </div>
               <span style={{ fontSize: "0.75rem", background: "var(--accent)", padding: "0.25rem 0.5rem", borderRadius: "0.375rem", color: "var(--muted)" }}>
@@ -370,27 +375,27 @@ export function EscritosResult({
             <DestinatarioResumen destino={draft.destino} readOnly />
 
             {draft.asunto && (
-              <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--primary)" }}>
+              <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--primary)", overflowWrap: "break-word" }}>
                 Asunto: {draft.asunto}
               </div>
             )}
 
-            <div style={{ whiteSpace: "pre-wrap", fontSize: "0.9375rem", lineHeight: 1.6, color: "var(--fg)" }}>
+            <div style={{ whiteSpace: "pre-wrap", fontSize: "0.9375rem", lineHeight: 1.6, color: "var(--fg)", overflowWrap: "break-word" }}>
               {draft.cuerpo}
             </div>
 
             {draft.anexos.length > 0 && (
-              <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem", width: "100%", boxSizing: "border-box" }}>
                 <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.5rem" }}>
                   Anexos fotográficos ({draft.anexos.length}):
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: "0.5rem" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 100px), 1fr))", gap: "0.5rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
                   {draft.anexos.map((anx) => (
-                    <div key={anx.id} style={{ border: "1px solid var(--border)", borderRadius: "0.5rem", overflow: "hidden" }}>
+                    <div key={anx.id} style={{ border: "1px solid var(--border)", borderRadius: "0.5rem", overflow: "hidden", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
                       {anx.previewUrl ? (
-                        <img src={anx.previewUrl} alt={anx.nombre} style={{ width: "100%", height: "90px", objectFit: "cover" }} />
+                        <img src={anx.previewUrl} alt={anx.nombre} style={{ width: "100%", height: "80px", objectFit: "cover" }} />
                       ) : (
-                        <div style={{ height: "90px", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>📷</div>
+                        <div style={{ height: "80px", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>📷</div>
                       )}
                       <div style={{ padding: "0.25rem", fontSize: "0.6875rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                         {anx.nombre}
@@ -422,7 +427,7 @@ export function EscritosResult({
           background: "var(--card)",
           border: "1px solid var(--border)",
           borderRadius: "0.75rem",
-          padding: "0.875rem 1rem",
+          padding: "0.75rem 0.875rem",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -430,15 +435,19 @@ export function EscritosResult({
           gap: "0.75rem",
           boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
           zIndex: 10,
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          boxSizing: "border-box",
         }}
       >
         <Button variant="ghost" size="sm" onClick={onBackToEditor}>
           ✏ Volver al editor
         </Button>
 
-        <div style={{ display: "flex", gap: "0.75rem" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
           <Button variant="secondary" size="md" onClick={onSaveDraft}>
-            💾 Guardar en mis documentos
+            💾 Guardar borrador
           </Button>
           <Button variant="primary" size="md" onClick={handleDownloadPdf} loading={isDownloading}>
             📥 Descargar PDF Carta

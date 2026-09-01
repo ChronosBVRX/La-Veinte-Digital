@@ -312,11 +312,11 @@ export function EscritosForm({
       )}
 
       {/* Pregunta 1: Tipo de Escrito */}
-      <div>
+      <div style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
         <label style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.75rem" }}>
           1. ¿Qué tipo de escrito necesitas redactar?
         </label>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 105px), 1fr))", gap: "0.5rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
           {(Object.keys(TIPOS_ESCRITO) as TipoEscritoKey[]).map((key) => {
             const def = TIPOS_ESCRITO[key]
             const isSelected = draft.tipo === key
@@ -330,7 +330,7 @@ export function EscritosForm({
                   flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
-                  padding: "1rem 0.75rem",
+                  padding: "0.875rem 0.5rem",
                   borderRadius: "0.75rem",
                   border: isSelected ? "2px solid var(--primary)" : "1px solid var(--border)",
                   background: isSelected ? "var(--accent)" : "var(--card)",
@@ -338,10 +338,13 @@ export function EscritosForm({
                   cursor: "pointer",
                   textAlign: "center",
                   transition: "all 0.15s ease",
+                  boxSizing: "border-box",
+                  width: "100%",
+                  minWidth: 0,
                 }}
               >
-                <span style={{ fontSize: "1.75rem", marginBottom: "0.375rem" }}>{def.icono}</span>
-                <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>{def.titulo}</span>
+                <span style={{ fontSize: "1.5rem", marginBottom: "0.25rem" }}>{def.icono}</span>
+                <span style={{ fontSize: "clamp(0.75rem, 2.5vw, 0.875rem)", fontWeight: 600 }}>{def.titulo}</span>
               </button>
             )
           })}
@@ -352,8 +355,8 @@ export function EscritosForm({
       </div>
 
       {/* Pregunta 2: Destinatario */}
-      <div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+      <div style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem", width: "100%", boxSizing: "border-box" }}>
           <label
             htmlFor="escrito-destinatario"
             style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)" }}
@@ -371,7 +374,7 @@ export function EscritosForm({
           </Button>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
           {/* Visor Compacto del Destinatario */}
           {(draft.destino.nombre || draft.destino.cargo) && (
             <DestinatarioResumen
@@ -394,6 +397,9 @@ export function EscritosForm({
               color: "var(--fg)",
               fontSize: "0.875rem",
               width: "100%",
+              maxWidth: "100%",
+              minWidth: 0,
+              boxSizing: "border-box",
             }}
           >
             <option value="" disabled>
@@ -432,7 +438,7 @@ export function EscritosForm({
       />
 
       {/* Pregunta 3: Lugar y Fecha */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))", gap: "0.75rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
         <Input
           id="escrito-ciudad"
           name="ciudad"
@@ -644,8 +650,8 @@ export function EscritosForm({
             />
 
             {/* Atenciones adicionales (At'n:) */}
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+            <div style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem", width: "100%", boxSizing: "border-box" }}>
                 <label style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)" }}>
                   Destinatarios de atención adicional (At&apos;n:)
                 </label>
@@ -654,33 +660,37 @@ export function EscritosForm({
                 </Button>
               </div>
               {draft.atencion.map((at, idx) => (
-                <div key={at.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto auto", gap: "0.375rem", alignItems: "center", marginBottom: "0.5rem" }}>
-                  <Input
-                    placeholder="Nombre (ej. Lic. Rosa Flores)"
-                    value={at.nombre}
-                    onChange={(e) => updateAtencion(idx, "nombre", e.target.value)}
-                  />
-                  <Input
-                    placeholder="Cargo (ej. Subdirectora Administrativa)"
-                    value={at.cargo}
-                    onChange={(e) => updateAtencion(idx, "cargo", e.target.value)}
-                  />
-                  <Button variant="ghost" size="sm" type="button" disabled={idx === 0} onClick={() => moveAtencion(idx, "up")}>
-                    ▲
-                  </Button>
-                  <Button variant="ghost" size="sm" type="button" disabled={idx === draft.atencion.length - 1} onClick={() => moveAtencion(idx, "down")}>
-                    ▼
-                  </Button>
-                  <Button variant="ghost" size="sm" type="button" onClick={() => removeAtencion(idx)}>
-                    ✕
-                  </Button>
+                <div key={at.id} style={{ display: "flex", flexDirection: "column", gap: "0.375rem", padding: "0.625rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "0.5rem", marginBottom: "0.5rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 130px), 1fr))", gap: "0.375rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+                    <Input
+                      placeholder="Nombre (ej. Lic. Rosa Flores)"
+                      value={at.nombre}
+                      onChange={(e) => updateAtencion(idx, "nombre", e.target.value)}
+                    />
+                    <Input
+                      placeholder="Cargo (ej. Subdirectora Administrativa)"
+                      value={at.cargo}
+                      onChange={(e) => updateAtencion(idx, "cargo", e.target.value)}
+                    />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.25rem", width: "100%", boxSizing: "border-box" }}>
+                    <Button variant="ghost" size="sm" type="button" disabled={idx === 0} onClick={() => moveAtencion(idx, "up")} title="Subir">
+                      ▲
+                    </Button>
+                    <Button variant="ghost" size="sm" type="button" disabled={idx === draft.atencion.length - 1} onClick={() => moveAtencion(idx, "down")} title="Bajar">
+                      ▼
+                    </Button>
+                    <Button variant="ghost" size="sm" type="button" onClick={() => removeAtencion(idx)} title="Eliminar">
+                      ✕
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
 
             {/* Copias para archivo (c.c.p.) */}
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+            <div style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem", width: "100%", boxSizing: "border-box" }}>
                 <label style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)" }}>
                   Copias de conocimiento (c.c.p.)
                 </label>
@@ -689,26 +699,30 @@ export function EscritosForm({
                 </Button>
               </div>
               {draft.copias.map((cp, idx) => (
-                <div key={cp.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto auto", gap: "0.375rem", alignItems: "center", marginBottom: "0.5rem" }}>
-                  <Input
-                    placeholder="Nombre o Representación"
-                    value={cp.nombre}
-                    onChange={(e) => updateCopia(idx, "nombre", e.target.value)}
-                  />
-                  <Input
-                    placeholder="Cargo o Instancia"
-                    value={cp.cargo}
-                    onChange={(e) => updateCopia(idx, "cargo", e.target.value)}
-                  />
-                  <Button variant="ghost" size="sm" type="button" disabled={idx === 0} onClick={() => moveCopia(idx, "up")}>
-                    ▲
-                  </Button>
-                  <Button variant="ghost" size="sm" type="button" disabled={idx === draft.copias.length - 1} onClick={() => moveCopia(idx, "down")}>
-                    ▼
-                  </Button>
-                  <Button variant="ghost" size="sm" type="button" onClick={() => removeCopia(idx)}>
-                    ✕
-                  </Button>
+                <div key={cp.id} style={{ display: "flex", flexDirection: "column", gap: "0.375rem", padding: "0.625rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "0.5rem", marginBottom: "0.5rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 130px), 1fr))", gap: "0.375rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+                    <Input
+                      placeholder="Nombre o Representación"
+                      value={cp.nombre}
+                      onChange={(e) => updateCopia(idx, "nombre", e.target.value)}
+                    />
+                    <Input
+                      placeholder="Cargo o Instancia"
+                      value={cp.cargo}
+                      onChange={(e) => updateCopia(idx, "cargo", e.target.value)}
+                    />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.25rem", width: "100%", boxSizing: "border-box" }}>
+                    <Button variant="ghost" size="sm" type="button" disabled={idx === 0} onClick={() => moveCopia(idx, "up")} title="Subir">
+                      ▲
+                    </Button>
+                    <Button variant="ghost" size="sm" type="button" disabled={idx === draft.copias.length - 1} onClick={() => moveCopia(idx, "down")} title="Bajar">
+                      ▼
+                    </Button>
+                    <Button variant="ghost" size="sm" type="button" onClick={() => removeCopia(idx)} title="Eliminar">
+                      ✕
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -731,14 +745,14 @@ export function EscritosForm({
       </div>
 
       {validationError && (
-        <div style={{ padding: "0.75rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.5rem", color: "#991b1b", fontSize: "0.8125rem" }}>
+        <div style={{ padding: "0.75rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.5rem", color: "#991b1b", fontSize: "0.8125rem", width: "100%", boxSizing: "border-box" }}>
           {validationError}
         </div>
       )}
 
       {/* Banner de Degradación o Error de IA */}
       {generationError && (
-        <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "0.75rem", padding: "1rem", color: "#92400e" }}>
+        <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "0.75rem", padding: "1rem", color: "#92400e", width: "100%", boxSizing: "border-box" }}>
           <div style={{ fontWeight: 700, fontSize: "0.9375rem", marginBottom: "0.375rem" }}>
             ⚠️ La redacción inteligente no está disponible en este momento
           </div>
@@ -773,10 +787,12 @@ export function EscritosForm({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          flexWrap: "wrap",
+          flexWrap: "wrap-reverse",
           gap: "0.75rem",
           borderTop: "1px solid var(--border)",
           paddingTop: "1.25rem",
+          width: "100%",
+          boxSizing: "border-box",
         }}
       >
         <Button
@@ -785,7 +801,7 @@ export function EscritosForm({
           type="button"
           onClick={handleManualSubmit}
           disabled={isGenerating || anexoUploading}
-          style={{ color: "var(--fg)" }}
+          style={{ color: "var(--fg)", minHeight: "44px" }}
         >
           ✏️ Quiero escribirlo manualmente
         </Button>
@@ -796,6 +812,7 @@ export function EscritosForm({
           type="submit"
           loading={isGenerating}
           disabled={isGenerating || anexoUploading}
+          style={{ minHeight: "48px", fontWeight: 700 }}
         >
           ✨ Ayúdame a redactarlo con IA
         </Button>

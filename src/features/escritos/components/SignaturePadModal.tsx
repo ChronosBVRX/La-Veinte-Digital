@@ -39,12 +39,13 @@ export function SignaturePadModal({
 
     // Ajustar resolución del canvas para pantallas retina / móviles
     const ratio = window.devicePixelRatio || 1
-    const width = Math.min(window.innerWidth - 48, 500)
-    const height = 220
+    const width = Math.max(240, Math.min(window.innerWidth - 72, 480))
+    const height = Math.min(200, Math.max(160, Math.round(width * 0.5)))
 
     canvas.width = width * ratio
     canvas.height = height * ratio
     canvas.style.width = `${width}px`
+    canvas.style.maxWidth = "100%"
     canvas.style.height = `${height}px`
 
     ctx.scale(ratio, ratio)
@@ -216,18 +217,20 @@ export function SignaturePadModal({
         alignItems: "center",
         justifyContent: "center",
         zIndex: 9999,
-        padding: "1rem",
+        padding: "0.75rem",
+        boxSizing: "border-box",
       }}
     >
       <div
         style={{
           background: "var(--card)",
           borderRadius: "1rem",
-          padding: "1.5rem",
-          maxWidth: "540px",
+          padding: "clamp(0.875rem, 3vw, 1.5rem)",
+          maxWidth: "500px",
           width: "100%",
           boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
           border: "1px solid var(--border)",
+          boxSizing: "border-box",
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
@@ -266,6 +269,8 @@ export function SignaturePadModal({
             display: "flex",
             justifyContent: "center",
             marginBottom: "1rem",
+            width: "100%",
+            boxSizing: "border-box",
           }}
         >
           <canvas
@@ -277,13 +282,13 @@ export function SignaturePadModal({
             onTouchStart={startDrawing}
             onTouchMove={draw}
             onTouchEnd={stopDrawing}
-            style={{ cursor: "crosshair", display: "block" }}
+            style={{ cursor: "crosshair", display: "block", touchAction: "none", maxWidth: "100%" }}
           />
         </div>
 
         {/* Controles de trazo y acciones */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "1.25rem" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
             <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>Grosor:</span>
             {[1.5, 2.5, 4].map((width) => (
               <button
@@ -305,7 +310,7 @@ export function SignaturePadModal({
             ))}
           </div>
 
-          <div style={{ display: "flex", gap: "0.5rem" }}>
+          <div style={{ display: "flex", gap: "0.375rem" }}>
             <Button
               variant="ghost"
               size="sm"
@@ -325,7 +330,7 @@ export function SignaturePadModal({
           </div>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: "0.5rem" }}>
           <Button variant="secondary" onClick={onClose} disabled={isSaving}>
             Cancelar
           </Button>
