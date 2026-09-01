@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Modal } from "@/shared/components/ui/Modal"
 import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
@@ -8,6 +8,7 @@ import type { DestinoCargoNombre } from "@/shared/contracts/escrito-draft"
 import {
   DIRECTORIO_DESTINATARIOS,
   CATEGORIAS_DESTINATARIOS,
+  findDestinatario,
   type DestinatarioItem,
   type DestinatarioCategoria,
 } from "@/features/escritos/data/directorio-destinatarios"
@@ -17,6 +18,7 @@ export interface DestinatarioSelectorModalProps {
   onClose: () => void
   currentDestino: DestinoCargoNombre
   onSelectDestino: (destino: DestinoCargoNombre) => void
+  initialTab?: "directorio" | "manual"
 }
 
 export function DestinatarioSelectorModal({
@@ -24,11 +26,25 @@ export function DestinatarioSelectorModal({
   onClose,
   currentDestino,
   onSelectDestino,
+  initialTab,
 }: DestinatarioSelectorModalProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [activeTab, setActiveTab] = useState<"directorio" | "manual">("directorio")
   const [manualCargo, setManualCargo] = useState(currentDestino.cargo || "")
   const [manualNombre, setManualNombre] = useState(currentDestino.nombre || "")
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialTab) {
+        setActiveTab(initialTab)
+      } else {
+        const isOficial = Boolean(findDestinatario(currentDestino.cargo, currentDestino.nombre))
+        setActiveTab(isOficial ? "directorio" : "manual")
+      }
+      setManualCargo(currentDestino.cargo || "")
+      setManualNombre(currentDestino.nombre || "")
+    }
+  }, [isOpen, initialTab, currentDestino])
 
   const filteredItems = useMemo(() => {
     const q = searchTerm.toLowerCase().trim()

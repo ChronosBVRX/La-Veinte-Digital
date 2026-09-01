@@ -52,6 +52,7 @@ export function EscritosForm({
 }: EscritosFormProps) {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [isSelectorModalOpen, setIsSelectorModalOpen] = useState(false)
+  const [selectorInitialTab, setSelectorInitialTab] = useState<"directorio" | "manual">("directorio")
   const [anexoUploading, setAnexoUploading] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
 
@@ -68,6 +69,7 @@ export function EscritosForm({
   const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value
     if (val === VALOR_DESTINO_MANUAL) {
+      setSelectorInitialTab("manual")
       setIsSelectorModalOpen(true)
     } else {
       const found = DIRECTORIO_DESTINATARIOS.find((d) => d.id === val)
@@ -426,6 +428,7 @@ export function EscritosForm({
         onClose={() => setIsSelectorModalOpen(false)}
         currentDestino={draft.destino}
         onSelectDestino={(d) => onUpdateDraft({ destino: d })}
+        initialTab={selectorInitialTab}
       />
 
       {/* Pregunta 3: Lugar y Fecha */}

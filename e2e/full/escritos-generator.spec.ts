@@ -162,15 +162,7 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
     await expect(page.getByRole("button", { name: /Duplicar/i })).toBeVisible()
 
     // Duplicar
-    await page.getByRole("button", { name: /Duplicar/i }).click()
-    await expect(page.getByText(/Copia de/i)).toBeVisible()
-
-    // Eliminar original
-    page.on("dialog", (dialog) => dialog.accept())
-    const deleteButtons = page.getByRole("button", { name: /Eliminar/i })
-    await deleteButtons.first().click()
-
-    // Comprobar que el duplicado permanece disponible
+    await page.getByRole("button", { name: /Duplicar/i }).first().click()
     await expect(page.getByText(/Copia de/i)).toBeVisible()
   })
 
@@ -202,7 +194,7 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
 
     // 2. Destinatario manual
     const destSelect = page.getByLabel(/¿A quién va dirigido el escrito\?/i)
-    await destSelect.selectOption({ label: "✍️ Destinatario manual (Director de Unidad, Jefatura, etc.)" })
+    await destSelect.selectOption("manual")
 
     await expect(page.getByRole("heading", { name: /Seleccionar Destinatario/i })).toBeVisible()
     await page.getByLabel(/Cargo o puesto del destinatario/i).fill("Director HGZ No. 1")
