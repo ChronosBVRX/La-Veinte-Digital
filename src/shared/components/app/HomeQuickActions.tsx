@@ -14,7 +14,6 @@ import {
 } from "@phosphor-icons/react"
 import { useIsNativeApp } from "@/shared/hooks/useIsNativeApp"
 import { createClient } from "@/lib/supabase/client"
-import { getEscritosGuardados } from "@/features/escritos/services/escritos-storage"
 
 type IconType = React.ComponentType<IconProps & { size?: number; weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone" }>
 
@@ -392,9 +391,6 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
   const [checadaStatus, setChecadaStatus] = useState<string | null>(null)
   const [checadaHasData, setChecadaHasData] = useState(false)
 
-  const [docCount, setDocCount] = useState<number | null>(null)
-  void docCount
-
   const [hasImssCreds, setHasImssCreds] = useState<boolean | null>(null)
   const [imssDialog, setImssDialog] = useState<null | "tarjeton" | "checadas">(null)
   const [webChecadasDialog, setWebChecadasDialog] = useState(false)
@@ -548,73 +544,6 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
         setChecadaHasData(true)
       })
       .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [isNative])
-
-  // Documentos: total guardados
-  useEffect(() => {
-    let cancelled = false
-    const compute = async () => {
-      // Escritos locales (requiere userId para contar aislado)
-      let escritosCount = 0
-      try {
-        let supabase: ReturnType<typeof createClient> | null = null
-        try {
-          supabase = createClient()
-        } catch {
-          supabase = null
-        }
-        let user: { id: string } | null = null
-        if (supabase) {
-          try {
-            const res = await supabase.auth.getUser()
-            user = res.data.user as { id: string } | null
-          } catch {
-            user = null
-          }
-        }
-        try {
-          const lista = getEscritosGuardados(user?.id)
-          escritosCount = lista.length
-        } catch {
-          escritosCount = 0
-        }
-        // Sumar tarjetones guardados (imported_payslips)
-        if (user && supabase) {
-          let t = 0
-          try {
-            const { count: tarjCount } = await supabase
-              .from("imported_payslips")
-              .select("id", { count: "exact", head: true })
-              .eq("user_id", user.id)
-            t = tarjCount ?? 0
-          } catch {
-            t = 0
-          }
-          // Nativos (si aplica)
-          if (typeof window !== "undefined" && window.LaVeinteApp?.listNativeDocuments) {
-            try {
-              const docs = await window.LaVeinteApp.listNativeDocuments()
-              const tarjNativos = docs?.filter((d) => d.source === "TU_PERFIL" || d.source === "TARJETON_DIGITAL").length ?? 0
-              const checNativos = docs?.filter((d) => d.source.includes("BIOMETRIC")).length ?? 0
-              const total = Math.max(t, tarjNativos) + checNativos + escritosCount
-              if (!cancelled) setDocCount(total)
-              return
-            } catch {
-              // ignore
-            }
-          }
-          if (!cancelled) setDocCount(t + escritosCount)
-          return
-        }
-        if (!cancelled) setDocCount(escritosCount)
-      } catch {
-        if (!cancelled) setDocCount(escritosCount)
-      }
-    }
-    compute()
     return () => {
       cancelled = true
     }
