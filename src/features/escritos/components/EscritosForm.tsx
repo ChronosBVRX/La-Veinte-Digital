@@ -11,7 +11,7 @@ import {
   type DestinatarioItem,
   type AnexoItem,
 } from "@/shared/contracts/escrito-draft"
-import { saveBlobResource } from "../services/escritos-indexeddb"
+import { saveBlobResource, deleteBlobResource } from "../services/escritos-indexeddb"
 
 export interface EscritosFormProps {
   userId: string
@@ -55,7 +55,6 @@ export function EscritosForm({
     )
     return isKnown ? "preset" : "manual"
   })
-  const [incluirFundamentos, setIncluirFundamentos] = useState(true)
   const [anexoUploading, setAnexoUploading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
@@ -100,6 +99,17 @@ export function EscritosForm({
     }
   }
 
+  const moveAtencion = (index: number, direction: "up" | "down") => {
+    const targetIndex = direction === "up" ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= draft.atencion.length) return
+    const updated = [...draft.atencion]
+    const item = updated[index]
+    if (!item) return
+    updated.splice(index, 1)
+    updated.splice(targetIndex, 0, item)
+    onUpdateDraft({ atencion: updated })
+  }
+
   const removeAtencion = (index: number) => {
     const updated = draft.atencion.filter((_, i) => i !== index)
     onUpdateDraft({ atencion: updated })
@@ -121,6 +131,17 @@ export function EscritosForm({
       updated[index] = { ...updated[index], [field]: value }
       onUpdateDraft({ copias: updated })
     }
+  }
+
+  const moveCopia = (index: number, direction: "up" | "down") => {
+    const targetIndex = direction === "up" ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= draft.copias.length) return
+    const updated = [...draft.copias]
+    const item = updated[index]
+    if (!item) return
+    updated.splice(index, 1)
+    updated.splice(targetIndex, 0, item)
+    onUpdateDraft({ copias: updated })
   }
 
   const removeCopia = (index: number) => {
@@ -182,10 +203,19 @@ export function EscritosForm({
     }
   }
 
-  const removeAnexo = (index: number) => {
+  const removeAnexo = async (index: number) => {
     const anexo = draft.anexos[index]
-    if (anexo?.previewUrl && anexo.previewUrl.startsWith("blob:")) {
-      URL.revokeObjectURL(anexo.previewUrl)
+    if (anexo) {
+      if (anexo.storageRef) {
+        await deleteBlobResource(userId, anexo.storageRef).catch(() => {})
+      }
+      if (anexo.previewUrl && anexo.previewUrl.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(anexo.previewUrl)
+        } catch {
+          // noop
+        }
+      }
     }
     const updated = draft.anexos.filter((_, i) => i !== index)
     onUpdateDraft({ anexos: updated })
@@ -203,8 +233,18 @@ export function EscritosForm({
     e.preventDefault()
     setErrorMsg(null)
 
-    if (!draft.hechos.trim() && !draft.peticion.trim()) {
-      setErrorMsg("Por favor describe los hechos o lo que solicitas para redactar el borrador.")
+    if (!draft.destino.cargo.trim() && !draft.destino.nombre.trim()) {
+      setErrorMsg("Por favor especifica a quién va dirigido el escrito (cargo o nombre).")
+      return
+    }
+
+    if (!draft.hechos.trim()) {
+      setErrorMsg("Por favor describe lo que ocurrió o los antecedentes del caso.")
+      return
+    }
+
+    if (!draft.peticion.trim()) {
+      setErrorMsg("Por favor escribe con claridad lo que solicitas en tu escrito.")
       return
     }
 
@@ -524,7 +564,7 @@ export function EscritosForm({
                 </Button>
               </div>
               {draft.atencion.map((at, idx) => (
-                <div key={at.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                <div key={at.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto auto", gap: "0.375rem", alignItems: "center", marginBottom: "0.5rem" }}>
                   <Input
                     placeholder="Nombre (ej. Lic. Rosa Flores)"
                     value={at.nombre}
@@ -535,6 +575,12 @@ export function EscritosForm({
                     value={at.cargo}
                     onChange={(e) => updateAtencion(idx, "cargo", e.target.value)}
                   />
+                  <Button variant="ghost" size="sm" type="button" disabled={idx === 0} onClick={() => moveAtencion(idx, "up")}>
+                    ▲
+                  </Button>
+                  <Button variant="ghost" size="sm" type="button" disabled={idx === draft.atencion.length - 1} onClick={() => moveAtencion(idx, "down")}>
+                    ▼
+                  </Button>
                   <Button variant="ghost" size="sm" type="button" onClick={() => removeAtencion(idx)}>
                     ✕
                   </Button>
@@ -553,7 +599,7 @@ export function EscritosForm({
                 </Button>
               </div>
               {draft.copias.map((cp, idx) => (
-                <div key={cp.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                <div key={cp.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto auto", gap: "0.375rem", alignItems: "center", marginBottom: "0.5rem" }}>
                   <Input
                     placeholder="Nombre o Representación"
                     value={cp.nombre}
@@ -564,6 +610,12 @@ export function EscritosForm({
                     value={cp.cargo}
                     onChange={(e) => updateCopia(idx, "cargo", e.target.value)}
                   />
+                  <Button variant="ghost" size="sm" type="button" disabled={idx === 0} onClick={() => moveCopia(idx, "up")}>
+                    ▲
+                  </Button>
+                  <Button variant="ghost" size="sm" type="button" disabled={idx === draft.copias.length - 1} onClick={() => moveCopia(idx, "down")}>
+                    ▼
+                  </Button>
                   <Button variant="ghost" size="sm" type="button" onClick={() => removeCopia(idx)}>
                     ✕
                   </Button>
@@ -576,8 +628,8 @@ export function EscritosForm({
               <input
                 type="checkbox"
                 id="fundamentar-check"
-                checked={incluirFundamentos}
-                onChange={(e) => setIncluirFundamentos(e.target.checked)}
+                checked={draft.incluirFundamentos}
+                onChange={(e) => onUpdateDraft({ incluirFundamentos: e.target.checked })}
                 style={{ width: "1rem", height: "1rem", accentColor: "var(--primary)" }}
               />
               <label htmlFor="fundamentar-check" style={{ fontSize: "0.8125rem", color: "var(--fg)", cursor: "pointer" }}>

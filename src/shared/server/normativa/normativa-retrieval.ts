@@ -1,12 +1,14 @@
 /**
  * Servicio compartido de recuperación de fuentes normativas en servidor.
- * Consulta el catálogo local (catalog.sqlite) o retorna lista vacía de forma segura.
+ * Consulta directamente el catálogo SQLite local (catalog.sqlite) sin importar módulos de features/
+ * de acuerdo con la Regla 2 de AGENTS.md.
+ * Filtra fuentes vigentes y no en revisión.
  * La Veinte Digital
  */
 
 import path from "node:path"
 import fs from "node:fs"
-import { NormativeDB } from "@/features/normativa/services/db"
+import { DatabaseSync } from "node:sqlite"
 
 export interface RetrievedNormativaSource {
   id: string
@@ -52,7 +54,8 @@ export function extractExactNormativaRefs(text: string): ExactNormativaRefs {
 }
 
 /**
- * Recupera fuentes normativas verificadas desde catalog.sqlite.
+ * Recupera fuentes normativas vigentes desde catalog.sqlite.
+ * Excluye explícitamente documentos en PENDING_REVIEW, HISTORICAL o UNKNOWN.
  */
 export async function retrieveNormativaSources(
   query: string,
@@ -64,31 +67,65 @@ export async function retrieveNormativaSources(
       return []
     }
 
-    const db = new NormativeDB(catalogPath)
-    const hits = db.search(query, { limit, mode: "or" })
+    const db = new DatabaseSync(catalogPath)
 
-    return hits.map((h) => {
-      const parsedPrinted = h.printedPage ? parseInt(h.printedPage, 10) : null
-      const pageNum = !isNaN(Number(parsedPrinted)) && parsedPrinted !== null ? parsedPrinted : h.pdfPageIndex ?? null
+    const tokens = query
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((t) => t.replace(/["'()]/g, ""))
+      .slice(0, 8)
+
+    if (tokens.length === 0) return []
+
+    // 1. Búsqueda con FTS5 uniendo con tabla documents para verificar vigencia
+    const quoted = tokens.map((t) => `"${t}"`).join(" OR ")
+
+    const sql = `
+      SELECT c.chunk_key AS chunk_id, c.document_id, d.title AS document_title, c.version_id,
+             c.pdf_page, c.printed_page, c.section_label, c.article, c.clause, c.numeral, c.text,
+             d.validity, d.priority,
+             bm25(chunks_fts, 10.0, 2.0) AS rank
+      FROM chunks_fts f
+      JOIN chunks c ON c.id = f.rowid
+      JOIN documents d ON d.id = c.document_id
+      WHERE chunks_fts MATCH ?
+        AND d.validity IN ('CURRENT', 'VIGENTE')
+        AND d.verification_status IS NULL
+      ORDER BY rank ASC
+      LIMIT ?
+    `
+
+    const rows = db.prepare(sql).all(quoted, Math.min(limit, 10)) as Array<Record<string, unknown>>
+
+    return rows.map((r) => {
+      const parsedPrinted = r.printed_page ? parseInt(String(r.printed_page), 10) : null
+      const pageNum = !isNaN(Number(parsedPrinted)) && parsedPrinted !== null
+        ? parsedPrinted
+        : (typeof r.pdf_page === "number" ? r.pdf_page : null)
+
+      const rankVal = typeof r.rank === "number" ? r.rank : 0
+      // Score positivo normalizado de relevancia
+      const score = Math.max(1, Math.round(100 - rankVal * 10))
 
       return {
-        id: h.chunkId,
-        chunkId: h.chunkId,
-        documentId: h.documentId,
-        documento: h.documentTitle,
-        version: h.versionId,
-        tipo: h.section,
-        numero: h.clause ? `Cláusula ${h.clause}` : h.article ? `Artículo ${h.article}` : null,
+        id: String(r.chunk_id || ""),
+        chunkId: String(r.chunk_id || ""),
+        documentId: String(r.document_id || ""),
+        documento: String(r.document_title || ""),
+        version: String(r.version_id || ""),
+        tipo: r.section_label ? String(r.section_label) : null,
+        numero: r.clause ? `Cláusula ${r.clause}` : r.article ? `Artículo ${r.article}` : null,
         paginaInicio: pageNum,
         paginaFin: pageNum,
-        fragmento: h.text,
+        fragmento: String(r.text || ""),
         sourceUrl: null,
-        validity: h.validity,
-        score: 100,
+        validity: String(r.validity || "CURRENT"),
+        score,
       }
     })
   } catch (err) {
-    console.warn("[normativa-retrieval] Catálogo normativo no disponible:", err)
+    console.warn("[normativa-retrieval] Catálogo normativo no disponible o error de consulta:", err)
     return []
   }
 }

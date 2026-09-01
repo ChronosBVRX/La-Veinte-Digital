@@ -2,11 +2,12 @@
 
 import { useRef, useState, useEffect } from "react"
 import { Button } from "@/shared/components/ui/Button"
-import { dataUrlToBlob, saveBlobResource } from "../services/escritos-indexeddb"
+import { dataUrlToBlob, saveBlobResource, deleteBlobResource } from "../services/escritos-indexeddb"
 
 interface SignaturePadModalProps {
   userId: string
   escritoId: string
+  previousFirmaRef?: string
   isOpen: boolean
   onClose: () => void
   onSave: (firmaRef: string, previewUrl: string) => void
@@ -15,6 +16,7 @@ interface SignaturePadModalProps {
 export function SignaturePadModal({
   userId,
   escritoId,
+  previousFirmaRef,
   isOpen,
   onClose,
   onSave,
@@ -183,6 +185,9 @@ export function SignaturePadModal({
         `sig_${Date.now()}`,
         blob
       )
+      if (previousFirmaRef && previousFirmaRef !== storageRef) {
+        await deleteBlobResource(userId, previousFirmaRef).catch(() => {})
+      }
       const previewUrl = URL.createObjectURL(blob)
       onSave(storageRef, previewUrl)
       onClose()

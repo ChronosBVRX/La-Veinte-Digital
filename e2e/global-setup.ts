@@ -26,12 +26,10 @@ setup("autenticar usuario E2E", async ({ page }) => {
 
   await page.goto("/login")
 
-  // Fill login form using accessible selectors
-  await page.getByLabel("Correo electrónico").fill(email)
-  await page.getByLabel("Contraseña").fill(password)
-
-  // Click submit
-  await page.getByRole("button", { name: /iniciar sesión/i }).click()
+  const loginForm = page.locator("form")
+  await loginForm.getByLabel("Correo electrónico").fill(email)
+  await loginForm.getByLabel("Contraseña").fill(password)
+  await loginForm.getByRole("button", { name: "Iniciar sesión" }).click()
 
   // Wait for redirect to dashboard
   await expect(

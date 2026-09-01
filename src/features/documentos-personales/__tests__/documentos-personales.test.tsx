@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest"
+import "fake-indexeddb/auto"
 import { render, screen, waitFor } from "@testing-library/react"
 import { DocumentosPersonales } from "../components/DocumentosPersonales"
 import { guardarEscrito } from "@/features/escritos/services/escritos-storage"
+import { saveBlobResource } from "@/features/escritos/services/escritos-indexeddb"
 import { createEmptyEscritoDraftV2 } from "@/shared/contracts/escrito-draft"
+import { escritoToPdfFile } from "../lib/escrito-pdf"
 
 vi.mock("../components/ImportTarjetonModal", () => ({
   ImportTarjetonModal: () => null,
@@ -58,5 +61,37 @@ describe("DocumentosPersonales (Integración con Escritos)", () => {
     const editLink = screen.getByLabelText(/Editar escrito/i)
     expect(editLink).toBeDefined()
     expect(editLink.getAttribute("href")).toBe(`/escritos?id=${doc.id}`)
+  })
+
+  it("escritoToPdfFile genera PDF vectorial desde Documentos Personales hidratando firma y fotos", async () => {
+    const dummyBlob = new Blob(["test_img"], { type: "image/png" })
+    const sigRef = await saveBlobResource("usr_doc_test", "esc_pdf", "firma", "sig", dummyBlob)
+    const photoRef = await saveBlobResource("usr_doc_test", "esc_pdf", "anexo", "photo", dummyBlob)
+
+    const doc = createEmptyEscritoDraftV2("usr_doc_test", "queja", {
+      id: "esc_pdf",
+      titulo: "Queja sobre insumos",
+      cuerpo: "Cuerpo de la queja formal...",
+      firmaRef: sigRef,
+      anexos: [
+        {
+          id: "anx_1",
+          nombre: "Foto de insumos",
+          descripcion: "Evidencia de falta de insumos",
+          tipo: "image/png",
+          size: 1024,
+          storageRef: photoRef,
+        },
+      ],
+    })
+
+    const pdfFile = await escritoToPdfFile(doc, "usr_doc_test", {
+      nombre: "Ana Morales",
+      matricula: "554433",
+      categoria: "Enfermera Especialista",
+    })
+
+    expect(pdfFile).toBeInstanceOf(File)
+    expect(pdfFile.size).toBeGreaterThan(800)
   })
 })

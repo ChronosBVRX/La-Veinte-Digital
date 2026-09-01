@@ -123,7 +123,7 @@ export function DocumentosPersonales() {
       if (doc.kind === "nativo") {
         return readNativeDocumentAsFile({ name: doc.name, mimeType: doc.mimeType, localPath: doc.localPath })
       }
-      return escritoToPdfFile(doc.escrito, {
+      return escritoToPdfFile(doc.escrito, userId ?? "anonymous", {
         nombre: profile?.fullName ?? undefined,
         matricula: profile?.matricula ?? undefined,
         categoria: profile?.categoria ?? undefined,

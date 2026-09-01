@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback, useTransition } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+import Link from "next/link"
 import { Button } from "@/shared/components/ui/Button"
 import { Card } from "@/shared/components/ui/Card"
+import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import {
   createEmptyEscritoDraftV2,
   type EscritoDraftV2,
@@ -15,22 +16,25 @@ import {
   guardarEscrito,
   eliminarEscrito,
   duplicarEscrito,
+  migrarEscritosLegadosSiEsNecesario,
 } from "../services/escritos-storage"
 import {
   hydrateEscritoBlobs,
   revokeEscritoBlobs,
 } from "../services/escritos-indexeddb"
+import { generarEscrito } from "../services/generarEscrito"
 import { EscritosForm } from "./EscritosForm"
 import { EscritosEditor } from "./EscritosEditor"
 import { EscritosResult } from "./EscritosResult"
-import { generarEscrito } from "../services/generarEscrito"
+import { createClient } from "@/lib/supabase/client"
 
 export function EscritosGenerator() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [, startTransition] = useTransition()
 
-  const [userId, setUserId] = useState<string>("anonymous")
+  const [authResolved, setAuthResolved] = useState(false)
+  const [userId, setUserId] = useState<string>("")
   const [workerProfile, setWorkerProfile] = useState<{
     nombre?: string
     matricula?: string
@@ -41,36 +45,52 @@ export function EscritosGenerator() {
 
   const [stage, setStage] = useState<"form" | "editor" | "preview">("form")
   const [draft, setDraft] = useState<EscritoDraftV2>(() => createEmptyEscritoDraftV2("anonymous"))
+  const [initialDraftSnapshot, setInitialDraftSnapshot] = useState<string>("")
   const [savedList, setSavedList] = useState<EscritoDraftV2[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [saveToast, setSaveToast] = useState<string | null>(null)
+  const [pendingNavigationAction, setPendingNavigationAction] = useState<(() => void) | null>(null)
 
-  // 1. Cargar sesión de usuario y perfil
+  // 1. Cargar sesión de usuario y perfil de forma segura
   useEffect(() => {
     let cancelled = false
     const supabase = createClient()
 
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (cancelled || !user) return
-      setUserId(user.id)
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (cancelled) return
+      if (!user) {
+        setAuthResolved(true)
+        return
+      }
 
-      supabase
-        .from("profiles")
-        .select("full_name,matricula,categoria,adscripcion")
-        .eq("id", user.id)
-        .maybeSingle()
-        .then(({ data: profile }) => {
-          if (cancelled) return
-          if (profile) {
-            setWorkerProfile((prev) => ({
-              ...prev,
-              nombre: profile.full_name || prev.nombre,
-              matricula: profile.matricula || prev.matricula,
-              categoria: profile.categoria || prev.categoria,
-              adscripcion: profile.adscripcion || prev.adscripcion,
-            }))
-          }
-        })
+      setUserId(user.id)
+      setDraft((prev) => ({ ...prev, ownerId: user.id }))
+
+      // Ejecutar migración transaccional de legados
+      await migrarEscritosLegadosSiEsNecesario(user.id)
+
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name,matricula,categoria,adscripcion")
+          .eq("id", user.id)
+          .maybeSingle()
+
+        if (profile && !cancelled) {
+          setWorkerProfile({
+            nombre: profile.full_name ?? undefined,
+            matricula: profile.matricula ?? undefined,
+            categoria: profile.categoria ?? undefined,
+            adscripcion: profile.adscripcion ?? undefined,
+          })
+        }
+      } catch (err) {
+        console.warn("[EscritosGenerator] No se pudo cargar perfil:", err)
+      } finally {
+        if (!cancelled) {
+          setAuthResolved(true)
+        }
+      }
     })
 
     return () => {
@@ -78,8 +98,9 @@ export function EscritosGenerator() {
     }
   }, [])
 
-  // 2. Refrescar lista de escritos guardados cuando cambia el usuario
+  // 2. Refrescar lista de escritos guardados cuando se resuelve el usuario
   useEffect(() => {
+    if (!userId || userId === "anonymous") return
     queueMicrotask(() => {
       const list = getEscritosGuardados(userId)
       setSavedList(list)
@@ -89,15 +110,33 @@ export function EscritosGenerator() {
   // 3. Cargar escrito desde parámetro de URL (?id=...)
   const urlId = searchParams.get("id")
   useEffect(() => {
-    if (!urlId) return
+    if (!urlId || !userId || userId === "anonymous") return
     const found = getEscritoById(urlId, userId)
     if (found) {
       hydrateEscritoBlobs(found, userId).then((hydrated) => {
         setDraft(hydrated)
+        setInitialDraftSnapshot(JSON.stringify(hydrated))
         setStage("editor")
       })
     }
   }, [urlId, userId])
+
+  // Detección de cambios sin guardar
+  const isDirty = Boolean(
+    initialDraftSnapshot &&
+    (draft.cuerpo || draft.hechos || draft.peticion) &&
+    JSON.stringify(draft) !== initialDraftSnapshot
+  )
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault()
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload)
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+  }, [isDirty])
 
   const handleUpdateDraft = useCallback((updated: Partial<EscritoDraftV2>) => {
     setDraft((prev) => ({ ...prev, ...updated }))
@@ -116,20 +155,19 @@ export function EscritosGenerator() {
         asunto: draft.asunto,
         atencion: draft.atencion,
         copias: draft.copias,
-        incluirFundamentos: true,
+        incluirFundamentos: draft.incluirFundamentos,
       })
 
       const updatedDraft: EscritoDraftV2 = {
         ...draft,
         cuerpo: response.cuerpo,
-        asunto: draft.asunto || response.asuntoSugerido,
-        titulo: draft.titulo === "Nuevo escrito" ? response.tituloSugerido : draft.titulo,
         fuentes: response.fuentes,
         advertencias: response.advertencias,
         generationMode: response.generationMode,
       }
 
       setDraft(updatedDraft)
+      setInitialDraftSnapshot(JSON.stringify(updatedDraft))
       setStage("editor")
     } catch (err: unknown) {
       console.error("Error al generar escrito:", err)
@@ -144,6 +182,7 @@ export function EscritosGenerator() {
     try {
       const updatedList = guardarEscrito(draft, userId)
       setSavedList(updatedList)
+      setInitialDraftSnapshot(JSON.stringify(draft))
       setSaveToast("Borrador guardado correctamente en tu dispositivo.")
       setTimeout(() => setSaveToast(null), 3000)
     } catch (e) {
@@ -151,35 +190,53 @@ export function EscritosGenerator() {
     }
   }, [draft, userId])
 
-  const handleNewDraft = () => {
+  const performNewDraft = () => {
     revokeEscritoBlobs(draft)
     const empty = createEmptyEscritoDraftV2(userId)
     setDraft(empty)
+    setInitialDraftSnapshot(JSON.stringify(empty))
     setStage("form")
     startTransition(() => {
       router.push("/escritos")
     })
   }
 
-  const handleOpenDraft = async (item: EscritoDraftV2, targetStage: "editor" | "preview" = "editor") => {
+  const handleNewDraft = () => {
+    if (isDirty) {
+      setPendingNavigationAction(() => performNewDraft)
+      return
+    }
+    performNewDraft()
+  }
+
+  const performOpenDraft = async (item: EscritoDraftV2, targetStage: "editor" | "preview" = "editor") => {
     revokeEscritoBlobs(draft)
     const hydrated = await hydrateEscritoBlobs(item, userId)
     setDraft(hydrated)
+    setInitialDraftSnapshot(JSON.stringify(hydrated))
     setStage(targetStage)
   }
 
-  const handleDuplicate = (id: string) => {
-    const dup = duplicarEscrito(id, userId)
+  const handleOpenDraft = (item: EscritoDraftV2, targetStage: "editor" | "preview" = "editor") => {
+    if (isDirty) {
+      setPendingNavigationAction(() => () => performOpenDraft(item, targetStage))
+      return
+    }
+    performOpenDraft(item, targetStage)
+  }
+
+  const handleDuplicate = async (id: string) => {
+    const dup = await duplicarEscrito(id, userId)
     if (dup) {
       setSavedList(getEscritosGuardados(userId))
-      setSaveToast("Copia creada exitosamente.")
+      setSaveToast("Copia creada exitosamente con archivos independientes.")
       setTimeout(() => setSaveToast(null), 3000)
     }
   }
 
-  const handleDelete = (id: string) => {
-    if (window.confirm("¿Seguro que deseas eliminar este escrito guardado?")) {
-      const updated = eliminarEscrito(id, userId)
+  const handleDelete = async (id: string) => {
+    if (window.confirm("¿Seguro que deseas eliminar este escrito guardado? Esta acción purgará también sus firmas y fotos adjuntas.")) {
+      const updated = await eliminarEscrito(id, userId)
       setSavedList(updated)
       if (draft.id === id) {
         handleNewDraft()
@@ -187,8 +244,85 @@ export function EscritosGenerator() {
     }
   }
 
+  if (!authResolved) {
+    return (
+      <div style={{ maxWidth: "840px", margin: "0 auto", padding: "4rem 1rem", textAlign: "center" }}>
+        <LoadingSpinner text="Cargando generador de escritos..." />
+      </div>
+    )
+  }
+
+  if (!userId || userId === "anonymous") {
+    return (
+      <div style={{ maxWidth: "540px", margin: "4rem auto", padding: "1rem" }}>
+        <Card padding="2rem" style={{ textAlign: "center", background: "var(--card)" }}>
+          <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>🔒</div>
+          <h2 style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.5rem" }}>
+            Inicia sesión para continuar
+          </h2>
+          <p style={{ color: "var(--muted)", fontSize: "0.875rem", marginBottom: "1.5rem" }}>
+            Para redactar, guardar, adjuntar fotografías y firmar tus escritos de forma privada y segura, necesitas acceder con tu cuenta.
+          </p>
+          <Link href="/login">
+            <Button variant="primary" size="md">
+              Iniciar sesión
+            </Button>
+          </Link>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div style={{ maxWidth: "840px", margin: "0 auto", padding: "1.5rem 1rem" }}>
+      {/* Modal de confirmación de cambios sin guardar */}
+      {pendingNavigationAction && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "1rem",
+          }}
+        >
+          <Card padding="1.5rem" style={{ maxWidth: "420px", width: "100%", background: "var(--card)" }}>
+            <h3 style={{ margin: "0 0 0.5rem", fontSize: "1.125rem", fontWeight: 700, color: "var(--fg)" }}>
+              ⚠️ Cambios sin guardar
+            </h3>
+            <p style={{ margin: "0 0 1.25rem", fontSize: "0.875rem", color: "var(--muted)" }}>
+              Tienes cambios en el borrador actual que no han sido guardados. ¿Deseas descartarlos y continuar?
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setPendingNavigationAction(null)}
+              >
+                Permanecer en el escrito
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  const action = pendingNavigationAction
+                  setPendingNavigationAction(null)
+                  action()
+                }}
+              >
+                Descartar y continuar
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {/* Toast de Guardado */}
       {saveToast && (
         <div

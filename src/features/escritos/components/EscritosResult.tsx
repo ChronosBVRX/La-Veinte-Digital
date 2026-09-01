@@ -7,7 +7,7 @@ import type { EscritoDraftV2 } from "@/shared/contracts/escrito-draft"
 import {
   generarNombreArchivoPdf,
   imprimirEscrito,
-  renderEscritoToPdfFile,
+  renderStoredEscritoToPdfFile,
 } from "@/shared/lib/escrito-pdf-renderer"
 import { SignaturePadModal } from "./SignaturePadModal"
 import { deleteBlobResource } from "../services/escritos-indexeddb"
@@ -63,8 +63,9 @@ export function EscritosResult({
   const handleDownloadPdf = async () => {
     setIsDownloading(true)
     try {
-      const file = await renderEscritoToPdfFile(draft, {
+      const file = await renderStoredEscritoToPdfFile(draft, userId, {
         nombreTrabajador: workerProfile?.nombre,
+        nombre: workerProfile?.nombre,
         matricula: workerProfile?.matricula,
         categoria: workerProfile?.categoria,
         adscripcion: workerProfile?.adscripcion,
@@ -89,8 +90,9 @@ export function EscritosResult({
   const handlePrint = async () => {
     setIsPrinting(true)
     try {
-      await imprimirEscrito(draft, {
+      await imprimirEscrito(draft, userId, {
         nombreTrabajador: workerProfile?.nombre,
+        nombre: workerProfile?.nombre,
         matricula: workerProfile?.matricula,
         categoria: workerProfile?.categoria,
         adscripcion: workerProfile?.adscripcion,
@@ -105,8 +107,9 @@ export function EscritosResult({
 
   const handleNativeShare = async () => {
     try {
-      const file = await renderEscritoToPdfFile(draft, {
+      const file = await renderStoredEscritoToPdfFile(draft, userId, {
         nombreTrabajador: workerProfile?.nombre,
+        nombre: workerProfile?.nombre,
         matricula: workerProfile?.matricula,
         categoria: workerProfile?.categoria,
         adscripcion: workerProfile?.adscripcion,

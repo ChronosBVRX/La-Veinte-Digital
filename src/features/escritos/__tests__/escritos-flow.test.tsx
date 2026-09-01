@@ -6,12 +6,13 @@ import { EscritosEditor } from "../components/EscritosEditor"
 import { createEmptyEscritoDraftV2 } from "@/shared/contracts/escrito-draft"
 
 describe("Flujo UI del Generador de Escritos", () => {
-  it("EscritosForm: valida que no se genere si faltan hechos y petición", () => {
+  it("EscritosForm: valida con mensaje amistoso si falta destinatario", () => {
     const onGenerate = vi.fn()
     const onUpdateDraft = vi.fn()
     const draft = createEmptyEscritoDraftV2("usr_test", "solicitud", {
-      hechos: "",
-      peticion: "",
+      destino: { cargo: "", nombre: "" },
+      hechos: "Hechos de prueba...",
+      peticion: "Petición de prueba...",
     })
 
     render(
@@ -28,13 +29,15 @@ describe("Flujo UI del Generador de Escritos", () => {
     fireEvent.click(submitBtn)
 
     expect(onGenerate).not.toHaveBeenCalled()
-    expect(screen.getByText(/Por favor describe los hechos o lo que solicitas/i)).toBeDefined()
+    expect(screen.getByText(/Por favor especifica a quién va dirigido el escrito/i)).toBeDefined()
   })
 
-  it("EscritosForm: permite seleccionar tipo de escrito y desplegar opciones avanzadas", () => {
+  it("EscritosForm: permite seleccionar tipo de escrito, toggle de fundamentación y opciones avanzadas", () => {
     const onGenerate = vi.fn()
     const onUpdateDraft = vi.fn()
-    const draft = createEmptyEscritoDraftV2("usr_test", "solicitud")
+    const draft = createEmptyEscritoDraftV2("usr_test", "solicitud", {
+      incluirFundamentos: true,
+    })
 
     render(
       <EscritosForm
@@ -57,7 +60,11 @@ describe("Flujo UI del Generador de Escritos", () => {
     const advancedToggle = screen.getByRole("button", { name: /Opciones avanzadas/i })
     fireEvent.click(advancedToggle)
     expect(screen.getByText(/Título de referencia interna/i)).toBeDefined()
-    expect(screen.getByText(/Asunto formal del oficio/i)).toBeDefined()
+
+    // Toggle de checkbox fundamentación
+    const check = screen.getByLabelText(/Fundamentar con normas y cláusulas del Contrato Colectivo/i)
+    fireEvent.click(check)
+    expect(onUpdateDraft).toHaveBeenCalledWith({ incluirFundamentos: false })
   })
 
   it("EscritosEditor: renderiza advertencias de fuentes y permite avanzar a la vista previa", () => {

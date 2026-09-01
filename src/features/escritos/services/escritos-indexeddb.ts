@@ -256,11 +256,77 @@ export async function hydrateEscritoBlobs(
  */
 export function revokeEscritoBlobs(draft: EscritoDraftV2): void {
   if (draft.firmaPreviewUrl && draft.firmaPreviewUrl.startsWith("blob:")) {
-    URL.revokeObjectURL(draft.firmaPreviewUrl)
+    try {
+      URL.revokeObjectURL(draft.firmaPreviewUrl)
+    } catch {
+      // Ignorar errores en entornos sin DOM completo
+    }
   }
   for (const anexo of draft.anexos) {
     if (anexo.previewUrl && anexo.previewUrl.startsWith("blob:")) {
-      URL.revokeObjectURL(anexo.previewUrl)
+      try {
+        URL.revokeObjectURL(anexo.previewUrl)
+      } catch {
+        // Ignorar errores en entornos sin DOM completo
+      }
     }
   }
 }
+
+/**
+ * Duplica físicamente en IndexedDB todos los blobs asociados al escrito original
+ * asignándoles nuevas claves bajo el nuevo targetEscritoId.
+ * Devuelve un mapa { [oldStorageRef]: newStorageRef }.
+ */
+export async function duplicateEscritoBlobs(
+  userId: string,
+  sourceEscritoId: string,
+  targetEscritoId: string
+): Promise<Map<string, string>> {
+  const refMap = new Map<string, string>()
+  try {
+    const db = await openDatabase()
+    const recordsToClone: BlobRecord[] = await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readonly")
+      const store = tx.objectStore(STORE_NAME)
+      const index = store.index("by_user_escrito")
+      const range = IDBKeyRange.only([userId, sourceEscritoId])
+      const req = index.getAll(range)
+      req.onsuccess = () => resolve(req.result as BlobRecord[])
+      req.onerror = () => reject(req.error || new Error("Error leyendo blobs para duplicar."))
+    })
+
+    if (recordsToClone.length === 0) return refMap
+
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite")
+      const store = tx.objectStore(STORE_NAME)
+
+      for (const rec of recordsToClone) {
+        const newResourceId = `dup_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+        const newKey = buildBlobKey(userId, targetEscritoId, rec.resourceType, newResourceId)
+        const newRecord: BlobRecord = {
+          key: newKey,
+          userId,
+          escritoId: targetEscritoId,
+          resourceType: rec.resourceType,
+          resourceId: newResourceId,
+          mimeType: rec.mimeType,
+          blob: rec.blob,
+          createdAt: new Date().toISOString(),
+        }
+        store.put(newRecord)
+        refMap.set(rec.key, newKey)
+      }
+
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error || new Error("Error clonando blobs."))
+    })
+
+    return refMap
+  } catch (err) {
+    console.error("[indexeddb] Error duplicando blobs:", err)
+    return refMap
+  }
+}
+

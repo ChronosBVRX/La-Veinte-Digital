@@ -128,6 +128,7 @@ export interface EscritoDraftV2 {
   copias: DestinatarioItem[]
   anexos: AnexoItem[]
   fuentes: FuenteNormativaVerificada[]
+  incluirFundamentos: boolean
   /**
    * Referencia interna a la firma en IndexedDB.
    */
@@ -145,7 +146,7 @@ export interface EscritoDraftV2 {
 
 /** Formato legado V1 (almacenado previamente en `escritos_guardados`) */
 export interface LegacyEscritoV1 {
-  id: string
+  id?: string
   titulo?: string
   fecha?: string
   tipo?: string
@@ -159,6 +160,8 @@ export interface LegacyEscritoV1 {
   copias?: string | string[]
   anexos?: unknown[]
   fuentes?: unknown[]
+  firmaUrl?: string
+  fotos?: string[]
   createdAt?: string
   updatedAt?: string
 }
@@ -187,6 +190,7 @@ export function isEscritoDraftV2(val: unknown): val is EscritoDraftV2 {
     Array.isArray(d.copias) &&
     Array.isArray(d.anexos) &&
     Array.isArray(d.fuentes) &&
+    typeof d.incluirFundamentos === "boolean" &&
     typeof d.createdAt === "string" &&
     typeof d.updatedAt === "string"
   )
@@ -219,6 +223,7 @@ export function createEmptyEscritoDraftV2(
     copias: initialValues?.copias ?? [],
     anexos: initialValues?.anexos ?? [],
     fuentes: initialValues?.fuentes ?? [],
+    incluirFundamentos: initialValues?.incluirFundamentos ?? true,
     firmaRef: initialValues?.firmaRef,
     firmaPreviewUrl: initialValues?.firmaPreviewUrl,
     status: initialValues?.status ?? "draft",
@@ -249,39 +254,71 @@ export function migrateLegacyEscritoToV2(
     }
   }
 
-  const atencion: DestinatarioItem[] = []
+  let atencion: DestinatarioItem[] = []
   if (Array.isArray(legacy.atencion)) {
-    for (const at of legacy.atencion) {
-      if (typeof at === "string" && at.trim()) {
-        atencion.push({ id: `at_${Math.random().toString(36).slice(2, 7)}`, cargo: "", nombre: at.trim() })
+    atencion = legacy.atencion.map((item, idx) => {
+      if (typeof item === "object" && item !== null) {
+        const at = item as Record<string, unknown>
+        return {
+          id: String(at.id || `at_${idx + 1}`),
+          cargo: String(at.cargo || ""),
+          nombre: String(at.nombre || ""),
+        }
       }
-    }
+      return {
+        id: `at_${idx + 1}`,
+        cargo: "",
+        nombre: String(item),
+      }
+    })
   } else if (typeof legacy.atencion === "string" && legacy.atencion.trim()) {
-    atencion.push({ id: `at_${Math.random().toString(36).slice(2, 7)}`, cargo: "", nombre: legacy.atencion.trim() })
+    atencion = [
+      {
+        id: "at_1",
+        cargo: "",
+        nombre: legacy.atencion.trim(),
+      },
+    ]
   }
 
-  const copias: DestinatarioItem[] = []
+  let copias: DestinatarioItem[] = []
   if (Array.isArray(legacy.copias)) {
-    for (const cp of legacy.copias) {
-      if (typeof cp === "string" && cp.trim()) {
-        copias.push({ id: `cp_${Math.random().toString(36).slice(2, 7)}`, cargo: "", nombre: cp.trim() })
+    copias = legacy.copias.map((item, idx) => {
+      if (typeof item === "object" && item !== null) {
+        const cp = item as Record<string, unknown>
+        return {
+          id: String(cp.id || `cp_${idx + 1}`),
+          cargo: String(cp.cargo || ""),
+          nombre: String(cp.nombre || ""),
+        }
       }
-    }
+      return {
+        id: `cp_${idx + 1}`,
+        cargo: "",
+        nombre: String(item),
+      }
+    })
   } else if (typeof legacy.copias === "string" && legacy.copias.trim()) {
-    copias.push({ id: `cp_${Math.random().toString(36).slice(2, 7)}`, cargo: "", nombre: legacy.copias.trim() })
+    copias = [
+      {
+        id: "cp_1",
+        cargo: "",
+        nombre: legacy.copias.trim(),
+      },
+    ]
   }
 
-  let tipoVal: TipoEscritoKey = "solicitud"
-  if (legacy.tipo && Object.keys(TIPOS_ESCRITO).includes(legacy.tipo)) {
-    tipoVal = legacy.tipo as TipoEscritoKey
+  let tipoValido: TipoEscritoKey = "solicitud"
+  if (legacy.tipo && legacy.tipo in TIPOS_ESCRITO) {
+    tipoValido = legacy.tipo as TipoEscritoKey
   }
 
   return {
     schemaVersion: 2,
     id: legacyId,
     ownerId,
-    titulo: legacy.titulo || `Escrito ${legacy.fecha || now.slice(0, 10)}`,
-    tipo: tipoVal,
+    titulo: legacy.titulo || `Escrito ${tipoValido}`,
+    tipo: tipoValido,
     asunto: legacy.asunto || "",
     destino,
     ciudad: legacy.ciudad || "",
@@ -293,7 +330,8 @@ export function migrateLegacyEscritoToV2(
     copias,
     anexos: [],
     fuentes: [],
-    status: "draft",
+    incluirFundamentos: true,
+    status: "completed",
     generationMode: "basic_fallback",
     createdAt: legacy.createdAt || now,
     updatedAt: legacy.updatedAt || now,
@@ -304,21 +342,28 @@ export interface GenerarEscritoRequest {
   tipo: TipoEscritoKey
   hechos: string
   peticion: string
-  destino: DestinoCargoNombre
-  ciudad: string
-  fecha: string
+  destino?: DestinoCargoNombre
+  ciudad?: string
+  fecha?: string
   asunto?: string
   atencion?: DestinatarioItem[]
   copias?: DestinatarioItem[]
   incluirFundamentos?: boolean
   cuerpoActual?: string
   instruccionAjuste?: string
+  workerProfile?: {
+    nombre?: string
+    matricula?: string
+    categoria?: string
+    adscripcion?: string
+    seccion?: string
+  }
 }
 
 export interface GenerarEscritoResponse {
   cuerpo: string
-  asuntoSugerido: string
-  tituloSugerido: string
+  asuntoSugerido?: string
+  tituloSugerido?: string
   fuentes: FuenteNormativaVerificada[]
   advertencias: string[]
   generationMode: GenerationMode

@@ -1,5 +1,6 @@
 /**
  * Almacenamiento local aislado por usuario para el Generador de Escritos V2.
+ * Soporta migración transaccional de dos fases para fotos y firmas legadas.
  * La Veinte Digital
  */
 
@@ -9,8 +10,15 @@ import {
   nuevoIdEscrito,
   type EscritoDraftV2,
   type LegacyEscritoV1,
+  type AnexoItem,
 } from "@/shared/contracts/escrito-draft"
-import { deleteEscritoBlobs } from "./escritos-indexeddb"
+import {
+  deleteEscritoBlobs,
+  deleteBlobResource,
+  duplicateEscritoBlobs,
+  saveBlobResource,
+  dataUrlToBlob,
+} from "./escritos-indexeddb"
 
 export { nuevoIdEscrito }
 
@@ -26,14 +34,26 @@ export function getStorageKey(userId?: string): string {
   return `escritos_guardados_${encodeURIComponent(userId)}`
 }
 
-/**
- * Migra de forma única e irreversible los escritos legados globales al primer usuario autenticado.
- * Elimina la clave global para que un segundo usuario nunca reciba los documentos del primero.
- */
-export function migrarEscritosLegadosSiEsNecesario(userId: string): void {
-  if (typeof window === "undefined" || !userId || userId === "anonymous") return
+export interface MigrationResult {
+  success: boolean
+  migratedCount: number
+  error?: string
+}
 
-  // Si ya fue migrado a algún usuario, no volver a migrar
+/**
+ * Migración transaccional de dos fases:
+ * Fase 1: Convierte metadatos y migra fotos/firmaUrl a Blobs en IndexedDB.
+ * Fase 2: Guarda en la clave privada del usuario.
+ * Solo si todo tiene éxito, elimina la clave global y marca como migrado.
+ * En caso de fallo, hace rollback de los blobs creados y permite reintento.
+ */
+export async function migrarEscritosLegadosSiEsNecesario(
+  userId: string
+): Promise<MigrationResult> {
+  if (typeof window === "undefined" || !userId || userId === "anonymous") {
+    return { success: true, migratedCount: 0 }
+  }
+
   const alreadyMigratedTo = localStorage.getItem(MIGRATION_FLAG_KEY)
   const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY)
 
@@ -41,55 +61,123 @@ export function migrarEscritosLegadosSiEsNecesario(userId: string): void {
     if (!alreadyMigratedTo) {
       localStorage.setItem(MIGRATION_FLAG_KEY, userId)
     }
-    return
+    return { success: true, migratedCount: 0 }
   }
 
+  let legacyParsed: unknown[]
   try {
-    const legacyParsed = JSON.parse(legacyRaw)
+    legacyParsed = JSON.parse(legacyRaw)
     if (!Array.isArray(legacyParsed) || legacyParsed.length === 0) {
       localStorage.removeItem(LEGACY_STORAGE_KEY)
       localStorage.setItem(MIGRATION_FLAG_KEY, userId)
-      return
+      return { success: true, migratedCount: 0 }
     }
+  } catch (e) {
+    console.error("[escritos-storage] JSON legado inválido:", e)
+    return { success: false, migratedCount: 0, error: "Formato de datos legados inválido." }
+  }
 
-    const userKey = getStorageKey(userId)
-    const userRaw = localStorage.getItem(userKey)
-    let userList: EscritoDraftV2[] = []
-    if (userRaw) {
-      try {
-        const parsed = JSON.parse(userRaw)
-        if (Array.isArray(parsed)) {
-          userList = parsed.filter((item) => isEscritoDraftV2(item) && item.ownerId === userId)
-        }
-      } catch {
-        userList = []
+  const userKey = getStorageKey(userId)
+  const userRaw = localStorage.getItem(userKey)
+  let userList: EscritoDraftV2[] = []
+  if (userRaw) {
+    try {
+      const parsed = JSON.parse(userRaw)
+      if (Array.isArray(parsed)) {
+        userList = parsed.filter((item) => isEscritoDraftV2(item) && item.ownerId === userId)
       }
+    } catch {
+      userList = []
     }
+  }
 
-    const existingIds = new Set(userList.map((e) => e.id))
+  const existingIds = new Set(userList.map((e) => e.id))
+  const createdBlobKeys: string[] = []
+  const newMigratedDrafts: EscritoDraftV2[] = []
 
-    for (const item of legacyParsed) {
-      if (!item || typeof item !== "object" || !item.id) continue
-      if (existingIds.has(item.id)) continue
+  try {
+    for (const rawItem of legacyParsed) {
+      if (!rawItem || typeof rawItem !== "object") continue
+      const legacyItem = rawItem as LegacyEscritoV1
+      const docId = legacyItem.id || nuevoIdEscrito()
+      if (existingIds.has(docId)) continue
 
-      if (isEscritoDraftV2(item)) {
-        userList.push({ ...item, ownerId: userId })
-        existingIds.add(item.id)
+      let draft: EscritoDraftV2
+      if (isEscritoDraftV2(legacyItem)) {
+        draft = { ...legacyItem, ownerId: userId }
       } else {
-        const migrated = migrateLegacyEscritoToV2(item as LegacyEscritoV1, userId)
-        userList.push(migrated)
-        existingIds.add(migrated.id)
+        draft = migrateLegacyEscritoToV2(legacyItem, userId)
+        draft.id = docId
       }
+
+      // Migrar firmaUrl legado a Blob en IndexedDB
+      if (legacyItem.firmaUrl && typeof legacyItem.firmaUrl === "string" && legacyItem.firmaUrl.startsWith("data:")) {
+        try {
+          const blob = dataUrlToBlob(legacyItem.firmaUrl)
+          const firmaRef = await saveBlobResource(userId, draft.id, "firma", "legacy_sig", blob)
+          draft.firmaRef = firmaRef
+          createdBlobKeys.push(firmaRef)
+        } catch (blobErr) {
+          console.warn("[escritos-storage] Error migrando firma legada a IndexedDB:", blobErr)
+        }
+      }
+
+      // Migrar fotos legadas a Blobs en IndexedDB
+      if (Array.isArray(legacyItem.fotos) && legacyItem.fotos.length > 0) {
+        const anexos: AnexoItem[] = [...draft.anexos]
+        for (let i = 0; i < legacyItem.fotos.length; i++) {
+          const fotoDataUrl = legacyItem.fotos[i]
+          if (typeof fotoDataUrl === "string" && fotoDataUrl.startsWith("data:")) {
+            try {
+              const photoBlob = dataUrlToBlob(fotoDataUrl)
+              const photoId = `legacy_photo_${i + 1}`
+              const photoRef = await saveBlobResource(userId, draft.id, "anexo", photoId, photoBlob)
+              createdBlobKeys.push(photoRef)
+              anexos.push({
+                id: `anx_${photoId}`,
+                nombre: `Fotografía adjunta ${i + 1}`,
+                descripcion: "Fotografía migrada desde versión anterior",
+                tipo: photoBlob.type || "image/jpeg",
+                size: photoBlob.size,
+                storageRef: photoRef,
+              })
+            } catch (photoErr) {
+              console.warn(`[escritos-storage] Error migrando foto legada ${i}:`, photoErr)
+            }
+          }
+        }
+        draft.anexos = anexos
+      }
+
+      newMigratedDrafts.push(draft)
+      existingIds.add(draft.id)
     }
 
-    // Guardar en la clave privada del usuario
-    localStorage.setItem(userKey, JSON.stringify(userList))
+    // Fase 2: Persistencia en localStorage
+    const finalList = [...newMigratedDrafts, ...userList]
+    localStorage.setItem(userKey, JSON.stringify(finalList.map(sanitizarParaLocalStorage)))
 
-    // Eliminar la clave global para garantizar que nadie más la lea
+    // Limpieza atómica de la clave global únicamente tras éxito completo
     localStorage.removeItem(LEGACY_STORAGE_KEY)
     localStorage.setItem(MIGRATION_FLAG_KEY, userId)
-  } catch (e) {
-    console.warn("[escritos-storage] Error durante la migración de escritos legados:", e)
+
+    return {
+      success: true,
+      migratedCount: newMigratedDrafts.length,
+    }
+  } catch (err) {
+    console.error("[escritos-storage] Error en migración transaccional. Ejecutando rollback:", err)
+
+    // Rollback de blobs creados en IndexedDB
+    for (const key of createdBlobKeys) {
+      await deleteBlobResource(userId, key).catch(() => {})
+    }
+
+    return {
+      success: false,
+      migratedCount: 0,
+      error: err instanceof Error ? err.message : "Error durante la migración.",
+    }
   }
 }
 
@@ -97,7 +185,7 @@ export function migrarEscritosLegadosSiEsNecesario(userId: string): void {
  * Sanitiza un borrador antes de guardarlo en localStorage, asegurando que no se guarden
  * URLs blob en memoria ni strings gigantes base64.
  */
-function sanitizarParaLocalStorage(draft: EscritoDraftV2): EscritoDraftV2 {
+export function sanitizarParaLocalStorage(draft: EscritoDraftV2): EscritoDraftV2 {
   return {
     ...draft,
     firmaPreviewUrl: undefined,
@@ -113,9 +201,6 @@ function sanitizarParaLocalStorage(draft: EscritoDraftV2): EscritoDraftV2 {
  */
 export function getEscritosGuardados(userId?: string): EscritoDraftV2[] {
   if (typeof window === "undefined") return []
-  if (userId && userId !== "anonymous") {
-    migrarEscritosLegadosSiEsNecesario(userId)
-  }
 
   const key = getStorageKey(userId)
   const raw = localStorage.getItem(key)
@@ -128,7 +213,6 @@ export function getEscritosGuardados(userId?: string): EscritoDraftV2[] {
     const validList: EscritoDraftV2[] = []
     for (const item of parsed) {
       if (isEscritoDraftV2(item)) {
-        // Validación estricta de propiedad
         if (!userId || userId === "anonymous" || item.ownerId === userId) {
           validList.push(item)
         }
@@ -204,30 +288,49 @@ export function guardarEscrito(draft: EscritoDraftV2, userId?: string): EscritoD
 }
 
 /**
- * Duplica un escrito como nueva plantilla borrador.
+ * Duplica un escrito creando copias físicas independientes de su firma y anexos en IndexedDB.
  */
-export function duplicarEscrito(id: string, userId?: string): EscritoDraftV2 | null {
+export async function duplicarEscrito(id: string, userId?: string): Promise<EscritoDraftV2 | null> {
   const original = getEscritoById(id, userId)
   if (!original) return null
 
+  const owner = userId || original.ownerId || "anonymous"
+  const newId = nuevoIdEscrito()
   const now = new Date().toISOString()
+
+  // Clonar físicamente los blobs en IndexedDB
+  const refMap = await duplicateEscritoBlobs(owner, original.id, newId)
+
+  const newFirmaRef = original.firmaRef ? refMap.get(original.firmaRef) || original.firmaRef : undefined
+
+  const newAnexos: AnexoItem[] = original.anexos.map((anx) => ({
+    ...anx,
+    id: `anx_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    storageRef: anx.storageRef ? refMap.get(anx.storageRef) || anx.storageRef : "",
+    previewUrl: undefined,
+  }))
+
   const duplicado: EscritoDraftV2 = {
     ...original,
-    id: nuevoIdEscrito(),
+    id: newId,
+    ownerId: owner,
     titulo: `Copia de ${original.titulo}`,
+    firmaRef: newFirmaRef,
+    firmaPreviewUrl: undefined,
+    anexos: newAnexos,
     status: "draft",
     createdAt: now,
     updatedAt: now,
   }
 
-  guardarEscrito(duplicado, userId)
+  guardarEscrito(duplicado, owner)
   return duplicado
 }
 
 /**
  * Elimina un escrito del usuario y purga todos sus recursos binarios de IndexedDB.
  */
-export function eliminarEscrito(id: string, userId?: string): EscritoDraftV2[] {
+export async function eliminarEscrito(id: string, userId?: string): Promise<EscritoDraftV2[]> {
   if (typeof window === "undefined") return []
 
   const owner = userId || "anonymous"
@@ -240,10 +343,12 @@ export function eliminarEscrito(id: string, userId?: string): EscritoDraftV2[] {
     console.error("[escritos-storage] Error eliminando escrito:", e)
   }
 
-  // Purga de IndexedDB en segundo plano
-  deleteEscritoBlobs(owner, id).catch((err) => {
+  // Purga de IndexedDB
+  try {
+    await deleteEscritoBlobs(owner, id)
+  } catch (err) {
     console.warn("[escritos-storage] Error purgando blobs de IndexedDB:", err)
-  })
+  }
 
   return list
 }

@@ -39,6 +39,9 @@ export function EscritosEditor({
     title: string
     description: string
     newText: string
+    fuentes?: typeof draft.fuentes
+    generationMode?: typeof draft.generationMode
+    advertencias?: string[]
   } | null>(null)
 
   // Sincronizar el texto del editor con el draft global cuando cambia
@@ -67,6 +70,7 @@ export function EscritosEditor({
         ciudad: draft.ciudad,
         fecha: draft.fecha,
         asunto: draft.asunto,
+        incluirFundamentos: draft.incluirFundamentos,
         cuerpoActual: text,
         instruccionAjuste,
       })
@@ -76,6 +80,9 @@ export function EscritosEditor({
           title,
           description,
           newText: res.cuerpo,
+          fuentes: res.fuentes,
+          generationMode: res.generationMode,
+          advertencias: res.advertencias,
         })
       }
     } catch (err) {
@@ -89,6 +96,12 @@ export function EscritosEditor({
   const handleAcceptProposal = () => {
     if (!proposal) return
     pushImmediateSnapshot(proposal.newText)
+    onUpdateDraft({
+      cuerpo: proposal.newText,
+      fuentes: proposal.fuentes ?? draft.fuentes,
+      generationMode: proposal.generationMode ?? draft.generationMode,
+      advertencias: proposal.advertencias ?? draft.advertencias,
+    })
     setProposal(null)
   }
 

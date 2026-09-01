@@ -13,7 +13,7 @@ export function generateBasicFallbackEscrito(req: GenerarEscritoRequest): Genera
   const tipoNombre = tipoDef ? tipoDef.titulo : "Escrito"
 
   const asunto = req.asunto || `${tipoNombre}: ${req.hechos.slice(0, 60)}...`
-  const titulo = `Escrito de ${tipoNombre} - ${req.destino.nombre || req.destino.cargo || "Destinatario"}`
+  const titulo = `Escrito de ${tipoNombre} - ${req.destino?.nombre || req.destino?.cargo || "Destinatario"}`
 
   const cuerpo =
     `Por medio de la presente, me dirijo a usted con el debido respeto para exponer los siguientes hechos:\n\n` +

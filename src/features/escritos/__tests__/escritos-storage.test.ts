@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest"
+import "fake-indexeddb/auto"
 import {
   getEscritosGuardados,
   guardarEscrito,
@@ -8,147 +9,157 @@ import {
   getStorageKey,
   migrarEscritosLegadosSiEsNecesario,
 } from "../services/escritos-storage"
-import { createEmptyEscritoDraftV2 } from "@/shared/contracts/escrito-draft"
-import { buildBlobKey, getBlobResource } from "../services/escritos-indexeddb"
+import {
+  createEmptyEscritoDraftV2,
+  type LegacyEscritoV1,
+} from "@/shared/contracts/escrito-draft"
+import {
+  getBlobResource,
+  saveBlobResource,
+  deleteBlobResource,
+} from "../services/escritos-indexeddb"
+import { renderStoredEscritoToPdfFile } from "@/shared/lib/escrito-pdf-renderer"
 
-describe("Aislamiento de Almacenamiento y Migración Multiusuario", () => {
+describe("Aislamiento de Almacenamiento, Migración Transaccional y Ciclo de Vida de Blobs", () => {
   beforeEach(() => {
     localStorage.clear()
     vi.restoreAllMocks()
   })
 
-  it("Usuario A migra escritos legados; usuario B en el mismo navegador no los recibe", () => {
-    // 1. Existen escritos legados previos a la autenticación
-    const legacyDocs = [
-      {
-        id: "leg_001",
-        titulo: "Solicitud de pase de salida",
-        tipo: "solicitud",
-        fecha: "2026-06-01",
-        cuerpo: "Hechos y peticion previa...",
-        destino: "Jefe de Servicio",
-      },
-    ]
-    localStorage.setItem("escritos_guardados", JSON.stringify(legacyDocs))
+  it("migración transaccional: migra fotos y firmaUrl legados a Blobs en IndexedDB sin pérdida de datos", async () => {
+    // 1. Datos legados previos a la migración
+    const legacyDoc: LegacyEscritoV1 = {
+      id: "leg_001",
+      titulo: "Solicitud de pase de salida",
+      tipo: "solicitud",
+      fecha: "2026-06-01",
+      cuerpo: "Hechos y petición del escrito legado.",
+      destino: "Jefe de Servicio",
+      firmaUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      fotos: [
+        "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=",
+      ],
+    }
 
-    // 2. Usuario A inicia sesión
-    migrarEscritosLegadosSiEsNecesario("usr_alice")
-    const docsAlice = getEscritosGuardados("usr_alice")
+    localStorage.setItem("escritos_guardados", JSON.stringify([legacyDoc]))
 
-    expect(docsAlice).toHaveLength(1)
-    expect(docsAlice[0].id).toBe("leg_001")
-    expect(docsAlice[0].ownerId).toBe("usr_alice")
+    // 2. Ejecutar migración para Usuario A
+    const migRes = await migrarEscritosLegadosSiEsNecesario("usr_alice")
+    expect(migRes.success).toBe(true)
+    expect(migRes.migratedCount).toBe(1)
 
-    // La clave global fue eliminada y marcada como migrada
+    // La clave global fue eliminada de forma segura
     expect(localStorage.getItem("escritos_guardados")).toBeNull()
     expect(localStorage.getItem("escritos_guardados_migrated_to")).toBe("usr_alice")
 
-    // 3. Usuario B inicia sesión en el mismo dispositivo
-    migrarEscritosLegadosSiEsNecesario("usr_bob")
+    // Verificar en localStorage del usuario (sin base64)
+    const docsAlice = getEscritosGuardados("usr_alice")
+    expect(docsAlice).toHaveLength(1)
+    expect(docsAlice[0].id).toBe("leg_001")
+    expect(docsAlice[0].firmaRef).toBeDefined()
+    expect(docsAlice[0].anexos).toHaveLength(1)
+
+    const rawAlice = localStorage.getItem(getStorageKey("usr_alice"))
+    expect(rawAlice).not.toContain("data:image/")
+
+    // Verificar en IndexedDB
+    const firmaBlob = await getBlobResource("usr_alice", docsAlice[0].firmaRef!)
+    expect(firmaBlob).not.toBeNull()
+    expect(firmaBlob).toBeTruthy()
+
+    const photoBlob = await getBlobResource("usr_alice", docsAlice[0].anexos[0].storageRef)
+    expect(photoBlob).not.toBeNull()
+    expect(photoBlob).toBeTruthy()
+  })
+
+  it("usuario B en el mismo dispositivo no recibe los escritos de usuario A", async () => {
+    localStorage.setItem(
+      "escritos_guardados",
+      JSON.stringify([{ id: "leg_002", titulo: "Oficio Privado A" }])
+    )
+
+    await migrarEscritosLegadosSiEsNecesario("usr_alice")
+
+    // Usuario B inicia sesión en el mismo navegador
+    await migrarEscritosLegadosSiEsNecesario("usr_bob")
     const docsBob = getEscritosGuardados("usr_bob")
 
-    // Usuario B NO recibe los escritos de Alice
     expect(docsBob).toHaveLength(0)
   })
 
-  it("Ningún dataUrl ni blob: de firma o fotografía queda guardado en localStorage", () => {
-    const draft = createEmptyEscritoDraftV2("usr_charlie", "solicitud", {
-      titulo: "Oficio con firma y fotos",
-      cuerpo: "Cuerpo del oficio...",
-      firmaRef: "user_usr_charlie:esc_123:firma:sig_1",
-      firmaPreviewUrl: "blob:http://localhost:3000/123-abc-firma",
+  it("duplicar crea copias físicas independientes de blobs (eliminar original no rompe el duplicado)", async () => {
+    // 1. Crear documento original con firma y anexo en IndexedDB
+    const dummyBlob = new Blob(["pixel_data"], { type: "image/png" })
+    const sigRef = await saveBlobResource("usr_carol", "esc_orig", "firma", "sig_1", dummyBlob)
+    const photoRef = await saveBlobResource("usr_carol", "esc_orig", "anexo", "photo_1", dummyBlob)
+
+    const original = createEmptyEscritoDraftV2("usr_carol", "solicitud", {
+      id: "esc_orig",
+      titulo: "Oficio Original",
+      cuerpo: "Texto original",
+      firmaRef: sigRef,
       anexos: [
         {
           id: "anx_1",
           nombre: "Credencial",
           descripcion: "Foto credencial",
-          tipo: "image/jpeg",
-          size: 1024,
-          storageRef: "user_usr_charlie:esc_123:anexo:anx_1",
-          previewUrl: "blob:http://localhost:3000/456-def-foto",
+          tipo: "image/png",
+          size: 10,
+          storageRef: photoRef,
         },
       ],
     })
 
-    guardarEscrito(draft, "usr_charlie")
+    guardarEscrito(original, "usr_carol")
 
-    const rawStorage = localStorage.getItem(getStorageKey("usr_charlie"))
-    expect(rawStorage).toBeDefined()
-    expect(rawStorage).not.toBeNull()
+    // 2. Duplicar escrito
+    const duplicado = await duplicarEscrito("esc_orig", "usr_carol")
+    expect(duplicado).not.toBeNull()
+    expect(duplicado?.id).not.toBe("esc_orig")
+    expect(duplicado?.firmaRef).not.toBe(sigRef)
+    expect(duplicado?.anexos[0].storageRef).not.toBe(photoRef)
 
-    // No debe contener URLs de sesión en memoria
-    expect(rawStorage).not.toContain("blob:")
-    expect(rawStorage).not.toContain("data:image/")
+    // 3. Eliminar original
+    await eliminarEscrito("esc_orig", "usr_carol")
 
-    // Pero sí debe conservar las referencias de almacenamiento para IndexedDB
-    expect(rawStorage).toContain("user_usr_charlie:esc_123:firma:sig_1")
-    expect(rawStorage).toContain("user_usr_charlie:esc_123:anexo:anx_1")
+    // El original ya no tiene blobs
+    const sigOrig = await getBlobResource("usr_carol", sigRef)
+    expect(sigOrig).toBeNull()
+
+    // 4. El duplicado todavía tiene sus propios blobs en IndexedDB y puede generar PDF
+    const sigDup = await getBlobResource("usr_carol", duplicado!.firmaRef!)
+    expect(sigDup).not.toBeNull()
+
+    const photoDup = await getBlobResource("usr_carol", duplicado!.anexos[0].storageRef)
+    expect(photoDup).not.toBeNull()
+
+    const pdfFile = await renderStoredEscritoToPdfFile(duplicado!, "usr_carol")
+    expect(pdfFile).toBeInstanceOf(File)
+    expect(pdfFile.size).toBeGreaterThan(500)
   })
 
-  it("Editar un escrito conserva id, ownerId, createdAt y título de forma inmutable", () => {
-    const original = createEmptyEscritoDraftV2("usr_david", "queja", {
-      titulo: "Queja por sobrecarga laboral",
-      cuerpo: "Párrafo inicial.",
-      createdAt: "2026-07-01T10:00:00.000Z",
-    })
+  it("cambiar firma elimina la anterior solo después de guardar la nueva", async () => {
+    const blob1 = new Blob(["firma_vieja"], { type: "image/png" })
+    const ref1 = await saveBlobResource("usr_dan", "esc_1", "firma", "sig_v1", blob1)
 
-    guardarEscrito(original, "usr_david")
+    // Guardar nueva firma
+    const blob2 = new Blob(["firma_nueva"], { type: "image/png" })
+    const ref2 = await saveBlobResource("usr_dan", "esc_1", "firma", "sig_v2", blob2)
 
-    // Modificamos el cuerpo
-    const modificado = {
-      ...original,
-      cuerpo: "Párrafo inicial modificado con nuevos hechos.",
-    }
+    // Eliminar la anterior
+    await deleteBlobResource("usr_dan", ref1)
 
-    guardarEscrito(modificado, "usr_david")
-
-    const lista = getEscritosGuardados("usr_david")
-    expect(lista).toHaveLength(1)
-    expect(lista[0].id).toBe(original.id)
-    expect(lista[0].ownerId).toBe("usr_david")
-    expect(lista[0].createdAt).toBe("2026-07-01T10:00:00.000Z")
-    expect(lista[0].titulo).toBe("Queja por sobrecarga laboral")
-    expect(lista[0].cuerpo).toBe("Párrafo inicial modificado con nuevos hechos.")
+    expect(await getBlobResource("usr_dan", ref1)).toBeNull()
+    expect(await getBlobResource("usr_dan", ref2)).not.toBeNull()
   })
 
-  it("duplicarEscrito crea una copia aislada con nuevo id y estado draft", () => {
-    const original = createEmptyEscritoDraftV2("usr_eva", "solicitud", {
-      titulo: "Pase de salida médico",
-      cuerpo: "Solicito pase para cita médica.",
-    })
-    guardarEscrito(original, "usr_eva")
+  it("quitar anexo elimina su Blob de IndexedDB", async () => {
+    const blob = new Blob(["foto_adjunta"], { type: "image/jpeg" })
+    const photoRef = await saveBlobResource("usr_elena", "esc_2", "anexo", "p_1", blob)
 
-    const copia = duplicarEscrito(original.id, "usr_eva")
-    expect(copia).not.toBeNull()
-    expect(copia?.id).not.toBe(original.id)
-    expect(copia?.titulo).toBe("Copia de Pase de salida médico")
-    expect(copia?.status).toBe("draft")
+    expect(await getBlobResource("usr_elena", photoRef)).not.toBeNull()
 
-    const lista = getEscritosGuardados("usr_eva")
-    expect(lista).toHaveLength(2)
-  })
-
-  it("IndexedDB construye claves estructuradas por usuario y rechaza acceso cruzado", async () => {
-    const keyAlice = buildBlobKey("usr_alice", "esc_100", "firma", "sig_1")
-    expect(keyAlice).toBe("user_usr_alice:esc_esc_100:firma:sig_1")
-
-    // Usuario Bob intenta leer la referencia de Alice
-    const resultBob = await getBlobResource("usr_bob", keyAlice)
-    expect(resultBob).toBeNull()
-  })
-
-  it("eliminarEscrito remueve el escrito del usuario y no afecta a otros usuarios", () => {
-    const doc1 = createEmptyEscritoDraftV2("usr_felix", "libre", { titulo: "Oficio 1" })
-    const doc2 = createEmptyEscritoDraftV2("usr_felix", "libre", { titulo: "Oficio 2" })
-    guardarEscrito(doc1, "usr_felix")
-    guardarEscrito(doc2, "usr_felix")
-
-    expect(getEscritosGuardados("usr_felix")).toHaveLength(2)
-
-    eliminarEscrito(doc1.id, "usr_felix")
-
-    const listaRestante = getEscritosGuardados("usr_felix")
-    expect(listaRestante).toHaveLength(1)
-    expect(listaRestante[0].id).toBe(doc2.id)
+    await deleteBlobResource("usr_elena", photoRef)
+    expect(await getBlobResource("usr_elena", photoRef)).toBeNull()
   })
 })

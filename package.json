@@ -79,6 +79,7 @@
     "@types/testing-library__jest-dom": "^5.14.9",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
     "tailwindcss": "^4",
     "typescript": "^5",

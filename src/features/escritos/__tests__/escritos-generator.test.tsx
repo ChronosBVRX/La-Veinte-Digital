@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest"
+import "fake-indexeddb/auto"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { EscritosGenerator } from "../components/EscritosGenerator"
 import { guardarEscrito } from "../services/escritos-storage"
@@ -33,13 +34,13 @@ vi.mock("@/lib/supabase/client", () => ({
   }),
 }))
 
-describe("EscritosGenerator (Componente Principal)", () => {
+describe("EscritosGenerator (Componente Principal con Auth y Protección de Cambios)", () => {
   beforeEach(() => {
     localStorage.clear()
     vi.clearAllMocks()
   })
 
-  it("renderiza el generador y muestra la lista de escritos guardados del usuario", async () => {
+  it("renderiza el generador tras resolver la sesión y muestra la lista de escritos del usuario", async () => {
     const doc = createEmptyEscritoDraftV2("usr_gen_123", "solicitud", {
       titulo: "Solicitud de Permiso Económico",
       fecha: "2026-08-31",
@@ -54,7 +55,7 @@ describe("EscritosGenerator (Componente Principal)", () => {
     })
   })
 
-  it("permite duplicar un escrito existente y agrega la copia a la lista", async () => {
+  it("permite duplicar un escrito existente creando copia física independiente", async () => {
     const doc = createEmptyEscritoDraftV2("usr_gen_123", "queja", {
       titulo: "Queja por turno extra",
     })
