@@ -119,9 +119,9 @@ describe("speechify-engine: generate con mocks", () => {
     process.env.SPEECHIFY_API_KEY = "sk_test_123";
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sp-test-"));
     const controller = new AbortController();
-    global.fetch = vi.fn(async (_url, opts) => {
-      // @ts-expect-error signal
-      if (opts?.signal?.aborted) throw new DOMException("aborted", "AbortError");
+    global.fetch = vi.fn(async (_url, opts: unknown) => {
+      const sig = (opts as { signal?: AbortSignal })?.signal;
+      if (sig?.aborted) throw new DOMException("aborted", "AbortError");
       await new Promise((res) => setTimeout(res, 50));
       controller.abort();
       throw new DOMException("aborted", "AbortError");
