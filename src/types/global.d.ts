@@ -22,6 +22,7 @@ declare global {
     onAuthenticated(): void
     onLoggedOut(): void
     openOfficialPayslips(): void
+    openBiometrics(): void
     hasImssCredentials(portalId: string): boolean
     checkForUpdate(): void
     requestCameraPermission(): Promise<{ granted: boolean; permanentlyDenied?: boolean }>

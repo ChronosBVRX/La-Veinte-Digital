@@ -59,7 +59,13 @@ struct InternalWebView: UIViewRepresentable {
                 self?.router.route(NavigationRouter.resolveForExternal(url))
             }
             BridgeHandler.shared.onOpenOfficialPayslips = { [weak self] in
-                self?.router.path.append(.officialPayslips)
+                self?.router.path.append(.imssPortal(.tuPerfil))
+            }
+            BridgeHandler.shared.onOpenBiometrics = { [weak self] in
+                // iOS aún no tiene pantalla dedicada de biométricos; por ahora abre Tu Perfil IMSS
+                // (misma bóveda TU_PERFIL) y el usuario puede navegar a "Registros biométricos" desde OfficialPayslips
+                // cuando esté disponible. Fallback temporal a imssPortal tuPerfil para no romper navegación.
+                self?.router.path.append(.imssPortal(.tuPerfil))
             }
             BridgeHandler.shared.onCheckForUpdate = {
                 // iOS no tiene OTA: no-op.

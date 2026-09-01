@@ -25,11 +25,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -81,6 +86,7 @@ fun InternalWebScreen(
     onExternalNavigation: (NavigationTarget) -> Unit,
     onCustomTab: (String) -> Unit,
     onOpenOfficialPayslips: () -> Unit = {},
+    onOpenBiometrics: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var webView by remember { mutableStateOf<WebView?>(null) }
@@ -158,6 +164,7 @@ fun InternalWebScreen(
 
     DisposableEffect(Unit) {
         BridgeHandler.onOpenOfficialPayslips = { onOpenOfficialPayslips() }
+        BridgeHandler.onOpenBiometrics = { onOpenBiometrics() }
         BridgeHandler.onCheckForUpdate = { UpdateTrigger.request() }
         BridgeHandler.onRequestNotificationsPermission = {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -219,6 +226,7 @@ fun InternalWebScreen(
         }
         onDispose {
             BridgeHandler.onOpenOfficialPayslips = null
+            BridgeHandler.onOpenBiometrics = null
             BridgeHandler.onCheckForUpdate = null
             BridgeHandler.onAuthenticated = null
             BridgeHandler.onLoggedOut = null
@@ -480,7 +488,7 @@ fun InternalWebScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .navigationBarsPadding(),
+                .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
         )
 
         if (isLoading && initialLoadDone) {

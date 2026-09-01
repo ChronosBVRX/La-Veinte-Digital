@@ -2,64 +2,60 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { generarEscrito } from "@/features/escritos/services/generarEscrito"
 import { institutionalToday } from "@/shared/lib/dates"
 import { EscritosForm } from "./EscritosForm"
-import { EscritosResult, type EscritoASalvar } from "./EscritosResult"
+import { EscritosEditor } from "./EscritosEditor"
+import { EscritosResult } from "./EscritosResult"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
+import { Button } from "@/shared/components/ui/Button"
 import {
-  getEscritosGuardados, guardarEscrito, eliminarEscrito, nuevoIdEscrito,
-  type EscritoGuardado,
-} from "@/features/escritos/services/escritos-storage"
-import type { ChangeEvent } from "react"
+  getEscritosGuardados,
+  guardarEscrito,
+  eliminarEscrito,
+  duplicarEscrito,
+  getEscritoById,
+} from "../services/escritos-storage"
+import { generarEscritoApi } from "../services/generarEscrito"
+import {
+  createEmptyEscritoDraftV2,
+  type EscritoDraftV2,
+  type WorkerProfileContext,
+  type GenerarEscritoRequest,
+} from "@/shared/contracts/escrito-draft"
 
 interface Profile {
+  id: string
   full_name: string
   matricula: string
   categoria: string
   adscripcion: string
 }
 
-interface FormState {
-  destino: string
-  fecha: string
-  ciudad: string
-  detalle: string
-  atencion: string
-  copia: string
-}
-
 export function EscritosGenerator() {
   const supabase = createClient()
 
+  const [userId, setUserId] = useState<string>("anonymous")
   const [profile, setProfile] = useState<Profile | null>(null)
   const [cargandoPerfil, setCargandoPerfil] = useState(true)
   const [perfilIncompleto, setPerfilIncompleto] = useState(false)
 
-  const [form, setForm] = useState<FormState>({
-    destino: "",
-    fecha: "",
-    ciudad: "",
-    detalle: "",
-    atencion: "",
-    copia: "",
-  })
-  const [textoGenerado, setTextoGenerado] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [mostrarAvanzado, setMostrarAvanzado] = useState(false)
-  const [mostrarVistaPrevia, setMostrarVistaPrevia] = useState(false)
-  const [fotos, setFotos] = useState<string[]>([])
-  const [formKey, setFormKey] = useState(0)
+  // Etapas del flujo: "form" (Paso 1) | "editor" (Paso 2) | "preview" (Paso 3)
+  const [etapa, setEtapa] = useState<"form" | "editor" | "preview">("form")
 
-  const [escritos, setEscritos] = useState<EscritoGuardado[]>([])
-  const [escritoEnVista, setEscritoEnVista] = useState<EscritoGuardado | null>(null)
+  const [draft, setDraft] = useState<EscritoDraftV2>(() =>
+    createEmptyEscritoDraftV2("anonymous", undefined, {
+      fecha: institutionalToday().toISOString().slice(0, 10),
+    })
+  )
+
+  const [loadingGeneracion, setLoadingGeneracion] = useState(false)
+  const [guardando, setGuardando] = useState(false)
   const [guardadoMsg, setGuardadoMsg] = useState("")
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- hidratación local desde localStorage (solo cliente)
-    setEscritos(getEscritosGuardados())
-  }, [])
+  const [escritos, setEscritos] = useState<EscritoDraftV2[]>([])
 
+  // Carga inicial de escritos y perfil
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) {
@@ -67,9 +63,11 @@ export function EscritosGenerator() {
         return
       }
 
+      setUserId(user.id)
+
       const { data: prof } = await supabase
         .from("profiles")
-        .select("full_name, matricula, categoria, adscripcion")
+        .select("id, full_name, matricula, categoria, adscripcion")
         .eq("id", user.id)
         .maybeSingle()
 
@@ -81,280 +79,366 @@ export function EscritosGenerator() {
       }
 
       setProfile(prof as Profile)
-      setForm((prev) => ({
-        ...prev,
-        fecha: institutionalToday().toISOString().slice(0, 10),
-      }))
+      const lista = getEscritosGuardados(user.id)
+      setEscritos(lista)
+
+      // Verificar si viene con ?id= en la URL
+      if (typeof window !== "undefined") {
+        const urlParams = new URLSearchParams(window.location.search)
+        const idParam = urlParams.get("id")
+        if (idParam) {
+          const encontrado = getEscritoById(idParam, user.id)
+          if (encontrado) {
+            setDraft(encontrado)
+            setEtapa("editor")
+          }
+        }
+      }
     })
   }, [supabase])
 
-  const updateField = useCallback((field: string, value: string) => {
-    if (field === "textoGenerado") {
-      setTextoGenerado(value)
-    } else {
-      setForm((prev) => ({ ...prev, [field]: value }))
-    }
+  const updateDraft = useCallback((updated: Partial<EscritoDraftV2>) => {
+    setDraft((prev) => ({ ...prev, ...updated }))
+    setHasUnsavedChanges(true)
   }, [])
 
-  const handleFotosChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? [])
-    const nuevasFotos: string[] = []
-    files.forEach((f) => {
-      const reader = new FileReader()
-      reader.onload = (ev) => {
-        nuevasFotos.push(ev.target?.result as string)
-        if (nuevasFotos.length === files.length) {
-          setFotos(nuevasFotos)
+  const handleGenerar = useCallback(async () => {
+    setLoadingGeneracion(true)
+    try {
+      const req: GenerarEscritoRequest = {
+        tipo: draft.tipo,
+        hechos: draft.hechos,
+        peticion: draft.peticion,
+        destino: draft.destino,
+        ciudad: draft.ciudad,
+        fecha: draft.fecha,
+        asunto: draft.asunto,
+        incluirFundamentos: true,
+      }
+
+      const res = await generarEscritoApi(req)
+      setDraft((prev) => ({
+        ...prev,
+        cuerpo: res.cuerpo,
+        asunto: prev.asunto || res.asuntoSugerido,
+        titulo: prev.titulo === "Nuevo escrito" ? res.tituloSugerido : prev.titulo,
+        fuentes: res.fuentes,
+        generationMode: res.generationMode,
+      }))
+
+      setHasUnsavedChanges(true)
+      setEtapa("editor")
+    } catch (e) {
+      console.error("[EscritosGenerator] Error generando escrito:", e)
+    } finally {
+      setLoadingGeneracion(false)
+    }
+  }, [draft])
+
+  const handleGuardarBorrador = useCallback(
+    (tituloPersonalizado?: string) => {
+      setGuardando(true)
+      try {
+        const toSave: EscritoDraftV2 = {
+          ...draft,
+          titulo: tituloPersonalizado || draft.titulo || "Borrador de escrito",
+          status: "draft",
+          ownerId: userId,
+        }
+
+        const listaActualizada = guardarEscrito(toSave, userId)
+        setEscritos(listaActualizada)
+        setDraft(toSave)
+        setHasUnsavedChanges(false)
+
+        setGuardadoMsg("✓ Escrito guardado en este dispositivo")
+        setTimeout(() => setGuardadoMsg(""), 3500)
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          alert(err.message)
+        }
+      } finally {
+        setGuardando(false)
+      }
+    },
+    [draft, userId]
+  )
+
+  const handleLimpiarFormulario = useCallback(() => {
+    setDraft(
+      createEmptyEscritoDraftV2(userId, undefined, {
+        fecha: institutionalToday().toISOString().slice(0, 10),
+      })
+    )
+    setHasUnsavedChanges(false)
+  }, [userId])
+
+  const handleAbrirParaEditar = useCallback((item: EscritoDraftV2) => {
+    setDraft(item)
+    setHasUnsavedChanges(false)
+    setEtapa("editor")
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }, [])
+
+  const handleAbrirParaVer = useCallback((item: EscritoDraftV2) => {
+    setDraft(item)
+    setHasUnsavedChanges(false)
+    setEtapa("preview")
+  }, [])
+
+  const handleDuplicar = useCallback(
+    (id: string) => {
+      const dup = duplicarEscrito(id, userId)
+      if (dup) {
+        setEscritos(getEscritosGuardados(userId))
+        setGuardadoMsg("✓ Escrito duplicado como nuevo borrador")
+        setTimeout(() => setGuardadoMsg(""), 3500)
+      }
+    },
+    [userId]
+  )
+
+  const handleConfirmarEliminar = useCallback(
+    (id: string) => {
+      if (window.confirm("¿Seguro que deseas eliminar este escrito guardado?")) {
+        const listaActualizada = eliminarEscrito(id, userId)
+        setEscritos(listaActualizada)
+        if (draft.id === id) {
+          handleLimpiarFormulario()
+          setEtapa("form")
         }
       }
-      reader.readAsDataURL(f)
-    })
-  }, [])
+    },
+    [userId, draft.id, handleLimpiarFormulario]
+  )
 
-  const generar = useCallback(async () => {
-    if (!form.destino || !form.detalle.trim()) return
-
-    setLoading(true)
-    setTextoGenerado("")
-
-    try {
-      const respuesta = await generarEscrito(form.detalle)
-      setTextoGenerado(respuesta)
-    } catch {
-      setTextoGenerado(
-        "Por medio de la presente, expongo ante usted los siguientes hechos:\n\n" +
-        form.detalle +
-        "\n\nPor lo anteriormente expuesto, solicito atentamente se dé solución a mi petición conforme a derecho corresponda."
-      )
-    } finally {
-      setLoading(false)
-    }
-  }, [form.destino, form.detalle])
-
-  const limpiar = useCallback(() => {
-    setForm({ destino: "", fecha: institutionalToday().toISOString().slice(0, 10), ciudad: "", detalle: "", atencion: "", copia: "" })
-    setTextoGenerado("")
-    setFotos([])
-    setFormKey((k) => k + 1)
-  }, [])
-
-  const handleGuardar = useCallback(({ escritoId, escrito }: { escritoId?: string; escrito: EscritoASalvar }) => {
-    const existente = escritoId ? escritos.find((e) => e.id === escritoId) : undefined
-    const nuevo: EscritoGuardado = {
-      ...escrito,
-      id: escritoId ?? nuevoIdEscrito(),
-      createdAt: existente?.createdAt ?? new Date().toISOString(),
-    }
-    setEscritos(guardarEscrito(nuevo))
-    setGuardadoMsg("✓ Escrito guardado en este dispositivo")
-    window.setTimeout(() => setGuardadoMsg(""), 3000)
-  }, [escritos])
-
-  const abrirEscrito = useCallback((escrito: EscritoGuardado) => {
-    setEscritoEnVista(escrito)
-  }, [])
-
-  const eliminarEscritoGuardado = useCallback((id: string) => {
-    setEscritos(eliminarEscrito(id))
-    setEscritoEnVista((actual) => (actual?.id === id ? null : actual))
-  }, [])
+  const workerProfileContext: WorkerProfileContext | null = profile
+    ? {
+        nombre: profile.full_name,
+        matricula: profile.matricula,
+        categoria: profile.categoria,
+        adscripcion: profile.adscripcion,
+      }
+    : null
 
   if (cargandoPerfil) {
-    return <LoadingSpinner text="Verificando credenciales..." />
+    return <LoadingSpinner text="Cargando generador de escritos..." />
   }
 
   if (perfilIncompleto) {
     return (
-      <div style={{
-        maxWidth: 500, margin: "2rem auto", textAlign: "center",
-        background: "var(--card)", border: "1px solid var(--border)",
-        borderRadius: "0.5rem", padding: "2.5rem 1.5rem",
-      }}>
+      <div
+        style={{
+          maxWidth: 520,
+          margin: "2rem auto",
+          textAlign: "center",
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: "0.75rem",
+          padding: "2.5rem 1.5rem",
+        }}
+      >
         <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>⚠️</div>
-        <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.5rem" }}>Perfil Incompleto</h2>
+        <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.5rem" }}>Perfil incompleto</h2>
         <p style={{ color: "var(--muted)", fontSize: "0.875rem", lineHeight: 1.6, marginBottom: "1.5rem" }}>
-          Para generar documentos oficiales, necesitas completar tu información (Nombre, Matrícula, Categoría y Adscripción).
+          Para generar oficios y escritos formales, necesitas tener registrados tus datos laborales (Nombre, Matrícula, Categoría y Adscripción).
         </p>
-        <a href="/profile"
+        <a
+          href="/profile"
           style={{
-            display: "inline-flex", alignItems: "center", gap: "0.375rem",
-            padding: "0.625rem 1.5rem", borderRadius: "2rem",
-            background: "var(--primary)", color: "var(--primary-fg)",
-            textDecoration: "none", fontWeight: 600, fontSize: "0.875rem",
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "0.625rem 1.5rem",
+            borderRadius: "999px",
+            background: "var(--primary)",
+            color: "var(--primary-fg)",
+            textDecoration: "none",
+            fontWeight: 600,
+            fontSize: "0.875rem",
           }}
         >
-          Ir a Editar Perfil
+          Completar mi perfil
         </a>
       </div>
     )
   }
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto" }}>
-      <div style={{ marginBottom: "1rem" }}>
-        <h1 style={{ fontSize: "clamp(1.15rem, 4vw, 1.35rem)", fontWeight: 700, margin: 0, lineHeight: 1.2 }}>
-          Generador de Escritos
-        </h1>
-        <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0.2rem 0 0", lineHeight: 1.4 }}>
-          Redacta documentos formales con apoyo de IA, ed&iacute;talos y desc&aacute;rgalos en PDF
-        </p>
-      </div>
-
-      <EscritosForm
-        key={formKey}
-        profile={profile}
-        destino={form.destino}
-        fecha={form.fecha}
-        ciudad={form.ciudad}
-        detalle={form.detalle}
-        textoGenerado={textoGenerado}
-        atencion={form.atencion}
-        copia={form.copia}
-        fotos={fotos}
-        loading={loading}
-        mostrarAvanzado={mostrarAvanzado}
-        onChange={updateField}
-        onGenerate={generar}
-        onPreview={() => setMostrarVistaPrevia(true)}
-        onToggleAvanzado={() => setMostrarAvanzado((v) => !v)}
-        onFotosChange={handleFotosChange}
-        onClear={limpiar}
-      />
-
-      {mostrarVistaPrevia && textoGenerado && profile && (
-        <EscritosResult
-          cuerpo={textoGenerado}
-          destino={form.destino}
-          ciudad={form.ciudad}
-          fecha={form.fecha}
-          nombre={profile.full_name}
-          matricula={profile.matricula}
-          categoria={profile.categoria}
-          adscripcion={profile.adscripcion}
-          atencion={form.atencion}
-          copia={form.copia}
-          fotos={fotos}
-          onGuardar={handleGuardar}
-          onClose={() => setMostrarVistaPrevia(false)}
-        />
-      )}
-
-      {escritoEnVista && (
-        <EscritosResult
-          key={escritoEnVista.id}
-          cuerpo={escritoEnVista.cuerpo}
-          destino={escritoEnVista.destino}
-          ciudad={escritoEnVista.ciudad}
-          fecha={escritoEnVista.fecha}
-          nombre={escritoEnVista.nombre}
-          matricula={escritoEnVista.matricula}
-          categoria={escritoEnVista.categoria}
-          adscripcion={escritoEnVista.adscripcion}
-          atencion={escritoEnVista.atencion}
-          copia={escritoEnVista.copia}
-          fotos={escritoEnVista.fotos}
-          firmaInicial={escritoEnVista.firmaUrl}
-          escritoId={escritoEnVista.id}
-          onGuardar={handleGuardar}
-          onClose={() => setEscritoEnVista(null)}
-        />
-      )}
-
+    <div style={{ maxWidth: 920, margin: "0 auto", paddingBottom: "3rem" }}>
+      {/* Toast flotante de guardado */}
       {guardadoMsg && (
-        <div style={{
-          position: "fixed", bottom: "1.5rem", left: "50%", transform: "translateX(-50%)",
-          background: "#16a34a", color: "#fff", padding: "0.625rem 1.25rem",
-          borderRadius: "999px", fontSize: "0.875rem", fontWeight: 600,
-          boxShadow: "0 8px 30px rgba(0,0,0,0.25)", zIndex: 1200,
-        }}>
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: "fixed",
+            bottom: "1.5rem",
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "#16a34a",
+            color: "#ffffff",
+            padding: "0.625rem 1.25rem",
+            borderRadius: "999px",
+            fontSize: "0.875rem",
+            fontWeight: 600,
+            boxShadow: "0 8px 30px rgba(0,0,0,0.25)",
+            zIndex: 1400,
+          }}
+        >
           {guardadoMsg}
         </div>
       )}
 
-      {fotos.length > 0 && (
-        <div style={{
-          background: "var(--card)", border: "1px solid var(--border)",
-          borderRadius: "0.5rem", padding: "1rem", marginTop: "1rem",
-        }}>
-          <p style={{ fontSize: "0.8125rem", fontWeight: 600, margin: "0 0 0.5rem" }}>
-            {fotos.length} foto(s) adjunta(s) como evidencia
-          </p>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            {fotos.map((f, i) => (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img key={i} src={f} alt={`Evidencia ${i + 1}`}
-                style={{ width: 60, height: 60, objectFit: "cover", borderRadius: "0.375rem", border: "2px solid var(--primary)" }}
-              />
-            ))}
-          </div>
-        </div>
+      {/* ETAPA 1: Formulario guiado y opciones avanzadas */}
+      {etapa === "form" && (
+        <EscritosForm
+          profile={profile}
+          draft={draft}
+          onUpdateDraft={updateDraft}
+          onGenerate={handleGenerar}
+          onClear={handleLimpiarFormulario}
+          loading={loadingGeneracion}
+        />
       )}
 
-      <div style={{
-        background: "var(--card)", border: "1px solid var(--border)",
-        borderRadius: "0.5rem", padding: "1.25rem", marginTop: "1rem",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
-          <h2 style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}>
+      {/* ETAPA 2: Editor robusto con IA ("Revisa y modifica tu escrito") */}
+      {etapa === "editor" && (
+        <EscritosEditor
+          draft={draft}
+          onUpdateDraft={updateDraft}
+          onSaveDraft={() => handleGuardarBorrador()}
+          onPreview={() => setEtapa("preview")}
+          onBackToForm={() => setEtapa("form")}
+          onRegenerate={handleGenerar}
+          saving={guardando}
+          regenerating={loadingGeneracion}
+        />
+      )}
+
+      {/* ETAPA 3: Vista final y previsualización */}
+      {etapa === "preview" && (
+        <EscritosResult
+          draft={draft}
+          profile={workerProfileContext}
+          onEdit={() => setEtapa("editor")}
+          onSave={(titulo) => handleGuardarBorrador(titulo)}
+          onClose={() => setEtapa("editor")}
+          onUpdateDraft={updateDraft}
+          hasUnsavedChanges={hasUnsavedChanges}
+        />
+      )}
+
+      {/* Sección: Mis escritos guardados */}
+      <div
+        style={{
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: "0.75rem",
+          padding: "1.25rem",
+          marginTop: "1.5rem",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+          <h3 style={{ fontSize: "1rem", fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: "0.5rem" }}>
             📂 Mis escritos guardados
-            <span style={{
-              marginLeft: "0.5rem", fontSize: "0.75rem", fontWeight: 600,
-              color: "var(--primary)", background: "var(--accent)",
-              padding: "0.125rem 0.5rem", borderRadius: "999px",
-            }}>
+            <span
+              style={{
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                color: "var(--primary)",
+                background: "var(--accent)",
+                padding: "0.15rem 0.5rem",
+                borderRadius: "999px",
+              }}
+            >
               {escritos.length}
             </span>
-          </h2>
+          </h3>
           <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-            Guardados en este dispositivo
+            Guardados localmente en este dispositivo
           </span>
         </div>
 
         {escritos.length === 0 ? (
           <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0, lineHeight: 1.6 }}>
-            Aún no tienes escritos guardados. Genera uno y usa el botón <strong>💾 Guardar</strong> en la previsualización para conservarlo aquí.
+            Aún no tienes escritos guardados. Redacta uno y usa el botón <strong>💾 Guardar</strong> para conservarlo aquí.
           </p>
         ) : (
           <div style={{ display: "grid", gap: "0.625rem" }}>
-            {escritos.map((e) => {
-              const fechaDisplay = e.fecha
-                ? new Date(e.fecha + "T12:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })
+            {escritos.map((item) => {
+              const fechaDisplay = item.fecha
+                ? new Date(item.fecha + "T12:00:00").toLocaleDateString("es-MX", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })
                 : ""
+
+              const recipientText = item.destino?.nombre || item.destino?.cargo || ""
+
               return (
-                <div key={e.id} style={{
-                  display: "flex", alignItems: "center", gap: "0.75rem",
-                  padding: "0.75rem 1rem", background: "var(--bg)",
-                  border: "1px solid var(--border)", borderRadius: "0.5rem",
-                }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: "0.875rem", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {e.titulo}
+                <div
+                  key={item.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.75rem",
+                    padding: "0.75rem 1rem",
+                    background: "var(--bg)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "0.5rem",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <div style={{ fontWeight: 700, fontSize: "0.875rem", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {item.titulo || "Escrito sin título"}
                     </div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                    <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.15rem" }}>
                       {fechaDisplay}
-                      {e.matricula ? ` · Mat. ${e.matricula}` : ""}
+                      {recipientText ? ` · Para: ${recipientText}` : ""}
                     </div>
                   </div>
-                  <button onClick={() => abrirEscrito(e)}
-                    style={{
-                      padding: "0.375rem 0.875rem", borderRadius: "0.5rem",
-                      background: "var(--primary)", border: "none",
-                      color: "var(--primary-fg)", cursor: "pointer",
-                      fontSize: "0.8125rem", fontWeight: 600, flexShrink: 0,
-                    }}
-                  >
-                    🖨 Ver / Imprimir
-                  </button>
-                  <button onClick={() => eliminarEscritoGuardado(e.id)}
-                    aria-label="Eliminar escrito"
-                    style={{
-                      padding: "0.375rem 0.625rem", borderRadius: "0.5rem",
-                      border: "1px solid #ef4444", background: "transparent",
-                      color: "#ef4444", cursor: "pointer", fontSize: "0.8125rem", flexShrink: 0,
-                    }}
-                  >
-                    🗑
-                  </button>
+
+                  <div style={{ display: "flex", gap: "0.375rem", alignItems: "center", flexShrink: 0 }}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleAbrirParaEditar(item)}
+                      title="Editar escrito"
+                      style={{ fontSize: "0.8125rem" }}
+                    >
+                      ✏ Editar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleAbrirParaVer(item)}
+                      title="Ver e imprimir documento"
+                      style={{ fontSize: "0.8125rem" }}
+                    >
+                      🖨 Ver
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDuplicar(item.id)}
+                      title="Duplicar como nuevo borrador"
+                      style={{ fontSize: "0.8125rem" }}
+                    >
+                      📋 Duplicar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleConfirmarEliminar(item.id)}
+                      title="Eliminar escrito"
+                      aria-label="Eliminar escrito"
+                      style={{ color: "#ef4444", fontSize: "0.8125rem" }}
+                    >
+                      🗑
+                    </Button>
+                  </div>
                 </div>
               )
             })}

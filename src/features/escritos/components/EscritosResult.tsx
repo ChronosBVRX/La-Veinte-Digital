@@ -1,502 +1,594 @@
 "use client"
 
-import { useRef, useEffect, useState, useCallback } from "react"
-import html2canvas from "html2canvas"
-import type { EscritoGuardado } from "../services/escritos-storage"
-
-export type EscritoASalvar = Omit<EscritoGuardado, "id" | "createdAt">
+import { useState, useCallback } from "react"
+import { Button } from "@/shared/components/ui/Button"
+import { SignaturePadModal } from "./SignaturePadModal"
+import { renderEscritoToPdf, imprimirEscrito, generarNombreArchivoPdf } from "@/shared/lib/escrito-pdf-renderer"
+import type { EscritoDraftV2, WorkerProfileContext } from "@/shared/contracts/escrito-draft"
 
 interface EscritosResultProps {
-  cuerpo: string
-  destino: string
-  ciudad: string
-  fecha: string
-  nombre: string
-  matricula: string
-  categoria: string
-  adscripcion: string
-  atencion: string
-  copia: string
-  fotos?: string[]
-  firmaInicial?: string
-  escritoId?: string
-  onGuardar?: (payload: { escritoId?: string; escrito: EscritoASalvar }) => void
+  draft: EscritoDraftV2
+  profile: WorkerProfileContext | null
+  onEdit: () => void
+  onSave: (tituloPersonalizado?: string) => void
   onClose: () => void
+  onUpdateDraft: (updated: Partial<EscritoDraftV2>) => void
+  hasUnsavedChanges?: boolean
 }
 
 export function EscritosResult({
-  cuerpo, destino, ciudad, fecha, nombre, matricula,
-  categoria, adscripcion, atencion, copia, fotos, firmaInicial, escritoId, onGuardar, onClose,
+  draft,
+  profile,
+  onEdit,
+  onSave,
+  onClose,
+  onUpdateDraft,
+  hasUnsavedChanges = false,
 }: EscritosResultProps) {
-  const pageRef = useRef<HTMLDivElement>(null)
-  const [firmaUrl, setFirmaUrl] = useState(firmaInicial ?? "")
-  const [mostrarFirma, setMostrarFirma] = useState(false)
+  const [modoVista, setModoVista] = useState<"lectura" | "hoja">("lectura")
+  const [mostrarFirmaPad, setMostrarFirmaPad] = useState(false)
   const [descargando, setDescargando] = useState(false)
-  const [mostrarGuardar, setMostrarGuardar] = useState(false)
-  const [tituloGuardar, setTituloGuardar] = useState("")
-  const [guardando, setGuardando] = useState(false)
+  const [imprimiendo, setImprimiendo] = useState(false)
+  const [mostrarModalGuardar, setMostrarModalGuardar] = useState(false)
+  const [tituloGuardar, setTituloGuardar] = useState(draft.titulo || "")
+  const [mostrarConfirmCerrar, setMostrarConfirmCerrar] = useState(false)
 
-  const [cargo, nombreDestino] = (destino || "|").split("|")
-
-  const fechaLarga = fecha
-    ? new Date(fecha + "T12:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "long", year: "numeric" })
+  const fechaLarga = draft.fecha
+    ? new Date(draft.fecha + "T12:00:00").toLocaleDateString("es-MX", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      })
     : ""
 
-  const atnHtml = atencion
-    ? atencion.split("|")[1]
-    : null
-  const atnCargo = atencion
-    ? atencion.split("|")[0]
-    : null
-  const ccpLabel = copia
-    ? copia.split("|")[1]
-    : null
-  const ccpCargo = copia
-    ? copia.split("|")[0]
-    : null
-
-  const ajustarEscala = useCallback(() => {
-    const el = pageRef.current
-    if (!el) return
-    const container = el.parentElement
-    if (!container) return
-    const availableWidth = container.clientWidth - 40
-    const sheetWidth = 816
-    const scale = availableWidth < sheetWidth ? availableWidth / sheetWidth : 1
-    el.style.transform = `scale(${scale})`
-    el.style.transformOrigin = "top center"
-  }, [])
-
-  useEffect(() => {
-    ajustarEscala()
-    window.addEventListener("resize", ajustarEscala)
-    return () => window.removeEventListener("resize", ajustarEscala)
-  }, [ajustarEscala])
-
-  const handleDescargar = async () => {
-    const el = pageRef.current
-    if (!el) return
+  const handleDescargarPdf = async () => {
     setDescargando(true)
-    const origTransform = el.style.transform
-    el.style.transform = "scale(1)"
-
     try {
-      const { jsPDF: JsPDF } = await import("jspdf")
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: "#ffffff" })
-      el.style.transform = origTransform
-
-      const doc = new JsPDF({ unit: "pt", format: "letter" })
-      const imgData = canvas.toDataURL("image/jpeg", 1.0)
-      const pdfW = 612
-      const ratio = pdfW / canvas.width
-      const imgH = canvas.height * ratio
-
-      let heightLeft = imgH
-      let position = 0
-      doc.addImage(imgData, "JPEG", 0, position, pdfW, imgH)
-      heightLeft -= 792
-      while (heightLeft > 0) {
-        position = heightLeft - imgH
-        doc.addPage()
-        doc.addImage(imgData, "JPEG", 0, position, pdfW, imgH)
-        heightLeft -= 792
-      }
-
-      doc.save(`Oficio_PSC_${matricula}.pdf`)
+      const doc = await renderEscritoToPdf(draft, profile || undefined)
+      const filename = generarNombreArchivoPdf(draft)
+      doc.save(filename)
     } catch (e) {
-      console.error(e)
-      alert("Error al descargar PDF")
-      el.style.transform = origTransform
+      console.error("[EscritosResult] Error descargando PDF:", e)
+      alert("No se pudo generar el archivo PDF. Por favor intenta de nuevo.")
     } finally {
       setDescargando(false)
     }
   }
 
-  const handlePrint = () => {
-    const originalTitle = document.title
-    document.title = `Oficio_PSC_${matricula}`
-    window.print()
-    document.title = originalTitle
-  }
-
-  const iniciarPad = () => {
-    setMostrarFirma(true)
-  }
-
-  const abrirGuardar = () => {
-    setTituloGuardar(`Oficio a ${nombreDestino ?? ""} - ${fecha ? new Date(fecha + "T12:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }) : ""}`.trim())
-    setMostrarGuardar(true)
-  }
-
-  const confirmarGuardar = () => {
-    if (!onGuardar) return
-    setGuardando(true)
-    const titulo = tituloGuardar.trim() || `Escrito ${new Date().toLocaleDateString("es-MX")}`
-    const escrito: EscritoASalvar = {
-      titulo,
-      cuerpo,
-      destino,
-      ciudad,
-      fecha,
-      nombre,
-      matricula,
-      categoria,
-      adscripcion,
-      atencion,
-      copia,
-      fotos: fotos ?? [],
-      firmaUrl,
+  const handleImprimir = async () => {
+    setImprimiendo(true)
+    try {
+      await imprimirEscrito(draft, profile || undefined)
+    } catch (e) {
+      console.error("[EscritosResult] Error imprimiendo PDF:", e)
+      alert("No se pudo preparar la impresión del documento.")
+    } finally {
+      setImprimiendo(false)
     }
-    onGuardar({ escritoId, escrito })
-    setGuardando(false)
-    setMostrarGuardar(false)
   }
 
-  const guardarFirma = () => {
-    const c = document.getElementById("pad-firma") as HTMLCanvasElement
-    if (!c) return
-    setFirmaUrl(c.toDataURL("image/png"))
-    setMostrarFirma(false)
+  const handleGuardarFirma = useCallback((dataUrl: string) => {
+    onUpdateDraft({ firmaUrl: dataUrl })
+  }, [onUpdateDraft])
+
+  const handleQuitarFirma = useCallback(() => {
+    onUpdateDraft({ firmaUrl: undefined })
+  }, [onUpdateDraft])
+
+  const handleConfirmarGuardar = () => {
+    onSave(tituloGuardar.trim() || draft.titulo)
+    setMostrarModalGuardar(false)
   }
 
-  const limpiarFirma = () => {
-    const c = document.getElementById("pad-firma") as HTMLCanvasElement
-    if (!c) return
-    const ctx = c.getContext("2d")
-    if (!ctx) return
-    ctx.clearRect(0, 0, c.width, c.height)
+  const handleIntentarCerrar = () => {
+    if (hasUnsavedChanges) {
+      setMostrarConfirmCerrar(true)
+    } else {
+      onClose()
+    }
   }
 
   return (
-    <>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="preview-modal-title"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(10, 15, 25, 0.95)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1050,
+        padding: "1rem",
+      }}
+    >
       <div
         style={{
-          position: "fixed", inset: 0, background: "rgba(10, 15, 25, 0.98)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 1000, padding: "1.25rem",
+          background: "var(--card)",
+          borderRadius: "1rem",
+          width: "100%",
+          maxWidth: 960,
+          maxHeight: "96vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 25px 60px rgba(0,0,0,0.4)",
+          overflow: "hidden",
         }}
       >
-        <div style={{
-          background: "#1e293b", borderRadius: "1.25rem", width: "100%",
-          maxWidth: 1000, padding: "1.5rem", display: "flex", flexDirection: "column",
-          maxHeight: "95vh",
-        }}>
-          <div style={{
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-            marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.75rem",
-          }}>
-            <h3 style={{ color: "#fff", margin: 0, fontSize: "1.125rem" }}>Vista Previa del Oficio</h3>
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              <button onClick={handlePrint}
+        {/* Barra superior de controles */}
+        <div
+          style={{
+            padding: "1rem 1.25rem",
+            background: "var(--accent)",
+            borderBottom: "1px solid var(--border)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "0.75rem",
+          }}
+        >
+          <div>
+            <h2 id="preview-modal-title" style={{ fontSize: "1.125rem", fontWeight: 700, margin: 0, color: "var(--fg)" }}>
+              Vista final del documento
+            </h2>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.2rem" }}>
+              <button
+                type="button"
+                onClick={() => setModoVista("lectura")}
                 style={{
-                  padding: "0.5rem 1rem", borderRadius: "0.5rem", border: "1px solid var(--border)",
-                  background: "transparent", color: "#f1f5f9", cursor: "pointer", fontSize: "0.8125rem",
-                  fontWeight: 600, display: "flex", alignItems: "center", gap: "0.375rem",
+                  background: modoVista === "lectura" ? "var(--primary)" : "transparent",
+                  color: modoVista === "lectura" ? "var(--primary-fg)" : "var(--muted)",
+                  border: "none",
+                  borderRadius: "0.25rem",
+                  padding: "0.2rem 0.5rem",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
                 }}
               >
-                🖨 Imprimir
+                Vista de lectura
               </button>
-              <button onClick={handleDescargar} disabled={descargando}
+              <button
+                type="button"
+                onClick={() => setModoVista("hoja")}
                 style={{
-                  padding: "0.5rem 1rem", borderRadius: "0.5rem", border: "1px solid var(--border)",
-                  background: "transparent", color: "#f1f5f9", cursor: descargando ? "not-allowed" : "pointer",
-                  fontSize: "0.8125rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.375rem",
-                  opacity: descargando ? 0.6 : 1,
+                  background: modoVista === "hoja" ? "var(--primary)" : "transparent",
+                  color: modoVista === "hoja" ? "var(--primary-fg)" : "var(--muted)",
+                  border: "none",
+                  borderRadius: "0.25rem",
+                  padding: "0.2rem 0.5rem",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
                 }}
               >
-                {descargando ? "⏳" : "⬇"} {descargando ? "Generando PDF..." : "Guardar PDF"}
-              </button>
-              <button onClick={iniciarPad}
-                style={{
-                  padding: "0.5rem 1rem", borderRadius: "0.5rem",
-                  background: "var(--primary)", border: "none",
-                  color: "var(--primary-fg)", cursor: "pointer", fontSize: "0.8125rem",
-                  fontWeight: 600, display: "flex", alignItems: "center", gap: "0.375rem",
-                }}
-              >
-                ✍ Añadir Firma
-              </button>
-              <button onClick={abrirGuardar}
-                style={{
-                  padding: "0.5rem 1rem", borderRadius: "0.5rem",
-                  border: "1px solid var(--border)",
-                  background: "transparent", color: "#f1f5f9", cursor: "pointer", fontSize: "0.8125rem",
-                  fontWeight: 600, display: "flex", alignItems: "center", gap: "0.375rem",
-                }}
-              >
-                💾 Guardar
-              </button>
-              <button onClick={onClose}
-                style={{
-                  padding: "0.5rem", borderRadius: "0.5rem", border: "1px solid #ef4444",
-                  background: "transparent", color: "#ef4444", cursor: "pointer", fontSize: "1rem",
-                  display: "flex", alignItems: "center", lineHeight: 1,
-                }}
-              >
-                ✕
+                Ver hoja completa (Carta)
               </button>
             </div>
           </div>
 
-          <div style={{
-            flex: 1, overflow: "auto", display: "flex", justifyContent: "center",
-            background: "#334155", borderRadius: "0.75rem", padding: "1.25rem",
-            margin: "0.75rem 0", minHeight: 400,
-          }}>
-            <div ref={pageRef} id="page-carta" className="page-carta"
-              style={{
-                width: 816, background: "#fff", color: "#111",
-                boxShadow: "0 10px 40px rgba(0,0,0,0.5)", flexShrink: 0,
-                transformOrigin: "top center",
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+            <Button variant="secondary" size="sm" onClick={() => setMostrarFirmaPad(true)}>
+              ✍ {draft.firmaUrl ? "Cambiar firma" : "Añadir firma"}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={onEdit}>
+              ✏ Editar
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setTituloGuardar(draft.titulo || "")
+                setMostrarModalGuardar(true)
               }}
             >
-              <div style={{
-                padding: "50px 64px", fontFamily: "'Times New Roman', Times, serif",
-                fontSize: "12pt", lineHeight: 1.5, minHeight: 1056,
-                display: "flex", flexDirection: "column", color: "#000",
-              }}>
-                <header style={{ textAlign: "right", fontWeight: "bold", marginBottom: 30 }}>
-                  <div id="folio-doc" style={{ color: "#991b1b", fontSize: "13pt", marginBottom: 16, minHeight: 25 }} />
-                  {ciudad}, a {fechaLarga}
-                </header>
+              💾 Guardar
+            </Button>
+            <Button variant="secondary" size="sm" onClick={handleImprimir} loading={imprimiendo}>
+              🖨 Imprimir
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleDescargarPdf} loading={descargando}>
+              📄 Descargar PDF
+            </Button>
+            <button
+              onClick={handleIntentarCerrar}
+              aria-label="Cerrar vista previa"
+              style={{
+                background: "transparent",
+                border: "none",
+                fontSize: "1.25rem",
+                color: "var(--muted)",
+                cursor: "pointer",
+                padding: "0.25rem",
+                lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
 
-                <div style={{ fontWeight: "bold", textTransform: "uppercase" }}>{nombreDestino}</div>
-                <div style={{ fontWeight: "bold", marginBottom: 5 }}>{cargo}</div>
-                <div>Presente.</div>
-
-                {atnHtml && (
-                  <div style={{ marginTop: 15, fontWeight: "bold" }}>
-                    At&apos;n: {atnHtml}<br />
-                    <span style={{ fontWeight: "normal", fontSize: "11pt" }}>{atnCargo}</span>
-                  </div>
-                )}
-
-                <div style={{ textAlign: "justify", whiteSpace: "pre-wrap", marginTop: 20 }}>{cuerpo}</div>
-
-                {firmaUrl && (
-                  <div style={{ marginTop: 40 }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={firmaUrl} alt="Firma" style={{ maxHeight: 80, display: "block", margin: "0 auto 5px" }} />
-                  </div>
-                )}
-
-                <div style={{ marginTop: "auto", paddingTop: 50, textAlign: "center", fontWeight: "bold" }}>
-                  ATENTAMENTE
-                  <div style={{ margin: "10px auto 5px", width: 250, borderBottom: "2px solid black" }} />
-                  {nombre}<br />
-                  Matrícula: {matricula}<br />
-                  {categoria}<br />
-                  {adscripcion}
-                </div>
-
-                {ccpLabel && (
-                  <div style={{ fontSize: "8pt", marginTop: 40, textAlign: "left" }}>
-                    c.c.p. {ccpLabel} - {ccpCargo}. Para su conocimiento e intervención.
-                  </div>
-                )}
+        {/* Contenedor del documento */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "1.5rem",
+            background: modoVista === "hoja" ? "#334155" : "var(--bg)",
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
+          {modoVista === "lectura" ? (
+            /* Vista de lectura optimizada para móviles y pantallas táctiles */
+            <div
+              style={{
+                maxWidth: 720,
+                width: "100%",
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: "0.75rem",
+                padding: "clamp(1.25rem, 4vw, 2.5rem)",
+                fontFamily: "var(--font-serif, Georgia, 'Times New Roman', serif)",
+                color: "var(--fg)",
+                lineHeight: 1.7,
+                fontSize: "1rem",
+              }}
+            >
+              {/* Lugar y fecha */}
+              <div style={{ textAlign: "right", fontWeight: 600, color: "var(--muted)", marginBottom: "1.5rem" }}>
+                {draft.ciudad ? `${draft.ciudad}, a ` : ""}{fechaLarga}
               </div>
 
-              {(fotos && fotos.length > 0) && (
-                <div style={{
-                  padding: "50px 64px", fontFamily: "'Times New Roman', Times, serif",
-                  fontSize: "12pt", lineHeight: 1.5, color: "#000",
-                  borderTop: "2px solid #ccc", marginTop: 20,
-                }}>
-                  <div style={{ textAlign: "center", marginBottom: 20 }}>
-                    <h2 style={{ fontSize: "16pt", fontWeight: 700, margin: 0 }}>ANEXOS</h2>
-                    <p style={{ fontSize: "10pt", color: "#555", margin: "4px 0 0" }}>
-                      Evidencia fotográfica
-                    </p>
+              {/* Destinatario */}
+              <div style={{ marginBottom: "1.5rem" }}>
+                {draft.destino.nombre && (
+                  <div style={{ fontWeight: 700, textTransform: "uppercase" }}>{draft.destino.nombre}</div>
+                )}
+                {draft.destino.cargo && (
+                  <div style={{ fontWeight: 600 }}>{draft.destino.cargo}</div>
+                )}
+                <div style={{ fontWeight: 600, color: "var(--muted)" }}>Presente.</div>
+              </div>
+
+              {/* Asunto */}
+              {draft.asunto && (
+                <div style={{ marginBottom: "1.25rem", fontWeight: 700 }}>
+                  ASUNTO: {draft.asunto.toUpperCase()}
+                </div>
+              )}
+
+              {/* Atención */}
+              {draft.atencion && draft.atencion.length > 0 && draft.atencion[0].nombre && (
+                <div style={{ marginBottom: "1.25rem", fontSize: "0.9375rem" }}>
+                  <strong>At’n: {draft.atencion[0].nombre}</strong>
+                  {draft.atencion[0].cargo ? ` (${draft.atencion[0].cargo})` : ""}
+                </div>
+              )}
+
+              {/* Cuerpo del documento */}
+              <div style={{ whiteSpace: "pre-wrap", textAlign: "justify", marginBottom: "2rem" }}>
+                {draft.cuerpo}
+              </div>
+
+              {/* Cierre ATENTAMENTE */}
+              <div style={{ textAlign: "center", marginTop: "3rem", paddingTop: "1rem" }}>
+                <div style={{ fontWeight: 700, letterSpacing: "0.08em", marginBottom: "1.5rem" }}>
+                  A T E N T A M E N T E
+                </div>
+
+                {draft.firmaUrl ? (
+                  <div style={{ marginBottom: "0.5rem" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={draft.firmaUrl}
+                      alt="Firma manuscrita"
+                      style={{ maxHeight: 80, maxWidth: 200, margin: "0 auto 0.5rem", display: "block" }}
+                    />
+                    <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
+                      <button
+                        type="button"
+                        onClick={() => setMostrarFirmaPad(true)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "var(--primary)",
+                          fontSize: "0.75rem",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Cambiar firma
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleQuitarFirma}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#ef4444",
+                          fontSize: "0.75rem",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Quitar firma
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ fontSize: "10pt", marginBottom: 16 }}>
-                    {fotos.map((_, i) => (
-                      <span key={i}>Anexo {i + 1}{i < fotos.length - 1 ? ", " : ""}</span>
+                ) : (
+                  <div style={{ marginBottom: "1.5rem" }}>
+                    <Button variant="ghost" size="sm" onClick={() => setMostrarFirmaPad(true)}>
+                      ✍ Añadir firma manuscrita
+                    </Button>
+                  </div>
+                )}
+
+                <div
+                  style={{
+                    width: 240,
+                    borderBottom: "1.5px solid var(--fg)",
+                    margin: "0 auto 0.75rem",
+                  }}
+                />
+
+                <div style={{ fontWeight: 700 }}>{profile?.nombre || "TRABAJADOR(A)"}</div>
+                {profile?.matricula && <div style={{ fontSize: "0.875rem" }}>Matrícula: {profile.matricula}</div>}
+                {profile?.categoria && <div style={{ fontSize: "0.875rem" }}>{profile.categoria}</div>}
+                {profile?.adscripcion && <div style={{ fontSize: "0.875rem" }}>{profile.adscripcion}</div>}
+              </div>
+
+              {/* Copias c.c.p. */}
+              {draft.copias && draft.copias.length > 0 && draft.copias[0].nombre && (
+                <div style={{ marginTop: "2rem", paddingTop: "1rem", borderTop: "1px solid var(--border)", fontSize: "0.8125rem", color: "var(--muted)" }}>
+                  c.c.p. {draft.copias[0].nombre} - {draft.copias[0].cargo}. Para su conocimiento e intervención.
+                </div>
+              )}
+
+              {/* Anexos */}
+              {draft.anexos && draft.anexos.length > 0 && (
+                <div style={{ marginTop: "2.5rem", paddingTop: "1.5rem", borderTop: "2px dashed var(--border)" }}>
+                  <h3 style={{ fontSize: "1rem", fontWeight: 700, margin: "0 0 1rem", textAlign: "center" }}>
+                    ANEXOS Y EVIDENCIA ADJUNTA ({draft.anexos.length})
+                  </h3>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                    {draft.anexos.map((anexo, idx) => (
+                      <div key={anexo.id} style={{ textAlign: "center" }}>
+                        <div style={{ fontWeight: 600, fontSize: "0.875rem", marginBottom: "0.25rem" }}>
+                          Anexo {idx + 1}: {anexo.nombre}
+                        </div>
+                        {anexo.descripcion && (
+                          <div style={{ fontSize: "0.8125rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
+                            {anexo.descripcion}
+                          </div>
+                        )}
+                        {anexo.dataUrl && (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={anexo.dataUrl}
+                            alt={anexo.nombre}
+                            style={{
+                              maxWidth: "100%",
+                              maxHeight: 320,
+                              borderRadius: "0.375rem",
+                              border: "1px solid var(--border)",
+                              objectFit: "contain",
+                            }}
+                          />
+                        )}
+                      </div>
                     ))}
                   </div>
-                  {fotos.map((foto, i) => (
-                    <div key={i} style={{
-                      marginBottom: 30, textAlign: "center",
-                      pageBreakInside: "avoid",
-                    }}>
-                      <p style={{ fontWeight: 600, fontSize: "10pt", margin: "0 0 8px", textAlign: "left" }}>
-                        Anexo {i + 1}
-                      </p>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={foto}
-                        alt={`Anexo ${i + 1}`}
-                        style={{
-                          maxWidth: "100%", maxHeight: 400,
-                          border: "1px solid #ccc", objectFit: "contain",
-                        }}
-                      />
-                    </div>
-                  ))}
                 </div>
               )}
             </div>
-          </div>
+          ) : (
+            /* Vista de hoja Carta completa para escritorio */
+            <div
+              style={{
+                width: 612,
+                minHeight: 792,
+                background: "#ffffff",
+                color: "#000000",
+                padding: "54pt",
+                fontFamily: "'Times New Roman', Times, serif",
+                fontSize: "11pt",
+                lineHeight: 1.4,
+                boxShadow: "0 10px 40px rgba(0,0,0,0.5)",
+                display: "flex",
+                flexDirection: "column",
+                boxSizing: "border-box",
+              }}
+            >
+              <div style={{ textAlign: "right", marginBottom: 20 }}>
+                {draft.ciudad ? `${draft.ciudad}, a ` : ""}{fechaLarga}
+              </div>
+
+              <div style={{ marginBottom: 15 }}>
+                {draft.destino.nombre && <div style={{ fontWeight: "bold" }}>{draft.destino.nombre.toUpperCase()}</div>}
+                {draft.destino.cargo && <div style={{ fontWeight: "bold" }}>{draft.destino.cargo}</div>}
+                <div>Presente.</div>
+              </div>
+
+              {draft.asunto && <div style={{ fontWeight: "bold", marginBottom: 12 }}>ASUNTO: {draft.asunto.toUpperCase()}</div>}
+
+              {draft.atencion && draft.atencion.length > 0 && draft.atencion[0].nombre && (
+                <div style={{ marginBottom: 12 }}>
+                  <strong>At’n: {draft.atencion[0].nombre}</strong> {draft.atencion[0].cargo ? `(${draft.atencion[0].cargo})` : ""}
+                </div>
+              )}
+
+              <div style={{ whiteSpace: "pre-wrap", textAlign: "justify", marginBottom: 25 }}>
+                {draft.cuerpo}
+              </div>
+
+              <div style={{ marginTop: "auto", paddingTop: 30, textAlign: "center" }}>
+                <div style={{ fontWeight: "bold", marginBottom: 15 }}>A T E N T A M E N T E</div>
+                {draft.firmaUrl && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={draft.firmaUrl} alt="Firma" style={{ maxHeight: 60, margin: "0 auto 5px", display: "block" }} />
+                )}
+                <div style={{ width: 220, borderBottom: "1px solid #000", margin: "10px auto 5px" }} />
+                <div style={{ fontWeight: "bold" }}>{profile?.nombre || "TRABAJADOR(A)"}</div>
+                {profile?.matricula && <div>Matrícula: {profile.matricula}</div>}
+                {profile?.categoria && <div>{profile.categoria}</div>}
+                {profile?.adscripcion && <div>{profile.adscripcion}</div>}
+              </div>
+
+              {draft.copias && draft.copias.length > 0 && draft.copias[0].nombre && (
+                <div style={{ fontSize: "8.5pt", marginTop: 25 }}>
+                  c.c.p. {draft.copias[0].nombre} - {draft.copias[0].cargo}. Para su conocimiento e intervención.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {mostrarFirma && (
+      {/* Modal de Firma Manuscrita */}
+      <SignaturePadModal
+        open={mostrarFirmaPad}
+        firmaActual={draft.firmaUrl}
+        onSave={handleGuardarFirma}
+        onRemove={handleQuitarFirma}
+        onClose={() => setMostrarFirmaPad(false)}
+      />
+
+      {/* Modal para Guardar Escrito */}
+      {mostrarModalGuardar && (
         <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="save-dialog-title"
           style={{
-            position: "fixed", inset: 0, background: "rgba(10, 15, 25, 0.98)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            zIndex: 1100, padding: "1.25rem",
+            position: "fixed",
+            inset: 0,
+            background: "rgba(10, 15, 25, 0.85)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1300,
+            padding: "1rem",
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setMostrarModalGuardar(false)
           }}
         >
-          <div style={{
-            background: "#1e293b", borderRadius: "1.25rem", maxWidth: 500,
-            width: "100%", padding: "1.5rem", textAlign: "center",
-          }}>
-            <h3 style={{ color: "#fff", margin: "0 0 0.25rem" }}>Firma Digital</h3>
-            <p style={{ color: "var(--muted)", fontSize: "0.8125rem", marginBottom: "1.25rem" }}>
-              Dibuja tu firma para el documento
+          <div
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: "1rem",
+              maxWidth: 480,
+              width: "100%",
+              padding: "1.5rem",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
+            }}
+          >
+            <h3 id="save-dialog-title" style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.25rem", color: "var(--fg)" }}>
+              Guardar escrito
+            </h3>
+            <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0 0 1rem" }}>
+              Se guardará en este dispositivo para que puedas reabrirlo, editarlo o reimprimirlo cuando lo necesites.
             </p>
-            <canvas
-              id="pad-firma"
-              width={400}
-              height={180}
-              style={{
-                background: "#fff", width: "100%", height: 160,
-                borderRadius: "0.625rem", border: "2px dashed #94a3b8",
-                cursor: "crosshair", marginBottom: "1.25rem",
-              }}
-              onMouseDown={(e) => {
-                const c = e.currentTarget
-                const ctx = c.getContext("2d")
-                if (!ctx) return
-                ctx.beginPath()
-                const rect = c.getBoundingClientRect()
-                const x = (e.clientX - rect.left) * (c.width / rect.width)
-                const y = (e.clientY - rect.top) * (c.height / rect.height)
-                ctx.moveTo(x, y)
-                c.onmousemove = (ev) => {
-                  const ctx2 = c.getContext("2d")
-                  if (!ctx2) return
-                  const r = c.getBoundingClientRect()
-                  const x2 = (ev.clientX - r.left) * (c.width / r.width)
-                  const y2 = (ev.clientY - r.top) * (c.height / r.height)
-                  ctx2.lineTo(x2, y2)
-                  ctx2.stroke()
-                }
-              }}
-              onMouseUp={(e) => { e.currentTarget.onmousemove = null }}
-              onMouseLeave={(e) => { e.currentTarget.onmousemove = null }}
-              onTouchStart={(e) => {
-                const c = e.currentTarget
-                const ctx = c.getContext("2d")
-                if (!ctx) return
-                const touch = e.touches[0]
-                const rect = c.getBoundingClientRect()
-                const x = (touch.clientX - rect.left) * (c.width / rect.width)
-                const y = (touch.clientY - rect.top) * (c.height / rect.height)
-                ctx.beginPath()
-                ctx.moveTo(x, y)
-                c.ontouchmove = (ev) => {
-                  ev.preventDefault()
-                  const ctx2 = c.getContext("2d")
-                  if (!ctx2) return
-                  const t = ev.touches[0]
-                  const r = c.getBoundingClientRect()
-                  const x2 = (t.clientX - r.left) * (c.width / r.width)
-                  const y2 = (t.clientY - r.top) * (c.height / r.height)
-                  ctx2.lineTo(x2, y2)
-                  ctx2.stroke()
-                }
-              }}
-              onTouchEnd={(e) => { e.currentTarget.ontouchmove = null }}
-            />
-            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
-              <button onClick={() => { limpiarFirma() }}
-                style={{
-                  padding: "0.5rem 1.25rem", borderRadius: "0.5rem",
-                  border: "1px solid var(--border)", background: "transparent",
-                  color: "#f1f5f9", cursor: "pointer", fontWeight: 600,
-                }}
+
+            <div style={{ marginBottom: "1.25rem" }}>
+              <label
+                htmlFor="titulo-escrito-guardar"
+                style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, marginBottom: "0.35rem" }}
               >
-                Limpiar
-              </button>
-              <button onClick={() => setMostrarFirma(false)}
+                Título interno del escrito
+              </label>
+              <input
+                id="titulo-escrito-guardar"
+                value={tituloGuardar}
+                onChange={(e) => setTituloGuardar(e.target.value)}
+                placeholder="Ej. Solicitud de cambio de adscripción"
                 style={{
-                  padding: "0.5rem 1.25rem", borderRadius: "0.5rem",
-                  border: "1px solid var(--border)", background: "transparent",
-                  color: "#f1f5f9", cursor: "pointer", fontWeight: 600,
+                  width: "100%",
+                  padding: "0.625rem 0.875rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid var(--border)",
+                  background: "var(--bg)",
+                  color: "var(--fg)",
+                  fontSize: "0.875rem",
+                  outline: "none",
+                  boxSizing: "border-box",
                 }}
-              >
+              />
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+              <Button variant="secondary" onClick={() => setMostrarModalGuardar(false)}>
                 Cancelar
-              </button>
-              <button onClick={guardarFirma}
-                style={{
-                  padding: "0.5rem 1.25rem", borderRadius: "0.5rem",
-                  background: "var(--primary)", border: "none",
-                  color: "var(--primary-fg)", cursor: "pointer", fontWeight: 600,
-                }}
-              >
-                Aplicar Firma
-              </button>
+              </Button>
+              <Button variant="primary" onClick={handleConfirmarGuardar}>
+                Guardar en dispositivo
+              </Button>
             </div>
           </div>
         </div>
       )}
-      {mostrarGuardar && onGuardar && (
+
+      {/* Modal de confirmación de salida con cambios pendientes */}
+      {mostrarConfirmCerrar && (
         <div
+          role="dialog"
+          aria-modal="true"
           style={{
-            position: "fixed", inset: 0, background: "rgba(10, 15, 25, 0.98)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            zIndex: 1100, padding: "1.25rem",
+            position: "fixed",
+            inset: 0,
+            background: "rgba(10, 15, 25, 0.85)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1300,
+            padding: "1rem",
           }}
         >
-          <div style={{
-            background: "#1e293b", borderRadius: "1.25rem", maxWidth: 500,
-            width: "100%", padding: "1.5rem",
-          }}>
-            <h3 style={{ color: "#fff", margin: "0 0 0.25rem" }}>Guardar ✓</h3>
-            <p style={{ color: "var(--muted)", fontSize: "0.8125rem", marginBottom: "1.25rem" }}>
-              Este escrito quedará guardado en este dispositivo para que puedas reimprimirlo cuando quieras.
+          <div
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: "1rem",
+              maxWidth: 420,
+              width: "100%",
+              padding: "1.5rem",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>⚠️</div>
+            <h3 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.5rem", color: "var(--fg)" }}>
+              ¿Salir sin guardar cambios?
+            </h3>
+            <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: "0 0 1.25rem", lineHeight: 1.5 }}>
+              Tienes cambios sin guardar en tu escrito. Si sales ahora, se perderán las modificaciones recientes.
             </p>
-            <label style={{
-              display: "block", color: "#cbd5e1", fontSize: "0.8125rem",
-              fontWeight: 600, marginBottom: "0.375rem",
-            }}>
-              Título del escrito
-            </label>
-            <input
-              value={tituloGuardar}
-              onChange={(e) => setTituloGuardar(e.target.value)}
-              placeholder="Ej. Solicitud de cambio de adscripción"
-              style={{
-                width: "100%", padding: "0.625rem 0.875rem", borderRadius: "0.5rem",
-                border: "1px solid var(--border)", background: "#0f172a", color: "#f1f5f9",
-                fontSize: "0.875rem", marginBottom: "1.25rem", outline: "none",
-              }}
-            />
-            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-              <button onClick={() => setMostrarGuardar(false)}
-                style={{
-                  padding: "0.5rem 1.25rem", borderRadius: "0.5rem",
-                  border: "1px solid var(--border)", background: "transparent",
-                  color: "#f1f5f9", cursor: "pointer", fontWeight: 600,
+            <div style={{ display: "flex", justifyContent: "center", gap: "0.75rem" }}>
+              <Button variant="secondary" onClick={() => setMostrarConfirmCerrar(false)}>
+                Continuar editando
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setMostrarConfirmCerrar(false)
+                  onClose()
                 }}
+                style={{ background: "#ef4444" }}
               >
-                Cancelar
-              </button>
-              <button onClick={confirmarGuardar} disabled={guardando}
-                style={{
-                  padding: "0.5rem 1.25rem", borderRadius: "0.5rem",
-                  background: "var(--primary)", border: "none",
-                  color: "var(--primary-fg)", cursor: guardando ? "not-allowed" : "pointer",
-                  fontWeight: 600, opacity: guardando ? 0.7 : 1,
-                }}
-              >
-                {guardando ? "Guardando..." : "Guardar escrito"}
-              </button>
+                Salir de todos modos
+              </Button>
             </div>
           </div>
         </div>
       )}
-    </>
+    </div>
   )
 }
