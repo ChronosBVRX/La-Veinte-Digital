@@ -1,310 +1,611 @@
 "use client"
 
 import { useState } from "react"
-import { Select, Input, Textarea } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
-import { COMITE_SECCIONAL, VALOR_DESTINO_MANUAL } from "@/features/escritos/data/comite-seccional"
-import type { ChangeEvent } from "react"
+import { Input, Textarea } from "@/shared/components/ui/Input"
+import { Card } from "@/shared/components/ui/Card"
+import {
+  TIPOS_ESCRITO,
+  type TipoEscritoKey,
+  type EscritoDraftV2,
+  type DestinatarioItem,
+  type AnexoItem,
+} from "@/shared/contracts/escrito-draft"
+import { saveBlobResource } from "../services/escritos-indexeddb"
 
-interface ProfileData {
-  full_name: string
-  matricula: string
-  categoria: string
-  adscripcion: string
-}
-
-interface EscritosFormProps {
-  profile: ProfileData | null
-  destino: string
-  fecha: string
-  ciudad: string
-  detalle: string
-  textoGenerado: string
-  atencion: string
-  copia: string
-  fotos: string[]
-  loading: boolean
-  mostrarAvanzado: boolean
-  onChange: (field: string, value: string) => void
+export interface EscritosFormProps {
+  userId: string
+  draft: EscritoDraftV2
+  onUpdateDraft: (updated: Partial<EscritoDraftV2>) => void
   onGenerate: () => void
-  onPreview: () => void
-  onToggleAvanzado: () => void
-  onFotosChange: (e: ChangeEvent<HTMLInputElement>) => void
-  onClear: () => void
+  isGenerating: boolean
+  workerProfile?: {
+    nombre?: string
+    matricula?: string
+    categoria?: string
+    adscripcion?: string
+    seccion?: string
+  }
 }
+
+const DESTINATARIOS_PREDEFINIDOS = [
+  { cargo: "Secretario General", nombre: "Comité Ejecutivo Seccional - Sección XX Michoacán SNTSS" },
+  { cargo: "Secretario del Interior y Propaganda", nombre: "Comité Ejecutivo Seccional - Sección XX SNTSS" },
+  { cargo: "Secretario de Conflictos", nombre: "Comité Ejecutivo Seccional - Sección XX SNTSS" },
+  { cargo: "Secretario de Trabajo", nombre: "Comité Ejecutivo Seccional - Sección XX SNTSS" },
+  { cargo: "Representante Sindical Delegacional", nombre: "Delegación Sindical correspondiente" },
+  { cargo: "Director de Unidad Médica / Hospital", nombre: "Dirección de Unidad Médica IMSS" },
+  { cargo: "Jefe de Personal / Recursos Humanos", nombre: "Departamento de Personal IMSS" },
+  { cargo: "Jefatura de Servicio / Enfermería", nombre: "Jefatura de Servicio IMSS" },
+  { cargo: "Otro / Personalizado", nombre: "" },
+]
 
 export function EscritosForm({
-  profile, destino, fecha, ciudad, detalle, textoGenerado,
-  atencion, copia, fotos, loading, mostrarAvanzado,
-  onChange, onGenerate, onPreview, onToggleAvanzado, onFotosChange, onClear,
+  userId,
+  draft,
+  onUpdateDraft,
+  onGenerate,
+  isGenerating,
+  workerProfile,
 }: EscritosFormProps) {
-  const [modoManual, setModoManual] = useState(false)
-  const [cargoManual, setCargoManual] = useState("")
-  const [nombreManual, setNombreManual] = useState("")
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [destinatarioMode, setDestinatarioMode] = useState<"preset" | "manual">(() => {
+    const isKnown = DESTINATARIOS_PREDEFINIDOS.some(
+      (d) => d.cargo === draft.destino.cargo && d.nombre === draft.destino.nombre
+    )
+    return isKnown ? "preset" : "manual"
+  })
+  const [incluirFundamentos, setIncluirFundamentos] = useState(true)
+  const [anexoUploading, setAnexoUploading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  const destinoOptions = COMITE_SECCIONAL.map((g) => (
-    <optgroup key={g.group} label={g.group}>
-      {g.items.map((i) => (
-        <option key={i.value} value={i.value}>{i.label}</option>
-      ))}
-    </optgroup>
-  ))
+  const currentTipoDef = TIPOS_ESCRITO[draft.tipo] || TIPOS_ESCRITO.solicitud
 
-  const handleDestinoChange = (value: string) => {
-    if (value === VALOR_DESTINO_MANUAL) {
-      setModoManual(true)
-      onChange("destino", "")
-      return
-    }
-    setModoManual(false)
-    onChange("destino", value)
+  const handleTipoSelect = (tipo: TipoEscritoKey) => {
+    onUpdateDraft({
+      tipo,
+      asunto: draft.asunto || `${TIPOS_ESCRITO[tipo].titulo}: Solicitud formal`,
+    })
   }
 
-  const updateManualDestino = (campo: "cargo" | "nombre", value: string) => {
-    const cargo = campo === "cargo" ? value : cargoManual
-    const nombre = campo === "nombre" ? value : nombreManual
-    if (campo === "cargo") setCargoManual(value)
-    else setNombreManual(value)
-    onChange("destino", cargo.trim() && nombre.trim() ? `${cargo.trim()}|${nombre.trim()}` : "")
+  const handleDestinatarioSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value
+    if (val === "Otro / Personalizado") {
+      setDestinatarioMode("manual")
+      onUpdateDraft({ destino: { cargo: "", nombre: "" } })
+    } else {
+      setDestinatarioMode("preset")
+      const found = DESTINATARIOS_PREDEFINIDOS.find((d) => d.cargo === val)
+      if (found) {
+        onUpdateDraft({ destino: { cargo: found.cargo, nombre: found.nombre } })
+      }
+    }
+  }
+
+  // Manejo de atenciones múltiples
+  const addAtencion = () => {
+    const nuevo: DestinatarioItem = {
+      id: `at_${Math.random().toString(36).slice(2, 7)}`,
+      cargo: "",
+      nombre: "",
+    }
+    onUpdateDraft({ atencion: [...draft.atencion, nuevo] })
+  }
+
+  const updateAtencion = (index: number, field: "cargo" | "nombre", value: string) => {
+    const updated = [...draft.atencion]
+    if (updated[index]) {
+      updated[index] = { ...updated[index], [field]: value }
+      onUpdateDraft({ atencion: updated })
+    }
+  }
+
+  const removeAtencion = (index: number) => {
+    const updated = draft.atencion.filter((_, i) => i !== index)
+    onUpdateDraft({ atencion: updated })
+  }
+
+  // Manejo de copias múltiples (c.c.p.)
+  const addCopia = () => {
+    const nuevo: DestinatarioItem = {
+      id: `cp_${Math.random().toString(36).slice(2, 7)}`,
+      cargo: "",
+      nombre: "",
+    }
+    onUpdateDraft({ copias: [...draft.copias, nuevo] })
+  }
+
+  const updateCopia = (index: number, field: "cargo" | "nombre", value: string) => {
+    const updated = [...draft.copias]
+    if (updated[index]) {
+      updated[index] = { ...updated[index], [field]: value }
+      onUpdateDraft({ copias: updated })
+    }
+  }
+
+  const removeCopia = (index: number) => {
+    const updated = draft.copias.filter((_, i) => i !== index)
+    onUpdateDraft({ copias: updated })
+  }
+
+  // Manejo de imágenes adjuntas directo a IndexedDB
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    setAnexoUploading(true)
+    setErrorMsg(null)
+
+    try {
+      const newAnexos: AnexoItem[] = [...draft.anexos]
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        if (!file.type.startsWith("image/")) {
+          setErrorMsg("Solo se admiten archivos de imagen (JPG, PNG, WebP).")
+          continue
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          setErrorMsg("Cada imagen no debe exceder los 10MB.")
+          continue
+        }
+
+        const anexoId = `anx_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+        const storageRef = await saveBlobResource(
+          userId,
+          draft.id,
+          "anexo",
+          anexoId,
+          file
+        )
+
+        const previewUrl = URL.createObjectURL(file)
+
+        newAnexos.push({
+          id: anexoId,
+          nombre: file.name.replace(/\.[^/.]+$/, ""),
+          descripcion: "",
+          tipo: file.type,
+          size: file.size,
+          storageRef,
+          previewUrl,
+        })
+      }
+
+      onUpdateDraft({ anexos: newAnexos })
+    } catch (err) {
+      console.error("Error guardando anexo en IndexedDB:", err)
+      setErrorMsg("Error al procesar la imagen adjunta.")
+    } finally {
+      setAnexoUploading(false)
+      if (e.target) e.target.value = ""
+    }
+  }
+
+  const removeAnexo = (index: number) => {
+    const anexo = draft.anexos[index]
+    if (anexo?.previewUrl && anexo.previewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(anexo.previewUrl)
+    }
+    const updated = draft.anexos.filter((_, i) => i !== index)
+    onUpdateDraft({ anexos: updated })
+  }
+
+  const updateAnexoDescripcion = (index: number, descripcion: string) => {
+    const updated = [...draft.anexos]
+    if (updated[index]) {
+      updated[index] = { ...updated[index], descripcion }
+      onUpdateDraft({ anexos: updated })
+    }
+  }
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setErrorMsg(null)
+
+    if (!draft.hechos.trim() && !draft.peticion.trim()) {
+      setErrorMsg("Por favor describe los hechos o lo que solicitas para redactar el borrador.")
+      return
+    }
+
+    onGenerate()
   }
 
   return (
-    <div>
-      <div style={{
-        background: "var(--card)", border: "1px solid var(--border)", borderRadius: "0.75rem",
-        padding: "1.25rem", marginBottom: "1rem",
-      }}>
-        {/* Perfil compacto */}
-        <div style={{
-          display: "flex", gap: "0.75rem", alignItems: "flex-start",
-          padding: "0.875rem 1rem", background: "var(--accent)", borderRadius: "0.5rem",
-          border: "1px solid var(--border)", marginBottom: "1.25rem",
-        }}>
-          <div style={{
-            width: 38, height: 38, borderRadius: "50%", background: "linear-gradient(135deg, var(--brand-navy), var(--brand-blue))",
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, color: "#fff", fontSize: "1rem",
-          }}>
-            👤
-          </div>
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: "0.875rem", fontWeight: 700, lineHeight: 1.3, overflowWrap: "anywhere" }}>{profile?.full_name ?? "—"}</div>
-            <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.15rem", lineHeight: 1.4, overflowWrap: "anywhere" }}>
-              {profile?.matricula ? `Mat. ${profile.matricula}` : ""}{profile?.matricula && profile?.categoria ? " · " : ""}{profile?.categoria ?? ""}
-            </div>
-            <div style={{ fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.4, overflowWrap: "anywhere" }}>{profile?.adscripcion ?? ""}</div>
-          </div>
-          <a
-            href="/profile"
-            style={{
-              fontSize: "0.75rem", fontWeight: 600, color: "var(--primary)", textDecoration: "none",
-              border: "1px solid var(--border)", borderRadius: "999px", padding: "0.3rem 0.625rem",
-              background: "var(--card)", flexShrink: 0, whiteSpace: "nowrap",
-            }}
-          >
-            Editar
-          </a>
-        </div>
-
-        {/* Paso 1: Destinatario */}
-        <div style={{ marginBottom: "1rem" }}>
-          <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: "0.5rem" }}>1 · Destinatario</div>
-
-          <Select label="¿A quién va dirigido?" value={modoManual ? VALOR_DESTINO_MANUAL : destino} onChange={(e) => handleDestinoChange(e.target.value)}>
-            <option value="">— Selecciona —</option>
-            {destinoOptions}
-            <option value={VALOR_DESTINO_MANUAL}>— Otra persona (fuera del Comité Seccional) —</option>
-          </Select>
-        </div>
-
-        {!modoManual ? (
-          <button
-            type="button"
-            onClick={() => { setModoManual(true); onChange("destino", "") }}
-            style={{
-              background: "none", border: "none", color: "var(--primary)",
-              fontSize: "0.8125rem", cursor: "pointer", padding: 0, marginBottom: "1rem",
-              fontWeight: 600, textDecoration: "underline", textUnderlineOffset: "2px",
-            }}
-          >
-            ¿Destinatario fuera del Comité Seccional? Llenar manualmente →
-          </button>
-        ) : (
-          <div style={{ marginBottom: "1rem" }}>
-            <div
-              style={{
-                display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem",
-                padding: "1rem", background: "var(--accent)",
-                borderRadius: "0.375rem", border: "1px solid var(--border)",
-              }}
-            >
-              <div style={{ gridColumn: "1 / -1", fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                Llenado manual — destinatario fuera del Comité
-              </div>
-              <Input
-                label="Cargo (ej. Presidente del Comité Delegacional)"
-                value={cargoManual}
-                onChange={(e) => updateManualDestino("cargo", e.target.value)}
-                placeholder="Ej. Comité Delegacional de Morelia"
-              />
-              <Input
-                label="Nombre del destinatario"
-                value={nombreManual}
-                onChange={(e) => updateManualDestino("nombre", e.target.value)}
-                placeholder="Ej. Lic. Juan Pérez López"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => { setModoManual(false); setCargoManual(""); setNombreManual(""); onChange("destino", "") }}
-              style={{
-                background: "none", border: "none", color: "var(--muted)",
-                fontSize: "0.8125rem", cursor: "pointer", padding: 0, marginTop: "0.5rem",
-                fontWeight: 500,
-              }}
-            >
-              ← Volver a lista del Comité Seccional
-            </button>
-          </div>
-        )}
-
-        {(() => {
-          const visor = (() => {
-            if (modoManual) {
-              if (!cargoManual.trim() || !nombreManual.trim()) return null
-              return { cargo: cargoManual.trim(), nombre: nombreManual.trim(), manual: true }
-            }
-            if (!destino || !destino.includes("|")) return null
-            const [cargo, nombre] = destino.split("|")
-            if (!cargo || !nombre) return null
-            return { cargo, nombre, manual: false }
-          })()
-          if (!visor) return null
-          return (
-            <div style={{
-              marginBottom: "1rem", padding: "0.75rem 1rem",
-              background: "var(--card)", border: "1px solid var(--border)",
-              borderLeft: "3px solid var(--primary)", borderRadius: "0.375rem",
-              display: "flex", gap: "0.75rem", alignItems: "center",
-            }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: "50%", background: "var(--accent)",
-                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: "1.1rem",
-              }}>
-                ✉
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: "0.68rem", color: "var(--muted)", fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                  {visor.manual ? "Dirigido a (manual)" : "Dirigido a"}
-                </div>
-                <div style={{ fontSize: "0.875rem", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{visor.nombre}</div>
-                <div style={{ fontSize: "0.8125rem", color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{visor.cargo}</div>
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* Paso 2: Datos del escrito */}
-        <div style={{ marginBottom: "1rem" }}>
-          <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: "0.5rem" }}>2 · Datos del escrito</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-            <Input label="Fecha del escrito" type="date" value={fecha} onChange={(e) => onChange("fecha", e.target.value)} />
-            <Input label="Lugar (Municipio)" value={ciudad} onChange={(e) => onChange("ciudad", e.target.value)} placeholder="Ej. Morelia" />
-          </div>
-        </div>
-
-        {/* Paso 3: Situación */}
-        <div style={{ marginBottom: "1rem" }}>
-          <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: "0.5rem" }}>3 · Situación / hechos</div>
-          <Textarea
-            label="Descripción de los hechos"
-            value={detalle}
-            onChange={(e) => onChange("detalle", e.target.value)}
-            placeholder="Explica tu trámite o problema de forma clara..."
-            rows={5}
-          />
-        </div>
-
-        <button
-          type="button"
-          onClick={onToggleAvanzado}
+    <form onSubmit={handleFormSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      {/* Banner de perfil del trabajador */}
+      {workerProfile?.nombre && (
+        <div
           style={{
-            background: "none", border: "none", color: "var(--muted)", fontSize: "0.8125rem",
-            cursor: "pointer", display: "flex", alignItems: "center", gap: "0.375rem",
-            margin: "1rem auto", padding: "0.5rem", borderRadius: "0.375rem", width: "100%",
-            justifyContent: "center",
+            background: "var(--accent)",
+            border: "1px solid var(--border)",
+            borderRadius: "0.75rem",
+            padding: "0.875rem 1rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "0.5rem",
           }}
         >
-          <span style={{ fontSize: "1rem" }}>⚙</span>
-          {mostrarAvanzado ? "Ocultar" : "Mostrar"} Opciones Avanzadas (Copias, Evidencia)
-        </button>
-
-        {mostrarAvanzado && (
-          <div style={{ paddingTop: "1rem", marginTop: "1rem", borderTop: "1px solid var(--border)" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
-              <Select label="Con atención a" value={atencion} onChange={(e) => onChange("atencion", e.target.value)}>
-                <option value="">Ninguno</option>
-                {destinoOptions}
-              </Select>
-              <Select label="Con copia para (c.c.p.)" value={copia} onChange={(e) => onChange("copia", e.target.value)}>
-                <option value="">Ninguno</option>
-                {destinoOptions}
-              </Select>
-            </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <span style={{ fontSize: "1.25rem" }}>👤</span>
             <div>
-              <Input label="Anexar fotografías de evidencia" type="file" multiple accept="image/*" onChange={onFotosChange} />
-              {fotos.length > 0 && (
-                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem", flexWrap: "wrap" }}>
-                  {fotos.map((f, i) => (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img key={i} src={f} alt={`Evidencia ${i + 1}`}
-                      style={{ width: 60, height: 60, objectFit: "cover", borderRadius: "0.375rem", border: "2px solid var(--primary)" }}
-                    />
-                  ))}
-                </div>
-              )}
+              <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--fg)" }}>
+                {workerProfile.nombre}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                {workerProfile.categoria || "Trabajador IMSS"} {workerProfile.matricula ? `• Matrícula: ${workerProfile.matricula}` : ""}
+              </div>
             </div>
           </div>
-        )}
+          <span style={{ fontSize: "0.75rem", background: "var(--card)", padding: "0.25rem 0.5rem", borderRadius: "0.375rem", border: "1px solid var(--border)", color: "var(--muted)" }}>
+            {workerProfile.seccion || "Sección XX Michoacán"}
+          </span>
+        </div>
+      )}
 
-        <div style={{ display: "flex", gap: "0.5rem", marginTop: "1.25rem", flexWrap: "wrap" }}>
-          <Button onClick={onGenerate} disabled={loading || !destino || !detalle.trim()} loading={loading} style={{ flex: 1, minWidth: 160 }}>
-            {loading ? "Redactando con IA..." : "✦ Generar borrador"}
-          </Button>
-          <Button variant="secondary" onClick={onClear} disabled={loading}>
-            Limpiar
-          </Button>
+      {/* Pregunta 1: Tipo de Escrito */}
+      <div>
+        <label style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.75rem" }}>
+          1. ¿Qué tipo de escrito necesitas redactar?
+        </label>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem" }}>
+          {(Object.keys(TIPOS_ESCRITO) as TipoEscritoKey[]).map((key) => {
+            const def = TIPOS_ESCRITO[key]
+            const isSelected = draft.tipo === key
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => handleTipoSelect(key)}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "1rem 0.75rem",
+                  borderRadius: "0.75rem",
+                  border: isSelected ? "2px solid var(--primary)" : "1px solid var(--border)",
+                  background: isSelected ? "var(--accent)" : "var(--card)",
+                  color: isSelected ? "var(--primary)" : "var(--fg)",
+                  cursor: "pointer",
+                  textAlign: "center",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <span style={{ fontSize: "1.75rem", marginBottom: "0.375rem" }}>{def.icono}</span>
+                <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>{def.titulo}</span>
+              </button>
+            )
+          })}
+        </div>
+        <p style={{ margin: "0.5rem 0 0", fontSize: "0.8125rem", color: "var(--muted)" }}>
+          {currentTipoDef.subtitulo}
+        </p>
+      </div>
+
+      {/* Pregunta 2: Destinatario */}
+      <div>
+        <label style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.5rem" }}>
+          2. ¿A quién va dirigido el escrito?
+        </label>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <select
+            value={destinatarioMode === "preset" ? draft.destino.cargo : "Otro / Personalizado"}
+            onChange={handleDestinatarioSelect}
+            style={{
+              padding: "0.625rem 0.875rem",
+              borderRadius: "0.5rem",
+              border: "1px solid var(--border)",
+              background: "var(--card)",
+              color: "var(--fg)",
+              fontSize: "0.875rem",
+              width: "100%",
+            }}
+          >
+            {DESTINATARIOS_PREDEFINIDOS.map((d) => (
+              <option key={d.cargo} value={d.cargo}>
+                {d.cargo} {d.nombre ? `(${d.nombre})` : ""}
+              </option>
+            ))}
+          </select>
+
+          {destinatarioMode === "manual" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+              <Input
+                label="Nombre del destinatario"
+                placeholder="Ej. Dr. Juan Pérez"
+                value={draft.destino.nombre}
+                onChange={(e) => onUpdateDraft({ destino: { ...draft.destino, nombre: e.target.value } })}
+              />
+              <Input
+                label="Cargo institucional o sindical"
+                placeholder="Ej. Director HGZ No. 1"
+                value={draft.destino.cargo}
+                onChange={(e) => onUpdateDraft({ destino: { ...draft.destino, cargo: e.target.value } })}
+              />
+            </div>
+          )}
         </div>
       </div>
 
-      {textoGenerado && (
-        <div style={{
-          background: "var(--card)", border: "1px solid var(--border)", borderRadius: "0.5rem",
-          padding: "1.5rem", marginBottom: "1.5rem",
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-            <h3 style={{ fontSize: "1rem", fontWeight: 600, margin: 0 }}>Texto generado</h3>
-            <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Puedes editarlo antes de previsualizar</span>
-          </div>
-          <textarea
-            value={textoGenerado}
-            onChange={(e) => onChange("textoGenerado", e.target.value)}
+      {/* Pregunta 3: Hechos */}
+      <div>
+        <label style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.375rem" }}>
+          3. ¿Qué hechos o antecedentes ocurrieron?
+        </label>
+        <Textarea
+          placeholder={currentTipoDef.placeholderHechos}
+          value={draft.hechos}
+          onChange={(e) => onUpdateDraft({ hechos: e.target.value })}
+          rows={4}
+        />
+        <p style={{ margin: "0.25rem 0 0", fontSize: "0.75rem", color: "var(--muted)" }}>
+          Escríbelo con tus propias palabras; el asistente se encargará de darle estructura formal.
+        </p>
+      </div>
+
+      {/* Pregunta 4: Petición */}
+      <div>
+        <label style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.375rem" }}>
+          4. ¿Qué solicitas concretamente?
+        </label>
+        <Textarea
+          placeholder={currentTipoDef.placeholderPeticion}
+          value={draft.peticion}
+          onChange={(e) => onUpdateDraft({ peticion: e.target.value })}
+          rows={3}
+        />
+      </div>
+
+      {/* Pregunta 5: Adjuntar imágenes */}
+      <div>
+        <label style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.375rem" }}>
+          5. Adjuntar imágenes (fotografías, credencial, comprobantes)
+        </label>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <div
             style={{
-              width: "100%", minHeight: 180, padding: "1rem", borderRadius: "0.375rem",
-              border: "1px solid var(--border)", background: "var(--bg)", color: "var(--fg)",
-              fontSize: "0.875rem", fontFamily: "'Georgia', 'Times New Roman', serif", lineHeight: 1.6,
-              resize: "vertical", outline: "none",
+              border: "1.5px dashed var(--border)",
+              borderRadius: "0.75rem",
+              padding: "1rem",
+              textAlign: "center",
+              background: "var(--card)",
             }}
-          />
-          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
-            <Button onClick={onPreview}>
-              Previsualizar Documento
-            </Button>
-            <Button variant="secondary" onClick={onGenerate} loading={loading}>
-              Regenerar
-            </Button>
+          >
+            <input
+              type="file"
+              id="escrito-images-input"
+              multiple
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleImageUpload}
+              style={{ display: "none" }}
+              disabled={anexoUploading}
+            />
+            <label
+              htmlFor="escrito-images-input"
+              style={{
+                display: "inline-block",
+                cursor: "pointer",
+                fontSize: "0.875rem",
+                color: "var(--primary)",
+                fontWeight: 600,
+              }}
+            >
+              {anexoUploading ? "Procesando imágenes..." : "📷 Seleccionar imágenes desde el dispositivo"}
+            </label>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
+              Formatos soportados: JPG, PNG, WebP (máx. 10MB por imagen).
+            </div>
           </div>
+
+          {/* Lista de anexos adjuntos */}
+          {draft.anexos.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {draft.anexos.map((anexo, idx) => (
+                <Card key={anexo.id} padding="0.75rem" style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  {anexo.previewUrl ? (
+                    <img
+                      src={anexo.previewUrl}
+                      alt={anexo.nombre}
+                      style={{ width: "48px", height: "48px", objectFit: "cover", borderRadius: "0.375rem", border: "1px solid var(--border)" }}
+                    />
+                  ) : (
+                    <div style={{ width: "48px", height: "48px", background: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "0.375rem" }}>
+                      📷
+                    </div>
+                  )}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)" }}>
+                      Anexo {idx + 1}: {anexo.nombre}
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Breve descripción o pie de foto (opcional)"
+                      value={anexo.descripcion}
+                      onChange={(e) => updateAnexoDescripcion(idx, e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "0.25rem 0.5rem",
+                        fontSize: "0.75rem",
+                        borderRadius: "0.25rem",
+                        border: "1px solid var(--border)",
+                        background: "var(--card)",
+                        color: "var(--fg)",
+                        marginTop: "0.25rem",
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeAnexo(idx)}
+                    aria-label={`Eliminar anexo ${idx + 1}`}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#ef4444",
+                      fontSize: "1rem",
+                      cursor: "pointer",
+                      padding: "0.5rem",
+                    }}
+                  >
+                    🗑
+                  </button>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Acordeón de Opciones Avanzadas */}
+      <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1rem" }}>
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          style={{
+            background: "none",
+            border: "none",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            width: "100%",
+            padding: "0.5rem 0",
+            fontSize: "0.9375rem",
+            fontWeight: 600,
+            color: "var(--fg)",
+            cursor: "pointer",
+          }}
+        >
+          <span>⚙️ Opciones avanzadas y destinatarios secundarios</span>
+          <span>{showAdvanced ? "▲" : "▼"}</span>
+        </button>
+
+        {showAdvanced && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginTop: "1rem" }}>
+            <Input
+              label="Título de referencia interna"
+              placeholder="Ej. Solicitud de cambio de turno agosto"
+              value={draft.titulo}
+              onChange={(e) => onUpdateDraft({ titulo: e.target.value })}
+            />
+
+            <Input
+              label="Asunto formal del oficio"
+              placeholder="Ej. Solicitud de reubicación temporal por causas de salud"
+              value={draft.asunto}
+              onChange={(e) => onUpdateDraft({ asunto: e.target.value })}
+            />
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+              <Input
+                label="Lugar / Ciudad"
+                placeholder="Ej. Morelia, Mich."
+                value={draft.ciudad}
+                onChange={(e) => onUpdateDraft({ ciudad: e.target.value })}
+              />
+              <Input
+                label="Fecha de emisión"
+                type="date"
+                value={draft.fecha}
+                onChange={(e) => onUpdateDraft({ fecha: e.target.value })}
+              />
+            </div>
+
+            {/* Atenciones adicionales (At'n:) */}
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                <label style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)" }}>
+                  Destinatarios de atención adicional (At&apos;n:)
+                </label>
+                <Button variant="ghost" size="sm" type="button" onClick={addAtencion}>
+                  + Añadir At&apos;n
+                </Button>
+              </div>
+              {draft.atencion.map((at, idx) => (
+                <div key={at.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                  <Input
+                    placeholder="Nombre (ej. Lic. Rosa Flores)"
+                    value={at.nombre}
+                    onChange={(e) => updateAtencion(idx, "nombre", e.target.value)}
+                  />
+                  <Input
+                    placeholder="Cargo (ej. Subdirectora Administrativa)"
+                    value={at.cargo}
+                    onChange={(e) => updateAtencion(idx, "cargo", e.target.value)}
+                  />
+                  <Button variant="ghost" size="sm" type="button" onClick={() => removeAtencion(idx)}>
+                    ✕
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            {/* Copias para archivo (c.c.p.) */}
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                <label style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)" }}>
+                  Copias de conocimiento (c.c.p.)
+                </label>
+                <Button variant="ghost" size="sm" type="button" onClick={addCopia}>
+                  + Añadir c.c.p.
+                </Button>
+              </div>
+              {draft.copias.map((cp, idx) => (
+                <div key={cp.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                  <Input
+                    placeholder="Nombre o Representación"
+                    value={cp.nombre}
+                    onChange={(e) => updateCopia(idx, "nombre", e.target.value)}
+                  />
+                  <Input
+                    placeholder="Cargo o Instancia"
+                    value={cp.cargo}
+                    onChange={(e) => updateCopia(idx, "cargo", e.target.value)}
+                  />
+                  <Button variant="ghost" size="sm" type="button" onClick={() => removeCopia(idx)}>
+                    ✕
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            {/* Fundamentación normativa verificada */}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <input
+                type="checkbox"
+                id="fundamentar-check"
+                checked={incluirFundamentos}
+                onChange={(e) => setIncluirFundamentos(e.target.checked)}
+                style={{ width: "1rem", height: "1rem", accentColor: "var(--primary)" }}
+              />
+              <label htmlFor="fundamentar-check" style={{ fontSize: "0.8125rem", color: "var(--fg)", cursor: "pointer" }}>
+                Fundamentar con normas y cláusulas del Contrato Colectivo de Trabajo vigentes
+              </label>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {errorMsg && (
+        <div style={{ padding: "0.75rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.5rem", color: "#991b1b", fontSize: "0.8125rem" }}>
+          {errorMsg}
         </div>
       )}
-    </div>
+
+      {/* Botón principal de avance */}
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <Button
+          variant="primary"
+          size="md"
+          type="submit"
+          loading={isGenerating}
+          disabled={isGenerating || anexoUploading}
+        >
+          ✨ Redactar borrador con IA
+        </Button>
+      </div>
+    </form>
   )
 }
