@@ -6,8 +6,8 @@ import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
 import type { DestinoCargoNombre } from "@/shared/contracts/escrito-draft"
 import {
-  DIRECTORIO_DESTINATARIOS,
   CATEGORIAS_DESTINATARIOS,
+  buscarDestinatarios,
   type DestinatarioItem,
   type DestinatarioCategoria,
 } from "@/features/escritos/data/directorio-destinatarios"
@@ -35,16 +35,7 @@ export function DestinatarioSelectorModal({
   const activeTab = tabOverride ?? initialTab
 
   const filteredItems = useMemo(() => {
-    const q = searchTerm.toLowerCase().trim()
-    if (!q) return DIRECTORIO_DESTINATARIOS
-
-    return DIRECTORIO_DESTINATARIOS.filter((item) => {
-      return (
-        item.nombre.toLowerCase().includes(q) ||
-        item.cargo.toLowerCase().includes(q) ||
-        item.organo.toLowerCase().includes(q)
-      )
-    })
+    return buscarDestinatarios(searchTerm)
   }, [searchTerm])
 
   const groupedItems = useMemo(() => {

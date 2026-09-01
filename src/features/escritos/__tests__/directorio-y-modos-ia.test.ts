@@ -4,6 +4,8 @@ import {
   CATEGORIAS_DESTINATARIOS,
   buscarDestinatarios,
   findDestinatario,
+  VALOR_DESTINO_MANUAL,
+  type DestinatarioCategoria,
 } from "../data/directorio-destinatarios"
 import {
   buildUserPrompt,
@@ -12,28 +14,84 @@ import {
 } from "../server/generar-escrito-service"
 import type { GenerarEscritoRequest } from "@/shared/contracts/escrito-draft"
 
-describe("Directorio Canónico Oficial y Modos de Redacción (FASE 5, 6, 7 y 8)", () => {
-  it("solo incluye las categorías autorizadas del SNTSS Sección XX y ningún cargo inventado", () => {
-    const validCategorias = new Set([
-      "comite_ejecutivo",
-      "secretarias",
-      "comisiones",
-      "subcomisiones",
-      "comites_delegacionales",
-      "manual",
-    ])
-
-    for (const catKey of Object.keys(CATEGORIAS_DESTINATARIOS)) {
-      expect(validCategorias.has(catKey)).toBe(true)
+describe("Directorio Canónico Oficial y Trazabilidad Documental (FASE 2, 3 y 4)", () => {
+  it("contiene registros no vacíos para Comité Ejecutivo, Secretarías, Comisiones y Subcomisiones", () => {
+    const grouped: Record<DestinatarioCategoria, number> = {
+      comite_ejecutivo: 0,
+      secretarias: 0,
+      comisiones: 0,
+      subcomisiones: 0,
+      comites_delegacionales: 0,
+      manual: 0,
     }
 
     for (const item of DIRECTORIO_DESTINATARIOS) {
-      expect(validCategorias.has(item.categoria)).toBe(true)
-      expect(item.id).toBeTruthy()
-      expect(item.nombre).toBeTruthy()
-      expect(item.cargo).toBeTruthy()
-      expect(item.organo).toBeTruthy()
-      expect(item.periodo).toBe("2026–2032")
+      grouped[item.categoria]++
+    }
+
+    // Validar definiciones de categorías canónicas
+    expect(CATEGORIAS_DESTINATARIOS.comite_ejecutivo.titulo).toContain("Comité Ejecutivo")
+    expect(CATEGORIAS_DESTINATARIOS.secretarias.titulo).toContain("Secretarías")
+    expect(CATEGORIAS_DESTINATARIOS.comisiones.titulo).toContain("Comisiones")
+    expect(CATEGORIAS_DESTINATARIOS.subcomisiones.titulo).toContain("Subcomisiones")
+    expect(CATEGORIAS_DESTINATARIOS.comites_delegacionales.titulo).toContain("Comités Delegacionales")
+    expect(CATEGORIAS_DESTINATARIOS.manual.titulo).toContain("Manual")
+
+    // Categorías obligatorias con integrantes oficiales
+    expect(grouped.comite_ejecutivo).toBeGreaterThan(0)
+    expect(grouped.secretarias).toBeGreaterThanOrEqual(15)
+    expect(grouped.comisiones).toBeGreaterThanOrEqual(6)
+    expect(grouped.subcomisiones).toBeGreaterThanOrEqual(13)
+
+    // comites_delegacionales se mantiene en 0 hasta recibir la lista oficial sin inventar datos
+    expect(grouped.comites_delegacionales).toBe(0)
+  })
+
+  it("garantiza IDs estrictamente únicos y ninguna combinación nombre/cargo duplicada", () => {
+    const ids = new Set<string>()
+    const combinaciones = new Set<string>()
+
+    for (const item of DIRECTORIO_DESTINATARIOS) {
+      expect(ids.has(item.id)).toBe(false)
+      ids.add(item.id)
+
+      const combKey = `${item.nombre}|${item.cargo}`.toLowerCase()
+      expect(combinaciones.has(combKey)).toBe(false)
+      combinaciones.add(combKey)
+    }
+  })
+
+  it("todos los registros cuentan con trazabilidad documental verificable", () => {
+    for (const item of DIRECTORIO_DESTINATARIOS) {
+      expect(item.trazabilidad).toBeDefined()
+      expect(item.trazabilidad.documentoOrigen).toContain("Directorio Oficial del Comité Ejecutivo Seccional XX Michoacán")
+      expect(item.trazabilidad.rutaODocumentoUrl).toContain("src/features/escritos/data/comite-seccional.ts")
+      expect(item.trazabilidad.fechaConsulta).toBe("2026-04-16")
+      expect(item.trazabilidad.periodoConfirmado).toBe("2026–2032")
+      expect(item.trazabilidad.nivelVerificacion).toBe("OFICIAL_CONFIRMADO")
+      expect(item.trazabilidad.nombre).toBe(item.nombre)
+      expect(item.trazabilidad.cargo).toBe(item.cargo)
+    }
+  })
+
+  it("restringe estrictamente los cargos autorizados (solo titulares y presidentes)", () => {
+    for (const item of DIRECTORIO_DESTINATARIOS) {
+      const cargoLower = item.cargo.toLowerCase()
+
+      // Comisiones: solo Presidentes o Presidentas
+      if (item.categoria === "comisiones") {
+        expect(cargoLower.startsWith("presidente") || cargoLower.startsWith("presidenta")).toBe(true)
+        expect(cargoLower.includes("secretario") || cargoLower.includes("secretaria")).toBe(false)
+      }
+
+      // Subcomisiones: solo Representantes Titulares
+      if (item.categoria === "subcomisiones") {
+        expect(cargoLower).toContain("representante sindical titular")
+        expect(cargoLower).not.toContain("auxiliar")
+      }
+
+      // Ningún preset con cargos auxiliares
+      expect(cargoLower).not.toContain("auxiliar sindical")
     }
   })
 
@@ -47,22 +105,31 @@ describe("Directorio Canónico Oficial y Modos de Redacción (FASE 5, 6, 7 y 8)"
     expect(presetNombres.some((n) => n.includes("dirección de unidad médica imss"))).toBe(false)
   })
 
-  it("permite la búsqueda flexible por nombre, cargo u órgano", () => {
-    // Por nombre
-    const porNombre = buscarDestinatarios("Simbad")
-    expect(porNombre.length).toBeGreaterThan(0)
-    expect(porNombre[0].nombre).toContain("Simbad Solorio Vargas")
+  it("búsqueda tolerante a mayúsculas, minúsculas, acentos, órganos y cargos", () => {
+    // Tolerancia a acentos (sin acento busca con acento)
+    const porNombreSinAcento = buscarDestinatarios("Simbad")
+    expect(porNombreSinAcento.length).toBeGreaterThan(0)
+    expect(porNombreSinAcento[0].nombre).toContain("Simbad Solorio Vargas")
+
+    const porAcentoEnQuery = buscarDestinatarios("Jesús")
+    expect(porAcentoEnQuery.length).toBeGreaterThan(0)
+    expect(porAcentoEnQuery[0].nombre).toContain("Jesús Alejandro Reyes Román")
+
+    const porTextoSinAcento = buscarDestinatarios("Jesus")
+    expect(porTextoSinAcento.length).toBeGreaterThan(0)
+    expect(porTextoSinAcento[0].nombre).toContain("Jesús Alejandro Reyes Román")
 
     // Por cargo
     const porCargo = buscarDestinatarios("Tesorero")
     expect(porCargo.length).toBeGreaterThan(0)
     expect(porCargo[0].cargo).toContain("Tesorero")
 
-    // Por órgano
-    const porOrgano = buscarDestinatarios("Honor y Justicia")
-    expect(porOrgano.length).toBe(3)
+    // Por órgano (con acento vs sin acento)
+    const porOrganoSinAcento = buscarDestinatarios("Accion Politica")
+    expect(porOrganoSinAcento.length).toBe(1)
+    expect(porOrganoSinAcento[0].organo).toBe("Comisión de Acción Política")
 
-    // Búsqueda vacía retorna todo el directorio
+    // Búsqueda vacía retorna todo el directorio canónico
     const todo = buscarDestinatarios("")
     expect(todo.length).toBe(DIRECTORIO_DESTINATARIOS.length)
   })
@@ -72,8 +139,13 @@ describe("Directorio Canónico Oficial y Modos de Redacción (FASE 5, 6, 7 y 8)"
     expect(foundOficial).toBeDefined()
     expect(foundOficial?.categoria).toBe("comite_ejecutivo")
 
+    const foundSinAcento = findDestinatario("Secretario General", "Dr. Simbad Solorio Vargas")
+    expect(foundSinAcento).toBeDefined()
+
     const notFound = findDestinatario("Director HGZ No. 1", "Dr. Pérez")
     expect(notFound).toBeUndefined()
+
+    expect(VALOR_DESTINO_MANUAL).toBe("__MANUAL__")
   })
 
   it("buildUserPrompt incluye instrucciones estrictas de desarrollo formal de ideas", () => {
@@ -114,7 +186,6 @@ describe("Directorio Canónico Oficial y Modos de Redacción (FASE 5, 6, 7 y 8)"
       incluirFundamentos: false,
     }
 
-    // Ejecutar servicio sin llm (o simulando ausencia de claves)
     const res = await generarEscritoService(req)
     if (!getLLMClient()) {
       expect(res.generationMode).toBe("basic_fallback")

@@ -28,18 +28,56 @@ export interface LLMClientConfig {
   provider: "openai" | "deepseek" | "custom"
 }
 
+export interface SafeEscritoTelemetry {
+  provider: "openai" | "deepseek" | "custom" | "none"
+  model: string
+  generationMode: string
+  durationMs: number
+  isFallback: boolean
+  sanitizedCause?: string
+}
+
+export function logSafeEscritoTelemetry(telemetry: SafeEscritoTelemetry) {
+  // Solo se registran métricas técnicas agregadas sin PII ni secretos
+  console.info("[EscritosLLMTelemetry]", JSON.stringify(telemetry))
+}
+
 export function getLLMClient(): LLMClientConfig | null {
   const deepseekKey = process.env.DEEPSEEK_API_KEY
   const openaiKey = process.env.OPENAI_API_KEY
   const customBaseUrl = process.env.OPENAI_BASE_URL
+  const explicitProvider = process.env.LLM_PROVIDER?.toLowerCase().trim()
 
-  if (process.env.LLM_PROVIDER === "deepseek" && deepseekKey) {
+  if (explicitProvider === "deepseek" && deepseekKey) {
     return {
       client: new OpenAI({
         apiKey: deepseekKey,
-        baseURL: "https://api.deepseek.com",
+        baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com",
       }),
-      model: "deepseek-chat",
+      model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+      provider: "deepseek",
+    }
+  }
+
+  if (explicitProvider === "openai" && openaiKey) {
+    return {
+      client: new OpenAI({
+        apiKey: openaiKey,
+        ...(customBaseUrl ? { baseURL: customBaseUrl } : {}),
+      }),
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      provider: customBaseUrl ? "custom" : "openai",
+    }
+  }
+
+  // Fallbacks si no se definió explícitamente LLM_PROVIDER:
+  if (deepseekKey) {
+    return {
+      client: new OpenAI({
+        apiKey: deepseekKey,
+        baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com",
+      }),
+      model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
       provider: "deepseek",
     }
   }
@@ -52,17 +90,6 @@ export function getLLMClient(): LLMClientConfig | null {
       }),
       model: process.env.OPENAI_MODEL || "gpt-4o-mini",
       provider: customBaseUrl ? "custom" : "openai",
-    }
-  }
-
-  if (deepseekKey) {
-    return {
-      client: new OpenAI({
-        apiKey: deepseekKey,
-        baseURL: "https://api.deepseek.com",
-      }),
-      model: "deepseek-chat",
-      provider: "deepseek",
     }
   }
 
@@ -325,21 +352,33 @@ function limpiarTextoGenerado(texto: string): string {
 export async function generarEscritoService(
   req: GenerarEscritoRequest
 ): Promise<GenerarEscritoResponse> {
+  const startTime = Date.now()
   const llm = getLLMClient()
   if (!llm) {
-    if (req.mode === "revise" && req.cuerpoActual) {
-      return {
-        cuerpo: req.cuerpoActual,
-        fuentes: [],
-        advertencias: ["La redacción inteligente no está disponible en este momento."],
-        generationMode: "basic_fallback",
-      }
-    }
-    return {
-      ...generateBasicFallbackEscrito(req),
-      advertencias: ["La redacción inteligente no está disponible en este momento."],
-      generationMode: "basic_fallback",
-    }
+    const isRevise = req.mode === "revise" && Boolean(req.cuerpoActual)
+    const result: GenerarEscritoResponse = isRevise
+      ? {
+          cuerpo: req.cuerpoActual!,
+          fuentes: [],
+          advertencias: ["La redacción inteligente no está disponible en este momento."],
+          generationMode: "basic_fallback",
+        }
+      : {
+          ...generateBasicFallbackEscrito(req),
+          advertencias: ["La redacción inteligente no está disponible en este momento."],
+          generationMode: "basic_fallback",
+        }
+
+    logSafeEscritoTelemetry({
+      provider: "none",
+      model: "fallback",
+      generationMode: result.generationMode,
+      durationMs: Date.now() - startTime,
+      isFallback: true,
+      sanitizedCause: "LLM_PROVIDER_OR_KEY_UNAVAILABLE",
+    })
+
+    return result
   }
 
   try {
@@ -379,19 +418,30 @@ export async function generarEscritoService(
     let cuerpoLimpio = limpiarTextoGenerado(rawText)
 
     if (!cuerpoLimpio || cuerpoLimpio.length < 20) {
-      if (req.mode === "revise" && req.cuerpoActual) {
-        return {
-          cuerpo: req.cuerpoActual,
-          fuentes: [],
-          advertencias: ["No se pudo completar el ajuste de IA. Se conservó el texto actual."],
-          generationMode: "basic_fallback",
-        }
-      }
-      return {
-        ...generateBasicFallbackEscrito(req),
-        advertencias: ["La redacción inteligente no está disponible en este momento."],
-        generationMode: "basic_fallback",
-      }
+      const isRevise = req.mode === "revise" && Boolean(req.cuerpoActual)
+      const result: GenerarEscritoResponse = isRevise
+        ? {
+            cuerpo: req.cuerpoActual!,
+            fuentes: [],
+            advertencias: ["No se pudo completar el ajuste de IA. Se conservó el texto actual."],
+            generationMode: "basic_fallback",
+          }
+        : {
+            ...generateBasicFallbackEscrito(req),
+            advertencias: ["La redacción inteligente no está disponible en este momento."],
+            generationMode: "basic_fallback",
+          }
+
+      logSafeEscritoTelemetry({
+        provider: llm.provider,
+        model: llm.model,
+        generationMode: result.generationMode,
+        durationMs: Date.now() - startTime,
+        isFallback: true,
+        sanitizedCause: "EMPTY_OR_SHORT_OUTPUT",
+      })
+
+      return result
     }
 
     // Verificación estricta de Grounding contra campos estructurados
@@ -424,19 +474,30 @@ export async function generarEscritoService(
 
       // Si después de la limpieza persisten citas inválidas, usar fallback seguro
       if (!grounding.isGrounded) {
-        if (req.mode === "revise" && req.cuerpoActual) {
-          return {
-            cuerpo: req.cuerpoActual,
-            fuentes: [],
-            advertencias: ["No fue posible validar con certeza las referencias normativas. Se conservó el texto."],
-            generationMode: "basic_fallback",
-          }
-        }
-        return {
-          ...generateBasicFallbackEscrito(req),
-          advertencias: ["No fue posible validar las referencias normativas con certeza."],
-          generationMode: "basic_fallback",
-        }
+        const isRevise = req.mode === "revise" && Boolean(req.cuerpoActual)
+        const result: GenerarEscritoResponse = isRevise
+          ? {
+              cuerpo: req.cuerpoActual!,
+              fuentes: [],
+              advertencias: ["No fue posible validar con certeza las referencias normativas. Se conservó el texto."],
+              generationMode: "basic_fallback",
+            }
+          : {
+              ...generateBasicFallbackEscrito(req),
+              advertencias: ["No fue posible validar las referencias normativas con certeza."],
+              generationMode: "basic_fallback",
+            }
+
+        logSafeEscritoTelemetry({
+          provider: llm.provider,
+          model: llm.model,
+          generationMode: result.generationMode,
+          durationMs: Date.now() - startTime,
+          isFallback: true,
+          sanitizedCause: "UNGROUNDED_LEGAL_REFERENCES",
+        })
+
+        return result
       }
 
       advertencias.push(
@@ -457,26 +518,50 @@ export async function generarEscritoService(
         }))
       : []
 
-    return {
+    const modeResult = hasSources ? "ai_with_sources" : "ai_without_sources"
+    const response: GenerarEscritoResponse = {
       cuerpo: cuerpoLimpio,
       fuentes: fuentesFormateadas,
       advertencias,
-      generationMode: hasSources ? "ai_with_sources" : "ai_without_sources",
+      generationMode: modeResult,
     }
+
+    logSafeEscritoTelemetry({
+      provider: llm.provider,
+      model: llm.model,
+      generationMode: modeResult,
+      durationMs: Date.now() - startTime,
+      isFallback: false,
+    })
+
+    return response
   } catch (err) {
-    console.error("[generar-escrito-service] Error generando con LLM:", err)
-    if (req.mode === "revise" && req.cuerpoActual) {
-      return {
-        cuerpo: req.cuerpoActual,
-        fuentes: [],
-        advertencias: ["La redacción inteligente no está disponible en este momento."],
-        generationMode: "basic_fallback",
-      }
-    }
-    return {
-      ...generateBasicFallbackEscrito(req),
-      advertencias: ["La redacción inteligente no está disponible en este momento."],
-      generationMode: "basic_fallback",
-    }
+    const sanitizedError = err instanceof Error ? err.name : "UnknownError"
+    console.error(`[generar-escrito-service] Error generando con LLM (${sanitizedError})`)
+
+    const isRevise = req.mode === "revise" && Boolean(req.cuerpoActual)
+    const result: GenerarEscritoResponse = isRevise
+      ? {
+          cuerpo: req.cuerpoActual!,
+          fuentes: [],
+          advertencias: ["La redacción inteligente no está disponible en este momento."],
+          generationMode: "basic_fallback",
+        }
+      : {
+          ...generateBasicFallbackEscrito(req),
+          advertencias: ["La redacción inteligente no está disponible en este momento."],
+          generationMode: "basic_fallback",
+        }
+
+    logSafeEscritoTelemetry({
+      provider: llm?.provider || "none",
+      model: llm?.model || "fallback",
+      generationMode: result.generationMode,
+      durationMs: Date.now() - startTime,
+      isFallback: true,
+      sanitizedCause: sanitizedError,
+    })
+
+    return result
   }
 }
