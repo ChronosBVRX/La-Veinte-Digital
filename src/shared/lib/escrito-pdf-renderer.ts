@@ -75,6 +75,60 @@ export function parseImageDimensionsFromBuffer(
 }
 
 /**
+ * Extrae dimensiones de una imagen WebP directamente de su cabecera RIFF (VP8 / VP8L / VP8X).
+ */
+export function parseWebpDimensions(
+  uint8: Uint8Array
+): { width: number; height: number } | null {
+  if (uint8.length < 30) return null
+  if (
+    uint8[0] !== 0x52 || // R
+    uint8[1] !== 0x49 || // I
+    uint8[2] !== 0x46 || // F
+    uint8[3] !== 0x46 || // F
+    uint8[8] !== 0x57 || // W
+    uint8[9] !== 0x45 || // E
+    uint8[10] !== 0x42 || // B
+    uint8[11] !== 0x50 // P
+  ) {
+    return null
+  }
+
+  // VP8 lossy
+  if (uint8[12] === 0x56 && uint8[13] === 0x50 && uint8[14] === 0x38 && uint8[15] === 0x20) {
+    if (uint8.length >= 30 && uint8[23] === 0x9d && uint8[24] === 0x01 && uint8[25] === 0x2a) {
+      const width = (uint8[26] | (uint8[27] << 8)) & 0x3fff
+      const height = (uint8[28] | (uint8[29] << 8)) & 0x3fff
+      if (width > 0 && height > 0) return { width, height }
+    }
+  }
+
+  // VP8L lossless
+  if (uint8[12] === 0x56 && uint8[13] === 0x50 && uint8[14] === 0x38 && uint8[15] === 0x4c) {
+    if (uint8.length >= 25 && uint8[20] === 0x2f) {
+      const b0 = uint8[21]
+      const b1 = uint8[22]
+      const b2 = uint8[23]
+      const b3 = uint8[24]
+      const width = 1 + (((b1 & 0x3f) << 8) | b0)
+      const height = 1 + (((b3 & 0x0f) << 10) | (b2 << 2) | ((b1 & 0xc0) >> 6))
+      if (width > 0 && height > 0) return { width, height }
+    }
+  }
+
+  // VP8X extended
+  if (uint8[12] === 0x56 && uint8[13] === 0x50 && uint8[14] === 0x38 && uint8[15] === 0x58) {
+    if (uint8.length >= 30) {
+      const width = 1 + (uint8[24] | (uint8[25] << 8) | (uint8[26] << 16))
+      const height = 1 + (uint8[27] | (uint8[28] << 8) | (uint8[29] << 16))
+      if (width > 0 && height > 0) return { width, height }
+    }
+  }
+
+  return null
+}
+
+/**
  * Procesa un Blob de imagen para inclusión en jsPDF,
  * midiendo dimensiones binarias reales o mediante canvas si es WebP.
  */
@@ -83,7 +137,7 @@ export async function processBlobForPdf(blobInput: Blob | unknown): Promise<Proc
 
   try {
     const rawBlob = blobInput as Blob
-    const mimeType = rawBlob.type || "image/png"
+    const mimeType = (rawBlob.type || "").toLowerCase()
 
     if (typeof rawBlob.arrayBuffer !== "function") {
       return null
@@ -91,18 +145,16 @@ export async function processBlobForPdf(blobInput: Blob | unknown): Promise<Proc
 
     const buffer = await rawBlob.arrayBuffer()
     const uint8 = new Uint8Array(buffer)
-    let binary = ""
-    for (let i = 0; i < uint8.byteLength; i++) {
-      binary += String.fromCharCode(uint8[i])
-    }
-    const base64 = typeof btoa === "function" ? btoa(binary) : Buffer.from(binary, "binary").toString("base64")
-    const isJpeg = mimeType.includes("jpeg") || mimeType.includes("jpg")
-    const isWebp = mimeType.includes("webp")
-    const initialDataUrl = `data:${isWebp ? "image/png" : isJpeg ? "image/jpeg" : "image/png"};base64,${base64}`
+    if (uint8.length === 0) return null
 
-    // 1. Intentar extracción binaria de dimensiones
+    // 1. Si es PNG o JPEG directo: extracción binaria y dataUrl exacto
     const binaryParsed = parseImageDimensionsFromBuffer(uint8)
     if (binaryParsed) {
+      let binary = ""
+      for (let i = 0; i < uint8.byteLength; i++) {
+        binary += String.fromCharCode(uint8[i])
+      }
+      const base64 = typeof btoa === "function" ? btoa(binary) : Buffer.from(binary, "binary").toString("base64")
       return {
         dataUrl: `data:${binaryParsed.format === "JPEG" ? "image/jpeg" : "image/png"};base64,${base64}`,
         format: binaryParsed.format,
@@ -111,24 +163,96 @@ export async function processBlobForPdf(blobInput: Blob | unknown): Promise<Proc
       }
     }
 
-    // 2. Si es WebP o formato sin cabecera PNG/JPEG estándar
+    // 2. Si es WebP
+    const isWebp =
+      mimeType.includes("webp") ||
+      (uint8.length >= 12 &&
+        uint8[0] === 0x52 &&
+        uint8[1] === 0x49 &&
+        uint8[2] === 0x46 &&
+        uint8[3] === 0x46 &&
+        uint8[8] === 0x57 &&
+        uint8[9] === 0x45 &&
+        uint8[10] === 0x42 &&
+        uint8[11] === 0x50)
+
     if (isWebp) {
-      return {
-        dataUrl: initialDataUrl,
-        format: "PNG",
-        width: 400,
-        height: 300,
+      const webpDims = parseWebpDimensions(uint8)
+
+      // En entorno de navegador / DOM con canvas: decodificar y convertir a PNG real
+      if (typeof window !== "undefined" && typeof document !== "undefined") {
+        const converted = await new Promise<ProcessedImage | null>((resolve) => {
+          let binary = ""
+          for (let i = 0; i < uint8.byteLength; i++) {
+            binary += String.fromCharCode(uint8[i])
+          }
+          const base64 = typeof btoa === "function" ? btoa(binary) : Buffer.from(binary, "binary").toString("base64")
+          const webpDataUrl = `data:image/webp;base64,${base64}`
+
+          const drawAndConvert = (img: CanvasImageSource, width: number, height: number) => {
+            try {
+              const canvas = document.createElement("canvas")
+              canvas.width = width
+              canvas.height = height
+              const ctx = canvas.getContext("2d")
+              if (ctx) {
+                ctx.drawImage(img, 0, 0)
+                const pngDataUrl = canvas.toDataURL("image/png")
+                if (pngDataUrl && pngDataUrl.startsWith("data:image/png;base64,")) {
+                  resolve({
+                    dataUrl: pngDataUrl,
+                    format: "PNG",
+                    width,
+                    height,
+                  })
+                  return true
+                }
+              }
+            } catch (err) {
+              console.warn("[escrito-pdf] Error dibujando WebP en canvas:", err)
+            }
+            return false
+          }
+
+          if (typeof createImageBitmap === "function") {
+            createImageBitmap(rawBlob)
+              .then((bmp) => {
+                if (!drawAndConvert(bmp, bmp.width, bmp.height)) {
+                  resolve(null)
+                }
+              })
+              .catch(() => {
+                const img = new Image()
+                img.onload = () => {
+                  const w = img.naturalWidth || webpDims?.width || 400
+                  const h = img.naturalHeight || webpDims?.height || 300
+                  if (!drawAndConvert(img, w, h)) resolve(null)
+                }
+                img.onerror = () => resolve(null)
+                img.src = webpDataUrl
+              })
+          } else {
+            const img = new Image()
+            img.onload = () => {
+              const w = img.naturalWidth || webpDims?.width || 400
+              const h = img.naturalHeight || webpDims?.height || 300
+              if (!drawAndConvert(img, w, h)) resolve(null)
+            }
+            img.onerror = () => resolve(null)
+            img.src = webpDataUrl
+          }
+        })
+
+        if (converted) return converted
       }
+
+      console.warn("[escrito-pdf] Formato WebP no convertible en el entorno actual sin canvas.")
+      return null
     }
 
-    return {
-      dataUrl: initialDataUrl,
-      format: isJpeg ? "JPEG" : "PNG",
-      width: 400,
-      height: 300,
-    }
-  } catch {
-    console.error("[escrito-pdf] Error procesando imagen de anexo")
+    return null
+  } catch (err) {
+    console.error("[escrito-pdf] Error procesando imagen de anexo:", err)
     return null
   }
 }

@@ -327,11 +327,16 @@ export function EscritosForm({
 
       {/* Pregunta 2: Destinatario */}
       <div>
-        <label style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.5rem" }}>
+        <label
+          htmlFor="escrito-destinatario"
+          style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.5rem" }}
+        >
           2. ¿A quién va dirigido el escrito?
         </label>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           <select
+            id="escrito-destinatario"
+            name="destinatario"
             value={destinatarioMode === "preset" ? draft.destino.cargo : "Otro / Personalizado"}
             onChange={handleDestinatarioSelect}
             style={{
@@ -355,12 +360,16 @@ export function EscritosForm({
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
               <Input
                 label="Nombre del destinatario"
+                id="escrito-destinatario-nombre"
+                name="destinatarioNombre"
                 placeholder="Ej. Dr. Juan Pérez"
                 value={draft.destino.nombre}
                 onChange={(e) => onUpdateDraft({ destino: { ...draft.destino, nombre: e.target.value } })}
               />
               <Input
                 label="Cargo institucional o sindical"
+                id="escrito-destinatario-cargo"
+                name="destinatarioCargo"
                 placeholder="Ej. Director HGZ No. 1"
                 value={draft.destino.cargo}
                 onChange={(e) => onUpdateDraft({ destino: { ...draft.destino, cargo: e.target.value } })}
@@ -370,12 +379,37 @@ export function EscritosForm({
         </div>
       </div>
 
-      {/* Pregunta 3: Hechos */}
+      {/* Pregunta 3: Lugar y Fecha */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+        <Input
+          id="escrito-ciudad"
+          name="ciudad"
+          label="¿Dónde te encuentras? (Lugar / Ciudad)"
+          placeholder="Ej. Morelia, Mich."
+          value={draft.ciudad}
+          onChange={(e) => onUpdateDraft({ ciudad: e.target.value })}
+        />
+        <Input
+          id="escrito-fecha"
+          name="fecha"
+          type="date"
+          label="¿En qué fecha se emite?"
+          value={draft.fecha}
+          onChange={(e) => onUpdateDraft({ fecha: e.target.value })}
+        />
+      </div>
+
+      {/* Pregunta 4: Hechos */}
       <div>
-        <label style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.375rem" }}>
-          3. ¿Qué hechos o antecedentes ocurrieron?
+        <label
+          htmlFor="escrito-hechos"
+          style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.375rem" }}
+        >
+          4. ¿Qué ocurrió o cuáles son los antecedentes?
         </label>
         <Textarea
+          id="escrito-hechos"
+          name="hechos"
           placeholder={currentTipoDef.placeholderHechos}
           value={draft.hechos}
           onChange={(e) => onUpdateDraft({ hechos: e.target.value })}
@@ -386,12 +420,17 @@ export function EscritosForm({
         </p>
       </div>
 
-      {/* Pregunta 4: Petición */}
+      {/* Pregunta 5: Petición */}
       <div>
-        <label style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.375rem" }}>
-          4. ¿Qué solicitas concretamente?
+        <label
+          htmlFor="escrito-peticion"
+          style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.375rem" }}
+        >
+          5. ¿Qué solicitas o qué necesitas que resuelvan?
         </label>
         <Textarea
+          id="escrito-peticion"
+          name="peticion"
           placeholder={currentTipoDef.placeholderPeticion}
           value={draft.peticion}
           onChange={(e) => onUpdateDraft({ peticion: e.target.value })}
@@ -399,10 +438,13 @@ export function EscritosForm({
         />
       </div>
 
-      {/* Pregunta 5: Adjuntar imágenes */}
+      {/* Pregunta 6: Adjuntar imágenes */}
       <div>
-        <label style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.375rem" }}>
-          5. Adjuntar imágenes (fotografías, credencial, comprobantes)
+        <label
+          htmlFor="escrito-images-input"
+          style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.375rem" }}
+        >
+          6. Adjuntar imágenes (fotografías, credencial, comprobantes)
         </label>
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           <div
@@ -533,25 +575,12 @@ export function EscritosForm({
 
             <Input
               label="Asunto formal del oficio"
+              id="escrito-asunto"
+              name="asunto"
               placeholder="Ej. Solicitud de reubicación temporal por causas de salud"
               value={draft.asunto}
               onChange={(e) => onUpdateDraft({ asunto: e.target.value })}
             />
-
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-              <Input
-                label="Lugar / Ciudad"
-                placeholder="Ej. Morelia, Mich."
-                value={draft.ciudad}
-                onChange={(e) => onUpdateDraft({ ciudad: e.target.value })}
-              />
-              <Input
-                label="Fecha de emisión"
-                type="date"
-                value={draft.fecha}
-                onChange={(e) => onUpdateDraft({ fecha: e.target.value })}
-              />
-            </div>
 
             {/* Atenciones adicionales (At'n:) */}
             <div>

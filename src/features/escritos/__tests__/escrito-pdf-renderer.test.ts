@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest"
 import "fake-indexeddb/auto"
 import zlib from "node:zlib"
+import { jsPDF } from "jspdf"
 import {
   buildJsPdfDocument,
   renderStoredEscritoToPdfFile,
@@ -64,6 +65,30 @@ function createValidPngBlob(width: number, height: number): Blob {
   return new Blob([fullBuffer], { type: "image/png" })
 }
 
+function createValidWebpBlob(width: number, height: number): Blob {
+  const vp8Payload = Buffer.alloc(16)
+  vp8Payload[0] = 0xd0
+  vp8Payload[1] = 0x01
+  vp8Payload[2] = 0x00
+  vp8Payload[3] = 0x9d
+  vp8Payload[4] = 0x01
+  vp8Payload[5] = 0x2a
+  vp8Payload.writeUInt16LE(width & 0x3fff, 6)
+  vp8Payload.writeUInt16LE(height & 0x3fff, 8)
+
+  const vp8Header = Buffer.alloc(8)
+  vp8Header.write("VP8 ", 0, 4, "ascii")
+  vp8Header.writeUInt32LE(vp8Payload.length, 4)
+
+  const riffHeader = Buffer.alloc(12)
+  riffHeader.write("RIFF", 0, 4, "ascii")
+  riffHeader.writeUInt32LE(4 + vp8Header.length + vp8Payload.length, 4)
+  riffHeader.write("WEBP", 8, 4, "ascii")
+
+  const full = Buffer.concat([riffHeader, vp8Header, vp8Payload])
+  return new Blob([full], { type: "image/webp" })
+}
+
 describe("Renderizador de PDF Vectorial Carta (escrito-pdf-renderer)", () => {
   it("sanitiza nombres de archivo para descarga segura", () => {
     expect(sanitizeFileName("Solicitud de Vacaciones 2026/08")).toBe("solicitud_de_vacaciones_2026_08")
@@ -104,13 +129,80 @@ describe("Renderizador de PDF Vectorial Carta (escrito-pdf-renderer)", () => {
     expect(aspectRatio).toBeCloseTo(0.25, 2)
   })
 
-  it("processBlobForPdf procesa imágenes WebP y devuelve formato PNG seguro", async () => {
-    const webpBlob = new Blob(["RIFF....WEBPVP8 ..."], { type: "image/webp" })
-    const processed = await processBlobForPdf(webpBlob)
+  it("processBlobForPdf convierte WebP binario válido a PNG real y es compatible con jsPDF", async () => {
+    const webpBlob = createValidWebpBlob(320, 240)
+    expect(webpBlob.type).toBe("image/webp")
 
-    expect(processed).not.toBeNull()
-    expect(processed?.format).toBe("PNG")
-    expect(processed?.dataUrl).toBeDefined()
+    // Verificar que los bytes de entrada son realmente WebP RIFF
+    const buffer = await webpBlob.arrayBuffer()
+    const uint8 = new Uint8Array(buffer)
+    expect(uint8[0]).toBe(0x52) // R
+    expect(uint8[1]).toBe(0x49) // I
+    expect(uint8[2]).toBe(0x46) // F
+    expect(uint8[3]).toBe(0x46) // F
+    expect(uint8[8]).toBe(0x57) // W
+    expect(uint8[9]).toBe(0x45) // E
+    expect(uint8[10]).toBe(0x42) // B
+    expect(uint8[11]).toBe(0x50) // P
+
+    // Configurar canvas mock para jsdom que devuelva PNG válido
+    const validPngBlob = createValidPngBlob(320, 240)
+    const pngBuffer = await validPngBlob.arrayBuffer()
+    const pngBase64 = Buffer.from(pngBuffer).toString("base64")
+    const mockDataUrl = `data:image/png;base64,${pngBase64}`
+
+    const origCreateElement = document.createElement.bind(document)
+    const origCreateImageBitmap = globalThis.createImageBitmap
+    globalThis.createImageBitmap = (async () => ({
+      width: 320,
+      height: 240,
+      close: () => {},
+    })) as unknown as typeof globalThis.createImageBitmap
+
+    document.createElement = (tagName: string, options?: ElementCreationOptions) => {
+      const el = origCreateElement(tagName, options)
+      if (tagName.toLowerCase() === "canvas") {
+        const canvas = el as HTMLCanvasElement
+        canvas.toDataURL = () => mockDataUrl
+        canvas.getContext = (() => ({
+          drawImage: () => {},
+        })) as unknown as typeof canvas.getContext
+      }
+      return el
+    }
+
+    try {
+      const processed = await processBlobForPdf(webpBlob)
+
+      expect(processed).not.toBeNull()
+      expect(processed?.format).toBe("PNG")
+      expect(processed?.width).toBe(320)
+      expect(processed?.height).toBe(240)
+      if (processed) {
+        expect(processed.width / processed.height).toBeCloseTo(1.33, 2)
+      }
+
+      // Verificar que el dataUrl es un PNG binario auténtico (firma 89 50 4E 47 0D 0A 1A 0A)
+      const base64Data = processed?.dataUrl.replace(/^data:image\/png;base64,/, "") || ""
+      const outputBytes = Buffer.from(base64Data, "base64")
+      expect(outputBytes[0]).toBe(0x89)
+      expect(outputBytes[1]).toBe(0x50) // P
+      expect(outputBytes[2]).toBe(0x4e) // N
+      expect(outputBytes[3]).toBe(0x47) // G
+      expect(outputBytes[4]).toBe(0x0d)
+      expect(outputBytes[5]).toBe(0x0a)
+      expect(outputBytes[6]).toBe(0x1a)
+      expect(outputBytes[7]).toBe(0x0a)
+
+      // Verificar que jsPDF puede incorporar la imagen sin excepción
+      const jsDoc = new jsPDF({ orientation: "portrait", unit: "pt", format: "letter" })
+      expect(() => {
+        jsDoc.addImage(processed!.dataUrl, processed!.format, 40, 40, 200, 150)
+      }).not.toThrow()
+    } finally {
+      document.createElement = origCreateElement
+      globalThis.createImageBitmap = origCreateImageBitmap
+    }
   })
 
   it("renderStoredEscritoToPdfFile genera documento con anexos horizontales y verticales en páginas dedicadas", async () => {

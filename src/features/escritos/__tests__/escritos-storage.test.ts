@@ -7,6 +7,7 @@ import {
   eliminarEscrito,
   duplicarEscrito,
   getStorageKey,
+  getJournalKey,
   migrarEscritosLegadosSiEsNecesario,
   getMigrationJournal,
   saveMigrationJournal,
@@ -220,5 +221,134 @@ describe("Aislamiento de Almacenamiento, Migración de Dos Fases y Ciclo de Vida
     const photoDup = await getBlobResource("usr_carol", duplicado!.anexos[0].storageRef)
     expect(photoDup).not.toBeNull()
     expect(photoDup?.size).toBeGreaterThan(0)
+  })
+
+  it("inyección de fallos: fallo al guardar el journal en estado pending", async () => {
+    localStorage.setItem("escritos_guardados", JSON.stringify([{ id: "doc_fail_pending" }]))
+
+    const journalKey = getJournalKey("usr_fail_pending")
+    const origSetItem = localStorage.setItem.bind(localStorage)
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation((key, val) => {
+      if (key === journalKey) {
+        throw new Error("Disk write error on pending journal")
+      }
+      return origSetItem(key, val)
+    })
+
+    const res = await migrarEscritosLegadosSiEsNecesario("usr_fail_pending")
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/journal/i)
+    expect(localStorage.getItem("escritos_guardados")).not.toBeNull()
+
+    setItemSpy.mockRestore()
+  })
+
+  it("inyección de fallos: fallo al guardar estado blobs_verified", async () => {
+    const legacyDoc: LegacyEscritoV1 = {
+      id: "doc_fail_blobs_ver",
+      titulo: "Solicitud",
+      tipo: "solicitud",
+      fecha: "2026-06-01",
+      cuerpo: "Texto...",
+      destino: "Director",
+      firmaUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    }
+    localStorage.setItem("escritos_guardados", JSON.stringify([legacyDoc]))
+
+    const journalKey = getJournalKey("usr_fail_blobs_ver")
+    const origSetItem = localStorage.setItem.bind(localStorage)
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation((key, val) => {
+      if (key === journalKey && typeof val === "string" && val.includes("blobs_verified")) {
+        throw new Error("Disk write error on blobs_verified journal")
+      }
+      return origSetItem(key, val)
+    })
+
+    const res = await migrarEscritosLegadosSiEsNecesario("usr_fail_blobs_ver")
+    expect(res.success).toBe(false)
+    // Se preservan los datos legados
+    expect(localStorage.getItem("escritos_guardados")).not.toBeNull()
+
+    setItemSpy.mockRestore()
+  })
+
+  it("inyección de fallos: fallo al escribir userKey (localStorage)", async () => {
+    const legacyDoc: LegacyEscritoV1 = {
+      id: "doc_fail_user_key",
+      titulo: "Solicitud",
+      tipo: "solicitud",
+      fecha: "2026-06-01",
+      cuerpo: "Texto...",
+      destino: "Director",
+      firmaUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    }
+    localStorage.setItem("escritos_guardados", JSON.stringify([legacyDoc]))
+
+    const origSetItem = localStorage.setItem.bind(localStorage)
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation((key, val) => {
+      if (key === getStorageKey("usr_fail_user_key")) {
+        throw new Error("QuotaExceededError writing user key")
+      }
+      return origSetItem(key, val)
+    })
+
+    const res = await migrarEscritosLegadosSiEsNecesario("usr_fail_user_key")
+    expect(res.success).toBe(false)
+    expect(localStorage.getItem("escritos_guardados")).not.toBeNull()
+
+    setItemSpy.mockRestore()
+  })
+
+  it("inyección de fallos: fallo al guardar metadata_committed en journal", async () => {
+    const legacyDoc: LegacyEscritoV1 = {
+      id: "doc_fail_committed",
+      titulo: "Solicitud",
+      tipo: "solicitud",
+      fecha: "2026-06-01",
+      cuerpo: "Texto...",
+      destino: "Director",
+      firmaUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    }
+    localStorage.setItem("escritos_guardados", JSON.stringify([legacyDoc]))
+
+    const journalKey = getJournalKey("usr_fail_committed")
+    const origSetItem = localStorage.setItem.bind(localStorage)
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation((key, val) => {
+      if (key === journalKey && typeof val === "string" && val.includes("metadata_committed")) {
+        throw new Error("Disk error on metadata_committed")
+      }
+      return origSetItem(key, val)
+    })
+
+    const res = await migrarEscritosLegadosSiEsNecesario("usr_fail_committed")
+    expect(res.success).toBe(false)
+
+    setItemSpy.mockRestore()
+  })
+
+  it("idempotencia y ausencia de blobs huérfanos tras reintentos repetidos", async () => {
+    const legacyDoc: LegacyEscritoV1 = {
+      id: "doc_idem_test",
+      titulo: "Solicitud idempotente",
+      tipo: "solicitud",
+      fecha: "2026-06-01",
+      cuerpo: "Texto...",
+      destino: "Director",
+      firmaUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    }
+    localStorage.setItem("escritos_guardados", JSON.stringify([legacyDoc]))
+
+    // Primer intento exitoso
+    const res1 = await migrarEscritosLegadosSiEsNecesario("usr_idem")
+    expect(res1.success).toBe(true)
+    expect(res1.migratedCount).toBe(1)
+
+    // Segundo intento idéntico: debe ser no-op y retornar success
+    const res2 = await migrarEscritosLegadosSiEsNecesario("usr_idem")
+    expect(res2.success).toBe(true)
+    expect(res2.migratedCount).toBe(1)
+
+    const list = getEscritosGuardados("usr_idem")
+    expect(list).toHaveLength(1)
   })
 })

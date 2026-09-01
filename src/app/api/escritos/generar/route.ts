@@ -2,7 +2,8 @@
  * Endpoint de generación de escritos con IA.
  * Requiere autenticación de usuario (requireUser) y aplica rate-limiting en memoria por proceso.
  * NOTA: Este rate-limiting es en memoria local por instancia de proceso/serverless; no es una
- * solución distribuida tipo Redis/KV, pero previene ráfagas abusivas por usuario en la instancia.
+ * solución distribuida tipo Redis/KV, pero previene ráfagas abusivas por usuario en la instancia
+ * y garantiza de forma determinista un límite estricto superior de memoria (MAX_RATE_LIMIT_ENTRIES).
  * La Veinte Digital
  */
 
@@ -13,39 +14,69 @@ import {
   validateGenerarEscritoRequest,
 } from "@/features/escritos/server/generar-escrito-service"
 
-const MAX_RATE_LIMIT_ENTRIES = 1000
-const RATE_LIMIT_WINDOW_MS = 60_000 // 1 minuto
-const RATE_LIMIT_MAX_REQUESTS = 10 // máx 10 por minuto por usuario
+export const MAX_RATE_LIMIT_ENTRIES = 1000
+export const RATE_LIMIT_WINDOW_MS = 60_000 // 1 minuto
+export const RATE_LIMIT_MAX_REQUESTS = 10 // máx 10 por minuto por usuario
 
-interface RateLimitRecord {
+export interface RateLimitRecord {
   count: number
   resetAt: number
 }
 
-const userRateLimits = new Map<string, RateLimitRecord>()
+export const userRateLimits = new Map<string, RateLimitRecord>()
 
-function checkRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
-  const now = Date.now()
-
-  // Limpieza periódica de entradas expiradas para acotar el uso de memoria
-  if (userRateLimits.size > MAX_RATE_LIMIT_ENTRIES) {
-    for (const [k, v] of userRateLimits.entries()) {
-      if (v.resetAt <= now) userRateLimits.delete(k)
+export function checkRateLimit(
+  userId: string,
+  now = Date.now(),
+  store = userRateLimits,
+  maxEntries = MAX_RATE_LIMIT_ENTRIES,
+  maxRequests = RATE_LIMIT_MAX_REQUESTS,
+  windowMs = RATE_LIMIT_WINDOW_MS
+): { allowed: boolean; retryAfter?: number } {
+  // 1. Limpieza de entradas expiradas
+  for (const [k, v] of store.entries()) {
+    if (v.resetAt <= now) {
+      store.delete(k)
     }
   }
 
-  const entry = userRateLimits.get(userId)
-  if (!entry || now > entry.resetAt) {
-    userRateLimits.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS })
-    return { allowed: true }
+  const existing = store.get(userId)
+  if (existing) {
+    if (existing.resetAt > now) {
+      if (existing.count >= maxRequests) {
+        const retryAfter = Math.ceil((existing.resetAt - now) / 1000)
+        return { allowed: false, retryAfter }
+      }
+      existing.count++
+      return { allowed: true }
+    } else {
+      existing.count = 1
+      existing.resetAt = now + windowMs
+      return { allowed: true }
+    }
   }
 
-  if (entry.count >= RATE_LIMIT_MAX_REQUESTS) {
-    const retryAfter = Math.ceil((entry.resetAt - now) / 1000)
-    return { allowed: false, retryAfter }
+  // 2. Si se alcanzó el límite estricto de capacidad en memoria, desalojar las entradas con resetAt más cercano
+  while (store.size >= maxEntries) {
+    let oldestKey: string | null = null
+    let oldestResetAt = Infinity
+    for (const [k, v] of store.entries()) {
+      if (v.resetAt < oldestResetAt) {
+        oldestResetAt = v.resetAt
+        oldestKey = k
+      }
+    }
+    if (oldestKey) {
+      store.delete(oldestKey)
+    } else {
+      const firstKey = store.keys().next().value
+      if (firstKey) store.delete(firstKey)
+      else break
+    }
   }
 
-  entry.count++
+  // 3. Registrar nueva entrada
+  store.set(userId, { count: 1, resetAt: now + windowMs })
   return { allowed: true }
 }
 

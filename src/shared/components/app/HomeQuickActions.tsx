@@ -14,6 +14,7 @@ import {
 } from "@phosphor-icons/react"
 import { useIsNativeApp } from "@/shared/hooks/useIsNativeApp"
 import { createClient } from "@/lib/supabase/client"
+import { getUserWithTimeout } from "@/shared/lib/auth-helpers"
 
 type IconType = React.ComponentType<IconProps & { size?: number; weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone" }>
 
@@ -416,119 +417,124 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
     }
   }, [isNative])
 
-  // Agenda: compromisos de hoy
+  // Agenda: compromisos del día
   useEffect(() => {
     let cancelled = false
-    let client: ReturnType<typeof createClient> | null = null
-    try {
-      client = createClient()
-    } catch {
-      queueMicrotask(() => {
+    const signal = { aborted: false }
+
+    const loadAgenda = async () => {
+      let client: ReturnType<typeof createClient> | null = null
+      try {
+        client = createClient()
+      } catch {
         if (!cancelled) {
-          setAgendaLoaded(true)
           setAgendaCount(0)
+          setAgendaLoaded(true)
         }
-      })
-      return
-    }
-    const c = client
-    c.auth.getUser().then(({ data: { user } }) => {
-      if (cancelled) return
-      if (!user) {
-        setAgendaLoaded(true)
-        setAgendaCount(0)
         return
       }
-      c.from("worker_commitments")
-        .select("id,start_at")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .then(
-          ({ data, error }: { data: unknown; error: unknown }) => {
-            if (cancelled) return
-            if (error || !data) {
-              setAgendaCount(0)
-              setAgendaLoaded(true)
-              return
-            }
-            const rows = data as Array<{ start_at?: string }>
-            const today = new Date()
-            const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-            const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
-            const hoy = rows.filter((r) => {
-              const raw = r.start_at
-              if (!raw) return false
-              const d = new Date(raw)
-              return d >= start && d < end
-            }).length
-            setAgendaCount(hoy)
-            setAgendaLoaded(true)
-          },
-          () => {
-            if (!cancelled) {
-              setAgendaCount(0)
-              setAgendaLoaded(true)
-            }
-          }
-        )
-    }).catch(() => {
-      if (!cancelled) {
-        setAgendaCount(0)
+
+      try {
+        const authRes = await getUserWithTimeout(client, 4000, signal)
+        if (cancelled) return
+
+        if (!authRes.user) {
+          setAgendaLoaded(true)
+          setAgendaCount(0)
+          return
+        }
+
+        const { data, error } = await client
+          .from("worker_commitments")
+          .select("id,start_at")
+          .eq("user_id", authRes.user.id)
+          .eq("status", "active")
+
+        if (cancelled) return
+        if (error || !data) {
+          setAgendaCount(0)
+          setAgendaLoaded(true)
+          return
+        }
+
+        const rows = data as Array<{ start_at?: string }>
+        const today = new Date()
+        const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+        const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
+        const hoy = rows.filter((r) => {
+          const raw = r.start_at
+          if (!raw) return false
+          const d = new Date(raw)
+          return d >= start && d < end
+        }).length
+        setAgendaCount(hoy)
         setAgendaLoaded(true)
+      } catch {
+        if (!cancelled) {
+          setAgendaCount(0)
+          setAgendaLoaded(true)
+        }
       }
-    })
+    }
+
+    loadAgenda()
+
     return () => {
       cancelled = true
+      signal.aborted = true
     }
   }, [])
 
   // Tarjetón: último recibo
   useEffect(() => {
     let cancelled = false
-    let client: ReturnType<typeof createClient> | null = null
-    try {
-      client = createClient()
-    } catch {
-      queueMicrotask(() => {
+    const signal = { aborted: false }
+
+    const loadTarjeton = async () => {
+      let client: ReturnType<typeof createClient> | null = null
+      try {
+        client = createClient()
+      } catch {
         if (!cancelled) setTarjetonStatus(null)
-      })
-      return
-    }
-    const c = client
-    c.auth.getUser().then(({ data: { user } }) => {
-      if (cancelled || !user) {
-        setTarjetonStatus(null)
         return
       }
-      c.from("imported_payslips")
-        .select("period_half,period_month,created_at")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
-        .then(
-          ({ data }: { data: unknown }) => {
-            if (cancelled) return
-            const row = data as { period_half?: number; period_month?: number } | null
-            if (row?.period_half) {
-              const q = formatQuincena(row.period_half, row.period_month ?? null)
-              if (q) {
-                setTarjetonStatus(`Último: ${q}`)
-                setTarjetonHasData(true)
-                return
-              }
-            }
-            setTarjetonStatus(null)
-          },
-          () => {
-            if (!cancelled) setTarjetonStatus(null)
+
+      try {
+        const authRes = await getUserWithTimeout(client, 4000, signal)
+        if (cancelled || !authRes.user) {
+          if (!cancelled) setTarjetonStatus(null)
+          return
+        }
+
+        const { data } = await client
+          .from("imported_payslips")
+          .select("period_half,period_month,created_at")
+          .eq("user_id", authRes.user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (cancelled) return
+        const row = data as { period_half?: number; period_month?: number } | null
+        if (row?.period_half) {
+          const q = formatQuincena(row.period_half, row.period_month ?? null)
+          if (q) {
+            setTarjetonStatus(`Último: ${q}`)
+            setTarjetonHasData(true)
+            return
           }
-        )
-    }).catch(() => {
-      if (!cancelled) setTarjetonStatus(null)
-    })
+        }
+        if (!cancelled) setTarjetonStatus(null)
+      } catch {
+        if (!cancelled) setTarjetonStatus(null)
+      }
+    }
+
+    loadTarjeton()
+
     return () => {
       cancelled = true
+      signal.aborted = true
     }
   }, [])
 

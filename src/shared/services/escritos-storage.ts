@@ -58,12 +58,17 @@ export function getMigrationJournal(userId: string): MigrationJournal | null {
   }
 }
 
-export function saveMigrationJournal(journal: MigrationJournal): void {
-  if (typeof window === "undefined") return
+export function saveMigrationJournal(journal: MigrationJournal): boolean {
+  if (typeof window === "undefined") return false
   try {
-    localStorage.setItem(getJournalKey(journal.userId), JSON.stringify(journal))
+    const key = getJournalKey(journal.userId)
+    const raw = JSON.stringify(journal)
+    localStorage.setItem(key, raw)
+    const verified = localStorage.getItem(key)
+    return verified === raw
   } catch (e) {
     console.warn("[escritos-storage] No se pudo guardar journal de migración:", e)
+    return false
   }
 }
 
@@ -141,7 +146,8 @@ export async function migrarEscritosLegadosSiEsNecesario(
   if (typeof window === "undefined") return { success: true, migratedCount: 0 }
 
   const now = new Date().toISOString()
-  let journal = getMigrationJournal(userId)
+  const existingJournal = getMigrationJournal(userId)
+  let journal = existingJournal
 
   // Si ya se había completado la migración para este usuario
   if (journal && journal.state === "completed") {
@@ -228,10 +234,12 @@ export async function migrarEscritosLegadosSiEsNecesario(
     state: "pending",
     startedAt: now,
     updatedAt: now,
-    blobKeys: [],
+    blobKeys: existingJournal?.blobKeys ? [...existingJournal.blobKeys] : [],
     draftsCount: 0,
   }
-  saveMigrationJournal(journal)
+  if (!saveMigrationJournal(journal)) {
+    return { success: false, migratedCount: 0, error: "No se pudo persistir el journal en estado pending." }
+  }
 
   try {
     // ── FASE 1: Guardado y Verificación Read-back de Blobs en IndexedDB ──
@@ -251,17 +259,34 @@ export async function migrarEscritosLegadosSiEsNecesario(
 
       // Migrar firmaUrl legado a Blob en IndexedDB
       if (legacyItem.firmaUrl && typeof legacyItem.firmaUrl === "string" && legacyItem.firmaUrl.startsWith("data:")) {
-        const blob = dataUrlToBlob(legacyItem.firmaUrl)
-        const firmaRef = await saveBlobResource(userId, draft.id, "firma", "legacy_sig", blob)
+        const photoId = "legacy_sig"
+        let firmaRef = journal.blobKeys.find((k) => k.includes(`:esc_${draft.id}:firma:${photoId}`))
+        if (firmaRef) {
+          const verifiedExisting = await getBlobResource(userId, firmaRef)
+          if (!verifiedExisting || verifiedExisting.size === 0) {
+            firmaRef = undefined
+          }
+        }
 
-        // Read-back verification
-        const verifiedFirma = await getBlobResource(userId, firmaRef)
-        if (!verifiedFirma || verifiedFirma.size === 0) {
-          throw new Error(`Verificación fallida al releer la firma migrada (${firmaRef}).`)
+        if (!firmaRef) {
+          const blob = dataUrlToBlob(legacyItem.firmaUrl)
+          firmaRef = await saveBlobResource(userId, draft.id, "firma", photoId, blob)
+
+          // Read-back verification
+          const verifiedFirma = await getBlobResource(userId, firmaRef)
+          if (!verifiedFirma || verifiedFirma.size === 0) {
+            throw new Error(`Verificación fallida al releer la firma migrada (${firmaRef}).`)
+          }
+
+          createdBlobKeys.push(firmaRef)
+          journal.blobKeys = Array.from(new Set([...journal.blobKeys, firmaRef]))
+          journal.updatedAt = new Date().toISOString()
+          if (!saveMigrationJournal(journal)) {
+            throw new Error("No se pudo persistir journal tras confirmar firma.")
+          }
         }
 
         draft.firmaRef = firmaRef
-        createdBlobKeys.push(firmaRef)
       }
 
       // Migrar fotos legadas a Blobs en IndexedDB
@@ -270,23 +295,47 @@ export async function migrarEscritosLegadosSiEsNecesario(
         for (let i = 0; i < legacyItem.fotos.length; i++) {
           const fotoDataUrl = legacyItem.fotos[i]
           if (typeof fotoDataUrl === "string" && fotoDataUrl.startsWith("data:")) {
-            const photoBlob = dataUrlToBlob(fotoDataUrl)
             const photoId = `legacy_photo_${i + 1}`
-            const photoRef = await saveBlobResource(userId, draft.id, "anexo", photoId, photoBlob)
+            let photoRef = journal.blobKeys.find((k) => k.includes(`:esc_${draft.id}:anexo:${photoId}`))
+            let photoBlobSize = 0
+            let photoBlobType = "image/jpeg"
 
-            // Read-back verification
-            const verifiedPhoto = await getBlobResource(userId, photoRef)
-            if (!verifiedPhoto || verifiedPhoto.size === 0) {
-              throw new Error(`Verificación fallida al releer la foto migrada ${i + 1} (${photoRef}).`)
+            if (photoRef) {
+              const verifiedExisting = await getBlobResource(userId, photoRef)
+              if (verifiedExisting && verifiedExisting.size > 0) {
+                photoBlobSize = verifiedExisting.size
+                photoBlobType = verifiedExisting.type || "image/jpeg"
+              } else {
+                photoRef = undefined
+              }
             }
 
-            createdBlobKeys.push(photoRef)
+            if (!photoRef) {
+              const photoBlob = dataUrlToBlob(fotoDataUrl)
+              photoRef = await saveBlobResource(userId, draft.id, "anexo", photoId, photoBlob)
+
+              // Read-back verification
+              const verifiedPhoto = await getBlobResource(userId, photoRef)
+              if (!verifiedPhoto || verifiedPhoto.size === 0) {
+                throw new Error(`Verificación fallida al releer la foto migrada ${i + 1} (${photoRef}).`)
+              }
+
+              photoBlobSize = verifiedPhoto.size
+              photoBlobType = verifiedPhoto.type || photoBlob.type || "image/jpeg"
+              createdBlobKeys.push(photoRef)
+              journal.blobKeys = Array.from(new Set([...journal.blobKeys, photoRef]))
+              journal.updatedAt = new Date().toISOString()
+              if (!saveMigrationJournal(journal)) {
+                throw new Error("No se pudo persistir journal tras confirmar foto.")
+              }
+            }
+
             anexos.push({
               id: `anx_${photoId}`,
               nombre: `Fotografía adjunta ${i + 1}`,
               descripcion: "Fotografía migrada desde versión anterior",
-              tipo: photoBlob.type || "image/jpeg",
-              size: photoBlob.size,
+              tipo: photoBlobType,
+              size: photoBlobSize,
               storageRef: photoRef,
             })
           }
@@ -300,18 +349,31 @@ export async function migrarEscritosLegadosSiEsNecesario(
 
     // Blobs verificados
     journal.state = "blobs_verified"
-    journal.blobKeys = createdBlobKeys
+    journal.blobKeys = Array.from(new Set([...journal.blobKeys, ...createdBlobKeys]))
     journal.draftsCount = newMigratedDrafts.length
     journal.updatedAt = new Date().toISOString()
-    saveMigrationJournal(journal)
+    if (!saveMigrationJournal(journal)) {
+      throw new Error("No se pudo persistir estado blobs_verified en journal.")
+    }
 
     // ── FASE 2: Compromiso de Metadatos en localStorage y Finalización ──
     const finalList = [...newMigratedDrafts, ...userList]
-    localStorage.setItem(userKey, JSON.stringify(finalList.map(sanitizarParaLocalStorage)))
+    try {
+      localStorage.setItem(userKey, JSON.stringify(finalList.map(sanitizarParaLocalStorage)))
+    } catch (e) {
+      throw new Error(`Fallo al escribir metadatos en ${userKey}: ${e instanceof Error ? e.message : String(e)}`)
+    }
+
+    const verifyUserRaw = localStorage.getItem(userKey)
+    if (!verifyUserRaw) {
+      throw new Error("Verificación fallida: no se pudieron releer los metadatos persistidos.")
+    }
 
     journal.state = "metadata_committed"
     journal.updatedAt = new Date().toISOString()
-    saveMigrationJournal(journal)
+    if (!saveMigrationJournal(journal)) {
+      throw new Error("No se pudo persistir estado metadata_committed en journal.")
+    }
 
     // Limpieza atómica de la clave global únicamente tras confirmación de metadatos
     localStorage.removeItem(LEGACY_STORAGE_KEY)
@@ -331,9 +393,13 @@ export async function migrarEscritosLegadosSiEsNecesario(
     // Si el error ocurrió antes de escribir metadatos (state = 'pending' o 'blobs_verified')
     if (journal.state === "pending" || journal.state === "blobs_verified") {
       // Rollback seguro de blobs creados para evitar fugas en IndexedDB
-      for (const key of createdBlobKeys) {
+      const blobsToCleanup = Array.from(new Set([...createdBlobKeys, ...journal.blobKeys]))
+      for (const key of blobsToCleanup) {
         await deleteBlobResource(userId, key).catch(() => {})
       }
+      journal.blobKeys = []
+      journal.updatedAt = new Date().toISOString()
+      saveMigrationJournal(journal)
       // Conservar LEGACY_STORAGE_KEY intacto para permitir reintento
     }
 

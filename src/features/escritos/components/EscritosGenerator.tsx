@@ -28,6 +28,7 @@ import { EscritosForm } from "./EscritosForm"
 import { EscritosEditor } from "./EscritosEditor"
 import { EscritosResult } from "./EscritosResult"
 import { createClient } from "@/lib/supabase/client"
+import { getUserWithTimeout } from "@/shared/lib/auth-helpers"
 
 export function EscritosGenerator() {
   const searchParams = useSearchParams()
@@ -55,72 +56,62 @@ export function EscritosGenerator() {
   // 1. Cargar sesión de usuario y perfil de forma segura
   useEffect(() => {
     let cancelled = false
-    const authTimeout = setTimeout(() => {
-      if (!cancelled) setAuthResolved(true)
-    }, 4000)
+    const signal = { aborted: false }
 
-    try {
-      const supabase = createClient()
-      supabase.auth
-        .getUser()
-        .then(async ({ data: { user } }) => {
-          if (cancelled) return
-          clearTimeout(authTimeout)
+    const loadSession = async () => {
+      try {
+        const supabase = createClient()
+        const res = await getUserWithTimeout(supabase, 4000, signal)
+        if (cancelled) return
 
-          if (!user) {
-            setAuthResolved(true)
-            return
-          }
+        if (!res.user) {
+          setAuthResolved(true)
+          return
+        }
 
-          setUserId(user.id)
-          setDraft((prev) => ({ ...prev, ownerId: user.id }))
+        const user = res.user
+        setUserId(user.id)
+        setDraft((prev) => ({ ...prev, ownerId: user.id }))
 
-          // Ejecutar migración transaccional de legados
-          await migrarEscritosLegadosSiEsNecesario(user.id).catch((err) => {
-            console.warn("[EscritosGenerator] Error en migración:", err)
-          })
-
-          try {
-            const { data: profile } = await supabase
-              .from("profiles")
-              .select("full_name,matricula,categoria,adscripcion")
-              .eq("id", user.id)
-              .maybeSingle()
-
-            if (profile && !cancelled) {
-              setWorkerProfile({
-                nombre: profile.full_name ?? undefined,
-                matricula: profile.matricula ?? undefined,
-                categoria: profile.categoria ?? undefined,
-                adscripcion: profile.adscripcion ?? undefined,
-              })
-            }
-          } catch (err) {
-            console.warn("[EscritosGenerator] No se pudo cargar perfil:", err)
-          } finally {
-            if (!cancelled) {
-              setAuthResolved(true)
-            }
-          }
+        // Ejecutar migración transaccional de legados
+        await migrarEscritosLegadosSiEsNecesario(user.id).catch((err) => {
+          console.warn("[EscritosGenerator] Error en migración:", err)
         })
-        .catch(() => {
+
+        try {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name,matricula,categoria,adscripcion")
+            .eq("id", user.id)
+            .maybeSingle()
+
+          if (profile && !cancelled) {
+            setWorkerProfile({
+              nombre: profile.full_name ?? undefined,
+              matricula: profile.matricula ?? undefined,
+              categoria: profile.categoria ?? undefined,
+              adscripcion: profile.adscripcion ?? undefined,
+            })
+          }
+        } catch (err) {
+          console.warn("[EscritosGenerator] No se pudo cargar perfil:", err)
+        } finally {
           if (!cancelled) {
-            clearTimeout(authTimeout)
             setAuthResolved(true)
           }
-        })
-    } catch {
-      queueMicrotask(() => {
+        }
+      } catch {
         if (!cancelled) {
-          clearTimeout(authTimeout)
           setAuthResolved(true)
         }
-      })
+      }
     }
+
+    loadSession()
 
     return () => {
       cancelled = true
-      clearTimeout(authTimeout)
+      signal.aborted = true
     }
   }, [])
 
