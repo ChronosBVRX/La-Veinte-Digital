@@ -203,7 +203,7 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
 
     // Comprobar visor compacto
     await expect(page.getByText("Dr. Roberto Gómez")).toBeVisible()
-    await expect(page.getByText(/Destinatario manual/i)).toBeVisible()
+    await expect(page.getByText("Destinatario manual", { exact: true })).toBeVisible()
 
     // 3. Escribir hechos y petición iniciales
     await page.getByLabel(/Cuéntanos con tus palabras qué pasó/i).fill("Aclaración de pago quincenal concepto 054.")
