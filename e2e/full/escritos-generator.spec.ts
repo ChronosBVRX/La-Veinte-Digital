@@ -194,7 +194,7 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
 
     // 2. Destinatario manual
     const destSelect = page.getByLabel(/¿A quién va dirigido el escrito\?/i)
-    await destSelect.selectOption("manual")
+    await destSelect.selectOption("__MANUAL__")
 
     await expect(page.getByRole("heading", { name: /Seleccionar Destinatario/i })).toBeVisible()
     await page.getByLabel(/Cargo o puesto del destinatario/i).fill("Director HGZ No. 1")
