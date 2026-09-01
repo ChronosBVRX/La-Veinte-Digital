@@ -130,8 +130,8 @@ export async function processBlobForPdf(blobInput: Blob | unknown): Promise<Proc
       width: 400,
       height: 300,
     }
-  } catch (err) {
-    console.warn("[escrito-pdf-renderer] Error procesando imagen para PDF:", err)
+  } catch {
+    console.error("[escrito-pdf] Error procesando imagen de anexo")
     return null
   }
 }

@@ -11,7 +11,6 @@ import {
   type AnexoItem,
   isEscritoDraftV2,
   migrateLegacyEscritoToV2,
-  createEmptyEscritoDraftV2,
 } from "@/shared/contracts/escrito-draft"
 import {
   deleteEscritoBlobs,

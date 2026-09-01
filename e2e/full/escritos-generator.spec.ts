@@ -104,8 +104,9 @@ test.describe("Generador de Escritos V2 (Flujo Completo)", () => {
     await page.getByRole("button", { name: "👔 Tono más formal" }).click()
     await expect(page.getByRole("heading", { name: /Propuesta de redacción IA/i })).toBeVisible()
     expect(lastRevisionRequest).not.toBeNull()
-    expect(lastRevisionRequest?.mode).toBe("revise")
-    expect(lastRevisionRequest?.cuerpoActual).toContain("Párrafo añadido manualmente")
+    const revReq = lastRevisionRequest as { mode?: string; cuerpoActual?: string } | null
+    expect(revReq?.mode).toBe("revise")
+    expect(revReq?.cuerpoActual).toContain("Párrafo añadido manualmente")
 
     // Descartar propuesta
     await page.getByRole("button", { name: "✕ Descartar propuesta" }).click()
