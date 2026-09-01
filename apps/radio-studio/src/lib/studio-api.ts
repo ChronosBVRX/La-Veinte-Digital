@@ -85,15 +85,26 @@ export interface StudioStatus {
   motor: {
     provider: string;
     model: string;
+    language?: string;
     device: string;
-    calidad: "GOOD" | "USABLE" | "SLOW" | "UNSTABLE" | "UNSUPPORTED" | "UNKNOWN";
-    offline: boolean;
-    costoApi: string;
-    vramTotalMb: number | null;
-    vramUsadaMb: number | null;
-    tempC: number | null;
-    rtfConservador: number;
-    estado: "listo" | "cargando" | "apagado" | "error";
+    calidad?: "GOOD" | "USABLE" | "SLOW" | "UNSTABLE" | "UNSUPPORTED" | "UNKNOWN";
+    offline?: boolean;
+    costoApi?: string;
+    configured?: boolean;
+    vramTotalMb?: number | null;
+    vramUsadaMb?: number | null;
+    tempC?: number | null;
+    rtfConservador?: number;
+    estado: "listo" | "cargando" | "apagado" | "error" | "sin clave";
+    voces?: Record<string, string> | null;
+    detalle?: unknown;
+  };
+  llm?: {
+    provider: string;
+    model: string;
+    label?: string;
+    contextTokens: number;
+    keepAlive: string;
   };
   corpus: {
     documentos: number;
@@ -111,17 +122,22 @@ export interface StudioStatus {
 
 const DEMO_STATUS: StudioStatus = {
   motor: {
-    provider: "qwen-base-clone",
-    model: "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
-    device: "cuda",
+    provider: "speechify",
+    model: "simba-3.0",
+    language: "es-MX",
+    device: "cloud",
     calidad: "GOOD",
-    offline: true,
-    costoApi: "$0.00",
-    vramTotalMb: 4096,
-    vramUsadaMb: null,
-    tempC: null,
-    rtfConservador: 1.96,
-    estado: "apagado",
+    offline: false,
+    costoApi: "por uso",
+    configured: false,
+    estado: "sin clave",
+  },
+  llm: {
+    provider: "ollama",
+    model: "qwen3.5:9b",
+    label: "IA local",
+    contextTokens: 16384,
+    keepAlive: "5m",
   },
   corpus: { documentos: 53, vigentes: 10, pendientes: 12, disponibles: 0, verificadas: 0, bloqueadas: 0, porRevisar: 12, historicos: 0 },
   cache: { hits: 0, misses: 0, entries: 0 },
@@ -170,6 +186,16 @@ export interface CastingResult {
     objetivo: string;
   }>;
   casting: { ok: boolean; estado: string };
+  speechify?: {
+    provider: string;
+    model: string;
+    language: string;
+    configured: boolean;
+    cast?: { voices: Record<string, string>; details?: Record<string, unknown> } | null;
+    voices?: Record<string, string> | null;
+    details?: Record<string, unknown> | null;
+    error?: string | null;
+  };
 }
 
 export async function obtenerCasting(): Promise<CastingResult | null> {

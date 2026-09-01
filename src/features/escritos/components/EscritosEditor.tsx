@@ -352,7 +352,7 @@ export function EscritosEditor({
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
           <Button variant="secondary" size="md" onClick={onSaveDraft}>
-            💾 Guardar borrador
+            📁 Guardar en mis documentos
           </Button>
           <Button variant="primary" size="md" onClick={onGoToPreview}>
             👁 Ver vista previa y firmar ➡

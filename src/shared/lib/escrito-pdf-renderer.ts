@@ -368,10 +368,26 @@ export async function buildJsPdfDocument(
   doc.text("A T E N T A M E N T E", pageWidth / 2, y, { align: "center" })
   y += 30
 
-  // Si existe firma digitalizada en IndexedDB
-  if (draft.firmaRef) {
+  // Si existe firma digitalizada en IndexedDB o en previewUrl
+  if (draft.firmaRef || draft.firmaPreviewUrl) {
     try {
-      const firmaBlob = await getBlobResource(userId, draft.firmaRef)
+      let firmaBlob: Blob | null = null
+      if (draft.firmaRef) {
+        firmaBlob =
+          (await getBlobResource(userId, draft.firmaRef)) ||
+          (userId !== "anonymous" ? await getBlobResource("anonymous", draft.firmaRef) : null)
+      }
+      if (!firmaBlob && draft.firmaPreviewUrl && typeof fetch === "function") {
+        try {
+          const res = await fetch(draft.firmaPreviewUrl)
+          if (res.ok) {
+            firmaBlob = await res.blob()
+          }
+        } catch {
+          // Fallback a línea tradicional si no se puede recuperar el blob
+        }
+      }
+
       if (firmaBlob) {
         const processedFirma = await processBlobForPdf(firmaBlob)
         if (processedFirma) {
@@ -389,13 +405,22 @@ export async function buildJsPdfDocument(
           doc.addImage(processedFirma.dataUrl, processedFirma.format, fx, y, fw, fh)
           y += fh + 10
         } else {
-          y += 40
+          doc.setDrawColor(100)
+          doc.setLineWidth(0.75)
+          doc.line(pageWidth / 2 - 100, y + 25, pageWidth / 2 + 100, y + 25)
+          y += 35
         }
       } else {
-        y += 40
+        doc.setDrawColor(100)
+        doc.setLineWidth(0.75)
+        doc.line(pageWidth / 2 - 100, y + 25, pageWidth / 2 + 100, y + 25)
+        y += 35
       }
     } catch {
-      y += 40
+      doc.setDrawColor(100)
+      doc.setLineWidth(0.75)
+      doc.line(pageWidth / 2 - 100, y + 25, pageWidth / 2 + 100, y + 25)
+      y += 35
     }
   } else {
     // Línea de firma tradicional

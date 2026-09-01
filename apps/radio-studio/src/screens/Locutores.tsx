@@ -50,6 +50,7 @@ export function Locutores() {
   const activos = useMemo(() => personas.filter((p) => p.participa), [personas]);
   const perfilPorId = new Map((casting?.perfiles ?? []).map((p) => [p.id, p]));
   const personaPorId = new Map((casting?.personas ?? []).map((p) => [p.id, p]));
+  const speechify = casting?.speechify;
 
   const setActivo = (id: string, participa: boolean) => {
     if (FIJOS.has(id)) return;
@@ -69,6 +70,16 @@ export function Locutores() {
         <div>
           <strong>{activos.length} voces activas por defecto</strong>
           <div className="muted small">Eduardo, Andrea y Alonso son la base del programa. Rodrigo y Valeria se activan según el episodio.</div>
+          <div className="muted small" style={{ marginTop: 6 }}>
+            TTS: <strong>Speechify</strong> · modelo <code>simba-3.0</code> · idioma <code>es-MX</code> · {speechify?.configured ? "clave configurada ✓" : "sin clave — configura SPEECHIFY_API_KEY"}
+          </div>
+          {speechify?.voices && (
+            <div className="muted small" style={{ marginTop: 4 }}>
+              Voces: {Object.entries(speechify.voices).map(([k, v]) => `${k}=${String(v).slice(0,12)}…`).join(" · ")}
+            </div>
+          )}
+          {speechify?.error && <div className="muted small" style={{ color: "#f59e0b" }}>{speechify.error}</div>}
+          <div className="muted small">Qwen 3.5 9B (Ollama) solo para guion — nunca para voces</div>
         </div>
         <button className="btn-secondary" onClick={restaurar}>Restaurar reparto oficial</button>
       </div>
@@ -104,13 +115,21 @@ export function Locutores() {
               <div className="voice-meta">
                 <span>{p.rol === "comercial" ? "comercial" : p.rol}</span>
                 <span>Voz {p.voz}</span>
-                <span>{perfil?.voiceSourceLabel ?? "Premium local"}</span>
+                <span>{perfil?.voiceSourceLabel ?? "Speechify"}</span>
+                <span style={{ fontSize: 11 }}>{perfil?.voiceSourceId ? `ID ${String(perfil.voiceSourceId).slice(0,14)}…` : "sin ID"}</span>
               </div>
               <p>{persona?.objetivo ?? p.funcionEditorial ?? p.personalidad}</p>
+              <p className="muted small" style={{ marginTop: 4 }}>
+                {p.id === "EDUARDO" && "perfil: direct · natural y cálido"}
+                {p.id === "ANDREA" && "perfil: warm · expresiva y ágil"}
+                {p.id === "NARRADOR" && "perfil: rate -5% · profesional institucional"}
+                {p.id === "RODRIGO" && "perfil: rate +6% · enérgico reportero"}
+                {p.id === "VALERIA" && "perfil: bright · clara y comercial"}
+              </p>
               {preview ? (
                 <MiniPlayer src={preview} label="Muestra de voz" accent={colorDeLocutor(p.id)} />
               ) : (
-                <div className="muted small">Abre el motor local para escuchar la muestra.</div>
+                <div className="muted small">Vista previa remota del catálogo Speechify cuando esté disponible.</div>
               )}
             </section>
           );

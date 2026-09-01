@@ -2,7 +2,7 @@
 
 Aplicación de escritorio: estudio de producción de episodios de radio
 para La Veinte Digital, con Biblioteca Normativa IMSS/SNTSS, investigación y
-guion 100% local (qwen3.5:9b vía Ollama), voces locales Qwen Base clone, música local
+guion 100% local (qwen3.5:9b vía Ollama), voces Speechify simba-3.0 es-MX, música local
 ACE-Step y master final listo para publicar.
 
 La meta editorial actual es que el programa se sienta vivo: conversación natural,
@@ -18,7 +18,7 @@ La-Veinte-Digital/
 ├── apps/
 │   └── radio-studio/ → esta app (Tauri 2 + React + Vite)
 ├── packages/
-│   ├── tts-core/     → motor TTS Qwen Base clone (proceso desechable), chunker, cache
+│   ├── tts-core/     → motor TTS Speechify (simba-3.0, es-MX) (proceso desechable), chunker, cache
 │   ├── radio-core/   → episodios, plan de producción por sesiones, timeline
 │   └── (normative-core/ → próxima extracción desde src/features/normativa)
 └── tools/
@@ -117,7 +117,7 @@ corpus descargado en `data/normativa/`. El corpus se reconstruye desde
 | `/cancel` | POST | pausar producción y dejarla reanudable |
 | `/discard` | POST | detener worker, eliminar job activo y limpiar la producción actual |
 | `/master` | POST `{bloques}` | mezcla de WAVs → MP3/WAV con loudnorm, cama e intro/outro |
-| `/tts-fallback` | POST `{escenas}` | fallback edge-tts → SAPI (siempre marcado) |
+| `/tts-fallback` | POST `{escenas}` | Speechify (misma ruta, no fallback) |
 | `/musica` | GET | lista biblioteca de música local |
 | `/musica/motor` | GET | estado de ACE-Step; intenta arranque automático si está apagado |
 | `/musica/generar` | POST `{prompt,tipo,duracionSec}` | crea job musical local |
@@ -225,7 +225,7 @@ registro en `data/normativa/catalog.sqlite`.
 - **radio-core**: `buildProductionPlan` (bloques de voz + sesiones de modelo),
   `buildTimeline` (voz + música/jingle/fx con volumen), `DialogueDiversityAnalyzer`,
   `DialoguePolisher`, QA editorial y estimaciones con RTF real.
-- **Motor de voz**: Qwen3-TTS-12Hz-1.7B-Base (`generate_voice_clone`) en NVIDIA
+- **Motor de voz**: Speechify simba-3.0 cloud (es-MX, WAV) en
   GPU (RTX 3060, offline, $0). Cada bloque se genera en un proceso desechable con
   watchdog externo (SIGTERM → SIGKILL) que evita cuelgues; el launcher corta al
   grupo de procesos completo. Referencias vocales registradas en
@@ -256,3 +256,6 @@ Al probar manualmente:
 - Generar un jingle corto antes de intentar una cama larga.
 - Crear un episodio desde `Nuevo episodio` con el motor local (qwen3.5:9b),
   contexto adicional y comerciales habilitados.
+
+
+> **Speechify es el único TTS publicable.** No existe switch a otro proveedor (ElevenLabs/OpenAI/Edge/SAPI/Azure/Google eliminados). Qwen/Ollama solo genera guion.

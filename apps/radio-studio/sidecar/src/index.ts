@@ -16,10 +16,13 @@ import os from "node:os";
 import { promisify } from "node:util";
 
 import {
-  QwenEngine,
+  SpeechifyEngine,
   detectHardware,
   sentenceAwareChunk,
   cleanTtsText,
+  getCharacterForSlot,
+  loadCasting as loadSpeechifyCasting,
+  getOrCreateCasting as getOrCreateSpeechifyCasting,
 } from "@la-veinte/tts-core";
 
 import { NormativeCatalog } from "../../../../src/features/normativa/services/catalog";
@@ -47,7 +50,7 @@ const PORT = 3977;
 const REPO = path.resolve(__dirname, "../../../..");
 const ACE_API = "http://127.0.0.1:8001";
 
-let engine: QwenEngine | null = null;
+let engine: SpeechifyEngine | null = null;
 let aceStepStartAttempt: { at: number; error: string | null } = { at: 0, error: null };
 
 function loadLocalEnv(file: string): void {
@@ -104,9 +107,29 @@ function projectLog(projectId: string, type: ProgressEventType | "state.changed"
   broadcastEvent({ type, projectId, data });
 }
 
-function ensureEngine(): QwenEngine {
-  if (!engine) engine = new QwenEngine(process.cwd(), "", path.join(REPO, "data", "tts"));
+function ensureEngine(): SpeechifyEngine {
+  if (!engine) engine = new SpeechifyEngine(path.join(REPO, "data", "tts"));
   return engine;
+}
+
+// Resuelve voiceId Speechify para un slot (A/B/N/C/P) usando casting persistido y overrides env
+function speechifyVoiceIdForSlot(slot: string): string | null {
+  const stateDir = path.join(REPO, "data", "tts");
+  const ov: Record<string, string> = {
+    A: process.env.SPEECHIFY_VOICE_MALE_1 ?? "",
+    B: process.env.SPEECHIFY_VOICE_FEMALE_1 ?? "",
+    N: process.env.SPEECHIFY_VOICE_MALE_2 ?? "",
+    C: process.env.SPEECHIFY_VOICE_MALE_3 ?? "",
+    P: process.env.SPEECHIFY_VOICE_FEMALE_2 ?? "",
+  };
+  if (ov[slot]?.trim()) return ov[slot].trim();
+  const cast = loadSpeechifyCasting(stateDir);
+  if (cast) {
+    const map: Record<string, keyof typeof cast.voices> = { A: "EDUARDO", B: "ANDREA", N: "JAVIER", C: "RODRIGO", P: "VALERIA" };
+    const key = map[slot];
+    if (key && cast.voices[key]) return cast.voices[key];
+  }
+  return null;
 }
 
 /** Lanza el worker TTS como proceso independiente (el sidecar NO se bloquea). */
@@ -116,7 +139,7 @@ function spawnWorker(): void {
   void procesarProduccion();
 }
 
-/** Procesa la cola de producción con el motor Qwen (proceso desechable por bloque). */
+/** Procesa la cola de producción con Speechify (cloud). */
 let produccionEnCurso = false;
 // Flag global de cancelación: el worker en memoria lo respeta aunque otra
 // operación (eliminar/descartar/cancelar) use un objeto job distinto en disco.
@@ -150,20 +173,24 @@ async function procesarProduccion(): Promise<void> {
       guardarJob(job);
       lastWorkerBeat = Date.now();
       let ultimoError: string | null = null;
-      for (let intento = 0; intento < 4; intento++) {
-        try {
-          const t0 = Date.now();
-          const seed = Math.abs(b.chars * 13 + i * 7 + intento * 104729) % 100000;
+      try {
+        const t0 = Date.now();
+        const seed = Math.abs(b.chars * 13 + i * 7) % 100000;
+        const voiceId = speechifyVoiceIdForSlot(b.voz) ?? b.voiceSourceId ?? b.voiceProfileId ?? null;
+        if (!voiceId) {
+          ultimoError = "casting Speechify no disponible — configura SPEECHIFY_API_KEY y genera casting";
+        } else {
+          const character = getCharacterForSlot(b.voz as "A" | "B" | "N" | "C" | "P") as unknown as string;
           const r = await eng.generate(cleanTtsText(b.texto), b.voz, {
+            voiceId,
+            characterId: character,
             voiceProfileId: b.voiceProfileId,
             referenceAudioSha256: b.referenceAudioSha256,
-            voiceSourceId: b.voiceSourceId,
+            voiceSourceId: voiceId,
             modelRevision: b.modelRevision,
             seed,
           });
           lastWorkerBeat = Date.now();
-          // Si llegó una cancelación mientras se generaba, NO persistir el bloque
-          // (evita dejar un job RUNNING fantasma tras un borrado).
           if (cancelRequested || job.cancelado) { clearProductionCancel(); return; }
           if (r.ok && r.path) {
             b.estado = "generado";
@@ -171,16 +198,17 @@ async function procesarProduccion(): Promise<void> {
             b.audioDurMs = r.dur_s ? Math.round(r.dur_s * 1000) : null;
             b.genMs = Date.now() - t0;
             b.rtf = b.audioDurMs && b.genMs ? Number((b.genMs / b.audioDurMs).toFixed(3)) : null;
-            b.cacheHit = false;
+            b.cacheHit = !!r.cacheHit;
             b.error = null;
-            break;
+          } else {
+            ultimoError = r.error ?? "generación fallida";
+            if (r.requestId) ultimoError += ` (requestId ${r.requestId})`;
+            b.error = ultimoError;
           }
-          ultimoError = r.error ?? "generación fallida";
-        } catch (e) {
-          ultimoError = e instanceof Error ? e.message : String(e);
         }
+      } catch (e) {
+        ultimoError = e instanceof Error ? e.message : String(e);
         b.error = ultimoError;
-        guardarJob(job);
       }
       if (b.estado !== "generado") b.estado = "fallo";
       guardarJob(job);
@@ -372,22 +400,31 @@ async function handleStatus(res: http.ServerResponse) {
   const eng = ensureEngine();
   let engStatus: Record<string, unknown> = { loaded: false };
   try {
-    if (eng.isRunning) engStatus = { ...(await eng.status()) };
+    engStatus = { ...(await eng.status()) };
   } catch { /* motor apagado */ }
+  const ttsConfigured = !!process.env.SPEECHIFY_API_KEY;
+  const llmCfg = loadLlmConfig();
+  const casting = loadSpeechifyCasting(path.join(REPO, "data", "tts"));
   json(res, 200, {
     motor: {
-      provider: "qwen-base-clone",
-      model: "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
-      device: "cuda",
+      provider: "speechify",
+      model: "simba-3.0",
+      language: "es-MX",
+      device: "cloud",
       calidad: "GOOD",
-      offline: true,
-      costoApi: "$0.00",
-      vramTotalMb: hw.gpu.vramTotalMb,
-      vramUsadaMb: hw.gpu.vramUsedMb,
-      tempC: hw.gpu.tempC,
-      rtfConservador: await readBenchmarkRtf(),
-      estado: eng.isRunning ? "listo" : "apagado",
+      offline: false,
+      costoApi: "por uso",
+      configured: ttsConfigured,
+      estado: ttsConfigured ? (eng.isRunning ? "listo" : "apagado") : "sin clave",
+      voces: casting?.voices ?? null,
       detalle: engStatus,
+    },
+    llm: {
+      provider: "ollama",
+      model: llmCfg.model,
+      label: "IA local",
+      contextTokens: llmCfg.contextTokens,
+      keepAlive: llmCfg.keepAlive,
     },
     corpus: {
       documentos: health.documents,
@@ -485,34 +522,20 @@ async function handleGuion(res: http.ServerResponse, body: Record<string, unknow
   json(res, 200, { tema, guion: script, citas, cutoff: pack.cutoff, fuentes: pack.documents });
 }
 
-const REF_DIR = path.join(REPO, "data", "tts", "ref");
-const VOICE_SLOTS: Record<VoiceSlot, string> = { A: "eduardo.wav", B: "mariana.wav", N: "narrador.wav", C: "rodrigo.wav", P: "valeria.wav" };
-const QWEN_VOICES: Record<VoiceSlot, { profileId: string; label: string; refDir: string }> = {
-  A: { profileId: "EDUARDO", label: "Qwen Base clone", refDir: "eduardo" },
-  B: { profileId: "ANDREA", label: "Qwen Base clone — Andrea adulta", refDir: "andrea" },
-  N: { profileId: "JAVIER", label: "Qwen Base clone — narrador", refDir: "javier" },
-  C: { profileId: "RODRIGO", label: "Qwen Base clone — corresponsal", refDir: "rodrigo" },
-  P: { profileId: "ANDREA", label: "Qwen Base clone — comercial", refDir: "andrea" },
-};
-const MODEL_REVISION = "qwen3-tts-12hz-1.7b-base-v1";
-
-function sha256File(p: string): string | null {
-  try {
-    return createHash("sha256").update(fs.readFileSync(p)).digest("hex");
-  } catch {
-    return null;
-  }
-}
+const SPEECHIFY_MODEL = "simba-3.0";
+const SPEECHIFY_LANGUAGE = "es-MX";
+const MODEL_REVISION = "simba-3.0-v1";
 
 function identidadParaVoz(voz: VoiceSlot): { profileId: string; referenceAudioSha256: string; voiceSourceId: string; modelRevision: string } | null {
-  const meta = QWEN_VOICES[voz];
-  const refPath = path.join(REPO, "data", "tts", "voices", meta.refDir, "v1", "reference.wav");
-  const refSha = sha256File(refPath);
-  if (!refSha) return null;
+  const character = getCharacterForSlot(voz);
+  const voiceId = speechifyVoiceIdForSlot(voz);
+  if (!voiceId) return null;
+  // referenceAudioSha256 field now stores SSML profile key para caché (diferenciación personajes)
+  const ssmlKey = character === "EDUARDO" ? "emotion:direct" : character === "ANDREA" ? "emotion:warm" : character === "JAVIER" ? "rate:-5%" : character === "RODRIGO" ? "rate:+6%" : "emotion:bright";
   return {
-    profileId: meta.profileId,
-    referenceAudioSha256: refSha,
-    voiceSourceId: `qwen:${meta.refDir}-v1`,
+    profileId: character,
+    referenceAudioSha256: ssmlKey,
+    voiceSourceId: voiceId,
     modelRevision: MODEL_REVISION,
   };
 }
@@ -547,33 +570,52 @@ function resolveVoiceProfiles(speakers: SpeakerProfile[]): Array<{
   locale: string;
 }> {
   const rolRole: Record<string, string> = { conductor: "male-host", "co-conductor": "female-cohost", narrador: "narrator" };
+  const casting = loadSpeechifyCasting(path.join(REPO, "data", "tts"));
   return speakers.map((s) => {
     const slot: VoiceSlot = ["A", "B", "N", "C", "P"].includes(s.voz) ? s.voz : "A";
-    const meta = QWEN_VOICES[slot];
-    const refPath = path.join(REPO, "data", "tts", "voices", meta.refDir, "v1", "reference.wav");
-    const refSha = sha256File(refPath) ?? "missing";
+    const character = getCharacterForSlot(slot);
+    const voiceId = speechifyVoiceIdForSlot(slot) ?? "no-configurado";
+    const ssmlKey = character === "EDUARDO" ? "emotion:direct" : character === "ANDREA" ? "emotion:warm" : character === "JAVIER" ? "rate:-5%" : character === "RODRIGO" ? "rate:+6%" : "emotion:bright";
+    const labelMap: Record<string, string> = {
+      EDUARDO: "Speechify — Eduardo (direct)",
+      ANDREA: "Speechify — Andrea (warm)",
+      JAVIER: "Speechify — Javier (-5%)",
+      RODRIGO: "Speechify — Rodrigo (+6%)",
+      VALERIA: "Speechify — Valeria (bright)",
+    };
     return {
       id: s.id,
       displayName: s.nombre,
       role: s.rol,
       userAssignedVoiceRole: rolRole[s.rol] ?? s.rol,
-      referenceAudioPath: refSha === "missing" ? "(no registrada)" : refPath,
-      previewAudioPath: path.join(REPO, "data", "tts", "voices", meta.refDir, "v1", "reference.wav"),
-      referenceAudioSha256: refSha,
-      voiceSourceId: `qwen:${meta.refDir}-v1`,
-      voiceSourceType: "synthetic",
-      voiceSourceLabel: meta.label,
-      provider: "qwen-base-clone",
-      modelId: "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
+      referenceAudioPath: casting ? `speechify:${voiceId}` : "(speechify no configurado)",
+      previewAudioPath: casting?.details?.[character] ? `speechify:preview:${voiceId}` : "",
+      referenceAudioSha256: ssmlKey,
+      voiceSourceId: voiceId,
+      voiceSourceType: "synthetic" as const,
+      voiceSourceLabel: labelMap[character] ?? "Speechify",
+      provider: "speechify",
+      modelId: SPEECHIFY_MODEL,
       modelRevision: MODEL_REVISION,
       language: "es",
-      locale: "es-MX",
+      locale: SPEECHIFY_LANGUAGE,
     };
   });
 }
 
 async function handleCasting(res: http.ServerResponse) {
   const speakers: SpeakerProfile[] = DEFAULT_SPEAKERS;
+  let casting = loadSpeechifyCasting(path.join(REPO, "data", "tts"));
+  const configured = !!process.env.SPEECHIFY_API_KEY;
+  // Auto-crear casting determinista si hay clave y no existe
+  if (!casting && configured) {
+    try {
+      casting = await getOrCreateSpeechifyCasting(path.join(REPO, "data", "tts"));
+    } catch (e) {
+      // casting falló: se reporta en respuesta
+      console.warn(`[casting] no se pudo crear: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
   const perfiles = resolveVoiceProfiles(speakers);
   const validacion = validateCasting(perfiles);
   json(res, 200, {
@@ -581,16 +623,32 @@ async function handleCasting(res: http.ServerResponse) {
     casting: validacion,
     personas: VOICE_PERSONAS,
     reglaPronunciacion: GLOBAL_PRONUNCIATION_RULE,
+    speechify: {
+      provider: "speechify",
+      model: SPEECHIFY_MODEL,
+      language: SPEECHIFY_LANGUAGE,
+      configured,
+      cast: casting,
+      voices: casting?.voices ?? null,
+      details: casting?.details ?? null,
+      error: !configured ? "SPEECHIFY_API_KEY no configurada" : (!casting ? "casting no disponible — revisa clave y catálogo" : null),
+    },
     criteriosReferencia: [
-      "una sola persona hablando",
-      "15–30 segundos de voz continua",
-      "sin música ni ruido de fondo",
-      "sin reverberación importante",
-      "ritmo natural y conversacional",
-      "español mexicano neutro, con /s/ claramente articulada",
-      "sin acento costeño/caribeño ni cantadito regional",
+      "Speechify simba-3.0 — 5 voces únicas es-MX",
+      "Eduardo direct, Andrea warm, Javier -5%, Rodrigo +6%, Valeria bright",
     ],
   });
+}
+
+async function handleCastingRefresh(res: http.ServerResponse) {
+  const key = process.env.SPEECHIFY_API_KEY;
+  if (!key) return json(res, 400, { error: "SPEECHIFY_API_KEY no configurada" });
+  try {
+    const casting = await getOrCreateSpeechifyCasting(path.join(REPO, "data", "tts"), true);
+    json(res, 200, { refreshed: true, cast: casting });
+  } catch (e) {
+    json(res, 500, { error: e instanceof Error ? e.message : String(e) });
+  }
 }
 
 async function handleGenerate(res: http.ServerResponse, body: Record<string, unknown>) {
@@ -753,12 +811,13 @@ async function handleRegenerate(res: http.ServerResponse, body: Record<string, u
   const ctxHash = [...`${prevTexto}||${texto}||${nextTexto}`].reduce((a, ch) => (a * 33 + ch.charCodeAt(0)) | 0, 5);
   const seedTurno = Math.abs(ctxHash) % 100000;
   const r = await eng.generate(cleanTtsText(texto), voz, {
+    voiceId: identidad?.voiceSourceId,
+    characterId: identidad?.profileId,
     voiceProfileId: identidad?.profileId,
     referenceAudioSha256: identidad?.referenceAudioSha256,
     voiceSourceId: identidad?.voiceSourceId,
     modelRevision: identidad?.modelRevision,
     seed: seedTurno,
-    generationSettings: { contextoHash: Math.abs(ctxHash) },
   });
   if (!r.ok || !r.path) return json(res, 502, { error: r.error ?? "generación fallida" });
   wavPath = r.path ?? null;
@@ -969,6 +1028,8 @@ async function handleMaster(res: http.ServerResponse, body: Record<string, unkno
           [...`${t.id ?? idx}-${chunkIdx}`].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) | 0, 7)
         ) % 100000;
         const r = await eng.generate(c, voz, {
+          voiceId: identidad?.voiceSourceId,
+          characterId: identidad?.profileId,
           voiceProfileId: identidad?.profileId,
           referenceAudioSha256: identidad?.referenceAudioSha256,
           voiceSourceId: identidad?.voiceSourceId,
@@ -1842,11 +1903,17 @@ async function handleFallbackTts(res: http.ServerResponse, body: Record<string, 
   try {
     const wavs: string[] = [];
     for (let i = 0; i < escenas.length; i++) {
-      const r = await eng.generate(cleanTtsText(escenas[i].linea), escenas[i].locutor, { seed: i });
+      const voz = vozPorLocutor(escenas[i].locutor, {});
+      const ident = identidadParaVoz(voz);
+      const r = await eng.generate(cleanTtsText(escenas[i].linea), voz, {
+        voiceId: ident?.voiceSourceId,
+        characterId: ident?.profileId,
+        seed: i,
+      });
       if (!r.ok || !r.path) continue;
       wavs.push(r.path);
     }
-    json(res, 200, { engine: "qwen-base-clone", wavs, blocks: wavs.length, total: escenas.length });
+    json(res, 200, { engine: "speechify", model: SPEECHIFY_MODEL, language: SPEECHIFY_LANGUAGE, wavs, blocks: wavs.length, total: escenas.length });
   } catch (e) {
     json(res, 502, { error: e instanceof Error ? e.message : String(e) });
   }
@@ -1863,6 +1930,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "OPTIONS") return corsPreflight(res);
     if (req.method === "GET" && url.pathname === "/status") return await handleStatus(res);
     if (req.method === "GET" && url.pathname === "/casting") return await handleCasting(res);
+    if (req.method === "POST" && url.pathname === "/casting/refresh") return await handleCastingRefresh(res);
     if (req.method === "GET" && url.pathname === "/progress") return await handleProgress(res);
     if (req.method === "GET" && url.pathname === "/musica") return await handleMusica(res);
     if (req.method === "GET" && url.pathname === "/musica/motor") return await handleMusicaMotor(res);
@@ -1913,7 +1981,7 @@ const server = http.createServer(async (req, res) => {
 
 /**
  * Inicia la producción TTS real de un proyecto en la cola existente.
- * Reutiliza job-store + worker Qwen: GUIÓN → bloques → voces (resumible).
+ * Reutiliza job-store + worker Speechify: GUIÓN → bloques → voces (resumible).
  */
 async function startProjectProduction(id: string, script: StudioScript): Promise<{ started: boolean; total: number }> {
   clearProductionCancel();

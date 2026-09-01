@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/shared/components/ui/Button"
 import { Card } from "@/shared/components/ui/Card"
+import { SendPrintModal } from "@/shared/components/app/SendPrintModal"
 import type { EscritoDraftV2 } from "@/shared/contracts/escrito-draft"
 import {
   generarNombreArchivoPdf,
@@ -38,8 +39,9 @@ export function EscritosResult({
 }: EscritosResultProps) {
   const [viewMode, setViewMode] = useState<"mobile" | "sheet">("sheet")
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false)
+  const [isSendPrintOpen, setIsSendPrintOpen] = useState(false)
   const [isPrinting, setIsPrinting] = useState(false)
-  const [isDownloading, setIsDownloading] = useState(false)
+  const [isSharing, setIsSharing] = useState(false)
 
   const handleSaveSignature = (firmaRef: string, previewUrl: string) => {
     onUpdateDraft({
@@ -61,34 +63,7 @@ export function EscritosResult({
     })
   }
 
-  const handleDownloadPdf = async () => {
-    setIsDownloading(true)
-    try {
-      const file = await renderStoredEscritoToPdfFile(draft, userId, {
-        nombreTrabajador: workerProfile?.nombre,
-        nombre: workerProfile?.nombre,
-        matricula: workerProfile?.matricula,
-        categoria: workerProfile?.categoria,
-        adscripcion: workerProfile?.adscripcion,
-      })
-
-      const url = URL.createObjectURL(file)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = generarNombreArchivoPdf(draft)
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      console.error("Error descargando PDF:", err)
-      alert("No se pudo generar el archivo PDF. Intenta nuevamente.")
-    } finally {
-      setIsDownloading(false)
-    }
-  }
-
-  const handlePrint = async () => {
+  const handleDirectPrint = async () => {
     setIsPrinting(true)
     try {
       await imprimirEscrito(draft, userId, {
@@ -106,7 +81,12 @@ export function EscritosResult({
     }
   }
 
+  const handleOpenPrintModal = () => {
+    setIsSendPrintOpen(true)
+  }
+
   const handleNativeShare = async () => {
+    setIsSharing(true)
     try {
       const file = await renderStoredEscritoToPdfFile(draft, userId, {
         nombreTrabajador: workerProfile?.nombre,
@@ -116,18 +96,34 @@ export function EscritosResult({
         adscripcion: workerProfile?.adscripcion,
       })
 
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      if (typeof navigator !== "undefined" && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: draft.titulo,
-          text: `Escrito formal: ${draft.asunto || draft.titulo}`,
+          title: draft.titulo || "Escrito Formal",
+          text: `Escrito formal: ${draft.asunto || draft.titulo || "IMSS - SNTSS"}`,
         })
+      } else if (typeof window !== "undefined" && window.LaVeinteApp?.share) {
+        window.LaVeinteApp.share(
+          draft.titulo || "Escrito Formal",
+          `Escrito formal: ${draft.asunto || draft.titulo || "IMSS - SNTSS"}`
+        )
       } else {
-        // Fallback a descarga si no soporta Web Share API con archivos
-        handleDownloadPdf()
+        // Fallback a descarga si el navegador de escritorio no tiene Web Share API
+        const url = URL.createObjectURL(file)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = generarNombreArchivoPdf(draft)
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
       }
     } catch (err) {
-      console.error("Error compartiendo:", err)
+      if ((err as Error)?.name !== "AbortError") {
+        console.error("Error compartiendo:", err)
+      }
+    } finally {
+      setIsSharing(false)
     }
   }
 
@@ -173,14 +169,14 @@ export function EscritosResult({
         </div>
 
         <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
-          <Button variant="secondary" size="sm" onClick={handlePrint} loading={isPrinting}>
+          <Button variant="secondary" size="sm" onClick={onSaveDraft}>
+            📁 Guardar en mis documentos
+          </Button>
+          <Button variant="secondary" size="sm" onClick={handleOpenPrintModal} loading={isPrinting}>
             🖨 Imprimir
           </Button>
-          <Button variant="secondary" size="sm" onClick={handleNativeShare}>
+          <Button variant="primary" size="sm" onClick={handleNativeShare} loading={isSharing}>
             📲 Compartir
-          </Button>
-          <Button variant="primary" size="sm" onClick={handleDownloadPdf} loading={isDownloading}>
-            📥 Descargar PDF
           </Button>
         </div>
       </div>
@@ -419,6 +415,23 @@ export function EscritosResult({
         onSave={handleSaveSignature}
       />
 
+      {/* Modal de Impresión y Transferencia (Mismo sistema que Tarjetones y Checadas) */}
+      <SendPrintModal
+        open={isSendPrintOpen}
+        docName={draft.titulo || "Escrito Formal"}
+        getFile={async () => {
+          return renderStoredEscritoToPdfFile(draft, userId, {
+            nombreTrabajador: workerProfile?.nombre,
+            nombre: workerProfile?.nombre,
+            matricula: workerProfile?.matricula,
+            categoria: workerProfile?.categoria,
+            adscripcion: workerProfile?.adscripcion,
+          })
+        }}
+        onClose={() => setIsSendPrintOpen(false)}
+        onDirectPrint={handleDirectPrint}
+      />
+
       {/* Barra de Acciones Final */}
       <div
         style={{
@@ -447,10 +460,13 @@ export function EscritosResult({
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
           <Button variant="secondary" size="md" onClick={onSaveDraft}>
-            💾 Guardar borrador
+            📁 Guardar en mis documentos
           </Button>
-          <Button variant="primary" size="md" onClick={handleDownloadPdf} loading={isDownloading}>
-            📥 Descargar PDF Carta
+          <Button variant="secondary" size="md" onClick={handleOpenPrintModal} loading={isPrinting}>
+            🖨 Imprimir
+          </Button>
+          <Button variant="primary" size="md" onClick={handleNativeShare} loading={isSharing}>
+            📲 Compartir
           </Button>
         </div>
       </div>

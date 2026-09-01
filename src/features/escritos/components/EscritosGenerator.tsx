@@ -246,7 +246,7 @@ export function EscritosGenerator() {
       const updatedList = guardarEscrito(draft, userId)
       setSavedList(updatedList)
       setLastSavedSnapshot(serializePersistableDraft(draft))
-      setSaveToast("Borrador guardado correctamente en tu dispositivo.")
+      setSaveToast("Escrito guardado correctamente en Mis Documentos.")
       setTimeout(() => setSaveToast(null), 3000)
     } catch (e) {
       alert(e instanceof Error ? e.message : "Error al guardar el borrador.")
