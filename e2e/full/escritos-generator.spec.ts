@@ -156,7 +156,7 @@ test.describe("Generador de Escritos V2 (Flujo Completo)", () => {
     // 9. Descargar PDF
     const [download] = await Promise.all([
       page.waitForEvent("download"),
-      page.getByRole("button", { name: /Descargar PDF/i }).click(),
+      page.getByRole("button", { name: /Descargar PDF/i }).first().click(),
     ])
 
     expect(download.suggestedFilename()).toContain(".pdf")
