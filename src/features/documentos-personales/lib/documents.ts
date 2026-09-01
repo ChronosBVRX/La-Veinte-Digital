@@ -1,4 +1,4 @@
-import type { EscritoGuardado } from "@/features/escritos/services/escritos-storage"
+import type { EscritoDraftV2 } from "@/shared/contracts/escrito-draft"
 
 export type DocTipo = "tarjeton" | "checadas" | "escrito"
 
@@ -20,7 +20,7 @@ export interface DocEscrito {
   id: string
   titulo: string
   fecha: string
-  escrito: EscritoGuardado
+  escrito: EscritoDraftV2
 }
 
 export type DocumentoPersonalItem = DocNativo | DocEscrito

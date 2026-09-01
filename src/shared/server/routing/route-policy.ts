@@ -20,6 +20,7 @@ export const API_ACCESS = {
   "/api/normativa/tts": "authenticated",
   "/api/normativa/sync": "authenticated",
   "/api/normativa/visor": "authenticated",
+  "/api/escritos/generar": "authenticated",
 } as const
 
 export type ApiAccessLevel = (typeof API_ACCESS)[keyof typeof API_ACCESS]

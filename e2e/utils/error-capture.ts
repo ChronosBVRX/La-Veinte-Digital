@@ -138,6 +138,8 @@ export function registerNetworkWatcher(
     if (/_rsc=/.test(url)) return
     // Form POSTs that get aborted during fast navigation (CI)
     if (request.method() === "POST" && /\/login|\/register/.test(url)) return
+    // Peticiones abortadas legítimamente durante navegación/prefetch
+    if (failure.errorText?.includes("ERR_ABORTED")) return
 
     errors.push({
       url: request.url(),

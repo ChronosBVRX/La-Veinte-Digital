@@ -1,4 +1,4 @@
-﻿import { readFileSync, readdirSync } from "node:fs"
+import { readFileSync, readdirSync } from "node:fs"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
 import {
@@ -46,6 +46,7 @@ describe("API route policy", () => {
       "/api/tarjeton/confirm": "authenticated",
       "/api/tarjeton/delete": "authenticated",
       "/api/worker-context": "authenticated",
+      "/api/escritos/generar": "authenticated",
     })
   })
 
