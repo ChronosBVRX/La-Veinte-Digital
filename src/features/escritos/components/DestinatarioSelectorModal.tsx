@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
+import { useState, useMemo } from "react"
 import { Modal } from "@/shared/components/ui/Modal"
 import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
@@ -8,7 +8,6 @@ import type { DestinoCargoNombre } from "@/shared/contracts/escrito-draft"
 import {
   DIRECTORIO_DESTINATARIOS,
   CATEGORIAS_DESTINATARIOS,
-  findDestinatario,
   type DestinatarioItem,
   type DestinatarioCategoria,
 } from "@/features/escritos/data/directorio-destinatarios"
@@ -26,25 +25,14 @@ export function DestinatarioSelectorModal({
   onClose,
   currentDestino,
   onSelectDestino,
-  initialTab,
+  initialTab = "directorio",
 }: DestinatarioSelectorModalProps) {
   const [searchTerm, setSearchTerm] = useState("")
-  const [activeTab, setActiveTab] = useState<"directorio" | "manual">("directorio")
+  const [tabOverride, setTabOverride] = useState<"directorio" | "manual" | null>(null)
   const [manualCargo, setManualCargo] = useState(currentDestino.cargo || "")
   const [manualNombre, setManualNombre] = useState(currentDestino.nombre || "")
 
-  useEffect(() => {
-    if (isOpen) {
-      if (initialTab) {
-        setActiveTab(initialTab)
-      } else {
-        const isOficial = Boolean(findDestinatario(currentDestino.cargo, currentDestino.nombre))
-        setActiveTab(isOficial ? "directorio" : "manual")
-      }
-      setManualCargo(currentDestino.cargo || "")
-      setManualNombre(currentDestino.nombre || "")
-    }
-  }, [isOpen, initialTab, currentDestino])
+  const activeTab = tabOverride ?? initialTab
 
   const filteredItems = useMemo(() => {
     const q = searchTerm.toLowerCase().trim()
@@ -113,7 +101,7 @@ export function DestinatarioSelectorModal({
             type="button"
             role="tab"
             aria-selected={activeTab === "directorio"}
-            onClick={() => setActiveTab("directorio")}
+            onClick={() => setTabOverride("directorio")}
             style={{
               flex: 1,
               padding: "0.5rem 0.75rem",
@@ -134,7 +122,7 @@ export function DestinatarioSelectorModal({
             type="button"
             role="tab"
             aria-selected={activeTab === "manual"}
-            onClick={() => setActiveTab("manual")}
+            onClick={() => setTabOverride("manual")}
             style={{
               flex: 1,
               padding: "0.5rem 0.75rem",
@@ -184,7 +172,7 @@ export function DestinatarioSelectorModal({
                 <div style={{ padding: "2rem 1rem", textAlign: "center", color: "var(--muted)", fontSize: "0.875rem" }}>
                   No se encontraron integrantes en el directorio con el término &ldquo;{searchTerm}&rdquo;.
                   <div style={{ marginTop: "0.75rem" }}>
-                    <Button variant="secondary" size="sm" onClick={() => setActiveTab("manual")}>
+                    <Button variant="secondary" size="sm" onClick={() => setTabOverride("manual")}>
                       Escribir como destinatario manual
                     </Button>
                   </div>
