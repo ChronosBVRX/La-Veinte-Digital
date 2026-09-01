@@ -33,6 +33,7 @@ export interface LocalLlmConfig {
   model: string;
   baseUrl: string;
   contextTokens: number;
+  keepAlive: string;
   enabled: boolean;
 }
 
@@ -42,6 +43,7 @@ export function loadLlmConfig(): LocalLlmConfig {
     model: process.env.LOCAL_LLM_MODEL ?? "qwen3.5:9b",
     baseUrl: process.env.OLLAMA_BASE_URL ?? "http://127.0.0.1:11434",
     contextTokens: Number(process.env.LOCAL_LLM_CONTEXT ?? 16384),
+    keepAlive: process.env.LOCAL_LLM_KEEP_ALIVE ?? "5m",
     enabled: (process.env.LOCAL_LLM_ENABLED ?? "true") !== "false",
   };
 }
@@ -72,7 +74,7 @@ export class LocalLLMService {
   private cacheDir: string;
   private runLogPath: string;
   /** versión de los prompts — cambiar invalida caché */
-  public promptsVersion = "v1";
+  public promptsVersion = "v3";
 
   constructor(cfg: LocalLlmConfig, stateDir: string) {
     this.cfg = cfg;
@@ -229,7 +231,7 @@ export class LocalLLMService {
             format: opts.jsonSchema,
             stream: false,
             think: false,
-            keep_alive: 0,
+            keep_alive: this.cfg.keepAlive,
             options: {
               temperature: profile.temperature,
               top_p: profile.topP ?? 0.9,

@@ -17,7 +17,7 @@ await build({
   platform: "node",
   format: "cjs",
   target: "node22",
-  external: ["edge-tts"],
+  external: [],
   alias: {
     "@la-veinte/tts-core": path.join(root, "packages", "tts-core", "src", "index.ts"),
   },

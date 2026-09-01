@@ -172,27 +172,13 @@ export class ScriptPipeline {
       direccion = await withGpu("llm", () =>
         this.llm.generateStructured({
           task: "direction",
-          system: prompt("director.v2.txt"),
+          system: prompt("director.v3.txt"),
           user: `ESCALETA:\n${JSON.stringify(plan)}\n\nHECHOS DISPONIBLES:\n${fuentes}\n\nGenera la dirección de turnos completa del episodio.`,
           jsonSchema: toSchema(ConversationDirectionSchema),
           validate: (raw) => ConversationDirectionSchema.parse(raw),
         })
       );
       this.artifact(artifactsDir, "03-direccion", direccion);
-    });
-
-    // ── PASS 4: Guionista ──
-    await paso("P4-guionista", async () => {
-      textos = await withGpu("llm", () =>
-        this.llm.generateStructured({
-          task: "dialogue",
-          system: prompt("writer.v2.txt"),
-          user: `DIRECCIÓN DE TURNOS:\n${JSON.stringify(direccion.turns)}\n\nFUENTES:\n${fuentes}`,
-          jsonSchema: toSchema(DialogueScriptSchema),
-          validate: (raw) => DialogueScriptSchema.parse(raw),
-        }).then((r) => new Map(r.turns.map((t) => [t.id, t.text])))
-      );
-      this.artifact(artifactsDir, "04-borrador", Object.fromEntries(textos));
     });
 
     // ── Guardarrails de roles (determinista, antes del guionista) ──
@@ -216,6 +202,84 @@ export class ScriptPipeline {
         t.speaker = "EDUARDO";
       }
     }
+
+    // ── PASS 4: Guionista por escenas con memoria rodante (v3) ──
+    await paso("P4-guionista-escenas", async () => {
+      textos = new Map<string, string>();
+      // Agrupar turnos por escena según direccion
+      const scenesMap = new Map<string, typeof direccion.turns>();
+      for (const t of direccion.turns) {
+        const sid = t.sceneId ?? "s1";
+        if (!scenesMap.has(sid)) scenesMap.set(sid, []);
+        scenesMap.get(sid)!.push(t);
+      }
+      const sceneIds = [...scenesMap.keys()];
+      // Mapa de metadata de escenas desde plan (si existe)
+      const planScenes = (plan as { scenes?: Array<{ id: string; purpose?: string; dramaticQuestion?: string }> })?.scenes ?? [];
+      const planById = new Map(planScenes.map((s) => [s.id, s]));
+      const seenStarts = new Set<string>();
+      let globalTurnIndex = 0;
+      for (const sid of sceneIds) {
+        const expected = scenesMap.get(sid)!;
+        const expectedIds = expected.map((t) => t.id);
+        const scenePlan = planById.get(sid);
+        const preguntaCentral = (scenePlan as unknown as { dramaticQuestion?: string })?.dramaticQuestion ?? (scenePlan as unknown as { purpose?: string })?.purpose ?? sid;
+        const escaleta = scenePlan ? JSON.stringify(scenePlan) : `Escena ${sid}`;
+        // Memoria rodante: últimas 6 intervenciones ya generadas
+        const memoriaTurns = [...textos.entries()].slice(-6).map(([id, txt]) => {
+          const d = direccion.turns.find((x) => x.id === id);
+          return `${d?.speaker ?? "?"}: ${txt.slice(0, 120)}`;
+        }).join("\n");
+        // Comienzos ya usados
+        const comienzos = [...textos.values()].map((txt) => txt.trim().split(/\s+/).slice(0, 3).join(" ").toLowerCase()).join(" | ").slice(0, 800);
+        // Fuentes solo para esta escena
+        const neededSourceIds = new Set(expected.flatMap((t) => t.sourceIds));
+        const fuentesEscena = evidencePack.sources.filter((s) => neededSourceIds.has(s.sourceId)).map((s) => `[${s.sourceId}] ${s.document}${s.clause ? `, ${s.clause}` : ""}${s.article ? `, ${s.article}` : ""}: ${s.excerpt}`).join("\n\n") || fuentes.slice(0, 4000);
+        const direccionEscena = JSON.stringify(expected.map((t) => ({ id: t.id, speaker: t.speaker, intent: t.intent, respondsTo: t.respondsTo, purpose: t.purpose, sourceIds: t.sourceIds })));
+
+        const writerSystem = prompt("writer.v3.txt");
+        const writerUser = [
+          `TEMA: ${input.tema}`,
+          `ESCENA: ${sid} — ${escaleta}`,
+          `PREGUNTA CENTRAL: ${preguntaCentral}`,
+          `ESCALETA ESCENA: ${escaleta}`,
+          `DIRECCIÓN EXACTA DE LA ESCENA:\n${direccionEscena}`,
+          `ÚLTIMAS 6 INTERVENCIONES:\n${memoriaTurns || "(inicio del episodio)"}`,
+          `COMIENZOS YA USADOS: ${comienzos || "(ninguno)"}`,
+          `FUENTES NECESARIAS SOLO PARA ESTA ESCENA:\n${fuentesEscena}`,
+          `IDS EXACTOS ESPERADOS: ${expectedIds.join(", ")}`,
+          `Instrucción: devuelve exactamente esos IDs, sin duplicados, faltantes ni extras.`,
+        ].join("\n\n");
+
+        const result = await withGpu("llm", () =>
+          this.llm.generateStructured({
+            task: "dialogue",
+            system: writerSystem,
+            user: writerUser,
+            jsonSchema: toSchema(DialogueScriptSchema),
+            validate: (raw) => {
+              const parsed = DialogueScriptSchema.parse(raw);
+              const ids = parsed.turns.map((t) => t.id);
+              const dup = ids.filter((id, i) => ids.indexOf(id) !== i);
+              if (dup.length) throw new Error(`IDs duplicados: ${dup.join(",")}`);
+              const missing = expectedIds.filter((id) => !ids.includes(id));
+              if (missing.length) throw new Error(`IDs faltantes: ${missing.join(",")}`);
+              const extra = ids.filter((id) => !expectedIds.includes(id));
+              if (extra.length) throw new Error(`IDs extras: ${extra.join(",")}`);
+              return parsed;
+            },
+          })
+        );
+        for (const t of result.turns) {
+          textos.set(t.id, t.text);
+          // registrar comienzo para siguiente escena
+          const start = t.text.trim().split(/\s+/).slice(0,3).join(" ").toLowerCase();
+          seenStarts.add(start);
+        }
+        globalTurnIndex += expected.length;
+      }
+      this.artifact(artifactsDir, "04-borrador", Object.fromEntries(textos));
+    });
 
     // ensamblar borrador como DialogueTurn[]
     const ES_PREGUNTA_REAL = (texto: string) => /\?\s*$/.test(texto.trim()) || /^(qué |qué,|cómo |cuándo |dónde |quién |quién,|cuánto |por qué |y si )/i.test(texto.trim());

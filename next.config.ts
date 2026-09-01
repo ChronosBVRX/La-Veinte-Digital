@@ -29,11 +29,7 @@ const nextConfig: NextConfig = {
   outputFileTracingExcludes: {
     "*": ["data/tts/**", "data/normativa/**", "tools/**"],
   },
-  turbopack: {
-    resolveAlias: {
-      "edge-tts": "edge-tts/out/index.js",
-    },
-  },
+  turbopack: {},
   async headers() {
     return [
       {

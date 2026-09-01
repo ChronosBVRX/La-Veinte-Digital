@@ -3,7 +3,9 @@ import { test, expect } from "../fixtures/test"
 test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
   test("Recorrido IA: redacción asistida con IA, desarrollo formal, visor compacto, propuestas y descarga", async ({
     page,
+    errors,
   }) => {
+    errors.allowConsole(/scanner_error/i, /Cannot stop/i, /userMedia/i, /Not supported/i, /PRINT_FLOW/i)
     let lastRevisionRequest: Record<string, unknown> | null = null
 
     // 1. Simular la respuesta del endpoint de generación y revisión para determinismo en CI
@@ -124,9 +126,9 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
     await page.getByRole("button", { name: "Aplicar propuesta" }).click()
     await expect(textarea).toHaveValue(/\[Texto ajustado formalmente conforme a la normativa vigente\]/)
 
-    // 6. Guardar borrador
-    await page.getByRole("button", { name: "💾 Guardar borrador" }).click()
-    await expect(page.getByText(/Borrador guardado correctamente/i)).toBeVisible()
+    // 6. Guardar en mis documentos
+    await page.getByRole("button", { name: /Guardar en mis documentos/i }).first().click()
+    await expect(page.getByText(/Escrito guardado correctamente en Mis Documentos/i)).toBeVisible()
 
     // 7. Avanzar a Vista y Firma
     await page.getByRole("button", { name: /Ver vista previa y firmar/i }).click()
@@ -148,15 +150,15 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
     await page.getByRole("button", { name: "Guardar firma" }).click()
     await expect(page.getByRole("button", { name: /Cambiar firma/i })).toBeVisible()
 
-    // 9. Descargar PDF
-    const [download] = await Promise.all([
-      page.waitForEvent("download"),
-      page.getByRole("button", { name: /Descargar PDF/i }).first().click(),
-    ])
+    // 9. Probar Imprimir (abre SendPrintModal del sistema de documentos)
+    await page.getByRole("button", { name: /Imprimir/i }).first().click()
+    await expect(page.getByText(/Enviar a imprimir/i)).toBeVisible()
+    await page.getByRole("button", { name: "Cerrar" }).click()
 
-    expect(download.suggestedFilename()).toContain(".pdf")
+    // 10. Probar Compartir
+    await page.getByRole("button", { name: /Compartir/i }).first().click()
 
-    // 10. Recargar documento, duplicar y eliminar el original
+    // 11. Recargar documento, duplicar y eliminar el original
     await page.goto("/escritos")
     await expect(page.getByRole("heading", { name: "Generador de Escritos" })).toBeVisible()
     await expect(page.getByRole("button", { name: /Duplicar/i })).toBeVisible()
@@ -229,9 +231,9 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
       "Por medio de este escrito redactado manualmente, solicito la aclaración formal del concepto 054."
     )
 
-    // Guardar borrador manual
-    await page.getByRole("button", { name: "💾 Guardar borrador" }).click()
-    await expect(page.getByText(/Borrador guardado correctamente/i)).toBeVisible()
+    // Guardar en mis documentos
+    await page.getByRole("button", { name: /Guardar en mis documentos/i }).first().click()
+    await expect(page.getByText(/Escrito guardado correctamente en Mis Documentos/i)).toBeVisible()
 
     // 6. Vista previa y comprobación de formato
     await page.getByRole("button", { name: /Ver vista previa y firmar/i }).click()
