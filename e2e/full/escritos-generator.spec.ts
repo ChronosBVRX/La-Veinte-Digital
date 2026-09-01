@@ -127,7 +127,7 @@ test.describe("Generador de Escritos V2 (Flujo Completo)", () => {
     await expect(page.getByText("A T E N T A M E N T E")).toBeVisible()
 
     // 8. Firmar en canvas y reemplazar firma
-    await page.getByRole("button", { name: /✍️ Añadir firma digital/i }).click()
+    await page.getByRole("button", { name: /firma digital/i }).click()
     await expect(page.getByRole("heading", { name: /Firma Digitalizada/i })).toBeVisible()
 
     // Simular trazo en el canvas
@@ -156,7 +156,7 @@ test.describe("Generador de Escritos V2 (Flujo Completo)", () => {
     // 9. Descargar PDF
     const [download] = await Promise.all([
       page.waitForEvent("download"),
-      page.getByRole("button", { name: /Descargar PDF Carta/i }).click(),
+      page.getByRole("button", { name: /Descargar PDF/i }).click(),
     ])
 
     expect(download.suggestedFilename()).toContain(".pdf")
