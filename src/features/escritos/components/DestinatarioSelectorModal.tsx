@@ -76,15 +76,17 @@ export function DestinatarioSelectorModal({
 
   return (
     <Modal open={isOpen} onClose={onClose} title="Seleccionar Destinatario del Escrito">
-      <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxHeight: "75vh" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem", maxHeight: "75vh", width: "100%", maxWidth: "100%", boxSizing: "border-box", overflowX: "hidden" }}>
         {/* Toggle Directorio Oficial vs Destinatario Manual */}
         <div
           style={{
             display: "flex",
-            gap: "0.5rem",
+            gap: "0.375rem",
             background: "var(--accent)",
             padding: "0.25rem",
             borderRadius: "0.5rem",
+            width: "100%",
+            boxSizing: "border-box",
           }}
           role="tablist"
         >
@@ -95,19 +97,20 @@ export function DestinatarioSelectorModal({
             onClick={() => setTabOverride("directorio")}
             style={{
               flex: 1,
-              padding: "0.5rem 0.75rem",
+              padding: "0.5rem 0.375rem",
               borderRadius: "0.375rem",
               border: "none",
               background: activeTab === "directorio" ? "var(--card)" : "transparent",
               color: activeTab === "directorio" ? "var(--primary)" : "var(--muted)",
               fontWeight: activeTab === "directorio" ? 600 : 500,
-              fontSize: "0.875rem",
+              fontSize: "clamp(0.72rem, 2.5vw, 0.8125rem)",
               cursor: "pointer",
               boxShadow: activeTab === "directorio" ? "0 1px 2px rgba(0,0,0,0.05)" : "none",
               transition: "all 0.15s ease",
+              textAlign: "center",
             }}
           >
-            🏛️ Directorio Oficial Seccional
+            🏛️ Directorio Oficial
           </button>
           <button
             type="button"
@@ -116,24 +119,25 @@ export function DestinatarioSelectorModal({
             onClick={() => setTabOverride("manual")}
             style={{
               flex: 1,
-              padding: "0.5rem 0.75rem",
+              padding: "0.5rem 0.375rem",
               borderRadius: "0.375rem",
               border: "none",
               background: activeTab === "manual" ? "var(--card)" : "transparent",
               color: activeTab === "manual" ? "var(--primary)" : "var(--muted)",
               fontWeight: activeTab === "manual" ? 600 : 500,
-              fontSize: "0.875rem",
+              fontSize: "clamp(0.72rem, 2.5vw, 0.8125rem)",
               cursor: "pointer",
               boxShadow: activeTab === "manual" ? "0 1px 2px rgba(0,0,0,0.05)" : "none",
               transition: "all 0.15s ease",
+              textAlign: "center",
             }}
           >
-            ✍️ Destinatario Manual / Externo
+            ✍️ Manual / Externo
           </button>
         </div>
 
         {activeTab === "directorio" ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", overflow: "hidden" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", overflow: "hidden", width: "100%", boxSizing: "border-box" }}>
             {/* Buscador */}
             <Input
               id="buscador-destinatarios"
@@ -142,7 +146,7 @@ export function DestinatarioSelectorModal({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Ej. Simbad, Trabajo, Previsión Social, Escalafón..."
-              style={{ width: "100%" }}
+              style={{ width: "100%", boxSizing: "border-box" }}
               autoFocus
             />
 

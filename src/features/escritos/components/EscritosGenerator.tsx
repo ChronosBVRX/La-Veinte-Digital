@@ -161,6 +161,15 @@ export function EscritosGenerator() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload)
   }, [isDirty])
 
+  // Reseteo de scroll horizontal al cambiar de etapa
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ left: 0 })
+      const scrollEl = document.querySelector(".mobile-app-shell__scroll")
+      if (scrollEl) scrollEl.scrollLeft = 0
+    }
+  }, [stage])
+
   const handleUpdateDraft = useCallback((updated: Partial<EscritoDraftV2>) => {
     setDraft((prev) => ({ ...prev, ...updated }))
   }, [])
@@ -328,7 +337,7 @@ export function EscritosGenerator() {
   }
 
   return (
-    <div style={{ maxWidth: "840px", margin: "0 auto", padding: "1.5rem 1rem" }}>
+    <div style={{ maxWidth: "840px", width: "100%", minWidth: 0, margin: "0 auto", padding: "clamp(0.75rem, 2.5vw, 1.5rem) 0", boxSizing: "border-box", overflowX: "hidden" }}>
       {/* Modal de confirmación de cambios sin guardar */}
       {pendingNavigationAction && (
         <div
@@ -344,16 +353,17 @@ export function EscritosGenerator() {
             justifyContent: "center",
             zIndex: 9999,
             padding: "1rem",
+            boxSizing: "border-box",
           }}
         >
-          <Card padding="1.5rem" style={{ maxWidth: "420px", width: "100%", background: "var(--card)" }}>
+          <Card padding="1.5rem" style={{ maxWidth: "420px", width: "100%", minWidth: 0, background: "var(--card)", boxSizing: "border-box" }}>
             <h3 style={{ margin: "0 0 0.5rem", fontSize: "1.125rem", fontWeight: 700, color: "var(--fg)" }}>
               ⚠️ Cambios sin guardar
             </h3>
             <p style={{ margin: "0 0 1.25rem", fontSize: "0.875rem", color: "var(--muted)" }}>
               Tienes cambios en el borrador actual que no han sido guardados. ¿Deseas descartarlos y continuar?
             </p>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: "0.5rem", width: "100%", boxSizing: "border-box" }}>
               <Button
                 variant="secondary"
                 size="sm"
@@ -383,7 +393,8 @@ export function EscritosGenerator() {
           style={{
             position: "fixed",
             bottom: "5rem",
-            right: "1.5rem",
+            right: "1rem",
+            maxWidth: "calc(100% - 2rem)",
             background: "#0f172a",
             color: "#ffffff",
             padding: "0.75rem 1.25rem",
@@ -391,6 +402,7 @@ export function EscritosGenerator() {
             fontSize: "0.875rem",
             boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.2)",
             zIndex: 9999,
+            boxSizing: "border-box",
           }}
         >
           {saveToast}
@@ -398,13 +410,13 @@ export function EscritosGenerator() {
       )}
 
       {/* Encabezado y Navegador de Etapas */}
-      <div style={{ marginBottom: "1.5rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem", marginBottom: "1rem" }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 800, color: "var(--fg)" }}>
+      <div style={{ marginBottom: "1.5rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem", marginBottom: "1rem", width: "100%", boxSizing: "border-box" }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h1 style={{ margin: 0, fontSize: "clamp(1.25rem, 4vw, 1.5rem)", fontWeight: 800, color: "var(--fg)", overflowWrap: "break-word" }}>
               Generador de Escritos
             </h1>
-            <p style={{ margin: "0.25rem 0 0", fontSize: "0.875rem", color: "var(--muted)" }}>
+            <p style={{ margin: "0.25rem 0 0", fontSize: "clamp(0.75rem, 2.5vw, 0.875rem)", color: "var(--muted)" }}>
               Redacta oficios laborales y solicitudes sindicales con estructura formal y fundamentación verificada.
             </p>
           </div>
@@ -414,20 +426,27 @@ export function EscritosGenerator() {
           </Button>
         </div>
 
-        {/* Indicador de 3 Etapas */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", background: "var(--card)", padding: "0.375rem", borderRadius: "0.75rem", border: "1px solid var(--border)" }}>
+        {/* Indicador de 3 Etapas responsivo con minmax(0, 1fr) */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "0.25rem", background: "var(--card)", padding: "0.25rem", borderRadius: "0.75rem", border: "1px solid var(--border)", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
           <button
             type="button"
             onClick={() => setStage("form")}
             style={{
-              padding: "0.5rem",
+              padding: "0.5rem 0.25rem",
               borderRadius: "0.5rem",
               border: "none",
               background: stage === "form" ? "var(--primary)" : "transparent",
               color: stage === "form" ? "var(--primary-fg)" : "var(--muted)",
-              fontSize: "0.8125rem",
+              fontSize: "clamp(0.7rem, 2.3vw, 0.8125rem)",
               fontWeight: 600,
               cursor: "pointer",
+              textAlign: "center",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              width: "100%",
+              minWidth: 0,
+              boxSizing: "border-box",
             }}
           >
             1. Formulario
@@ -436,14 +455,21 @@ export function EscritosGenerator() {
             type="button"
             onClick={() => setStage("editor")}
             style={{
-              padding: "0.5rem",
+              padding: "0.5rem 0.25rem",
               borderRadius: "0.5rem",
               border: "none",
               background: stage === "editor" ? "var(--primary)" : "transparent",
               color: stage === "editor" ? "var(--primary-fg)" : "var(--muted)",
-              fontSize: "0.8125rem",
+              fontSize: "clamp(0.7rem, 2.3vw, 0.8125rem)",
               fontWeight: 600,
               cursor: "pointer",
+              textAlign: "center",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              width: "100%",
+              minWidth: 0,
+              boxSizing: "border-box",
             }}
           >
             2. Editor
@@ -452,14 +478,21 @@ export function EscritosGenerator() {
             type="button"
             onClick={() => setStage("preview")}
             style={{
-              padding: "0.5rem",
+              padding: "0.5rem 0.25rem",
               borderRadius: "0.5rem",
               border: "none",
               background: stage === "preview" ? "var(--primary)" : "transparent",
               color: stage === "preview" ? "var(--primary-fg)" : "var(--muted)",
-              fontSize: "0.8125rem",
+              fontSize: "clamp(0.7rem, 2.3vw, 0.8125rem)",
               fontWeight: 600,
               cursor: "pointer",
+              textAlign: "center",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              width: "100%",
+              minWidth: 0,
+              boxSizing: "border-box",
             }}
           >
             3. Vista y Firma
@@ -511,18 +544,18 @@ export function EscritosGenerator() {
           </h2>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             {savedList.map((item) => (
-              <Card key={item.id} padding="1rem" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
-                <div>
-                  <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)" }}>
+              <Card key={item.id} padding="0.875rem" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem", width: "100%", boxSizing: "border-box" }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", overflowWrap: "break-word", wordBreak: "break-word" }}>
                     {item.titulo}
                   </div>
-                  <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+                  <div style={{ fontSize: "0.8125rem", color: "var(--muted)", marginTop: "0.25rem", overflowWrap: "break-word" }}>
                     {item.destino.nombre ? `Para: ${item.destino.nombre} • ` : ""}
                     {item.fecha} {item.anexos.length > 0 ? `• 📷 ${item.anexos.length} fotos` : ""}
                   </div>
                 </div>
 
-                <div style={{ display: "flex", gap: "0.5rem" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
                   <Button variant="ghost" size="sm" onClick={() => handleOpenDraft(item, "editor")}>
                     ✏ Editar
                   </Button>

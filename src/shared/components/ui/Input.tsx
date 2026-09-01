@@ -19,7 +19,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   const leftIcon = leadingIcon ?? icon
 
   return (
-    <div>
+    <div style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
       <style>{`@media (pointer: coarse) { .input-mobile-font { font-size: 16px !important; } }`}</style>
       {label && (
         <label
@@ -29,7 +29,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           {label}
         </label>
       )}
-      <div style={{ position: "relative" }}>
+      <div style={{ position: "relative", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
         {leftIcon && (
           <span
             aria-hidden="true"
@@ -53,6 +53,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           className="input-mobile-font"
           style={{
             width: "100%",
+            maxWidth: "100%",
+            minWidth: 0,
+            boxSizing: "border-box",
             minHeight: "var(--control-md)",
             padding: leftIcon ? "0.5rem 0.75rem 0.5rem 2.25rem" : "0.5rem 0.75rem",
             border: `1px solid ${invalid ? "var(--error)" : "var(--border)"}`,
@@ -103,7 +106,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
   const textareaId = id ?? autoId
 
   return (
-    <div>
+    <div style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
       <style>{`@media (pointer: coarse) { .textarea-mobile-font { font-size: 16px !important; } }`}</style>
       {label && (
         <label
@@ -119,6 +122,9 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
         className="textarea-mobile-font"
         style={{
           width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          boxSizing: "border-box",
           minHeight: "100px",
           padding: "0.5rem 0.75rem",
           border: `1px solid ${invalid ? "var(--error)" : "var(--border)"}`,
@@ -156,7 +162,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   const selectId = id ?? autoId
 
   return (
-    <div>
+    <div style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
       <style>{`@media (pointer: coarse) { .select-mobile-font { font-size: 16px !important; } }`}</style>
       {label && (
         <label
@@ -166,13 +172,16 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
           {label}
         </label>
       )}
-      <div style={{ position: "relative" }}>
+      <div style={{ position: "relative", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
         <select
           ref={ref}
           id={selectId}
           className="select-mobile-font"
           style={{
             width: "100%",
+            maxWidth: "100%",
+            minWidth: 0,
+            boxSizing: "border-box",
             minHeight: "var(--control-md)",
             padding: "0.5rem 2.25rem 0.5rem 0.75rem",
             border: `1px solid ${invalid ? "var(--error)" : "var(--border)"}`,

@@ -54,14 +54,15 @@ export function EscritosProposalModal({
         alignItems: "center",
         justifyContent: "center",
         zIndex: 9999,
-        padding: "1rem",
+        padding: "0.75rem",
+        boxSizing: "border-box",
       }}
     >
       <div
         style={{
           background: "var(--card)",
           borderRadius: "1rem",
-          padding: "1.5rem",
+          padding: "clamp(1rem, 3vw, 1.5rem)",
           maxWidth: "720px",
           width: "100%",
           maxHeight: "90vh",
@@ -69,6 +70,7 @@ export function EscritosProposalModal({
           flexDirection: "column",
           boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
           border: "1px solid var(--border)",
+          boxSizing: "border-box",
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
@@ -99,24 +101,24 @@ export function EscritosProposalModal({
         </div>
 
         {/* Comparación visual */}
-        <div style={{ flex: 1, overflowY: "auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem", marginBottom: "1.25rem" }}>
-          <div>
+        <div style={{ flex: 1, overflowY: "auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))", gap: "0.75rem", marginBottom: "1.25rem", width: "100%", boxSizing: "border-box" }}>
+          <div style={{ minWidth: 0, width: "100%", boxSizing: "border-box" }}>
             <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.5rem" }}>
               Texto actual:
             </div>
-            <Card padding="1rem" style={{ background: "var(--accent)", maxHeight: "300px", overflowY: "auto" }}>
-              <div style={{ whiteSpace: "pre-wrap", fontSize: "0.875rem", color: "var(--muted)", lineHeight: 1.6 }}>
+            <Card padding="0.875rem" style={{ background: "var(--accent)", maxHeight: "250px", overflowY: "auto", width: "100%", boxSizing: "border-box" }}>
+              <div style={{ whiteSpace: "pre-wrap", fontSize: "0.875rem", color: "var(--muted)", lineHeight: 1.6, overflowWrap: "break-word" }}>
                 {originalText}
               </div>
             </Card>
           </div>
 
-          <div>
+          <div style={{ minWidth: 0, width: "100%", boxSizing: "border-box" }}>
             <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--primary)", marginBottom: "0.5rem" }}>
               ✨ Propuesta sugerida:
             </div>
-            <Card padding="1rem" style={{ border: "1.5px solid var(--primary)", maxHeight: "300px", overflowY: "auto" }}>
-              <div style={{ whiteSpace: "pre-wrap", fontSize: "0.875rem", color: "var(--fg)", lineHeight: 1.6 }}>
+            <Card padding="0.875rem" style={{ border: "1.5px solid var(--primary)", maxHeight: "250px", overflowY: "auto", width: "100%", boxSizing: "border-box" }}>
+              <div style={{ whiteSpace: "pre-wrap", fontSize: "0.875rem", color: "var(--fg)", lineHeight: 1.6, overflowWrap: "break-word" }}>
                 {proposedText}
               </div>
             </Card>
@@ -124,7 +126,7 @@ export function EscritosProposalModal({
         </div>
 
         {/* Acciones */}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: "0.5rem" }}>
           <Button variant="secondary" onClick={onDiscard}>
             Descartar cambios
           </Button>
