@@ -58,6 +58,7 @@ object LaVeinteBridgeInjector {
     isBiometricsEnabled: function() { return false; },
     openExternal: function(url) { window.location.href = 'laveinte://bridge/openExternal?url=' + encodeURIComponent(url); },
     openOfficialPayslips: function() { window.location.href = 'laveinte://bridge/openOfficialPayslips'; },
+    openBiometrics: function() { window.location.href = 'laveinte://bridge/openBiometrics'; },
     checkForUpdate: function() { window.location.href = 'laveinte://bridge/checkForUpdate'; },
     hasImssCredentials: function(portalId) {
       window.location.href = 'laveinte://bridge/hasImssCredentials?portalId=' + portalId;
@@ -136,6 +137,7 @@ fun handleBridgeUrl(url: String, webView: WebView?): Boolean {
     val path = uri.path ?: return false
     when (path) {
         "/openOfficialPayslips" -> BridgeHandler.onOpenOfficialPayslips?.invoke()
+        "/openBiometrics" -> BridgeHandler.onOpenBiometrics?.invoke()
         "/checkForUpdate" -> BridgeHandler.onCheckForUpdate?.invoke()
         "/onAuthenticated" -> BridgeHandler.onAuthenticated?.invoke()
         "/onLoggedOut" -> BridgeHandler.onLoggedOut?.invoke()
@@ -185,6 +187,7 @@ fun handleBridgeUrl(url: String, webView: WebView?): Boolean {
  */
 object BridgeHandler {
     var onOpenOfficialPayslips: (() -> Unit)? = null
+    var onOpenBiometrics: (() -> Unit)? = null
     var onCheckForUpdate: (() -> Unit)? = null
     var onAuthenticated: (() -> Unit)? = null
     var onLoggedOut: (() -> Unit)? = null

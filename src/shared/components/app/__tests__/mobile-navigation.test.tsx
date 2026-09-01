@@ -93,11 +93,24 @@ describe("OnboardingCard — Punto 1", () => {
 })
 
 describe("HomeQuickActions — Punto 2", () => {
-  it("muestra el encabezado '¿Qué necesitas hoy?' y los 4 accesos", () => {
+  it("muestra el encabezado '¿Qué necesitas hoy?' y los 6 accesos principales", () => {
     render(<HomeQuickActions />)
     expect(screen.getByText("¿Qué necesitas hoy?")).toBeTruthy()
-    for (const label of ["Calculadoras", "Pregunta sobre tus derechos", "Registrar incidencia", "Transferir documentos"]) {
+    for (const label of ["Mi agenda", "Mi tarjetón", "Mis checadas", "Mis documentos", "Hacer un escrito", "Mis derechos"]) {
       expect(screen.getByText(label)).toBeTruthy()
     }
+  })
+
+  it("no muestra Calculadoras ni Transferir documentos como accesos principales", () => {
+    render(<HomeQuickActions />)
+    expect(screen.queryByText("Calculadoras")).toBeNull()
+    expect(screen.queryByText("Transferir documentos")).toBeNull()
+  })
+
+  it("renderiza grid 2 columnas con 6 tarjetas sin overflow horizontal", () => {
+    const { container } = render(<HomeQuickActions />)
+    const grid = container.querySelector("div[style*='grid-template-columns']") as HTMLElement | null
+    expect(grid).toBeTruthy()
+    expect(grid?.style.gridTemplateColumns).toContain("repeat(2")
   })
 })

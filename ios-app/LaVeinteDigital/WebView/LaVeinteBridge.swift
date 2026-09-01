@@ -31,6 +31,7 @@ enum LaVeinteBridge {
             isBiometricsEnabled: function() { return false; },
             openExternal: function(url) { post({ path: 'openExternal', url: url }); },
             openOfficialPayslips: function() { post({ path: 'openOfficialPayslips' }); },
+            openBiometrics: function() { post({ path: 'openBiometrics' }); },
             checkForUpdate: function() { post({ path: 'checkForUpdate' }); },
             hasImssCredentials: function(portalId) { post({ path: 'hasImssCredentials', portalId: portalId }); return false; },
             onAuthenticated: function() { post({ path: 'onAuthenticated' }); },
@@ -54,6 +55,7 @@ final class BridgeHandler {
 
     var onOpenExternal: ((String) -> Void)?
     var onOpenOfficialPayslips: (() -> Void)?
+    var onOpenBiometrics: (() -> Void)?
     var onCheckForUpdate: (() -> Void)?
     var onAuthenticated: (() -> Void)?
     var onLoggedOut: (() -> Void)?
@@ -71,6 +73,8 @@ final class BridgeHandler {
             onOpenExternal?(message["url"] as? String ?? "")
         case "openOfficialPayslips":
             onOpenOfficialPayslips?()
+        case "openBiometrics":
+            onOpenBiometrics?()
         case "checkForUpdate":
             onCheckForUpdate?()
         case "onAuthenticated":

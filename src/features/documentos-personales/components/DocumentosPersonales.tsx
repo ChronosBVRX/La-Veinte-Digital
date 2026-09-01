@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { FileText, FolderOpen, Printer, Clock, Trash, PencilLine, DotsThree, UploadSimple } from "@phosphor-icons/react"
 import { getEscritosGuardados, eliminarEscrito } from "@/features/escritos/services/escritos-storage"
@@ -28,8 +29,13 @@ const TIPO_COLOR: Record<DocTipo, string> = {
 
 export function DocumentosPersonales() {
   const supabase = createClient()
+  const [userId, setUserId] = useState<string | undefined>(undefined)
   const [nativos, setNativos] = useState<DocumentoPersonalItem[]>([])
-  const [escritos, setEscritos] = useState<DocumentoPersonalItem[]>([])
+  const [escritos, setEscritos] = useState<DocumentoPersonalItem[]>(() =>
+    getEscritosGuardados().map((e) => ({
+      kind: "escrito", tipo: "escrito", id: e.id, titulo: e.titulo, fecha: e.fecha, escrito: e,
+    }))
+  )
   const [cargando, setCargando] = useState(true)
   const [profile, setProfile] = useState<TarjetonProfileSnapshot | null>(null)
   const [sendDoc, setSendDoc] = useState<{ doc: DocumentoPersonalItem; getFile: () => Promise<File | null> } | null>(null)
@@ -64,28 +70,30 @@ export function DocumentosPersonales() {
   }, [isNative])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- hidratación local desde localStorage (solo cliente)
-    setEscritos(getEscritosGuardados().map((e) => ({
-      kind: "escrito", tipo: "escrito", id: e.id, titulo: e.titulo, fecha: e.fecha, escrito: e,
-    })))
+    supabase.auth.getUser().then(async (res) => {
+      const user = res?.data?.user
+      const activeId = user?.id
+      if (activeId) {
+        setUserId(activeId)
+      }
+      setEscritos(getEscritosGuardados(activeId).map((e) => ({
+        kind: "escrito", tipo: "escrito", id: e.id, titulo: e.titulo, fecha: e.fecha, escrito: e,
+      })))
+      if (user) {
+        const { data: p } = await supabase
+          .from("profiles")
+          .select("full_name, matricula, categoria, antiguedad")
+          .eq("id", user.id)
+          .maybeSingle()
+        setProfile({
+          fullName: p?.full_name ?? null,
+          matricula: p?.matricula ?? null,
+          categoria: p?.categoria ?? null,
+          antiguedad: p?.antiguedad ?? null,
+        })
+      }
+    }).catch(() => {})
   }, [])
-
-  useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return
-      const { data: p } = await supabase
-        .from("profiles")
-        .select("full_name, matricula, categoria, antiguedad")
-        .eq("id", user.id)
-        .maybeSingle()
-      setProfile({
-        fullName: p?.full_name ?? null,
-        matricula: p?.matricula ?? null,
-        categoria: p?.categoria ?? null,
-        antiguedad: p?.antiguedad ?? null,
-      })
-    })
-  }, [supabase])
 
   const items = useMemo(() => {
     const todos = [...nativos, ...escritos]
@@ -122,8 +130,8 @@ export function DocumentosPersonales() {
     setBorrandoId(doc.id)
     try {
       if (doc.kind === "escrito") {
-        eliminarEscrito(doc.id)
-        setEscritos(getEscritosGuardados().map((e) => ({
+        eliminarEscrito(doc.id, userId)
+        setEscritos(getEscritosGuardados(userId).map((e) => ({
           kind: "escrito", tipo: "escrito", id: e.id, titulo: e.titulo, fecha: e.fecha, escrito: e,
         })))
       } else {
@@ -305,6 +313,23 @@ export function DocumentosPersonales() {
                                 </div>
                               )}
                             </div>
+                          )}
+
+                          {doc.tipo === "escrito" && (
+                            <Link
+                              href={`/escritos?id=${doc.id}`}
+                              title="Editar escrito"
+                              aria-label="Editar escrito"
+                              style={{
+                                ...iconBtn,
+                                background: "var(--accent)",
+                                color: "var(--primary)",
+                                border: "1px solid var(--border)",
+                                textDecoration: "none",
+                              }}
+                            >
+                              <PencilLine size={18} weight="bold" />
+                            </Link>
                           )}
 
                           <button
