@@ -110,6 +110,7 @@ export type GenerationMode =
   | "ai_with_sources"
   | "ai_without_sources"
   | "basic_fallback"
+  | "manual"
 
 export interface EscritoDraftV2 {
   schemaVersion: 2

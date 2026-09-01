@@ -21,11 +21,12 @@ describe("Flujo UI del Generador de Escritos", () => {
         draft={draft}
         onUpdateDraft={onUpdateDraft}
         onGenerate={onGenerate}
+        onManualEdit={vi.fn()}
         isGenerating={false}
       />
     )
 
-    const submitBtn = screen.getByRole("button", { name: /Redactar borrador con IA/i })
+    const submitBtn = screen.getByRole("button", { name: /Ayúdame a redactarlo con IA/i })
     fireEvent.click(submitBtn)
 
     expect(onGenerate).not.toHaveBeenCalled()
@@ -45,6 +46,7 @@ describe("Flujo UI del Generador de Escritos", () => {
         draft={draft}
         onUpdateDraft={onUpdateDraft}
         onGenerate={onGenerate}
+        onManualEdit={vi.fn()}
         isGenerating={false}
       />
     )
@@ -88,9 +90,9 @@ describe("Flujo UI del Generador de Escritos", () => {
       />
     )
 
-    // Verifica advertencia visible
+    // Verifica indicador visible
     expect(
-      screen.getByText(/Borrador generado sin fuentes normativas verificadas/i)
+      screen.getByText(/Redactado con IA/i)
     ).toBeDefined()
 
     // Botón avanzar

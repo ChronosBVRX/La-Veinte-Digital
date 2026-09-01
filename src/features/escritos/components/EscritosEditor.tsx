@@ -7,6 +7,7 @@ import type { EscritoDraftV2 } from "@/shared/contracts/escrito-draft"
 import { useEscritoEditorHistory } from "../hooks/useEscritoEditorHistory"
 import { EscritosProposalModal } from "./EscritosProposalModal"
 import { generarEscrito } from "../services/generarEscrito"
+import { DestinatarioResumen } from "./DestinatarioResumen"
 
 export interface EscritosEditorProps {
   draft: EscritoDraftV2
@@ -112,24 +113,59 @@ export function EscritosEditor({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-      {/* Banner de advertencias o estado de fuentes */}
-      {draft.generationMode === "ai_with_sources" && draft.fuentes.length > 0 && (
-        <div style={{ background: "#ecfdf5", border: "1px solid #a7f3d0", borderRadius: "0.75rem", padding: "0.75rem 1rem", fontSize: "0.8125rem", color: "#065f46" }}>
-          ✅ <strong>Borrador fundamentado en normas verificadas:</strong> Se consultaron {draft.fuentes.length} referencias del CCT/Leyes aplicables.
-        </div>
-      )}
+      {/* Visor Compacto del Destinatario */}
+      <DestinatarioResumen
+        destino={draft.destino}
+        onChangeRequest={onBackToForm}
+      />
 
-      {draft.generationMode === "ai_without_sources" && (
-        <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "0.75rem", padding: "0.75rem 1rem", fontSize: "0.8125rem", color: "#92400e" }}>
-          ⚠️ <strong>Borrador generado sin fuentes normativas verificadas:</strong> Revisa el texto y añade cláusulas específicas si lo requieres.
+      {/* Indicador discreto de modo de redacción */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.375rem",
+            padding: "0.25rem 0.625rem",
+            borderRadius: "0.375rem",
+            fontSize: "0.75rem",
+            fontWeight: 600,
+            background:
+              draft.generationMode === "ai_with_sources"
+                ? "#ecfdf5"
+                : draft.generationMode === "ai_without_sources"
+                ? "#eff6ff"
+                : "var(--accent)",
+            color:
+              draft.generationMode === "ai_with_sources"
+                ? "#065f46"
+                : draft.generationMode === "ai_without_sources"
+                ? "#1d4ed8"
+                : "var(--muted)",
+            border: `1px solid ${
+              draft.generationMode === "ai_with_sources"
+                ? "#a7f3d0"
+                : draft.generationMode === "ai_without_sources"
+                ? "#bfdbfe"
+                : "var(--border)"
+            }`,
+          }}
+        >
+          {draft.generationMode === "ai_with_sources" ? (
+            <>🛡️ Redactado con IA y fuentes verificadas</>
+          ) : draft.generationMode === "ai_without_sources" ? (
+            <>✨ Redactado con IA</>
+          ) : (
+            <>✏️ Modo manual</>
+          )}
         </div>
-      )}
 
-      {draft.generationMode === "basic_fallback" && (
-        <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "0.75rem", padding: "0.75rem 1rem", fontSize: "0.8125rem", color: "#1e40af" }}>
-          ⚙️ <strong>Generador básico utilizado:</strong> Redacción determinista estructurada sin intervención de LLM remoto.
-        </div>
-      )}
+        {draft.generationMode === "ai_with_sources" && draft.fuentes.length > 0 && (
+          <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+            {draft.fuentes.length} {draft.fuentes.length === 1 ? "norma citada" : "normas citadas"}
+          </span>
+        )}
+      </div>
 
       {/* Cabecera del Editor con Undo/Redo y Estadísticas */}
       <Card padding="1rem" style={{ background: "var(--card)" }}>

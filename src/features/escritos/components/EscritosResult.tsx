@@ -11,6 +11,7 @@ import {
 } from "@/shared/lib/escrito-pdf-renderer"
 import { SignaturePadModal } from "./SignaturePadModal"
 import { deleteBlobResource } from "../services/escritos-indexeddb"
+import { DestinatarioResumen } from "./DestinatarioResumen"
 
 export interface EscritosResultProps {
   userId: string
@@ -357,19 +358,16 @@ export function EscritosResult({
         /* Renderizado Vista Lectura Móvil */
         <Card padding="1.5rem">
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "1px solid var(--border)", paddingBottom: "0.75rem" }}>
-              <div>
-                <div style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--fg)" }}>
-                  {draft.titulo}
-                </div>
-                <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-                  Para: {draft.destino.nombre || draft.destino.cargo || "Destinatario"}
-                </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border)", paddingBottom: "0.75rem" }}>
+              <div style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--fg)" }}>
+                {draft.titulo}
               </div>
               <span style={{ fontSize: "0.75rem", background: "var(--accent)", padding: "0.25rem 0.5rem", borderRadius: "0.375rem", color: "var(--muted)" }}>
                 {draft.fecha}
               </span>
             </div>
+
+            <DestinatarioResumen destino={draft.destino} readOnly />
 
             {draft.asunto && (
               <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--primary)" }}>

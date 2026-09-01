@@ -165,8 +165,11 @@ export function EscritosGenerator() {
     setDraft((prev) => ({ ...prev, ...updated }))
   }, [])
 
+  const [generationError, setGenerationError] = useState<string | null>(null)
+
   const handleGenerate = async () => {
     setIsGenerating(true)
+    setGenerationError(null)
     try {
       const response = await generarEscrito({
         tipo: draft.tipo,
@@ -181,6 +184,13 @@ export function EscritosGenerator() {
         incluirFundamentos: draft.incluirFundamentos,
       })
 
+      if (response.generationMode === "basic_fallback") {
+        setGenerationError(
+          response.advertencias?.[0] || "La redacción inteligente no está disponible en este momento."
+        )
+        return
+      }
+
       const updatedDraft: EscritoDraftV2 = {
         ...draft,
         cuerpo: response.cuerpo,
@@ -194,10 +204,32 @@ export function EscritosGenerator() {
     } catch (err: unknown) {
       console.error("Error al generar escrito:", err)
       const msg = err instanceof Error ? err.message : "Error inesperado al redactar el borrador."
-      alert(msg)
+      setGenerationError(msg)
     } finally {
       setIsGenerating(false)
     }
+  }
+
+  const handleManualEdit = () => {
+    setGenerationError(null)
+    let cuerpo = draft.cuerpo?.trim() || ""
+    if (!cuerpo) {
+      if (draft.hechos.trim() || draft.peticion.trim()) {
+        const parts: string[] = []
+        if (draft.hechos.trim()) parts.push(draft.hechos.trim())
+        if (draft.peticion.trim()) parts.push(draft.peticion.trim())
+        cuerpo = parts.join("\n\n")
+      }
+    }
+
+    const updatedDraft: EscritoDraftV2 = {
+      ...draft,
+      cuerpo,
+      generationMode: "manual",
+    }
+
+    setDraft(updatedDraft)
+    setStage("editor")
   }
 
   const handleSaveDraft = useCallback(() => {
@@ -442,7 +474,10 @@ export function EscritosGenerator() {
           draft={draft}
           onUpdateDraft={handleUpdateDraft}
           onGenerate={handleGenerate}
+          onManualEdit={handleManualEdit}
           isGenerating={isGenerating}
+          generationError={generationError}
+          onRetryAI={handleGenerate}
           workerProfile={workerProfile}
         />
       )}
