@@ -202,7 +202,7 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
     await page.getByRole("button", { name: "Aplicar destinatario" }).click()
 
     // Comprobar visor compacto
-    await expect(page.getByText("Dr. Roberto Gómez")).toBeVisible()
+    await expect(page.getByText("Dr. Roberto Gómez").first()).toBeVisible()
     await expect(page.getByText("Destinatario manual", { exact: true })).toBeVisible()
 
     // 3. Escribir hechos y petición iniciales
@@ -218,7 +218,7 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
     // 5. Verificar etapa de editor en Modo Manual
     await expect(page.getByRole("heading", { name: /Revisa y personaliza tu escrito/i })).toBeVisible()
     await expect(page.getByText(/Modo manual/i)).toBeVisible()
-    await expect(page.getByText("Dr. Roberto Gómez")).toBeVisible()
+    await expect(page.getByText("Dr. Roberto Gómez").first()).toBeVisible()
 
     const textarea = page.locator("textarea")
     await expect(textarea).toBeVisible()
@@ -236,6 +236,6 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
     // 6. Vista previa y comprobación de formato
     await page.getByRole("button", { name: /Ver vista previa y firmar/i }).click()
     await expect(page.getByText(/solicito la aclaración formal del concepto 054/i)).toBeVisible()
-    await expect(page.getByText("Dr. Roberto Gómez")).toBeVisible()
+    await expect(page.getByText("Dr. Roberto Gómez").first()).toBeVisible()
   })
 })
