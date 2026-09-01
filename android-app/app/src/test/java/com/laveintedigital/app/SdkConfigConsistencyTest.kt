@@ -23,6 +23,6 @@ class SdkConfigConsistencyTest {
         assertTrue("compileSdk must be 36", content.contains("compileSdk = 36"))
         assertTrue("minSdk must be 29", content.contains("minSdk = 29"))
         assertTrue("targetSdk must be 36", content.contains("targetSdk = 36"))
-        assertTrue("versionCode must be 198", content.contains("versionCode = 198"))
+        assertTrue("versionCode must be 199", content.contains("versionCode = 199"))
     }
 }

@@ -86,6 +86,7 @@ fun InternalWebScreen(
     onExternalNavigation: (NavigationTarget) -> Unit,
     onCustomTab: (String) -> Unit,
     onOpenOfficialPayslips: () -> Unit = {},
+    onOpenBiometrics: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var webView by remember { mutableStateOf<WebView?>(null) }
@@ -163,6 +164,7 @@ fun InternalWebScreen(
 
     DisposableEffect(Unit) {
         BridgeHandler.onOpenOfficialPayslips = { onOpenOfficialPayslips() }
+        BridgeHandler.onOpenBiometrics = { onOpenBiometrics() }
         BridgeHandler.onCheckForUpdate = { UpdateTrigger.request() }
         BridgeHandler.onRequestNotificationsPermission = {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -224,6 +226,7 @@ fun InternalWebScreen(
         }
         onDispose {
             BridgeHandler.onOpenOfficialPayslips = null
+            BridgeHandler.onOpenBiometrics = null
             BridgeHandler.onCheckForUpdate = null
             BridgeHandler.onAuthenticated = null
             BridgeHandler.onLoggedOut = null

@@ -55,7 +55,8 @@ fun AppNavHost(
                     }
                 },
                 onCustomTab = onCustomTab,
-                onOpenOfficialPayslips = { navController.navigate(NavRoute.OfficialPayslips.route) },
+                onOpenOfficialPayslips = { navController.navigate(NavRoute.ImssPortal.create(ImssPortal.TU_PERFIL.id, false)) },
+                onOpenBiometrics = { navController.navigate(NavRoute.TuPerfilBiometrics.route) },
             )
         }
 
