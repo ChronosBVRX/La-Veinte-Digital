@@ -393,8 +393,6 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
   const [checadaHasData, setChecadaHasData] = useState(false)
 
   const [hasImssCreds, setHasImssCreds] = useState<boolean | null>(null)
-  const [imssDialog, setImssDialog] = useState<null | "tarjeton" | "checadas">(null)
-  const [webChecadasDialog, setWebChecadasDialog] = useState(false)
 
   // Detectar credenciales IMSS de forma sincrónica cuando bridge esté listo
   useEffect(() => {
@@ -562,25 +560,11 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
     }
   }, [isNative])
 
-  const handleConfigure = useCallback(() => {
-    const variant = imssDialog
-    setImssDialog(null)
-    if (isNative && typeof window !== "undefined") {
-      if (variant === "checadas" && window.LaVeinteApp?.openBiometrics) {
-        window.LaVeinteApp.openBiometrics()
-        return
-      }
-      if (window.LaVeinteApp?.openOfficialPayslips) {
-        window.LaVeinteApp.openOfficialPayslips()
-        return
-      }
-    }
-    router.push("/profile/mi-informacion-laboral")
-  }, [isNative, imssDialog, router])
 
   const handleTarjetonClick = useCallback(() => {
     if (isNative && hasImssCreds === false) {
-      setImssDialog("tarjeton")
+      // Navigate directly to config — no modal
+      router.push("/profile/mi-informacion-laboral")
       return
     }
     if (isNative && typeof window !== "undefined" && window.LaVeinteApp?.openOfficialPayslips) {
@@ -592,11 +576,13 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
 
   const handleChecadasClick = useCallback(() => {
     if (!isNative) {
-      setWebChecadasDialog(true)
+      // Web: go directly to documentos
+      router.push("/documentos-personales")
       return
     }
     if (hasImssCreds === false) {
-      setImssDialog("checadas")
+      // Navigate directly to config — no modal
+      router.push("/profile/mi-informacion-laboral")
       return
     }
     if (typeof window !== "undefined" && window.LaVeinteApp?.openBiometrics) {
@@ -621,153 +607,118 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
         ? "1 compromiso hoy"
         : `${agendaCount} compromisos hoy`
 
-  const tarjetonDesc = "Consulta tus recibos de pago"
+  const needsImss = hasImssCreds === false
+  const tarjetonDesc =
+    needsImss && isNative
+      ? "Configura Tu Perfil IMSS para consultar recibos"
+      : "Consulta tus recibos de pago"
   const tarjetonStatusDisplay =
-    tarjetonHasData && tarjetonStatus
-      ? tarjetonStatus
-      : hasImssCreds === false && isNative
-        ? "Requiere Tu Perfil IMSS"
-        : !isNative
-          ? null
-          : tarjetonStatus ?? (hasImssCreds === false ? "Requiere Tu Perfil IMSS" : null)
+    tarjetonHasData && tarjetonStatus ? tarjetonStatus : null
 
-  const checadaDesc = "Consulta tus registros biométricos"
+  const checadaDesc =
+    needsImss
+      ? "Configura Tu Perfil IMSS para ver registros"
+      : "Consulta tus registros biométricos"
   const checadaStatusDisplay =
-    checadaHasData && checadaStatus
-      ? checadaStatus
-      : hasImssCreds === false && isNative
-        ? "Requiere Tu Perfil IMSS"
-        : !isNative && !checadaHasData
-          ? "Requiere Tu Perfil IMSS"
-          : checadaStatus ?? (hasImssCreds === false ? "Requiere Tu Perfil IMSS" : null)
+    checadaHasData && checadaStatus ? checadaStatus : null
 
   const docDesc = "Consulta tus archivos guardados"
   // No hay fuente única fiable para el total (tarjetones + checadas + escritos + PDFs/IDs digitalizados).
   // Para no mostrar un número incompleto, la tarjeta usa solo la descripción.
   const docStatusDisplay: string | null = null
 
-  // Cerrar modales con Esc
-  useEffect(() => {
-    if (!imssDialog && !webChecadasDialog) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setImssDialog(null)
-        setWebChecadasDialog(false)
-      }
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [imssDialog, webChecadasDialog])
-
   return (
-    <>
-      <section style={{ marginBottom: "var(--space-6)" }}>
-        <h2
-          style={{
-            margin: "0 0 0.625rem",
-            fontSize: "var(--text-md)",
-            fontWeight: 600,
-            color: "var(--fg)",
-            letterSpacing: "-0.01em",
-          }}
-        >
-          {heading}
-        </h2>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: "0.625rem",
-          }}
-        >
-          <QuickCard
-            icon={CalendarDots}
-            title="Mi agenda"
-            description={agendaDesc}
-            status={agendaStatus}
-            statusTone={agendaCount !== null && agendaCount > 0 ? "success" : "muted"}
-            href="/bitacora"
-            color="var(--area-work)"
-            ariaLabel="Mi agenda: registra compromisos y recordatorios"
-          />
-          <QuickCard
-            icon={Article}
-            title="Mi tarjetón"
-            description={tarjetonDesc}
-            status={tarjetonStatusDisplay}
-            statusTone={tarjetonHasData ? "success" : "muted"}
-            href="/profile/mi-informacion-laboral"
-            color="var(--area-tools)"
-            ariaLabel="Mi tarjetón: consulta tus recibos de pago"
-            onClick={handleTarjetonClick}
-          />
-          <QuickCard
-            icon={Clock}
-            title="Mis checadas"
-            description={checadaDesc}
-            status={checadaStatusDisplay}
-            statusTone={checadaHasData ? "success" : "muted"}
-            href="/documentos-personales"
-            color="#0e7490"
-            ariaLabel="Mis checadas: consulta tus registros biométricos"
-            onClick={handleChecadasClick}
-          />
-          <QuickCard
-            icon={FolderOpen}
-            title="Mis documentos"
-            description={docDesc}
-            status={docStatusDisplay}
-            statusTone="muted"
-            href="/documentos-personales"
-            color="#7c3aed"
-            ariaLabel="Mis documentos: consulta tus archivos guardados"
-          />
-          <QuickCard
-            icon={PencilLine}
-            title="Hacer un escrito"
-            description="Créalo paso a paso"
-            status="Te ayudamos a redactarlo"
-            href="/escritos"
-            color="var(--area-work)"
-            ariaLabel="Hacer un escrito: créalo paso a paso"
-          />
-          <QuickCard
-            icon={Sparkle}
-            title="Mis derechos"
-            description="Pregunta sobre tu contrato y derechos"
-            status="Asistente normativo"
-            href="/asistente"
-            color="var(--area-assistance)"
-            ariaLabel="Mis derechos: pregunta sobre tu contrato y derechos"
-          />
-        </div>
-        <p
-          style={{
-            margin: "0.5rem 0 0",
-            fontSize: "0.6875rem",
-            color: "var(--muted)",
-            lineHeight: 1.4,
-            textAlign: "center",
-          }}
-        >
-          Calculadoras y transferencias siguen en Herramientas y Documentos.
-        </p>
-      </section>
-
-      <ImssRequiredDialog
-        open={imssDialog !== null}
-        variant={imssDialog ?? "tarjeton"}
-        onClose={() => setImssDialog(null)}
-        onConfigure={handleConfigure}
-      />
-      <BiometricWebFallbackDialog
-        open={webChecadasDialog}
-        onClose={() => setWebChecadasDialog(false)}
-        onViewSaved={() => {
-          setWebChecadasDialog(false)
-          router.push("/documentos-personales")
+    <section style={{ marginBottom: "var(--space-6)" }}>
+      <h2
+        style={{
+          margin: "0 0 0.625rem",
+          fontSize: "var(--text-md)",
+          fontWeight: 600,
+          color: "var(--fg)",
+          letterSpacing: "-0.01em",
         }}
-      />
-    </>
+      >
+        {heading}
+      </h2>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: "0.625rem",
+        }}
+      >
+        <QuickCard
+          icon={CalendarDots}
+          title="Mi agenda"
+          description={agendaDesc}
+          status={agendaStatus}
+          statusTone={agendaCount !== null && agendaCount > 0 ? "success" : "muted"}
+          href="/bitacora"
+          color="var(--area-work)"
+          ariaLabel="Mi agenda: registra compromisos y recordatorios"
+        />
+        <QuickCard
+          icon={Article}
+          title="Mi tarjetón"
+          description={tarjetonDesc}
+          status={tarjetonStatusDisplay}
+          statusTone={tarjetonHasData ? "success" : "muted"}
+          href="/profile/mi-informacion-laboral"
+          color="var(--area-tools)"
+          ariaLabel="Mi tarjetón: consulta tus recibos de pago"
+          onClick={handleTarjetonClick}
+        />
+        <QuickCard
+          icon={Clock}
+          title="Mis checadas"
+          description={checadaDesc}
+          status={checadaStatusDisplay}
+          statusTone={checadaHasData ? "success" : "muted"}
+          href="/documentos-personales"
+          color="#0e7490"
+          ariaLabel="Mis checadas: consulta tus registros biométricos"
+          onClick={handleChecadasClick}
+        />
+        <QuickCard
+          icon={FolderOpen}
+          title="Mis documentos"
+          description={docDesc}
+          status={docStatusDisplay}
+          statusTone="muted"
+          href="/documentos-personales"
+          color="#7c3aed"
+          ariaLabel="Mis documentos: consulta tus archivos guardados"
+        />
+        <QuickCard
+          icon={PencilLine}
+          title="Hacer un escrito"
+          description="Créalo paso a paso"
+          status="Te ayudamos a redactarlo"
+          href="/escritos"
+          color="var(--area-work)"
+          ariaLabel="Hacer un escrito: créalo paso a paso"
+        />
+        <QuickCard
+          icon={Sparkle}
+          title="Mis derechos"
+          description="Pregunta sobre tu contrato y derechos"
+          status="Asistente normativo"
+          href="/asistente"
+          color="var(--area-assistance)"
+          ariaLabel="Mis derechos: pregunta sobre tu contrato y derechos"
+        />
+      </div>
+      <p
+        style={{
+          margin: "0.5rem 0 0",
+          fontSize: "0.6875rem",
+          color: "var(--muted)",
+          lineHeight: 1.4,
+          textAlign: "center",
+        }}
+      >
+        Calculadoras y transferencias siguen en Herramientas y Documentos.
+      </p>
+    </section>
   )
 }
