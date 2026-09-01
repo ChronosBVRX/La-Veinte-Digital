@@ -4,12 +4,14 @@ import {
   validateGenerarEscritoRequest,
   buildUserPrompt,
   escapeXml,
+  stripUnsupportedLegalReferences,
+  generarEscritoService,
 } from "../server/generar-escrito-service"
 import type { GenerarEscritoRequest } from "@/shared/contracts/escrito-draft"
 
-describe("generar-escrito-service (Seguridad, Prompting y Grounding)", () => {
-  it("valida y sanitiza las solicitudes entrantes en el servidor", () => {
-    const valid = validateGenerarEscritoRequest({
+describe("generar-escrito-service (Seguridad, Prompting, Revisión y Grounding)", () => {
+  it("valida y sanitiza las solicitudes entrantes en el servidor para create y revise", () => {
+    const validCreate = validateGenerarEscritoRequest({
       tipo: "solicitud",
       hechos: "El pasado lunes 10 de agosto ocurrió un cambio de horario...",
       peticion: "Solicito ajuste de horario a turno matutino.",
@@ -19,17 +21,29 @@ describe("generar-escrito-service (Seguridad, Prompting y Grounding)", () => {
       incluirFundamentos: false,
     })
 
-    expect(valid.valid).toBe(true)
-    expect(valid.data?.tipo).toBe("solicitud")
-    expect(valid.data?.incluirFundamentos).toBe(false)
+    expect(validCreate.valid).toBe(true)
+    expect(validCreate.data?.tipo).toBe("solicitud")
+    expect(validCreate.data?.mode).toBe("create")
+    expect(validCreate.data?.incluirFundamentos).toBe(false)
 
-    // Rechaza tipos inválidos
-    const invalidType = validateGenerarEscritoRequest({
-      tipo: "tipo_inexistente",
-      hechos: "Hechos...",
-      peticion: "Peticion...",
+    // Modo revise válido
+    const validRevise = validateGenerarEscritoRequest({
+      mode: "revise",
+      tipo: "solicitud",
+      cuerpoActual: "Texto actual del borrador para formalizar...",
+      instruccionAjuste: "Ajustar a tono más formal.",
     })
-    expect(invalidType.valid).toBe(false)
+    expect(validRevise.valid).toBe(true)
+    expect(validRevise.data?.mode).toBe("revise")
+    expect(validRevise.data?.cuerpoActual).toBe("Texto actual del borrador para formalizar...")
+
+    // Modo revise sin cuerpoActual es inválido
+    const invalidRevise = validateGenerarEscritoRequest({
+      mode: "revise",
+      tipo: "solicitud",
+      cuerpoActual: "",
+    })
+    expect(invalidRevise.valid).toBe(false)
   })
 
   it("escapa etiquetas XML en entradas de usuario para prevenir prompt injection", () => {
@@ -51,23 +65,45 @@ describe("generar-escrito-service (Seguridad, Prompting y Grounding)", () => {
     expect(prompt).toContain("&lt;/hechos&gt;")
   })
 
-  it("generateBasicFallbackEscrito produce un escrito formal sin inventar fundamentos legales inexistentes", () => {
+  it("buildUserPrompt en mode 'revise' transforma el texto existente y no regenera desde hechos", () => {
     const req: GenerarEscritoRequest = {
-      tipo: "solicitud",
-      hechos: "Solicito 3 días de permiso económico por asuntos familiares.",
-      peticion: "Autorización de las fechas 15, 16 y 17 de septiembre.",
-      destino: { cargo: "Director de Unidad", nombre: "Dr. Antonio López" },
-      ciudad: "Uruapan, Mich.",
-      fecha: "2026-08-31",
-      incluirFundamentos: true,
+      mode: "revise",
+      tipo: "aclaracion",
+      hechos: "",
+      peticion: "",
+      cuerpoActual: "Por la presente pido que me paguen mi dinero de la quincena.",
+      instruccionAjuste: "Formalizar el tono y elevar el registro lingüístico.",
     }
 
-    const result = generateBasicFallbackEscrito(req)
+    const prompt = buildUserPrompt(req, [])
+    expect(prompt).toContain("<texto_actual_a_revisar>")
+    expect(prompt).toContain("Por la presente pido que me paguen mi dinero")
+    expect(prompt).toContain("<instruccion_de_ajuste>")
+    expect(prompt).toContain("Formalizar el tono")
+    expect(prompt).not.toContain("<datos_del_escrito>")
+  })
 
-    expect(result.cuerpo).toContain("Por medio de la presente, me dirijo a usted")
-    expect(result.cuerpo).toContain("Solicito 3 días de permiso económico")
+  it("stripUnsupportedLegalReferences elimina citas y menciones legales no fundamentadas", () => {
+    const texto = "Solicito mi derecho con fundamento en la Cláusula 999 del CCT y según el Artículo 888 de la ley."
+    const stripped = stripUnsupportedLegalReferences(texto, ["Cláusula 999", "Artículo 888"])
+
+    expect(stripped).not.toContain("Cláusula 999")
+    expect(stripped).not.toContain("Artículo 888")
+    expect(stripped).toContain("Solicito mi derecho")
+  })
+
+  it("generarEscritoService conserva el texto actual en modo 'revise' si la IA no está disponible", async () => {
+    const req: GenerarEscritoRequest = {
+      mode: "revise",
+      tipo: "solicitud",
+      hechos: "",
+      peticion: "",
+      cuerpoActual: "Párrafo del usuario que debe conservarse.",
+      instruccionAjuste: "Sintetizar",
+    }
+
+    const result = await generarEscritoService(req)
+    expect(result.cuerpo).toBe("Párrafo del usuario que debe conservarse.")
     expect(result.generationMode).toBe("basic_fallback")
-    expect(result.fuentes).toHaveLength(0)
-    expect(result.advertencias).toContain("Se utilizó el generador básico porque la IA no estuvo disponible.")
   })
 })

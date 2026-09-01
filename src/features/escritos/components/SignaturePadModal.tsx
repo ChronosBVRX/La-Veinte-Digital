@@ -140,14 +140,15 @@ export function SignaturePadModal({
 
     const ratio = window.devicePixelRatio || 1
 
-    ctx.save()
     ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.fillStyle = "#ffffff"
     ctx.fillRect(0, 0, canvas.width, canvas.height)
-    ctx.restore()
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
 
-    ctx.scale(ratio, ratio)
+    ctx.lineCap = "round"
+    ctx.lineJoin = "round"
+    ctx.strokeStyle = "#0f172a"
+
     setHasContent(false)
     setHistory([])
   }

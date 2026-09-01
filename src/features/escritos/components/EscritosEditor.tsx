@@ -63,6 +63,7 @@ export function EscritosEditor({
     setAiLoadingAction(actionName)
     try {
       const res = await generarEscrito({
+        mode: "revise",
         tipo: draft.tipo,
         hechos: draft.hechos,
         peticion: draft.peticion,

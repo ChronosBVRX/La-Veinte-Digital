@@ -45,7 +45,7 @@ export function EscritosGenerator() {
 
   const [stage, setStage] = useState<"form" | "editor" | "preview">("form")
   const [draft, setDraft] = useState<EscritoDraftV2>(() => createEmptyEscritoDraftV2("anonymous"))
-  const [initialDraftSnapshot, setInitialDraftSnapshot] = useState<string>("")
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string | null>(null)
   const [savedList, setSavedList] = useState<EscritoDraftV2[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [saveToast, setSaveToast] = useState<string | null>(null)
@@ -115,7 +115,7 @@ export function EscritosGenerator() {
     if (found) {
       hydrateEscritoBlobs(found, userId).then((hydrated) => {
         setDraft(hydrated)
-        setInitialDraftSnapshot(JSON.stringify(hydrated))
+        setLastSavedSnapshot(JSON.stringify(hydrated))
         setStage("editor")
       })
     }
@@ -123,9 +123,15 @@ export function EscritosGenerator() {
 
   // Detección de cambios sin guardar
   const isDirty = Boolean(
-    initialDraftSnapshot &&
-    (draft.cuerpo || draft.hechos || draft.peticion) &&
-    JSON.stringify(draft) !== initialDraftSnapshot
+    lastSavedSnapshot
+      ? JSON.stringify(draft) !== lastSavedSnapshot
+      : Boolean(
+          draft.hechos.trim() ||
+          draft.peticion.trim() ||
+          draft.cuerpo.trim() ||
+          draft.anexos.length > 0 ||
+          draft.firmaRef
+        )
   )
 
   useEffect(() => {
@@ -167,7 +173,6 @@ export function EscritosGenerator() {
       }
 
       setDraft(updatedDraft)
-      setInitialDraftSnapshot(JSON.stringify(updatedDraft))
       setStage("editor")
     } catch (err: unknown) {
       console.error("Error al generar escrito:", err)
@@ -182,7 +187,7 @@ export function EscritosGenerator() {
     try {
       const updatedList = guardarEscrito(draft, userId)
       setSavedList(updatedList)
-      setInitialDraftSnapshot(JSON.stringify(draft))
+      setLastSavedSnapshot(JSON.stringify(draft))
       setSaveToast("Borrador guardado correctamente en tu dispositivo.")
       setTimeout(() => setSaveToast(null), 3000)
     } catch (e) {
@@ -194,7 +199,7 @@ export function EscritosGenerator() {
     revokeEscritoBlobs(draft)
     const empty = createEmptyEscritoDraftV2(userId)
     setDraft(empty)
-    setInitialDraftSnapshot(JSON.stringify(empty))
+    setLastSavedSnapshot(null)
     setStage("form")
     startTransition(() => {
       router.push("/escritos")
@@ -213,7 +218,7 @@ export function EscritosGenerator() {
     revokeEscritoBlobs(draft)
     const hydrated = await hydrateEscritoBlobs(item, userId)
     setDraft(hydrated)
-    setInitialDraftSnapshot(JSON.stringify(hydrated))
+    setLastSavedSnapshot(JSON.stringify(hydrated))
     setStage(targetStage)
   }
 

@@ -410,6 +410,7 @@ export function EscritosResult({
       <SignaturePadModal
         userId={userId}
         escritoId={draft.id}
+        previousFirmaRef={draft.firmaRef}
         isOpen={isSignatureModalOpen}
         onClose={() => setIsSignatureModalOpen(false)}
         onSave={handleSaveSignature}

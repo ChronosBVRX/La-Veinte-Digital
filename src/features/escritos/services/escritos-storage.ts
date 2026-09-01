@@ -112,14 +112,10 @@ export async function migrarEscritosLegadosSiEsNecesario(
 
       // Migrar firmaUrl legado a Blob en IndexedDB
       if (legacyItem.firmaUrl && typeof legacyItem.firmaUrl === "string" && legacyItem.firmaUrl.startsWith("data:")) {
-        try {
-          const blob = dataUrlToBlob(legacyItem.firmaUrl)
-          const firmaRef = await saveBlobResource(userId, draft.id, "firma", "legacy_sig", blob)
-          draft.firmaRef = firmaRef
-          createdBlobKeys.push(firmaRef)
-        } catch (blobErr) {
-          console.warn("[escritos-storage] Error migrando firma legada a IndexedDB:", blobErr)
-        }
+        const blob = dataUrlToBlob(legacyItem.firmaUrl)
+        const firmaRef = await saveBlobResource(userId, draft.id, "firma", "legacy_sig", blob)
+        draft.firmaRef = firmaRef
+        createdBlobKeys.push(firmaRef)
       }
 
       // Migrar fotos legadas a Blobs en IndexedDB
@@ -128,22 +124,18 @@ export async function migrarEscritosLegadosSiEsNecesario(
         for (let i = 0; i < legacyItem.fotos.length; i++) {
           const fotoDataUrl = legacyItem.fotos[i]
           if (typeof fotoDataUrl === "string" && fotoDataUrl.startsWith("data:")) {
-            try {
-              const photoBlob = dataUrlToBlob(fotoDataUrl)
-              const photoId = `legacy_photo_${i + 1}`
-              const photoRef = await saveBlobResource(userId, draft.id, "anexo", photoId, photoBlob)
-              createdBlobKeys.push(photoRef)
-              anexos.push({
-                id: `anx_${photoId}`,
-                nombre: `Fotografía adjunta ${i + 1}`,
-                descripcion: "Fotografía migrada desde versión anterior",
-                tipo: photoBlob.type || "image/jpeg",
-                size: photoBlob.size,
-                storageRef: photoRef,
-              })
-            } catch (photoErr) {
-              console.warn(`[escritos-storage] Error migrando foto legada ${i}:`, photoErr)
-            }
+            const photoBlob = dataUrlToBlob(fotoDataUrl)
+            const photoId = `legacy_photo_${i + 1}`
+            const photoRef = await saveBlobResource(userId, draft.id, "anexo", photoId, photoBlob)
+            createdBlobKeys.push(photoRef)
+            anexos.push({
+              id: `anx_${photoId}`,
+              nombre: `Fotografía adjunta ${i + 1}`,
+              descripcion: "Fotografía migrada desde versión anterior",
+              tipo: photoBlob.type || "image/jpeg",
+              size: photoBlob.size,
+              storageRef: photoRef,
+            })
           }
         }
         draft.anexos = anexos
@@ -298,33 +290,60 @@ export async function duplicarEscrito(id: string, userId?: string): Promise<Escr
   const newId = nuevoIdEscrito()
   const now = new Date().toISOString()
 
-  // Clonar físicamente los blobs en IndexedDB
-  const refMap = await duplicateEscritoBlobs(owner, original.id, newId)
+  try {
+    // Clonar físicamente los blobs en IndexedDB
+    const refMap = await duplicateEscritoBlobs(owner, original.id, newId)
 
-  const newFirmaRef = original.firmaRef ? refMap.get(original.firmaRef) || original.firmaRef : undefined
+    let newFirmaRef: string | undefined = undefined
+    if (original.firmaRef) {
+      newFirmaRef = refMap.get(original.firmaRef)
+      if (!newFirmaRef) {
+        throw new Error("No se pudo clonar la firma del escrito original.")
+      }
+    }
 
-  const newAnexos: AnexoItem[] = original.anexos.map((anx) => ({
-    ...anx,
-    id: `anx_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-    storageRef: anx.storageRef ? refMap.get(anx.storageRef) || anx.storageRef : "",
-    previewUrl: undefined,
-  }))
+    const newAnexos: AnexoItem[] = []
+    for (const anx of original.anexos) {
+      if (anx.storageRef) {
+        const clonedRef = refMap.get(anx.storageRef)
+        if (!clonedRef) {
+          throw new Error(`No se pudo clonar el anexo fotográfico ${anx.nombre}.`)
+        }
+        newAnexos.push({
+          ...anx,
+          id: `anx_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          storageRef: clonedRef,
+          previewUrl: undefined,
+        })
+      } else {
+        newAnexos.push({
+          ...anx,
+          id: `anx_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          previewUrl: undefined,
+        })
+      }
+    }
 
-  const duplicado: EscritoDraftV2 = {
-    ...original,
-    id: newId,
-    ownerId: owner,
-    titulo: `Copia de ${original.titulo}`,
-    firmaRef: newFirmaRef,
-    firmaPreviewUrl: undefined,
-    anexos: newAnexos,
-    status: "draft",
-    createdAt: now,
-    updatedAt: now,
+    const duplicado: EscritoDraftV2 = {
+      ...original,
+      id: newId,
+      ownerId: owner,
+      titulo: `Copia de ${original.titulo}`,
+      firmaRef: newFirmaRef,
+      firmaPreviewUrl: undefined,
+      anexos: newAnexos,
+      status: "draft",
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    guardarEscrito(duplicado, owner)
+    return duplicado
+  } catch (err) {
+    console.error("[escritos-storage] Error duplicando escrito:", err)
+    await deleteEscritoBlobs(owner, newId).catch(() => {})
+    throw err
   }
-
-  guardarEscrito(duplicado, owner)
-  return duplicado
 }
 
 /**

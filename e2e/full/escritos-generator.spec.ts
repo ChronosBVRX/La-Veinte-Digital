@@ -1,11 +1,29 @@
 import { test, expect } from "../fixtures/test"
 
 test.describe("Generador de Escritos V2 (Flujo Completo)", () => {
-  test("flujo completo de redacción, edición, guardado, firma y exportación", async ({
+  test("flujo completo de redacción, edición, propuestas IA, guardado, firma, duplicación y exportación", async ({
     page,
   }) => {
-    // 1. Simular la respuesta del endpoint de generación para determinismo en CI
+    let lastRevisionRequest: Record<string, unknown> | null = null
+
+    // 1. Simular la respuesta del endpoint de generación y revisión para determinismo en CI
     await page.route("**/api/escritos/generar", async (route) => {
+      const postData = route.request().postDataJSON()
+      if (postData?.mode === "revise") {
+        lastRevisionRequest = postData
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            cuerpo: `${postData.cuerpoActual}\n\n[Texto ajustado formalmente conforme a la normativa vigente]`,
+            fuentes: [],
+            advertencias: [],
+            generationMode: "ai_without_sources",
+          }),
+        })
+        return
+      }
+
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -33,7 +51,6 @@ test.describe("Generador de Escritos V2 (Flujo Completo)", () => {
     await expect(page.getByRole("heading", { name: "Generador de Escritos" })).toBeVisible()
 
     // 3. Llenar formulario (1. Formulario)
-    // Tipo: Solicitud
     await page.getByRole("button", { name: /Solicitud/i }).click()
 
     // Destinatario
@@ -48,6 +65,18 @@ test.describe("Generador de Escritos V2 (Flujo Completo)", () => {
     await page.getByLabel(/¿Qué ocurrió o cuáles son los antecedentes\?/i).fill("El pasado 15 de agosto solicité pase de salida formal.")
     await page.getByLabel(/¿Qué solicitas o qué necesitas que resuelvan\?/i).fill("Solicito autorización de 3 días de pase de salida.")
 
+    // Adjuntar imagen válida (1x1 PNG transparente)
+    const fileInput = page.locator('input[type="file"]')
+    await fileInput.setInputFiles({
+      name: "evidencia_asistencia.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        "base64"
+      ),
+    })
+    await expect(page.getByText("evidencia_asistencia")).toBeVisible()
+
     // 4. Generar borrador
     await page.getByRole("button", { name: /Redactar borrador con IA/i }).click()
 
@@ -55,20 +84,38 @@ test.describe("Generador de Escritos V2 (Flujo Completo)", () => {
     await expect(page.getByRole("heading", { name: /Revisa y personaliza tu escrito/i })).toBeVisible()
     const textarea = page.locator("textarea")
     await expect(textarea).toBeVisible()
-    await expect(textarea).toContainText("Por medio de la presente")
+    await expect(textarea).toHaveValue(/Por medio de la presente/)
 
     // Modificar manualmente
     await textarea.fill(
       "Por medio de la presente, me dirijo a usted respetuosamente.\n\nPárrafo añadido manualmente por el trabajador."
     )
+    await expect(textarea).toHaveValue(/Párrafo añadido manualmente/)
 
-    // Deshacer (Undo)
-    await page.getByRole("button", { name: "↶ Deshacer" }).click()
-    await expect(textarea).toContainText("Por medio de la presente")
+    // Deshacer (Undo) con ↩ Deshacer
+    await page.getByRole("button", { name: "↩ Deshacer" }).click()
+    await expect(textarea).toHaveValue(/Por medio de la presente/)
 
-    // Rehacer (Redo)
-    await page.getByRole("button", { name: "↷ Rehacer" }).click()
-    await expect(textarea).toContainText("Párrafo añadido manualmente por el trabajador.")
+    // Rehacer (Redo) con ↪ Rehacer
+    await page.getByRole("button", { name: "↪ Rehacer" }).click()
+    await expect(textarea).toHaveValue(/Párrafo añadido manualmente/)
+
+    // Probar herramienta de IA con propuesta no destructiva (Descartar y Aceptar)
+    await page.getByRole("button", { name: "👔 Tono más formal" }).click()
+    await expect(page.getByRole("heading", { name: /Propuesta de redacción IA/i })).toBeVisible()
+    expect(lastRevisionRequest).not.toBeNull()
+    expect(lastRevisionRequest?.mode).toBe("revise")
+    expect(lastRevisionRequest?.cuerpoActual).toContain("Párrafo añadido manualmente")
+
+    // Descartar propuesta
+    await page.getByRole("button", { name: "✕ Descartar propuesta" }).click()
+    await expect(page.getByRole("heading", { name: /Propuesta de redacción IA/i })).not.toBeVisible()
+
+    // Volver a solicitar y Aceptar propuesta
+    await page.getByRole("button", { name: "👔 Tono más formal" }).click()
+    await expect(page.getByRole("heading", { name: /Propuesta de redacción IA/i })).toBeVisible()
+    await page.getByRole("button", { name: "✓ Aceptar y aplicar cambios" }).click()
+    await expect(textarea).toHaveValue(/\[Texto ajustado formalmente conforme a la normativa vigente\]/)
 
     // 6. Guardar borrador
     await page.getByRole("button", { name: "💾 Guardar borrador" }).click()
@@ -78,7 +125,7 @@ test.describe("Generador de Escritos V2 (Flujo Completo)", () => {
     await page.getByRole("button", { name: /Ver vista previa y firmar/i }).click()
     await expect(page.getByText("A T E N T A M E N T E")).toBeVisible()
 
-    // 8. Firmar
+    // 8. Firmar en canvas y reemplazar firma
     await page.getByRole("button", { name: /✍️ Añadir firma digital/i }).click()
     await expect(page.getByRole("heading", { name: /Firma Digitalizada/i })).toBeVisible()
 
@@ -92,21 +139,42 @@ test.describe("Generador de Escritos V2 (Flujo Completo)", () => {
       await page.mouse.up()
     }
     await page.getByRole("button", { name: "Guardar firma" }).click()
-
-    // Comprobar que la firma se integró
     await expect(page.getByRole("button", { name: /Cambiar firma/i })).toBeVisible()
+
+    // Reemplazar firma
+    await page.getByRole("button", { name: /Cambiar firma/i }).click()
+    await expect(page.getByRole("heading", { name: /Firma Digitalizada/i })).toBeVisible()
+    if (box) {
+      await page.mouse.move(box.x + 30, box.y + 30)
+      await page.mouse.down()
+      await page.mouse.move(box.x + 90, box.y + 70)
+      await page.mouse.up()
+    }
+    await page.getByRole("button", { name: "Guardar firma" }).click()
 
     // 9. Descargar PDF
     const [download] = await Promise.all([
       page.waitForEvent("download"),
-      page.getByRole("button", { name: "📥 Descargar PDF" }).click(),
+      page.getByRole("button", { name: /Descargar PDF Carta/i }).click(),
     ])
 
     expect(download.suggestedFilename()).toContain(".pdf")
 
-    // 10. Reabrir desde Documentos Personales
-    await page.goto("/documentos-personales")
-    await expect(page.getByRole("heading", { name: "Documentos Personales" })).toBeVisible()
-    await expect(page.getByRole("link", { name: /Editar escrito/i })).toBeVisible()
+    // 10. Recargar documento, duplicar y eliminar el original
+    await page.goto("/escritos")
+    await expect(page.getByRole("heading", { name: "Generador de Escritos" })).toBeVisible()
+    await expect(page.getByRole("button", { name: /Duplicar/i })).toBeVisible()
+
+    // Duplicar
+    await page.getByRole("button", { name: /Duplicar/i }).click()
+    await expect(page.getByText(/Copia de/i)).toBeVisible()
+
+    // Eliminar original
+    page.on("dialog", (dialog) => dialog.accept())
+    const deleteButtons = page.getByRole("button", { name: /Eliminar/i })
+    await deleteButtons.first().click()
+
+    // Comprobar que el duplicado permanece disponible
+    await expect(page.getByText(/Copia de/i)).toBeVisible()
   })
 })

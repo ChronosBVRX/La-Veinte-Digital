@@ -7,7 +7,7 @@
 
 import { jsPDF } from "jspdf"
 import type { EscritoDraftV2 } from "@/shared/contracts/escrito-draft"
-import { getBlobResource } from "@/features/escritos/services/escritos-indexeddb"
+import { getBlobResource } from "@/shared/services/blob-storage"
 
 export interface RenderPdfOptions {
   nombreTrabajador?: string
@@ -38,7 +38,7 @@ export function generarNombreArchivoPdf(draft: EscritoDraftV2): string {
   return `escrito_${tipo}_${destino}_${fecha}.pdf`
 }
 
-interface ProcessedImage {
+export interface ProcessedImage {
   dataUrl: string
   format: "PNG" | "JPEG"
   width: number
@@ -47,33 +47,85 @@ interface ProcessedImage {
 
 /**
  * Convierte un Blob a formato DataURL soportado por jsPDF (PNG o JPEG),
- * transformando WebP si es necesario mediante canvas.
+ * transformando WebP si es necesario mediante canvas y midiendo dimensiones reales.
  */
-async function processBlobForPdf(blobInput: Blob | unknown): Promise<ProcessedImage | null> {
+export async function processBlobForPdf(blobInput: Blob | unknown): Promise<ProcessedImage | null> {
   if (!blobInput || typeof blobInput !== "object") return null
 
   try {
     const rawBlob = blobInput as Blob
     const mimeType = rawBlob.type || "image/png"
-    let buffer: ArrayBuffer
 
-    if (typeof rawBlob.arrayBuffer === "function") {
-      buffer = await rawBlob.arrayBuffer()
-    } else {
+    if (typeof rawBlob.arrayBuffer !== "function") {
       return null
     }
 
+    const buffer = await rawBlob.arrayBuffer()
     const uint8 = new Uint8Array(buffer)
     let binary = ""
     for (let i = 0; i < uint8.byteLength; i++) {
       binary += String.fromCharCode(uint8[i])
     }
     const base64 = typeof btoa === "function" ? btoa(binary) : Buffer.from(binary, "binary").toString("base64")
-    const dataUrl = `data:${mimeType};base64,${base64}`
+    const initialDataUrl = `data:${mimeType};base64,${base64}`
 
+    // Entorno de navegador con DOM (para conversión WebP y dimensiones reales)
+    if (typeof window !== "undefined" && typeof document !== "undefined") {
+      return new Promise((resolve) => {
+        const img = new Image()
+        img.onload = () => {
+          const width = img.naturalWidth || 400
+          const height = img.naturalHeight || 300
+
+          if (mimeType.includes("webp") || (!mimeType.includes("jpeg") && !mimeType.includes("png"))) {
+            try {
+              const canvas = document.createElement("canvas")
+              canvas.width = width
+              canvas.height = height
+              const ctx = canvas.getContext("2d")
+              if (ctx) {
+                ctx.drawImage(img, 0, 0)
+                const convertedPng = canvas.toDataURL("image/png")
+                resolve({
+                  dataUrl: convertedPng,
+                  format: "PNG",
+                  width,
+                  height,
+                })
+                return
+              }
+            } catch {
+              // fallback
+            }
+          }
+
+          const isJpeg = mimeType.includes("jpeg") || mimeType.includes("jpg")
+          resolve({
+            dataUrl: initialDataUrl,
+            format: isJpeg ? "JPEG" : "PNG",
+            width,
+            height,
+          })
+        }
+
+        img.onerror = () => {
+          const isJpeg = mimeType.includes("jpeg") || mimeType.includes("jpg")
+          resolve({
+            dataUrl: initialDataUrl,
+            format: isJpeg ? "JPEG" : "PNG",
+            width: 400,
+            height: 300,
+          })
+        }
+
+        img.src = initialDataUrl
+      })
+    }
+
+    // Entorno Node.js
     const isJpeg = mimeType.includes("jpeg") || mimeType.includes("jpg")
     return {
-      dataUrl,
+      dataUrl: initialDataUrl,
       format: isJpeg ? "JPEG" : "PNG",
       width: 400,
       height: 300,
@@ -85,14 +137,13 @@ async function processBlobForPdf(blobInput: Blob | unknown): Promise<ProcessedIm
 }
 
 /**
- * Función principal y unificada para renderizar un escrito almacenado a un archivo PDF.
- * Hidrata firmas y fotografías desde IndexedDB, realiza conversiones seguras y limpia memoria en finally.
+ * Construye el objeto jsPDF completo y poblado con texto vectorial, firma y anexos.
  */
-export async function renderStoredEscritoToPdfFile(
+export async function buildJsPdfDocument(
   draft: EscritoDraftV2,
   userId = "anonymous",
   options?: RenderPdfOptions
-): Promise<File> {
+): Promise<jsPDF> {
   // Carta: 612 x 792 pt
   const doc = new jsPDF({
     unit: "pt",
@@ -106,230 +157,247 @@ export async function renderStoredEscritoToPdfFile(
   const contentWidth = pageWidth - margin * 2
   let y = margin
 
-  try {
-    doc.setFont("times", "normal")
-    doc.setFontSize(11)
+  doc.setFont("times", "normal")
+  doc.setFontSize(11)
 
-    // 1. Encabezado derecho: Lugar, fecha y Asunto
-    const lugarFecha = `${draft.ciudad ? `${draft.ciudad}, ` : ""}${draft.fecha}`
-    doc.text(lugarFecha, pageWidth - margin, y, { align: "right" })
-    y += 16
+  // 1. Encabezado derecho: Lugar, fecha y Asunto
+  const lugarFecha = `${draft.ciudad ? `${draft.ciudad}, ` : ""}${draft.fecha}`
+  doc.text(lugarFecha, pageWidth - margin, y, { align: "right" })
+  y += 16
 
-    if (draft.asunto) {
-      doc.setFont("times", "bold")
-      const asuntoLines = doc.splitTextToSize(`ASUNTO: ${draft.asunto}`, contentWidth * 0.6)
-      doc.text(asuntoLines, pageWidth - margin, y, { align: "right" })
-      y += asuntoLines.length * 14 + 18
-    } else {
-      y += 18
-    }
-
-    // 2. Destinatario principal
+  if (draft.asunto) {
     doc.setFont("times", "bold")
-    if (draft.destino.nombre) {
-      doc.text(draft.destino.nombre.toUpperCase(), margin, y)
-      y += 14
-    }
-    if (draft.destino.cargo) {
-      doc.text(draft.destino.cargo, margin, y)
-      y += 14
-    }
+    const asuntoLines = doc.splitTextToSize(`ASUNTO: ${draft.asunto}`, contentWidth * 0.6)
+    doc.text(asuntoLines, pageWidth - margin, y, { align: "right" })
+    y += asuntoLines.length * 14 + 18
+  } else {
+    y += 18
+  }
 
-    // 3. Atenciones múltiples (At'n:)
-    if (draft.atencion && draft.atencion.length > 0) {
-      doc.setFont("times", "italic")
-      for (const at of draft.atencion) {
-        if (at.nombre) {
-          const atStr = at.cargo ? `AT'N: ${at.nombre} (${at.cargo})` : `AT'N: ${at.nombre}`
-          doc.text(atStr, margin, y)
-          y += 13
-        }
+  // 2. Destinatario principal
+  doc.setFont("times", "bold")
+  if (draft.destino.nombre) {
+    doc.text(draft.destino.nombre.toUpperCase(), margin, y)
+    y += 14
+  }
+  if (draft.destino.cargo) {
+    doc.text(draft.destino.cargo, margin, y)
+    y += 14
+  }
+
+  // 3. Atenciones múltiples (At'n:)
+  if (draft.atencion && draft.atencion.length > 0) {
+    doc.setFont("times", "italic")
+    for (const at of draft.atencion) {
+      if (at.nombre) {
+        const atStr = at.cargo ? `AT'N: ${at.nombre} (${at.cargo})` : `AT'N: ${at.nombre}`
+        doc.text(atStr, margin, y)
+        y += 13
       }
     }
+  }
 
-    doc.setFont("times", "bold")
-    doc.text("P R E S E N T E .", margin, y)
-    y += 24
+  doc.setFont("times", "bold")
+  doc.text("P R E S E N T E .", margin, y)
+  y += 24
 
-    // 4. Cuerpo del documento
-    doc.setFont("times", "normal")
-    doc.setFontSize(11)
+  // 4. Cuerpo del documento con paginación limpia por línea
+  doc.setFont("times", "normal")
+  doc.setFontSize(11)
 
-    const paragraphs = draft.cuerpo.split(/\n\s*\n/)
-    for (const para of paragraphs) {
-      if (!para.trim()) continue
-      const lines = doc.splitTextToSize(para.trim(), contentWidth)
+  const paragraphs = draft.cuerpo.split(/\n\s*\n/)
+  for (const para of paragraphs) {
+    if (!para.trim()) continue
+    const lines = doc.splitTextToSize(para.trim(), contentWidth)
 
-      // Paginación si excede el contenido
-      if (y + lines.length * 15 > pageHeight - margin - 120) {
+    for (const line of lines) {
+      if (y + 15 > pageHeight - margin - 120) {
         doc.addPage()
         y = margin
       }
-
-      doc.text(lines, margin, y)
-      y += lines.length * 15 + 10
-    }
-
-    // 5. Cargar firma desde IndexedDB si existe
-    let processedFirma: ProcessedImage | null = null
-    if (draft.firmaRef) {
-      try {
-        const firmaBlob = await getBlobResource(userId, draft.firmaRef)
-        if (firmaBlob) {
-          processedFirma = await processBlobForPdf(firmaBlob)
-        }
-      } catch (e) {
-        console.warn("[escrito-pdf-renderer] No se pudo cargar firma desde IndexedDB:", e)
-      }
-    }
-
-    // Bloque de firma y despedida (con protección contra firmas huérfanas)
-    const signatureHeightEstimate = processedFirma ? 130 : 90
-    if (y + signatureHeightEstimate > pageHeight - margin - 30) {
-      doc.addPage()
-      y = margin
-    } else {
+      doc.text(line, margin, y)
       y += 15
     }
-
-    doc.setFont("times", "bold")
-    doc.text("A T E N T A M E N T E", pageWidth / 2, y, { align: "center" })
-    y += 15
-
-    // Renderizar firma gráfica
-    if (processedFirma) {
-      try {
-        doc.addImage(
-          processedFirma.dataUrl,
-          processedFirma.format,
-          pageWidth / 2 - 60,
-          y,
-          120,
-          45
-        )
-        y += 50
-      } catch {
-        y += 35
-      }
-    } else {
-      y += 40
-    }
-
-    // Línea de firma
-    doc.setLineWidth(0.75)
-    doc.line(pageWidth / 2 - 100, y, pageWidth / 2 + 100, y)
-    y += 14
-
-    const nombreFirmante =
-      options?.nombreTrabajador || options?.nombre || "NOMBRE Y FIRMA DEL TRABAJADOR"
-    doc.setFont("times", "bold")
-    doc.setFontSize(10)
-    doc.text(nombreFirmante.toUpperCase(), pageWidth / 2, y, { align: "center" })
-    y += 12
-
-    doc.setFont("times", "normal")
-    doc.setFontSize(9)
-    if (options?.matricula) {
-      doc.text(`Matrícula: ${options.matricula}`, pageWidth / 2, y, { align: "center" })
-      y += 11
-    }
-    if (options?.categoria) {
-      doc.text(`Categoría: ${options.categoria}`, pageWidth / 2, y, { align: "center" })
-      y += 11
-    }
-    if (options?.adscripcion) {
-      doc.text(`Adscripción: ${options.adscripcion}`, pageWidth / 2, y, { align: "center" })
-      y += 11
-    }
-
-    // 6. Copias (c.c.p.)
-    if (draft.copias && draft.copias.length > 0) {
-      y += 10
-      doc.setFont("times", "italic")
-      doc.setFontSize(8)
-      doc.text("c.c.p.", margin, y)
-      y += 10
-      for (const cp of draft.copias) {
-        if (cp.nombre) {
-          const cpStr = cp.cargo ? `- ${cp.nombre} (${cp.cargo})` : `- ${cp.nombre}`
-          doc.text(cpStr, margin + 8, y)
-          y += 10
-        }
-      }
-    }
-
-    // 7. Anexos fotográficos/documentales desde IndexedDB
-    if (draft.anexos && draft.anexos.length > 0) {
-      let anexoIdx = 1
-      for (const anexo of draft.anexos) {
-        let processedAnexo: ProcessedImage | null = null
-        if (anexo.storageRef) {
-          try {
-            const anexoBlob = await getBlobResource(userId, anexo.storageRef)
-            if (anexoBlob) {
-              processedAnexo = await processBlobForPdf(anexoBlob)
-            }
-          } catch (e) {
-            console.warn(`[escrito-pdf-renderer] Error leyendo anexo ${anexo.nombre}:`, e)
-          }
-        }
-
-        doc.addPage()
-        let anexoY = margin
-
-        doc.setFont("times", "bold")
-        doc.setFontSize(12)
-        doc.text(`ANEXO ${anexoIdx}: ${anexo.nombre.toUpperCase()}`, margin, anexoY)
-        anexoY += 16
-
-        if (anexo.descripcion) {
-          doc.setFont("times", "italic")
-          doc.setFontSize(10)
-          const descLines = doc.splitTextToSize(`Descripción: ${anexo.descripcion}`, contentWidth)
-          doc.text(descLines, margin, anexoY)
-          anexoY += descLines.length * 13 + 12
-        }
-
-        if (processedAnexo) {
-          try {
-            const maxImgWidth = contentWidth
-            const maxImgHeight = pageHeight - anexoY - margin - 20
-
-            const widthRatio = maxImgWidth / processedAnexo.width
-            const heightRatio = maxImgHeight / processedAnexo.height
-            const scale = Math.min(widthRatio, heightRatio, 1)
-
-            const renderWidth = processedAnexo.width * scale
-            const renderHeight = processedAnexo.height * scale
-            const renderX = margin + (contentWidth - renderWidth) / 2
-
-            doc.addImage(
-              processedAnexo.dataUrl,
-              processedAnexo.format,
-              renderX,
-              anexoY,
-              renderWidth,
-              renderHeight
-            )
-          } catch (_err) {
-            doc.setFont("times", "italic")
-            doc.text("[Imagen no disponible para renderizado]", margin, anexoY)
-          }
-        } else {
-          doc.setFont("times", "italic")
-          doc.text("[Archivo de anexo adjunto]", margin, anexoY)
-        }
-
-        anexoIdx++
-      }
-    }
-
-    const blob = doc.output("blob")
-    const fileName = generarNombreArchivoPdf(draft)
-    return new File([blob], fileName, { type: "application/pdf" })
-  } finally {
-    // Liberación garantizada
+    y += 8
   }
+
+  // 5. Cargar firma desde IndexedDB si existe
+  let processedFirma: ProcessedImage | null = null
+  if (draft.firmaRef) {
+    try {
+      const firmaBlob = await getBlobResource(userId, draft.firmaRef)
+      if (firmaBlob) {
+        processedFirma = await processBlobForPdf(firmaBlob)
+      }
+    } catch (e) {
+      console.warn("[escrito-pdf-renderer] No se pudo cargar firma desde IndexedDB:", e)
+    }
+  }
+
+  // Bloque de firma y despedida (con protección contra firmas huérfanas)
+  const signatureHeightEstimate = processedFirma ? 130 : 90
+  if (y + signatureHeightEstimate > pageHeight - margin - 30) {
+    doc.addPage()
+    y = margin
+  } else {
+    y += 15
+  }
+
+  doc.setFont("times", "bold")
+  doc.text("A T E N T A M E N T E", pageWidth / 2, y, { align: "center" })
+  y += 15
+
+  // Renderizar firma gráfica
+  if (processedFirma) {
+    try {
+      doc.addImage(
+        processedFirma.dataUrl,
+        processedFirma.format,
+        pageWidth / 2 - 60,
+        y,
+        120,
+        45
+      )
+      y += 50
+    } catch {
+      y += 35
+    }
+  } else {
+    y += 40
+  }
+
+  // Línea de firma
+  doc.setLineWidth(0.75)
+  doc.line(pageWidth / 2 - 100, y, pageWidth / 2 + 100, y)
+  y += 14
+
+  const nombreFirmante =
+    options?.nombreTrabajador || options?.nombre || "NOMBRE Y FIRMA DEL TRABAJADOR"
+  doc.setFont("times", "bold")
+  doc.setFontSize(10)
+  doc.text(nombreFirmante.toUpperCase(), pageWidth / 2, y, { align: "center" })
+  y += 12
+
+  doc.setFont("times", "normal")
+  doc.setFontSize(9)
+  if (options?.matricula) {
+    doc.text(`Matrícula: ${options.matricula}`, pageWidth / 2, y, { align: "center" })
+    y += 11
+  }
+  if (options?.categoria) {
+    doc.text(`Categoría: ${options.categoria}`, pageWidth / 2, y, { align: "center" })
+    y += 11
+  }
+  if (options?.adscripcion) {
+    doc.text(`Adscripción: ${options.adscripcion}`, pageWidth / 2, y, { align: "center" })
+    y += 11
+  }
+
+  // 6. Copias (c.c.p.) con control de salto de página
+  if (draft.copias && draft.copias.length > 0) {
+    if (y + 30 > pageHeight - margin) {
+      doc.addPage()
+      y = margin
+    }
+    y += 10
+    doc.setFont("times", "italic")
+    doc.setFontSize(8)
+    doc.text("c.c.p.", margin, y)
+    y += 10
+    for (const cp of draft.copias) {
+      if (cp.nombre) {
+        if (y + 12 > pageHeight - margin) {
+          doc.addPage()
+          y = margin
+        }
+        const cpStr = cp.cargo ? `- ${cp.nombre} (${cp.cargo})` : `- ${cp.nombre}`
+        doc.text(cpStr, margin + 8, y)
+        y += 10
+      }
+    }
+  }
+
+  // 7. Anexos fotográficos/documentales desde IndexedDB
+  if (draft.anexos && draft.anexos.length > 0) {
+    let anexoIdx = 1
+    for (const anexo of draft.anexos) {
+      let processedAnexo: ProcessedImage | null = null
+      if (anexo.storageRef) {
+        try {
+          const anexoBlob = await getBlobResource(userId, anexo.storageRef)
+          if (anexoBlob) {
+            processedAnexo = await processBlobForPdf(anexoBlob)
+          }
+        } catch (e) {
+          console.warn(`[escrito-pdf-renderer] Error leyendo anexo ${anexo.nombre}:`, e)
+        }
+      }
+
+      doc.addPage()
+      let anexoY = margin
+
+      doc.setFont("times", "bold")
+      doc.setFontSize(12)
+      doc.text(`ANEXO ${anexoIdx}: ${anexo.nombre.toUpperCase()}`, margin, anexoY)
+      anexoY += 16
+
+      if (anexo.descripcion) {
+        doc.setFont("times", "italic")
+        doc.setFontSize(10)
+        const descLines = doc.splitTextToSize(`Descripción: ${anexo.descripcion}`, contentWidth)
+        doc.text(descLines, margin, anexoY)
+        anexoY += descLines.length * 13 + 12
+      }
+
+      if (processedAnexo) {
+        try {
+          const maxImgWidth = contentWidth
+          const maxImgHeight = pageHeight - anexoY - margin - 20
+
+          const widthRatio = maxImgWidth / processedAnexo.width
+          const heightRatio = maxImgHeight / processedAnexo.height
+          const scale = Math.min(widthRatio, heightRatio, 1)
+
+          const renderWidth = processedAnexo.width * scale
+          const renderHeight = processedAnexo.height * scale
+          const renderX = margin + (contentWidth - renderWidth) / 2
+
+          doc.addImage(
+            processedAnexo.dataUrl,
+            processedAnexo.format,
+            renderX,
+            anexoY,
+            renderWidth,
+            renderHeight
+          )
+        } catch (_err) {
+          doc.setFont("times", "italic")
+          doc.text("[Imagen no disponible para renderizado]", margin, anexoY)
+        }
+      } else {
+        doc.setFont("times", "italic")
+        doc.text("[Archivo de anexo adjunto]", margin, anexoY)
+      }
+
+      anexoIdx++
+    }
+  }
+
+  return doc
+}
+
+/**
+ * Función principal y unificada para renderizar un escrito almacenado a un archivo PDF File.
+ */
+export async function renderStoredEscritoToPdfFile(
+  draft: EscritoDraftV2,
+  userId = "anonymous",
+  options?: RenderPdfOptions
+): Promise<File> {
+  const doc = await buildJsPdfDocument(draft, userId, options)
+  const blob = doc.output("blob")
+  const fileName = generarNombreArchivoPdf(draft)
+  return new File([blob], fileName, { type: "application/pdf" })
 }
 
 /**
@@ -339,12 +407,7 @@ export async function renderEscritoToPdf(
   draft: EscritoDraftV2,
   options?: RenderPdfOptions
 ): Promise<jsPDF> {
-  const file = await renderStoredEscritoToPdfFile(draft, draft.ownerId, options)
-  const arrayBuffer = await file.arrayBuffer()
-  const doc = new jsPDF()
-  // @ts-expect-error - jspdf load
-  doc.arrayBuffer = arrayBuffer
-  return doc
+  return buildJsPdfDocument(draft, draft.ownerId, options)
 }
 
 export async function renderEscritoToPdfFile(

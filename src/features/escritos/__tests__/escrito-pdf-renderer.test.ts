@@ -2,12 +2,18 @@
 import { describe, it, expect } from "vitest"
 import "fake-indexeddb/auto"
 import {
+  buildJsPdfDocument,
   renderStoredEscritoToPdfFile,
+  renderEscritoToPdf,
   generarNombreArchivoPdf,
   sanitizeFileName,
 } from "@/shared/lib/escrito-pdf-renderer"
 import { createEmptyEscritoDraftV2 } from "@/shared/contracts/escrito-draft"
-import { saveBlobResource } from "../services/escritos-indexeddb"
+import { saveBlobResource, dataUrlToBlob } from "@/shared/services/blob-storage"
+
+// Fixture PNG válido 1x1
+const VALID_PNG_DATA_URL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 
 describe("Renderizador de PDF Vectorial Carta (escrito-pdf-renderer)", () => {
   it("sanitiza nombres de archivo para descarga segura", () => {
@@ -24,13 +30,35 @@ describe("Renderizador de PDF Vectorial Carta (escrito-pdf-renderer)", () => {
     expect(name).toBe("escrito_solicitud_dr_juan_perez_2026-08-31.pdf")
   })
 
+  it("renderEscritoToPdf y buildJsPdfDocument devuelven un documento jsPDF poblado y válido", async () => {
+    const userId = "usr_pdf_test"
+    const validBlob = dataUrlToBlob(VALID_PNG_DATA_URL)
+    const sigRef = await saveBlobResource(userId, "doc_jspdf", "firma", "sig", validBlob)
+
+    const draft = createEmptyEscritoDraftV2(userId, "solicitud", {
+      id: "doc_jspdf",
+      asunto: "Solicitud de prueba",
+      destino: { cargo: "Director General", nombre: "Dr. López" },
+      cuerpo: "Texto del escrito que debe figurar en el PDF vectorial.",
+      firmaRef: sigRef,
+    })
+
+    const jsDoc = await renderEscritoToPdf(draft, { nombreTrabajador: "Trabajador IMSS" })
+    expect(jsDoc).toBeDefined()
+    expect(jsDoc.getNumberOfPages()).toBeGreaterThanOrEqual(1)
+
+    const pdfFile = await renderStoredEscritoToPdfFile(draft, userId, { nombreTrabajador: "Trabajador IMSS" })
+    expect(pdfFile).toBeInstanceOf(File)
+    expect(pdfFile.type).toBe("application/pdf")
+  })
+
   it("renderStoredEscritoToPdfFile genera un documento PDF Carta con firma, atenciones, copias y anexos panorámicos y verticales", async () => {
     const userId = "usr_pdf_test"
-    const dummyBlob = new Blob(["image_bytes"], { type: "image/png" })
+    const validBlob = dataUrlToBlob(VALID_PNG_DATA_URL)
 
-    const sigRef = await saveBlobResource(userId, "doc_1", "firma", "sig", dummyBlob)
-    const widePhotoRef = await saveBlobResource(userId, "doc_1", "anexo", "wide", dummyBlob)
-    const tallPhotoRef = await saveBlobResource(userId, "doc_1", "anexo", "tall", dummyBlob)
+    const sigRef = await saveBlobResource(userId, "doc_1", "firma", "sig", validBlob)
+    const widePhotoRef = await saveBlobResource(userId, "doc_1", "anexo", "wide", validBlob)
+    const tallPhotoRef = await saveBlobResource(userId, "doc_1", "anexo", "tall", validBlob)
 
     const draft = createEmptyEscritoDraftV2(userId, "aclaracion", {
       id: "doc_1",
@@ -82,5 +110,9 @@ describe("Renderizador de PDF Vectorial Carta (escrito-pdf-renderer)", () => {
     expect(pdfFile).toBeInstanceOf(File)
     expect(pdfFile.type).toBe("application/pdf")
     expect(pdfFile.size).toBeGreaterThan(1000)
+
+    const doc = await buildJsPdfDocument(draft, userId)
+    // 1 página principal + 2 páginas de anexos = 3 páginas
+    expect(doc.getNumberOfPages()).toBe(3)
   })
 })

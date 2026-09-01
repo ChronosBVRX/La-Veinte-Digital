@@ -13,11 +13,12 @@ import {
   createEmptyEscritoDraftV2,
   type LegacyEscritoV1,
 } from "@/shared/contracts/escrito-draft"
+import * as blobStorage from "@/shared/services/blob-storage"
 import {
   getBlobResource,
   saveBlobResource,
   deleteBlobResource,
-} from "../services/escritos-indexeddb"
+} from "@/shared/services/blob-storage"
 import { renderStoredEscritoToPdfFile } from "@/shared/lib/escrito-pdf-renderer"
 
 describe("Aislamiento de Almacenamiento, Migración Transaccional y Ciclo de Vida de Blobs", () => {
@@ -70,6 +71,52 @@ describe("Aislamiento de Almacenamiento, Migración Transaccional y Ciclo de Vid
     const photoBlob = await getBlobResource("usr_alice", docsAlice[0].anexos[0].storageRef)
     expect(photoBlob).not.toBeNull()
     expect(photoBlob).toBeTruthy()
+  })
+
+  it("fallo inyectado en IndexedDB: revierte recursos parciales, no elimina la clave global y permite reintento idempotente", async () => {
+    const legacyDoc: LegacyEscritoV1 = {
+      id: "leg_fail",
+      titulo: "Solicitud con fallo de almacenamiento",
+      tipo: "solicitud",
+      fecha: "2026-06-01",
+      cuerpo: "Texto...",
+      destino: "Director",
+      firmaUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    }
+    localStorage.setItem("escritos_guardados", JSON.stringify([legacyDoc]))
+
+    // Inyectar fallo simulado en saveBlobResource
+    const saveSpy = vi.spyOn(blobStorage, "saveBlobResource").mockRejectedValueOnce(
+      new Error("QuotaExceededError: The quota has been exceeded.")
+    )
+
+    const result = await migrarEscritosLegadosSiEsNecesario("usr_fail_test")
+    expect(result.success).toBe(false)
+
+    // La clave global original NO fue eliminada
+    expect(localStorage.getItem("escritos_guardados")).not.toBeNull()
+    expect(localStorage.getItem("escritos_guardados_migrated_to")).toBeNull()
+
+    // Restaurar mock y permitir reintento idempotente exitoso
+    saveSpy.mockRestore()
+    const retryResult = await migrarEscritosLegadosSiEsNecesario("usr_fail_test")
+    expect(retryResult.success).toBe(true)
+    expect(localStorage.getItem("escritos_guardados")).toBeNull()
+  })
+
+  it("guardarEscrito lanza error descriptivo ante QuotaExceededError en localStorage", () => {
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      const err = new Error("QuotaExceededError: DOM Exception 22")
+      err.name = "QuotaExceededError"
+      throw err
+    })
+
+    const draft = createEmptyEscritoDraftV2("usr_quota", "solicitud", { titulo: "Test Quota" })
+    expect(() => guardarEscrito(draft, "usr_quota")).toThrow(
+      /El almacenamiento del dispositivo está lleno/i
+    )
+
+    setItemSpy.mockRestore()
   })
 
   it("usuario B en el mismo dispositivo no recibe los escritos de usuario A", async () => {

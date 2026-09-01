@@ -339,6 +339,7 @@ export function migrateLegacyEscritoToV2(
 }
 
 export interface GenerarEscritoRequest {
+  mode?: "create" | "revise"
   tipo: TipoEscritoKey
   hechos: string
   peticion: string

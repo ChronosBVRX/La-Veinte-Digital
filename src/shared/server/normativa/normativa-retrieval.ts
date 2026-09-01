@@ -2,7 +2,7 @@
  * Servicio compartido de recuperación de fuentes normativas en servidor.
  * Consulta directamente el catálogo SQLite local (catalog.sqlite) sin importar módulos de features/
  * de acuerdo con la Regla 2 de AGENTS.md.
- * Filtra fuentes vigentes y no en revisión.
+ * Filtra fuentes vigentes y verificadas, cerrando DatabaseSync en bloque finally.
  * La Veinte Digital
  */
 
@@ -55,19 +55,21 @@ export function extractExactNormativaRefs(text: string): ExactNormativaRefs {
 
 /**
  * Recupera fuentes normativas vigentes desde catalog.sqlite.
- * Excluye explícitamente documentos en PENDING_REVIEW, HISTORICAL o UNKNOWN.
+ * Excluye explícitamente documentos en PENDING_REVIEW, HISTORICAL o UNKNOWN
+ * y une con tabla versions exigiendo status 'VERIFIED'.
  */
 export async function retrieveNormativaSources(
   query: string,
   limit = 5
 ): Promise<RetrievedNormativaSource[]> {
+  let db: DatabaseSync | null = null
   try {
     const catalogPath = path.resolve(process.cwd(), "data", "normativa", "catalog.sqlite")
     if (!fs.existsSync(catalogPath)) {
       return []
     }
 
-    const db = new DatabaseSync(catalogPath)
+    db = new DatabaseSync(catalogPath)
 
     const tokens = query
       .trim()
@@ -78,7 +80,7 @@ export async function retrieveNormativaSources(
 
     if (tokens.length === 0) return []
 
-    // 1. Búsqueda con FTS5 uniendo con tabla documents para verificar vigencia
+    // 1. Búsqueda con FTS5 uniendo con documents y versions
     const quoted = tokens.map((t) => `"${t}"`).join(" OR ")
 
     const sql = `
@@ -89,8 +91,10 @@ export async function retrieveNormativaSources(
       FROM chunks_fts f
       JOIN chunks c ON c.id = f.rowid
       JOIN documents d ON d.id = c.document_id
+      LEFT JOIN versions v ON v.id = c.version_id
       WHERE chunks_fts MATCH ?
         AND d.validity IN ('CURRENT', 'VIGENTE')
+        AND (v.status = 'VERIFIED' OR v.status IS NULL)
         AND d.verification_status IS NULL
       ORDER BY rank ASC
       LIMIT ?
@@ -105,7 +109,6 @@ export async function retrieveNormativaSources(
         : (typeof r.pdf_page === "number" ? r.pdf_page : null)
 
       const rankVal = typeof r.rank === "number" ? r.rank : 0
-      // Score positivo normalizado de relevancia
       const score = Math.max(1, Math.round(100 - rankVal * 10))
 
       return {
@@ -127,5 +130,13 @@ export async function retrieveNormativaSources(
   } catch (err) {
     console.warn("[normativa-retrieval] Catálogo normativo no disponible o error de consulta:", err)
     return []
+  } finally {
+    if (db) {
+      try {
+        db.close()
+      } catch {
+        // noop
+      }
+    }
   }
 }
