@@ -230,30 +230,13 @@ function DocumentViewerModalContent({
     }
   }
 
-  const topActionBtnStyle: React.CSSProperties = {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "0.35rem",
-    height: 36,
-    padding: "0 0.625rem",
-    borderRadius: "0.5rem",
-    border: "1px solid var(--border)",
-    background: "var(--card)",
-    color: "var(--fg)",
-    cursor: "pointer",
-    flexShrink: 0,
-    fontSize: "0.8125rem",
-    fontWeight: 600,
-    boxSizing: "border-box",
-  }
-
   return (
     <div
       style={{
         position: "fixed",
         inset: 0,
         width: "100vw",
+        maxWidth: "100%",
         height: "100dvh",
         background: "var(--bg)",
         zIndex: 99999,
@@ -265,28 +248,67 @@ function DocumentViewerModalContent({
         boxSizing: "border-box",
       }}
     >
+      <style>{`
+        .doc-viewer-btn-label {
+          display: none;
+          margin-left: 0.25rem;
+          font-size: 0.75rem;
+          font-weight: 600;
+        }
+        @media (min-width: 640px) {
+          .doc-viewer-btn-label {
+            display: inline;
+          }
+        }
+        .doc-viewer-action-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          height: 34px;
+          min-width: 34px;
+          padding: 0 0.4rem;
+          border-radius: 0.5rem;
+          border: 1px solid var(--border);
+          background: var(--card);
+          color: var(--fg);
+          cursor: pointer;
+          flex-shrink: 0;
+          box-sizing: border-box;
+          transition: background 0.15s ease;
+        }
+        .doc-viewer-action-btn:hover {
+          background: var(--accent);
+        }
+        @media (min-width: 640px) {
+          .doc-viewer-action-btn {
+            padding: 0 0.65rem;
+          }
+        }
+      `}</style>
+
       {/* Barra de cabecera superior integrada */}
       <header
         style={{
           width: "100%",
-          padding: "0.5rem 0.875rem",
+          maxWidth: "100vw",
+          padding: "0.5rem 0.625rem",
           background: "var(--card)",
           borderBottom: "1px solid var(--border)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: "0.625rem",
+          gap: "0.5rem",
           flexShrink: 0,
           boxSizing: "border-box",
           zIndex: 10,
         }}
       >
         {/* Identidad del Documento */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", minWidth: 0, flex: "1 1 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0, flex: "1 1 auto" }}>
           <div
             style={{
-              width: 34,
-              height: 34,
+              width: 32,
+              height: 32,
               borderRadius: "0.5rem",
               flexShrink: 0,
               background: `${color}1a`,
@@ -298,13 +320,13 @@ function DocumentViewerModalContent({
           >
             <Icon size={18} weight="duotone" />
           </div>
-          <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
             <div
               style={{
-                fontSize: "0.875rem",
+                fontSize: "0.8125rem",
                 fontWeight: 700,
                 color: "var(--fg)",
-                lineHeight: 1.25,
+                lineHeight: 1.2,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -315,7 +337,7 @@ function DocumentViewerModalContent({
             </div>
             <div
               style={{
-                fontSize: "0.75rem",
+                fontSize: "0.6875rem",
                 color: "var(--muted)",
                 marginTop: "0.0625rem",
                 whiteSpace: "nowrap",
@@ -328,18 +350,18 @@ function DocumentViewerModalContent({
           </div>
         </div>
 
-        {/* Acciones de Cabecera */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", flexShrink: 0 }}>
+        {/* Acciones de Cabecera y Botón Cerrar */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", flexShrink: 0 }}>
           {/* Descargar */}
           <button
             onClick={handleDownload}
             disabled={isDownloading}
             title="Descargar archivo PDF"
             aria-label="Descargar PDF"
-            style={topActionBtnStyle}
+            className="doc-viewer-action-btn"
           >
             <DownloadSimple size={16} weight="bold" />
-            <span style={{ display: "inline-block" }}>Descargar</span>
+            <span className="doc-viewer-btn-label">Descargar</span>
           </button>
 
           {/* Compartir */}
@@ -348,10 +370,10 @@ function DocumentViewerModalContent({
             disabled={isSharing}
             title="Compartir documento"
             aria-label="Compartir"
-            style={topActionBtnStyle}
+            className="doc-viewer-action-btn"
           >
             <ShareNetwork size={16} weight="bold" />
-            <span style={{ display: "inline-block" }}>Compartir</span>
+            <span className="doc-viewer-btn-label">Compartir</span>
           </button>
 
           {/* Imprimir */}
@@ -359,10 +381,10 @@ function DocumentViewerModalContent({
             onClick={() => onSendPrint(doc)}
             title="Enviar a imprimir o transferir"
             aria-label="Imprimir"
-            style={topActionBtnStyle}
+            className="doc-viewer-action-btn"
           >
             <Printer size={16} weight="bold" />
-            <span style={{ display: "inline-block" }}>Imprimir</span>
+            <span className="doc-viewer-btn-label">Imprimir</span>
           </button>
 
           {/* Editar (si es escrito) */}
@@ -371,14 +393,14 @@ function DocumentViewerModalContent({
               href={`/escritos?id=${doc.id}`}
               title="Editar escrito"
               aria-label="Editar escrito"
+              className="doc-viewer-action-btn"
               style={{
-                ...topActionBtnStyle,
                 color: "var(--primary)",
                 textDecoration: "none",
               }}
             >
               <PencilSimple size={16} weight="bold" />
-              <span style={{ display: "inline-block" }}>Editar</span>
+              <span className="doc-viewer-btn-label">Editar</span>
             </Link>
           )}
 
@@ -388,37 +410,31 @@ function DocumentViewerModalContent({
               onClick={() => onImportTarjeton(doc)}
               title="Exportar datos al perfil laboral"
               aria-label="Exportar al perfil"
-              style={topActionBtnStyle}
+              className="doc-viewer-action-btn"
             >
               <UploadSimple size={16} weight="bold" />
-              <span style={{ display: "inline-block" }}>Exportar</span>
+              <span className="doc-viewer-btn-label">Exportar</span>
             </button>
           )}
 
           {/* Separador */}
-          <div style={{ width: 1, height: 22, background: "var(--border)", margin: "0 0.125rem" }} />
+          <div style={{ width: 1, height: 20, background: "var(--border)", margin: "0 0.125rem" }} />
 
           {/* Botón Cerrar (Esquina superior derecha) */}
           <button
             onClick={onClose}
             aria-label="Cerrar visor"
             title="Cerrar visor"
+            className="doc-viewer-action-btn"
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 36,
-              height: 36,
-              borderRadius: "0.5rem",
-              border: "1px solid var(--border)",
               background: "var(--accent)",
               color: "var(--fg)",
-              cursor: "pointer",
+              width: 34,
+              height: 34,
               padding: 0,
-              flexShrink: 0,
             }}
           >
-            <X size={20} weight="bold" />
+            <X size={18} weight="bold" />
           </button>
         </div>
       </header>
@@ -428,11 +444,12 @@ function DocumentViewerModalContent({
         style={{
           flex: 1,
           width: "100%",
-          height: "100%",
+          maxWidth: "100vw",
+          minHeight: 0,
           overflowY: "auto",
           overflowX: "hidden",
           WebkitOverflowScrolling: "touch",
-          padding: "clamp(0.5rem, 2vw, 1.25rem)",
+          padding: "clamp(0.375rem, 1.5vw, 1rem) clamp(0.25rem, 1vw, 0.75rem)",
           boxSizing: "border-box",
           display: "flex",
           flexDirection: "column",
@@ -477,7 +494,7 @@ function DocumentViewerModalContent({
               background: "#ffffff",
               color: "#0f172a",
               borderRadius: "0.5rem",
-              padding: "clamp(1.25rem, 4vw, 3rem) clamp(0.875rem, 3.5vw, 2.5rem)",
+              padding: "clamp(1.25rem, 3.5vw, 3rem) clamp(0.75rem, 3vw, 2.5rem)",
               boxShadow: "0 4px 16px rgba(0, 0, 0, 0.1)",
               border: "1px solid var(--border)",
               fontFamily: "Times New Roman, Times, serif",
@@ -614,7 +631,7 @@ function DocumentViewerModalContent({
 
         {/* Renderizado de Páginas PDF Nativas (Tarjetón y Checadas a Todo el Ancho) */}
         {!loading && !error && doc.kind === "nativo" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", alignItems: "center", width: "100%", maxWidth: "850px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", alignItems: "center", width: "100%", maxWidth: "850px", boxSizing: "border-box" }}>
             {pdfPages.map((pageSrc, pageIdx) => (
               <div
                 key={pageIdx}
@@ -625,15 +642,16 @@ function DocumentViewerModalContent({
                   boxShadow: "0 4px 16px rgba(0, 0, 0, 0.12)",
                   border: "1px solid var(--border)",
                   width: "100%",
+                  boxSizing: "border-box",
                   display: "flex",
                   flexDirection: "column",
                 }}
               >
                 <div style={{
-                  padding: "0.375rem 0.75rem",
+                  padding: "0.25rem 0.625rem",
                   background: "var(--accent)",
                   borderBottom: "1px solid var(--border)",
-                  fontSize: "0.75rem",
+                  fontSize: "0.6875rem",
                   fontWeight: 600,
                   color: "var(--muted)",
                   textAlign: "right",
@@ -644,7 +662,7 @@ function DocumentViewerModalContent({
                 <img
                   src={pageSrc}
                   alt={`Página ${pageIdx + 1}`}
-                  style={{ width: "100%", height: "auto", display: "block" }}
+                  style={{ width: "100%", height: "auto", display: "block", maxWidth: "100%" }}
                 />
               </div>
             ))}
