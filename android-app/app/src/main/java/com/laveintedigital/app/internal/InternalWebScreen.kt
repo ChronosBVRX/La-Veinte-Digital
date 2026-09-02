@@ -223,20 +223,36 @@ fun InternalWebScreen(
         }
         BridgeHandler.onShareNativeDocument = { path, title ->
             runCatching {
-                val file = java.io.File(path)
-                if (file.exists()) {
-                    val uri = androidx.core.content.FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        file
-                    )
-                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                        type = "application/pdf"
-                        putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    }
-                    context.startActivity(android.content.Intent.createChooser(intent, title ?: "Compartir documento"))
+                if (path.isBlank()) {
+                    android.widget.Toast.makeText(context, "Ruta de documento no válida", android.widget.Toast.LENGTH_SHORT).show()
+                    return@runCatching
                 }
+                val base = context.filesDir.canonicalFile
+                val file = runCatching { java.io.File(path).canonicalFile }.getOrNull()
+                if (file == null || !file.path.startsWith(base.path) || !file.exists()) {
+                    android.widget.Toast.makeText(context, "No se encontró el archivo del documento", android.widget.Toast.LENGTH_SHORT).show()
+                    return@runCatching
+                }
+                val uri = androidx.core.content.FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+                val shareTitle = title ?: file.name
+                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "application/pdf"
+                    putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                    putExtra(android.content.Intent.EXTRA_TITLE, shareTitle)
+                    clipData = android.content.ClipData.newRawUri(shareTitle, uri)
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                val chooser = android.content.Intent.createChooser(intent, shareTitle).apply {
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(chooser)
+            }.onFailure { e ->
+                android.util.Log.e("InternalWebScreen", "shareNativeDocument failed", e)
+                android.widget.Toast.makeText(context, "No se pudo compartir el archivo", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
         BridgeHandler.onAuthenticated = {
