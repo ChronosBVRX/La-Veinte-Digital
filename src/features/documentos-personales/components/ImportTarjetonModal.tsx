@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { UploadSimple, X } from "@phosphor-icons/react"
+import { FullscreenPortal } from "@/shared/components/ui/FullscreenPortal"
 import { Button } from "@/shared/components/ui/Button"
 import { Card } from "@/shared/components/ui/Card"
 import { Badge } from "@/shared/components/ui/Badge"
@@ -27,6 +28,15 @@ interface ImportTarjetonModalProps {
  * → confirmación que actualiza el perfil laboral) sobre un PDF ya descargado.
  */
 export function ImportTarjetonModal({ open, file, profile, onClose }: ImportTarjetonModalProps) {
+  if (!open) return null
+  return (
+    <FullscreenPortal open={open} onClose={onClose} ariaLabel="Actualizar perfil con tarjetón">
+      <ImportTarjetonModalContent open={open} file={file} profile={profile} onClose={onClose} />
+    </FullscreenPortal>
+  )
+}
+
+function ImportTarjetonModalContent({ open, file, profile, onClose }: ImportTarjetonModalProps) {
   const { state, start, confirm, reset } = useTarjetonImporter(profile)
   const startedRef = useRef(false)
 
@@ -46,8 +56,6 @@ export function ImportTarjetonModal({ open, file, profile, onClose }: ImportTarj
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  if (!open) return null
-
   const step: Status = state.step
 
   const retry = () => {
@@ -59,15 +67,15 @@ export function ImportTarjetonModal({ open, file, profile, onClose }: ImportTarj
   return (
     <div
       style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(10, 15, 25, 0.98)",
+        width: "100%",
+        height: "100%",
+        background: "rgba(10, 15, 25, 0.95)",
         display: "flex",
-        alignItems: "flex-start",
+        alignItems: "center",
         justifyContent: "center",
-        zIndex: 1100,
-        padding: "1.25rem",
-        overflow: "auto",
+        padding: "1rem",
+        boxSizing: "border-box",
+        overflowY: "auto",
       }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
@@ -80,7 +88,9 @@ export function ImportTarjetonModal({ open, file, profile, onClose }: ImportTarj
         display: "flex",
         flexDirection: "column",
         gap: "1rem",
-        marginTop: "6vh",
+        margin: "auto",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+        border: "1px solid var(--border)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
           <UploadSimple size={26} weight="duotone" style={{ color: "var(--primary)" }} />

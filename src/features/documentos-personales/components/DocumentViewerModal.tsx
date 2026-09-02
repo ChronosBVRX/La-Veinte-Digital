@@ -7,6 +7,7 @@ import {
   UploadSimple, FileText, Clock, PencilLine,
   MagnifyingGlassPlus, MagnifyingGlassMinus, ArrowsIn,
 } from "@phosphor-icons/react"
+import { FullscreenPortal } from "@/shared/components/ui/FullscreenPortal"
 import { Button } from "@/shared/components/ui/Button"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { readNativeDocumentAsFile } from "@/features/transferir/services/transfer"
@@ -25,9 +26,9 @@ const TIPO_ICON: Record<DocTipo, typeof FileText> = {
 }
 
 const TIPO_COLOR: Record<DocTipo, string> = {
-  tarjeton: "#2563eb",
-  checadas: "#16a34a",
-  escrito: "#7c3aed",
+  tarjeton: "#3b82f6",
+  checadas: "#22c55e",
+  escrito: "#a855f7",
 }
 
 export interface DocumentViewerModalProps {
@@ -42,7 +43,11 @@ export interface DocumentViewerModalProps {
 
 export function DocumentViewerModal(props: DocumentViewerModalProps) {
   if (!props.open || !props.doc) return null
-  return <DocumentViewerModalContent key={props.doc.id} {...props} doc={props.doc} />
+  return (
+    <FullscreenPortal open={props.open} onClose={props.onClose} ariaLabel="Visor de documento">
+      <DocumentViewerModalContent key={props.doc.id} {...props} doc={props.doc} />
+    </FullscreenPortal>
+  )
 }
 
 interface DocumentViewerModalContentProps extends Omit<DocumentViewerModalProps, "doc"> {
@@ -93,8 +98,12 @@ function DocumentViewerModalContent({
     initialPanY: 0,
   })
 
+  // Limpieza de Object URLs de páginas y firmas
+  const createdUrlsRef = useRef<string[]>([])
+
   useEffect(() => {
     let cancelled = false
+    const urlsToClean: string[] = []
 
     const loadContent = async () => {
       try {
@@ -104,7 +113,9 @@ function DocumentViewerModalContent({
             try {
               const fBlob = await getBlobResource(currentUserId, doc.escrito.firmaRef)
               if (!cancelled && fBlob) {
-                setFirmaUrl(URL.createObjectURL(fBlob))
+                const u = URL.createObjectURL(fBlob)
+                urlsToClean.push(u)
+                setFirmaUrl(u)
               }
             } catch {}
           }
@@ -116,9 +127,11 @@ function DocumentViewerModalContent({
                 try {
                   const aBlob = await getBlobResource(currentUserId, anx.storageRef)
                   if (aBlob) {
+                    const u = URL.createObjectURL(aBlob)
+                    urlsToClean.push(u)
                     loadedAnexos.push({
                       id: anx.id,
-                      url: URL.createObjectURL(aBlob),
+                      url: u,
                       nombre: anx.nombre,
                       descripcion: anx.descripcion,
                     })
@@ -148,7 +161,7 @@ function DocumentViewerModalContent({
           })
           if (cancelled) return
           if (!file) {
-            setError("No se pudo leer el archivo local.")
+            setError("No se pudo leer el archivo del documento.")
             setLoading(false)
             return
           }
@@ -161,8 +174,9 @@ function DocumentViewerModalContent({
           const { pdf } = await loadPdfDocument(buf)
           if (cancelled) return
 
+          // Calidad nítida y segura en memoria
           const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 2) : 2
-          const renderScale = Math.max(dpr, 2.0)
+          const renderScale = Math.min(Math.max(dpr, 2.0), 2.5)
 
           const pages: string[] = []
           for (let i = 1; i <= pdf.numPages; i++) {
@@ -176,6 +190,9 @@ function DocumentViewerModalContent({
               await page.render({ canvasContext: ctx, viewport, canvas }).promise
               pages.push(canvas.toDataURL("image/png"))
             }
+            // Liberar canvas
+            canvas.width = 0
+            canvas.height = 0
           }
 
           if (!cancelled) {
@@ -196,6 +213,13 @@ function DocumentViewerModalContent({
 
     return () => {
       cancelled = true
+      for (const u of urlsToClean) {
+        URL.revokeObjectURL(u)
+      }
+      for (const u of createdUrlsRef.current) {
+        URL.revokeObjectURL(u)
+      }
+      createdUrlsRef.current = []
     }
   }, [doc, userId, profile])
 
@@ -210,21 +234,14 @@ function DocumentViewerModalContent({
     setIsSharing(true)
     setShareFeedback(null)
     try {
-      // 1. Si estamos en Android nativo y es documento nativo
+      // 1. Android Nativo con FileProvider y PDF real
       if (doc.kind === "nativo" && doc.localPath && typeof window !== "undefined" && window.LaVeinteApp?.shareNativeDocument) {
         window.LaVeinteApp.shareNativeDocument(doc.localPath, docName)
         setIsSharing(false)
         return
       }
 
-      // 2. Si estamos en Android nativo con share de texto genérico
-      if (typeof window !== "undefined" && window.LaVeinteApp?.share) {
-        window.LaVeinteApp.share(docName, `Documento: ${docName}`)
-        setIsSharing(false)
-        return
-      }
-
-      // 3. Web Share API con archivo preparado (sin delay async para no perder el gesto del usuario)
+      // 2. Web Share API con el archivo File real
       const file = cachedFile
       if (file && typeof navigator !== "undefined" && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
@@ -235,32 +252,22 @@ function DocumentViewerModalContent({
         return
       }
 
-      // 4. Web Share API de solo texto/URL
-      if (typeof navigator !== "undefined" && navigator.share) {
-        await navigator.share({
-          title: docName,
-          text: `Documento: ${docName}`,
-        })
+      // 3. Si es la app nativa pero no tiene el bridge nuevo
+      if (typeof window !== "undefined" && window.LaVeinteApp?.isNativeApp?.()) {
+        setShareFeedback("Actualiza La Veinte Digital para compartir este archivo.")
+        setTimeout(() => setShareFeedback(null), 4000)
         setIsSharing(false)
         return
       }
 
-      // 5. Fallback a portapapeles
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(`${docName} - La Veinte Digital`)
-        setShareFeedback("Título del documento copiado al portapapeles.")
-        setTimeout(() => setShareFeedback(null), 3000)
-        setIsSharing(false)
-        return
-      }
-
-      setShareFeedback("Compartir no disponible en este navegador.")
-      setTimeout(() => setShareFeedback(null), 3000)
+      // 4. Si el navegador no soporta compartir archivos directamente
+      setShareFeedback("Compartir archivos no está disponible en este navegador.")
+      setTimeout(() => setShareFeedback(null), 4000)
     } catch (err) {
       if ((err as Error)?.name !== "AbortError") {
         console.error("Error al compartir:", err)
         setShareFeedback("No se pudo compartir el documento.")
-        setTimeout(() => setShareFeedback(null), 3000)
+        setTimeout(() => setShareFeedback(null), 3500)
       }
     } finally {
       setIsSharing(false)
@@ -349,19 +356,14 @@ function DocumentViewerModalContent({
   return (
     <div
       style={{
-        position: "fixed",
-        inset: 0,
-        width: "100vw",
-        maxWidth: "100%",
-        height: "100dvh",
-        background: "#0f172a",
-        zIndex: 99999,
+        width: "100%",
+        height: "100%",
         display: "flex",
         flexDirection: "column",
-        margin: 0,
-        padding: 0,
+        background: "#0f172a",
+        color: "#f8fafc",
         overflow: "hidden",
-        boxSizing: "border-box",
+        position: "relative",
       }}
     >
       <style>{`
@@ -382,18 +384,19 @@ function DocumentViewerModalContent({
           justify-content: center;
           height: 34px;
           min-width: 34px;
-          padding: 0 0.45rem;
+          padding: 0 0.5rem;
           border-radius: 0.5rem;
-          border: 1px solid var(--border);
-          background: var(--card);
-          color: var(--fg);
+          border: 1px solid rgba(255, 255, 255, 0.15);
+          background: rgba(30, 41, 59, 0.9);
+          color: #f1f5f9;
           cursor: pointer;
           flex-shrink: 0;
           box-sizing: border-box;
-          transition: background 0.15s ease;
+          transition: all 0.15s ease;
         }
         .doc-viewer-action-btn:hover {
-          background: var(--accent);
+          background: rgba(51, 65, 85, 0.95);
+          border-color: rgba(255, 255, 255, 0.25);
         }
         @media (min-width: 640px) {
           .doc-viewer-action-btn {
@@ -404,14 +407,14 @@ function DocumentViewerModalContent({
           display: flex;
           align-items: center;
           gap: 0.25rem;
-          background: rgba(15, 23, 42, 0.9);
+          background: rgba(15, 23, 42, 0.92);
           color: #ffffff;
           padding: 0.35rem 0.6rem;
           border-radius: 2rem;
-          box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+          box-shadow: 0 4px 20px rgba(0,0,0,0.5);
           backdrop-filter: blur(8px);
           z-index: 50;
-          border: 1px solid rgba(255,255,255,0.15);
+          border: 1px solid rgba(255,255,255,0.2);
         }
         .zoom-floating-pill button {
           background: transparent;
@@ -429,14 +432,13 @@ function DocumentViewerModalContent({
         }
       `}</style>
 
-      {/* Barra de cabecera superior integrada */}
+      {/* Barra de cabecera superior compacta */}
       <header
         style={{
           width: "100%",
-          maxWidth: "100vw",
-          padding: "0.5rem 0.625rem",
-          background: "var(--card)",
-          borderBottom: "1px solid var(--border)",
+          padding: "max(0.5rem, env(safe-area-inset-top, 0px)) 0.75rem 0.5rem",
+          background: "rgba(15, 23, 42, 0.95)",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -444,6 +446,7 @@ function DocumentViewerModalContent({
           flexShrink: 0,
           boxSizing: "border-box",
           zIndex: 10,
+          backdropFilter: "blur(10px)",
         }}
       >
         {/* Identidad del Documento */}
@@ -454,7 +457,7 @@ function DocumentViewerModalContent({
               height: 32,
               borderRadius: "0.5rem",
               flexShrink: 0,
-              background: `${color}1a`,
+              background: `${color}25`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -468,7 +471,7 @@ function DocumentViewerModalContent({
               style={{
                 fontSize: "0.8125rem",
                 fontWeight: 700,
-                color: "var(--fg)",
+                color: "#f8fafc",
                 lineHeight: 1.2,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
@@ -481,7 +484,7 @@ function DocumentViewerModalContent({
             <div
               style={{
                 fontSize: "0.6875rem",
-                color: "var(--muted)",
+                color: "#94a3b8",
                 marginTop: "0.0625rem",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
@@ -507,12 +510,17 @@ function DocumentViewerModalContent({
             <span className="doc-viewer-btn-label">Compartir</span>
           </button>
 
-          {/* Imprimir */}
+          {/* Imprimir / Transferir mediante QR */}
           <button
             onClick={() => onSendPrint(doc)}
-            title="Enviar a imprimir o transferir"
+            title="Escanear QR para imprimir en oficina sindical"
             aria-label="Imprimir"
             className="doc-viewer-action-btn"
+            style={{
+              background: "var(--primary)",
+              color: "#ffffff",
+              borderColor: "transparent",
+            }}
           >
             <Printer size={16} weight="bold" />
             <span className="doc-viewer-btn-label">Imprimir</span>
@@ -526,7 +534,7 @@ function DocumentViewerModalContent({
               aria-label="Editar escrito"
               className="doc-viewer-action-btn"
               style={{
-                color: "var(--primary)",
+                color: "#a855f7",
                 textDecoration: "none",
               }}
             >
@@ -549,7 +557,7 @@ function DocumentViewerModalContent({
           )}
 
           {/* Separador */}
-          <div style={{ width: 1, height: 20, background: "var(--border)", margin: "0 0.125rem" }} />
+          <div style={{ width: 1, height: 20, background: "rgba(255,255,255,0.15)", margin: "0 0.125rem" }} />
 
           {/* Botón Cerrar (Esquina superior derecha) */}
           <button
@@ -558,8 +566,8 @@ function DocumentViewerModalContent({
             title="Cerrar visor"
             className="doc-viewer-action-btn"
             style={{
-              background: "var(--accent)",
-              color: "var(--fg)",
+              background: "rgba(255, 255, 255, 0.1)",
+              color: "#f8fafc",
               width: 34,
               height: 34,
               padding: 0,
@@ -570,30 +578,40 @@ function DocumentViewerModalContent({
         </div>
       </header>
 
-      {/* Notificación de feedback al compartir si aplica */}
+      {/* Notificación de feedback al compartir */}
       {shareFeedback && (
         <div
           style={{
             position: "absolute",
-            top: "54px",
+            top: "max(60px, calc(env(safe-area-inset-top, 0px) + 54px))",
             left: "50%",
             transform: "translateX(-50%)",
-            background: "rgba(15, 23, 42, 0.92)",
+            background: "rgba(15, 23, 42, 0.95)",
             color: "#fff",
+            border: "1px solid rgba(255,255,255,0.2)",
             padding: "0.5rem 1rem",
             borderRadius: "0.5rem",
             fontSize: "0.8125rem",
             zIndex: 60,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+            textAlign: "center",
+            maxWidth: "90vw",
           }}
         >
           {shareFeedback}
         </div>
       )}
 
-      {/* Controles Flotantes de Zoom (Inferior Derecho) */}
+      {/* Controles Flotantes de Zoom */}
       {!loading && !error && (
-        <div style={{ position: "fixed", bottom: "1.25rem", right: "1.25rem", zIndex: 60 }}>
+        <div
+          style={{
+            position: "fixed",
+            bottom: "max(1.25rem, calc(env(safe-area-inset-bottom, 0px) + 0.75rem))",
+            right: "1.25rem",
+            zIndex: 60,
+          }}
+        >
           <div className="zoom-floating-pill">
             <button onClick={zoomOut} disabled={zoomScale <= 1} title="Reducir zoom" aria-label="Reducir zoom">
               <MagnifyingGlassMinus size={18} weight="bold" />
@@ -613,7 +631,7 @@ function DocumentViewerModalContent({
         </div>
       )}
 
-      {/* Área Principal de Visualización de Documento (Aprovecha 100% de alto y ancho) */}
+      {/* Área Principal de Visualización con Scroll Vertical Real */}
       <main
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -634,6 +652,7 @@ function DocumentViewerModalContent({
           alignItems: "center",
           touchAction: zoomScale > 1.05 ? "none" : "pan-y",
           position: "relative",
+          background: "#0f172a",
         }}
       >
         {loading && (
@@ -645,11 +664,11 @@ function DocumentViewerModalContent({
         {error && !loading && (
           <div
             style={{
-              background: "#fee2e2",
-              border: "1px solid #f87171",
+              background: "rgba(239, 68, 68, 0.15)",
+              border: "1px solid rgba(239, 68, 68, 0.4)",
               borderRadius: "0.75rem",
               padding: "1.5rem",
-              color: "#991b1b",
+              color: "#fca5a5",
               textAlign: "center",
               maxWidth: "480px",
               margin: "auto",
@@ -664,7 +683,7 @@ function DocumentViewerModalContent({
           </div>
         )}
 
-        {/* Contenedor con Transformación de Zoom y Paneo */}
+        {/* Contenedor de Documento con Transformación de Zoom y Paneo */}
         {!loading && !error && (
           <div
             ref={contentWrapperRef}
@@ -674,7 +693,7 @@ function DocumentViewerModalContent({
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              padding: "0 0 2rem",
+              padding: "0 0 max(2rem, env(safe-area-inset-bottom, 0px))",
               margin: 0,
               boxSizing: "border-box",
               transform: `translate3d(${panOffset.x}px, ${panOffset.y}px, 0) scale(${zoomScale})`,
@@ -683,14 +702,14 @@ function DocumentViewerModalContent({
               willChange: "transform",
             }}
           >
-            {/* Renderizado de Escrito (Hoja Carta Formal de Alto Completo) */}
+            {/* Renderizado de Escrito (Hoja Carta Formal) */}
             {doc.kind === "escrito" && (
               <div
                 style={{
                   background: "#ffffff",
                   color: "#0f172a",
                   minHeight: "calc(100dvh - 56px)",
-                  padding: "clamp(1.25rem, 4vw, 3rem) clamp(1rem, 3.5vw, 2.5rem)",
+                  padding: "clamp(1.5rem, 4vw, 3rem) clamp(1rem, 3.5vw, 2.5rem)",
                   fontFamily: "Times New Roman, Times, serif",
                   fontSize: "clamp(0.875rem, 2.5vw, 1rem)",
                   lineHeight: 1.5,
@@ -700,7 +719,7 @@ function DocumentViewerModalContent({
                   boxSizing: "border-box",
                   wordBreak: "break-word",
                   overflowWrap: "anywhere",
-                  boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
                 }}
               >
                 {/* Lugar y Fecha */}
@@ -794,7 +813,7 @@ function DocumentViewerModalContent({
                 {anexosUrls.length > 0 && (
                   <div style={{ marginTop: "3rem", borderTop: "1px dashed #cbd5e1", paddingTop: "1.5rem" }}>
                     <div style={{ fontWeight: "bold", fontSize: "0.9375rem", marginBottom: "1rem", color: "#475569" }}>
-                  ANEXOS Y EVIDENCIAS ({anexosUrls.length})
+                      ANEXOS Y EVIDENCIAS ({anexosUrls.length})
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
                       {anexosUrls.map((anx, i) => (
@@ -823,9 +842,9 @@ function DocumentViewerModalContent({
               </div>
             )}
 
-            {/* Renderizado de Páginas PDF Nativas (Tarjetón y Checadas de Borde a Borde) */}
+            {/* Renderizado de Páginas PDF Nativas (Tarjetón y Checadas) */}
             {doc.kind === "nativo" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "center", width: "100%", maxWidth: "900px", boxSizing: "border-box" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", alignItems: "center", width: "100%", maxWidth: "900px", boxSizing: "border-box" }}>
                 {pdfPages.map((pageSrc, pageIdx) => (
                   <div
                     key={pageIdx}
@@ -835,17 +854,17 @@ function DocumentViewerModalContent({
                       boxSizing: "border-box",
                       display: "flex",
                       flexDirection: "column",
-                      boxShadow: "0 2px 10px rgba(0,0,0,0.25)",
+                      boxShadow: "0 4px 20px rgba(0,0,0,0.35)",
                     }}
                   >
                     {pdfPages.length > 1 && (
                       <div style={{
-                        padding: "0.25rem 0.625rem",
-                        background: "var(--accent)",
-                        borderBottom: "1px solid var(--border)",
+                        padding: "0.35rem 0.75rem",
+                        background: "#1e293b",
+                        borderBottom: "1px solid rgba(255,255,255,0.1)",
                         fontSize: "0.6875rem",
                         fontWeight: 600,
-                        color: "var(--muted)",
+                        color: "#94a3b8",
                         textAlign: "right",
                       }}>
                         Página {pageIdx + 1} de {pdfPages.length}

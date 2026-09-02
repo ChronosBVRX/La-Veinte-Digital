@@ -154,6 +154,11 @@ export function DocumentosPersonales() {
   const handleShare = async (doc: DocumentoPersonalItem) => {
     try {
       const name = titulo(doc)
+      if (doc.kind === "nativo" && doc.localPath && typeof window !== "undefined" && window.LaVeinteApp?.shareNativeDocument) {
+        window.LaVeinteApp.shareNativeDocument(doc.localPath, name)
+        return
+      }
+
       const file = await getDocFile(doc)
       if (!file) return
 
@@ -161,7 +166,6 @@ export function DocumentosPersonales() {
         await navigator.share({
           files: [file],
           title: name,
-          text: `Documento: ${name}`,
         })
         return
       }
@@ -170,16 +174,6 @@ export function DocumentosPersonales() {
         window.LaVeinteApp.share(name, `Documento: ${name}`)
         return
       }
-
-      // Fallback a descarga directa en navegador
-      const url = URL.createObjectURL(file)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = file.name || `${name}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
     } catch (err) {
       if ((err as Error)?.name !== "AbortError") {
         console.error("Error al compartir documento:", err)
