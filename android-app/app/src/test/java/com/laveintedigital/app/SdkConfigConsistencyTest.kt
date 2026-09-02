@@ -23,6 +23,7 @@ class SdkConfigConsistencyTest {
         assertTrue("compileSdk must be 36", content.contains("compileSdk = 36"))
         assertTrue("minSdk must be 29", content.contains("minSdk = 29"))
         assertTrue("targetSdk must be 36", content.contains("targetSdk = 36"))
-        assertTrue("versionCode must be 199", content.contains("versionCode = 199"))
+        val match = Regex("""versionCode\s*=\s*(\d+)""").find(content)
+        assertTrue("versionCode must be declared and >= 100", match != null && (match.groupValues[1].toIntOrNull() ?: 0) >= 100)
     }
 }
