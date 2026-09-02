@@ -54,10 +54,10 @@ export function PdfFileViewer({
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
-    setErrorMsg(null)
 
     const renderPages = async () => {
+      setLoading(true)
+      setErrorMsg(null)
       try {
         const buffer = await file.arrayBuffer()
         if (cancelled) return
@@ -360,6 +360,7 @@ export function PdfFileViewer({
                 alignItems: "center",
               }}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={pageSrc}
                 alt={`Página ${idx + 1}`}

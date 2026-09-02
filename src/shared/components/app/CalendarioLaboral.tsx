@@ -3,12 +3,11 @@
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { CaretLeft, CaretRight, Clock, MapPin, Warning, ShieldCheck, Plus, Trash, Check, Info } from "@phosphor-icons/react"
 import Link from "next/link"
-import { CALENDARIOS, EVENT_LABELS, EVENT_COLORS, getImssMandatoryRestDaysForMonth, type ImssMandatoryRestDay } from "@/shared/data/calendario"
+import { CALENDARIOS, EVENT_LABELS, EVENT_COLORS, getImssMandatoryRestDaysForMonth } from "@/shared/data/calendario"
 import type { CalendarEventType } from "@/shared/data/calendario"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/shared/components/ui/Button"
 import { readAllLocal, addCommitment as addLocalCommitment, deleteCommitment as deleteLocalCommitment } from "@/features/agenda-laboral/services/commitments-local"
-import type { WorkerCommitment } from "@/features/agenda-laboral/types"
 
 const STORAGE_KEY = "calendar_filters_v2"
 
@@ -224,7 +223,7 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
       }))
     }
     setLoadingAgenda(false)
-  }, [])
+  }, [setAgendaError, setCommitments, setLoadingAgenda])
 
   useEffect(() => {
     const supabase = createClient()
@@ -663,7 +662,6 @@ function DayDetail({
   const [startHour, setStartHour] = useState("07:00")
   const [endHour, setEndHour] = useState("15:00")
   const [service, setService] = useState("")
-  const [notes, setNotes] = useState("")
 
   if (!day || events.length === 0) {
     return (
@@ -706,7 +704,7 @@ function DayDetail({
       startHour,
       endHour,
       service,
-      notes,
+      notes: undefined,
       isNightShift: selectedShift === "nocturno",
     })
     setShowGuardForm(false)

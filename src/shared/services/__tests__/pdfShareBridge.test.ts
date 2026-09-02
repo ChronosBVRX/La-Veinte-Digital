@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import {
   sharePdfViaNativeBridge,
   isNativePdfShareSupported,
-  type PdfShareResult,
 } from "../pdfShareBridge"
 
 describe("pdfShareBridge", () => {
