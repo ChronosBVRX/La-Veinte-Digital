@@ -33,6 +33,7 @@ declare global {
     getFcmToken(): Promise<{ token: string }>
     getPendingPrintDoc(): Promise<{ localPath: string } | null>
     clearPendingPrintDoc(): void
+    shareNativeDocument?(localPath: string, title?: string): void
     openAppSettings(): void
   }
 

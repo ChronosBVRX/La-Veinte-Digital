@@ -211,6 +211,24 @@ fun InternalWebScreen(
             val token = com.laveintedigital.app.push.PushTokenStore.getToken(context) ?: ""
             org.json.JSONObject().put("token", token).let { pushBridgeResult(wv, req, it.toString()) }
         }
+        BridgeHandler.onShareNativeDocument = { path, title ->
+            runCatching {
+                val file = java.io.File(path)
+                if (file.exists()) {
+                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        file
+                    )
+                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "application/pdf"
+                        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(android.content.Intent.createChooser(intent, title ?: "Compartir documento"))
+                }
+            }
+        }
         BridgeHandler.onAuthenticated = {
             if (!enrollmentDone && LaveinteBiometricManager.canAuthenticate(context)) {
                 showEnrollmentInvite = true
@@ -238,6 +256,7 @@ fun InternalWebScreen(
             BridgeHandler.onDeleteNativeDocument = null
             BridgeHandler.onGetFcmToken = null
             BridgeHandler.onGetPendingPrintDoc = null
+            BridgeHandler.onShareNativeDocument = null
         }
     }
 
