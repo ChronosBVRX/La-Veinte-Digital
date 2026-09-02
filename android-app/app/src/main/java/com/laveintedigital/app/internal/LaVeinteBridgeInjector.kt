@@ -50,7 +50,7 @@ object LaVeinteBridgeInjector {
   window.LaVeinteApp = {
     __isInjected: true,
     appPlatform: function() { return 'android'; },
-    appVersion: function() { return '1.0.1'; },
+    appVersion: function() { return '1.1.2'; },
     sdkVersion: function() { return ${android.os.Build.VERSION.SDK_INT}; },
     packageName: function() { return 'com.laveintedigital.app'; },
     isNativeApp: function() { return true; },
@@ -128,6 +128,17 @@ object LaVeinteBridgeInjector {
     shareNativeDocument: function(localPath, title) {
       window.location.href = 'laveinte://bridge/shareNativeDocument?path=' + encodeURIComponent(localPath) + (title ? '&title=' + encodeURIComponent(title) : '');
     },
+    sendPdfShareMessage: function(msg) {
+      try {
+        if (window.laVeintePdfBridge && window.laVeintePdfBridge.postMessage) {
+          window.laVeintePdfBridge.postMessage(typeof msg === 'string' ? msg : JSON.stringify(msg));
+          return true;
+        }
+      } catch (e) {
+        console.error('[LaVeinte] error posting to webMessageListener', e);
+      }
+      return false;
+    },
     openAppSettings: function() {
       window.location.href = 'laveinte://bridge/openAppSettings';
     }
@@ -144,10 +155,10 @@ object LaVeinteBridgeInjector {
  * to the page via evaluateJavascript.
  */
 fun handleBridgeUrl(url: String, webView: WebView?): Boolean {
-    val uri = Uri.parse(url) ?: return false
-    if (uri.scheme != "laveinte" || uri.host != "bridge") return false
+    val parsed = LaVeinteBridgeUriParser.parse(url) ?: return false
+    if (!parsed.scheme.equals("laveinte", ignoreCase = true) || !parsed.host.equals("bridge", ignoreCase = true)) return false
 
-    val path = uri.path ?: return false
+    val path = parsed.path
     when (path) {
         "/openOfficialPayslips" -> BridgeHandler.onOpenOfficialPayslips?.invoke()
         "/openBiometrics" -> BridgeHandler.onOpenBiometrics?.invoke()
@@ -155,55 +166,55 @@ fun handleBridgeUrl(url: String, webView: WebView?): Boolean {
         "/onAuthenticated" -> BridgeHandler.onAuthenticated?.invoke()
         "/onLoggedOut" -> BridgeHandler.onLoggedOut?.invoke()
         "/requestCameraPermission" -> {
-            val req = uri.getQueryParameter("req") ?: return true
+            val req = parsed.queryParams["req"] ?: return true
             BridgeHandler.onRequestCameraPermission?.invoke(webView, req)
         }
         "/requestNotificationsPermission" -> BridgeHandler.onRequestNotificationsPermission?.invoke()
         "/listNativeDocuments" -> {
-            val req = uri.getQueryParameter("req") ?: return true
+            val req = parsed.queryParams["req"] ?: return true
             BridgeHandler.onListNativeDocuments?.invoke(webView, req)
         }
         "/readNativeDocument" -> {
-            val req = uri.getQueryParameter("req") ?: return true
-            val p = uri.getQueryParameter("path") ?: return true
+            val req = parsed.queryParams["req"] ?: return true
+            val p = parsed.queryParams["path"] ?: return true
             BridgeHandler.onReadNativeDocument?.invoke(webView, req, p)
         }
         "/deleteNativeDocument" -> {
-            val req = uri.getQueryParameter("req") ?: return true
-            val p = uri.getQueryParameter("path") ?: return true
+            val req = parsed.queryParams["req"] ?: return true
+            val p = parsed.queryParams["path"] ?: return true
             BridgeHandler.onDeleteNativeDocument?.invoke(webView, req, p)
         }
         "/deleteNativeDocumentById" -> {
-            val req = uri.getQueryParameter("req") ?: return true
-            val idStr = uri.getQueryParameter("id") ?: return true
+            val req = parsed.queryParams["req"] ?: return true
+            val idStr = parsed.queryParams["id"] ?: return true
             val docId = idStr.toLongOrNull() ?: 0L
-            val p = uri.getQueryParameter("path")
+            val p = parsed.queryParams["path"]
             BridgeHandler.onDeleteNativeDocumentById?.invoke(webView, req, docId, p)
         }
         "/getFcmToken" -> {
-            val req = uri.getQueryParameter("req") ?: return true
+            val req = parsed.queryParams["req"] ?: return true
             BridgeHandler.onGetFcmToken?.invoke(webView, req)
         }
         "/getPendingPrintDoc" -> {
-            val req = uri.getQueryParameter("req") ?: return true
+            val req = parsed.queryParams["req"] ?: return true
             BridgeHandler.onGetPendingPrintDoc?.invoke(webView, req)
         }
         "/clearPendingPrintDoc" -> {
             com.laveintedigital.app.imss.payslips.NativeDocuments.PendingPrint.clear()
         }
+        "/openAppSettings" -> BridgeHandler.onOpenAppSettings?.invoke()
         "/share" -> {
-            val title = uri.getQueryParameter("title")
-            val text = uri.getQueryParameter("text")
+            val title = parsed.queryParams["title"]
+            val text = parsed.queryParams["text"]
             BridgeHandler.onShare?.invoke(title, text)
         }
         "/shareNativeDocument" -> {
-            val p = uri.getQueryParameter("path") ?: return true
-            val title = uri.getQueryParameter("title")
+            val p = parsed.queryParams["path"] ?: return true
+            val title = parsed.queryParams["title"]
             BridgeHandler.onShareNativeDocument?.invoke(p, title)
         }
-        "/openAppSettings" -> BridgeHandler.onOpenAppSettings?.invoke()
         "/hasImssCredentials" -> {
-            val portalId = uri.getQueryParameter("portalId") ?: return true
+            val portalId = parsed.queryParams["portalId"] ?: return true
             // Just consume, the JS side doesn't need the result
         }
         else -> return false

@@ -18,6 +18,7 @@ import {
   type DocTipo, type DocumentoPersonalItem,
 } from "../lib/documents"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
+import { sharePdfViaNativeBridge, isNativePdfShareSupported } from "@/shared/services/pdfShareBridge"
 
 const TIPO_ICON: Record<DocTipo, typeof FileText> = {
   tarjeton: FileText,
@@ -142,17 +143,53 @@ function DocumentViewerModalContent({
             if (!cancelled) setAnexosUrls(loadedAnexos)
           }
 
-          // Pre-generar archivo PDF para compartir instantáneamente sin async gap
           try {
             const generatedFile = await escritoToPdfFile(doc.escrito, currentUserId, {
               nombre: profile?.fullName ?? undefined,
               matricula: profile?.matricula ?? undefined,
               categoria: profile?.categoria ?? undefined,
             })
-            if (!cancelled) setCachedFile(generatedFile)
-          } catch {}
+            if (cancelled) return
+            setCachedFile(generatedFile)
 
-          if (!cancelled) setLoading(false)
+            // Renderizado vectorial real tamaño Carta usando PDF.js
+            const buf = await generatedFile.arrayBuffer()
+            if (cancelled) return
+
+            const { loadPdfDocument } = await import("@/features/tarjeton/lib/pdfjs-client")
+            const { pdf } = await loadPdfDocument(buf)
+            if (cancelled) return
+
+            const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 2) : 2
+            const renderScale = Math.min(Math.max(dpr, 2.0), 2.5)
+
+            const pages: string[] = []
+            for (let i = 1; i <= pdf.numPages; i++) {
+              const page = await pdf.getPage(i)
+              const viewport = page.getViewport({ scale: renderScale })
+              const canvas = document.createElement("canvas")
+              canvas.width = Math.ceil(viewport.width)
+              canvas.height = Math.ceil(viewport.height)
+              const ctx = canvas.getContext("2d")
+              if (ctx) {
+                await page.render({ canvasContext: ctx, viewport, canvas }).promise
+                pages.push(canvas.toDataURL("image/png"))
+              }
+              canvas.width = 0
+              canvas.height = 0
+            }
+
+            if (!cancelled) {
+              setPdfPages(pages)
+              setLoading(false)
+            }
+          } catch (e) {
+            if (!cancelled) {
+              console.error("Error generando PDF de escrito:", e)
+              setError("No se pudo generar el documento PDF Carta.")
+              setLoading(false)
+            }
+          }
         } else {
           const file = await readNativeDocumentAsFile({
             name: doc.name,
@@ -234,16 +271,34 @@ function DocumentViewerModalContent({
     setIsSharing(true)
     setShareFeedback(null)
     try {
-      // 1. Android Nativo con FileProvider y PDF real
+      // 1. Android Nativo con FileProvider para documentos locales existentes
       if (doc.kind === "nativo" && doc.localPath && typeof window !== "undefined" && window.LaVeinteApp?.shareNativeDocument) {
         window.LaVeinteApp.shareNativeDocument(doc.localPath, docName)
         setIsSharing(false)
         return
       }
 
-      // 2. Web Share API con el archivo File real
       const file = cachedFile
-      if (file && typeof navigator !== "undefined" && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      if (!file) {
+        setShareFeedback("El documento aún se está preparando...")
+        setTimeout(() => setShareFeedback(null), 3000)
+        setIsSharing(false)
+        return
+      }
+
+      // 2. Puente nativo fragmentado para archivos generados en Android
+      if (isNativePdfShareSupported()) {
+        const result = await sharePdfViaNativeBridge(file, docName)
+        if (!result.ok) {
+          setShareFeedback(result.message || "No se pudo compartir el archivo.")
+          setTimeout(() => setShareFeedback(null), 4000)
+        }
+        setIsSharing(false)
+        return
+      }
+
+      // 3. Web Share API con el archivo File real
+      if (typeof navigator !== "undefined" && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
           title: docName,
@@ -252,15 +307,22 @@ function DocumentViewerModalContent({
         return
       }
 
-      // 3. Si es la app nativa pero no tiene el bridge nuevo
-      if (typeof window !== "undefined" && window.LaVeinteApp?.isNativeApp?.()) {
-        setShareFeedback("Actualiza La Veinte Digital para compartir este archivo.")
-        setTimeout(() => setShareFeedback(null), 4000)
+      // 4. Fallback de descarga si no hay Web Share ni puente nativo
+      if (typeof window !== "undefined") {
+        const blobUrl = URL.createObjectURL(file)
+        const a = document.createElement("a")
+        a.href = blobUrl
+        a.download = docName.endsWith(".pdf") ? docName : `${docName}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(blobUrl)
+        setShareFeedback("Descarga iniciada.")
+        setTimeout(() => setShareFeedback(null), 3000)
         setIsSharing(false)
         return
       }
 
-      // 4. Si el navegador no soporta compartir archivos directamente
       setShareFeedback("Compartir archivos no está disponible en este navegador.")
       setTimeout(() => setShareFeedback(null), 4000)
     } catch (err) {
@@ -702,184 +764,44 @@ function DocumentViewerModalContent({
               willChange: "transform",
             }}
           >
-            {/* Renderizado de Escrito (Hoja Carta Formal) */}
-            {doc.kind === "escrito" && (
-              <div
-                style={{
-                  background: "#ffffff",
-                  color: "#0f172a",
-                  minHeight: "calc(100dvh - 56px)",
-                  padding: "clamp(1.5rem, 4vw, 3rem) clamp(1rem, 3.5vw, 2.5rem)",
-                  fontFamily: "Times New Roman, Times, serif",
-                  fontSize: "clamp(0.875rem, 2.5vw, 1rem)",
-                  lineHeight: 1.5,
-                  maxWidth: "850px",
-                  margin: 0,
-                  width: "100%",
-                  boxSizing: "border-box",
-                  wordBreak: "break-word",
-                  overflowWrap: "anywhere",
-                  boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
-                }}
-              >
-                {/* Lugar y Fecha */}
-                <div style={{ textAlign: "right", marginBottom: "0.75rem", fontSize: "0.9375rem" }}>
-                  {doc.escrito.ciudad ? `${doc.escrito.ciudad}, ` : ""}
-                  {doc.escrito.fecha}
+            {/* Renderizado de Páginas PDF Reales (Escritos Tamaño Carta, Tarjetón y Checadas) */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", alignItems: "center", width: "100%", maxWidth: "900px", boxSizing: "border-box" }}>
+              {pdfPages.map((pageSrc, pageIdx) => (
+                <div
+                  key={pageIdx}
+                  style={{
+                    background: "#ffffff",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    display: "flex",
+                    flexDirection: "column",
+                    boxShadow: "0 4px 20px rgba(0,0,0,0.35)",
+                    borderRadius: "4px",
+                    overflow: "hidden",
+                  }}
+                >
+                  {pdfPages.length > 1 && (
+                    <div style={{
+                      padding: "0.35rem 0.75rem",
+                      background: "#1e293b",
+                      borderBottom: "1px solid rgba(255,255,255,0.1)",
+                      fontSize: "0.6875rem",
+                      fontWeight: 600,
+                      color: "#94a3b8",
+                      textAlign: "right",
+                    }}>
+                      Página {pageIdx + 1} de {pdfPages.length}
+                    </div>
+                  )}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={pageSrc}
+                    alt={`Página ${pageIdx + 1}`}
+                    style={{ width: "100%", height: "auto", display: "block", maxWidth: "100%" }}
+                  />
                 </div>
-
-                {/* Asunto */}
-                {doc.escrito.asunto && (
-                  <div style={{ textAlign: "right", fontWeight: "bold", marginBottom: "1.5rem", fontSize: "0.9375rem" }}>
-                    ASUNTO: {doc.escrito.asunto}
-                  </div>
-                )}
-
-                {/* Destinatario Principal */}
-                <div style={{ marginBottom: "1.25rem" }}>
-                  {doc.escrito.destino?.nombre && (
-                    <div style={{ fontWeight: "bold", textTransform: "uppercase", fontSize: "1rem" }}>
-                      {doc.escrito.destino.nombre}
-                    </div>
-                  )}
-                  {doc.escrito.destino?.cargo && (
-                    <div style={{ fontSize: "0.9375rem" }}>
-                      {doc.escrito.destino.cargo}
-                    </div>
-                  )}
-
-                  {/* Atenciones Múltiples */}
-                  {doc.escrito.atencion && doc.escrito.atencion.length > 0 && (
-                    <div style={{ marginTop: "0.5rem", fontStyle: "italic", fontSize: "0.875rem" }}>
-                      {doc.escrito.atencion.map((at) => (
-                        <div key={at.id}>
-                          AT&apos;N: {at.nombre} {at.cargo ? `(${at.cargo})` : ""}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div style={{ fontWeight: "bold", marginTop: "0.75rem", letterSpacing: "1px" }}>
-                    P R E S E N T E .
-                  </div>
-                </div>
-
-                {/* Cuerpo del Documento */}
-                <div style={{ textAlign: "justify", marginBottom: "2rem" }}>
-                  {(doc.escrito.cuerpo || "").split(/\n\s*\n/).map((para, idx) => (
-                    <p key={idx} style={{ textIndent: "2rem", marginBottom: "1rem", lineHeight: 1.6 }}>
-                      {para.trim()}
-                    </p>
-                  ))}
-                </div>
-
-                {/* Firma y Datos del Trabajador */}
-                <div style={{ textAlign: "center", marginTop: "2.5rem", pageBreakInside: "avoid" }}>
-                  <div style={{ fontWeight: "bold", marginBottom: "0.5rem", letterSpacing: "1px" }}>
-                    A T E N T A M E N T E
-                  </div>
-
-                  {firmaUrl ? (
-                    <div style={{ display: "flex", justifyContent: "center", margin: "0.75rem 0" }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={firmaUrl}
-                        alt="Firma del trabajador"
-                        style={{ height: "70px", maxWidth: "220px", objectFit: "contain" }}
-                      />
-                    </div>
-                  ) : (
-                    <div style={{ height: "45px" }} />
-                  )}
-
-                  <div style={{ borderTop: "1px solid #000", width: "240px", margin: "0.5rem auto 0.25rem" }} />
-
-                  <div style={{ fontWeight: "bold", textTransform: "uppercase" }}>
-                    {profile?.fullName || "Nombre del Trabajador"}
-                  </div>
-                  {profile?.matricula && (
-                    <div style={{ fontSize: "0.875rem" }}>
-                      Matrícula: {profile.matricula}
-                    </div>
-                  )}
-                  {profile?.categoria && (
-                    <div style={{ fontSize: "0.875rem" }}>
-                      Categoría: {profile.categoria}
-                    </div>
-                  )}
-                </div>
-
-                {/* Anexos Fotográficos */}
-                {anexosUrls.length > 0 && (
-                  <div style={{ marginTop: "3rem", borderTop: "1px dashed #cbd5e1", paddingTop: "1.5rem" }}>
-                    <div style={{ fontWeight: "bold", fontSize: "0.9375rem", marginBottom: "1rem", color: "#475569" }}>
-                      ANEXOS Y EVIDENCIAS ({anexosUrls.length})
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-                      {anexosUrls.map((anx, i) => (
-                        <div key={anx.id} style={{ border: "1px solid #e2e8f0", borderRadius: "0.5rem", padding: "0.75rem", background: "#f8fafc" }}>
-                          <div style={{ fontSize: "0.8125rem", fontWeight: 700, marginBottom: "0.25rem" }}>
-                            Anexo {i + 1}: {anx.nombre}
-                          </div>
-                          {anx.descripcion && (
-                            <div style={{ fontSize: "0.75rem", color: "#64748b", marginBottom: "0.5rem" }}>
-                              {anx.descripcion}
-                            </div>
-                          )}
-                          <div style={{ display: "flex", justifyContent: "center" }}>
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={anx.url}
-                              alt={anx.nombre}
-                              style={{ maxWidth: "100%", maxHeight: "350px", objectFit: "contain", borderRadius: "0.375rem" }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Renderizado de Páginas PDF Nativas (Tarjetón y Checadas) */}
-            {doc.kind === "nativo" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", alignItems: "center", width: "100%", maxWidth: "900px", boxSizing: "border-box" }}>
-                {pdfPages.map((pageSrc, pageIdx) => (
-                  <div
-                    key={pageIdx}
-                    style={{
-                      background: "#ffffff",
-                      width: "100%",
-                      boxSizing: "border-box",
-                      display: "flex",
-                      flexDirection: "column",
-                      boxShadow: "0 4px 20px rgba(0,0,0,0.35)",
-                    }}
-                  >
-                    {pdfPages.length > 1 && (
-                      <div style={{
-                        padding: "0.35rem 0.75rem",
-                        background: "#1e293b",
-                        borderBottom: "1px solid rgba(255,255,255,0.1)",
-                        fontSize: "0.6875rem",
-                        fontWeight: 600,
-                        color: "#94a3b8",
-                        textAlign: "right",
-                      }}>
-                        Página {pageIdx + 1} de {pdfPages.length}
-                      </div>
-                    )}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={pageSrc}
-                      alt={`Página ${pageIdx + 1}`}
-                      style={{ width: "100%", height: "auto", display: "block", maxWidth: "100%" }}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         )}
       </main>

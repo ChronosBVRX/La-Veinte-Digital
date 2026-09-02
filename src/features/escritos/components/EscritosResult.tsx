@@ -13,6 +13,7 @@ import {
 import { SignaturePadModal } from "./SignaturePadModal"
 import { deleteBlobResource } from "../services/escritos-indexeddb"
 import { DestinatarioResumen } from "./DestinatarioResumen"
+import { sharePdfViaNativeBridge, isNativePdfShareSupported } from "@/shared/services/pdfShareBridge"
 
 export interface EscritosResultProps {
   userId: string
@@ -95,6 +96,14 @@ export function EscritosResult({
         categoria: workerProfile?.categoria,
         adscripcion: workerProfile?.adscripcion,
       })
+
+      if (isNativePdfShareSupported()) {
+        const result = await sharePdfViaNativeBridge(file, draft.titulo || "Escrito Formal.pdf")
+        if (result.ok) {
+          setIsSharing(false)
+          return
+        }
+      }
 
       if (typeof navigator !== "undefined" && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
