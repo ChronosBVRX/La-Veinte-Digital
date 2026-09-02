@@ -1,15 +1,20 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import "fake-indexeddb/auto"
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, fireEvent } from "@testing-library/react"
 import { DocumentosPersonales } from "../components/DocumentosPersonales"
 import { guardarEscrito } from "@/features/escritos/services/escritos-storage"
 import { saveBlobResource } from "@/features/escritos/services/escritos-indexeddb"
 import { createEmptyEscritoDraftV2 } from "@/shared/contracts/escrito-draft"
 import { escritoToPdfFile } from "../lib/escrito-pdf"
 
+let lastImportTarjetonProps: Record<string, unknown> | null = null
+
 vi.mock("../components/ImportTarjetonModal", () => ({
-  ImportTarjetonModal: () => null,
+  ImportTarjetonModal: (props: Record<string, unknown>) => {
+    lastImportTarjetonProps = props
+    return props.open ? <div data-testid="import-tarjeton-modal">Modal Importación Tarjetón</div> : null
+  },
 }))
 
 vi.mock("../components/SendPrintModal", () => ({
@@ -35,10 +40,11 @@ vi.mock("@/lib/supabase/client", () => ({
   }),
 }))
 
-describe("DocumentosPersonales (Integración con Escritos)", () => {
+describe("DocumentosPersonales (Integración con Escritos y Panel Inline)", () => {
   beforeEach(() => {
     localStorage.clear()
     delete (window as unknown as { LaVeinteApp?: unknown }).LaVeinteApp
+    lastImportTarjetonProps = null
     vi.clearAllMocks()
   })
 
@@ -69,13 +75,12 @@ describe("DocumentosPersonales (Integración con Escritos)", () => {
     expect(screen.getByLabelText(/Enviar a imprimir o transferir/i)).toBeDefined()
   })
 
-  it("renderiza documentos nativos (tarjetón y checadas) con botones de abrir, compartir, imprimir y exportar", async () => {
-    // Simular bridge nativo
+  it("renderiza documentos nativos y maneja el panel inline de Exportar al perfil", async () => {
     const fakeDocs = [
       {
         id: 101,
         name: "TARJETON_2026_03_1Q.pdf",
-        localPath: "/data/docs/tarjeton.pdf",
+        localPath: "/data/docs/tarjeton_1.pdf",
         source: "TU_PERFIL",
         fileSize: 45000,
         downloadedAt: new Date("2026-03-15T10:00:00Z").getTime(),
@@ -83,6 +88,15 @@ describe("DocumentosPersonales (Integración con Escritos)", () => {
       },
       {
         id: 102,
+        name: "TARJETON_2026_03_2Q.pdf",
+        localPath: "/data/docs/tarjeton_2.pdf",
+        source: "TU_PERFIL",
+        fileSize: 46000,
+        downloadedAt: new Date("2026-03-31T10:00:00Z").getTime(),
+        mimeType: "application/pdf",
+      },
+      {
+        id: 103,
         name: "REGISTRO_BIOMETRICO_2026_02.pdf",
         localPath: "/data/docs/checadas.pdf",
         source: "TU_PERFIL_BIOMETRIC",
@@ -106,17 +120,47 @@ describe("DocumentosPersonales (Integración con Escritos)", () => {
 
     await waitFor(() => {
       expect(screen.getByText("TARJETON_2026_03_1Q.pdf")).toBeDefined()
+      expect(screen.getByText("TARJETON_2026_03_2Q.pdf")).toBeDefined()
       expect(screen.getByText("REGISTRO_BIOMETRICO_2026_02.pdf")).toBeDefined()
     })
 
-    // Comprobar que en el tarjetón existe el botón de 3 puntos (Más opciones)
-    const moreBtn = screen.getByLabelText(/Más opciones/i)
-    expect(moreBtn).toBeDefined()
-    moreBtn.click()
+    // Comprobar que en los tarjetones existen botones de 3 puntos
+    const moreButtons = screen.getAllByLabelText(/Más opciones/i)
+    expect(moreButtons.length).toBe(2)
+
+    // 1. Abrir panel en el primer tarjetón
+    fireEvent.click(moreButtons[0])
+    expect(moreButtons[0].getAttribute("aria-expanded")).toBe("true")
+    expect(moreButtons[0].getAttribute("aria-controls")).toBe("menu-panel-101")
+
+    const panel1 = document.getElementById("menu-panel-101")
+    expect(panel1).toBeDefined()
+    expect(panel1?.style.position).not.toBe("absolute")
+    expect(panel1?.style.width).toBe("100%")
+    expect(screen.getByText(/Exportar al perfil/i)).toBeDefined()
+    expect(screen.getByText(/Actualiza tu perfil laboral/i)).toBeDefined()
+
+    // 2. Abrir panel en el segundo tarjetón: debe cerrar el primero y abrir el segundo
+    fireEvent.click(moreButtons[1])
+    expect(moreButtons[0].getAttribute("aria-expanded")).toBe("false")
+    expect(moreButtons[1].getAttribute("aria-expanded")).toBe("true")
+    expect(document.getElementById("menu-panel-101")).toBeNull()
+    expect(document.getElementById("menu-panel-102")).not.toBeNull()
+
+    // 3. Volver a pulsar los 3 puntos del segundo tarjetón: debe cerrarse
+    fireEvent.click(moreButtons[1])
+    expect(moreButtons[1].getAttribute("aria-expanded")).toBe("false")
+    expect(document.getElementById("menu-panel-102")).toBeNull()
+
+    // 4. Volver a abrir y pulsar la acción "Exportar al perfil": debe ejecutar la importación y abrir el modal
+    fireEvent.click(moreButtons[0])
+    const exportBtn = screen.getByLabelText("Exportar tarjetón al perfil")
+    fireEvent.click(exportBtn)
 
     await waitFor(() => {
-      expect(screen.getByText(/Exportar al perfil/i)).toBeDefined()
-      expect(screen.getByText(/Actualiza tu perfil laboral/i)).toBeDefined()
+      expect(lastImportTarjetonProps?.open).toBe(true)
+      expect(lastImportTarjetonProps?.file).toBeDefined()
+      expect(document.getElementById("menu-panel-101")).toBeNull()
     })
   })
 
@@ -172,11 +216,9 @@ describe("DocumentosPersonales (Integración con Escritos)", () => {
     openBtn.click()
 
     await waitFor(() => {
-      // El modal del visor se abre y muestra el contenido directamente in-app
       expect(screen.getByText(/SOLICITUD DE DÍAS ECONÓMICOS/i)).toBeDefined()
       expect(screen.getByText(/A T E N T A M E N T E/i)).toBeDefined()
       expect(screen.getByLabelText(/Cerrar visor/i)).toBeDefined()
     })
   })
 })
-
