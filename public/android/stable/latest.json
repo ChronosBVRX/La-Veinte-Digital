@@ -7,8 +7,8 @@
   "publishedAt": "2026-09-02T23:05:00Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "4032e4ff09a1f821eefd5590accea39a935223ba6c8fa5a21fbee17ac0b1bad9",
-    "size": 24616656
+    "sha256": "801a4b87248016bd77945cd525a3586f549d2edd0585034cd3e4ea6d8b833f5d",
+    "size": 24554945
   },
   "releaseNotes": [
     "Contrato bidireccional estricto con window.laVeintePdfBridge.onmessage para apertura instantánea del chooser nativo",
