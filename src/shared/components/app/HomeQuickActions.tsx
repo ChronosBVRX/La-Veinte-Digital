@@ -56,193 +56,6 @@ function formatChecadaTime(ts: number): string {
   return d.toLocaleDateString("es-MX", { day: "numeric", month: "short" }) + ` · ${time}`
 }
 
-// ── Modal de credenciales IMSS ──────────────────────────────────────────────
-function ImssRequiredDialog({
-  open,
-  variant,
-  onClose,
-  onConfigure,
-}: {
-  open: boolean
-  variant: "tarjeton" | "checadas"
-  onClose: () => void
-  onConfigure: () => void
-}) {
-  if (!open) return null
-  const isTarjeton = variant === "tarjeton"
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="imss-dialog-title"
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 70,
-        background: "rgba(15,23,42,0.45)",
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "center",
-        padding: "0 0 max(0.75rem, env(safe-area-inset-bottom, 0px))",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "var(--card)",
-          borderRadius: "var(--radius-lg) var(--radius-lg) 0 0",
-          padding: "1.25rem 1.25rem 1rem",
-          width: "100%",
-          maxWidth: 480,
-          margin: "0 0.5rem",
-          boxShadow: "0 -8px 28px rgba(0,0,0,0.18)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <h3
-          id="imss-dialog-title"
-          style={{ margin: "0 0 0.375rem", fontSize: "1rem", fontWeight: 700, color: "var(--fg)", lineHeight: 1.3 }}
-        >
-          {isTarjeton ? "Acceso a Tu Perfil IMSS" : "Acceso a Tus Checadas"}
-        </h3>
-        <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)", lineHeight: 1.5 }}>
-          {isTarjeton
-            ? "Para consultar y guardar automáticamente tus tarjetones, necesitas configurar el acceso a Tu Perfil IMSS."
-            : "Para consultar y guardar tus registros biométricos necesitas configurar el acceso a Tu Perfil IMSS."}
-        </p>
-        <div style={{ display: "flex", gap: "0.625rem", marginTop: "1rem" }}>
-          <button
-            onClick={onConfigure}
-            className="pressable"
-            style={{
-              flex: 1,
-              minHeight: 44,
-              borderRadius: "var(--radius)",
-              border: "none",
-              background: "var(--primary)",
-              color: "var(--primary-fg)",
-              fontWeight: 600,
-              fontSize: "0.875rem",
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            Configurar acceso
-          </button>
-          <button
-            onClick={onClose}
-            className="pressable"
-            style={{
-              flex: 1,
-              minHeight: 44,
-              borderRadius: "var(--radius)",
-              border: "1px solid var(--border)",
-              background: "var(--card)",
-              color: "var(--fg)",
-              fontWeight: 600,
-              fontSize: "0.875rem",
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            Ahora no
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function BiometricWebFallbackDialog({
-  open,
-  onClose,
-  onViewSaved,
-}: {
-  open: boolean
-  onClose: () => void
-  onViewSaved: () => void
-}) {
-  if (!open) return null
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="bio-web-title"
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 70,
-        background: "rgba(15,23,42,0.45)",
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "center",
-        padding: "0 0 max(0.75rem, env(safe-area-inset-bottom, 0px))",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "var(--card)",
-          borderRadius: "var(--radius-lg) var(--radius-lg) 0 0",
-          padding: "1.25rem 1.25rem 1rem",
-          width: "100%",
-          maxWidth: 480,
-          margin: "0 0.5rem",
-          boxShadow: "0 -8px 28px rgba(0,0,0,0.18)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <h3 id="bio-web-title" style={{ margin: "0 0 0.375rem", fontSize: "1rem", fontWeight: 700, color: "var(--fg)", lineHeight: 1.3 }}>
-          Consulta tus registros biométricos
-        </h3>
-        <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)", lineHeight: 1.5 }}>
-          El acceso directo a Tu Perfil IMSS está disponible desde la app de La Veinte Digital.
-        </p>
-        <div style={{ display: "flex", gap: "0.625rem", marginTop: "1rem" }}>
-          <button
-            onClick={onViewSaved}
-            className="pressable"
-            style={{
-              flex: 1,
-              minHeight: 44,
-              borderRadius: "var(--radius)",
-              border: "none",
-              background: "var(--primary)",
-              color: "var(--primary-fg)",
-              fontWeight: 600,
-              fontSize: "0.875rem",
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            Ver checadas guardadas
-          </button>
-          <button
-            onClick={onClose}
-            className="pressable"
-            style={{
-              flex: 1,
-              minHeight: 44,
-              borderRadius: "var(--radius)",
-              border: "1px solid var(--border)",
-              background: "var(--card)",
-              color: "var(--fg)",
-              fontWeight: 600,
-              fontSize: "0.875rem",
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            Cerrar
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── Tarjeta ─────────────────────────────────────────────────────────────────
 interface QuickCardProps {
   icon: IconType
@@ -392,29 +205,6 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
   const [checadaStatus, setChecadaStatus] = useState<string | null>(null)
   const [checadaHasData, setChecadaHasData] = useState(false)
 
-  const [hasImssCreds, setHasImssCreds] = useState<boolean | null>(null)
-
-  // Detectar credenciales IMSS de forma sincrónica cuando bridge esté listo
-  useEffect(() => {
-    if (!isNative) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- bridged detection
-      setHasImssCreds(false)
-      return
-    }
-    try {
-      const bridge = typeof window !== "undefined" ? window.LaVeinteApp : undefined
-      if (bridge?.hasImssCredentials) {
-        // Android expone boolean sincrónico; iOS stub retorna false
-        const v = bridge.hasImssCredentials("tuperfil")
-        setHasImssCreds(Boolean(v))
-      } else {
-        setHasImssCreds(false)
-      }
-    } catch {
-      setHasImssCreds(false)
-    }
-  }, [isNative])
-
   // Agenda: compromisos del día
   useEffect(() => {
     let cancelled = false
@@ -560,42 +350,25 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
     }
   }, [isNative])
 
-
   const handleTarjetonClick = useCallback(() => {
-    if (isNative && hasImssCreds === false) {
-      // Navigate directly to config — no modal
-      router.push("/profile/mi-informacion-laboral")
-      return
-    }
-    if (isNative && typeof window !== "undefined" && window.LaVeinteApp?.openOfficialPayslips) {
+    if (typeof window !== "undefined" && window.LaVeinteApp?.openOfficialPayslips) {
       window.LaVeinteApp.openOfficialPayslips()
       return
     }
     router.push("/profile/mi-informacion-laboral")
-  }, [isNative, hasImssCreds, router])
+  }, [router])
 
   const handleChecadasClick = useCallback(() => {
-    if (!isNative) {
-      // Web: go directly to documentos
-      router.push("/documentos-personales")
-      return
-    }
-    if (hasImssCreds === false) {
-      // Navigate directly to config — no modal
-      router.push("/profile/mi-informacion-laboral")
-      return
-    }
     if (typeof window !== "undefined" && window.LaVeinteApp?.openBiometrics) {
       window.LaVeinteApp.openBiometrics()
       return
     }
-    // Fallback si bridge antiguo sin openBiometrics: abre hub
     if (typeof window !== "undefined" && window.LaVeinteApp?.openOfficialPayslips) {
       window.LaVeinteApp.openOfficialPayslips()
       return
     }
     router.push("/documentos-personales")
-  }, [isNative, hasImssCreds, router])
+  }, [router])
 
   // Estados derivados para cada tarjeta
   const agendaDesc = "Registra compromisos y recordatorios"
@@ -607,18 +380,11 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
         ? "1 compromiso hoy"
         : `${agendaCount} compromisos hoy`
 
-  const needsImss = hasImssCreds === false
-  const tarjetonDesc =
-    needsImss && isNative
-      ? "Configura Tu Perfil IMSS para consultar recibos"
-      : "Consulta tus recibos de pago"
+  const tarjetonDesc = "Consulta tus recibos de pago"
   const tarjetonStatusDisplay =
     tarjetonHasData && tarjetonStatus ? tarjetonStatus : null
 
-  const checadaDesc =
-    needsImss
-      ? "Configura Tu Perfil IMSS para ver registros"
-      : "Consulta tus registros biométricos"
+  const checadaDesc = "Consulta tus registros biométricos"
   const checadaStatusDisplay =
     checadaHasData && checadaStatus ? checadaStatus : null
 
@@ -657,28 +423,32 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
           color="var(--area-work)"
           ariaLabel="Mi agenda: registra compromisos y recordatorios"
         />
-        <QuickCard
-          icon={Article}
-          title="Mi tarjetón"
-          description={tarjetonDesc}
-          status={tarjetonStatusDisplay}
-          statusTone={tarjetonHasData ? "success" : "muted"}
-          href="/profile/mi-informacion-laboral"
-          color="var(--area-tools)"
-          ariaLabel="Mi tarjetón: consulta tus recibos de pago"
-          onClick={handleTarjetonClick}
-        />
-        <QuickCard
-          icon={Clock}
-          title="Mis checadas"
-          description={checadaDesc}
-          status={checadaStatusDisplay}
-          statusTone={checadaHasData ? "success" : "muted"}
-          href="/documentos-personales"
-          color="#0e7490"
-          ariaLabel="Mis checadas: consulta tus registros biométricos"
-          onClick={handleChecadasClick}
-        />
+        {isNative && (
+          <QuickCard
+            icon={Article}
+            title="Mi tarjetón"
+            description={tarjetonDesc}
+            status={tarjetonStatusDisplay}
+            statusTone={tarjetonHasData ? "success" : "muted"}
+            href="/profile/mi-informacion-laboral"
+            color="var(--area-tools)"
+            ariaLabel="Mi tarjetón: consulta tus recibos de pago"
+            onClick={handleTarjetonClick}
+          />
+        )}
+        {isNative && (
+          <QuickCard
+            icon={Clock}
+            title="Mis checadas"
+            description={checadaDesc}
+            status={checadaStatusDisplay}
+            statusTone={checadaHasData ? "success" : "muted"}
+            href="/documentos-personales"
+            color="#0e7490"
+            ariaLabel="Mis checadas: consulta tus registros biométricos"
+            onClick={handleChecadasClick}
+          />
+        )}
         <QuickCard
           icon={FolderOpen}
           title="Mis documentos"
