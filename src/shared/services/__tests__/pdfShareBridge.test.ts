@@ -102,3 +102,131 @@ describe("pdfShareBridge", () => {
     expect(postedMessages.some((m) => m.action === "commit")).toBe(true)
   })
 })
+
+// ── shareGeneratedPdf — función centralizada ────────────────────────────────
+
+import { shareGeneratedPdf, isRunningInNativeApp } from "../pdfShareBridge"
+
+// Mínimo PDF válido (%PDF- + %%EOF)
+const MIN_PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x25, 0x25, 0x45, 0x4f, 0x46])
+
+function makeNativeWindow(opts: { hasBridge: boolean }) {
+  const win = window as unknown as {
+    LaVeinteApp?: unknown
+    laVeintePdfBridge?: unknown
+    __laveintePdfShareCallback?: unknown
+  }
+  win.LaVeinteApp = {
+    isNativeApp: () => true,
+    checkForUpdate: vi.fn(),
+  }
+  if (opts.hasBridge) {
+    win.laVeintePdfBridge = {
+      postMessage: vi.fn((msgStr: string) => {
+        const parsed = JSON.parse(msgStr) as Record<string, unknown>
+        if (parsed.action === "start") {
+          setTimeout(() => {
+            ;(window as unknown as { __laveintePdfShareCallback?: (r: unknown) => void }).__laveintePdfShareCallback?.({ ok: true, status: "ready", transferId: parsed.transferId })
+          }, 0)
+        }
+        if (parsed.action === "commit") {
+          setTimeout(() => {
+            ;(window as unknown as { __laveintePdfShareCallback?: (r: unknown) => void }).__laveintePdfShareCallback?.({ ok: true, status: "chooser_opened", transferId: parsed.transferId, fileName: "escrito.pdf", byteLength: MIN_PDF.byteLength, sha256: parsed.sha256 })
+          }, 0)
+        }
+      }),
+    }
+  }
+}
+
+function clearNativeWindow() {
+  const win = window as unknown as {
+    LaVeinteApp?: unknown
+    laVeintePdfBridge?: unknown
+    __laveintePdfShareCallback?: unknown
+  }
+  delete win.LaVeinteApp
+  delete win.laVeintePdfBridge
+  delete win.__laveintePdfShareCallback
+}
+
+describe("shareGeneratedPdf", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    clearNativeWindow()
+  })
+  afterEach(() => {
+    clearNativeWindow()
+  })
+
+  it("app nativa CON puente → status ok al compartir PDF válido", async () => {
+    makeNativeWindow({ hasBridge: true })
+    const file = new File([MIN_PDF], "escrito.pdf", { type: "application/pdf" })
+    const result = await shareGeneratedPdf(file, "escrito.pdf")
+    expect(result.status).toBe("ok")
+  })
+
+  it("app nativa SIN puente → status update_required, llama checkForUpdate, NO usa blob:", async () => {
+    makeNativeWindow({ hasBridge: false })
+    // Aseguramos que NO hay createElement llamado
+    const createSpy = vi.spyOn(document, "createElement")
+    const file = new File([MIN_PDF], "escrito.pdf", { type: "application/pdf" })
+    const result = await shareGeneratedPdf(file, "escrito.pdf")
+    expect(result.status).toBe("update_required")
+    expect("message" in result && result.message).toMatch(/actualiza/i)
+    // checkForUpdate fue llamado
+    const app = (window as unknown as { LaVeinteApp: { checkForUpdate: ReturnType<typeof vi.fn> } }).LaVeinteApp
+    expect(app.checkForUpdate).toHaveBeenCalledTimes(1)
+    // createElement("a") NO fue llamado
+    expect(createSpy).not.toHaveBeenCalledWith("a")
+  })
+
+  it("app nativa SIN puente → NUNCA ejecuta <a download>", async () => {
+    makeNativeWindow({ hasBridge: false })
+    const clickSpy = vi.fn()
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      if (tag === "a") {
+        const a = document.createElement.call(document, "a")
+        a.click = clickSpy
+        return a
+      }
+      return document.createElement.call(document, tag)
+    })
+    const file = new File([MIN_PDF], "escrito.pdf", { type: "application/pdf" })
+    await shareGeneratedPdf(file, "escrito.pdf")
+    expect(clickSpy).not.toHaveBeenCalled()
+  })
+
+  it("navegador web sin Web Share API → descarga mediante blob: + <a download>", async () => {
+    // Aseguramos que NO estamos en contexto nativo
+    clearNativeWindow()
+    // Eliminamos navigator.share si existe
+    Object.defineProperty(navigator, "share", { value: undefined, configurable: true, writable: true })
+
+    const clickSpy = vi.fn()
+    const originalCreate = document.createElement.bind(document)
+    vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+      if (tag === "a") {
+        const a = originalCreate("a")
+        Object.defineProperty(a, "click", { value: clickSpy, writable: true })
+        return a
+      }
+      return originalCreate(tag)
+    })
+
+    const file = new File([MIN_PDF], "escrito.pdf", { type: "application/pdf" })
+    const result = await shareGeneratedPdf(file, "escrito.pdf")
+    expect(result.status).toBe("ok")
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it("isRunningInNativeApp devuelve false cuando no hay LaVeinteApp", () => {
+    expect(isRunningInNativeApp()).toBe(false)
+  })
+
+  it("isRunningInNativeApp devuelve true cuando LaVeinteApp.isNativeApp() === true", () => {
+    ;(window as unknown as { LaVeinteApp: unknown }).LaVeinteApp = { isNativeApp: () => true }
+    expect(isRunningInNativeApp()).toBe(true)
+  })
+})
+

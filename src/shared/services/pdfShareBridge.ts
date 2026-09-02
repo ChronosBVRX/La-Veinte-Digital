@@ -278,3 +278,98 @@ export async function sharePdfViaNativeBridge(file: File | Blob, rawFileName?: s
     }
   })
 }
+
+/**
+ * Devuelve true si el código está ejecutándose dentro de la app nativa (WebView).
+ * Nunca devuelve true en un navegador web normal, PWA o entorno SSR.
+ */
+export function isRunningInNativeApp(): boolean {
+  if (typeof window === "undefined") return false
+  return !!(window.LaVeinteApp?.isNativeApp?.())
+}
+
+/**
+ * Resultado de shareGeneratedPdf.
+ *
+ * - `"ok"`: compartición exitosa (chooser abierto o descarga web iniciada).
+ * - `"error"`: falló; `message` contiene el texto para mostrar al usuario.
+ * - `"update_required"`: la app es nativa pero no tiene el puente de PDF;
+ *    se debe invitar al usuario a actualizar. `message` contiene el texto.
+ * - `"aborted"`: el usuario canceló (AbortError en Web Share API).
+ */
+export type ShareOutcome =
+  | { status: "ok" }
+  | { status: "error"; message: string }
+  | { status: "update_required"; message: string }
+  | { status: "aborted" }
+
+/**
+ * Función centralizada de compartición de PDFs generados en JavaScript.
+ *
+ * Política:
+ *  1. App nativa + puente nuevo → protocolo fragmentado.
+ *     Si falla, devuelve error; NO continúa hacia descarga.
+ *  2. App nativa SIN puente nuevo → update_required; NO ejecuta blob://<a>.
+ *  3. Navegador web → Web Share API con File (si disponible).
+ *  4. Navegador web sin Web Share → descarga via blob: + <a download>.
+ *
+ * @param file   PDF generado como File o Blob.
+ * @param fileName Nombre sugerido del archivo.
+ */
+export async function shareGeneratedPdf(
+  file: File | Blob,
+  fileName: string
+): Promise<ShareOutcome> {
+  // ── Rama nativa ────────────────────────────────────────────────────────────
+  if (isRunningInNativeApp()) {
+    if (isNativePdfShareSupported()) {
+      // Nuevo puente: protocolo fragmentado
+      const result = await sharePdfViaNativeBridge(file, fileName)
+      if (result.ok) return { status: "ok" }
+      return { status: "error", message: result.message || "No se pudo compartir el archivo." }
+    }
+
+    // App nativa sin el puente nuevo: pedir actualización
+    if (typeof window !== "undefined" && typeof window.LaVeinteApp?.checkForUpdate === "function") {
+      try { window.LaVeinteApp.checkForUpdate() } catch { /* best-effort */ }
+    }
+    return {
+      status: "update_required",
+      message: "Actualiza La Veinte Digital para compartir escritos en PDF.",
+    }
+  }
+
+  // ── Rama web ───────────────────────────────────────────────────────────────
+  // Web Share API con File (Chrome Android, Safari 15.4+)
+  if (
+    typeof navigator !== "undefined" &&
+    typeof navigator.share === "function" &&
+    typeof navigator.canShare === "function"
+  ) {
+    const fileObj = file instanceof File ? file : new File([file], fileName, { type: "application/pdf" })
+    if (navigator.canShare({ files: [fileObj] })) {
+      try {
+        await navigator.share({ files: [fileObj], title: fileName })
+        return { status: "ok" }
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") return { status: "aborted" }
+        // Cualquier otro error: cae al fallback de descarga
+      }
+    }
+  }
+
+  // Descarga directa (solo en navegador web)
+  if (typeof window !== "undefined" && typeof document !== "undefined") {
+    const blobUrl = URL.createObjectURL(file instanceof Blob ? file : new Blob([file], { type: "application/pdf" }))
+    const a = document.createElement("a")
+    a.href = blobUrl
+    a.download = fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 5000)
+    return { status: "ok" }
+  }
+
+  return { status: "error", message: "Compartir archivos no está disponible en este entorno." }
+}
