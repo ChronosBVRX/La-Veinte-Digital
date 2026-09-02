@@ -211,6 +211,16 @@ fun InternalWebScreen(
             val token = com.laveintedigital.app.push.PushTokenStore.getToken(context) ?: ""
             org.json.JSONObject().put("token", token).let { pushBridgeResult(wv, req, it.toString()) }
         }
+        BridgeHandler.onShare = { title, text ->
+            runCatching {
+                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(android.content.Intent.EXTRA_TITLE, title)
+                    putExtra(android.content.Intent.EXTRA_TEXT, text ?: title)
+                }
+                context.startActivity(android.content.Intent.createChooser(intent, title ?: "Compartir"))
+            }
+        }
         BridgeHandler.onShareNativeDocument = { path, title ->
             runCatching {
                 val file = java.io.File(path)
@@ -256,6 +266,7 @@ fun InternalWebScreen(
             BridgeHandler.onDeleteNativeDocument = null
             BridgeHandler.onGetFcmToken = null
             BridgeHandler.onGetPendingPrintDoc = null
+            BridgeHandler.onShare = null
             BridgeHandler.onShareNativeDocument = null
         }
     }

@@ -62,6 +62,7 @@ function DocumentViewerModalContent({
   const [firmaUrl, setFirmaUrl] = useState<string | null>(null)
   const [anexosUrls, setAnexosUrls] = useState<Array<{ id: string; url: string; nombre: string; descripcion?: string }>>([])
   const [pdfPages, setPdfPages] = useState<string[]>([])
+  const [cachedFile, setCachedFile] = useState<File | null>(null)
   const [isSharing, setIsSharing] = useState(false)
   const [shareFeedback, setShareFeedback] = useState<string | null>(null)
 
@@ -128,6 +129,16 @@ function DocumentViewerModalContent({
             if (!cancelled) setAnexosUrls(loadedAnexos)
           }
 
+          // Pre-generar archivo PDF para compartir instantáneamente sin async gap
+          try {
+            const generatedFile = await escritoToPdfFile(doc.escrito, currentUserId, {
+              nombre: profile?.fullName ?? undefined,
+              matricula: profile?.matricula ?? undefined,
+              categoria: profile?.categoria ?? undefined,
+            })
+            if (!cancelled) setCachedFile(generatedFile)
+          } catch {}
+
           if (!cancelled) setLoading(false)
         } else {
           const file = await readNativeDocumentAsFile({
@@ -142,6 +153,7 @@ function DocumentViewerModalContent({
             return
           }
 
+          setCachedFile(file)
           const buf = await file.arrayBuffer()
           if (cancelled) return
 
@@ -185,7 +197,7 @@ function DocumentViewerModalContent({
     return () => {
       cancelled = true
     }
-  }, [doc, userId])
+  }, [doc, userId, profile])
 
   const Icon = TIPO_ICON[doc.tipo]
   const color = TIPO_COLOR[doc.tipo]
@@ -194,55 +206,61 @@ function DocumentViewerModalContent({
     ? [formatBytes(doc.fileSize), formatFecha(doc.downloadedAt)].filter(Boolean).join("  ·  ")
     : ["Borrador guardado", formatFechaEscrito(doc.escrito.fecha)].filter(Boolean).join("  ·  ")
 
-  const getFile = async (): Promise<File | null> => {
-    if (doc.kind === "nativo") {
-      return readNativeDocumentAsFile({ name: doc.name, mimeType: doc.mimeType, localPath: doc.localPath })
-    }
-    return escritoToPdfFile(doc.escrito, userId ?? "anonymous", {
-      nombre: profile?.fullName ?? undefined,
-      matricula: profile?.matricula ?? undefined,
-      categoria: profile?.categoria ?? undefined,
-    })
-  }
-
   const handleShare = async () => {
     setIsSharing(true)
     setShareFeedback(null)
     try {
-      // 1. Android Native Bridge con FileProvider
+      // 1. Si estamos en Android nativo y es documento nativo
       if (doc.kind === "nativo" && doc.localPath && typeof window !== "undefined" && window.LaVeinteApp?.shareNativeDocument) {
         window.LaVeinteApp.shareNativeDocument(doc.localPath, docName)
+        setIsSharing(false)
         return
       }
 
-      // 2. Web Share con archivo (para escritos o navegadores modernos)
-      const file = await getFile()
+      // 2. Si estamos en Android nativo con share de texto genérico
+      if (typeof window !== "undefined" && window.LaVeinteApp?.share) {
+        window.LaVeinteApp.share(docName, `Documento: ${docName}`)
+        setIsSharing(false)
+        return
+      }
+
+      // 3. Web Share API con archivo preparado (sin delay async para no perder el gesto del usuario)
+      const file = cachedFile
       if (file && typeof navigator !== "undefined" && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
           title: docName,
-          text: `Documento: ${docName}`,
         })
+        setIsSharing(false)
         return
       }
 
-      // 3. Web Share solo texto
+      // 4. Web Share API de solo texto/URL
       if (typeof navigator !== "undefined" && navigator.share) {
         await navigator.share({
           title: docName,
           text: `Documento: ${docName}`,
         })
+        setIsSharing(false)
         return
       }
 
-      // 4. Feedback si no está disponible en este entorno
+      // 5. Fallback a portapapeles
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(`${docName} - La Veinte Digital`)
+        setShareFeedback("Título del documento copiado al portapapeles.")
+        setTimeout(() => setShareFeedback(null), 3000)
+        setIsSharing(false)
+        return
+      }
+
       setShareFeedback("Compartir no disponible en este navegador.")
-      setTimeout(() => setShareFeedback(null), 3500)
+      setTimeout(() => setShareFeedback(null), 3000)
     } catch (err) {
       if ((err as Error)?.name !== "AbortError") {
         console.error("Error al compartir:", err)
-        setShareFeedback("No se pudo abrir el menú de compartir.")
-        setTimeout(() => setShareFeedback(null), 3500)
+        setShareFeedback("No se pudo compartir el documento.")
+        setTimeout(() => setShareFeedback(null), 3000)
       }
     } finally {
       setIsSharing(false)
@@ -262,7 +280,7 @@ function DocumentViewerModalContent({
       touchStateRef.current.isPinching = true
       touchStateRef.current.isPanning = false
       setIsInteracting(true)
-    } else if (e.touches.length === 1 && zoomScale > 1) {
+    } else if (e.touches.length === 1 && zoomScale > 1.05) {
       // Inicio de paneo cuando ya está ampliado
       touchStateRef.current.isPanning = true
       touchStateRef.current.startX = e.touches[0].clientX
@@ -288,7 +306,7 @@ function DocumentViewerModalContent({
           setPanOffset({ x: 0, y: 0 })
         }
       }
-    } else if (touchStateRef.current.isPanning && e.touches.length === 1 && zoomScale > 1) {
+    } else if (touchStateRef.current.isPanning && e.touches.length === 1 && zoomScale > 1.05) {
       const deltaX = e.touches[0].clientX - touchStateRef.current.startX
       const deltaY = e.touches[0].clientY - touchStateRef.current.startY
       setPanOffset({
@@ -336,7 +354,7 @@ function DocumentViewerModalContent({
         width: "100vw",
         maxWidth: "100%",
         height: "100dvh",
-        background: "var(--bg)",
+        background: "#0f172a",
         zIndex: 99999,
         display: "flex",
         flexDirection: "column",
@@ -386,13 +404,14 @@ function DocumentViewerModalContent({
           display: flex;
           align-items: center;
           gap: 0.25rem;
-          background: rgba(15, 23, 42, 0.85);
+          background: rgba(15, 23, 42, 0.9);
           color: #ffffff;
           padding: 0.35rem 0.6rem;
           border-radius: 2rem;
-          box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.4);
           backdrop-filter: blur(8px);
           z-index: 50;
+          border: 1px solid rgba(255,255,255,0.15);
         }
         .zoom-floating-pill button {
           background: transparent;
@@ -613,7 +632,7 @@ function DocumentViewerModalContent({
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          touchAction: "none",
+          touchAction: zoomScale > 1.05 ? "none" : "pan-y",
           position: "relative",
         }}
       >
@@ -655,7 +674,8 @@ function DocumentViewerModalContent({
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              padding: "0.5rem 0.25rem 3rem",
+              padding: "0 0 2rem",
+              margin: 0,
               boxSizing: "border-box",
               transform: `translate3d(${panOffset.x}px, ${panOffset.y}px, 0) scale(${zoomScale})`,
               transformOrigin: "center top",
@@ -663,25 +683,24 @@ function DocumentViewerModalContent({
               willChange: "transform",
             }}
           >
-            {/* Renderizado de Escrito (Hoja Carta Formal) */}
+            {/* Renderizado de Escrito (Hoja Carta Formal de Alto Completo) */}
             {doc.kind === "escrito" && (
               <div
                 style={{
                   background: "#ffffff",
                   color: "#0f172a",
-                  borderRadius: "0.5rem",
-                  padding: "clamp(1.25rem, 3.5vw, 3rem) clamp(0.75rem, 3vw, 2.5rem)",
-                  boxShadow: "0 4px 16px rgba(0, 0, 0, 0.1)",
-                  border: "1px solid var(--border)",
+                  minHeight: "calc(100dvh - 56px)",
+                  padding: "clamp(1.25rem, 4vw, 3rem) clamp(1rem, 3.5vw, 2.5rem)",
                   fontFamily: "Times New Roman, Times, serif",
                   fontSize: "clamp(0.875rem, 2.5vw, 1rem)",
                   lineHeight: 1.5,
-                  maxWidth: "800px",
-                  margin: "0 auto 1.5rem",
+                  maxWidth: "850px",
+                  margin: 0,
                   width: "100%",
                   boxSizing: "border-box",
                   wordBreak: "break-word",
                   overflowWrap: "anywhere",
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
                 }}
               >
                 {/* Lugar y Fecha */}
@@ -775,7 +794,7 @@ function DocumentViewerModalContent({
                 {anexosUrls.length > 0 && (
                   <div style={{ marginTop: "3rem", borderTop: "1px dashed #cbd5e1", paddingTop: "1.5rem" }}>
                     <div style={{ fontWeight: "bold", fontSize: "0.9375rem", marginBottom: "1rem", color: "#475569" }}>
-                      ANEXOS Y EVIDENCIAS ({anexosUrls.length})
+                  ANEXOS Y EVIDENCIAS ({anexosUrls.length})
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
                       {anexosUrls.map((anx, i) => (
@@ -804,35 +823,34 @@ function DocumentViewerModalContent({
               </div>
             )}
 
-            {/* Renderizado de Páginas PDF Nativas (Tarjetón y Checadas a Todo el Ancho) */}
+            {/* Renderizado de Páginas PDF Nativas (Tarjetón y Checadas de Borde a Borde) */}
             {doc.kind === "nativo" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", alignItems: "center", width: "100%", maxWidth: "850px", boxSizing: "border-box" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "center", width: "100%", maxWidth: "900px", boxSizing: "border-box" }}>
                 {pdfPages.map((pageSrc, pageIdx) => (
                   <div
                     key={pageIdx}
                     style={{
                       background: "#ffffff",
-                      borderRadius: "0.5rem",
-                      overflow: "hidden",
-                      boxShadow: "0 2px 12px rgba(0, 0, 0, 0.12)",
-                      border: "1px solid var(--border)",
                       width: "100%",
                       boxSizing: "border-box",
                       display: "flex",
                       flexDirection: "column",
+                      boxShadow: "0 2px 10px rgba(0,0,0,0.25)",
                     }}
                   >
-                    <div style={{
-                      padding: "0.25rem 0.625rem",
-                      background: "var(--accent)",
-                      borderBottom: "1px solid var(--border)",
-                      fontSize: "0.6875rem",
-                      fontWeight: 600,
-                      color: "var(--muted)",
-                      textAlign: "right",
-                    }}>
-                      Página {pageIdx + 1} de {pdfPages.length}
-                    </div>
+                    {pdfPages.length > 1 && (
+                      <div style={{
+                        padding: "0.25rem 0.625rem",
+                        background: "var(--accent)",
+                        borderBottom: "1px solid var(--border)",
+                        fontSize: "0.6875rem",
+                        fontWeight: 600,
+                        color: "var(--muted)",
+                        textAlign: "right",
+                      }}>
+                        Página {pageIdx + 1} de {pdfPages.length}
+                      </div>
+                    )}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={pageSrc}
