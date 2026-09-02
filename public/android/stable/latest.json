@@ -1,19 +1,18 @@
 {
   "channel": "stable",
-  "versionCode": 201,
-  "versionName": "1.1.1",
+  "versionCode": 202,
+  "versionName": "1.1.2",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-09-02T16:15:00Z",
+  "publishedAt": "2026-09-02T22:15:00Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "27c5650007cfd6ed1c73f4add9c598c5e7e5946641c1fe8c0a4240a6fb292f41",
-    "size": 69281929
+    "sha256": "000667c1a3d1d5196debb756cb349f1b2660a2b353b3be6648868ce1a3134855",
+    "size": 24616656
   },
   "releaseNotes": [
-    "Deduplicación canónica de tarjetones y eliminación de archivos blob redundantes",
-    "Borrado confiable de documentos (tarjetones, checadas y escritos) por ID con diálogo de confirmación",
-    "Visor de documentos fullscreen in-app con scroll vertical continuo y soporte completo de gestos de zoom táctil (pellizco y doble toque)",
-    "Compartición nativa de archivos PDF reales e impresión por código QR a la oficina sindical"
+    "Compartición nativa de escritos en formato PDF real mediante protocolo fragmentado de alta confiabilidad",
+    "Corrección definitiva del fallo de descarga de blob en WebView Android",
+    "Visor unificado en formato Carta estándar con justificación y flujo de impresión QR"
   ]
 }

@@ -13,7 +13,7 @@ import {
 import { SignaturePadModal } from "./SignaturePadModal"
 import { deleteBlobResource } from "../services/escritos-indexeddb"
 import { DestinatarioResumen } from "./DestinatarioResumen"
-import { sharePdfViaNativeBridge, isNativePdfShareSupported } from "@/shared/services/pdfShareBridge"
+import { shareGeneratedPdf } from "@/shared/services/pdfShareBridge"
 
 export interface EscritosResultProps {
   userId: string
@@ -43,6 +43,7 @@ export function EscritosResult({
   const [isSendPrintOpen, setIsSendPrintOpen] = useState(false)
   const [isPrinting, setIsPrinting] = useState(false)
   const [isSharing, setIsSharing] = useState(false)
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null)
 
   const handleSaveSignature = (firmaRef: string, previewUrl: string) => {
     onUpdateDraft({
@@ -97,36 +98,14 @@ export function EscritosResult({
         adscripcion: workerProfile?.adscripcion,
       })
 
-      if (isNativePdfShareSupported()) {
-        const result = await sharePdfViaNativeBridge(file, draft.titulo || "Escrito Formal.pdf")
-        if (result.ok) {
-          setIsSharing(false)
-          return
-        }
-      }
+      const fileName = draft.titulo || generarNombreArchivoPdf(draft)
+      const outcome = await shareGeneratedPdf(file, fileName)
 
-      if (typeof navigator !== "undefined" && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: draft.titulo || "Escrito Formal",
-          text: `Escrito formal: ${draft.asunto || draft.titulo || "IMSS - SNTSS"}`,
-        })
-      } else if (typeof window !== "undefined" && window.LaVeinteApp?.share) {
-        window.LaVeinteApp.share(
-          draft.titulo || "Escrito Formal",
-          `Escrito formal: ${draft.asunto || draft.titulo || "IMSS - SNTSS"}`
-        )
-      } else {
-        // Fallback a descarga si el navegador de escritorio no tiene Web Share API
-        const url = URL.createObjectURL(file)
-        const a = document.createElement("a")
-        a.href = url
-        a.download = generarNombreArchivoPdf(draft)
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
+      if (outcome.status === "error" || outcome.status === "update_required") {
+        setShareFeedback(outcome.message)
+        setTimeout(() => setShareFeedback(null), outcome.status === "update_required" ? 5000 : 4000)
       }
+      // "ok" y "aborted" → sin acción extra
     } catch (err) {
       if ((err as Error)?.name !== "AbortError") {
         console.error("Error compartiendo:", err)
@@ -138,6 +117,23 @@ export function EscritosResult({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
+      {/* Toast de feedback al compartir */}
+      {shareFeedback && (
+        <div
+          role="alert"
+          style={{
+            background: "rgba(15, 23, 42, 0.93)",
+            color: "#fff",
+            border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: "0.5rem",
+            padding: "0.625rem 1rem",
+            fontSize: "0.8125rem",
+            textAlign: "center",
+          }}
+        >
+          {shareFeedback}
+        </div>
+      )}
       {/* Selector de modo de vista y Acciones Principales */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", width: "100%", boxSizing: "border-box" }}>
         <div style={{ display: "flex", gap: "0.25rem", background: "var(--card)", padding: "0.25rem", borderRadius: "0.5rem", border: "1px solid var(--border)" }}>

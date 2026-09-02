@@ -18,7 +18,7 @@ import {
   type DocTipo, type DocumentoPersonalItem,
 } from "../lib/documents"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
-import { sharePdfViaNativeBridge, isNativePdfShareSupported } from "@/shared/services/pdfShareBridge"
+import { shareGeneratedPdf } from "@/shared/services/pdfShareBridge"
 
 const TIPO_ICON: Record<DocTipo, typeof FileText> = {
   tarjeton: FileText,
@@ -271,7 +271,7 @@ function DocumentViewerModalContent({
     setIsSharing(true)
     setShareFeedback(null)
     try {
-      // 1. Android Nativo con FileProvider para documentos locales existentes
+      // 1. Android Nativo con FileProvider para documentos locales existentes (tarjetones/checadas)
       if (doc.kind === "nativo" && doc.localPath && typeof window !== "undefined" && window.LaVeinteApp?.shareNativeDocument) {
         window.LaVeinteApp.shareNativeDocument(doc.localPath, docName)
         setIsSharing(false)
@@ -286,45 +286,23 @@ function DocumentViewerModalContent({
         return
       }
 
-      // 2. Puente nativo fragmentado para archivos generados en Android
-      if (isNativePdfShareSupported()) {
-        const result = await sharePdfViaNativeBridge(file, docName)
-        if (!result.ok) {
-          setShareFeedback(result.message || "No se pudo compartir el archivo.")
-          setTimeout(() => setShareFeedback(null), 4000)
+      // 2. Función centralizada: maneja nativa+bridge, nativa+sin-bridge, y web
+      const outcome = await shareGeneratedPdf(file, docName)
+
+      if (outcome.status === "error") {
+        setShareFeedback(outcome.message)
+        setTimeout(() => setShareFeedback(null), 4000)
+      } else if (outcome.status === "update_required") {
+        setShareFeedback(outcome.message)
+        setTimeout(() => setShareFeedback(null), 5000)
+      } else if (outcome.status === "ok") {
+        // Web: mostrar feedback de descarga iniciada
+        if (typeof window !== "undefined" && !window.LaVeinteApp?.isNativeApp?.()) {
+          setShareFeedback("Descarga iniciada.")
+          setTimeout(() => setShareFeedback(null), 3000)
         }
-        setIsSharing(false)
-        return
       }
-
-      // 3. Web Share API con el archivo File real
-      if (typeof navigator !== "undefined" && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: docName,
-        })
-        setIsSharing(false)
-        return
-      }
-
-      // 4. Fallback de descarga si no hay Web Share ni puente nativo
-      if (typeof window !== "undefined") {
-        const blobUrl = URL.createObjectURL(file)
-        const a = document.createElement("a")
-        a.href = blobUrl
-        a.download = docName.endsWith(".pdf") ? docName : `${docName}.pdf`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(blobUrl)
-        setShareFeedback("Descarga iniciada.")
-        setTimeout(() => setShareFeedback(null), 3000)
-        setIsSharing(false)
-        return
-      }
-
-      setShareFeedback("Compartir archivos no está disponible en este navegador.")
-      setTimeout(() => setShareFeedback(null), 4000)
+      // "aborted" → el usuario canceló, no mostramos nada
     } catch (err) {
       if ((err as Error)?.name !== "AbortError") {
         console.error("Error al compartir:", err)
