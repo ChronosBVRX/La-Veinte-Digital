@@ -5,15 +5,27 @@ import type { EscritoDraftV2 } from "@/shared/contracts/escrito-draft"
 describe("escrito-pdf-renderer Carta formatting", () => {
   it("renders short and long documents with 612x792 pt letter format", async () => {
     const shortDraft: EscritoDraftV2 = {
+      schemaVersion: 2,
       id: "esc_short_1",
+      ownerId: "user_1",
       titulo: "Solicitud Corta",
+      tipo: "solicitud",
       asunto: "Permiso",
       ciudad: "Ciudad de México",
       fecha: "02 de septiembre de 2026",
       destino: { cargo: "DIRECTOR DE LA UNIDAD", nombre: "DR. JUAN PÉREZ" },
+      hechos: "Laboro en el IMSS en el turno matutino.",
+      peticion: "Solicito autorización del día correspondiente.",
       cuerpo: "Por medio de la presente solicito el día económico correspondiente al CCT.",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      atencion: [],
+      copias: [],
+      anexos: [],
+      fuentes: [],
+      incluirFundamentos: false,
+      status: "completed",
+      generationMode: "manual",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     }
 
     const docShort = await buildJsPdfDocument(shortDraft)
