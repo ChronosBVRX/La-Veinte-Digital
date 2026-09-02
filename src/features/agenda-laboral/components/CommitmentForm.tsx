@@ -161,13 +161,11 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
             </FormField>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-3)" }}>
-            <FormField label="Fecha" htmlFor="date" required>
-              <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            </FormField>
-          </div>
+          <FormField label="Fecha" htmlFor="date" required>
+            <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </FormField>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-3)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 120px), 1fr))", gap: "var(--space-3)", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
             <FormField label="Entrada" htmlFor="startTime" required>
               <Input id="startTime" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
             </FormField>

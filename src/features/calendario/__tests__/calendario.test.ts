@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { generateICS, hasCalendar, isValidMonthIndex } from "@/features/calendario/services/calendarioData"
+import { generateICS, hasCalendar, isValidMonthIndex, getDayEvents } from "@/features/calendario/services/calendarioData"
 import { CALENDARIOS } from "@/shared/data/calendario"
 
 describe("calendario institucional", () => {
@@ -41,5 +41,17 @@ describe("calendario institucional", () => {
     const b = generateICS(2026, 3)
     const uids = (s: string) => s.split("\r\n").filter((l) => l.startsWith("UID:")).sort()
     expect(uids(a)).toEqual(uids(b))
+  })
+
+  it("getDayEvents incluye los descansos obligatorios contractuales (CCT Cl. 46-III)", () => {
+    // 1 de mayo de 2026 (mes 4, día 1)
+    const mayo1 = getDayEvents(2026, 4, 1)
+    expect(mayo1.some((e) => e.type === "descanso_cct")).toBe(true)
+    expect(mayo1.find((e) => e.type === "descanso_cct")?.label).toContain("Día del Trabajo")
+
+    // 10 de mayo de 2026 (mes 4, día 10)
+    const mayo10 = getDayEvents(2026, 4, 10)
+    expect(mayo10.some((e) => e.type === "descanso_cct")).toBe(true)
+    expect(mayo10.find((e) => e.type === "descanso_cct")?.label).toContain("Día de las Madres")
   })
 })

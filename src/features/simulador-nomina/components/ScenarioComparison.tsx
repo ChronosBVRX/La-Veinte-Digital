@@ -28,10 +28,14 @@ function ConceptRow({ delta }: { delta: ConceptDelta }) {
       <div className="concept-row-desktop" style={{
         display: "flex",
         alignItems: "center",
-        gap: "var(--space-3)",
+        flexWrap: "wrap",
+        gap: "var(--space-2)",
         fontSize: "var(--text-sm)",
+        width: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
       }}>
-        <div style={{ width: 24, display: "flex", justifyContent: "center" }}>
+        <div style={{ width: 24, display: "flex", justifyContent: "center", flexShrink: 0 }}>
           {isNew && <PlusCircle size={18} weight="fill" color="var(--success)" />}
           {isGone && <MinusCircle size={18} weight="fill" color="var(--error)" />}
           {increased && <TrendUp size={18} weight="fill" color="var(--success)" />}
@@ -39,14 +43,14 @@ function ConceptRow({ delta }: { delta: ConceptDelta }) {
           {unchanged && <Equals size={18} color="var(--muted)" />}
         </div>
 
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 600 }}>{delta.name}</div>
+        <div style={{ flex: "1 1 120px", minWidth: 0 }}>
+          <div style={{ fontWeight: 600, wordBreak: "break-word" }}>{delta.name}</div>
           {isNew && <span style={{ fontSize: "var(--text-xs)", color: "var(--success)" }}>Nuevo concepto</span>}
           {isGone && <span style={{ fontSize: "var(--text-xs)", color: "var(--error)" }}>Ya no aplica</span>}
         </div>
 
-        <div style={{ textAlign: "right", minWidth: 160 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", justifyContent: "flex-end" }}>
+        <div style={{ textAlign: "right", minWidth: 0, flexShrink: 0, marginLeft: "auto" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", justifyContent: "flex-end", flexWrap: "wrap" }}>
             {!isNew && (
               <span style={{ color: "var(--muted)", fontSize: "var(--text-xs)" }}>
                 ${delta.baselineAmount.toLocaleString("es-MX")}

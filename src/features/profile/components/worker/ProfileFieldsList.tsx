@@ -14,8 +14,18 @@ export function ProfileFieldsList({ profile, requirements }: { profile: WorkerPr
   ].filter((f) => f.value)
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-      <h3 style={{ fontSize: "0.9375rem", fontWeight: 600, margin: 0 }}>Tus datos laborales</h3>
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: "0.75rem",
+      width: "100%",
+      maxWidth: "100%",
+      minWidth: 0,
+      boxSizing: "border-box",
+    }}>
+      <h3 style={{ fontSize: "0.9375rem", fontWeight: 600, margin: 0, wordBreak: "break-word" }}>
+        Tus datos laborales
+      </h3>
       {allFields.map((f) => (
         <ProfileFieldRow key={f.field} field={f.field} value={f.value!} source={f.source} requirements={requirements} />
       ))}

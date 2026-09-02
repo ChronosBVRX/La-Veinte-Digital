@@ -1,6 +1,15 @@
-export type { CalendarEventType, CalendarEvent, MonthData } from "@/shared/data/calendario"
-export { EVENT_COLORS, EVENT_LABELS, CALENDARIOS, getMonthData, getDayEvents } from "@/shared/data/calendario"
-import { CALENDARIOS, EVENT_LABELS } from "@/shared/data/calendario"
+export type { CalendarEventType, CalendarEvent, MonthData, ImssMandatoryRestDay, ImssRestDaysOptions, ElectoralHolidayEntry } from "@/shared/data/calendario"
+export {
+  EVENT_COLORS,
+  EVENT_LABELS,
+  CALENDARIOS,
+  getMonthData,
+  getDayEvents,
+  getImssMandatoryRestDays,
+  getImssMandatoryRestDaysForMonth,
+  getMandatoryRestDayByDate,
+} from "@/shared/data/calendario"
+import { CALENDARIOS, EVENT_LABELS, getImssMandatoryRestDaysForMonth } from "@/shared/data/calendario"
 import type { CalendarEventType } from "@/shared/data/calendario"
 
 function pad(n: number): string {

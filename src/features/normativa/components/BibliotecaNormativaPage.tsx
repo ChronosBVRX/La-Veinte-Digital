@@ -73,7 +73,8 @@ function matchTab(doc: LibraryDocumentEntry, tab: TabId): boolean {
 }
 
 const containerStyle: CSSProperties = {
-  display: "flex", flexDirection: "column", gap: "1rem", padding: "1.25rem", maxWidth: 1200, margin: "0 auto",
+  display: "flex", flexDirection: "column", gap: "1rem", padding: "clamp(0.75rem, 3vw, 1.25rem)", maxWidth: 1200, margin: "0 auto",
+  width: "100%", minWidth: 0, boxSizing: "border-box",
 }
 
 export function BibliotecaNormativaPage({ data }: Props) {
@@ -94,11 +95,11 @@ export function BibliotecaNormativaPage({ data }: Props) {
 
   return (
     <div style={containerStyle}>
-      <div>
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <Library size={24} color="var(--primary)" /> Biblioteca Normativa
+      <div style={{ width: "100%", minWidth: 0 }}>
+        <h1 style={{ fontSize: "clamp(1.125rem, 4vw, 1.5rem)", fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", wordBreak: "break-word" }}>
+          <Library size={24} color="var(--primary)" style={{ flexShrink: 0 }} /> Biblioteca Normativa
         </h1>
-        <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0.25rem 0 0" }}>
+        <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0.25rem 0 0", wordBreak: "break-word" }}>
           Sistema de evidencia documental IMSS/SNTSS. La IA no es la fuente: la fuente es el documento.
           Fecha de corte del corpus: 14 de agosto de 2026.
         </p>
@@ -115,7 +116,7 @@ export function BibliotecaNormativaPage({ data }: Props) {
           </div>
         </div>
       ) : (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", padding: "0.875rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", padding: "0.875rem", background: "var(--card)", border: "1px solid var(--border)", borderRadius: "var(--radius)", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
           {h && (
             <>
               <span style={chipStyle}><strong>{h.documents}</strong> documentos</span>
@@ -134,7 +135,7 @@ export function BibliotecaNormativaPage({ data }: Props) {
         </div>
       )}
 
-      <div style={{ display: "flex", gap: "0.5rem" }}>
+      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", width: "100%", minWidth: 0 }}>
         <button onClick={() => setMode("biblioteca")} style={mode === "biblioteca" ? activeMode : modeStyle}>
           <BookMarked size={16} /> Biblioteca
         </button>
@@ -157,7 +158,7 @@ export function BibliotecaNormativaPage({ data }: Props) {
 
       {mode === "biblioteca" && (
         <>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem", width: "100%", minWidth: 0 }}>
             {TABS.map((t) => (
               <button key={t.id} onClick={() => setTab(t.id)} style={tab === t.id ? activeTabStyle : tabStyle}>
                 {t.label}
@@ -165,7 +166,7 @@ export function BibliotecaNormativaPage({ data }: Props) {
               </button>
             ))}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "0.875rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: "0.875rem", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
             {filtered.map((doc) => (
               <DocumentCard key={doc.id} doc={doc} onOpen={() => setSelected(doc)} />
             ))}

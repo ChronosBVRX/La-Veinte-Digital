@@ -190,7 +190,7 @@ const card: CSSProperties = {
 }
 const selectStyle: CSSProperties = {
   padding: "0.45rem 0.6rem", borderRadius: "var(--radius)", border: "1px solid var(--border)",
-  background: "var(--card)", color: "var(--fg)", fontSize: "0.85rem", minWidth: 220,
+  background: "var(--card)", color: "var(--fg)", fontSize: "0.85rem", minWidth: 0, maxWidth: "100%",
 }
 const primaryBtn: CSSProperties = {
   display: "inline-flex", alignItems: "center", gap: "0.4rem", padding: "0.55rem 1rem",

@@ -60,11 +60,11 @@ export function WorkerProfileCenter({ state, mode, profile, quality, requirement
 
   // configured
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem" }}>
-        <div>
-          <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>Mi información laboral</h1>
-          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.75rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0, wordBreak: "break-word" }}>Mi información laboral</h1>
+          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0.25rem 0 0", wordBreak: "break-word" }}>
             {viewMode === "payslip" ? "Perfil configurado mediante tarjetón" : "Perfil configurado mediante captura manual"}
             {profile && <> · Actualizado {profile.updatedAt.slice(0, 10)}</>}
           </p>
@@ -79,16 +79,17 @@ export function WorkerProfileCenter({ state, mode, profile, quality, requirement
         padding: "1rem 1.25rem",
         display: "flex", alignItems: "center", justifyContent: "space-between",
         flexWrap: "wrap", gap: "0.75rem",
+        width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box",
       }}>
-        <div style={{ minWidth: 220 }}>
-          <div style={{ fontWeight: 700, fontSize: "0.9375rem", marginBottom: "0.125rem" }}>
+        <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: "0.9375rem", marginBottom: "0.125rem", wordBreak: "break-word" }}>
             Mantén tus datos al día con tu tarjetón
           </div>
-          <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+          <div style={{ fontSize: "0.8125rem", color: "var(--muted)", wordBreak: "break-word" }}>
             Cada vez que subes un recibo nuevo, tu categoría, antigüedad, jornada y conceptos se actualizan solos.
           </div>
         </div>
-        <Button size="sm" onClick={() => {
+        <Button size="sm" style={{ flexShrink: 0 }} onClick={() => {
           document.getElementById("subir-tarjeton")?.scrollIntoView({ behavior: "smooth", block: "start" })
         }}>
           Subir tarjetón

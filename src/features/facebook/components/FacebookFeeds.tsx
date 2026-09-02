@@ -85,7 +85,7 @@ export function FacebookFeeds({ compact }: Props) {
   }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: "1.25rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
       <FeedBox page="seccionxx" label="SNTSS Sección XX" compact={compact} />
       <FeedBox page="cen" label="SNTSS Nacional" compact={compact} />
     </div>

@@ -238,21 +238,21 @@ export function SimuladorNominaIndex() {
 
         {baseline && (
           <div style={{
-            display: "flex", gap: "1rem", marginBottom: "var(--space-3)", flexWrap: "wrap",
+            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap: "1rem", marginBottom: "var(--space-3)", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box",
           }}>
             <div style={{
-              flex: 1, minWidth: 180, padding: "var(--space-4)", background: "var(--card)",
-              border: "1px solid var(--border)", borderRadius: "var(--radius-lg)",
+              padding: "var(--space-4)", background: "var(--card)",
+              border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", minWidth: 0, boxSizing: "border-box",
             }}>
               <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)", textTransform: "uppercase", fontWeight: 600 }}>Categoría actual</span>
-              <div style={{ fontSize: "var(--text-md)", fontWeight: 700, marginTop: "0.25rem" }}>{baseline.category.categoryName}</div>
+              <div style={{ fontSize: "var(--text-md)", fontWeight: 700, marginTop: "0.25rem", wordBreak: "break-word" }}>{baseline.category.categoryName}</div>
             </div>
             <div style={{
-              flex: 1, minWidth: 180, padding: "var(--space-4)", background: "var(--card)",
-              border: "1px solid var(--border)", borderRadius: "var(--radius-lg)",
+              padding: "var(--space-4)", background: "var(--card)",
+              border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", minWidth: 0, boxSizing: "border-box",
             }}>
               <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)", textTransform: "uppercase", fontWeight: 600 }}>Quincena comprobada (tarjetón)</span>
-              <div style={{ fontSize: "var(--text-xl)", fontWeight: 700, marginTop: "0.25rem", color: "var(--area-work)" }}>
+              <div style={{ fontSize: "var(--text-xl)", fontWeight: 700, marginTop: "0.25rem", color: "var(--area-work)", wordBreak: "break-word", overflowWrap: "anywhere" }}>
                 ${(sumComprobadoTarjeton(profile) ?? baseline.totals.confirmedGross).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             </div>
@@ -396,8 +396,8 @@ export function SimuladorNominaIndex() {
         />
 
         <div style={{
-          display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)",
-          marginBottom: "var(--space-6)",
+          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap: "var(--space-4)",
+          marginBottom: "var(--space-6)", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box",
         }}>
           <div style={{
             padding: "var(--space-4)", background: "var(--card)", border: "1px solid var(--border)",

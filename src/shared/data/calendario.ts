@@ -1,4 +1,4 @@
-export type CalendarEventType = 'interactivo' | 'vacacional' | 'santander' | 'otros' | 'cheque' | 'jubilados'
+export type CalendarEventType = 'interactivo' | 'vacacional' | 'santander' | 'otros' | 'cheque' | 'jubilados' | 'descanso_cct'
 
 export interface CalendarEvent {
   type: CalendarEventType
@@ -12,6 +12,7 @@ export const EVENT_COLORS: Record<CalendarEventType, string> = {
   otros: '#3b82f6',
   cheque: '#a855f7',
   jubilados: '#f97316',
+  descanso_cct: '#6366f1',
 }
 
 export const EVENT_LABELS: Record<CalendarEventType, string> = {
@@ -21,6 +22,25 @@ export const EVENT_LABELS: Record<CalendarEventType, string> = {
   otros: 'Pago Banamex, Banorte, BBVA y demás bancos',
   cheque: 'Pago con cheque',
   jubilados: 'Pago a jubilados',
+  descanso_cct: 'Descanso obligatorio CCT (Cláusula 46-III)',
+}
+
+import {
+  getImssMandatoryRestDays,
+  getImssMandatoryRestDaysForMonth,
+  getMandatoryRestDayByDate,
+  type ImssMandatoryRestDay,
+  type ImssRestDaysOptions,
+  type ElectoralHolidayEntry,
+} from "@/features/calendario/domain/mandatory-rest-days"
+
+export {
+  getImssMandatoryRestDays,
+  getImssMandatoryRestDaysForMonth,
+  getMandatoryRestDayByDate,
+  type ImssMandatoryRestDay,
+  type ImssRestDaysOptions,
+  type ElectoralHolidayEntry,
 }
 
 export interface MonthData {
@@ -50,13 +70,22 @@ export function getMonthData(year: number, monthIndex: number): MonthData | unde
 }
 
 export function getDayEvents(year: number, monthIndex: number, day: number): CalendarEvent[] {
-  const monthData = CALENDARIOS[year]?.[monthIndex]
-  if (!monthData) return []
   const result: CalendarEvent[] = []
-  for (const [type, days] of Object.entries(monthData.events)) {
-    if (days.includes(day)) {
-      result.push({ type: type as CalendarEventType, label: EVENT_LABELS[type as CalendarEventType] })
+  const monthData = CALENDARIOS[year]?.[monthIndex]
+  if (monthData) {
+    for (const [type, days] of Object.entries(monthData.events)) {
+      if (days && days.includes(day)) {
+        result.push({ type: type as CalendarEventType, label: EVENT_LABELS[type as CalendarEventType] })
+      }
     }
+  }
+  const restDays = getImssMandatoryRestDaysForMonth(year, monthIndex)
+  const matchingRest = restDays.find((rd) => rd.day === day)
+  if (matchingRest) {
+    result.push({
+      type: "descanso_cct",
+      label: `${matchingRest.title} (Descanso CCT Cl. 46-III)`,
+    })
   }
   return result
 }

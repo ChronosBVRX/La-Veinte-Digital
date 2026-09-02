@@ -26,38 +26,74 @@ export function Tabs({ tabs, defaultTab, onChange, style, children }: TabsProps)
     onChange?.(tabId)
   }
 
+  const isTwoTabs = tabs.length === 2
+
   return (
-    <div>
-      <div style={{
-        display: "flex", gap: "0.125rem",
-        borderBottom: "1px solid var(--border)", ...style,
-      }}>
+    <div style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+      <div
+        role="tablist"
+        style={{
+          display: "flex",
+          gap: isTwoTabs ? "0.25rem" : "0.125rem",
+          borderBottom: "1px solid var(--border)",
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          boxSizing: "border-box",
+          overflowX: isTwoTabs ? "visible" : "auto",
+          WebkitOverflowScrolling: "touch",
+          scrollbarWidth: "none",
+          ...style,
+        }}
+      >
         {tabs.map((tab) => {
           const isActive = tab.id === activeTab
           return (
             <button
               key={tab.id}
+              id={`tab-${tab.id}`}
+              role="tab"
+              aria-selected={isActive}
               onClick={() => handleTabClick(tab.id)}
               style={{
-                background: "none", border: "none", cursor: "pointer",
-                padding: "0.625rem 1rem",
-                fontSize: "0.875rem", fontWeight: isActive ? 600 : 400,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: isTwoTabs ? "0.5rem 0.5rem" : "0.625rem 0.875rem",
+                fontSize: "0.875rem",
+                fontWeight: isActive ? 600 : 400,
                 color: isActive ? "var(--primary)" : "var(--muted)",
                 borderBottom: isActive ? "2px solid var(--primary)" : "2px solid transparent",
                 marginBottom: "-1px",
-                display: "flex", alignItems: "center", gap: "0.375rem",
-                whiteSpace: "nowrap",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.375rem",
+                flex: isTwoTabs ? "1 1 0" : "0 0 auto",
+                minWidth: 0,
+                minHeight: 44,
+                whiteSpace: isTwoTabs ? "normal" : "nowrap",
+                wordBreak: "break-word",
+                lineHeight: 1.25,
+                textAlign: "center",
                 transition: "color var(--transition), border-color var(--transition)",
+                boxSizing: "border-box",
               }}
             >
-              {tab.icon}
-              {tab.label}
-              {tab.badge}
+              {tab.icon && <span style={{ display: "inline-flex", flexShrink: 0 }}>{tab.icon}</span>}
+              <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{tab.label}</span>
+              {tab.badge && <span style={{ display: "inline-flex", flexShrink: 0 }}>{tab.badge}</span>}
             </button>
           )
         })}
       </div>
-      {children?.(activeTab)}
+      <div
+        role="tabpanel"
+        aria-labelledby={`tab-${activeTab}`}
+        style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box", paddingTop: "0.75rem" }}
+      >
+        {children?.(activeTab)}
+      </div>
     </div>
   )
 }
