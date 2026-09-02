@@ -38,6 +38,7 @@ vi.mock("@/lib/supabase/client", () => ({
 describe("DocumentosPersonales (Integración con Escritos)", () => {
   beforeEach(() => {
     localStorage.clear()
+    delete (window as unknown as { LaVeinteApp?: unknown }).LaVeinteApp
     vi.clearAllMocks()
   })
 
@@ -150,4 +151,32 @@ describe("DocumentosPersonales (Integración con Escritos)", () => {
     expect(pdfFile).toBeInstanceOf(File)
     expect(pdfFile.size).toBeGreaterThan(800)
   })
+
+  it("al presionar Abrir documento abre el visor in-app y muestra el contenido completo", async () => {
+    const doc = createEmptyEscritoDraftV2("usr_doc_test", "solicitud", {
+      titulo: "Permiso Económico Cláusula 29",
+      ciudad: "Ciudad de México",
+      fecha: "2026-09-01",
+      asunto: "SOLICITUD DE DÍAS ECONÓMICOS",
+      cuerpo: "Por medio de la presente solicito formalmente el otorgamiento de días económicos conforme al CCT.",
+    })
+    guardarEscrito(doc, "usr_doc_test")
+
+    render(<DocumentosPersonales />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Permiso Económico Cláusula 29")).toBeDefined()
+    })
+
+    const openBtn = screen.getByLabelText(/Abrir documento/i)
+    openBtn.click()
+
+    await waitFor(() => {
+      // El modal del visor se abre y muestra el contenido directamente in-app
+      expect(screen.getByText(/SOLICITUD DE DÍAS ECONÓMICOS/i)).toBeDefined()
+      expect(screen.getByText(/A T E N T A M E N T E/i)).toBeDefined()
+      expect(screen.getByLabelText(/Cerrar visor/i)).toBeDefined()
+    })
+  })
 })
+

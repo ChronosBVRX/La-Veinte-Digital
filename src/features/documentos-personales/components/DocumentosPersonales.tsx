@@ -11,6 +11,7 @@ import { getEscritosGuardados, eliminarEscrito } from "@/shared/services/escrito
 import { readNativeDocumentAsFile, deleteNativeDocument } from "@/features/transferir/services/transfer"
 import { SendPrintModal } from "./SendPrintModal"
 import { ImportTarjetonModal } from "./ImportTarjetonModal"
+import { DocumentViewerModal } from "./DocumentViewerModal"
 import { escritoToPdfFile } from "../lib/escrito-pdf"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
 import {
@@ -37,6 +38,7 @@ export function DocumentosPersonales() {
   const [escritos, setEscritos] = useState<DocumentoPersonalItem[]>([])
   const [cargando, setCargando] = useState(true)
   const [profile, setProfile] = useState<TarjetonProfileSnapshot | null>(null)
+  const [viewDoc, setViewDoc] = useState<DocumentoPersonalItem | null>(null)
   const [sendDoc, setSendDoc] = useState<{ doc: DocumentoPersonalItem; getFile: () => Promise<File | null> } | null>(null)
   const [importDoc, setImportDoc] = useState<{ file: File | null; name: string } | null>(null)
   const [borrandoId, setBorrandoId] = useState<string | null>(null)
@@ -144,16 +146,9 @@ export function DocumentosPersonales() {
     })
   }
 
-  const handleOpen = async (doc: DocumentoPersonalItem) => {
-    try {
-      const file = await getDocFile(doc)
-      if (file) {
-        const url = URL.createObjectURL(file)
-        window.open(url, "_blank")
-      }
-    } catch (err) {
-      console.error("Error al abrir documento:", err)
-    }
+  const handleOpen = (doc: DocumentoPersonalItem) => {
+    setViewDoc(doc)
+    setMenuDoc(null)
   }
 
   const handleShare = async (doc: DocumentoPersonalItem) => {
@@ -582,6 +577,22 @@ export function DocumentosPersonales() {
           })}
         </div>
       )}
+
+      <DocumentViewerModal
+        open={!!viewDoc}
+        doc={viewDoc}
+        userId={userId}
+        profile={profile}
+        onClose={() => setViewDoc(null)}
+        onSendPrint={(doc) => {
+          setViewDoc(null)
+          handleSend(doc)
+        }}
+        onImportTarjeton={(doc) => {
+          setViewDoc(null)
+          void handleImport(doc)
+        }}
+      />
 
       <SendPrintModal
         open={!!sendDoc}
