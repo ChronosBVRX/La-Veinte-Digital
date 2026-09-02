@@ -1,7 +1,8 @@
 import type { VacationSimulationInput, VacationSimulationResult, RuleTrace, NormativeConflict, AnticipationResult } from "./types";
 import { calculateCompletedYears, getCctAnnualDays, getEstatutoAnnualDays, getUnitsForInclusion } from "./entitlement";
 import { applyInclusionMark, getCompatibleInclusionMarks } from "./continuity";
-import { validateAnticipation, calculateReturnDate, isFirstPeriod } from "./validation";
+import { validateAnticipation, calculateVacationRange, isFirstPeriod } from "./validation";
+import type { VacationDateCalculationResult } from "./types";
 import { detectNormativeConflicts } from "./conflicts";
 import { getUnitType, getWorkScheduleForProfile } from "./schedules";
 import { getMandatoryRestDatesForRange } from "./holidays";
@@ -114,18 +115,34 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
 
   let lastDate = "";
   let returnDateStr = "";
+  let dateBreakdown: VacationDateCalculationResult | undefined;
   const anticipationBlocked = anticipationResult ? !anticipationResult.allowed : false;
+  let contractBlocked = false;
+
   if (input.selectedStartDate && !transitionBlocked && !anticipationBlocked && unitsUsed !== undefined) {
-    const dateResult = calculateReturnDate(
-      input.selectedStartDate,
-      unitsUsed,
+    dateBreakdown = calculateVacationRange({
+      startDate: input.selectedStartDate,
+      entitlementUnits: unitsUsed,
       unitType,
-      input.workerProfile.weeklyRestDays ?? [],
-      getMandatoryRestDatesForRange(input.selectedStartDate, 400),
-      getWorkScheduleForProfile(input.workerProfile)
-    );
-    lastDate = dateResult.lastDate;
-    returnDateStr = dateResult.returnDate;
+      weeklyRestDays: input.workerProfile.weeklyRestDays ?? [],
+      mandatoryRestDates: getMandatoryRestDatesForRange(input.selectedStartDate, 400),
+      workSchedule: getWorkScheduleForProfile(input.workerProfile),
+      contractEndDate: input.workerProfile.contractEndDate,
+    });
+    lastDate = dateBreakdown.lastVacationDate;
+    returnDateStr = dateBreakdown.returnToWorkDate;
+
+    if (dateBreakdown.exceedsContractEnd) {
+      contractBlocked = true;
+      const msg = `El periodo vacacional concluye el ${lastDate}, posterior a la vigencia del contrato (${input.workerProfile.contractEndDate}). En contratos temporales o sustitutos las vacaciones deben disfrutarse íntegramente dentro de la vigencia contractual.`;
+      warnings.push(msg);
+      traces.push({
+        ruleCode: "CONTRACT_END_EXCEEDED",
+        result: "BLOCKED",
+        input: { contractEndDate: input.workerProfile.contractEndDate, lastVacationDate: lastDate },
+        explanation: msg,
+      });
+    }
   }
 
   const normativeConflicts: NormativeConflict[] = detectNormativeConflicts(
@@ -163,7 +180,7 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
     affectedUPO: transitionBlocked ? undefined : input.nextPeriodNumber + upoIncrement,
     dueDate: input.dueDate,
     anticipationDays: anticipationResult?.daysInAdvance ?? 0,
-    requiresSpecialProcess: transitionBlocked || anticipationBlocked,
+    requiresSpecialProcess: transitionBlocked || anticipationBlocked || contractBlocked,
     requiresNormativeReview,
     normativeConflicts,
     warnings,
@@ -172,6 +189,7 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
     ruleVersionId: "v1",
     compatibleOptions: compatibleOptions.length > 0 ? compatibleOptions : undefined,
     anticipationResult,
+    dateBreakdown,
   };
 }
 
@@ -203,10 +221,10 @@ function getFriendlyOptionName(regime: string, inclusionMark: number, currentCon
   }
   if (regime === "EXTRAORDINARIO_V20") {
     switch (inclusionMark) {
-      case 0: return "Disfrutar el periodo extraordinario de manera continua";
-      case 6: return "Solicitar la primera fracción extraordinaria";
-      case 7: return "Completar la segunda fracción extraordinaria";
-      case 8: return "Completar el periodo extraordinario";
+      case 0: return "Marca 0: Disfrutar 10 días (genera concepto 048)";
+      case 6: return "Marca 6: Disfrutar 15 días (sin concepto 048)";
+      case 7: return "Marca 7: Pago de concepto 048 por 30 días (sin días de descanso, exige ordinario en el año)";
+      case 8: return "Marca 8: Pago de 15 días de concepto 029 y acredita 30 días para jubilación";
       default: return `Opción ${inclusionMark}`;
     }
   }

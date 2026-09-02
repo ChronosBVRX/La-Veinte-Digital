@@ -128,11 +128,11 @@ describe("getUnitsForInclusion", () => {
     expect(getUnitsForInclusion("CUATRIMESTRAL", 20, 0, 0, 4)).toBe(7)
   })
 
-  it("uses 15 days per fraction for V20 marks 6/7/8 and full for mark 0", () => {
-    expect(getUnitsForInclusion("EXTRAORDINARIO_V20", 20, 0, 20, 1)).toBe(20)
+  it("uses normative units for V20 marks (0: 10, 6: 15, 7: 0, 8: 0)", () => {
+    expect(getUnitsForInclusion("EXTRAORDINARIO_V20", 20, 0, 20, 1)).toBe(10)
     expect(getUnitsForInclusion("EXTRAORDINARIO_V20", 20, 6, 20, 1)).toBe(15)
-    expect(getUnitsForInclusion("EXTRAORDINARIO_V20", 20, 7, 20, 1)).toBe(15)
-    expect(getUnitsForInclusion("EXTRAORDINARIO_V20", 20, 8, 20, 1)).toBe(15)
+    expect(getUnitsForInclusion("EXTRAORDINARIO_V20", 20, 7, 20, 1)).toBe(0)
+    expect(getUnitsForInclusion("EXTRAORDINARIO_V20", 20, 8, 20, 1)).toBe(0)
   })
 })
 
@@ -208,42 +208,27 @@ describe("Semestral Continuity State Machine", () => {
 })
 
 describe("V20 Continuity State Machine", () => {
-  it("continuity 0 allows only marks 0 and 6", () => {
-    expect(getCompatibleV20Options(0)).toEqual([0, 6])
+  it("allows all four independent normative choices [0, 6, 7, 8] without artificial chaining", () => {
+    expect(getCompatibleV20Options(0)).toEqual([0, 6, 7, 8])
+    expect(getCompatibleV20Options(1)).toEqual([0, 6, 7, 8])
+    expect(getCompatibleV20Options(2)).toEqual([0, 6, 7, 8])
+    expect(getCompatibleV20Options(3)).toEqual([0, 6, 7, 8])
   })
 
-  it("continuity 2 allows mark 7, continuity 3 allows mark 8", () => {
-    expect(getCompatibleV20Options(2)).toEqual([7])
-    expect(getCompatibleV20Options(3)).toEqual([8])
+  it("each V20 option increments 1 UPO, never fractioned", () => {
+    for (const mark of [0, 6, 7, 8]) {
+      const t = applyInclusionMark("EXTRAORDINARIO_V20", 0, mark)
+      if ("error" in t) throw new Error(t.error)
+      expect(t.nextContinuity).toBe(0)
+      expect(t.upoIncrement).toBe(1)
+      expect(t.stage).toBe("FULL_OR_CLOSED_OPTION")
+    }
   })
 
-  it("continuity 1 has no valid options", () => {
-    expect(getCompatibleV20Options(1)).toEqual([])
-  })
-
-  it("applies explicit V20 transitions instead of currentContinuity+1", () => {
-    const t1 = applyInclusionMark("EXTRAORDINARIO_V20", 0, 0)
-    if ("error" in t1) throw new Error(t1.error)
-    expect(t1.nextContinuity).toBe(1)
-    expect(t1.upoIncrement).toBe(2)
-
-    const t2 = applyInclusionMark("EXTRAORDINARIO_V20", 0, 6)
-    if ("error" in t2) throw new Error(t2.error)
-    expect(t2.nextContinuity).toBe(2)
-
-    const t3 = applyInclusionMark("EXTRAORDINARIO_V20", 2, 7)
-    if ("error" in t3) throw new Error(t3.error)
-    expect(t3.nextContinuity).toBe(3)
-
-    const t4 = applyInclusionMark("EXTRAORDINARIO_V20", 3, 8)
-    if ("error" in t4) throw new Error(t4.error)
-    expect(t4.nextContinuity).toBe(0)
-  })
-
-  it("blocks invalid V20 transitions", () => {
-    const bad = applyInclusionMark("EXTRAORDINARIO_V20", 1, 0)
+  it("blocks invalid marks not recognized by V20", () => {
+    const bad = applyInclusionMark("EXTRAORDINARIO_V20", 0, 1)
     expect("error" in bad).toBe(true)
-    const bad2 = applyInclusionMark("EXTRAORDINARIO_V20", 0, 7)
+    const bad2 = applyInclusionMark("EXTRAORDINARIO_V20", 0, 2)
     expect("error" in bad2).toBe(true)
   })
 })
@@ -676,8 +661,8 @@ describe("buildSimulationResult", () => {
 describe("Cuatrimestral State Machine", () => {
   it("labels option A steps as CUATRIMESTRAL_SEQUENCE_A", () => {
     const steps = getCompatibleCuatrimestralOptions(0)
-    expect(steps.filter((s) => s.option === "A").length).toBe(3)
-    expect(steps.filter((s) => s.option === "B").length).toBe(3)
+    expect(steps.filter((s) => s.option === "A").length).toBe(1)
+    expect(steps.filter((s) => s.option === "B").length).toBe(1)
     const firstA = applyInclusionMark("CUATRIMESTRAL", 0, 0)
     if ("error" in firstA) throw new Error(firstA.error)
     expect(firstA.stage).toBe("CUATRIMESTRAL_SEQUENCE_A")

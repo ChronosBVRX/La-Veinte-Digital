@@ -1,7 +1,10 @@
-"use client"
-
 import { VacationWizard } from "../components/VacationWizard"
+import type { WorkerContext } from "@/shared/server/worker-context-builder"
 
-export default function VacationsPage() {
-  return <VacationWizard />
+export interface VacationsPageProps {
+  initialContext?: WorkerContext | null
+}
+
+export default function VacationsPage({ initialContext }: VacationsPageProps) {
+  return <VacationWizard initialContext={initialContext} />
 }

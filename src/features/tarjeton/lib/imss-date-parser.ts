@@ -56,6 +56,11 @@ export function parseImssDate(raw: string | null | undefined): string | undefine
   const input = raw.trim()
   if (!input) return undefined
 
+  if (/^\d{4}-\d{2}-\d{2}$/.test(input)) {
+    const [, month, day] = input.split("-").map(Number)
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return input
+  }
+
   const numeric = input.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/)
   if (numeric) {
     const [day, month, year] = [Number(numeric[1]), Number(numeric[2]), Number(numeric[3])]

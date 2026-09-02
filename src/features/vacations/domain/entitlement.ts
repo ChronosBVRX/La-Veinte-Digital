@@ -2,10 +2,6 @@ import type { ContractType, EffectiveSeniority, VacationRegime } from "./types";
 const CCT_ANNUAL_DAYS_MIN = 16;
 const CCT_ANNUAL_DAYS_MAX = 20;
 
-const ESTATUTO_DAYS: Record<number, number> = {
-  1: 16, 2: 17, 3: 18, 4: 19, 5: 20,
-  10: 22, 15: 24, 20: 26, 25: 28, 30: 30, 35: 32,
-};
 
 const RADIATION_DAYS: Record<number, number[]> = {
   0: [7, 8, 7],
@@ -23,17 +19,19 @@ export function getCctAnnualDays(completedYears: number): number {
 
 export function getEstatutoAnnualDays(completedYears: number): number {
   if (completedYears < 1) return 0;
-  if (completedYears <= 35) {
-    const thresholds = Object.keys(ESTATUTO_DAYS).map(Number).sort((a, b) => a - b);
-    for (let i = thresholds.length - 1; i >= 0; i--) {
-      if (completedYears >= thresholds[i]) {
-        return ESTATUTO_DAYS[thresholds[i]];
-      }
-    }
-  }
-  const base = 32;
-  const extraQuinquennia = Math.floor(Math.max(0, completedYears - 35) / 5);
-  return base + extraQuinquennia * 2;
+  if (completedYears === 1) return 16;
+  if (completedYears === 2) return 17;
+  if (completedYears === 3) return 18;
+  if (completedYears === 4) return 19;
+  if (completedYears === 5) return 20;
+  if (completedYears >= 6 && completedYears <= 10) return 22;
+  if (completedYears >= 11 && completedYears <= 15) return 24;
+  if (completedYears >= 16 && completedYears <= 20) return 26;
+  if (completedYears >= 21 && completedYears <= 25) return 28;
+  if (completedYears >= 26 && completedYears <= 30) return 30;
+  if (completedYears >= 31 && completedYears <= 35) return 32;
+  const extraQuinquennia = Math.floor((completedYears - 35) / 5);
+  return 32 + extraQuinquennia * 2;
 }
 
 export function getRadiationDaysForPeriod(completedYears: number, periodIndex: 0 | 1 | 2): number {
@@ -88,8 +86,11 @@ export function getUnitsForInclusion(
     return getRadiationDaysForPeriod(completedYears, periodIndex);
   }
   if (regime === "EXTRAORDINARIO_V20") {
-    if (inclusionMark === 0) return totalDays;
-    return 15;
+    if (inclusionMark === 0) return 10;
+    if (inclusionMark === 6) return 15;
+    if (inclusionMark === 7) return 0;
+    if (inclusionMark === 8) return 0;
+    return 10;
   }
   const [firstPart, secondPart] = getVacationDivision(totalDays);
   if (inclusionMark === 0) return totalDays;

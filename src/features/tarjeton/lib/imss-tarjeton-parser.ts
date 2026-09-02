@@ -282,7 +282,7 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
   }
 
   const vacationsSpecs: Array<{
-    key: Exclude<keyof typeof vacations, "firstPeriodStartRaw" | "secondPeriodStartRaw">
+    key: Exclude<keyof typeof vacations, "firstPeriodStartRaw" | "secondPeriodStartRaw" | "porVencer" | "porVencerRaw">
     labels: string[]
     kind: NumericFieldKind
   }> = [
@@ -316,6 +316,19 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
   if (secondPeriodRead) {
     const date = findDateAroundIndex(vacationAndPayrollLines, secondPeriodRead.lineIndex, { before: 0, after: 2 })
     vacations.secondPeriodStartRaw = date ?? secondPeriodRead.value
+  }
+
+  const porVencerRead = readValueAfterLabel(vacationAndPayrollLines, [
+    "POR VENCER",
+    "POR VENCER:",
+  ])
+  if (porVencerRead) {
+    const date = findDateAroundIndex(vacationAndPayrollLines, porVencerRead.lineIndex, { before: 0, after: 2 })
+    vacations.porVencerRaw = porVencerRead.value
+    const parsedIso = date ?? parseImssDate(porVencerRead.value)
+    if (parsedIso) {
+      vacations.porVencer = parsedIso
+    }
   }
 
   const payrollSpecs: Array<{

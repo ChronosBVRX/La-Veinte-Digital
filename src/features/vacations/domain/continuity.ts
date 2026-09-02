@@ -82,43 +82,30 @@ export function getCompatibleInclusionMarks(
 export function getCompatibleCuatrimestralOptions(
   currentContinuity: CuatrimestralContinuity
 ): CuatrimestralStep[] {
+  // Los estados cerrados (0, 3, 14) solo pueden reabrirse mediante una nueva inclusión 0 o 2.
   if ([0, 3, 14].includes(currentContinuity)) {
-    return [...CUATRIMESTRAL_OPTION_A, ...CUATRIMESTRAL_OPTION_B];
+    return [CUATRIMESTRAL_OPTION_A[0], CUATRIMESTRAL_OPTION_B[0]];
   }
-  if ([1, 2].includes(currentContinuity)) {
-    const nextIdx = currentContinuity;
-    if (nextIdx < CUATRIMESTRAL_OPTION_A.length) {
-      return [CUATRIMESTRAL_OPTION_A[nextIdx]];
-    }
+  if (currentContinuity === 1) {
+    return [CUATRIMESTRAL_OPTION_A[1]];
   }
-  if ([4, 9].includes(currentContinuity)) {
-    if (currentContinuity === 4) return [CUATRIMESTRAL_OPTION_B[1]];
-    if (currentContinuity === 9) return [CUATRIMESTRAL_OPTION_B[2]];
+  if (currentContinuity === 2) {
+    return [CUATRIMESTRAL_OPTION_A[2]];
+  }
+  if (currentContinuity === 4) {
+    return [CUATRIMESTRAL_OPTION_B[1]];
+  }
+  if (currentContinuity === 9) {
+    return [CUATRIMESTRAL_OPTION_B[2]];
   }
   return [];
 }
 
-export function getCompatibleV20Options(currentContinuity: V20Continuity): V20InclusionMark[] {
-  switch (currentContinuity) {
-    case 0: return [0, 6];
-    case 1: return [];
-    case 2: return [7];
-    case 3: return [8];
-    default: return [];
-  }
+export function getCompatibleV20Options(currentContinuity?: V20Continuity): V20InclusionMark[] {
+  void currentContinuity;
+  // En V20 nunca se fracciona: las 4 opciones normativas (0, 6, 7, 8) están disponibles
+  return [0, 6, 7, 8];
 }
-
-const V20_TRANSITIONS: {
-  currentContinuity: V20Continuity;
-  inclusionMark: V20InclusionMark;
-  nextContinuity: V20Continuity;
-  upoIncrement: number;
-}[] = [
-  { currentContinuity: 0, inclusionMark: 0, nextContinuity: 1, upoIncrement: 2 },
-  { currentContinuity: 0, inclusionMark: 6, nextContinuity: 2, upoIncrement: 1 },
-  { currentContinuity: 2, inclusionMark: 7, nextContinuity: 3, upoIncrement: 1 },
-  { currentContinuity: 3, inclusionMark: 8, nextContinuity: 0, upoIncrement: 1 },
-];
 
 export function applyInclusionMark(
   regime: "SEMESTRAL" | "CUATRIMESTRAL" | "EXTRAORDINARIO_V20" | "ESTATUTO",
@@ -133,18 +120,16 @@ export function applyInclusionMark(
   if (regime === "CUATRIMESTRAL") {
     const options = getCompatibleCuatrimestralOptions(currentContinuity as CuatrimestralContinuity);
     const step = options.find((s) => s.inclusionMark === inclusionMark);
-    if (!step) return { error: "Esta marca de inclusión no es compatible con tu estado actual." };
+    if (!step) return { error: "Esta marca de inclusión no es compatible con tu estado actual en el régimen cuatrimestral." };
     const stage = step.option === "A" ? "CUATRIMESTRAL_SEQUENCE_A" : "CUATRIMESTRAL_SEQUENCE_B";
     return { nextContinuity: step.nextContinuity, upoIncrement: 1, stage };
   }
   if (regime === "EXTRAORDINARIO_V20") {
-    const transition = V20_TRANSITIONS.find(
-      (t) => t.currentContinuity === (currentContinuity as V20Continuity) && t.inclusionMark === (inclusionMark as V20InclusionMark)
-    );
-    if (!transition) {
-      return { error: "Esta marca de inclusión no es compatible con tu estado actual del periodo extraordinario V20." };
+    if (![0, 6, 7, 8].includes(inclusionMark as V20InclusionMark)) {
+      return { error: "Las vacaciones extraordinarias V20 no admiten fraccionamiento. Solo admiten las opciones 0, 6, 7 y 8." };
     }
-    return { nextContinuity: transition.nextContinuity, upoIncrement: transition.upoIncrement, stage: "FULL_OR_CLOSED_OPTION" };
+    // Cada opción de V20 suma 1 UPO y cierra el ejercicio
+    return { nextContinuity: 0, upoIncrement: 1, stage: "FULL_OR_CLOSED_OPTION" };
   }
   if (regime === "ESTATUTO") {
     if (currentContinuity === 0 && inclusionMark === 0) {
@@ -167,7 +152,7 @@ export function applyInclusionMark(
 export function isCycleClosed(regime: string, continuity: number): boolean {
   if (regime === "SEMESTRAL") return SEMESTRAL_CLOSED_STATES.includes(continuity as SemestralContinuity);
   if (regime === "CUATRIMESTRAL") return [0, 3, 14].includes(continuity);
-  if (regime === "EXTRAORDINARIO_V20") return continuity === 0 || continuity === 3;
+  if (regime === "EXTRAORDINARIO_V20") return true;
   if (regime === "ESTATUTO") return [0, 6].includes(continuity);
   return false;
 }
