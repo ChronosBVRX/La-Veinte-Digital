@@ -18,6 +18,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import java.io.File
@@ -30,6 +32,7 @@ import org.json.JSONObject
 object ImssPdfCaptureCoordinator {
 
     private const val TAG = "ImssPdfCapture"
+    private val saveMutex = Mutex()
     @Volatile var activeSession: TarjetonCaptureSession? = null
 
     sealed interface PdfCaptureEvent {
@@ -200,7 +203,7 @@ object ImssPdfCaptureCoordinator {
     /** Guarda bytes ya validados (%PDF-) como checadas (TU_PERFIL_BIOMETRIC). */
     private suspend fun saveBiometricBytes(
         context: Context, bytes: ByteArray, periodLabel: String?,
-    ): String? {
+    ): String? = saveMutex.withLock {
         val appContext = context.applicationContext
         if (bytes.size < 5 || String(bytes, 0, 5) != "%PDF-") return null
         val sha = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
@@ -218,7 +221,7 @@ object ImssPdfCaptureCoordinator {
             append("Checadas")
             if (!periodLabel.isNullOrBlank()) append(" — ").append(periodLabel)
         }
-        db.payslipDao().insert(PayslipDocument(
+        val docId = db.payslipDao().insert(PayslipDocument(
             source = "TU_PERFIL_BIOMETRIC",
             displayName = displayName,
             localPath = file.absolutePath,
@@ -228,6 +231,12 @@ object ImssPdfCaptureCoordinator {
             periodLabel = periodLabel,
             sourceHost = ImssPortal.TU_PERFIL.host,
         ))
+        if (docId <= 0) {
+            val rec = db.payslipDao().findByHash(sha)
+            if (rec != null && rec.localPath != file.absolutePath && file.exists()) {
+                runCatching { file.delete() }
+            }
+        }
         Log.i(TAG, "BIO_PDF_SAVED path=${file.absolutePath} sha=${sha.take(8)}")
         return file.absolutePath
     }
@@ -270,17 +279,21 @@ object ImssPdfCaptureCoordinator {
     /** Saves an HTTP-downloaded PDF (no capture session) straight to Room with a real local path. */
     private suspend fun saveHttpPdf(
         context: Context, portal: ImssPortal, bytes: ByteArray, onSaved: (String) -> Unit,
-    ) {
+    ) = saveMutex.withLock {
         val sha = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
         val dir = File(context.filesDir, "$sessionDir/${portal.id}/http")
         dir.mkdirs()
         val file = atomicWrite(dir, "doc", bytes)
-        if (file == null) { withContext(Dispatchers.Main) { onSaved("invalid") }; return }
+        if (file == null) { withContext(Dispatchers.Main) { onSaved("invalid") }; return@withLock }
         val db = PayslipDatabase.getInstance(context)
-        if (db.payslipDao().findByHash(sha) != null) {
+        val existing = db.payslipDao().findByHash(sha)
+        if (existing != null) {
+            if (file.absolutePath != existing.localPath && file.exists()) {
+                runCatching { file.delete() }
+            }
             Log.d(TAG, "PDF_HTTP_DUPLICATE sha=${sha.take(8)}")
             withContext(Dispatchers.Main) { onSaved("duplicate") }
-            return
+            return@withLock
         }
         db.payslipDao().insert(PayslipDocument(
             source = if (portal == ImssPortal.TU_PERFIL) "TU_PERFIL" else "TARJETON_DIGITAL",
@@ -581,18 +594,19 @@ object ImssPdfCaptureCoordinator {
                 if (bytes.size < 5 || String(bytes, 0, 5) != "%PDF-") {
                     Log.w(TAG, "Blob PDF invalid header"); return@evaluateJavascript
                 }
+                val sha = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
                 val session = activeSession
                 if (session != null) {
-                    session.pdfSequence++
-                    val seq = session.pdfSequence
-                    if (seq in session.processedSequences) {
-                        Log.d(TAG, "PDF_SEQUENCE_ALREADY_PROCESSED sequence=$seq")
+                    if (sha in session.processedHashes) {
+                        Log.d(TAG, "PDF_SHA_ALREADY_PROCESSED sha=${sha.take(8)}")
                         return@evaluateJavascript
                     }
-                    session.processedSequences += seq
-                    Log.d(TAG, "PDF_BLOB_DETECTED sequence=$seq size=${bytes.size}")
+                    session.processedHashes += sha
+                    session.pdfSequence++
+                    val seq = session.pdfSequence
+                    Log.d(TAG, "PDF_BLOB_DETECTED sequence=$seq size=${bytes.size} sha=${sha.take(8)}")
                     val dir = sessionDir(context, portal.id, session.ooadCode, session.periodCode)
-                    if (seq == 1) {
+                    if (session.tarjetonDocumentId == null) {
                         scope.launch(Dispatchers.Main) { onEvent(PdfCaptureEvent.PdfDetected(seq, bytes.size)) }
                         val file = atomicWrite(dir, "tarjeton", bytes)
                         if (file != null) {
@@ -602,7 +616,8 @@ object ImssPdfCaptureCoordinator {
                             }
                             Log.i(TAG, "PDF_1_SAVED path=${file.absolutePath}")
                         }
-                    } else if (seq == 2) {
+                    } else {
+                        // El segundo PDF es el de conceptos auxiliares
                         val file = atomicWrite(dir, "conceptos", bytes)
                         if (file != null) {
                             scope.launch(Dispatchers.IO) {
@@ -610,31 +625,12 @@ object ImssPdfCaptureCoordinator {
                                 finishSession()
                             }
                             scope.launch(Dispatchers.Main) { onEvent(PdfCaptureEvent.ConceptsSaved) }
-                            Log.i(TAG, "PDF_2_SAVED path=${file.absolutePath}")
+                            Log.i(TAG, "PDF_2_CONCEPTS_SAVED path=${file.absolutePath}")
                         }
-                    } else {
-                        Log.d(TAG, "PDF_EXTRA_IGNORED sequence=$seq size=${bytes.size}")
                     }
                 } else {
-                    // No session — save generically (safety net, e.g. manual download)
-                    scope.launch(Dispatchers.IO) {
-                        val f = atomicWrite(File(context.filesDir, "$sessionDir/${portal.id}"), "blob", bytes)
-                        if (f != null) {
-                            val db = PayslipDatabase.getInstance(context)
-                            val sha = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-                            if (db.payslipDao().findByHash(sha) == null) {
-                                db.payslipDao().insert(PayslipDocument(
-                                    source = if (portal == ImssPortal.TU_PERFIL) "TU_PERFIL" else "TARJETON_DIGITAL",
-                                    displayName = f.name,
-                                    localPath = f.absolutePath,
-                                    fileSize = bytes.size.toLong(),
-                                    sha256 = sha,
-                                    mimeType = "application/pdf",
-                                    sourceHost = portal.host,
-                                ))
-                            }
-                        }
-                    }
+                    // Sin sesión activa: NO guardar blob genérico en disco ni en Room
+                    Log.d(TAG, "PDF_CANDIDATE_IGNORED_NO_SESSION size=${bytes.size} sha=${sha.take(8)}")
                 }
             } catch (e: Exception) { Log.w(TAG, "Blob decode error", e) }
         }
@@ -690,13 +686,16 @@ object ImssPdfCaptureCoordinator {
     private suspend fun savePdf(
         context: Context, portal: ImssPortal, session: TarjetonCaptureSession,
         file: File, bytes: ByteArray,
-    ): PdfCaptureEvent {
+    ): PdfCaptureEvent = saveMutex.withLock {
         val sha = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
         val db = PayslipDatabase.getInstance(context)
         val existing = db.payslipDao().findByHash(sha)
         if (existing != null) {
             session.tarjetonDocumentId = existing.id
             val path = if (existing.localPath.isBlank()) file.absolutePath else existing.localPath
+            if (file.absolutePath != existing.localPath && file.exists()) {
+                runCatching { file.delete() }
+            }
             Log.d(TAG, "PDF_DUPLICATE sha=${sha.take(8)} docId=${existing.id}")
             return PdfCaptureEvent.TarjetonSaved(existing.id, path, wasDuplicate = true)
         }
@@ -714,16 +713,17 @@ object ImssPdfCaptureCoordinator {
             periodLabel = session.periodLabel.ifBlank { null },
             sourceHost = portal.host,
         ))
-        session.tarjetonDocumentId = docId
-        Log.i(TAG, "PDF_1_SAVED docId=$docId sha=${sha.take(8)}")
-        return PdfCaptureEvent.TarjetonSaved(docId, file.absolutePath, wasDuplicate = false)
+        val finalId = if (docId > 0) docId else (db.payslipDao().findByHash(sha)?.id ?: 0L)
+        session.tarjetonDocumentId = finalId
+        Log.i(TAG, "PDF_1_SAVED docId=$finalId sha=${sha.take(8)}")
+        return PdfCaptureEvent.TarjetonSaved(finalId, file.absolutePath, wasDuplicate = false)
     }
 
     /** Associates the concepts PDF with the document captured in this session. */
     private suspend fun associateConcepts(context: Context, session: TarjetonCaptureSession, conceptsPath: String) {
         val db = PayslipDatabase.getInstance(context)
         val docId = session.tarjetonDocumentId
-        if (docId != null) {
+        if (docId != null && docId > 0L) {
             db.payslipDao().updateConceptsPath(docId, conceptsPath)
             Log.i(TAG, "CONCEPTS_ASSOCIATED docId=$docId")
         } else {

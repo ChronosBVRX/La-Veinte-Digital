@@ -6,6 +6,7 @@ export interface DocNativo {
   kind: "nativo"
   tipo: "tarjeton" | "checadas"
   id: string
+  numericId?: number
   name: string
   localPath: string
   source: string
@@ -39,6 +40,7 @@ export function toNativo(doc: NativeDocumentMeta): DocNativo | null {
     kind: "nativo",
     tipo,
     id: String(doc.id),
+    numericId: doc.id,
     name: doc.name,
     localPath: doc.localPath,
     source: doc.source,

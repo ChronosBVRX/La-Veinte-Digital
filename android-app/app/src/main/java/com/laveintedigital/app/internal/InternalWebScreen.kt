@@ -207,6 +207,14 @@ fun InternalWebScreen(
                 pushBridgeResult(wv, req, payload)
             }
         }
+        BridgeHandler.onDeleteNativeDocumentById = { wv, req, docId, expectedPath ->
+            scope.launch {
+                val payload = runCatching {
+                    com.laveintedigital.app.imss.payslips.NativeDocuments.deleteById(context, docId, expectedPath).toString()
+                }.getOrDefault("{\"ok\":false,\"reason\":\"delete_failed\"}")
+                pushBridgeResult(wv, req, payload)
+            }
+        }
         BridgeHandler.onGetFcmToken = { wv, req ->
             val token = com.laveintedigital.app.push.PushTokenStore.getToken(context) ?: ""
             org.json.JSONObject().put("token", token).let { pushBridgeResult(wv, req, it.toString()) }

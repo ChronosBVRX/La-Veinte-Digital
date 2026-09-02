@@ -44,6 +44,7 @@ data class TarjetonCaptureSession(
     val startedAt: Long = System.currentTimeMillis(),
     var pdfSequence: Int = 0,
     val processedSequences: MutableSet<Int> = mutableSetOf(),
+    val processedHashes: MutableSet<String> = mutableSetOf(),
     var tarjetonDocumentId: Long? = null,
 )
 
