@@ -30,6 +30,7 @@ declare global {
     listNativeDocuments(): Promise<NativeDocumentMeta[]>
     readNativeDocument(localPath: string): Promise<NativeDocumentContent | null>
     deleteNativeDocument(localPath: string): Promise<boolean>
+    deleteNativeDocumentById?(documentId: number, expectedLocalPath?: string): Promise<{ ok: boolean; reason?: "not_found" | "invalid_path" | "invalid_id" | "delete_failed" | "bridge_unavailable" }>
     getFcmToken(): Promise<{ token: string }>
     getPendingPrintDoc(): Promise<{ localPath: string } | null>
     clearPendingPrintDoc(): void

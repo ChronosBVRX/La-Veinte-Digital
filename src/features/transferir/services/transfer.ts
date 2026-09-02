@@ -194,13 +194,54 @@ export async function readNativeDocumentAsFile(
 }
 
 /**
- * Elimina un documento guardado nativamente (tarjetón/checada) vía el bridge.
+ * Elimina un documento guardado nativamente (tarjetón/checada) por su ID estable de Room.
+ * Prefiere deleteNativeDocumentById cuando esté disponible en el bridge nativo.
+ */
+export async function deleteNativeDocumentById(
+  documentId: number,
+  expectedLocalPath?: string,
+  timeoutMs = 6000,
+): Promise<{ ok: boolean; reason?: string }> {
+  if (typeof window === "undefined" || !window.LaVeinteApp) {
+    return { ok: false, reason: "bridge_unavailable" }
+  }
+
+  // 1. Método moderno: borrado por ID estable
+  if (typeof window.LaVeinteApp.deleteNativeDocumentById === "function") {
+    try {
+      return await withTimeout(
+        window.LaVeinteApp.deleteNativeDocumentById(documentId, expectedLocalPath),
+        timeoutMs,
+      )
+    } catch {
+      return { ok: false, reason: "delete_failed" }
+    }
+  }
+
+  // 2. Fallback de compatibilidad con APK anterior por ruta
+  if (expectedLocalPath && typeof window.LaVeinteApp.deleteNativeDocument === "function") {
+    try {
+      const ok = await withTimeout(
+        window.LaVeinteApp.deleteNativeDocument(expectedLocalPath),
+        timeoutMs,
+      )
+      return { ok, reason: ok ? undefined : "delete_failed" }
+    } catch {
+      return { ok: false, reason: "delete_failed" }
+    }
+  }
+
+  return { ok: false, reason: "bridge_unavailable" }
+}
+
+/**
+ * Elimina un documento guardado nativamente (tarjetón/checada) vía el bridge por ruta.
  * Devuelve false si la app actual no expone el método o falla.
  */
-export async function deleteNativeDocument(localPath: string): Promise<boolean> {
+export async function deleteNativeDocument(localPath: string, timeoutMs = 6000): Promise<boolean> {
   if (typeof window === "undefined" || !window.LaVeinteApp?.deleteNativeDocument) return false
   try {
-    return await window.LaVeinteApp.deleteNativeDocument(localPath)
+    return await withTimeout(window.LaVeinteApp.deleteNativeDocument(localPath), timeoutMs)
   } catch {
     return false
   }

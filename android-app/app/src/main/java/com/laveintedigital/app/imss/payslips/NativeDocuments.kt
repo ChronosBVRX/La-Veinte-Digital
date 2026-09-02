@@ -6,13 +6,16 @@ import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+
 /**
- * Exposes the native saved documents (tarjetones + checadas) from Room to the web, as a
- * JSON array (no file contents) and as base64 content for a single document (for transfer).
+ * Expone los documentos guardados nativamente (tarjetones + checadas) desde Room a la web,
+ * como un array JSON de metadatos y como base64 para operaciones de lectura/transferencia.
  *
  * Bridge contract:
  *  - list → `[ { id, name, localPath, source, fileSize, downloadedAt, mimeType } ]`
- *  - read (localPath) → `{ name, data: <base64>, mimeType }` or null if missing/unreadable.
+ *  - read (localPath) → `{ name, data: <base64>, mimeType }` o null si no existe.
+ *  - deleteById (id, expectedPath) → `{ ok: boolean, reason?: string }`
+ *  - delete (localPath) → boolean (fallback de compatibilidad)
  */
 object NativeDocuments {
 
@@ -20,6 +23,9 @@ object NativeDocuments {
     private const val MAX_B64_DOC = 10 * 1024 * 1024
 
     suspend fun list(context: Context): JSONArray {
+        // Ejecutar reparación preventiva de duplicados/blobs heredados
+        PayslipDatabase.repairLegacyBlobRecords(context)
+
         val db = PayslipDatabase.getInstance(context)
         val docs = db.payslipDao().getAll()
         val arr = JSONArray()
@@ -42,12 +48,8 @@ object NativeDocuments {
 
     fun read(context: Context, localPath: String): JSONObject? {
         if (localPath.isBlank()) return null
-        // Guard against path traversal: only allow files that resolve under app filesDir. Saved
-        // documents live in BOTH `files/tarjetones` (ImssPayslipDownloader) and
-        // `files/Tarjetones/<portal>/<ooad>/<periodo>` (ImssPdfCaptureCoordinator, capital T), so we
-        // must accept any sub-path under filesDir — never an absolute/../ escape.
         val base = context.filesDir.canonicalFile
-        val file = try { java.io.File(localPath).canonicalFile } catch (e: Exception) { return null }
+        val file = try { File(localPath).canonicalFile } catch (e: Exception) { return null }
         if (!file.path.startsWith(base.path)) {
             Log.w(TAG, "read rejected: outside filesDir: ${file.path}")
             return null
@@ -70,42 +72,103 @@ object NativeDocuments {
         }
     }
 
-    /** Deletes a saved document (and its optional concepts PDF) by path. Returns true if removed. */
+    /**
+     * Elimina un documento guardado nativamente por su ID estable de Room.
+     * Borra el PDF principal, el PDF auxiliar de conceptos (si existe) y la fila de Room.
+     * Si el archivo físico ya no existía, limpia la fila huérfana de Room y devuelve éxito.
+     */
+    suspend fun deleteById(
+        context: Context,
+        documentId: Long,
+        expectedLocalPath: String? = null,
+    ): JSONObject {
+        if (documentId <= 0L) {
+            return JSONObject().put("ok", false).put("reason", "invalid_id")
+        }
+        val db = PayslipDatabase.getInstance(context)
+        val doc = db.payslipDao().findById(documentId)
+        if (doc == null) {
+            Log.i(TAG, "deleteById: documento no encontrado en Room id=$documentId")
+            return JSONObject().put("ok", false).put("reason", "not_found")
+        }
+
+        val base = context.filesDir.canonicalFile
+
+        // Validación de seguridad si se proporcionó una ruta esperada
+        if (!expectedLocalPath.isNullOrBlank()) {
+            val expectedFile = runCatching { File(expectedLocalPath).canonicalFile }.getOrNull()
+            if (expectedFile == null || !expectedFile.path.startsWith(base.path)) {
+                Log.w(TAG, "deleteById rejected: ruta esperada fuera de filesDir: $expectedLocalPath")
+                return JSONObject().put("ok", false).put("reason", "invalid_path")
+            }
+        }
+
+        // 1. Borrar archivo principal si existe dentro de filesDir
+        if (doc.localPath.isNotBlank()) {
+            val mainFile = runCatching { File(doc.localPath).canonicalFile }.getOrNull()
+            if (mainFile != null && mainFile.path.startsWith(base.path)) {
+                runCatching { if (mainFile.exists()) mainFile.delete() }
+            }
+            if (PendingPrint.get() == doc.localPath || PendingPrint.get() == mainFile?.path) {
+                PendingPrint.clear()
+            }
+        }
+
+        // 2. Borrar archivo de conceptos si existe dentro de filesDir
+        if (!doc.conceptsPath.isNullOrBlank()) {
+            val conceptsFile = runCatching { File(doc.conceptsPath).canonicalFile }.getOrNull()
+            if (conceptsFile != null && conceptsFile.path.startsWith(base.path)) {
+                runCatching { if (conceptsFile.exists()) conceptsFile.delete() }
+            }
+        }
+
+        // 3. Eliminar la fila de Room
+        db.payslipDao().deleteById(doc.id)
+        Log.i(TAG, "doc_deleted_by_id id=${doc.id}")
+        return JSONObject().put("ok", true)
+    }
+
+    /**
+     * Fallback de eliminación por ruta. Devuelve true si se eliminó el documento o si
+     * se limpió una fila huérfana.
+     */
     suspend fun delete(context: Context, localPath: String): Boolean {
         if (localPath.isBlank()) return false
         val base = context.filesDir.canonicalFile
-        val file = runCatching { java.io.File(localPath).canonicalFile }.getOrNull() ?: return false
+        val file = runCatching { File(localPath).canonicalFile }.getOrNull() ?: return false
         if (!file.path.startsWith(base.path)) {
             Log.w(TAG, "delete rejected: outside filesDir: ${file.path}")
             return false
         }
         val db = PayslipDatabase.getInstance(context)
-        val doc = db.payslipDao().getAll().firstOrNull { it.localPath == file.path } ?: return false
+        val allDocs = db.payslipDao().getAll()
+        val doc = allDocs.firstOrNull {
+            it.localPath == file.path ||
+                    it.localPath == localPath ||
+                    runCatching { File(it.localPath).canonicalPath }.getOrNull() == file.canonicalPath
+        } ?: return false
+
         db.payslipDao().delete(doc)
-        doc.conceptsPath?.takeIf { it.isNotBlank() }?.let { runCatching { java.io.File(it).delete() } }
+        doc.conceptsPath?.takeIf { it.isNotBlank() }?.let { runCatching { File(it).delete() } }
         runCatching { if (file.exists()) file.delete() }
+
+        if (PendingPrint.get() == doc.localPath || PendingPrint.get() == file.path) {
+            PendingPrint.clear()
+        }
+
         Log.i(TAG, "doc_deleted path=${file.path}")
         return true
     }
 
     /**
-     * The document the user asked to "Imprimir" (send via QR) — stored by the native viewer so the
-     * web `/transfer?print=1` flow can auto-send exactly that file after scanning. It must be
-     * cleared only after a successful upload.
-     *
-     * This is a process-wide holder of *state*, NOT a callback. The `InternalWebScreen` observes it
-     * when it is (re)mounted and loads `/transfer?print=1` reactively, so there is no reliance on a
-     * Composable being alive at the moment the user taps "print".
-     *
-     * [generation] is a monotonically-increasing id so a freshly-mounted InternalWebScreen loads the
-     * transfer flow exactly once per "print" request (not on every recomposition).
+     * Documento que el usuario solicitó "Imprimir" (enviar vía QR sindical).
      */
     object PendingPrint {
         @Volatile private var path: String? = null
         @Volatile private var generation: Long = 0L
         @Volatile private var lastConsumedGeneration: Long = -1L
 
-        /** Marks [localPath] as the document to send. Calling this bumps [generation]. */
+        /** Marca [localPath] como documento a transferir. */
         fun set(localPath: String) {
             path = localPath
             generation++
@@ -114,15 +177,15 @@ object NativeDocuments {
 
         fun get(): String? = path
 
-        /** Returns the pending generation if it has NOT been consumed yet. */
+        /** Retorna la generación pendiente si no ha sido consumida. */
         fun pendingGeneration(): Long = generation
 
-        /** Confirms [generation] was handled; prevents re-loading on recomposition. */
+        /** Confirma que [generation] fue procesada. */
         fun consume(generation: Long) { lastConsumedGeneration = generation }
 
         fun alreadyConsumed(generation: Long): Boolean = generation == lastConsumedGeneration
 
-        /** Clears the pending document after a successful upload / explicit cancel. */
+        /** Limpia el documento pendiente tras subida o cancelación explícita. */
         fun clear() {
             path = null
             generation++

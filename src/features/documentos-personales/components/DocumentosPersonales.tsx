@@ -6,9 +6,14 @@ import { createClient } from "@/lib/supabase/client"
 import {
   FileText, FolderOpen, Printer, Clock, Trash, PencilLine,
   DotsThree, UploadSimple, PencilSimple, Eye, ShareNetwork,
+  WarningCircle, CheckCircle, X,
 } from "@phosphor-icons/react"
 import { getEscritosGuardados, eliminarEscrito } from "@/shared/services/escritos-storage"
-import { readNativeDocumentAsFile, deleteNativeDocument } from "@/features/transferir/services/transfer"
+import {
+  readNativeDocumentAsFile,
+  deleteNativeDocumentById,
+} from "@/features/transferir/services/transfer"
+import { Button } from "@/shared/components/ui/Button"
 import { SendPrintModal } from "./SendPrintModal"
 import { ImportTarjetonModal } from "./ImportTarjetonModal"
 import { DocumentViewerModal } from "./DocumentViewerModal"
@@ -42,7 +47,9 @@ export function DocumentosPersonales() {
   const [sendDoc, setSendDoc] = useState<{ doc: DocumentoPersonalItem; getFile: () => Promise<File | null> } | null>(null)
   const [importDoc, setImportDoc] = useState<{ file: File | null; name: string } | null>(null)
   const [borrandoId, setBorrandoId] = useState<string | null>(null)
+  const [confirmDeleteDoc, setConfirmDeleteDoc] = useState<DocumentoPersonalItem | null>(null)
   const [menuDoc, setMenuDoc] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null)
 
   const isNative = typeof window !== "undefined" && !!window.LaVeinteApp?.listNativeDocuments
 
@@ -52,6 +59,13 @@ export function DocumentosPersonales() {
       .then((docs) => setNativos((docs ?? []).map(toNativo).filter((d): d is NonNullable<typeof d> => !!d)))
       .catch(() => setNativos([]))
   }
+
+  // Auto-cerrar feedback toast
+  useEffect(() => {
+    if (!feedback) return
+    const timer = setTimeout(() => setFeedback(null), 4500)
+    return () => clearTimeout(timer)
+  }, [feedback])
 
   // Cerrar menú al hacer clic fuera
   useEffect(() => {
@@ -193,27 +207,52 @@ export function DocumentosPersonales() {
     setMenuDoc(null)
   }
 
-  const handleDelete = async (doc: DocumentoPersonalItem) => {
+  const handleRequestDelete = (doc: DocumentoPersonalItem) => {
     setMenuDoc(null)
+    setConfirmDeleteDoc(doc)
+  }
+
+  const handleConfirmDelete = async () => {
+    const doc = confirmDeleteDoc
+    if (!doc) return
+
     setBorrandoId(doc.id)
     try {
       if (doc.kind === "escrito") {
-        eliminarEscrito(doc.id, userId || undefined)
-        const updated = getEscritosGuardados(userId || undefined)
-        setEscritos(
-          updated.map((e) => ({
-            kind: "escrito",
-            tipo: "escrito",
-            id: e.id,
-            titulo: e.titulo,
-            fecha: e.fecha,
-            escrito: e,
-          }))
-        )
+        await eliminarEscrito(doc.id, userId || undefined)
+        setEscritos((prev) => prev.filter((e) => e.id !== doc.id))
+        setConfirmDeleteDoc(null)
+        setFeedback({ type: "success", message: "Escrito eliminado correctamente." })
       } else {
-        const ok = await deleteNativeDocument(doc.localPath)
-        if (ok) reloadNativos()
+        const docId = doc.numericId ?? (Number(doc.id) || 0)
+        const res = await deleteNativeDocumentById(docId, doc.localPath)
+        if (res.ok) {
+          setNativos((prev) => prev.filter((d) => d.id !== doc.id))
+          setConfirmDeleteDoc(null)
+          setFeedback({ type: "success", message: "Documento eliminado." })
+          reloadNativos()
+        } else {
+          setConfirmDeleteDoc(null)
+          if (res.reason === "bridge_unavailable") {
+            setFeedback({
+              type: "error",
+              message: "Actualiza La Veinte Digital para eliminar este documento correctamente.",
+            })
+          } else {
+            setFeedback({
+              type: "error",
+              message: "No se pudo eliminar el documento. Inténtalo de nuevo.",
+            })
+          }
+        }
       }
+    } catch (err) {
+      console.error("Error al eliminar documento:", err)
+      setConfirmDeleteDoc(null)
+      setFeedback({
+        type: "error",
+        message: "Ocurrió un error al intentar eliminar el documento.",
+      })
     } finally {
       setBorrandoId(null)
     }
@@ -225,7 +264,9 @@ export function DocumentosPersonales() {
     doc.kind === "nativo" ? formatFecha(doc.downloadedAt) : formatFechaEscrito(doc.escrito.fecha)
   const detalle = (doc: DocumentoPersonalItem) =>
     doc.kind === "nativo" ? formatBytes(doc.fileSize) : "Borrador guardado"
-  const puedeBorrarNativo = typeof window !== "undefined" && !!window.LaVeinteApp?.deleteNativeDocument
+  const puedeBorrarNativo = typeof window !== "undefined" && (
+    !!window.LaVeinteApp?.deleteNativeDocumentById || !!window.LaVeinteApp?.deleteNativeDocument
+  )
 
   const iconBtn: React.CSSProperties = {
     display: "inline-flex", alignItems: "center", justifyContent: "center",
@@ -244,7 +285,56 @@ export function DocumentosPersonales() {
       flexDirection: "column",
       gap: "1.75rem",
       boxSizing: "border-box",
+      position: "relative",
     }}>
+
+      {/* Toast / Banner de Feedback */}
+      {feedback && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: "sticky",
+            top: "1rem",
+            zIndex: 40,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "0.75rem",
+            padding: "0.75rem 1rem",
+            borderRadius: "0.75rem",
+            background: feedback.type === "success" ? "#f0fdf4" : "#fef2f2",
+            border: `1px solid ${feedback.type === "success" ? "#bbf7d0" : "#fecaca"}`,
+            color: feedback.type === "success" ? "#166534" : "#991b1b",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+            animation: "fadeIn 0.2s ease",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", fontWeight: 600 }}>
+            {feedback.type === "success" ? (
+              <CheckCircle size={20} weight="fill" style={{ color: "#16a34a", flexShrink: 0 }} />
+            ) : (
+              <WarningCircle size={20} weight="fill" style={{ color: "#dc2626", flexShrink: 0 }} />
+            )}
+            <span>{feedback.message}</span>
+          </div>
+          <button
+            onClick={() => setFeedback(null)}
+            aria-label="Cerrar aviso"
+            style={{
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              padding: 0,
+              display: "inline-flex",
+              color: "inherit",
+              opacity: 0.7,
+            }}
+          >
+            <X size={16} weight="bold" />
+          </button>
+        </div>
+      )}
 
       {/* Encabezado */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.875rem", width: "100%", boxSizing: "border-box" }}>
@@ -513,10 +603,10 @@ export function DocumentosPersonales() {
 
                             {/* Botón Eliminar */}
                             <button
-                              onClick={() => handleDelete(doc)}
+                              onClick={() => handleRequestDelete(doc)}
                               disabled={borrandoId === doc.id}
-                              title={locked ? "Para borrar, actualiza la app a la última versión." : "Eliminar"}
-                              aria-label="Eliminar"
+                              title={locked ? "Para borrar, actualiza la app a la última versión." : "Eliminar documento"}
+                              aria-label="Eliminar documento"
                               style={{
                                 ...iconBtn,
                                 background: "transparent",
@@ -595,6 +685,135 @@ export function DocumentosPersonales() {
               </section>
             )
           })}
+        </div>
+      )}
+
+      {/* Modal de Confirmación de Eliminación */}
+      {confirmDeleteDoc && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-delete-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "rgba(0, 0, 0, 0.55)",
+            backdropFilter: "blur(2px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+            boxSizing: "border-box",
+            animation: "fadeIn 0.15s ease-out",
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !borrandoId) setConfirmDeleteDoc(null)
+          }}
+        >
+          <div
+            style={{
+              background: "var(--card)",
+              borderRadius: "1rem",
+              border: "1px solid var(--border)",
+              maxWidth: "420px",
+              width: "100%",
+              padding: "1.5rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1.125rem",
+              boxShadow: "0 16px 36px rgba(0, 0, 0, 0.2)",
+              boxSizing: "border-box",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.875rem" }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: "0.75rem",
+                  background: "#fee2e2",
+                  color: "#dc2626",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Trash size={22} weight="bold" />
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <h3
+                  id="confirm-delete-title"
+                  style={{
+                    fontSize: "1.0625rem",
+                    fontWeight: 700,
+                    margin: 0,
+                    color: "var(--fg)",
+                    lineHeight: 1.3,
+                  }}
+                >
+                  Eliminar documento
+                </h3>
+                <p
+                  style={{
+                    fontSize: "0.875rem",
+                    fontWeight: 600,
+                    color: "var(--fg)",
+                    margin: "0.375rem 0 0",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {titulo(confirmDeleteDoc)}
+                </p>
+              </div>
+            </div>
+
+            <div
+              style={{
+                fontSize: "0.8125rem",
+                color: "var(--muted)",
+                lineHeight: 1.5,
+                background: "var(--accent)",
+                padding: "0.75rem 0.875rem",
+                borderRadius: "0.625rem",
+                border: "1px solid var(--border)",
+              }}
+            >
+              {confirmDeleteDoc.kind === "escrito" ? (
+                "Se eliminará el escrito y sus anexos guardados en este dispositivo."
+              ) : (
+                "Se eliminará este archivo únicamente de este dispositivo. Esta acción no afecta los portales del IMSS."
+              )}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-end",
+                gap: "0.625rem",
+                marginTop: "0.25rem",
+              }}
+            >
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => setConfirmDeleteDoc(null)}
+                disabled={borrandoId === confirmDeleteDoc.id}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="danger"
+                size="md"
+                onClick={handleConfirmDelete}
+                loading={borrandoId === confirmDeleteDoc.id}
+              >
+                Eliminar
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 

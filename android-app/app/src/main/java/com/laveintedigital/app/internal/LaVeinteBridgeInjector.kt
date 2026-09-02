@@ -98,6 +98,13 @@ object LaVeinteBridgeInjector {
         window.location.href = 'laveinte://bridge/deleteNativeDocument?req=' + id + '&path=' + encodeURIComponent(localPath);
       });
     },
+    deleteNativeDocumentById: function(documentId, expectedLocalPath) {
+      return new Promise(function(resolve) {
+        var id = 'req' + (++__seq);
+        __pending[id] = function(p) { try { resolve(JSON.parse(p || '{"ok":false,"reason":"bridge_unavailable"}')); } catch(e) { resolve({ok:false,reason:"bridge_unavailable"}); } };
+        window.location.href = 'laveinte://bridge/deleteNativeDocumentById?req=' + id + '&id=' + encodeURIComponent(documentId) + (expectedLocalPath ? '&path=' + encodeURIComponent(expectedLocalPath) : '');
+      });
+    },
     getFcmToken: function() {
       return new Promise(function(resolve) {
         var id = 'req' + (++__seq);
@@ -166,6 +173,13 @@ fun handleBridgeUrl(url: String, webView: WebView?): Boolean {
             val p = uri.getQueryParameter("path") ?: return true
             BridgeHandler.onDeleteNativeDocument?.invoke(webView, req, p)
         }
+        "/deleteNativeDocumentById" -> {
+            val req = uri.getQueryParameter("req") ?: return true
+            val idStr = uri.getQueryParameter("id") ?: return true
+            val docId = idStr.toLongOrNull() ?: 0L
+            val p = uri.getQueryParameter("path")
+            BridgeHandler.onDeleteNativeDocumentById?.invoke(webView, req, docId, p)
+        }
         "/getFcmToken" -> {
             val req = uri.getQueryParameter("req") ?: return true
             BridgeHandler.onGetFcmToken?.invoke(webView, req)
@@ -212,6 +226,7 @@ object BridgeHandler {
     var onListNativeDocuments: ((WebView?, String) -> Unit)? = null
     var onReadNativeDocument: ((WebView?, String, String) -> Unit)? = null
     var onDeleteNativeDocument: ((WebView?, String, String) -> Unit)? = null
+    var onDeleteNativeDocumentById: ((WebView?, String, Long, String?) -> Unit)? = null
     var onGetFcmToken: ((WebView?, String) -> Unit)? = null
     var onGetPendingPrintDoc: ((WebView?, String) -> Unit)? = null
     var onOpenAppSettings: (() -> Unit)? = null

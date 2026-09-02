@@ -221,4 +221,90 @@ describe("DocumentosPersonales (Integración con Escritos y Panel Inline)", () =
       expect(screen.getByLabelText(/Cerrar visor/i)).toBeDefined()
     })
   })
+
+  it("muestra el modal de confirmación contextual y elimina un tarjetón nativo con deleteNativeDocumentById", async () => {
+    let currentDocs = [
+      {
+        id: 201,
+        name: "Tarjetón — 1ª quincena de marzo de 2026",
+        localPath: "/data/docs/tarjeton_201.pdf",
+        source: "TU_PERFIL",
+        fileSize: 50000,
+        downloadedAt: new Date("2026-03-15T10:00:00Z").getTime(),
+        mimeType: "application/pdf",
+      },
+    ]
+
+    const deleteByIdMock = vi.fn().mockImplementation(async (id: number) => {
+      currentDocs = currentDocs.filter((d) => d.id !== id)
+      return { ok: true }
+    })
+    window.LaVeinteApp = {
+      listNativeDocuments: vi.fn().mockImplementation(async () => currentDocs),
+      deleteNativeDocumentById: deleteByIdMock,
+    } as unknown as typeof window.LaVeinteApp
+
+    render(<DocumentosPersonales />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Tarjetón — 1ª quincena de marzo de 2026")).toBeDefined()
+    })
+
+    // Pulsar botón eliminar
+    const deleteBtn = screen.getByLabelText("Eliminar documento")
+    fireEvent.click(deleteBtn)
+
+    // Debe abrir el modal de confirmación con mensaje de tarjetón
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeDefined()
+      expect(screen.getByText("Eliminar documento")).toBeDefined()
+      expect(screen.getByText(/Se eliminará este archivo únicamente de este dispositivo/i)).toBeDefined()
+    })
+
+    // Pulsar Cancelar: no debe borrar
+    const cancelBtn = screen.getByText("Cancelar")
+    fireEvent.click(cancelBtn)
+    expect(screen.queryByRole("dialog")).toBeNull()
+    expect(deleteByIdMock).not.toHaveBeenCalled()
+
+    // Volver a pulsar Eliminar en la tarjeta y confirmar en el modal
+    fireEvent.click(screen.getByLabelText("Eliminar documento"))
+    const confirmBtn = screen.getAllByRole("button", { name: /^Eliminar$/i })[0]
+    fireEvent.click(confirmBtn)
+
+    await waitFor(() => {
+      expect(deleteByIdMock).toHaveBeenCalledWith(201, "/data/docs/tarjeton_201.pdf")
+      expect(screen.getByText("Documento eliminado.")).toBeDefined()
+      expect(screen.queryByText("Tarjetón — 1ª quincena de marzo de 2026")).toBeNull()
+    })
+  })
+
+  it("muestra el modal de confirmación y elimina un escrito reactivamente", async () => {
+    const doc = createEmptyEscritoDraftV2("usr_doc_test", "solicitud", {
+      titulo: "Oficio de Justificación",
+      fecha: "2026-09-02",
+    })
+    guardarEscrito(doc, "usr_doc_test")
+
+    render(<DocumentosPersonales />)
+
+    await waitFor(() => {
+      expect(screen.getByText("Oficio de Justificación")).toBeDefined()
+    })
+
+    fireEvent.click(screen.getByLabelText("Eliminar documento"))
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeDefined()
+      expect(screen.getByText(/Se eliminará el escrito y sus anexos guardados en este dispositivo/i)).toBeDefined()
+    })
+
+    const confirmBtn = screen.getAllByRole("button", { name: /^Eliminar$/i })[0]
+    fireEvent.click(confirmBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText("Escrito eliminado correctamente.")).toBeDefined()
+      expect(screen.queryByText("Oficio de Justificación")).toBeNull()
+    })
+  })
 })
