@@ -331,11 +331,10 @@ export function DocumentosPersonales() {
                     return (
                       <div
                         key={doc.id}
+                        data-menu-doc="true"
                         style={{
                           display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          flexWrap: "wrap",
+                          flexDirection: "column",
                           gap: "0.875rem",
                           padding: "0.875rem 1rem",
                           background: "var(--card)",
@@ -345,131 +344,112 @@ export function DocumentosPersonales() {
                           boxSizing: "border-box",
                         }}
                       >
-                        {/* Identidad del documento (Nombre + Tipo/Descripcion) */}
-                        <div style={{
-                          display: "flex",
-                          alignItems: "flex-start",
-                          gap: "0.75rem",
-                          flex: "1 1 230px",
-                          minWidth: 0,
-                          wordBreak: "break-word",
-                          overflowWrap: "anywhere",
-                        }}>
-                          {/* Icono de Tipo */}
+                        {/* Fila principal: Identidad y Acciones */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            flexWrap: "wrap",
+                            gap: "0.875rem",
+                            width: "100%",
+                            boxSizing: "border-box",
+                          }}
+                        >
+                          {/* Identidad del documento (Nombre + Tipo/Descripcion) */}
                           <div style={{
-                            width: 42, height: 42, borderRadius: "0.75rem", flexShrink: 0,
-                            background: `${color}1a`,
-                            display: "flex", alignItems: "center", justifyContent: "center", color,
-                            marginTop: "0.125rem",
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: "0.75rem",
+                            flex: "1 1 230px",
+                            minWidth: 0,
+                            wordBreak: "break-word",
+                            overflowWrap: "anywhere",
                           }}>
-                            <Icon size={22} weight="duotone" />
-                          </div>
-
-                          {/* Textos: Nombre de documento arriba / TIPO - descripcion abajo */}
-                          <div style={{ flex: 1, minWidth: 0, wordBreak: "break-word", overflowWrap: "anywhere" }}>
-                            {/* Nombre de documento */}
+                            {/* Icono de Tipo */}
                             <div style={{
-                              fontSize: "var(--text-sm)",
-                              fontWeight: 700,
-                              color: "var(--fg)",
-                              lineHeight: 1.35,
-                              wordBreak: "break-word",
-                              overflowWrap: "anywhere",
+                              width: 42, height: 42, borderRadius: "0.75rem", flexShrink: 0,
+                              background: `${color}1a`,
+                              display: "flex", alignItems: "center", justifyContent: "center", color,
+                              marginTop: "0.125rem",
                             }}>
-                              {name}
+                              <Icon size={22} weight="duotone" />
                             </div>
 
-                            {/* TIPO - descripcion */}
-                            <div style={{
-                              display: "flex",
-                              alignItems: "center",
-                              flexWrap: "wrap",
-                              gap: "0.375rem",
-                              marginTop: "0.25rem",
-                              fontSize: "var(--text-xs)",
-                              color: "var(--muted)",
-                              lineHeight: 1.4,
-                            }}>
-                              <span style={{
-                                fontSize: "0.65rem",
+                            {/* Textos: Nombre de documento arriba / TIPO - descripcion abajo */}
+                            <div style={{ flex: 1, minWidth: 0, wordBreak: "break-word", overflowWrap: "anywhere" }}>
+                              {/* Nombre de documento */}
+                              <div style={{
+                                fontSize: "var(--text-sm)",
                                 fontWeight: 700,
-                                letterSpacing: "0.04em",
-                                textTransform: "uppercase",
-                                color,
-                                background: `${color}1a`,
-                                padding: "0.125rem 0.45rem",
-                                borderRadius: "999px",
-                                flexShrink: 0,
-                                display: "inline-block",
+                                color: "var(--fg)",
+                                lineHeight: 1.35,
+                                wordBreak: "break-word",
+                                overflowWrap: "anywhere",
                               }}>
-                                {grupoLabel(tipo)}
-                              </span>
-                              <span>-</span>
-                              <span>{meta}</span>
+                                {name}
+                              </div>
+
+                              {/* TIPO - descripcion */}
+                              <div style={{
+                                display: "flex",
+                                alignItems: "center",
+                                flexWrap: "wrap",
+                                gap: "0.375rem",
+                                marginTop: "0.25rem",
+                                fontSize: "var(--text-xs)",
+                                color: "var(--muted)",
+                                lineHeight: 1.4,
+                              }}>
+                                <span style={{
+                                  fontSize: "0.65rem",
+                                  fontWeight: 700,
+                                  letterSpacing: "0.04em",
+                                  textTransform: "uppercase",
+                                  color,
+                                  background: `${color}1a`,
+                                  padding: "0.125rem 0.45rem",
+                                  borderRadius: "999px",
+                                  flexShrink: 0,
+                                  display: "inline-block",
+                                }}>
+                                  {grupoLabel(tipo)}
+                                </span>
+                                <span>-</span>
+                                <span>{meta}</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        {/* Botones de acción */}
-                        <div style={{
-                          display: "flex",
-                          gap: "0.375rem",
-                          flexShrink: 0,
-                          alignItems: "center",
-                          flexWrap: "wrap",
-                          justifyContent: "flex-end",
-                        }}>
-                          {/* Botón Abrir */}
-                          <button
-                            onClick={() => handleOpen(doc)}
-                            title="Abrir documento"
-                            aria-label="Abrir documento"
-                            style={{
-                              ...iconBtn,
-                              background: "var(--accent)",
-                              color: "var(--fg)",
-                              border: "1px solid var(--border)",
-                            }}
-                          >
-                            <Eye size={18} weight="bold" />
-                          </button>
+                          {/* Botones de acción */}
+                          <div style={{
+                            display: "flex",
+                            gap: "0.375rem",
+                            flexShrink: 0,
+                            alignItems: "center",
+                            flexWrap: "wrap",
+                            justifyContent: "flex-end",
+                          }}>
+                            {/* Botón Abrir */}
+                            <button
+                              onClick={() => handleOpen(doc)}
+                              title="Abrir documento"
+                              aria-label="Abrir documento"
+                              style={{
+                                ...iconBtn,
+                                background: "var(--accent)",
+                                color: "var(--fg)",
+                                border: "1px solid var(--border)",
+                              }}
+                            >
+                              <Eye size={18} weight="bold" />
+                            </button>
 
-                          {/* Botón Compartir */}
-                          <button
-                            onClick={() => handleShare(doc)}
-                            title="Compartir documento"
-                            aria-label="Compartir documento"
-                            style={{
-                              ...iconBtn,
-                              background: "var(--accent)",
-                              color: "var(--primary)",
-                              border: "1px solid var(--border)",
-                            }}
-                          >
-                            <ShareNetwork size={18} weight="bold" />
-                          </button>
-
-                          {/* Botón Imprimir / Transferir */}
-                          <button
-                            onClick={() => handleSend(doc)}
-                            title="Enviar a imprimir o transferir"
-                            aria-label="Enviar a imprimir o transferir"
-                            style={{
-                              ...iconBtn,
-                              background: "var(--primary)",
-                              color: "var(--primary-fg)",
-                              boxShadow: "0 2px 6px rgba(37,99,235,0.25)",
-                            }}
-                          >
-                            <Printer size={18} weight="bold" />
-                          </button>
-
-                          {/* Botón Editar para escritos */}
-                          {doc.tipo === "escrito" && (
-                            <Link
-                              href={`/escritos?id=${doc.id}`}
-                              title="Editar escrito"
-                              aria-label="Editar escrito"
+                            {/* Botón Compartir */}
+                            <button
+                              onClick={() => handleShare(doc)}
+                              title="Compartir documento"
+                              aria-label="Compartir documento"
                               style={{
                                 ...iconBtn,
                                 background: "var(--accent)",
@@ -477,91 +457,137 @@ export function DocumentosPersonales() {
                                 border: "1px solid var(--border)",
                               }}
                             >
-                              <PencilSimple size={18} weight="bold" />
-                            </Link>
-                          )}
+                              <ShareNetwork size={18} weight="bold" />
+                            </button>
 
-                          {/* Más opciones (3 puntos) para tarjetones: Exportar al perfil */}
-                          {hasMenu && (
-                            <div style={{ position: "relative" }} data-menu-doc="true">
+                            {/* Botón Imprimir / Transferir */}
+                            <button
+                              onClick={() => handleSend(doc)}
+                              title="Enviar a imprimir o transferir"
+                              aria-label="Enviar a imprimir o transferir"
+                              style={{
+                                ...iconBtn,
+                                background: "var(--primary)",
+                                color: "var(--primary-fg)",
+                                boxShadow: "0 2px 6px rgba(37,99,235,0.25)",
+                              }}
+                            >
+                              <Printer size={18} weight="bold" />
+                            </button>
+
+                            {/* Botón Editar para escritos */}
+                            {doc.tipo === "escrito" && (
+                              <Link
+                                href={`/escritos?id=${doc.id}`}
+                                title="Editar escrito"
+                                aria-label="Editar escrito"
+                                style={{
+                                  ...iconBtn,
+                                  background: "var(--accent)",
+                                  color: "var(--primary)",
+                                  border: "1px solid var(--border)",
+                                }}
+                              >
+                                <PencilSimple size={18} weight="bold" />
+                              </Link>
+                            )}
+
+                            {/* Más opciones (3 puntos) para tarjetones: Exportar al perfil */}
+                            {hasMenu && (
                               <button
                                 onClick={() => setMenuDoc(menuDoc === doc.id ? null : doc.id)}
+                                aria-expanded={menuDoc === doc.id}
+                                aria-controls={`menu-panel-${doc.id}`}
                                 aria-label="Más opciones"
                                 title="Exportar al perfil y más opciones"
                                 style={{
                                   ...iconBtn,
-                                  background: "transparent",
-                                  color: "var(--muted)",
-                                  border: "1px solid var(--border)",
+                                  background: menuDoc === doc.id ? "var(--accent)" : "transparent",
+                                  color: menuDoc === doc.id ? "var(--primary)" : "var(--muted)",
+                                  border: `1px solid ${menuDoc === doc.id ? "var(--primary)" : "var(--border)"}`,
                                 }}
                               >
                                 <DotsThree size={20} weight="bold" />
                               </button>
-                              {menuDoc === doc.id && (
-                                <div style={{
-                                  position: "absolute",
-                                  right: 0,
-                                  bottom: "calc(100% + 6px)",
-                                  width: "min(280px, 90vw)",
-                                  background: "var(--card)",
-                                  border: "1px solid var(--border)",
-                                  borderRadius: "0.75rem",
-                                  boxShadow: "0 8px 28px rgba(0,0,0,0.18)",
-                                  padding: "0.5rem",
-                                  zIndex: 30,
-                                }}>
-                                  <button
-                                    onClick={() => handleImport(doc)}
-                                    style={{
-                                      display: "flex",
-                                      alignItems: "flex-start",
-                                      gap: "0.625rem",
-                                      width: "100%",
-                                      padding: "0.625rem",
-                                      borderRadius: "0.5rem",
-                                      border: "none",
-                                      background: "var(--accent)",
-                                      cursor: "pointer",
-                                      textAlign: "left",
-                                      fontFamily: "inherit",
-                                      color: "var(--fg)",
-                                    }}
-                                  >
-                                    <span style={{ color, flexShrink: 0, marginTop: "0.125rem" }}>
-                                      <UploadSimple size={20} weight="duotone" />
-                                    </span>
-                                    <span style={{ minWidth: 0, flex: 1 }}>
-                                      <span style={{ display: "block", fontSize: "0.8125rem", fontWeight: 700, color: "var(--fg)" }}>
-                                        Exportar al perfil
-                                      </span>
-                                      <span style={{ display: "block", fontSize: "0.72rem", color: "var(--muted)", lineHeight: 1.35, marginTop: "0.125rem" }}>
-                                        Actualiza tu perfil laboral (categoría, antigüedad, jornada y conceptos) con este tarjetón.
-                                      </span>
-                                    </span>
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
+                            )}
 
-                          {/* Botón Eliminar */}
-                          <button
-                            onClick={() => handleDelete(doc)}
-                            disabled={borrandoId === doc.id}
-                            title={locked ? "Para borrar, actualiza la app a la última versión." : "Eliminar"}
-                            aria-label="Eliminar"
+                            {/* Botón Eliminar */}
+                            <button
+                              onClick={() => handleDelete(doc)}
+                              disabled={borrandoId === doc.id}
+                              title={locked ? "Para borrar, actualiza la app a la última versión." : "Eliminar"}
+                              aria-label="Eliminar"
+                              style={{
+                                ...iconBtn,
+                                background: "transparent",
+                                color: "#ef4444",
+                                border: "1px solid #fecaca",
+                                opacity: locked ? 0.45 : 1,
+                                cursor: borrandoId === doc.id ? "not-allowed" : "pointer",
+                              }}
+                            >
+                              <Trash size={18} weight="bold" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Panel expandible interno dentro del flujo normal de la tarjeta */}
+                        {hasMenu && menuDoc === doc.id && (
+                          <div
+                            id={`menu-panel-${doc.id}`}
                             style={{
-                              ...iconBtn,
-                              background: "transparent",
-                              color: "#ef4444",
-                              border: "1px solid #fecaca",
-                              opacity: locked ? 0.45 : 1,
-                              cursor: borrandoId === doc.id ? "not-allowed" : "pointer",
+                              width: "100%",
+                              boxSizing: "border-box",
+                              borderTop: "1px solid var(--border)",
+                              paddingTop: "0.75rem",
+                              animation: "fadeIn 0.2s ease",
                             }}
                           >
-                            <Trash size={18} weight="bold" />
-                          </button>
-                        </div>
+                            <button
+                              onClick={() => {
+                                setMenuDoc(null)
+                                void handleImport(doc)
+                              }}
+                              aria-label="Exportar tarjetón al perfil"
+                              style={{
+                                display: "flex",
+                                alignItems: "flex-start",
+                                gap: "0.75rem",
+                                width: "100%",
+                                padding: "0.75rem 0.875rem",
+                                borderRadius: "0.625rem",
+                                border: "1px solid var(--border)",
+                                background: "var(--accent)",
+                                cursor: "pointer",
+                                textAlign: "left",
+                                fontFamily: "inherit",
+                                color: "var(--fg)",
+                                boxSizing: "border-box",
+                                transition: "background var(--transition), border-color var(--transition)",
+                              }}
+                            >
+                              <span style={{ color, flexShrink: 0, marginTop: "0.125rem" }}>
+                                <UploadSimple size={22} weight="duotone" />
+                              </span>
+                              <span style={{ minWidth: 0, flex: 1 }}>
+                                <span style={{ display: "block", fontSize: "0.875rem", fontWeight: 700, color: "var(--fg)" }}>
+                                  Exportar al perfil
+                                </span>
+                                <span style={{
+                                  display: "block",
+                                  fontSize: "0.75rem",
+                                  color: "var(--muted)",
+                                  lineHeight: 1.4,
+                                  marginTop: "0.25rem",
+                                  wordBreak: "break-word",
+                                  overflowWrap: "anywhere",
+                                }}>
+                                  Actualiza tu perfil laboral (categoría, antigüedad, jornada y conceptos) con este tarjetón.
+                                </span>
+                              </span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )
                   })}
