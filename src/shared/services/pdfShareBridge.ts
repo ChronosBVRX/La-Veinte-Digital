@@ -160,8 +160,21 @@ export async function sharePdfViaNativeBridge(file: File | Blob, rawFileName?: s
         clearTimeout(timeoutTimer)
         timeoutTimer = null
       }
-      if (typeof window !== "undefined" && window.__laveintePdfShareCallback === onBridgeResponse) {
-        window.__laveintePdfShareCallback = undefined
+      if (typeof window !== "undefined") {
+        if (window.laVeintePdfBridge) {
+          if (window.laVeintePdfBridge.onmessage === bridgeMessageHandler) {
+            window.laVeintePdfBridge.onmessage = null
+          }
+          if (typeof window.laVeintePdfBridge.removeEventListener === "function") {
+            window.laVeintePdfBridge.removeEventListener("message", bridgeMessageHandler)
+          }
+        }
+        if (typeof window.removeEventListener === "function") {
+          window.removeEventListener("message", windowMessageHandler)
+        }
+        if (window.__laveintePdfShareCallback === onBridgeResponse) {
+          window.__laveintePdfShareCallback = undefined
+        }
       }
     }
 
@@ -187,7 +200,12 @@ export async function sharePdfViaNativeBridge(file: File | Blob, rawFileName?: s
         const data = (typeof rawPayload === "string" ? JSON.parse(rawPayload) : rawPayload) as Record<string, unknown>
         if (!data || typeof data !== "object") return
 
-        // Confirmación de inicio
+        // Filtrar por transferId para evitar cruce de mensajes
+        if (data.transferId && data.transferId !== transferId) {
+          return
+        }
+
+        // Confirmación de inicio (ready)
         if (data.ok === true && data.status === "ready" && data.transferId === transferId) {
           sendAllChunks().catch((err) => {
             postBridgeMessage({ action: "cancel", transferId, reason: "chunk_error" })
@@ -201,7 +219,7 @@ export async function sharePdfViaNativeBridge(file: File | Blob, rawFileName?: s
           return
         }
 
-        // Éxito final
+        // Éxito final (chooser_opened)
         if (data.ok === true && data.status === "chooser_opened" && data.transferId === transferId) {
           finish(data as unknown as PdfShareSuccessResponse)
           return
@@ -217,7 +235,28 @@ export async function sharePdfViaNativeBridge(file: File | Blob, rawFileName?: s
       }
     }
 
+    const bridgeMessageHandler = (event: { data: unknown }) => {
+      onBridgeResponse(event?.data)
+    }
+
+    const windowMessageHandler = (event: MessageEvent) => {
+      // Manejador defensivo por si el WebView inyecta en window
+      onBridgeResponse(event?.data)
+    }
+
     if (typeof window !== "undefined") {
+      // 1. Canal canónico: laVeintePdfBridge.onmessage (WebViewCompat.addWebMessageListener)
+      if (window.laVeintePdfBridge) {
+        window.laVeintePdfBridge.onmessage = bridgeMessageHandler
+        if (typeof window.laVeintePdfBridge.addEventListener === "function") {
+          window.laVeintePdfBridge.addEventListener("message", bridgeMessageHandler)
+        }
+      }
+      // 2. addEventListener en window como fallback
+      if (typeof window.addEventListener === "function") {
+        window.addEventListener("message", windowMessageHandler)
+      }
+      // 3. Callback global para retrocompatibilidad
       window.__laveintePdfShareCallback = onBridgeResponse
     }
 

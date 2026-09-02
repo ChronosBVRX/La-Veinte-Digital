@@ -59,6 +59,9 @@ declare global {
     LaVeinteApp?: LaVeinteNativeApp
     laVeintePdfBridge?: {
       postMessage(message: string): void
+      onmessage?: ((event: { data: unknown }) => void) | null
+      addEventListener?(type: "message", listener: (event: { data: unknown }) => void): void
+      removeEventListener?(type: "message", listener: (event: { data: unknown }) => void): void
     }
     __laveintePdfShareCallback?: (res: unknown) => void
   }
