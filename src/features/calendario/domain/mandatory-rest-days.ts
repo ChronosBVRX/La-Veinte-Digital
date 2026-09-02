@@ -93,7 +93,7 @@ export function getEasterSunday(year: number): { month: number; day: number } {
 export function getNthDayOfWeek(year: number, monthIndex: number, targetDayOfWeek: number, nth: number): number {
   // Primer día del mes
   const firstDay = new Date(year, monthIndex, 1).getDay()
-  let firstOccurrenceDay = 1 + ((targetDayOfWeek - firstDay + 7) % 7)
+  const firstOccurrenceDay = 1 + ((targetDayOfWeek - firstDay + 7) % 7)
   const targetDay = firstOccurrenceDay + (nth - 1) * 7
   return targetDay
 }
