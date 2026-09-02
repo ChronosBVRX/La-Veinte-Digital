@@ -115,6 +115,9 @@ object LaVeinteBridgeInjector {
     clearPendingPrintDoc: function() {
       window.location.href = 'laveinte://bridge/clearPendingPrintDoc';
     },
+    shareNativeDocument: function(localPath, title) {
+      window.location.href = 'laveinte://bridge/shareNativeDocument?path=' + encodeURIComponent(localPath) + (title ? '&title=' + encodeURIComponent(title) : '');
+    },
     openAppSettings: function() {
       window.location.href = 'laveinte://bridge/openAppSettings';
     }
@@ -171,6 +174,11 @@ fun handleBridgeUrl(url: String, webView: WebView?): Boolean {
         "/clearPendingPrintDoc" -> {
             com.laveintedigital.app.imss.payslips.NativeDocuments.PendingPrint.clear()
         }
+        "/shareNativeDocument" -> {
+            val p = uri.getQueryParameter("path") ?: return true
+            val title = uri.getQueryParameter("title")
+            BridgeHandler.onShareNativeDocument?.invoke(p, title)
+        }
         "/openAppSettings" -> BridgeHandler.onOpenAppSettings?.invoke()
         "/hasImssCredentials" -> {
             val portalId = uri.getQueryParameter("portalId") ?: return true
@@ -199,4 +207,5 @@ object BridgeHandler {
     var onGetFcmToken: ((WebView?, String) -> Unit)? = null
     var onGetPendingPrintDoc: ((WebView?, String) -> Unit)? = null
     var onOpenAppSettings: (() -> Unit)? = null
+    var onShareNativeDocument: ((String, String?) -> Unit)? = null
 }
