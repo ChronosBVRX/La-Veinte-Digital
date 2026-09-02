@@ -17,9 +17,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const sizeStyles: Record<ButtonSize, CSSProperties> = {
-  sm: { padding: "0 0.75rem", minHeight: "var(--control-sm)", fontSize: "var(--text-sm, 0.8125rem)" },
-  md: { padding: "0 1.25rem", minHeight: "var(--control-md)", fontSize: "0.875rem" },
-  lg: { padding: "0 1.5rem", minHeight: "var(--control-lg)", fontSize: "1rem" },
+  sm: { padding: "0.375rem 0.75rem", minHeight: "var(--control-sm, 36px)", fontSize: "var(--text-sm, 0.8125rem)" },
+  md: { padding: "0.5rem 1rem", minHeight: "var(--control-md, 44px)", fontSize: "0.875rem" },
+  lg: { padding: "0.625rem 1.25rem", minHeight: "var(--control-lg, 52px)", fontSize: "1rem" },
 }
 
 function variantBase(v: ButtonVariant): CSSProperties {
@@ -65,7 +65,14 @@ export function Button({
     opacity: isDisabled ? 0.6 : 1,
     transition: "all var(--transition)",
     textDecoration: "none",
-    whiteSpace: "nowrap",
+    whiteSpace: "normal",
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
+    textAlign: "center",
+    lineHeight: 1.3,
+    maxWidth: "100%",
+    minWidth: 0,
+    boxSizing: "border-box",
     width: fullWidth ? "100%" : undefined,
     ...sizeStyles[size],
     ...variantBase(variant),
@@ -92,9 +99,9 @@ export function Button({
           flexShrink: 0,
         }} />
       )}
-      {leadingIcon}
-      {children}
-      {trailingIcon}
+      {leadingIcon && <span style={{ display: "inline-flex", flexShrink: 0 }}>{leadingIcon}</span>}
+      <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{children}</span>
+      {trailingIcon && <span style={{ display: "inline-flex", flexShrink: 0 }}>{trailingIcon}</span>}
     </button>
   )
 }

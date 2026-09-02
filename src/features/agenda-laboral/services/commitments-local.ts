@@ -13,18 +13,24 @@ export function readAllLocal(): WorkerCommitment[] {
 }
 
 export function clearLocal() {
-  localStorage.removeItem(STORAGE_KEY)
+  if (typeof window === "undefined" || !window.localStorage) return
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch { /* ignore */ }
 }
 
 export function clearLocalForUser(userId: string) {
+  if (typeof window === "undefined" || !window.localStorage) return
   const remaining = readAllLocal().filter(
     (c) => c.userId !== userId
   )
-  if (remaining.length === 0) {
-    localStorage.removeItem(STORAGE_KEY)
-  } else {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining))
-  }
+  try {
+    if (remaining.length === 0) {
+      localStorage.removeItem(STORAGE_KEY)
+    } else {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining))
+    }
+  } catch { /* ignore */ }
 }
 
 export function getCommitments(userId: string): WorkerCommitment[] {
@@ -33,12 +39,24 @@ export function getCommitments(userId: string): WorkerCommitment[] {
 
 export function addCommitment(commitment: Omit<WorkerCommitment, "id" | "createdAt">): WorkerCommitment {
   const all = readAllLocal()
-  all.push({ ...commitment, id: crypto.randomUUID(), createdAt: new Date().toISOString() })
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
-  return all[all.length - 1]
+  const created: WorkerCommitment = {
+    ...commitment,
+    id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `local-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+  }
+  all.push(created)
+  if (typeof window !== "undefined" && window.localStorage) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
+    } catch { /* ignore */ }
+  }
+  return created
 }
 
 export function deleteCommitment(id: string) {
+  if (typeof window === "undefined" || !window.localStorage) return
   const all = readAllLocal()
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(all.filter((c) => c.id !== id)))
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(all.filter((c) => c.id !== id)))
+  } catch { /* ignore */ }
 }

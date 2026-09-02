@@ -291,7 +291,7 @@ export function VacationWizard() {
                 {CONTRACT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 85px), 1fr))", gap: "0.5rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
               <Input label="Años de antigüedad" type="number" value={state.profile.effectiveSeniority.years} onChange={(e) => setProfile({ effectiveSeniority: { ...state.profile.effectiveSeniority, years: Number(e.target.value) } })} />
               <Input label="Quincenas" type="number" value={state.profile.effectiveSeniority.fortnights} onChange={(e) => setProfile({ effectiveSeniority: { ...state.profile.effectiveSeniority, fortnights: Number(e.target.value) } })} />
               <Input label="Días" type="number" value={state.profile.effectiveSeniority.days} onChange={(e) => setProfile({ effectiveSeniority: { ...state.profile.effectiveSeniority, days: Number(e.target.value) } })} />
@@ -657,8 +657,8 @@ export function VacationWizard() {
           <div key={i} style={WARN_BOX}>{w}</div>
         ))}
 
-        <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", fontSize: "0.9rem" }}>
+        <Card padding="1.25rem" style={{ marginBottom: "1rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))", gap: "0.75rem", fontSize: "0.9rem", width: "100%", minWidth: 0 }}>
             <ResultItem label="Régimen" value={getRegimeLabel(r.regime)} />
             <ResultItem label="Periodo" value={`#${r.periodNumber}`} />
             <ResultItem label="Inicio" value={r.startDate || "—"} />
@@ -674,8 +674,8 @@ export function VacationWizard() {
           <summary style={{ cursor: "pointer", fontSize: "0.85rem", color: "var(--muted)" }}>
             Ver detalles técnicos y fundamento
           </summary>
-          <Card padding="1.25rem" style={{ marginTop: "0.5rem" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", fontSize: "0.8rem" }}>
+          <Card padding="1.25rem" style={{ marginTop: "0.5rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))", gap: "0.5rem", fontSize: "0.8rem", width: "100%", minWidth: 0 }}>
               <ResultItem label="Continuidad original" value={String(r.originalContinuityMark)} />
               <ResultItem label="Inclusión propuesta" value={String(r.proposedInclusionMark)} />
               <ResultItem label="Continuidad resultante" value={r.resultingContinuityMark !== undefined ? String(r.resultingContinuityMark) : "—"} />

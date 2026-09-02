@@ -2,6 +2,7 @@ package com.laveintedigital.app
 
 import android.app.Application
 import com.google.firebase.messaging.FirebaseMessaging
+import com.laveintedigital.app.internal.PdfShareManager
 import com.laveintedigital.app.observability.Telemetry
 import com.laveintedigital.app.push.LaVeinteNotificationManager
 import com.laveintedigital.app.push.PushTokenStore
@@ -11,6 +12,7 @@ class LaVeinteApplication : Application() {
         super.onCreate()
         Telemetry.init(this)
         LaVeinteNotificationManager.createChannels(this)
+        PdfShareManager.cleanupOld(this)
         // Fetch/rotate the FCM token so the web (via the bridge getFcmToken()) can register it.
         FirebaseMessaging.getInstance().token
             .addOnSuccessListener { token -> PushTokenStore.saveToken(this, token) }

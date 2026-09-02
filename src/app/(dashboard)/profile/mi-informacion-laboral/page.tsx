@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 import { WorkerProfileService } from "@/shared/server/worker-profile"
 import { WorkerProfileUnavailableError, WorkerProfileUnauthorizedError } from "@/shared/server/worker-profile/errors"
 import { isSafeInternalReturnPath } from "@/shared/domain/worker"
+import { PageContainer } from "@/shared/components/layout/PageContainer"
 import { WorkerProfileCenter } from "@/features/profile/components/worker/WorkerProfileCenter"
 import { TarjetonUploaderSection } from "@/features/profile/components/worker/TarjetonUploaderSection"
 import type { WorkerProfile, ProfileQuality, FieldRequirement, WorkerDataEvent, WorkerProfileMode } from "@/shared/domain/worker"
@@ -54,12 +55,12 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
         ? "Debes iniciar sesión para ver tu información laboral."
         : "No se pudo cargar tu información laboral. Inténtalo de nuevo."
     return (
-      <div style={{ padding: "2rem", maxWidth: "600px", margin: "0 auto" }}>
-        <h1 style={{ fontSize: "1.25rem", margin: "0 0 0.5rem" }}>Mi información laboral</h1>
-        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.375rem", padding: "1rem", color: "#991b1b", fontSize: "0.9375rem" }}>
+      <PageContainer maxWidth={600} padding="1.5rem 0">
+        <h1 style={{ fontSize: "1.25rem", margin: "0 0 0.5rem", wordBreak: "break-word" }}>Mi información laboral</h1>
+        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.375rem", padding: "1rem", color: "#991b1b", fontSize: "0.9375rem", wordBreak: "break-word" }}>
           {displayMessage}
         </div>
-      </div>
+      </PageContainer>
     )
   }
 
@@ -77,7 +78,7 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
   }
 
   return (
-    <div style={{ maxWidth: "700px", margin: "0 auto", padding: "1.5rem 1rem", display: "flex", flexDirection: "column", gap: "1.75rem" }}>
+    <PageContainer maxWidth={700} style={{ display: "flex", flexDirection: "column", gap: "1.75rem", padding: "0.5rem 0" }}>
       <WorkerProfileCenter
         state={state}
         mode={mode}
@@ -98,12 +99,16 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
         display: "flex",
         flexDirection: "column",
         gap: "1rem",
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
       }}>
         <div>
-          <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.25rem" }}>
+          <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.25rem", wordBreak: "break-word" }}>
             Importar mi tarjetón IMSS
           </h2>
-          <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: 0, lineHeight: 1.55 }}>
+          <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: 0, lineHeight: 1.55, wordBreak: "break-word" }}>
             Sube tu archivo PDF de tarjetón para mantener tu información laboral al día.
             Tus datos se sincronizan de manera segura en tu dispositivo (categoría, antigüedad, jornada y conceptos)
             para alimentar las calculadoras y el simulador de nómina.
@@ -118,12 +123,12 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
             display: "inline-flex", alignItems: "center", gap: "0.375rem",
             fontSize: "var(--text-sm)", fontWeight: 600,
             color: "var(--primary)", textDecoration: "none",
-            width: "fit-content",
+            width: "fit-content", maxWidth: "100%",
           }}
         >
           Ver mis documentos personales →
         </Link>
       </section>
-    </div>
+    </PageContainer>
   )
 }

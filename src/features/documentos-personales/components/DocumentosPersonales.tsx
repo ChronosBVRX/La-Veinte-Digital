@@ -17,12 +17,13 @@ import { Button } from "@/shared/components/ui/Button"
 import { SendPrintModal } from "./SendPrintModal"
 import { ImportTarjetonModal } from "./ImportTarjetonModal"
 import { DocumentViewerModal } from "./DocumentViewerModal"
-import { escritoToPdfFile } from "../lib/escrito-pdf"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
+import { escritoToPdfFile } from "../lib/escrito-pdf"
 import {
   toNativo, formatBytes, formatFecha, formatFechaEscrito, grupoLabel,
   type DocTipo, type DocumentoPersonalItem,
 } from "../lib/documents"
+import { sharePdfViaNativeBridge, isNativePdfShareSupported } from "@/shared/services/pdfShareBridge"
 
 const TIPO_ICON: Record<DocTipo, typeof FileText> = {
   tarjeton: FileText,
@@ -176,6 +177,11 @@ export function DocumentosPersonales() {
       const file = await getDocFile(doc)
       if (!file) return
 
+      if (isNativePdfShareSupported()) {
+        const res = await sharePdfViaNativeBridge(file, name)
+        if (res.ok) return
+      }
+
       if (typeof navigator !== "undefined" && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
@@ -184,8 +190,15 @@ export function DocumentosPersonales() {
         return
       }
 
-      if (typeof window !== "undefined" && window.LaVeinteApp?.share) {
-        window.LaVeinteApp.share(name, `Documento: ${name}`)
+      if (typeof window !== "undefined") {
+        const url = URL.createObjectURL(file)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = name.endsWith(".pdf") ? name : `${name}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
         return
       }
     } catch (err) {

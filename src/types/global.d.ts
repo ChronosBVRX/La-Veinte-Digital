@@ -35,6 +35,7 @@ declare global {
     getPendingPrintDoc(): Promise<{ localPath: string } | null>
     clearPendingPrintDoc(): void
     shareNativeDocument?(localPath: string, title?: string): void
+    sendPdfShareMessage?(msg: string | Record<string, unknown>): boolean
     openAppSettings(): void
   }
 
@@ -56,5 +57,9 @@ declare global {
 
   interface Window {
     LaVeinteApp?: LaVeinteNativeApp
+    laVeintePdfBridge?: {
+      postMessage(message: string): void
+    }
+    __laveintePdfShareCallback?: (res: unknown) => void
   }
 }

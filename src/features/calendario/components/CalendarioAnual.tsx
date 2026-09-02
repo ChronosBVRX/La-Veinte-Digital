@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useMemo } from "react"
 import { CALENDARIOS, getDayEvents, EVENT_COLORS, EVENT_LABELS, type CalendarEventType } from "@/features/calendario/services/calendarioData"
@@ -12,6 +12,7 @@ const EVENT_ABBR: Record<CalendarEventType, string> = {
   otros: "B",
   cheque: "C",
   jubilados: "J",
+  descanso_cct: "D",
 }
 
 function MonthCalendar({ year, monthIndex, today }: { year: number; monthIndex: number; today: { date: number; month: number; year: number } }) {

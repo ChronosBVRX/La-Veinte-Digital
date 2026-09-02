@@ -352,7 +352,12 @@ export async function buildJsPdfDocument(
 
     for (let i = 0; i < lines.length; i++) {
       checkPageBreak(lineHeight + 5)
-      doc.text(lines[i], margin, y)
+      const isLastLine = i === lines.length - 1
+      if (isLastLine) {
+        doc.text(lines[i], margin, y)
+      } else {
+        doc.text(lines[i], margin, y, { align: "justify", maxWidth: contentWidth })
+      }
       y += lineHeight
     }
     y += 10 // Espaciado entre párrafos

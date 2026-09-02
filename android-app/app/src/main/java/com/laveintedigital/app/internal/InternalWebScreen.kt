@@ -263,6 +263,7 @@ fun InternalWebScreen(
                 android.widget.Toast.makeText(context, "No se pudo compartir el archivo", android.widget.Toast.LENGTH_SHORT).show()
             }
         }
+
         BridgeHandler.onAuthenticated = {
             if (!enrollmentDone && LaveinteBiometricManager.canAuthenticate(context)) {
                 showEnrollmentInvite = true
@@ -536,6 +537,40 @@ fun InternalWebScreen(
                     // Inject the native bridge at DOCUMENT START so it exists before Next.js hydrates,
                     // removing the bridge-missing race in the QR scanner. Falls back to onPageFinished.
                     LaVeinteBridgeInjector.installAtDocumentStart(wv)
+                    runCatching {
+                        val productionOrigins = setOf(
+                            "https://la-veinte-digital.vercel.app",
+                            "https://laveinte-digital.vercel.app",
+                            "https://la-veinte-digital.pages.dev",
+                            "https://la20.com.mx",
+                            "https://www.la20.com.mx"
+                        )
+                        val allowedOrigins = if (com.laveintedigital.app.BuildConfig.DEBUG) {
+                            productionOrigins + setOf(
+                                "http://la-veinte-digital.localhost",
+                                "https://la-veinte-digital.localhost"
+                            )
+                        } else {
+                            productionOrigins
+                        }
+                        androidx.webkit.WebViewCompat.addWebMessageListener(
+                            wv,
+                            "laVeintePdfBridge",
+                            allowedOrigins
+                        ) { view, message, sourceOrigin, isMainFrame, replyProxy ->
+                            val originUri = sourceOrigin?.toString()
+                            val originAllowed = allowedOrigins.contains(originUri)
+                            if (!originAllowed) {
+                                android.util.Log.w("InternalWebScreen", "Rejected bridge message from disallowed origin: $sourceOrigin")
+                                return@addWebMessageListener
+                            }
+                            message.data?.let { dataStr ->
+                                PdfShareManager.handleWebMessage(ctx, dataStr, replyProxy, originUri, isMainFrame)
+                            }
+                        }
+                    }.onFailure { e ->
+                        android.util.Log.w("InternalWebScreen", "addWebMessageListener not supported or failed", e)
+                    }
                     loadUrl(initialUrl)
                 }.also { webView = it }
             },

@@ -178,9 +178,9 @@ export function PerformanceReport({ analysis, messages, scenarioName, difficulty
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.15, duration: 0.4 }}
         style={{
-          display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem",
+          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 120px), 1fr))", gap: "0.5rem",
           background: "var(--card)", border: "1px solid var(--border)",
-          borderRadius: "0.75rem", padding: "0.75rem",
+          borderRadius: "0.75rem", padding: "0.75rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box",
         }}
       >
         <ScoreGauge label="Calma" score={analysis.puntajeCalma} icon={<Shield size={16} color="#2563eb" />} color="#2563eb" delay={0.2} />

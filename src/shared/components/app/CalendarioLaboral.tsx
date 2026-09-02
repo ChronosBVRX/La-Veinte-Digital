@@ -1,11 +1,13 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import { CaretLeft, CaretRight, Clock, MapPin, Warning } from "@phosphor-icons/react"
+import { useState, useEffect, useMemo, useCallback } from "react"
+import { CaretLeft, CaretRight, Clock, MapPin, Warning, ShieldCheck, Plus, Trash, Check, Info } from "@phosphor-icons/react"
 import Link from "next/link"
-import { CALENDARIOS, EVENT_LABELS, EVENT_COLORS } from "@/shared/data/calendario"
+import { CALENDARIOS, EVENT_LABELS, EVENT_COLORS, getImssMandatoryRestDaysForMonth } from "@/shared/data/calendario"
 import type { CalendarEventType } from "@/shared/data/calendario"
 import { createClient } from "@/lib/supabase/client"
+import { Button } from "@/shared/components/ui/Button"
+import { readAllLocal, addCommitment as addLocalCommitment, deleteCommitment as deleteLocalCommitment } from "@/features/agenda-laboral/services/commitments-local"
 
 const STORAGE_KEY = "calendar_filters_v2"
 
@@ -14,14 +16,40 @@ const DAY_HEADERS = ["L", "M", "M", "J", "V", "S", "D"]
 
 const PAYMENT_TYPES = new Set<CalendarEventType>(["santander", "otros", "cheque", "jubilados"])
 
-type FilterKey = "payments" | "interactivo" | "vacacional" | "txt_substitution" | "overtime" | "shift_change" | "guardia_festiva" | "falta_injustificada" | "incapacidad" | "pase_salida" | "vacaciones" | "no_pagado" | "other"
+type FilterKey =
+  | "payments"
+  | "interactivo"
+  | "vacacional"
+  | "descanso_cct"
+  | "txt_substitution"
+  | "overtime"
+  | "shift_change"
+  | "guardia_festiva"
+  | "falta_injustificada"
+  | "incapacidad"
+  | "pase_salida"
+  | "vacaciones"
+  | "no_pagado"
+  | "other"
 
-const AGENDA_KEYS: FilterKey[] = ["txt_substitution", "overtime", "shift_change", "guardia_festiva", "falta_injustificada", "incapacidad", "pase_salida", "vacaciones", "no_pagado", "other"]
+const AGENDA_KEYS: FilterKey[] = [
+  "txt_substitution",
+  "overtime",
+  "shift_change",
+  "guardia_festiva",
+  "falta_injustificada",
+  "incapacidad",
+  "pase_salida",
+  "vacaciones",
+  "no_pagado",
+  "other",
+]
 
 const FILTER_DEFS: { key: FilterKey; label: string; color: string; group: "institucional" | "agenda" }[] = [
   { key: "payments", label: "Pagos", color: "#ef4444", group: "institucional" },
   { key: "interactivo", label: "Interactivo", color: "#eab308", group: "institucional" },
   { key: "vacacional", label: "Vacaciones", color: "#22c55e", group: "institucional" },
+  { key: "descanso_cct", label: "Descanso CCT", color: "#6366f1", group: "institucional" },
   { key: "txt_substitution", label: "TxT", color: "#3b82f6", group: "agenda" },
   { key: "overtime", label: "T. extra", color: "#f97316", group: "agenda" },
   { key: "shift_change", label: "Turno", color: "#8b5cf6", group: "agenda" },
@@ -43,15 +71,31 @@ interface CalendarEvent {
   type: FilterKey
   detail?: string
   isNightShift?: boolean
+  isMandatoryRest?: boolean
+  clause?: string
+  legalBasis?: string
+  dateStr?: string
+  hasUserGuard?: boolean
+  guardCommitmentId?: string
+  notes?: string
+  workplace?: string
+  service?: string
 }
 
 function loadFilters(): FilterKey[] {
-  if (typeof window === "undefined") return FILTER_DEFS.map((f) => f.key)
+  const allKeys = FILTER_DEFS.map((f) => f.key)
+  if (typeof window === "undefined" || !window.localStorage) return allKeys
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) {
+      const parsed: FilterKey[] = JSON.parse(raw)
+      if (!parsed.includes("descanso_cct")) {
+        parsed.push("descanso_cct")
+      }
+      return parsed
+    }
   } catch { /* ignore */ }
-  return FILTER_DEFS.map((f) => f.key)
+  return allKeys
 }
 
 function saveFilters(filters: FilterKey[]) {
@@ -59,26 +103,48 @@ function saveFilters(filters: FilterKey[]) {
 }
 
 function getInstitutionalEvents(year: number, month: number): CalendarEvent[] {
-  const yearData = CALENDARIOS[year]
-  if (!yearData) return []
-  const monthData = yearData[month]
-  if (!monthData) return []
-
   const events: CalendarEvent[] = []
-  for (const [type, days] of Object.entries(monthData.events)) {
-    if (!days) continue
-    for (const d of days) {
-      const t = type as CalendarEventType
-      const filterType: FilterKey = PAYMENT_TYPES.has(t) ? "payments" : (t as FilterKey)
-      events.push({
-        id: `inst-${year}-${month}-${d}-${t}`,
-        date: new Date(year, month, d),
-        title: EVENT_LABELS[t],
-        color: EVENT_COLORS[t],
-        type: filterType,
-      })
+
+  // 1. Eventos institucionales del calendario oficial (pagos, interactivo, periodos vacacionales)
+  const yearData = CALENDARIOS[year]
+  if (yearData) {
+    const monthData = yearData[month]
+    if (monthData) {
+      for (const [type, days] of Object.entries(monthData.events)) {
+        if (!days) continue
+        for (const d of days) {
+          const t = type as CalendarEventType
+          const filterType: FilterKey = PAYMENT_TYPES.has(t) ? "payments" : (t as FilterKey)
+          events.push({
+            id: `inst-${year}-${month}-${d}-${t}`,
+            date: new Date(year, month, d),
+            title: EVENT_LABELS[t],
+            color: EVENT_COLORS[t] ?? "#64748b",
+            type: filterType,
+          })
+        }
+      }
     }
   }
+
+  // 2. Días de Descanso Obligatorio contractuales del IMSS (CCT Cláusula 46 Fracción III)
+  // Generados mediante reglas para cualquier año
+  const mandatoryRestDays = getImssMandatoryRestDaysForMonth(year, month)
+  for (const rd of mandatoryRestDays) {
+    events.push({
+      id: rd.id,
+      date: new Date(rd.year, rd.month, rd.day),
+      title: rd.title,
+      color: "#6366f1",
+      type: "descanso_cct",
+      detail: rd.description,
+      isMandatoryRest: true,
+      clause: rd.clause,
+      legalBasis: rd.legalBasis,
+      dateStr: rd.date,
+    })
+  }
+
   return events
 }
 
@@ -92,46 +158,81 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
   const [month, setMonth] = useState(now.getMonth())
   const [filters, setFilters] = useState<FilterKey[]>(loadFilters)
   const [commitments, setCommitments] = useState<CalendarEvent[]>([])
+  const [userId, setUserId] = useState<string | null>(null)
   const [loadingAgenda, setLoadingAgenda] = useState(true)
   const [agendaError, setAgendaError] = useState<string | null>(null)
   const [selectedDay, setSelectedDay] = useState<number | null>(fullPage ? now.getDate() : null)
   const [showAgendaFilters, setShowAgendaFilters] = useState(false)
+  const [guardSubmitting, setGuardSubmitting] = useState(false)
+
+  const reloadCommitments = useCallback(async (uid: string | null) => {
+    if (uid) {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from("worker_commitments")
+        .select("*")
+        .eq("user_id", uid)
+        .eq("status", "active")
+
+      if (error) {
+        setAgendaError(error.message)
+      } else if (data) {
+        setCommitments(data.map((c) => {
+          const start = new Date(c.start_at)
+          const end = new Date(c.end_at)
+          const isNightShift = start.getDate() !== end.getDate() && end.getHours() < start.getHours()
+          const agendaType = (AGENDA_KEYS as string[]).includes(c.type) ? (c.type as FilterKey) : "other"
+          const color = FILTER_DEFS.find((f) => f.key === agendaType)?.color ?? "#64748b"
+          return {
+            id: `agenda-${c.id}`,
+            date: start,
+            title: c.title,
+            time: `${start.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}–${end.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`,
+            color,
+            type: agendaType,
+            detail: [c.service, c.substitute_worker_name ? `Cubres a ${c.substitute_worker_name}` : null, c.workplace].filter(Boolean).join(" · "),
+            isNightShift,
+            workplace: c.workplace ?? undefined,
+            service: c.service ?? undefined,
+            notes: c.notes ?? undefined,
+          }
+        }))
+      }
+    } else {
+      // Local fallback
+      const local = readAllLocal().filter((c) => c.status === "active")
+      setCommitments(local.map((c) => {
+        const start = new Date(c.startAt)
+        const end = new Date(c.endAt)
+        const isNightShift = start.getDate() !== end.getDate() && end.getHours() < start.getHours()
+        const agendaType = (AGENDA_KEYS as string[]).includes(c.type) ? (c.type as FilterKey) : "other"
+        const color = FILTER_DEFS.find((f) => f.key === agendaType)?.color ?? "#64748b"
+        return {
+          id: `agenda-${c.id}`,
+          date: start,
+          title: c.title,
+          time: `${start.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}–${end.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`,
+          color,
+          type: agendaType,
+          detail: [c.service, c.substituteWorkerName ? `Cubres a ${c.substituteWorkerName}` : null, c.workplace].filter(Boolean).join(" · "),
+          isNightShift,
+          workplace: c.workplace,
+          service: c.service,
+          notes: c.notes,
+        }
+      }))
+    }
+    setLoadingAgenda(false)
+  }, [setAgendaError, setCommitments, setLoadingAgenda])
 
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { setLoadingAgenda(false); return }
-      supabase
-        .from("worker_commitments")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("status", "active")
-        .then(({ data, error }) => {
-          if (error) {
-            setAgendaError(error.message)
-          } else if (data) {
-            setCommitments(data.map((c) => {
-              const start = new Date(c.start_at)
-              const end = new Date(c.end_at)
-              const isNightShift = start.getDate() !== end.getDate() && end.getHours() < start.getHours()
-              const agendaType = (AGENDA_KEYS as string[]).includes(c.type) ? (c.type as FilterKey) : "other"
-              const color = FILTER_DEFS.find((f) => f.key === agendaType)?.color ?? "#64748b"
-              return {
-                id: `agenda-${c.id}`,
-                date: start,
-                title: c.title,
-                time: `${start.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}–${end.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`,
-                color,
-                type: agendaType,
-                detail: [c.service, c.substitute_worker_name ? `Cubres a ${c.substitute_worker_name}` : null, c.workplace].filter(Boolean).join(" · "),
-                isNightShift,
-              }
-            }))
-          }
-          setLoadingAgenda(false)
-        })
+      const uid = user?.id ?? null
+      setUserId(uid)
+      reloadCommitments(uid)
     })
-  }, [])
+  }, [reloadCommitments])
 
   const toggleFilter = (key: FilterKey) => {
     setFilters((prev) => {
@@ -154,15 +255,111 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
     })
   }
 
+  const handleSaveGuard = async (params: {
+    date: Date
+    title: string
+    startHour: string
+    endHour: string
+    service?: string
+    workplace?: string
+    notes?: string
+    isNightShift?: boolean
+  }) => {
+    setGuardSubmitting(true)
+    try {
+      const y = params.date.getFullYear()
+      const m = params.date.getMonth()
+      const d = params.date.getDate()
+
+      const [sH, sM] = params.startHour.split(":").map(Number)
+      const [eH, eM] = params.endHour.split(":").map(Number)
+
+      const startAt = new Date(y, m, d, sH || 7, sM || 0, 0).toISOString()
+      const endDate = params.isNightShift ? new Date(y, m, d + 1, eH || 8, eM || 0, 0) : new Date(y, m, d, eH || 15, eM || 0, 0)
+      const endAt = endDate.toISOString()
+
+      if (userId) {
+        const supabase = createClient()
+        await supabase.from("worker_commitments").insert({
+          user_id: userId,
+          type: "guardia_festiva",
+          title: `Guardia: ${params.title}`,
+          start_at: startAt,
+          end_at: endAt,
+          service: params.service || "Guardia CCT Cl. 45",
+          workplace: params.workplace || undefined,
+          notes: params.notes || undefined,
+          status: "active",
+          reminder_day_before: true,
+          reminder_hours_before: true,
+          reminder_at_start: true,
+        })
+      } else {
+        addLocalCommitment({
+          userId: "local-user",
+          type: "guardia_festiva",
+          title: `Guardia: ${params.title}`,
+          startAt,
+          endAt,
+          service: params.service || "Guardia CCT Cl. 45",
+          workplace: params.workplace || "",
+          substituteWorkerName: "",
+          notes: params.notes || "",
+          reminder: { dayBefore: true, hoursBefore: true, atStart: true },
+          status: "active",
+        })
+      }
+      await reloadCommitments(userId)
+    } finally {
+      setGuardSubmitting(false)
+    }
+  }
+
+  const handleRemoveGuard = async (commitmentId: string) => {
+    setGuardSubmitting(true)
+    try {
+      const rawId = commitmentId.replace("agenda-", "")
+      if (userId) {
+        const supabase = createClient()
+        await supabase.from("worker_commitments").delete().eq("id", rawId)
+      } else {
+        deleteLocalCommitment(rawId)
+      }
+      await reloadCommitments(userId)
+    } finally {
+      setGuardSubmitting(false)
+    }
+  }
+
   const agendaActive = useMemo(() => AGENDA_KEYS.some((key) => filters.includes(key)), [filters])
 
   const allEvents = useMemo(() => {
     const inst = getInstitutionalEvents(year, month)
     const agenda = commitments.filter((c) => c.date.getMonth() === month && c.date.getFullYear() === year)
-    const merged = [...inst, ...agenda]
+
+    // Fusionar y verificar si un descanso contractual tiene guardia asignada
+    const merged: CalendarEvent[] = []
+
+    for (const item of inst) {
+      if (item.type === "descanso_cct") {
+        const matchingGuard = agenda.find(
+          (a) => a.type === "guardia_festiva" && a.date.getDate() === item.date.getDate()
+        )
+        if (matchingGuard) {
+          item.hasUserGuard = true
+          item.guardCommitmentId = matchingGuard.id
+        }
+      }
+      merged.push(item)
+    }
+
+    for (const item of agenda) {
+      merged.push(item)
+    }
+
+    return merged
       .filter((e) => filters.includes(e.type))
       .sort((a, b) => a.date.getTime() - b.date.getTime())
-    return merged
   }, [year, month, commitments, filters])
 
   const selectedEvents = selectedDay
@@ -226,7 +423,15 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
       <div>
         {renderFilters()}
         <CalendarGrid year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} startOffset={startOffset} daysInMonth={daysInMonth} dayEvents={dayEvents} selectedDay={selectedDay} setSelectedDay={setSelectedDay} isToday={isToday} />
-        <DayDetail events={selectedEvents} />
+        <DayDetail
+          year={year}
+          month={month}
+          day={selectedDay}
+          events={selectedEvents}
+          onSaveGuard={handleSaveGuard}
+          onRemoveGuard={handleRemoveGuard}
+          submitting={guardSubmitting}
+        />
       </div>
     )
   }
@@ -271,13 +476,22 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
       </div>
 
       <div className="calendario-dashboard-grid" style={{
-        display: "flex", gap: "1rem",
+        display: "flex", gap: "1rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box",
       }}>
-        <div style={{ flex: "3", minWidth: 0 }}>
+        <div style={{ flex: "3", minWidth: 0, width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
           <CalendarGrid year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} startOffset={startOffset} daysInMonth={daysInMonth} dayEvents={dayEvents} selectedDay={selectedDay} setSelectedDay={setSelectedDay} isToday={isToday} compact />
         </div>
-        <div style={{ flex: "2", minWidth: 180 }}>
-          <DayDetail events={selectedEvents} compact />
+        <div style={{ flex: "2", minWidth: 0, width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
+          <DayDetail
+            year={year}
+            month={month}
+            day={selectedDay}
+            events={selectedEvents}
+            onSaveGuard={handleSaveGuard}
+            onRemoveGuard={handleRemoveGuard}
+            submitting={guardSubmitting}
+            compact
+          />
         </div>
       </div>
 
@@ -369,7 +583,13 @@ function CalendarGrid({ year, month, prevMonth, nextMonth, startOffset, daysInMo
           const events = dayEvents.get(d) ?? []
           const today = isToday(d)
           const hasInteractivo = events.some((e) => e.type === "interactivo")
+          const hasMandatoryRest = events.some((e) => e.type === "descanso_cct")
+          const hasGuard = events.some((e) => e.type === "guardia_festiva" || e.hasUserGuard)
           const active = selectedDay === d
+
+          let bg = "transparent"
+          if (hasInteractivo) bg = EVENT_COLORS.interactivo
+          else if (active) bg = "var(--accent)"
 
           return (
             <button
@@ -380,12 +600,13 @@ function CalendarGrid({ year, month, prevMonth, nextMonth, startOffset, daysInMo
                 display: "flex", flexDirection: "column", alignItems: "center",
                 justifyContent: "center", gap: "1px",
                 aspectRatio: "1", minHeight: compact ? 36 : 44,
-                background: hasInteractivo ? EVENT_COLORS.interactivo : active ? "var(--accent)" : "transparent",
-                border: today ? "2px solid var(--primary)" : active ? "1px solid var(--border)" : "none",
+                background: bg,
+                border: today ? "2px solid var(--primary)" : hasGuard ? "2px dashed #ec4899" : hasMandatoryRest ? "1px solid #818cf8" : active ? "1px solid var(--border)" : "none",
                 borderRadius: "var(--radius-sm)", cursor: "pointer",
                 color: hasInteractivo ? "#0f172a" : "var(--fg)",
                 fontFamily: "inherit", fontSize: compact ? "0.75rem" : "0.8125rem",
-                fontWeight: today ? 700 : 400,
+                fontWeight: today || hasMandatoryRest ? 700 : 400,
+                position: "relative",
               }}
             >
               <span>{d}</span>
@@ -408,52 +629,311 @@ function CalendarGrid({ year, month, prevMonth, nextMonth, startOffset, daysInMo
   )
 }
 
-function DayDetail({ events, compact }: { events: CalendarEvent[]; compact?: boolean }) {
-  if (events.length === 0)
+function DayDetail({
+  year,
+  month,
+  day,
+  events,
+  onSaveGuard,
+  onRemoveGuard,
+  submitting,
+  compact,
+}: {
+  year: number
+  month: number
+  day: number | null
+  events: CalendarEvent[]
+  onSaveGuard: (params: {
+    date: Date
+    title: string
+    startHour: string
+    endHour: string
+    service?: string
+    workplace?: string
+    notes?: string
+    isNightShift?: boolean
+  }) => Promise<void>
+  onRemoveGuard: (id: string) => Promise<void>
+  submitting: boolean
+  compact?: boolean
+}) {
+  const [showGuardForm, setShowGuardForm] = useState(false)
+  const [selectedShift, setSelectedShift] = useState<"matutino" | "vespertino" | "nocturno" | "custom">("matutino")
+  const [startHour, setStartHour] = useState("07:00")
+  const [endHour, setEndHour] = useState("15:00")
+  const [service, setService] = useState("")
+
+  if (!day || events.length === 0) {
     return (
-      <div style={{ padding: "var(--space-4)", color: "var(--muted)", fontSize: compact ? "var(--text-xs)" : "var(--text-sm)", textAlign: "center", background: compact ? "none" : "var(--card)", border: compact ? "none" : "1px solid var(--border)", borderRadius: "var(--radius-lg)", marginTop: compact ? 0 : "var(--space-4)" }}>
+      <div style={{
+        padding: "var(--space-4)", color: "var(--muted)", fontSize: compact ? "var(--text-xs)" : "var(--text-sm)",
+        textAlign: "center", background: compact ? "none" : "var(--card)",
+        border: compact ? "none" : "1px solid var(--border)", borderRadius: "var(--radius-lg)",
+        marginTop: compact ? 0 : "var(--space-4)",
+      }}>
         {compact ? "Selecciona un día" : "Selecciona un día para ver sus eventos"}
       </div>
     )
+  }
 
-  const ref = events[0]
-  const dateLabel = ref.date.toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" }).toUpperCase()
+  const selectedDate = new Date(year, month, day)
+  const dateLabel = selectedDate.toLocaleDateString("es-MX", { weekday: "long", day: "numeric", month: "long" }).toUpperCase()
+
+  const mandatoryRestEvent = events.find((e) => e.type === "descanso_cct")
+  const guardEvent = events.find((e) => e.type === "guardia_festiva" || e.hasUserGuard)
+
+  const handleShiftChange = (shift: "matutino" | "vespertino" | "nocturno" | "custom") => {
+    setSelectedShift(shift)
+    if (shift === "matutino") {
+      setStartHour("07:00")
+      setEndHour("15:00")
+    } else if (shift === "vespertino") {
+      setStartHour("14:00")
+      setEndHour("21:30")
+    } else if (shift === "nocturno") {
+      setStartHour("21:00")
+      setEndHour("08:00")
+    }
+  }
+
+  const handleConfirmGuard = async () => {
+    if (!mandatoryRestEvent) return
+    await onSaveGuard({
+      date: selectedDate,
+      title: mandatoryRestEvent.title,
+      startHour,
+      endHour,
+      service,
+      notes: undefined,
+      isNightShift: selectedShift === "nocturno",
+    })
+    setShowGuardForm(false)
+  }
 
   return (
-    <div style={{ marginTop: compact ? 0 : "var(--space-4)" }}>
+    <div style={{ marginTop: compact ? 0 : "var(--space-4)", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
       <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--muted)", marginBottom: "0.5rem", textTransform: "uppercase" }}>
         {dateLabel}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-        {events.map((e) => (
-          <div key={e.id} style={{
-            padding: compact ? "0.5rem 0.75rem" : "0.625rem 0.875rem",
-            background: "var(--card)", border: "1px solid var(--border)",
-            borderLeft: `3px solid ${e.color}`,
-            borderRadius: "var(--radius-sm)", fontSize: "var(--text-xs)",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", marginBottom: "0.125rem" }}>
+
+      {/* Tarjeta de Descanso Obligatorio CCT si aplica */}
+      {mandatoryRestEvent && (
+        <div style={{
+          padding: compact ? "0.75rem" : "1rem",
+          background: "linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.02))",
+          border: "1.5px solid #818cf8",
+          borderRadius: "var(--radius-md)",
+          marginBottom: "0.75rem",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.25rem", marginBottom: "0.375rem" }}>
+            <span style={{
+              fontSize: "0.6875rem", fontWeight: 700, color: "#4f46e5",
+              background: "#e0e7ff", padding: "0.125rem 0.5rem", borderRadius: "9999px",
+              display: "inline-flex", alignItems: "center", gap: "0.25rem",
+            }}>
+              <ShieldCheck size={13} weight="bold" /> Descanso CCT (Cláusula 46-III)
+            </span>
+            {guardEvent && (
               <span style={{
-                width: 8, height: 8, borderRadius: "50%",
-                background: e.color, display: "inline-block", flexShrink: 0,
-              }} />
-              <span style={{ fontWeight: 600 }}>{e.title}</span>
-            </div>
-            {e.time && (
-              <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", color: "var(--muted)", marginTop: "0.125rem" }}>
-                <Clock size={11} />
-                {e.time}
-                {e.isNightShift && " (nocturno)"}
-              </div>
-            )}
-            {e.detail && (
-              <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", color: "var(--muted)", marginTop: "0.125rem" }}>
-                <MapPin size={11} />
-                <span>{e.detail}</span>
-              </div>
+                fontSize: "0.6875rem", fontWeight: 700, color: "#be185d",
+                background: "#fce7f3", padding: "0.125rem 0.5rem", borderRadius: "9999px",
+                display: "inline-flex", alignItems: "center", gap: "0.25rem",
+              }}>
+                <Check size={12} weight="bold" /> Mi guardia confirmada
+              </span>
             )}
           </div>
-        ))}
+
+          <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.25rem" }}>
+            {mandatoryRestEvent.title}
+          </div>
+          <div style={{ fontSize: "var(--text-xs)", color: "var(--muted)", marginBottom: "0.5rem", lineHeight: 1.4 }}>
+            {mandatoryRestEvent.detail}
+          </div>
+
+          {/* Ficha normativa de derechos contractuales */}
+          <div style={{
+            background: "var(--card)", border: "1px solid var(--border)",
+            borderRadius: "var(--radius-sm)", padding: "0.5rem 0.625rem",
+            fontSize: "0.6875rem", color: "var(--muted)", marginBottom: "0.75rem",
+            display: "flex", flexDirection: "column", gap: "0.25rem",
+          }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.375rem" }}>
+              <Info size={13} style={{ flexShrink: 0, marginTop: 1, color: "var(--primary)" }} />
+              <span><strong>Cláusula 45 CCT:</strong> Los roles de guardia deben formularse de común acuerdo y comunicarse al trabajador con al menos 45 días de anticipación.</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.375rem" }}>
+              <Info size={13} style={{ flexShrink: 0, marginTop: 1, color: "#16a34a" }} />
+              <span><strong>Cláusula 33 CCT:</strong> Pago de salario triple si se labora el descanso obligatorio (salario cuádruple si coincide con el descanso semanal).</span>
+            </div>
+          </div>
+
+          {/* Control de Guardia Personal */}
+          {!guardEvent && !showGuardForm && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowGuardForm(true)}
+              style={{ width: "100%", justifyContent: "center", borderColor: "#818cf8", color: "#4f46e5" }}
+            >
+              <Plus size={14} />
+              Tengo guardia asignada este día
+            </Button>
+          )}
+
+          {/* Formulario de registro de guardia */}
+          {showGuardForm && !guardEvent && (
+            <div style={{
+              background: "var(--card)", border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)", padding: "0.75rem",
+              marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.5rem",
+            }}>
+              <div style={{ fontSize: "var(--text-xs)", fontWeight: 700, color: "var(--fg)" }}>
+                Registrar horario de guardia
+              </div>
+
+              {/* Selector de turno rápido */}
+              <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
+                {(["matutino", "vespertino", "nocturno", "custom"] as const).map((shift) => (
+                  <button
+                    key={shift}
+                    type="button"
+                    onClick={() => handleShiftChange(shift)}
+                    style={{
+                      flex: "1 1 60px",
+                      padding: "0.25rem 0.375rem",
+                      fontSize: "0.6875rem",
+                      fontWeight: selectedShift === shift ? 700 : 500,
+                      borderRadius: "var(--radius-sm)",
+                      border: `1px solid ${selectedShift === shift ? "var(--primary)" : "var(--border)"}`,
+                      background: selectedShift === shift ? "var(--accent)" : "transparent",
+                      color: selectedShift === shift ? "var(--primary)" : "var(--fg)",
+                      cursor: "pointer",
+                      textTransform: "capitalize",
+                    }}
+                  >
+                    {shift === "custom" ? "Personalizado" : shift}
+                  </button>
+                ))}
+              </div>
+
+              {/* Horario */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                <div>
+                  <label style={{ fontSize: "0.625rem", color: "var(--muted)", display: "block", marginBottom: 2 }}>Entrada</label>
+                  <input
+                    type="time"
+                    value={startHour}
+                    onChange={(e) => setStartHour(e.target.value)}
+                    style={{
+                      width: "100%", padding: "0.375rem", fontSize: "var(--text-xs)",
+                      borderRadius: "var(--radius-sm)", border: "1px solid var(--border)",
+                      background: "var(--bg)", color: "var(--fg)", boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.625rem", color: "var(--muted)", display: "block", marginBottom: 2 }}>Salida</label>
+                  <input
+                    type="time"
+                    value={endHour}
+                    onChange={(e) => setEndHour(e.target.value)}
+                    style={{
+                      width: "100%", padding: "0.375rem", fontSize: "var(--text-xs)",
+                      borderRadius: "var(--radius-sm)", border: "1px solid var(--border)",
+                      background: "var(--bg)", color: "var(--fg)", boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Servicio o Notas */}
+              <div>
+                <label style={{ fontSize: "0.625rem", color: "var(--muted)", display: "block", marginBottom: 2 }}>Servicio o Adscripción (opcional)</label>
+                <input
+                  type="text"
+                  placeholder="Ej. Urgencias, Piso 3, Triage..."
+                  value={service}
+                  onChange={(e) => setService(e.target.value)}
+                  style={{
+                    width: "100%", padding: "0.375rem", fontSize: "var(--text-xs)",
+                    borderRadius: "var(--radius-sm)", border: "1px solid var(--border)",
+                    background: "var(--bg)", color: "var(--fg)", boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "0.375rem", marginTop: "0.25rem" }}>
+                <Button
+                  size="sm"
+                  loading={submitting}
+                  onClick={handleConfirmGuard}
+                  style={{ flex: 1, justifyContent: "center" }}
+                >
+                  Confirmar mi guardia
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowGuardForm(false)}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Desmarcar guardia si ya existe */}
+          {guardEvent && (
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.25rem" }}>
+              <Button
+                variant="ghost"
+                size="sm"
+                loading={submitting}
+                onClick={() => onRemoveGuard(guardEvent.guardCommitmentId || guardEvent.id)}
+                style={{ color: "var(--error)", fontSize: "0.6875rem" }}
+              >
+                <Trash size={12} />
+                Desmarcar guardia (conservar día de descanso)
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Lista de eventos del día */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        {events
+          .filter((e) => e.type !== "descanso_cct") // Ya mostrado arriba de forma destacada
+          .map((e) => (
+            <div key={e.id} style={{
+              padding: compact ? "0.5rem 0.75rem" : "0.625rem 0.875rem",
+              background: "var(--card)", border: "1px solid var(--border)",
+              borderLeft: `3px solid ${e.color}`,
+              borderRadius: "var(--radius-sm)", fontSize: "var(--text-xs)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", marginBottom: "0.125rem" }}>
+                <span style={{
+                  width: 8, height: 8, borderRadius: "50%",
+                  background: e.color, display: "inline-block", flexShrink: 0,
+                }} />
+                <span style={{ fontWeight: 600 }}>{e.title}</span>
+              </div>
+              {e.time && (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", color: "var(--muted)", marginTop: "0.125rem" }}>
+                  <Clock size={11} />
+                  {e.time}
+                  {e.isNightShift && " (nocturno)"}
+                </div>
+              )}
+              {e.detail && (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", color: "var(--muted)", marginTop: "0.125rem" }}>
+                  <MapPin size={11} />
+                  <span>{e.detail}</span>
+                </div>
+              )}
+            </div>
+          ))}
       </div>
     </div>
   )

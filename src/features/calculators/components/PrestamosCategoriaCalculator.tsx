@@ -131,14 +131,14 @@ export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-        <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: "1rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+        <div style={{ width: "100%", minWidth: 0 }}>
           {!selected && (
             <>
               <p style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", margin: "0 0 0.5rem" }}>
                 {filtered.length} categoría{filtered.length !== 1 ? "s" : ""}
               </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", maxHeight: "500px", overflowY: "auto" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", maxHeight: "500px", overflowY: "auto", width: "100%", minWidth: 0 }}>
                 {filtered.length === 0 ? (
                   <p style={{ fontSize: "0.8125rem", color: "var(--muted)", textAlign: "center", padding: "1rem" }}>
                     No se encontraron categorías
@@ -154,11 +154,12 @@ export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
                         border: `1px solid var(--border)`,
                         borderRadius: "var(--radius-sm)", padding: "0.625rem 0.75rem",
                         cursor: "pointer", fontSize: "0.8125rem", fontWeight: 500, transition: "all var(--transition)",
+                        width: "100%", boxSizing: "border-box", wordBreak: "break-word",
                       }}
                     >
-                      <span>{r.categoria}</span>
+                      <span style={{ wordBreak: "break-word" }}>{r.categoria}</span>
                       {r.descripcionTC && (
-                        <span style={{ display: "block", fontSize: "0.6875rem", opacity: 0.8, marginTop: "0.125rem" }}>{r.descripcionTC}</span>
+                        <span style={{ display: "block", fontSize: "0.6875rem", opacity: 0.8, marginTop: "0.125rem", wordBreak: "break-word" }}>{r.descripcionTC}</span>
                       )}
                     </button>
                   ))
@@ -168,13 +169,13 @@ export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
           )}
         </div>
 
-        <div>
+        <div style={{ width: "100%", minWidth: 0 }}>
           {selected ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-              <Card padding="1rem">
-                <p style={{ fontSize: "0.875rem", fontWeight: 600, margin: "0 0 0.5rem" }}>{selected.categoria}</p>
-                {selected.descripcionTC && <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0 0 0.5rem" }}>{selected.descripcionTC}</p>}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", fontSize: "0.75rem" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", minWidth: 0 }}>
+              <Card padding="1rem" style={{ width: "100%", minWidth: 0, boxSizing: "border-box" }}>
+                <p style={{ fontSize: "0.875rem", fontWeight: 600, margin: "0 0 0.5rem", wordBreak: "break-word" }}>{selected.categoria}</p>
+                {selected.descripcionTC && <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0 0 0.5rem", wordBreak: "break-word" }}>{selected.descripcionTC}</p>}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 120px), 1fr))", gap: "0.5rem", fontSize: "0.75rem", width: "100%", minWidth: 0 }}>
                   {selected.sueldoPlaza !== undefined && <InfoRow label="Sueldo plaza" value={formatCurrency(selected.sueldoPlaza)} />}
                   {selected.sueldoQuincenal !== undefined && <InfoRow label="Sueldo quincenal" value={formatCurrency(selected.sueldoQuincenal)} />}
                   {selected.concepto011 !== undefined && <InfoRow label="Concepto 011" value={formatCurrency(selected.concepto011)} />}

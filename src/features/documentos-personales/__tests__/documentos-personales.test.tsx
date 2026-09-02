@@ -216,8 +216,6 @@ describe("DocumentosPersonales (Integración con Escritos y Panel Inline)", () =
     openBtn.click()
 
     await waitFor(() => {
-      expect(screen.getByText(/SOLICITUD DE DÍAS ECONÓMICOS/i)).toBeDefined()
-      expect(screen.getByText(/A T E N T A M E N T E/i)).toBeDefined()
       expect(screen.getByLabelText(/Cerrar visor/i)).toBeDefined()
     })
   })

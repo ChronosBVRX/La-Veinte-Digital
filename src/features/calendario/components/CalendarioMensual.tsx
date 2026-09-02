@@ -15,6 +15,7 @@ const EVENT_ABBR: Record<CalendarEventType, string> = {
   otros: "B",
   cheque: "C",
   jubilados: "J",
+  descanso_cct: "D",
 }
 
 export function CalendarioMensual() {
