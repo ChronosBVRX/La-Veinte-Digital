@@ -48,42 +48,48 @@ describe("pdfShareBridge", () => {
     }
   })
 
-  it("handles fragmented flow and resolves with success JSON contract", async () => {
+  it("handles fragmented flow and resolves with success JSON contract via onmessage", async () => {
     const postedMessages: Array<Record<string, unknown>> = []
 
     window.LaVeinteApp = {
       isNativeApp: () => true,
     } as unknown as typeof window.LaVeinteApp
 
-    window.laVeintePdfBridge = {
+    const bridge = {
+      onmessage: null as (((event: { data: unknown }) => void) | null),
       postMessage: vi.fn((msgStr: string) => {
         const parsed = JSON.parse(msgStr) as Record<string, unknown>
         postedMessages.push(parsed)
 
         if (parsed.action === "start") {
           setTimeout(() => {
-            window.__laveintePdfShareCallback?.({
-              ok: true,
-              status: "ready",
-              transferId: parsed.transferId,
+            bridge.onmessage?.({
+              data: JSON.stringify({
+                ok: true,
+                status: "ready",
+                transferId: parsed.transferId,
+              }),
             })
           }, 0)
         }
 
         if (parsed.action === "commit") {
           setTimeout(() => {
-            window.__laveintePdfShareCallback?.({
-              ok: true,
-              status: "chooser_opened",
-              transferId: parsed.transferId,
-              fileName: "test.pdf",
-              byteLength: 20,
-              sha256: parsed.sha256,
+            bridge.onmessage?.({
+              data: JSON.stringify({
+                ok: true,
+                status: "chooser_opened",
+                transferId: parsed.transferId,
+                fileName: "test.pdf",
+                byteLength: 20,
+                sha256: parsed.sha256,
+              }),
             })
           }, 0)
         }
       }),
     }
+    window.laVeintePdfBridge = bridge
 
     const pdfContent = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x25, 0xd0, 0xd4, 0xc5, 0xd8, 0x0a, 0x25, 0x25, 0x45, 0x4f, 0x46])
     const validPdfFile = new File([pdfContent], "test.pdf", { type: "application/pdf" })
@@ -101,6 +107,62 @@ describe("pdfShareBridge", () => {
     expect(postedMessages.some((m) => m.action === "chunk")).toBe(true)
     expect(postedMessages.some((m) => m.action === "commit")).toBe(true)
   })
+
+  it("completes full sequence start -> ready -> ordered chunks -> commit -> chooser_opened", async () => {
+    const steps: string[] = []
+    const receivedChunkIndices: number[] = []
+
+    window.LaVeinteApp = {
+      isNativeApp: () => true,
+    } as unknown as typeof window.LaVeinteApp
+
+    const bridge = {
+      onmessage: null as (((event: { data: unknown }) => void) | null),
+      postMessage: vi.fn((msgStr: string) => {
+        const parsed = JSON.parse(msgStr) as Record<string, unknown>
+        steps.push(parsed.action as string)
+
+        if (parsed.action === "start") {
+          setTimeout(() => {
+            bridge.onmessage?.({
+              data: JSON.stringify({
+                ok: true,
+                status: "ready",
+                transferId: parsed.transferId,
+              }),
+            })
+          }, 0)
+        } else if (parsed.action === "chunk") {
+          receivedChunkIndices.push(parsed.index as number)
+        } else if (parsed.action === "commit") {
+          setTimeout(() => {
+            bridge.onmessage?.({
+              data: JSON.stringify({
+                ok: true,
+                status: "chooser_opened",
+                transferId: parsed.transferId,
+                fileName: "escrito.pdf",
+                byteLength: 20,
+                sha256: parsed.sha256,
+              }),
+            })
+          }, 0)
+        }
+      }),
+    }
+    window.laVeintePdfBridge = bridge
+
+    const pdfContent = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x25, 0xd0, 0xd4, 0xc5, 0xd8, 0x0a, 0x25, 0x25, 0x45, 0x4f, 0x46])
+    const validPdfFile = new File([pdfContent], "escrito.pdf", { type: "application/pdf" })
+
+    const res = await sharePdfViaNativeBridge(validPdfFile, "escrito.pdf")
+
+    expect(res.ok).toBe(true)
+    expect(steps[0]).toBe("start")
+    expect(steps.slice(1, -1).every((s) => s === "chunk")).toBe(true)
+    expect(steps[steps.length - 1]).toBe("commit")
+    expect(receivedChunkIndices).toEqual([0])
+  })
 })
 
 // ── shareGeneratedPdf — función centralizada ────────────────────────────────
@@ -113,7 +175,10 @@ const MIN_PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 
 function makeNativeWindow(opts: { hasBridge: boolean }) {
   const win = window as unknown as {
     LaVeinteApp?: unknown
-    laVeintePdfBridge?: unknown
+    laVeintePdfBridge?: {
+      onmessage?: ((event: { data: unknown }) => void) | null
+      postMessage: ReturnType<typeof vi.fn>
+    }
     __laveintePdfShareCallback?: unknown
   }
   win.LaVeinteApp = {
@@ -121,21 +186,34 @@ function makeNativeWindow(opts: { hasBridge: boolean }) {
     checkForUpdate: vi.fn(),
   }
   if (opts.hasBridge) {
-    win.laVeintePdfBridge = {
+    const bridge = {
+      onmessage: null as (((event: { data: unknown }) => void) | null),
       postMessage: vi.fn((msgStr: string) => {
         const parsed = JSON.parse(msgStr) as Record<string, unknown>
         if (parsed.action === "start") {
           setTimeout(() => {
-            ;(window as unknown as { __laveintePdfShareCallback?: (r: unknown) => void }).__laveintePdfShareCallback?.({ ok: true, status: "ready", transferId: parsed.transferId })
+            bridge.onmessage?.({
+              data: JSON.stringify({ ok: true, status: "ready", transferId: parsed.transferId }),
+            })
           }, 0)
         }
         if (parsed.action === "commit") {
           setTimeout(() => {
-            ;(window as unknown as { __laveintePdfShareCallback?: (r: unknown) => void }).__laveintePdfShareCallback?.({ ok: true, status: "chooser_opened", transferId: parsed.transferId, fileName: "escrito.pdf", byteLength: MIN_PDF.byteLength, sha256: parsed.sha256 })
+            bridge.onmessage?.({
+              data: JSON.stringify({
+                ok: true,
+                status: "chooser_opened",
+                transferId: parsed.transferId,
+                fileName: "escrito.pdf",
+                byteLength: MIN_PDF.byteLength,
+                sha256: parsed.sha256,
+              }),
+            })
           }, 0)
         }
       }),
     }
+    win.laVeintePdfBridge = bridge
   }
 }
 

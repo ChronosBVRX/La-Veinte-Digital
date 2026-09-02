@@ -10,6 +10,7 @@ import android.util.Base64
 import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.webkit.JavaScriptReplyProxy
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -39,7 +40,9 @@ object PdfShareManager {
     )
 
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    // Ejecutor de un solo hilo para procesar start, chunk y commit de forma estrictamente secuencial
+    private val sequentialDispatcher = java.util.concurrent.Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+    private val sequentialScope = CoroutineScope(sequentialDispatcher + SupervisorJob())
     private val sessions = ConcurrentHashMap<String, Session>()
 
     fun isValidTransferId(transferId: String?): Boolean {
@@ -92,7 +95,7 @@ object PdfShareManager {
             return
         }
 
-        ioScope.launch {
+        sequentialScope.launch {
             try {
                 val json = JSONObject(message)
                 val action = json.optString("action")
@@ -394,7 +397,7 @@ object PdfShareManager {
     }
 
     fun cleanupOld(context: Context) {
-        ioScope.launch {
+        sequentialScope.launch {
             try {
                 val dir = File(context.cacheDir, "shared-documents")
                 if (!dir.exists() || !dir.isDirectory) return@launch
