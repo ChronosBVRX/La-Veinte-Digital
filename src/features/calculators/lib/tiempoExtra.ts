@@ -2,40 +2,43 @@ import type {
   TiempoExtraInput,
   TiempoExtraResult,
   HorasExtraValidation,
+  TiempoExtraTierBreakdown,
 } from "./types"
+import { roundCurrency } from "./money"
 
 export const JORNADAS = [6, 6.5, 8, 12] as const
 
 /**
  * Límites normativos ordinarios del tiempo extraordinario
  * (procedimiento 1A74-003-031): 9 h semanales / 20 h quincenales.
- * El límite puede excederse ÚNICAMENTE con una excepción expresamente
- * documentada/seleccionada (Cláusula 100 del CCT o Art. 24 del RIT).
  */
 export const MAX_HORAS_SEMANALES = 9
 export const MAX_HORAS_QUINCENALES = 20
-
-/**
- * Tope de cordura genérico para el mecanismo de pago (no normativo).
- * Se conserva como defensa de cálculo, no como regla institucional: la
- * validez normativa de las horas la definen los validadores 9/20.
- */
 export const MAX_HORAS_EXTRA = 24
 
-// Nota técnica: la implementación de referencia parecía dividir entre las horas
-// extra y multiplicar posteriormente por las mismas, anulando su efecto.
-// Esta plataforma utiliza la fórmula corregida en la que el valor por hora se
-// multiplica por las horas trabajadas (ver calculateTiempoExtraLegacy).
+/**
+ * Redondeo reglamentario de minutos según Cláusula 33 del CCT:
+ * - Menos de 30 minutos: se computa media hora (0.5 h).
+ * - De 30 a 60 minutos: se computa una hora completa (1.0 h).
+ */
+export function redondearMinutosClausula33(minutos: number): number {
+  if (minutos <= 0) return 0
+  const horasCompletas = Math.floor(minutos / 60)
+  const remanenteMinutos = minutos % 60
+  if (remanenteMinutos === 0) return horasCompletas
+  if (remanenteMinutos < 30) return horasCompletas + 0.5
+  return horasCompletas + 1.0
+}
 
 /** Suma manual de los conceptos capturados (solo si no se usa baseNormativa). */
 export function sumTiempoExtraConceptos(input: TiempoExtraInput): number {
   return (
-    input.concepto002 +
-    input.concepto011 +
-    input.concepto020 +
-    input.conceptoAdicional1 +
-    input.conceptoAdicional2 +
-    input.concepto050
+    (input.concepto002 || 0) +
+    (input.concepto011 || 0) +
+    (input.concepto020 || 0) +
+    (input.conceptoAdicional1 || 0) +
+    (input.conceptoAdicional2 || 0) +
+    (input.concepto050 || 0)
   )
 }
 
@@ -49,9 +52,16 @@ export function calcularValorHora(base: number, jornada: number): number {
   return base / calcularHorasOrdinariasPeriodo(jornada)
 }
 
-/** Pago de tiempo extra = valor hora × 2 × horas. Factor de pago 2 sin modificar. */
+/**
+ * Pago de tiempo extra:
+ * - Primeras 9 horas semanales: factor 2 (100% adicional / dobles).
+ * - Excedente de 9 horas semanales: factor 3 (200% adicional / triples).
+ */
 export function calcularPagoTiempoExtra(base: number, jornada: number, horasExtra: number): number {
-  return calcularValorHora(base, jornada) * 2 * horasExtra
+  const valorHora = calcularValorHora(base, jornada)
+  const horasDobles = Math.min(9, Math.max(0, horasExtra))
+  const horasTriples = Math.max(0, horasExtra - 9)
+  return roundCurrency(horasDobles * valorHora * 2 + horasTriples * valorHora * 3)
 }
 
 /**
@@ -83,15 +93,74 @@ export function calculateTiempoExtra(input: TiempoExtraInput): TiempoExtraResult
   const { baseTotal, baseNormativaUsada, conceptosIntegrados } = elegirBaseTiempoExtra(input)
   const horasOrdinariasPeriodo = calcularHorasOrdinariasPeriodo(input.jornada)
   const valorHora = calcularValorHora(baseTotal, input.jornada)
-  const pago = calcularPagoTiempoExtra(baseTotal, input.jornada, input.horasExtra)
+
+  const horasDobles = Math.min(9, Math.max(0, input.horasExtra))
+  const horasTriples = Math.max(0, input.horasExtra - 9)
+  const horasDescansoSemanal = Math.max(0, input.horasDescansoSemanal || 0)
+  const horasDescansoObligatorio = Math.max(0, input.horasDescansoObligatorio || 0)
+  const horasCoincidentes = Math.max(0, input.horasDescansoObligatorioEnSemanal || 0)
+
+  const desglose: TiempoExtraTierBreakdown[] = []
+
+  if (horasDobles > 0) {
+    desglose.push({
+      label: "Horas extras dobles (primeras 9 h semanales)",
+      horas: horasDobles,
+      factor: 2,
+      importe: roundCurrency(horasDobles * valorHora * 2),
+    })
+  }
+
+  if (horasTriples > 0) {
+    desglose.push({
+      label: "Horas extras triples (excedente de 9 h semanales)",
+      horas: horasTriples,
+      factor: 3,
+      importe: roundCurrency(horasTriples * valorHora * 3),
+    })
+  }
+
+  if (horasDescansoSemanal > 0) {
+    desglose.push({
+      label: "Labor en día de descanso semanal (triple)",
+      horas: horasDescansoSemanal,
+      factor: 3,
+      importe: roundCurrency(horasDescansoSemanal * valorHora * 3),
+    })
+  }
+
+  if (horasDescansoObligatorio > 0) {
+    desglose.push({
+      label: "Labor en descanso obligatorio festivo (triple)",
+      horas: horasDescansoObligatorio,
+      factor: 3,
+      importe: roundCurrency(horasDescansoObligatorio * valorHora * 3),
+    })
+  }
+
+  if (horasCoincidentes > 0) {
+    desglose.push({
+      label: "Labor coincidente (descanso obligatorio en descanso semanal, cuádruple)",
+      horas: horasCoincidentes,
+      factor: 4,
+      importe: roundCurrency(horasCoincidentes * valorHora * 4),
+    })
+  }
+
+  const pago = desglose.reduce((sum, d) => sum + d.importe, 0)
+  const totalHorasCalculadas = input.horasExtra + horasDescansoSemanal + horasDescansoObligatorio + horasCoincidentes
+  const effectiveFactor = totalHorasCalculadas > 0 && valorHora > 0
+    ? roundCurrency(pago / (valorHora * totalHorasCalculadas))
+    : 2
 
   return {
     sumaConceptos: baseTotal,
     horasOrdinariasPeriodo,
     valorHora,
-    factor: 2,
+    factor: effectiveFactor,
     horasExtra: input.horasExtra,
     pago,
+    desglose,
     baseNormativaUsada,
     conceptosIntegrados,
   }
@@ -104,8 +173,7 @@ export function calculateTiempoExtraLegacy(input: TiempoExtraInput): number {
 
 /**
  * Validación básica de cordura (legacy): mayor que cero y dentro del tope
- * de cordura de 24 horas. NO valida el límite normativo; para eso usa
- * `validateHorasSemana` y `validateHorasExtraQuincena`.
+ * de cordura de 24 horas.
  */
 export function validateHorasExtra(horas: number): string | null {
   if (!Number.isFinite(horas) || horas <= 0) return "Debe ser mayor que cero"
@@ -124,29 +192,25 @@ export function validateHorasSemana(horasSemana: number | undefined): HorasExtra
   if (horasSemana > MAX_HORAS_SEMANALES) {
     return {
       valid: false,
-      error: `Excede el límite ordinario de ${MAX_HORAS_SEMANALES} h semanales (proc. 1A74-003-031). Requiere excepción documentada.`,
+      error: `Excede el límite ordinario de ${MAX_HORAS_SEMANALES} h semanales (proc. 1A74-003-031). El excedente se paga al triple conforme a LFT / CCT.`,
       requiresConfirmation: true,
     }
   }
   return { valid: true }
 }
 
-/**
- * Valida el límite ordinario de 20 h quincenales. Si se excede y NO hay una
- * excepción documentada/seleccionada, es error (requiere confirmación).
- * Con excepción, se permite con advertencia (requires_confirmation).
- */
 export function validateHorasExtraQuincena(
   horas: number,
-  exceptionType?: TiempoExtraInput["exceptionType"],
+  exception?: boolean | TiempoExtraInput["exceptionType"],
 ): HorasExtraValidation {
+  const hasException = typeof exception === "boolean" ? exception : Boolean(exception)
   if (!Number.isFinite(horas) || horas <= 0) {
     return { valid: false, error: "Debe ser mayor que cero" }
   }
   if (horas <= MAX_HORAS_QUINCENALES) {
     return { valid: true }
   }
-  if (exceptionType) {
+  if (hasException) {
     return {
       valid: true,
       warning: `Supera las ${MAX_HORAS_QUINCENALES} h ordinarias; se permite por excepción documentada. Confirma que está expresamente autorizada.`,

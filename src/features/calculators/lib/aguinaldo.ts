@@ -1,45 +1,113 @@
-import type { BaseConceptosInput, AguinaldoResult, FormulaEvidence } from "./types"
+import type { AguinaldoInput, AguinaldoResult, FormulaEvidence } from "./types"
+import { roundCurrency } from "./money"
 
 /**
- * Factor de aguinaldo utilizado actualmente por la aplicación de referencia.
- * NO tiene trazabilidad documental localizable en el repo: se conserva
- * intacto (no se sustituye por otro número mágico) pero se declara como
- * `app_reconstructed`. La alternativa documentada (Cláusula 107: 3 meses de
- * sueldo nominal, factor 6) se entrega como dato de comparación con
- * `pendingValidation`.
+ * Factor histórico reconstruido (fixture / referencia empírica).
+ * Se mantiene como comparación histórica documentada pero NUNCA como el resultado principal.
  */
-export const FACTOR_AGUINALDO = 7.490956567109524
+export const FACTOR_AGUINALDO_RECONSTRUIDO = 7.490956567109524
+export const FACTOR_AGUINALDO = FACTOR_AGUINALDO_RECONSTRUIDO
 
-/** Factor documental de la Cláusula 107: 3 meses de sueldo nominal = base × 6. */
+/**
+ * Cláusula 107 del CCT IMSS-SNTSS 2025-2027:
+ * "Los trabajadores percibirán por concepto de aguinaldo anual el equivalente a
+ * tres meses de sueldo nominal..."
+ * Tres meses de sueldo nominal = 6 quincenas de sueldo base integrado.
+ */
+export const DIAS_AGUINALDO_ORDINARIO = 90 // 3 meses = 90 días
 export const FACTOR_AGUINALDO_CLAUSULA_107 = 6
 
 const FORMULA_EVIDENCE: FormulaEvidence = {
-  status: "app_reconstructed",
-  source: "Aplicación de referencia",
-  reference: "Factor 7.490956567109524 (sin trazabilidad documental en el repo)",
+  status: "contract_verified",
+  source: "Contrato Colectivo de Trabajo IMSS-SNTSS 2025-2027",
+  reference: "Cláusula 107 (Aguinaldo) — 3 meses de sueldo nominal (90 días)",
   notes:
-    "La Cláusula 107 del CCT (3 meses de sueldo nominal) implicaría un factor de 6 sobre la base quincenal. Este factor queda pendiente de validación contra tarjetones reales. NO se sustituye el factor reconstruido sin evidencia.",
+    "Base normativa: Conceptos 002 y 011; en su caso conceptos integrantes autorizados (019, 054, 057, 058, 061). Desglose: Enero concepto 047 (medio mes = 15 días); Agosto concepto 043 (un mes = 30 días, a solicitud); Diciembre concepto 049 (saldo restante).",
 }
 
-export function calculateAguinaldo(input: BaseConceptosInput): AguinaldoResult {
-  const base = input.concepto002 + input.concepto011
-  const total = base * FACTOR_AGUINALDO
-  const documentedTotal = base * FACTOR_AGUINALDO_CLAUSULA_107
+export function calculateAguinaldo(input: AguinaldoInput): AguinaldoResult {
+  const conceptosIntegrantes: { code: string; label: string; amount: number }[] = [
+    { code: "002", label: "Sueldo Tabular", amount: input.concepto002 || 0 },
+    { code: "011", label: "Concepto Tabular 011", amount: input.concepto011 || 0 },
+  ]
+
+  if (input.concepto019 && input.concepto019 > 0) {
+    conceptosIntegrantes.push({ code: "019", label: "Sustitución de Médico / Cl. 63 bis", amount: input.concepto019 })
+  }
+  if (input.concepto054 && input.concepto054 > 0) {
+    conceptosIntegrantes.push({ code: "054", label: "Infecto-Contagiosidad / Radiación", amount: input.concepto054 })
+  }
+  if (input.concepto057 && input.concepto057 > 0) {
+    conceptosIntegrantes.push({ code: "057", label: "Atención Integral Continua", amount: input.concepto057 })
+  }
+  if (input.concepto058 && input.concepto058 > 0) {
+    conceptosIntegrantes.push({ code: "058", label: "Docencia en Enfermería", amount: input.concepto058 })
+  }
+  if (input.concepto061 && input.concepto061 > 0) {
+    conceptosIntegrantes.push({ code: "061", label: "Traslado de Pacientes", amount: input.concepto061 })
+  }
+
+  const base = roundCurrency(conceptosIntegrantes.reduce((sum, c) => sum + c.amount, 0))
+  const baseMensual = roundCurrency(base * 2)
+  const cuotaDiaria = roundCurrency(base / 15)
+
+  const diasLaborados = input.diasLaboradosAno !== undefined && input.diasLaboradosAno >= 0
+    ? Math.min(365, input.diasLaboradosAno)
+    : 360
+
+  // Proporcionalidad conforme a días laborados (360 base anual según práctica institucional)
+  const proporcionComputable = diasLaborados >= 360 ? 1 : diasLaborados / 360
+
+  const diasOrdinarios = 90
+  const diasAdicionales = input.diasAdicionalesConfirmados && input.diasAdicionalesConfirmados > 0
+    ? input.diasAdicionalesConfirmados
+    : 0
+  const diasTotales = diasOrdinarios + diasAdicionales
+
+  // Total anual conforme a Cláusula 107
+  const totalOrdinario = roundCurrency(baseMensual * 3 * proporcionComputable)
+  const totalAdicional = roundCurrency(cuotaDiaria * diasAdicionales * proporcionComputable)
+  const totalAnual = roundCurrency(totalOrdinario + totalAdicional)
+
+  // Desglose de pagos institucionales:
+  // 1. Concepto 047 (Enero): medio mes de sueldo nominal (15 días)
+  const anticipoEnero047 = roundCurrency(baseMensual * 0.5 * proporcionComputable)
+
+  // 2. Concepto 043 (Agosto): un mes de sueldo nominal (30 días), si el trabajador lo solicitó
+  const valeAgosto043 = input.solicitoAgosto043
+    ? roundCurrency(baseMensual * 1.0 * proporcionComputable)
+    : 0
+
+  // 3. Anticipos pagados a deducir
+  const anticiposDeducibles = input.anticiposPreviosPagados !== undefined
+    ? input.anticiposPreviosPagados
+    : (anticipoEnero047 + valeAgosto043)
+
+  // 4. Concepto 049 (Diciembre): saldo remanente
+  const saldoDiciembre049 = Math.max(0, roundCurrency(totalAnual - anticiposDeducibles))
+
+  // Comparación histórica con el factor empírico previo
+  const historicalTotal = roundCurrency(base * FACTOR_AGUINALDO_RECONSTRUIDO)
 
   return {
     base,
-    factor: FACTOR_AGUINALDO,
-    total,
-    anticipoEnero047: total / 6,
-    anticipoAgosto043: total / 3,
-    restoDiciembre049: total / 2,
+    baseMensual,
+    conceptosIntegrantes,
+    diasOrdinarios,
+    diasAdicionales,
+    diasTotales,
+    proporcionComputable,
+    totalAnual,
+    anticipoEnero047,
+    valeAgosto043,
+    saldoDiciembre049,
+    factor: 6,
     formulaEvidence: FORMULA_EVIDENCE,
-    documentedAlternative: {
-      label: "Cláusula 107 (3 meses de sueldo nominal)",
-      factor: FACTOR_AGUINALDO_CLAUSULA_107,
-      total: documentedTotal,
-      reference: "CCT 2025-2027 — Cláusula 107 (aguinaldo)",
-      pendingValidation: true,
+    historicalComparison: {
+      label: "Factor empírico anterior (reconstruido)",
+      factor: FACTOR_AGUINALDO_RECONSTRUIDO,
+      total: historicalTotal,
+      reference: "Factor histórico 7.490956... (sin evidencia documental en CCT)",
     },
   }
 }

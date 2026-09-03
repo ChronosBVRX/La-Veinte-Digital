@@ -20,25 +20,41 @@ export interface FormulaEvidence {
   notes?: string
 }
 
+export interface AguinaldoInput extends BaseConceptosInput {
+  concepto019?: number
+  concepto054?: number
+  concepto057?: number
+  concepto058?: number
+  concepto061?: number
+  /** Días computables laborados en el año (default 360/365). */
+  diasLaboradosAno?: number
+  /** Si el trabajador solicitó el vale a cuenta de agosto (concepto 043). */
+  solicitoAgosto043?: boolean
+  /** Días adicionales por puntualidad, asistencia o notas de mérito (Cl. 38, RIT 91, 93, 95, 97, 98). */
+  diasAdicionalesConfirmados?: number
+  /** Anticipos previos efectivamente pagados a descontar en diciembre. */
+  anticiposPreviosPagados?: number
+}
+
 export interface AguinaldoResult {
   base: number
-  factor: number
-  total: number
+  baseMensual: number
+  conceptosIntegrantes: { code: string; label: string; amount: number }[]
+  diasOrdinarios: number
+  diasAdicionales: number
+  diasTotales: number
+  proporcionComputable: number
+  totalAnual: number
   anticipoEnero047: number
-  anticipoAgosto043: number
-  restoDiciembre049: number
-  /** Evidencia de trazabilidad del factor usado. */
+  valeAgosto043: number
+  saldoDiciembre049: number
+  factor: number
   formulaEvidence: FormulaEvidence
-  /**
-   * Alternativa documental (Cláusula 107: 3 meses de sueldo nominal, factor 6)
-   * pendiente de validación contra tarjetones reales.
-   */
-  documentedAlternative?: {
+  historicalComparison?: {
     label: string
     factor: number
     total: number
     reference: string
-    pendingValidation: true
   }
 }
 
@@ -86,6 +102,12 @@ export interface TiempoExtraInput {
   horasSemana?: number
   /** Excepción expresamente seleccionada/documentada para exceder el límite. */
   exceptionType?: TiempoExtraExceptionType
+  /** Horas en descanso semanal (se pagan al triple = salario ordinario + 200%). */
+  horasDescansoSemanal?: number
+  /** Horas en descanso obligatorio festivo (se pagan al triple = salario ordinario + 200%). */
+  horasDescansoObligatorio?: number
+  /** Horas coincidentes en descanso obligatorio Y descanso semanal (se pagan al cuádruple = x4). */
+  horasDescansoObligatorioEnSemanal?: number
   /**
    * Base normativa integrada (del motor de repercusiones, concepto 037).
    * Si se provee, sustituye la suma manual de conceptos.
@@ -96,6 +118,13 @@ export interface TiempoExtraInput {
   } | null
 }
 
+export interface TiempoExtraTierBreakdown {
+  label: string
+  horas: number
+  factor: number
+  importe: number
+}
+
 export interface TiempoExtraResult {
   sumaConceptos: number
   horasOrdinariasPeriodo: number
@@ -103,6 +132,8 @@ export interface TiempoExtraResult {
   factor: number
   horasExtra: number
   pago: number
+  /** Desglose analítico de horas dobles (≤9h), triples (>9h), descansos semanales y festivos. */
+  desglose?: TiempoExtraTierBreakdown[]
   /** Base normativa integrada desde el motor de repercusiones (037). */
   baseNormativaUsada: boolean
   /** Conceptos integrados a la base (repercusiones). */
@@ -116,12 +147,21 @@ export interface HorasExtraValidation {
   requiresConfirmation?: boolean
 }
 
+export interface Clausula97MonthOption {
+  meses: number
+  monto: number
+  quincenasRecuperacion: number
+  descuentoQuincenal: number
+}
+
 export interface Clausula97Result {
   baseQuincenal: number
+  baseMensual: number
   unMes: number
   dosMeses: number
   tresMeses: number
   cuatroMeses: number
+  opciones: Clausula97MonthOption[]
 }
 
 export interface PrestamoCategoriaRecord {

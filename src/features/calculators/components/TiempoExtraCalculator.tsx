@@ -280,27 +280,34 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
       </div>
       {result && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          <ResultCard title="Resultado" rows={[
-            { label: result.baseNormativaUsada ? "Base normativa 037 (repercusiones)" : "Suma de conceptos (manual)", value: result.sumaConceptos },
+          <ResultCard title="Resultado de Tiempo Extra" rows={[
+            { label: result.baseNormativaUsada ? "Base normativa 037 (repercusiones)" : "Suma de conceptos (base quincenal)", value: result.sumaConceptos },
             ...(result.baseNormativaUsada && result.conceptosIntegrados.length > 0
               ? result.conceptosIntegrados.map((c) => ({ label: `  · Concepto ${c.code}`, value: c.amount }))
               : []),
-            { label: "Horas ordinarias del periodo (jornada × 15)", value: result.horasOrdinariasPeriodo, format: "number" as const },
+            { label: "Horas ordinarias quincenales (jornada × 15)", value: result.horasOrdinariasPeriodo, format: "number" as const },
             { label: "Valor de la hora ordinaria", value: result.valorHora },
-            { label: "Factor", value: result.factor, format: "number" as const },
-            { label: "Horas extra", value: result.horasExtra, format: "number" as const },
-            { label: "Pago estimado", value: result.pago, highlight: true },
+            ...(result.desglose && result.desglose.length > 0
+              ? result.desglose.map((d) => ({
+                  label: `${d.label} (${d.horas}h a factor ${d.factor}x)`,
+                  value: d.importe,
+                }))
+              : [{ label: "Factor efectivo", value: result.factor, format: "number" as const }]),
+            { label: "Horas extra computadas", value: result.horasExtra, format: "number" as const },
+            { label: "Pago total estimado", value: result.pago, highlight: true },
           ]} />
           <FormulaExplanation steps={[
             "Base = 002 + 011 + 020 + 023 + 063 + 050 (037), según matriz de repercusiones",
-            "El motor de proyección integra además 02, 012, 013, 057, 058, 061 (Norma 1000-001-020)",
-            "Horas ordinarias del periodo = Jornada × 15",
-            "Valor hora = Base ÷ Horas ordinarias",
-            "Pago = Valor hora × 2 × Horas extra",
-            "Límites ordinarios: 9 h/semana y 20 h/quincena (proc. 1A74-003-031)",
+            "Horas ordinarias quincenales = Jornada diaria × 15 días",
+            "Valor hora ordinaria = Base quincenal ÷ Horas ordinarias",
+            "Primeras 9 horas extraordinarias a la semana: se pagan al doble (factor 2x)",
+            "Excedente mayor a 9 horas a la semana: se paga al triple (factor 3x)",
+            "Descansos semanales y descansos obligatorios festivos laborados: se pagan al triple (factor 3x)",
+            "Coincidencia de descanso obligatorio en día de descanso semanal: se paga al cuádruple (factor 4x)",
+            "Cláusula 33 CCT (minutos): menos de 30 min se computa media hora; 30 a 60 min se computa una hora",
           ]} />
           <div style={{ background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.2)", borderRadius: "var(--radius)", padding: "0.75rem 1rem", fontSize: "0.8125rem", color: "var(--muted)" }}>
-            <strong>Nota:</strong> El pago de las horas extra estima el doble del valor de una hora ordinaria, conforme a lo dispuesto en el convenio colectivo.
+            <strong>Normativa aplicable:</strong> Procedimiento institucional 1A74-003-031, Cláusula 33 del CCT y Artículos 66-68 de la Ley Federal del Trabajo.
           </div>
           <CalculatorDisclaimer />
         </div>

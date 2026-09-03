@@ -262,9 +262,13 @@ describe("validateAnticipation", () => {
     expect(result.reasonCode).toBe("FIRST_PERIOD_BEFORE_YEAR")
   })
 
-  it("v20 first period requires 20 years", () => {
-    const result = validateAnticipation("EXTRAORDINARIO_V20", "2026-10-14", "2026-07-01", false, 19)
-    expect(result.allowed).toBe(true)
+  it("v20 strictly requires 20 years", () => {
+    const rejectedWith19 = validateAnticipation("EXTRAORDINARIO_V20", "2026-10-14", "2026-07-01", false, 19)
+    expect(rejectedWith19.allowed).toBe(false)
+    expect(rejectedWith19.reasonCode).toBe("V20_REQUIRES_20_YEARS")
+
+    const allowedWith20 = validateAnticipation("EXTRAORDINARIO_V20", "2026-10-14", "2026-07-01", false, 20)
+    expect(allowedWith20.allowed).toBe(true)
   })
 })
 
