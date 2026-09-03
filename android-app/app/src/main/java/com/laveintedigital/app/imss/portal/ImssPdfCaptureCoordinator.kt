@@ -67,7 +67,10 @@ object ImssPdfCaptureCoordinator {
         periodCode: String,
         periodLabel: String,
     ): TarjetonCaptureSession? {
-        if (activeSession != null) { Log.w(TAG, "CAPTURE_SESSION_BLOCKED activeSession exists"); return null }
+        if (activeSession != null) {
+            Log.w(TAG, "CAPTURE_SESSION_RESET_PREVIOUS activeSession was still open: ${activeSession?.id}; finishing it before starting new session")
+            finishSession()
+        }
         val session = TarjetonCaptureSession(
             id = java.util.UUID.randomUUID().toString(),
             portalId = portal.id,
@@ -79,6 +82,11 @@ object ImssPdfCaptureCoordinator {
         activeSession = session
         Log.i(TAG, "CAPTURE_SESSION_STARTED sessionId=${session.id} ooad=${session.ooadCode} period=${session.periodCode}")
         return session
+    }
+
+    /** Forcibly cancels/resets any active capture session cycle. */
+    fun resetSession() {
+        finishSession()
     }
 
     fun createDownloadListener(

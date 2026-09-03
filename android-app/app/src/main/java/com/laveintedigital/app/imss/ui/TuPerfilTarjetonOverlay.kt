@@ -118,7 +118,7 @@ fun TuPerfilTarjetonOverlay(
 
                     Spacer(Modifier.height(LvdSpacing.Xxl))
 
-                    val ready = pageState == PortalPageState.READY
+                    val ready = pageState == PortalPageState.READY || pageState == PortalPageState.COMPLETED
 
                     LvdSelectField(
                         label = "OOAD",
@@ -169,14 +169,14 @@ fun TuPerfilTarjetonOverlay(
                             enabled = false,
                         )
                         PortalPageState.COMPLETED -> LvdPrimaryButton(
-                            text = "Tarjetón guardado",
-                            onClick = {},
-                            enabled = false,
+                            text = "Consultar de nuevo",
+                            onClick = onConsultar,
+                            enabled = ready && selectedPeriod != null,
                         )
                         else -> LvdPrimaryButton(
                             text = "Consultar tarjetón",
                             onClick = onConsultar,
-                            enabled = ready,
+                            enabled = ready && selectedPeriod != null,
                         )
                     }
 
