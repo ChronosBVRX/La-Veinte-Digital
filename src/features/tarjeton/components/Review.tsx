@@ -7,6 +7,7 @@ import type { ReviewedConceptLine } from "@/features/tarjeton/lib/confirm-mark"
 import { needsExplicitConfirmation, updateReviewedConcept } from "@/features/tarjeton/lib/confirm-mark"
 import { requiresReviewForConfidence } from "@/features/tarjeton/lib/confidence"
 import { parseImssMoney } from "@/features/tarjeton/lib/money-parser"
+import { formatMexicanDate } from "@/features/tarjeton/lib/imss-date-parser"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
 import { Input } from "@/shared/components/ui/Input"
@@ -57,6 +58,8 @@ export const DETAIL_LABELS: Record<string, string> = {
   firstPeriodStartRaw: "Inicio del primer periodo",
   secondPeriodStartRaw: "Inicio del segundo periodo",
   accumulatedRetirementDays: "Días acumulados para jubilación",
+  porVencer: "Fecha por vencer",
+  dueDate: "Fecha por vencer",
 }
 
 function parseAmount(value: string): number | null {
@@ -304,11 +307,18 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
         <Card padding="1rem" style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
           <div style={{ fontWeight: 700, fontSize: "0.875rem", marginBottom: "0.25rem" }}>Asistencia y vacaciones</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.5rem" }}>
-            {[...Object.entries(attendance), ...Object.entries(vacations)].filter(([key, value]) => DETAIL_LABELS[key] && value !== undefined).map(([key, value]) => (
-              <span key={key} style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-                {DETAIL_LABELS[key]}: <strong style={{ color: "var(--fg)" }}>{String(value)}</strong>
-              </span>
-            ))}
+            {[...Object.entries(attendance), ...Object.entries(vacations)]
+              .filter(([key, value]) => DETAIL_LABELS[key] && value !== undefined && !(key === "dueDate" && vacations.porVencer !== undefined))
+              .map(([key, value]) => {
+                const displayVal = (key === "porVencer" || key === "dueDate") && typeof value === "string"
+                  ? formatMexicanDate(value)
+                  : String(value)
+                return (
+                  <span key={key} style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+                    {DETAIL_LABELS[key]}: <strong style={{ color: "var(--fg)" }}>{displayVal}</strong>
+                  </span>
+                )
+              })}
           </div>
         </Card>
       )}

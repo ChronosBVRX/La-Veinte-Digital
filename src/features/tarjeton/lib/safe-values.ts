@@ -15,6 +15,7 @@
  */
 import type { ParsedImssTarjeton, TarjetonObservation } from "@/shared/contracts/tarjeton-import"
 import { roundImssMoney } from "./money-parser"
+import { isValidMexicanCivilDate } from "./imss-date-parser"
 
 /** Sanidad de importe: coincide con la corrección previa de initialCharge. */
 export const MAX_ABS_MONEY = 100_000_000
@@ -41,17 +42,12 @@ export function safeIntegerIn(value: unknown, min: number, max: number): number 
   return value
 }
 
-/** Fecha ISO estricta YYYY-MM-DD y que exista en el calendario. */
+/** Fecha ISO estricta YYYY-MM-DD y que exista en el calendario civil mexicano. */
 export function safeDate(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined
   const [year, month, day] = value.split("-").map(Number)
-  const date = new Date(Date.UTC(year, month - 1, day))
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) return undefined
+  if (!isValidMexicanCivilDate(day, month, year)) return undefined
   return value
 }
 
@@ -203,6 +199,21 @@ export function sanitizeTarjetonForPersistence(parsed: ParsedImssTarjeton): Tarj
       sanitized.push("Vacaciones: fecha por vencer inválida; se omitió.")
     } else {
       vacations.porVencer = porVencer
+      if (!vacations.dueDate) {
+        vacations.dueDate = porVencer
+      }
+    }
+  }
+
+  if (vacations.dueDate !== undefined) {
+    const dueDate = safeDate(vacations.dueDate)
+    if (dueDate === undefined) {
+      delete vacations.dueDate
+    } else {
+      vacations.dueDate = dueDate
+      if (!vacations.porVencer) {
+        vacations.porVencer = dueDate
+      }
     }
   }
 

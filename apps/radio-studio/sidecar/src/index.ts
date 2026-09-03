@@ -853,33 +853,70 @@ function agruparEscenas(turns: DialogueTurn[]): Array<{ id: string; titulo: stri
 }
 
 async function handleLlmHealth(res: http.ServerResponse) {
-  const cfg = loadLlmConfig();
-  const llm = new LocalLLMService(cfg, path.join(REPO, "data", "tts"));
-  const health = await llm.health();
-  const models = health.ok ? await llm.listModels() : [];
-  const modelFamily = cfg.model.split(":")[0];
-  const modeloObjetivoOk = models.some((m) => m.startsWith(modelFamily));
+  const { createLLMProvider, getGroqUsageForUI } = await import("./llm/llm-factory");
+  const factoryResult = createLLMProvider(REPO);
+  const { provider: llmProvider, selectedProvider, groqMissingKey } = factoryResult;
+
+  const health = await llmProvider.health(5000);
+  const groqUsage = getGroqUsageForUI();
+
+  // Para Ollama: listar modelos instalados
+  let modelos: string[] = [];
+  let modeloObjetivoOk = false;
+  if (selectedProvider === "ollama") {
+    const ollamaLlm = llmProvider as unknown as { listModels?: () => Promise<string[]>; getStats?: () => Promise<unknown[]> };
+    if (typeof ollamaLlm.listModels === "function") {
+      modelos = health.ok ? await ollamaLlm.listModels() : [];
+      const modelFamily = llmProvider.model.split(":")[0];
+      modeloObjetivoOk = modelos.some((m) => m.startsWith(modelFamily));
+    }
+  } else {
+    // Groq: si health ok, el modelo está disponible
+    modeloObjetivoOk = health.ok;
+  }
+
   json(res, 200, {
-    config: cfg,
-    health,
-    modelos: models,
-    modeloObjetivoOk,
-    // El modelo editorial se verifica en runtime contra Ollama (ollama list). Nunca
-    // se usa una constante: si el modelo no está instalado, NO hay fallback remoto.
-    editorial: {
-      provider: "ollama",
-      model: cfg.model,
-      label: "Qwen 3.5 9B",
-      available: health.ok && modeloObjetivoOk,
-      installedModels: models,
-      diagnostic: !health.ok
-        ? `Ollama no responde en ${cfg.baseUrl} (${health.error ?? "sin respuesta"})`
-        : !modeloObjetivoOk
-          ? `El modelo ${cfg.model} no está instalado en Ollama. Ejecuta: ollama pull ${cfg.model}`
-          : null,
+    // Campos existentes (compatibilidad con frontend)
+    config: {
+      model: llmProvider.model,
+      enabled: true,
+      contextTokens: selectedProvider === "ollama" ? 16384 : null,
     },
+    health,
+    modelos,
+    modeloObjetivoOk,
+    // Info ampliada del proveedor
+    provider: selectedProvider,
+    model: llmProvider.model,
+    configured: health.ok,
+    supportsStrictSchema: llmProvider.supportsStrictSchema,
+    groqMissingKey,
+    // Motor de guion para la UI — NUNCA incluir la API key
+    editorial: {
+      provider: selectedProvider,
+      model: llmProvider.model,
+      label: selectedProvider === "groq"
+        ? `Groq · ${llmProvider.model}`
+        : `Qwen (local) · ${llmProvider.model}`,
+      available: health.ok && modeloObjetivoOk,
+      supportsStrictSchema: llmProvider.supportsStrictSchema,
+      diagnostic: !health.ok
+        ? (selectedProvider === "groq"
+            ? `Groq no responde: ${health.error ?? "sin respuesta"}`
+            : `Ollama no responde: ${health.error ?? "sin respuesta"}`)
+        : null,
+    },
+    // Uso de Groq (consumo registrado por este estudio)
+    groqUsage: groqUsage ? {
+      tokensThisRun: groqUsage.tokensThisRun,
+      callsThisRun: groqUsage.callsThisRun,
+      estimatedDailyUsed: groqUsage.estimatedDailyUsed,
+      rateLimitWaitMs: groqUsage.rateLimitWaitMs,
+      fallbackUsed: groqUsage.fallbackUsed,
+      lastCallAt: groqUsage.lastCallAt,
+    } : null,
     gpu: getGpuManager().status(),
-    stats: health.ok ? await llm.getStats() : [],
+    stats: [],
   });
 }
 

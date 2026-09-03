@@ -22,6 +22,7 @@ import { ProjectWorkflowService } from "./project-workflow";
 import { classifyRequest } from "./request-intent-classifier";
 import { checkEntailment } from "./claim-entailment-gate";
 import { validateAntirepetition, validateCompleteSentences, humanConversationGate, gateBloqueado } from "@la-veinte/radio-core";
+import { getGroqUsageForUI } from "../llm/llm-factory";
 import type { Project, Proposal, Script, VerifyResult, ResearchBundle, Turn } from "@la-veinte/studio-contract";
 
 export interface CriterionScores {
@@ -41,6 +42,9 @@ export interface QualityRubric extends CriterionScores {
   warnings: string[];
   weakScenes: string[];
   repairInstructions: string[];
+  blocked?: boolean;
+  needsAttention?: boolean;
+  ready?: boolean;
 }
 
 export interface StepTrace {
@@ -55,16 +59,26 @@ export interface GenerationTrace {
   runId: string;
   projectId: string;
   pipelineVersion: string;
+  promptVersion: string;
   provider: string;
   model: string;
-  generationMode: "local-llm" | "fallback-determinista";
+  generationMode: "groq" | "local-llm" | "fallback-determinista";
   intentMode: string;
   cacheHit: boolean;
   startedAt: string;
   completedAt: string;
+  durationMs: number;
   steps: StepTrace[];
   scriptHash: string;
   rubric: QualityRubric;
+  // Token observability
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  totalTokens: number;
+  retries: number;
+  rateLimitWaitMs: number;
+  fallbackUsed: boolean;
 }
 
 const PIPELINE_VERSION = "v6-quality-orchestrator";
@@ -295,15 +309,20 @@ export class EpisodeWorkflowService {
     script: Script;
     verify: VerifyResult;
     rubric: QualityRubric;
-    generationMode: "local-llm" | "fallback-determinista";
+    generationMode: "groq" | "local-llm" | "fallback-determinista";
     steps: StepTrace[];
     scriptHash: string;
+    providerInfo: { provider: string; model: string };
   }> {
     void opts.useCache;
     const startedAt = new Date().toISOString();
     const runId = crypto.randomUUID();
     const steps: StepTrace[] = [];
-    let generationMode: "local-llm" | "fallback-determinista" = "local-llm";
+    let generationMode: "groq" | "local-llm" | "fallback-determinista" = "local-llm";
+
+    // Obtener info del proveedor activo para el trace
+    const providerInfo = this.inner.editorialLlm.providerInfo;
+    if (providerInfo.provider === "groq") generationMode = "groq";
 
     const project = this.inner.store.get(id);
     if (!project) throw new Error("PROJECT_NOT_FOUND");
@@ -429,21 +448,43 @@ bestRubric = evaluateRubric(selectedProposal, script, research, intent);
     }
     const scriptHash = sha256(script.turns);
     const completedAt = new Date().toISOString();
+    const durationMs = new Date(completedAt).getTime() - new Date(startedAt).getTime();
+
+    // Obtener uso de Groq si aplica
+    let rateLimitWaitMs = 0;
+    let fallbackUsed = false;
+    try {
+      const groqUsage = getGroqUsageForUI();
+      if (groqUsage) {
+        rateLimitWaitMs = groqUsage.rateLimitWaitMs;
+        fallbackUsed = groqUsage.fallbackUsed;
+        if (fallbackUsed) generationMode = "fallback-determinista";
+      }
+    } catch {}
 
     const trace: GenerationTrace = {
       runId,
       projectId: id,
       pipelineVersion: PIPELINE_VERSION,
-      provider: "ollama",
-      model: "qwen3.5:9b",
+      promptVersion: this.inner.editorialLlm.version,
+      provider: providerInfo.provider,
+      model: providerInfo.model,
       generationMode,
       intentMode: intent.mode,
       cacheHit: false,
       startedAt,
       completedAt,
+      durationMs,
       steps,
       scriptHash,
       rubric: bestRubric,
+      inputTokens: 0,
+      outputTokens: 0,
+      cachedTokens: 0,
+      totalTokens: 0,
+      retries: 0,
+      rateLimitWaitMs,
+      fallbackUsed,
     };
     try {
       const logsDir = this.inner.store.artifactPaths(id).logsDir;
@@ -463,6 +504,7 @@ bestRubric = evaluateRubric(selectedProposal, script, research, intent);
       generationMode,
       steps,
       scriptHash,
+      providerInfo,
     };
   }
 

@@ -21,6 +21,7 @@ import type {
 import { determineVacationRegime } from "./entitlement"
 import { getCompatibleInclusionMarks } from "./continuity"
 import { parseImssPayslipSeniority } from "@/features/tarjeton/lib/imss-seniority-parser"
+import { parsePorVencerDate } from "@/features/tarjeton/lib/imss-date-parser"
 
 export interface PrefilledVacationState {
   profile: WorkerProfile
@@ -306,9 +307,17 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
   // 9. Fecha "Por vencer"
   let dueDate = ""
   let isPorVencerMissingFromPayslip = false
-  if (vacationsRow?.porVencer) {
-    dueDate = vacationsRow.porVencer
-  } else {
+  const directDue = vacationsRow?.porVencer || vacationsRow?.dueDate
+  if (directDue) {
+    dueDate = directDue
+  } else if (vacationsRow?.porVencerRaw) {
+    const recovered = parsePorVencerDate(vacationsRow.porVencerRaw)
+    if (recovered) {
+      dueDate = recovered
+    }
+  }
+
+  if (!dueDate) {
     if (hasLatestPayslip && vacationsRow) {
       isPorVencerMissingFromPayslip = true
       warnings.push("Tu tarjetón no tiene la fecha 'Por vencer' persistida. Reimporta tu tarjetón una sola vez para recuperarla automáticamente, o captúrala directamente.")

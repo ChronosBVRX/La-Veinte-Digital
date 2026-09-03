@@ -1,13 +1,15 @@
 /**
- * LocalEditorialLLM — capa única de interacción editorial con Ollama (qwen3.5:9b).
+ * LocalEditorialLLM — capa única de interacción editorial con el LLM activo.
  *
  * TODA llamada editorial pasa por aquí: análisis, evaluación de evidencia,
  * propuesta, escaleta, escritura por sección, crítica, reparación y puentes.
- * El modelo local es razonador/director/escritor; las fuentes de verdad son
- * el corpus, el Evidence Pack y el Claim Ledger. No hay APIs remotas para guion.
+ * El modelo (Groq o Ollama) es razonador/director/escritor; las fuentes de verdad
+ * son el corpus, el Evidence Pack y el Claim Ledger.
+ * Selección de proveedor: llm-factory.ts vía LLM_PROVIDER env var.
  */
 import { z } from "zod";
-import { LocalLLMService, loadLlmConfig } from "../local-llm";
+import { type ILLMProvider } from "../local-llm";
+import { getActiveLLMProvider } from "../llm-factory";
 import {
   PRESETS,
   TOPIC_ANALYSIS,
@@ -89,27 +91,43 @@ const LooseProposalSchema = z.object({
 });
 
 export class LocalEditorialLLM {
-  constructor(private llm: LocalLLMService) {}
+  constructor(private llm: ILLMProvider) {}
 
   static create(repoRoot: string): LocalEditorialLLM {
-    return new LocalEditorialLLM(new LocalLLMService(loadLlmConfig(), repoRoot + "/data/tts"));
+    return new LocalEditorialLLM(getActiveLLMProvider(repoRoot));
   }
 
   get version(): string {
     return PROMPT_VERSION;
   }
 
+  /** Alias para compatibilidad: devuelve info del proveedor activo */
+  get providerInfo(): { provider: string; model: string } {
+    return { provider: this.llm.provider, model: this.llm.model };
+  }
+
   async isAvailable(): Promise<boolean> {
-    const cfg = loadLlmConfig();
-    if (!cfg.enabled) return false;
     const health = await this.llm.health();
     if (!health.ok) return false;
-    const models = await this.llm.listModels();
-    return models.some((m) => m.startsWith(cfg.model.split(":")[0]));
+    // Para Groq: si llega aquí y tiene key, está disponible
+    if (this.llm.provider === "groq") return true;
+    // Para Ollama: verificar que el modelo esté instalado
+    const ollamaLlm = this.llm as unknown as { listModels?: () => Promise<string[]>; cfg?: { model: string } };
+    if (typeof ollamaLlm.listModels === "function") {
+      const models = await ollamaLlm.listModels();
+      const model = this.llm.model;
+      return models.some((m: string) => m.startsWith(model.split(":")[0]));
+    }
+    return true;
   }
 
   async unload(): Promise<boolean> {
-    return this.llm.unload();
+    // Solo Ollama tiene unload; Groq no necesita descarga de VRAM
+    const ollamaLlm = this.llm as unknown as { unload?: () => Promise<boolean> };
+    if (typeof ollamaLlm.unload === "function") {
+      return ollamaLlm.unload();
+    }
+    return true;
   }
 
   private preset(p: LLMPreset): { temperature: number; task: string } {
