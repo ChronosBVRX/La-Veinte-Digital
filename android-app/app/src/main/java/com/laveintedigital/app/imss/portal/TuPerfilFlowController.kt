@@ -103,6 +103,16 @@ class TuPerfilFlowController(
         _state.value = TuPerfilFlowState.Error("No pudimos guardar el tarjetón.")
     }
 
+    /**
+     * Restablece el ciclo transitorio a Ready para permitir consultas
+     * consecutivas conservando opciones y sesión.
+     */
+    fun resetConsultationCycle() {
+        if (periodOptions.isNotEmpty()) {
+            _state.value = TuPerfilFlowState.Ready(ooadOptions, selectedOoad, periodOptions, selectedPeriod)
+        }
+    }
+
     fun start() { _state.value = TuPerfilFlowState.CheckingSession; session.start() }
     fun loginWithCredentials(username: String, password: String, remember: Boolean) =
         session.loginWithCredentials(username, password, remember)

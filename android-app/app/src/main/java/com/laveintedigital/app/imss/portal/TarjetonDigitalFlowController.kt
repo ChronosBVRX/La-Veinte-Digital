@@ -172,35 +172,78 @@ try{
         XML("rdoXML", "1"),
     }
 
+    private var consultationJob: Job? = null
+    @Volatile var activeRequestId: String? = null
+
+    /**
+     * Restablece el ciclo de consulta para permitir una nueva petición
+     * consecutiva sin cerrar el modal ni perder credenciales o sesión.
+     */
+    fun resetConsultationCycle() {
+        consultationJob?.cancel()
+        consultationJob = null
+        activeRequestId = null
+        ImssPdfCaptureCoordinator.finishSession()
+        if (periods.isNotEmpty() && authenticated) {
+            _state.value = TarjetonDigitalFlowState.TarjetonReady(periods, selectedPeriod, delegaciones)
+        }
+    }
+
     /**
      * Selecciona el periodo y pulsa "Aceptar" (formato Archivo) para que el
      * portal genere el comprobante. El PDF lo captura [ImssPdfCaptureCoordinator]
      * vía el bridge `TarjetonDigitalBridge`.
      */
     fun consultarTarjeton(period: TarjetonPeriod, tipo: TarjetonTipo) {
-        scope.launch {
-            val wv = webViewReady.await()
+        // Prevención de doble clic: si ya hay una generación activa en curso, ignorar
+        val current = _state.value
+        if (current is TarjetonDigitalFlowState.GeneratingTarjeton || current is TarjetonDigitalFlowState.SavingTarjeton) {
+            Log.w(TAG, "CONSULTAR_TARJETON_IGNORED request already in progress")
+            return
+        }
+
+        consultationJob?.cancel()
+        val requestId = java.util.UUID.randomUUID().toString()
+        activeRequestId = requestId
+
+        // Limpiar cualquier sesión previa antes de empezar una nueva consulta
+        ImssPdfCaptureCoordinator.finishSession()
+
+        consultationJob = scope.launch {
             selectedPeriod = period
             _state.value = TarjetonDigitalFlowState.GeneratingTarjeton
-            Log.i(TAG, "CONSULTAR_TARJETON period=${period.code} tipo=${tipo.value}")
-            val r = parseJson(evaluateJs(wv, GENERATE_SCRIPT(
-                org.json.JSONObject.quote(period.code), tipo.radioId)))
-            if (r?.optBoolean("ok") != true) {
-                Log.w(TAG, "GENERATE_CLICK_FAILED reason=${r?.optString("reason")}")
-            }
-            // Espera al guardado o falla por timeout.
+            Log.i(TAG, "CONSULTAR_TARJETON requestId=$requestId period=${period.code} tipo=${tipo.value}")
+
             var saved = false
             try {
-                withTimeout(45_000L) {
-                    while (true) {
-                        delay(500)
-                        if (_state.value is TarjetonDigitalFlowState.TarjetonSaved) { saved = true; break }
-                    }
+                val wv = webViewReady.await()
+                val r = parseJson(evaluateJs(wv, GENERATE_SCRIPT(
+                    org.json.JSONObject.quote(period.code), tipo.radioId)))
+                if (r?.optBoolean("ok") != true) {
+                    Log.w(TAG, "GENERATE_CLICK_FAILED reason=${r?.optString("reason")}")
                 }
-            } catch (_: TimeoutCancellationException) {}
-            if (!saved) {
-                ImssPdfCaptureCoordinator.finishSession()
-                markCaptureFailed()
+                // Espera al guardado o falla por timeout.
+                try {
+                    withTimeout(45_000L) {
+                        while (true) {
+                            delay(500)
+                            if (_state.value is TarjetonDigitalFlowState.TarjetonSaved) {
+                                saved = true
+                                break
+                            }
+                        }
+                    }
+                } catch (_: TimeoutCancellationException) {
+                    Log.w(TAG, "CONSULTATION_TIMEOUT requestId=$requestId period=${period.code}")
+                }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                Log.e(TAG, "CONSULTATION_EXCEPTION requestId=$requestId", e)
+            } finally {
+                if (!saved && activeRequestId == requestId) {
+                    ImssPdfCaptureCoordinator.finishSession()
+                    markCaptureFailed()
+                }
             }
         }
     }

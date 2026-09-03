@@ -141,9 +141,9 @@ fun TarjetonDigitalTarjetonOverlay(
                         enabled = false,
                     )
                     savedTitle != null -> LvdPrimaryButton(
-                        text = "Tarjetón guardado",
-                        onClick = {},
-                        enabled = false,
+                        text = "Consultar de nuevo",
+                        onClick = onConsultar,
+                        enabled = ready && selectedPeriod != null,
                     )
                     else -> LvdPrimaryButton(
                         text = "Consultar tarjetón",

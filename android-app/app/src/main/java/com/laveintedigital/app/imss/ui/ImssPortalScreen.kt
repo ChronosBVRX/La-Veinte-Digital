@@ -60,6 +60,7 @@ fun ImssPortalScreen(
         if (portal == ImssPortal.TU_PERFIL) TuPerfilFlowController(scope, context) else null
     }
     val flowState by (flowController?.state?.collectAsState() ?: remember { mutableStateOf(null as TuPerfilFlowState?) })
+    var tuPerfilConsultationJob by remember { mutableStateOf<Job?>(null) }
 
     // For Tarjetón Digital, use its dedicated flow controller
     val tarjetonController = remember {
@@ -440,7 +441,12 @@ fun ImssPortalScreen(
                     TarjetonDigitalTarjetonOverlay(
                         periods = tarjetonController.periods,
                         selectedPeriod = tarjetonController.selectedPeriod,
-                        onPeriodSelected = { p -> tarjetonController.selectedPeriod = p },
+                        onPeriodSelected = { p ->
+                            if (ts is TarjetonDigitalFlowState.TarjetonSaved || ts is TarjetonDigitalFlowState.TarjetonError) {
+                                tarjetonController.resetConsultationCycle()
+                            }
+                            tarjetonController.selectedPeriod = p
+                        },
                         tipo = tarjetonTipo,
                         onTipoSelected = { tarjetonTipo = it },
                         onConsultar = {
@@ -495,6 +501,9 @@ fun ImssPortalScreen(
                     ooadOptions = flowController?.ooadOptions ?: emptyList(),
                     selectedOoad = flowController?.selectedOoad,
                     onOoadSelected = { ooad ->
+                        if (flowState is TuPerfilFlowState.TarjetonSaved || flowState is TuPerfilFlowState.Error) {
+                            flowController?.resetConsultationCycle()
+                        }
                         flowController?.selectedOoad = ooad
                         scope.launch {
                             webView?.let { wv ->
@@ -507,27 +516,42 @@ fun ImssPortalScreen(
                     },
                     periodOptions = flowController?.periodOptions ?: emptyList(),
                     selectedPeriod = flowController?.selectedPeriod,
-                    onPeriodSelected = { p -> flowController?.selectedPeriod = p },
+                    onPeriodSelected = { p ->
+                        if (flowState is TuPerfilFlowState.TarjetonSaved || flowState is TuPerfilFlowState.Error) {
+                            flowController?.resetConsultationCycle()
+                        }
+                        flowController?.selectedPeriod = p
+                    },
                     onConsultar = {
                         val period = flowController?.selectedPeriod ?: return@TuPerfilTarjetonOverlay
-                        // Session must exist BEFORE clicking Buscar, and the monitor hook
-                        // is installed before this point, so blob PDFs are captured.
-                        val session = ImssPdfCaptureCoordinator.startCaptureSession(portal, flowController?.selectedOoad, period)
-                            ?: return@TuPerfilTarjetonOverlay
-                        flowController?.markGenerating()
-                        Log.i("ImssPdfCapture", "SEARCH_CLICKED sessionId=${session.id}")
-                        scope.launch {
+                        // Debounce: evitar doble clic si ya está en progreso
+                        if (flowState is TuPerfilFlowState.GeneratingTarjeton || flowState is TuPerfilFlowState.SavingTarjeton) {
+                            Log.w("ImssPdfCapture", "SEARCH_CLICKED_IGNORED consultation already active")
+                            return@TuPerfilTarjetonOverlay
+                        }
+
+                        tuPerfilConsultationJob?.cancel()
+                        tuPerfilConsultationJob = scope.launch {
+                            // Limpiar sesión anterior
+                            ImssPdfCaptureCoordinator.finishSession()
+
+                            val session = ImssPdfCaptureCoordinator.startCaptureSession(portal, flowController?.selectedOoad, period)
+                            if (session == null) {
+                                Log.w("ImssPdfCapture", "COULD_NOT_START_SESSION")
+                                return@launch
+                            }
+                            flowController?.markGenerating()
+                            Log.i("ImssPdfCapture", "SEARCH_CLICKED sessionId=${session.id}")
                             webView?.let { wv ->
                                 TuPerfilPortalAdapter.selectPeriodAndSearch(wv, period.code) { ok ->
                                     if (!ok) Log.w("ImssPdfCapture", "SEARCH_CLICK_FAILED sessionId=${session.id}")
                                 }
                             }
-                        }
-                        // Timeout: if the tarjetón never arrives, surface an error; otherwise just close.
-                        scope.launch {
+
+                            // Timeout de 45 segundos para esta consulta específica
                             delay(45_000)
                             val s = ImssPdfCaptureCoordinator.activeSession
-                            if (s != null) {
+                            if (s != null && s.id == session.id) {
                                 val hadTarjeton = s.tarjetonDocumentId != null
                                 ImssPdfCaptureCoordinator.finishSession()
                                 if (!hadTarjeton) flowController?.markCaptureFailed()
