@@ -1,88 +1,35 @@
 "use client"
 
-import { useState, useCallback, useEffect, type CSSProperties } from "react"
+import { useState, useEffect, useMemo, type CSSProperties } from "react"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
-import { Input } from "@/shared/components/ui/Input"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
-import { calculateCompletedYears, determineVacationRegime } from "../domain/entitlement"
-import { isCycleClosed, getCompatibleInclusionMarks } from "../domain/continuity"
-import { validateAnticipation } from "../domain/validation"
-import { institutionalToday } from "@/shared/lib/dates"
-import { buildSimulationResult } from "../domain/simulation"
+import { createClient } from "@/lib/supabase/client"
 import { prefillVacationSimulator } from "../domain/prefill"
 import { formatMexicanDate } from "@/features/tarjeton/lib/imss-date-parser"
+import { formatMexicanCurrency } from "../domain/payment-estimate"
+import { getMarkGuidance, orderMarksByPriority, getIncompatibleReason, type VacationPriority } from "../domain/option-guidance"
+import { getRequiredPeriodCount, buildVacationPlan, type PlanSelectionStep } from "../domain/annual-plan"
+import { getCompatibleInclusionMarks } from "../domain/continuity"
+import { getPublishedCalendar, getAllCalendars } from "../services/calendar-service"
 import type { WorkerContext } from "@/shared/server/worker-context-builder"
 import type {
-  WorkerProfile, VacationSimulationInput, VacationSimulationResult,
-  ContractType, VacationRegime, WorkScheduleType,
+  AnnualVacationCalendar,
+  VacationPlanInput,
+  VacationRole,
+  VacationEntitlement,
 } from "../domain/types"
 
-type Step =
+type WizardStep =
   | "welcome"
-  | "profile-confirm"
-  | "tarjeton-data"
-  | "work-schedule"
-  | "radiation"
-  | "regime-info"
-  | "continuity"
-  | "inclusion-options"
-  | "calendar"
-  | "result"
-  | "save"
-
-interface WizardState {
-  step: Step
-  profile: WorkerProfile
-  continuityMark: number
-  nextPeriodNumber: number
-  dueDate: string
-  expiredVacationPeriods: number
-  enjoyedVacationDays: number
-  totalYearVacationDays: number
-  periodToEnjoy: number
-  selectedInclusionMark: number
-  selectedStartDate: string
-  regime: VacationRegime
-  result: VacationSimulationResult | null
-  loading: boolean
-  error: string
-  calendarMonth: number
-  calendarYear: number
-  provenance?: {
-    sourceDescription: string
-    hasLatestPayslip: boolean
-    hasProfile: boolean
-    hasEmployment: boolean
-    hasVacationProfile: boolean
-    periodLabel: string | null
-    isPorVencerMissingFromPayslip: boolean
-  }
-  warnings?: string[]
-}
-
-const CONTRACT_OPTIONS: { value: ContractType; label: string }[] = [
-  { value: "BASE", label: "Base" },
-  { value: "CONFIANZA_B", label: "Confianza B" },
-  { value: "CONFIANZA", label: "Confianza" },
-  { value: "CONFIANZA_A_ESTATUTO", label: "Confianza A (Estatuto)" },
-  { value: "TEMPORAL", label: "Temporal" },
-  { value: "SUSTITUTO", label: "Sustituto" },
-  { value: "MEDICO_RESIDENTE", label: "Médico Residente" },
-  { value: "BECADO", label: "Becado" },
-  { value: "OTRO", label: "Otro" },
-]
-
-const SCHEDULE_OPTIONS: { value: string; label: string }[] = [
-  { value: "ORDINARY", label: "Trabajo entre semana" },
-  { value: "ACCUMULATED_WEEKEND_DAY", label: "Trabajo principalmente sábado y domingo" },
-  { value: "ACCUMULATED_NIGHT", label: "Trabajo tres noches alternadas" },
-  { value: "ROTATING", label: "Mis días cambian" },
-  { value: "CUSTOM", label: "Otro horario" },
-]
+  | "found"
+  | "preference"
+  | "planning"
+  | "comparison"
+  | "summary"
 
 const CONTAINER: CSSProperties = {
-  maxWidth: 720,
+  maxWidth: 760,
   margin: "0 auto",
   padding: "1rem",
 }
@@ -98,13 +45,7 @@ const SUBTITLE: CSSProperties = {
   color: "var(--muted)",
   fontSize: "0.875rem",
   marginBottom: "1.5rem",
-}
-
-const FIELD_GROUP: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "1rem",
-  marginBottom: "1.5rem",
+  lineHeight: 1.5,
 }
 
 const BUTTON_ROW: CSSProperties = {
@@ -112,1041 +53,957 @@ const BUTTON_ROW: CSSProperties = {
   gap: "0.75rem",
   justifyContent: "space-between",
   marginTop: "1.5rem",
+  flexWrap: "wrap",
 }
 
-const DISCLAIMER: CSSProperties = {
+const INFO_GRID: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gap: "0.75rem",
+  marginBottom: "1rem",
+}
+
+const INFO_CARD: CSSProperties = {
   background: "var(--accent)",
   border: "1px solid var(--border)",
   borderRadius: "var(--radius)",
   padding: "0.75rem 1rem",
-  fontSize: "0.8rem",
-  color: "var(--muted)",
-  marginTop: "1.5rem",
-  textAlign: "center",
 }
 
-const WARN_BOX: CSSProperties = {
+const ALERT_WARN: CSSProperties = {
   background: "#fef3c7",
   border: "1px solid #f59e0b",
   borderRadius: "var(--radius)",
   padding: "0.75rem 1rem",
-  fontSize: "0.85rem",
   color: "#92400e",
-  marginBottom: "1rem",
-}
-
-const REVIEW_BOX: CSSProperties = {
-  background: "#fee2e2",
-  border: "1px solid #ef4444",
-  borderRadius: "var(--radius)",
-  padding: "0.75rem 1rem",
   fontSize: "0.85rem",
-  color: "#991b1b",
   marginBottom: "1rem",
+  lineHeight: 1.4,
 }
 
-const STEP_INDICATOR: CSSProperties = {
-  display: "flex",
-  gap: "0.375rem",
-  marginBottom: "1.5rem",
-  justifyContent: "center",
+const BADGE: CSSProperties = {
+  display: "inline-block",
+  padding: "0.2rem 0.6rem",
+  borderRadius: "9999px",
+  fontSize: "0.75rem",
+  fontWeight: 600,
+  background: "var(--primary)",
+  color: "var(--primary-fg)",
 }
 
-const DOT: CSSProperties = {
-  width: 8,
-  height: 8,
-  borderRadius: "50%",
-  background: "var(--border)",
-  transition: "background 0.3s ease",
-}
+// Roles de respaldo estructural si el servidor aún no tiene publicado el calendario oficial 2027
+const STRUCTURAL_ROLES_2027: VacationRole[] = [
+  { id: "str-1", roleNumber: 1, startDate: "2027-01-16", endDate: "2027-01-31", roleGroup: "A", label: "Rol #1 (16 a 31 Ene)", enabled: true },
+  { id: "str-2", roleNumber: 2, startDate: "2027-02-01", endDate: "2027-02-15", roleGroup: "B", label: "Rol #2 (01 a 15 Feb)", enabled: true },
+  { id: "str-3", roleNumber: 3, startDate: "2027-02-16", endDate: "2027-02-28", roleGroup: "A", label: "Rol #3 (16 a 28 Feb)", enabled: true },
+  { id: "str-4", roleNumber: 4, startDate: "2027-03-01", endDate: "2027-03-15", roleGroup: "B", label: "Rol #4 (01 a 15 Mar)", enabled: true },
+  { id: "str-5", roleNumber: 5, startDate: "2027-03-16", endDate: "2027-03-31", roleGroup: "A", label: "Rol #5 (16 a 31 Mar)", enabled: true },
+  { id: "str-6", roleNumber: 6, startDate: "2027-04-01", endDate: "2027-04-15", roleGroup: "B", label: "Rol #6 (01 a 15 Abr)", enabled: true },
+  { id: "str-7", roleNumber: 7, startDate: "2027-04-16", endDate: "2027-04-30", roleGroup: "A", label: "Rol #7 (16 a 30 Abr)", enabled: true },
+  { id: "str-8", roleNumber: 8, startDate: "2027-05-01", endDate: "2027-05-15", roleGroup: "B", label: "Rol #8 (01 a 15 May)", enabled: true },
+  { id: "str-9", roleNumber: 9, startDate: "2027-05-16", endDate: "2027-05-31", roleGroup: "A", label: "Rol #9 (16 a 31 May)", enabled: true },
+  { id: "str-10", roleNumber: 10, startDate: "2027-06-01", endDate: "2027-06-15", roleGroup: "B", label: "Rol #10 (01 a 15 Jun)", enabled: true },
+  { id: "str-11", roleNumber: 11, startDate: "2027-06-16", endDate: "2027-06-30", roleGroup: "A", label: "Rol #11 (16 a 30 Jun)", enabled: true },
+  { id: "str-12", roleNumber: 12, startDate: "2027-07-01", endDate: "2027-07-15", roleGroup: "B", label: "Rol #12 (01 a 15 Jul)", enabled: true },
+  { id: "str-13", roleNumber: 13, startDate: "2027-07-16", endDate: "2027-07-31", roleGroup: "A", label: "Rol #13 (16 a 31 Jul)", enabled: true },
+  { id: "str-14", roleNumber: 14, startDate: "2027-08-01", endDate: "2027-08-15", roleGroup: "B", label: "Rol #14 (01 a 15 Ago)", enabled: true },
+  { id: "str-15", roleNumber: 15, startDate: "2027-08-16", endDate: "2027-08-31", roleGroup: "A", label: "Rol #15 (16 a 31 Ago)", enabled: true },
+  { id: "str-16", roleNumber: 16, startDate: "2027-09-01", endDate: "2027-09-15", roleGroup: "B", label: "Rol #16 (01 a 15 Sep)", enabled: true },
+  { id: "str-17", roleNumber: 17, startDate: "2027-09-16", endDate: "2027-09-30", roleGroup: "A", label: "Rol #17 (16 a 30 Sep)", enabled: true },
+  { id: "str-18", roleNumber: 18, startDate: "2027-10-01", endDate: "2027-10-15", roleGroup: "B", label: "Rol #18 (01 a 15 Oct)", enabled: true },
+  { id: "str-19", roleNumber: 19, startDate: "2027-10-16", endDate: "2027-10-31", roleGroup: "A", label: "Rol #19 (16 a 31 Oct)", enabled: true },
+  { id: "str-20", roleNumber: 20, startDate: "2027-11-01", endDate: "2027-11-15", roleGroup: "B", label: "Rol #20 (01 a 15 Nov)", enabled: true },
+  { id: "str-21", roleNumber: 21, startDate: "2027-11-16", endDate: "2027-11-30", roleGroup: "A", label: "Rol #21 (16 a 30 Nov)", enabled: true },
+  { id: "str-22", roleNumber: 22, startDate: "2027-12-01", endDate: "2027-12-15", roleGroup: "B", label: "Rol #22 (01 a 15 Dic)", enabled: true },
+  { id: "str-23", roleNumber: 23, startDate: "2027-12-16", endDate: "2027-12-31", roleGroup: "A", label: "Rol #23 (16 a 31 Dic)", enabled: true },
+]
 
-const DOT_ACTIVE: CSSProperties = { ...DOT, background: "var(--primary)" }
-const DOT_DONE: CSSProperties = { ...DOT, background: "var(--success, #22c55e)" }
+export function VacationWizard({ initialContext }: { initialContext?: WorkerContext | null }) {
+  const [step, setStep] = useState<WizardStep>("welcome")
+  const [priority, setPriority] = useState<VacationPriority>("COMPARE_ALL")
+  const [activePeriodIdx, setActivePeriodIdx] = useState<number>(1)
+  const [selections, setSelections] = useState<Record<number, PlanSelectionStep>>({})
+  const [calendar, setCalendar] = useState<AnnualVacationCalendar | null>(null)
+  const [loadingCalendar, setLoadingCalendar] = useState<boolean>(true)
+  const [savedSuccess, setSavedSuccess] = useState<boolean>(false)
 
-export interface VacationWizardProps {
-  initialContext?: WorkerContext | null
-}
+  const supabase = createClient()
 
-export function VacationWizard({ initialContext }: VacationWizardProps = {}) {
-  const [state, setState] = useState<WizardState>(() => {
-    const today = institutionalToday()
-    if (initialContext) {
-      const prefill = prefillVacationSimulator(initialContext)
-      return {
-        step: "welcome",
-        profile: prefill.profile,
-        continuityMark: prefill.continuityMark,
-        nextPeriodNumber: prefill.nextPeriodNumber,
-        dueDate: prefill.dueDate,
-        expiredVacationPeriods: prefill.expiredVacationPeriods,
-        enjoyedVacationDays: prefill.enjoyedVacationDays,
-        totalYearVacationDays: prefill.totalYearVacationDays,
-        periodToEnjoy: prefill.periodToEnjoy,
-        selectedInclusionMark: prefill.selectedInclusionMark,
-        selectedStartDate: prefill.selectedStartDate,
-        regime: prefill.regime,
-        result: null,
-        loading: false,
-        error: "",
-        calendarMonth: today.getMonth(),
-        calendarYear: today.getFullYear(),
-        provenance: prefill.provenance,
-        warnings: prefill.warnings,
-      }
-    }
-    return {
-      step: "welcome",
-      profile: {
-        contractType: "BASE",
-        effectiveSeniority: { years: 0, fortnights: 0, days: 0, precision: "APPROXIMATE" },
-        weeklyRestDays: [5, 6],
-        radiologicalExposure: false,
-      },
-      continuityMark: 0,
-      nextPeriodNumber: 1,
-      dueDate: "",
-      expiredVacationPeriods: 0,
-      enjoyedVacationDays: 0,
-      totalYearVacationDays: 0,
-      periodToEnjoy: 1,
-      selectedInclusionMark: 0,
-      selectedStartDate: "",
-      regime: "SEMESTRAL",
-      result: null,
-      loading: false,
-      error: "",
-      calendarMonth: today.getMonth(),
-      calendarYear: today.getFullYear(),
-    }
-  })
-
+  // Carga del calendario oficial o borrador
   useEffect(() => {
-    if (initialContext) return
     let active = true
-    fetch("/api/worker-context")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: WorkerContext | null) => {
-        if (!active || !data) return
-        const prefill = prefillVacationSimulator(data)
-        setState((prev) => ({
-          ...prev,
-          profile: { ...prev.profile, ...prefill.profile },
-          continuityMark: prefill.continuityMark,
-          nextPeriodNumber: prefill.nextPeriodNumber,
-          dueDate: prefill.dueDate,
-          expiredVacationPeriods: prefill.expiredVacationPeriods,
-          enjoyedVacationDays: prefill.enjoyedVacationDays,
-          totalYearVacationDays: prefill.totalYearVacationDays,
-          periodToEnjoy: prefill.periodToEnjoy,
-          selectedInclusionMark: prefill.selectedInclusionMark,
-          regime: prefill.regime,
-          provenance: prefill.provenance,
-          warnings: prefill.warnings,
-        }))
+    getPublishedCalendar(supabase, 2027)
+      .then(async (pub) => {
+        if (!active) return
+        if (pub && pub.roles.length > 0) {
+          setCalendar(pub)
+        } else {
+          // Buscar si hay borrador de 2027 o lista general
+          const all = await getAllCalendars(supabase)
+          const draft2027 = all.find((c) => c.year === 2027)
+          if (draft2027 && draft2027.roles.length > 0) {
+            setCalendar(draft2027)
+          } else {
+            // Estructura modelo provisional
+            setCalendar({
+              id: "cal-2027-provisional",
+              year: 2027,
+              version: "Modelo Estructural Provisional",
+              status: "DRAFT",
+              sourceName: "Modelo Estructural Base (Provisional)",
+              roles: STRUCTURAL_ROLES_2027,
+            })
+          }
+        }
       })
-      .catch(() => {})
+      .catch(() => {
+        if (active) {
+          setCalendar({
+            id: "cal-2027-provisional",
+            year: 2027,
+            version: "Modelo Estructural Provisional",
+            status: "DRAFT",
+            sourceName: "Modelo Estructural Base (Provisional)",
+            roles: STRUCTURAL_ROLES_2027,
+          })
+        }
+      })
+      .finally(() => {
+        if (active) setLoadingCalendar(false)
+      })
+
     return () => {
       active = false
     }
+  }, [supabase])
+
+  // Precarga de datos laborales del tarjetón
+  const prefilled = useMemo(() => {
+    return prefillVacationSimulator(initialContext)
   }, [initialContext])
 
-  const updateState = useCallback((partial: Partial<WizardState>) => {
-    setState((prev) => ({ ...prev, ...partial }))
-  }, [])
+  const effectiveSeniorityYears = prefilled.profile.effectiveSeniority.years
+  const initialContinuity = prefilled.continuityMark
+  const regime = prefilled.regime
+  const rawDueDate = prefilled.dueDate
+  const formattedDueDate = rawDueDate ? formatMexicanDate(rawDueDate) : null
 
-  const goTo = useCallback((step: Step) => {
-    updateState({ step, error: "" })
-  }, [updateState])
+  // Sueldo Mensual Integrado
+  const smi = initialContext?.payroll?.integratedMonthlySalary ?? null
+  const smiMeta = initialContext?.payroll?.integratedSalaryMeta
+  const sourcePayslipPeriod = initialContext?.payroll?.latestPeriod ?? undefined
+  const isReconstructedSmi = smiMeta?.origin === "RECONSTRUCTED"
 
-  const setProfile = useCallback((partial: Partial<WorkerProfile>) => {
-    setState((prev) => ({ ...prev, profile: { ...prev.profile, ...partial } }))
-  }, [])
+  // Detección de derecho V20
+  const twentyYearsOrMoreDays = initialContext?.vacations?.twentyYearsOrMoreDays ?? 0
+  const hasConfirmedV20 = twentyYearsOrMoreDays > 0
+  const hasSeniorityForV20 = effectiveSeniorityYears >= 20
+  const hasV20 = hasConfirmedV20 || hasSeniorityForV20
 
-  function determineRegime(): VacationRegime {
-    const years = calculateCompletedYears(state.profile.effectiveSeniority)
-    const isV20 = (state.nextPeriodNumber >= 220 || state.periodToEnjoy >= 220) && years >= 20
-    return determineVacationRegime(
-      state.profile.contractType,
-      years,
-      state.profile.radiologicalExposure ?? false,
-      isV20
-    )
+  const requiredPeriodCount = getRequiredPeriodCount(regime, hasV20)
+
+  // Derechos vacacionales
+  const entitlements: VacationEntitlement[] = useMemo(() => {
+    return initialContext?.vacations?.entitlements ?? [
+      {
+        id: "ord-1",
+        kind: "ORDINARY" as const,
+        periodNumber: 1,
+        dueDate: rawDueDate,
+        sourcePayslipPeriod: sourcePayslipPeriod || "",
+        confirmed: Boolean(rawDueDate),
+      },
+      {
+        id: "ord-2",
+        kind: "ORDINARY" as const,
+        periodNumber: 2,
+        sourcePayslipPeriod: sourcePayslipPeriod || "",
+        confirmed: false,
+      },
+    ]
+  }, [initialContext, rawDueDate, sourcePayslipPeriod])
+
+  const planInput: VacationPlanInput = useMemo(() => ({
+    workerProfile: prefilled.profile,
+    regime,
+    initialContinuity,
+    entitlements,
+    calendar,
+    integratedMonthlySalary: smi,
+    sourcePayslipPeriod,
+    isReconstructedSmi,
+  }), [prefilled.profile, regime, initialContinuity, entitlements, calendar, smi, sourcePayslipPeriod, isReconstructedSmi])
+
+  // Plan actual calculado
+  const planResult = useMemo(() => {
+    return buildVacationPlan(planInput, selections)
+  }, [planInput, selections])
+
+  // Manejo de selecciones por periodo
+  function handleSelectMark(periodIdx: number, mark: number) {
+    setSelections((prev) => ({
+      ...prev,
+      [periodIdx]: {
+        ...prev[periodIdx],
+        mark,
+      },
+    }))
   }
 
-  function handleRunSimulation() {
-    setState((prev) => {
-      try {
-        const regime = prev.regime || determineRegime()
-        const input: VacationSimulationInput = {
-          workerProfile: prev.profile,
-          regime,
-          continuityMark: prev.continuityMark,
-          nextPeriodNumber: prev.nextPeriodNumber,
-          dueDate: prev.dueDate,
-          expiredVacationPeriods: prev.expiredVacationPeriods,
-          enjoyedVacationDays: prev.enjoyedVacationDays,
-          totalYearVacationDays: prev.totalYearVacationDays,
-          periodToEnjoy: prev.periodToEnjoy,
-          calendarId: `manual-${institutionalToday().getFullYear()}`,
-          selectedInclusionMark: prev.selectedInclusionMark,
-          selectedStartDate: prev.selectedStartDate,
-        }
-        const result = buildSimulationResult(input)
-        return { ...prev, result, loading: false, error: "" }
-      } catch (e) {
-        return { ...prev, error: e instanceof Error ? e.message : "Error desconocido", loading: false }
-      }
+  function handleSelectRole(periodIdx: number, role: VacationRole) {
+    setSelections((prev) => ({
+      ...prev,
+      [periodIdx]: {
+        ...prev[periodIdx],
+        role,
+        startDate: role.startDate,
+        endDate: role.endDate,
+      },
+    }))
+  }
+
+  // Marcas compatibles para el periodo activo
+  const activePeriod = planResult.periods[activePeriodIdx - 1]
+  const currentContinuityForActive = activePeriod?.continuityBefore ?? initialContinuity
+
+  const allPossibleMarks = regime === "CUATRIMESTRAL"
+    ? [0, 2, 5]
+    : activePeriod?.kind === "V20"
+      ? [0, 6, 7, 8]
+      : [0, 1, 2, 3, 4, 9]
+
+  const allowedMarks = useMemo(() => {
+    if (activePeriod?.kind === "V20") {
+      return [0, 6, 7, 8]
+    }
+    return getCompatibleInclusionMarks(regime, currentContinuityForActive)
+  }, [regime, currentContinuityForActive, activePeriod?.kind])
+
+  const orderedAllowedMarks = useMemo(() => {
+    return orderMarksByPriority(allowedMarks, priority)
+  }, [allowedMarks, priority])
+
+  const disallowedMarks = allPossibleMarks.filter((m) => !allowedMarks.includes(m))
+
+  // Comparativa de alternativas (Paso 5)
+  const comparisonOptions = useMemo(() => {
+    if (regime !== "SEMESTRAL") return []
+
+    // Opción 1: Más dinero primero (marca 4 -> marca 9)
+    const optMoreNow = buildVacationPlan(planInput, {
+      1: { mark: 4, role: calendar?.roles[0] },
+      2: { mark: 9, role: calendar?.roles[1] },
     })
+
+    // Opción 2: Pago repartido (marca 1 -> marca 1)
+    const optSplit = buildVacationPlan(planInput, {
+      1: { mark: 1, role: calendar?.roles[0] },
+      2: { mark: 1, role: calendar?.roles[1] },
+    })
+
+    // Opción 3: Más descanso (marca 2 -> marca 3)
+    const optRest = buildVacationPlan(planInput, {
+      1: { mark: 2, role: calendar?.roles[0] },
+      2: { mark: 3, role: calendar?.roles[1] },
+    })
+
+    return [
+      {
+        id: "MORE_NOW",
+        name: "Más dinero en el primer periodo",
+        summary: "Cobras la ayuda cultural completa con marca 4 en el 1er periodo y cierras con marca 9.",
+        p1Gross: optMoreNow.periods[0]?.payment?.grossVacationExtra ?? null,
+        p2Gross: optMoreNow.periods[1]?.payment?.grossVacationExtra ?? null,
+        totalGross: optMoreNow.totalGrossVacationExtra,
+        marks: [4, 9],
+      },
+      {
+        id: "SPLIT_PAY",
+        name: "Pago repartido al 50%",
+        summary: "Divides el descanso y la ayuda cultural al 50% en ambas fracciones con marca 1.",
+        p1Gross: optSplit.periods[0]?.payment?.grossVacationExtra ?? null,
+        p2Gross: optSplit.periods[1]?.payment?.grossVacationExtra ?? null,
+        totalGross: optSplit.totalGrossVacationExtra,
+        marks: [1, 1],
+      },
+      {
+        id: "MORE_REST",
+        name: "Conservar descanso (sin ayuda 048)",
+        summary: "Conservas un segundo periodo de descanso (marca 2→3). No paga la ayuda cultural.",
+        p1Gross: optRest.periods[0]?.payment?.grossVacationExtra ?? null,
+        p2Gross: optRest.periods[1]?.payment?.grossVacationExtra ?? null,
+        totalGross: optRest.totalGrossVacationExtra,
+        marks: [2, 3],
+      },
+    ]
+  }, [planInput, regime, calendar?.roles])
+
+  function applyComparisonOption(optMarks: number[]) {
+    setSelections((prev) => ({
+      ...prev,
+      1: { ...prev[1], mark: optMarks[0] },
+      2: { ...prev[2], mark: optMarks[1] },
+    }))
+    setStep("summary")
   }
 
-  function renderStepIndicator(currentStep: Step) {
-    const steps = ["welcome", "profile-confirm", "tarjeton-data", "work-schedule", "radiation", "continuity", "inclusion-options", "calendar", "result"]
-    const currentIdx = steps.indexOf(currentStep)
+  // ==================== VISTAS POR PASO ====================
+
+  // PASO 1: BIENVENIDA
+  if (step === "welcome") {
     return (
-      <div style={STEP_INDICATOR} aria-hidden>
-        {steps.map((s, i) => (
-          <div key={s} style={i === currentIdx ? DOT_ACTIVE : i < currentIdx ? DOT_DONE : DOT} />
-        ))}
+      <div style={CONTAINER}>
+        <h1 style={HEADER}>Asesor y Planificador Vacacional IMSS</h1>
+        <p style={SUBTITLE}>
+          Bienvenido a la simulación de tus vacaciones del siguiente año. La orientación se basa en tu tarjetón, tu antigüedad, el Contrato Colectivo, el procedimiento institucional y el calendario vacacional publicado.
+        </p>
+
+        {calendar?.status === "DRAFT" && (
+          <div style={ALERT_WARN}>
+            <strong>Aviso de calendario 2027:</strong> El calendario oficial 2027 todavía no está publicado por el IMSS. Puedes conocer tus opciones, derechos y los importes estimados que cobrarías, pero las fechas de los roles mostradas son provisionales.
+          </div>
+        )}
+
+        <Card padding="1.25rem" style={{ marginBottom: "1.5rem" }}>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem" }}>
+            ¿En qué te ayuda esta herramienta?
+          </h3>
+          <ul style={{ paddingLeft: "1.25rem", color: "var(--muted)", fontSize: "0.875rem", lineHeight: 1.8 }}>
+            <li>Saber cuántos periodos debes programar de acuerdo con tu tarjetón y antigüedad.</li>
+            <li>Conocer cuándo se genera cada derecho y la fecha límite por vencer.</li>
+            <li>Identificar qué marca paga más dinero en este momento, cuál divide el pago o cuál no incluye la ayuda.</li>
+            <li>Calcular cuánto recibirías aproximadamente en pesos por concepto de prima vacacional (029) y ayuda cultural (048).</li>
+            <li>Elegir roles válidos sin empalmes ni inconsistencias normativas.</li>
+          </ul>
+        </Card>
+
+        <div style={BUTTON_ROW}>
+          <div />
+          <Button variant="primary" onClick={() => setStep("found")}>
+            Comenzar simulación →
+          </Button>
+        </div>
       </div>
     )
   }
 
-  function renderWelcome() {
+  // PASO 2: LO ENCONTRADO EN TU TARJETÓN
+  if (step === "found") {
     return (
-      <>
-        {renderStepIndicator("welcome")}
-        <h1 style={HEADER}>Simulador de Programación de Vacaciones</h1>
+      <div style={CONTAINER}>
+        <h1 style={HEADER}>Lo que encontramos en tu tarjetón</h1>
         <p style={SUBTITLE}>
-          Este asistente te guiará paso a paso para conocer tus opciones de vacaciones
-          y simular la mejor fecha para ti. No necesitas conocer términos técnicos:
-          el sistema interpreta la normativa por ti.
+          Datos confirmados de tu relación laboral utilizados para la planificación anual:
         </p>
-        {state.provenance?.hasLatestPayslip && (
-          <div style={{ background: "var(--accent)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "0.75rem 1rem", marginBottom: "1.25rem", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
-            <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--fg)" }}>
-              Datos precargados del perfil laboral
-            </span>
-            <span style={{ fontSize: "0.75rem", background: "var(--primary)", color: "var(--primary-fg)", padding: "0.15rem 0.5rem", borderRadius: "9999px" }}>
-              {state.provenance.sourceDescription}
-            </span>
-          </div>
-        )}
-        {state.warnings && state.warnings.length > 0 && (
-          <div style={{ marginBottom: "1.25rem" }}>
-            {state.warnings.map((w, i) => (
-              <div key={i} style={WARN_BOX}>{w}</div>
-            ))}
-          </div>
-        )}
-        <Card style={{ marginBottom: "1.5rem" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            <p style={{ fontSize: "0.9rem", color: "var(--fg)", lineHeight: 1.6 }}>
-              El simulador utiliza tu perfil y la información de tu tarjetón para:
-            </p>
-            <ul style={{ fontSize: "0.85rem", color: "var(--muted)", paddingLeft: "1.25rem", lineHeight: 1.8 }}>
-              <li>Identificar el tipo de periodo que te corresponde</li>
-              <li>Mostrar las opciones compatibles con tu situación</li>
-              <li>Calcular fechas de inicio, término y reincorporación</li>
-              <li>Excluir automáticamente tus descansos semanales y obligatorios</li>
-              <li>Generar un resumen para guardar o compartir</li>
-            </ul>
-          </div>
-        </Card>
-        <div style={DISCLAIMER}>
-          Este simulador es informativo. La programación definitiva debe ser autorizada
-          y registrada por las áreas competentes del IMSS.
-        </div>
-        <div style={BUTTON_ROW}>
-          <div />
-          <Button onClick={() => goTo("profile-confirm")}>Comenzar</Button>
-        </div>
-      </>
-    )
-  }
 
-  function renderProfileConfirm() {
-    return (
-      <>
-        {renderStepIndicator("profile-confirm")}
-        <h2 style={HEADER}>Datos de tu perfil</h2>
-        <p style={SUBTITLE}>Confirmemos que tus datos son correctos. Puedes corregir cualquier dato aquí.</p>
-        <Card padding="1.25rem">
-          <div style={FIELD_GROUP}>
-            <Input label="Nombre completo" value={state.profile.fullName || ""} onChange={(e) => setProfile({ fullName: e.target.value })} />
-            <Input label="Matrícula" value={state.profile.matricula || ""} onChange={(e) => setProfile({ matricula: e.target.value })} />
-            <Input label="Categoría" value={state.profile.category || ""} onChange={(e) => setProfile({ category: e.target.value })} />
-            {state.profile.adscription && (
-              <Input label="Adscripción" value={state.profile.adscription} onChange={(e) => setProfile({ adscription: e.target.value })} />
-            )}
-            {state.profile.shift && (
-              <Input label="Turno" value={state.profile.shift} onChange={(e) => setProfile({ shift: e.target.value })} />
-            )}
+        <div style={INFO_GRID}>
+          <div style={INFO_CARD}>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Régimen vacacional</div>
+            <div style={{ fontSize: "1rem", fontWeight: 700 }}>
+              {regime === "CUATRIMESTRAL" ? "Cuatrimestral (Radiaciones)" : regime === "ESTATUTO" ? "Estatuto" : "Semestral Ordinario"}
+            </div>
+          </div>
+
+          <div style={INFO_CARD}>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Antigüedad efectiva</div>
+            <div style={{ fontSize: "1rem", fontWeight: 700 }}>
+              {effectiveSeniorityYears} {effectiveSeniorityYears === 1 ? "año cumplido" : "años cumplidos"}
+            </div>
+          </div>
+
+          <div style={INFO_CARD}>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Continuidad actual</div>
+            <div style={{ fontSize: "1rem", fontWeight: 700 }}>
+              Marca {initialContinuity}
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+              {initialContinuity === 0 ? "Inicio de ciclo" : initialContinuity === 1 ? "1ra fracción tomada" : initialContinuity === 3 ? "2do periodo pendiente" : "Secuencia en curso"}
+            </div>
+          </div>
+
+          <div style={INFO_CARD}>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Fecha por vencer</div>
+            <div style={{ fontSize: "1rem", fontWeight: 700 }}>
+              {formattedDueDate || "Pendiente de confirmar"}
+            </div>
+          </div>
+        </div>
+
+        {/* Sueldo Mensual Integrado */}
+        <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>
+          <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "0.25rem" }}>
+            Base de cálculo salarial (SMI)
+          </div>
+          {smi !== null && smi > 0 ? (
             <div>
-              <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.25rem" }}>Tipo de contratación</label>
-              <select
-                value={state.profile.contractType}
-                onChange={(e) => setProfile({ contractType: e.target.value as ContractType })}
-                style={{ width: "100%", padding: "0.5rem", borderRadius: "var(--radius)", border: "1px solid var(--border)", background: "var(--card)", color: "var(--fg)", fontSize: "0.875rem" }}
-              >
-                {CONTRACT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </div>
-            {(state.profile.contractType === "TEMPORAL" || state.profile.contractType === "SUSTITUTO") && (
-              <Input
-                label="Fecha de término del contrato (AAAA-MM-DD)"
-                type="date"
-                value={state.profile.contractEndDate || ""}
-                onChange={(e) => setProfile({ contractEndDate: e.target.value })}
-              />
-            )}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 85px), 1fr))", gap: "0.5rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
-              <Input label="Años de antigüedad" type="number" value={state.profile.effectiveSeniority.years} onChange={(e) => setProfile({ effectiveSeniority: { ...state.profile.effectiveSeniority, years: Number(e.target.value) } })} />
-              <Input label="Quincenas" type="number" value={state.profile.effectiveSeniority.fortnights} onChange={(e) => setProfile({ effectiveSeniority: { ...state.profile.effectiveSeniority, fortnights: Number(e.target.value) } })} />
-              <Input label="Días" type="number" value={state.profile.effectiveSeniority.days} onChange={(e) => setProfile({ effectiveSeniority: { ...state.profile.effectiveSeniority, days: Number(e.target.value) } })} />
-            </div>
-          </div>
-        </Card>
-        <div style={BUTTON_ROW}>
-          <Button variant="ghost" onClick={() => goTo("welcome")}>Atrás</Button>
-          <Button onClick={() => goTo("tarjeton-data")}>Continuar</Button>
-        </div>
-      </>
-    )
-  }
-
-  function renderTarjetonData() {
-    return (
-      <>
-        {renderStepIndicator("tarjeton-data")}
-        <h2 style={HEADER}>Datos de tu tarjetón</h2>
-        <p style={SUBTITLE}>Estos datos los encuentras en tu tarjetón de vacaciones.</p>
-
-        <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>
-          <div style={FIELD_GROUP}>
-            <div style={{ background: "var(--accent)", borderRadius: "var(--radius)", padding: "0.75rem", fontSize: "0.85rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
-              En tu tarjetón busca la sección de vacaciones. Ahí aparecen los siguientes datos.
-            </div>
-            {state.provenance?.isPorVencerMissingFromPayslip && (
-              <div style={WARN_BOX}>
-                <strong>Aviso sobre fecha &apos;Por vencer&apos;:</strong> Tu último tarjetón importado no tenía guardada esta fecha. Puedes capturarla directamente aquí para esta simulación. Si deseas que se autocomplete en el futuro, solo necesitas reimportar tu tarjetón una sola vez.
+              <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--primary)" }}>
+                {formatMexicanCurrency(smi)}
               </div>
-            )}
-            <Input
-              label="Marca de continuidad actual"
-              type="number"
-              value={state.continuityMark}
-              onChange={(e) => updateState({ continuityMark: Number(e.target.value) })}
-
-            />
-            <Input
-              label="Número de periodo por disfrutar"
-              type="number"
-              value={state.nextPeriodNumber}
-              onChange={(e) => updateState({ nextPeriodNumber: Number(e.target.value) })}
-            />
-            <Input
-              label="Fecha por vencer / vencimiento (AAAA-MM-DD)"
-              type="date"
-              value={state.dueDate}
-              onChange={(e) => updateState({ dueDate: e.target.value })}
-            />
-            {state.dueDate && (
-              <div style={{ fontSize: "0.8125rem", color: "var(--muted)", marginTop: "-0.25rem", marginBottom: "0.5rem" }}>
-                Fecha en formato mexicano: <strong style={{ color: "var(--fg)" }}>{formatMexicanDate(state.dueDate)}</strong>
-              </div>
-            )}
-            <Input
-              label="Periodos vencidos no disfrutados"
-              type="number"
-              value={state.expiredVacationPeriods}
-              onChange={(e) => updateState({ expiredVacationPeriods: Number(e.target.value) })}
-            />
-          </div>
-        </Card>
-
-        <div style={BUTTON_ROW}>
-          <Button variant="ghost" onClick={() => goTo("profile-confirm")}>Atrás</Button>
-          <Button onClick={() => goTo("work-schedule")} disabled={!state.dueDate}>Continuar</Button>
-        </div>
-      </>
-    )
-  }
-
-  function renderWorkSchedule() {
-    return (
-      <>
-        {renderStepIndicator("work-schedule")}
-        <h2 style={HEADER}>¿Cómo trabajas normalmente?</h2>
-        <p style={SUBTITLE}>Elige la opción que mejor describa tu horario habitual.</p>
-        <Card padding="1.25rem">
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {SCHEDULE_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => {
-                  setProfile({
-                    workScheduleType: opt.value as WorkScheduleType,
-                    weeklyRestDays: opt.value === "ACCUMULATED_WEEKEND_DAY" ? [0, 1, 2, 3, 4] : state.profile.weeklyRestDays,
-                  })
-                  goTo("radiation")
-                }}
-                style={{
-                  padding: "0.75rem 1rem",
-                  borderRadius: "var(--radius)",
-                  border: `1px solid ${state.profile.workScheduleType === opt.value ? "var(--primary)" : "var(--border)"}`,
-                  background: state.profile.workScheduleType === opt.value ? "var(--primary)" : "var(--card)",
-                  color: state.profile.workScheduleType === opt.value ? "var(--primary-fg)" : "var(--fg)",
-                  cursor: "pointer", textAlign: "left", fontSize: "0.9rem", fontWeight: 500,
-                  transition: "all var(--transition)",
-                }}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </Card>
-        <div style={{ marginTop: "0.75rem" }}>
-          <Button variant="ghost" onClick={() => goTo("tarjeton-data")}>Atrás</Button>
-        </div>
-      </>
-    )
-  }
-
-  function renderRadiation() {
-    return (
-      <>
-        {renderStepIndicator("radiation")}
-        <h2 style={HEADER}>Exposición a emanaciones radiactivas</h2>
-        <p style={SUBTITLE}>¿Laboras de manera constante y permanente en un área oficialmente reconocida con exposición a emanaciones radiactivas?</p>
-        <Card padding="1.25rem">
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            <Button onClick={() => { setProfile({ radiologicalExposure: true }); goTo("continuity") }}>Sí</Button>
-            <Button variant="secondary" onClick={() => { setProfile({ radiologicalExposure: false }); goTo("continuity") }}>No</Button>
-            <Button variant="ghost" onClick={() => { setProfile({ radiologicalExposure: "UNSURE" }); goTo("continuity") }}>
-              No estoy seguro
-            </Button>
-          </div>
-        </Card>
-        {state.profile.radiologicalExposure === "UNSURE" && (
-          <div style={WARN_BOX}>
-            Puedes continuar con la simulación, pero esta condición debe confirmarse con
-            Servicios de Personal para que sea válida.
-          </div>
-        )}
-        <div style={{ marginTop: "0.75rem" }}>
-          <Button variant="ghost" onClick={() => goTo("work-schedule")}>Atrás</Button>
-        </div>
-      </>
-    )
-  }
-
-  function renderContinuity() {
-    const regime = state.regime || determineRegime()
-    const closed = isCycleClosed(regime, state.continuityMark)
-    return (
-      <>
-        {renderStepIndicator("continuity")}
-        <h2 style={HEADER}>Estado de tus vacaciones</h2>
-        <Card padding="1.25rem">
-          <p style={{ fontSize: "0.9rem", lineHeight: 1.6, marginBottom: "1rem" }}>
-            {closed
-              ? "Tus periodos anteriores están completos. Puedes iniciar una nueva opción de programación."
-              : state.continuityMark === 1
-              ? "Tienes una primera parte pendiente de completar. Debes seleccionar la segunda parte."
-              : state.continuityMark === 3
-              ? "Tienes un periodo completo pendiente. Debes completarlo antes de iniciar otro."
-              : state.continuityMark === 4
-              ? "Debes completar tu segunda parte antes de iniciar un nuevo ciclo."
-              : "Tu ciclo actual requiere completarse antes de iniciar nuevas opciones."
-            }
-          </p>
-          <div style={DISCLAIMER}>
-            Marca de continuidad detectada: {state.continuityMark} | Régimen: {getRegimeLabel(regime)}
-          </div>
-        </Card>
-        <div style={BUTTON_ROW}>
-          <Button variant="ghost" onClick={() => goTo("radiation")}>Atrás</Button>
-          <Button onClick={() => goTo("inclusion-options")}>Ver opciones disponibles</Button>
-        </div>
-      </>
-    )
-  }
-
-  function renderInclusionOptions() {
-    const regime = state.regime || determineRegime()
-    const compatMarks = getCompatibleInclusionMarks(regime, state.continuityMark)
-    const options = compatMarks.map((m) => {
-      const details = getFriendlyOptionDetails(regime, m, state.continuityMark)
-      return { mark: m, label: details.label, desc: details.desc }
-    })
-    const allSemestralMarks = [0, 1, 2, 3, 4, 9]
-    const nonAllowedMarks = regime === "SEMESTRAL"
-      ? allSemestralMarks.filter((m) => !compatMarks.includes(m))
-      : []
-
-    return (
-      <>
-        {renderStepIndicator("inclusion-options")}
-        <h2 style={HEADER}>¿Cómo deseas disfrutar tus vacaciones?</h2>
-        <p style={SUBTITLE}>Selecciona una opción permitida según tu régimen ({getRegimeLabel(regime)}) y continuidad ({state.continuityMark}).</p>
-
-        <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>
-          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.75rem" }}>
-            Opciones permitidas en tu estado actual
-          </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {options.map((opt) => (
-              <button
-                key={opt.mark}
-                onClick={() => {
-                  updateState({ selectedInclusionMark: opt.mark })
-                  goTo("calendar")
-                }}
-                style={{
-                  padding: "0.75rem 1rem",
-                  borderRadius: "var(--radius)",
-                  border: "1px solid var(--border)",
-                  background: "var(--card)",
-                  cursor: "pointer", textAlign: "left", fontSize: "0.9rem", fontWeight: 500,
-                  transition: "all var(--transition)",
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>{opt.label}</div>
-                <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>{opt.desc}</div>
-              </button>
-            ))}
-          </div>
-        </Card>
-
-        {nonAllowedMarks.length > 0 && (
-          <Card padding="1.25rem" style={{ marginBottom: "1rem", background: "var(--accent)" }}>
-            <h3 style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--muted)", marginBottom: "0.5rem" }}>
-              Opciones no permitidas para tu continuidad actual (Marca {state.continuityMark})
-            </h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              {nonAllowedMarks.map((m) => {
-                const details = getFriendlyOptionDetails(regime, m, state.continuityMark)
-                const reason = getNonAllowedReason(m, state.continuityMark)
-                return (
-                  <div key={m} style={{ padding: "0.5rem 0.75rem", background: "var(--card)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", opacity: 0.75 }}>
-                    <div style={{ fontWeight: 600, fontSize: "0.82rem", color: "var(--muted)" }}>{details.label}</div>
-                    <div style={{ fontSize: "0.75rem", color: "#b91c1c", marginTop: "0.15rem" }}>Motivo: {reason}</div>
-                  </div>
-                )
-              })}
+              <p style={{ fontSize: "0.85rem", color: "var(--fg)", marginTop: "0.5rem" }}>
+                Para hacer este cálculo usamos el Sueldo Mensual Integrado de tu tarjetón {sourcePayslipPeriod ? `del periodo ${sourcePayslipPeriod}` : ""}: <strong>{formatMexicanCurrency(smi)}</strong>.
+              </p>
+              {isReconstructedSmi && (
+                <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
+                  * Importe reconstruido a partir de tus percepciones fijas confirmadas (conceptos 002, 011, etc.).
+                </div>
+              )}
             </div>
-          </Card>
-        )}
-
-        <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>
-          <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.5rem" }}>
-            Comportamiento de secuencias de continuidad (CCT Cláusula 47)
-          </h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: "0.75rem", fontSize: "0.8rem" }}>
-            <div style={{ padding: "0.5rem", background: "var(--accent)", borderRadius: "var(--radius-sm)" }}>
-              <strong>Secuencia 1 → 1:</strong> Fraccionamiento en 2 partes semejantes. Marca 1 para la primera fracción (continuidad 1); segunda marca 1 para la segunda fracción (cierra en continuidad 2).
-            </div>
-            <div style={{ padding: "0.5rem", background: "var(--accent)", borderRadius: "var(--radius-sm)" }}>
-              <strong>Secuencia 2 → 3:</strong> Periodos completos semestrales. Marca 2 para el primer periodo semestral (continuidad 3); marca 3 para el segundo periodo semestral (cierra en continuidad 6).
-            </div>
-            <div style={{ padding: "0.5rem", background: "var(--accent)", borderRadius: "var(--radius-sm)" }}>
-              <strong>Secuencia 4 → 9:</strong> Modalidad con pago. Marca 4 para la primera fracción (continuidad 4); marca 9 para la segunda fracción (cierra en continuidad 13).
-            </div>
-            <div style={{ padding: "0.5rem", background: "var(--accent)", borderRadius: "var(--radius-sm)" }}>
-              <strong>Secuencia 9 → 4:</strong> Modalidad con pago inversa. Marca 9 para la primera fracción (continuidad 9); marca 4 para la segunda fracción (cierra en continuidad 13).
-            </div>
-          </div>
-        </Card>
-
-        <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>
-          <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.5rem" }}>
-            Prestaciones independientes: Concepto 029 y Concepto 048
-          </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.82rem", color: "var(--muted)", lineHeight: 1.5 }}>
-            <p>
-              <strong style={{ color: "var(--fg)" }}>Concepto 029 (Ayuda para actividades culturales y recreativas):</strong> Es una percepción económica de 15 días de salario que acredita 30 días para efectos del cómputo de jubilación (Cláusula 47). No sustituye ni disminuye los días de descanso vacacional.
-            </p>
-            <p>
-              <strong style={{ color: "var(--fg)" }}>Concepto 048 (Prima vacacional):</strong> Es el pago contractual del 25% (o porcentaje CCT correspondiente) sobre el salario devengado durante el periodo de vacaciones efectivamente disfrutado.
-            </p>
-            <p style={{ fontStyle: "italic", color: "var(--fg)" }}>
-              Nota: Son conceptos independientes con normas de devengo y pago separadas; el pago del concepto 029 no anula el derecho a la prima vacacional 048.
-            </p>
-          </div>
-        </Card>
-
-        <div style={BUTTON_ROW}>
-          <Button variant="ghost" onClick={() => goTo("continuity")}>Atrás</Button>
-        </div>
-      </>
-    )
-  }
-
-  function renderCalendar() {
-    const calendarYear = state.calendarYear ?? institutionalToday().getFullYear()
-    const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-    const selectedMonth = state.calendarMonth
-    const isYear2027OrLater = calendarYear >= 2027
-
-    const regime = state.regime || determineRegime()
-
-    function isSelectable(day: number): boolean {
-      const dateStr = `${calendarYear}-${String(selectedMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
-      if (!state.dueDate) return true
-      const validation = validateAnticipation(
-        regime,
-        state.dueDate,
-        dateStr,
-        state.nextPeriodNumber <= 1 && state.expiredVacationPeriods === 0 && state.enjoyedVacationDays === 0,
-        calculateCompletedYears(state.profile.effectiveSeniority)
-      )
-      if (!validation.allowed) return false
-      if (state.profile.contractEndDate && dateStr > state.profile.contractEndDate) return false
-      return true
-    }
-
-    function handleDayClick(day: number) {
-      const dateStr = `${calendarYear}-${String(selectedMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
-      if (isSelectable(day)) {
-        updateState({ selectedStartDate: dateStr })
-      }
-    }
-
-    const daysInMonth = new Date(Date.UTC(calendarYear, selectedMonth + 1, 0)).getUTCDate()
-    const firstDayOfWeek = new Date(Date.UTC(calendarYear, selectedMonth, 1)).getUTCDay()
-
-    const yearAnticipation = state.selectedStartDate && state.dueDate
-      ? validateAnticipation(
-          regime,
-          state.dueDate,
-          state.selectedStartDate,
-          state.nextPeriodNumber <= 1 && state.expiredVacationPeriods === 0 && state.enjoyedVacationDays === 0,
-          calculateCompletedYears(state.profile.effectiveSeniority)
-        )
-      : null
-
-    return (
-      <>
-        {renderStepIndicator("calendar")}
-        <h2 style={HEADER}>Elige tu fecha de inicio</h2>
-        <p style={SUBTITLE}>
-          {state.dueDate ? `Fecha por vencer (adquisición del derecho): ${formatMexicanDate(state.dueDate)}. ` : ""}
-          Las fechas posteriores a vencimiento no requieren anticipación y están protegidas por prescripción legal de 2 años.
-        </p>
-
-        {isYear2027OrLater && (
-          <div style={WARN_BOX}>
-            <strong>⚠️ Aviso sobre Calendario 2027:</strong> El calendario anual oficial de roles para 2027 aún no ha sido publicado por el IMSS. Esta simulación utiliza fechas proyectadas conforme a la Cláusula 47 del CCT.
-            <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", lineHeight: 1.5 }}>
-              <div><strong>• Rol A:</strong> Asignación ordinaria para el primer grupo operativo de vacaciones.</div>
-              <div><strong>• Rol B:</strong> Asignación alternada para el segundo grupo operativo a fin de garantizar la cobertura en servicios hospitalarios y unidades de medicina familiar.</div>
-            </div>
-          </div>
-        )}
-
-        <Card padding="1.25rem">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                if (state.calendarMonth === 0) {
-                  updateState({ calendarMonth: 11, calendarYear: calendarYear - 1 })
-                } else {
-                  updateState({ calendarMonth: state.calendarMonth - 1 })
-                }
-              }}
-            >
-              ←
-            </Button>
-            <span style={{ fontWeight: 600 }}>{months[selectedMonth]} {calendarYear}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                if (state.calendarMonth === 11) {
-                  updateState({ calendarMonth: 0, calendarYear: calendarYear + 1 })
-                } else {
-                  updateState({ calendarMonth: state.calendarMonth + 1 })
-                }
-              }}
-            >
-              →
-            </Button>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px", textAlign: "center" }}>
-            {["Lu", "Ma", "Mi", "Ju", "Vi", "Sa", "Do"].map((d) => (
-              <div key={d} style={{ fontSize: "0.75rem", color: "var(--muted)", padding: "0.25rem" }}>{d}</div>
-            ))}
-            {Array.from({ length: firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1 }).map((_, i) => (
-              <div key={`e-${i}`} />
-            ))}
-            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
-              const selectable = isSelectable(day)
-              const dateStr = `${calendarYear}-${String(selectedMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
-              const isSelected = state.selectedStartDate === dateStr
-              return (
-                <button
-                  key={day}
-                  disabled={!selectable}
-                  onClick={() => handleDayClick(day)}
-                  aria-label={`${day} de ${months[selectedMonth]} de ${calendarYear}`}
-                  style={{
-                    padding: "0.5rem",
-                    borderRadius: "var(--radius-sm)",
-                    border: "none",
-                    background: isSelected ? "var(--primary)" : selectable ? "var(--card)" : "var(--accent)",
-                    color: isSelected ? "var(--primary-fg)" : selectable ? "var(--fg)" : "var(--muted)",
-                    cursor: selectable ? "pointer" : "not-allowed",
-                    fontWeight: isSelected ? 700 : 400,
-                    fontSize: "0.85rem",
-                    opacity: selectable ? 1 : 0.4,
-                    minWidth: 36,
-                    minHeight: 36,
-                  }}
-                >
-                  {day}
-                </button>
-              )
-            })}
-          </div>
-
-          {yearAnticipation && state.selectedStartDate && (
-            <div style={{
-              marginTop: "1rem", padding: "0.75rem",
-              background: yearAnticipation.allowed ? "#f0fdf4" : "#fef3c7",
-              borderRadius: "var(--radius)",
-              fontSize: "0.85rem",
-              color: yearAnticipation.allowed ? "#166534" : "#92400e",
-            }}>
-              {yearAnticipation.friendlyMessage}
+          ) : (
+            <div style={{ color: "#b91c1c", fontSize: "0.85rem" }}>
+              ⚠️ No encontramos completo tu Sueldo Mensual Integrado. Puedes planificar las fechas y marcas, pero revisa tu tarjetón para calcular exactamente cuánto cobrarías en pesos.
             </div>
           )}
         </Card>
 
-        <div style={BUTTON_ROW}>
-          <Button variant="ghost" onClick={() => goTo("inclusion-options")}>Atrás</Button>
-          <Button onClick={() => {
-            handleRunSimulation()
-            setTimeout(() => goTo("result"), 50)
-          }} disabled={!state.selectedStartDate}>
-            Ver resultado
-          </Button>
-        </div>
-      </>
-    )
-  }
-
-  function renderResult() {
-    const r = state.result
-    if (!r) return null
-
-    return (
-      <>
-        {renderStepIndicator("result")}
-        <h2 style={HEADER}>Tu propuesta de vacaciones</h2>
-        <p style={SUBTITLE}>Revisa los detalles de tu simulación.</p>
-
-        {r.requiresNormativeReview && (
-          <div style={REVIEW_BOX}>
-            Esta combinación requiere validación con Servicios de Personal debido a una diferencia entre las fuentes normativas.
+        {/* Número de periodos requeridos */}
+        <Card padding="1.25rem" style={{ marginBottom: "1.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
+            <span style={BADGE}>{requiredPeriodCount} {requiredPeriodCount === 1 ? "Periodo" : "Periodos"}</span>
+            <span style={{ fontWeight: 600, fontSize: "0.95rem" }}>
+              Programación anual obligatoria
+            </span>
           </div>
-        )}
+          <p style={{ fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.5 }}>
+            {regime === "CUATRIMESTRAL"
+              ? `Por ser trabajador cuatrimestral expuesto a radiaciones${hasV20 ? " y contar con derecho V20" : ""}, debes programar ${requiredPeriodCount} periodos.`
+              : `De acuerdo con tu tarjetón y régimen semestral${hasV20 ? " con derecho extraordinario V20" : ""}, debes programar ${requiredPeriodCount} periodos.`
+            }
+          </p>
 
-        {r.requiresSpecialProcess && (
-          <div style={WARN_BOX}>
-            Esta propuesta no puede programarse directamente: requiere un proceso especial o la autorización de las áreas competentes antes de registrar las fechas.
-          </div>
-        )}
-
-        {r.warnings.map((w, i) => (
-          <div key={i} style={WARN_BOX}>{w}</div>
-        ))}
-
-        <Card padding="1.25rem" style={{ marginBottom: "1rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))", gap: "0.75rem", fontSize: "0.9rem", width: "100%", minWidth: 0 }}>
-            <ResultItem label="Régimen" value={getRegimeLabel(r.regime)} />
-            <ResultItem label="Periodo" value={`#${r.periodNumber}`} />
-            <ResultItem label="Inicio" value={r.startDate || "—"} />
-            <ResultItem label="Término" value={r.endDate || "—"} />
-            <ResultItem label="Reincorporación" value={r.returnDate || "—"} />
-            <ResultItem label="Unidades" value={r.unitsUsed !== undefined ? `${r.unitsUsed} ${getUnitLabel(r.unitType)}` : "—"} />
-            <ResultItem label="Vencimiento" value={formatMexicanDate(r.dueDate)} />
-            <ResultItem label="Anticipación" value={`${r.anticipationDays} días`} />
+          {/* Estado del V20 */}
+          <div style={{ marginTop: "0.75rem", padding: "0.5rem 0.75rem", background: "var(--accent)", borderRadius: "var(--radius-sm)", fontSize: "0.8rem" }}>
+            <strong>Periodo Extraordinario V20: </strong>
+            {hasConfirmedV20 ? (
+              <span style={{ color: "#166534" }}>Confirmado en tu tarjetón ({twentyYearsOrMoreDays} días registrados).</span>
+            ) : hasSeniorityForV20 ? (
+              <span style={{ color: "#92400e" }}>Por tu antigüedad ({effectiveSeniorityYears} años) podrías tener derecho a un periodo extraordinario, pero no lo encontramos confirmado en tu tarjetón. Revísalo con Servicios de Personal.</span>
+            ) : (
+              <span style={{ color: "var(--muted)" }}>No aplica (se adquiere al cumplir 20 años efectivos de servicio).</span>
+            )}
           </div>
         </Card>
 
-        {r.dateBreakdown && (
-          <Card padding="1rem" style={{ marginBottom: "1rem", background: "var(--accent)" }}>
-            <div style={{ fontSize: "0.85rem", fontWeight: 600, marginBottom: "0.5rem", color: "var(--fg)" }}>
-              Desglose de días del periodo programado:
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 130px), 1fr))", gap: "0.5rem", fontSize: "0.8rem" }}>
-              <ResultItem label="Días naturales totales" value={`${r.dateBreakdown.totalCalendarDays} días`} />
-              <ResultItem label="Días computables" value={`${r.dateBreakdown.consumedDates.length} días`} />
-              <ResultItem label="Descansos semanales" value={`${r.dateBreakdown.excludedWeeklyRestDates.length} días`} />
-              <ResultItem label="Descansos obligatorios" value={`${r.dateBreakdown.excludedMandatoryRestDates.length} días`} />
-            </div>
-          </Card>
-        )}
-
-        <details style={{ marginBottom: "1rem" }}>
-          <summary style={{ cursor: "pointer", fontSize: "0.85rem", color: "var(--muted)" }}>
-            Ver detalles técnicos y fundamento
-          </summary>
-          <Card padding="1.25rem" style={{ marginTop: "0.5rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))", gap: "0.5rem", fontSize: "0.8rem", width: "100%", minWidth: 0 }}>
-              <ResultItem label="Continuidad original" value={String(r.originalContinuityMark)} />
-              <ResultItem label="Inclusión propuesta" value={String(r.proposedInclusionMark)} />
-              <ResultItem label="Continuidad resultante" value={r.resultingContinuityMark !== undefined ? String(r.resultingContinuityMark) : "—"} />
-              <ResultItem label="UPO afectado" value={r.affectedUPO !== undefined ? String(r.affectedUPO) : "—"} />
-              <ResultItem label="Versión calendario" value={r.calendarVersion} />
-            </div>
-            {r.traces.length > 0 && (
-              <div style={{ marginTop: "0.75rem" }}>
-                <p style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.5rem" }}>Reglas aplicadas:</p>
-                {r.traces.map((t, i) => (
-                  <div key={i} style={{
-                    padding: "0.375rem 0.5rem",
-                    background: t.result === "APPLIED" ? "#f0fdf4" : t.result === "BLOCKED" ? "#fef2f2" : t.result === "WARNING" ? "#fef3c7" : "var(--accent)",
-                    borderRadius: "var(--radius-sm)",
-                    fontSize: "0.75rem",
-                    marginBottom: "0.25rem",
-                    color: t.result === "APPLIED" ? "#166534" : t.result === "BLOCKED" ? "#991b1b" : "#92400e",
-                  }}>
-                    <strong>{t.ruleCode}:</strong> {t.explanation}
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-        </details>
-
-        <div style={DISCLAIMER}>
-          Este simulador es informativo. La programación definitiva debe ser autorizada
-          y registrada por las áreas competentes del IMSS.
-        </div>
-
         <div style={BUTTON_ROW}>
-          <Button variant="ghost" onClick={() => goTo("calendar")}>Atrás</Button>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <Button variant="secondary" onClick={() => {
-              const text = generateSummaryText(r)
-              navigator.clipboard.writeText(text)
-            }}>
-              Copiar resumen
-            </Button>
-            <Button onClick={() => goTo("welcome")}>Nueva simulación</Button>
-          </div>
+          <Button variant="secondary" onClick={() => setStep("welcome")}>
+            ← Atrás
+          </Button>
+          <Button variant="primary" onClick={() => setStep("preference")}>
+            Continuar a prioridades →
+          </Button>
         </div>
-      </>
-    )
-  }
-
-  if (state.loading) {
-    return (
-      <div style={CONTAINER}>
-        <LoadingSpinner text="Calculando tus opciones de vacaciones..." />
       </div>
     )
   }
 
+  // PASO 3: QUÉ PREFIERE EL TRABAJADOR
+  if (step === "preference") {
+    return (
+      <div style={CONTAINER}>
+        <h1 style={HEADER}>¿Qué prefieres en tus vacaciones?</h1>
+        <p style={SUBTITLE}>
+          Elige qué aspecto es más importante para ti. Esta preferencia no modifica las reglas del Contrato Colectivo; solo te mostrará primero las alternativas más convenientes.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
+          <div
+            onClick={() => setPriority("MORE_NOW")}
+            style={{
+              padding: "1rem",
+              borderRadius: "var(--radius)",
+              border: `2px solid ${priority === "MORE_NOW" ? "var(--primary)" : "var(--border)"}`,
+              background: priority === "MORE_NOW" ? "rgba(37,99,235,0.05)" : "var(--card)",
+              cursor: "pointer",
+            }}
+          >
+            <div style={{ fontWeight: 700, color: "var(--fg)", marginBottom: "0.25rem" }}>
+              💵 Quiero cobrar más en el primer periodo
+            </div>
+            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+              Te orienta hacia opciones como la <strong>Marca 4</strong> (o Marca 0), cobrando el 100% de la ayuda cultural en la primera exhibición.
+            </div>
+          </div>
+
+          <div
+            onClick={() => setPriority("SPLIT_PAY")}
+            style={{
+              padding: "1rem",
+              borderRadius: "var(--radius)",
+              border: `2px solid ${priority === "SPLIT_PAY" ? "var(--primary)" : "var(--border)"}`,
+              background: priority === "SPLIT_PAY" ? "rgba(37,99,235,0.05)" : "var(--card)",
+              cursor: "pointer",
+            }}
+          >
+            <div style={{ fontWeight: 700, color: "var(--fg)", marginBottom: "0.25rem" }}>
+              ⚖️ Prefiero repartir el pago
+            </div>
+            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+              Te orienta hacia la <strong>Marca 1</strong>, cobrando el 50% de la ayuda en cada periodo fraccionado.
+            </div>
+          </div>
+
+          <div
+            onClick={() => setPriority("MORE_REST")}
+            style={{
+              padding: "1rem",
+              borderRadius: "var(--radius)",
+              border: `2px solid ${priority === "MORE_REST" ? "var(--primary)" : "var(--border)"}`,
+              background: priority === "MORE_REST" ? "rgba(37,99,235,0.05)" : "var(--card)",
+              cursor: "pointer",
+            }}
+          >
+            <div style={{ fontWeight: 700, color: "var(--fg)", marginBottom: "0.25rem" }}>
+              🏖️ Prefiero conservar más días de descanso
+            </div>
+            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+              Te orienta hacia secuencias de dos descansos completos (como la <strong>Marca 2→3</strong>). Cobras la prima pero no la ayuda 048.
+            </div>
+          </div>
+
+          <div
+            onClick={() => setPriority("COMPARE_ALL")}
+            style={{
+              padding: "1rem",
+              borderRadius: "var(--radius)",
+              border: `2px solid ${priority === "COMPARE_ALL" ? "var(--primary)" : "var(--border)"}`,
+              background: priority === "COMPARE_ALL" ? "rgba(37,99,235,0.05)" : "var(--card)",
+              cursor: "pointer",
+            }}
+          >
+            <div style={{ fontWeight: 700, color: "var(--fg)", marginBottom: "0.25rem" }}>
+              🔍 Quiero comparar todas las opciones
+            </div>
+            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+              Muestra todas las marcas compatibles sin ningún filtro de preferencia.
+            </div>
+          </div>
+        </div>
+
+        <div style={BUTTON_ROW}>
+          <Button variant="secondary" onClick={() => setStep("found")}>
+            ← Atrás
+          </Button>
+          <Button variant="primary" onClick={() => setStep("planning")}>
+            Continuar a programación →
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // PASO 4: PROGRAMACIÓN PASO A PASO POR PERIODO
+  if (step === "planning") {
+    const isV20 = activePeriod?.kind === "V20"
+    const currentSelection = selections[activePeriodIdx] || {}
+    const selectedMark = currentSelection.mark
+    const selectedRole = currentSelection.role
+
+    const currentPeriodPayment = activePeriod?.payment
+
+    return (
+      <div style={CONTAINER}>
+        {/* Barra de progreso de periodos */}
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", overflowX: "auto", paddingBottom: "0.25rem" }}>
+          {Array.from({ length: requiredPeriodCount }).map((_, i) => {
+            const pNum = i + 1
+            const isV = hasV20 && pNum === requiredPeriodCount
+            const isCurrent = pNum === activePeriodIdx
+            const hasSel = Boolean(selections[pNum]?.role && selections[pNum]?.mark !== undefined)
+
+            return (
+              <button
+                key={pNum}
+                onClick={() => setActivePeriodIdx(pNum)}
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: "var(--radius)",
+                  border: `1px solid ${isCurrent ? "var(--primary)" : "var(--border)"}`,
+                  background: isCurrent ? "var(--primary)" : hasSel ? "var(--accent)" : "var(--card)",
+                  color: isCurrent ? "var(--primary-fg)" : "var(--fg)",
+                  fontWeight: 600,
+                  fontSize: "0.8rem",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {isV ? "Periodo V20" : `Periodo ${pNum} de ${requiredPeriodCount}`} {hasSel ? "✓" : ""}
+              </button>
+            )
+          })}
+        </div>
+
+        <h1 style={HEADER}>
+          {isV20 ? "Periodo Extraordinario V20" : `Programando Periodo ${activePeriodIdx} de ${requiredPeriodCount}`}
+        </h1>
+        <p style={SUBTITLE}>
+          {isV20
+            ? "Selecciona la modalidad de tu periodo extraordinario por 20 años o más de servicio (15 días o pago)."
+            : `Elige la marca y el rol de vacaciones para tu periodo ordinario ${activePeriodIdx}.`
+          }
+        </p>
+
+        {/* 1. SELECCIÓN DE MARCA */}
+        <Card padding="1.25rem" style={{ marginBottom: "1.25rem" }}>
+          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+            1. Selecciona qué marca vas a anotar
+          </h3>
+          <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "1rem" }}>
+            Continuidad actual antes de este periodo: <strong>Marca {currentContinuityForActive}</strong>.
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {orderedAllowedMarks.map((m) => {
+              const g = getMarkGuidance(m, regime)
+              const isChosen = selectedMark === m
+
+              return (
+                <div
+                  key={m}
+                  onClick={() => handleSelectMark(activePeriodIdx, m)}
+                  style={{
+                    padding: "0.75rem 1rem",
+                    borderRadius: "var(--radius)",
+                    border: `2px solid ${isChosen ? "var(--primary)" : "var(--border)"}`,
+                    background: isChosen ? "rgba(37,99,235,0.04)" : "var(--card)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{g.title}</div>
+                    {isChosen && <span style={BADGE}>Seleccionada</span>}
+                  </div>
+                  <div style={{ fontSize: "0.85rem", color: "var(--fg)", marginTop: "0.25rem" }}>
+                    {g.plainSummary}
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
+                    💡 {g.economicDetail} • <em>{g.nextStepDetail}</em>
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* Opciones no permitidas visibles y deshabilitadas */}
+            {disallowedMarks.map((m) => {
+              const reason = getIncompatibleReason(m, currentContinuityForActive, regime)
+              return (
+                <div
+                  key={m}
+                  style={{
+                    padding: "0.5rem 0.75rem",
+                    borderRadius: "var(--radius)",
+                    border: "1px dashed var(--border)",
+                    background: "var(--accent)",
+                    opacity: 0.6,
+                    fontSize: "0.8rem",
+                  }}
+                >
+                  <strong>Marca {m} (No permitida):</strong> {reason}
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+
+        {/* 2. SELECCIÓN DE ROL DEL CALENDARIO */}
+        <Card padding="1.25rem" style={{ marginBottom: "1.25rem" }}>
+          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+            2. Selecciona tu rol del calendario
+          </h3>
+          {loadingCalendar ? (
+            <LoadingSpinner text="Cargando roles del calendario..." />
+          ) : !calendar || calendar.roles.length === 0 ? (
+            <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>No hay roles disponibles en este momento.</p>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.5rem" }}>
+              {calendar.roles.map((r) => {
+                const isSelected = selectedRole?.id === r.id || selectedRole?.roleNumber === r.roleNumber
+                return (
+                  <button
+                    key={r.id || r.roleNumber}
+                    onClick={() => handleSelectRole(activePeriodIdx, r)}
+                    style={{
+                      textAlign: "left",
+                      padding: "0.6rem 0.75rem",
+                      borderRadius: "var(--radius)",
+                      border: `1.5px solid ${isSelected ? "var(--primary)" : "var(--border)"}`,
+                      background: isSelected ? "rgba(37,99,235,0.06)" : "var(--card)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: "0.85rem" }}>
+                      Rol #{r.roleNumber} {r.roleGroup ? `(Grupo ${r.roleGroup})` : ""}
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                      Inicio: {formatMexicanDate(r.startDate)}
+                    </div>
+                    {r.endDate && (
+                      <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                        Fin: {formatMexicanDate(r.endDate)}
+                      </div>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </Card>
+
+        {/* 3. ESTIMACIÓN ECONÓMICA EN TIEMPO REAL */}
+        {currentPeriodPayment && currentPeriodPayment.confidence !== "INCOMPLETE" && (
+          <Card padding="1rem" style={{ marginBottom: "1.5rem", background: "rgba(37,99,235,0.03)" }}>
+            <h4 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.5rem" }}>
+              Estimación de pago para este periodo:
+            </h4>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", textAlign: "center" }}>
+              <div style={{ background: "var(--card)", padding: "0.5rem", borderRadius: "var(--radius-sm)" }}>
+                <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Prima Vacacional (029)</div>
+                <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>
+                  {formatMexicanCurrency(currentPeriodPayment.premium029)}
+                </div>
+              </div>
+              <div style={{ background: "var(--card)", padding: "0.5rem", borderRadius: "var(--radius-sm)" }}>
+                <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Ayuda Cultural (048)</div>
+                <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>
+                  {formatMexicanCurrency(currentPeriodPayment.culturalHelp048)}
+                </div>
+              </div>
+              <div style={{ background: "var(--card)", padding: "0.5rem", borderRadius: "var(--radius-sm)" }}>
+                <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Total adicional bruto</div>
+                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--primary)" }}>
+                  {formatMexicanCurrency(currentPeriodPayment.grossVacationExtra)}
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        <div style={BUTTON_ROW}>
+          {activePeriodIdx > 1 ? (
+            <Button variant="secondary" onClick={() => setActivePeriodIdx((p) => p - 1)}>
+              ← Periodo anterior
+            </Button>
+          ) : (
+            <Button variant="secondary" onClick={() => setStep("preference")}>
+              ← Prioridades
+            </Button>
+          )}
+
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <Button variant="ghost" onClick={() => setStep("comparison")}>
+              Comparar opciones
+            </Button>
+
+            {activePeriodIdx < requiredPeriodCount ? (
+              <Button
+                variant="primary"
+                disabled={!selectedRole || selectedMark === undefined}
+                onClick={() => setActivePeriodIdx((p) => p + 1)}
+              >
+                Siguiente periodo →
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                disabled={!selectedRole || selectedMark === undefined}
+                onClick={() => setStep("summary")}
+              >
+                Ver resumen del plan →
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // PASO 5: COMPARACIÓN DE ALTERNATIVAS
+  if (step === "comparison") {
+    return (
+      <div style={CONTAINER}>
+        <h1 style={HEADER}>Comparativa de Opciones</h1>
+        <p style={SUBTITLE}>
+          Compara cómo cambia el importe adicional y el cobro de la ayuda cultural según la secuencia de marcas que elijas:
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
+          {comparisonOptions.map((opt) => (
+            <Card key={opt.id} padding="1.25rem">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                <div>
+                  <h3 style={{ fontSize: "1rem", fontWeight: 700 }}>{opt.name}</h3>
+                  <p style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{opt.summary}</p>
+                </div>
+                <Button size="sm" variant="secondary" onClick={() => applyComparisonOption(opt.marks)}>
+                  Elegir esta opción
+                </Button>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginTop: "0.75rem", textAlign: "center" }}>
+                <div style={{ background: "var(--accent)", padding: "0.5rem", borderRadius: "var(--radius-sm)" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>1er Periodo (Marca {opt.marks[0]})</div>
+                  <div style={{ fontWeight: 700 }}>{formatMexicanCurrency(opt.p1Gross)}</div>
+                </div>
+                <div style={{ background: "var(--accent)", padding: "0.5rem", borderRadius: "var(--radius-sm)" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>2do Periodo (Marca {opt.marks[1]})</div>
+                  <div style={{ fontWeight: 700 }}>{formatMexicanCurrency(opt.p2Gross)}</div>
+                </div>
+                <div style={{ background: "var(--accent)", padding: "0.5rem", borderRadius: "var(--radius-sm)" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Total Adicional Bruto</div>
+                  <div style={{ fontWeight: 700, color: "var(--primary)" }}>{formatMexicanCurrency(opt.totalGross)}</div>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+
+        <div style={BUTTON_ROW}>
+          <Button variant="secondary" onClick={() => setStep("planning")}>
+            ← Volver a programación
+          </Button>
+          <Button variant="primary" onClick={() => setStep("summary")}>
+            Ver resumen del plan →
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  // PASO 6: RESUMEN FINAL Y PLANIFICACIÓN
   return (
     <div style={CONTAINER}>
-      {state.error && (
-        <div style={WARN_BOX}>
-          {state.error}
+      <h1 style={HEADER}>Así quedaría tu programación</h1>
+      <p style={SUBTITLE}>
+        Resumen integral de tus periodos vacacionales, marcas a solicitar e importes económicos aproximados:
+      </p>
+
+      {/* Cifra destacada total */}
+      <Card padding="1.5rem" style={{ textAlign: "center", marginBottom: "1.25rem", background: "rgba(37,99,235,0.04)", border: "1.5px solid var(--primary)" }}>
+        <div style={{ fontSize: "0.85rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          Total aproximado adicional en el año
+        </div>
+        <div style={{ fontSize: "2rem", fontWeight: 800, color: "var(--primary)", margin: "0.25rem 0" }}>
+          {formatMexicanCurrency(planResult.totalGrossVacationExtra)}
+        </div>
+        <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+          Antes de impuestos y deducciones. Incluye {formatMexicanCurrency(planResult.totalPremium029)} de prima (029) y {formatMexicanCurrency(planResult.totalCulturalHelp048)} de ayuda cultural (048).
+        </div>
+      </Card>
+
+      {/* Lista de periodos programados */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
+        {planResult.periods.map((p) => {
+          const g = p.selectedMark !== undefined ? getMarkGuidance(p.selectedMark, regime) : null
+
+          return (
+            <Card key={p.index} padding="1.25rem">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                <span style={BADGE}>
+                  {p.kind === "V20" ? "Periodo Extraordinario V20" : `Periodo ${p.index}`}
+                </span>
+                <span style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--primary)" }}>
+                  Marca a anotar: {p.selectedMark ?? "Sin marca"}
+                </span>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
+                <div>
+                  <strong>Rol:</strong> {p.selectedRole?.label || `Rol #${p.selectedRole?.roleNumber || "—"}`}
+                </div>
+                <div>
+                  <strong>Días / Unidades:</strong> {p.units || "—"} días
+                </div>
+                <div>
+                  <strong>Inicio:</strong> {p.startDate ? formatMexicanDate(p.startDate) : "Por definir"}
+                </div>
+                <div>
+                  <strong>Término:</strong> {p.endDate ? formatMexicanDate(p.endDate) : "Por definir"}
+                </div>
+              </div>
+
+              {p.payment && (
+                <div style={{ display: "flex", justifyContent: "space-between", background: "var(--accent)", padding: "0.5rem 0.75rem", borderRadius: "var(--radius-sm)", fontSize: "0.8rem" }}>
+                  <span>Prima 029: <strong>{formatMexicanCurrency(p.payment.premium029)}</strong></span>
+                  <span>Ayuda 048: <strong>{formatMexicanCurrency(p.payment.culturalHelp048)}</strong></span>
+                  <span>Total: <strong style={{ color: "var(--primary)" }}>{formatMexicanCurrency(p.payment.grossVacationExtra)}</strong></span>
+                </div>
+              )}
+
+              {g && (
+                <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: "0.5rem" }}>
+                  ℹ️ {g.plainSummary}
+                </div>
+              )}
+            </Card>
+          )
+        })}
+      </div>
+
+      {/* 3 Acordeones Prácticos */}
+      <Card padding="1rem" style={{ marginBottom: "1rem" }}>
+        <details style={{ marginBottom: "0.75rem" }}>
+          <summary style={{ fontWeight: 700, cursor: "pointer", fontSize: "0.9rem" }}>
+            🗣️ Qué debes decir en Personal
+          </summary>
+          <p style={{ fontSize: "0.85rem", color: "var(--fg)", marginTop: "0.5rem", lineHeight: 1.6 }}>
+            Al solicitar tu rol de vacaciones, indica que programas {requiredPeriodCount} periodos. Solicita que se anote la marca {planResult.periods[0]?.selectedMark ?? "correspondiente"} en tu primer periodo y la marca {planResult.periods[1]?.selectedMark ?? "correspondiente"} en tu segundo periodo para que coincida con tu continuidad y derecho de cobro.
+          </p>
+        </details>
+
+        <details style={{ marginBottom: "0.75rem" }}>
+          <summary style={{ fontWeight: 700, cursor: "pointer", fontSize: "0.9rem" }}>
+            ✍️ Qué marca anotar
+          </summary>
+          <div style={{ fontSize: "0.85rem", color: "var(--fg)", marginTop: "0.5rem", lineHeight: 1.6 }}>
+            {planResult.periods.map((p) => (
+              <div key={p.index}>
+                • {p.kind === "V20" ? "Periodo Extraordinario V20" : `Periodo ${p.index}`}: Anotar <strong>Marca {p.selectedMark ?? "—"}</strong> ({p.selectedRole?.label || "Rol elegido"}).
+              </div>
+            ))}
+          </div>
+        </details>
+
+        <details style={{ marginBottom: "0.75rem" }}>
+          <summary style={{ fontWeight: 700, cursor: "pointer", fontSize: "0.9rem" }}>
+            🔍 Qué debes revisar antes de firmar
+          </summary>
+          <ul style={{ fontSize: "0.85rem", color: "var(--fg)", marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.6 }}>
+            <li>Que la fecha de inicio coincida exactamente con el rol que elegiste.</li>
+            <li>Que el número de marca no haya sido alterado.</li>
+            <li>Que tu adscripción, matrícula y categoría estén correctas en el formato institucional.</li>
+          </ul>
+        </details>
+
+        <details>
+          <summary style={{ fontWeight: 600, cursor: "pointer", fontSize: "0.85rem", color: "var(--muted)" }}>
+            📖 Ver detalle y fundamento normativo
+          </summary>
+          <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.5rem", lineHeight: 1.5 }}>
+            <p><strong>CCT IMSS-SNTSS Cláusula 47:</strong> Días mínimos anuales (16 a 20 días hábiles) y tabla de ayuda para actividades culturales y recreativas (concepto 048) según años de servicio.</p>
+            <p style={{ marginTop: "0.25rem" }}><strong>Procedimiento 1A74-003-025:</strong> Reglas de anticipación (hasta 120 días semestral / 105 días cuatrimestral) y cálculo sobre Sueldo Mensual Integrado.</p>
+            <p style={{ marginTop: "0.25rem" }}><strong>UPO y Continuidad:</strong> Cadena de transición matemática validada desde continuidad inicial {initialContinuity}.</p>
+          </div>
+        </details>
+      </Card>
+
+      {/* Acciones finales */}
+      {savedSuccess && (
+        <div style={{ background: "#dcfce7", border: "1px solid #22c55e", color: "#166534", padding: "0.75rem 1rem", borderRadius: "var(--radius)", marginBottom: "1rem", fontSize: "0.85rem" }}>
+          ✓ Simulación guardada con éxito en tu cuenta.
         </div>
       )}
 
-      {state.step === "welcome" && renderWelcome()}
-      {state.step === "profile-confirm" && renderProfileConfirm()}
-      {state.step === "tarjeton-data" && renderTarjetonData()}
-      {state.step === "work-schedule" && renderWorkSchedule()}
-      {state.step === "radiation" && renderRadiation()}
-      {state.step === "continuity" && renderContinuity()}
-      {state.step === "inclusion-options" && renderInclusionOptions()}
-      {state.step === "calendar" && renderCalendar()}
-      {state.step === "result" && renderResult()}
+      <div style={BUTTON_ROW}>
+        <Button variant="secondary" onClick={() => setStep("planning")}>
+          ← Ajustar fechas o marcas
+        </Button>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <Button variant="ghost" onClick={() => window.print()}>
+            🖨️ Imprimir / Guardar PDF
+          </Button>
+          <Button variant="primary" onClick={() => setSavedSuccess(true)}>
+            Guardar simulación
+          </Button>
+        </div>
+      </div>
     </div>
   )
-}
-
-function ResultItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <span style={{ display: "block", fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600 }}>{label}</span>
-      <span style={{ fontWeight: 500 }}>{value}</span>
-    </div>
-  )
-}
-
-function getRegimeLabel(r: VacationRegime): string {
-  switch (r) {
-    case "SEMESTRAL": return "Semestral"
-    case "CUATRIMESTRAL": return "Cuatrimestral (Radiación)"
-    case "EXTRAORDINARIO_V20": return "Extraordinario (20+ años, V20)"
-    case "ESTATUTO": return "Confianza A (Estatuto)"
-  }
-}
-
-function getUnitLabel(unit: "WORKDAY" | "JOURNEY" | "VELADA"): string {
-  switch (unit) {
-    case "WORKDAY": return "días hábiles"
-    case "JOURNEY": return "jornadas"
-    case "VELADA": return "veladas"
-  }
-}
-
-function getFriendlyOptionDetails(regime: VacationRegime, mark: number, continuity: number): { label: string; desc: string } {
-  if (regime === "EXTRAORDINARIO_V20") {
-    switch (mark) {
-      case 0:
-        return {
-          label: "Marca 0: Disfrutar 10 días",
-          desc: "Genera concepto 048 (prima vacacional). Disfrute continuo.",
-        }
-      case 6:
-        return {
-          label: "Marca 6: Disfrutar 15 días",
-          desc: "Disfrute continuo sin generación de concepto 048.",
-        }
-      case 7:
-        return {
-          label: "Marca 7: Pago de 30 días de concepto 048",
-          desc: "Sin disfrute de descanso. Exige haber disfrutado periodo ordinario y vencer dentro del año.",
-        }
-      case 8:
-        return {
-          label: "Marca 8: Pago de 15 días de concepto 029",
-          desc: "Acredita 30 días para efectos de jubilación.",
-        }
-      default:
-        return { label: `Opción ${mark}`, desc: "Opción extraordinaria V20." }
-    }
-  }
-
-  if (regime === "CUATRIMESTRAL") {
-    switch (mark) {
-      case 0:
-        return {
-          label: "Opción A: Disfrutar el periodo en una sola parte",
-          desc: "Avanza en la secuencia A (continuidad 1 → 2 → 3).",
-        }
-      case 2:
-        return {
-          label: "Opción B: Disfrutar el periodo en una sola parte",
-          desc: "Avanza en la secuencia B (continuidad 4 → 9 → 14).",
-        }
-      case 5:
-        return {
-          label: "Continuar secuencia B (segunda parte)",
-          desc: "Avanza en el cuatrimestre correspondiente de la opción B.",
-        }
-      default:
-        return { label: `Opción ${mark}`, desc: "Opción del régimen cuatrimestral." }
-    }
-  }
-
-  if (regime === "ESTATUTO") {
-    switch (mark) {
-      case 0:
-        return {
-          label: "Disfrutar el periodo de manera continua",
-          desc: "Tomas todos tus días de vacaciones anuales en una sola exhibición.",
-        }
-      case 2:
-        return {
-          label: "Solicitar un periodo completo (primera parte)",
-          desc: "Primera parte del periodo anual de Estatuto.",
-        }
-      case 3:
-        return {
-          label: "Completar la segunda parte del periodo",
-          desc: "Segunda parte que concluye el periodo anual de Estatuto.",
-        }
-      default:
-        return { label: `Opción ${mark}`, desc: "Opción del régimen Estatuto." }
-    }
-  }
-
-  // SEMESTRAL
-  switch (mark) {
-    case 0:
-      return {
-        label: "Disfrutar el periodo de manera continua",
-        desc: "Tomas todos tus días de vacaciones de una sola vez.",
-      }
-    case 1:
-      return {
-        label: continuity === 1 ? "Completar la segunda parte" : "Dividirlo en dos partes semejantes",
-        desc: continuity === 1 ? "Primero debes completar la segunda parte de tus vacaciones." : "Primera parte de tus vacaciones. Después podrás programar la segunda.",
-      }
-    case 2:
-      return {
-        label: "Solicitar un periodo completo (primera parte)",
-        desc: "Primera parte del periodo dentro del año vacacional.",
-      }
-    case 3:
-      return {
-        label: "Completar la segunda parte del periodo",
-        desc: "Debes completar el periodo semestral pendiente en proceso.",
-      }
-    case 4:
-      return {
-        label: "Revisar una modalidad especial (primera parte)",
-        desc: "Relacionada con el pago de prestaciones (primera parte).",
-      }
-    case 9:
-      return {
-        label: "Completar la segunda parte (modalidad especial)",
-        desc: "Finaliza tu ciclo actual con modalidad especial.",
-      }
-    default:
-      return { label: `Opción ${mark}`, desc: "Opción disponible según tu marca de continuidad." }
-  }
-}
-
-function getNonAllowedReason(mark: number, continuity: number): string {
-  if (continuity === 1) {
-    return "Tienes abierta la primera fracción (marca 1). Para avanzar debes completar la segunda fracción seleccionando la opción 1."
-  }
-  if (continuity === 3) {
-    return "Tienes pendiente el segundo periodo semestral completo. Debes seleccionar la opción 3 para completar tu ciclo."
-  }
-  if (continuity === 4) {
-    return "Iniciaste la modalidad especial 4→9. Para completar el ciclo debes seleccionar la marca 9."
-  }
-  if (continuity === 9) {
-    return "Iniciaste la modalidad especial 9→4. Para completar el ciclo debes seleccionar la marca 4."
-  }
-  if (mark === 3) {
-    return "La marca 3 solo se permite tras haber solicitado el primer periodo semestral completo (marca 2)."
-  }
-  return "Esta opción no es compatible con tu marca de continuidad actual según las transiciones del CCT."
-}
-
-function generateSummaryText(r: VacationSimulationResult): string {
-  let text = `PROPUESTA DE VACACIONES
-Régimen: ${getRegimeLabel(r.regime)}
-Periodo: #${r.periodNumber}
-Inicio: ${r.startDate || "—"}
-Término: ${r.endDate || "—"}
-Reincorporación: ${r.returnDate || "—"}
-Unidades: ${r.unitsUsed !== undefined ? `${r.unitsUsed} ${getUnitLabel(r.unitType)}` : "—"}
-Vencimiento: ${formatMexicanDate(r.dueDate)}
-Anticipación: ${r.anticipationDays} días`
-
-  if (r.dateBreakdown) {
-    text += `\nDías naturales comprendidos: ${r.dateBreakdown.totalCalendarDays}`
-    text += `\nDescansos semanales excluidos: ${r.dateBreakdown.excludedWeeklyRestDates.length}`
-    text += `\nDescansos obligatorios excluidos: ${r.dateBreakdown.excludedMandatoryRestDates.length}`
-  }
-
-  if (r.requiresNormativeReview) {
-    text += `\nRequiere validación con Servicios de Personal.`
-  }
-  text += `\n--- Generado por Simulador de Vacaciones IMSS - La Veinte Digital ---`
-  return text
 }

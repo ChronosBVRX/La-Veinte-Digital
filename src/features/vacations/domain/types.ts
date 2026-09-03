@@ -234,4 +234,66 @@ export interface VacationSimulationResult {
   compatibleOptions?: string[];
   anticipationResult?: AnticipationResult;
   dateBreakdown?: VacationDateCalculationResult;
+  paymentEstimate?: VacationPaymentEstimate;
+}
+
+export interface VacationPaymentEstimate {
+  integratedMonthlySalary: number | null;
+  dailyIntegratedSalary: number | null;
+  premium029: number | null;
+  culturalHelp048: number | null;
+  otherVacationPayment: number | null;
+  grossVacationExtra: number | null;
+  helpPaymentFraction: 0 | 0.5 | 1;
+  confidence: "CONFIRMED" | "RECONSTRUCTED" | "INCOMPLETE";
+  sourcePayslipPeriod?: string;
+  warnings: string[];
+}
+
+export interface VacationEntitlement {
+  id: string;
+  kind: "ORDINARY" | "V20";
+  periodNumber?: number;
+  dueDate?: string;
+  sourceRaw?: string;
+  sourcePayslipPeriod: string;
+  confirmed: boolean;
+}
+
+export interface VacationPlanInput {
+  workerProfile: WorkerProfile;
+  regime: VacationRegime;
+  initialContinuity: number;
+  entitlements: VacationEntitlement[];
+  calendar: AnnualVacationCalendar | null;
+  integratedMonthlySalary: number | null;
+  sourcePayslipPeriod?: string;
+  isReconstructedSmi?: boolean;
+}
+
+export interface VacationPlanPeriod {
+  index: number;
+  kind: "ORDINARY" | "V20";
+  entitlementId?: string;
+  dueDate?: string;
+  selectedRole?: VacationRole;
+  selectedMark?: number;
+  startDate?: string;
+  endDate?: string;
+  units?: number;
+  continuityBefore?: number;
+  continuityAfter?: number;
+  payment?: VacationPaymentEstimate;
+  allowed: boolean;
+  reasons: string[];
+}
+
+export interface VacationPlanResult {
+  requiredPeriodCount: number;
+  periods: VacationPlanPeriod[];
+  totalPremium029: number | null;
+  totalCulturalHelp048: number | null;
+  totalGrossVacationExtra: number | null;
+  completed: boolean;
+  warnings: string[];
 }

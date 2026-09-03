@@ -43,6 +43,27 @@ export function calculateCompletedYears(seniority: EffectiveSeniority): number {
   return seniority.years;
 }
 
+/**
+ * Días de ayuda para actividades culturales y recreativas (concepto 048) según
+ * la Cláusula 47 del CCT IMSS-SNTSS.
+ */
+export function getCctCulturalHelpDays(completedYears: number): number {
+  if (completedYears < 1) return 0;
+  if (completedYears === 1) return 23;
+  if (completedYears === 2) return 25;
+  if (completedYears === 3) return 27;
+  if (completedYears === 4) return 29;
+  return 31;
+}
+
+/**
+ * Días de ayuda para actividades culturales y recreativas para trabajadores expuestos a radiaciones.
+ */
+export function getRadiationCulturalHelpDays(completedYears: number): number {
+  if (completedYears < 1) return 0;
+  return getCctCulturalHelpDays(completedYears);
+}
+
 export function determineVacationRegime(
   contractType: ContractType,
   completedYears: number,
