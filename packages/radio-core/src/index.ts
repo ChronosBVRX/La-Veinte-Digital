@@ -167,3 +167,5 @@ export * from "./personas";
 export * from "./voice-slots";
 export * from "./conversation";
 export * from "./human-gate";
+export * from "./antirepetition";
+export * from "./complete-sentence";

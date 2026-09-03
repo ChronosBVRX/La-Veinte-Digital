@@ -156,9 +156,11 @@ export class ProjectWorkflowService {
     public store: ProjectStore,
     private repoRoot: string,
     private catalog: NormativeCatalog,
-    private llm: LocalEditorialLLM,
+    public llm: LocalEditorialLLM,
     public commercials: import("./commercial-service").CommercialLibraryService
   ) {}
+
+  get editorialLlm(): LocalEditorialLLM { return this.llm; }
 
   async create(input: CreateProjectInput): Promise<Project> {
     return this.store.create(input);
@@ -253,6 +255,11 @@ export class ProjectWorkflowService {
     this.store.writeProposal(id, proposal);
     const next = this.store.update(id, { proposal, state: "PROPOSAL_READY" })!;
     return { project: next, proposal };
+  }
+
+  async createProposalVariant(id: string): Promise<{ project: Project; proposal: Proposal }> {
+    // Genera una variante de propuesta para comparar en el Quality Orchestrator
+    return this.createProposal(id);
   }
 
   async updateProposal(id: string, patch: Partial<Proposal>): Promise<Project> {

@@ -109,10 +109,10 @@ export function pausaAntesDe(t: { intent?: TurnIntent }, cambiaHablante: boolean
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const MICRO_REACCIONES: Record<string, string[]> = {
-  acuerdo: ["Exacto.", "Así es.", "Justo.", "Eso mismo.", "Sí, tal cual."],
-  duda: ["Ajá…", "Ya.", "Entiendo.", "¿Y eso por qué?", "Mmm."],
-  sorpresa: ["Ahí está.", "Eso cambia todo.", "Ojo.", "No lo tenía claro.", "Vaya."],
-  transicion: ["A ver…", "Espera.", "Pero entonces…", "Bueno, ahí hay algo.", "Justo."],
+  acuerdo: ["Exacto.", "Así es.", "Justo ahí.", "Eso mismo.", "Sí, tal cual."],
+  duda: ["Ajá, cuéntame.", "Ya veo.", "Entiendo.", "¿Y eso por qué?", "Mmm, ya veo."],
+  sorpresa: ["Ahí está.", "Eso cambia todo.", "Ojo con eso.", "No lo tenía claro.", "Vaya dato."],
+  transicion: ["A ver, cuéntame.", "Espera un segundo.", "Pero entonces…", "Bueno, ahí hay algo.", "Justo en ese punto."],
   desacuerdo: ["Ahí no estoy tan segura.", "Yo ahí sí te diría que depende.", "Pero espera, no es tan directo.", "Hmm, ahí te contradices un poquito."],
 };
 

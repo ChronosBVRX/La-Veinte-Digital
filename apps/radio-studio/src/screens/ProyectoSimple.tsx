@@ -129,10 +129,47 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
           <h1>{project?.titulo ?? "Episodio"}</h1>
           <p className="muted">Investigamos nuestras bibliotecas, te contamos qué encontramos y qué no, y tú decides el siguiente paso.</p>
         </div>
-        <div className={`ready-pill ${llm?.health.ok ? "ok" : "warn"}`}>
-          {llm?.health.ok ? "Motor local listo" : "Motor local iniciando"}
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+          <div className={`ready-pill ${llm?.health.ok ? "ok" : "warn"}`}>
+            {llm?.health.ok
+              ? (llm.provider === "groq" ? `⚡ Groq listo` : "Motor local listo")
+              : (llm?.provider === "groq" ? "⚡ Groq iniciando" : "Motor local iniciando")}
+          </div>
+          {llm?.editorial?.label && (
+            <div style={{ fontSize: 11, color: "var(--muted)", textAlign: "right", maxWidth: 180 }}>
+              Motor de guion: {llm.editorial.label}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Panel informativo del motor — discreto, no técnico */}
+      {llm && (llm.provider === "groq" || llm.groqUsage) && (
+        <div style={{
+          background: "var(--accent)", borderRadius: 10, padding: "10px 14px",
+          marginBottom: 14, fontSize: 12, color: "var(--muted)", display: "flex",
+          flexWrap: "wrap", gap: 14, alignItems: "center",
+        }}>
+          <span>🤖 <b>Proveedor:</b> {llm.editorial?.provider === "groq" ? "Groq" : "Local"}</span>
+          <span>📐 <b>Modelo:</b> {llm.model}</span>
+          {llm.groqUsage && (
+            <>
+              <span>🔢 <b>Tokens (esta sesión):</b> {llm.groqUsage.tokensThisRun.toLocaleString()}</span>
+              <span>📊 <b>Consumo registrado hoy:</b> {llm.groqUsage.estimatedDailyUsed.toLocaleString()} tokens</span>
+              <span>📞 <b>Llamadas:</b> {llm.groqUsage.callsThisRun}</span>
+              {llm.groqUsage.rateLimitWaitMs > 0 && (
+                <span>⏳ <b>Espera por cuota:</b> {Math.round(llm.groqUsage.rateLimitWaitMs / 1000)}s</span>
+              )}
+              {llm.groqUsage.fallbackUsed && (
+                <span style={{ color: "#e97316" }}>⚠️ <b>Fallback activo:</b> Qwen local</span>
+              )}
+            </>
+          )}
+          {llm.groqMissingKey && (
+            <span style={{ color: "#e97316" }}>⚠️ LLM_PROVIDER=groq pero GROQ_API_KEY no configurada — usando Ollama</span>
+          )}
+        </div>
+      )}
 
       {/* Paso a paso */}
       <div className="step-strip" style={{ marginBottom: 18 }}>

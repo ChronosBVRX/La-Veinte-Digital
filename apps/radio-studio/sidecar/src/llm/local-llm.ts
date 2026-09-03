@@ -10,6 +10,39 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 
+// ── Interfaz canónica de proveedor LLM ──────────────────────────────────────
+/**
+ * Contrato compartido por GroqLLMProvider y OllamaLLMProvider.
+ * LocalEditorialLLM y ScriptPipeline solo dependen de esta interfaz.
+ */
+export interface ILLMProvider {
+  /** Identificador del proveedor: "groq" | "ollama" */
+  readonly provider: string;
+  /** Nombre del modelo activo */
+  readonly model: string;
+  /** Versión de prompts usada para invalidar caché */
+  promptsVersion: string;
+  /** El proveedor soporta JSON Schema estricto (strict:true) */
+  readonly supportsStrictSchema: boolean;
+
+  /** Genera texto estructurado validado. */
+  generateStructured<T>(opts: {
+    task: string;
+    system: string;
+    user: string;
+    jsonSchema: object;
+    validate: (raw: unknown) => T;
+    useCache?: boolean;
+    numCtxOverride?: number;
+  }): Promise<T>;
+
+  /** Genera texto plano (sin schema). */
+  generateText(opts: { task: string; system: string; user: string }): Promise<string>;
+
+  /** Verifica salud del servicio backend. */
+  health(timeoutMs?: number): Promise<{ ok: boolean; version?: string; error?: string }>;
+}
+
 export interface LlmTaskProfile {
   temperature: number;
   topP?: number;
@@ -68,13 +101,18 @@ export interface RunLogEntry {
   error?: string;
 }
 
-export class LocalLLMService {
+export class LocalLLMService implements ILLMProvider {
   private cfg: LocalLlmConfig;
   private circuit: CircuitState = { open: false, openedAt: 0, failures: 0 };
   private cacheDir: string;
   private runLogPath: string;
   /** versión de los prompts — cambiar invalida caché */
   public promptsVersion = "v3";
+
+  // ── ILLMProvider fields ──
+  readonly provider = "ollama";
+  readonly supportsStrictSchema = false;
+  get model(): string { return this.cfg.model; }
 
   constructor(cfg: LocalLlmConfig, stateDir: string) {
     this.cfg = cfg;
@@ -180,7 +218,7 @@ export class LocalLLMService {
   // ── generación ───────────────────────────────────────────────────────────
   private cacheKey(task: string, system: string, user: string, schemaName: string | null, temp: number, schema?: object): string {
     return crypto.createHash("sha256").update([
-      this.cfg.model, this.promptsVersion, task, schemaName ?? "text", String(temp),
+      this.provider, this.cfg.model, this.promptsVersion, task, schemaName ?? "text", String(temp),
       crypto.createHash("sha256").update(system).digest("hex").slice(0, 16),
       crypto.createHash("sha256").update(user).digest("hex"),
       schema ? crypto.createHash("sha256").update(JSON.stringify(schema)).digest("hex").slice(0, 16) : "",

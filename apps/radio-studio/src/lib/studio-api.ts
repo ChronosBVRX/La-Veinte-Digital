@@ -543,12 +543,36 @@ export async function regenerarTurno(opts: {
 // ─── IA local (Ollama/Qwen) ──────────────────────────────────────────────
 
 export interface LlmHealthInfo {
-  config: { model: string; enabled: boolean; contextTokens: number };
+  config: { model: string; enabled: boolean; contextTokens: number | null };
   health: { ok: boolean; version?: string; error?: string };
   modelos: string[];
   modeloObjetivoOk: boolean;
   gpu: { state: string; owner: string | null; lastError: string | null };
   stats: Array<{ name: string; sizeVramMb: number | null }>;
+  // Proveedor activo
+  provider: "groq" | "ollama";
+  model: string;
+  configured: boolean;
+  supportsStrictSchema: boolean;
+  groqMissingKey?: boolean;
+  // Motor editorial
+  editorial: {
+    provider: string;
+    model: string;
+    label: string;
+    available: boolean;
+    supportsStrictSchema: boolean;
+    diagnostic: string | null;
+  };
+  // Uso de Groq (consumo registrado por este estudio — no es la cuota total de Groq)
+  groqUsage: {
+    tokensThisRun: number;
+    callsThisRun: number;
+    estimatedDailyUsed: number;
+    rateLimitWaitMs: number;
+    fallbackUsed: boolean;
+    lastCallAt: string | null;
+  } | null;
 }
 
 export async function obtenerLlmSalud(): Promise<LlmHealthInfo | null> {
