@@ -360,6 +360,19 @@ describe("imss-tarjeton-parser (orquestador)", () => {
       "Falta uno o más totales de nómina; la extracción requiere revisión.",
     )
   })
+
+  it("reconoce y almacena POR VENCER como fecha ISO estrictamente validada", async () => {
+    const itemsWithPorVencer = [
+      ...imssPositionedTextFixture,
+      { text: "POR VENCER:", page: 1, x: 440, y: 340, width: 80, height: 10, confidence: 1, method: "native_text" as const },
+      { text: "14-OCT-2026", page: 1, x: 560, y: 340, width: 80, height: 10, confidence: 1, method: "native_text" as const },
+    ]
+    const outcome = await parseImssTarjeton({ items: itemsWithPorVencer, pageCount: 2 })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.parsed.vacations.porVencer).toBe("2026-10-14")
+    expect(outcome.parsed.vacations.porVencerRaw).toBe("14-OCT-2026")
+  })
 })
 
 describe("confirm-mark", () => {

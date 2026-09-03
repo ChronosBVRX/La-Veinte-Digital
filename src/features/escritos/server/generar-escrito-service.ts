@@ -171,8 +171,8 @@ export function validateGenerarEscritoRequest(req: unknown): {
   const peticion = sanitizeString(r.peticion, 2000)
   const destinoNombre = sanitizeString(r.destino?.nombre, 150)
   const destinoCargo = sanitizeString(r.destino?.cargo, 150)
-  const ciudad = sanitizeString(r.ciudad, 100)
-  const fecha = sanitizeString(r.fecha, 50)
+  const ciudad = sanitizeString(r.ciudad, 100) || "Sede laboral"
+  const fecha = sanitizeString(r.fecha, 50) || new Date().toISOString().slice(0, 10)
   const asunto = sanitizeString(r.asunto, 200)
 
   if (mode === "revise") {
@@ -180,7 +180,7 @@ export function validateGenerarEscritoRequest(req: unknown): {
       return { valid: false, error: "Se requiere el contenido actual del texto para revisarlo." }
     }
   } else {
-    // Modo create exige todos los campos obligatorios en el servidor
+    // Modo create exige hechos, petición y destinatario válidos
     if (hechos.length < 5) {
       return { valid: false, error: "Debes proporcionar la exposición de hechos o antecedentes." }
     }
@@ -189,12 +189,6 @@ export function validateGenerarEscritoRequest(req: unknown): {
     }
     if (!destinoNombre && !destinoCargo) {
       return { valid: false, error: "Debes especificar a quién va dirigido el escrito." }
-    }
-    if (ciudad.length < 2) {
-      return { valid: false, error: "Debes indicar el lugar o ciudad de emisión." }
-    }
-    if (fecha.length < 4) {
-      return { valid: false, error: "Debes indicar la fecha de emisión." }
     }
   }
 

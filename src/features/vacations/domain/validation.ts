@@ -12,12 +12,24 @@ export function validateAnticipation(
   const maxAnticipationDays = getMaxAnticipation(regime);
   const [dY, dM, dD] = dueDate.split("-").map(Number);
   const [rY, rM, rD] = requestedStartDate.split("-").map(Number);
-  const due = new Date(dY, dM - 1, dD);
-  const requested = new Date(rY, rM - 1, rD);
+  const due = new Date(Date.UTC(dY, dM - 1, dD));
+  const requested = new Date(Date.UTC(rY, rM - 1, rD));
   const diffMs = due.getTime() - requested.getTime();
   const daysInAdvance = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  if (isFirstPeriod && completedYears < 1) {
+  if (regime === "EXTRAORDINARIO_V20" && isFirstPeriod && completedYears < 20) {
+    return {
+      allowed: false,
+      dueDate,
+      earliestAllowedDate: dueDate,
+      requestedDate: requestedStartDate,
+      daysInAdvance: Math.max(0, daysInAdvance),
+      reasonCode: "V20_REQUIRES_20_YEARS",
+      friendlyMessage: "El primer ejercicio de vacaciones extraordinarias V20 requiere tener al menos 20 años de antigüedad cumplidos.",
+    };
+  }
+
+  if (isFirstPeriod && completedYears < 1 && daysInAdvance > 0) {
     return {
       allowed: false,
       dueDate,
@@ -29,15 +41,43 @@ export function validateAnticipation(
     };
   }
 
-  if (daysInAdvance < 0) {
+  // Fecha posterior o igual a "por vencer": válida con anticipación cero.
+  // "Por vencer" representa la fecha de adquisición del derecho, no el último día permitido.
+  if (daysInAdvance <= 0) {
+    const daysPastDue = Math.floor((requested.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+    // Prescripción general de 2 años (730 días naturales).
+    if (daysPastDue > 730) {
+      return {
+        allowed: false,
+        dueDate,
+        earliestAllowedDate: getEarliestDate(dueDate, maxAnticipationDays),
+        requestedDate: requestedStartDate,
+        daysInAdvance: 0,
+        reasonCode: "PRESCRIPTION_EXCEEDED",
+        friendlyMessage: "El periodo vacacional ha prescrito (límite de 2 años posteriores a su fecha de adquisición por vencer).",
+      };
+    }
+
+    return {
+      allowed: true,
+      dueDate,
+      earliestAllowedDate: getEarliestDate(dueDate, maxAnticipationDays),
+      requestedDate: requestedStartDate,
+      daysInAdvance: 0,
+      friendlyMessage: "La fecha es posterior a la fecha por vencer (adquisición del derecho). No requiere anticipación y está dentro del periodo legal de disfrute.",
+    };
+  }
+
+  // Fecha anterior a "por vencer": se evalúa anticipación.
+  if (regime === "ESTATUTO") {
     return {
       allowed: false,
       dueDate,
-      earliestAllowedDate: getEarliestDate(dueDate, 0),
+      earliestAllowedDate: dueDate,
       requestedDate: requestedStartDate,
       daysInAdvance,
-      reasonCode: "AFTER_DUE_DATE",
-      friendlyMessage: "La fecha solicitada es posterior a la fecha de vencimiento. Debes programar antes del vencimiento.",
+      reasonCode: "ESTATUTO_NO_ANTICIPATION",
+      friendlyMessage: "El régimen de Estatuto no permite anticipación vacacional. Las vacaciones deben disfrutarse a partir de la fecha de vencimiento dentro del año calendario.",
     };
   }
 
@@ -69,16 +109,16 @@ function getMaxAnticipation(regime: VacationRegime): number {
     case "SEMESTRAL": return 120;
     case "CUATRIMESTRAL": return 105;
     case "EXTRAORDINARIO_V20": return 120;
-    case "ESTATUTO": return 120;
+    case "ESTATUTO": return 0;
     default: return 120;
   }
 }
 
 function getEarliestDate(dueDate: string, maxDays: number): string {
   const [y, m, d] = dueDate.split("-").map(Number);
-  const dateObj = new Date(y, m - 1, d);
-  dateObj.setDate(dateObj.getDate() - maxDays);
-  return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
+  const dateObj = new Date(Date.UTC(y, m - 1, d));
+  dateObj.setUTCDate(dateObj.getUTCDate() - maxDays);
+  return fmtDate(dateObj);
 }
 
 export function calculateVacationRange(input: VacationDateCalculationInput): VacationDateCalculationResult {
@@ -86,7 +126,7 @@ export function calculateVacationRange(input: VacationDateCalculationInput): Vac
   const excludedMandatoryRestDates: string[] = [];
   const consumedDates: string[] = [];
   const [sy, sm, sd] = input.startDate.split("-").map(Number);
-  const start = new Date(sy, sm - 1, sd);
+  const start = new Date(Date.UTC(sy, sm - 1, sd));
   let vacationUnits = 0;
   let i = 0;
   let truncated = false;
@@ -97,7 +137,7 @@ export function calculateVacationRange(input: VacationDateCalculationInput): Vac
       break;
     }
     const d = new Date(start);
-    d.setDate(start.getDate() + i);
+    d.setUTCDate(start.getUTCDate() + i);
     const dateStr = fmtDate(d);
 
     const isRest = isWeeklyRest(dateStr, input.weeklyRestDays);
@@ -110,16 +150,21 @@ export function calculateVacationRange(input: VacationDateCalculationInput): Vac
       excludedMandatoryRestDates.push(dateStr);
     } else if (isWorkable) {
       // Solo los días laborables consumen unidades de vacaciones.
-      // Los días no laborables del horario (p. ej. entre semana para
-      // horario acumulado de fin de semana) alargan el periodo sin consumir.
       consumedDates.push(dateStr);
       vacationUnits++;
     }
     i++;
   }
 
-  const lastDate = consumedDates[consumedDates.length - 1];
+  const lastDate = consumedDates[consumedDates.length - 1] ?? input.startDate;
   const returnDate = getReturnDate(lastDate, input.weeklyRestDays, input.mandatoryRestDates, input.workSchedule);
+
+  let exceedsContractEnd = false;
+  if (input.contractEndDate && /^\d{4}-\d{2}-\d{2}$/.test(input.contractEndDate)) {
+    if (input.startDate > input.contractEndDate || lastDate > input.contractEndDate) {
+      exceedsContractEnd = true;
+    }
+  }
 
   return {
     startDate: input.startDate,
@@ -131,6 +176,8 @@ export function calculateVacationRange(input: VacationDateCalculationInput): Vac
     totalCalendarDays: consumedDates.length + excludedWeeklyRestDates.length + excludedMandatoryRestDates.length,
     totalVacationUnits: input.entitlementUnits,
     truncated,
+    exceedsContractEnd,
+    contractEndDate: input.contractEndDate,
   };
 }
 
@@ -141,22 +188,22 @@ function getReturnDate(
   schedule: WorkScheduleDefinition
 ): string {
   const [ly, lm, ld] = lastVacationDate.split("-").map(Number);
-  const d = new Date(ly, lm - 1, ld);
-  d.setDate(d.getDate() + 1);
+  const d = new Date(Date.UTC(ly, lm - 1, ld));
+  d.setUTCDate(d.getUTCDate() + 1);
   let attempts = 0;
   while (attempts < 30) {
     const dateStr = fmtDate(d);
     if (!isWeeklyRest(dateStr, weeklyRestDays) && !isMandatoryRest(dateStr, mandatoryDates) && isWorkDay(dateStr, schedule)) {
       return dateStr;
     }
-    d.setDate(d.getDate() + 1);
+    d.setUTCDate(d.getUTCDate() + 1);
     attempts++;
   }
   return fmtDate(d);
 }
 
 function fmtDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
 export function validateModification(

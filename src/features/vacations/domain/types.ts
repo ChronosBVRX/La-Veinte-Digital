@@ -88,6 +88,7 @@ export interface VacationDateCalculationInput {
   weeklyRestDays: number[];
   mandatoryRestDates: string[];
   workSchedule: WorkScheduleDefinition;
+  contractEndDate?: string;
 }
 
 export interface WorkScheduleDefinition {
@@ -106,6 +107,8 @@ export interface VacationDateCalculationResult {
   totalCalendarDays: number;
   totalVacationUnits: number;
   truncated: boolean;
+  exceedsContractEnd?: boolean;
+  contractEndDate?: string;
 }
 
 export interface SemestralTransition {
@@ -228,4 +231,5 @@ export interface VacationSimulationResult {
   ruleVersionId: string;
   compatibleOptions?: string[];
   anticipationResult?: AnticipationResult;
+  dateBreakdown?: VacationDateCalculationResult;
 }

@@ -195,6 +195,17 @@ export function sanitizeTarjetonForPersistence(parsed: ParsedImssTarjeton): Tarj
     sanitized.push("Confianza global inválida; se ajustó.")
   }
 
+  const vacations = { ...parsed.vacations }
+  if (vacations.porVencer !== undefined) {
+    const porVencer = safeDate(vacations.porVencer)
+    if (porVencer === undefined) {
+      delete vacations.porVencer
+      sanitized.push("Vacaciones: fecha por vencer inválida; se omitió.")
+    } else {
+      vacations.porVencer = porVencer
+    }
+  }
+
   const payroll = { ...parsed.payroll, earnings, deductions, observations }
   const extraction = {
     ...parsed.extraction,
@@ -203,7 +214,7 @@ export function sanitizeTarjetonForPersistence(parsed: ParsedImssTarjeton): Tarj
   }
 
   return {
-    parsed: { ...parsed, document, employee, payroll, extraction },
+    parsed: { ...parsed, document, employee, vacations, payroll, extraction },
     sanitized,
     critical,
   }

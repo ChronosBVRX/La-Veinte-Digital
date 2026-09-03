@@ -135,6 +135,8 @@ export interface ParsedImssTarjeton {
     firstPeriodStartRaw?: string
     secondPeriodStartRaw?: string
     accumulatedRetirementDays?: number
+    porVencer?: string
+    porVencerRaw?: string
   }
 
   payroll: {
@@ -280,6 +282,7 @@ const VACATIONS_KEYS = [
   "enjoyedDays", "daysInYear", "twentyYearsOrMoreDays", "expiredPeriods",
   "continuityMark", "periodNumberToEnjoy", "firstPeriodStartRaw",
   "secondPeriodStartRaw", "accumulatedRetirementDays",
+  "porVencer", "porVencerRaw",
 ] as const
 
 const PAYROLL_KEYS = [
@@ -424,7 +427,7 @@ export function isParsedImssTarjeton(value: unknown): value is ParsedImssTarjeto
   if (!isObject(vac)) return false
   if (!hasOnlyKeys(vac, VACATIONS_KEYS)) return false
   for (const key of VACATIONS_KEYS) {
-    if (key === "firstPeriodStartRaw" || key === "secondPeriodStartRaw") {
+    if (key === "firstPeriodStartRaw" || key === "secondPeriodStartRaw" || key === "porVencer" || key === "porVencerRaw") {
       if (!isOptionalString(vac[key])) return false
     } else if (!isOptionalNumber(vac[key])) return false
   }

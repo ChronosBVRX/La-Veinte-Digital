@@ -223,6 +223,30 @@ describe("sanitizeTarjetonForPersistence", () => {
     expect(critical).toContain("Total totalEarnings: fuera de rango.")
   })
 
+  it("normaliza porVencer inválida y conserva porVencer válida", () => {
+    const parsedValid = makeParsed()
+    parsedValid.vacations = { porVencer: "2026-10-14", porVencerRaw: "14-OCT-2026" }
+    const { parsed: cleanValid, sanitized: sanitizedValid } = sanitizeTarjetonForPersistence(parsedValid)
+    expect(cleanValid.vacations.porVencer).toBe("2026-10-14")
+    expect(sanitizedValid).toHaveLength(0)
+
+    const parsedInvalid = makeParsed()
+    parsedInvalid.vacations = { porVencer: "2026-02-30", porVencerRaw: "30-FEB-2026" }
+    const { parsed: cleanInvalid, sanitized: sanitizedInvalid } = sanitizeTarjetonForPersistence(parsedInvalid)
+    expect(cleanInvalid.vacations.porVencer).toBeUndefined()
+    expect(sanitizedInvalid).toContain("Vacaciones: fecha por vencer inválida; se omitió.")
+  })
+
+  it("safeDate valida fechas existentes y rechaza imposibles o mal formateadas", () => {
+    expect(safeDate("2026-10-14")).toBe("2026-10-14")
+    expect(safeDate("2026-02-28")).toBe("2026-02-28")
+    expect(safeDate("2026-02-29")).toBeUndefined() // 2026 no es bisiesto
+    expect(safeDate("2026-02-30")).toBeUndefined()
+    expect(safeDate("2026-13-01")).toBeUndefined()
+    expect(safeDate("invalid")).toBeUndefined()
+    expect(safeDate(null)).toBeUndefined()
+  })
+
   it("no muta el objeto original", () => {
     const parsed = makeParsed({
       observations: [{ lineIndex: 0, conceptCode: "055", units: 99999 }],
