@@ -17,7 +17,7 @@ export function validateAnticipation(
   const diffMs = due.getTime() - requested.getTime();
   const daysInAdvance = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-  if (regime === "EXTRAORDINARIO_V20" && isFirstPeriod && completedYears < 20) {
+  if (regime === "EXTRAORDINARIO_V20" && completedYears < 20) {
     return {
       allowed: false,
       dueDate,
@@ -25,7 +25,7 @@ export function validateAnticipation(
       requestedDate: requestedStartDate,
       daysInAdvance: Math.max(0, daysInAdvance),
       reasonCode: "V20_REQUIRES_20_YEARS",
-      friendlyMessage: "El primer ejercicio de vacaciones extraordinarias V20 requiere tener al menos 20 años de antigüedad cumplidos.",
+      friendlyMessage: "Las vacaciones extraordinarias V20 requieren tener al menos 20 años de antigüedad cumplidos.",
     };
   }
 

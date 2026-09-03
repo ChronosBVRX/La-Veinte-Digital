@@ -20,12 +20,6 @@ import { usePrefillFields } from "../hooks/usePrefillFields"
 import prestamosRaw from "../data/prestamos_categoria.json"
 import type { PrestamoCategoriaRecord } from "../lib/types"
 
-const options = [
-  { key: "unMes" as const, label: "1 mes", quincenas: 2 },
-  { key: "dosMeses" as const, label: "2 meses", quincenas: 4 },
-  { key: "tresMeses" as const, label: "3 meses", quincenas: 6 },
-  { key: "cuatroMeses" as const, label: "4 meses", quincenas: 8 },
-]
 
 interface Props {
   initialCategoria?: string | null
@@ -118,7 +112,9 @@ export function Clausula97Calculator({ initialCategoria }: Props) {
         <ArrowLeft size={16} /> Volver a calculadoras
       </Link>
       <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "0 0 0.25rem" }}>Cláusula 97</h1>
-      <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0 0 1.5rem" }}>Adelanto de una a cuatro quincenas. La suma de los conceptos 002 y 011 representa tu base quincenal.</p>
+      <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0 0 1.5rem" }}>
+        Anticipo de hasta por cuatro meses de sueldo sin intereses, una sola vez al año. La base mensual corresponde a (002 + 011) × 2.
+      </p>
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem", maxWidth: "400px" }}>
         <PrefillStatus data={prefill.data} loading={prefill.loading} error={prefill.error} />
         <CategorySelector initialCategory={selectedCategory ?? initialCategoria} onSelect={handleCategorySelect} />
@@ -134,23 +130,32 @@ export function Clausula97Calculator({ initialCategoria }: Props) {
       </div>
       {result && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          <ResultCard title="Base quincenal" rows={[{ label: "Base (002 + 011)", value: result.baseQuincenal, highlight: true }]} />
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "0.75rem" }}>
-            {options.map((o) => (
-              <Card key={o.key} padding="1rem">
-                <p style={{ fontSize: "0.8125rem", fontWeight: 600, margin: "0 0 0.25rem" }}>{o.label}</p>
-                <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0 0 0.5rem" }}>{o.quincenas} quincenas</p>
-                <p style={{ fontSize: "1rem", fontWeight: 700, margin: 0, color: "var(--primary)" }}>{formatCurrency(result[o.key])}</p>
-                <p style={{ fontSize: "0.6875rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>Base × {o.quincenas}</p>
+          <ResultCard
+            title="Base de cálculo"
+            rows={[
+              { label: "Base quincenal (002 + 011)", value: result.baseQuincenal },
+              { label: "Sueldo mensual base", value: result.baseMensual, highlight: true },
+            ]}
+          />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "0.75rem" }}>
+            {result.opciones.map((o) => (
+              <Card key={o.meses} padding="1rem">
+                <p style={{ fontSize: "0.875rem", fontWeight: 700, margin: "0 0 0.25rem" }}>{o.meses} {o.meses === 1 ? "mes" : "meses"}</p>
+                <p style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.5rem", color: "var(--primary)" }}>{formatCurrency(o.monto)}</p>
+                <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.5rem", fontSize: "0.75rem", color: "var(--muted)" }}>
+                  <p style={{ margin: "0 0 0.25rem" }}>Recuperación: <strong>{o.quincenasRecuperacion} quincenas</strong></p>
+                  <p style={{ margin: 0 }}>Descuento estimado: <strong>{formatCurrency(o.descuentoQuincenal)}</strong> / qna</p>
+                </div>
               </Card>
             ))}
           </div>
           <FormulaExplanation steps={[
-            "Base quincenal = Concepto 002 + Concepto 011",
-            "1 mes = Base × 2 (dos quincenas)",
-            "2 meses = Base × 4",
-            "3 meses = Base × 6",
-            "4 meses = Base × 8",
+            "Base mensual = (Concepto 002 + Concepto 011) × 2",
+            "1 mes: anticipo de 1 sueldo mensual, recuperación en 10 quincenas (sin intereses)",
+            "2 meses: anticipo de 2 sueldos mensuales, recuperación en 20 quincenas",
+            "3 meses: anticipo de 3 sueldos mensuales, recuperación en 30 quincenas",
+            "4 meses: anticipo de 4 sueldos mensuales, recuperación en 40 quincenas",
+            "El anticipo es facultativo en una sola exhibición o fraccionado, previa verificación de liquidez institucional.",
           ]} />
           <CalculatorDisclaimer />
         </div>

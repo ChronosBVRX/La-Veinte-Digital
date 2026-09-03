@@ -126,27 +126,28 @@ export function AguinaldoCalculator({ initialCategoria }: Props) {
       </div>
       {result && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          <ResultCard title="Resultado" rows={[
-            { label: "Base (002 + 011)", value: result.base },
-            { label: "Aguinaldo total estimado", value: result.total, highlight: true },
-            { label: "Concepto 047: anticipo de enero", value: result.anticipoEnero047 },
-            { label: "Concepto 043: anticipo de agosto", value: result.anticipoAgosto043 },
-            { label: "Concepto 049: resto de diciembre", value: result.restoDiciembre049 },
-            ...(result.documentedAlternative
-              ? [{ label: `Alternativa documentada (${result.documentedAlternative.label})`, value: result.documentedAlternative.total, format: "currency" as const }]
+          <ResultCard title="Resultado oficial (Cláusula 107 CCT)" rows={[
+            { label: "Base quincenal integrada (002 + 011)", value: result.base },
+            { label: "Sueldo mensual base", value: result.baseMensual },
+            { label: "Aguinaldo total anual (3 meses / 90 días)", value: result.totalAnual, highlight: true },
+            { label: "Concepto 047 (Anticipo de enero, 15 días)", value: result.anticipoEnero047 },
+            { label: "Concepto 043 (Vale a cuenta de agosto, 30 días)", value: result.valeAgosto043 },
+            { label: "Concepto 049 (Saldo a pagar en diciembre)", value: result.saldoDiciembre049, highlight: true },
+            ...(result.historicalComparison
+              ? [{ label: `Comparación factor empírico anterior (${result.historicalComparison.label})`, value: result.historicalComparison.total, format: "currency" as const }]
               : []),
           ]} />
           <FormulaExplanation steps={[
-            "Base = Concepto 002 + Concepto 011",
-            `Aguinaldo total = Base × ${result.factor}`,
-            "Concepto 047 (anticipo enero) = Total ÷ 6",
-            "Concepto 043 (anticipo agosto) = Total ÷ 3",
-            "Concepto 049 (resto diciembre) = Total ÷ 2",
-            "Alternativa documentada: Cláusula 107 (3 meses de sueldo nominal) = Base × 6 — en revisión",
+            "Base quincenal = Concepto 002 + Concepto 011 (más conceptos integrantes comprobados)",
+            "Sueldo mensual base = Base quincenal × 2",
+            "Aguinaldo total anual = Sueldo mensual base × 3 meses (Cláusula 107 CCT)",
+            "Concepto 047 (Enero) = Sueldo mensual base × 0.5 (medio mes / 15 días)",
+            "Concepto 043 (Agosto) = Sueldo mensual base × 1.0 (un mes / 30 días, si fue solicitado)",
+            "Concepto 049 (Diciembre) = Total anual menos anticipos pagados",
           ]} />
           <div style={{ background: "var(--accent)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "0.75rem 1rem", fontSize: "0.8125rem", color: "var(--muted)" }}>
-            La fórmula aplica el factor vigente {result.factor} conforme a la normativa disponible. La Cláusula 107 (3 meses de sueldo nominal, factor 6) se muestra como referencia comparativa en revisión.
-            El resultado es orientativo y puede variar por impuestos, incidencias o criterios institucionales.
+            Cálculo verificado según Cláusula 107 del CCT IMSS-SNTSS 2025-2027 (3 meses de sueldo nominal). Se muestra la comparación con el factor reconstruido previo para trazabilidad.
+            El resultado es orientativo y puede variar por retenciones de ISR, incidencias o notas de mérito adicionales (Cl. 38, RIT 91, 93, 95, 97, 98).
           </div>
           <CalculatorDisclaimer />
         </div>

@@ -1,4 +1,8 @@
-import { CATALOGO_CATEGORIAS } from "@/shared/lib/catalogo-categorias"
+import {
+  TABULADORES_VERSIONADOS,
+  TABULADOR_VIGENTE_2025_2026,
+  type TabuladorVersion,
+} from "@/shared/lib/catalogo-categorias"
 import { deriveWorkdayHoursFromCategoryName } from "../lib/types"
 
 export interface SalaryDataRecord {
@@ -15,17 +19,12 @@ export interface SalaryDataRecord {
   sourceRecordId: string
 }
 
-/**
- * Versión del tabulador. Se incrementa cuando cambia una tabla de sueldos.
- * La política de prerrelleno lo expone como ruleVersion en cada campo salarial.
- */
-export const SALARY_TABLE_VERSION = "salary-table-2025-2027"
+/** Versión vigente del tabulador al 16-10-2025. */
+export const SALARY_TABLE_VERSION = "salary-table-2025-2026"
 
 /**
  * ID estable y determinista por categoría, derivado del nombre del catálogo.
  * Ejemplo: "TECNICO RADIOLOGO 80" -> "TECNICO_RADIOLOGO_80".
- * A diferencia del índice numérico anterior, este ID no cambia si el
- * tabulador se reordena o se insertan registros.
  */
 export function stableCategoryId(categoryName: string): string {
   return categoryName
@@ -36,26 +35,31 @@ export function stableCategoryId(categoryName: string): string {
     .replace(/^_+|_+$/g, "")
 }
 
-export const SALARY_DATA: SalaryDataRecord[] = CATALOGO_CATEGORIAS.map((c) => ({
-  categoryId: stableCategoryId(c.nombre),
-  categoryName: c.nombre,
-  categoryCode: c.nombre,
-  workdayHours: deriveWorkdayHoursFromCategoryName(c.nombre) ?? 8,
-  monthlyBaseSalary: c.sueldoQuincenal * 2,
-  biweeklyBaseSalary: c.sueldoQuincenal,
-  conceptoTabular011: c.concepto011,
-  effectiveFrom: "2025-01-01",
-  salaryTableVersion: SALARY_TABLE_VERSION,
-  sourceRecordId: `catalog:${c.nombre}`,
-}))
+function buildRecordsFromTabulador(tab: TabuladorVersion): SalaryDataRecord[] {
+  return tab.categorias.map((c) => ({
+    categoryId: stableCategoryId(c.nombre),
+    categoryName: c.nombre,
+    categoryCode: c.nombre,
+    workdayHours: deriveWorkdayHoursFromCategoryName(c.nombre) ?? 8,
+    monthlyBaseSalary: c.baseMensual ?? c.sueldoQuincenal * 2,
+    biweeklyBaseSalary: c.sueldoQuincenal,
+    conceptoTabular011: c.concepto011,
+    effectiveFrom: tab.effectiveFrom,
+    effectiveTo: tab.effectiveTo,
+    salaryTableVersion: tab.version,
+    sourceRecordId: `${tab.version}:${c.nombre}`,
+  }))
+}
 
-/**
- * Mapeo de compatibilidad con los IDs numéricos anteriores (índice del
- * arreglo original: "1".."117"). Permite resolver perfiles guardados antes
- * de la migración a IDs estables sin perder información.
- */
+export const SALARY_DATA: SalaryDataRecord[] = TABULADORES_VERSIONADOS.flatMap((t) =>
+  buildRecordsFromTabulador(t)
+)
+
 export const LEGACY_CATEGORY_ID_MAP: ReadonlyMap<string, string> = new Map(
-  CATALOGO_CATEGORIAS.map((_, idx) => [String(idx + 1), SALARY_DATA[idx].categoryId])
+  TABULADOR_VIGENTE_2025_2026.categorias.map((c, idx) => [
+    String(idx + 1),
+    stableCategoryId(c.nombre),
+  ])
 )
 
 export function isRecordActiveAt(record: SalaryDataRecord, date: string): boolean {

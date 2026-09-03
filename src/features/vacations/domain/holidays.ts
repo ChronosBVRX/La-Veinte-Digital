@@ -9,6 +9,10 @@ export function getMandatoryRestDates(year: number): string[] {
   dates.push(`${year}-05-10`);
   dates.push(`${year}-09-15`);
   dates.push(`${year}-09-16`);
+  // 1 de octubre cada 6 años por transmisión del Poder Ejecutivo Federal (reforma DOF 2024: 2024, 2030, 2036...)
+  if (year >= 2024 && (year - 2024) % 6 === 0) {
+    dates.push(`${year}-10-01`);
+  }
   const thirdMondayNov = getNthWeekdayOfMonth(year, 11, 3, 1);
   if (thirdMondayNov) dates.push(thirdMondayNov);
   dates.push(`${year}-12-25`);

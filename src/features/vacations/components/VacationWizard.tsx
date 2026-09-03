@@ -263,11 +263,12 @@ export function VacationWizard({ initialContext }: VacationWizardProps = {}) {
 
   function determineRegime(): VacationRegime {
     const years = calculateCompletedYears(state.profile.effectiveSeniority)
+    const isV20 = (state.nextPeriodNumber >= 220 || state.periodToEnjoy >= 220) && years >= 20
     return determineVacationRegime(
       state.profile.contractType,
       years,
       state.profile.radiologicalExposure ?? false,
-      false
+      isV20
     )
   }
 

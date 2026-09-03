@@ -396,7 +396,7 @@ export function SimuladorNominaIndex() {
         />
 
         <div style={{
-          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap: "var(--space-4)",
+          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap: "1rem",
           marginBottom: "var(--space-6)", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box",
         }}>
           <div style={{
@@ -404,34 +404,46 @@ export function SimuladorNominaIndex() {
             borderRadius: "var(--radius-lg)", textAlign: "center",
           }}>
             <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)", textTransform: "uppercase", fontWeight: 600 }}>
-              Situación actual
+              Situación actual (percepciones brutas comprobadas)
             </span>
             <div style={{ fontSize: "var(--text-2xl)", fontWeight: 700, marginTop: "0.25rem" }}>
-              ${result.baselineGross.toLocaleString("es-MX")}
+              ${result.baselineGross.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)" }}>bruto posible quincenal</span>
+            <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)" }}>bruto quincenal comprobado</span>
           </div>
           <div style={{
             padding: "var(--space-4)", background: "var(--card)", border: "1px solid var(--border)",
             borderRadius: "var(--radius-lg)", textAlign: "center",
           }}>
             <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)", textTransform: "uppercase", fontWeight: 600 }}>
-              Escenario simulado
+              Escenario simulado (percepciones brutas estimadas)
             </span>
             <div style={{
               fontSize: "var(--text-2xl)", fontWeight: 700, marginTop: "0.25rem",
               color: result.grossDelta > 0 ? "var(--success)" : result.grossDelta < 0 ? "var(--error)" : "var(--fg)",
             }}>
-              ${result.scenarioGross.toLocaleString("es-MX")}
+              ${result.scenarioGross.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div style={{ marginTop: "0.25rem" }}>
               <Badge variant={result.grossDelta > 0 ? "success" : result.grossDelta < 0 ? "error" : "neutral"}>
                 {result.grossDelta > 0 ? "+" : ""}
-                ${result.grossDelta.toLocaleString("es-MX")}
+                ${result.grossDelta.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 {" "}({result.grossDeltaPercent > 0 ? "+" : ""}{result.grossDeltaPercent}%)
               </Badge>
             </div>
           </div>
+        </div>
+
+        <div style={{
+          background: "rgba(245, 158, 11, 0.08)",
+          border: "1px solid rgba(245, 158, 11, 0.3)",
+          borderRadius: "var(--radius-md)",
+          padding: "0.625rem 0.875rem",
+          fontSize: "0.8125rem",
+          color: "var(--muted)",
+          marginBottom: "var(--space-4)",
+        }}>
+          <strong>Importe neto no disponible:</strong> Esta simulación calcula únicamente percepciones brutas. Las deducciones reales (ISR, cuotas IMSS, préstamos, embargos o descuentos sindicales) dependen de tus percepciones acumuladas y retenciones personales.
         </div>
 
         <div style={{

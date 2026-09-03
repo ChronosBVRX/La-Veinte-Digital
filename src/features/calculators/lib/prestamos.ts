@@ -45,16 +45,28 @@ export function searchCategorias(records: PrestamoCategoriaRecord[], query: stri
     } else if (catNorm.includes(normalized) || descNorm.includes(normalized)) {
       score = 70
     } else {
-      const queryWords = normalized.split(/\s+/).filter(w => w.length >= 2)
+      const queryWords = normalized.split(/\s+/).filter((w) => w.length >= 2)
       for (const qw of queryWords) {
-        if (catNorm.includes(qw)) { score += 15; continue }
-        if (descNorm.includes(qw)) { score += 15; continue }
+        if (catNorm.includes(qw)) {
+          score += 15
+          continue
+        }
+        if (descNorm.includes(qw)) {
+          score += 15
+          continue
+        }
         const catWords = catNorm.split(/\s+/)
         for (const cw of catWords) {
-          if (cw.includes(qw) || qw.includes(cw)) { score += 10; break }
+          if (cw.includes(qw) || qw.includes(cw)) {
+            score += 10
+            break
+          }
         }
         for (const dw of descNorm.split(/\s+/)) {
-          if (dw.includes(qw) || qw.includes(dw)) { score += 10; break }
+          if (dw.includes(qw) || qw.includes(dw)) {
+            score += 10
+            break
+          }
         }
       }
     }
@@ -80,54 +92,125 @@ export function searchCategorias(records: PrestamoCategoriaRecord[], query: stri
     return a.record.categoria.localeCompare(b.record.categoria, "es")
   })
 
-  return scored.map(s => s.record)
+  return scored.map((s) => s.record)
 }
 
 export function filterCategorias(records: PrestamoCategoriaRecord[], query: string): PrestamoCategoriaRecord[] {
   return searchCategorias(records, query)
 }
 
+/**
+ * Cálculo de modalidades de préstamos por categoría y SMI según CCT 2025-2027:
+ * - Sueldo Mensual Integrado (SMI) = (Sueldo Tabular 002 + Concepto 011 mensual) + 20%
+ * - Préstamo para Automóvil: SMI × 24 (elegibilidad: mínimo 5 años de antigüedad)
+ * - Préstamo para Enganche: SMI × 15
+ * - Préstamo a Mediano Plazo: SMI × 35
+ * - Préstamo Hipotecario: SMI × 75 (y hasta 90 meses condicionado a capacidad de liquidez)
+ */
 export function calcularPrestamos(record: PrestamoCategoriaRecord): PrestamoCalculado[] {
-  const base = record.smtabMas011 ?? (record.sueldoQuincenal ?? 0) + (record.concepto011 ?? 0)
-  const smi = record.smi ?? 0
+  // SMTAB + 011 mensual = (002 quincenal + 011 quincenal) * 2
+  const baseMensual = record.smtabMas011 ?? roundCurrency(((record.sueldoQuincenal ?? 0) + (record.concepto011 ?? 0)) * 2)
+  const smi = record.smi ?? roundCurrency(baseMensual * 1.2)
+
+  const unMesC97 = baseMensual
+  const dosMesesC97 = roundCurrency(baseMensual * 2)
+  const tresMesesC97 = roundCurrency(baseMensual * 3)
 
   const resultados: PrestamoCalculado[] = [
-    { modalidad: "Cláusula 97 - 1 mes", formula: "SMTAB + Concepto 011", valor: base, valorOriginal: record.clausula97UnMes },
-    { modalidad: "Cláusula 97 - 2 meses", formula: "(SMTAB + Concepto 011) × 2", valor: base * 2, valorOriginal: record.clausula97DosMeses },
-    { modalidad: "Cláusula 97 - 3 meses", formula: "(SMTAB + Concepto 011) × 3", valor: base * 3, valorOriginal: record.clausula97TresMeses },
-    { modalidad: "Concepto 160", formula: "(SMTAB + Concepto 011) × 10%", valor: base * 0.1, valorOriginal: record.concepto160 },
-    { modalidad: "Automóvil", formula: "SMI × 24", valor: smi * 24, valorOriginal: record.automovil },
-    { modalidad: "Enganche", formula: "SMI × 15", valor: smi * 15, valorOriginal: record.enganche },
-    { modalidad: "Mediano plazo", formula: "SMI × 35", valor: smi * 35, valorOriginal: record.medianoPlazo },
-    { modalidad: "Hipotecario", formula: "SMI × 75", valor: smi * 75, valorOriginal: record.hipotecario },
+    {
+      modalidad: "Cláusula 97 - 1 mes",
+      formula: "1 mes de sueldo mensual (recuperación 10 qnas)",
+      valor: unMesC97,
+      valorOriginal: record.clausula97UnMes,
+    },
+    {
+      modalidad: "Cláusula 97 - 2 meses",
+      formula: "2 meses de sueldo mensual (recuperación 20 qnas)",
+      valor: dosMesesC97,
+      valorOriginal: record.clausula97DosMeses,
+    },
+    {
+      modalidad: "Cláusula 97 - 3 meses",
+      formula: "3 meses de sueldo mensual (recuperación 30 qnas)",
+      valor: tresMesesC97,
+      valorOriginal: record.clausula97TresMeses,
+    },
+    {
+      modalidad: "Concepto 160",
+      formula: "(Sueldo mensual base) × 10%",
+      valor: roundCurrency(baseMensual * 0.1),
+      valorOriginal: record.concepto160,
+    },
+    {
+      modalidad: "Préstamo para Automóvil",
+      formula: "SMI × 24 (elegibilidad: antigüedad ≥ 5 años de base)",
+      valor: roundCurrency(smi * 24),
+      valorOriginal: record.automovil,
+    },
+    {
+      modalidad: "Préstamo para Enganche de Auto",
+      formula: "SMI × 15",
+      valor: roundCurrency(smi * 15),
+      valorOriginal: record.enganche,
+    },
+    {
+      modalidad: "Préstamo a Mediano Plazo",
+      formula: "SMI × 35",
+      valor: roundCurrency(smi * 35),
+      valorOriginal: record.medianoPlazo,
+    },
+    {
+      modalidad: "Préstamo Hipotecario (Base 75 meses)",
+      formula: "SMI × 75 (hasta 90 meses condicionado a capacidad de pago)",
+      valor: roundCurrency(smi * 75),
+      valorOriginal: record.hipotecario,
+    },
+    {
+      modalidad: "Préstamo Hipotecario (Máximo condicional 90 meses)",
+      formula: "SMI × 90 (sujeto a liquidez y estudio socioeconómico)",
+      valor: roundCurrency(smi * 90),
+    },
   ]
 
   return resultados.map((r) => {
     const redondeado = roundCurrency(r.valor)
-    const diff = r.valorOriginal !== undefined ? roundCurrency(Math.abs(redondeado - r.valorOriginal)) : undefined
-    if (diff !== undefined && diff > 0.1) {
-      console.warn(`Diferencia > $0.10 en ${r.modalidad}: calculado=${redondeado}, original=${r.valorOriginal}, diff=${diff}`)
-    }
+    const diff =
+      r.valorOriginal !== undefined ? roundCurrency(Math.abs(redondeado - r.valorOriginal)) : undefined
     return { ...r, valor: redondeado, diferencia: diff }
   })
 }
 
 export function mapJsonToPrestamoRecord(raw: Record<string, unknown>): PrestamoCategoriaRecord {
   return {
-    categoria: String(raw["CATEGORIA"] ?? raw["categoria"] ?? ""),
-    descripcionTC: String(raw["DESC TC"] ?? raw["descripcionTC"] ?? raw["DESCRIPCION TC"] ?? raw["descripcion_tc"] ?? ""),
-    sueldoPlaza: Number(raw["SDO PLAZA"] ?? raw["sueldoPlaza"] ?? raw["SUELDO PLAZA"] ?? raw["sueldo_plaza"] ?? 0) || undefined,
-    sueldoQuincenal: Number(raw["sdo qnal"] ?? raw["sueldoQuincenal"] ?? raw["SUELDO QUINCENAL"] ?? raw["sueldo_quincenal"] ?? 0) || undefined,
-    concepto011: Number(raw["cpto 11"] ?? raw["concepto011"] ?? raw["CONCEPTO 011"] ?? raw["concepto_011"] ?? 0) || undefined,
-    smtabMas011: Number(raw["SMTAB+11"] ?? raw["smtabMas011"] ?? raw["SMTAB + 011"] ?? raw["smtab_mas_011"] ?? 0) || undefined,
+    categoria: String(raw["CATEGORIA"] ?? raw["categoria"] ?? "").replace(/\s+/g, " ").trim(),
+    descripcionTC: String(
+      raw["DESC TC"] ?? raw["descripcionTC"] ?? raw["DESCRIPCION TC"] ?? raw["descripcion_tc"] ?? ""
+    ).trim(),
+    sueldoPlaza:
+      Number(raw["SDO PLAZA"] ?? raw["sueldoPlaza"] ?? raw["SUELDO PLAZA"] ?? raw["sueldo_plaza"] ?? 0) ||
+      undefined,
+    sueldoQuincenal:
+      Number(raw["sdo ap 16 1025"] ?? raw["sdo qnal"] ?? raw["sueldoQuincenal"] ?? raw["SUELDO QUINCENAL"] ?? 0) ||
+      undefined,
+    concepto011:
+      Number(raw["cpto 11 ap 1610"] ?? raw["cpto 11"] ?? raw["concepto011"] ?? raw["CONCEPTO 011"] ?? 0) ||
+      undefined,
+    smtabMas011:
+      Number(raw["SMTAB+11"] ?? raw["smtabMas011"] ?? raw["SMTAB + 011"] ?? raw["smtab_mas_011"] ?? 0) ||
+      undefined,
     smi: Number(raw["SMI"] ?? raw["smi"] ?? 0) || undefined,
-    clausula97UnMes: Number(raw["C97 1 MES"] ?? raw["clausula97UnMes"] ?? raw["CLAUSULA 97 1 MES"] ?? raw["clausula_97_un_mes"] ?? 0) || undefined,
-    clausula97DosMeses: Number(raw["C97 2 M"] ?? raw["clausula97DosMeses"] ?? raw["CLAUSULA 97 2 MESES"] ?? raw["clausula_97_dos_meses"] ?? 0) || undefined,
-    clausula97TresMeses: Number(raw["C97 3 M"] ?? raw["clausula97TresMeses"] ?? raw["CLAUSULA 97 3 MESES"] ?? raw["clausula_97_tres_meses"] ?? 0) || undefined,
-    concepto160: Number(raw["CPTO 160"] ?? raw["concepto160"] ?? raw["CONCEPTO 160"] ?? raw["concepto_160"] ?? 0) || undefined,
+    clausula97UnMes:
+      Number(raw["C97 1 MES"] ?? raw["clausula97UnMes"] ?? raw["CLAUSULA 97 1 MES"] ?? 0) || undefined,
+    clausula97DosMeses:
+      Number(raw["C97 2 M"] ?? raw["clausula97DosMeses"] ?? raw["CLAUSULA 97 2 MESES"] ?? 0) || undefined,
+    clausula97TresMeses:
+      Number(raw["C97 3 M"] ?? raw["clausula97TresMeses"] ?? raw["CLAUSULA 97 3 MESES"] ?? 0) || undefined,
+    concepto160: Number(raw["CPTO 160"] ?? raw["concepto160"] ?? raw["CONCEPTO 160"] ?? 0) || undefined,
     automovil: Number(raw["AUTO"] ?? raw["automovil"] ?? raw["AUTOMOVIL"] ?? 0) || undefined,
     enganche: Number(raw["ENGANCHE"] ?? raw["enganche"] ?? 0) || undefined,
-    medianoPlazo: Number(raw["MEDIANO"] ?? raw["medianoPlazo"] ?? raw["MEDIANO PLAZO"] ?? raw["mediano_plazo"] ?? 0) || undefined,
+    medianoPlazo:
+      Number(raw["MEDIANO"] ?? raw["medianoPlazo"] ?? raw["MEDIANO PLAZO"] ?? raw["mediano_plazo"] ?? 0) ||
+      undefined,
     hipotecario: Number(raw["HIPOTECARIO"] ?? raw["hipotecario"] ?? 0) || undefined,
   }
 }

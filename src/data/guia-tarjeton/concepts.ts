@@ -1,4 +1,4 @@
-﻿// ÍNDICE PROVISIONAL de conceptos para descubrimiento (códigos, nombres, temas).
+// ÍNDICE PROVISIONAL de conceptos para descubrimiento (códigos, nombres, temas).
 // NO es autoridad normativa: es el punto de partida para investigar cada
 // concepto ante las fuentes oficiales (CCT IMSS-SNTSS vigente, normas y
 // procedimientos del IMSS). La autoridad vive en guideSources y en los
@@ -1636,7 +1636,7 @@ export const guideConcepts: GuideConcept[] = [
       "listed": true,
       "detail": [
         {
-          "text": "Concepto 042 Anticipo de Sueldo. Cláusula 97 del CCT. Es hasta por tres meses de sueldo una sola\n       vez al año. Es facultativo para el trabajador de base, usar en una sola ocasión o en forma\n       fraccionada, el derecho que le otorga esta cláusula. Estos anticipos no devengarán intereses.\n\n                                       ¿Cómo calcularlo?\n               Sueldo tabular (002) + Cpto. 011 x 2 x el número de meses solicitados.\n                       Importe máximo de 3 meses. Antigüedad 23 quincenas."
+          "text": "Concepto 042 Anticipo de Sueldo. Cláusula 97 del CCT. Es hasta por cuatro meses de sueldo una sola\n       vez al año. Es facultativo para el trabajador de base, usar en una sola ocasión o en forma\n       fraccionada, el derecho que le otorga esta cláusula. Estos anticipos no devengarán intereses.\n\n                                       ¿Cómo calcularlo?\n               Sueldo tabular (002) + Cpto. 011 x 2 x el número de meses solicitados.\n                       Importe máximo de 4 meses. Recuperación: 1 mes en 10 qnas, 2 meses en 20 qnas, 3 meses en 30 qnas, 4 meses en 40 qnas."
         }
       ]
     },
