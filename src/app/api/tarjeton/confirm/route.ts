@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { requireUser } from "@/shared/server/auth/require-user"
 import { confirmTarjetonService } from "@/features/tarjeton/services/confirm-tarjeton"
+import type { Json } from "@/lib/supabase/types"
 
 /**
  * POST /api/tarjeton/confirm
@@ -50,6 +51,39 @@ export async function POST(request: NextRequest) {
       : result.error.code === "totals_mismatch" || result.error.code === "matricula_mismatch" || result.error.code === "duplicate" || result.error.code === "limits_exceeded" ? 422
       : 500
     return NextResponse.json(result.error, { status })
+  }
+
+  if (result.ok && result.data.duplicate && result.data.id) {
+    try {
+      const parsedBody = body as { parsed?: { vacations?: { porVencer?: string; dueDate?: string; porVencerRaw?: string } } }
+      const newVacations = parsedBody?.parsed?.vacations
+      if (newVacations && (newVacations.porVencer || newVacations.dueDate)) {
+        const { data: existingRow } = await supabase
+          .from("imported_payslips")
+          .select("vacations")
+          .eq("id", result.data.id)
+          .eq("user_id", user.id)
+          .maybeSingle()
+
+        const existingVac = (existingRow?.vacations as Record<string, unknown>) ?? {}
+        // No sobrescribir fechas válidas que ya existan
+        const mergedVac = {
+          ...newVacations,
+          ...existingVac,
+          porVencer: existingVac.porVencer || newVacations.porVencer,
+          dueDate: existingVac.dueDate || newVacations.dueDate || existingVac.porVencer || newVacations.porVencer,
+          porVencerRaw: existingVac.porVencerRaw || newVacations.porVencerRaw,
+        }
+
+        await supabase
+          .from("imported_payslips")
+          .update({ vacations: mergedVac as Json })
+          .eq("id", result.data.id)
+          .eq("user_id", user.id)
+      }
+    } catch (err) {
+      console.warn("[tarjeton/confirm] no fue posible actualizar vacations en duplicado:", err)
+    }
   }
 
   return NextResponse.json(result.data, {

@@ -11,6 +11,7 @@ import { validateAnticipation } from "../domain/validation"
 import { institutionalToday } from "@/shared/lib/dates"
 import { buildSimulationResult } from "../domain/simulation"
 import { prefillVacationSimulator } from "../domain/prefill"
+import { formatMexicanDate } from "@/features/tarjeton/lib/imss-date-parser"
 import type { WorkerContext } from "@/shared/server/worker-context-builder"
 import type {
   WorkerProfile, VacationSimulationInput, VacationSimulationResult,
@@ -449,6 +450,11 @@ export function VacationWizard({ initialContext }: VacationWizardProps = {}) {
               value={state.dueDate}
               onChange={(e) => updateState({ dueDate: e.target.value })}
             />
+            {state.dueDate && (
+              <div style={{ fontSize: "0.8125rem", color: "var(--muted)", marginTop: "-0.25rem", marginBottom: "0.5rem" }}>
+                Fecha en formato mexicano: <strong style={{ color: "var(--fg)" }}>{formatMexicanDate(state.dueDate)}</strong>
+              </div>
+            )}
             <Input
               label="Periodos vencidos no disfrutados"
               type="number"
@@ -665,7 +671,7 @@ export function VacationWizard({ initialContext }: VacationWizardProps = {}) {
         {renderStepIndicator("calendar")}
         <h2 style={HEADER}>Elige tu fecha de inicio</h2>
         <p style={SUBTITLE}>
-          {state.dueDate ? `Fecha por vencer (adquisición del derecho): ${state.dueDate}. ` : ""}
+          {state.dueDate ? `Fecha por vencer (adquisición del derecho): ${formatMexicanDate(state.dueDate)}. ` : ""}
           Las fechas posteriores a vencimiento no requieren anticipación y están protegidas por prescripción legal de 2 años.
         </p>
 
@@ -797,7 +803,7 @@ export function VacationWizard({ initialContext }: VacationWizardProps = {}) {
             <ResultItem label="Término" value={r.endDate || "—"} />
             <ResultItem label="Reincorporación" value={r.returnDate || "—"} />
             <ResultItem label="Unidades" value={r.unitsUsed !== undefined ? `${r.unitsUsed} ${getUnitLabel(r.unitType)}` : "—"} />
-            <ResultItem label="Vencimiento" value={r.dueDate} />
+            <ResultItem label="Vencimiento" value={formatMexicanDate(r.dueDate)} />
             <ResultItem label="Anticipación" value={`${r.anticipationDays} días`} />
           </div>
         </Card>
@@ -1041,7 +1047,7 @@ Inicio: ${r.startDate || "—"}
 Término: ${r.endDate || "—"}
 Reincorporación: ${r.returnDate || "—"}
 Unidades: ${r.unitsUsed !== undefined ? `${r.unitsUsed} ${getUnitLabel(r.unitType)}` : "—"}
-Vencimiento: ${r.dueDate}
+Vencimiento: ${formatMexicanDate(r.dueDate)}
 Anticipación: ${r.anticipationDays} días`
 
   if (r.dateBreakdown) {

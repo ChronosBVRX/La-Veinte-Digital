@@ -12,7 +12,7 @@ import { detectImssTemplate, TEMPLATE_NOT_DETECTED_MESSAGE } from "./imss-templa
 import { parseImssProfile, extractSeniorityRaw } from "./imss-profile-parser"
 import { parseImssConceptTables } from "./imss-concept-table-parser"
 import { parseImssObservations } from "./imss-observations-parser"
-import { parseImssPeriod, parseImssDate, imssPeriodEndDate } from "./imss-date-parser"
+import { parseImssPeriod, parseImssDate, parsePorVencerDate, imssPeriodEndDate } from "./imss-date-parser"
 import { parseImssPayslipSeniority, buildTarjetonSeniority } from "./imss-seniority-parser"
 import { globalTarjetonConfidence, baseFieldConfidence, clampConfidence, requiresReviewForConfidence, structuralConfidence } from "./confidence"
 import { validateTarjetonTotals, validateConcept011Sanity } from "./validations"
@@ -140,6 +140,107 @@ function findDateAroundIndex(
     }
   }
   return undefined
+}
+
+/**
+ * Extrae la fecha "POR VENCER" del tarjetón, anclada estrictamente a la etiqueta "POR VENCER".
+ *
+ * Reconoce:
+ * - "POR VENCER", "PORVENCER", "P O R  V E N C E R", "POR-VENCER", "POR. VENCER", etc.
+ * Formatos aceptados:
+ * - 14102026 (8 dígitos consecutivos DDMMYYYY)
+ * - 14/10/2026, 14-10-2026, 14.10.2026, 14 10 2026, 14 / 10 / 2026
+ * - 1 4 1 0 2 0 2 6 (dígitos separados accidentalmente por OCR)
+ * - 14-OCT-2026 (mes nombrado)
+ * - 2026-10-14 (ISO existente)
+ *
+ * Soporta fecha en la misma línea tras la etiqueta o en la línea siguiente (salto de línea).
+ * La búsqueda está ANCLADA a la etiqueta; nunca toma números de 8 dígitos de otros campos.
+ */
+export function extractPorVencerField(
+  vacationLines: ReconstructedLine[],
+  allLines: ReconstructedLine[] = [],
+): { porVencer?: string; porVencerRaw?: string } {
+  const LABEL_REGEX = /(?:POR\s*VENCER|PORVENCER|P\s*O\s*R\s*V\s*E\s*N\s*C\s*E\s*R|POR[\s\-_.:]+VENCER)/i
+  const searchScopes = vacationLines.length > 0 ? [vacationLines, allLines] : [allLines]
+
+  for (const lineList of searchScopes) {
+    for (let i = 0; i < lineList.length; i++) {
+      const line = lineList[i]
+      const labelMatch = line.text.match(LABEL_REGEX)
+      if (!labelMatch || labelMatch.index === undefined) continue
+
+      // 1. En la MISMA línea después de la etiqueta
+      const afterLabel = line.text
+        .slice(labelMatch.index + labelMatch[0].length)
+        .replace(/^[:.\-_=\s]+/, "")
+        .trim()
+
+      if (afterLabel) {
+        // Primero probar el texto completo después de la etiqueta
+        const parsed = parsePorVencerDate(afterLabel)
+        if (parsed) {
+          return { porVencer: parsed, porVencerRaw: afterLabel }
+        }
+
+        // Si hay texto adicional en la línea, extraer el primer bloque de fecha anclado al inicio
+        const candidate = afterLabel.match(/^([0-9\/\-. ]{8,16})/)?.[1]?.trim()
+        if (candidate) {
+          const candParsed = parsePorVencerDate(candidate)
+          if (candParsed) {
+            return { porVencer: candParsed, porVencerRaw: candidate }
+          }
+        }
+      }
+
+      // 2. En la LÍNEA SIGUIENTE (separación por salto de línea)
+      if (i + 1 < lineList.length) {
+        const nextText = lineList[i + 1].text.trim()
+        if (nextText) {
+          const nextParsed = parsePorVencerDate(nextText)
+          if (nextParsed) {
+            return { porVencer: nextParsed, porVencerRaw: nextText }
+          }
+          const nextCand = nextText.match(/^([0-9\/\-. ]{8,16})/)?.[1]?.trim()
+          if (nextCand) {
+            const nextCandParsed = parsePorVencerDate(nextCand)
+            if (nextCandParsed) {
+              return { porVencer: nextCandParsed, porVencerRaw: nextCand }
+            }
+          }
+        }
+      }
+
+      // 3. Si la línea siguiente estaba en blanco, probar en i + 2
+      if (i + 2 < lineList.length && !lineList[i + 1].text.trim()) {
+        const nextNextText = lineList[i + 2].text.trim()
+        if (nextNextText) {
+          const nextNextParsed = parsePorVencerDate(nextNextText)
+          if (nextNextParsed) {
+            return { porVencer: nextNextParsed, porVencerRaw: nextNextText }
+          }
+        }
+      }
+    }
+  }
+
+  // 4. Fallback: probar también en texto continuo por si el OCR
+  // dividió la etiqueta misma con saltos de línea (ej. "POR\nVENCER\n14102026")
+  if (allLines.length > 0) {
+    const fullText = allLines.map((l) => l.text).join("\n")
+    const multilineMatch = fullText.match(
+      /(?:POR\s*[\n\r]+\s*VENCER|POR\s*VENCER|PORVENCER)[\s:.\-_=]*[\n\r]*\s*([0-9\/\-. ]{8,16})/i,
+    )
+    if (multilineMatch && multilineMatch[1]) {
+      const candidate = multilineMatch[1].trim()
+      const parsed = parsePorVencerDate(candidate)
+      if (parsed) {
+        return { porVencer: parsed, porVencerRaw: candidate }
+      }
+    }
+  }
+
+  return {}
 }
 
 export async function parseImssTarjeton(input: TarjetonParseInput): Promise<TarjetonParseOutcome> {
@@ -282,7 +383,7 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
   }
 
   const vacationsSpecs: Array<{
-    key: Exclude<keyof typeof vacations, "firstPeriodStartRaw" | "secondPeriodStartRaw" | "porVencer" | "porVencerRaw">
+    key: Exclude<keyof typeof vacations, "firstPeriodStartRaw" | "secondPeriodStartRaw" | "porVencer" | "porVencerRaw" | "dueDate">
     labels: string[]
     kind: NumericFieldKind
   }> = [
@@ -318,17 +419,13 @@ export async function parseImssTarjeton(input: TarjetonParseInput): Promise<Tarj
     vacations.secondPeriodStartRaw = date ?? secondPeriodRead.value
   }
 
-  const porVencerRead = readValueAfterLabel(vacationAndPayrollLines, [
-    "POR VENCER",
-    "POR VENCER:",
-  ])
-  if (porVencerRead) {
-    const date = findDateAroundIndex(vacationAndPayrollLines, porVencerRead.lineIndex, { before: 0, after: 2 })
-    vacations.porVencerRaw = porVencerRead.value
-    const parsedIso = date ?? parseImssDate(porVencerRead.value)
-    if (parsedIso) {
-      vacations.porVencer = parsedIso
-    }
+  const porVencerExtracted = extractPorVencerField(vacationAndPayrollLines, lines)
+  if (porVencerExtracted.porVencerRaw) {
+    vacations.porVencerRaw = porVencerExtracted.porVencerRaw
+  }
+  if (porVencerExtracted.porVencer) {
+    vacations.porVencer = porVencerExtracted.porVencer
+    vacations.dueDate = porVencerExtracted.porVencer
   }
 
   const payrollSpecs: Array<{

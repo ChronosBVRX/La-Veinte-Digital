@@ -11,6 +11,7 @@
  */
 import type { RecurringConceptEvidence, ConceptOccurrenceType, EligibilityPersistence } from "@/features/nomina/lib/types"
 import { classifyOccurrence, classifyPersistence } from "@/shared/lib/recurring-concept-classifier"
+import { parsePorVencerDate } from "@/features/tarjeton/lib/imss-date-parser"
 
 export interface WorkerContext {
   profile: {
@@ -54,6 +55,7 @@ export interface WorkerContext {
     accumulatedRetirementDays?: number | null
     porVencer?: string | null
     porVencerRaw?: string | null
+    dueDate?: string | null
   } | null
   vacationProfile: {
     contractType: string | null
@@ -314,6 +316,21 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
     payslipLines,
   )
 
+  let porVencerVal = typeof vacationsData?.porVencer === "string" ? vacationsData.porVencer : null
+  let dueDateVal = typeof vacationsData?.dueDate === "string" ? vacationsData.dueDate : null
+
+  // Si registros anteriores no tenían dueDate / porVencer pero sí conservan porVencerRaw (ej. 14102026),
+  // recuperar de forma idempotente con el nuevo parser:
+  if (!porVencerVal && !dueDateVal && typeof vacationsData?.porVencerRaw === "string") {
+    const recovered = parsePorVencerDate(vacationsData.porVencerRaw)
+    if (recovered) {
+      porVencerVal = recovered
+      dueDateVal = recovered
+    }
+  }
+  if (!dueDateVal && porVencerVal) dueDateVal = porVencerVal
+  if (!porVencerVal && dueDateVal) porVencerVal = dueDateVal
+
   const vacations = vacationsData
     ? {
         enjoyedDays: typeof vacationsData.enjoyedDays === "number" ? vacationsData.enjoyedDays : null,
@@ -325,8 +342,9 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
         firstPeriodStartRaw: typeof vacationsData.firstPeriodStartRaw === "string" ? vacationsData.firstPeriodStartRaw : null,
         secondPeriodStartRaw: typeof vacationsData.secondPeriodStartRaw === "string" ? vacationsData.secondPeriodStartRaw : null,
         accumulatedRetirementDays: typeof vacationsData.accumulatedRetirementDays === "number" ? vacationsData.accumulatedRetirementDays : null,
-        porVencer: typeof vacationsData.porVencer === "string" ? vacationsData.porVencer : null,
+        porVencer: porVencerVal,
         porVencerRaw: typeof vacationsData.porVencerRaw === "string" ? vacationsData.porVencerRaw : null,
+        dueDate: dueDateVal,
       }
     : null
 
