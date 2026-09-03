@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, type CSSProperties } from "react"
+import { useState, useEffect, useCallback, type CSSProperties } from "react"
+import { createClient } from "@/lib/supabase/client"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
-import { Input } from "@/shared/components/ui/Input"
+import { getAllCalendars, publishCalendar } from "../services/calendar-service"
 
 const CONTAINER: CSSProperties = {
   maxWidth: 800,
@@ -66,37 +67,177 @@ export function AdminPanel() {
 }
 
 function CalendarManager() {
+  const [calendars, setCalendars] = useState<import("../domain/types").AnnualVacationCalendar[]>([])
+  const [loading, setLoading] = useState(true)
+  const [publishingId, setPublishingId] = useState<string | null>(null)
+  const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null)
+  const supabase = createClient()
+
+  const reloadCalendars = useCallback(async () => {
+    try {
+      const list = await getAllCalendars(supabase)
+      setCalendars(list)
+    } catch (err) {
+      setMessage({ text: err instanceof Error ? err.message : "Error al cargar calendarios", error: true })
+    }
+  }, [supabase])
+
+  useEffect(() => {
+    let active = true
+    getAllCalendars(supabase)
+      .then((list) => {
+        if (active) {
+          setCalendars(list)
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (active) {
+          setMessage({ text: err instanceof Error ? err.message : "Error al cargar calendarios", error: true })
+          setLoading(false)
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [supabase])
+
+  async function handlePublish(cal: import("../domain/types").AnnualVacationCalendar) {
+    const missingEndDates = cal.roles.filter((r) => r.enabled && !r.endDate)
+    if (missingEndDates.length > 0) {
+      setMessage({
+        text: `No se puede publicar el calendario: ${missingEndDates.length} rol(es) no tienen fecha de término (end_date).`,
+        error: true,
+      })
+      return
+    }
+
+    setPublishingId(cal.id)
+    setMessage(null)
+    try {
+      const res = await publishCalendar(supabase, cal.id)
+      if (res.success) {
+        setMessage({ text: `Calendario ${cal.year} (${cal.version}) publicado con éxito.` })
+        await reloadCalendars()
+      } else {
+        setMessage({ text: res.error || "Error al publicar calendario", error: true })
+      }
+    } catch (err) {
+      setMessage({ text: err instanceof Error ? err.message : "Error desconocido al publicar", error: true })
+    } finally {
+      setPublishingId(null)
+    }
+  }
+
   return (
     <div>
-      <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>
-        <h3 style={{ fontWeight: 600, marginBottom: "1rem" }}>Importar Calendario Anual</h3>
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          <Input label="Año" type="number" defaultValue="2026" />
-          <Input label="Versión" defaultValue="v1" />
-          <div>
-            <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.25rem" }}>
-              Importar archivo JSON o CSV
-            </label>
-            <input
-              type="file"
-              accept=".json,.csv"
-              style={{
-                width: "100%", padding: "0.5rem",
-                borderRadius: "var(--radius)", border: "1px solid var(--border)",
-                fontSize: "0.85rem",
-              }}
-            />
-          </div>
-          <Button>Importar</Button>
-        </div>
-      </Card>
+      <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "var(--radius)", padding: "0.75rem 1rem", fontSize: "0.85rem", color: "#92400e", marginBottom: "1rem" }}>
+        <strong>⚠️ Política de Integridad Normativa:</strong> No cargar ni publicar la tabla 2026 como si fuera el calendario oficial 2027. Los roles 2027 deben ser emitidos por la Comisión Mixta oficial antes de su publicación.
+      </div>
 
-      <Card padding="1.25rem">
-        <h3 style={{ fontWeight: 600, marginBottom: "1rem" }}>Calendarios Existentes</h3>
-        <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
-          <p>No hay calendarios cargados todavía.</p>
-          <p style={{ marginTop: "0.5rem" }}>Crea un nuevo calendario usando el formulario de importación.</p>
+      {message && (
+        <div style={{
+          background: message.error ? "#fee2e2" : "#f0fdf4",
+          border: `1px solid ${message.error ? "#ef4444" : "#22c55e"}`,
+          borderRadius: "var(--radius)",
+          padding: "0.75rem 1rem",
+          fontSize: "0.85rem",
+          color: message.error ? "#991b1b" : "#166534",
+          marginBottom: "1rem",
+        }}>
+          {message.text}
         </div>
+      )}
+
+      <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>
+        <h3 style={{ fontWeight: 600, marginBottom: "0.75rem" }}>Calendarios del Sistema</h3>
+        {loading ? (
+          <p style={{ fontSize: "0.85rem", color: "var(--muted)" }}>Cargando calendarios...</p>
+        ) : calendars.length === 0 ? (
+          <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+            <p>No hay calendarios registrados en el sistema.</p>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            {calendars.map((c) => {
+              const missingEndDates = c.roles.filter((r) => r.enabled && !r.endDate)
+              const hasRoles = c.roles.length > 0
+              const canPublish = c.status !== "PUBLISHED" && hasRoles && missingEndDates.length === 0
+
+              return (
+                <div
+                  key={c.id}
+                  style={{
+                    padding: "1rem",
+                    borderRadius: "var(--radius)",
+                    border: "1px solid var(--border)",
+                    background: "var(--card)",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                    <div>
+                      <span style={{ fontWeight: 700, fontSize: "1rem", marginRight: "0.5rem" }}>
+                        Año {c.year} — {c.version}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: "0.75rem",
+                          padding: "0.15rem 0.5rem",
+                          borderRadius: "9999px",
+                          fontWeight: 600,
+                          background: c.status === "PUBLISHED" ? "#dcfce7" : "#fef3c7",
+                          color: c.status === "PUBLISHED" ? "#166534" : "#92400e",
+                        }}
+                      >
+                        {c.status}
+                      </span>
+                    </div>
+                    {c.status !== "PUBLISHED" && (
+                      <Button
+                        size="sm"
+                        disabled={!canPublish || publishingId === c.id}
+                        loading={publishingId === c.id}
+                        onClick={() => handlePublish(c)}
+                      >
+                        Publicar calendario
+                      </Button>
+                    )}
+                  </div>
+
+                  <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
+                    Fuente: {c.sourceName} | Roles: {c.roles.length}
+                    {c.publishedAt && ` | Publicado: ${new Date(c.publishedAt).toLocaleDateString("es-MX")}`}
+                  </div>
+
+                  {missingEndDates.length > 0 && c.status !== "PUBLISHED" && (
+                    <div style={{ fontSize: "0.78rem", color: "#b91c1c", marginTop: "0.25rem", marginBottom: "0.5rem" }}>
+                      ⚠️ Bloqueo de publicación: {missingEndDates.length} rol(es) no tienen fecha de término (end_date). Todos los roles deben tener fecha de término antes de publicar.
+                    </div>
+                  )}
+
+                  {c.roles.length > 0 && (
+                    <details style={{ fontSize: "0.8rem", marginTop: "0.5rem" }}>
+                      <summary style={{ cursor: "pointer", color: "var(--primary)" }}>
+                        Ver {c.roles.length} roles del calendario
+                      </summary>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.5rem", marginTop: "0.5rem" }}>
+                        {c.roles.map((r) => (
+                          <div key={r.id || r.roleNumber} style={{ padding: "0.5rem", background: "var(--accent)", borderRadius: "var(--radius-sm)" }}>
+                            <div style={{ fontWeight: 600 }}>
+                              Rol #{r.roleNumber} {r.roleGroup ? `(Grupo ${r.roleGroup})` : ""}
+                            </div>
+                            <div>Inicio: {r.startDate}</div>
+                            <div>Término: {r.endDate || <span style={{ color: "#b91c1c" }}>Sin término</span>}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </Card>
     </div>
   )

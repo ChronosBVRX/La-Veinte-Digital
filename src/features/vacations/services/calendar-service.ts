@@ -25,6 +25,8 @@ export async function getPublishedCalendar(supabase: SupabaseClient, year: numbe
       id: r.id as string,
       roleNumber: r.role_number as number,
       startDate: r.start_date as string,
+      endDate: (r.end_date as string) || undefined,
+      roleGroup: (r.role_group as "A" | "B" | "GENERAL") || undefined,
       label: r.label as string | undefined,
       enabled: r.enabled as boolean,
     })),
@@ -52,6 +54,8 @@ export async function getAllCalendars(supabase: SupabaseClient): Promise<AnnualV
       id: r.id as string,
       roleNumber: r.role_number as number,
       startDate: r.start_date as string,
+      endDate: (r.end_date as string) || undefined,
+      roleGroup: (r.role_group as "A" | "B" | "GENERAL") || undefined,
       label: r.label as string | undefined,
       enabled: r.enabled as boolean,
     })),
@@ -75,11 +79,10 @@ export async function createCalendar(
   return { ...calendar, id: data.id as string };
 }
 
-export async function publishCalendar(supabase: SupabaseClient, id: string): Promise<boolean> {
-  const { error } = await supabase
-    .from("vacation_calendars")
-    .update({ status: "PUBLISHED", published_at: new Date().toISOString() })
-    .eq("id", id);
-
-  return !error;
+export async function publishCalendar(supabase: SupabaseClient, id: string): Promise<{ success: boolean; error?: string }> {
+  const { error } = await supabase.rpc("publish_vacation_calendar", { p_calendar_id: id });
+  if (error) {
+    return { success: false, error: error.message };
+  }
+  return { success: true };
 }

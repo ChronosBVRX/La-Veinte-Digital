@@ -9,7 +9,7 @@ import { TarjetonUploaderSection } from "@/features/profile/components/worker/Ta
 import type { WorkerProfile, ProfileQuality, FieldRequirement, WorkerDataEvent, WorkerProfileMode } from "@/shared/domain/worker"
 
 interface PageProps {
-  searchParams: { returnTo?: string }
+  searchParams: Promise<{ returnTo?: string }>
 }
 
 export default async function WorkerProfilePage({ searchParams }: PageProps) {
@@ -18,7 +18,8 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
   if (!user) return <p style={{ padding: "2rem" }}>Debes iniciar sesión.</p>
 
   // Validar y sanitizar returnTo en servidor.
-  const rawReturnTo = searchParams.returnTo
+  const resolvedSearchParams = await searchParams
+  const rawReturnTo = resolvedSearchParams?.returnTo
   const returnTo = typeof rawReturnTo === "string" && isSafeInternalReturnPath(rawReturnTo)
     ? rawReturnTo
     : undefined

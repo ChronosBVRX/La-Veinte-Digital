@@ -37,6 +37,9 @@ export async function getWorkerContext(): Promise<WorkerContext> {
       .from("imported_payslips")
       .select("id, period_raw, payroll_totals, employee_data, vacations")
       .eq("user_id", user.id)
+      .order("period_year", { ascending: false, nullsFirst: false })
+      .order("period_month", { ascending: false, nullsFirst: false })
+      .order("period_half", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(1),
     supabase

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { checkRateLimit, type RateLimitRecord, MAX_RATE_LIMIT_ENTRIES } from "@/app/api/escritos/generar/route"
+import { checkRateLimit, type RateLimitRecord, MAX_RATE_LIMIT_ENTRIES } from "@/features/escritos/server/rate-limit"
 
 describe("Rate Limiting en Memoria Acotado y Determinista (checkRateLimit)", () => {
   it("garantiza que el tamaño del Map nunca supera MAX_RATE_LIMIT_ENTRIES (1000) con inserción masiva", () => {
