@@ -54,9 +54,9 @@ describe("GroqLLMProvider & Integration Suite", () => {
 
   // 2. JSON Schema estricto
   it("2. JSON Schema estricto agrega additionalProperties: false y required en todos los objetos", async () => {
-    let capturedBody: any = null;
-    vi.spyOn(global, "fetch").mockImplementation(async (url: any, opts: any) => {
-      capturedBody = JSON.parse(opts.body);
+    let capturedBody: { response_format?: { type?: string; json_schema?: { strict?: boolean; schema?: { additionalProperties?: boolean; required?: string[] } } } } | null = null;
+    vi.spyOn(global, "fetch").mockImplementation(async (_url, opts) => {
+      capturedBody = JSON.parse(opts?.body as string);
       return {
         ok: true,
         headers: new Headers(),
@@ -88,7 +88,7 @@ describe("GroqLLMProvider & Integration Suite", () => {
       system: "system",
       user: "user",
       jsonSchema: schema,
-      validate: (raw: any) => raw,
+      validate: (raw: unknown) => raw,
     });
 
     expect(out).toEqual({ name: "test", count: 1 });
@@ -122,9 +122,10 @@ describe("GroqLLMProvider & Integration Suite", () => {
       system: "sys",
       user: "hola",
       jsonSchema: { type: "object", properties: { titular: { type: "string" }, relevancia: { type: "number" } } },
-      validate: (raw: any) => {
-        if (!raw.titular) throw new Error("Falta titular");
-        return raw;
+      validate: (raw: unknown) => {
+        const obj = raw as { titular?: string; relevancia?: number };
+        if (!obj.titular) throw new Error("Falta titular");
+        return obj;
       },
     });
 
@@ -155,15 +156,13 @@ describe("GroqLLMProvider & Integration Suite", () => {
       system: "sys",
       user: "user",
       jsonSchema: { type: "object", properties: { x: { type: "string" } } },
-      validate: (raw: any) => raw,
+      validate: (raw: unknown) => raw,
     })).rejects.toThrow(/GROQ_SCHEMA_FAIL/);
   });
 
   // 5. Timeout
   it("5. Timeout arroja error y no se cuelga indefinidamente", async () => {
-    vi.spyOn(global, "fetch").mockImplementation(async (_url: any, opts: any) => {
-      // Simular aborto por timeout
-      const signal = opts.signal;
+    vi.spyOn(global, "fetch").mockImplementation(async () => {
       return new Promise((_, reject) => {
         setTimeout(() => {
           reject(new DOMException("The operation was aborted", "TimeoutError"));
@@ -244,7 +243,7 @@ describe("GroqLLMProvider & Integration Suite", () => {
       system: "s",
       user: "u",
       jsonSchema: { type: "object", properties: { ok: { type: "boolean" } } },
-      validate: (raw: any) => raw,
+      validate: (raw: unknown) => raw,
     });
 
     expect(callCount).toBe(2);

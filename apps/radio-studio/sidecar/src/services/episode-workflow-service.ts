@@ -22,6 +22,7 @@ import { ProjectWorkflowService } from "./project-workflow";
 import { classifyRequest } from "./request-intent-classifier";
 import { checkEntailment } from "./claim-entailment-gate";
 import { validateAntirepetition, validateCompleteSentences, humanConversationGate, gateBloqueado } from "@la-veinte/radio-core";
+import { getGroqUsageForUI } from "../llm/llm-factory";
 import type { Project, Proposal, Script, VerifyResult, ResearchBundle, Turn } from "@la-veinte/studio-contract";
 
 export interface CriterionScores {
@@ -453,7 +454,6 @@ bestRubric = evaluateRubric(selectedProposal, script, research, intent);
     let rateLimitWaitMs = 0;
     let fallbackUsed = false;
     try {
-      const { getGroqUsageForUI } = require("../llm/llm-factory") as typeof import("../llm/llm-factory");
       const groqUsage = getGroqUsageForUI();
       if (groqUsage) {
         rateLimitWaitMs = groqUsage.rateLimitWaitMs;
