@@ -21,15 +21,15 @@ export async function generarEscrito(
       const data = await res.json().catch(() => ({}))
       const errorMessage = data.error || `Error ${res.status}: No fue posible generar el escrito.`
 
-      // No enmascarar errores de autorización o cuota
-      if (res.status === 401 || res.status === 403 || res.status === 429) {
+      // No enmascarar errores de autorización, cuota ni validación de cliente
+      if (res.status === 401 || res.status === 403 || res.status === 429 || res.status === 400) {
         throw new Error(errorMessage)
       }
 
       console.warn("[generarEscrito] Error del servidor en /api/escritos/generar:", errorMessage)
       return {
         ...generateBasicFallbackEscrito(req),
-        advertencias: ["La redacción inteligente no está disponible en este momento."],
+        advertencias: [errorMessage],
         generationMode: "basic_fallback",
       }
     }
