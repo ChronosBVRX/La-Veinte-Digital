@@ -174,6 +174,8 @@ export interface VacationRole {
   id: string;
   roleNumber: number;
   startDate: string;
+  endDate?: string;
+  roleGroup?: "A" | "B" | "GENERAL";
   label?: string;
   enabled: boolean;
 }

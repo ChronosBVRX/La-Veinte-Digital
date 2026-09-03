@@ -579,13 +579,21 @@ export function VacationWizard({ initialContext }: VacationWizardProps = {}) {
       const details = getFriendlyOptionDetails(regime, m, state.continuityMark)
       return { mark: m, label: details.label, desc: details.desc }
     })
+    const allSemestralMarks = [0, 1, 2, 3, 4, 9]
+    const nonAllowedMarks = regime === "SEMESTRAL"
+      ? allSemestralMarks.filter((m) => !compatMarks.includes(m))
+      : []
 
     return (
       <>
         {renderStepIndicator("inclusion-options")}
         <h2 style={HEADER}>¿Cómo deseas disfrutar tus vacaciones?</h2>
-        <p style={SUBTITLE}>Selecciona la opción que prefieras según tu régimen ({getRegimeLabel(regime)}).</p>
-        <Card padding="1.25rem">
+        <p style={SUBTITLE}>Selecciona una opción permitida según tu régimen ({getRegimeLabel(regime)}) y continuidad ({state.continuityMark}).</p>
+
+        <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>
+          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.75rem" }}>
+            Opciones permitidas en tu estado actual
+          </h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             {options.map((opt) => (
               <button
@@ -609,14 +617,64 @@ export function VacationWizard({ initialContext }: VacationWizardProps = {}) {
             ))}
           </div>
         </Card>
-        <div style={{ marginTop: "1rem" }}>
-          <details style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
-            <summary style={{ cursor: "pointer" }}>Ver detalles técnicos</summary>
-            <p style={{ marginTop: "0.5rem" }}>
-              Marca de inclusión seleccionada: {state.selectedInclusionMark} | Continuidad: {state.continuityMark}
+
+        {nonAllowedMarks.length > 0 && (
+          <Card padding="1.25rem" style={{ marginBottom: "1rem", background: "var(--accent)" }}>
+            <h3 style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--muted)", marginBottom: "0.5rem" }}>
+              Opciones no permitidas para tu continuidad actual (Marca {state.continuityMark})
+            </h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {nonAllowedMarks.map((m) => {
+                const details = getFriendlyOptionDetails(regime, m, state.continuityMark)
+                const reason = getNonAllowedReason(m, state.continuityMark)
+                return (
+                  <div key={m} style={{ padding: "0.5rem 0.75rem", background: "var(--card)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", opacity: 0.75 }}>
+                    <div style={{ fontWeight: 600, fontSize: "0.82rem", color: "var(--muted)" }}>{details.label}</div>
+                    <div style={{ fontSize: "0.75rem", color: "#b91c1c", marginTop: "0.15rem" }}>Motivo: {reason}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </Card>
+        )}
+
+        <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>
+          <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.5rem" }}>
+            Comportamiento de secuencias de continuidad (CCT Cláusula 47)
+          </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap: "0.75rem", fontSize: "0.8rem" }}>
+            <div style={{ padding: "0.5rem", background: "var(--accent)", borderRadius: "var(--radius-sm)" }}>
+              <strong>Secuencia 1 → 1:</strong> Fraccionamiento en 2 partes semejantes. Marca 1 para la primera fracción (continuidad 1); segunda marca 1 para la segunda fracción (cierra en continuidad 2).
+            </div>
+            <div style={{ padding: "0.5rem", background: "var(--accent)", borderRadius: "var(--radius-sm)" }}>
+              <strong>Secuencia 2 → 3:</strong> Periodos completos semestrales. Marca 2 para el primer periodo semestral (continuidad 3); marca 3 para el segundo periodo semestral (cierra en continuidad 6).
+            </div>
+            <div style={{ padding: "0.5rem", background: "var(--accent)", borderRadius: "var(--radius-sm)" }}>
+              <strong>Secuencia 4 → 9:</strong> Modalidad con pago. Marca 4 para la primera fracción (continuidad 4); marca 9 para la segunda fracción (cierra en continuidad 13).
+            </div>
+            <div style={{ padding: "0.5rem", background: "var(--accent)", borderRadius: "var(--radius-sm)" }}>
+              <strong>Secuencia 9 → 4:</strong> Modalidad con pago inversa. Marca 9 para la primera fracción (continuidad 9); marca 4 para la segunda fracción (cierra en continuidad 13).
+            </div>
+          </div>
+        </Card>
+
+        <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>
+          <h3 style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.5rem" }}>
+            Prestaciones independientes: Concepto 029 y Concepto 048
+          </h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.82rem", color: "var(--muted)", lineHeight: 1.5 }}>
+            <p>
+              <strong style={{ color: "var(--fg)" }}>Concepto 029 (Ayuda para actividades culturales y recreativas):</strong> Es una percepción económica de 15 días de salario que acredita 30 días para efectos del cómputo de jubilación (Cláusula 47). No sustituye ni disminuye los días de descanso vacacional.
             </p>
-          </details>
-        </div>
+            <p>
+              <strong style={{ color: "var(--fg)" }}>Concepto 048 (Prima vacacional):</strong> Es el pago contractual del 25% (o porcentaje CCT correspondiente) sobre el salario devengado durante el periodo de vacaciones efectivamente disfrutado.
+            </p>
+            <p style={{ fontStyle: "italic", color: "var(--fg)" }}>
+              Nota: Son conceptos independientes con normas de devengo y pago separadas; el pago del concepto 029 no anula el derecho a la prima vacacional 048.
+            </p>
+          </div>
+        </Card>
+
         <div style={BUTTON_ROW}>
           <Button variant="ghost" onClick={() => goTo("continuity")}>Atrás</Button>
         </div>
@@ -628,6 +686,7 @@ export function VacationWizard({ initialContext }: VacationWizardProps = {}) {
     const calendarYear = state.calendarYear ?? institutionalToday().getFullYear()
     const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
     const selectedMonth = state.calendarMonth
+    const isYear2027OrLater = calendarYear >= 2027
 
     const regime = state.regime || determineRegime()
 
@@ -674,6 +733,16 @@ export function VacationWizard({ initialContext }: VacationWizardProps = {}) {
           {state.dueDate ? `Fecha por vencer (adquisición del derecho): ${formatMexicanDate(state.dueDate)}. ` : ""}
           Las fechas posteriores a vencimiento no requieren anticipación y están protegidas por prescripción legal de 2 años.
         </p>
+
+        {isYear2027OrLater && (
+          <div style={WARN_BOX}>
+            <strong>⚠️ Aviso sobre Calendario 2027:</strong> El calendario anual oficial de roles para 2027 aún no ha sido publicado por el IMSS. Esta simulación utiliza fechas proyectadas conforme a la Cláusula 47 del CCT.
+            <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", lineHeight: 1.5 }}>
+              <div><strong>• Rol A:</strong> Asignación ordinaria para el primer grupo operativo de vacaciones.</div>
+              <div><strong>• Rol B:</strong> Asignación alternada para el segundo grupo operativo a fin de garantizar la cobertura en servicios hospitalarios y unidades de medicina familiar.</div>
+            </div>
+          </div>
+        )}
 
         <Card padding="1.25rem">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
@@ -1037,6 +1106,25 @@ function getFriendlyOptionDetails(regime: VacationRegime, mark: number, continui
     default:
       return { label: `Opción ${mark}`, desc: "Opción disponible según tu marca de continuidad." }
   }
+}
+
+function getNonAllowedReason(mark: number, continuity: number): string {
+  if (continuity === 1) {
+    return "Tienes abierta la primera fracción (marca 1). Para avanzar debes completar la segunda fracción seleccionando la opción 1."
+  }
+  if (continuity === 3) {
+    return "Tienes pendiente el segundo periodo semestral completo. Debes seleccionar la opción 3 para completar tu ciclo."
+  }
+  if (continuity === 4) {
+    return "Iniciaste la modalidad especial 4→9. Para completar el ciclo debes seleccionar la marca 9."
+  }
+  if (continuity === 9) {
+    return "Iniciaste la modalidad especial 9→4. Para completar el ciclo debes seleccionar la marca 4."
+  }
+  if (mark === 3) {
+    return "La marca 3 solo se permite tras haber solicitado el primer periodo semestral completo (marca 2)."
+  }
+  return "Esta opción no es compatible con tu marca de continuidad actual según las transiciones del CCT."
 }
 
 function generateSummaryText(r: VacationSimulationResult): string {
