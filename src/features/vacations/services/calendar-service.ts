@@ -9,7 +9,7 @@ export async function getPublishedCalendar(supabase: SupabaseClient, year: numbe
     .eq("status", "PUBLISHED")
     .order("version", { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (!data) return null;
 
