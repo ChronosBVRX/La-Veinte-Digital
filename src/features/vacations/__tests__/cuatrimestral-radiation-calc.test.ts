@@ -113,7 +113,7 @@ describe("Cálculo Cuatrimestral 029 y 048 — Procedimiento IMSS 1A74-003-025 A
       expect(p3.helpDays).toBe(13.3)
     })
 
-    it("secuencia 2 -> 5 -> 5 (Opción B cuatrimestral) no liquida concepto 048", () => {
+    it("secuencia 2 -> 5 -> 5 (modalidad fraccionada cuatrimestral) no liquida concepto 048", () => {
       const p1 = calculateVacationPayment({
         integratedMonthlySalary: 22058.60,
         seniorityYears: 14,

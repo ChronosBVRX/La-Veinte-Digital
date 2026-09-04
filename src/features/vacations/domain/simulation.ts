@@ -213,10 +213,10 @@ function getFriendlyOptionName(regime: string, inclusionMark: number, currentCon
   }
   if (regime === "CUATRIMESTRAL") {
     switch (inclusionMark) {
-      case 0: return "Disfrutar el periodo en una sola parte (opción A)";
-      case 2: return "Disfrutar el periodo en una sola parte (opción B)";
-      case 5: return "Completar la segunda parte (opción B)";
-      default: return `Opción ${inclusionMark}`;
+      case 0: return "Periodo regular con ayuda (Marca 0)";
+      case 2: return "Inicio de periodos fraccionados sin ayuda (Marca 2)";
+      case 5: return "Continuación de periodos fraccionados (Marca 5)";
+      default: return `Marca ${inclusionMark}`;
     }
   }
   if (regime === "EXTRAORDINARIO_V20") {
