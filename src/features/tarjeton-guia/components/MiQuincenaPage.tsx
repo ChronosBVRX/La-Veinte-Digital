@@ -9,6 +9,7 @@ import { PageContainer } from "@/shared/components/layout/PageContainer"
 import { Card } from "@/shared/components/ui/Card"
 import { Badge } from "@/shared/components/ui/Badge"
 import { ActionLink } from "@/shared/components/ui/ActionLink"
+import { BotonReintentarAnalisis } from "./BotonReintentarAnalisis"
 import { Tabs } from "@/shared/components/ui/Tabs"
 import { useLatestPayslip } from "@/features/tarjeton-guia/hooks/useLatestPayslip"
 import { buildExplainer, buildQuincenaSummary, type ExplainerStep } from "@/features/tarjeton-guia/lib/explainer"
@@ -76,7 +77,15 @@ export function MiQuincenaPage({ serverPayslip, initialTab }: { serverPayslip: G
           active === "revisar" ? (
             <ReviewTab items={review} comparison={comparison} />
           ) : (
-            <ExplainTab steps={steps} step={step} stepIndex={stepIndex} setStepIndex={setStepIndex} summary={summary} total={steps.length} />
+            <ExplainTab
+              steps={steps}
+              step={step}
+              stepIndex={stepIndex}
+              setStepIndex={setStepIndex}
+              summary={summary}
+              total={steps.length}
+              periodRaw={payslip?.periodLabel || payslip?.periodRaw}
+            />
           )
         }
       </Tabs>
@@ -91,6 +100,7 @@ function ExplainTab({
   setStepIndex,
   summary,
   total,
+  periodRaw,
 }: {
   steps: ExplainerStep[]
   step: ExplainerStep
@@ -98,6 +108,7 @@ function ExplainTab({
   setStepIndex: (i: number) => void
   summary: ReturnType<typeof buildQuincenaSummary>
   total: number
+  periodRaw?: string
 }) {
   const isLast = stepIndex >= total - 1
   return (
@@ -140,9 +151,14 @@ function ExplainTab({
             </span>
           </div>
           <p style={{ fontSize: "0.8125rem", color: "#b45309", margin: 0, lineHeight: 1.4 }}>
-            Puedes volver a subir tu tarjetón con mayor resolución o revisar tu información laboral.
+            Puedes volver a subir tu tarjetón con mayor resolución o reintentar el análisis en el dispositivo.
           </p>
-          <div>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+            <BotonReintentarAnalisis
+              periodRaw={periodRaw}
+              size="sm"
+              variant="secondary"
+            />
             <ActionLink href="/profile/mi-informacion-laboral" size="sm" variant="outline">
               Volver a subir o revisar tarjetón
             </ActionLink>

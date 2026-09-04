@@ -11,6 +11,7 @@ import {
 import { PageHeader } from "@/shared/components/app/PageHeader"
 import { Card } from "@/shared/components/ui/Card"
 import { ActionLink } from "@/shared/components/ui/ActionLink"
+import { BotonReintentarAnalisis } from "./BotonReintentarAnalisis"
 import { guideTips } from "@/features/tarjeton-guia/data/tips"
 import { guideQuickLessons } from "@/features/tarjeton-guia/data/lessons"
 import { resolveRefHref } from "@/features/tarjeton-guia/lib/catalog"
@@ -27,6 +28,19 @@ export interface GuiaHomeServerData {
 
 export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
   const [tipIndex, setTipIndex] = useState(0)
+  const [overrideStats, setOverrideStats] = useState<{
+    earningsCount?: number
+    deductionsCount?: number
+    netPay?: number
+  } | null>(null)
+
+  const stats = {
+    earningsCount: overrideStats?.earningsCount ?? data.earningsCount ?? 0,
+    deductionsCount: overrideStats?.deductionsCount ?? data.deductionsCount ?? 0,
+    netPay: overrideStats?.netPay ?? data.netPay,
+    totalEarnings: data.totalEarnings,
+    totalDeductions: data.totalDeductions,
+  }
 
   useEffect(() => {
     const now = new Date()
@@ -49,21 +63,21 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
       <PageHeader
         eyebrow="Guía"
         title="Guía de mi Tarjetón"
-        description="Todo tu pago, explicado de forma sencilla."
+        description="Aprende a leer cada concepto, verificar tus descuentos y proteger tu salario quincenal."
       />
 
-      {/* Hero: entiende tu última quincena */}
-      <Card variant="highlighted" padding="1.25rem" style={{ marginBottom: "1.5rem" }}>
+      {/* Quincena Hero */}
+      <Card padding="1.25rem" style={{ marginTop: "1rem" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
           <span
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: "var(--radius-md)",
-              background: "color-mix(in srgb, var(--primary) 12%, var(--card))",
-              display: "flex",
+              display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
+              width: 38,
+              height: 38,
+              borderRadius: "var(--radius-md)",
+              background: "var(--accent)",
               flexShrink: 0,
             }}
           >
@@ -91,14 +105,14 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
               }}
             >
               <SummaryStat label="Periodo" value={data.periodRaw ?? "—"} />
-              <SummaryStat label="Líquido" value={data.netPay != null ? formatMoney(data.netPay) : "—"} />
-              <SummaryStat label="Percepciones" value={String(data.earningsCount ?? 0)} />
-              <SummaryStat label="Deducciones" value={String(data.deductionsCount ?? 0)} />
+              <SummaryStat label="Líquido" value={stats.netPay != null ? formatMoney(stats.netPay) : "—"} />
+              <SummaryStat label="Percepciones" value={String(stats.earningsCount ?? 0)} />
+              <SummaryStat label="Deducciones" value={String(stats.deductionsCount ?? 0)} />
             </div>
 
-            {((data.totalEarnings ?? 0) > 0 || (data.totalDeductions ?? 0) > 0 || (data.netPay ?? 0) > 0) &&
-              (data.earningsCount ?? 0) === 0 &&
-              (data.deductionsCount ?? 0) === 0 && (
+            {((stats.totalEarnings ?? 0) > 0 || (stats.totalDeductions ?? 0) > 0 || (stats.netPay ?? 0) > 0) &&
+              (stats.earningsCount ?? 0) === 0 &&
+              (stats.deductionsCount ?? 0) === 0 && (
               <div
                 style={{
                   background: "#fffbeb",
@@ -114,10 +128,19 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
                 <div style={{ fontWeight: 600 }}>
                   ⚠️ Detectamos los totales de tu tarjetón, pero no pudimos leer el detalle de los conceptos.
                 </div>
-                <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                  <ActionLink href="/profile/mi-informacion-laboral" size="sm" variant="secondary">
-                    Reintentar análisis
-                  </ActionLink>
+                <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                  <BotonReintentarAnalisis
+                    periodRaw={data.periodRaw}
+                    size="sm"
+                    variant="secondary"
+                    onCompleted={(res) => {
+                      setOverrideStats({
+                        earningsCount: res.earnings,
+                        deductionsCount: res.deductions,
+                        netPay: res.netPay,
+                      })
+                    }}
+                  />
                   <ActionLink href="/profile/mi-informacion-laboral" size="sm" variant="outline">
                     Revisar documento
                   </ActionLink>

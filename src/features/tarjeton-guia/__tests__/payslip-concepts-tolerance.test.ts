@@ -3,6 +3,8 @@ import { normalizePayslipConcept } from "@/shared/contracts/payslip-concept"
 import { dbRowToGuidePayslip, toGuidePayslip } from "../services/payslip-guide"
 import { buildExplainer } from "../lib/explainer"
 import { parseImssConceptTables } from "@/features/tarjeton/lib/imss-concept-table-parser"
+import { savePayslip, getPayslips } from "@/shared/services/local-storage"
+import { getPayPeriod } from "@/features/nomina/lib/periods"
 import type { ReconstructedLine } from "@/features/tarjeton/lib/line-reconstruction"
 
 describe("Guía del tarjetón: Reconocimiento robusto de conceptos y tolerancia a formatos", () => {
@@ -300,5 +302,80 @@ describe("Guía del tarjetón: Reconocimiento robusto de conceptos y tolerancia 
     expect(resumenStep?.title).toBe("Tu pago en pocas palabras")
     expect(resumenStep?.explanation).toContain("Detectamos 3 percepciones y 2 deducciones")
   })
+
+  it("savePayslip deduplica por periodo y preserva conceptos sin multiplicar registros", () => {
+    // Simular un mock de localStorage
+    const store: Record<string, string> = {}
+    const mockStorage = {
+      getItem: (key: string) => store[key] ?? null,
+      setItem: (key: string, value: string) => {
+        store[key] = value
+      },
+      removeItem: (key: string) => {
+        delete store[key]
+      },
+      clear: () => {
+        for (const k in store) delete store[k]
+      },
+    }
+    const origWindow = globalThis.window
+    const origStorage = (globalThis as unknown as { localStorage?: unknown }).localStorage
+    // @ts-expect-error Mock window and localStorage for test
+    globalThis.localStorage = mockStorage
+    // @ts-expect-error Mock window for test
+    globalThis.window = { localStorage: mockStorage, dispatchEvent: () => true }
+
+    try {
+      // 1. Guardar tarjetón inicial sin conceptos (como el que falló antes)
+      const sepPeriod = { ...getPayPeriod(2026, 9, 1), label: "1A-SEP-2026" }
+      const emptySlip = {
+        id: "slip-initial-id",
+        userId: "user-1",
+        period: sepPeriod,
+        earnings: [],
+        deductions: [],
+        totalEarnings: 4500,
+        totalDeductions: 598,
+        netPay: 3902,
+        source: "pdf" as const,
+        confirmedByUser: true,
+      }
+      savePayslip(emptySlip)
+      expect(getPayslips().length).toBe(1)
+      expect(getPayslips()[0].earnings.length).toBe(0)
+
+      // 2. Reanalizar y guardar resultado con percepciones y deducciones
+      const reanalyzedSlip = {
+        id: "slip-retry-id", // nuevo id generado en reintento
+        userId: "user-1",
+        period: sepPeriod,
+        earnings: [
+          { code: "002", description: "SUELDO BASE", amount: 4500, confirmedByUser: true },
+        ],
+        deductions: [
+          { code: "101", description: "CUOTA", amount: 598, confirmedByUser: true },
+        ],
+        totalEarnings: 4500,
+        totalDeductions: 598,
+        netPay: 3902,
+        source: "pdf" as const,
+        confirmedByUser: true,
+      }
+      savePayslip(reanalyzedSlip)
+
+      // 3. Verificar que NO se duplicó en el almacenamiento y que conservó el ID original con los conceptos nuevos
+      const slips = getPayslips()
+      expect(slips.length).toBe(1)
+      expect(slips[0].id).toBe("slip-initial-id")
+      expect(slips[0].earnings.length).toBe(1)
+      expect(slips[0].earnings[0].code).toBe("002")
+      expect(slips[0].deductions.length).toBe(1)
+      expect(slips[0].deductions[0].code).toBe("101")
+    } finally {
+      globalThis.window = origWindow
+      ;(globalThis as unknown as { localStorage?: unknown }).localStorage = origStorage
+    }
+  })
 })
+
 

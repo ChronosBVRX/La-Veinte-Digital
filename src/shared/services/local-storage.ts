@@ -64,7 +64,24 @@ export function getPayslips(): ImportedPayslip[] {
   const raw = localStorage.getItem(NOMINA_PAYSLIPS_KEY)
   if (!raw) return []
   try {
-    return JSON.parse(raw) as ImportedPayslip[]
+    const parsed = JSON.parse(raw) as ImportedPayslip[]
+    if (!Array.isArray(parsed)) return []
+    // Deduplicate on read if necessary
+    const seen = new Map<string, ImportedPayslip>()
+    for (const s of parsed) {
+      const key = s.period?.id || s.period?.label || s.id
+      const existing = seen.get(key)
+      if (!existing) {
+        seen.set(key, s)
+      } else {
+        const existingCount = (existing.earnings?.length ?? 0) + (existing.deductions?.length ?? 0)
+        const sCount = (s.earnings?.length ?? 0) + (s.deductions?.length ?? 0)
+        if (sCount > existingCount) {
+          seen.set(key, s)
+        }
+      }
+    }
+    return Array.from(seen.values())
   } catch {
     return []
   }
@@ -73,13 +90,48 @@ export function getPayslips(): ImportedPayslip[] {
 export function savePayslip(payslip: ImportedPayslip): void {
   if (typeof window === "undefined") return
   const slips = getPayslips()
-  const idx = slips.findIndex((s) => s.id === payslip.id)
+  const payslipPeriodKey = payslip.period?.id || payslip.period?.label || ""
+  const idx = slips.findIndex((s) => {
+    if (s.id === payslip.id) return true
+    const sPeriodKey = s.period?.id || s.period?.label || ""
+    if (payslipPeriodKey && sPeriodKey && payslipPeriodKey === sPeriodKey) return true
+    return false
+  })
+
   if (idx >= 0) {
-    slips[idx] = payslip
+    const existing = slips[idx]
+    const newConceptCount = (payslip.earnings?.length ?? 0) + (payslip.deductions?.length ?? 0)
+    const oldConceptCount = (existing.earnings?.length ?? 0) + (existing.deductions?.length ?? 0)
+    if (newConceptCount >= oldConceptCount) {
+      slips[idx] = { ...existing, ...payslip, id: existing.id }
+    } else {
+      slips[idx] = {
+        ...payslip,
+        id: existing.id,
+        earnings: existing.earnings,
+        deductions: existing.deductions,
+      }
+    }
   } else {
     slips.push(payslip)
   }
   localStorage.setItem(NOMINA_PAYSLIPS_KEY, JSON.stringify(slips))
+  try {
+    window.dispatchEvent(new CustomEvent("nomina_payslip_updated", { detail: payslip }))
+  } catch {
+    // noop en entornos sin CustomEvent
+  }
+}
+
+export function deduplicatePayslips(): void {
+  if (typeof window === "undefined") return
+  const slips = getPayslips()
+  localStorage.setItem(NOMINA_PAYSLIPS_KEY, JSON.stringify(slips))
+  try {
+    window.dispatchEvent(new CustomEvent("nomina_payslip_updated"))
+  } catch {
+    // noop
+  }
 }
 
 export function getProjections(): PayrollProjection[] {

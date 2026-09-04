@@ -20,8 +20,14 @@ function findAnchor(
   items: NormalizedPdfTextItem[],
   labels: string[],
   afterY = Number.NEGATIVE_INFINITY,
+  excludeLabels: string[] = [],
 ): NormalizedPdfTextItem | undefined {
-  return items.find((item) => item.y >= afterY && labels.some((label) => item.norm.includes(label)))
+  return items.find(
+    (item) =>
+      item.y >= afterY &&
+      labels.some((label) => item.norm.includes(label)) &&
+      !excludeLabels.some((ex) => item.norm.includes(ex))
+  )
 }
 
 function centerY(item: NormalizedPdfTextItem): number {
@@ -43,8 +49,13 @@ export function buildImssLayoutRegions(items: PositionedPdfText[]): ImssLayoutRe
   const pageWidth = Math.max(0, ...normalized.map((item) => item.x + item.width))
 
   const receptorAnchor = findAnchor(normalized, ["RECEPTOR"])
-  const earningsAnchor = findAnchor(normalized, ["PERCEPCIONES"], receptorAnchor?.y)
-  const deductionsAnchor = findAnchor(normalized, ["DEDUCCIONES"], earningsAnchor?.y)
+  const earningsAnchor = findAnchor(normalized, ["PERCEPCIONES", "PERCEPCION", "PERCEP"], receptorAnchor?.y)
+  const deductionsAnchor = findAnchor(
+    normalized,
+    ["DEDUCCIONES", "DEDUCCION", "DEDUC"],
+    (receptorAnchor?.y ?? 0) - 20,
+    ["TOTAL"]
+  )
   const receptorScoped = Boolean(
     receptorAnchor &&
     earningsAnchor &&
@@ -74,32 +85,51 @@ export function buildImssLayoutRegions(items: PositionedPdfText[]): ImssLayoutRe
     ]
   }
 
+  const headerYDiff = earningsAnchor && deductionsAnchor ? Math.abs(centerY(earningsAnchor) - centerY(deductionsAnchor)) : Infinity
   const parallelTables = Boolean(
     earningsAnchor &&
     deductionsAnchor &&
-    Math.abs(centerY(earningsAnchor) - centerY(deductionsAnchor)) <= Math.max(6, earningsAnchor.height) &&
-    deductionsAnchor.x > earningsAnchor.x,
+    headerYDiff <= Math.max(35, (earningsAnchor.height || 10) * 3) &&
+    deductionsAnchor.x > earningsAnchor.x + 30,
   )
+
   let earningsLines = lines
   let deductionLines = lines
-  if (earningsAnchor && parallelTables && pageWidth > 0) {
-    const tableTop = centerY(earningsAnchor)
-    const endAnchor = findAnchor(normalized, ["MENSAJES", "OBSERVACIONES", "CERTIFICACION"], earningsAnchor.y + 0.01)
+
+  const tableTopSearch = earningsAnchor
+    ? Math.min(earningsAnchor.y, deductionsAnchor?.y ?? earningsAnchor.y) - 5
+    : 250
+  const headerRowItems = normalized.filter(
+    (item) => item.y >= tableTopSearch && item.y <= tableTopSearch + Math.max(45, (earningsAnchor?.height ?? 14) * 4),
+  )
+  const conceptHeaders = headerRowItems
+    .filter((item) => item.norm.includes("CONCEPTO"))
+    .sort((a, b) => a.x - b.x)
+  const hasTwoColumns = conceptHeaders.length >= 2 && conceptHeaders[1].x - conceptHeaders[0].x > 50
+
+  const canSplitTables = (parallelTables || hasTwoColumns) && pageWidth > 0
+
+  if (canSplitTables) {
+    const tableTop = tableTopSearch
+    const endAnchor = findAnchor(normalized, ["MENSAJES", "OBSERVACIONES", "CERTIFICACION"], (earningsAnchor?.y ?? tableTop) + 15)
     const tableBottom = endAnchor ? centerY(endAnchor) : Number.POSITIVE_INFINITY
 
-    // The "DEDUCCIONES" title is centered above the right table; use the
-    // second "CONCEPTO" column header or the deductions anchor, whichever
-    // is further left (gives more room for deduction codes).
-    const headerRowItems = normalized.filter(
-      (item) => item.y >= tableTop && item.y <= tableTop + Math.max(30, (earningsAnchor?.height ?? 14) * 4),
-    )
-    const conceptHeaders = headerRowItems
-      .filter((item) => item.norm.includes("CONCEPTO"))
+    const importeHeaders = headerRowItems
+      .filter((item) => item.norm.includes("IMPORTE"))
       .sort((a, b) => a.x - b.x)
-    const divider = Math.min(
-      conceptHeaders[1]?.x ?? Infinity,
-      deductionsAnchor?.x ?? pageWidth / 2,
-    )
+
+    let divider: number
+    if (conceptHeaders.length >= 2 && importeHeaders.length >= 1) {
+      const firstImporteRight = importeHeaders[0].x + importeHeaders[0].width
+      const secondConceptoLeft = conceptHeaders[1].x
+      divider = (firstImporteRight + secondConceptoLeft) / 2
+    } else if (conceptHeaders.length >= 2) {
+      divider = (conceptHeaders[0].x + conceptHeaders[1].x) / 2
+    } else if (deductionsAnchor && deductionsAnchor.x > (earningsAnchor?.x ?? 0) + 30) {
+      divider = deductionsAnchor.x - 10
+    } else {
+      divider = pageWidth * 0.51
+    }
 
     const firstPageEarnings = reconstructLines(pageOneItems, {
       xMin: 0,
