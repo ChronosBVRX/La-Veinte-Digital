@@ -4,6 +4,7 @@ import { dbRowToGuidePayslip, toGuidePayslip } from "../services/payslip-guide"
 import { buildExplainer } from "../lib/explainer"
 import { parseImssConceptTables } from "@/features/tarjeton/lib/imss-concept-table-parser"
 import { savePayslip, getPayslips } from "@/shared/services/local-storage"
+import { getPayPeriod } from "@/features/nomina/lib/periods"
 import type { ReconstructedLine } from "@/features/tarjeton/lib/line-reconstruction"
 
 describe("Guía del tarjetón: Reconocimiento robusto de conceptos y tolerancia a formatos", () => {
@@ -326,16 +327,17 @@ describe("Guía del tarjetón: Reconocimiento robusto de conceptos y tolerancia 
 
     try {
       // 1. Guardar tarjetón inicial sin conceptos (como el que falló antes)
+      const sepPeriod = { ...getPayPeriod(2026, 9, 1), label: "1A-SEP-2026" }
       const emptySlip = {
         id: "slip-initial-id",
         userId: "user-1",
-        period: { id: "2026-09-1A", label: "1A-SEP-2026" },
+        period: sepPeriod,
         earnings: [],
         deductions: [],
         totalEarnings: 4500,
         totalDeductions: 598,
         netPay: 3902,
-        source: "pdf",
+        source: "pdf" as const,
         confirmedByUser: true,
       }
       savePayslip(emptySlip)
@@ -346,7 +348,7 @@ describe("Guía del tarjetón: Reconocimiento robusto de conceptos y tolerancia 
       const reanalyzedSlip = {
         id: "slip-retry-id", // nuevo id generado en reintento
         userId: "user-1",
-        period: { id: "2026-09-1A", label: "1A-SEP-2026" },
+        period: sepPeriod,
         earnings: [
           { code: "002", description: "SUELDO BASE", amount: 4500, confirmedByUser: true },
         ],
@@ -356,7 +358,7 @@ describe("Guía del tarjetón: Reconocimiento robusto de conceptos y tolerancia 
         totalEarnings: 4500,
         totalDeductions: 598,
         netPay: 3902,
-        source: "pdf",
+        source: "pdf" as const,
         confirmedByUser: true,
       }
       savePayslip(reanalyzedSlip)
