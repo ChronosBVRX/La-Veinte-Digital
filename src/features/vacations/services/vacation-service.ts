@@ -67,7 +67,7 @@ export async function getSimulationById(supabase: SupabaseClient, id: string): P
     .from("vacation_simulations")
     .select("*")
     .eq("id", id)
-    .single();
+    .maybeSingle();
 
   if (!data) return null;
 

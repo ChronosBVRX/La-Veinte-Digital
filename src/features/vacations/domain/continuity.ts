@@ -19,13 +19,13 @@ export const SEMESTRAL_TRANSITIONS: SemestralTransition[] = [
 
 export const SEMESTRAL_CLOSED_STATES: SemestralContinuity[] = [0, 2, 6, 13];
 
-const CUATRIMESTRAL_OPTION_A: CuatrimestralStep[] = [
+export const CUATRIMESTRAL_OPTION_A: CuatrimestralStep[] = [
   { periodIndex: 1, inclusionMark: 0, nextContinuity: 1, option: "A" },
   { periodIndex: 2, inclusionMark: 0, nextContinuity: 2, option: "A" },
   { periodIndex: 3, inclusionMark: 0, nextContinuity: 3, option: "A" },
 ];
 
-const CUATRIMESTRAL_OPTION_B: CuatrimestralStep[] = [
+export const CUATRIMESTRAL_OPTION_B: CuatrimestralStep[] = [
   { periodIndex: 1, inclusionMark: 2, nextContinuity: 4, option: "B" },
   { periodIndex: 2, inclusionMark: 5, nextContinuity: 9, option: "B" },
   { periodIndex: 3, inclusionMark: 5, nextContinuity: 14, option: "B" },

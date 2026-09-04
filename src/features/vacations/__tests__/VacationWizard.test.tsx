@@ -95,7 +95,7 @@ describe("VacationWizard (Asesor y Planificador Anual)", () => {
     expect(screen.getByText(/debes programar 2 periodos/i)).toBeDefined()
   })
 
-  it("Paso 3 y 4: Selección de prioridades y navegación a programación paso a paso", async () => {
+  it("Paso 3 y 4: Selección de prioridades y navegación a programación con título adaptable", async () => {
     render(<VacationWizard initialContext={mockContext} />)
     fireEvent.click(screen.getByText(/Comenzar simulación/i))
     fireEvent.click(screen.getByText(/Continuar a prioridades/i))
@@ -104,7 +104,8 @@ describe("VacationWizard (Asesor y Planificador Anual)", () => {
     expect(screen.getByText(/Quiero cobrar más en el primer periodo/i)).toBeDefined()
 
     fireEvent.click(screen.getByText(/Continuar a programación/i))
-    expect(screen.getByText(/Programando Periodo 1 de 2/i)).toBeDefined()
+    expect(screen.getByText(/Programa tu primer periodo/i)).toBeDefined()
+    expect(screen.getByText(/Estás programando el periodo 1 de 2/i)).toBeDefined()
   })
 
   it("Paso 4: Muestra marcas en lenguaje claro de trabajador sin códigos UPO crudos", async () => {
@@ -113,8 +114,10 @@ describe("VacationWizard (Asesor y Planificador Anual)", () => {
     fireEvent.click(screen.getByText(/Continuar a prioridades/i))
     fireEvent.click(screen.getByText(/Continuar a programación/i))
 
-    expect(screen.getByText(/Marca 4: Ayuda completa en este periodo/i)).toBeDefined()
-    expect(screen.getByText(/Marca 1: Pago y descanso repartidos/i)).toBeDefined()
+    expect(screen.getByText(/Marca 4 — Sí puedes utilizarla/i)).toBeDefined()
+    expect(screen.getByText(/Marca 1 — Sí puedes utilizarla/i)).toBeDefined()
+    expect(screen.getByText(/Antes de elegir, entiende tus marcas/i)).toBeDefined()
+    expect(screen.getByText(/La marca que traes/i)).toBeDefined()
     expect(screen.queryByText(/APPLY_INCLUSION_MARK/)).toBeNull()
   })
 })
