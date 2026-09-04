@@ -200,7 +200,22 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
     // 1. Seleccionar tipo Aclaración
     await page.getByRole("button", { name: /Aclaración/i }).click()
 
-    // 2. Activar modo manual para escribir destinatario sin directorio
+    // 2. Destinatario manual vía botón "O escribir destinatario manualmente"
+    await page.getByRole("button", { name: /O escribir destinatario manualmente/i }).click()
+    await expect(page.getByRole("heading", { name: /Seleccionar Destinatario/i })).toBeVisible()
+    await page.getByLabel(/Cargo o puesto del destinatario/i).fill("Director HGZ No. 1")
+    await page.getByLabel(/Nombre del destinatario/i).fill("Dr. Roberto Gómez")
+    await page.getByRole("button", { name: "Aplicar destinatario" }).click()
+
+    // Comprobar visor compacto
+    await expect(page.getByText("Dr. Roberto Gómez").first()).toBeVisible()
+    await expect(page.getByText("Destinatario manual", { exact: true })).toBeVisible()
+
+    // 3. Escribir hechos y petición iniciales
+    await page.getByLabel(/Cuéntanos con tus palabras qué pasó/i).fill("Aclaración de pago quincenal concepto 054.")
+    await page.getByLabel(/¿Qué necesitas que te respondan o resuelvan\?/i).fill("Solicito reintegro del importe descontado.")
+
+    // 4. Entrar directamente en modo manual
     await page.getByRole("button", { name: /Quiero escribirlo manualmente/i }).click()
 
     // Verificar que NO se llamó al endpoint de generación
@@ -209,11 +224,13 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
     // 5. Verificar etapa de editor en Modo Manual
     await expect(page.getByRole("heading", { name: /Revisa y personaliza tu escrito/i })).toBeVisible()
     await expect(page.getByText(/Modo manual/i)).toBeVisible()
+    await expect(page.getByText("Dr. Roberto Gómez").first()).toBeVisible()
 
     const textarea = page.locator("textarea")
     await expect(textarea).toBeVisible()
+    await expect(textarea).toHaveValue(/Aclaración de pago quincenal/)
 
-    // Redactar contenido libremente en modo manual
+    // Redactar contenido libremente
     await textarea.fill(
       "Por medio de este escrito redactado manualmente, solicito la aclaración formal del concepto 054."
     )
@@ -225,5 +242,6 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
     // 6. Vista previa y comprobación de formato
     await page.getByRole("button", { name: /Ver vista previa y firmar/i }).click()
     await expect(page.getByText(/solicito la aclaración formal del concepto 054/i)).toBeVisible()
+    await expect(page.getByText("Dr. Roberto Gómez").first()).toBeVisible()
   })
 })
