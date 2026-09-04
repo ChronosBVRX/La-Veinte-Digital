@@ -12,6 +12,7 @@
 import type { RecurringConceptEvidence, ConceptOccurrenceType, EligibilityPersistence } from "@/features/nomina/lib/types"
 import { classifyOccurrence, classifyPersistence } from "@/shared/lib/recurring-concept-classifier"
 import { parsePorVencerDate } from "@/features/tarjeton/lib/imss-date-parser"
+import type { VacationEntitlement } from "@/features/vacations/domain/types"
 
 export interface WorkerContext {
   profile: {
@@ -40,6 +41,15 @@ export interface WorkerContext {
     totalEarnings: number | null
     totalDeductions: number | null
     netPay: number | null
+    integratedMonthlySalary: number | null
+    integratedSalaryMeta?: {
+      sourcePeriod: string | null
+      origin: "EXTRACTED" | "RECONSTRUCTED" | "INCOMPLETE"
+      isDirectlyExtracted: boolean
+      isReconstructed: boolean
+      isConfirmedByUser: boolean
+      amount: number | null
+    }
     recurringConcepts: unknown[]
     payrollFacts: unknown[]
   } | null
@@ -56,6 +66,7 @@ export interface WorkerContext {
     porVencer?: string | null
     porVencerRaw?: string | null
     dueDate?: string | null
+    entitlements?: VacationEntitlement[]
   } | null
   vacationProfile: {
     contractType: string | null
@@ -144,6 +155,72 @@ export function buildRecurringConceptsFromPayslipLines(
   return Array.from(merged.values())
 }
 
+export function resolveIntegratedMonthlySalary(
+  latestPayrollTotals: Record<string, number> | null,
+  payslipLines: PayslipLineRow[],
+  periodRaw: string | null
+): {
+  amount: number | null
+  meta: NonNullable<NonNullable<WorkerContext["payroll"]>["integratedSalaryMeta"]>
+} {
+  const extractedSmi = latestPayrollTotals?.integratedMonthlySalary
+  if (typeof extractedSmi === "number" && Number.isFinite(extractedSmi) && extractedSmi > 0) {
+    const rounded = Math.round(extractedSmi * 100) / 100
+    return {
+      amount: rounded,
+      meta: {
+        sourcePeriod: periodRaw,
+        origin: "EXTRACTED",
+        isDirectlyExtracted: true,
+        isReconstructed: false,
+        isConfirmedByUser: true,
+        amount: rounded,
+      },
+    }
+  }
+
+  // Reconstrucción normativa oficial (Suma quincenal de 002 + 011 + 016 + 022 + 023 + 057 + 058 + 061 + 063 + 020 + 050 * 2)
+  const SMI_INTEGRATING_CONCEPTS = new Set(["002", "011", "016", "022", "023", "057", "058", "061", "063", "020", "050"])
+  const baseSalaryLine = payslipLines.find((l) => l.concept_code === "002" && l.kind === "earning" && l.amount > 0)
+
+  if (baseSalaryLine) {
+    let fortnightSum = 0
+    let anyConfirmed = false
+    for (const line of payslipLines) {
+      if (line.kind === "earning" && SMI_INTEGRATING_CONCEPTS.has(line.concept_code) && line.amount > 0) {
+        fortnightSum += line.amount
+        if (line.confirmed_by_user) anyConfirmed = true
+      }
+    }
+    const reconstructedMonthly = Math.round(fortnightSum * 2 * 100) / 100
+    if (reconstructedMonthly > 0) {
+      return {
+        amount: reconstructedMonthly,
+        meta: {
+          sourcePeriod: periodRaw,
+          origin: "RECONSTRUCTED",
+          isDirectlyExtracted: false,
+          isReconstructed: true,
+          isConfirmedByUser: anyConfirmed,
+          amount: reconstructedMonthly,
+        },
+      }
+    }
+  }
+
+  return {
+    amount: null,
+    meta: {
+      sourcePeriod: periodRaw,
+      origin: "INCOMPLETE",
+      isDirectlyExtracted: false,
+      isReconstructed: false,
+      isConfirmedByUser: false,
+      amount: null,
+    },
+  }
+}
+
 /**
  * Helper puro para pruebas y reutilización: arma `payroll` a partir de las
  * filas ya consultadas. Mantiene el contrato `WorkerContext` intacto.
@@ -157,11 +234,19 @@ export function buildWorkerContextPayroll(
   ctxFacts: unknown[],
   payslipLines: PayslipLineRow[],
 ): WorkerContext["payroll"] {
+  const smiResolved = resolveIntegratedMonthlySalary(
+    latest?.payroll_totals ?? null,
+    payslipLines,
+    latest?.period_raw ?? null
+  )
+
   return {
     latestPeriod: latest?.period_raw ?? null,
     totalEarnings: latest?.payroll_totals?.totalEarnings ?? null,
     totalDeductions: latest?.payroll_totals?.totalDeductions ?? null,
     netPay: latest?.payroll_totals?.netPay ?? null,
+    integratedMonthlySalary: smiResolved.amount,
+    integratedSalaryMeta: smiResolved.meta,
     recurringConcepts: buildRecurringConceptsFromPayslipLines(
       payslipLines,
       latest?.period_raw ?? null,
@@ -331,6 +416,57 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
   if (!dueDateVal && porVencerVal) dueDateVal = porVencerVal
   if (!porVencerVal && dueDateVal) porVencerVal = dueDateVal
 
+  const periodRaw = latest?.period_raw ?? ""
+  const entitlements: VacationEntitlement[] = []
+
+  if (vacationsData) {
+    // 1er periodo ordinario
+    entitlements.push({
+      id: "ord-1",
+      kind: "ORDINARY",
+      periodNumber: 1,
+      dueDate: dueDateVal ?? undefined,
+      sourceRaw: typeof vacationsData.porVencerRaw === "string" ? vacationsData.porVencerRaw : undefined,
+      sourcePayslipPeriod: periodRaw,
+      confirmed: Boolean(dueDateVal),
+    })
+
+    // 2do periodo ordinario
+    const secondRaw = typeof vacationsData.secondPeriodStartRaw === "string" ? vacationsData.secondPeriodStartRaw : undefined
+    entitlements.push({
+      id: "ord-2",
+      kind: "ORDINARY",
+      periodNumber: 2,
+      dueDate: secondRaw,
+      sourceRaw: secondRaw,
+      sourcePayslipPeriod: periodRaw,
+      confirmed: Boolean(secondRaw),
+    })
+
+    // 3er periodo ordinario (si es cuatrimestral por radiación)
+    if (radiologicalExposure === true) {
+      entitlements.push({
+        id: "ord-3",
+        kind: "ORDINARY",
+        periodNumber: 3,
+        sourcePayslipPeriod: periodRaw,
+        confirmed: false,
+      })
+    }
+
+    // Periodo extraordinario V20
+    const v20Days = typeof vacationsData.twentyYearsOrMoreDays === "number" ? vacationsData.twentyYearsOrMoreDays : 0
+    const seniorityYears = typeof vacProfile?.effective_seniority_years === "number" ? vacProfile.effective_seniority_years : 0
+    if (v20Days > 0 || seniorityYears >= 20) {
+      entitlements.push({
+        id: "v20",
+        kind: "V20",
+        sourcePayslipPeriod: periodRaw,
+        confirmed: v20Days > 0,
+      })
+    }
+  }
+
   const vacations = vacationsData
     ? {
         enjoyedDays: typeof vacationsData.enjoyedDays === "number" ? vacationsData.enjoyedDays : null,
@@ -345,6 +481,7 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
         porVencer: porVencerVal,
         porVencerRaw: typeof vacationsData.porVencerRaw === "string" ? vacationsData.porVencerRaw : null,
         dueDate: dueDateVal,
+        entitlements,
       }
     : null
 

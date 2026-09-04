@@ -76,7 +76,26 @@ export async function createCalendar(
   }).select().single();
 
   if (error) return { error: error.message };
-  return { ...calendar, id: data.id as string };
+
+  const calId = data.id as string;
+  if (calendar.roles && calendar.roles.length > 0) {
+    const rolesPayload = calendar.roles.map((r) => ({
+      calendar_id: calId,
+      role_number: r.roleNumber,
+      start_date: r.startDate,
+      end_date: r.endDate || null,
+      role_group: r.roleGroup || "GENERAL",
+      label: r.label || `Rol #${r.roleNumber}`,
+      enabled: r.enabled,
+    }));
+
+    const { error: rolesError } = await supabase.from("vacation_calendar_roles").insert(rolesPayload);
+    if (rolesError) {
+      return { error: `Calendario creado pero error al guardar roles: ${rolesError.message}` };
+    }
+  }
+
+  return { ...calendar, id: calId };
 }
 
 export async function publishCalendar(supabase: SupabaseClient, id: string): Promise<{ success: boolean; error?: string }> {

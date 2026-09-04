@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, type CSSProperties } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
-import { getAllCalendars, publishCalendar } from "../services/calendar-service"
+import { getAllCalendars, publishCalendar, createCalendar } from "../services/calendar-service"
+import { parseCalendarImport } from "../domain/calendar-import"
 
 const CONTAINER: CSSProperties = {
   maxWidth: 800,
@@ -71,6 +72,15 @@ function CalendarManager() {
   const [loading, setLoading] = useState(true)
   const [publishingId, setPublishingId] = useState<string | null>(null)
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null)
+
+  // Estado de importación
+  const [showImport, setShowImport] = useState(false)
+  const [importYear, setImportYear] = useState(2027)
+  const [importVersion, setImportVersion] = useState("v1-borrador")
+  const [importRaw, setImportRaw] = useState("")
+  const [importPreview, setImportPreview] = useState<import("../domain/calendar-import").ParseCalendarImportResult | null>(null)
+  const [savingDraft, setSavingDraft] = useState(false)
+
   const supabase = createClient()
 
   const reloadCalendars = useCallback(async () => {
@@ -101,6 +111,45 @@ function CalendarManager() {
       active = false
     }
   }, [supabase])
+
+  function handlePreviewImport() {
+    setMessage(null)
+    const result = parseCalendarImport(importRaw, importYear, importVersion)
+    setImportPreview(result)
+    if (result.errors.length > 0) {
+      setMessage({ text: `Errores en el archivo: ${result.errors.join(" ")}`, error: true })
+    } else {
+      setMessage({ text: `Archivo válido: ${result.calendar?.roles.length} roles listos para guardar como borrador.` })
+    }
+  }
+
+  async function handleSaveDraft() {
+    if (!importPreview?.calendar) return
+    setSavingDraft(true)
+    setMessage(null)
+    try {
+      const { roles, ...calData } = importPreview.calendar
+      const res = await createCalendar(supabase, {
+        ...calData,
+        roles,
+        status: "DRAFT",
+      })
+
+      if ("error" in res) {
+        setMessage({ text: `Error al guardar borrador: ${res.error}`, error: true })
+      } else {
+        setMessage({ text: `Borrador del calendario ${importYear} guardado con éxito.` })
+        setImportRaw("")
+        setImportPreview(null)
+        setShowImport(false)
+        await reloadCalendars()
+      }
+    } catch (e) {
+      setMessage({ text: `Error inesperado: ${e instanceof Error ? e.message : String(e)}`, error: true })
+    } finally {
+      setSavingDraft(false)
+    }
+  }
 
   async function handlePublish(cal: import("../domain/types").AnnualVacationCalendar) {
     const missingEndDates = cal.roles.filter((r) => r.enabled && !r.endDate)
@@ -149,9 +198,103 @@ function CalendarManager() {
         </div>
       )}
 
+      {/* Botón y Panel de Importación */}
+      <div style={{ marginBottom: "1rem", display: "flex", justifyContent: "flex-end" }}>
+        <Button variant={showImport ? "secondary" : "primary"} size="sm" onClick={() => setShowImport(!showImport)}>
+          {showImport ? "Cancelar importación" : "+ Importar nuevo calendario"}
+        </Button>
+      </div>
+
+      {showImport && (
+        <Card padding="1.25rem" style={{ marginBottom: "1.5rem", border: "1.5px solid var(--primary)" }}>
+          <h3 style={{ fontWeight: 700, fontSize: "1rem", marginBottom: "0.5rem" }}>
+            Importar Calendario de Vacaciones (JSON o CSV)
+          </h3>
+          <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "1rem" }}>
+            Pega el contenido JSON o CSV con las columnas: <code>rol, inicio, termino, grupo</code>. Todos los roles habilitados deben contar con fecha de término.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+            <div>
+              <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                Año del calendario:
+              </label>
+              <input
+                type="number"
+                value={importYear}
+                onChange={(e) => setImportYear(Number(e.target.value))}
+                style={{
+                  width: "100%", padding: "0.4rem 0.6rem", borderRadius: "var(--radius)",
+                  border: "1px solid var(--border)", background: "var(--card)", fontSize: "0.85rem",
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+                Versión / Etiqueta:
+              </label>
+              <input
+                type="text"
+                value={importVersion}
+                onChange={(e) => setImportVersion(e.target.value)}
+                style={{
+                  width: "100%", padding: "0.4rem 0.6rem", borderRadius: "var(--radius)",
+                  border: "1px solid var(--border)", background: "var(--card)", fontSize: "0.85rem",
+                }}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: "0.75rem" }}>
+            <label style={{ fontSize: "0.75rem", fontWeight: 600, display: "block", marginBottom: "0.25rem" }}>
+              Contenido (JSON / CSV):
+            </label>
+            <textarea
+              rows={6}
+              value={importRaw}
+              onChange={(e) => setImportRaw(e.target.value)}
+              placeholder="Pega aquí el contenido JSON o CSV..."
+              style={{
+                width: "100%", padding: "0.5rem", borderRadius: "var(--radius)",
+                border: "1px solid var(--border)", background: "var(--card)", fontSize: "0.8rem",
+                fontFamily: "monospace",
+              }}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+            <Button size="sm" variant="secondary" onClick={handlePreviewImport} disabled={!importRaw.trim()}>
+              Validar y previsualizar
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={!importPreview?.calendar || importPreview.errors.length > 0 || savingDraft}
+              loading={savingDraft}
+              onClick={handleSaveDraft}
+            >
+              Guardar como borrador
+            </Button>
+          </div>
+
+          {importPreview && (
+            <div style={{ marginTop: "1rem", padding: "0.75rem", background: "var(--accent)", borderRadius: "var(--radius)", fontSize: "0.8rem" }}>
+              <div><strong>Resultado de validación:</strong></div>
+              <div>Roles parseados: {importPreview.calendar?.roles.length || 0}</div>
+              {importPreview.errors.length > 0 && (
+                <div style={{ color: "#b91c1c", marginTop: "0.25rem" }}>
+                  Errores: {importPreview.errors.join(", ")}
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
+
       <Card padding="1.25rem" style={{ marginBottom: "1rem" }}>
         <h3 style={{ fontWeight: 600, marginBottom: "0.75rem" }}>Calendarios del Sistema</h3>
         {loading ? (
+
           <p style={{ fontSize: "0.85rem", color: "var(--muted)" }}>Cargando calendarios...</p>
         ) : calendars.length === 0 ? (
           <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
