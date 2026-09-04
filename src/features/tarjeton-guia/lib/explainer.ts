@@ -163,14 +163,24 @@ export function buildExplainer(payslip: GuidePayslip): ExplainerStep[] {
   }
 
   // Resumen final.
-  const lineas = `Detectamos ${payslip.earnings.length} percepciones y ${payslip.deductions.length} deducciones en tu tarjetón.`
+  const hasZeroConceptsWithTotals =
+    payslip.earnings.length === 0 &&
+    payslip.deductions.length === 0 &&
+    (payslip.netPay != null || payslip.totalEarnings != null || payslip.totalDeductions != null)
+
+  const lineas = hasZeroConceptsWithTotals
+    ? "Detectamos los totales de tu tarjetón, pero no pudimos leer el detalle de los conceptos."
+    : `Detectamos ${payslip.earnings.length} percepciones y ${payslip.deductions.length} deducciones en tu tarjetón.`
+
   steps.push({
     kind: "resumen",
-    emoji: "📊",
-    title: "Tu pago en pocas palabras",
+    emoji: hasZeroConceptsWithTotals ? "⚠️" : "📊",
+    title: hasZeroConceptsWithTotals ? "Detalle pendiente de lectura" : "Tu pago en pocas palabras",
     subtitle: "Resumen de esta quincena",
     explanation: lineas,
-    cta: { label: "Revisar mi quincena", href: "/guia/mi-quincena?vista=revisar" },
+    cta: hasZeroConceptsWithTotals
+      ? { label: "Revisar o volver a subir tarjetón", href: "/profile/mi-informacion-laboral" }
+      : { label: "Revisar mi quincena", href: "/guia/mi-quincena?vista=revisar" },
   })
 
   return steps

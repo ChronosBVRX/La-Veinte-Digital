@@ -45,6 +45,11 @@ export function deleteProjection(projectionId: string): void {
 export function saveProfile(profile: EmployeePayrollProfile): void {
   if (typeof window === "undefined") return
   localStorage.setItem(NOMINA_PROFILE_KEY, JSON.stringify(profile))
+  try {
+    window.dispatchEvent(new CustomEvent("nomina_profile_updated", { detail: profile }))
+  } catch {
+    // noop en entornos sin CustomEvent
+  }
 }
 
 export function deleteProfile(): void {

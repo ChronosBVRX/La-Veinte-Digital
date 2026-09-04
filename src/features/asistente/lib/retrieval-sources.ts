@@ -131,6 +131,235 @@ export function classifyRetrievalIntent(question: string): RetrievalIntent {
   return "SPECIFIC_TOPIC"
 }
 
+export type WorkerQueryIntent =
+  | "LABORAL"
+  | "CONTRACTUAL"
+  | "SINDICAL"
+  | "CAMBIO_ADSCRIPCION"
+  | "INSTITUCIONAL"
+  | "SEGURIDAD_SALUD"
+  | "PACIENTE_BENEFICIARIO"
+
+const SINDICAL_SIGNALS =
+  /\b(sindicato|sntss|estatuto|asamblea|delegad[oa]s?|secci[oó]n|cuota sindical|elecci[oó]n|comisi[oó]n mixta|representante sindical|sanci[oó]n sindical|licencia sindical|permiso sindical|pliego petitorio|huelga|derechos sindicales|impugnaci[oó]n)\b/i
+
+const CONTRACTUAL_SIGNALS =
+  /\b(cct\b|contrato colectivo|cl[aá]usula\s*\d+|tabulador|profesiograma|categor[ií]a|sueldo tabular|salario base|nivel salarial|rama médica|rama administrativa|convenio bilateral|pliego|prestaci[oó]n|prestaciones laborales|aguinaldo|fondo de ahorro|prima vacacional)\b/i
+
+const SEGURIDAD_SALUD_SIGNALS =
+  /\b(riesgo de trabajo|accidente de trabajo|enfermedad profesional|incapacidad|nom-\d+|equipo de protecci[oó]n|epp\b|radiaci[oó]n|biol[oó]gico infeccioso|rpbi|seguridad e higiene|ergonom|ley silla|bipedestaci[oó]n|estrés laboral|salud en el trabajo|medicina del trabajo)\b/i
+
+const PACIENTE_BENEFICIARIO_SIGNALS =
+  /\b(derechohabiente|paciente|cita m[eé]dica|queja m[eé]dica|atenci[oó]n m[eé]dica|consulta externa|urgencias m[eé]dicas|receta|medicamento|afiliaci[oó]n familiar|beneficiari[oa])\b/i
+
+const INSTITUCIONAL_SIGNALS =
+  /\b(circular|oficio|formato|procedimiento imss|jefatura de servicios|delegaci[oó]n|subdelegaci[oó]n|portal institucional|matr[ií]cula|tr[aá]mite administrativo)\b/i
+
+export function classifyWorkerQueryIntent(question: string): WorkerQueryIntent {
+  const q = question.toLowerCase().trim()
+
+  // 1. Preguntas exclusivas de paciente/derechohabiente (servicios y atención médica, NO personal)
+  if (
+    (PACIENTE_BENEFICIARIO_SIGNALS.test(q) || /derechos como paciente/i.test(q)) &&
+    !/trabajador|trabajadora|base|sntss|categor[ií]a|salario|sueldo|vacaciones|antig[üu]edad/i.test(q)
+  ) {
+    return "PACIENTE_BENEFICIARIO"
+  }
+
+  // 2. Investigación laboral y actas administrativas (relación laboral patrón-trabajador)
+  if (/investigaci[oó]n laboral|acta administrativa|rescisi[oó]n laboral|sanci[oó]n disciplinaria/i.test(q)) {
+    return "LABORAL"
+  }
+
+  // 3. Impugnación o procesos internos del sindicato
+  if (
+    /impugnaci[oó]n|elecci[oó]n sindical|cuota sindical|sanci[oó]n sindical|comisi[oó]n de honor y justicia|estatuto/i.test(q)
+  ) {
+    return "SINDICAL"
+  }
+
+  // 4. Cambio de adscripción / traslados / permutas
+  if (/cambio de adscripci[oó]n|adscripci[oó]n|traslado|permuta/i.test(q)) {
+    return "CAMBIO_ADSCRIPCION"
+  }
+
+  // 5. Prestaciones laborales y aspectos contractuales
+  if (CONTRACTUAL_SIGNALS.test(q)) {
+    return "CONTRACTUAL"
+  }
+
+  // 6. Seguridad y salud en el trabajo
+  if (SEGURIDAD_SALUD_SIGNALS.test(q)) {
+    return "SEGURIDAD_SALUD"
+  }
+
+  // 7. Otros asuntos sindicales
+  if (SINDICAL_SIGNALS.test(q)) {
+    return "SINDICAL"
+  }
+
+  // 8. Institucional
+  if (INSTITUCIONAL_SIGNALS.test(q)) {
+    return "INSTITUCIONAL"
+  }
+
+  // 9. Por defecto: derechos laborales de trabajadores del IMSS
+  return "LABORAL"
+}
+
+export type NormativePriority = 1 | 2 | 3
+
+export function getNormativePriority(
+  documentId: string,
+  documentTitle: string = "",
+  intent: WorkerQueryIntent = "LABORAL",
+): NormativePriority {
+  const docUpper = `${documentId} ${documentTitle}`.toUpperCase()
+
+  // PACIENTE_BENEFICIARIO: Legislación sanitaria (LGS, NOMs de atención médica) es Prioridad 1
+  if (intent === "PACIENTE_BENEFICIARIO") {
+    if (
+      docUpper.includes("SALUD") ||
+      docUpper.includes("LGS") ||
+      docUpper.includes("PRESTACIONES-MEDICAS") ||
+      docUpper.includes("ATENCION MEDICA") ||
+      docUpper.includes("PACIENTE") ||
+      docUpper.includes("SSA")
+    ) {
+      return 1
+    }
+    if (docUpper.includes("LSS") || docUpper.includes("SEGURO SOCIAL")) {
+      return 2
+    }
+    return 3
+  }
+
+  // SINDICAL (e.g. Impugnación sindical): Estatutos SNTSS es Prioridad 1, CCT/RIT es Prioridad 2
+  if (intent === "SINDICAL") {
+    if (docUpper.includes("ESTATUTO")) {
+      return 1
+    }
+    if (
+      docUpper.includes("CCT") ||
+      docUpper.includes("CONTRATO COLECTIVO") ||
+      docUpper.includes("CONTRATO-COLECTIVO") ||
+      docUpper.includes("RIT") ||
+      docUpper.includes("REGLAMENTO") ||
+      docUpper.includes("SNTSS")
+    ) {
+      return 2
+    }
+    return 3
+  }
+
+  // CONTRACTUAL (e.g. Prestaciones laborales): CCT es Prioridad 1
+  if (intent === "CONTRACTUAL") {
+    if (
+      docUpper.includes("CCT") ||
+      docUpper.includes("CONTRATO COLECTIVO") ||
+      docUpper.includes("CONTRATO-COLECTIVO") ||
+      docUpper.includes("TABULADOR")
+    ) {
+      return 1
+    }
+    if (
+      docUpper.includes("RIT") ||
+      docUpper.includes("REGLAMENTO") ||
+      docUpper.includes("ESTATUTO")
+    ) {
+      return 2
+    }
+    return 3
+  }
+
+  // CAMBIO_ADSCRIPCION: CCT y reglamentación laboral (Bolsa de Trabajo, Escalafón) son Prioridad 1
+  if (intent === "CAMBIO_ADSCRIPCION") {
+    if (
+      docUpper.includes("CCT") ||
+      docUpper.includes("CONTRATO COLECTIVO") ||
+      docUpper.includes("CONTRATO-COLECTIVO") ||
+      docUpper.includes("BOLSA DE TRABAJO") ||
+      docUpper.includes("BOLSA-DE-TRABAJO") ||
+      docUpper.includes("ESCALAFON") ||
+      docUpper.includes("ESCALAFÓN")
+    ) {
+      return 1
+    }
+    if (docUpper.includes("RIT") || docUpper.includes("REGLAMENTO") || docUpper.includes("ESTATUTO")) {
+      return 2
+    }
+    return 3
+  }
+
+  // SEGURIDAD_SALUD: NOMs de STPS/SSA y CCT son Prioridad 1
+  if (intent === "SEGURIDAD_SALUD") {
+    if (docUpper.includes("NOM-") || docUpper.includes("SEGURIDAD E HIGIENE") || docUpper.includes("CCT")) {
+      return 1
+    }
+    if (docUpper.includes("RIT") || docUpper.includes("REGLAMENTO") || docUpper.includes("LSS")) {
+      return 2
+    }
+    return 3
+  }
+
+  // LABORAL (e.g. Derechos como trabajador del IMSS): CCT y Estatutos SNTSS son Prioridad 1
+  if (
+    docUpper.includes("CCT") ||
+    docUpper.includes("CONTRATO COLECTIVO") ||
+    docUpper.includes("CONTRATO-COLECTIVO") ||
+    docUpper.includes("ESTATUTO") ||
+    docUpper.includes("SNTSS") ||
+    docUpper.includes("TABULADOR")
+  ) {
+    return 1
+  }
+
+  // Prioridad 2: Reglamentos Interiores, Profesiogramas y Convenios Bilaterales
+  if (
+    docUpper.includes("RIT") ||
+    docUpper.includes("REGLAMENTO") ||
+    docUpper.includes("ESCALAFON") ||
+    docUpper.includes("CAPACITACION") ||
+    docUpper.includes("BECAS") ||
+    docUpper.includes("PROFESIOGRAMA") ||
+    docUpper.includes("CONVENIO") ||
+    docUpper.includes("INSTRUCTIVO") ||
+    docUpper.includes("PROCEDIMIENTO") ||
+    docUpper.includes("CIRCULAR")
+  ) {
+    return 2
+  }
+
+  // Prioridad 3: Leyes generales (LFT, LSS, CPEUM, etc.)
+  return 3
+}
+
+export function rerankByNormativePriority<T extends { documentId: string; documento: string; score: number }>(
+  sources: T[],
+  questionOrIntent: string | WorkerQueryIntent,
+): T[] {
+  const intent: WorkerQueryIntent =
+    questionOrIntent === "LABORAL" ||
+    questionOrIntent === "CONTRACTUAL" ||
+    questionOrIntent === "SINDICAL" ||
+    questionOrIntent === "CAMBIO_ADSCRIPCION" ||
+    questionOrIntent === "INSTITUCIONAL" ||
+    questionOrIntent === "SEGURIDAD_SALUD" ||
+    questionOrIntent === "PACIENTE_BENEFICIARIO"
+      ? questionOrIntent
+      : classifyWorkerQueryIntent(questionOrIntent)
+
+  return [...sources].sort((a, b) => {
+    const pA = getNormativePriority(a.documentId, a.documento, intent)
+    const pB = getNormativePriority(b.documentId, b.documento, intent)
+
+    if (pA !== pB) {
+      return pA - pB // 1 va antes que 2, 2 antes que 3
+    }
+    return b.score - a.score
+  })
+}
+
 /** Presupuesto de tokens de salida por intención (punto 14). */
 export const OUTPUT_BUDGET: Record<RetrievalIntent, number> = {
   EXACT_LOOKUP: 300,

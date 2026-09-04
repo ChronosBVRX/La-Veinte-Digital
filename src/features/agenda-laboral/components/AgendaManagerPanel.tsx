@@ -65,7 +65,7 @@ export function AgendaManagerPanel({ userId, initialCommitments }: AgendaManager
     <Card padding="0">
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "1rem 1.25rem",
+        padding: "1rem clamp(0.75rem, 3vw, 1.25rem)",
         borderBottom: "1px solid var(--border)",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -84,8 +84,16 @@ export function AgendaManagerPanel({ userId, initialCommitments }: AgendaManager
         </Button>
       </div>
 
-      <div style={{ padding: "0.75rem 1.25rem 0", borderBottom: "1px solid var(--border)" }}>
-        <div style={{ display: "flex", gap: "0.375rem", overflowX: "auto", paddingBottom: "0.75rem" }}>
+      <div style={{ padding: "0.75rem clamp(0.75rem, 3vw, 1.25rem) 0", borderBottom: "1px solid var(--border)", maxWidth: "100%", boxSizing: "border-box" }}>
+        <div style={{
+          display: "flex",
+          gap: "0.375rem",
+          overflowX: "auto",
+          paddingBottom: "0.75rem",
+          maxWidth: "100%",
+          boxSizing: "border-box",
+          WebkitOverflowScrolling: "touch",
+        }}>
           <button
             onClick={() => setFilter("all")}
             aria-pressed={filter === "all"}
@@ -96,6 +104,7 @@ export function AgendaManagerPanel({ userId, initialCommitments }: AgendaManager
               padding: "0.25rem 0.625rem",
               fontSize: "0.75rem", fontWeight: 500,
               cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
+              flexShrink: 0,
               transition: "all var(--transition)",
             }}
           >
@@ -113,6 +122,7 @@ export function AgendaManagerPanel({ userId, initialCommitments }: AgendaManager
                 padding: "0.25rem 0.625rem",
                 fontSize: "0.75rem", fontWeight: 500,
                 cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit",
+                flexShrink: 0,
                 transition: "all var(--transition)",
               }}
             >
@@ -122,7 +132,7 @@ export function AgendaManagerPanel({ userId, initialCommitments }: AgendaManager
         </div>
       </div>
 
-      <div style={{ padding: "1rem 1.25rem" }}>
+      <div style={{ padding: "1rem clamp(0.75rem, 3vw, 1.25rem)", maxWidth: "100%", boxSizing: "border-box" }}>
         {deleteError && (
           <div style={{ marginBottom: "0.75rem" }}>
             <Alert variant="error">{deleteError}</Alert>
@@ -156,56 +166,59 @@ export function AgendaManagerPanel({ userId, initialCommitments }: AgendaManager
             </Button>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }}>
             {groups.map(([key, items]) => {
               const [y, m] = key.split("-").map(Number)
               return (
-                <div key={key}>
+                <div key={key} style={{ minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }}>
                   <p style={{
                     fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)",
                     margin: "0 0 0.5rem", textTransform: "uppercase", letterSpacing: "0.05em",
                   }}>
                     {MONTH_NAMES[m]} {y}
                   </p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }}>
                     {items.map((c) => (
                       <div key={c.id} style={{
                         display: "flex", alignItems: "flex-start", gap: "0.75rem",
                         padding: "0.625rem 0.75rem",
                         background: "var(--bg)", borderRadius: "var(--radius-sm)",
                         border: "1px solid var(--border)",
+                        maxWidth: "100%",
+                        minWidth: 0,
+                        boxSizing: "border-box",
                       }}>
                         <span style={{ fontSize: "1.125rem", lineHeight: 1.4, flexShrink: 0 }}>
                           {COMMITMENT_TYPE_ICONS[c.type]}
                         </span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                            <span style={{ fontSize: "0.75rem", fontWeight: 600 }}>
+                        <div style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                          <div style={{ display: "flex", alignItems: "baseline", gap: "0.25rem 0.5rem", flexWrap: "wrap", minWidth: 0 }}>
+                            <span style={{ fontSize: "0.75rem", fontWeight: 600, overflowWrap: "anywhere", wordBreak: "break-word" }}>
                               {c.title !== COMMITMENT_TYPE_LABELS[c.type] ? c.title : COMMITMENT_TYPE_LABELS[c.type]}
                             </span>
                             {c.title !== COMMITMENT_TYPE_LABELS[c.type] && (
-                              <span style={{ fontSize: "0.6875rem", color: "var(--brand-cyan)", fontWeight: 600 }}>
+                              <span style={{ fontSize: "0.6875rem", color: "var(--brand-cyan)", fontWeight: 600, flexShrink: 0 }}>
                                 {COMMITMENT_TYPE_LABELS[c.type]}
                               </span>
                             )}
-                            <span style={{ fontSize: "0.75rem", color: "var(--muted)", whiteSpace: "nowrap" }}>
+                            <span style={{ fontSize: "0.75rem", color: "var(--muted)", flexShrink: 0 }}>
                               {formatDayLabel(c.startAt)} · {formatTime(c.startAt)}–{formatTime(c.endAt)}
                             </span>
                           </div>
                           {(c.substituteWorkerName || c.service || c.workplace || c.notes) && (
-                            <div style={{ marginTop: "0.25rem", fontSize: "0.8125rem", color: "var(--muted)", lineHeight: 1.4 }}>
+                            <div style={{ marginTop: "0.25rem", fontSize: "0.8125rem", color: "var(--muted)", lineHeight: 1.4, overflowWrap: "anywhere", wordBreak: "break-word" }}>
                               {c.substituteWorkerName && (
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", marginRight: "0.75rem" }}>
-                                  <User size={12} /> Cubres a {c.substituteWorkerName}
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", marginRight: "0.75rem", overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                                  <User size={12} style={{ flexShrink: 0 }} /> Cubres a {c.substituteWorkerName}
                                 </span>
                               )}
                               {c.service && (
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", marginRight: "0.75rem" }}>
-                                  <MapPin size={12} /> {c.service}
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", marginRight: "0.75rem", overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                                  <MapPin size={12} style={{ flexShrink: 0 }} /> {c.service}
                                 </span>
                               )}
-                              {c.workplace && <span>{c.workplace}</span>}
-                              {c.notes && <div>{c.notes}</div>}
+                              {c.workplace && <span style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{c.workplace}</span>}
+                              {c.notes && <div style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{c.notes}</div>}
                             </div>
                           )}
                         </div>
@@ -226,9 +239,13 @@ export function AgendaManagerPanel({ userId, initialCommitments }: AgendaManager
               )
             })}
             {groups.length > 0 && (
-              <p style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.25rem", fontSize: "0.6875rem", color: "var(--muted)", margin: 0 }}>
-                <Clock size={11} />
-                Todo lo que registras aparece también en tu inicio y en tu calendario
+              <p style={{
+                display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap", textAlign: "center",
+                gap: "0.25rem", fontSize: "0.6875rem", color: "var(--muted)", margin: 0,
+                overflowWrap: "anywhere", wordBreak: "break-word"
+              }}>
+                <Clock size={11} style={{ flexShrink: 0 }} />
+                <span>Todo lo que registras aparece también en tu inicio y en tu calendario</span>
               </p>
             )}
           </div>

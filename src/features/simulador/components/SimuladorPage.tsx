@@ -43,9 +43,13 @@ export function SimuladorPage() {
           <SimulationChat
             messages={sim.messages}
             loading={sim.loading}
+            status={sim.status}
+            timerDuration={sim.timerDuration}
             error={sim.error}
             difficulty={sim.difficulty}
+            onStartResponding={sim.startResponding}
             onSend={sim.sendResponse}
+            onRetry={sim.retryLastResponse}
             onFinish={sim.finishSimulation}
           />
         </motion.div>

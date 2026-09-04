@@ -6,71 +6,116 @@ import {
   X, ShareNetwork, Printer, PencilSimple,
   UploadSimple, FileText, Clock, PencilLine,
   MagnifyingGlassPlus, MagnifyingGlassMinus, ArrowsIn,
+  DownloadSimple, Trash,
 } from "@phosphor-icons/react"
 import { FullscreenPortal } from "@/shared/components/ui/FullscreenPortal"
 import { Button } from "@/shared/components/ui/Button"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { readNativeDocumentAsFile } from "@/features/transferir/services/transfer"
-import { getBlobResource } from "@/shared/services/blob-storage"
 import { escritoToPdfFile } from "../lib/escrito-pdf"
 import {
   grupoLabel, formatBytes, formatFecha, formatFechaEscrito,
-  type DocTipo, type DocumentoPersonalItem,
+  type DocumentoPersonalItem,
+  type UnifiedViewerDocument, toUnifiedViewerDocument,
 } from "../lib/documents"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
 import { shareGeneratedPdf } from "@/shared/services/pdfShareBridge"
 
-const TIPO_ICON: Record<DocTipo, typeof FileText> = {
+export type { UnifiedViewerDocument }
+
+const TIPO_ICON: Record<UnifiedViewerDocument["type"], typeof FileText> = {
   tarjeton: FileText,
   checadas: Clock,
   escrito: PencilLine,
+  documento: FileText,
 }
 
-const TIPO_COLOR: Record<DocTipo, string> = {
+const TIPO_COLOR: Record<UnifiedViewerDocument["type"], string> = {
   tarjeton: "#3b82f6",
   checadas: "#22c55e",
   escrito: "#a855f7",
+  documento: "#64748b",
 }
 
-export interface DocumentViewerModalProps {
+export interface DocumentViewerModalProps<
+  T extends DocumentoPersonalItem | UnifiedViewerDocument = DocumentoPersonalItem | UnifiedViewerDocument
+> {
   open: boolean
-  doc: DocumentoPersonalItem | null
+  doc: T | null
   userId: string | null
   profile: TarjetonProfileSnapshot | null
   onClose: () => void
-  onSendPrint: (doc: DocumentoPersonalItem) => void
-  onImportTarjeton?: (doc: DocumentoPersonalItem) => void
+  onSendPrint?: (doc: T) => void
+  onImportTarjeton?: (doc: T) => void
+  onDelete?: (doc: T) => void
+  onDownload?: (doc: T) => void
 }
 
-export function DocumentViewerModal(props: DocumentViewerModalProps) {
-  if (!props.open || !props.doc) return null
+export function DocumentViewerModal<
+  T extends DocumentoPersonalItem | UnifiedViewerDocument = DocumentoPersonalItem | UnifiedViewerDocument
+>(props: DocumentViewerModalProps<T>) {
+  const { open, onClose, doc } = props
+
+  // Interceptar botón atrás de Android / navegador para cerrar primero el visor
+  useEffect(() => {
+    if (!open || typeof window === "undefined") return
+
+    const stateKey = `modal-viewer-${Date.now()}`
+    window.history.pushState({ modal: stateKey }, "")
+    let closedByPop = false
+
+    const handlePopState = () => {
+      closedByPop = true
+    }
+
+    window.addEventListener("popstate", handlePopState)
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+      if (!closedByPop && window.history.state?.modal === stateKey) {
+        window.history.back()
+      }
+    }
+  }, [open])
+
+  if (!open || !doc) return null
   return (
-    <FullscreenPortal open={props.open} onClose={props.onClose} ariaLabel="Visor de documento">
-      <DocumentViewerModalContent key={props.doc.id} {...props} doc={props.doc} />
+    <FullscreenPortal open={open} onClose={onClose} ariaLabel="Visor de documento">
+      <DocumentViewerModalContent
+        key={doc.id}
+        {...props}
+        doc={doc}
+        onSendPrint={props.onSendPrint as ((d: DocumentoPersonalItem | UnifiedViewerDocument) => void) | undefined}
+        onImportTarjeton={props.onImportTarjeton as ((d: DocumentoPersonalItem | UnifiedViewerDocument) => void) | undefined}
+        onDelete={props.onDelete as ((d: DocumentoPersonalItem | UnifiedViewerDocument) => void) | undefined}
+        onDownload={props.onDownload as ((d: DocumentoPersonalItem | UnifiedViewerDocument) => void) | undefined}
+      />
     </FullscreenPortal>
   )
 }
 
-interface DocumentViewerModalContentProps extends Omit<DocumentViewerModalProps, "doc"> {
-  doc: DocumentoPersonalItem
+interface DocumentViewerModalContentProps extends DocumentViewerModalProps {
+  doc: DocumentoPersonalItem | UnifiedViewerDocument
 }
 
 function DocumentViewerModalContent({
-  doc,
+  doc: rawDoc,
   userId,
   profile,
   onClose,
   onSendPrint,
   onImportTarjeton,
+  onDelete,
+  onDownload,
 }: DocumentViewerModalContentProps) {
+  const doc = toUnifiedViewerDocument(rawDoc)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [firmaUrl, setFirmaUrl] = useState<string | null>(null)
-  const [anexosUrls, setAnexosUrls] = useState<Array<{ id: string; url: string; nombre: string; descripcion?: string }>>([])
   const [pdfPages, setPdfPages] = useState<string[]>([])
   const [cachedFile, setCachedFile] = useState<File | null>(null)
   const [isSharing, setIsSharing] = useState(false)
   const [shareFeedback, setShareFeedback] = useState<string | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   // Zoom interactivo y gestos táctiles (Pinch to Zoom & Double Tap)
   const [zoomScale, setZoomScale] = useState(1)
@@ -108,41 +153,8 @@ function DocumentViewerModalContent({
 
     const loadContent = async () => {
       try {
-        if (doc.kind === "escrito") {
+        if (doc.type === "escrito" && doc.escrito) {
           const currentUserId = userId ?? "anonymous"
-          if (doc.escrito.firmaRef) {
-            try {
-              const fBlob = await getBlobResource(currentUserId, doc.escrito.firmaRef)
-              if (!cancelled && fBlob) {
-                const u = URL.createObjectURL(fBlob)
-                urlsToClean.push(u)
-                setFirmaUrl(u)
-              }
-            } catch {}
-          }
-
-          if (doc.escrito.anexos && doc.escrito.anexos.length > 0) {
-            const loadedAnexos: Array<{ id: string; url: string; nombre: string; descripcion?: string }> = []
-            for (const anx of doc.escrito.anexos) {
-              if (anx.storageRef) {
-                try {
-                  const aBlob = await getBlobResource(currentUserId, anx.storageRef)
-                  if (aBlob) {
-                    const u = URL.createObjectURL(aBlob)
-                    urlsToClean.push(u)
-                    loadedAnexos.push({
-                      id: anx.id,
-                      url: u,
-                      nombre: anx.nombre,
-                      descripcion: anx.descripcion,
-                    })
-                  }
-                } catch {}
-              }
-            }
-            if (!cancelled) setAnexosUrls(loadedAnexos)
-          }
-
           try {
             const generatedFile = await escritoToPdfFile(doc.escrito, currentUserId, {
               nombre: profile?.fullName ?? undefined,
@@ -190,11 +202,55 @@ function DocumentViewerModalContent({
               setLoading(false)
             }
           }
+        } else if (doc.sourceUri) {
+          try {
+            const res = await fetch(doc.sourceUri)
+            const buf = await res.arrayBuffer()
+            if (cancelled) return
+
+            const mime = doc.mimeType || "application/pdf"
+            const file = new File([buf], doc.name, { type: mime })
+            setCachedFile(file)
+
+            const { loadPdfDocument } = await import("@/features/tarjeton/lib/pdfjs-client")
+            const { pdf } = await loadPdfDocument(buf)
+            if (cancelled) return
+
+            const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 2) : 2
+            const renderScale = Math.min(Math.max(dpr, 2.0), 2.5)
+
+            const pages: string[] = []
+            for (let i = 1; i <= pdf.numPages; i++) {
+              const page = await pdf.getPage(i)
+              const viewport = page.getViewport({ scale: renderScale })
+              const canvas = document.createElement("canvas")
+              canvas.width = Math.ceil(viewport.width)
+              canvas.height = Math.ceil(viewport.height)
+              const ctx = canvas.getContext("2d")
+              if (ctx) {
+                await page.render({ canvasContext: ctx, viewport, canvas }).promise
+                pages.push(canvas.toDataURL("image/png"))
+              }
+              canvas.width = 0
+              canvas.height = 0
+            }
+
+            if (!cancelled) {
+              setPdfPages(pages)
+              setLoading(false)
+            }
+          } catch (e) {
+            if (!cancelled) {
+              console.error("Error cargando documento desde sourceUri:", e)
+              setError("No se pudo cargar el documento.")
+              setLoading(false)
+            }
+          }
         } else {
           const file = await readNativeDocumentAsFile({
             name: doc.name,
-            mimeType: doc.mimeType,
-            localPath: doc.localPath,
+            mimeType: doc.mimeType || "application/pdf",
+            localPath: doc.localPath || "",
           })
           if (cancelled) return
           if (!file) {
@@ -260,19 +316,21 @@ function DocumentViewerModalContent({
     }
   }, [doc, userId, profile])
 
-  const Icon = TIPO_ICON[doc.tipo]
-  const color = TIPO_COLOR[doc.tipo]
-  const docName = doc.kind === "nativo" ? doc.name : doc.escrito.titulo || "Escrito Formal"
-  const meta = doc.kind === "nativo"
-    ? [formatBytes(doc.fileSize), formatFecha(doc.downloadedAt)].filter(Boolean).join("  ·  ")
-    : ["Borrador guardado", formatFechaEscrito(doc.escrito.fecha)].filter(Boolean).join("  ·  ")
+  const Icon = TIPO_ICON[doc.type] || FileText
+  const color = TIPO_COLOR[doc.type] || "#3b82f6"
+  const docName = doc.name || (doc.escrito?.titulo ?? "Documento")
+  const metaDate = doc.createdAt
+    ? (typeof doc.createdAt === "number" ? formatFecha(doc.createdAt) : formatFechaEscrito(String(doc.createdAt)))
+    : ""
+  const metaSize = doc.fileSize ? formatBytes(doc.fileSize) : ""
+  const meta = [metaSize, metaDate].filter(Boolean).join("  ·  ") || "Documento"
 
   const handleShare = async () => {
     setIsSharing(true)
     setShareFeedback(null)
     try {
       // 1. Android Nativo con FileProvider para documentos locales existentes (tarjetones/checadas)
-      if (doc.kind === "nativo" && doc.localPath && typeof window !== "undefined" && window.LaVeinteApp?.shareNativeDocument) {
+      if (doc.localPath && typeof window !== "undefined" && window.LaVeinteApp?.shareNativeDocument) {
         window.LaVeinteApp.shareNativeDocument(doc.localPath, docName)
         setIsSharing(false)
         return
@@ -312,6 +370,43 @@ function DocumentViewerModalContent({
     } finally {
       setIsSharing(false)
     }
+  }
+
+  const handleDownload = () => {
+    if (onDownload) {
+      onDownload(rawDoc)
+      return
+    }
+    if (!cachedFile && !doc.sourceUri) {
+      setShareFeedback("El documento aún se está preparando...")
+      setTimeout(() => setShareFeedback(null), 3000)
+      return
+    }
+
+    let downloadUrl = ""
+    let shouldRevoke = false
+
+    if (cachedFile) {
+      downloadUrl = URL.createObjectURL(cachedFile)
+      shouldRevoke = true
+    } else if (doc.sourceUri) {
+      downloadUrl = doc.sourceUri
+    }
+
+    if (!downloadUrl) return
+
+    const a = document.createElement("a")
+    a.href = downloadUrl
+    a.download = docName.endsWith(".pdf") ? docName : `${docName}.pdf`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+
+    if (shouldRevoke) {
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 5000)
+    }
+    setShareFeedback("Descarga iniciada.")
+    setTimeout(() => setShareFeedback(null), 3000)
   }
 
   // --- Manejo de Gestos Táctiles (Pinch-to-zoom y Doble Toque) ---
@@ -531,7 +626,7 @@ function DocumentViewerModalContent({
                 textOverflow: "ellipsis",
               }}
             >
-              <span style={{ fontWeight: 600, color }}>{grupoLabel(doc.tipo)}</span> · {meta}
+              <span style={{ fontWeight: 600, color }}>{grupoLabel(doc.type)}</span> · {meta}
             </div>
           </div>
         </div>
@@ -550,24 +645,37 @@ function DocumentViewerModalContent({
             <span className="doc-viewer-btn-label">Compartir</span>
           </button>
 
-          {/* Imprimir / Transferir mediante QR */}
+          {/* Descargar */}
           <button
-            onClick={() => onSendPrint(doc)}
-            title="Escanear QR para imprimir en oficina sindical"
-            aria-label="Imprimir"
+            onClick={handleDownload}
+            title="Descargar documento"
+            aria-label="Descargar"
             className="doc-viewer-action-btn"
-            style={{
-              background: "var(--primary)",
-              color: "#ffffff",
-              borderColor: "transparent",
-            }}
           >
-            <Printer size={16} weight="bold" />
-            <span className="doc-viewer-btn-label">Imprimir</span>
+            <DownloadSimple size={16} weight="bold" />
+            <span className="doc-viewer-btn-label">Descargar</span>
           </button>
 
+          {/* Imprimir / Transferir mediante QR */}
+          {onSendPrint && (
+            <button
+              onClick={() => onSendPrint(rawDoc)}
+              title="Escanear QR para imprimir en oficina sindical"
+              aria-label="Imprimir"
+              className="doc-viewer-action-btn"
+              style={{
+                background: "var(--primary)",
+                color: "#ffffff",
+                borderColor: "transparent",
+              }}
+            >
+              <Printer size={16} weight="bold" />
+              <span className="doc-viewer-btn-label">Imprimir</span>
+            </button>
+          )}
+
           {/* Editar (si es escrito) */}
-          {doc.tipo === "escrito" && (
+          {doc.type === "escrito" && (
             <Link
               href={`/escritos?id=${doc.id}`}
               title="Editar escrito"
@@ -584,15 +692,29 @@ function DocumentViewerModalContent({
           )}
 
           {/* Exportar al perfil (si es tarjetón) */}
-          {doc.tipo === "tarjeton" && onImportTarjeton && (
+          {doc.type === "tarjeton" && onImportTarjeton && (
             <button
-              onClick={() => onImportTarjeton(doc)}
+              onClick={() => onImportTarjeton(rawDoc)}
               title="Exportar datos al perfil laboral"
               aria-label="Exportar al perfil"
               className="doc-viewer-action-btn"
             >
               <UploadSimple size={16} weight="bold" />
               <span className="doc-viewer-btn-label">Exportar</span>
+            </button>
+          )}
+
+          {/* Eliminar */}
+          {onDelete && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              title="Eliminar documento"
+              aria-label="Eliminar"
+              className="doc-viewer-action-btn"
+              style={{ color: "#ef4444" }}
+            >
+              <Trash size={16} weight="bold" />
+              <span className="doc-viewer-btn-label">Eliminar</span>
             </button>
           )}
 
@@ -783,6 +905,90 @@ function DocumentViewerModalContent({
           </div>
         )}
       </main>
+
+      {/* Diálogo modal de confirmación de eliminación */}
+      {showDeleteConfirm && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-dialog-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.75)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+            padding: "1rem",
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            style={{
+              background: "#1e293b",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+              borderRadius: "0.75rem",
+              padding: "1.25rem",
+              maxWidth: "400px",
+              width: "100%",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.5)",
+              color: "#f8fafc",
+            }}
+          >
+            <h3
+              id="delete-dialog-title"
+              style={{
+                margin: "0 0 0.5rem",
+                fontSize: "1.0625rem",
+                fontWeight: 700,
+                color: "#f8fafc",
+              }}
+            >
+              ¿Eliminar este documento?
+            </h3>
+            <p
+              style={{
+                margin: "0 0 1.25rem",
+                fontSize: "0.875rem",
+                color: "#94a3b8",
+                lineHeight: 1.4,
+              }}
+            >
+              Esta acción eliminará <strong>{docName}</strong> de tu dispositivo. No se podrá recuperar.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                Cancelar
+              </Button>
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false)
+                  onDelete?.(rawDoc)
+                  onClose()
+                }}
+                style={{
+                  background: "#dc2626",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "0.5rem",
+                  padding: "0.5rem 1rem",
+                  fontSize: "0.875rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

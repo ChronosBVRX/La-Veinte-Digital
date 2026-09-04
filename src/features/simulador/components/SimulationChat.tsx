@@ -2,18 +2,24 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Send, Flag, Loader } from "lucide-react"
+import { Send, Flag, Loader, BookOpen, AlertTriangle, RotateCcw } from "lucide-react"
 import { InquisitorAvatar } from "./InquisitorAvatar"
 import { StressMeter } from "./StressMeter"
 import { Timer } from "./Timer"
+import { Button } from "@/shared/components/ui/Button"
 import type { SimMessage, InquisitorState } from "../services/bot"
+import type { SimulationStatus } from "../hooks/useSimulation"
 
 interface SimulationChatProps {
   messages: SimMessage[]
   loading: boolean
+  status?: SimulationStatus
+  timerDuration?: number
   error: string | null
   difficulty: 1 | 2
+  onStartResponding?: () => void
   onSend: (text: string) => void
+  onRetry?: (text: string) => void
   onFinish: () => void
 }
 
@@ -22,35 +28,79 @@ const messageVariants = {
   visible: { opacity: 1, y: 0, scale: 1 },
 }
 
-export function SimulationChat({ messages, loading, error, difficulty, onSend, onFinish }: SimulationChatProps) {
+export function SimulationChat({
+  messages,
+  loading,
+  status = "reading",
+  timerDuration: propTimerDuration,
+  error,
+  difficulty,
+  onStartResponding,
+  onSend,
+  onRetry,
+  onFinish,
+}: SimulationChatProps) {
   const [input, setInput] = useState("")
   const [showConfirm, setShowConfirm] = useState(false)
+  const [warningNotice, setWarningNotice] = useState<string | null>(null)
+  const [prevTimerKey, setPrevTimerKey] = useState(0)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const lastAssistantMsg = [...messages].reverse().find((m) => m.role === "assistant")
   const currentPresion = lastAssistantMsg?.presion ?? 1
   const currentEstado = lastAssistantMsg?.estado ?? ("neutral" as InquisitorState)
-  const timerDuration = difficulty === 2 ? 30 : 45
+  
+  // Tiempos humanos: 3 min (180s) para nivel 2 / presión, 5 min (300s) para nivel 1
+  const duration = propTimerDuration ?? (difficulty === 2 ? 180 : 300)
   const timerKey = messages.filter((m) => m.role === "assistant" && m.content !== "...").length
+
+  if (prevTimerKey !== timerKey) {
+    setPrevTimerKey(timerKey)
+    setWarningNotice(null)
+  }
+
+  const isResponding = status === "responding"
+  const isReading = status === "reading" || status === "question_ready"
+  const isPreparing = status === "inquisitor_preparing" || status === "connecting" || loading
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages, loading])
+  }, [messages, loading, status])
+
+  const handleStartResponding = useCallback(() => {
+    onStartResponding?.()
+    inputRef.current?.focus()
+  }, [onStartResponding])
+
+  const handleInputChange = (val: string) => {
+    setInput(val)
+    if (isReading && val.trim().length > 0) {
+      onStartResponding?.()
+    }
+  }
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || loading) return
+    if (!input.trim() || isPreparing) return
+    setWarningNotice(null)
     onSend(input.trim())
     setInput("")
     inputRef.current?.focus()
-  }, [input, loading, onSend])
+  }, [input, isPreparing, onSend])
 
   const handleTimeUp = useCallback(() => {
-    if (!loading) {
-      onSend("(Silencio - no responde)")
+    if (isPreparing) return
+    setWarningNotice("⏱️ El tiempo concedido ha concluido. Conservamos tu texto intacto para que puedas revisarlo y enviarlo cuando estés listo.")
+  }, [isPreparing])
+
+  const handleRetry = useCallback(() => {
+    if (onRetry) {
+      onRetry(input.trim())
+    } else {
+      onSend(input.trim())
     }
-  }, [loading, onSend])
+  }, [onRetry, onSend, input])
 
   const confirmFinish = () => {
     setShowConfirm(false)
@@ -81,9 +131,12 @@ export function SimulationChat({ messages, loading, error, difficulty, onSend, o
           <StressMeter presion={currentPresion} />
           <Timer
             key={timerKey}
-            duration={timerDuration}
+            duration={duration}
             resetKey={timerKey}
+            running={isResponding}
             onTimeUp={handleTimeUp}
+            onWarning60={() => setWarningNotice("⏱️ Te quedan 60 segundos para concluir tu comparecencia.")}
+            onWarning30={() => setWarningNotice("⚠️ Te quedan 30 segundos. Concluye tu declaración y presiona Enviar.")}
           />
         </div>
         <motion.button
@@ -103,6 +156,33 @@ export function SimulationChat({ messages, loading, error, difficulty, onSend, o
         </motion.button>
       </motion.div>
 
+      {/* Avisos de tiempo a los 60s / 30s */}
+      <AnimatePresence>
+        {warningNotice && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            style={{
+              padding: "0.5rem 0.875rem",
+              borderRadius: "0.5rem",
+              background: warningNotice.includes("30") ? "#fef2f2" : "#fffbeb",
+              border: `1px solid ${warningNotice.includes("30") ? "#fecaca" : "#fde68a"}`,
+              fontSize: "0.8125rem",
+              color: warningNotice.includes("30") ? "#991b1b" : "#92400e",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              fontWeight: 600,
+            }}
+          >
+            <AlertTriangle size={15} style={{ flexShrink: 0 }} />
+            <span>{warningNotice}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Error recuperable con botón de reintento */}
       <AnimatePresence>
         {error && (
           <motion.div
@@ -110,12 +190,26 @@ export function SimulationChat({ messages, loading, error, difficulty, onSend, o
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             style={{
-              padding: "0.5rem 0.75rem", borderRadius: "0.5rem",
+              padding: "0.625rem 0.875rem", borderRadius: "0.5rem",
               background: "#fef2f2", border: "1px solid #fecaca",
               fontSize: "0.8125rem", color: "#991b1b", overflow: "hidden",
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem",
             }}
           >
-            {error}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <AlertTriangle size={16} />
+              <span>{error} (Tu texto redactado se encuentra a salvo).</span>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={handleRetry}
+              style={{ flexShrink: 0 }}
+            >
+              <RotateCcw size={13} style={{ marginRight: 4 }} />
+              Reintentar
+            </Button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -156,7 +250,7 @@ export function SimulationChat({ messages, loading, error, difficulty, onSend, o
             )
           })}
         </AnimatePresence>
-        {loading && (
+        {isPreparing && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -174,37 +268,74 @@ export function SimulationChat({ messages, loading, error, difficulty, onSend, o
               >
                 <Loader size={14} />
               </motion.div>
-              Escribiendo...
+              Lic. Mendoza formulando pregunta...
             </div>
           </motion.div>
         )}
         <div ref={bottomRef} />
       </div>
 
+      {/* Barra de estado / Llamado a la acción de lectura vs responder */}
+      {isReading && !isPreparing && (
+        <motion.div
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "var(--accent)",
+            border: "1px solid var(--border)",
+            borderRadius: "0.5rem",
+            padding: "0.5rem 0.75rem",
+            gap: "0.5rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8125rem", color: "var(--muted)" }}>
+            <BookOpen size={16} style={{ color: "var(--primary)" }} />
+            <span>Fase de lectura pausada. Analiza la acusación y tus derechos.</span>
+          </div>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            onClick={handleStartResponding}
+          >
+            Comenzar respuesta
+          </Button>
+        </motion.div>
+      )}
+
       <form onSubmit={handleSubmit} style={{ display: "flex", gap: "0.5rem" }}>
         <input
           ref={inputRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={loading}
-          placeholder="Escribe tu respuesta..."
+          onChange={(e) => handleInputChange(e.target.value)}
+          onFocus={() => {
+            if (isReading) onStartResponding?.()
+          }}
+          disabled={isPreparing}
+          placeholder={isReading ? "Haz clic aquí o en 'Comenzar respuesta' para activar el reloj y redactar..." : "Escribe tu comparecencia o respuesta formal..."}
           style={{
             flex: 1, padding: "0.75rem 1rem",
-            border: "1px solid var(--border)", borderRadius: "0.75rem",
+            border: `1px solid ${isResponding ? "var(--primary)" : "var(--border)"}`,
+            borderRadius: "0.75rem",
             fontSize: "0.875rem", outline: "none",
+            background: "var(--card)",
+            color: "var(--fg)",
             transition: "border-color var(--transition), box-shadow var(--transition)",
           }}
         />
         <motion.button
           type="submit"
-          disabled={loading || !input.trim()}
-          whileHover={!loading && input.trim() ? { scale: 1.05 } : {}}
-          whileTap={!loading && input.trim() ? { scale: 0.95 } : {}}
+          disabled={isPreparing || !input.trim()}
+          whileHover={!isPreparing && input.trim() ? { scale: 1.05 } : {}}
+          whileTap={!isPreparing && input.trim() ? { scale: 0.95 } : {}}
           style={{
             width: 44, height: 44,
-            background: loading || !input.trim() ? "var(--border)" : "var(--primary)",
+            background: isPreparing || !input.trim() ? "var(--border)" : "var(--primary)",
             color: "var(--primary-fg)", border: "none",
-            borderRadius: "0.75rem", cursor: loading || !input.trim() ? "not-allowed" : "pointer",
+            borderRadius: "0.75rem", cursor: isPreparing || !input.trim() ? "not-allowed" : "pointer",
             display: "flex", alignItems: "center", justifyContent: "center",
             transition: "background var(--transition)",
           }}
@@ -245,32 +376,20 @@ export function SimulationChat({ messages, loading, error, difficulty, onSend, o
                 Se generará un reporte de desempeño con retroalimentación sobre tu actuación.
               </p>
               <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center" }}>
-                <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
+                <Button
+                  variant="secondary"
+                  size="md"
                   onClick={() => setShowConfirm(false)}
-                  style={{
-                    padding: "0.625rem 1.25rem", borderRadius: "0.5rem",
-                    border: "1px solid var(--border)", background: "var(--card)",
-                    cursor: "pointer", color: "var(--fg)", fontSize: "0.875rem",
-                    fontWeight: 500,
-                  }}
                 >
                   Seguir en la simulación
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
+                </Button>
+                <Button
+                  variant="primary"
+                  size="md"
                   onClick={confirmFinish}
-                  style={{
-                    padding: "0.625rem 1.25rem", borderRadius: "0.5rem",
-                    border: "none", background: "var(--primary)",
-                    cursor: "pointer", color: "var(--primary-fg)", fontSize: "0.875rem",
-                    fontWeight: 600,
-                  }}
                 >
                   Sí, finalizar
-                </motion.button>
+                </Button>
               </div>
             </motion.div>
           </motion.div>

@@ -58,10 +58,28 @@ export const SCENARIOS: Scenario[] = SIMULADOR_SCENARIOS.map((id) => {
 
 const INITIAL_INQUISITOR_MSG = "..."
 
+export type SimulationStatus =
+  | "connecting"
+  | "inquisitor_preparing"
+  | "question_ready"
+  | "reading"
+  | "responding"
+  | "evaluating"
+  | "error_recoverable"
+
+export function getScenarioDurationSec(scenarioId: SimuladorScenarioId, difficulty: 1 | 2): number {
+  if (difficulty === 2) {
+    return scenarioId === "extravio" || scenarioId === "confidencialidad" ? 300 : 180
+  }
+  return scenarioId === "extravio" || scenarioId === "confidencialidad" ? 420 : 300
+}
+
 export function useSimulation() {
   const [phase, setPhase] = useState<Phase>("disclaimer")
   const [scenario, setScenarioState] = useState<Scenario>(SCENARIOS[0])
   const [difficulty, setDifficultyState] = useState<1 | 2>(1)
+  const [status, setStatus] = useState<SimulationStatus>("connecting")
+  const [timerDuration, setTimerDuration] = useState<number>(300) // 5 min default
   const [messages, setMessages] = useState<SimMessage[]>([
     { role: "assistant", content: INITIAL_INQUISITOR_MSG, presion: 1, estado: "neutral", timestamp: 0 },
   ])
@@ -69,15 +87,23 @@ export function useSimulation() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const startSimulation = useCallback(async (selectedScenario: Scenario, selectedDifficulty: 1 | 2) => {
+  const startSimulation = useCallback(async (
+    selectedScenario: Scenario,
+    selectedDifficulty: 1 | 2,
+    customDurationSec?: number,
+  ) => {
     setScenarioState(selectedScenario)
     setDifficultyState(selectedDifficulty)
+    const duration = customDurationSec ?? getScenarioDurationSec(selectedScenario.id, selectedDifficulty)
+    setTimerDuration(duration)
     setPhase("simulation")
+    setStatus("connecting")
     setLoading(true)
     setError(null)
 
     const initialMsg: SimMessage = { role: "assistant", content: "...", presion: 1, estado: "neutral", timestamp: Date.now() }
     setMessages([initialMsg])
+    setStatus("inquisitor_preparing")
 
     try {
       const res = await consultarSimulador(
@@ -94,20 +120,32 @@ export function useSimulation() {
           timestamp: Date.now(),
         },
       ])
+      setStatus("question_ready")
+      // Automáticamente pasa a lectura (reloj detenido)
+      setTimeout(() => {
+        setStatus((curr) => (curr === "question_ready" ? "reading" : curr))
+      }, 300)
     } catch {
       setError("No se pudo conectar con el simulador. Verifica que el servicio esté activo.")
+      setStatus("error_recoverable")
     } finally {
       setLoading(false)
     }
   }, [])
 
+  const startResponding = useCallback(() => {
+    setStatus((curr) => (curr === "reading" || curr === "question_ready" ? "responding" : curr))
+  }, [])
+
   const sendResponse = useCallback(async (text: string) => {
-    if (!text.trim() || loading) return
+    if (!text.trim() || status === "inquisitor_preparing" || status === "evaluating") return
 
     const userMsg: SimMessage = { role: "user", content: text.trim(), timestamp: Date.now() }
     const updatedHistory = [...messages, userMsg]
     setMessages(updatedHistory)
+    setStatus("inquisitor_preparing")
     setLoading(true)
+    setError(null)
 
     try {
       const res = await consultarSimulador(updatedHistory, scenario.id, difficulty)
@@ -119,18 +157,29 @@ export function useSimulation() {
         timestamp: Date.now(),
       }
       setMessages((prev) => [...prev, aiMsg])
+      setStatus("question_ready")
+      setTimeout(() => {
+        setStatus((curr) => (curr === "question_ready" ? "reading" : curr))
+      }, 300)
     } catch {
       setError("Error al comunicarse con el evaluador.")
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "⚠️ No se pudo obtener respuesta. Intenta de nuevo.", presion: 5, estado: "neutral", timestamp: Date.now() },
-      ])
+      setStatus("error_recoverable")
     } finally {
       setLoading(false)
     }
-  }, [loading, messages, scenario.id, difficulty])
+  }, [status, messages, scenario.id, difficulty])
+
+  const retryLastResponse = useCallback(async (text: string) => {
+    setError(null)
+    if (messages.length <= 1) {
+      await startSimulation(scenario, difficulty, timerDuration)
+    } else {
+      await sendResponse(text)
+    }
+  }, [messages.length, scenario, difficulty, timerDuration, startSimulation, sendResponse])
 
   const finishSimulation = useCallback(async () => {
+    setStatus("evaluating")
     setLoading(true)
     setPhase("report")
 
@@ -153,6 +202,7 @@ export function useSimulation() {
 
   const reset = useCallback(() => {
     setPhase("setup")
+    setStatus("connecting")
     setMessages([{ role: "assistant", content: INITIAL_INQUISITOR_MSG, presion: 1, estado: "neutral", timestamp: 0 }])
     setAnalysis(null)
     setError(null)
@@ -161,9 +211,11 @@ export function useSimulation() {
 
   return {
     phase, setPhase,
+    status, setStatus,
+    timerDuration, setTimerDuration,
     scenario, difficulty,
     messages, loading, error, analysis,
-    startSimulation, sendResponse, finishSimulation, reset,
+    startSimulation, startResponding, sendResponse, retryLastResponse, finishSimulation, reset,
     setScenario: setScenarioState,
     setDifficulty: setDifficultyState,
   }

@@ -18,7 +18,8 @@ import { resolveCategory } from "@/features/nomina/lib/category-resolver"
 import { SALARY_DATA } from "@/features/nomina/data/salaries"
 import type { SimulationScenario, SimulationResult } from "../services/simulate"
 import { analyzeSeniorityImpact } from "@/features/nomina/lib/seniority-impact"
-import type { PayrollProjection, EmployeePayrollProfile, PayrollFact } from "@/features/nomina/lib/types"
+import type { PayrollProjection, EmployeePayrollProfile, PayrollFact, RecurringConceptEvidence, RecurringConceptOverride } from "@/features/nomina/lib/types"
+import { getProfile, saveProfile } from "@/shared/services/local-storage"
 
 type Step = "loading" | "no-profile" | "select" | "result"
 
@@ -35,41 +36,94 @@ interface InitialState {
   targetCategory: string
 }
 
-function loadInitialState(): InitialState {
-  // localStorage is kept as fast cache/fallback, but real source is Supabase via API
+function computeSeniority(
+  dateStr: string,
+  period: ReturnType<typeof getCurrentPayPeriod>
+): { years: number; months: number; days: number; totalDays: number; referenceDate: string; source: "confirmed_effective_date" | "reconstructed_from_payslip" | "institutional_entry_date"; warnings: string[] } {
+  const ref = new Date(dateStr)
+  if (isNaN(ref.getTime())) {
+    return { years: 0, months: 0, days: 0, totalDays: 0, referenceDate: dateStr, source: "institutional_entry_date", warnings: ["Fecha de antigüedad inválida"] }
+  }
+  const end = new Date(period.endDate)
+  let years = end.getFullYear() - ref.getFullYear()
+  let months = end.getMonth() - ref.getMonth()
+  let days = end.getDate() - ref.getDate()
+  if (days < 0) { months--; days += new Date(end.getFullYear(), end.getMonth(), 0).getDate() }
+  if (months < 0) { years--; months += 12 }
+  const totalDays = Math.floor((end.getTime() - ref.getTime()) / (1000 * 60 * 60 * 24))
+  return { years, months, days, totalDays, referenceDate: dateStr, source: "institutional_entry_date", warnings: [] }
+}
+
+export function buildStateFromProfile(loadedProfile: EmployeePayrollProfile | null): InitialState {
+  if (!loadedProfile || (!loadedProfile.categoryId && !loadedProfile.categoryName)) {
+    return { step: "no-profile", profile: null, baseline: null, categories: [], targetCategory: "" }
+  }
+
   try {
-    const raw = localStorage.getItem("nomina_profile")
-    if (!raw) return { step: "no-profile", profile: null, baseline: null, categories: [], targetCategory: "" }
-
-    const loadedProfile = JSON.parse(raw) as EmployeePayrollProfile
-    if (!loadedProfile.categoryId && !loadedProfile.categoryName) {
-      return { step: "no-profile", profile: null, baseline: null, categories: [], targetCategory: "" }
-    }
-
     const today = new Date().toISOString().slice(0, 10)
     const period = getCurrentPayPeriod(today)
-    const resolved = resolveCategory(
-      loadedProfile.categoryId ?? loadedProfile.categoryName ?? "",
-      String(loadedProfile.workdayHours)
-    )
+    const catName = loadedProfile.categoryId ?? loadedProfile.categoryName ?? ""
+    const workdaySuffix = loadedProfile.workdayHours
+      ? (loadedProfile.workdayHours === 6.5 ? "65" : `${Math.round(loadedProfile.workdayHours * 10)}`)
+      : ""
+    let resolved = resolveCategory(catName, today, loadedProfile.categoryId)
+    if ((!resolved || resolved.status !== "resolved") && workdaySuffix && !catName.includes(workdaySuffix)) {
+      const resolvedWithHours = resolveCategory(`${catName} ${workdaySuffix}`, today, loadedProfile.categoryId)
+      if (resolvedWithHours && resolvedWithHours.status === "resolved") {
+        resolved = resolvedWithHours
+      }
+    }
 
     if (!resolved || resolved.status !== "resolved" || !resolved.category) {
       return { step: "no-profile", profile: null, baseline: null, categories: [], targetCategory: "" }
     }
 
-    const computedSeniority = loadedProfile.effectiveSeniorityDate
-      ? computeSeniority(loadedProfile.effectiveSeniorityDate, period)
+    const seniorityDate = loadedProfile.effectiveSeniorityDate || loadedProfile.institutionalEntryDate
+    const computedSeniority = seniorityDate
+      ? computeSeniority(seniorityDate, period)
       : { years: 0, months: 0, days: 0, totalDays: 0, referenceDate: "", source: "institutional_entry_date" as const, warnings: [] as string[] }
 
     const facts: PayrollFact[] = loadedProfile.facts ?? []
+    type RawConceptItem = Partial<RecurringConceptEvidence> & {
+      code?: string
+      amount?: number
+      includeInProjection?: boolean
+    }
+    const rawRecurring: RawConceptItem[] = (loadedProfile.recurringConcepts as RawConceptItem[]) ?? []
+    const normalizedRecurring: RecurringConceptEvidence[] = rawRecurring.map((rc) => {
+      const conceptCode = rc.conceptCode ?? rc.code ?? ""
+      const lastAmount = rc.lastAmount ?? rc.amount ?? 0
+      return {
+        conceptCode,
+        confirmed: rc.confirmed ?? true,
+        appearsNormally: rc.appearsNormally ?? true,
+        lastAmount,
+        lastSeenAt: rc.lastSeenAt ?? period.startDate,
+        source: rc.source ?? "last_payslip",
+        occurrenceType: rc.occurrenceType ?? "recurring",
+        eligibilityPersistence: rc.eligibilityPersistence ?? "persistent",
+      }
+    })
+
+    const recurringOverrides: RecurringConceptOverride[] = rawRecurring.map((rc) => {
+      const source: RecurringConceptOverride["source"] = rc.source === "user" ? "manual" : "last_payslip"
+      return {
+        code: rc.conceptCode ?? rc.code ?? "",
+        include: rc.includeInProjection ?? true,
+        amount: rc.lastAmount ?? rc.amount ?? 0,
+        source,
+        confirmed: rc.confirmed ?? true,
+      }
+    })
 
     const projResult = calculateProjection({
-      profile: { ...loadedProfile, facts },
+      profile: { ...loadedProfile, facts, recurringConcepts: normalizedRecurring },
       category: resolved.category,
       period,
       seniority: computedSeniority,
       incidents: [],
-      recurringConcepts: [],
+      recurringConcepts: recurringOverrides,
+      mode: "baseline",
     })
 
     const cats = SALARY_DATA
@@ -88,8 +142,27 @@ function loadInitialState(): InitialState {
       targetCategory: loadedProfile.categoryName ?? "",
     }
   } catch (e) {
-    console.error("[SimuladorNomina]", e)
+    console.error("[SimuladorNomina:buildStateFromProfile]", e)
     return { step: "no-profile", profile: null, baseline: null, categories: [], targetCategory: "" }
+  }
+}
+
+function loadInitialState(): InitialState {
+  try {
+    const raw = typeof window !== "undefined" ? localStorage.getItem("nomina_profile") : null
+    if (!raw) {
+      return { step: "loading", profile: null, baseline: null, categories: [], targetCategory: "" }
+    }
+
+    const loadedProfile = JSON.parse(raw) as EmployeePayrollProfile
+    const built = buildStateFromProfile(loadedProfile)
+    if (built.step === "no-profile") {
+      return { step: "loading", profile: null, baseline: null, categories: [], targetCategory: "" }
+    }
+    return built
+  } catch (e) {
+    console.error("[SimuladorNomina:loadInitialState]", e)
+    return { step: "loading", profile: null, baseline: null, categories: [], targetCategory: "" }
   }
 }
 
@@ -108,41 +181,89 @@ export function SimuladorNominaIndex() {
 
   // Hydrate from Supabase worker context on mount (source of truth)
   useEffect(() => {
+    let mounted = true
+
     fetch("/api/worker-context")
-      .then(r => r.json())
-      .then((ctx: Record<string, unknown>) => {
-        if (!ctx?.employment || !ctx?.payroll) return
-        const emp = ctx.employment as Record<string, unknown>
-        const pay = ctx.payroll as Record<string, unknown>
-        // Sync to localStorage as cache. NUNCA pisar listas locales con
-        // arrays vacíos del API (evita borrar evidencia válida si el servidor
-        // aún no tiene contexto persistido).
-        const prev = (() => {
-          try { return JSON.parse(localStorage.getItem("nomina_profile") || "{}") as Partial<EmployeePayrollProfile> }
-          catch { return {} as Partial<EmployeePayrollProfile> }
-        })()
-        const apiRc = (pay.recurringConcepts as EmployeePayrollProfile["recurringConcepts"]) || []
-        const apiFacts = (pay.payrollFacts as EmployeePayrollProfile["facts"]) || []
-        const profileData = {
+      .then((r) => (r.ok ? r.json() : null))
+      .then((ctx: Record<string, unknown> | null) => {
+        if (!mounted) return
+        const emp = ctx?.employment as Record<string, unknown> | undefined
+        const pay = ctx?.payroll as Record<string, unknown> | undefined
+
+        if (!emp?.categoryName) {
+          const localProfile = getProfile()
+          const state = buildStateFromProfile(localProfile)
+          setStep(state.step)
+          setBaseline(state.baseline)
+          setProfile(state.profile)
+          setTargetCategory(state.targetCategory)
+          setCategories(state.categories)
+          return
+        }
+
+        const prev = getProfile() ?? ({} as Partial<EmployeePayrollProfile>)
+        const apiRc = (pay?.recurringConcepts as EmployeePayrollProfile["recurringConcepts"]) || []
+        const apiFacts = (pay?.payrollFacts as EmployeePayrollProfile["facts"]) || []
+
+        const nowIso = new Date().toISOString()
+        const profileData: EmployeePayrollProfile = {
+          id: prev.id || "profile_default",
+          userId: prev.userId || "anonymous",
+          consentGiven: prev.consentGiven ?? true,
+          employmentType: prev.employmentType || "base",
+          occupationalConditions: prev.occupationalConditions || [],
+          siapConceptMarks: prev.siapConceptMarks || [],
+          createdAt: prev.createdAt || nowIso,
           ...prev,
-          categoryName: emp.categoryName ?? prev.categoryName,
-          workdayHours: emp.workdayHours ?? prev.workdayHours,
-          effectiveSeniorityDate: emp.effectiveSeniorityDate ?? prev.effectiveSeniorityDate,
+          categoryName: (emp.categoryName as string) ?? prev.categoryName,
+          categoryCode: (emp.categoryCode as string) ?? prev.categoryCode,
+          workdayHours: (emp.workdayHours as 6 | 6.5 | 8 | 12) ?? prev.workdayHours ?? 8,
+          institutionalEntryDate: (emp.entryDate as string) ?? (emp.institutionalEntryDate as string) ?? prev.institutionalEntryDate,
+          effectiveSeniorityDate: (emp.effectiveSeniorityDate as string) ?? prev.effectiveSeniorityDate,
           facts: apiFacts.length > 0 ? apiFacts : (prev.facts ?? []),
           recurringConcepts: apiRc.length > 0 ? apiRc : (prev.recurringConcepts ?? []),
+          updatedAt: nowIso,
         }
-        localStorage.setItem("nomina_profile", JSON.stringify(profileData))
-        // Reload from updated localStorage
-        const reloaded = loadInitialState()
-        if (reloaded.step !== "no-profile") {
-          setStep(reloaded.step)
-          setBaseline(reloaded.baseline)
-          setProfile(reloaded.profile)
-          setTargetCategory(reloaded.targetCategory)
-          setCategories(reloaded.categories)
-        }
+
+        saveProfile(profileData)
+        const updated = buildStateFromProfile(profileData)
+        setStep(updated.step)
+        setBaseline(updated.baseline)
+        setProfile(updated.profile)
+        setTargetCategory(updated.targetCategory)
+        setCategories(updated.categories)
       })
-      .catch(() => { /* use localStorage as fallback */ })
+      .catch(() => {
+        if (!mounted) return
+        const localProfile = getProfile()
+        const state = buildStateFromProfile(localProfile)
+        setStep(state.step)
+        setBaseline(state.baseline)
+        setProfile(state.profile)
+        setTargetCategory(state.targetCategory)
+        setCategories(state.categories)
+      })
+
+    const handleProfileUpdate = () => {
+      const localProfile = getProfile()
+      const updated = buildStateFromProfile(localProfile)
+      if (updated.step !== "no-profile") {
+        setStep(updated.step)
+        setBaseline(updated.baseline)
+        setProfile(updated.profile)
+        setTargetCategory(updated.targetCategory)
+        setCategories(updated.categories)
+      }
+    }
+
+    window.addEventListener("nomina_profile_updated", handleProfileUpdate)
+    window.addEventListener("storage", handleProfileUpdate)
+
+    return () => {
+      mounted = false
+      window.removeEventListener("nomina_profile_updated", handleProfileUpdate)
+      window.removeEventListener("storage", handleProfileUpdate)
+    }
   }, [])
 
   const runSimulation = async () => {
@@ -536,19 +657,4 @@ export function SimuladorNominaIndex() {
   }
 
   return null
-}
-
-function computeSeniority(
-  dateStr: string,
-  period: ReturnType<typeof getCurrentPayPeriod>
-): { years: number; months: number; days: number; totalDays: number; referenceDate: string; source: "confirmed_effective_date" | "reconstructed_from_payslip" | "institutional_entry_date"; warnings: string[] } {
-  const ref = new Date(dateStr)
-  const end = new Date(period.endDate)
-  let years = end.getFullYear() - ref.getFullYear()
-  let months = end.getMonth() - ref.getMonth()
-  let days = end.getDate() - ref.getDate()
-  if (days < 0) { months--; days += new Date(end.getFullYear(), end.getMonth(), 0).getDate() }
-  if (months < 0) { years--; months += 12 }
-  const totalDays = Math.floor((end.getTime() - ref.getTime()) / (1000 * 60 * 60 * 24))
-  return { years, months, days, totalDays, referenceDate: dateStr, source: "institutional_entry_date", warnings: [] }
 }

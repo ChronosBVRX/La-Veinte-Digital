@@ -1,5 +1,15 @@
 import type { EscritoDraftV2 } from "@/shared/contracts/escrito-draft"
 
+export interface NativeDocumentMeta {
+  id: number
+  name: string
+  localPath: string
+  source: string
+  fileSize: number
+  downloadedAt: number
+  mimeType: string
+}
+
 export type DocTipo = "tarjeton" | "checadas" | "escrito"
 
 export interface DocNativo {
@@ -25,6 +35,47 @@ export interface DocEscrito {
 }
 
 export type DocumentoPersonalItem = DocNativo | DocEscrito
+
+export interface UnifiedViewerDocument {
+  id: string
+  type: "tarjeton" | "checadas" | "escrito" | "documento"
+  name: string
+  mimeType?: string
+  sourceUri?: string
+  localPath?: string
+  fileSize?: number
+  createdAt?: string | number
+  escrito?: EscritoDraftV2
+  metadata?: Record<string, unknown>
+}
+
+export function toUnifiedViewerDocument(
+  item: DocumentoPersonalItem | UnifiedViewerDocument
+): UnifiedViewerDocument {
+  if ("kind" in item) {
+    if (item.kind === "nativo") {
+      return {
+        id: item.id,
+        type: item.tipo,
+        name: item.name,
+        mimeType: item.mimeType,
+        localPath: item.localPath,
+        fileSize: item.fileSize,
+        createdAt: item.downloadedAt,
+      }
+    } else {
+      return {
+        id: item.id,
+        type: "escrito",
+        name: item.escrito.titulo || "Escrito Formal",
+        mimeType: "application/pdf",
+        createdAt: item.fecha,
+        escrito: item.escrito,
+      }
+    }
+  }
+  return item
+}
 
 /** Clasifica un documento nativo (source de Room: TU_PERFIL / TARJETON_DIGITAL / TU_PERFIL_BIOMETRIC). */
 export function tipoDeSource(source: string): "tarjeton" | "checadas" | null {
@@ -66,7 +117,7 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function grupoLabel(tipo: DocTipo): string {
+export function grupoLabel(tipo: DocTipo | UnifiedViewerDocument["type"]): string {
   switch (tipo) {
     case "tarjeton":
       return "Tarjetones"
@@ -74,6 +125,10 @@ export function grupoLabel(tipo: DocTipo): string {
       return "Checadas"
     case "escrito":
       return "Escritos"
+    case "documento":
+      return "Documentos"
+    default:
+      return "Documento"
   }
 }
 

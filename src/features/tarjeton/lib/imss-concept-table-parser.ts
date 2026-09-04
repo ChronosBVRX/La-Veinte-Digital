@@ -12,8 +12,8 @@ import { parseImssMoney } from "./money-parser"
 import { baseFieldConfidence, clampConfidence, multilineAdjustment } from "./confidence"
 import { isConceptCode, normalizeText } from "./positioned-text"
 
-const ROW_PATTERN = /^(\d{3})\s+(.+?)\s+(-?[\d\s,]+\.\d{2})\s*$/
-const AMOUNT_ONLY_PATTERN = /^[-+]?\d[\d\s,]*(?:\.\d{1,2})?$/
+const ROW_PATTERN = /^(\d{2,4})\s+(.+?)\s+(-?\$?[\d\s,]+\.\d{2})\s*$/
+const AMOUNT_ONLY_PATTERN = /^[-+]?\$?\d[\d\s,]*(?:\.\d{1,2})?$/
 
 export interface ConceptTableResult {
   earnings: TarjetonConceptLine[]
@@ -57,7 +57,12 @@ function parseRow(line: ReconstructedLine): { code: string; description: string;
 
 function isTableHeader(line: ReconstructedLine): boolean {
   const norm = normalizeText(line.text)
-  return norm.includes("CONCEPTO DESCRIPCION IMPORTE") || norm === "CONCEPTO" || norm === "DESCRIPCION" || norm === "IMPORTE"
+  return (
+    norm.includes("CONCEPTO DESCRIPCION IMPORTE") ||
+    norm === "CONCEPTO" ||
+    norm === "DESCRIPCION" ||
+    norm === "IMPORTE"
+  )
 }
 
 function parseLinesBetweenTotals(
@@ -69,9 +74,18 @@ function parseLinesBetweenTotals(
   lineIndexOffset = 0,
 ): TarjetonConceptLine[] {
   const result: TarjetonConceptLine[] = []
-  const start = lines.findIndex((line) => line.norm.includes(startAnchor))
+
+  const shortAnchor = startAnchor.slice(0, 5) // "PERCE" o "DEDUC"
+  const start = lines.findIndex(
+    (line) => !line.norm.includes("TOTAL") && (line.norm.includes(startAnchor) || line.norm.includes(shortAnchor))
+  )
   if (start < 0) return result
-  const relativeEnd = lines.slice(start + 1).findIndex((line) => line.norm.includes(totalAnchor))
+
+  const shortTotalAnchor = totalAnchor.replace("TOTAL ", "").slice(0, 5)
+  const relativeEnd = lines.slice(start + 1).findIndex((line) =>
+    line.norm.includes(totalAnchor) ||
+    (line.norm.includes("TOTAL") && line.norm.includes(shortTotalAnchor))
+  )
   const end = relativeEnd < 0 ? lines.length : start + 1 + relativeEnd
 
   for (let i = start + 1; i < end; i++) {
@@ -85,7 +99,7 @@ function parseLinesBetweenTotals(
       const last = result[result.length - 1]
       const hasCode = line.items.some((item) => isConceptCode(item.text))
       const hasAmount = line.items.some((item) => AMOUNT_ONLY_PATTERN.test(item.text.trim()))
-      if (last && !hasCode && !hasAmount && line.y - lines[i - 1].y <= 24) {
+      if (last && !hasCode && !hasAmount && (i === 0 || line.y - lines[i - 1].y <= 24)) {
         const merged = `${last.description} ${line.text.trim()}`.trim()
         result[result.length - 1] = {
           ...last,
@@ -113,9 +127,14 @@ function parseLinesBetweenTotals(
 }
 
 function extractTotal(lines: ReconstructedLine[], labelNorm: string): number | undefined {
+  const shortLabel = labelNorm.replace("TOTAL ", "").slice(0, 5)
   for (const line of lines) {
-    if (!line.norm.includes(labelNorm)) continue
-    const match = line.text.match(/(-?[\d\s,]+\.\d{2})\s*$/)
+    const matchesLabel =
+      line.norm.includes(labelNorm) ||
+      (line.norm.includes("TOTAL") && line.norm.includes(shortLabel)) ||
+      (labelNorm === "LIQUIDO" && (line.norm.includes("LIQUIDO") || line.norm.includes("NETO")))
+    if (!matchesLabel) continue
+    const match = line.text.match(/(-?\$?[\d\s,]+\.\d{2})\s*$/)
     if (!match) continue
     const amount = parseImssMoney(match[1])
     if (amount !== undefined) return amount

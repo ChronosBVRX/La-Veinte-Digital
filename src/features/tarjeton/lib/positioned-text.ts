@@ -47,7 +47,7 @@ export function isNumberLike(text: string): boolean {
 }
 
 export function isConceptCode(text: string): boolean {
-  return /^\d{3}$/.test(text.trim())
+  return /^\d{2,4}$/.test(text.trim())
 }
 
 /**

@@ -120,6 +120,36 @@ function ExplainTab({
         </div>
       </div>
 
+      {/* Fallback banner si no se leyeron conceptos pero sí totales */}
+      {summary.perceptions === 0 && summary.deductions === 0 && (summary.totalEarnings != null || summary.totalDeductions != null || summary.netPay != null) && (
+        <div
+          style={{
+            background: "#fffbeb",
+            border: "1px solid #fde68a",
+            borderRadius: "var(--radius-md)",
+            padding: "0.875rem 1rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.5rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span style={{ fontSize: "1.125rem" }}>⚠️</span>
+            <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#92400e" }}>
+              Detectamos los totales de tu tarjetón, pero no pudimos leer el detalle de los conceptos.
+            </span>
+          </div>
+          <p style={{ fontSize: "0.8125rem", color: "#b45309", margin: 0, lineHeight: 1.4 }}>
+            Puedes volver a subir tu tarjetón con mayor resolución o revisar tu información laboral.
+          </p>
+          <div>
+            <ActionLink href="/profile/mi-informacion-laboral" size="sm" variant="outline">
+              Volver a subir o revisar tarjetón
+            </ActionLink>
+          </div>
+        </div>
+      )}
+
       {/* Paso */}
       <Card padding="clamp(0.875rem, 3vw, 1.25rem)" variant="highlighted" style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", width: "100%", minWidth: 0 }}>
