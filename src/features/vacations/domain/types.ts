@@ -256,6 +256,16 @@ export type EntitlementDueDateConfidence = "CONFIRMED" | "PROVISIONAL" | "UNKNOW
 
 export type RoleEligibilityStatus = "ALLOWED" | "BLOCKED" | "REQUIRES_REVIEW" | "NEEDS_DATA";
 
+export type DateEligibility = "ELIGIBLE" | "NOT_ELIGIBLE" | "UNKNOWN";
+export type CalendarCertainty = "OFFICIAL" | "PRELIMINARY";
+
+export interface RoleEvaluation {
+  dateEligibility: DateEligibility;
+  calendarCertainty: CalendarCertainty;
+  selectableForSimulation: boolean;
+  confirmableAsOfficial: boolean;
+}
+
 export interface RoleEligibilityResult {
   status: RoleEligibilityStatus;
   reasonCode: string;
@@ -264,6 +274,7 @@ export interface RoleEligibilityResult {
   dueDate: string | null;
   earliestAllowedDate: string | null;
   daysBeforeDue: number | null;
+  evaluation: RoleEvaluation;
 }
 
 export interface EvaluateVacationRoleEligibilityInput {

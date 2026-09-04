@@ -13,6 +13,7 @@ import type { RecurringConceptEvidence, ConceptOccurrenceType, EligibilityPersis
 import { classifyOccurrence, classifyPersistence } from "@/shared/lib/recurring-concept-classifier"
 import { parsePorVencerDate } from "@/features/tarjeton/lib/imss-date-parser"
 import type { VacationEntitlement } from "@/features/vacations/domain/types"
+import { addCivilMonths } from "@/features/vacations/domain/role-eligibility"
 
 export interface WorkerContext {
   profile: {
@@ -401,16 +402,20 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
     payslipLines,
   )
 
-  let porVencerVal = typeof vacationsData?.porVencer === "string" ? vacationsData.porVencer : null
-  let dueDateVal = typeof vacationsData?.dueDate === "string" ? vacationsData.dueDate : null
+  let porVencerVal = typeof vacationsData?.porVencer === "string"
+    ? parsePorVencerDate(vacationsData.porVencer) || vacationsData.porVencer
+    : null
+  let dueDateVal = typeof vacationsData?.dueDate === "string"
+    ? parsePorVencerDate(vacationsData.dueDate) || vacationsData.dueDate
+    : null
 
   // Si registros anteriores no tenían dueDate / porVencer pero sí conservan porVencerRaw (ej. 14102026),
   // recuperar de forma idempotente con el nuevo parser:
-  if (!porVencerVal && !dueDateVal && typeof vacationsData?.porVencerRaw === "string") {
+  if ((!porVencerVal || !dueDateVal) && typeof vacationsData?.porVencerRaw === "string") {
     const recovered = parsePorVencerDate(vacationsData.porVencerRaw)
     if (recovered) {
-      porVencerVal = recovered
-      dueDateVal = recovered
+      if (!porVencerVal) porVencerVal = recovered
+      if (!dueDateVal) dueDateVal = recovered
     }
   }
   if (!dueDateVal && porVencerVal) dueDateVal = porVencerVal
@@ -437,8 +442,13 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
       confirmed: Boolean(dueDateVal),
     })
 
-    // 2do periodo ordinario
+    // 2do periodo ordinario: si no viene fecha confirmada, se proyecta exclusivamente para la simulación
     const secondRaw = typeof vacationsData.secondPeriodStartRaw === "string" ? vacationsData.secondPeriodStartRaw : undefined
+    const secondParsed = secondRaw ? parsePorVencerDate(secondRaw) || secondRaw : undefined
+    const projectedSecond = (!secondParsed && dueDateVal)
+      ? addCivilMonths(dueDateVal, workerRegime === "CUATRIMESTRAL" ? 4 : 6)
+      : null
+
     entitlements.push({
       id: "ord-2",
       sequence: 2,
@@ -446,16 +456,17 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
       entitlementKind: "ORDINARY",
       kind: "ORDINARY",
       periodNumber: 2,
-      dueDate: secondRaw ?? null,
-      dueDateSource: secondRaw ? "TARJETON" : "MISSING",
-      dueDateConfidence: secondRaw ? "CONFIRMED" : "UNKNOWN",
+      dueDate: secondParsed ?? projectedSecond,
+      dueDateSource: secondParsed ? "TARJETON" : projectedSecond ? "PROJECTED" : "MISSING",
+      dueDateConfidence: secondParsed ? "CONFIRMED" : projectedSecond ? "PROVISIONAL" : "UNKNOWN",
       sourceRaw: secondRaw,
       sourcePayslipPeriod: periodRaw,
-      confirmed: Boolean(secondRaw),
+      confirmed: Boolean(secondParsed),
     })
 
     // 3er periodo ordinario (si es cuatrimestral por radiación)
     if (radiologicalExposure === true) {
+      const projectedThird = dueDateVal ? addCivilMonths(dueDateVal, 8) : null
       entitlements.push({
         id: "ord-3",
         sequence: 3,
@@ -463,9 +474,9 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
         entitlementKind: "ORDINARY",
         kind: "ORDINARY",
         periodNumber: 3,
-        dueDate: null,
-        dueDateSource: "MISSING",
-        dueDateConfidence: "UNKNOWN",
+        dueDate: projectedThird,
+        dueDateSource: projectedThird ? "PROJECTED" : "MISSING",
+        dueDateConfidence: projectedThird ? "PROVISIONAL" : "UNKNOWN",
         sourcePayslipPeriod: periodRaw,
         confirmed: false,
       })

@@ -1,6 +1,8 @@
 import type {
   EvaluateVacationRoleEligibilityInput,
   RoleEligibilityResult,
+  CalendarCertainty,
+  DateEligibility,
 } from "./types"
 
 /**
@@ -20,6 +22,117 @@ export function parseCivilDate(dateStr: string): { year: number; month: number; 
     return null
   }
   return { year, month, day }
+}
+
+const CIVIL_MONTH_MAP: Record<string, number> = {
+  ENE: 1, FEB: 2, MAR: 3, ABR: 4, MAY: 5, JUN: 6,
+  JUL: 7, AGO: 8, SEP: 9, OCT: 10, NOV: 11, DIC: 12,
+}
+
+/**
+ * Normaliza cualquier variante de fecha en formato civil ISO YYYY-MM-DD sin alterar días por UTC:
+ * - 8 dígitos consecutivos DDMMYYYY (ej. 14102026 -> 2026-10-14)
+ * - Con separadores: 14/10/2026, 14-10-2026, 14.10.2026, 14 10 2026
+ * - Mes nombrado: 14-OCT-2026, 14 OCT 2026
+ * - Canónico ISO ya existente: 2026-10-14
+ */
+export function normalizeCivilDate(raw: string | null | undefined): string | null {
+  if (!raw || typeof raw !== "string") return null
+  const input = raw.trim()
+  if (!input) return null
+
+  // 1. Canónico ISO YYYY-MM-DD
+  const isoMatch = input.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (isoMatch) {
+    const year = Number(isoMatch[1])
+    const month = Number(isoMatch[2])
+    const day = Number(isoMatch[3])
+    if (parseCivilDate(input)) {
+      return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+    }
+    return null
+  }
+
+  // 2. 8 dígitos continuos DDMMYYYY (o separados por espacios de OCR)
+  const digitsOnly = input.replace(/\s+/g, "")
+  if (/^\d{8}$/.test(digitsOnly)) {
+    const day = Number(digitsOnly.slice(0, 2))
+    const month = Number(digitsOnly.slice(2, 4))
+    const year = Number(digitsOnly.slice(4, 8))
+    const isoCandidate = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+    if (parseCivilDate(isoCandidate)) return isoCandidate
+    return null
+  }
+
+  // 3. Separadores DD/MM/YYYY o DD-MM-YYYY o DD.MM.YYYY
+  const sepMatch = input.match(/^(\d{1,2})\s*[\/\-.\s]\s*(\d{1,2})\s*[\/\-.\s]\s*(\d{4})$/)
+  if (sepMatch) {
+    const day = Number(sepMatch[1])
+    const month = Number(sepMatch[2])
+    const year = Number(sepMatch[3])
+    const isoCandidate = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+    if (parseCivilDate(isoCandidate)) return isoCandidate
+    return null
+  }
+
+  // 4. Mes nombrado (ej. 14-OCT-2026)
+  const namedMatch = input.match(/^(\d{1,2})\s*[\/\-.\s]\s*([A-Za-z]{3,})\w*[\/\-.\s]?\s*(\d{4})$/)
+  if (namedMatch) {
+    const day = Number(namedMatch[1])
+    const monthKey = namedMatch[2].slice(0, 3).toUpperCase()
+    const month = CIVIL_MONTH_MAP[monthKey]
+    const year = Number(namedMatch[3])
+    if (month) {
+      const isoCandidate = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+      if (parseCivilDate(isoCandidate)) return isoCandidate
+    }
+    return null
+  }
+
+  return null
+}
+
+/**
+ * Suma N meses naturales a una fecha civil YYYY-MM-DD sin desfases por huso horario.
+ * Ajusta al último día del mes destino si el día original excede los días de ese mes.
+ */
+export function addCivilMonths(dateStr: string, monthsToAdd: number): string | null {
+  const parts = parseCivilDate(dateStr)
+  if (!parts) return null
+  let year = parts.year
+  let month = parts.month + monthsToAdd
+  while (month > 12) {
+    year += 1
+    month -= 12
+  }
+  while (month < 1) {
+    year -= 1
+    month += 12
+  }
+  const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0)
+  const daysInMonth = [31, isLeapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  const maxDay = daysInMonth[month - 1]
+  const day = Math.min(parts.day, maxDay)
+  const dd = String(day).padStart(2, "0")
+  const mm = String(month).padStart(2, "0")
+  return `${year}-${mm}-${dd}`
+}
+
+/**
+ * Formatea los días de anticipación respecto a la fecha de adquisición del derecho en frase institucional clara:
+ * - Días positivos: "Este rol inicia X días antes de que generes el derecho"
+ * - Días negativos: "Este rol inicia X días después de que generes el derecho"
+ * - Cero: "Este rol inicia el mismo día en que generas tu derecho"
+ */
+export function formatAnticipationCivilPhrase(daysBeforeDue: number | null | undefined): string {
+  if (daysBeforeDue === null || daysBeforeDue === undefined) return ""
+  if (daysBeforeDue > 0) {
+    return `Este rol inicia ${daysBeforeDue} días antes de que generes el derecho`
+  }
+  if (daysBeforeDue < 0) {
+    return `Este rol inicia ${Math.abs(daysBeforeDue)} días después de que generes el derecho`
+  }
+  return "Este rol inicia el mismo día en que generas tu derecho"
 }
 
 /**
@@ -80,6 +193,8 @@ export function getMaxAnticipationDays(regime: string): number {
 /**
  * Motor único y puro para evaluar la elegibilidad de un rol vacacional
  * respecto a la fecha en que se genera el derecho y las reglas normativas.
+ * Separa limpiamente dateEligibility ("ELIGIBLE" | "NOT_ELIGIBLE" | "UNKNOWN")
+ * de calendarCertainty ("OFFICIAL" | "PRELIMINARY").
  */
 export function evaluateVacationRoleEligibility(
   input: EvaluateVacationRoleEligibilityInput
@@ -87,7 +202,7 @@ export function evaluateVacationRoleEligibility(
   const {
     regime,
     entitlementKind,
-    dueDate,
+    dueDate: rawDueDate,
     dueDateConfidence = "CONFIRMED",
     roleStartDate,
     roleEndDate,
@@ -100,18 +215,27 @@ export function evaluateVacationRoleEligibility(
     calendarStatus = "PUBLISHED",
   } = input
 
+  const calendarCertainty: CalendarCertainty = calendarStatus === "DRAFT" ? "PRELIMINARY" : "OFFICIAL"
+  const dueDate = normalizeCivilDate(rawDueDate)
+
   // 1. Validación de fecha de vencimiento/generación del derecho
-  if (!dueDate || !dueDate.trim() || !parseCivilDate(dueDate)) {
+  if (!dueDate) {
     return {
       status: "NEEDS_DATA",
       reasonCode: "MISSING_DUE_DATE",
       workerMessage:
-        "Todavía no podemos confirmar este rol porque falta validar la fecha en la que generas este derecho. Puedes revisar la simulación, pero confirma el dato con Personal antes de programar.",
+        "Falta tu fecha de vencimiento: falta validar la fecha en la que generas este derecho en tu tarjetón.",
       technicalMessage:
         "No se proporcionó fecha oficial de vencimiento/generación del derecho (dueDate es nulo o inválido).",
       dueDate: null,
       earliestAllowedDate: null,
       daysBeforeDue: null,
+      evaluation: {
+        dateEligibility: "UNKNOWN",
+        calendarCertainty,
+        selectableForSimulation: true,
+        confirmableAsOfficial: false,
+      },
     }
   }
 
@@ -125,6 +249,12 @@ export function evaluateVacationRoleEligibility(
       dueDate,
       earliestAllowedDate: null,
       daysBeforeDue: null,
+      evaluation: {
+        dateEligibility: "UNKNOWN",
+        calendarCertainty,
+        selectableForSimulation: false,
+        confirmableAsOfficial: false,
+      },
     }
   }
 
@@ -153,6 +283,12 @@ export function evaluateVacationRoleEligibility(
         dueDate,
         earliestAllowedDate,
         daysBeforeDue,
+        evaluation: {
+          dateEligibility: "UNKNOWN",
+          calendarCertainty,
+          selectableForSimulation: false,
+          confirmableAsOfficial: false,
+        },
       }
     }
 
@@ -167,6 +303,12 @@ export function evaluateVacationRoleEligibility(
         dueDate,
         earliestAllowedDate,
         daysBeforeDue,
+        evaluation: {
+          dateEligibility: "NOT_ELIGIBLE",
+          calendarCertainty,
+          selectableForSimulation: false,
+          confirmableAsOfficial: false,
+        },
       }
     }
 
@@ -184,6 +326,12 @@ export function evaluateVacationRoleEligibility(
         dueDate,
         earliestAllowedDate,
         daysBeforeDue,
+        evaluation: {
+          dateEligibility: "NOT_ELIGIBLE",
+          calendarCertainty,
+          selectableForSimulation: false,
+          confirmableAsOfficial: false,
+        },
       }
     }
   }
@@ -199,23 +347,33 @@ export function evaluateVacationRoleEligibility(
       dueDate,
       earliestAllowedDate: dueDate,
       daysBeforeDue,
+      evaluation: {
+        dateEligibility: "NOT_ELIGIBLE",
+        calendarCertainty,
+        selectableForSimulation: false,
+        confirmableAsOfficial: false,
+      },
     }
   }
 
   // 5. Regla especial: Personal sujeto al Estatuto
   const isEstatuto = regime === "ESTATUTO" || contractType === "CONFIANZA_A_ESTATUTO"
-  if (isEstatuto) {
-    if (daysBeforeDue > 0) {
-      return {
-        status: "BLOCKED",
-        reasonCode: "ESTATUTO_NO_ANTICIPATION",
-        workerMessage:
-          "El personal sujeto al Estatuto no cuenta con anticipación ordinaria automática. Las vacaciones deben disfrutarse a partir de la fecha en que se genera el derecho.",
-        technicalMessage: "Régimen Estatuto prohíbe anticipación ordinaria previa al vencimiento.",
-        dueDate,
-        earliestAllowedDate: dueDate,
-        daysBeforeDue,
-      }
+  if (isEstatuto && daysBeforeDue > 0) {
+    return {
+      status: "BLOCKED",
+      reasonCode: "ESTATUTO_NO_ANTICIPATION",
+      workerMessage:
+        "El personal sujeto al Estatuto no cuenta con anticipación ordinaria automática. Las vacaciones deben disfrutarse a partir de la fecha en que se genera el derecho.",
+      technicalMessage: "Régimen Estatuto prohíbe anticipación ordinaria previa al vencimiento.",
+      dueDate,
+      earliestAllowedDate: dueDate,
+      daysBeforeDue,
+      evaluation: {
+        dateEligibility: "NOT_ELIGIBLE",
+        calendarCertainty,
+        selectableForSimulation: false,
+        confirmableAsOfficial: false,
+      },
     }
   }
 
@@ -232,6 +390,12 @@ export function evaluateVacationRoleEligibility(
         dueDate,
         earliestAllowedDate: dueDate,
         daysBeforeDue,
+        evaluation: {
+          dateEligibility: "NOT_ELIGIBLE",
+          calendarCertainty,
+          selectableForSimulation: false,
+          confirmableAsOfficial: false,
+        },
       }
     }
 
@@ -246,6 +410,12 @@ export function evaluateVacationRoleEligibility(
         dueDate,
         earliestAllowedDate,
         daysBeforeDue,
+        evaluation: {
+          dateEligibility: "NOT_ELIGIBLE",
+          calendarCertainty,
+          selectableForSimulation: false,
+          confirmableAsOfficial: false,
+        },
       }
     }
 
@@ -261,6 +431,12 @@ export function evaluateVacationRoleEligibility(
           dueDate,
           earliestAllowedDate,
           daysBeforeDue,
+          evaluation: {
+            dateEligibility: "NOT_ELIGIBLE",
+            calendarCertainty,
+            selectableForSimulation: false,
+            confirmableAsOfficial: false,
+          },
         }
       }
     }
@@ -276,6 +452,12 @@ export function evaluateVacationRoleEligibility(
         dueDate,
         earliestAllowedDate: dueDate,
         daysBeforeDue,
+        evaluation: {
+          dateEligibility: "NOT_ELIGIBLE",
+          calendarCertainty,
+          selectableForSimulation: false,
+          confirmableAsOfficial: false,
+        },
       }
     }
   }
@@ -295,8 +477,17 @@ export function evaluateVacationRoleEligibility(
       dueDate,
       earliestAllowedDate,
       daysBeforeDue,
+      evaluation: {
+        dateEligibility: "NOT_ELIGIBLE",
+        calendarCertainty,
+        selectableForSimulation: false,
+        confirmableAsOfficial: false,
+      },
     }
   }
+
+  // Si llegó aquí, las fechas son completamente compatibles:
+  const dateEligibility: DateEligibility = "ELIGIBLE"
 
   // 8. Cruce de año con anticipación
   const startYear = parseCivilDate(roleStartDate)?.year
@@ -311,34 +502,52 @@ export function evaluateVacationRoleEligibility(
       dueDate,
       earliestAllowedDate,
       daysBeforeDue,
+      evaluation: {
+        dateEligibility,
+        calendarCertainty,
+        selectableForSimulation: true,
+        confirmableAsOfficial: false,
+      },
     }
   }
 
-  // 9. Comprobación de fecha provisional / proyectada
+  // 9. Comprobación de estado del calendario preliminar (DRAFT)
+  if (calendarStatus === "DRAFT") {
+    const yearLabel = calendarYear ? String(calendarYear) : "2027"
+    return {
+      status: "REQUIRES_REVIEW",
+      reasonCode: "CALENDAR_DRAFT",
+      workerMessage: `Compatible con tus fechas. Calendario preliminar ${yearLabel} (borrador preliminar); confirma el rol cuando se publique el calendario oficial.`,
+      technicalMessage: "calendarStatus es DRAFT; rol compatible para simulación, pero no confirmable como oficial.",
+      dueDate,
+      earliestAllowedDate,
+      daysBeforeDue,
+      evaluation: {
+        dateEligibility,
+        calendarCertainty: "PRELIMINARY",
+        selectableForSimulation: true,
+        confirmableAsOfficial: false,
+      },
+    }
+  }
+
+  // 10. Comprobación de fecha provisional / proyectada
   if (dueDateConfidence !== "CONFIRMED") {
     return {
       status: "REQUIRES_REVIEW",
       reasonCode: "PROVISIONAL_DUE_DATE",
       workerMessage:
-        "Todavía no podemos confirmar este rol porque falta validar la fecha en la que generas este derecho. Puedes revisar la simulación, pero confirma el dato con Personal antes de programar.",
+        "Compatible con tus fechas. Todavía no podemos confirmar este rol porque falta validar la fecha en la que generas este derecho (fecha estimada o calculada); confirma el dato con Personal antes de programar.",
       technicalMessage: `dueDateConfidence es ${dueDateConfidence}. No se autoriza definitivamente sin confirmación de tarjetón o registro oficial.`,
       dueDate,
       earliestAllowedDate,
       daysBeforeDue,
-    }
-  }
-
-  // 10. Comprobación de estado del calendario
-  if (calendarStatus === "DRAFT") {
-    return {
-      status: "REQUIRES_REVIEW",
-      reasonCode: "CALENDAR_DRAFT",
-      workerMessage:
-        "Este rol cumple con las fechas, pero el calendario se encuentra en borrador preliminar. La autorización definitiva requiere la publicación oficial del calendario.",
-      technicalMessage: "calendarStatus es DRAFT; solo un calendario PUBLISHED produce autorización ALLOWED.",
-      dueDate,
-      earliestAllowedDate,
-      daysBeforeDue,
+      evaluation: {
+        dateEligibility,
+        calendarCertainty,
+        selectableForSimulation: true,
+        confirmableAsOfficial: false,
+      },
     }
   }
 
@@ -351,5 +560,11 @@ export function evaluateVacationRoleEligibility(
     dueDate,
     earliestAllowedDate,
     daysBeforeDue,
+    evaluation: {
+      dateEligibility: "ELIGIBLE",
+      calendarCertainty: "OFFICIAL",
+      selectableForSimulation: true,
+      confirmableAsOfficial: true,
+    },
   }
 }

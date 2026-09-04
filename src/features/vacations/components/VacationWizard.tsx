@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, type CSSProperties } from "react"
+import Link from "next/link"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
@@ -31,6 +32,7 @@ import {
   formatCivilMexicanDate,
   subtractCivilDays,
   getMaxAnticipationDays,
+  formatAnticipationCivilPhrase,
 } from "../domain/role-eligibility"
 
 type WizardStep =
@@ -354,7 +356,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
         calendarStatus: calendar.status ?? "PUBLISHED",
       })
       roleEvaluations.set(r.id || r.roleNumber, evalResult)
-      if (evalResult.status === "BLOCKED") {
+      if (evalResult.status === "BLOCKED" || evalResult.evaluation?.dateEligibility === "NOT_ELIGIBLE") {
         blockedRolesCount++
       } else {
         availableRolesCount++
@@ -1100,6 +1102,55 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
           <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem", color: "var(--fg)" }}>
             2. Selecciona tu rol del calendario
           </h3>
+
+          {/* Aviso general de calendario preliminar (una sola vez arriba) */}
+          {calendar?.status === "DRAFT" && (
+            <div
+              style={{
+                background: "#fef3c7",
+                border: "1px solid #fde68a",
+                color: "#92400e",
+                padding: "0.75rem 1rem",
+                borderRadius: "var(--radius)",
+                marginBottom: "1rem",
+                fontSize: "0.85rem",
+                lineHeight: 1.45,
+              }}
+            >
+              📅 <strong>Calendario preliminar {calendar.year}:</strong> Puedes simular y elegir los roles compatibles con tus fechas. Confirma el rol cuando se publique el calendario oficial.
+            </div>
+          )}
+
+          {/* Aviso general de fecha de vencimiento no encontrada (una sola vez arriba) */}
+          {!activeDueDate && (
+            <div
+              style={{
+                background: "#eff6ff",
+                border: "1px solid #bfdbfe",
+                color: "#1e40af",
+                padding: "0.85rem 1rem",
+                borderRadius: "var(--radius)",
+                marginBottom: "1rem",
+                fontSize: "0.85rem",
+                lineHeight: 1.5,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "0.75rem",
+              }}
+            >
+              <div style={{ flex: 1, minWidth: "220px" }}>
+                <strong>No encontramos la fecha en la que generas este derecho</strong> para el {activePeriod?.kind === "V20" ? "Periodo V20" : `Periodo ${activePeriodIdx}`}. Puedes explorar los roles del calendario para simular tu plan, pero deberás validar este dato antes de la programación oficial.
+              </div>
+              <Link href="/profile/mi-informacion-laboral" style={{ textDecoration: "none" }}>
+                <Button size="sm" variant="secondary">
+                  Revisar datos del tarjetón
+                </Button>
+              </Link>
+            </div>
+          )}
+
           {loadingCalendar ? (
             <LoadingSpinner text="Cargando roles del calendario..." />
           ) : !calendar || calendar.roles.length === 0 ? (
@@ -1118,15 +1169,17 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
               {calendar.roles.map((r) => {
                 const isSelected = selectedRole?.id === r.id || selectedRole?.roleNumber === r.roleNumber
                 const ev = roleEvaluations.get(r.id || r.roleNumber)
-                const isBlocked = ev?.status === "BLOCKED"
-                const isAllowed = ev?.status === "ALLOWED"
-                const isReview = ev?.status === "REQUIRES_REVIEW"
+                const isBlocked = ev?.status === "BLOCKED" || ev?.evaluation?.dateEligibility === "NOT_ELIGIBLE"
+                const isEligible = ev?.evaluation?.dateEligibility === "ELIGIBLE"
+                const isPreliminary = ev?.evaluation?.calendarCertainty === "PRELIMINARY"
+                const isUnknown = ev?.evaluation?.dateEligibility === "UNKNOWN"
+                const canSelect = ev ? ev.evaluation.selectableForSimulation : !isBlocked
 
                 return (
                   <div
                     key={r.id || r.roleNumber}
                     onClick={() => {
-                      if (!isBlocked) {
+                      if (!isBlocked && canSelect) {
                         handleSelectRole(activePeriodIdx, r)
                       }
                     }}
@@ -1154,24 +1207,31 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.3rem", marginBottom: "0.3rem" }}>
-                      <div style={{ fontWeight: 700, fontSize: "0.9rem", color: isBlocked ? "#991b1b" : "var(--fg)" }}>
-                        Rol #{r.roleNumber} {r.roleGroup ? `(Grupo ${r.roleGroup})` : ""}
+                      <div
+                        style={{ fontWeight: 700, fontSize: "0.9rem", color: isBlocked ? "#991b1b" : "var(--fg)" }}
+                        title={r.roleGroup ? "Este grupo identifica el rol dentro del calendario. No es una marca ni cambia por sí mismo lo que vas a cobrar." : undefined}
+                      >
+                        Rol #{r.roleNumber} {r.roleGroup ? `(Grupo de calendario ${r.roleGroup})` : ""}
                       </div>
                       {isBlocked ? (
                         <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#fee2e2", color: "#991b1b", fontWeight: 700 }}>
                           Bloqueado ✕
                         </span>
-                      ) : isAllowed ? (
-                        <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#dcfce7", color: "#166534", fontWeight: 700 }}>
-                          {isSelected ? "Elegido ✓" : "Disponible ✓"}
+                      ) : isSelected ? (
+                        <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", borderRadius: "var(--radius-sm)", background: isPreliminary ? "#fef3c7" : "#dcfce7", color: isPreliminary ? "#92400e" : "#166534", fontWeight: 700 }}>
+                          {isPreliminary ? "Seleccionado para simular" : "Elegido ✓"}
                         </span>
-                      ) : isReview ? (
+                      ) : isEligible && isPreliminary ? (
                         <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#fef3c7", color: "#92400e", fontWeight: 700 }}>
-                          {isSelected ? "Elegido (Revisión)" : "En revisión ⚠️"}
+                          Compatible · calendario preliminar
+                        </span>
+                      ) : isEligible && !isPreliminary ? (
+                        <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#dcfce7", color: "#166534", fontWeight: 700 }}>
+                          Disponible ✓
                         </span>
                       ) : (
                         <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#e0f2fe", color: "#075985", fontWeight: 700 }}>
-                          Faltan datos ℹ️
+                          Falta tu fecha de vencimiento
                         </span>
                       )}
                     </div>
@@ -1183,12 +1243,40 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                       )}
                     </div>
 
+                    {/* Por qué sí o por qué no */}
                     {ev && (
                       <div style={{ fontSize: "0.78rem", color: isBlocked ? "#991b1b" : "var(--fg)", marginTop: "0.4rem", lineHeight: 1.4 }}>
-                        {ev.workerMessage}
+                        {isBlocked
+                          ? ev.workerMessage
+                          : isPreliminary
+                            ? "Compatible con tus fechas."
+                            : isUnknown
+                              ? "Falta tu fecha de vencimiento para validar oficialmente este rol."
+                              : ev.workerMessage}
                       </div>
                     )}
 
+                    {/* Fecha en que genera el derecho y fecha más temprana permitida */}
+                    {activeDueDate && (
+                      <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.3rem" }}>
+                        Tu derecho se genera el: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(activeDueDate)}</strong>
+                        {activeDueDateConfidence === "PROVISIONAL" && " (fecha estimada)"}
+                      </div>
+                    )}
+                    {ev?.earliestAllowedDate && (
+                      <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.15rem" }}>
+                        Fecha más temprana permitida: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(ev.earliestAllowedDate)}</strong>
+                      </div>
+                    )}
+
+                    {/* Advertencia breve si el calendario es preliminar */}
+                    {isPreliminary && (
+                      <div style={{ fontSize: "0.75rem", color: "#92400e", marginTop: "0.3rem", lineHeight: 1.35 }}>
+                        ⚠️ Calendario preliminar {calendar.year}; confirma el rol cuando se publique el calendario oficial.
+                      </div>
+                    )}
+
+                    {/* Acordeón de detalles técnicos (inicia cerrado) */}
                     {ev && (
                       <details
                         onClick={(e) => e.stopPropagation()}
@@ -1202,13 +1290,13 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                         }}
                       >
                         <summary style={{ cursor: "pointer", fontWeight: 600 }}>
-                          Ver fundamento y detalles técnicos
+                          Ver detalles
                         </summary>
                         <div style={{ marginTop: "0.3rem", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
-                          <div><strong>Regla:</strong> {ev.reasonCode}</div>
-                          <div><strong>Detalle:</strong> {ev.technicalMessage}</div>
+                          <div><strong>Evaluación:</strong> {isEligible ? "Fechas compatibles" : isBlocked ? "No compatible con las fechas" : "Fecha no confirmada"}</div>
+                          <div><strong>Certeza:</strong> {isPreliminary ? "Calendario preliminar" : "Calendario oficial"}</div>
                           {ev.daysBeforeDue !== null && (
-                            <div><strong>Anticipación:</strong> {ev.daysBeforeDue} días naturales</div>
+                            <div>{formatAnticipationCivilPhrase(ev.daysBeforeDue)}</div>
                           )}
                         </div>
                       </details>
@@ -1380,6 +1468,24 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
       <p style={SUBTITLE}>
         Resumen integral de tus periodos vacacionales, marcas a solicitar e importes económicos aproximados:
       </p>
+
+      {/* Aviso general de calendario preliminar en el resumen */}
+      {calendar?.status === "DRAFT" && (
+        <div
+          style={{
+            background: "#fef3c7",
+            border: "1px solid #fde68a",
+            color: "#92400e",
+            padding: "0.75rem 1rem",
+            borderRadius: "var(--radius)",
+            marginBottom: "1.25rem",
+            fontSize: "0.85rem",
+            lineHeight: 1.45,
+          }}
+        >
+          📅 <strong>Calendario preliminar {calendar.year}:</strong> Esta programación es una simulación basada en un calendario preliminar. Los roles seleccionados son compatibles con tus fechas, pero deberán confirmarse oficialmente cuando tu unidad publique el calendario definitivo.
+        </div>
+      )}
 
       {/* Cifra destacada total */}
       <Card padding="1.5rem" style={{ textAlign: "center", marginBottom: "1.25rem", background: "rgba(37,99,235,0.04)", border: "1.5px solid var(--primary)" }}>

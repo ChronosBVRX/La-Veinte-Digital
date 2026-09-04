@@ -23,6 +23,7 @@ import { determineVacationRegime } from "./entitlement"
 import { getCompatibleInclusionMarks } from "./continuity"
 import { parseImssPayslipSeniority } from "@/features/tarjeton/lib/imss-seniority-parser"
 import { parsePorVencerDate } from "@/features/tarjeton/lib/imss-date-parser"
+import { addCivilMonths, normalizeCivilDate } from "./role-eligibility"
 
 export interface PrefilledVacationState {
   profile: WorkerProfile
@@ -311,9 +312,9 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
   let isPorVencerMissingFromPayslip = false
   const directDue = vacationsRow?.porVencer || vacationsRow?.dueDate
   if (directDue) {
-    dueDate = directDue
+    dueDate = normalizeCivilDate(directDue) || parsePorVencerDate(directDue) || directDue
   } else if (vacationsRow?.porVencerRaw) {
-    const recovered = parsePorVencerDate(vacationsRow.porVencerRaw)
+    const recovered = parsePorVencerDate(vacationsRow.porVencerRaw) || normalizeCivilDate(vacationsRow.porVencerRaw)
     if (recovered) {
       dueDate = recovered
     }
@@ -345,7 +346,26 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
   // 13. Derechos vacacionales estructurados por periodo
   let entitlements: VacationEntitlement[] = []
   if (vacationsRow?.entitlements && Array.isArray(vacationsRow.entitlements) && vacationsRow.entitlements.length > 0) {
-    entitlements = vacationsRow.entitlements
+    entitlements = vacationsRow.entitlements.map((ent, idx) => {
+      let entDue = ent.dueDate ? (normalizeCivilDate(ent.dueDate) || ent.dueDate) : null
+      let entConf = ent.dueDateConfidence
+      let entSrc = ent.dueDateSource
+
+      // Si periodos posteriores vienen sin dueDate pero tenemos dueDate en el periodo 1:
+      if (!entDue && dueDate && idx > 0) {
+        const monthsToAdd = regime === "CUATRIMESTRAL" ? idx * 4 : idx * 6
+        entDue = addCivilMonths(dueDate, monthsToAdd)
+        entConf = "PROVISIONAL"
+        entSrc = "PROJECTED"
+      }
+
+      return {
+        ...ent,
+        dueDate: entDue,
+        dueDateConfidence: entConf || (entDue ? "CONFIRMED" : "UNKNOWN"),
+        dueDateSource: entSrc || (entDue ? "TARJETON" : "MISSING"),
+      }
+    })
   } else {
     const workerRegime = regime === "CUATRIMESTRAL" ? "CUATRIMESTRAL" : "SEMESTRAL"
     entitlements.push({
@@ -361,7 +381,13 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
       sourcePayslipPeriod: periodLabel ?? "",
       confirmed: Boolean(dueDate),
     })
+
     const secondRaw = typeof vacationsRow?.secondPeriodStartRaw === "string" ? vacationsRow.secondPeriodStartRaw : null
+    const secondParsed = secondRaw ? (normalizeCivilDate(secondRaw) || secondRaw) : null
+    const projectedSecond = (!secondParsed && dueDate)
+      ? addCivilMonths(dueDate, regime === "CUATRIMESTRAL" ? 4 : 6)
+      : null
+
     entitlements.push({
       id: "ord-2",
       sequence: 2,
@@ -369,13 +395,15 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
       entitlementKind: "ORDINARY",
       kind: "ORDINARY",
       periodNumber: 2,
-      dueDate: secondRaw,
-      dueDateSource: secondRaw ? "TARJETON" : "MISSING",
-      dueDateConfidence: secondRaw ? "CONFIRMED" : "UNKNOWN",
+      dueDate: secondParsed ?? projectedSecond,
+      dueDateSource: secondParsed ? "TARJETON" : projectedSecond ? "PROJECTED" : "MISSING",
+      dueDateConfidence: secondParsed ? "CONFIRMED" : projectedSecond ? "PROVISIONAL" : "UNKNOWN",
       sourcePayslipPeriod: periodLabel ?? "",
-      confirmed: Boolean(secondRaw),
+      confirmed: Boolean(secondParsed),
     })
+
     if (regime === "CUATRIMESTRAL") {
+      const projectedThird = dueDate ? addCivilMonths(dueDate, 8) : null
       entitlements.push({
         id: "ord-3",
         sequence: 3,
@@ -383,9 +411,9 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
         entitlementKind: "ORDINARY",
         kind: "ORDINARY",
         periodNumber: 3,
-        dueDate: null,
-        dueDateSource: "MISSING",
-        dueDateConfidence: "UNKNOWN",
+        dueDate: projectedThird,
+        dueDateSource: projectedThird ? "PROJECTED" : "MISSING",
+        dueDateConfidence: projectedThird ? "PROVISIONAL" : "UNKNOWN",
         sourcePayslipPeriod: periodLabel ?? "",
         confirmed: false,
       })
