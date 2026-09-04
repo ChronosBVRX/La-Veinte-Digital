@@ -7,10 +7,16 @@ import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { createClient } from "@/lib/supabase/client"
 import { prefillVacationSimulator } from "../domain/prefill"
 import { formatMexicanDate } from "@/features/tarjeton/lib/imss-date-parser"
-import { formatMexicanCurrency } from "../domain/payment-estimate"
-import { getMarkGuidance, orderMarksByPriority, getIncompatibleReason, type VacationPriority } from "../domain/option-guidance"
+import { formatMexicanCurrency, calculateVacationPayment } from "../domain/payment-estimate"
+import {
+  getMarkGuidance,
+  orderMarksByPriority,
+  getIncompatibleReason,
+  getVacationContinuityGuidance,
+  type VacationPriority,
+} from "../domain/option-guidance"
 import { getRequiredPeriodCount, buildVacationPlan, type PlanSelectionStep } from "../domain/annual-plan"
-import { getCompatibleInclusionMarks } from "../domain/continuity"
+import { getCompatibleInclusionMarks, applyInclusionMark } from "../domain/continuity"
 import { getPublishedCalendar, getAllCalendars } from "../services/calendar-service"
 import type { WorkerContext } from "@/shared/server/worker-context-builder"
 import type {
@@ -29,16 +35,25 @@ type WizardStep =
   | "summary"
 
 const CONTAINER: CSSProperties = {
+  width: "100%",
   maxWidth: 760,
+  minWidth: 0,
+  boxSizing: "border-box",
   margin: "0 auto",
   padding: "1rem",
 }
 
 const HEADER: CSSProperties = {
-  fontSize: "1.5rem",
+  fontSize: "clamp(1.5rem, 7vw, 2rem)",
+  lineHeight: 1.15,
   fontWeight: 700,
   color: "var(--fg)",
   marginBottom: "0.5rem",
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  wordBreak: "normal",
+  maxWidth: "100%",
+  minWidth: 0,
 }
 
 const SUBTITLE: CSSProperties = {
@@ -46,6 +61,11 @@ const SUBTITLE: CSSProperties = {
   fontSize: "0.875rem",
   marginBottom: "1.5rem",
   lineHeight: 1.5,
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  wordBreak: "normal",
+  maxWidth: "100%",
+  minWidth: 0,
 }
 
 const BUTTON_ROW: CSSProperties = {
@@ -54,13 +74,21 @@ const BUTTON_ROW: CSSProperties = {
   justifyContent: "space-between",
   marginTop: "1.5rem",
   flexWrap: "wrap",
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  boxSizing: "border-box",
 }
 
 const INFO_GRID: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))",
   gap: "0.75rem",
   marginBottom: "1rem",
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  boxSizing: "border-box",
 }
 
 const INFO_CARD: CSSProperties = {
@@ -68,6 +96,12 @@ const INFO_CARD: CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: "var(--radius)",
   padding: "0.75rem 1rem",
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  boxSizing: "border-box",
+  overflowWrap: "anywhere",
+  wordBreak: "normal",
 }
 
 const ALERT_WARN: CSSProperties = {
@@ -79,6 +113,12 @@ const ALERT_WARN: CSSProperties = {
   fontSize: "0.85rem",
   marginBottom: "1rem",
   lineHeight: 1.4,
+  width: "100%",
+  maxWidth: "100%",
+  minWidth: 0,
+  boxSizing: "border-box",
+  overflowWrap: "anywhere",
+  whiteSpace: "normal",
 }
 
 const BADGE: CSSProperties = {
@@ -89,6 +129,8 @@ const BADGE: CSSProperties = {
   fontWeight: 600,
   background: "var(--primary)",
   color: "var(--primary-fg)",
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
 }
 
 // Roles de respaldo estructural si el servidor aún no tiene publicado el calendario oficial 2027
@@ -138,32 +180,31 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
         if (pub && pub.roles.length > 0) {
           setCalendar(pub)
         } else {
-          // Buscar si hay borrador de 2027 o lista general
           const all = await getAllCalendars(supabase)
           const draft2027 = all.find((c) => c.year === 2027)
           if (draft2027 && draft2027.roles.length > 0) {
             setCalendar(draft2027)
           } else {
-            // Estructura modelo provisional
             setCalendar({
               id: "cal-2027-provisional",
               year: 2027,
-              version: "Modelo Estructural Provisional",
+              version: "1.0.0-provisional",
+              sourceName: "Calendario Anual 2027 (Estructura Base Provisional)",
               status: "DRAFT",
-              sourceName: "Modelo Estructural Base (Provisional)",
               roles: STRUCTURAL_ROLES_2027,
             })
           }
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Error al cargar calendario 2027:", err)
         if (active) {
           setCalendar({
             id: "cal-2027-provisional",
             year: 2027,
-            version: "Modelo Estructural Provisional",
+            version: "1.0.0-provisional",
+            sourceName: "Calendario Anual 2027 (Estructura Base Provisional)",
             status: "DRAFT",
-            sourceName: "Modelo Estructural Base (Provisional)",
             roles: STRUCTURAL_ROLES_2027,
           })
         }
@@ -177,16 +218,16 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
     }
   }, [supabase])
 
-  // Precarga de datos laborales del tarjetón
+  // Prefill desde el tarjetón / contexto
   const prefilled = useMemo(() => {
-    return prefillVacationSimulator(initialContext)
+    return prefillVacationSimulator(initialContext || null)
   }, [initialContext])
 
-  const effectiveSeniorityYears = prefilled.profile.effectiveSeniority.years
-  const initialContinuity = prefilled.continuityMark
-  const regime = prefilled.regime
+  const effectiveSeniorityYears = prefilled.profile?.effectiveSeniority?.years ?? 0
   const rawDueDate = prefilled.dueDate
   const formattedDueDate = rawDueDate ? formatMexicanDate(rawDueDate) : null
+  const initialContinuity = prefilled.continuityMark ?? 0
+  const regime = prefilled.regime
 
   // Sueldo Mensual Integrado
   const smi = initialContext?.payroll?.integratedMonthlySalary ?? null
@@ -239,7 +280,6 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
     return buildVacationPlan(planInput, selections)
   }, [planInput, selections])
 
-  // Manejo de selecciones por periodo
   function handleSelectMark(periodIdx: number, mark: number) {
     setSelections((prev) => ({
       ...prev,
@@ -285,6 +325,14 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
   const disallowedMarks = allPossibleMarks.filter((m) => !allowedMarks.includes(m))
 
+  // Orientación contextual de continuidad según régimen
+  const continuityGuidance = useMemo(() => {
+    return getVacationContinuityGuidance(
+      activePeriod?.kind === "V20" ? "EXTRAORDINARIO_V20" : regime,
+      currentContinuityForActive
+    )
+  }, [regime, currentContinuityForActive, activePeriod?.kind])
+
   // Comparativa de alternativas (Paso 5)
   const comparisonOptions = useMemo(() => {
     if (regime !== "SEMESTRAL") return []
@@ -319,8 +367,8 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
       },
       {
         id: "SPLIT_PAY",
-        name: "Pago repartido al 50%",
-        summary: "Divides el descanso y la ayuda cultural al 50% en ambas fracciones con marca 1.",
+        name: "Pago repartido (mitad y mitad)",
+        summary: "Cobras 50% de ayuda en cada periodo (marca 1→1).",
         p1Gross: optSplit.periods[0]?.payment?.grossVacationExtra ?? null,
         p2Gross: optSplit.periods[1]?.payment?.grossVacationExtra ?? null,
         totalGross: optSplit.totalGrossVacationExtra,
@@ -365,10 +413,10 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
         )}
 
         <Card padding="1.25rem" style={{ marginBottom: "1.5rem" }}>
-          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem" }}>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem", color: "var(--fg)" }}>
             ¿En qué te ayuda esta herramienta?
           </h3>
-          <ul style={{ paddingLeft: "1.25rem", color: "var(--muted)", fontSize: "0.875rem", lineHeight: 1.8 }}>
+          <ul style={{ paddingLeft: "1.25rem", color: "var(--muted)", fontSize: "0.875rem", lineHeight: 1.8, margin: 0 }}>
             <li>Saber cuántos periodos debes programar de acuerdo con tu tarjetón y antigüedad.</li>
             <li>Conocer cuándo se genera cada derecho y la fecha límite por vencer.</li>
             <li>Identificar qué marca paga más dinero en este momento, cuál divide el pago o cuál no incluye la ayuda.</li>
@@ -399,31 +447,31 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
         <div style={INFO_GRID}>
           <div style={INFO_CARD}>
             <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Régimen vacacional</div>
-            <div style={{ fontSize: "1rem", fontWeight: 700 }}>
+            <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--fg)" }}>
               {regime === "CUATRIMESTRAL" ? "Cuatrimestral (Radiaciones)" : regime === "ESTATUTO" ? "Estatuto" : "Semestral Ordinario"}
             </div>
           </div>
 
           <div style={INFO_CARD}>
             <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Antigüedad efectiva</div>
-            <div style={{ fontSize: "1rem", fontWeight: 700 }}>
+            <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--fg)" }}>
               {effectiveSeniorityYears} {effectiveSeniorityYears === 1 ? "año cumplido" : "años cumplidos"}
             </div>
           </div>
 
           <div style={INFO_CARD}>
             <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Continuidad actual</div>
-            <div style={{ fontSize: "1rem", fontWeight: 700 }}>
+            <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--fg)" }}>
               Marca {initialContinuity}
             </div>
-            <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.2rem" }}>
               {initialContinuity === 0 ? "Inicio de ciclo" : initialContinuity === 1 ? "1ra fracción tomada" : initialContinuity === 3 ? "2do periodo pendiente" : "Secuencia en curso"}
             </div>
           </div>
 
           <div style={INFO_CARD}>
             <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Fecha por vencer</div>
-            <div style={{ fontSize: "1rem", fontWeight: 700 }}>
+            <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--fg)" }}>
               {formattedDueDate || "Pendiente de confirmar"}
             </div>
           </div>
@@ -439,7 +487,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
               <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--primary)" }}>
                 {formatMexicanCurrency(smi)}
               </div>
-              <p style={{ fontSize: "0.85rem", color: "var(--fg)", marginTop: "0.5rem" }}>
+              <p style={{ fontSize: "0.85rem", color: "var(--fg)", marginTop: "0.5rem", lineHeight: 1.5 }}>
                 Para hacer este cálculo usamos el Sueldo Mensual Integrado de tu tarjetón {sourcePayslipPeriod ? `del periodo ${sourcePayslipPeriod}` : ""}: <strong>{formatMexicanCurrency(smi)}</strong>.
               </p>
               {isReconstructedSmi && (
@@ -449,7 +497,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
               )}
             </div>
           ) : (
-            <div style={{ color: "#b91c1c", fontSize: "0.85rem" }}>
+            <div style={{ color: "#b91c1c", fontSize: "0.85rem", lineHeight: 1.5 }}>
               ⚠️ No encontramos completo tu Sueldo Mensual Integrado. Puedes planificar las fechas y marcas, pero revisa tu tarjetón para calcular exactamente cuánto cobrarías en pesos.
             </div>
           )}
@@ -457,13 +505,13 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
         {/* Número de periodos requeridos */}
         <Card padding="1.25rem" style={{ marginBottom: "1.5rem" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.5rem", flexWrap: "wrap" }}>
             <span style={BADGE}>{requiredPeriodCount} {requiredPeriodCount === 1 ? "Periodo" : "Periodos"}</span>
-            <span style={{ fontWeight: 600, fontSize: "0.95rem" }}>
+            <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--fg)" }}>
               Programación anual obligatoria
             </span>
           </div>
-          <p style={{ fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.5 }}>
+          <p style={{ fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.5, margin: 0 }}>
             {regime === "CUATRIMESTRAL"
               ? `Por ser trabajador cuatrimestral expuesto a radiaciones${hasV20 ? " y contar con derecho V20" : ""}, debes programar ${requiredPeriodCount} periodos.`
               : `De acuerdo con tu tarjetón y régimen semestral${hasV20 ? " con derecho extraordinario V20" : ""}, debes programar ${requiredPeriodCount} periodos.`
@@ -471,7 +519,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
           </p>
 
           {/* Estado del V20 */}
-          <div style={{ marginTop: "0.75rem", padding: "0.5rem 0.75rem", background: "var(--accent)", borderRadius: "var(--radius-sm)", fontSize: "0.8rem" }}>
+          <div style={{ marginTop: "0.75rem", padding: "0.5rem 0.75rem", background: "var(--accent)", borderRadius: "var(--radius-sm)", fontSize: "0.8rem", lineHeight: 1.4 }}>
             <strong>Periodo Extraordinario V20: </strong>
             {hasConfirmedV20 ? (
               <span style={{ color: "#166534" }}>Confirmado en tu tarjetón ({twentyYearsOrMoreDays} días registrados).</span>
@@ -504,7 +552,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
           Elige qué aspecto es más importante para ti. Esta preferencia no modifica las reglas del Contrato Colectivo; solo te mostrará primero las alternativas más convenientes.
         </p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem", width: "100%", boxSizing: "border-box" }}>
           <div
             onClick={() => setPriority("MORE_NOW")}
             style={{
@@ -513,12 +561,14 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
               border: `2px solid ${priority === "MORE_NOW" ? "var(--primary)" : "var(--border)"}`,
               background: priority === "MORE_NOW" ? "rgba(37,99,235,0.05)" : "var(--card)",
               cursor: "pointer",
+              boxSizing: "border-box",
+              width: "100%",
             }}
           >
             <div style={{ fontWeight: 700, color: "var(--fg)", marginBottom: "0.25rem" }}>
               💵 Quiero cobrar más en el primer periodo
             </div>
-            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+            <div style={{ fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.4 }}>
               Te orienta hacia opciones como la <strong>Marca 4</strong> (o Marca 0), cobrando el 100% de la ayuda cultural en la primera exhibición.
             </div>
           </div>
@@ -531,12 +581,14 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
               border: `2px solid ${priority === "SPLIT_PAY" ? "var(--primary)" : "var(--border)"}`,
               background: priority === "SPLIT_PAY" ? "rgba(37,99,235,0.05)" : "var(--card)",
               cursor: "pointer",
+              boxSizing: "border-box",
+              width: "100%",
             }}
           >
             <div style={{ fontWeight: 700, color: "var(--fg)", marginBottom: "0.25rem" }}>
               ⚖️ Prefiero repartir el pago
             </div>
-            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+            <div style={{ fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.4 }}>
               Te orienta hacia la <strong>Marca 1</strong>, cobrando el 50% de la ayuda en cada periodo fraccionado.
             </div>
           </div>
@@ -549,13 +601,15 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
               border: `2px solid ${priority === "MORE_REST" ? "var(--primary)" : "var(--border)"}`,
               background: priority === "MORE_REST" ? "rgba(37,99,235,0.05)" : "var(--card)",
               cursor: "pointer",
+              boxSizing: "border-box",
+              width: "100%",
             }}
           >
             <div style={{ fontWeight: 700, color: "var(--fg)", marginBottom: "0.25rem" }}>
               🏖️ Prefiero conservar más días de descanso
             </div>
-            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
-              Te orienta hacia secuencias de dos descansos completos (como la <strong>Marca 2→3</strong>). Cobras la prima pero no la ayuda 048.
+            <div style={{ fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.4 }}>
+              Te orienta hacia secuencias de descansos completos (como la <strong>Marca 2→3</strong> o cuatrimestral <strong>2→5→5</strong>). Cobras la prima pero no la ayuda 048.
             </div>
           </div>
 
@@ -567,12 +621,14 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
               border: `2px solid ${priority === "COMPARE_ALL" ? "var(--primary)" : "var(--border)"}`,
               background: priority === "COMPARE_ALL" ? "rgba(37,99,235,0.05)" : "var(--card)",
               cursor: "pointer",
+              boxSizing: "border-box",
+              width: "100%",
             }}
           >
             <div style={{ fontWeight: 700, color: "var(--fg)", marginBottom: "0.25rem" }}>
               🔍 Quiero comparar todas las opciones
             </div>
-            <div style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+            <div style={{ fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.4 }}>
               Muestra todas las marcas compatibles sin ningún filtro de preferencia.
             </div>
           </div>
@@ -598,11 +654,23 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
     const selectedRole = currentSelection.role
 
     const currentPeriodPayment = activePeriod?.payment
+    const activePeriodUnits = activePeriod?.units || 10
 
     return (
       <div style={CONTAINER}>
-        {/* Barra de progreso de periodos */}
-        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", overflowX: "auto", paddingBottom: "0.25rem" }}>
+        {/* Navegación adaptable de periodos (cuadrícula en móvil, sin corte horizontal) */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))",
+            gap: "0.5rem",
+            marginBottom: "0.5rem",
+            width: "100%",
+            maxWidth: "100%",
+            minWidth: 0,
+            boxSizing: "border-box",
+          }}
+        >
           {Array.from({ length: requiredPeriodCount }).map((_, i) => {
             const pNum = i + 1
             const isV = hasV20 && pNum === requiredPeriodCount
@@ -614,98 +682,301 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                 key={pNum}
                 onClick={() => setActivePeriodIdx(pNum)}
                 style={{
-                  padding: "0.5rem 0.75rem",
+                  padding: "0.6rem 0.75rem",
                   borderRadius: "var(--radius)",
-                  border: `1px solid ${isCurrent ? "var(--primary)" : "var(--border)"}`,
+                  border: `1.5px solid ${isCurrent ? "var(--primary)" : "var(--border)"}`,
                   background: isCurrent ? "var(--primary)" : hasSel ? "var(--accent)" : "var(--card)",
                   color: isCurrent ? "var(--primary-fg)" : "var(--fg)",
                   fontWeight: 600,
-                  fontSize: "0.8rem",
+                  fontSize: "0.85rem",
                   cursor: "pointer",
-                  whiteSpace: "nowrap",
+                  textAlign: "center",
+                  width: "100%",
+                  minWidth: 0,
+                  boxSizing: "border-box",
+                  whiteSpace: "normal",
+                  overflowWrap: "anywhere",
+                  wordBreak: "normal",
                 }}
               >
-                {isV ? "Periodo V20" : `Periodo ${pNum} de ${requiredPeriodCount}`} {hasSel ? "✓" : ""}
+                {isV ? "V20" : `Periodo ${pNum}`} {hasSel ? "✓" : ""}
               </button>
             )
           })}
         </div>
 
+        <div style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: "1rem", whiteSpace: "normal" }}>
+          Estás programando el {isV20 ? "periodo extraordinario V20" : `periodo ${activePeriodIdx} de ${requiredPeriodCount}`}.
+        </div>
+
+        {/* Título Adaptable */}
         <h1 style={HEADER}>
-          {isV20 ? "Periodo Extraordinario V20" : `Programando Periodo ${activePeriodIdx} de ${requiredPeriodCount}`}
+          {isV20
+            ? "Programa tu periodo extraordinario V20"
+            : activePeriodIdx === 1
+            ? "Programa tu primer periodo"
+            : activePeriodIdx === 2
+            ? "Programa tu segundo periodo"
+            : activePeriodIdx === 3
+            ? "Programa tu tercer periodo"
+            : activePeriodIdx === 4
+            ? "Programa tu cuarto periodo"
+            : `Programa tu periodo ${activePeriodIdx}`
+          }
         </h1>
         <p style={SUBTITLE}>
           {isV20
-            ? "Selecciona la modalidad de tu periodo extraordinario por 20 años o más de servicio (15 días o pago)."
-            : `Elige la marca y el rol de vacaciones para tu periodo ordinario ${activePeriodIdx}.`
+            ? "Este es tu periodo extraordinario por 20 años o más de servicio (10 días de disfrute o pago)."
+            : `Este es el periodo ${activePeriodIdx} de ${requiredPeriodCount} que debes programar.`
           }
         </p>
 
+        {/* Explicación amigable para régimen cuatrimestral */}
+        {regime === "CUATRIMESTRAL" && !isV20 && (
+          <Card padding="1.25rem" style={{ marginBottom: "1.25rem", background: "var(--accent)" }}>
+            <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem", color: "var(--fg)" }}>
+              Programación de vacaciones cuatrimestrales
+            </h3>
+            <p style={{ fontSize: "0.85rem", color: "var(--fg)", lineHeight: 1.5, marginBottom: "0.75rem" }}>
+              Por ser cuatrimestral debes programar tres periodos ordinarios. Las marcas de los tres periodos deben seguir la misma opción.
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", fontSize: "0.85rem" }}>
+              <div style={{ background: "var(--card)", padding: "0.75rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
+                <div style={{ fontWeight: 700, color: "var(--fg)" }}>Opción A — Descanso regular con ayuda.</div>
+                <p style={{ margin: "0.25rem 0", color: "var(--muted)", lineHeight: 1.4 }}>
+                  En esta opción programas los tres periodos con la secuencia permitida de la opción A. En cada periodo te diremos cuántos días descansas y cuánto recibirías de prima y ayuda.
+                </p>
+                <div style={{ fontWeight: 600, color: "var(--primary)", marginTop: "0.25rem" }}>
+                  Primer periodo: marca 0 • Segundo periodo: marca 0 • Tercer periodo: marca 0
+                </div>
+              </div>
+
+              <div style={{ background: "var(--card)", padding: "0.75rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
+                <div style={{ fontWeight: 700, color: "var(--fg)" }}>Opción B — Más días de descanso, sin ayuda cultural.</div>
+                <p style={{ margin: "0.25rem 0", color: "var(--muted)", lineHeight: 1.4 }}>
+                  Empiezas con la marca 2 y los periodos siguientes continúan con las marcas 5 que correspondan.
+                </p>
+                <div style={{ fontWeight: 600, color: "var(--primary)", marginTop: "0.25rem" }}>
+                  Marca 2 → Marca 5 → Marca 5
+                </div>
+              </div>
+
+              {hasV20 && (
+                <div style={{ fontSize: "0.8rem", color: "var(--muted)", fontStyle: "italic", marginTop: "0.25rem" }}>
+                  Además de tus tres periodos cuatrimestrales, tienes un periodo extraordinario V20. Lo programaremos por separado.
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {/* Tarjeta: Antes de elegir, entiende tus marcas */}
+        <Card padding="1.25rem" style={{ marginBottom: "1.25rem" }}>
+          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem", color: "var(--fg)" }}>
+            Antes de elegir, entiende tus marcas
+          </h3>
+          <p style={{ fontSize: "0.85rem", color: "var(--fg)", lineHeight: 1.5, marginBottom: "0.5rem" }}>
+            La marca de continuidad es la que ya trae tu tarjetón. Nos dice cómo quedó tu programación anterior. Tú no la eliges en este momento.
+          </p>
+          <p style={{ fontSize: "0.85rem", color: "var(--fg)", lineHeight: 1.5, marginBottom: "0.75rem" }}>
+            La marca de inclusión es la que vas a anotar al programar tus nuevas vacaciones. Esa sí debes elegirla entre las opciones permitidas.
+          </p>
+
+          <div style={{ background: "var(--accent)", padding: "0.75rem 1rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+            <div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Lo que trae tu tarjetón</div>
+              <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--fg)" }}>
+                Continuidad actual: marca {currentContinuityForActive}
+              </div>
+            </div>
+            <div style={{ textAlign: "center", color: "var(--muted)", fontSize: "1rem", lineHeight: 1 }}>↓</div>
+            <div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Lo que vas a programar</div>
+              <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--primary)" }}>
+                Marca de inclusión: {selectedMark !== undefined ? `marca ${selectedMark}` : "Pendiente de elegir abajo"}
+              </div>
+            </div>
+            <div style={{ textAlign: "center", color: "var(--muted)", fontSize: "1rem", lineHeight: 1 }}>↓</div>
+            <div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Cómo quedarás después</div>
+              <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--fg)" }}>
+                Nueva continuidad: {activePeriod?.continuityAfter !== undefined ? `marca ${activePeriod.continuityAfter}` : "Se actualizará al elegir marca"}
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Tarjeta: La marca que traes */}
+        <Card padding="1.25rem" style={{ marginBottom: "1.25rem", borderLeft: "4px solid var(--primary)" }}>
+          <div style={{ fontSize: "0.8rem", color: "var(--muted)", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.03em" }}>
+            La marca que traes
+          </div>
+          <div style={{ fontSize: "1rem", fontWeight: 700, margin: "0.25rem 0 0.5rem 0", color: "var(--fg)" }}>
+            En tu tarjetón aparece continuidad {currentContinuityForActive}.
+          </div>
+          <p style={{ fontSize: "0.85rem", color: "var(--fg)", lineHeight: 1.5, marginBottom: "0.5rem" }}>
+            <strong>¿Qué significa?</strong> {continuityGuidance.whatItMeans}
+          </p>
+          <p style={{ fontSize: "0.85rem", color: "var(--muted)", lineHeight: 1.5, margin: 0 }}>
+            <strong>Por eso, para este periodo:</strong> {continuityGuidance.allowedMarksExplanation}
+          </p>
+        </Card>
+
         {/* 1. SELECCIÓN DE MARCA */}
         <Card padding="1.25rem" style={{ marginBottom: "1.25rem" }}>
-          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem", color: "var(--fg)" }}>
             1. Selecciona qué marca vas a anotar
           </h3>
           <p style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "1rem" }}>
-            Continuidad actual antes de este periodo: <strong>Marca {currentContinuityForActive}</strong>.
+            Elige entre las marcas permitidas para este periodo:
           </p>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", boxSizing: "border-box" }}>
             {orderedAllowedMarks.map((m) => {
               const g = getMarkGuidance(m, regime)
               const isChosen = selectedMark === m
+
+              // Estimación para esta marca en tiempo real
+              const markPayment = calculateVacationPayment({
+                integratedMonthlySalary: smi,
+                daysOrUnits: activePeriodUnits,
+                seniorityYears: effectiveSeniorityYears,
+                mark: m,
+                radiologicalExposure: Boolean(prefilled.profile?.radiologicalExposure),
+                regime,
+                isV20,
+              })
+
+              const nextTransition = applyInclusionMark(
+                isV20 ? "EXTRAORDINARIO_V20" : regime,
+                currentContinuityForActive,
+                m
+              )
+              const nextContinuityVal = "nextContinuity" in nextTransition ? nextTransition.nextContinuity : undefined
 
               return (
                 <div
                   key={m}
                   onClick={() => handleSelectMark(activePeriodIdx, m)}
                   style={{
-                    padding: "0.75rem 1rem",
+                    padding: "1rem",
                     borderRadius: "var(--radius)",
                     border: `2px solid ${isChosen ? "var(--primary)" : "var(--border)"}`,
                     background: isChosen ? "rgba(37,99,235,0.04)" : "var(--card)",
                     cursor: "pointer",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    minWidth: 0,
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{g.title}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                    <div style={{ fontWeight: 800, fontSize: "1rem", color: "var(--fg)" }}>
+                      Marca {m} — Sí puedes utilizarla
+                    </div>
                     {isChosen && <span style={BADGE}>Seleccionada</span>}
                   </div>
-                  <div style={{ fontSize: "0.85rem", color: "var(--fg)", marginTop: "0.25rem" }}>
-                    {g.plainSummary}
+
+                  <div style={{ fontSize: "0.85rem", color: "var(--fg)", marginBottom: "0.4rem" }}>
+                    <strong>Qué pasa:</strong> Descansas {activePeriodUnits} días.
                   </div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
-                    💡 {g.economicDetail} • <em>{g.nextStepDetail}</em>
+
+                  <div style={{ fontSize: "0.85rem", color: "var(--fg)", marginBottom: "0.5rem" }}>
+                    <strong>Qué te pagan:</strong>
+                    {markPayment.confidence !== "INCOMPLETE" && markPayment.grossVacationExtra !== null ? (
+                      <div style={{ paddingLeft: "0.5rem", marginTop: "0.25rem", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                        <div>Prima vacacional: <strong>{formatMexicanCurrency(markPayment.premium029)}</strong></div>
+                        <div>Ayuda cultural: <strong>{formatMexicanCurrency(markPayment.culturalHelp048)}</strong></div>
+                        <div style={{ marginTop: "0.25rem", color: "var(--primary)", fontWeight: 700 }}>
+                          Total adicional aproximado: {formatMexicanCurrency(markPayment.grossVacationExtra)} antes de impuestos y descuentos.
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ color: "var(--muted)", fontStyle: "italic", marginTop: "0.25rem" }}>
+                        Falta confirmar tu Sueldo Mensual Integrado para calcular el importe.
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ fontSize: "0.85rem", color: "var(--fg)", marginBottom: "0.6rem" }}>
+                    <strong>Después quedarás con:</strong> Continuidad {nextContinuityVal !== undefined ? nextContinuityVal : "—"}
+                  </div>
+
+                  {/* Bloques separados de orientación */}
+                  <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.5rem", fontSize: "0.8rem", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                    <div>
+                      <strong>Lo que cobrarías:</strong> {g.economicDetail}
+                    </div>
+                    <div>
+                      <strong>Lo que sigue:</strong> {g.nextStepDetail}
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: "0.75rem" }}>
+                    <Button
+                      size="sm"
+                      variant={isChosen ? "primary" : "secondary"}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleSelectMark(activePeriodIdx, m)
+                      }}
+                    >
+                      {isChosen ? "Marca elegida ✓" : `Elegir marca ${m}`}
+                    </Button>
                   </div>
                 </div>
               )
             })}
 
-            {/* Opciones no permitidas visibles y deshabilitadas */}
-            {disallowedMarks.map((m) => {
-              const reason = getIncompatibleReason(m, currentContinuityForActive, regime)
-              return (
-                <div
-                  key={m}
-                  style={{
-                    padding: "0.5rem 0.75rem",
-                    borderRadius: "var(--radius)",
-                    border: "1px dashed var(--border)",
-                    background: "var(--accent)",
-                    opacity: 0.6,
-                    fontSize: "0.8rem",
-                  }}
-                >
-                  <strong>Marca {m} (No permitida):</strong> {reason}
+            {/* Acordeón de marcas no permitidas */}
+            {disallowedMarks.length > 0 && (
+              <details
+                style={{
+                  marginTop: "0.75rem",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius)",
+                  padding: "0.75rem",
+                  background: "var(--accent)",
+                  width: "100%",
+                  boxSizing: "border-box",
+                  minWidth: 0,
+                }}
+              >
+                <summary style={{ cursor: "pointer", fontWeight: 600, fontSize: "0.85rem", color: "var(--fg)" }}>
+                  Ver marcas que no puedes utilizar ahora ({disallowedMarks.length})
+                </summary>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.75rem" }}>
+                  {disallowedMarks.map((m) => {
+                    const reason = getIncompatibleReason(m, currentContinuityForActive, regime)
+                    return (
+                      <div
+                        key={m}
+                        style={{
+                          padding: "0.5rem 0.75rem",
+                          borderRadius: "var(--radius-sm)",
+                          border: "1px dashed var(--border)",
+                          background: "var(--card)",
+                          fontSize: "0.8rem",
+                        }}
+                      >
+                        <div style={{ fontWeight: 700, color: "var(--fg)" }}>
+                          Marca {m} — No corresponde ahora
+                        </div>
+                        <div style={{ color: "var(--muted)", marginTop: "0.2rem", lineHeight: 1.4 }}>
+                          {reason}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              )
-            })}
+              </details>
+            )}
           </div>
         </Card>
 
         {/* 2. SELECCIÓN DE ROL DEL CALENDARIO */}
         <Card padding="1.25rem" style={{ marginBottom: "1.25rem" }}>
-          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem", color: "var(--fg)" }}>
             2. Selecciona tu rol del calendario
           </h3>
           {loadingCalendar ? (
@@ -713,7 +984,16 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
           ) : !calendar || calendar.roles.length === 0 ? (
             <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>No hay roles disponibles en este momento.</p>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.5rem" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))",
+                gap: "0.5rem",
+                width: "100%",
+                boxSizing: "border-box",
+                minWidth: 0,
+              }}
+            >
               {calendar.roles.map((r) => {
                 const isSelected = selectedRole?.id === r.id || selectedRole?.roleNumber === r.roleNumber
                 return (
@@ -727,12 +1007,15 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                       border: `1.5px solid ${isSelected ? "var(--primary)" : "var(--border)"}`,
                       background: isSelected ? "rgba(37,99,235,0.06)" : "var(--card)",
                       cursor: "pointer",
+                      width: "100%",
+                      minWidth: 0,
+                      boxSizing: "border-box",
                     }}
                   >
-                    <div style={{ fontWeight: 700, fontSize: "0.85rem" }}>
+                    <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--fg)" }}>
                       Rol #{r.roleNumber} {r.roleGroup ? `(Grupo ${r.roleGroup})` : ""}
                     </div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                    <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.2rem" }}>
                       Inicio: {formatMexicanDate(r.startDate)}
                     </div>
                     {r.endDate && (
@@ -750,23 +1033,33 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
         {/* 3. ESTIMACIÓN ECONÓMICA EN TIEMPO REAL */}
         {currentPeriodPayment && currentPeriodPayment.confidence !== "INCOMPLETE" && (
           <Card padding="1rem" style={{ marginBottom: "1.5rem", background: "rgba(37,99,235,0.03)" }}>
-            <h4 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.5rem" }}>
+            <h4 style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: "0.5rem", color: "var(--fg)" }}>
               Estimación de pago para este periodo:
             </h4>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", textAlign: "center" }}>
-              <div style={{ background: "var(--card)", padding: "0.5rem", borderRadius: "var(--radius-sm)" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))",
+                gap: "0.5rem",
+                textAlign: "center",
+                width: "100%",
+                boxSizing: "border-box",
+                minWidth: 0,
+              }}
+            >
+              <div style={{ background: "var(--card)", padding: "0.5rem", borderRadius: "var(--radius-sm)", minWidth: 0, overflowWrap: "anywhere" }}>
                 <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Prima Vacacional (029)</div>
-                <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>
+                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--fg)" }}>
                   {formatMexicanCurrency(currentPeriodPayment.premium029)}
                 </div>
               </div>
-              <div style={{ background: "var(--card)", padding: "0.5rem", borderRadius: "var(--radius-sm)" }}>
+              <div style={{ background: "var(--card)", padding: "0.5rem", borderRadius: "var(--radius-sm)", minWidth: 0, overflowWrap: "anywhere" }}>
                 <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Ayuda Cultural (048)</div>
-                <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>
+                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--fg)" }}>
                   {formatMexicanCurrency(currentPeriodPayment.culturalHelp048)}
                 </div>
               </div>
-              <div style={{ background: "var(--card)", padding: "0.5rem", borderRadius: "var(--radius-sm)" }}>
+              <div style={{ background: "var(--card)", padding: "0.5rem", borderRadius: "var(--radius-sm)", minWidth: 0, overflowWrap: "anywhere" }}>
                 <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Total adicional bruto</div>
                 <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--primary)" }}>
                   {formatMexicanCurrency(currentPeriodPayment.grossVacationExtra)}
@@ -787,7 +1080,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
             </Button>
           )}
 
-          <div style={{ display: "flex", gap: "0.5rem" }}>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", minWidth: 0 }}>
             <Button variant="ghost" onClick={() => setStep("comparison")}>
               Comparar opciones
             </Button>
@@ -824,29 +1117,40 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
           Compara cómo cambia el importe adicional y el cobro de la ayuda cultural según la secuencia de marcas que elijas:
         </p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem", width: "100%", boxSizing: "border-box" }}>
           {comparisonOptions.map((opt) => (
             <Card key={opt.id} padding="1.25rem">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
-                <div>
-                  <h3 style={{ fontSize: "1rem", fontWeight: 700 }}>{opt.name}</h3>
-                  <p style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{opt.summary}</p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem", flexWrap: "wrap", gap: "0.5rem" }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <h3 style={{ fontSize: "1rem", fontWeight: 700, color: "var(--fg)" }}>{opt.name}</h3>
+                  <p style={{ fontSize: "0.85rem", color: "var(--muted)", margin: "0.25rem 0 0 0" }}>{opt.summary}</p>
                 </div>
                 <Button size="sm" variant="secondary" onClick={() => applyComparisonOption(opt.marks)}>
                   Elegir esta opción
                 </Button>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginTop: "0.75rem", textAlign: "center" }}>
-                <div style={{ background: "var(--accent)", padding: "0.5rem", borderRadius: "var(--radius-sm)" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))",
+                  gap: "0.5rem",
+                  marginTop: "0.75rem",
+                  textAlign: "center",
+                  width: "100%",
+                  boxSizing: "border-box",
+                  minWidth: 0,
+                }}
+              >
+                <div style={{ background: "var(--accent)", padding: "0.5rem", borderRadius: "var(--radius-sm)", minWidth: 0, overflowWrap: "anywhere" }}>
                   <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>1er Periodo (Marca {opt.marks[0]})</div>
-                  <div style={{ fontWeight: 700 }}>{formatMexicanCurrency(opt.p1Gross)}</div>
+                  <div style={{ fontWeight: 700, color: "var(--fg)" }}>{formatMexicanCurrency(opt.p1Gross)}</div>
                 </div>
-                <div style={{ background: "var(--accent)", padding: "0.5rem", borderRadius: "var(--radius-sm)" }}>
+                <div style={{ background: "var(--accent)", padding: "0.5rem", borderRadius: "var(--radius-sm)", minWidth: 0, overflowWrap: "anywhere" }}>
                   <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>2do Periodo (Marca {opt.marks[1]})</div>
-                  <div style={{ fontWeight: 700 }}>{formatMexicanCurrency(opt.p2Gross)}</div>
+                  <div style={{ fontWeight: 700, color: "var(--fg)" }}>{formatMexicanCurrency(opt.p2Gross)}</div>
                 </div>
-                <div style={{ background: "var(--accent)", padding: "0.5rem", borderRadius: "var(--radius-sm)" }}>
+                <div style={{ background: "var(--accent)", padding: "0.5rem", borderRadius: "var(--radius-sm)", minWidth: 0, overflowWrap: "anywhere" }}>
                   <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Total Adicional Bruto</div>
                   <div style={{ fontWeight: 700, color: "var(--primary)" }}>{formatMexicanCurrency(opt.totalGross)}</div>
                 </div>
@@ -880,22 +1184,22 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
         <div style={{ fontSize: "0.85rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
           Total aproximado adicional en el año
         </div>
-        <div style={{ fontSize: "2rem", fontWeight: 800, color: "var(--primary)", margin: "0.25rem 0" }}>
+        <div style={{ fontSize: "2rem", fontWeight: 800, color: "var(--primary)", margin: "0.25rem 0", overflowWrap: "anywhere" }}>
           {formatMexicanCurrency(planResult.totalGrossVacationExtra)}
         </div>
-        <div style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+        <div style={{ fontSize: "0.8rem", color: "var(--muted)", lineHeight: 1.5 }}>
           Antes de impuestos y deducciones. Incluye {formatMexicanCurrency(planResult.totalPremium029)} de prima (029) y {formatMexicanCurrency(planResult.totalCulturalHelp048)} de ayuda cultural (048).
         </div>
       </Card>
 
       {/* Lista de periodos programados */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem", width: "100%", boxSizing: "border-box" }}>
         {planResult.periods.map((p) => {
           const g = p.selectedMark !== undefined ? getMarkGuidance(p.selectedMark, regime) : null
 
           return (
             <Card key={p.index} padding="1.25rem">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap", gap: "0.5rem" }}>
                 <span style={BADGE}>
                   {p.kind === "V20" ? "Periodo Extraordinario V20" : `Periodo ${p.index}`}
                 </span>
@@ -904,7 +1208,18 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                 </span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", fontSize: "0.85rem", marginBottom: "0.75rem" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))",
+                  gap: "0.5rem",
+                  fontSize: "0.85rem",
+                  marginBottom: "0.75rem",
+                  width: "100%",
+                  boxSizing: "border-box",
+                  minWidth: 0,
+                }}
+              >
                 <div>
                   <strong>Rol:</strong> {p.selectedRole?.label || `Rol #${p.selectedRole?.roleNumber || "—"}`}
                 </div>
@@ -920,15 +1235,28 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
               </div>
 
               {p.payment && (
-                <div style={{ display: "flex", justifyContent: "space-between", background: "var(--accent)", padding: "0.5rem 0.75rem", borderRadius: "var(--radius-sm)", fontSize: "0.8rem" }}>
-                  <span>Prima 029: <strong>{formatMexicanCurrency(p.payment.premium029)}</strong></span>
-                  <span>Ayuda 048: <strong>{formatMexicanCurrency(p.payment.culturalHelp048)}</strong></span>
-                  <span>Total: <strong style={{ color: "var(--primary)" }}>{formatMexicanCurrency(p.payment.grossVacationExtra)}</strong></span>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 120px), 1fr))",
+                    gap: "0.5rem",
+                    background: "var(--accent)",
+                    padding: "0.5rem 0.75rem",
+                    borderRadius: "var(--radius-sm)",
+                    fontSize: "0.8rem",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    minWidth: 0,
+                  }}
+                >
+                  <div>Prima 029: <strong>{formatMexicanCurrency(p.payment.premium029)}</strong></div>
+                  <div>Ayuda 048: <strong>{formatMexicanCurrency(p.payment.culturalHelp048)}</strong></div>
+                  <div>Total: <strong style={{ color: "var(--primary)" }}>{formatMexicanCurrency(p.payment.grossVacationExtra)}</strong></div>
                 </div>
               )}
 
               {g && (
-                <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: "0.5rem" }}>
+                <div style={{ fontSize: "0.78rem", color: "var(--muted)", marginTop: "0.5rem", lineHeight: 1.4 }}>
                   ℹ️ {g.plainSummary}
                 </div>
               )}
@@ -940,7 +1268,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
       {/* 3 Acordeones Prácticos */}
       <Card padding="1rem" style={{ marginBottom: "1rem" }}>
         <details style={{ marginBottom: "0.75rem" }}>
-          <summary style={{ fontWeight: 700, cursor: "pointer", fontSize: "0.9rem" }}>
+          <summary style={{ fontWeight: 700, cursor: "pointer", fontSize: "0.9rem", color: "var(--fg)" }}>
             🗣️ Qué debes decir en Personal
           </summary>
           <p style={{ fontSize: "0.85rem", color: "var(--fg)", marginTop: "0.5rem", lineHeight: 1.6 }}>
@@ -949,12 +1277,12 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
         </details>
 
         <details style={{ marginBottom: "0.75rem" }}>
-          <summary style={{ fontWeight: 700, cursor: "pointer", fontSize: "0.9rem" }}>
+          <summary style={{ fontWeight: 700, cursor: "pointer", fontSize: "0.9rem", color: "var(--fg)" }}>
             ✍️ Qué marca anotar
           </summary>
           <div style={{ fontSize: "0.85rem", color: "var(--fg)", marginTop: "0.5rem", lineHeight: 1.6 }}>
             {planResult.periods.map((p) => (
-              <div key={p.index}>
+              <div key={p.index} style={{ marginBottom: "0.25rem" }}>
                 • {p.kind === "V20" ? "Periodo Extraordinario V20" : `Periodo ${p.index}`}: Anotar <strong>Marca {p.selectedMark ?? "—"}</strong> ({p.selectedRole?.label || "Rol elegido"}).
               </div>
             ))}
@@ -962,10 +1290,10 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
         </details>
 
         <details style={{ marginBottom: "0.75rem" }}>
-          <summary style={{ fontWeight: 700, cursor: "pointer", fontSize: "0.9rem" }}>
+          <summary style={{ fontWeight: 700, cursor: "pointer", fontSize: "0.9rem", color: "var(--fg)" }}>
             🔍 Qué debes revisar antes de firmar
           </summary>
-          <ul style={{ fontSize: "0.85rem", color: "var(--fg)", marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.6 }}>
+          <ul style={{ fontSize: "0.85rem", color: "var(--fg)", marginTop: "0.5rem", paddingLeft: "1.25rem", lineHeight: 1.6, margin: 0 }}>
             <li>Que la fecha de inicio coincida exactamente con el rol que elegiste.</li>
             <li>Que el número de marca no haya sido alterado.</li>
             <li>Que tu adscripción, matrícula y categoría estén correctas en el formato institucional.</li>
@@ -977,9 +1305,9 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
             📖 Ver detalle y fundamento normativo
           </summary>
           <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.5rem", lineHeight: 1.5 }}>
-            <p><strong>CCT IMSS-SNTSS Cláusula 47:</strong> Días mínimos anuales (16 a 20 días hábiles) y tabla de ayuda para actividades culturales y recreativas (concepto 048) según años de servicio.</p>
-            <p style={{ marginTop: "0.25rem" }}><strong>Procedimiento 1A74-003-025:</strong> Reglas de anticipación (hasta 120 días semestral / 105 días cuatrimestral) y cálculo sobre Sueldo Mensual Integrado.</p>
-            <p style={{ marginTop: "0.25rem" }}><strong>UPO y Continuidad:</strong> Cadena de transición matemática validada desde continuidad inicial {initialContinuity}.</p>
+            <p style={{ margin: "0.25rem 0" }}><strong>CCT IMSS-SNTSS Cláusula 47:</strong> Días mínimos anuales (16 a 20 días hábiles) y tabla de ayuda para actividades culturales y recreativas (concepto 048) según años de servicio.</p>
+            <p style={{ margin: "0.25rem 0" }}><strong>Procedimiento 1A74-003-025:</strong> Reglas de anticipación (hasta 120 días semestral / 105 días cuatrimestral) y cálculo sobre Sueldo Mensual Integrado.</p>
+            <p style={{ margin: "0.25rem 0" }}><strong>UPO y Continuidad:</strong> Cadena de transición matemática validada desde continuidad inicial {initialContinuity}.</p>
           </div>
         </details>
       </Card>
@@ -995,7 +1323,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
         <Button variant="secondary" onClick={() => setStep("planning")}>
           ← Ajustar fechas o marcas
         </Button>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", minWidth: 0 }}>
           <Button variant="ghost" onClick={() => window.print()}>
             🖨️ Imprimir / Guardar PDF
           </Button>

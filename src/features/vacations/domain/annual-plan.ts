@@ -51,7 +51,7 @@ export function buildVacationPlan(
     isReconstructedSmi = false,
   } = input
 
-  const completedYears = calculateCompletedYears(workerProfile.effectiveSeniority)
+  const completedYears = workerProfile ? calculateCompletedYears(workerProfile.effectiveSeniority) : 0
   const totalAnnualDays = regime === "ESTATUTO"
     ? getEstatutoAnnualDays(completedYears)
     : getCctAnnualDays(completedYears)
@@ -162,7 +162,7 @@ export function buildVacationPlan(
         integratedMonthlySalary,
         daysOrUnits: units,
         seniorityYears: completedYears,
-        radiologicalExposure: workerProfile.radiologicalExposure,
+        radiologicalExposure: Boolean(workerProfile?.radiologicalExposure),
         mark: selectedMark,
         regime: isV20Period ? "EXTRAORDINARIO_V20" : regime,
         sourcePayslipPeriod,
