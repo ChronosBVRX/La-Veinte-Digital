@@ -3,13 +3,12 @@ const CCT_ANNUAL_DAYS_MIN = 16;
 const CCT_ANNUAL_DAYS_MAX = 20;
 
 
-const RADIATION_DAYS: Record<number, number[]> = {
-  0: [7, 8, 7],
-  1: [8, 8, 8],
-  2: [8, 9, 8],
-  3: [9, 9, 9],
-  4: [9, 10, 9],
-  5: [10, 10, 10],
+export const RADIATION_DAYS_BY_SENIORITY: Record<number, [number, number, number]> = {
+  1: [7, 8, 7],
+  2: [8, 8, 8],
+  3: [8, 9, 8],
+  4: [9, 9, 9],
+  5: [9, 10, 9],
 };
 
 export function getCctAnnualDays(completedYears: number): number {
@@ -35,8 +34,12 @@ export function getEstatutoAnnualDays(completedYears: number): number {
 }
 
 export function getRadiationDaysForPeriod(completedYears: number, periodIndex: 0 | 1 | 2): number {
-  const index = Math.min(completedYears, 5);
-  return RADIATION_DAYS[index][periodIndex];
+  if (completedYears <= 1) return RADIATION_DAYS_BY_SENIORITY[1][periodIndex];
+  if (completedYears === 2) return RADIATION_DAYS_BY_SENIORITY[2][periodIndex];
+  if (completedYears === 3) return RADIATION_DAYS_BY_SENIORITY[3][periodIndex];
+  if (completedYears === 4) return RADIATION_DAYS_BY_SENIORITY[4][periodIndex];
+  if (completedYears === 5) return RADIATION_DAYS_BY_SENIORITY[5][periodIndex];
+  return 10;
 }
 
 export function calculateCompletedYears(seniority: EffectiveSeniority): number {
@@ -56,12 +59,27 @@ export function getCctCulturalHelpDays(completedYears: number): number {
   return 31;
 }
 
+export const RADIATION_CULTURAL_HELP_DAYS: Record<number | "MORE_THAN_5", number> = {
+  1: 8.6,
+  2: 9.3,
+  3: 10.6,
+  4: 11.3,
+  5: 12.6,
+  MORE_THAN_5: 13.3,
+};
+
 /**
- * Días de ayuda para actividades culturales y recreativas para trabajadores expuestos a radiaciones.
+ * Días de ayuda para actividades culturales y recreativas (concepto 048) por periodo
+ * para trabajadores cuatrimestrales expuestos a emanaciones radiactivas
+ * según Procedimiento 1A74-003-025, Anexo 1.
  */
 export function getRadiationCulturalHelpDays(completedYears: number): number {
-  if (completedYears < 1) return 0;
-  return getCctCulturalHelpDays(completedYears);
+  if (completedYears <= 1) return 8.6;
+  if (completedYears === 2) return 9.3;
+  if (completedYears === 3) return 10.6;
+  if (completedYears === 4) return 11.3;
+  if (completedYears === 5) return 12.6;
+  return 13.3;
 }
 
 export function determineVacationRegime(

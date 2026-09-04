@@ -872,23 +872,39 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
                     <div style={{ fontWeight: 800, fontSize: "1rem", color: "var(--fg)" }}>
-                      Marca {m} — Sí puedes utilizarla
+                      {regime === "CUATRIMESTRAL" && m === 0 ? "Marca 0 — Sí te paga ayuda" : `Marca ${m} — Sí puedes utilizarla`}
                     </div>
                     {isChosen && <span style={BADGE}>Seleccionada</span>}
                   </div>
 
-                  <div style={{ fontSize: "0.85rem", color: "var(--fg)", marginBottom: "0.4rem" }}>
-                    <strong>Qué pasa:</strong> Descansas {activePeriodUnits} días.
-                  </div>
+                  {regime === "CUATRIMESTRAL" && m === 0 ? (
+                    <div style={{ fontSize: "0.85rem", color: "var(--fg)", marginBottom: "0.5rem", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                      <div>En este periodo descansarías <strong>{activePeriodUnits} días</strong>.</div>
+                      <div>También recibirías tu prima vacacional y una ayuda equivalente a <strong>{markPayment.helpDays ?? 13.3} días</strong> de tu Sueldo Mensual Integrado.</div>
+                      {markPayment.confidence !== "INCOMPLETE" && markPayment.grossVacationExtra !== null && (
+                        <div>Con los datos de tu último tarjetón, recibirías aproximadamente <strong>{formatMexicanCurrency(markPayment.grossVacationExtra)}</strong> adicionales antes de impuestos y descuentos.</div>
+                      )}
+                      <div>Como eres cuatrimestral, todavía tendrás que programar los demás periodos de tu secuencia.</div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "0.85rem", color: "var(--fg)", marginBottom: "0.4rem" }}>
+                      <strong>Qué pasa:</strong> Descansas {activePeriodUnits} días.
+                    </div>
+                  )}
 
                   <div style={{ fontSize: "0.85rem", color: "var(--fg)", marginBottom: "0.5rem" }}>
-                    <strong>Qué te pagan:</strong>
                     {markPayment.confidence !== "INCOMPLETE" && markPayment.grossVacationExtra !== null ? (
                       <div style={{ paddingLeft: "0.5rem", marginTop: "0.25rem", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
-                        <div>Prima vacacional: <strong>{formatMexicanCurrency(markPayment.premium029)}</strong></div>
-                        <div>Ayuda cultural: <strong>{formatMexicanCurrency(markPayment.culturalHelp048)}</strong></div>
+                        <div>Prima vacacional 029: <strong>{formatMexicanCurrency(markPayment.premium029)}</strong></div>
+                        <div>Ayuda cultural 048: <strong>{formatMexicanCurrency(markPayment.culturalHelp048)}</strong></div>
                         <div style={{ marginTop: "0.25rem", color: "var(--primary)", fontWeight: 700 }}>
-                          Total adicional aproximado: {formatMexicanCurrency(markPayment.grossVacationExtra)} antes de impuestos y descuentos.
+                          Total adicional estimado por vacaciones: {formatMexicanCurrency(markPayment.grossVacationExtra)}
+                        </div>
+                        <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.3rem", lineHeight: 1.4 }}>
+                          Este cálculo usa el Sueldo Mensual Integrado de tu último tarjetón. El importe real puede variar algunos centavos por el cálculo interno de nómina.
+                        </div>
+                        <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.15rem", lineHeight: 1.4 }}>
+                          Esta estimación utiliza tu salario actual. Si recibes un incremento salarial antes de tus vacaciones, el importe real será mayor.
                         </div>
                       </div>
                     ) : (
@@ -1048,23 +1064,29 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
               }}
             >
               <div style={{ background: "var(--card)", padding: "0.5rem", borderRadius: "var(--radius-sm)", minWidth: 0, overflowWrap: "anywhere" }}>
-                <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Prima Vacacional (029)</div>
+                <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Prima vacacional 029</div>
                 <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--fg)" }}>
                   {formatMexicanCurrency(currentPeriodPayment.premium029)}
                 </div>
               </div>
               <div style={{ background: "var(--card)", padding: "0.5rem", borderRadius: "var(--radius-sm)", minWidth: 0, overflowWrap: "anywhere" }}>
-                <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Ayuda Cultural (048)</div>
+                <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Ayuda cultural 048</div>
                 <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--fg)" }}>
                   {formatMexicanCurrency(currentPeriodPayment.culturalHelp048)}
                 </div>
               </div>
               <div style={{ background: "var(--card)", padding: "0.5rem", borderRadius: "var(--radius-sm)", minWidth: 0, overflowWrap: "anywhere" }}>
-                <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Total adicional bruto</div>
+                <div style={{ fontSize: "0.7rem", color: "var(--muted)" }}>Total adicional estimado por vacaciones</div>
                 <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--primary)" }}>
                   {formatMexicanCurrency(currentPeriodPayment.grossVacationExtra)}
                 </div>
               </div>
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.5rem", lineHeight: 1.4 }}>
+              Este cálculo usa el Sueldo Mensual Integrado de tu último tarjetón. El importe real puede variar algunos centavos por el cálculo interno de nómina.
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.2rem", lineHeight: 1.4 }}>
+              Esta estimación utiliza tu salario actual. Si recibes un incremento salarial antes de tus vacaciones, el importe real será mayor.
             </div>
           </Card>
         )}
@@ -1182,13 +1204,19 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
       {/* Cifra destacada total */}
       <Card padding="1.5rem" style={{ textAlign: "center", marginBottom: "1.25rem", background: "rgba(37,99,235,0.04)", border: "1.5px solid var(--primary)" }}>
         <div style={{ fontSize: "0.85rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-          Total aproximado adicional en el año
+          Total adicional estimado por vacaciones
         </div>
         <div style={{ fontSize: "2rem", fontWeight: 800, color: "var(--primary)", margin: "0.25rem 0", overflowWrap: "anywhere" }}>
           {formatMexicanCurrency(planResult.totalGrossVacationExtra)}
         </div>
         <div style={{ fontSize: "0.8rem", color: "var(--muted)", lineHeight: 1.5 }}>
-          Antes de impuestos y deducciones. Incluye {formatMexicanCurrency(planResult.totalPremium029)} de prima (029) y {formatMexicanCurrency(planResult.totalCulturalHelp048)} de ayuda cultural (048).
+          Antes de impuestos y deducciones. Incluye {formatMexicanCurrency(planResult.totalPremium029)} de prima vacacional 029 y {formatMexicanCurrency(planResult.totalCulturalHelp048)} de ayuda cultural 048.
+        </div>
+        <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.5rem", lineHeight: 1.4 }}>
+          Este cálculo usa el Sueldo Mensual Integrado de tu último tarjetón. El importe real puede variar algunos centavos por el cálculo interno de nómina.
+        </div>
+        <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.2rem", lineHeight: 1.4 }}>
+          Esta estimación utiliza tu salario actual. Si recibes un incremento salarial antes de tus vacaciones, el importe real será mayor.
         </div>
       </Card>
 
@@ -1249,9 +1277,9 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                     minWidth: 0,
                   }}
                 >
-                  <div>Prima 029: <strong>{formatMexicanCurrency(p.payment.premium029)}</strong></div>
-                  <div>Ayuda 048: <strong>{formatMexicanCurrency(p.payment.culturalHelp048)}</strong></div>
-                  <div>Total: <strong style={{ color: "var(--primary)" }}>{formatMexicanCurrency(p.payment.grossVacationExtra)}</strong></div>
+                  <div>Prima vacacional 029: <strong>{formatMexicanCurrency(p.payment.premium029)}</strong></div>
+                  <div>Ayuda cultural 048: <strong>{formatMexicanCurrency(p.payment.culturalHelp048)}</strong></div>
+                  <div>Total adicional estimado por vacaciones: <strong style={{ color: "var(--primary)" }}>{formatMexicanCurrency(p.payment.grossVacationExtra)}</strong></div>
                 </div>
               )}
 

@@ -68,9 +68,11 @@ export function calculateVacationPayment(params: PaymentCalculationParams): Vaca
   // Días según CCT Cláusula 47 (antigüedad efectiva) x Salario Diario x proporción de la marca
   let helpDays = 0
   if (!isV20) {
-    helpDays = radiologicalExposure === true
-      ? getRadiationCulturalHelpDays(seniorityYears)
-      : getCctCulturalHelpDays(seniorityYears)
+    if (regime === "CUATRIMESTRAL" || radiologicalExposure === true) {
+      helpDays = getRadiationCulturalHelpDays(seniorityYears)
+    } else {
+      helpDays = getCctCulturalHelpDays(seniorityYears)
+    }
   }
 
   let helpPaymentFraction: 0 | 0.5 | 1 = 0
@@ -79,7 +81,7 @@ export function calculateVacationPayment(params: PaymentCalculationParams): Vaca
     // El periodo extraordinario V20 genera prima vacacional de sus días pero no ayuda 048
     helpPaymentFraction = 0
   } else if (regime === "CUATRIMESTRAL") {
-    // En régimen cuatrimestral: marca 0 paga completa la ayuda o divide por periodos
+    // En régimen cuatrimestral: marca 0 paga completa la ayuda correspondiente a este periodo
     if (mark === 0) {
       helpPaymentFraction = 1
     } else if (mark === 2) {
@@ -129,6 +131,7 @@ export function calculateVacationPayment(params: PaymentCalculationParams): Vaca
     dailyIntegratedSalary,
     premium029,
     culturalHelp048,
+    helpDays: Math.round(helpDays * 10) / 10,
     otherVacationPayment,
     grossVacationExtra,
     helpPaymentFraction,
