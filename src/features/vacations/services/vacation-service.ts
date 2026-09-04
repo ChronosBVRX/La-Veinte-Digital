@@ -1,6 +1,8 @@
 import type { SavedVacationSimulation, VacationSimulationInput, VacationSimulationResult } from "../domain/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { evaluateVacationRoleEligibility } from "../domain/role-eligibility";
+
 export async function saveSimulation(
   supabase: SupabaseClient,
   input: VacationSimulationInput,
@@ -9,6 +11,25 @@ export async function saveSimulation(
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { error: "Usuario no autenticado" };
+
+    if (result.status === "BLOCKED") {
+      return { error: "No se puede guardar una programación con opciones o roles bloqueados." };
+    }
+
+    if (input.selectedStartDate && input.dueDate) {
+      const eligibility = evaluateVacationRoleEligibility({
+        regime: input.regime,
+        entitlementKind: input.regime === "EXTRAORDINARIO_V20" ? "V20" : "ORDINARY",
+        dueDate: input.dueDate,
+        roleStartDate: input.selectedStartDate,
+        contractType: input.workerProfile?.contractType,
+        contractEndDate: input.workerProfile?.contractEndDate,
+      });
+
+      if (eligibility.status === "BLOCKED") {
+        return { error: `Rol bloqueado: ${eligibility.workerMessage}` };
+      }
+    }
 
     const { data, error } = await supabase.from("vacation_simulations").insert({
       user_id: user.id,

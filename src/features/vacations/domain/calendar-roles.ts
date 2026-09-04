@@ -102,6 +102,8 @@ export function hasDateOverlap(
   return rangeA.startDate <= endB && endA >= rangeB.startDate
 }
 
+import { evaluateVacationRoleEligibility } from "./role-eligibility"
+
 /**
  * Comprueba si la fecha de inicio del rol es compatible con la fecha de vencimiento/generación.
  * Máximo 120 días de anticipación para semestral y 105 para cuatrimestral.
@@ -115,28 +117,18 @@ export function checkRoleDateEligibility(
     return { allowed: true }
   }
 
-  const roleDate = new Date(roleStartDate + "T00:00:00")
-  const dueDate = new Date(entitlementDueDate + "T00:00:00")
+  const regime = maxAnticipationDays <= 105 ? "CUATRIMESTRAL" : "SEMESTRAL"
+  const res = evaluateVacationRoleEligibility({
+    regime,
+    entitlementKind: "ORDINARY",
+    dueDate: entitlementDueDate,
+    dueDateConfidence: "CONFIRMED",
+    roleStartDate,
+    calendarStatus: "PUBLISHED",
+  })
 
-  if (isNaN(roleDate.getTime()) || isNaN(dueDate.getTime())) {
-    return { allowed: true }
+  return {
+    allowed: res.status === "ALLOWED",
+    reason: res.status !== "ALLOWED" ? `${res.workerMessage} (excede el límite permitido de ${maxAnticipationDays} días)` : undefined,
   }
-
-  const diffMs = dueDate.getTime() - roleDate.getTime()
-  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
-
-  // Si la fecha del rol es posterior a dueDate, el derecho ya está generado
-  if (diffDays <= 0) {
-    return { allowed: true }
-  }
-
-  // Si la fecha del rol es anterior al vencimiento, verificar anticipación máxima permitida
-  if (diffDays > maxAnticipationDays) {
-    return {
-      allowed: false,
-      reason: `Esta fecha (${roleStartDate}) tiene ${diffDays} días de anticipación al vencimiento (${entitlementDueDate}), lo que excede el límite permitido de ${maxAnticipationDays} días.`,
-    }
-  }
-
-  return { allowed: true }
 }

@@ -14,6 +14,7 @@ import type { WorkerContext } from "@/shared/server/worker-context-builder"
 import type {
   ContractType,
   EffectiveSeniority,
+  VacationEntitlement,
   VacationRegime,
   WorkerProfile,
   WorkScheduleType,
@@ -35,6 +36,7 @@ export interface PrefilledVacationState {
   regime: VacationRegime
   selectedInclusionMark: number
   selectedStartDate: string
+  entitlements: VacationEntitlement[]
   warnings: string[]
   provenance: {
     sourceDescription: string
@@ -337,8 +339,75 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
   const compatibleMarks = getCompatibleInclusionMarks(regime, continuityMark)
   const selectedInclusionMark = compatibleMarks.length > 0 ? compatibleMarks[0] : 0
 
-  // 12. Procedencia
+  // 12. Periodo del tarjetón
   const periodLabel = payrollRow?.latestPeriod ?? null
+
+  // 13. Derechos vacacionales estructurados por periodo
+  let entitlements: VacationEntitlement[] = []
+  if (vacationsRow?.entitlements && Array.isArray(vacationsRow.entitlements) && vacationsRow.entitlements.length > 0) {
+    entitlements = vacationsRow.entitlements
+  } else {
+    const workerRegime = regime === "CUATRIMESTRAL" ? "CUATRIMESTRAL" : "SEMESTRAL"
+    entitlements.push({
+      id: "ord-1",
+      sequence: 1,
+      regime: workerRegime,
+      entitlementKind: "ORDINARY",
+      kind: "ORDINARY",
+      periodNumber: 1,
+      dueDate: dueDate || null,
+      dueDateSource: dueDate ? "TARJETON" : "MISSING",
+      dueDateConfidence: dueDate ? "CONFIRMED" : "UNKNOWN",
+      sourcePayslipPeriod: periodLabel ?? "",
+      confirmed: Boolean(dueDate),
+    })
+    const secondRaw = typeof vacationsRow?.secondPeriodStartRaw === "string" ? vacationsRow.secondPeriodStartRaw : null
+    entitlements.push({
+      id: "ord-2",
+      sequence: 2,
+      regime: workerRegime,
+      entitlementKind: "ORDINARY",
+      kind: "ORDINARY",
+      periodNumber: 2,
+      dueDate: secondRaw,
+      dueDateSource: secondRaw ? "TARJETON" : "MISSING",
+      dueDateConfidence: secondRaw ? "CONFIRMED" : "UNKNOWN",
+      sourcePayslipPeriod: periodLabel ?? "",
+      confirmed: Boolean(secondRaw),
+    })
+    if (regime === "CUATRIMESTRAL") {
+      entitlements.push({
+        id: "ord-3",
+        sequence: 3,
+        regime: "CUATRIMESTRAL",
+        entitlementKind: "ORDINARY",
+        kind: "ORDINARY",
+        periodNumber: 3,
+        dueDate: null,
+        dueDateSource: "MISSING",
+        dueDateConfidence: "UNKNOWN",
+        sourcePayslipPeriod: periodLabel ?? "",
+        confirmed: false,
+      })
+    }
+    if (isV20) {
+      entitlements.push({
+        id: "v20",
+        sequence: regime === "CUATRIMESTRAL" ? 4 : 3,
+        regime: workerRegime,
+        entitlementKind: "V20",
+        kind: "V20",
+        periodNumber: regime === "CUATRIMESTRAL" ? 4 : 3,
+        dueDate: null,
+        dueDateSource: "MISSING",
+        dueDateConfidence: "UNKNOWN",
+        sourcePayslipPeriod: periodLabel ?? "",
+        confirmed: Boolean(vacationsRow?.twentyYearsOrMoreDays && vacationsRow.twentyYearsOrMoreDays > 0),
+      })
+    }
+  }
+
+  // 14. Procedencia
   const sourceDescription = periodLabel
     ? `Último tarjetón confirmado (${periodLabel}) y perfil laboral`
     : hasEmployment
@@ -357,6 +426,7 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
     regime,
     selectedInclusionMark,
     selectedStartDate: "",
+    entitlements,
     warnings,
     provenance: {
       sourceDescription,
