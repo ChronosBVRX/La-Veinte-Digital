@@ -42,7 +42,8 @@ export function BotonReintentarAnalisis({
       const { pdf, loadingTask } = await loadPdfDocument(sourceBytes.slice().buffer)
       const pageCount = pdf.numPages
 
-      let { items, pageTexts } = await extractNativePdfText(loadingTask)
+      const { items: initialItems, pageTexts } = await extractNativePdfText(loadingTask)
+      let items = initialItems
       const totalChars = pageTexts.join(" ").replace(/\s+/g, "").length
 
       if (totalChars < 100) {

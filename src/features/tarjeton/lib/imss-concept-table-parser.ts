@@ -245,7 +245,6 @@ export function parseImssConceptTables(
   if (process.env.NODE_ENV !== "production") {
     const sumEarnings = earnings.reduce((acc, c) => acc + c.amount, 0)
     const sumDeductions = deductions.reduce((acc, c) => acc + c.amount, 0)
-    // eslint-disable-next-line no-console
     console.debug(`[IMSS Concept Parser] Found ${earnings.length} earnings ($${sumEarnings.toFixed(2)}), ${deductions.length} deductions ($${sumDeductions.toFixed(2)}), netPay: $${netPay ?? "N/A"}`)
   }
 

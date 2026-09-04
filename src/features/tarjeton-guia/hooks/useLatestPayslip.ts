@@ -25,6 +25,7 @@ export function useLatestPayslip(serverPayslip: GuidePayslip | null) {
   }, [])
 
   return useMemo(() => {
+    void revision
     const local = getPayslips()
       .map((p) => toGuidePayslip(p))
       .filter((p): p is GuidePayslip => p !== null)
@@ -75,7 +76,7 @@ export function useLatestPayslip(serverPayslip: GuidePayslip | null) {
 
     const total = local.length + (candidateServer ? 1 : 0)
     return { payslip: latest, previous: previousLocal, source: ("local" as const), total }
-  }, [serverPayslip])
+  }, [serverPayslip, revision])
 }
 
 /** Ranking inverso por periodo (entre más alto, más reciente). null = desconocido. */

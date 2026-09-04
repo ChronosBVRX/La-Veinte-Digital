@@ -28,23 +28,19 @@ export interface GuiaHomeServerData {
 
 export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
   const [tipIndex, setTipIndex] = useState(0)
-  const [stats, setStats] = useState({
-    earningsCount: data.earningsCount ?? 0,
-    deductionsCount: data.deductionsCount ?? 0,
-    netPay: data.netPay,
+  const [overrideStats, setOverrideStats] = useState<{
+    earningsCount?: number
+    deductionsCount?: number
+    netPay?: number
+  } | null>(null)
+
+  const stats = {
+    earningsCount: overrideStats?.earningsCount ?? data.earningsCount ?? 0,
+    deductionsCount: overrideStats?.deductionsCount ?? data.deductionsCount ?? 0,
+    netPay: overrideStats?.netPay ?? data.netPay,
     totalEarnings: data.totalEarnings,
     totalDeductions: data.totalDeductions,
-  })
-
-  useEffect(() => {
-    setStats({
-      earningsCount: data.earningsCount ?? 0,
-      deductionsCount: data.deductionsCount ?? 0,
-      netPay: data.netPay,
-      totalEarnings: data.totalEarnings,
-      totalDeductions: data.totalDeductions,
-    })
-  }, [data])
+  }
 
   useEffect(() => {
     const now = new Date()
@@ -138,12 +134,11 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
                     size="sm"
                     variant="secondary"
                     onCompleted={(res) => {
-                      setStats((s) => ({
-                        ...s,
+                      setOverrideStats({
                         earningsCount: res.earnings,
                         deductionsCount: res.deductions,
-                        netPay: res.netPay ?? s.netPay,
-                      }))
+                        netPay: res.netPay,
+                      })
                     }}
                   />
                   <ActionLink href="/profile/mi-informacion-laboral" size="sm" variant="outline">
