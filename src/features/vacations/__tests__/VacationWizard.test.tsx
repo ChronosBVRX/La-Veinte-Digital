@@ -120,4 +120,64 @@ describe("VacationWizard (Asesor y Planificador Anual)", () => {
     expect(screen.getByText(/La marca que traes/i)).toBeDefined()
     expect(screen.queryByText(/APPLY_INCLUSION_MARK/)).toBeNull()
   })
+
+  it("Paso 4: Calendario preliminar (DRAFT) muestra aviso único superior y badges 'Compatible · calendario preliminar'", async () => {
+    render(<VacationWizard initialContext={mockContext} />)
+    fireEvent.click(screen.getByText(/Comenzar simulación/i))
+    fireEvent.click(screen.getByText(/Continuar a prioridades/i))
+    fireEvent.click(screen.getByText(/Continuar a programación/i))
+
+    // Aviso único superior
+    expect(await screen.findByText(/Calendario preliminar 2027:/i)).toBeDefined()
+    expect(screen.getAllByText(/confirma el rol cuando se publique el calendario oficial/i).length).toBeGreaterThan(0)
+
+    // Grupo de calendario en lugar de Grupo A a secas
+    expect(screen.getAllByText(/Grupo de calendario A/i).length).toBeGreaterThan(0)
+
+    // Roles compatibles con fechas en calendario preliminar
+    const preliminaryBadges = screen.getAllByText(/Compatible · calendario preliminar/i)
+    expect(preliminaryBadges.length).toBeGreaterThan(0)
+
+    // Seleccionar rol compatible
+    const firstCompatibleCard = preliminaryBadges[0].closest("div[style*='cursor: pointer']")
+    if (firstCompatibleCard) {
+      fireEvent.click(firstCompatibleCard)
+      expect(await screen.findByText(/Seleccionado para simular/i)).toBeDefined()
+    }
+
+    // No aparecen códigos técnicos en la interfaz de trabajador
+    expect(screen.queryByText(/CALENDAR_DRAFT/)).toBeNull()
+    expect(screen.queryByText(/MISSING_DUE_DATE/)).toBeNull()
+    expect(screen.queryByText(/ROLE_ALLOWED/)).toBeNull()
+  })
+
+  it("Paso 4: Sin fecha de vencimiento muestra banner superior con botón a revisión de tarjetón", async () => {
+    const contextWithoutDueDate: WorkerContext = {
+      ...mockContext,
+      vacations: {
+        ...mockContext.vacations!,
+        porVencer: null,
+        dueDate: null,
+        porVencerRaw: null,
+        entitlements: [
+          { id: "1", kind: "ORDINARY", periodNumber: 1, dueDate: null, confirmed: false },
+          { id: "2", kind: "ORDINARY", periodNumber: 2, dueDate: null, confirmed: false },
+        ],
+      },
+    }
+
+    render(<VacationWizard initialContext={contextWithoutDueDate} />)
+    fireEvent.click(screen.getByText(/Comenzar simulación/i))
+    fireEvent.click(screen.getByText(/Continuar a prioridades/i))
+    fireEvent.click(screen.getByText(/Continuar a programación/i))
+
+    // Banner único superior
+    expect(await screen.findByText(/No encontramos la fecha en la que generas este derecho/i)).toBeDefined()
+    expect(screen.getByText(/Revisar datos del tarjetón/i)).toBeDefined()
+
+    // Badges en las tarjetas de rol
+    const missingDateBadges = await screen.findAllByText(/Falta tu fecha de vencimiento/i)
+    expect(missingDateBadges.length).toBeGreaterThan(0)
+  })
 })
+

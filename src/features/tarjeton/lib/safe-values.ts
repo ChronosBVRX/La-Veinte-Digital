@@ -15,7 +15,7 @@
  */
 import type { ParsedImssTarjeton, TarjetonObservation } from "@/shared/contracts/tarjeton-import"
 import { roundImssMoney } from "./money-parser"
-import { isValidMexicanCivilDate } from "./imss-date-parser"
+import { isValidMexicanCivilDate, parsePorVencerDate } from "./imss-date-parser"
 
 /** Sanidad de importe: coincide con la corrección previa de initialCharge. */
 export const MAX_ABS_MONEY = 100_000_000
@@ -193,7 +193,7 @@ export function sanitizeTarjetonForPersistence(parsed: ParsedImssTarjeton): Tarj
 
   const vacations = { ...parsed.vacations }
   if (vacations.porVencer !== undefined) {
-    const porVencer = safeDate(vacations.porVencer)
+    const porVencer = parsePorVencerDate(vacations.porVencer) || safeDate(vacations.porVencer)
     if (porVencer === undefined) {
       delete vacations.porVencer
       sanitized.push("Vacaciones: fecha por vencer inválida; se omitió.")
@@ -206,7 +206,7 @@ export function sanitizeTarjetonForPersistence(parsed: ParsedImssTarjeton): Tarj
   }
 
   if (vacations.dueDate !== undefined) {
-    const dueDate = safeDate(vacations.dueDate)
+    const dueDate = parsePorVencerDate(vacations.dueDate) || safeDate(vacations.dueDate)
     if (dueDate === undefined) {
       delete vacations.dueDate
     } else {
