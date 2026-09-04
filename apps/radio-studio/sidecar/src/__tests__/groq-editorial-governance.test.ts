@@ -16,7 +16,88 @@ import {
   ProductionBlockedError,
   ProposalGenerationFailedError,
 } from "../errors/editorial-errors";
+import type { DocumentMetadata } from "../../../../../src/features/normativa/core/types";
 import type { Proposal, Script } from "@la-veinte/studio-contract";
+
+function seedTestDoc(cat: NormativeCatalog) {
+  const meta: DocumentMetadata = {
+    id: "doc-test",
+    key: "CCT-TEST",
+    title: "Contrato Colectivo de Trabajo Test",
+    edition: "2025-2027",
+    organization: ["SNTSS", "IMSS"],
+    type: "CONTRATO_COLECTIVO",
+    category: "cct",
+    canonical: true,
+    provenance: "OFFICIAL_PORTAL",
+    url: "https://example.com/cct.pdf",
+    mirror: null,
+    landingPage: null,
+    effectiveFrom: "2025-01-01",
+    effectiveUntil: "2027-12-31",
+    validity: "VIGENTE",
+    priority: "P1",
+    lastReformDate: null,
+    warning: null,
+    topics: ["vacaciones", "derechos"],
+    currentVersion: "doc-test@V1",
+  };
+  cat.db.upsertDocument(meta);
+  const versionId = "doc-test@V1";
+  cat.db.upsertVersion({
+    id: versionId,
+    documentId: meta.id,
+    label: "V1",
+    dir: "/tmp/doc-test/V1",
+    sha256: "sha-test",
+    downloadedAt: "2026-08-14T00:00:00.000Z",
+    lastCheckedAt: "2026-08-14T00:00:00.000Z",
+    contentType: "application/pdf",
+    size: 1000,
+    resolvedUrl: meta.url ?? "",
+    originalUrl: meta.url ?? "",
+    status: "VERIFIED",
+    pages: 10,
+  });
+  cat.db.replaceChunks([
+    {
+      id: `${versionId}-c0`,
+      documentId: meta.id,
+      versionId,
+      sectionId: null,
+      pdfPageIndex: 1,
+      printedPage: 1,
+      section: "Cláusula 47",
+      article: "47",
+      clause: "47",
+      numeral: null,
+      order: 0,
+      chunkIndex: 0,
+      text: "Cláusula 47. El trabajador disfrutará de vacaciones anuales pagadas conforme a su antigüedad.",
+      tokenCount: 15,
+      sha256: "c0-sha",
+      createdAt: "2026-08-14T00:00:00.000Z",
+    },
+    {
+      id: `${versionId}-c1`,
+      documentId: meta.id,
+      versionId,
+      sectionId: null,
+      pdfPageIndex: 2,
+      printedPage: 2,
+      section: "Cláusula 50",
+      article: "50",
+      clause: "50",
+      numeral: null,
+      order: 1,
+      chunkIndex: 1,
+      text: "Cláusula 50. El trabajador tiene derecho al descanso obligatorio en los días señalados por la ley y el contrato.",
+      tokenCount: 20,
+      sha256: "c1-sha",
+      createdAt: "2026-08-14T00:00:00.000Z",
+    },
+  ]);
+}
 
 describe("Groq Editorial Governance — Reglas Arquitectónicas", () => {
   let tmpDir: string;
@@ -28,8 +109,9 @@ describe("Groq Editorial Governance — Reglas Arquitectónicas", () => {
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "groq-gov-"));
     store = new ProjectStore(tmpDir);
-    repoRoot = process.cwd();
-    catalog = new NormativeCatalog(repoRoot);
+    repoRoot = tmpDir;
+    catalog = new NormativeCatalog(tmpDir);
+    seedTestDoc(catalog);
     commercials = new CommercialLibraryService(path.join(tmpDir, "commercials"));
     _resetLLMFactoryForTests();
   });

@@ -10,7 +10,16 @@ import { NormativeCatalog } from "@/features/normativa/services/catalog"
  */
 
 const CATALOG_PATH = path.resolve(process.cwd(), "data", "normativa", "catalog.sqlite")
-const HAS_CORPUS = fs.existsSync(CATALOG_PATH)
+const HAS_CORPUS =
+  fs.existsSync(CATALOG_PATH) &&
+  (() => {
+    try {
+      const catalog = new NormativeCatalog(process.cwd())
+      return catalog.listDocuments().length > 0
+    } catch {
+      return false
+    }
+  })()
 
 describe.skipIf(!HAS_CORPUS)("Batería RAG sobre el corpus real", () => {
   let catalog: NormativeCatalog
