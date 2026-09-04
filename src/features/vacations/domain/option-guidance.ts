@@ -181,9 +181,9 @@ export function getMarkGuidance(
     if (mark === 0) {
       return {
         mark: 0,
-        title: "Opción A: Periodo regular con ayuda completa",
+        title: "Marca 0 — Sí te paga ayuda",
         plainSummary: "Esta marca programa tu periodo cuatrimestral regular e incluye la prima y la ayuda cultural.",
-        economicDetail: "Recibirías la prima vacacional (029) y la ayuda cultural y recreativa correspondiente (048).",
+        economicDetail: "Recibirías tu prima vacacional (029) y una ayuda equivalente a los días de tu Sueldo Mensual Integrado correspondientes a tu antigüedad por radiación (048).",
         nextStepDetail: "En el siguiente periodo continuarás con la misma opción (marca 0).",
         secondaryTechnical: "Prima vacacional (concepto 029) + Ayuda cultural y recreativa (concepto 048).",
         helpsSplitOrDeferred: false,

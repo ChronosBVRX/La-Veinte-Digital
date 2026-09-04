@@ -242,6 +242,7 @@ export interface VacationPaymentEstimate {
   dailyIntegratedSalary: number | null;
   premium029: number | null;
   culturalHelp048: number | null;
+  helpDays?: number;
   otherVacationPayment: number | null;
   grossVacationExtra: number | null;
   helpPaymentFraction: 0 | 0.5 | 1;

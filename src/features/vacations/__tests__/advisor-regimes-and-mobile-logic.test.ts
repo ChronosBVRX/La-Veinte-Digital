@@ -93,7 +93,7 @@ describe("Lógica Normativa del Asesor: Separación de Regímenes y Reglas Móvi
   it("los importes y pagos corresponden a cada marca según su régimen", () => {
     const smi = 30000 // SDI = 1,000
 
-    // Cuatrimestral Marca 0: 10 días, prima 029 = 1000 * 10 * 0.25 = 2,500; ayuda 048 = 1000 * 33 = 33,000
+    // Cuatrimestral Marca 0 para 5 años: 10 días, prima 029 = 1000 * 10 * 0.25 = 2,500; ayuda 048 = 1000 * 12.6 = 12,600
     const cuatriPay0 = calculateVacationPayment({
       integratedMonthlySalary: smi,
       daysOrUnits: 10,
@@ -103,8 +103,9 @@ describe("Lógica Normativa del Asesor: Separación de Regímenes y Reglas Móvi
       regime: "CUATRIMESTRAL",
     })
     expect(cuatriPay0.premium029).toBe(2500)
-    expect(cuatriPay0.culturalHelp048).toBe(31000)
-    expect(cuatriPay0.grossVacationExtra).toBe(33500)
+    expect(cuatriPay0.culturalHelp048).toBe(12600)
+    expect(cuatriPay0.grossVacationExtra).toBe(15100)
+    expect(cuatriPay0.helpDays).toBe(12.6)
 
     // Cuatrimestral Marca 2 (Opción B): sin ayuda 048
     const cuatriPay2 = calculateVacationPayment({
