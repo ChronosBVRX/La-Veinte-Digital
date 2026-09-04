@@ -418,14 +418,20 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
 
   const periodRaw = latest?.period_raw ?? ""
   const entitlements: VacationEntitlement[] = []
+  const workerRegime = radiologicalExposure === true ? "CUATRIMESTRAL" : "SEMESTRAL"
 
   if (vacationsData) {
     // 1er periodo ordinario
     entitlements.push({
       id: "ord-1",
+      sequence: 1,
+      regime: workerRegime,
+      entitlementKind: "ORDINARY",
       kind: "ORDINARY",
       periodNumber: 1,
-      dueDate: dueDateVal ?? undefined,
+      dueDate: dueDateVal ?? null,
+      dueDateSource: dueDateVal ? "TARJETON" : "MISSING",
+      dueDateConfidence: dueDateVal ? "CONFIRMED" : "UNKNOWN",
       sourceRaw: typeof vacationsData.porVencerRaw === "string" ? vacationsData.porVencerRaw : undefined,
       sourcePayslipPeriod: periodRaw,
       confirmed: Boolean(dueDateVal),
@@ -435,9 +441,14 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
     const secondRaw = typeof vacationsData.secondPeriodStartRaw === "string" ? vacationsData.secondPeriodStartRaw : undefined
     entitlements.push({
       id: "ord-2",
+      sequence: 2,
+      regime: workerRegime,
+      entitlementKind: "ORDINARY",
       kind: "ORDINARY",
       periodNumber: 2,
-      dueDate: secondRaw,
+      dueDate: secondRaw ?? null,
+      dueDateSource: secondRaw ? "TARJETON" : "MISSING",
+      dueDateConfidence: secondRaw ? "CONFIRMED" : "UNKNOWN",
       sourceRaw: secondRaw,
       sourcePayslipPeriod: periodRaw,
       confirmed: Boolean(secondRaw),
@@ -447,8 +458,14 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
     if (radiologicalExposure === true) {
       entitlements.push({
         id: "ord-3",
+        sequence: 3,
+        regime: "CUATRIMESTRAL",
+        entitlementKind: "ORDINARY",
         kind: "ORDINARY",
         periodNumber: 3,
+        dueDate: null,
+        dueDateSource: "MISSING",
+        dueDateConfidence: "UNKNOWN",
         sourcePayslipPeriod: periodRaw,
         confirmed: false,
       })
@@ -460,7 +477,14 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
     if (v20Days > 0 || seniorityYears >= 20) {
       entitlements.push({
         id: "v20",
+        sequence: radiologicalExposure === true ? 4 : 3,
+        regime: workerRegime,
+        entitlementKind: "V20",
         kind: "V20",
+        periodNumber: radiologicalExposure === true ? 4 : 3,
+        dueDate: null,
+        dueDateSource: v20Days > 0 ? "OFFICIAL_RECORD" : "MISSING",
+        dueDateConfidence: v20Days > 0 ? "CONFIRMED" : "UNKNOWN",
         sourcePayslipPeriod: periodRaw,
         confirmed: v20Days > 0,
       })

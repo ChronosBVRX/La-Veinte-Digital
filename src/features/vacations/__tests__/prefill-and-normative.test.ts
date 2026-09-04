@@ -206,11 +206,12 @@ describe("Normativa: Fecha Por Vencer y Prescripción", () => {
     expect(result.daysInAdvance).toBe(0)
   })
 
-  it("bloquea periodos que exceden la prescripción general de 2 años", () => {
-    // dueDate = 2024-01-01, requested = 2026-09-01 (más de 2 años)
+  it("no prescribe erróneamente un periodo tomando dueDate + 730 días de forma automática", () => {
+    // dueDate = 2024-01-01, requested = 2026-09-01 (más de 2 años desde adquisición)
+    // La prescripción no debe calcularse tomando automáticamente dueDate como inicio
     const result = validateAnticipation("SEMESTRAL", "2024-01-01", "2026-09-01", false, 10)
-    expect(result.allowed).toBe(false)
-    expect(result.reasonCode).toBe("PRESCRIPTION_EXCEEDED")
+    expect(result.allowed).toBe(true)
+    expect(result.reasonCode).not.toBe("PRESCRIPTION_EXCEEDED")
   })
 
   it("en Estatuto no se permite anticipación (máximo 0 días)", () => {

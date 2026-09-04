@@ -8,7 +8,8 @@ import type {
 import { calculateCompletedYears, getCctAnnualDays, getEstatutoAnnualDays, getUnitsForInclusion } from "./entitlement"
 import { applyInclusionMark } from "./continuity"
 import { calculateVacationPayment, calculateAnnualTotals } from "./payment-estimate"
-import { checkRoleDateEligibility, hasDateOverlap } from "./calendar-roles"
+import { hasDateOverlap } from "./calendar-roles"
+import { evaluateVacationRoleEligibility } from "./role-eligibility"
 
 /**
  * Determina el número de periodos que el trabajador debe programar en su plan anual.
@@ -72,10 +73,11 @@ export function buildVacationPlan(
     let allowed = true
 
     const entitlement = isV20Period
-      ? (v20Entitlement || entitlements.find((e) => e.kind === "V20"))
-      : entitlements.find((e) => e.kind === "ORDINARY" && e.periodNumber === idx)
+      ? (v20Entitlement || entitlements.find((e) => (e.entitlementKind === "V20" || e.kind === "V20")))
+      : entitlements.find((e) => (e.entitlementKind === "ORDINARY" || e.kind === "ORDINARY" || !e.kind) && (e.sequence === idx || e.periodNumber === idx))
 
-    const dueDate = entitlement?.dueDate
+    const dueDate = entitlement?.dueDate ?? undefined
+    const dueDateConfidence = entitlement?.dueDateConfidence ?? (entitlement?.confirmed ? "CONFIRMED" : "PROVISIONAL")
 
     // 1. Marca y continuidad
     const selectedMark = sel.mark
@@ -112,24 +114,39 @@ export function buildVacationPlan(
         )
       : undefined
 
-    // 3. Validación de rol y fecha
+    // 3. Validación de rol y fecha con el motor unificado de elegibilidad
     const selectedRole = sel.role
+    let roleEligibilityResult = undefined
     if (selectedRole) {
       if (!selectedRole.enabled) {
         allowed = false
         reasons.push("El rol seleccionado está deshabilitado en el calendario.")
       }
 
-      // Validación contra fecha de vencimiento/generación
-      if (dueDate && selectedRole.startDate) {
-        const elig = checkRoleDateEligibility(
-          selectedRole.startDate,
-          dueDate,
-          regime === "CUATRIMESTRAL" ? 105 : 120
-        )
-        if (!elig.allowed) {
+      if (selectedRole.startDate) {
+        roleEligibilityResult = evaluateVacationRoleEligibility({
+          regime: isV20Period ? "EXTRAORDINARIO_V20" : regime,
+          entitlementKind: isV20Period ? "V20" : "ORDINARY",
+          dueDate: dueDate || null,
+          dueDateConfidence,
+          roleStartDate: selectedRole.startDate,
+          roleEndDate: selectedRole.endDate,
+          isFirstEverVacationPeriod: completedYears < 1 && idx === 1,
+          contractType: workerProfile?.contractType,
+          contractEndDate: workerProfile?.contractEndDate,
+          selectedMark,
+          v20Sequence: isV20Period ? 1 : undefined,
+          calendarYear: calendar?.year,
+          calendarStatus: calendar?.status ?? "PUBLISHED",
+        })
+
+        if (roleEligibilityResult.status === "BLOCKED") {
           allowed = false
-          reasons.push(elig.reason || "La fecha del rol no cumple las reglas de anticipación con tu fecha de vencimiento.")
+          reasons.push(roleEligibilityResult.workerMessage)
+        } else if (roleEligibilityResult.status === "REQUIRES_REVIEW") {
+          warnings.push(`Periodo ${idx}: ${roleEligibilityResult.workerMessage}`)
+        } else if (roleEligibilityResult.status === "NEEDS_DATA") {
+          warnings.push(`Periodo ${idx}: ${roleEligibilityResult.workerMessage}`)
         }
       }
     }
@@ -176,6 +193,7 @@ export function buildVacationPlan(
       kind: isV20Period ? "V20" : "ORDINARY",
       entitlementId: entitlement?.id,
       dueDate,
+      dueDateConfidence,
       selectedRole,
       selectedMark,
       startDate: selectedRole?.startDate || sel.startDate,
@@ -184,6 +202,7 @@ export function buildVacationPlan(
       continuityBefore,
       continuityAfter,
       payment,
+      eligibility: roleEligibilityResult,
       allowed,
       reasons,
     })

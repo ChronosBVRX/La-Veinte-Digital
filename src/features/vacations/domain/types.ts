@@ -251,14 +251,51 @@ export interface VacationPaymentEstimate {
   warnings: string[];
 }
 
+export type EntitlementDueDateSource = "TARJETON" | "OFFICIAL_RECORD" | "PROJECTED" | "MISSING";
+export type EntitlementDueDateConfidence = "CONFIRMED" | "PROVISIONAL" | "UNKNOWN";
+
+export type RoleEligibilityStatus = "ALLOWED" | "BLOCKED" | "REQUIRES_REVIEW" | "NEEDS_DATA";
+
+export interface RoleEligibilityResult {
+  status: RoleEligibilityStatus;
+  reasonCode: string;
+  workerMessage: string;
+  technicalMessage: string;
+  dueDate: string | null;
+  earliestAllowedDate: string | null;
+  daysBeforeDue: number | null;
+}
+
+export interface EvaluateVacationRoleEligibilityInput {
+  regime: VacationRegime;
+  entitlementKind: "ORDINARY" | "V20";
+  dueDate: string | null;
+  dueDateConfidence?: EntitlementDueDateConfidence;
+  roleStartDate: string;
+  roleEndDate?: string;
+  isFirstEverVacationPeriod?: boolean;
+  contractType?: ContractType;
+  contractEndDate?: string;
+  selectedMark?: number;
+  v20Sequence?: number;
+  calendarYear?: number;
+  calendarStatus?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+}
+
 export interface VacationEntitlement {
   id: string;
-  kind: "ORDINARY" | "V20";
+  sequence?: number;
+  regime?: "SEMESTRAL" | "CUATRIMESTRAL";
+  entitlementKind?: "ORDINARY" | "V20";
+  dueDate?: string | null;
+  dueDateSource?: EntitlementDueDateSource;
+  dueDateConfidence?: EntitlementDueDateConfidence;
+  // Compatibilidad hacia atrás
+  kind?: "ORDINARY" | "V20";
   periodNumber?: number;
-  dueDate?: string;
   sourceRaw?: string;
-  sourcePayslipPeriod: string;
-  confirmed: boolean;
+  sourcePayslipPeriod?: string;
+  confirmed?: boolean;
 }
 
 export interface VacationPlanInput {
@@ -277,6 +314,7 @@ export interface VacationPlanPeriod {
   kind: "ORDINARY" | "V20";
   entitlementId?: string;
   dueDate?: string;
+  dueDateConfidence?: EntitlementDueDateConfidence;
   selectedRole?: VacationRole;
   selectedMark?: number;
   startDate?: string;
@@ -285,6 +323,7 @@ export interface VacationPlanPeriod {
   continuityBefore?: number;
   continuityAfter?: number;
   payment?: VacationPaymentEstimate;
+  eligibility?: RoleEligibilityResult;
   allowed: boolean;
   reasons: string[];
 }

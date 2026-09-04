@@ -25,6 +25,12 @@ import type {
   VacationRole,
   VacationEntitlement,
 } from "../domain/types"
+import {
+  evaluateVacationRoleEligibility,
+  formatCivilMexicanDate,
+  subtractCivilDays,
+  getMaxAnticipationDays,
+} from "../domain/role-eligibility"
 
 type WizardStep =
   | "welcome"
@@ -245,24 +251,8 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
   // Derechos vacacionales
   const entitlements: VacationEntitlement[] = useMemo(() => {
-    return initialContext?.vacations?.entitlements ?? [
-      {
-        id: "ord-1",
-        kind: "ORDINARY" as const,
-        periodNumber: 1,
-        dueDate: rawDueDate,
-        sourcePayslipPeriod: sourcePayslipPeriod || "",
-        confirmed: Boolean(rawDueDate),
-      },
-      {
-        id: "ord-2",
-        kind: "ORDINARY" as const,
-        periodNumber: 2,
-        sourcePayslipPeriod: sourcePayslipPeriod || "",
-        confirmed: false,
-      },
-    ]
-  }, [initialContext, rawDueDate, sourcePayslipPeriod])
+    return initialContext?.vacations?.entitlements ?? prefilled.entitlements
+  }, [initialContext?.vacations?.entitlements, prefilled.entitlements])
 
   const planInput: VacationPlanInput = useMemo(() => ({
     workerProfile: prefilled.profile,
@@ -332,6 +322,44 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
       currentContinuityForActive
     )
   }, [regime, currentContinuityForActive, activePeriod?.kind])
+
+  // Entitlement y fechas aplicables al periodo activo
+  const activeEntitlement = entitlements.find((e) => (e.sequence === activePeriodIdx || e.periodNumber === activePeriodIdx))
+  const activeDueDate = activePeriod?.dueDate || activeEntitlement?.dueDate || null
+  const activeDueDateConfidence = activePeriod?.dueDateConfidence || activeEntitlement?.dueDateConfidence || (activeDueDate ? "CONFIRMED" : "UNKNOWN")
+  const activeMaxAnticipation = activePeriod?.kind === "V20" ? 120 : getMaxAnticipationDays(regime)
+  const earliestDateForActive = activeDueDate ? subtractCivilDays(activeDueDate, activeMaxAnticipation) : null
+
+  // Evaluaciones de elegibilidad de cada rol para el periodo activo
+  const roleEvaluations = new Map<string | number, import("../domain/types").RoleEligibilityResult>()
+  let availableRolesCount = 0
+  let blockedRolesCount = 0
+
+  if (calendar?.roles) {
+    for (const r of calendar.roles) {
+      const evalResult = evaluateVacationRoleEligibility({
+        regime: activePeriod?.kind === "V20" ? "EXTRAORDINARIO_V20" : regime,
+        entitlementKind: activePeriod?.kind === "V20" ? "V20" : "ORDINARY",
+        dueDate: activeDueDate,
+        dueDateConfidence: activeDueDateConfidence,
+        roleStartDate: r.startDate,
+        roleEndDate: r.endDate,
+        isFirstEverVacationPeriod: effectiveSeniorityYears < 1 && activePeriodIdx === 1,
+        contractType: prefilled.profile?.contractType,
+        contractEndDate: prefilled.profile?.contractEndDate,
+        selectedMark: selections[activePeriodIdx]?.mark,
+        v20Sequence: activePeriod?.kind === "V20" ? 1 : undefined,
+        calendarYear: calendar.year,
+        calendarStatus: calendar.status ?? "PUBLISHED",
+      })
+      roleEvaluations.set(r.id || r.roleNumber, evalResult)
+      if (evalResult.status === "BLOCKED") {
+        blockedRolesCount++
+      } else {
+        availableRolesCount++
+      }
+    }
+  }
 
   // Comparativa de alternativas (Paso 5)
   const comparisonOptions = useMemo(() => {
@@ -990,6 +1018,47 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
           </div>
         </Card>
 
+        {/* TARJETA RESUMEN PREVIA A LOS ROLES */}
+        <Card padding="1.25rem" style={{ marginBottom: "1.25rem", borderLeft: "4px solid var(--primary)", background: "var(--card)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
+            <span style={BADGE}>
+              {activePeriod?.kind === "V20" ? "Periodo Extraordinario V20" : `Periodo ${activePeriodIdx} de ${requiredPeriodCount}`}
+            </span>
+            <span style={{ fontSize: "0.8rem", color: "var(--muted)", fontWeight: 600 }}>
+              Régimen {regime === "CUATRIMESTRAL" ? "Cuatrimestral (105 días anticipación)" : "Semestral (120 días anticipación)"}
+            </span>
+          </div>
+
+          <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.5rem" }}>
+            {activeDueDate
+              ? `Tu derecho a este periodo se genera el ${formatCivilMexicanDate(activeDueDate)}.`
+              : "Fecha en que se genera el derecho: Pendiente de confirmación con Personal."}
+          </div>
+
+          {activeDueDateConfidence === "PROVISIONAL" && (
+            <div style={{ fontSize: "0.8rem", color: "#b45309", background: "#fef3c7", padding: "0.4rem 0.6rem", borderRadius: "var(--radius-sm)", marginBottom: "0.5rem" }}>
+              ⚠️ Aviso: La fecha de este periodo es provisional o calculada. Requiere confirmación con Personal antes de la programación oficial.
+            </div>
+          )}
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))", gap: "0.5rem", fontSize: "0.85rem" }}>
+            <div>
+              <span style={{ color: "var(--muted)" }}>Fecha más temprana para salir: </span>
+              <strong style={{ color: "var(--fg)" }}>
+                {earliestDateForActive ? formatCivilMexicanDate(earliestDateForActive) : "Pendiente"}
+              </strong>
+            </div>
+            <div>
+              <span style={{ color: "var(--muted)" }}>Roles disponibles: </span>
+              <strong style={{ color: "#166534" }}>{availableRolesCount}</strong>
+            </div>
+            <div>
+              <span style={{ color: "var(--muted)" }}>Roles bloqueados: </span>
+              <strong style={{ color: "#991b1b" }}>{blockedRolesCount}</strong>
+            </div>
+          </div>
+        </Card>
+
         {/* 2. SELECCIÓN DE ROL DEL CALENDARIO */}
         <Card padding="1.25rem" style={{ marginBottom: "1.25rem" }}>
           <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem", color: "var(--fg)" }}>
@@ -1003,8 +1072,8 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))",
-                gap: "0.5rem",
+                gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))",
+                gap: "0.75rem",
                 width: "100%",
                 boxSizing: "border-box",
                 minWidth: 0,
@@ -1012,34 +1081,103 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
             >
               {calendar.roles.map((r) => {
                 const isSelected = selectedRole?.id === r.id || selectedRole?.roleNumber === r.roleNumber
+                const ev = roleEvaluations.get(r.id || r.roleNumber)
+                const isBlocked = ev?.status === "BLOCKED"
+                const isAllowed = ev?.status === "ALLOWED"
+                const isReview = ev?.status === "REQUIRES_REVIEW"
+
                 return (
-                  <button
+                  <div
                     key={r.id || r.roleNumber}
-                    onClick={() => handleSelectRole(activePeriodIdx, r)}
+                    onClick={() => {
+                      if (!isBlocked) {
+                        handleSelectRole(activePeriodIdx, r)
+                      }
+                    }}
                     style={{
                       textAlign: "left",
-                      padding: "0.6rem 0.75rem",
+                      padding: "0.75rem",
                       borderRadius: "var(--radius)",
-                      border: `1.5px solid ${isSelected ? "var(--primary)" : "var(--border)"}`,
-                      background: isSelected ? "rgba(37,99,235,0.06)" : "var(--card)",
-                      cursor: "pointer",
+                      border: `1.5px solid ${
+                        isBlocked
+                          ? "#fca5a5"
+                          : isSelected
+                            ? "var(--primary)"
+                            : "var(--border)"
+                      }`,
+                      background: isBlocked
+                        ? "#fef2f2"
+                        : isSelected
+                          ? "rgba(37,99,235,0.06)"
+                          : "var(--card)",
+                      opacity: isBlocked ? 0.75 : 1,
+                      cursor: isBlocked ? "not-allowed" : "pointer",
                       width: "100%",
                       minWidth: 0,
                       boxSizing: "border-box",
                     }}
                   >
-                    <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--fg)" }}>
-                      Rol #{r.roleNumber} {r.roleGroup ? `(Grupo ${r.roleGroup})` : ""}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.3rem", marginBottom: "0.3rem" }}>
+                      <div style={{ fontWeight: 700, fontSize: "0.9rem", color: isBlocked ? "#991b1b" : "var(--fg)" }}>
+                        Rol #{r.roleNumber} {r.roleGroup ? `(Grupo ${r.roleGroup})` : ""}
+                      </div>
+                      {isBlocked ? (
+                        <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#fee2e2", color: "#991b1b", fontWeight: 700 }}>
+                          Bloqueado ✕
+                        </span>
+                      ) : isAllowed ? (
+                        <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#dcfce7", color: "#166534", fontWeight: 700 }}>
+                          {isSelected ? "Elegido ✓" : "Disponible ✓"}
+                        </span>
+                      ) : isReview ? (
+                        <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#fef3c7", color: "#92400e", fontWeight: 700 }}>
+                          {isSelected ? "Elegido (Revisión)" : "En revisión ⚠️"}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#e0f2fe", color: "#075985", fontWeight: 700 }}>
+                          Faltan datos ℹ️
+                        </span>
+                      )}
                     </div>
-                    <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.2rem" }}>
-                      Inicio: {formatMexicanDate(r.startDate)}
+
+                    <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.2rem" }}>
+                      Inicio: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(r.startDate)}</strong>
+                      {r.endDate && (
+                        <> • Término: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(r.endDate)}</strong></>
+                      )}
                     </div>
-                    {r.endDate && (
-                      <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-                        Fin: {formatMexicanDate(r.endDate)}
+
+                    {ev && (
+                      <div style={{ fontSize: "0.78rem", color: isBlocked ? "#991b1b" : "var(--fg)", marginTop: "0.4rem", lineHeight: 1.4 }}>
+                        {ev.workerMessage}
                       </div>
                     )}
-                  </button>
+
+                    {ev && (
+                      <details
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          marginTop: "0.5rem",
+                          padding: "0.3rem 0.5rem",
+                          borderRadius: "var(--radius-sm)",
+                          background: "rgba(0,0,0,0.03)",
+                          fontSize: "0.72rem",
+                          color: "var(--muted)",
+                        }}
+                      >
+                        <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+                          Ver fundamento y detalles técnicos
+                        </summary>
+                        <div style={{ marginTop: "0.3rem", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                          <div><strong>Regla:</strong> {ev.reasonCode}</div>
+                          <div><strong>Detalle:</strong> {ev.technicalMessage}</div>
+                          {ev.daysBeforeDue !== null && (
+                            <div><strong>Anticipación:</strong> {ev.daysBeforeDue} días naturales</div>
+                          )}
+                        </div>
+                      </details>
+                    )}
+                  </div>
                 )
               })}
             </div>
@@ -1091,6 +1229,12 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
           </Card>
         )}
 
+        {activePeriod && !activePeriod.allowed && (
+          <div style={{ background: "#fee2e2", border: "1px solid #f87171", color: "#991b1b", padding: "0.6rem 0.8rem", borderRadius: "var(--radius)", marginBottom: "0.75rem", fontSize: "0.8rem" }}>
+            ⚠️ Este periodo tiene un rol o marca no permitida. Selecciona un rol y marca válidos para poder continuar.
+          </div>
+        )}
+
         <div style={BUTTON_ROW}>
           {activePeriodIdx > 1 ? (
             <Button variant="secondary" onClick={() => setActivePeriodIdx((p) => p - 1)}>
@@ -1110,7 +1254,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
             {activePeriodIdx < requiredPeriodCount ? (
               <Button
                 variant="primary"
-                disabled={!selectedRole || selectedMark === undefined}
+                disabled={!selectedRole || selectedMark === undefined || (activePeriod && !activePeriod.allowed)}
                 onClick={() => setActivePeriodIdx((p) => p + 1)}
               >
                 Siguiente periodo →
@@ -1118,7 +1262,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
             ) : (
               <Button
                 variant="primary"
-                disabled={!selectedRole || selectedMark === undefined}
+                disabled={!selectedRole || selectedMark === undefined || (activePeriod && !activePeriod.allowed)}
                 onClick={() => setStep("summary")}
               >
                 Ver resumen del plan →

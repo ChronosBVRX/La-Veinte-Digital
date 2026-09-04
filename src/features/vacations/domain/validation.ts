@@ -42,22 +42,8 @@ export function validateAnticipation(
   }
 
   // Fecha posterior o igual a "por vencer": válida con anticipación cero.
-  // "Por vencer" representa la fecha de adquisición del derecho, no el último día permitido.
+  // "Por vencer" representa la fecha de adquisición del derecho, no el último día permitido ni inicio de prescripción.
   if (daysInAdvance <= 0) {
-    const daysPastDue = Math.floor((requested.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
-    // Prescripción general de 2 años (730 días naturales).
-    if (daysPastDue > 730) {
-      return {
-        allowed: false,
-        dueDate,
-        earliestAllowedDate: getEarliestDate(dueDate, maxAnticipationDays),
-        requestedDate: requestedStartDate,
-        daysInAdvance: 0,
-        reasonCode: "PRESCRIPTION_EXCEEDED",
-        friendlyMessage: "El periodo vacacional ha prescrito (límite de 2 años posteriores a su fecha de adquisición por vencer).",
-      };
-    }
-
     return {
       allowed: true,
       dueDate,
