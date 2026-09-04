@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { getPayslips } from "@/shared/services/local-storage"
 import { toGuidePayslip } from "@/features/tarjeton-guia/services/payslip-guide"
 import type { GuidePayslip } from "@/features/tarjeton-guia/lib/types"
@@ -12,6 +12,18 @@ import type { GuidePayslip } from "@/features/tarjeton-guia/lib/types"
  * (fuente completa del flujo de import) y el servidor (última fila confirmada).
  */
 export function useLatestPayslip(serverPayslip: GuidePayslip | null) {
+  const [revision, setRevision] = useState(0)
+
+  useEffect(() => {
+    const handler = () => setRevision((r) => r + 1)
+    window.addEventListener("storage", handler)
+    window.addEventListener("nomina_payslip_updated", handler)
+    return () => {
+      window.removeEventListener("storage", handler)
+      window.removeEventListener("nomina_payslip_updated", handler)
+    }
+  }, [])
+
   return useMemo(() => {
     const local = getPayslips()
       .map((p) => toGuidePayslip(p))
@@ -20,7 +32,12 @@ export function useLatestPayslip(serverPayslip: GuidePayslip | null) {
     const byPeriod = local.sort((a, b) => {
       const pa = periodRank(a)
       const pb = periodRank(b)
-      if (pa === pb) return (b.createdAt ?? "").localeCompare(a.createdAt ?? "")
+      if (pa === pb) {
+        const countB = (b.earnings?.length ?? 0) + (b.deductions?.length ?? 0)
+        const countA = (a.earnings?.length ?? 0) + (a.deductions?.length ?? 0)
+        if (countB !== countA) return countB - countA
+        return (b.createdAt ?? "").localeCompare(a.createdAt ?? "")
+      }
       return pb - pa
     })
 
@@ -39,12 +56,20 @@ export function useLatestPayslip(serverPayslip: GuidePayslip | null) {
     } else {
       const rLocal = periodRank(candidateLocal)
       const rServer = periodRank(candidateServer)
-      if (rLocal >= rServer) {
+      if (rLocal > rServer) {
         latest = candidateLocal
-        if (rLocal < periodRank(candidateServer)) previousLocal = null
-      } else {
+      } else if (rServer > rLocal) {
         latest = candidateServer
         previousLocal = candidateLocal
+      } else {
+        // Mismo periodo: desempatar por presencia de conceptos
+        const localCount = (candidateLocal.earnings?.length ?? 0) + (candidateLocal.deductions?.length ?? 0)
+        const serverCount = (candidateServer.earnings?.length ?? 0) + (candidateServer.deductions?.length ?? 0)
+        if (localCount >= serverCount) {
+          latest = candidateLocal
+        } else {
+          latest = candidateServer
+        }
       }
     }
 
@@ -58,10 +83,20 @@ function periodRank(p: GuidePayslip): number {
   const label = p.periodLabel ?? p.periodRaw ?? ""
   const year = Number(label.match(/\b20\d{2}\b/)?.[0] ?? 0)
   if (!year) return 0
-  const monthMatch = label.match(/(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/i)
+  const monthMatch = label.match(/(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)/i)
   const MONTHS: Record<string, number> = {
-    enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
-    julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
+    enero: 1, ene: 1,
+    febrero: 2, feb: 2,
+    marzo: 3, mar: 3,
+    abril: 4, abr: 4,
+    mayo: 5, may: 5,
+    junio: 6, jun: 6,
+    julio: 7, jul: 7,
+    agosto: 8, ago: 8,
+    septiembre: 9, sep: 9,
+    octubre: 10, oct: 10,
+    noviembre: 11, nov: 11,
+    diciembre: 12, dic: 12,
   }
   const month = monthMatch ? MONTHS[monthMatch[1].toLowerCase()] ?? 0 : 0
   const half = /2\s*[ª.]|2A|2\s*\.\s*Q/i.test(label) ? 2 : 1

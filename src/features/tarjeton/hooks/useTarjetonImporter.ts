@@ -18,6 +18,7 @@ import { applyConceptEdits, type ReviewedConceptLine } from "@/features/tarjeton
 import { sanitizeTarjetonForPersistence } from "@/features/tarjeton/lib/safe-values"
 import { confirmTarjetonClient } from "@/features/tarjeton/services/confirm-tarjeton-client"
 import { syncConfirmedPayslip } from "@/features/tarjeton/services/payslip-sync"
+import { saveTarjetonPdfBlob } from "@/shared/services/tarjeton-blob-storage"
 
 export interface TarjetonProfileSnapshot {
   fullName?: string | null
@@ -159,6 +160,10 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
           ? profile.matricula === parsed.employee.employeeNumber
           : null
 
+      if (parsed.document.periodRaw) {
+        void saveTarjetonPdfBlob(parsed.document.periodRaw, file, file.name)
+      }
+
       requestRef.current = null
       setState({
         step: "review",
@@ -244,6 +249,9 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
 
     try {
       syncConfirmedPayslip(result.data, request, "local")
+      if (safeParsed.document.periodRaw && file) {
+        void saveTarjetonPdfBlob(safeParsed.document.periodRaw, file, file.name)
+      }
     } catch (err) {
       console.warn("[tarjeton] sincronización local falló:", err)
     }
