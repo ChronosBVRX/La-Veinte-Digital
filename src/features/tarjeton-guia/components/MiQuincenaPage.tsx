@@ -85,6 +85,7 @@ export function MiQuincenaPage({ serverPayslip, initialTab }: { serverPayslip: G
               summary={summary}
               total={steps.length}
               periodRaw={payslip?.periodLabel || payslip?.periodRaw}
+              documentId={payslip?.id}
             />
           )
         }
@@ -101,6 +102,7 @@ function ExplainTab({
   summary,
   total,
   periodRaw,
+  documentId,
 }: {
   steps: ExplainerStep[]
   step: ExplainerStep
@@ -109,6 +111,7 @@ function ExplainTab({
   summary: ReturnType<typeof buildQuincenaSummary>
   total: number
   periodRaw?: string
+  documentId?: string
 }) {
   const isLast = stepIndex >= total - 1
   return (
@@ -125,20 +128,20 @@ function ExplainTab({
               width: `${((stepIndex + 1) / total) * 100}%`,
               background: "var(--primary)",
               borderRadius: 9999,
-              transition: "width 0.3s ease",
+              transition: "width 0.2s ease",
             }}
           />
         </div>
       </div>
 
       {/* Fallback banner si no se leyeron conceptos pero sí totales */}
-      {summary.perceptions === 0 && summary.deductions === 0 && (summary.totalEarnings != null || summary.totalDeductions != null || summary.netPay != null) && (
+      {summary.incompleteExtraction && (
         <div
           style={{
             background: "#fffbeb",
             border: "1px solid #fde68a",
             borderRadius: "var(--radius-md)",
-            padding: "0.875rem 1rem",
+            padding: "0.75rem 0.875rem",
             display: "flex",
             flexDirection: "column",
             gap: "0.5rem",
@@ -151,11 +154,12 @@ function ExplainTab({
             </span>
           </div>
           <p style={{ fontSize: "0.8125rem", color: "#b45309", margin: 0, lineHeight: 1.4 }}>
-            Puedes volver a subir tu tarjetón con mayor resolución o reintentar el análisis en el dispositivo.
+            Puedes reintentar el análisis en el dispositivo para extraer los conceptos individuales o volver a subir tu archivo.
           </p>
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
             <BotonReintentarAnalisis
               periodRaw={periodRaw}
+              documentId={documentId}
               size="sm"
               variant="secondary"
             />

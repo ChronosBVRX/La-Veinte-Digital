@@ -16,8 +16,11 @@ import { guideTips } from "@/features/tarjeton-guia/data/tips"
 import { guideQuickLessons } from "@/features/tarjeton-guia/data/lessons"
 import { resolveRefHref } from "@/features/tarjeton-guia/lib/catalog"
 
+import { getPayslips } from "@/shared/services/local-storage"
+
 export interface GuiaHomeServerData {
   hasPayslip: boolean
+  documentId?: string
   periodRaw?: string
   netPay?: number
   totalEarnings?: number
@@ -41,6 +44,39 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
     totalEarnings: data.totalEarnings,
     totalDeductions: data.totalDeductions,
   }
+
+  useEffect(() => {
+    // Sincronizar conceptos desde localStorage si ya existen para este periodo o el más reciente
+    const syncLocal = () => {
+      const slips = getPayslips()
+      const target =
+        slips.find((s) => {
+          if (data.documentId && s.id === data.documentId) return true
+          const pLabel =
+            typeof s.period === "string"
+              ? s.period
+              : s.period?.label || s.period?.id || s.periodRaw || ""
+          return data.periodRaw ? pLabel.includes(data.periodRaw) : true
+        }) || slips[0]
+      if (target) {
+        const eCount = ((target.earnings ?? target.perceptions)?.length) ?? 0
+        const dCount = target.deductions?.length ?? 0
+        if (eCount > 0 || dCount > 0) {
+          setOverrideStats({
+            earningsCount: eCount,
+            deductionsCount: dCount,
+            netPay: target.netPay ?? target.netAmount,
+          })
+        }
+      }
+    }
+
+    syncLocal()
+    window.addEventListener("nomina_payslip_updated", syncLocal)
+    return () => {
+      window.removeEventListener("nomina_payslip_updated", syncLocal)
+    }
+  }, [data.documentId, data.periodRaw])
 
   useEffect(() => {
     const now = new Date()
@@ -131,6 +167,7 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
                 <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
                   <BotonReintentarAnalisis
                     periodRaw={data.periodRaw}
+                    documentId={data.documentId}
                     size="sm"
                     variant="secondary"
                     onCompleted={(res) => {

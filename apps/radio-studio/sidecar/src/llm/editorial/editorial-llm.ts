@@ -9,7 +9,7 @@
  */
 import { z } from "zod";
 import { type ILLMProvider } from "../local-llm";
-import { getActiveLLMProvider } from "../llm-factory";
+import { getEditorialProvider } from "../llm-factory";
 import {
   PRESETS,
   TOPIC_ANALYSIS,
@@ -94,7 +94,7 @@ export class LocalEditorialLLM {
   constructor(private llm: ILLMProvider) {}
 
   static create(repoRoot: string): LocalEditorialLLM {
-    return new LocalEditorialLLM(getActiveLLMProvider(repoRoot));
+    return new LocalEditorialLLM(getEditorialProvider(repoRoot));
   }
 
   get version(): string {
@@ -168,7 +168,7 @@ export class LocalEditorialLLM {
   }): Promise<Partial<Proposal>> {
     const preset = this.preset("DIRECTOR");
     const result = await this.llm.generateStructured({
-      task: preset.task,
+      task: "proposal",
       system: PROPOSAL.system,
       user: `TEMA: ${input.topic}
 DURACIÓN OBJETIVO: ${input.duracionMin} min

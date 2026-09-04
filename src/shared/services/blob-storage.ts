@@ -18,7 +18,7 @@ export interface BlobRecord {
   key: string
   userId: string
   escritoId: string
-  resourceType: "firma" | "anexo"
+  resourceType: "firma" | "anexo" | "pdf"
   resourceId: string
   mimeType: string
   blob: Blob
@@ -55,7 +55,7 @@ export function openBlobDatabase(): Promise<IDBDatabase> {
 export function buildBlobKey(
   userId: string,
   escritoId: string,
-  resourceType: "firma" | "anexo",
+  resourceType: "firma" | "anexo" | "pdf",
   resourceId: string
 ): string {
   const safeUser = encodeURIComponent(userId.trim() || "anonymous")
@@ -72,7 +72,7 @@ export function buildBlobKey(
 export async function saveBlobResource(
   userId: string,
   escritoId: string,
-  resourceType: "firma" | "anexo",
+  resourceType: "firma" | "anexo" | "pdf",
   resourceId: string,
   blobOrFile: Blob | File
 ): Promise<string> {
@@ -101,7 +101,7 @@ export async function saveBlobResource(
         resourceId,
         mimeType:
           blobOrFile.type ||
-          (resourceType === "firma" ? "image/png" : "application/octet-stream"),
+          (resourceType === "firma" ? "image/png" : (resourceType === "pdf" ? "application/pdf" : "application/octet-stream")),
         blob: blobOrFile,
         size: typeof blobOrFile.size === "number" ? blobOrFile.size : 0,
         createdAt: new Date().toISOString(),

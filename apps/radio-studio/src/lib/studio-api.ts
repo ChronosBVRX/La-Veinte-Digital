@@ -712,8 +712,8 @@ export async function projectApprove(id: string): Promise<Project> {
   return post<Project>(`/projects/${id}/approve`, {}, 20000, 3);
 }
 
-export async function projectScript(id: string, modo?: "determinista" | "ia"): Promise<{ project: Project; script: Script; verify: VerifyResult }> {
-  return post<{ project: Project; script: Script; verify: VerifyResult }>(`/projects/${id}/script`, { modo }, 900000, 2);
+export async function projectScript(id: string): Promise<{ project: Project; script: Script; verify: VerifyResult }> {
+  return post<{ project: Project; script: Script; verify: VerifyResult }>(`/projects/${id}/script`, {}, 900000, 2);
 }
 
 export async function projectVerify(id: string): Promise<VerifyResult> {

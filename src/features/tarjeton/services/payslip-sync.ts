@@ -47,14 +47,14 @@ export function buildImportedPayslip(
       ? { years: seniority.years, months: 0, days: seniority.days }
       : undefined,
     earnings: payroll.earnings.map((l) => ({
-      code: l.code,
+      code: l.code ?? "",
       description: l.description,
       amount: l.amount,
       confirmedByUser: l.confirmedByUser,
       includeInNextProjection: l.confirmedByUser,
     })),
     deductions: payroll.deductions.map((l) => ({
-      code: l.code,
+      code: l.code ?? "",
       description: l.description,
       amount: l.amount,
       confirmedByUser: l.confirmedByUser,
@@ -112,7 +112,7 @@ export function applyPayslipToProfile(
   // Guardar importe ancla de TODOS los conceptos de percepción confirmados.
   const recurringConcepts: RecurringConceptEvidence[] = [...(profile.recurringConcepts ?? [])]
   for (const line of parsed.payroll.earnings) {
-    if (!line.confirmedByUser || line.amount <= 0) continue
+    if (!line.confirmedByUser || line.amount <= 0 || !line.code) continue
     const existingIdx = recurringConcepts.findIndex((r) => r.conceptCode === line.code)
     const occurrenceType = classifyOccurrence(line.code)
     const eligibilityPersistence = classifyPersistence(line.code)
@@ -139,7 +139,7 @@ export function applyPayslipToProfile(
   // aún espera (compatibilidad con reglas y eligibility-catalog existentes).
   const facts = [...(profile.facts ?? [])]
   for (const line of parsed.payroll.earnings) {
-    if (!line.confirmedByUser || line.amount <= 0) continue
+    if (!line.confirmedByUser || line.amount <= 0 || !line.code) continue
     if (!PAYSLIP_FACT_CODES.has(line.code)) continue
     const factKey = `concept_${line.code}_on_payslip` as PayrollFact["key"]
     const existingFact = facts.findIndex((f) => f.key === factKey)

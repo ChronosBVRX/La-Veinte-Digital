@@ -58,7 +58,6 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
   const [llm, setLlm] = useState<LlmHealthInfo | null>(null);
   const [fuenteAbierta, setFuenteAbierta] = useState<string | null>(null);
   const [editandoPropuesta, setEditandoPropuesta] = useState(false);
-  const [usarIA, setUsarIA] = useState(false);
   const [editFormato, setEditFormato] = useState<string>("");
   const [editProfundidad, setEditProfundidad] = useState<Profundidad>("estandar");
   const [editEnfoque, setEditEnfoque] = useState("");
@@ -131,45 +130,10 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
           <div className={`ready-pill ${llm?.health.ok ? "ok" : "warn"}`}>
-            {llm?.health.ok
-              ? (llm.provider === "groq" ? `⚡ Groq listo` : "Motor local listo")
-              : (llm?.provider === "groq" ? "⚡ Groq iniciando" : "Motor local iniciando")}
+            {llm?.health.ok ? "Listo para trabajar" : "Conectando con el estudio"}
           </div>
-          {llm?.editorial?.label && (
-            <div style={{ fontSize: 11, color: "var(--muted)", textAlign: "right", maxWidth: 180 }}>
-              Motor de guion: {llm.editorial.label}
-            </div>
-          )}
         </div>
       </div>
-
-      {/* Panel informativo del motor — discreto, no técnico */}
-      {llm && (llm.provider === "groq" || llm.groqUsage) && (
-        <div style={{
-          background: "var(--accent)", borderRadius: 10, padding: "10px 14px",
-          marginBottom: 14, fontSize: 12, color: "var(--muted)", display: "flex",
-          flexWrap: "wrap", gap: 14, alignItems: "center",
-        }}>
-          <span>🤖 <b>Proveedor:</b> {llm.editorial?.provider === "groq" ? "Groq" : "Local"}</span>
-          <span>📐 <b>Modelo:</b> {llm.model}</span>
-          {llm.groqUsage && (
-            <>
-              <span>🔢 <b>Tokens (esta sesión):</b> {llm.groqUsage.tokensThisRun.toLocaleString()}</span>
-              <span>📊 <b>Consumo registrado hoy:</b> {llm.groqUsage.estimatedDailyUsed.toLocaleString()} tokens</span>
-              <span>📞 <b>Llamadas:</b> {llm.groqUsage.callsThisRun}</span>
-              {llm.groqUsage.rateLimitWaitMs > 0 && (
-                <span>⏳ <b>Espera por cuota:</b> {Math.round(llm.groqUsage.rateLimitWaitMs / 1000)}s</span>
-              )}
-              {llm.groqUsage.fallbackUsed && (
-                <span style={{ color: "#e97316" }}>⚠️ <b>Fallback activo:</b> Qwen local</span>
-              )}
-            </>
-          )}
-          {llm.groqMissingKey && (
-            <span style={{ color: "#e97316" }}>⚠️ LLM_PROVIDER=groq pero GROQ_API_KEY no configurada — usando Ollama</span>
-          )}
-        </div>
-      )}
 
       {/* Paso a paso */}
       <div className="step-strip" style={{ marginBottom: 18 }}>
@@ -184,7 +148,41 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
         ))}
       </div>
 
-      {error && <div className="error">{error}</div>}
+      {error && (
+        <div className="card" style={{ border: "1px solid #ef4444", background: "var(--panel-2)", marginBottom: 16 }}>
+          <h3 style={{ margin: "0 0 8px", color: "#ef4444" }}>No pudimos generar el episodio</h3>
+          <p style={{ margin: "0 0 6px" }}>
+            {error.toLowerCase().includes("límite") || error.toLowerCase().includes("rate limit")
+              ? "El servicio alcanzó temporalmente su límite de solicitudes."
+              : error.toLowerCase().includes("suficiente información")
+                ? "La biblioteca no contiene suficiente información verificada para explicar este tema con seguridad."
+                : "El motor editorial no respondió correctamente."}
+          </p>
+          <p className="muted small" style={{ margin: "0 0 14px" }}>
+            Tu investigación y el proyecto están guardados.
+          </p>
+          <div className="row" style={{ gap: 10 }}>
+            <button
+              className="btn-primary"
+              onClick={() => {
+                setError(null);
+                if (project?.state === "PROPOSAL_APPROVED" || project?.state === "SCRIPT_GENERATING" || project?.state === "SCRIPT_QUALITY_FAILED" || project?.state === "SCRIPT_GENERATION_FAILED") {
+                  void run("Escribiendo guion", () => projectScript(projectId).then((r) => setVerify(r.verify)));
+                } else if (project?.state === "RESEARCHED" || project?.state === "GENERATING_PROPOSALS" || project?.state === "PROPOSAL_GENERATION_FAILED") {
+                  void run("Preparando propuesta", () => projectProposal(projectId));
+                } else {
+                  void run("Investigando", () => projectResearch(projectId));
+                }
+              }}
+            >
+              VOLVER A INTENTAR
+            </button>
+            <button className="btn-secondary" onClick={() => setError(null)}>
+              Volver al proyecto
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ═══ INVESTIGACIÓN ═══ */}
       {stepIdx <= 1 && (
@@ -270,16 +268,11 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
           {proposal.comerciales.length > 0 && <div className="muted small" style={{ marginTop: 10 }}>Con bloques comerciales.</div>}
           {project?.state === "PROPOSAL_APPROVED" && (
             <div style={{ marginTop: 16 }}>
-              <label className="check" style={{ marginBottom: 8 }}>
-                <input type="checkbox" checked={usarIA} onChange={(e) => setUsarIA(e.target.checked)} />
-                Mejorar el guion con IA local (más lento, puede tardar varios minutos)
-              </label>
               <div className="row">
-                <button className="btn-primary" disabled={!!busy} onClick={() => run("Escribiendo guion", () => projectScript(projectId, usarIA ? "ia" : "determinista").then((r) => { setVerify(r.verify); }))}>
-                  {busy === "Escribiendo guion" ? (usarIA ? "Generando con IA (minutos)…" : "Escribiendo guion…") : "GENERAR GUION"}
+                <button className="btn-primary" disabled={!!busy} onClick={() => run("Escribiendo guion", () => projectScript(projectId).then((r) => { setVerify(r.verify); }))}>
+                  {busy === "Escribiendo guion" ? "Escribiendo guion…" : "GENERAR GUION"}
                 </button>
               </div>
-              {usarIA && <div className="muted small" style={{ marginTop: 8 }}>La IA local tarda unos minutos; el guion aparecerá aquí al terminar. Si prefieres algo inmediato, deja esta opción desactivada.</div>}
             </div>
           )}
           <div className="row" style={{ marginTop: 16 }}>

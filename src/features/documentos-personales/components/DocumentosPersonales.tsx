@@ -14,6 +14,7 @@ import {
   deleteNativeDocumentById,
 } from "@/features/transferir/services/transfer"
 import { Button } from "@/shared/components/ui/Button"
+import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { SendPrintModal } from "./SendPrintModal"
 import { ImportTarjetonModal } from "./ImportTarjetonModal"
 import { DocumentViewerModal } from "./DocumentViewerModal"
@@ -23,6 +24,10 @@ import {
   toNativo, formatBytes, formatFecha, formatFechaEscrito, grupoLabel,
   type DocTipo, type DocumentoPersonalItem,
 } from "../lib/documents"
+import {
+  resolveViewerDocument,
+  type ViewerDocument,
+} from "../services/document-viewer-adapter"
 import { sharePdfViaNativeBridge, isNativePdfShareSupported } from "@/shared/services/pdfShareBridge"
 
 const TIPO_ICON: Record<DocTipo, typeof FileText> = {
@@ -44,7 +49,9 @@ export function DocumentosPersonales() {
   const [escritos, setEscritos] = useState<DocumentoPersonalItem[]>([])
   const [cargando, setCargando] = useState(true)
   const [profile, setProfile] = useState<TarjetonProfileSnapshot | null>(null)
-  const [viewDoc, setViewDoc] = useState<DocumentoPersonalItem | null>(null)
+  const [activeViewerDoc, setActiveViewerDoc] = useState<ViewerDocument | null>(null)
+  const [preparingDocId, setPreparingDocId] = useState<string | null>(null)
+  const [preparingError, setPreparingError] = useState<{ id: string; message: string; doc: DocumentoPersonalItem } | null>(null)
   const [sendDoc, setSendDoc] = useState<{ doc: DocumentoPersonalItem; getFile: () => Promise<File | null> } | null>(null)
   const [importDoc, setImportDoc] = useState<{ file: File | null; name: string } | null>(null)
   const [borrandoId, setBorrandoId] = useState<string | null>(null)
@@ -161,9 +168,35 @@ export function DocumentosPersonales() {
     })
   }
 
-  const handleOpen = (doc: DocumentoPersonalItem) => {
-    setViewDoc(doc)
+  const handleOpen = async (doc: DocumentoPersonalItem) => {
     setMenuDoc(null)
+    setPreparingError(null)
+    setPreparingDocId(doc.id)
+
+    try {
+      const resolved = await resolveViewerDocument(doc, userId ?? "anonymous", profile)
+      setActiveViewerDoc(resolved)
+    } catch (err) {
+      console.error("[DocumentosPersonales] Error al preparar documento:", err)
+      setPreparingError({
+        id: doc.id,
+        message: err instanceof Error ? err.message : "No se pudo preparar el documento.",
+        doc,
+      })
+    } finally {
+      setPreparingDocId(null)
+    }
+  }
+
+  const handleCloseViewer = () => {
+    if (activeViewerDoc) {
+      const docToClean = activeViewerDoc
+      setActiveViewerDoc(null)
+      // Liberar la URL sólo después de cerrar el visor
+      setTimeout(() => {
+        docToClean.cleanup?.()
+      }, 100)
+    }
   }
 
   const handleShare = async (doc: DocumentoPersonalItem) => {
@@ -536,13 +569,15 @@ export function DocumentosPersonales() {
                             {/* Botón Abrir */}
                             <button
                               onClick={() => handleOpen(doc)}
-                              title="Abrir documento"
+                              disabled={preparingDocId === doc.id}
+                              title={preparingDocId === doc.id ? "Preparando documento…" : "Abrir documento"}
                               aria-label="Abrir documento"
                               style={{
                                 ...iconBtn,
                                 background: "var(--accent)",
                                 color: "var(--fg)",
                                 border: "1px solid var(--border)",
+                                opacity: preparingDocId === doc.id ? 0.6 : 1,
                               }}
                             >
                               <Eye size={18} weight="bold" />
@@ -633,6 +668,53 @@ export function DocumentosPersonales() {
                             </button>
                           </div>
                         </div>
+
+                        {/* Indicador visual de preparación */}
+                        {preparingDocId === doc.id && (
+                          <div
+                            style={{
+                              width: "100%",
+                              boxSizing: "border-box",
+                              borderTop: "1px solid var(--border)",
+                              paddingTop: "0.625rem",
+                              marginTop: "0.375rem",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              fontSize: "0.8125rem",
+                              color: "var(--primary)",
+                            }}
+                          >
+                            <LoadingSpinner text="Preparando documento…" />
+                          </div>
+                        )}
+
+                        {/* Error de preparación con acción de Reintentar */}
+                        {preparingError && preparingError.id === doc.id && (
+                          <div
+                            style={{
+                              width: "100%",
+                              boxSizing: "border-box",
+                              borderTop: "1px solid rgba(239, 68, 68, 0.3)",
+                              background: "rgba(239, 68, 68, 0.08)",
+                              borderRadius: "0.5rem",
+                              padding: "0.625rem 0.875rem",
+                              marginTop: "0.375rem",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: "0.5rem",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <span style={{ fontSize: "0.8125rem", color: "#ef4444", fontWeight: 500 }}>
+                              {preparingError.message}
+                            </span>
+                            <Button size="sm" variant="secondary" onClick={() => handleOpen(preparingError.doc)}>
+                              Reintentar
+                            </Button>
+                          </div>
+                        )}
 
                         {/* Panel expandible interno dentro del flujo normal de la tarjeta */}
                         {hasMenu && menuDoc === doc.id && (
@@ -831,18 +913,31 @@ export function DocumentosPersonales() {
       )}
 
       <DocumentViewerModal
-        open={!!viewDoc}
-        doc={viewDoc}
+        open={!!activeViewerDoc}
+        doc={activeViewerDoc}
         userId={userId}
         profile={profile}
-        onClose={() => setViewDoc(null)}
-        onSendPrint={(doc) => {
-          setViewDoc(null)
-          handleSend(doc)
+        onClose={handleCloseViewer}
+        onSendPrint={(d) => {
+          handleCloseViewer()
+          const found = items.find((it) => it.id === d.id)
+          if (found) {
+            handleSend(found)
+          }
         }}
-        onImportTarjeton={(doc) => {
-          setViewDoc(null)
-          void handleImport(doc)
+        onImportTarjeton={(d) => {
+          handleCloseViewer()
+          const found = items.find((it) => it.id === d.id)
+          if (found) {
+            void handleImport(found)
+          }
+        }}
+        onDelete={(d) => {
+          handleCloseViewer()
+          const found = items.find((it) => it.id === d.id)
+          if (found) {
+            handleRequestDelete(found)
+          }
         }}
       />
 

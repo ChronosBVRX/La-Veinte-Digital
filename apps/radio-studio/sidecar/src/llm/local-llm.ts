@@ -53,6 +53,7 @@ export interface LlmTaskProfile {
 /** Perfiles configurables por tipo de tarea (no leyes absolutas). */
 export const TASK_PROFILES: Record<string, LlmTaskProfile> = {
   analysis: { temperature: 0.2, timeoutMs: 300_000 },
+  proposal: { temperature: 0.5, timeoutMs: 300_000 },
   planning: { temperature: 0.32, timeoutMs: 300_000 },
   direction: { temperature: 0.55, timeoutMs: 420_000 },
   dialogue: { temperature: 0.72, timeoutMs: 600_000 },

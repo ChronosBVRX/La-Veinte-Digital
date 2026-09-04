@@ -488,16 +488,19 @@ export interface OvertimeIncident {
 export interface ImportedPayslip {
   id: string
   userId: string
-  period: PayPeriod
+  period: PayPeriod | string
+  periodRaw?: string
   categoryId?: string
   categoryName?: string
   institutionalEntryDate?: string
   displayedSeniority?: { years: number; months: number; days: number }
   earnings: ImportedPayslipLine[]
   deductions: ImportedPayslipLine[]
+  perceptions?: ImportedPayslipLine[]
   totalEarnings: number
   totalDeductions: number
   netPay: number
+  netAmount?: number
   source: "manual" | "image" | "pdf" | "structured_import"
   confirmedByUser: boolean
 }

@@ -98,9 +98,7 @@ export async function routeProject(url: URL, req: import("node:http").IncomingMe
     return true;
   }
   if (action === "script") {
-    const body = await readBody();
-    const modo = body.modo === "ia" || body.modo === "determinista" ? body.modo : undefined;
-    const { project, script, verify } = await ctx.workflow.generateScript(id, modo);
+    const { project, script, verify } = await ctx.workflow.generateScript(id);
     ctx.json(res, 200, { project, script, verify });
     return true;
   }
@@ -140,7 +138,13 @@ export function friendlyProjectError(e: unknown): { code: string; message: strin
     RESEARCH_REQUIRED: { code: "UNKNOWN", userMessage: "Primero reviso las fuentes antes de armar la propuesta." },
     PROPOSAL_REQUIRED: { code: "UNKNOWN", userMessage: "Falta aprobar la propuesta antes de generar el guion." },
     LOCAL_LIBRARY_UNAVAILABLE: { code: "LOCAL_LIBRARY_UNAVAILABLE", userMessage: "No encuentro la biblioteca necesaria para investigar este tema." },
-    LOCAL_LLM_UNAVAILABLE: { code: "MOTOR_UNAVAILABLE", userMessage: "El motor local no está disponible. Puedo armar la propuesta de forma simple por ahora." },
+    GROQ_UNAVAILABLE: { code: "GROQ_UNAVAILABLE", userMessage: "El motor editorial no está disponible. Tu investigación y el proyecto están guardados." },
+    GROQ_RATE_LIMITED: { code: "GROQ_RATE_LIMITED", userMessage: "El servicio alcanzó temporalmente su límite de solicitudes. Tu investigación y el proyecto están guardados." },
+    INSUFFICIENT_EVIDENCE: { code: "INSUFFICIENT_EVIDENCE", userMessage: "La biblioteca no contiene suficiente información verificada para explicar este tema con seguridad." },
+    PROPOSAL_GENERATION_FAILED: { code: "PROPOSAL_GENERATION_FAILED", userMessage: "No fue posible generar una propuesta editorial que cumpla con los estándares de calidad." },
+    SCRIPT_QUALITY_FAILED: { code: "SCRIPT_QUALITY_FAILED", userMessage: "El episodio no alcanzó el nivel de calidad necesario y no se generará audio. Puedes volver a intentarlo." },
+    SCRIPT_GENERATION_FAILED: { code: "SCRIPT_GENERATION_FAILED", userMessage: "No pudimos generar el episodio en este momento. Tu investigación y el proyecto están guardados." },
+    PRODUCTION_BLOCKED: { code: "PRODUCTION_BLOCKED", userMessage: "La producción de audio está bloqueada porque el guion no cuenta con verificación aprobada." },
     "producción en curso": { code: "UNKNOWN", userMessage: "Ya hay un episodio en producción. Espera a que termine o detén la producción actual." },
     "produccion en curso": { code: "UNKNOWN", userMessage: "Ya hay un episodio en producción. Espera a que termine o detén la producción actual." },
   };

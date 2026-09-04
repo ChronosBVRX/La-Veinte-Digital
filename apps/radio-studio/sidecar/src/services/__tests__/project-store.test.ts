@@ -3,8 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { ProjectStore } from "../project-store";
-import { autoFormat, autoCast, deterministicProposal } from "../project-workflow";
-import type { Project, ResearchBundle } from "@la-veinte/studio-contract";
+import { autoFormat, autoCast, evaluateProposalQuality } from "../project-workflow";
+import type { Project, Proposal, ResearchBundle } from "@la-veinte/studio-contract";
 
 let dir: string;
 let store: ProjectStore;
@@ -83,18 +83,44 @@ describe("autoCast", () => {
   });
 });
 
-describe("deterministicProposal", () => {
-  it("produce una propuesta válida sin LLM", () => {
+describe("evaluateProposalQuality", () => {
+  it("rechaza propuestas genéricas", () => {
     const research = {
       topic: "Cambio de horario", queryExpansion: [], cutoff: "x", evidence: [], claims: [],
       coverage: { percentage: 100, recommended: true, items: [], known: [], missing: [], strong: [], partial: [], unanswered: [], warnings: [], confirmed: 1, withoutSupport: 0 },
       documents: [], discarded: [], createdAt: new Date().toISOString(),
     } as ResearchBundle;
-    const project = store.create({ topic: "Cambio de horario", config: { duracionMin: 15, profundidad: "estandar", nivel: "natural", contextoExtra: "", modo: "ia", comerciales: { enabled: false, ids: [], allowDirectorChoice: true, count: "auto", ubicacion: "auto", interaccion: "natural", duracionSec: 30 } } });
-    const p = deterministicProposal(project, research, true);
-    expect(p.participantes.length).toBeGreaterThanOrEqual(3);
-    expect(p.estructura.length).toBeGreaterThanOrEqual(3);
-    expect(p.formato).toBe("CASO_PRACTICO");
-    expect(p.decisionRationale.length).toBeGreaterThan(0);
+    const genericProposal = {
+      enfoque: "Explicar qué dice la normativa, cómo se aplica y qué revisar.",
+      estructura: [{ seccion: "A", proposito: "P" }],
+      participantes: [{ id: "EDUARDO", nombre: "Eduardo", rol: "conductor", funcionEditorial: null, voz: "A", participa: true }],
+    };
+    const res = evaluateProposalQuality("Cambio de horario", genericProposal as Partial<Proposal>, research);
+    expect(res.valid).toBe(false);
+    expect(res.issues.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("exige marcas de inclusión y vencimiento en vacaciones", () => {
+    const research = {
+      topic: "Vacaciones inclusión y vencimiento", queryExpansion: [], cutoff: "x", evidence: [], claims: [],
+      coverage: { percentage: 100, recommended: true, items: [], known: [], missing: [], strong: [], partial: [], unanswered: [], warnings: [], confirmed: 1, withoutSupport: 0 },
+      documents: [], discarded: [], createdAt: new Date().toISOString(),
+    } as ResearchBundle;
+    const partialProposal = {
+      enfoque: "Análisis sobre los periodos vacacionales del personal y cómo programarlos.",
+      estructura: [
+        { seccion: "Apertura", proposito: "Inicio" },
+        { seccion: "Desarrollo", proposito: "Reglas" },
+        { seccion: "Cierre", proposito: "Fin" },
+      ],
+      participantes: [
+        { id: "EDUARDO", nombre: "Eduardo", rol: "conductor", funcionEditorial: null, voz: "A", participa: true },
+        { id: "ANDREA", nombre: "Andrea", rol: "conductora", funcionEditorial: null, voz: "B", participa: true },
+      ],
+    };
+    const res = evaluateProposalQuality("Vacaciones con inclusión y fechas de vencimiento", partialProposal as Partial<Proposal>, research);
+    expect(res.valid).toBe(false);
+    expect(res.issues.some((i) => i.includes("inclusión"))).toBe(true);
+    expect(res.issues.some((i) => i.includes("vencimiento"))).toBe(true);
   });
 });

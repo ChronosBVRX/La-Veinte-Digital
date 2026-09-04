@@ -3,7 +3,7 @@ import type { ParsedImssTarjeton, TarjetonConceptLine } from "@/shared/contracts
 /** Línea de concepto editable durante la revisión. */
 export interface ReviewedConceptLine {
   lineIndex: number
-  code: string
+  code: string | null
   description: string
   amount: number
   kind: "earning" | "deduction"

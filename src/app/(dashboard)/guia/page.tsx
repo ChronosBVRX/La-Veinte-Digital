@@ -33,6 +33,7 @@ export default async function GuiaPage() {
 
   const data: GuiaHomeServerData = {
     hasPayslip: !!latest,
+    documentId: latest?.id,
     periodRaw: typeof latest?.period_raw === "string" ? latest.period_raw : undefined,
     netPay: typeof totals?.netPay === "number" ? (totals.netPay as number) : undefined,
     totalEarnings: typeof totals?.totalEarnings === "number" ? (totals.totalEarnings as number) : undefined,
