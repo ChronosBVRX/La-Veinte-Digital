@@ -7,6 +7,7 @@ import {
   diversifyByDocument,
   extractExactRefs,
   rowToSource,
+  rerankByNormativePriority,
   VALIDITY_WEIGHT,
   type RetrievedSource,
   type RetrievalIntent,
@@ -179,11 +180,12 @@ export async function retrieveEvidenceWithMetrics(
   }
 
   const fused = [...byChunk.values()].sort((a, b) => b.score - a.score)
+  const reranked = rerankByNormativePriority(fused, question)
 
   // Dedupe de texto idéntico + diversificación por documento para preguntas
   // amplias (evita 8 chunks del mismo capítulo). SPECIFIC/EXACT conservan
   // ranking puro.
-  const deduped = dedupeByText(fused)
+  const deduped = dedupeByText(reranked)
   const ranked =
     intent === "BROAD_TOPIC"
       ? diversifyByDocument(deduped, Math.max(5, Math.min(limit, 8)))

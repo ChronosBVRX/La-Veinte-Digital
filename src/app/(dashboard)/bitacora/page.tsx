@@ -15,8 +15,8 @@ export default async function BitacoraPage() {
     .order("start_at", { ascending: false })
 
   return (
-    <div style={{ maxWidth: "700px", margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.5rem" }}>
+    <div style={{ width: "100%", maxWidth: "700px", margin: "0 auto", boxSizing: "border-box" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.5rem", minWidth: 0, width: "100%" }}>
         <div style={{
           width: 44, height: 44, borderRadius: "0.75rem",
           background: "linear-gradient(135deg, #0891b2, #06b6d4)",
@@ -24,9 +24,9 @@ export default async function BitacoraPage() {
         }}>
           <Notebook size={24} color="white" weight="duotone" />
         </div>
-        <div>
-          <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>Mi Agenda</h1>
-          <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: "0.125rem 0 0" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}>Mi Agenda</h1>
+          <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: "0.125rem 0 0", overflowWrap: "anywhere", wordBreak: "break-word" }}>
             Tu registro de compromisos laborales: tiempo extra, vacaciones, cambios de turno y más
           </p>
         </div>

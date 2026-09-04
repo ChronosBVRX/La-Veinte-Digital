@@ -95,6 +95,36 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
               <SummaryStat label="Percepciones" value={String(data.earningsCount ?? 0)} />
               <SummaryStat label="Deducciones" value={String(data.deductionsCount ?? 0)} />
             </div>
+
+            {((data.totalEarnings ?? 0) > 0 || (data.totalDeductions ?? 0) > 0 || (data.netPay ?? 0) > 0) &&
+              (data.earningsCount ?? 0) === 0 &&
+              (data.deductionsCount ?? 0) === 0 && (
+              <div
+                style={{
+                  background: "#fffbeb",
+                  border: "1px solid #fde68a",
+                  borderRadius: "var(--radius-md)",
+                  padding: "0.75rem 0.875rem",
+                  marginTop: "0.75rem",
+                  fontSize: "0.8125rem",
+                  color: "#92400e",
+                  lineHeight: 1.4,
+                }}
+              >
+                <div style={{ fontWeight: 600 }}>
+                  ⚠️ Detectamos los totales de tu tarjetón, pero no pudimos leer el detalle de los conceptos.
+                </div>
+                <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <ActionLink href="/profile/mi-informacion-laboral" size="sm" variant="secondary">
+                    Reintentar análisis
+                  </ActionLink>
+                  <ActionLink href="/profile/mi-informacion-laboral" size="sm" variant="outline">
+                    Revisar documento
+                  </ActionLink>
+                </div>
+              </div>
+            )}
+
             <div
               style={{
                 display: "flex",

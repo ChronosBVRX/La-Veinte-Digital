@@ -7,6 +7,7 @@ import { findDestinatario } from "@/features/escritos/data/directorio-destinatar
 export interface DestinatarioResumenProps {
   destino: DestinoCargoNombre
   onChangeRequest?: () => void
+  onRemoveRequest?: () => void
   readOnly?: boolean
   style?: React.CSSProperties
 }
@@ -19,6 +20,7 @@ export interface DestinatarioResumenProps {
 export function DestinatarioResumen({
   destino,
   onChangeRequest,
+  onRemoveRequest,
   readOnly = false,
   style,
 }: DestinatarioResumenProps) {
@@ -41,7 +43,6 @@ export function DestinatarioResumen({
         borderRadius: "0.5rem",
         padding: "0.5rem 0.875rem",
         minHeight: "52px",
-        maxHeight: "64px",
         boxSizing: "border-box",
         width: "100%",
         ...style,
@@ -121,21 +122,42 @@ export function DestinatarioResumen({
         </div>
       </div>
 
-      {!readOnly && onChangeRequest && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onChangeRequest}
-          style={{
-            flexShrink: 0,
-            fontSize: "0.75rem",
-            padding: "0.25rem 0.625rem",
-            height: "32px",
-          }}
-        >
-          Cambiar
-        </Button>
+      {!readOnly && (
+        <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", flexShrink: 0 }}>
+          {onChangeRequest && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onChangeRequest}
+              style={{
+                fontSize: "0.75rem",
+                padding: "0.25rem 0.5rem",
+                height: "32px",
+              }}
+            >
+              Cambiar
+            </Button>
+          )}
+          {onRemoveRequest && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onRemoveRequest}
+              style={{
+                fontSize: "0.75rem",
+                padding: "0.25rem 0.5rem",
+                height: "32px",
+                color: "var(--muted)",
+              }}
+              title="Quitar destinatario"
+              aria-label="Quitar destinatario"
+            >
+              Quitar
+            </Button>
+          )}
+        </div>
       )}
     </div>
   )

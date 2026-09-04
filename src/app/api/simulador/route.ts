@@ -15,12 +15,86 @@ import data from "@/lib/services/vectorstore-data.json"
 
 const OPENAI_TIMEOUT_MS = 30000
 
-function getOpenAI() {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY no está configurada")
+export interface LLMConfig {
+  client: OpenAI
+  model: string
+  provider: "openai" | "deepseek" | "groq" | "custom"
+}
+
+export function getLLMClient(): LLMConfig | null {
+  const groqKey = process.env.GROQ_API_KEY
+  const deepseekKey = process.env.DEEPSEEK_API_KEY
+  const openaiKey = process.env.OPENAI_API_KEY
+  const explicitProvider = process.env.LLM_PROVIDER?.toLowerCase().trim()
+
+  if (explicitProvider === "groq" && groqKey) {
+    return {
+      client: new OpenAI({
+        apiKey: groqKey,
+        baseURL: process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1",
+      }),
+      model: process.env.GROQ_MODEL || "qwen/qwen3.8-27b",
+      provider: "groq",
+    }
   }
-  return new OpenAI({ apiKey })
+
+  if (explicitProvider === "deepseek" && deepseekKey) {
+    return {
+      client: new OpenAI({
+        apiKey: deepseekKey,
+        baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com",
+      }),
+      model: process.env.DEEPSEEK_MODEL || "deepseek-v4-flash",
+      provider: "deepseek",
+    }
+  }
+
+  if (explicitProvider === "openai" && openaiKey) {
+    return {
+      client: new OpenAI({
+        apiKey: openaiKey,
+        ...(process.env.OPENAI_BASE_URL ? { baseURL: process.env.OPENAI_BASE_URL } : {}),
+      }),
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      provider: process.env.OPENAI_BASE_URL ? "custom" : "openai",
+    }
+  }
+
+  // Fallbacks sin proveedor explícito: DeepSeek -> Groq -> OpenAI
+  if (deepseekKey) {
+    return {
+      client: new OpenAI({
+        apiKey: deepseekKey,
+        baseURL: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com",
+      }),
+      model: process.env.DEEPSEEK_MODEL || "deepseek-v4-flash",
+      provider: "deepseek",
+    }
+  }
+
+  if (groqKey) {
+    return {
+      client: new OpenAI({
+        apiKey: groqKey,
+        baseURL: process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1",
+      }),
+      model: process.env.GROQ_MODEL || "qwen/qwen3.8-27b",
+      provider: "groq",
+    }
+  }
+
+  if (openaiKey) {
+    return {
+      client: new OpenAI({
+        apiKey: openaiKey,
+        ...(process.env.OPENAI_BASE_URL ? { baseURL: process.env.OPENAI_BASE_URL } : {}),
+      }),
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      provider: process.env.OPENAI_BASE_URL ? "custom" : "openai",
+    }
+  }
+
+  return null
 }
 
 const SCENARIOS: Record<SimuladorScenarioId, { nombre: string; contexto: string; keywords: string[] }> = {
@@ -78,19 +152,26 @@ function extractNumbers(text: string, pattern: RegExp): number[] {
   return [...new Set(nums)]
 }
 
-function topK(queryEmbedding: number[], query: string, k: number, keywords: string[]): string[] {
+function topK(queryEmbedding: number[] | null, query: string, k: number, keywords: string[]): string[] {
   const queryArts = extractNumbers(query, /art[iíïi]culo\s*(\d+)/gi)
   const queryClaus = extractNumbers(query, /cl[aá]usula\s*(\d+)/gi)
   const q = query.toLowerCase()
+  const queryWords = q.split(/\s+/).filter((w) => w.length > 3)
 
   const scored = data.embeddings.map((emb, i) => {
-    let score = cosineSimilarity(queryEmbedding, emb)
+    let score = queryEmbedding ? cosineSimilarity(queryEmbedding, emb) : 0
     const chunk = data.chunks[i]
     const chunkLower = chunk.toLowerCase()
 
     for (const kw of keywords) {
       if (q.includes(kw.toLowerCase()) && chunkLower.includes(kw.toLowerCase())) {
         score += 0.25
+      }
+    }
+
+    for (const word of queryWords) {
+      if (chunkLower.includes(word)) {
+        score += 0.15
       }
     }
 
@@ -163,28 +244,39 @@ async function consumeQuota(userId: string): Promise<QuotaResult> {
 }
 
 /**
- * Recupera contexto normativo por embeddings. Cuando falla (embedding o
- * búsqueda), devuelve un resultado explícito para que el prompt NO le diga
- * al modelo que "tiene conocimiento" de documentos que no se recuperaron.
+ * Recupera contexto normativo por embeddings o coincidencia léxica.
  */
 async function retrieveContext(
-  openai: OpenAI,
+  llm: LLMConfig,
   query: string,
   k: number,
   keywords: string[],
   signal: AbortSignal,
 ): Promise<{ ok: true; context: string } | { ok: false }> {
   try {
-    const embeddingResp = await openai.embeddings.create(
-      {
-        model: "text-embedding-ada-002",
-        input: query,
-      },
-      { signal },
-    )
-    const queryEmbedding = embeddingResp.data[0].embedding
-    const relevantChunks = topK(queryEmbedding, query, k, keywords)
-    const context = relevantChunks.join("\n\n---\n\n")
+    let queryEmbedding: number[] | null = null
+    if (llm.provider === "openai") {
+      try {
+        const embeddingResp = await llm.client.embeddings.create(
+          {
+            model: "text-embedding-ada-002",
+            input: query,
+          },
+          { signal },
+        )
+        queryEmbedding = embeddingResp.data[0]?.embedding ?? null
+      } catch {
+        queryEmbedding = null
+      }
+    }
+    const relevantChunks = topK(queryEmbedding, query, Math.min(k, 2), keywords)
+    if (!relevantChunks || relevantChunks.length === 0) {
+      return { ok: false }
+    }
+    const context = relevantChunks
+      .map((c) => (c.length > 1800 ? c.slice(0, 1800) + "..." : c))
+      .join("\n\n---\n\n")
+      .slice(0, 3600)
     return { ok: true, context }
   } catch {
     return { ok: false }
@@ -248,14 +340,21 @@ async function handleChat(
   requestId: string,
 ): Promise<NextResponse> {
   const scenario = SCENARIOS[scenarioId]
-  const openai = getOpenAI()
+  const llm = getLLMClient()
+  if (!llm) {
+    return NextResponse.json(
+      { error: "Servicio de IA no configurado en el servidor", requestId },
+      { status: 503 },
+    )
+  }
+
   const controller = new AbortController()
   const signal = withTimeout(controller.signal, OPENAI_TIMEOUT_MS)
 
   const question = [...history].reverse().find((m) => m.role === "user")?.content?.trim() ?? ""
   const searchQuery = `${scenario.nombre} ${scenario.keywords.join(" ")} ${question}`
 
-  const retrieved = await retrieveContext(openai, searchQuery, 12, scenario.keywords, signal)
+  const retrieved = await retrieveContext(llm, searchQuery, 12, scenario.keywords, signal)
 
   const intensityDesc =
     difficulty === 2
@@ -314,42 +413,41 @@ Donde:
     })),
   ]
 
-  const completion = await openai.chat.completions.create(
+  const completion = await llm.client.chat.completions.create(
     {
-      model: "gpt-4o-mini",
+      model: llm.model,
       temperature: difficulty === 2 ? 0.5 : 0.2,
       messages,
+      response_format: { type: "json_object" },
+      max_tokens: 500,
     },
     { signal },
   )
 
   const raw = completion.choices[0]?.message?.content ?? ""
-  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
-  const parsed = parseSimuladorChatResponse(safeJsonParse(cleaned))
+  const parsed = parseSimuladorChatResponse(extractJsonBlock(raw))
   if (parsed) {
     return NextResponse.json(parsed)
   }
 
-  console.warn(`[simulador] ${requestId} respuesta no estructurada de la IA, reintentando`)
-  const retry = await openai.chat.completions.create(
+  console.warn(`[simulador] ${requestId} respuesta no estructurada de la IA (${llm.provider}:${llm.model}), reintentando`)
+  const retry = await llm.client.chat.completions.create(
     {
-      model: "gpt-4o-mini",
+      model: llm.model,
       temperature: 0,
       messages: [
         ...messages,
         {
           role: "user",
           content:
-            "Tu respuesta anterior no fue un JSON válido. Responde ÚNICAMENTE con el objeto JSON del formato indicado, sin texto adicional.",
+            "Tu respuesta anterior no fue un JSON válido. Responde ÚNICAMENTE con el objeto JSON del formato indicado, sin texto adicional: {\"mensaje\": \"...\", \"presion\": 1-10, \"estado\": \"neutral\"|\"inquisitivo\"|\"presionando\"|\"desaprobando\"}",
         },
       ],
     },
     { signal },
   )
   const retryRaw = retry.choices[0]?.message?.content ?? ""
-  const retryParsed = parseSimuladorChatResponse(
-    safeJsonParse(retryRaw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()),
-  )
+  const retryParsed = parseSimuladorChatResponse(extractJsonBlock(retryRaw))
   if (retryParsed) {
     return NextResponse.json(retryParsed)
   }
@@ -366,17 +464,24 @@ async function handleAnalysis(
   requestId: string,
 ): Promise<NextResponse> {
   const scenario = SCENARIOS[scenarioId]
+  const llm = getLLMClient()
+  if (!llm) {
+    return NextResponse.json(
+      { error: "Servicio de IA no configurado en el servidor", requestId },
+      { status: 503 },
+    )
+  }
+
   const conversationText = history
     .map((m) => `${m.role === "user" ? "TRABAJADOR" : "LIC. MENDOZA"}: ${m.content}`)
     .join("\n\n")
 
-  const openai = getOpenAI()
   const controller = new AbortController()
   const signal = withTimeout(controller.signal, OPENAI_TIMEOUT_MS)
 
   const lastMessages = history.slice(-4).map((m) => m.content).join(" ")
   const retrieved = await retrieveContext(
-    openai,
+    llm,
     `${scenario.nombre} ${scenario.keywords.join(" ")} ${lastMessages}`,
     8,
     scenario.keywords,
@@ -418,26 +523,27 @@ IMPORTANTE: Sé objetivo y constructivo. NO inventes referencias legales. Usa ex
     { role: "user", content: `Aquí está la transcripción de la investigación:\n\n${conversationText}` },
   ]
 
-  const completion = await openai.chat.completions.create(
+  const completion = await llm.client.chat.completions.create(
     {
-      model: "gpt-4o-mini",
+      model: llm.model,
       temperature: 0.2,
       messages,
+      response_format: { type: "json_object" },
+      max_tokens: 700,
     },
     { signal },
   )
 
   const raw = completion.choices[0]?.message?.content ?? ""
-  const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()
-  const parsed = parseSimuladorAnalysisResponse(safeJsonParse(cleaned))
+  const parsed = parseSimuladorAnalysisResponse(extractJsonBlock(raw))
   if (parsed) {
     return NextResponse.json(parsed)
   }
 
-  console.warn(`[simulador] ${requestId} análisis no estructurado de la IA, reintentando`)
-  const retry = await openai.chat.completions.create(
+  console.warn(`[simulador] ${requestId} análisis no estructurado de la IA (${llm.provider}:${llm.model}), reintentando`)
+  const retry = await llm.client.chat.completions.create(
     {
-      model: "gpt-4o-mini",
+      model: llm.model,
       temperature: 0,
       messages: [
         ...messages,
@@ -451,9 +557,7 @@ IMPORTANTE: Sé objetivo y constructivo. NO inventes referencias legales. Usa ex
     { signal },
   )
   const retryRaw = retry.choices[0]?.message?.content ?? ""
-  const retryParsed = parseSimuladorAnalysisResponse(
-    safeJsonParse(retryRaw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim()),
-  )
+  const retryParsed = parseSimuladorAnalysisResponse(extractJsonBlock(retryRaw))
   if (retryParsed) {
     return NextResponse.json(retryParsed)
   }
@@ -462,6 +566,20 @@ IMPORTANTE: Sé objetivo y constructivo. NO inventes referencias legales. Usa ex
     { error: "El análisis no produjo una respuesta válida", requestId },
     { status: 503 },
   )
+}
+
+function extractJsonBlock(raw: string): unknown {
+  if (!raw) return null
+  const trimmed = raw.trim()
+  const match = trimmed.match(/\{[\s\S]*\}/)
+  if (match) {
+    try {
+      return JSON.parse(match[0])
+    } catch {
+      // fallback
+    }
+  }
+  return safeJsonParse(trimmed.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim())
 }
 
 function safeJsonParse(text: string): unknown {

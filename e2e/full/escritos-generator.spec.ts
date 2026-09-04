@@ -55,9 +55,15 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
     // 3. Llenar formulario (1. Formulario)
     await page.getByRole("button", { name: /Solicitud/i }).click()
 
-    // Seleccionar destinatario oficial desde el directorio
-    const destSelect = page.getByLabel(/¿A quién va dirigido el escrito\?/i)
-    await destSelect.selectOption({ label: "Dr. Simbad Solorio Vargas — Secretario General" })
+    // Seleccionar destinatario oficial desde el directorio interactivo
+    await page.getByRole("button", { name: /Buscar en el directorio oficial/i }).click()
+    await expect(page.getByRole("heading", { name: /Seleccionar Destinatario/i })).toBeVisible()
+    // Buscar por nombre para encontrar al destinatario
+    const searchInput = page.getByPlaceholder(/Buscar por nombre/i)
+    if (await searchInput.isVisible()) {
+      await searchInput.fill("Simbad")
+    }
+    await page.getByText(/Simbad Solorio Vargas/i).first().click()
 
     // Comprobar visor compacto
     await expect(page.getByText("Dr. Simbad Solorio Vargas").first()).toBeVisible()
@@ -194,10 +200,8 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
     // 1. Seleccionar tipo Aclaración
     await page.getByRole("button", { name: /Aclaración/i }).click()
 
-    // 2. Destinatario manual
-    const destSelect = page.getByLabel(/¿A quién va dirigido el escrito\?/i)
-    await destSelect.selectOption("__MANUAL__")
-
+    // 2. Destinatario manual vía botón "O escribir destinatario manualmente"
+    await page.getByRole("button", { name: /O escribir destinatario manualmente/i }).click()
     await expect(page.getByRole("heading", { name: /Seleccionar Destinatario/i })).toBeVisible()
     await page.getByLabel(/Cargo o puesto del destinatario/i).fill("Director HGZ No. 1")
     await page.getByLabel(/Nombre del destinatario/i).fill("Dr. Roberto Gómez")

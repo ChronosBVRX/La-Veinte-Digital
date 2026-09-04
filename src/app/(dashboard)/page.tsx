@@ -4,7 +4,6 @@ import { WelcomeCard } from "@/shared/components/app/WelcomeCard"
 import { OnboardingCard } from "@/shared/components/app/OnboardingCard"
 import { HomeQuickActions } from "@/shared/components/app/HomeQuickActions"
 import { DesktopQuickPills } from "@/shared/components/app/DesktopQuickPills"
-import { NoticiasSection } from "@/shared/components/app/NoticiasSection"
 import { CalendarioLaboral } from "@/shared/components/app/CalendarioLaboral"
 import { AgendaCardWrapper } from "@/shared/components/app/AgendaCardWrapper"
 
@@ -76,7 +75,6 @@ export default async function DashboardPage() {
         <div id="agenda" style={{ scrollMarginTop: "calc(var(--nav-height) + 1.5rem)" }}>
           <AgendaCardWrapper userId={user.id} />
         </div>
-        <NoticiasSection />
       </div>
 
       <div className="dashboard-desktop desktop-only">
@@ -94,10 +92,6 @@ export default async function DashboardPage() {
             <AgendaCardWrapper userId={user.id} />
           </div>
         </aside>
-      </div>
-
-      <div className="desktop-only" style={{ marginTop: "clamp(1rem, 2vw, 1.5rem)" }}>
-        <NoticiasSection />
       </div>
 
       <style>{`

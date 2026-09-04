@@ -113,21 +113,21 @@ export function AgendaCard({ userId, commitments, onCommitmentsChange, onAdd }: 
                   }}>
                     {formatDate(c.startAt)}
                   </div>
-                  <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, marginBottom: "0.125rem" }}>
+                  <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, marginBottom: "0.125rem", overflowWrap: "anywhere", wordBreak: "break-word" }}>
                     {COMMITMENT_TYPE_LABELS[c.type]}
                   </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem 0.75rem", fontSize: "var(--text-xs)", color: "var(--muted)" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem 0.75rem", fontSize: "var(--text-xs)", color: "var(--muted)", overflowWrap: "anywhere", wordBreak: "break-word" }}>
                     <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-                      <Clock size={12} /> {formatTime(c.startAt)}–{formatTime(c.endAt)}
+                      <Clock size={12} style={{ flexShrink: 0 }} /> {formatTime(c.startAt)}–{formatTime(c.endAt)}
                     </span>
                     {c.substituteWorkerName && (
-                      <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-                        <User size={12} /> Cubres a {c.substituteWorkerName}
+                      <span style={{ display: "flex", alignItems: "center", gap: "0.25rem", overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                        <User size={12} style={{ flexShrink: 0 }} /> Cubres a {c.substituteWorkerName}
                       </span>
                     )}
                     {c.service && (
-                      <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-                        <MapPin size={12} /> {c.service}
+                      <span style={{ display: "flex", alignItems: "center", gap: "0.25rem", overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                        <MapPin size={12} style={{ flexShrink: 0 }} /> {c.service}
                       </span>
                     )}
                   </div>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { MagnifyingGlass, PencilSimple } from "@phosphor-icons/react"
 import { Button } from "@/shared/components/ui/Button"
 import { Input, Textarea } from "@/shared/components/ui/Input"
 import { Card } from "@/shared/components/ui/Card"
@@ -12,12 +13,6 @@ import {
   type AnexoItem,
 } from "@/shared/contracts/escrito-draft"
 import { saveBlobResource, deleteBlobResource } from "../services/escritos-indexeddb"
-import {
-  DIRECTORIO_DESTINATARIOS,
-  VALOR_DESTINO_MANUAL,
-  CATEGORIAS_DESTINATARIOS,
-  type DestinatarioCategoria,
-} from "@/features/escritos/data/directorio-destinatarios"
 import { DestinatarioResumen } from "./DestinatarioResumen"
 import { DestinatarioSelectorModal } from "./DestinatarioSelectorModal"
 
@@ -63,20 +58,6 @@ export function EscritosForm({
       tipo,
       asunto: draft.asunto || `${TIPOS_ESCRITO[tipo].titulo}: Solicitud formal`,
     })
-  }
-
-  // Manejo del selector de destinatarios
-  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value
-    if (val === VALOR_DESTINO_MANUAL) {
-      setSelectorInitialTab("manual")
-      setIsSelectorModalOpen(true)
-    } else {
-      const found = DIRECTORIO_DESTINATARIOS.find((d) => d.id === val)
-      if (found) {
-        onUpdateDraft({ destino: { cargo: found.cargo, nombre: found.nombre } })
-      }
-    }
   }
 
   // Manejo de atenciones múltiples
@@ -263,20 +244,6 @@ export function EscritosForm({
     onManualEdit()
   }
 
-  // Agrupación para el select nativo
-  const categoriesOrder: DestinatarioCategoria[] = [
-    "comite_ejecutivo",
-    "secretarias",
-    "comisiones",
-    "subcomisiones",
-    "comites_delegacionales",
-  ]
-
-  const currentSelectedId =
-    DIRECTORIO_DESTINATARIOS.find(
-      (d) => d.nombre === draft.destino.nombre && d.cargo === draft.destino.cargo
-    )?.id || (draft.destino.nombre || draft.destino.cargo ? VALOR_DESTINO_MANUAL : "")
-
   return (
     <form onSubmit={handleAiSubmit} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
       {/* Banner de perfil del trabajador */}
@@ -356,75 +323,82 @@ export function EscritosForm({
 
       {/* Pregunta 2: Destinatario */}
       <div style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem", width: "100%", boxSizing: "border-box" }}>
-          <label
-            htmlFor="escrito-destinatario"
-            style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)" }}
-          >
-            2. ¿A quién va dirigido el escrito?
-          </label>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsSelectorModalOpen(true)}
-            style={{ fontSize: "0.8125rem" }}
-          >
-            🔍 Buscar en Directorio Oficial
-          </Button>
-        </div>
+        <label
+          style={{ display: "block", fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.625rem" }}
+        >
+          2. ¿A quién va dirigido el escrito?
+        </label>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
-          {/* Visor Compacto del Destinatario */}
-          {(draft.destino.nombre || draft.destino.cargo) && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+          {draft.destino.nombre?.trim() || draft.destino.cargo?.trim() ? (
             <DestinatarioResumen
               destino={draft.destino}
-              onChangeRequest={() => setIsSelectorModalOpen(true)}
+              onChangeRequest={() => {
+                setSelectorInitialTab("directorio")
+                setIsSelectorModalOpen(true)
+              }}
+              onRemoveRequest={() => {
+                onUpdateDraft({ destino: { cargo: "", nombre: "" } })
+              }}
             />
-          )}
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", width: "100%", boxSizing: "border-box" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectorInitialTab("directorio")
+                  setIsSelectorModalOpen(true)
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.625rem",
+                  width: "100%",
+                  minHeight: "46px",
+                  padding: "0.75rem 1rem",
+                  borderRadius: "0.625rem",
+                  border: "1.5px solid var(--primary)",
+                  background: "var(--accent)",
+                  color: "var(--primary)",
+                  fontSize: "0.9375rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  boxSizing: "border-box",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <MagnifyingGlass size={18} weight="bold" />
+                <span>Buscar en el directorio oficial</span>
+              </button>
 
-          {/* Select de compatibilidad accesible y E2E */}
-          <select
-            id="escrito-destinatario"
-            name="destinatario"
-            value={currentSelectedId}
-            onChange={handleSelectChange}
-            style={{
-              padding: "0.625rem 0.875rem",
-              borderRadius: "0.5rem",
-              border: "1px solid var(--border)",
-              background: "var(--card)",
-              color: "var(--fg)",
-              fontSize: "0.875rem",
-              width: "100%",
-              maxWidth: "100%",
-              minWidth: 0,
-              boxSizing: "border-box",
-            }}
-          >
-            <option value="" disabled>
-              -- Selecciona un integrante sindical o escribe uno manual --
-            </option>
-            {categoriesOrder.map((catKey) => {
-              const items = DIRECTORIO_DESTINATARIOS.filter((d) => d.categoria === catKey)
-              if (items.length === 0) return null
-              const catDef = CATEGORIAS_DESTINATARIOS[catKey]
-              return (
-                <optgroup key={catKey} label={`${catDef.icono} ${catDef.titulo}`}>
-                  {items.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.nombre} — {item.cargo}
-                    </option>
-                  ))}
-                </optgroup>
-              )
-            })}
-            <optgroup label="✍️ Destinatario personalizado">
-              <option value={VALOR_DESTINO_MANUAL}>
-                ✍️ Destinatario manual (Director de Unidad, Jefatura, etc.)
-              </option>
-            </optgroup>
-          </select>
+              <div style={{ textAlign: "center" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectorInitialTab("manual")
+                    setIsSelectorModalOpen(true)
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "var(--muted)",
+                    fontSize: "0.8125rem",
+                    cursor: "pointer",
+                    padding: "0.375rem 0.5rem",
+                    textDecoration: "underline",
+                    textUnderlineOffset: "3px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <PencilSimple size={14} />
+                  <span>O escribir destinatario manualmente</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

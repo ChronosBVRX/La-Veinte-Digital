@@ -5,6 +5,7 @@ import {
   dedupeByText,
   diversifyByDocument,
   buildCompactEvidence,
+  rerankByNormativePriority,
   type RetrievedSource,
   type RetrievalIntent,
   type RpcChunkRow,
@@ -110,6 +111,7 @@ export async function retrieveHybrid(question: string, embedding: number[] | nul
     byChunk.set(row.chunk_id, rowToSource(row, "", Number(row.score ?? 0)))
   }
   let fused = [...byChunk.values()].sort((a, b) => b.score - a.score)
+  fused = rerankByNormativePriority(fused, question)
   fused = dedupeByText(fused)
   const rd = evidenceRangeForIntent(intent)
   // Preferir el tope del rango para dar contexto suficiente sin pasarse de 8.

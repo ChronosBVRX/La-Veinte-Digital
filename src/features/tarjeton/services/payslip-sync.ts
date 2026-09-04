@@ -171,10 +171,26 @@ export function syncConfirmedPayslip(
   savePayslip(payslip)
 
   const profile = getProfile()
-  const updatedProfile = profile ? applyPayslipToProfile(profile, request.parsed, request) : profile
-  if (updatedProfile) {
-    saveProfile(updatedProfile)
+  const now = new Date().toISOString()
+  const baseProfile: EmployeePayrollProfile = profile ?? {
+    id: `profile_${userId}`,
+    userId,
+    consentGiven: true,
+    employmentType: "base",
+    occupationalConditions: [],
+    siapConceptMarks: [],
+    categoryName: request.parsed.employee.categoryName ?? "",
+    categoryCode: request.parsed.employee.categoryCode,
+    workdayHours: (request.parsed.employee.workdayHours as 6 | 6.5 | 8 | 12) ?? 8,
+    institutionalEntryDate: request.parsed.employee.entryDate,
+    effectiveSeniorityDate: request.parsed.employee.seniority?.reconstructedEffectiveDate,
+    facts: [],
+    recurringConcepts: [],
+    createdAt: now,
+    updatedAt: now,
   }
+  const updatedProfile = applyPayslipToProfile(baseProfile, request.parsed, request)
+  saveProfile(updatedProfile)
 
-  return { payslip, profile: updatedProfile as EmployeePayrollProfile }
+  return { payslip, profile: updatedProfile }
 }

@@ -7,23 +7,14 @@
  * `GuidePayslip` del módulo educativo.
  */
 import type { GuidePayslip, GuidePayslipLine, GuideObservation } from "@/features/tarjeton-guia/lib/types"
+import { normalizePayslipConcept } from "@/shared/contracts/payslip-concept"
 
 function isNumber(v: unknown): v is number {
   return typeof v === "number" && Number.isFinite(v)
 }
 
-function toGuideLine(raw: Record<string, unknown>, kind: "earning" | "deduction"): GuidePayslipLine | null {
-  const code = typeof raw.code === "string" ? raw.code : String(raw.code ?? "")
-  if (!/^\d{3}$/.test(code) && !/^\d{2}$/.test(code)) return null
-  const amount = isNumber(raw.amount) ? raw.amount : 0
-  return {
-    code,
-    description: typeof raw.description === "string" ? raw.description : "",
-    amount,
-    kind,
-    confidence: isNumber(raw.confidence) ? raw.confidence : undefined,
-    confirmedByUser: typeof raw.confirmedByUser === "boolean" ? raw.confirmedByUser : undefined,
-  }
+function toGuideLine(raw: unknown, kind: "earning" | "deduction"): GuidePayslipLine | null {
+  return normalizePayslipConcept(raw, kind)
 }
 
 /**
@@ -45,14 +36,16 @@ export function toGuidePayslip(raw: unknown): GuidePayslip | null {
   const earnings: GuidePayslipLine[] = []
   const deductions: GuidePayslipLine[] = []
   for (const e of earningsRaw) {
-    const line =
-      e && typeof e === "object" && (e as Record<string, unknown>).kind === "deduction"
-        ? toGuideLine(e as Record<string, unknown>, "deduction")
-        : toGuideLine(e as Record<string, unknown>, "earning")
-    if (line) earnings.push(line)
+    const rawKind = String((e as Record<string, unknown>)?.kind ?? "").toLowerCase()
+    const kind = rawKind.includes("deduc") ? "deduction" : "earning"
+    const line = toGuideLine(e, kind)
+    if (line) {
+      if (line.kind === "deduction") deductions.push(line)
+      else earnings.push(line)
+    }
   }
   for (const d of deductionsRaw) {
-    const line = toGuideLine(d as Record<string, unknown>, "deduction")
+    const line = toGuideLine(d, "deduction")
     if (line) deductions.push(line)
   }
 
@@ -91,7 +84,9 @@ export function dbRowToGuidePayslip(
   const earnings: GuidePayslipLine[] = []
   const deductions: GuidePayslipLine[] = []
   for (const line of lines) {
-    const cl = toGuideLine(line, String(line.kind) === "deduction" ? "deduction" : "earning")
+    const rawKind = String(line.kind ?? line.tipo ?? "").toLowerCase()
+    const fallbackKind = rawKind.includes("deduc") ? "deduction" : "earning"
+    const cl = toGuideLine(line, fallbackKind)
     if (!cl) continue
     if (cl.kind === "deduction") deductions.push(cl)
     else earnings.push(cl)
@@ -117,6 +112,30 @@ export function dbRowToGuidePayslip(
       ? `${MONTHS[periodMonth - 1]} ${periodHalf}ª ${periodYear}`
       : undefined
 
+  const totalEarnings = isNumber(payrollTotals.totalEarnings)
+    ? payrollTotals.totalEarnings
+    : isNumber(payrollTotals.total_earnings)
+    ? payrollTotals.total_earnings
+    : isNumber(row.total_percepciones)
+    ? (row.total_percepciones as number)
+    : undefined
+
+  const totalDeductions = isNumber(payrollTotals.totalDeductions)
+    ? payrollTotals.totalDeductions
+    : isNumber(payrollTotals.total_deductions)
+    ? payrollTotals.total_deductions
+    : isNumber(row.total_deducciones)
+    ? (row.total_deducciones as number)
+    : undefined
+
+  const netPay = isNumber(payrollTotals.netPay)
+    ? payrollTotals.netPay
+    : isNumber(payrollTotals.net_pay)
+    ? payrollTotals.net_pay
+    : isNumber(row.liquido)
+    ? (row.liquido as number)
+    : undefined
+
   return {
     id: typeof row.id === "string" ? row.id : String(row.id ?? ""),
     periodRaw: typeof row.period_raw === "string" ? row.period_raw : undefined,
@@ -125,9 +144,9 @@ export function dbRowToGuidePayslip(
     earnings,
     deductions,
     observations: observationsOut,
-    totalEarnings: isNumber(payrollTotals.totalEarnings) ? payrollTotals.totalEarnings : undefined,
-    totalDeductions: isNumber(payrollTotals.totalDeductions) ? payrollTotals.totalDeductions : undefined,
-    netPay: isNumber(payrollTotals.netPay) ? payrollTotals.netPay : undefined,
+    totalEarnings,
+    totalDeductions,
+    netPay,
     source: "server",
   }
 }
