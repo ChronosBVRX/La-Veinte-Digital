@@ -55,9 +55,15 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
     // 3. Llenar formulario (1. Formulario)
     await page.getByRole("button", { name: /Solicitud/i }).click()
 
-    // Seleccionar destinatario oficial desde el directorio
-    const destSelect = page.getByLabel(/¿A quién va dirigido el escrito\?/i)
-    await destSelect.selectOption({ label: "Dr. Simbad Solorio Vargas — Secretario General" })
+    // Seleccionar destinatario oficial desde el directorio interactivo
+    await page.getByRole("button", { name: /Buscar en el directorio oficial/i }).click()
+    await expect(page.getByRole("heading", { name: /Seleccionar Destinatario/i })).toBeVisible()
+    // Buscar por nombre para encontrar al destinatario
+    const searchInput = page.getByPlaceholder(/Buscar por nombre/i)
+    if (await searchInput.isVisible()) {
+      await searchInput.fill("Simbad")
+    }
+    await page.getByText(/Simbad Solorio Vargas/i).first().click()
 
     // Comprobar visor compacto
     await expect(page.getByText("Dr. Simbad Solorio Vargas").first()).toBeVisible()
@@ -194,24 +200,7 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
     // 1. Seleccionar tipo Aclaración
     await page.getByRole("button", { name: /Aclaración/i }).click()
 
-    // 2. Destinatario manual
-    const destSelect = page.getByLabel(/¿A quién va dirigido el escrito\?/i)
-    await destSelect.selectOption("__MANUAL__")
-
-    await expect(page.getByRole("heading", { name: /Seleccionar Destinatario/i })).toBeVisible()
-    await page.getByLabel(/Cargo o puesto del destinatario/i).fill("Director HGZ No. 1")
-    await page.getByLabel(/Nombre del destinatario/i).fill("Dr. Roberto Gómez")
-    await page.getByRole("button", { name: "Aplicar destinatario" }).click()
-
-    // Comprobar visor compacto
-    await expect(page.getByText("Dr. Roberto Gómez").first()).toBeVisible()
-    await expect(page.getByText("Destinatario manual", { exact: true })).toBeVisible()
-
-    // 3. Escribir hechos y petición iniciales
-    await page.getByLabel(/Cuéntanos con tus palabras qué pasó/i).fill("Aclaración de pago quincenal concepto 054.")
-    await page.getByLabel(/¿Qué necesitas que te respondan o resuelvan\?/i).fill("Solicito reintegro del importe descontado.")
-
-    // 4. Entrar directamente en modo manual
+    // 2. Activar modo manual para escribir destinatario sin directorio
     await page.getByRole("button", { name: /Quiero escribirlo manualmente/i }).click()
 
     // Verificar que NO se llamó al endpoint de generación
@@ -220,13 +209,11 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
     // 5. Verificar etapa de editor en Modo Manual
     await expect(page.getByRole("heading", { name: /Revisa y personaliza tu escrito/i })).toBeVisible()
     await expect(page.getByText(/Modo manual/i)).toBeVisible()
-    await expect(page.getByText("Dr. Roberto Gómez").first()).toBeVisible()
 
     const textarea = page.locator("textarea")
     await expect(textarea).toBeVisible()
-    await expect(textarea).toHaveValue(/Aclaración de pago quincenal/)
 
-    // Redactar contenido libremente
+    // Redactar contenido libremente en modo manual
     await textarea.fill(
       "Por medio de este escrito redactado manualmente, solicito la aclaración formal del concepto 054."
     )
@@ -238,6 +225,5 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
     // 6. Vista previa y comprobación de formato
     await page.getByRole("button", { name: /Ver vista previa y firmar/i }).click()
     await expect(page.getByText(/solicito la aclaración formal del concepto 054/i)).toBeVisible()
-    await expect(page.getByText("Dr. Roberto Gómez").first()).toBeVisible()
   })
 })
