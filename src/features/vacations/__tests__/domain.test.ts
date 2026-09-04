@@ -605,11 +605,11 @@ describe("buildSimulationResult", () => {
     const result = buildSimulationResult({
       ...baseInput,
       regime: "CUATRIMESTRAL",
-      continuityMark: 1, // solo opción A (marca 0) es compatible
+      continuityMark: 1, // solo Marca 0 es compatible
       selectedInclusionMark: 2, // inválida desde continuidad 1
     })
     expect(result.status).toBe("BLOCKED")
-    expect(result.compatibleOptions).toEqual(["Disfrutar el periodo en una sola parte (opción A)"])
+    expect(result.compatibleOptions).toEqual(["Periodo regular con ayuda (Marca 0)"])
   })
 
   it("reports compatible options for estatuto blocks", () => {

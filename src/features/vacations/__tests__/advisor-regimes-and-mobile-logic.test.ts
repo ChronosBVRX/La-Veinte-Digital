@@ -30,10 +30,10 @@ describe("Lógica Normativa del Asesor: Separación de Regímenes y Reglas Móvi
 
     expect(cuatrimestralGuide.regime).toBe("CUATRIMESTRAL")
     expect(cuatrimestralGuide.continuity).toBe(1)
-    expect(cuatrimestralGuide.whatItMeans).toContain("opción A")
-    expect(cuatrimestralGuide.whatItMeans).toContain("cuatrimestrales")
+    expect(cuatrimestralGuide.whatItMeans).toContain("Tu periodo anterior fue registrado con Marca 0")
+    expect(cuatrimestralGuide.whatItMeans).not.toContain("opción A")
     expect(cuatrimestralGuide.allowedMarks).toEqual([0])
-    expect(cuatrimestralGuide.allowedMarksExplanation).toContain("marca 0")
+    expect(cuatrimestralGuide.allowedMarksExplanation).toContain("Marca 0")
     // Verifica que NO mencione la explicación semestral de cerrar con marca 1
     expect(cuatrimestralGuide.whatItMeans).not.toContain("primera fracción (marca 1)")
   })
@@ -41,19 +41,21 @@ describe("Lógica Normativa del Asesor: Separación de Regímenes y Reglas Móvi
   it("una marca no permitida utiliza el motivo del régimen correcto", () => {
     // Para un trabajador cuatrimestral con continuidad 1, la marca 2 debe dar motivo cuatrimestral
     const reasonCuatriMark2 = getIncompatibleReason(2, 1, "CUATRIMESTRAL")
-    expect(reasonCuatriMark2).toContain("opción A")
-    expect(reasonCuatriMark2.toLowerCase()).toContain("no puedes cambiar a la opción b")
+    expect(reasonCuatriMark2).toContain("Tu periodo anterior fue registrado con Marca 0")
+    expect(reasonCuatriMark2).toContain("Esta marca no corresponde con la continuidad que llevas")
+    expect(reasonCuatriMark2).not.toContain("opción A")
+    expect(reasonCuatriMark2).not.toContain("opción B")
     expect(reasonCuatriMark2).not.toContain("Debes cerrarla con otra marca 1")
 
     // Para un trabajador semestral con continuidad 1, la marca 2 debe advertir sobre la primera fracción
     const reasonSemestralMark2 = getIncompatibleReason(2, 1, "SEMESTRAL")
-    expect(reasonSemestralMark2).toContain("primera fracción (marca 1)")
-    expect(reasonSemestralMark2).toContain("cerrarla con otra marca 1")
+    expect(reasonSemestralMark2).toContain("tu periodo anterior fue registrado con Marca 1")
+    expect(reasonSemestralMark2).toContain("cerrarla con otra Marca 1")
 
-    // Para cuatrimestral en continuidad 4 (opción B periodo 2), marca 0 no es válida
+    // Para cuatrimestral en continuidad 4 (fraccionado periodo 2), marca 0 no es válida
     const reasonCuatriMark0InCont4 = getIncompatibleReason(0, 4, "CUATRIMESTRAL")
-    expect(reasonCuatriMark0InCont4).toContain("opción B")
-    expect(reasonCuatriMark0InCont4).toContain("marca 5")
+    expect(reasonCuatriMark0InCont4).toContain("Tu periodo anterior fue registrado con Marca 2")
+    expect(reasonCuatriMark0InCont4).toContain("Marca 5")
   })
 
   it("secuencia cuatrimestral A completa: marcas 0 -> 0 -> 0 con transiciones exactas", () => {
@@ -107,7 +109,7 @@ describe("Lógica Normativa del Asesor: Separación de Regímenes y Reglas Móvi
     expect(cuatriPay0.grossVacationExtra).toBe(15100)
     expect(cuatriPay0.helpDays).toBe(12.6)
 
-    // Cuatrimestral Marca 2 (Opción B): sin ayuda 048
+    // Cuatrimestral Marca 2 (modalidad fraccionada): sin ayuda 048
     const cuatriPay2 = calculateVacationPayment({
       integratedMonthlySalary: smi,
       daysOrUnits: 10,

@@ -13,6 +13,7 @@ import {
   orderMarksByPriority,
   getIncompatibleReason,
   getVacationContinuityGuidance,
+  getNextStepFromContinuity,
   type VacationPriority,
 } from "../domain/option-guidance"
 import { getRequiredPeriodCount, buildVacationPlan, type PlanSelectionStep } from "../domain/annual-plan"
@@ -766,24 +767,24 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
               Programación de vacaciones cuatrimestrales
             </h3>
             <p style={{ fontSize: "0.85rem", color: "var(--fg)", lineHeight: 1.5, marginBottom: "0.75rem" }}>
-              Por ser cuatrimestral debes programar tres periodos ordinarios. Las marcas de los tres periodos deben seguir la misma opción.
+              Por ser cuatrimestral debes programar tres periodos ordinarios. Las marcas de los tres periodos deben seguir la misma secuencia.
             </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", fontSize: "0.85rem" }}>
-              <div style={{ background: "var(--card)", padding: "0.75rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
-                <div style={{ fontWeight: 700, color: "var(--fg)" }}>Opción A — Descanso regular con ayuda.</div>
+              <div style={{ background: "var(--card)", padding: "0.75rem 1rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
+                <div style={{ fontWeight: 700, color: "var(--fg)" }}>Periodo regular con ayuda</div>
                 <p style={{ margin: "0.25rem 0", color: "var(--muted)", lineHeight: 1.4 }}>
-                  En esta opción programas los tres periodos con la secuencia permitida de la opción A. En cada periodo te diremos cuántos días descansas y cuánto recibirías de prima y ayuda.
+                  Programas los tres periodos con la Marca 0. En cada periodo disfrutas tus días de descanso y recibes tu prima vacacional 029 y la ayuda cultural 048 completa.
                 </p>
                 <div style={{ fontWeight: 600, color: "var(--primary)", marginTop: "0.25rem" }}>
-                  Primer periodo: marca 0 • Segundo periodo: marca 0 • Tercer periodo: marca 0
+                  Primer periodo: Marca 0 • Segundo periodo: Marca 0 • Tercer periodo: Marca 0
                 </div>
               </div>
 
-              <div style={{ background: "var(--card)", padding: "0.75rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
-                <div style={{ fontWeight: 700, color: "var(--fg)" }}>Opción B — Más días de descanso, sin ayuda cultural.</div>
+              <div style={{ background: "var(--card)", padding: "0.75rem 1rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
+                <div style={{ fontWeight: 700, color: "var(--fg)" }}>Periodos fraccionados: Marca 2 → Marca 5 → Marca 5</div>
                 <p style={{ margin: "0.25rem 0", color: "var(--muted)", lineHeight: 1.4 }}>
-                  Empiezas con la marca 2 y los periodos siguientes continúan con las marcas 5 que correspondan.
+                  La Marca 2 inicia la secuencia. Las marcas 5 continúan los siguientes periodos. No puedes cambiar de modalidad a mitad de la secuencia.
                 </p>
                 <div style={{ fontWeight: 600, color: "var(--primary)", marginTop: "0.25rem" }}>
                   Marca 2 → Marca 5 → Marca 5
@@ -805,32 +806,42 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
             Antes de elegir, entiende tus marcas
           </h3>
           <p style={{ fontSize: "0.85rem", color: "var(--fg)", lineHeight: 1.5, marginBottom: "0.5rem" }}>
-            La marca de continuidad es la que ya trae tu tarjetón. Nos dice cómo quedó tu programación anterior. Tú no la eliges en este momento.
+            Para programar sin confusiones, distingue estos tres conceptos independientes:
           </p>
-          <p style={{ fontSize: "0.85rem", color: "var(--fg)", lineHeight: 1.5, marginBottom: "0.75rem" }}>
-            La marca de inclusión es la que vas a anotar al programar tus nuevas vacaciones. Esa sí debes elegirla entre las opciones permitidas.
-          </p>
+          <ul style={{ fontSize: "0.85rem", color: "var(--fg)", lineHeight: 1.5, marginBottom: "0.75rem", paddingLeft: "1.25rem" }}>
+            <li><strong>1. La marca que anotas en este periodo:</strong> Es la que seleccionas abajo para solicitar tu descanso actual.</li>
+            <li><strong>2. La continuidad que queda después:</strong> Es el código de seguimiento institucional que genera el sistema tras tu solicitud. <em>(Por ejemplo, anotar Marca 0 deja continuidad 1 o 2; no significa que hayas elegido Marca 1 o 2).</em></li>
+            <li><strong>3. La marca que podrás usar en el siguiente periodo:</strong> Es la marca obligatoria o permitida para tu siguiente descanso, determinada por esa continuidad.</li>
+          </ul>
 
-          <div style={{ background: "var(--accent)", padding: "0.75rem 1rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-            <div>
-              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Lo que trae tu tarjetón</div>
-              <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--fg)" }}>
-                Continuidad actual: marca {currentContinuityForActive}
-              </div>
+          <div style={{ background: "var(--accent)", padding: "0.75rem 1rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "0.25rem" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Continuidad previa (en tu tarjetón):</span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--fg)" }}>Continuidad {currentContinuityForActive}</span>
             </div>
-            <div style={{ textAlign: "center", color: "var(--muted)", fontSize: "1rem", lineHeight: 1 }}>↓</div>
-            <div>
-              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Lo que vas a programar</div>
-              <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--primary)" }}>
-                Marca de inclusión: {selectedMark !== undefined ? `marca ${selectedMark}` : "Pendiente de elegir abajo"}
-              </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "0.25rem" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Marca que anotas en este periodo:</span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--primary)" }}>
+                {selectedMark !== undefined ? `Marca ${selectedMark}` : "Pendiente de seleccionar abajo"}
+              </span>
             </div>
-            <div style={{ textAlign: "center", color: "var(--muted)", fontSize: "1rem", lineHeight: 1 }}>↓</div>
-            <div>
-              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Cómo quedarás después</div>
-              <div style={{ fontSize: "0.9rem", fontWeight: 700, color: "var(--fg)" }}>
-                Nueva continuidad: {activePeriod?.continuityAfter !== undefined ? `marca ${activePeriod.continuityAfter}` : "Se actualizará al elegir marca"}
-              </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "0.25rem" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Tu continuidad queda en:</span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--fg)" }}>
+                {activePeriod?.continuityAfter !== undefined ? activePeriod.continuityAfter : "Se calculará al elegir marca"}
+              </span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "0.25rem" }}>
+              <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>Siguiente marca correspondiente:</span>
+              <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--primary)" }}>
+                {activePeriod?.continuityAfter !== undefined
+                  ? getNextStepFromContinuity(
+                      isV20 ? "EXTRAORDINARIO_V20" : regime,
+                      activePeriod.continuityAfter,
+                      activePeriodIdx >= requiredPeriodCount || (selectedMark === 0 && regime === "SEMESTRAL")
+                    )
+                  : "Dependerá de la marca que elijas"}
+              </span>
             </div>
           </div>
         </Card>
@@ -876,19 +887,37 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                 isV20,
               })
 
+              const mark0Payment = (regime === "CUATRIMESTRAL" && m === 2)
+                ? calculateVacationPayment({
+                    integratedMonthlySalary: smi,
+                    daysOrUnits: activePeriodUnits,
+                    seniorityYears: effectiveSeniorityYears,
+                    mark: 0,
+                    radiologicalExposure: Boolean(prefilled.profile?.radiologicalExposure),
+                    regime,
+                    isV20,
+                  })
+                : null
+
               const nextTransition = applyInclusionMark(
                 isV20 ? "EXTRAORDINARIO_V20" : regime,
                 currentContinuityForActive,
                 m
               )
               const nextContinuityVal = "nextContinuity" in nextTransition ? nextTransition.nextContinuity : undefined
+              const isCandidateFinal = isV20 || activePeriodIdx >= requiredPeriodCount || (regime === "SEMESTRAL" && m === 0)
+              const nextStepExplanation = getNextStepFromContinuity(
+                isV20 ? "EXTRAORDINARIO_V20" : regime,
+                nextContinuityVal ?? 0,
+                isCandidateFinal
+              )
 
               return (
                 <div
                   key={m}
                   onClick={() => handleSelectMark(activePeriodIdx, m)}
                   style={{
-                    padding: "1rem",
+                    padding: "1.1rem",
                     borderRadius: "var(--radius)",
                     border: `2px solid ${isChosen ? "var(--primary)" : "var(--border)"}`,
                     background: isChosen ? "rgba(37,99,235,0.04)" : "var(--card)",
@@ -899,35 +928,56 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
-                    <div style={{ fontWeight: 800, fontSize: "1rem", color: "var(--fg)" }}>
-                      {regime === "CUATRIMESTRAL" && m === 0 ? "Marca 0 — Sí te paga ayuda" : `Marca ${m} — Sí puedes utilizarla`}
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "var(--fg)" }}>
+                        {g.title}
+                      </div>
+                      <div style={{ fontSize: "0.8rem", color: "var(--primary)", fontWeight: 600, marginTop: "0.15rem" }}>
+                        Marca {m} — Sí puedes utilizarla
+                      </div>
                     </div>
-                    {isChosen && <span style={BADGE}>Seleccionada</span>}
+                    {isChosen && <span style={BADGE}>Elegida ✓</span>}
                   </div>
 
-                  {regime === "CUATRIMESTRAL" && m === 0 ? (
-                    <div style={{ fontSize: "0.85rem", color: "var(--fg)", marginBottom: "0.5rem", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                      <div>En este periodo descansarías <strong>{activePeriodUnits} días</strong>.</div>
-                      <div>También recibirías tu prima vacacional y una ayuda equivalente a <strong>{markPayment.helpDays ?? 13.3} días</strong> de tu Sueldo Mensual Integrado.</div>
-                      {markPayment.confidence !== "INCOMPLETE" && markPayment.grossVacationExtra !== null && (
-                        <div>Con los datos de tu último tarjetón, recibirías aproximadamente <strong>{formatMexicanCurrency(markPayment.grossVacationExtra)}</strong> adicionales antes de impuestos y descuentos.</div>
-                      )}
-                      <div>Como eres cuatrimestral, todavía tendrás que programar los demás periodos de tu secuencia.</div>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: "0.85rem", color: "var(--fg)", marginBottom: "0.4rem" }}>
-                      <strong>Qué pasa:</strong> Descansas {activePeriodUnits} días.
-                    </div>
-                  )}
+                  <p style={{ fontSize: "0.85rem", color: "var(--fg)", lineHeight: 1.5, margin: "0.25rem 0 0.75rem 0" }}>
+                    {g.plainSummary}
+                  </p>
 
+                  {/* 3 Conceptos independientes claramente diferenciados */}
+                  <div style={{ background: "var(--accent)", padding: "0.75rem 1rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.4rem", marginBottom: "0.75rem", fontSize: "0.85rem" }}>
+                    <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: "0.25rem" }}>
+                      <span style={{ color: "var(--muted)", minWidth: "160px" }}>Anotas ahora:</span>
+                      <strong style={{ color: "var(--fg)" }}>Marca {m}</strong>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: "0.25rem" }}>
+                      <span style={{ color: "var(--muted)", minWidth: "160px" }}>Tu continuidad queda en:</span>
+                      <strong style={{ color: "var(--fg)" }}>{nextContinuityVal !== undefined ? nextContinuityVal : "—"}</strong>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", gap: "0.25rem" }}>
+                      <span style={{ color: "var(--muted)", minWidth: "160px" }}>Siguiente paso:</span>
+                      <strong style={{ color: "var(--primary)" }}>{nextStepExplanation}</strong>
+                    </div>
+                  </div>
+
+                  {/* Pago estimado */}
                   <div style={{ fontSize: "0.85rem", color: "var(--fg)", marginBottom: "0.5rem" }}>
+                    <div style={{ fontWeight: 700, marginBottom: "0.3rem" }}>Pago estimado:</div>
                     {markPayment.confidence !== "INCOMPLETE" && markPayment.grossVacationExtra !== null ? (
-                      <div style={{ paddingLeft: "0.5rem", marginTop: "0.25rem", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                      <div style={{ paddingLeft: "0.5rem", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                        <div>Días de descanso: <strong>{activePeriodUnits} días</strong></div>
                         <div>Prima vacacional 029: <strong>{formatMexicanCurrency(markPayment.premium029)}</strong></div>
-                        <div>Ayuda cultural 048: <strong>{formatMexicanCurrency(markPayment.culturalHelp048)}</strong></div>
+                        <div>Ayuda cultural 048: <strong>{markPayment.culturalHelp048 !== null && markPayment.culturalHelp048 > 0 ? formatMexicanCurrency(markPayment.culturalHelp048) : "$0.00 (No aplica en esta modalidad)"}</strong></div>
                         <div style={{ marginTop: "0.25rem", color: "var(--primary)", fontWeight: 700 }}>
                           Total adicional estimado por vacaciones: {formatMexicanCurrency(markPayment.grossVacationExtra)}
                         </div>
+
+                        {/* Comparativa económica frente a Marca 0 para cuatrimestral Marca 2 */}
+                        {regime === "CUATRIMESTRAL" && m === 2 && mark0Payment && mark0Payment.grossVacationExtra !== null && (
+                          <div style={{ marginTop: "0.5rem", padding: "0.6rem 0.75rem", background: "#fef3c7", border: "1px solid #fde68a", borderRadius: "var(--radius-sm)", color: "#92400e", fontSize: "0.8rem", lineHeight: 1.45 }}>
+                            <strong>Comparativa frente a Marca 0:</strong> En este periodo cobrarías <strong>{formatMexicanCurrency(markPayment.grossVacationExtra)}</strong> y dejarías de recibir <strong>{formatMexicanCurrency(mark0Payment.culturalHelp048 || 0)}</strong> de ayuda cultural 048 frente a la opción regular con Marca 0.
+                          </div>
+                        )}
+
                         <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.3rem", lineHeight: 1.4 }}>
                           Este cálculo usa el Sueldo Mensual Integrado de tu último tarjetón. El importe real puede variar algunos centavos por el cálculo interno de nómina.
                         </div>
@@ -942,20 +992,6 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                     )}
                   </div>
 
-                  <div style={{ fontSize: "0.85rem", color: "var(--fg)", marginBottom: "0.6rem" }}>
-                    <strong>Después quedarás con:</strong> Continuidad {nextContinuityVal !== undefined ? nextContinuityVal : "—"}
-                  </div>
-
-                  {/* Bloques separados de orientación */}
-                  <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.5rem", fontSize: "0.8rem", display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                    <div>
-                      <strong>Lo que cobrarías:</strong> {g.economicDetail}
-                    </div>
-                    <div>
-                      <strong>Lo que sigue:</strong> {g.nextStepDetail}
-                    </div>
-                  </div>
-
                   <div style={{ marginTop: "0.75rem" }}>
                     <Button
                       size="sm"
@@ -965,7 +1001,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                         handleSelectMark(activePeriodIdx, m)
                       }}
                     >
-                      {isChosen ? "Marca elegida ✓" : `Elegir marca ${m}`}
+                      {isChosen ? `Elegiste la Marca ${m} ✓` : `Elegir Marca ${m}`}
                     </Button>
                   </div>
                 </div>
