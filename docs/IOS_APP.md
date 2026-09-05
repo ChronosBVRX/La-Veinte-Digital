@@ -1,42 +1,48 @@
 # Aplicación iOS (La Veinte Digital)
 
-> Documento de plan / referencia técnica para la portabilidad del shell Android
-> a iOS nativo. Estado: **Fases 1–5 implementadas** (esqueleto, seguridad,
-> bóveda, portales IMSS, payslips). **Pendiente: compilar en CI macOS y
-> validar contra los portales reales.**
+> Documento de referencia técnica para el shell nativo iOS.
 > Ámbito: `ios-app/` (shell nativo SwiftUI) que embebe el Home web
 > (`https://la-veinte-digital.vercel.app`) en un `WKWebView` persistente.
-> Última actualización: **2026-08-13**.
+> Última actualización: **2026-09-05 — v1.0.0 (build 1) — Stable Baseline**.
 
-La fuente de verdad del producto es `docs/ANDROID_APP.md`. Este documento
-mapea, feature a feature, cómo se reimplementa cada pieza en iOS.
+La fuente de verdad del comportamiento general es `docs/ANDROID_APP.md` y `docs/STABLE_BASELINE.md`. Este documento
+mapea, feature a feature, cómo se implementa cada pieza en iOS y cataloga expresamente qué es paridad,
+qué es diferencia intencional y qué es fallback.
 
 ---
 
 ## 0. Restricciones y decisiones (leer primero)
 
 - **No se compila en Windows.** iOS requiere macOS + Xcode. Estrategia: el
-  código Swift/SwiftUI vive en el repo y se compila/firma en **CI (GitHub
-  Actions, runner macOS)**. Otra opción: Mac local con Xcode + XcodeGen.
+  código Swift/SwiftUI vive en el repo (`ios-app/`) y se compila/firma en **CI (GitHub
+  Actions, runner macOS)** (`.github/workflows/ios-build.yml` y `ios-release.yml`).
 - **Proyecto generado con XcodeGen** (`ios-app/project.yml`) → produce
-  `LaVeinteDigital.xcodeproj`. Evita commitear `.xcodeproj` (binario/difícil de
-  revisar). En un Mac: `brew install xcodegen && cd ios-app && xcodegen`.
-- **Bundle ID**: `com.laveintedigital.app` (mismo que Android; los bundle IDs son
-  por-tienda).
-- **Mínimo iOS**: **15.0** (paridad aproximada con `minSdk 29` = Android 10).
-- **Lenguaje/UI**: Swift 5.9 + SwiftUI. Sin dependencias externas (solo Apple
+  `LaVeinteDigital.xcodeproj`.
+- **Bundle ID**: `com.laveintedigital.app` (mismo que Android; versión `1.0.0`, build `1`).
+- **Mínimo iOS**: **16.0** (definido canónicamente en `ios-app/project.yml` como `deploymentTarget: iOS: "16.0"`).
+- **Lenguaje/UI**: Swift 5.9 + SwiftUI. Sin dependencias externas de terceros (solo Apple
   frameworks): WebKit, LocalAuthentication, Security, CryptoKit, PDFKit,
   SafariServices.
-- **Sin OTA.** iOS no permite instalar binarios fuera del App Store. El sistema
-  completo de actualización OTA (`updates/*`, `latest.json`, `PackageInstaller`)
-  **no se porta**. Las actualizaciones van por App Store / TestFlight.
-  `window.LaVeinteApp.checkForUpdate()` en iOS se resuelve como no-op (o abre
-  la página de la app en el App Store).
-- **Detalle de estado / pantalla**: Android protege capturas con `FLAG_SECURE`;
-  iOS no tiene un equivalente público robusto, pero puede ocultar el contenido
-  en el App Switcher (`.privacySensitive()` en iOS 17+ / snapshot blur).
+- **Sin OTA (DIFERENCIA INTENCIONAL):** iOS no permite instalar binarios ejecutables fuera del App Store. El sistema
+  de actualización OTA (`updates/*`, `PackageInstaller`) **no se porta**. Las actualizaciones van por App Store / TestFlight.
+  `window.LaVeinteApp.checkForUpdate()` en iOS se resuelve como no-op.
+- **User-Agent Marker (FALLBACK):** La app iOS incluye en su WebView el marcador `LaVeinteDigitalIOS`,
+  detectado por `src/shared/lib/app-environment.ts` como fallback al bridge.
 
 ---
+
+## Categorización Formal de Compatibilidad (Android vs iOS)
+
+| Característica | Estado | Detalle |
+|---|---|---|
+| Contrato `window.LaVeinteApp` | **PARIDAD** | Mismos nombres, firmas y tipos expuestos en `src/types/global.d.ts`. |
+| Biometría | **PARIDAD** | Face ID / Touch ID vía `LocalAuthentication` (`BiometricManager.swift`). |
+| Bóveda de credenciales IMSS | **PARIDAD** | Cifrado seguro AES-GCM con llaves en Keychain de iOS (`IMSS/Vault/*`). |
+| Visor de documentos | **PARIDAD** | Renderizado con `PDFKit` y adaptación a `DocumentViewerModal`. |
+| Actualizador OTA | **DIFERENCIA INTENCIONAL** | No existe en iOS por política de App Store. No implementar. |
+| Gestión de proyecto | **DIFERENCIA INTENCIONAL** | XcodeGen (`project.yml`) en lugar de Gradle. |
+| Persistencia local | **DIFERENCIA INTENCIONAL** | `PayslipStore.swift` (JSON en Documents/actor) en lugar de Room SQLite. |
+| Detección UA | **FALLBACK** | Marcador `LaVeinteDigitalIOS` para casos de hidratación previa al bridge. |
 
 ## 1. Mapeo Android → iOS (feature a feature)
 

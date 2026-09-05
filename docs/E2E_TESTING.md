@@ -79,24 +79,30 @@ npx playwright test e2e/full/tarjeton.spec.ts --debug
 ```
 e2e/
 ├── global-setup.ts              # Autenticación (storageState)
-    ├── fixtures/
-│   │   └── test.ts              # Auto-fixture: captura consola/red automática
+├── fixtures/
+│   ├── test.ts                  # Auto-fixture: captura consola/red automática
 │   └── pdfs/
-│       └── generate-pdf-fixtures.mjs  # PDFs estáticos de referencia (las pruebas de tarjetón generan PDFs únicos por run)
+│       └── generate-pdf-fixtures.mjs  # Generador de PDFs ficticios únicos por run
 ├── smoke/
 │   ├── auth-public.spec.ts      # Login público (sin sesión)
 │   ├── auth-authenticated.spec.ts # Sesión persistente
 │   ├── navigation.spec.ts       # Navegación por todas las rutas
 │   └── profile.spec.ts          # Perfil de usuario
 ├── full/
-│   ├── tarjeton.spec.ts         # Importación de tarjetones
-│   ├── asistente.spec.ts        # Chat IA
-│   ├── calculadoras.spec.ts     # Aguinaldo, Tiempo Extra, etc.
-│   ├── nomina.spec.ts           # Nómina y simuladores
+│   ├── tarjeton.spec.ts         # Importación de tarjetones y revisión
+│   ├── asistente.spec.ts        # Chat IA y acompañamiento
+│   ├── calculadoras.spec.ts     # Aguinaldo, Tiempo Extra, Segunda de Julio
+│   ├── nomina.spec.ts           # Nómina y simulador
+│   ├── escritos-generator.spec.ts # Generador de escritos y directorio oficial
+│   ├── business-journeys.spec.ts # Flujos de usuario completos
 │   ├── extras.spec.ts           # Calendario, Bitácora, etc.
-│   ├── responsive.spec.ts       # Pruebas responsive
+│   ├── responsive.spec.ts       # Pruebas responsive multidispositivo
 │   ├── accessibility.spec.ts    # Accesibilidad básica
 │   └── crawler.spec.ts          # Exploración segura de rutas
+├── guia.spec.ts                 # Guía del Tarjetón IMSS y análisis quincenal
+├── vacations-mobile-overflow.spec.ts # Validación responsive de vacaciones
+├── manual/
+│   └── tarjeton-real.spec.ts    # Verificación manual con tarjetón de muestra
 └── utils/
     ├── error-capture.ts         # Watchers de consola/red
     └── helpers.ts               # Utilidades de navegación

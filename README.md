@@ -4,48 +4,40 @@ Plataforma digital de la comunidad SNTSS (Sindicato Nacional de Trabajadores del
 
 ---
 
-## Stack Tecnológico
+## Stack Tecnológico y Plataformas
 
-| Tecnología | Versión |
-|---|---|
-| Next.js | 16.2.12 |
-| React | 19.2.4 |
-| TypeScript | 5.x |
-| Supabase (Auth + DB) | ^0.12.3 |
-| OpenAI API | GPT-4o-mini / text-embedding-ada-002 |
-| Python FastAPI (Bot API) | LangChain + FAISS |
-| PostgreSQL | 14.5 |
-| Tailwind CSS | v4 (solo PostCSS, sin clases en componentes) |
-| Framer Motion | ^12.43.0 |
-| Vitest | ^4.1.10 |
-| ESLint (flat config) | ^9 |
-| pdfjs-dist | ^6.1.200 (lectura local del tarjetón) |
-| tesseract.js | ^7.0.0 (OCR de respaldo, vendor local) |
+| Plataforma / Tecnología | Detalle | Versión en Baseline |
+|---|---|---|
+| **Web** | Next.js (App Router, Turbopack) + React | Next.js `16.2.12`, React `19.2.4` |
+| **Lenguaje** | TypeScript | `5.x` (modo estricto) |
+| **Android App** | Kotlin, Jetpack Compose, Room, DataStore, Keystore | `compileSdk 36`, `versionCode 203`, `v1.1.3` |
+| **iOS App** | Swift, SwiftUI, WKWebView, LocalAuthentication | iOS `16.0+`, XcodeGen, `v1.0.0` |
+| **Desktop / Radio** | Tauri v2 + Vite + React | AI Radio Studio |
+| **Base de Datos & Auth**| Supabase SSR + Supabase JS (PostgreSQL 14.5) | `@supabase/ssr ^0.12.3`, `@supabase/supabase-js ^2.111.0` |
+| **IA Chatbot** | OpenAI API (gpt-4o-mini / text-embedding-ada-002) | RAG híbrido normativo |
+| **IA Radio Studio** | Groq API (openai/gpt-oss-120b / openai/gpt-oss-20b) | Gobernanza editorial Groq-only |
+| **TTS Radio Studio** | Speechify API (modelo simba-3.0, es-MX) | Casting determinista de 5 voces |
+| **Música Local** | ACE-Step 1.5 (acestep-v15-turbo en GPU GTX 1650) | `tools/ACE-Step-1.5`, `ACESTEP_COMPILE_MODEL=false` |
+| **Extracción Tarjetón** | PDF.js + Tesseract.js (100% en cliente, vendor local) | `pdfjs-dist 6.1.200`, `tesseract.js 7.0.0` |
+| **Pruebas Automatizadas**| Vitest + Playwright E2E + Android Unit Tests | Vitest `^4.1.10`, Playwright `^1.62.1` |
 
 ---
 
 ## AI Radio Studio
 
-El monorepo incluye `apps/radio-studio`, una app de escritorio Tauri para crear
-podcasts de La Veinte Digital con investigación normativa, DeepSeek, voces
-locales, música local y master final.
+El monorepo incluye `apps/radio-studio`, una aplicación de escritorio Tauri para crear
+podcasts y programas laborales de La Veinte Digital con fundamentación en el CCT:
 
 Guía obligatoria para agentes antes de tocar este flujo:
 `docs/RADIO_STUDIO.md`.
 
 Reglas clave:
 
-- La IA no es fuente normativa; todo sale del corpus documental y Evidence Pack.
-- DeepSeek investiga, dirige y ajusta guiones cuando está configurado, con
-  fallback determinista.
-- No usar cortinillas internas por defecto: solo intro/outro musical breve.
-- Mantener cama ambiental uniforme y baja.
-- Permitir comerciales como espacios editables, no como contenido editorial fijo.
-- El ejecutable debe levantar el sidecar y ACE-Step automáticamente; no volver al
-  flujo manual como experiencia principal.
-- Mantener tres identidades de voz distintas en producción: Eduardo `A`,
-  Andrea `B` y Narrador `N`. El narrador usa `data/tts/ref/narrador.wav` y no
-  debe compartir la referencia de Andrea.
+- **La IA no es fuente normativa:** Todo fundamento emana estrictamente del corpus documental y Evidence Pack (`data/normativa/catalog.sqlite`).
+- **Gobernanza Editorial Groq-Only:** Todo guion y propuesta en producción es generado exclusivamente por Groq (`openai/gpt-oss-120b` y `openai/gpt-oss-20b` vía `GroqLLMProvider`). Si la API key falta, lanza `GroqUnavailableError`; no hay degradación silenciosa a local o determinista.
+- **Voces Oficiales:** Síntesis mediante Speechify simba-3.0 (Eduardo, Andrea, Javier, Rodrigo, Valeria).
+- **Música Uniforme:** Cama ambiental baja e intro/outro breve generados con ACE-Step 1.5 local.
+- **Espacios Comerciales:** Insertados como bloques editables, nunca como texto editorial inventado.
 
 ---
 
@@ -112,19 +104,17 @@ la-veinte-digital/
 │   │   │   ├── data/               # Datos salariales
 │   │   │   ├── hooks/              # Custom hooks
 │   │   │   └── __tests__/          # Pruebas
-│   │   ├── tarjeton/               # Importación de tarjetón IMSS
-│   │   │   ├── components/         # Dropzone, Review, Summary, ImportSuccess
-│   │   │   ├── hooks/              # useTarjetonImporter
-│   │   │   ├── services/           # confirm-tarjeton, payslip-sync
-│   │   │   ├── lib/                # Parsers, PDF.js/OCR, sanitize, confianza
-│   │   │   └── __tests__/          # Pruebas
-│   │   ├── profile/                # Perfil de usuario
-│   │   │   ├── components/         # ProfileForm
-│   │   │   └── services/           # profiles.ts
-│   │   └── simulador/              # Simulador de audiencias disciplinarias
-│   │       ├── components/         # 8 componentes
-│   │       ├── hooks/              # useSimulation
-│   │       └── services/           # bot.ts
+│   │   ├── tarjeton/               # Parsers cliente, OCR vendor local y confirmación
+│   │   ├── tarjeton-guia/          # Guía del Tarjetón IMSS y análisis quincenal
+│   │   ├── vacaciones/             # Asesor, planificador anual y cálculo cuatrimestral
+│   │   ├── documentos-personales/  # Adaptadores y visor unificado DocumentViewerModal
+│   │   ├── transferir/             # Emparejamiento por QR y transferencia entre dispositivos
+│   │   ├── bitacora/               # Bitácora personal de incidencias laborales
+│   │   ├── push/                   # Notificaciones push (FCM)
+│   │   ├── normativa/              # Catálogo SQLite FTS5, búsqueda y citas CCT
+│   │   ├── simulador-nomina/       # Simulador de nómina con 4 escenarios de entrada
+│   │   ├── profile/                # Perfil laboral y subida de tarjetón
+│   │   └── simulador/              # Simulador de audiencias disciplinarias IMSS
 │   │
 │   ├── shared/                     # Código compartido
 │   │   ├── components/

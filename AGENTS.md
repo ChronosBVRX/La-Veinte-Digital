@@ -1,5 +1,84 @@
-<!-- Version: 0.005 -->
-<!-- Last updated: 2026-07-31 -->
+<!-- Version: 0.006 -->
+<!-- Last updated: 2026-09-05 -->
+
+# 🛡️ STABLE BASELINE — READ BEFORE CHANGING CODE
+
+> **REGLA SUPREMA DE GOBERNANZA:**  
+> A partir del commit `d90ab2bbc2f4b648cb8ed0bed1801902cb9976da` (2026-09-05), este repositorio se encuentra en **ESTABILIZACIÓN + PULIDO INCREMENTAL**.
+> 
+> ```text
+> EL REPOSITORIO FUNCIONA.
+> NO ESTOY AUTORIZADO A REDISEÑARLO.
+> MI TRABAJO ES CAMBIAR ÚNICAMENTE EL DELTA SOLICITADO.
+> ```
+> 
+> **Todo comportamiento que existe actualmente es comportamiento protegido y no puede eliminarse, cambiarse, simplificarse, sustituirse o degradarse salvo autorización explícita del usuario.**
+> 
+> **OBJETIVO PERMANENTE: CERO REGRESIONES NO AUTORIZADAS.**
+
+---
+
+## Principios Obligatorios de Desarrollo
+
+1. **Autorización estricta del delta:**  
+   > **Si el usuario pide A, la autorización es A. No es A+B+C.**
+2. **Un bug localizado NO autoriza una refactorización general.** Corrige de forma mínima y quirúrgica el defecto sin tocar áreas circundantes.
+3. **Una petición visual NO autoriza alterar lógica.** Modificar layout, colores o márgenes nunca debe alterar APIs, parsers, persistencia ni fórmulas laborales.
+4. **Una petición Android NO autoriza modificar comportamiento web no relacionado.** Y viceversa: un ajuste web jamás debe romper WebViews ni bridges de Android o iOS.
+5. **Una mejora de rendimiento NO autoriza quitar funciones o relajar contratos.**
+6. **Prohibido eliminar código "aparentemente no usado"**: No elimines archivos, clases ni funciones sin verificar bridges nativos, inyección en WebViews, rutas dinámicas, reflectores, imports indirectos o compatibilidad multiplataforma.
+7. **Prohibido consolidar funciones "aparentemente duplicadas" sin demostrar equivalencia matemática y de efectos secundarios en todas las plataformas.**
+8. **"Limpiar", "modernizar", "simplificar" o "hacer más elegante" NO son autorizaciones de producto.**
+9. **No introducir dependencias nuevas salvo necesidad explícita y aprobación.**
+10. **No cambiar contratos públicos o internos compartidos de forma incidental.**
+11. **No modificar tests para que acepten una regresión:** Los tests existentes son la especificación ejecutable. Si un test falla tras tu cambio, asumirlo como regresión hasta demostrar lo contrario.
+12. **NO DRIVE-BY REFACTORING:** Si tocas `A.ts` y te parece que `B.ts` y `C.ts` podrían quedar mejor, **NO LOS TOQUES**. Repórtalos como observación aparte.
+
+---
+
+## Protocolo Obligatorio para Todo Cambio Futuro
+
+### Change Contract
+Antes de escribir código, define:
+```text
+REQUESTED DELTA:    Qué pidió exactamente el usuario.
+ALLOWED SCOPE:      Archivos/módulos razonablemente necesarios.
+PROTECTED BEHAVIOR: Qué funcionalidades cercanas deben conservarse intactas.
+DEPENDENCIES:       Quién consume el código que voy a tocar (Web, Android, iOS, APIs).
+REGRESSION TESTS:   Qué pruebas demuestran el comportamiento actual.
+OUT OF SCOPE:       Qué NO tengo autorización para modificar.
+```
+
+### Pre-Change Regression Check
+```text
+[ ] Leí docs/STABLE_BASELINE.md y docs/REGRESSION_GUARDRAILS.md.
+[ ] Entendí exactamente el delta solicitado (Si pide A, es solo A).
+[ ] Identifiqué las fuentes de verdad y consumidores.
+[ ] Revisé contratos web/native y claves de persistencia.
+[ ] Ejecuté las pruebas unitarias relevantes antes de modificar.
+[ ] Sé qué comportamiento debo preservar.
+[ ] No estoy introduciendo una refactorización no solicitada.
+[ ] Mi cambio será el mínimo compatible.
+```
+
+### Post-Change Regression Check
+```text
+[ ] El requerimiento nuevo funciona.
+[ ] Los comportamientos protegidos siguen funcionando.
+[ ] No desaparecieron capacidades ni fallbacks anteriores.
+[ ] No cambiaron contratos ni storage keys incidentalmente.
+[ ] No cambiaron rutas ni bridges incidentalmente.
+[ ] No se modificaron tests para ocultar regresiones.
+[ ] `npm run typecheck` pasa.
+[ ] `npm run lint` pasa.
+[ ] `npm test` pasa.
+[ ] `npm run build` pasa.
+[ ] Android/iOS pasan si fueron afectados.
+[ ] `git diff` contiene exclusivamente el cambio solicitado.
+```
+
+---
+
 <!-- BEGIN:nextjs-agent-rules -->
 # ⚠️ This is NOT the Next.js you know
 
@@ -199,7 +278,7 @@ Both must be kept in sync. The bot speaks Spanish, uses **negritas**, emojis wit
 - Estados por fuente en `source_states` (AVAILABLE/TEMPORARY_BLOCK/HTTP_403/WAF_BLOCK/NOT_FOUND/MANUAL_REVIEW/RETRY_AFTER) con `retry_after`; una fuente bloqueada NUNCA detiene el resto del corpus. Sin cooldowns fijos.
 - Una fuente bloqueada (`HTTP_403`, `WAF_BLOCK`, `TEMPORARY_BLOCK`, `RETRY_AFTER`) NO se marca como completa ni verificable a mano. La página índice puede confirmar existencia de la clave, pero para citar contenido hace falta PDF/HTML original local con SHA-256, extracción, chunks y citas en `catalog.sqlite`. Si el portal oficial bloquea el PDF, reintentar con `normativa:update`, correr `normativa:discover`, luego `normativa:recover` (fetch/curl/Playwright/rutas oficiales alternas). Si solo se obtiene manualmente, usar `npm run normativa:recover -- --manual-dir <carpeta>`; el archivo debe llamarse como id, clave o nombre del PDF oficial y queda en `PENDING_REVIEW` hasta revisión editorial.
 - OCR automático (mupdf + tesseract.js, modelo spa local): PDF sin texto → ocr.txt + ocr-confidence.json; original.pdf intacto.
-- Flujo de episodio: cobertura documental → Evidence Pack → matriz → investigación y guion con LLM local (qwen3.5:9b vía Ollama; sin APIs remotas) → guion por RadioDirector (`modo: "ia"` por defecto, fallback determinista "solo corpus") → verificador con semáforo → voces (Qwen Base clone, proceso desechable por bloque con watchdog externo) → master MP3/WAV + ficha de fuentes. La IA nunca sustituye la fuente: todo derecho, cifra, plazo, cláusula o artículo debe venir del Evidence Pack/corpus.
+- Flujo de episodio: cobertura documental → Evidence Pack → matriz → investigación y guion editorial gobernado en producción EXCLUSIVAMENTE por Groq API (`openai/gpt-oss-120b` y `openai/gpt-oss-20b` vía `GroqLLMProvider`, PR #62; sin degradación silenciosa; Ollama local reservado solo para desarrollo experimental con `RADIO_ALLOW_EXPERIMENTAL_LOCAL_LLM="true"`) → guion por RadioDirector (`modo: "ia"` por defecto) → verificador con semáforo → voces (Speechify simba-3.0 en la nube) → master MP3/WAV + ficha de fuentes. La IA nunca sustituye la fuente: todo derecho, cifra, plazo, cláusula o artículo debe venir del Evidence Pack/corpus.
 - Estado documental confirmado el 2026-08-18: `npm run normativa:report` mostró 71 documentos, 10 vigentes, 55 en revisión, 6 históricos, 7,593 secciones, 14,715 chunks y 153 referencias aún no localizadas. La UI puede mostrar "Documentos listos: 35/71" porque usa un criterio más estricto de publicación: original local completo + SHA-256 + extracción + chunks + citas + registro en `catalog.sqlite`. No tratar ese conteo como contradicción.
 - Estado del corpus (ampliación completada 2026-08-25, auditada y verificada): 82 fuentes en `resources/normativa/bootstrap-sources.yaml`; 88 documentos con versión local; 94 versiones verificadas (`verify` OK=94 FAIL=0); 22,270 chunks; 22,270 citas estructuradas; cobertura temática 34/34 FULL (`data/normativa/normativa-coverage-report.md`, comando `npm run normativa:coverage`); 79/79 tests de normativa. Corpus actualizado al 2026-08-25. Incluye leyes nuevas desde Cámara (INFONAVIT/LIFNVT, LSAR, FONACOT/LIFNCT, LGAMVLV, LGIPD, LIC), Ley Silla/bipedestación (DOF 2026-07-17), 10 NOMs STPS y 8 NOMs salud — todas con estado VIGENTE confirmado en PLATIICA (economia.gob.mx está en allowlist). `normativa:update all -- --ids=A,B,C` permite tandas selectivas sin despertar el WAF. El monitor estatutario ya corre dentro de `update` y detectó el Congreso Nacional Extraordinario; los Estatutos siguen siendo edición 2022 (NUNCA crear "Estatutos 2026"). NOM-017-STPS-2008 quedó registrada como sustituida por la 2024.
 - Siguiente prioridad: RAG productivo sobre Supabase pgvector + fuentes verificables ([S1]/[S2] validadas server-side) en el chatbot `/api/consulta`. El flujo es: corpus local (source of truth) → pgvector idempotente → retrieval híbrido (exact-match cláusula/artículo → FTS → vector → fusión → filtro vigencia) → LLM. NO ejecutar refresh masivo de imss.gob.mx: las copias locales están verificadas y el WAF lo penaliza; dejarlo como mantenimiento en tandas pequeñas con backoff/jitter usando `--ids`.
@@ -209,7 +288,7 @@ Both must be kept in sync. The bot speaks Spanish, uses **negritas**, emojis wit
 - TTS Speechify (único motor publicable, FASE 6+): API https://api.speechify.ai/v1/audio/speech, modelo simba-3.0, idioma es-MX, formato WAV, límite 2000 chars incl. SSML. Autenticación solo server-side vía SPEECHIFY_API_KEY leída por el sidecar (nunca NEXT_PUBLIC_, nunca en logs/frontend). Casting automático 5 voces únicas determinista (3M+2F) vía GET /v1/voices filtrando español compatible simba-3.0, preferencia es-MX; mapeo fijo: EDUARDO direct, ANDREA warm, JAVIER rate -5%, RODRIGO rate +6%, VALERIA bright; persistido en data/tts/speechify-cast.json y overrides SPEECHIFY_VOICE_MALE_1/2/3 y FEMALE_1/2. SSML escapado XML, validación Base64 WAV RIFF, manejo 429/5xx con backoff y reintentos limitados sin duplicar worker/motor, AbortController para cancelar, caché por bloque (provider+modelo+idioma+voiceId+personaje+texto+perfil SSML+revisión). /tts-fallback también usa Speechify. No existe switch a otro proveedor. Qwen/Ollama solo para guion, nunca voces. No ElevenLabs/OpenAI/Edge/SAPI/Azure/Google.
 
 - Música local (FASE 5c): ACE-Step 1.5 en `tools/ACE-Step-1.5` (MIT, API async 127.0.0.1:8001, DiT-only `acestep-v15-turbo`, Tier 1 en GTX 1650: INT8 + offload CPU/DiT, sin LM, máx 360s). Perfil en `.env` — **CRÍTICO: `ACESTEP_COMPILE_MODEL=false`**. Con `torch.compile` activo (default del Tier 1), el server crashea con segfault c10.dll (0xc0000005) durante el offload post-difusión tras ~5-6 generaciones; con compile off va estable (3+ seguidas OK). venv: `tools/ACE-Step-1.5/.venv` (Python 3.12.14, torch 2.7.1+cu128 — ACE-Step PINNEA esa versión en Windows). Arranque preferido: automático desde `/musica/motor` o `/musica/generar` del sidecar; el sidecar ejecuta `uv run --no-sync acestep-api` con cwd `tools/ACE-Step-1.5` y fuerza `ACESTEP_COMPILE_MODEL=false` (logs en `data/tts/ace-step-api.log`). El comando manual queda solo como rescate. Flujo API: `POST /release_task` → `task_id` → poll `POST /query_result` (status 1=ok, 2=fallo; `result` es JSON array, usar `arr[0]`) → `GET /v1/audio?path=...` para el WAV. RTF real: 10s→8.15, 30s→2.71, 60s→2.71 (acumulado 3.26), VRAM pico ~532MB; 1ª generación tras arranque ~76s (carga modelos), siguientes ~35-45s. Benchmark: `npm run musica:benchmark` en `apps/radio-studio/sidecar`. Worker: `apps/radio-studio/sidecar/worker/musica_worker.ts` (proceso independiente, cola `data/tts/jobs/musica-actual.json`, mismo patrón que la cola Qwen TTS `job-actual.json`). Endpoints sidecar: `/musica` (lista), `/musica/motor` (también intenta auto-arrancar ACE-Step), `/musica/generar`, `/musica/progreso`, `/musica/cancelar`. Audio generado: `data/tts/music/<tipo>-ace-<id>.wav` (licencia MIT ACE-Step, seed/rtf/bpm en el job). RAM: el proceso python ACE-Step llega a ~10GB con offload a CPU — vigilar antes de producción larga.
-- FASE 5 — RadioDirector multi-voz: modos de cita al aire (`natural` predeterminado — "De acuerdo con el Contrato Colectivo vigente" —, `documental`, `tecnico`); variedad de frases cíclica; modo `ia` por defecto con el LLM local qwen3.5:9b vía Ollama (LLM con Evidence Pack exclusivo + ScriptVerifier con semáforo; si falla → determinista). Nunca usar APIs remotas para el guion. `DialogueDiversityAnalyzer` detecta muletillas, inicios similares, dominancia, alternancia perfecta y textos repetidos. `DialoguePolisher` (segunda pasada: solo estilo, nunca líneas con citas; re-verificar después). Expansión temática de búsqueda en el sidecar (temas relacionados) para programas de 20-30 min. Escaleta permanente obligatoria: `Apertura breve` → `Caso de arranque` → `Qué dice la normativa` → `Ojo con esto` → `Caso práctico` o `Consultorio` → `Cómo documentarlo` → `Cierre práctico`; en episodios de 15+ min alternar subtemas relacionados dentro del mismo tema central (regla, excepción, trámite, ejemplo, error común, duda frecuente, pasos) para evitar monotonía. Reglas editoriales vigentes: conversación viva con secciones y variación temática; no usar cortinillas internas; las transiciones se marcan como `transition: "cambio editorial"`; master con música solo en intro/outro muy cortos, cama uniforme baja por defecto (`bedGainDb=-25`, ducking `6`, attack `120`, release `1400`); identidad sonora uniforme obligatoria: apertura y cierre usan el mismo motivo o variaciones hermanas, la selección automática prefiere `jingle-uniforme-*`, `bed-uniforme-*`, `lv-theme-*`, `la-veinte-*` o `brand-*`, y no debe generarse un estilo distinto por episodio; espacios comerciales se insertan como turnos `kind: "ad"`, `adSlot: true`, editables, nunca como contenido editorial inventado. Master: 128/192/256/320 kbps (192 default) + WAV, ducking editable, intro/outro musical, ganancia por locutor. Timeline multipista en el estudio (clips, waveforms, pausas editables, solapes visuales, zoom, playhead).
+- FASE 5 — RadioDirector multi-voz: modos de cita al aire (`natural` predeterminado — "De acuerdo con el Contrato Colectivo vigente" —, `documental`, `tecnico`); variedad de frases cíclica; modo `ia` por defecto gobernado por Groq (`openai/gpt-oss-120b` writer y `openai/gpt-oss-20b` fast model con Evidence Pack exclusivo + ScriptVerifier con semáforo; si Groq no está disponible lanza GroqUnavailableError; nunca degradación silenciosa a local o determinista en producción). `DialogueDiversityAnalyzer` detecta muletillas, inicios similares, dominancia, alternancia perfecta y textos repetidos. `DialoguePolisher` (segunda pasada: solo estilo, nunca líneas con citas; re-verificar después). Expansión temática de búsqueda en el sidecar (temas relacionados) para programas de 20-30 min. Escaleta permanente obligatoria: `Apertura breve` → `Caso de arranque` → `Qué dice la normativa` → `Ojo con esto` → `Caso práctico` o `Consultorio` → `Cómo documentarlo` → `Cierre práctico`; en episodios de 15+ min alternar subtemas relacionados dentro del mismo tema central (regla, excepción, trámite, ejemplo, error común, duda frecuente, pasos) para evitar monotonía. Reglas editoriales vigentes: conversación viva con secciones y variación temática; no usar cortinillas internas; las transiciones se marcan como `transition: "cambio editorial"`; master con música solo en intro/outro muy cortos, cama uniforme baja por defecto (`bedGainDb=-25`, ducking `6`, attack `120`, release `1400`); identidad sonora uniforme obligatoria: apertura y cierre usan el mismo motivo o variaciones hermanas, la selección automática prefiere `jingle-uniforme-*`, `bed-uniforme-*`, `lv-theme-*`, `la-veinte-*` o `brand-*`, y no debe generarse un estilo distinto por episodio; espacios comerciales se insertan como turnos `kind: "ad"`, `adSlot: true`, editables, nunca como contenido editorial inventado. Master: 128/192/256/320 kbps (192 default) + WAV, ducking editable, intro/outro musical, ganancia por locutor. Timeline multipista en el estudio (clips, waveforms, pausas editables, solapes visuales, zoom, playhead).
 - FASE 5b — Desacople API/worker: la cola Speechify (sidecar/worker/job-store.ts) es un PROCESO INDEPENDIENTE con cola persistente (data/tts/jobs/job-actual.json, escritura atómica por bloque, estados QUEUED/RUNNING/PAUSED/DONE/FAILED/INTERRUPTED+RESUMABLE). El sidecar HTTP nunca se bloquea: /generate crea el job y lanza el worker Speechify cloud; /progress lee el archivo (funciona aunque el sidecar se reinicie); /resume continúa desde el siguiente bloque (cache); /cancel pausa y conserva reanudable; /discard detiene worker, elimina el job activo y limpia la producción actual; /sistema mide contención (CPU, RAM, GPU, procesos competidores) para LLM local y música. Métricas por bloque: chars, audioDurMs, genMs, rtf, cacheHit, speaker; RTF global = síntesis real / audio real (excluye caché y mezcla). Caché por bloque evita repago (provider+modelo+idioma+voiceId+personaje+texto+perfil SSML+revisión).
 - FASE 5d — AI Radio Studio ejecutable: Tauri arranca automáticamente el sidecar local al abrir la app (`apps/radio-studio/src-tauri/src/lib.rs`). Si `127.0.0.1:3977` ya responde, no duplica procesos. Si no, lanza `node --no-warnings <ruta absoluta>/apps/radio-studio/sidecar/dist/sidecar.js` desde la raíz del repo y guarda logs en `data/tts/sidecar-tauri.log`. CRÍTICO en Windows: la ruta contiene espacios (`Axel Rosete`, `La Veinte Digital`), por eso el Rust debe usar `Command::new("node").arg("--no-warnings").arg(&sidecar)`, no construir una cadena con `cmd /C`, porque Node intentará abrir una ruta truncada. Antes de crear instalador, recompilar SIEMPRE `apps/radio-studio/sidecar/dist/sidecar.js` con `npm run bundle` en `apps/radio-studio/sidecar`; si no se hace, el `.exe` puede abrir una versión vieja del motor. El instalador NSIS se genera en `apps/radio-studio/src-tauri/target/release/bundle/nsis/AI Radio Studio_0.1.0_x64-setup.exe`.
 - Toolchain Tauri: Rust GNU (`stable-x86_64-pc-windows-gnu` via rustup) + MSYS2 MinGW en `C:\Users\Axel Rosete\msys64\msys64` (gcc/binutils). Sin MSVC/VS Build Tools. Para compilar: `PATH` debe incluir `C:\Users\Axel Rosete\msys64\msys64\mingw64\bin` y `%USERPROFILE%\.cargo\bin`. Comandos: `npm run bundle` en `apps/radio-studio/sidecar`, `npm run build` en `apps/radio-studio`, luego `npm run tauri -- build` en `apps/radio-studio`. Cerrar `radio-studio.exe` antes de reconstruir: Windows bloquea reemplazar el exe abierto con `Acceso denegado`. NOTA: gcc empaquetado por rust-mingw es solo linker; compilar C requiere el MinGW real.

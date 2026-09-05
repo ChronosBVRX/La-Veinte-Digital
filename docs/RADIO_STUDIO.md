@@ -1,12 +1,12 @@
 # AI Radio Studio: guía para agentes
 
-Última actualización: 2026-08-18
+Última actualización: **2026-09-05 — Stable Baseline**
 
 Esta guía es la fuente de verdad operativa para el flujo de podcast de La
-Veinte Digital. Si vas a tocar el estudio, lee esto junto con `AGENTS.md` y
-`apps/radio-studio/README.md`.
+Veinte Digital. Si vas a tocar el estudio, lee esto junto con `AGENTS.md`,
+`docs/STABLE_BASELINE.md`, `docs/REGRESSION_GUARDRAILS.md` y `apps/radio-studio/README.md`.
 
-## Estado actual confirmado (2026-08-18)
+## Estado actual confirmado (2026-09-05)
 
 El estudio ya quedó compilado como ejecutable de Windows. Antes de reconstruir
 otra vez, conservar este orden:
@@ -18,28 +18,20 @@ otra vez, conservar este orden:
 Último instalador generado:
 `apps/radio-studio/src-tauri/target/release/bundle/nsis/AI Radio Studio_0.1.0_x64-setup.exe`.
 
-Verificación ejecutada el 2026-08-18:
+### Gobernanza Editorial Groq-Only (PR #62)
+- Todo contenido editorial en producción (propuestas, escaletas, guiones, reparaciones) es generado **EXCLUSIVAMENTE por Groq API** (`GroqLLMProvider`) con los modelos `openai/gpt-oss-120b` (writer) y `openai/gpt-oss-20b` (fast).
+- Si `GROQ_API_KEY` no está configurada, el sistema lanza `GroqUnavailableError`.
+- **PROHIBIDO:** Degradar silenciosamente a Ollama local, Qwen o código determinista en producción.
+- El uso de Ollama local queda restringido únicamente a pruebas experimentales mediante el flag explícito `RADIO_ALLOW_EXPERIMENTAL_LOCAL_LLM="true"`.
 
-- Build raíz Next.js: correcto.
-- Pruebas: 906 pasaron, 10 omitidas.
-- Build Vite/Tauri: correcto.
-- `/casting` devuelve exactamente cinco perfiles oficiales con preview de voz.
-
-Estado documental observado ese mismo día con `npm run normativa:report`:
-
-- 71 documentos en el catálogo.
-- 10 vigentes, 55 en revisión, 6 históricos.
-- 7,593 secciones indexadas.
-- 14,715 chunks.
-- 153 referencias aún no localizadas.
-- La tarjeta del estudio puede mostrar un conteo más estricto, por ejemplo
-  "Documentos listos: 35/71", porque solo cuenta fuentes con evidencia local
-  completa y publicable.
-
-El intento de recuperación automática de fuentes bloqueadas fue interrumpido
-por el usuario antes de ejecutarse. El próximo agente debe retomarlo desde el
-flujo de recuperación documental descrito abajo, no asumir que ya se agotaron
-fetch, curl, Playwright o recuperación manual.
+### Estado del Corpus Normativo
+- 82 fuentes en `resources/normativa/bootstrap-sources.yaml`.
+- 88 documentos con versión local, 94 versiones verificadas (`verify` OK=94 FAIL=0).
+- 22,270 chunks y 22,270 citas estructuradas en `data/normativa/catalog.sqlite`.
+- Cobertura temática 34/34 FULL (`data/normativa/normativa-coverage-report.md`).
+- CCT 2025-2027 vigente hasta 2027-10-15; Tabulador Base vigente expira 2026-10-15.
+- Voces de producción: Speechify simba-3.0 (Eduardo, Andrea, Javier, Rodrigo, Valeria).
+- Música local: ACE-Step 1.5 en GPU con `ACESTEP_COMPILE_MODEL=false`.
 
 ## Qué debe ir al repo y qué debe quedarse local
 
@@ -96,7 +88,7 @@ La experiencia esperada es:
 
 ## Principios que no se deben romper
 
-- La documentación manda, no la IA. DeepSeek solo organiza, pregunta y escribe
+- La documentación manda, no la IA. Groq (`openai/gpt-oss-120b` / `20b`) solo organiza, pregunta y escribe
   con el Evidence Pack y el mapa documental recibido.
 - Toda afirmación normativa sobre derechos, cifras, plazos, artículos,
   cláusulas o procedimientos requiere soporte en el corpus.
@@ -116,7 +108,7 @@ La experiencia esperada es:
 
 ### Escaleta permanente del programa
 
-Todo episodio de La Veinte Digital debe seguir esta dinámica, tanto en DeepSeek
+Todo episodio de La Veinte Digital debe seguir esta dinámica, tanto con el redactor Groq
 como en el director rápido:
 
 1. `Apertura breve`: saludo único, tema del día y promesa concreta.
