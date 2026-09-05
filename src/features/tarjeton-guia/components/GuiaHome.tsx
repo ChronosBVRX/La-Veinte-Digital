@@ -115,10 +115,14 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
   }, [data.documentId, data.periodRaw])
 
   useEffect(() => {
-    // Sincronización automática de Tarjetón guardado en montaje
-    setAutoAnalyzing(true)
+    let active = true
+    const timer = setTimeout(() => {
+      if (active) setAutoAnalyzing(true)
+    }, 0)
+
     void syncLatestSavedPayslip()
       .then((analysis) => {
+        if (!active) return
         if (analysis && analysis.status === "ready" && analysis.concepts.length > 0) {
           setHasLocalPayslip(true)
           const eCount = analysis.concepts.filter((c) => c.kind === "perception").length
@@ -133,6 +137,7 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
           })
         } else if (data.hasPayslip && (stats.earningsCount === 0 && stats.deductionsCount === 0)) {
           return analyzeAndPersistPayslip(data.documentId, { periodRaw: data.periodRaw }).then((res) => {
+            if (!active) return
             if (res.ok && (res.earningsCount > 0 || res.deductionsCount > 0)) {
               setHasLocalPayslip(true)
               setOverrideStats({
@@ -147,7 +152,14 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
           })
         }
       })
-      .finally(() => setAutoAnalyzing(false))
+      .finally(() => {
+        if (active) setAutoAnalyzing(false)
+      })
+
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
   }, [data.documentId, data.hasPayslip, data.periodRaw, stats.earningsCount, stats.deductionsCount])
 
   useEffect(() => {
