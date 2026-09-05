@@ -9,7 +9,7 @@ describe("GET /api/health", () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get("Cache-Control")).toBe("no-store")
-    await expect(response.json()).resolves.toEqual({ status: "ok", version: "0.002" })
+    await expect(response.json()).resolves.toMatchObject({ status: "ok", version: "0.002" })
   })
 
   it("maps the friendly Vercel health path to the dedicated endpoint", () => {

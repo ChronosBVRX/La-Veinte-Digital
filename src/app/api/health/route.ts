@@ -10,8 +10,12 @@ export function GET() {
       status: "ok",
       version: "0.002",
       commitSha,
-      vercelEnv: process.env.VERCEL_ENV || "development",
     },
-    { headers: { "Cache-Control": "no-store" } },
+    {
+      headers: {
+        "Cache-Control": "no-store",
+        "x-commit-sha": commitSha,
+      },
+    },
   )
 }
