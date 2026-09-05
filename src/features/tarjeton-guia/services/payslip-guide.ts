@@ -144,6 +144,11 @@ export function toGuidePayslip(raw: unknown): GuidePayslip | null {
     netPay,
     netAmount: netPay,
     source: "local",
+    analysisStatus: (typeof p.analysisStatus === "string"
+      ? p.analysisStatus
+      : earnings.length > 0 || deductions.length > 0
+      ? "ready"
+      : "pending") as GuidePayslip["analysisStatus"],
   }
 }
 
@@ -232,5 +237,6 @@ export function dbRowToGuidePayslip(
     totalDeductions,
     netPay,
     source: "server",
+    analysisStatus: (earnings.length > 0 || deductions.length > 0 ? "ready" : "pending") as GuidePayslip["analysisStatus"],
   }
 }

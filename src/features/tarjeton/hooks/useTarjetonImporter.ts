@@ -249,8 +249,29 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
 
     try {
       syncConfirmedPayslip(result.data, request, "local")
-      if (safeParsed.document.periodRaw && file) {
-        void saveTarjetonPdfBlob(safeParsed.document.periodRaw, file, file.name)
+      if (file) {
+        if (safeParsed.document.periodRaw) {
+          void saveTarjetonPdfBlob(safeParsed.document.periodRaw, file, file.name)
+        }
+        if (result.data.id) {
+          void saveTarjetonPdfBlob(result.data.id, file, file.name)
+        }
+      }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("nomina_payslip_updated"))
+        window.dispatchEvent(
+          new CustomEvent("tarjeton_analysis_completed", {
+            detail: {
+              documentId: result.data.id,
+              periodRaw: safeParsed.document.periodRaw,
+              earningsCount: safeParsed.payroll.earnings.length,
+              deductionsCount: safeParsed.payroll.deductions.length,
+              totalEarnings: safeParsed.payroll.totalEarnings,
+              totalDeductions: safeParsed.payroll.totalDeductions,
+              netPay: safeParsed.payroll.netPay,
+            },
+          })
+        )
       }
     } catch (err) {
       console.warn("[tarjeton] sincronización local falló:", err)

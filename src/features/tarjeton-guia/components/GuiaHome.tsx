@@ -17,6 +17,7 @@ import { guideQuickLessons } from "@/features/tarjeton-guia/data/lessons"
 import { resolveRefHref } from "@/features/tarjeton-guia/lib/catalog"
 
 import { getPayslips } from "@/shared/services/local-storage"
+import { analyzeAndPersistPayslip } from "@/features/tarjeton/services/analyze-and-persist-payslip"
 
 export interface GuiaHomeServerData {
   hasPayslip: boolean
@@ -31,6 +32,7 @@ export interface GuiaHomeServerData {
 
 export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
   const [tipIndex, setTipIndex] = useState(0)
+  const [autoAnalyzing, setAutoAnalyzing] = useState(false)
   const [overrideStats, setOverrideStats] = useState<{
     earningsCount?: number
     deductionsCount?: number
@@ -52,12 +54,13 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
       const target =
         slips.find((s) => {
           if (data.documentId && s.id === data.documentId) return true
+          if (data.periodRaw && s.periodRaw === data.periodRaw) return true
           const pLabel =
             typeof s.period === "string"
               ? s.period
               : s.period?.label || s.period?.id || s.periodRaw || ""
-          return data.periodRaw ? pLabel.includes(data.periodRaw) : true
-        }) || slips[0]
+          return data.periodRaw ? pLabel.includes(data.periodRaw) || data.periodRaw.includes(pLabel) : false
+        }) || slips.find((s) => (s.earnings?.length ?? 0) + (s.deductions?.length ?? 0) > 0) || slips[0]
       if (target) {
         const eCount = ((target.earnings ?? target.perceptions)?.length) ?? 0
         const dCount = target.deductions?.length ?? 0
@@ -73,10 +76,30 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
 
     syncLocal()
     window.addEventListener("nomina_payslip_updated", syncLocal)
+    window.addEventListener("tarjeton_analysis_completed", syncLocal)
     return () => {
       window.removeEventListener("nomina_payslip_updated", syncLocal)
+      window.removeEventListener("tarjeton_analysis_completed", syncLocal)
     }
   }, [data.documentId, data.periodRaw])
+
+  useEffect(() => {
+    if (data.hasPayslip && (stats.earningsCount === 0 && stats.deductionsCount === 0) && !autoAnalyzing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-reanudación en segundo plano
+      setAutoAnalyzing(true)
+      void analyzeAndPersistPayslip(data.documentId, { periodRaw: data.periodRaw })
+        .then((res) => {
+          if (res.ok && (res.earningsCount > 0 || res.deductionsCount > 0)) {
+            setOverrideStats({
+              earningsCount: res.earningsCount,
+              deductionsCount: res.deductionsCount,
+              netPay: res.netPay,
+            })
+          }
+        })
+        .finally(() => setAutoAnalyzing(false))
+    }
+  }, [data.hasPayslip, stats.earningsCount, stats.deductionsCount, data.documentId, data.periodRaw, autoAnalyzing])
 
   useEffect(() => {
     const now = new Date()
@@ -146,7 +169,38 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
               <SummaryStat label="Deducciones" value={String(stats.deductionsCount ?? 0)} />
             </div>
 
-            {((stats.totalEarnings ?? 0) > 0 || (stats.totalDeductions ?? 0) > 0 || (stats.netPay ?? 0) > 0) &&
+            {autoAnalyzing && (
+              <div
+                style={{
+                  background: "var(--accent)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "0.625rem 0.875rem",
+                  marginTop: "0.75rem",
+                  fontSize: "0.8125rem",
+                  color: "var(--muted)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: 14,
+                    height: 14,
+                    border: "2px solid var(--primary)",
+                    borderRightColor: "transparent",
+                    borderRadius: "50%",
+                    animation: "spin 1s linear infinite",
+                  }}
+                />
+                <span>Estamos terminando de analizar tu tarjetón...</span>
+              </div>
+            )}
+
+            {!autoAnalyzing &&
+              ((stats.totalEarnings ?? 0) > 0 || (stats.totalDeductions ?? 0) > 0 || (stats.netPay ?? 0) > 0) &&
               (stats.earningsCount ?? 0) === 0 &&
               (stats.deductionsCount ?? 0) === 0 && (
               <div

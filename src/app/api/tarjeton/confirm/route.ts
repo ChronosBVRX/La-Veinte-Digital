@@ -53,36 +53,101 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result.error, { status })
   }
 
-  if (result.ok && result.data.duplicate && result.data.id) {
+  if (result.ok && result.data.id) {
+    const payslipId = result.data.id
     try {
-      const parsedBody = body as { parsed?: { vacations?: { porVencer?: string; dueDate?: string; porVencerRaw?: string } } }
-      const newVacations = parsedBody?.parsed?.vacations
-      if (newVacations && (newVacations.porVencer || newVacations.dueDate)) {
-        const { data: existingRow } = await supabase
-          .from("imported_payslips")
-          .select("vacations")
-          .eq("id", result.data.id)
-          .eq("user_id", user.id)
-          .maybeSingle()
+      const parsedBody = body as {
+        parsed?: {
+          payroll?: {
+            earnings?: Array<{ code?: string; description?: string; amount?: number; confidence?: number }>
+            deductions?: Array<{ code?: string; description?: string; amount?: number; confidence?: number }>
+            totalEarnings?: number
+            totalDeductions?: number
+            netPay?: number
+          }
+          vacations?: { porVencer?: string; dueDate?: string; porVencerRaw?: string }
+        }
+      }
 
-        const existingVac = (existingRow?.vacations as Record<string, unknown>) ?? {}
-        // No sobrescribir fechas válidas que ya existan
-        const mergedVac = {
-          ...newVacations,
-          ...existingVac,
-          porVencer: existingVac.porVencer || newVacations.porVencer,
-          dueDate: existingVac.dueDate || newVacations.dueDate || existingVac.porVencer || newVacations.porVencer,
-          porVencerRaw: existingVac.porVencerRaw || newVacations.porVencerRaw,
+      // Si es duplicado o las líneas están vacías, asegurar persistencia en imported_payslip_lines
+      const { count } = await supabase
+        .from("imported_payslip_lines")
+        .select("id", { count: "exact", head: true })
+        .eq("payslip_id", payslipId)
+
+      const earnings = parsedBody?.parsed?.payroll?.earnings ?? []
+      const deductions = parsedBody?.parsed?.payroll?.deductions ?? []
+
+      if ((count === null || count === 0) && (earnings.length > 0 || deductions.length > 0)) {
+        const linesToInsert = [
+          ...earnings.map((e, idx) => ({
+            payslip_id: payslipId,
+            line_index: idx,
+            concept_code: e.code || "",
+            description: e.description || "",
+            amount: e.amount || 0,
+            kind: "earning",
+            confidence: e.confidence ?? 1.0,
+            confirmed_by_user: true,
+          })),
+          ...deductions.map((d, idx) => ({
+            payslip_id: payslipId,
+            line_index: earnings.length + idx,
+            concept_code: d.code || "",
+            description: d.description || "",
+            amount: d.amount || 0,
+            kind: "deduction",
+            confidence: d.confidence ?? 1.0,
+            confirmed_by_user: true,
+          })),
+        ]
+
+        await supabase.from("imported_payslip_lines").insert(linesToInsert)
+
+        const totals = {
+          totalEarnings: parsedBody?.parsed?.payroll?.totalEarnings,
+          totalDeductions: parsedBody?.parsed?.payroll?.totalDeductions,
+          netPay: parsedBody?.parsed?.payroll?.netPay,
+          earningsCount: earnings.length,
+          deductionsCount: deductions.length,
         }
 
         await supabase
           .from("imported_payslips")
-          .update({ vacations: mergedVac as Json })
-          .eq("id", result.data.id)
+          .update({ payroll_totals: totals as Json })
+          .eq("id", payslipId)
           .eq("user_id", user.id)
       }
+
+      if (result.data.duplicate) {
+        const newVacations = parsedBody?.parsed?.vacations
+        if (newVacations && (newVacations.porVencer || newVacations.dueDate)) {
+          const { data: existingRow } = await supabase
+            .from("imported_payslips")
+            .select("vacations")
+            .eq("id", payslipId)
+            .eq("user_id", user.id)
+            .maybeSingle()
+
+          const existingVac = (existingRow?.vacations as Record<string, unknown>) ?? {}
+          // No sobrescribir fechas válidas que ya existan
+          const mergedVac = {
+            ...newVacations,
+            ...existingVac,
+            porVencer: existingVac.porVencer || newVacations.porVencer,
+            dueDate: existingVac.dueDate || newVacations.dueDate || existingVac.porVencer || newVacations.porVencer,
+            porVencerRaw: existingVac.porVencerRaw || newVacations.porVencerRaw,
+          }
+
+          await supabase
+            .from("imported_payslips")
+            .update({ vacations: mergedVac as Json })
+            .eq("id", payslipId)
+            .eq("user_id", user.id)
+        }
+      }
     } catch (err) {
-      console.warn("[tarjeton/confirm] no fue posible actualizar vacations en duplicado:", err)
+      console.warn("[tarjeton/confirm] no fue posible actualizar líneas/vacations en payslip:", err)
     }
   }
 

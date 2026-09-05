@@ -145,3 +145,59 @@ export async function hasTarjetonPdfBlob(key: string): Promise<boolean> {
   const blob = await getTarjetonPdfBlob(key)
   return blob !== null
 }
+
+/**
+ * Intenta recuperar el PDF probando múltiples claves posibles (periodRaw, documentId, etc.)
+ * Si ninguna coincide, busca el registro más recientemente actualizado en IndexedDB.
+ */
+export async function findTarjetonPdfBlob(candidates: (string | undefined | null)[]): Promise<File | null> {
+  for (const c of candidates) {
+    if (!c) continue
+    const found = await getTarjetonPdfBlob(c)
+    if (found) return found
+  }
+
+  // Búsqueda del último archivo almacenado como respaldo
+  if (typeof window === "undefined" || !window.indexedDB) return null
+  try {
+    const db = await openTarjetonDatabase()
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(STORE_NAME, "readonly")
+        const store = tx.objectStore(STORE_NAME)
+        const req = store.getAll()
+        req.onsuccess = () => {
+          db.close()
+          const records = (req.result || []) as TarjetonBlobRecord[]
+          if (records.length === 0) {
+            resolve(null)
+            return
+          }
+          // Ordenar por updatedAt descendente
+          records.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""))
+          const best = records[0]
+          if (!best || !best.blob) {
+            resolve(null)
+            return
+          }
+          if (best.blob instanceof File) {
+            resolve(best.blob)
+          } else {
+            resolve(new File([best.blob], best.fileName || "tarjeton.pdf", {
+              type: best.mimeType || "application/pdf",
+            }))
+          }
+        }
+        req.onerror = () => {
+          db.close()
+          resolve(null)
+        }
+      } catch {
+        db.close()
+        resolve(null)
+      }
+    })
+  } catch {
+    return null
+  }
+}

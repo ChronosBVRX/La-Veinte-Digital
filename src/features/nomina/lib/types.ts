@@ -485,6 +485,8 @@ export interface OvertimeIncident {
   authorized: boolean
 }
 
+export type AnalysisStatus = "pending" | "analyzing" | "persisting" | "ready" | "partial" | "error"
+
 export interface ImportedPayslip {
   id: string
   userId: string
@@ -503,6 +505,7 @@ export interface ImportedPayslip {
   netAmount?: number
   source: "manual" | "image" | "pdf" | "structured_import"
   confirmedByUser: boolean
+  analysisStatus?: AnalysisStatus
 }
 
 export interface ImportedPayslipLine {

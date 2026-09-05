@@ -18,9 +18,11 @@ export function useLatestPayslip(serverPayslip: GuidePayslip | null) {
     const handler = () => setRevision((r) => r + 1)
     window.addEventListener("storage", handler)
     window.addEventListener("nomina_payslip_updated", handler)
+    window.addEventListener("tarjeton_analysis_completed", handler)
     return () => {
       window.removeEventListener("storage", handler)
       window.removeEventListener("nomina_payslip_updated", handler)
+      window.removeEventListener("tarjeton_analysis_completed", handler)
     }
   }, [])
 
@@ -57,19 +59,38 @@ export function useLatestPayslip(serverPayslip: GuidePayslip | null) {
     } else {
       const rLocal = periodRank(candidateLocal)
       const rServer = periodRank(candidateServer)
-      if (rLocal > rServer) {
-        latest = candidateLocal
-      } else if (rServer > rLocal) {
-        latest = candidateServer
-        previousLocal = candidateLocal
-      } else {
-        // Mismo periodo: desempatar por presencia de conceptos
-        const localCount = (candidateLocal.earnings?.length ?? 0) + (candidateLocal.deductions?.length ?? 0)
-        const serverCount = (candidateServer.earnings?.length ?? 0) + (candidateServer.deductions?.length ?? 0)
+      const localCount = (candidateLocal.earnings?.length ?? 0) + (candidateLocal.deductions?.length ?? 0)
+      const serverCount = (candidateServer.earnings?.length ?? 0) + (candidateServer.deductions?.length ?? 0)
+
+      const isSamePeriodOrId =
+        candidateLocal.id === candidateServer.id ||
+        (rLocal > 0 && rLocal === rServer) ||
+        (candidateLocal.periodRaw && candidateServer.periodRaw && candidateLocal.periodRaw === candidateServer.periodRaw)
+
+      if (isSamePeriodOrId) {
+        // Mismo periodo: fusionar dando prioridad al que tenga conceptos reales
         if (localCount >= serverCount) {
-          latest = candidateLocal
+          latest = mergePayslips(candidateLocal, candidateServer)
+        } else {
+          latest = mergePayslips(candidateServer, candidateLocal)
+        }
+      } else if (rLocal > rServer) {
+        // Local es más reciente
+        latest = localCount > 0 || serverCount === 0 ? candidateLocal : candidateServer
+      } else if (rServer > rLocal) {
+        // Servidor tiene fecha más reciente, pero si no tiene conceptos y local sí tiene,
+        // comprobar si el local corresponde al mismo documento o si podemos fusionar
+        if (serverCount === 0 && localCount > 0) {
+          latest = mergePayslips(candidateServer, candidateLocal)
         } else {
           latest = candidateServer
+          previousLocal = candidateLocal
+        }
+      } else {
+        if (localCount >= serverCount) {
+          latest = mergePayslips(candidateLocal, candidateServer)
+        } else {
+          latest = mergePayslips(candidateServer, candidateLocal)
         }
       }
     }
@@ -77,6 +98,28 @@ export function useLatestPayslip(serverPayslip: GuidePayslip | null) {
     const total = local.length + (candidateServer ? 1 : 0)
     return { payslip: latest, previous: previousLocal, source: ("local" as const), total }
   }, [serverPayslip, revision])
+}
+
+function mergePayslips(preferred: GuidePayslip, secondary: GuidePayslip): GuidePayslip {
+  const earnings = preferred.earnings.length > 0 ? preferred.earnings : secondary.earnings
+  const deductions = preferred.deductions.length > 0 ? preferred.deductions : secondary.deductions
+  const observations = preferred.observations.length > 0 ? preferred.observations : secondary.observations
+  const perceptions = preferred.perceptions && preferred.perceptions.length > 0 ? preferred.perceptions : secondary.perceptions ?? earnings
+  return {
+    ...preferred,
+    id: preferred.id || secondary.id,
+    periodRaw: preferred.periodRaw || secondary.periodRaw,
+    periodLabel: preferred.periodLabel || secondary.periodLabel,
+    earnings,
+    deductions,
+    perceptions,
+    observations,
+    totalEarnings: preferred.totalEarnings ?? secondary.totalEarnings,
+    totalDeductions: preferred.totalDeductions ?? secondary.totalDeductions,
+    netPay: preferred.netPay ?? secondary.netPay,
+    netAmount: preferred.netAmount ?? secondary.netAmount ?? preferred.netPay ?? secondary.netPay,
+    analysisStatus: earnings.length > 0 || deductions.length > 0 ? "ready" : preferred.analysisStatus ?? secondary.analysisStatus ?? "pending",
+  }
 }
 
 /** Ranking inverso por periodo (entre más alto, más reciente). null = desconocido. */

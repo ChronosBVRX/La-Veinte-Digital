@@ -119,6 +119,8 @@ export interface GuideObservation {
   notes?: string
 }
 
+export type AnalysisStatus = "pending" | "analyzing" | "persisting" | "ready" | "partial" | "error"
+
 /** Tarjetón simplificado que la guía puede explicar. */
 export interface GuidePayslip {
   id: string
@@ -134,6 +136,7 @@ export interface GuidePayslip {
   netPay?: number
   netAmount?: number
   source: "local" | "server"
+  analysisStatus?: AnalysisStatus
 }
 
 /** Indicador de ocurrencia de un concepto en una quincena. */
