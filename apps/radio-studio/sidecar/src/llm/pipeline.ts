@@ -14,7 +14,7 @@ import type { DialogueTurn, DirectorInput } from "@la-veinte/radio-core";
 import { conversationQualityScore, auditConversation, validateRoleFirewall } from "@la-veinte/radio-core";
 import { humanConversationGate, gateBloqueado } from "@la-veinte/radio-core";
 import { LocalLLMService, type ILLMProvider } from "./local-llm";
-import { getActiveLLMProvider } from "./llm-factory";
+import { getEditorialProvider } from "./llm-factory";
 import { withGpu } from "./gpu-manager";
 import {
   AnalystReportSchema, EpisodePlanSchema, ConversationDirectionSchema,
@@ -91,7 +91,7 @@ export interface PipelineResult {
   scoreFinal: number;
   auditoriaNormativa: { valid: boolean; issues: Array<{ turnId: string; severity: string; type: string; reason: string }> };
   pasos: Record<string, { status: string; ms: number; retries?: number }>;
-  modo: "local-ia" | "fallback-determinista";
+  modo: "groq";
   motivoFallback?: string;
 }
 
@@ -117,7 +117,7 @@ export class ScriptPipeline {
   private llm: ILLMProvider;
 
   constructor(llmOverride?: ILLMProvider) {
-    this.llm = llmOverride ?? getActiveLLMProvider(REPO_ROOT);
+    this.llm = llmOverride ?? getEditorialProvider(REPO_ROOT);
   }
 
   private artifact(dir: string, name: string, data: unknown): void {
@@ -527,7 +527,7 @@ Reescribe SOLO el turno ${issue.turnId}. Debe reaccionar genuinamente a su conte
       scoreFinal: critica?.conversationQualityScore ?? scoreDeterminista.score,
       auditoriaNormativa: { valid: auditoria.valid, issues: auditoria.issues },
       pasos,
-      modo: "local-ia",
+      modo: "groq",
     };
   }
 }

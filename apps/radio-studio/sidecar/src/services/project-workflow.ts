@@ -1,12 +1,14 @@
 /**
  * ProjectWorkflowService — flujo proposal-first de un episodio.
  *
- * tema → research (biblioteca) → claims/coverage → PROPUESTA → aprobación
- * → guion por secciones → verificación factual → producción.
+ * TEMA → RESEARCH (biblioteca) → CLAIMS/COVERAGE → PROPUESTA (Groq)
+ * → APROBACIÓN → GUION (Groq ScriptPipeline) → VERIFICACIÓN FACTUAL → PRODUCCIÓN.
  *
- * Reutiliza la infraestructura existente (catálogo, cobertura, directRadioEpisode,
- * ScriptPipeline, cola de producción) en vez de reescribirla. El LLM local solo
- * razona/dirige/escribe; el corpus es la fuente de verdad.
+ * ARQUITECTURA PRODUCTIVA: GROQ-ONLY
+ * Todo contenido editorial (propuestas, escaletas, guiones, diálogos y reparaciones)
+ * es generado exclusivamente por Groq.
+ * Código determinista actúa ÚNICAMENTE como guardarraíl y verificador.
+ * Si Groq no está disponible o el contenido no pasa la verificación: NO SE GENERA EL EPISODIO.
  */
 import {
   ProjectStore,
@@ -23,7 +25,6 @@ import {
 } from "./studio-converters";
 import {
   DEFAULT_SPEAKERS,
-  directRadioEpisode,
   polishDialogue,
   sanitizeEditorialScript,
   validateRoleFirewall,
@@ -49,12 +50,20 @@ import {
 import { planCommercialPlacements } from "./commercial-service";
 import { verifyScript, type VerifierContext } from "./factual-verifier";
 import type { Commercial, CommercialPlacement, Coverage } from "@la-veinte/studio-contract";
+import {
+  GroqUnavailableError,
+  InsufficientEvidenceError,
+  ProposalGenerationFailedError,
+  ScriptQualityFailedError,
+  ProductionBlockedError,
+  GroqGenerationFailedError,
+} from "../errors/editorial-errors";
 
 const EXPANSION_MAP: Record<string, string[]> = {
   "tiempo extra": ["jornada de trabajo", "descanso semanal", "pago de salario", "concepto 37"],
   extraordinario: ["jornada de trabajo", "descanso semanal", "pago de salario"],
   horario: ["jornada de trabajo", "turnos", "descanso semanal", "sustituciones"],
-  vacacion: ["días de descanso", "prima vacacional", "permisos"],
+  vacacion: ["días de descanso", "prima vacacional", "permisos", "continuidad", "antigüedad"],
   permiso: ["licencias", "permisos sindicales", "faltas"],
   nomina: ["pago de salario", "conceptos de nómina", "descuentos"],
   accidente: ["riesgos de trabajo", "incapacidad temporal", "ST-7", "dictaminación"],
@@ -85,13 +94,13 @@ const FIELD_WORDS = /unidad|hospital|guardia|terapia|piso|quir[oó]fano|urgencia
 
 export function autoCast(topic: string, hasLegalClaims: boolean, comerciales: boolean): string[] {
   const ids: string[] = ["EDUARDO", "ANDREA"];
-  if (hasLegalClaims) ids.push("NARRADOR"); // especialista normativo (id oficial "NARRADOR")
+  if (hasLegalClaims) ids.push("NARRADOR");
   if (FIELD_WORDS.test(topic.toLowerCase())) ids.push("RODRIGO");
   if (comerciales) ids.push("VALERIA");
   return ids;
 }
 
-/** Resuelve nombres/aliases a los ids oficiales del reparto (JAVIER ↔ NARRADOR, etc.). */
+/** Resuelve nombres/aliases a los ids oficiales del reparto */
 function canonicalSpeakerId(idOrName: string): string {
   const t = (idOrName ?? "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   if (t.includes("JAVIER") || t.includes("NARRADOR") || t.includes("ALONSO") || t.includes("RÍOS")) return "NARRADOR";
@@ -101,13 +110,9 @@ function canonicalSpeakerId(idOrName: string): string {
   return "EDUARDO";
 }
 
-/** Duración objetivo (aproximada) desde la profundidad — es una guía, nunca un tope. */
 function guiaMinutos(config: ProjectConfig): number {
   return (config && config.profundidad && PROFUNDIDAD_MIN[config.profundidad]) || config.duracionMin || 15;
 }
-
-/** Máximo de intervenciones por profundidad (cada una es un clip TTS costoso). */
-const TURN_CAP: Record<Profundidad, number> = { breve: 22, estandar: 36, profundo: 60 };
 
 function participantsToSpeakers(ids: string[], comerciales: boolean): SpeakerProfile[] {
   const byId = new Map(DEFAULT_SPEAKERS.map((s) => [s.id.toUpperCase(), s]));
@@ -119,14 +124,12 @@ function participantsToSpeakers(ids: string[], comerciales: boolean): SpeakerPro
     seen.add(sp.id);
     resolved.push(sp);
   }
-  // garantía mínima de reparto: conductor + co-conductora
   const has = (i: string) => seen.has(i);
   if (!has("EDUARDO")) { resolved.unshift(byId.get("EDUARDO")!); seen.add("EDUARDO"); }
   if (!has("ANDREA")) { resolved.splice(1, 0, byId.get("ANDREA")!); seen.add("ANDREA"); }
   return resolved.filter(Boolean);
 }
 
-/** Convierte participantes del LLM (ids posiblemente vacíos) a ids oficiales del reparto. */
 function normalizeParticipantes(participantes: Proposal["participantes"]): Proposal["participantes"] | null {
   if (!participantes || participantes.length === 0) return null;
   const byId = new Map(DEFAULT_SPEAKERS.map((s) => [s.id.toUpperCase(), s]));
@@ -151,6 +154,64 @@ function voiceSlotForSpeaker(speaker: string): VoiceSlot {
   return "A";
 }
 
+/**
+ * Quality Gate determinista para validar propuestas generadas por Groq.
+ * Verifica que no sean genéricas y aborden los conceptos obligatorios del tema.
+ */
+export function evaluateProposalQuality(
+  topic: string,
+  proposal: Partial<Proposal>,
+  research: ResearchBundle
+): { valid: boolean; issues: string[] } {
+  const issues: string[] = [];
+  const lowerEnfoque = (proposal.enfoque ?? "").toLowerCase();
+
+  // 1. Detección de propuesta genérica / cliché
+  if (
+    lowerEnfoque.includes("cómo se aplica en la práctica y qué conviene revisar") ||
+    lowerEnfoque.includes("qué dice la normativa, cómo se aplica y qué revisar") ||
+    lowerEnfoque.length < 35
+  ) {
+    issues.push("El enfoque es genérico y no aborda las particularidades del tema.");
+  }
+
+  // 2. Comprobación de conceptos requeridos en el tema
+  const lowerTopic = topic.toLowerCase();
+  if (lowerTopic.includes("vacacion") || lowerTopic.includes("vacaciones")) {
+    const mentionsInclusion = lowerTopic.includes("inclusion") || lowerTopic.includes("inclusión");
+    const mentionsContinuidad = lowerTopic.includes("continuidad");
+    const mentionsVencimiento = lowerTopic.includes("vencimiento");
+
+    const fullText = (
+      (proposal.enfoque ?? "") + " " +
+      (proposal.estructura ?? []).map((e) => e.seccion + " " + e.proposito).join(" ")
+    ).toLowerCase();
+
+    if (mentionsInclusion && !fullText.includes("inclusi")) {
+      issues.push("La propuesta de vacaciones debe abordar explícitamente las marcas de inclusión.");
+    }
+    if (mentionsContinuidad && !fullText.includes("continuidad")) {
+      issues.push("La propuesta de vacaciones debe abordar explícitamente la continuidad.");
+    }
+    if (mentionsVencimiento && !fullText.includes("vencimiento")) {
+      issues.push("La propuesta de vacaciones debe abordar explícitamente las fechas de vencimiento.");
+    }
+  }
+
+  // 3. Estructura mínima y participantes
+  if (!proposal.estructura || proposal.estructura.length < 3) {
+    issues.push("La estructura debe contar con al menos 3 secciones definidas.");
+  }
+  if (!proposal.participantes || proposal.participantes.length < 2) {
+    issues.push("Se requieren al menos 2 locutores para el episodio.");
+  }
+
+  return {
+    valid: issues.length === 0,
+    issues,
+  };
+}
+
 export class ProjectWorkflowService {
   constructor(
     public store: ProjectStore,
@@ -169,11 +230,12 @@ export class ProjectWorkflowService {
   async research(id: string): Promise<{ project: Project; research: ResearchBundle }> {
     const project = this.store.get(id);
     if (!project) throw new Error("PROJECT_NOT_FOUND");
-    // Corpus ausente: fail-closed. Sin biblioteca no se investiga — nunca se usa
-    // el conocimiento paramétrico del LLM para inventar contenido.
+
+    // Corpus ausente: fail-closed. Sin biblioteca no se investiga
     let docsCount = 0;
     try { docsCount = this.catalog.listDocuments().length; } catch { docsCount = 0; }
     if (docsCount === 0) throw new Error("LOCAL_LIBRARY_UNAVAILABLE");
+
     this.store.updateState(id, "RESEARCHING");
     const topic = project.topic;
     const pack = this.catalog.buildEvidencePack(topic, { limit: 25 });
@@ -195,70 +257,112 @@ export class ProjectWorkflowService {
     return { project: next, research: bundle };
   }
 
+  /**
+   * Crea la propuesta editorial mediante Groq.
+   * Sin fallback determinista. Si Groq falla o falta evidencia, se detiene.
+   */
   async createProposal(id: string): Promise<{ project: Project; proposal: Proposal }> {
     const project = this.store.get(id);
     if (!project) throw new Error("PROJECT_NOT_FOUND");
     const research = this.store.readArtifact<ResearchBundle>(id, "research.json");
     if (!research) throw new Error("RESEARCH_REQUIRED");
+
+    // 1. Salud del motor Groq
+    const available = await this.llm.isAvailable();
+    if (!available) {
+      this.store.updateState(id, "PROPOSAL_GENERATION_FAILED");
+      throw new GroqUnavailableError("El motor editorial no está disponible.");
+    }
+
+    // 2. Gate de evidencia normativa
     const coverage = research.coverage;
     const claims = research.claims;
-    const hasLegal = claims.some((c) => c.evidence.some((e) => e.clause || e.article));
+    if (!claims || claims.length === 0) {
+      this.store.updateState(id, "PROPOSAL_GENERATION_FAILED");
+      throw new InsufficientEvidenceError(project.topic);
+    }
 
-    const base = deterministicProposal(project, research, hasLegal);
-    let proposal: Proposal = base;
-    if (project.config.modo === "ia") {
-      try {
-        const available = await this.llm.isAvailable();
-        if (!available) throw new Error("LOCAL_LLM_UNAVAILABLE");
-      const analysis = await this.llm.analyzeTopic(project.topic, claimsFlat(research.claims));
-      const evaluation = await this.llm.evaluateEvidence(project.topic, claimsFlat(research.claims));
-      const partial = await this.llm.createProposal({
+    this.store.updateState(id, "GENERATING_PROPOSALS");
+
+    // 3. Generación con Groq
+    const availableSpeakers = autoCast(project.topic, claims.length > 0, project.config.comerciales.enabled);
+    let partialProposal: Partial<Proposal>;
+    try {
+      const analysis = await this.llm.analyzeTopic(project.topic, claimsFlat(claims));
+      const evaluation = await this.llm.evaluateEvidence(project.topic, claimsFlat(claims));
+
+      partialProposal = await this.llm.createProposal({
         topic: project.topic,
         enfoque: analysis.enfoque,
         coverageSummary: coverageFlat(coverage),
-        claimsFlat: claimsFlat(research.claims),
+        claimsFlat: claimsFlat(claims),
         duracionMin: guiaMinutos(project.config),
         nivel: project.config.nivel,
         comerciales: project.config.comerciales,
-        participants: base.participantes.map((p) => p.id),
+        participants: availableSpeakers,
       });
-      // fusionar la propuesta del motor local con el armazón determinista
-      // (que aporta cobertura completos + estructura base si faltan)
-      proposal = {
-        ...base,
-        ...partial,
-        topic: project.topic,
-        formato: partial.formato ?? base.formato,
-        duracionEstimadaMin: partial.duracionEstimadaMin ?? base.duracionEstimadaMin,
-        participantes: partial.participantes?.length ? partial.participantes : base.participantes,
-        estructura: partial.estructura?.length ? partial.estructura : base.estructura,
-        fuentes: partial.fuentes?.length ? partial.fuentes : base.fuentes,
-        cobertura: coverage,
-        huecos: [...new Set([...(partial.huecos ?? []), ...evaluation.faltantes, ...coverage.missing])],
-        advertencias: [...new Set([...(partial.advertencias ?? []), ...evaluation.advertencias, ...coverage.warnings])],
-        publicable: partial.publicable ?? base.publicable,
-        decisionRationale: [...base.decisionRationale, "propuesta generada por el motor local"],
-      };
-      } catch (e) {
-        proposal = base;
-        proposal.decisionRationale.push(`propuesta determinista (${e instanceof Error ? e.message : "motor local no disponible"})`);
+
+      // Validar contra Quality Gate de propuesta
+      let qualityCheck = evaluateProposalQuality(project.topic, partialProposal, research);
+      if (!qualityCheck.valid) {
+        // Intento de reparación focalizada con Groq
+        partialProposal = await this.llm.createProposal({
+          topic: project.topic,
+          enfoque: `${analysis.enfoque}. REQUERIMIENTO EDITORIAL ESTRICTO: debe abordar obligatoriamente: ${qualityCheck.issues.join("; ")}`,
+          coverageSummary: coverageFlat(coverage),
+          claimsFlat: claimsFlat(claims),
+          duracionMin: guiaMinutos(project.config),
+          nivel: project.config.nivel,
+          comerciales: project.config.comerciales,
+          participants: availableSpeakers,
+        });
+        qualityCheck = evaluateProposalQuality(project.topic, partialProposal, research);
+        if (!qualityCheck.valid) {
+          throw new ProposalGenerationFailedError(`Propuesta no superó el Quality Gate: ${qualityCheck.issues.join("; ")}`);
+        }
       }
-    } else {
-      proposal = base;
-      proposal.decisionRationale.push("propuesta determinista (modo determinista)");
+
+      const participantesNormalizados = normalizeParticipantes(partialProposal.participantes) ??
+        availableSpeakers.map((id) => {
+          const s = DEFAULT_SPEAKERS.find((x) => x.id.toUpperCase() === id.toUpperCase());
+          return { id: s?.id ?? id, nombre: s?.nombre ?? id, rol: s?.rol ?? "participante", funcionEditorial: s?.funcionEditorial ?? null, voz: s?.voz ?? voiceSlotForSpeaker(id), participa: true };
+        });
+
+      const fullProposal: Proposal = {
+        topic: project.topic,
+        enfoque: partialProposal.enfoque ?? `Análisis normativo y práctico sobre ${project.topic}`,
+        formato: partialProposal.formato ?? EditorialFormatSchema.parse(autoFormat(project.topic)),
+        nivel: (partialProposal.nivel as "informativo" | "natural" | "dinamico") ?? project.config.nivel,
+        duracionEstimadaMin: partialProposal.duracionEstimadaMin ?? guiaMinutos(project.config),
+        participantes: participantesNormalizados,
+        estructura: partialProposal.estructura ?? [
+          { seccion: "Apertura", proposito: "Presentar el tema y su impacto laboral." },
+          { seccion: "Fundamento normativo", proposito: "Explicar los artículos y cláusulas aplicables." },
+          { seccion: "Aplicación y cierre", proposito: "Pasos concretos para ejercer el derecho." },
+        ],
+        fuentes: partialProposal.fuentes ?? claims.slice(0, 6).map((c) => c.evidence[0]?.document ?? "").filter(Boolean),
+        cobertura: coverage,
+        huecos: [...new Set([...(partialProposal.huecos ?? []), ...(evaluation?.faltantes ?? []), ...(coverage?.missing ?? [])])],
+        advertencias: [...new Set([...(partialProposal.advertencias ?? []), ...(evaluation?.advertencias ?? []), ...(coverage?.warnings ?? [])])],
+        publicable: partialProposal.publicable ?? coverage.recommended,
+        comerciales: [],
+        decisionRationale: ["Propuesta editorial generada íntegramente por Groq y validada por Quality Gate"],
+        createdAt: new Date().toISOString(),
+      };
+
+      this.store.writeProposal(id, fullProposal);
+      const next = this.store.update(id, { proposal: fullProposal, state: "PROPOSAL_READY" })!;
+      return { project: next, proposal: fullProposal };
+    } catch (e) {
+      this.store.updateState(id, "PROPOSAL_GENERATION_FAILED");
+      if (e instanceof ProposalGenerationFailedError || e instanceof InsufficientEvidenceError || e instanceof GroqUnavailableError) {
+        throw e;
+      }
+      throw new ProposalGenerationFailedError(e instanceof Error ? e.message : String(e));
     }
-    // Los participantes del LLM pueden venir con id vacío; los normalizamos a ids
-    // oficiales del reparto (por nombre) y descartamos los que no cuadran.
-    proposal.participantes = normalizeParticipantes(proposal.participantes) ?? base.participantes;
-    proposal.topic = project.topic;
-    proposal.createdAt = new Date().toISOString();
-    this.store.writeProposal(id, proposal);
-    const next = this.store.update(id, { proposal, state: "PROPOSAL_READY" })!;
-    return { project: next, proposal };
   }
 
   async createProposalVariant(id: string): Promise<{ project: Project; proposal: Proposal }> {
-    // Genera una variante de propuesta para comparar en el Quality Orchestrator
     return this.createProposal(id);
   }
 
@@ -279,13 +383,24 @@ export class ProjectWorkflowService {
     return this.store.update(id, { state: "PROPOSAL_APPROVED" })!;
   }
 
-  async generateScript(id: string, modoOverride?: "determinista" | "ia"): Promise<{ project: Project; script: Script; verify: VerifyResult }> {
+  /**
+   * Genera el guion mediante el pipeline multipass de Groq.
+   * Sin fallback determinista ni fallback a modelos locales.
+   */
+  async generateScript(id: string): Promise<{ project: Project; script: Script; verify: VerifyResult }> {
     const project = this.store.get(id);
     if (!project) throw new Error("PROJECT_NOT_FOUND");
     const proposal = project.proposal;
     const research = this.store.readArtifact<ResearchBundle>(id, "research.json");
     if (!proposal || !research) throw new Error("PROPOSAL_OR_RESEARCH_REQUIRED");
-    const modo = modoOverride ?? project.config.modo;
+
+    // 1. Salud del motor Groq
+    const available = await this.llm.isAvailable();
+    if (!available) {
+      this.store.updateState(id, "SCRIPT_GENERATION_FAILED");
+      throw new GroqUnavailableError("El motor editorial no está disponible.");
+    }
+
     this.store.updateState(id, "SCRIPT_GENERATING");
 
     const claims = research.claims.map((c) => ({
@@ -297,7 +412,35 @@ export class ProjectWorkflowService {
     const nivel = proposal.nivel as "informativo" | "natural" | "dinamico";
     const duracionMin = proposal.duracionEstimadaMin;
 
-    let script: EpisodeScript = directRadioEpisode({
+    const pack2 = buildEvidencePackV2(`p-${id}`, project.topic, claims, research.cutoff);
+    const artifactsDir = this.store.artifactPaths(id).logsDir;
+
+    // 2. Ejecución estricta con Groq Pipeline
+    let pipelineResult;
+    try {
+      pipelineResult = await new ScriptPipeline().run({
+        tema: project.topic,
+        duracionMin,
+        speakers,
+        nivel,
+        claims,
+        cutoff: research.cutoff,
+        fuentes: research.documents.map((d) => ({ id: d.sourceId, title: d.title, versionLabel: d.versionLabel ?? "", sha256: d.sha256 ?? "" })),
+        modoCita: "natural",
+        evidencePack: pack2,
+        artifactsDir,
+      });
+    } catch (e) {
+      this.store.updateState(id, "SCRIPT_GENERATION_FAILED");
+      throw new GroqGenerationFailedError("generación de guion", e);
+    }
+
+    if (!pipelineResult?.turns || pipelineResult.turns.length < 4) {
+      this.store.updateState(id, "SCRIPT_GENERATION_FAILED");
+      throw new ScriptQualityFailedError(["El guion devuelto por Groq no cuenta con suficientes turnos"]);
+    }
+
+    let script: EpisodeScript = {
       tema: project.topic,
       duracionMin,
       speakers,
@@ -305,60 +448,32 @@ export class ProjectWorkflowService {
       claims,
       cutoff: research.cutoff,
       fuentes: research.documents.map((d) => ({ id: d.sourceId, title: d.title, versionLabel: d.versionLabel ?? "", sha256: d.sha256 ?? "" })),
-      modoCita: "natural" as CitationMode,
-    });
+      modoCita: "natural",
+      turns: pipelineResult.turns,
+      scenes: groupScenes(pipelineResult.turns),
+      estimacionDurSec: Math.round(pipelineResult.turns.reduce((a, t) => a + t.text.split(/\s+/).length / 2.6, 0)),
+    };
 
-    let modoUsado = "determinista";
-    if (modo === "ia") {
-      try {
-        const pack2 = buildEvidencePackV2(`p-${id}`, project.topic, claims, research.cutoff);
-        const artifactsDir = this.store.artifactPaths(id).logsDir;
-        const resultado = await new ScriptPipeline().run({
-          tema: project.topic, duracionMin, speakers, nivel, claims,
-          cutoff: research.cutoff,
-          fuentes: research.documents.map((d) => ({ id: d.sourceId, title: d.title, versionLabel: d.versionLabel ?? "", sha256: d.sha256 ?? "" })),
-          modoCita: "natural",
-          evidencePack: pack2, artifactsDir,
-        });
-        if (resultado.turns.length >= 6 && validateRoleFirewall(resultado.turns).length === 0) {
-          script = { ...script, turns: resultado.turns, scenes: groupScenes(resultado.turns), estimacionDurSec: Math.round(resultado.turns.reduce((a, t) => a + t.text.split(/\s+/).length / 2.6, 0)) };
-          modoUsado = "local-ia";
-        }
-      } catch { /* fallback determinista */ }
-    }
-
-    // pulido de estilo (contenido factual intacto)
+    // Pulido de diálogo (estilo sin alterar hechos)
     const polished = polishDialogue(script);
     if (polished.lineasFactualesIntactas) script = polished.script;
-
     script = sanitizeEditorialScript(script).script;
 
-    // Limitar el número de intervenciones según la profundidad. Cada intervención
-    // es UN clip TTS (proceso Qwen desechable que recarga el modelo), así que un
-    // guion de 150 turnos tardaría horas en producirse. La profundidad marca el
-    // alcance: breve/esencial, estándar/balance, a fondo.
-    const cap = TURN_CAP[project.config.profundidad] ?? TURN_CAP.estandar;
-    if (script.turns.length > cap) {
-      const turns = script.turns.slice(0, cap);
-      script = { ...script, turns, scenes: groupScenes(turns), estimacionDurSec: Math.round(turns.reduce((a, t) => a + t.text.split(/\s+/).length / 2.6, 0)) };
-    }
-
-    // map to studio contract
+    // Mapear al contrato de studio
     const studioScript: Script = mapEpisodeScriptToStudio(script, project);
 
-    // commercials
+    // Comerciales si aplican
     const selections = project.config.comerciales;
     const lib = this.commercials.list({ onlyActive: true });
     let placements: CommercialPlacement[] = [];
     if (selections.enabled && lib.length > 0) {
-      // Autorizados: los ids elegidos por el usuario; si no eligió, todos los activos.
       const authorized = selections.ids.length > 0 ? lib.filter((c) => selections.ids.includes(c.id)) : lib;
       const chosen = authorized.length > 0 ? authorized : lib;
       placements = planCommercialPlacements(studioScript.turns.map((t) => ({ id: t.id, speaker: t.speaker, text: t.displayText, adSlot: t.adSlot })), selections, chosen);
       applyCommercials(studioScript, placements, chosen, this.commercials);
     }
 
-    // verificación factual
+    // 3. Verificación factual determinista
     const ctx: VerifierContext = {
       claims: research.claims,
       sources: new Map(research.documents.map((d) => [d.sourceId, d.document])),
@@ -366,10 +481,17 @@ export class ProjectWorkflowService {
     };
     const verify = verifyScript(studioScript, ctx);
 
+    // Si hay fallas de verificación factual, se detiene o repara con Groq.
+    // NUNCA degradar a texto determinista.
+    if (!verify.verified) {
+      this.store.writeScript(id, studioScript);
+      this.store.updateState(id, "SCRIPT_QUALITY_FAILED");
+      throw new ScriptQualityFailedError(verify.issues.map((i) => `${i.turnId}: ${i.detail}`));
+    }
+
     this.store.writeScript(id, studioScript);
     this.store.writeCommercials(id, placements);
-    const state = verify.verified ? "SCRIPT_READY" : "NEEDS_REVIEW";
-    const next = this.store.update(id, { script: studioScript, state: state as Project["state"] })!;
+    const next = this.store.update(id, { script: studioScript, state: "SCRIPT_READY" })!;
     return { project: next, script: studioScript, verify };
   }
 
@@ -391,15 +513,21 @@ export class ProjectWorkflowService {
   async produce(id: string): Promise<Project> {
     const project = this.store.get(id);
     if (!project) throw new Error("PROJECT_NOT_FOUND");
-    if (!project.script) throw new Error("PRODUCTION_REQUIRES_SCRIPT_APPROVED");
-    // Idempotente: si ya está produciendo (o listo/mézclando), no falla.
-    // Un segundo clic en "CREAR EPISODIO" reanuda la producción existente.
+    if (!project.script) throw new ProductionBlockedError("El proyecto no tiene un guion listo");
+
+    // Validar estado previo a producción:
+    // Exigir SCRIPT_READY o SCRIPT_APPROVED, más verificación aprobada
+    if (project.state !== "SCRIPT_APPROVED" && project.state !== "SCRIPT_READY" && project.state !== "PRODUCING" && project.state !== "MASTERING" && project.state !== "DONE") {
+      throw new ProductionBlockedError(`Estado ${project.state} no permite producción.`);
+    }
+
+    const verify = await this.verify(id);
+    if (!verify.verified) {
+      throw new ProductionBlockedError(`El guion tiene afirmaciones no verificadas (${verify.issues.length} observaciones).`);
+    }
+
     if (project.state === "PRODUCING" || project.state === "MASTERING" || project.state === "DONE") {
       return this.store.update(id, { state: "PRODUCING" })!;
-    }
-    // Sólo se aprueba la producción desde un guion aprobado/listo.
-    if (project.state !== "SCRIPT_APPROVED" && project.state !== "SCRIPT_READY") {
-      return project;
     }
     return this.store.update(id, { state: "PRODUCING" })!;
   }
@@ -413,45 +541,6 @@ function groupScenes(turns: DialogueTurn[]): EpisodeScript["scenes"] {
     map.get(key)!.turns.push(t);
   }
   return [...map.values()];
-}
-
-export function deterministicProposal(project: Project, research: ResearchBundle, hasLegal: boolean): Proposal {
-  const format = autoFormat(project.topic);
-  const ids = autoCast(project.topic, hasLegal, project.config.comerciales.enabled);
-  const estructura = defaultStructure(format);
-  return {
-    topic: project.topic,
-    enfoque: `Explicar el tema de forma clara y cercana para trabajadoras y trabajadores: qué dice la normativa, cómo se aplica en la práctica y qué conviene revisar.`,
-    formato: EditorialFormatSchema.parse(format),
-    nivel: project.config.nivel as "informativo" | "natural" | "dinamico",
-    duracionEstimadaMin: guiaMinutos(project.config),
-    participantes: ids.map((id) => {
-      const s = DEFAULT_SPEAKERS.find((x) => x.id.toUpperCase() === id.toUpperCase());
-      return { id: s?.id ?? id, nombre: s?.nombre ?? id, rol: s?.rol ?? "participante", funcionEditorial: s?.funcionEditorial ?? null, voz: s?.voz ?? voiceSlotForSpeaker(id), participa: true };
-    }),
-    estructura,
-    fuentes: research.claims.slice(0, 6).map((c) => c.evidence[0]?.document ?? "").filter(Boolean),
-    cobertura: research.coverage,
-    huecos: research.coverage.missing,
-    comerciales: [],
-    advertencias: research.coverage.warnings,
-    publicable: research.coverage.recommended,
-    decisionRationale: ["formato y reparto elegidos por heurística determinista"],
-  };
-}
-
-function defaultStructure(format: string): Proposal["estructura"] {
-  const base: Proposal["estructura"] = [
-    { seccion: "Apertura", proposito: "Presentar el tema con una situación de arranque cercana." },
-    { seccion: "Qué dice la normativa", proposito: "Explicar el fundamento con la fuente a la mano." },
-  ];
-  if (format === "GUIA_PASO_A_PASO") {
-    base.push({ seccion: "Pasos a seguir", proposito: "Secuencia concreta para actuar." });
-  }
-  base.push({ seccion: "Ojo con esto", proposito: "Errores comunes y advertencias." });
-  base.push({ seccion: "Cómo documentarlo", proposito: "Qué guardar y con quién acudir." });
-  base.push({ seccion: "Cierre práctico", proposito: "3 pasos accionables." });
-  return base;
 }
 
 function mapEpisodeScriptToStudio(script: EpisodeScript, project: Project): Script {
@@ -548,7 +637,6 @@ function applyCommercials(script: Script, placements: CommercialPlacement[], lib
     };
     script.turns.splice(at, 0, bridgeInTurn, commercialTurn, bridgeOutTurn);
   }
-  // reconstruir escenas
   script.scenes = groupScenesFromTurns(script.turns);
   script.estimacionDurSec = Math.round(script.turns.reduce((a, t) => a + t.displayText.split(/\s+/).length / 2.6, 0));
 }

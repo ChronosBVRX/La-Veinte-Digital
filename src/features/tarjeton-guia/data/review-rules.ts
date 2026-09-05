@@ -107,7 +107,7 @@ export function buildUnconfirmedRule(payslip: GuidePayslip): GuideReviewRule | n
   if (lines.length === 0) return null
   return {
     id: "confianza",
-    code: lines[0].code,
+    code: lines[0].code ?? "",
     label: "Conceptos por revisar",
     when: () => "present",
     presentState: "review",

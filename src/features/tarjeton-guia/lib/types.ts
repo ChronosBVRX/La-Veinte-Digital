@@ -99,7 +99,7 @@ export interface SourceCitation {
 
 /** Línea de concepto de un tarjetón, tal como la consume la guía. */
 export interface GuidePayslipLine {
-  code: string
+  code: string | null
   description: string
   /** Importe en pesos (las deducciones pueden venir negativas o positivas; se conserva el signo de origen). */
   amount: number
@@ -127,10 +127,12 @@ export interface GuidePayslip {
   createdAt?: string
   earnings: GuidePayslipLine[]
   deductions: GuidePayslipLine[]
+  perceptions?: GuidePayslipLine[]
   observations: GuideObservation[]
   totalEarnings?: number
   totalDeductions?: number
   netPay?: number
+  netAmount?: number
   source: "local" | "server"
 }
 

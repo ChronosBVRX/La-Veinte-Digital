@@ -59,7 +59,7 @@ export default function App() {
         config: {
           duracionMin: PROFUNDIDAD_MIN[profundidad] ?? 15,
           profundidad,
-          modo: "determinista",
+          modo: "ia",
           comerciales: {
             enabled: comerciales,
             ids: [],
@@ -109,7 +109,7 @@ export default function App() {
             {mode === "simple" ? "CONTROLES AVANZADOS ↗" : "MODO SIMPLE ✓"}
           </button>
           <div className={`sidecar-dot ${sidecarOnline ? "on" : ""}`} />
-          {sidecarOnline ? "Listo para trabajar" : "Preparando motor local"}
+          {sidecarOnline ? "Listo para trabajar" : "Conectando con el estudio"}
         </div>
       </aside>
 

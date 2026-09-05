@@ -23,8 +23,9 @@ export interface PayslipComparison {
   sameCodes: number
 }
 
-function norm(line: { code: string }) {
-  return normalizeCode(line.code) ?? line.code
+function norm(line: { code: string | null; description?: string }) {
+  if (line.code) return normalizeCode(line.code) ?? line.code
+  return line.description || "sin-codigo"
 }
 
 /** Compara dos quincenas de forma descriptiva. */

@@ -138,6 +138,10 @@ export interface EscritoDraftV2 {
    * URL de objeto en memoria (blob:) para la firma, válida en sesión actual.
    */
   firmaPreviewUrl?: string
+  /**
+   * Referencia interna al PDF generado en IndexedDB.
+   */
+  pdfRef?: string
   status: "draft" | "completed"
   generationMode: GenerationMode
   advertencias?: string[]

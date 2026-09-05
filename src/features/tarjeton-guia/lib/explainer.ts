@@ -48,12 +48,14 @@ const EMOJI_BY_CODE: Record<string, string> = {
   "170": "🏡",
 }
 
-function emojiFor(code: string, fallback: string): string {
+function emojiFor(code: string | null | undefined, fallback: string): string {
+  if (!code) return fallback
   return EMOJI_BY_CODE[normalizeCode(code) ?? ""] ?? fallback
 }
 
 /** Separa un importe formateado si el tarjetón trae unidades o saldo en observaciones. */
-function observationDetail(payslip: GuidePayslip, code: string): string | undefined {
+function observationDetail(payslip: GuidePayslip, code: string | null | undefined): string | undefined {
+  if (!code) return undefined
   const obs = payslip.observations.filter((o) => o.conceptCode === code)
   if (obs.length === 0) return undefined
   const parts: string[] = []
@@ -79,43 +81,47 @@ export function buildExplainer(payslip: GuidePayslip): ExplainerStep[] {
   // 1. Sueldo (002) o percepción mayor.
   const sueldo = payslip.earnings.find((l) => l.code === "002") ?? earnings[0]
   if (sueldo) {
+    const sueldoCode = sueldo.code || ""
     steps.push({
       kind: "sueldo",
       emoji: "💵",
       title: sueldo.code === "002" ? "Tu sueldo" : "Tu pago principal",
-      subtitle: `${sueldo.code} · ${sueldo.description}`,
+      subtitle: sueldo.code ? `${sueldo.code} · ${sueldo.description}` : sueldo.description,
       line: sueldo,
       explanation:
         sueldo.code === "002"
           ? `Recibiste $${sueldo.amount.toLocaleString("es-MX")} como sueldo base de esta quincena. Es la base de la mayoría de tus prestaciones.`
-          : `Recibiste $${sueldo.amount.toLocaleString("es-MX")} por este concepto. Es la percepción más alta de tu tarjetón.`,
-      cta: {
-        label: "Ver cómo se relaciona con otros pagos",
-        href: `/guia/conceptos/${sueldo.code}`,
-      },
+          : `Recibiste $${sueldo.amount.toLocaleString("es-MX")} por ${sueldo.description || "este concepto"}. Es la percepción más alta de tu tarjetón.`,
+      cta: sueldoCode
+        ? {
+            label: "Ver cómo se relaciona con otros pagos",
+            href: `/guia/conceptos/${sueldoCode}`,
+          }
+        : undefined,
     })
   }
 
   // 2–N. Percepciones relevantes (ordenadas por monto, sin repetir el sueldo).
   const skipCodes = new Set<string>()
-  if (sueldo) skipCodes.add(sueldo.code)
+  if (sueldo?.code) skipCodes.add(sueldo.code)
 
   const estimateCodes = ["032", "033", "029", "022", "049", "037"]
   const ordered = [
     ...estimateCodes.map((c) => payslip.earnings.find((l) => l.code === c)).filter((l): l is GuidePayslipLine => !!l),
-    ...payslip.earnings.filter((l) => !skipCodes.has(l.code) && !estimateCodes.includes(l.code)).slice(0, 6),
+    ...payslip.earnings.filter((l) => (!l.code || !skipCodes.has(l.code)) && (!l.code || !estimateCodes.includes(l.code))).slice(0, 6),
   ]
   const unique: GuidePayslipLine[] = []
   const seen = new Set<string>()
   for (const l of ordered) {
-    if (seen.has(l.code)) continue
-    seen.add(l.code)
+    const key = l.code ?? l.description
+    if (seen.has(key)) continue
+    seen.add(key)
     unique.push(l)
   }
 
   for (const line of unique.slice(0, 5)) {
-    const detail = conceptDetails[line.code]
-    const kind: ExplainerStepKind = ["032", "033"].includes(line.code) ? "estimulo" : "percepcion"
+    const detail = line.code ? conceptDetails[line.code] : undefined
+    const kind: ExplainerStepKind = (line.code && ["032", "033"].includes(line.code)) ? "estimulo" : "percepcion"
     const titles: Record<string, string> = {
       "032": "Recibiste un estímulo",
       "033": "Recibiste un estímulo",
@@ -128,13 +134,13 @@ export function buildExplainer(payslip: GuidePayslip): ExplainerStep[] {
     steps.push({
       kind,
       emoji: emojiFor(line.code, "✨"),
-      title: titles[line.code] ?? `Tu pago de ${line.description || `concepto ${line.code}`}`,
-      subtitle: `${line.code} · ${line.description}`,
+      title: (line.code && titles[line.code]) ?? `Tu pago de ${line.description || (line.code ? `concepto ${line.code}` : "concepto adicional")}`,
+      subtitle: line.code ? `${line.code} · ${line.description}` : line.description,
       line,
       explanation: detail?.simple
         ? `${detail.simple} En esta quincena recibiste $${line.amount.toLocaleString("es-MX")}.`
-        : `En esta quincena recibiste $${line.amount.toLocaleString("es-MX")} por el concepto ${line.code || ""}.`,
-      cta: { label: "¿Por qué lo recibí?", href: `/guia/conceptos/${line.code}` },
+        : `Concepto detectado en tu tarjetón. En esta quincena recibiste $${line.amount.toLocaleString("es-MX")} por ${line.description || (line.code ? `el concepto ${line.code}` : "este concepto")}.`,
+      cta: line.code ? { label: "¿Por qué lo recibí?", href: `/guia/conceptos/${line.code}` } : undefined,
       observationText: obs,
     })
   }
@@ -142,21 +148,22 @@ export function buildExplainer(payslip: GuidePayslip): ExplainerStep[] {
   // Deducciones principales.
   const seenDed = new Set<string>()
   for (const line of deductions) {
-    if (seenDed.has(line.code)) continue
-    seenDed.add(line.code)
+    const key = line.code ?? line.description
+    if (seenDed.has(key)) continue
+    seenDed.add(key)
     const obs = observationDetail(payslip, line.code)
     const amountAbs = Math.abs(line.amount)
     steps.push({
       kind: "deduccion",
       emoji: emojiFor(line.code, "🔻"),
       title: line.code === "151" ? "Lo que se retuvo de impuestos" : "Este descuento continúa",
-      subtitle: `${line.code} · ${line.description}`,
+      subtitle: line.code ? `${line.code} · ${line.description}` : line.description,
       line,
       explanation:
         line.code === "151"
           ? `Se te retuvieron $${amountAbs.toLocaleString("es-MX")} de Impuesto Sobre la Renta conforme a tus percepciones gravadas de la quincena.`
-          : `Se te descontaron $${amountAbs.toLocaleString("es-MX")} por ${line.description || `el concepto ${line.code}`}.`,
-      cta: { label: "Ver qué es este descuento", href: `/guia/conceptos/${line.code}` },
+          : `Se te descontaron $${amountAbs.toLocaleString("es-MX")} por ${line.description || (line.code ? `el concepto ${line.code}` : "este concepto")}.`,
+      cta: line.code ? { label: "Ver qué es este descuento", href: `/guia/conceptos/${line.code}` } : undefined,
       observationText: obs,
     })
     if (steps.filter((s) => s.kind === "deduccion").length >= 3) break
@@ -188,6 +195,11 @@ export function buildExplainer(payslip: GuidePayslip): ExplainerStep[] {
 
 /** Conteo para el encabezado "Mi quincena". */
 export function buildQuincenaSummary(payslip: GuidePayslip) {
+  const hasZeroConceptsWithTotals =
+    payslip.earnings.length === 0 &&
+    payslip.deductions.length === 0 &&
+    (payslip.totalEarnings != null || payslip.totalDeductions != null || payslip.netPay != null)
+
   return {
     perceptions: payslip.earnings.length,
     deductions: payslip.deductions.length,
@@ -195,6 +207,7 @@ export function buildQuincenaSummary(payslip: GuidePayslip) {
     totalEarnings: payslip.totalEarnings,
     totalDeductions: payslip.totalDeductions,
     periodRaw: payslip.periodRaw,
+    incompleteExtraction: hasZeroConceptsWithTotals,
   }
 }
 
@@ -205,19 +218,16 @@ export function buildPaycheckBrief(payslip: GuidePayslip, previous?: GuidePaysli
 
   let changes: Array<{ type: "nuevo" | "desaparecio" | "subio" | "bajo"; code: string; label: string; previousAmount?: number; amount?: number }> = []
   if (previous) {
-    const prevCodes = new Set(previous.earnings.concat(previous.deductions).map((l) => normalizeCode(l.code) ?? l.code))
-    const currCodes = new Set(payslip.earnings.concat(payslip.deductions).map((l) => normalizeCode(l.code) ?? l.code))
+    const getCodeKey = (l: GuidePayslipLine) => (l.code ? normalizeCode(l.code) ?? l.code : l.description)
+    const prevCodes = new Set(previous.earnings.concat(previous.deductions).map(getCodeKey))
+    const currCodes = new Set(payslip.earnings.concat(payslip.deductions).map(getCodeKey))
 
     for (const line of payslip.earnings.concat(payslip.deductions)) {
-      const code = normalizeCode(line.code) ?? line.code
+      const code = getCodeKey(line)
       if (!prevCodes.has(code)) {
         changes.push({ type: "nuevo", code, label: line.description || `concepto ${code}`, amount: line.amount })
       } else {
-        const prevLine = previous.earnings.concat(previous.deductions).find((l) => {
-          const lc = normalizeCode(l.code)
-          const cc = normalizeCode(line.code)
-          return (lc != null && cc != null && lc === cc) || (lc == null && cc == null && l.code === line.code)
-        })
+        const prevLine = previous.earnings.concat(previous.deductions).find((l) => getCodeKey(l) === code)
         if (prevLine && Math.abs(prevLine.amount - line.amount) > 0.01) {
           changes.push({
             type: Math.abs(line.amount) > Math.abs(prevLine.amount) ? "subio" : "bajo",
@@ -230,7 +240,7 @@ export function buildPaycheckBrief(payslip: GuidePayslip, previous?: GuidePaysli
       }
     }
     for (const line of previous.earnings.concat(previous.deductions)) {
-      const code = normalizeCode(line.code) ?? line.code
+      const code = getCodeKey(line)
       if (!currCodes.has(code)) {
         changes.push({ type: "desaparecio", code, label: line.description || `concepto ${code}`, previousAmount: line.amount })
       }

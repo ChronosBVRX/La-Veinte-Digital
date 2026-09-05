@@ -25,40 +25,124 @@ export function toGuidePayslip(raw: unknown): GuidePayslip | null {
   if (!raw || typeof raw !== "object") return null
   const p = raw as Record<string, unknown>
 
-  const period = (p.period ?? {}) as Record<string, unknown>
-  const label = typeof period.label === "string" ? period.label : undefined
+  // Period label
+  let periodLabel: string | undefined
+  if (typeof p.period === "string") {
+    periodLabel = p.period
+  } else if (p.period && typeof p.period === "object") {
+    const periodObj = p.period as Record<string, unknown>
+    periodLabel =
+      (typeof periodObj.label === "string" ? periodObj.label : undefined) ??
+      (typeof periodObj.id === "string" ? periodObj.id : undefined)
+  }
+  if (!periodLabel && typeof p.periodLabel === "string") {
+    periodLabel = p.periodLabel
+  }
+  if (!periodLabel && typeof p.periodRaw === "string") {
+    periodLabel = p.periodRaw
+  }
 
-  const earningsRaw = p.earnings
-  const deductionsRaw = p.deductions
+  // Earnings/Perceptions source
+  const parsedData = (p.parsed_data && typeof p.parsed_data === "object" ? p.parsed_data : {}) as Record<string, unknown>
+  const rawPayload = (p.raw_payload && typeof p.raw_payload === "object" ? p.raw_payload : {}) as Record<string, unknown>
 
-  if (!Array.isArray(earningsRaw) || !Array.isArray(deductionsRaw)) return null
+  let earningsRaw =
+    p.earnings ??
+    p.perceptions ??
+    p.percepciones ??
+    parsedData.earnings ??
+    parsedData.perceptions ??
+    rawPayload.earnings ??
+    rawPayload.perceptions
+  let deductionsRaw =
+    p.deductions ??
+    p.deducciones ??
+    parsedData.deductions ??
+    parsedData.deducciones ??
+    rawPayload.deductions ??
+    rawPayload.deducciones
+
+  const allConcepts = p.concepts ?? parsedData.concepts ?? rawPayload.concepts
+
+  if (!Array.isArray(earningsRaw) && !Array.isArray(deductionsRaw) && Array.isArray(allConcepts)) {
+    earningsRaw = (allConcepts as Array<Record<string, unknown>>).filter((c) => {
+      const k = String(c?.kind ?? c?.tipo ?? "").toLowerCase()
+      return !k.includes("deduc")
+    })
+    deductionsRaw = (allConcepts as Array<Record<string, unknown>>).filter((c) => {
+      const k = String(c?.kind ?? c?.tipo ?? "").toLowerCase()
+      return k.includes("deduc")
+    })
+  }
+
+  if (!Array.isArray(earningsRaw) && !Array.isArray(deductionsRaw)) {
+    if (!p.id && !periodLabel && !isNumber(p.netPay) && !isNumber(p.netAmount)) {
+      return null
+    }
+  }
 
   const earnings: GuidePayslipLine[] = []
   const deductions: GuidePayslipLine[] = []
-  for (const e of earningsRaw) {
-    const rawKind = String((e as Record<string, unknown>)?.kind ?? "").toLowerCase()
-    const kind = rawKind.includes("deduc") ? "deduction" : "earning"
-    const line = toGuideLine(e, kind)
-    if (line) {
-      if (line.kind === "deduction") deductions.push(line)
-      else earnings.push(line)
+
+  if (Array.isArray(earningsRaw)) {
+    for (const e of earningsRaw) {
+      const rawKind = String(
+        (e as Record<string, unknown>)?.kind ?? (e as Record<string, unknown>)?.tipo ?? ""
+      ).toLowerCase()
+      const kind = rawKind.includes("deduc") ? "deduction" : "earning"
+      const line = toGuideLine(e, kind)
+      if (line) {
+        if (line.kind === "deduction") deductions.push(line)
+        else earnings.push(line)
+      }
     }
   }
-  for (const d of deductionsRaw) {
-    const line = toGuideLine(d, "deduction")
-    if (line) deductions.push(line)
+
+  if (Array.isArray(deductionsRaw)) {
+    for (const d of deductionsRaw) {
+      const line = toGuideLine(d, "deduction")
+      if (line) deductions.push(line)
+    }
   }
+
+  const totalEarnings = isNumber(p.totalEarnings)
+    ? p.totalEarnings
+    : isNumber(p.total_percepciones)
+    ? (p.total_percepciones as number)
+    : undefined
+
+  const totalDeductions = isNumber(p.totalDeductions)
+    ? p.totalDeductions
+    : isNumber(p.total_deducciones)
+    ? (p.total_deducciones as number)
+    : undefined
+
+  const netPay = isNumber(p.netPay)
+    ? p.netPay
+    : isNumber(p.netAmount)
+    ? (p.netAmount as number)
+    : isNumber(p.liquido)
+    ? (p.liquido as number)
+    : undefined
 
   return {
     id: typeof p.id === "string" ? p.id : "",
-    periodLabel: label,
-    createdAt: typeof p.generatedAt === "string" ? p.generatedAt : undefined,
+    periodRaw: typeof p.periodRaw === "string" ? p.periodRaw : periodLabel,
+    periodLabel,
+    createdAt:
+      typeof p.generatedAt === "string"
+        ? p.generatedAt
+        : typeof p.created_at === "string"
+        ? p.created_at
+        : undefined,
     earnings,
     deductions,
+    perceptions: earnings,
     observations: [],
-    totalEarnings: isNumber(p.totalEarnings) ? p.totalEarnings : undefined,
-    totalDeductions: isNumber(p.totalDeductions) ? p.totalDeductions : undefined,
-    netPay: isNumber(p.netPay) ? p.netPay : undefined,
+    totalEarnings,
+    totalDeductions,
+    netPay,
+    netAmount: netPay,
     source: "local",
   }
 }

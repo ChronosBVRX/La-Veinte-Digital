@@ -241,7 +241,7 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
                   {row.kind === "earning" ? "Percepción" : "Deducción"}
                 </Badge>
                 <Input
-                  value={row.code}
+                  value={row.code ?? ""}
                   onChange={(event) => updateRow(row.lineIndex, row.kind, { code: event.target.value })}
                   aria-label={`Código del concepto ${row.lineIndex}`}
                   style={{ width: "4.5rem", padding: "0.25rem 0.5rem", fontSize: "0.8125rem" }}
@@ -252,7 +252,7 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
                   aria-label={`Nombre del concepto ${row.lineIndex}`}
                   style={{ flex: 1, minWidth: "12rem", padding: "0.25rem 0.5rem", fontSize: "0.8125rem" }}
                 />
-                {/^\d{3}$/.test(row.code.trim()) && (
+                {row.code && /^\d{3}$/.test(row.code.trim()) && (
                   <ConceptHelp conceptCode={row.code.trim()} variant="icon" size={18} />
                 )}
                 <Input

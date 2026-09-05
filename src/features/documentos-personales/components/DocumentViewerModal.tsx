@@ -11,39 +11,47 @@ import {
 import { FullscreenPortal } from "@/shared/components/ui/FullscreenPortal"
 import { Button } from "@/shared/components/ui/Button"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
-import { readNativeDocumentAsFile } from "@/features/transferir/services/transfer"
-import { escritoToPdfFile } from "../lib/escrito-pdf"
 import {
   grupoLabel, formatBytes, formatFecha, formatFechaEscrito,
   type DocumentoPersonalItem,
-  type UnifiedViewerDocument, toUnifiedViewerDocument,
+  type DocTipo,
+  type UnifiedViewerDocument,
 } from "../lib/documents"
+import {
+  resolveViewerDocument,
+  type ViewerDocument,
+} from "../services/document-viewer-adapter"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
 import { shareGeneratedPdf } from "@/shared/services/pdfShareBridge"
 
-export type { UnifiedViewerDocument }
+export type { UnifiedViewerDocument, ViewerDocument }
 
-const TIPO_ICON: Record<UnifiedViewerDocument["type"], typeof FileText> = {
+const TIPO_ICON: Record<string, typeof FileText> = {
   tarjeton: FileText,
   checadas: Clock,
+  checada: Clock,
   escrito: PencilLine,
   documento: FileText,
 }
 
-const TIPO_COLOR: Record<UnifiedViewerDocument["type"], string> = {
+const TIPO_COLOR: Record<string, string> = {
   tarjeton: "#3b82f6",
   checadas: "#22c55e",
+  checada: "#22c55e",
   escrito: "#a855f7",
   documento: "#64748b",
 }
 
 export interface DocumentViewerModalProps<
-  T extends DocumentoPersonalItem | UnifiedViewerDocument = DocumentoPersonalItem | UnifiedViewerDocument
+  T extends DocumentoPersonalItem | UnifiedViewerDocument | ViewerDocument =
+    | DocumentoPersonalItem
+    | UnifiedViewerDocument
+    | ViewerDocument
 > {
   open: boolean
   doc: T | null
-  userId: string | null
-  profile: TarjetonProfileSnapshot | null
+  userId?: string | null
+  profile?: TarjetonProfileSnapshot | null
   onClose: () => void
   onSendPrint?: (doc: T) => void
   onImportTarjeton?: (doc: T) => void
@@ -52,14 +60,17 @@ export interface DocumentViewerModalProps<
 }
 
 export function DocumentViewerModal<
-  T extends DocumentoPersonalItem | UnifiedViewerDocument = DocumentoPersonalItem | UnifiedViewerDocument
+  T extends DocumentoPersonalItem | UnifiedViewerDocument | ViewerDocument =
+    | DocumentoPersonalItem
+    | UnifiedViewerDocument
+    | ViewerDocument
 >(props: DocumentViewerModalProps<T>) {
   const { open, onClose, doc } = props
 
   // Interceptar botón atrás de Android / navegador para cerrar primero el visor
+  // Manejo de historial para botón atrás en Android sin duplicar el listener de FullscreenPortal
   useEffect(() => {
-    if (!open || typeof window === "undefined") return
-
+    if (!open) return
     const stateKey = `modal-viewer-${Date.now()}`
     window.history.pushState({ modal: stateKey }, "")
     let closedByPop = false
@@ -85,17 +96,17 @@ export function DocumentViewerModal<
         key={doc.id}
         {...props}
         doc={doc}
-        onSendPrint={props.onSendPrint as ((d: DocumentoPersonalItem | UnifiedViewerDocument) => void) | undefined}
-        onImportTarjeton={props.onImportTarjeton as ((d: DocumentoPersonalItem | UnifiedViewerDocument) => void) | undefined}
-        onDelete={props.onDelete as ((d: DocumentoPersonalItem | UnifiedViewerDocument) => void) | undefined}
-        onDownload={props.onDownload as ((d: DocumentoPersonalItem | UnifiedViewerDocument) => void) | undefined}
+        onSendPrint={props.onSendPrint as ((d: unknown) => void) | undefined}
+        onImportTarjeton={props.onImportTarjeton as ((d: unknown) => void) | undefined}
+        onDelete={props.onDelete as ((d: unknown) => void) | undefined}
+        onDownload={props.onDownload as ((d: unknown) => void) | undefined}
       />
     </FullscreenPortal>
   )
 }
 
-interface DocumentViewerModalContentProps extends DocumentViewerModalProps {
-  doc: DocumentoPersonalItem | UnifiedViewerDocument
+interface DocumentViewerModalContentProps extends Omit<DocumentViewerModalProps, "doc"> {
+  doc: DocumentoPersonalItem | UnifiedViewerDocument | ViewerDocument
 }
 
 function DocumentViewerModalContent({
@@ -108,7 +119,6 @@ function DocumentViewerModalContent({
   onDelete,
   onDownload,
 }: DocumentViewerModalContentProps) {
-  const doc = toUnifiedViewerDocument(rawDoc)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pdfPages, setPdfPages] = useState<string[]>([])
@@ -144,6 +154,22 @@ function DocumentViewerModalContent({
     initialPanY: 0,
   })
 
+  const rawType =
+    ("sourceType" in rawDoc && rawDoc.sourceType
+      ? rawDoc.sourceType
+      : ("tipo" in rawDoc
+      ? rawDoc.tipo
+      : ("type" in rawDoc
+      ? rawDoc.type
+      : "documento"))) as string
+
+  const normalizedType = rawType === "checadas" ? "checada" : rawType
+  const Icon = TIPO_ICON[normalizedType] || FileText
+  const color = TIPO_COLOR[normalizedType] || "#3b82f6"
+  const docName =
+    ("name" in rawDoc && rawDoc.name ? String(rawDoc.name) : undefined) ||
+    ("titulo" in rawDoc && rawDoc.titulo ? String(rawDoc.titulo) : "Documento")
+
   // Limpieza de Object URLs de páginas y firmas
   const createdUrlsRef = useRef<string[]>([])
 
@@ -152,22 +178,48 @@ function DocumentViewerModalContent({
     const urlsToClean: string[] = []
 
     const loadContent = async () => {
+      setLoading(true)
+      setError(null)
+
       try {
-        if (doc.type === "escrito" && doc.escrito) {
-          const currentUserId = userId ?? "anonymous"
+        let viewerDoc: ViewerDocument
+        if ("renderUrl" in rawDoc && rawDoc.renderUrl && "sourceType" in rawDoc && rawDoc.sourceType) {
+          viewerDoc = rawDoc as ViewerDocument
+        } else {
+          viewerDoc = await resolveViewerDocument(rawDoc, userId ?? "anonymous", profile)
+        }
+
+        if (cancelled) return
+
+        const mime = viewerDoc.mimeType || "application/pdf"
+
+        // Caso 1: Imágenes (PNG, JPG, WebP)
+        if (mime.startsWith("image/")) {
+          setPdfPages([viewerDoc.renderUrl])
+          setLoading(false)
+          return
+        }
+
+        // Caso 2: Documentos PDF
+        let fileToRender: File | Blob | null = viewerDoc.file || null
+        if (!fileToRender && viewerDoc.renderUrl) {
           try {
-            const generatedFile = await escritoToPdfFile(doc.escrito, currentUserId, {
-              nombre: profile?.fullName ?? undefined,
-              matricula: profile?.matricula ?? undefined,
-              categoria: profile?.categoria ?? undefined,
-            })
-            if (cancelled) return
-            setCachedFile(generatedFile)
+            const res = await fetch(viewerDoc.renderUrl)
+            fileToRender = await res.blob()
+          } catch {}
+        }
 
-            // Renderizado vectorial real tamaño Carta usando PDF.js
-            const buf = await generatedFile.arrayBuffer()
-            if (cancelled) return
+        if (fileToRender) {
+          const buf = await fileToRender.arrayBuffer()
+          if (cancelled) return
 
+          setCachedFile(
+            fileToRender instanceof File
+              ? fileToRender
+              : new File([fileToRender], viewerDoc.name, { type: "application/pdf" })
+          )
+
+          try {
             const { loadPdfDocument } = await import("@/features/tarjeton/lib/pdfjs-client")
             const { pdf } = await loadPdfDocument(buf)
             if (cancelled) return
@@ -195,108 +247,30 @@ function DocumentViewerModalContent({
               setPdfPages(pages)
               setLoading(false)
             }
-          } catch (e) {
+          } catch (pdfErr) {
             if (!cancelled) {
-              console.error("Error generando PDF de escrito:", e)
-              setError("No se pudo generar el documento PDF Carta.")
-              setLoading(false)
-            }
-          }
-        } else if (doc.sourceUri) {
-          try {
-            const res = await fetch(doc.sourceUri)
-            const buf = await res.arrayBuffer()
-            if (cancelled) return
-
-            const mime = doc.mimeType || "application/pdf"
-            const file = new File([buf], doc.name, { type: mime })
-            setCachedFile(file)
-
-            const { loadPdfDocument } = await import("@/features/tarjeton/lib/pdfjs-client")
-            const { pdf } = await loadPdfDocument(buf)
-            if (cancelled) return
-
-            const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 2) : 2
-            const renderScale = Math.min(Math.max(dpr, 2.0), 2.5)
-
-            const pages: string[] = []
-            for (let i = 1; i <= pdf.numPages; i++) {
-              const page = await pdf.getPage(i)
-              const viewport = page.getViewport({ scale: renderScale })
-              const canvas = document.createElement("canvas")
-              canvas.width = Math.ceil(viewport.width)
-              canvas.height = Math.ceil(viewport.height)
-              const ctx = canvas.getContext("2d")
-              if (ctx) {
-                await page.render({ canvasContext: ctx, viewport, canvas }).promise
-                pages.push(canvas.toDataURL("image/png"))
+              console.warn("[DocumentViewerModal] Fallback a renderUrl:", pdfErr)
+              if (viewerDoc.renderUrl) {
+                setPdfPages([viewerDoc.renderUrl])
+                setLoading(false)
+              } else {
+                throw pdfErr
               }
-              canvas.width = 0
-              canvas.height = 0
-            }
-
-            if (!cancelled) {
-              setPdfPages(pages)
-              setLoading(false)
-            }
-          } catch (e) {
-            if (!cancelled) {
-              console.error("Error cargando documento desde sourceUri:", e)
-              setError("No se pudo cargar el documento.")
-              setLoading(false)
             }
           }
         } else {
-          const file = await readNativeDocumentAsFile({
-            name: doc.name,
-            mimeType: doc.mimeType || "application/pdf",
-            localPath: doc.localPath || "",
-          })
-          if (cancelled) return
-          if (!file) {
-            setError("No se pudo leer el archivo del documento.")
+          // Fallback a renderUrl directo si existe
+          if (viewerDoc.renderUrl) {
+            setPdfPages([viewerDoc.renderUrl])
             setLoading(false)
-            return
-          }
-
-          setCachedFile(file)
-          const buf = await file.arrayBuffer()
-          if (cancelled) return
-
-          const { loadPdfDocument } = await import("@/features/tarjeton/lib/pdfjs-client")
-          const { pdf } = await loadPdfDocument(buf)
-          if (cancelled) return
-
-          // Calidad nítida y segura en memoria
-          const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 2) : 2
-          const renderScale = Math.min(Math.max(dpr, 2.0), 2.5)
-
-          const pages: string[] = []
-          for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i)
-            const viewport = page.getViewport({ scale: renderScale })
-            const canvas = document.createElement("canvas")
-            canvas.width = Math.ceil(viewport.width)
-            canvas.height = Math.ceil(viewport.height)
-            const ctx = canvas.getContext("2d")
-            if (ctx) {
-              await page.render({ canvasContext: ctx, viewport, canvas }).promise
-              pages.push(canvas.toDataURL("image/png"))
-            }
-            // Liberar canvas
-            canvas.width = 0
-            canvas.height = 0
-          }
-
-          if (!cancelled) {
-            setPdfPages(pages)
-            setLoading(false)
+          } else {
+            throw new Error("No se pudo obtener el archivo del documento para renderizar.")
           }
         }
       } catch (err) {
         if (!cancelled) {
-          console.error("Error cargando vista previa:", err)
-          setError("No se pudo generar la vista previa del documento.")
+          console.error("Error cargando vista previa en DocumentViewerModal:", err)
+          setError(err instanceof Error ? err.message : "No se pudo generar la vista previa del documento.")
           setLoading(false)
         }
       }
@@ -307,22 +281,27 @@ function DocumentViewerModalContent({
     return () => {
       cancelled = true
       for (const u of urlsToClean) {
-        URL.revokeObjectURL(u)
+        try {
+          URL.revokeObjectURL(u)
+        } catch {}
       }
       for (const u of createdUrlsRef.current) {
-        URL.revokeObjectURL(u)
+        try {
+          URL.revokeObjectURL(u)
+        } catch {}
       }
       createdUrlsRef.current = []
     }
-  }, [doc, userId, profile])
+  }, [rawDoc.id, userId])
+  const createdAt = "createdAt" in rawDoc ? rawDoc.createdAt : ("fecha" in rawDoc ? rawDoc.fecha : undefined)
+  const fileSize = "fileSize" in rawDoc ? rawDoc.fileSize : undefined
+  const localPath = "localPath" in rawDoc ? rawDoc.localPath : undefined
+  const sourceUri = "sourceUri" in rawDoc ? rawDoc.sourceUri : ("renderUrl" in rawDoc ? rawDoc.renderUrl : undefined)
 
-  const Icon = TIPO_ICON[doc.type] || FileText
-  const color = TIPO_COLOR[doc.type] || "#3b82f6"
-  const docName = doc.name || (doc.escrito?.titulo ?? "Documento")
-  const metaDate = doc.createdAt
-    ? (typeof doc.createdAt === "number" ? formatFecha(doc.createdAt) : formatFechaEscrito(String(doc.createdAt)))
+  const metaDate = createdAt
+    ? (typeof createdAt === "number" ? formatFecha(createdAt) : formatFechaEscrito(String(createdAt)))
     : ""
-  const metaSize = doc.fileSize ? formatBytes(doc.fileSize) : ""
+  const metaSize = fileSize ? formatBytes(fileSize) : ""
   const meta = [metaSize, metaDate].filter(Boolean).join("  ·  ") || "Documento"
 
   const handleShare = async () => {
@@ -330,8 +309,8 @@ function DocumentViewerModalContent({
     setShareFeedback(null)
     try {
       // 1. Android Nativo con FileProvider para documentos locales existentes (tarjetones/checadas)
-      if (doc.localPath && typeof window !== "undefined" && window.LaVeinteApp?.shareNativeDocument) {
-        window.LaVeinteApp.shareNativeDocument(doc.localPath, docName)
+      if (localPath && typeof window !== "undefined" && window.LaVeinteApp?.shareNativeDocument) {
+        window.LaVeinteApp.shareNativeDocument(localPath, docName)
         setIsSharing(false)
         return
       }
@@ -377,7 +356,7 @@ function DocumentViewerModalContent({
       onDownload(rawDoc)
       return
     }
-    if (!cachedFile && !doc.sourceUri) {
+    if (!cachedFile && !sourceUri) {
       setShareFeedback("El documento aún se está preparando...")
       setTimeout(() => setShareFeedback(null), 3000)
       return
@@ -389,8 +368,8 @@ function DocumentViewerModalContent({
     if (cachedFile) {
       downloadUrl = URL.createObjectURL(cachedFile)
       shouldRevoke = true
-    } else if (doc.sourceUri) {
-      downloadUrl = doc.sourceUri
+    } else if (sourceUri) {
+      downloadUrl = sourceUri
     }
 
     if (!downloadUrl) return
@@ -626,7 +605,7 @@ function DocumentViewerModalContent({
                 textOverflow: "ellipsis",
               }}
             >
-              <span style={{ fontWeight: 600, color }}>{grupoLabel(doc.type)}</span> · {meta}
+              <span style={{ fontWeight: 600, color }}>{grupoLabel(normalizedType as DocTipo)}</span> · {meta}
             </div>
           </div>
         </div>
@@ -675,11 +654,11 @@ function DocumentViewerModalContent({
           )}
 
           {/* Editar (si es escrito) */}
-          {doc.type === "escrito" && (
+          {normalizedType === "escrito" && (
             <Link
-              href={`/escritos?id=${doc.id}`}
+              href={`/escritos?id=${rawDoc.id}`}
               title="Editar escrito"
-              aria-label="Editar escrito"
+              aria-label="Editar"
               className="doc-viewer-action-btn"
               style={{
                 color: "#a855f7",
@@ -692,7 +671,7 @@ function DocumentViewerModalContent({
           )}
 
           {/* Exportar al perfil (si es tarjetón) */}
-          {doc.type === "tarjeton" && onImportTarjeton && (
+          {normalizedType === "tarjeton" && onImportTarjeton && (
             <button
               onClick={() => onImportTarjeton(rawDoc)}
               title="Exportar datos al perfil laboral"

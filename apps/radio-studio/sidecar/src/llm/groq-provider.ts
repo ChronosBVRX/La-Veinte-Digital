@@ -17,6 +17,7 @@ import { TASK_PROFILES } from "./local-llm";
 import { getGroqQueue, type GroqRateLimitError } from "./groq-queue";
 import { sanitizeForCloud, assertNoSecrets, detectsSensitiveContent } from "./privacy-filter";
 import { clampToInputBudget, maxTokensForStage } from "./token-budget";
+import { GroqUnavailableError } from "../errors/editorial-errors";
 
 const GROQ_BASE_URL = "https://api.groq.com/openai/v1";
 
@@ -111,6 +112,9 @@ export class GroqLLMProvider implements ILLMProvider {
     useCache?: boolean;
     numCtxOverride?: number;
   }): Promise<T> {
+    if (!this.cfg.apiKey) {
+      throw new GroqUnavailableError("GROQ_API_KEY no configurada");
+    }
     const profile = TASK_PROFILES[opts.task] ?? TASK_PROFILES.dialogue;
     const chosenModel = modelForTask(this.cfg, opts.task);
 

@@ -6,7 +6,7 @@
  * miles ("1 000.50"). Nunca devuelve NaN y un campo vacío es undefined.
  */
 
-const MONEY_PATTERN = /^([+-]?)\s*[\d\s,]*\d(?:\.\d{1,2})?$/
+const MONEY_PATTERN = /^([+-]?)\s*\$?\s*[\d\s,]*\d(?:\.\d{1,2})?$/
 
 export function parseImssMoney(raw: string | null | undefined): number | undefined {
   if (raw === null || raw === undefined) return undefined
@@ -25,7 +25,7 @@ export function parseImssMoney(raw: string | null | undefined): number | undefin
   const sign = input.trim().startsWith("-") ? -1 : 1
   const cleaned = input
     .replace(/^[+-]\s*/, "")
-    .replace(/[\s,]/g, "")
+    .replace(/[\$\s,]/g, "")
 
   if (!cleaned) return undefined
   const n = Number(cleaned)

@@ -56,7 +56,7 @@ export interface TarjetonSeniority {
 
 export interface TarjetonConceptLine {
   lineIndex: number
-  code: string
+  code: string | null
   description: string
   amount: number
   kind: "earning" | "deduction"

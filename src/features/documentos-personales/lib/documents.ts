@@ -1,4 +1,5 @@
 import type { EscritoDraftV2 } from "@/shared/contracts/escrito-draft"
+export type { ViewerDocument, ViewerSourceType } from "../services/document-viewer-adapter"
 
 export interface NativeDocumentMeta {
   id: number
@@ -117,11 +118,12 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function grupoLabel(tipo: DocTipo | UnifiedViewerDocument["type"]): string {
+export function grupoLabel(tipo: DocTipo | UnifiedViewerDocument["type"] | "checada"): string {
   switch (tipo) {
     case "tarjeton":
       return "Tarjetones"
     case "checadas":
+    case "checada":
       return "Checadas"
     case "escrito":
       return "Escritos"

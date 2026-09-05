@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest"
 import { normalizePayslipConcept } from "@/shared/contracts/payslip-concept"
 import { dbRowToGuidePayslip, toGuidePayslip } from "../services/payslip-guide"
-import { buildExplainer } from "../lib/explainer"
+import { buildExplainer, buildQuincenaSummary } from "../lib/explainer"
 import { parseImssConceptTables } from "@/features/tarjeton/lib/imss-concept-table-parser"
 import { savePayslip, getPayslips } from "@/shared/services/local-storage"
 import { getPayPeriod } from "@/features/nomina/lib/periods"
+import type { ImportedPayslip } from "@/features/nomina/lib/types"
 import type { ReconstructedLine } from "@/features/tarjeton/lib/line-reconstruction"
 
 describe("Guía del tarjetón: Reconocimiento robusto de conceptos y tolerancia a formatos", () => {
@@ -375,6 +376,160 @@ describe("Guía del tarjetón: Reconocimiento robusto de conceptos y tolerancia 
       globalThis.window = origWindow
       ;(globalThis as unknown as { localStorage?: unknown }).localStorage = origStorage
     }
+  })
+
+  it("caso obligatorio 1A-SEP-2026: recupera conceptos, valida netAmount=3902 y balance contable exacto", () => {
+    const store: Record<string, string> = {}
+    const mockStorage = {
+      getItem: (key: string) => store[key] ?? null,
+      setItem: (key: string, value: string) => {
+        store[key] = value
+      },
+      removeItem: (key: string) => {
+        delete store[key]
+      },
+      clear: () => {
+        for (const k in store) delete store[k]
+      },
+    }
+    const origWindow = globalThis.window
+    const origStorage = (globalThis as unknown as { localStorage?: unknown }).localStorage
+    // @ts-expect-error Mock window and localStorage for test
+    globalThis.localStorage = mockStorage
+    // @ts-expect-error Mock window for test
+    globalThis.window = { localStorage: mockStorage, dispatchEvent: () => true }
+
+    try {
+      // 1. Guardado de tarjetón 1A-SEP-2026 con conceptos reales
+      const initialSlip: ImportedPayslip = {
+        id: "slip-1a-sep-2026",
+        userId: "user-test",
+        period: "1A-SEP-2026",
+        earnings: [
+          { code: "002", description: "SUELDO BASE", amount: 4500, confirmedByUser: true },
+        ],
+        deductions: [
+          { code: "053", description: "IMPUESTO SOBRE LA RENTA", amount: 400, confirmedByUser: true },
+          { code: "054", description: "CUOTA SINDICAL", amount: 198, confirmedByUser: true },
+        ],
+        totalEarnings: 4500,
+        totalDeductions: 598,
+        netPay: 3902,
+        source: "pdf",
+        confirmedByUser: true,
+      }
+
+      savePayslip(initialSlip)
+
+      const slips = getPayslips()
+      expect(slips.length).toBe(1)
+      const savedPayslip = slips[0]
+
+      // Validaciones obligatorias
+      expect(savedPayslip.period).toBe("1A-SEP-2026")
+      expect(savedPayslip.perceptions!.length).toBeGreaterThan(0)
+      expect(savedPayslip.deductions!.length).toBeGreaterThan(0)
+      expect(savedPayslip.netAmount).toBe(3902)
+
+      const sumPerceptions = savedPayslip.perceptions!.reduce((acc, p) => acc + p.amount, 0)
+      const sumDeductions = savedPayslip.deductions!.reduce((acc, d) => acc + d.amount, 0)
+      expect(sumPerceptions - sumDeductions).toBeCloseTo(savedPayslip.netAmount!, 2)
+
+      // Conversión a GuidePayslip y verificación en la Guía
+      const guideSlip = toGuidePayslip(savedPayslip)
+      expect(guideSlip).not.toBeNull()
+      expect(guideSlip?.periodLabel).toBe("1A-SEP-2026")
+      expect(guideSlip?.earnings.length).toBe(1)
+      expect(guideSlip?.deductions.length).toBe(2)
+      expect(guideSlip?.netPay).toBe(3902)
+
+      const summary = buildQuincenaSummary(guideSlip!)
+      expect(summary.incompleteExtraction).toBe(false)
+      expect(summary.perceptions).toBe(1)
+      expect(summary.deductions).toBe(2)
+      expect(summary.netPay).toBe(3902)
+    } finally {
+      globalThis.window = origWindow
+      ;(globalThis as unknown as { localStorage?: unknown }).localStorage = origStorage
+    }
+  })
+
+  it("tolera conceptos desconocidos o sin código (code: null) y los conserva en la Guía", () => {
+    const rawLine = {
+      description: "APOYO ESPECIAL EXTRAORDINARIO",
+      amount: 1500,
+      kind: "earning",
+    }
+    const concept = normalizePayslipConcept(rawLine)
+    expect(concept).not.toBeNull()
+    expect(concept?.code).toBeNull()
+    expect(concept?.description).toBe("APOYO ESPECIAL EXTRAORDINARIO")
+    expect(concept?.amount).toBe(1500)
+
+    const guidePayslip = toGuidePayslip({
+      id: "slip-uncoded",
+      period: "1A-SEP-2026",
+      earnings: [concept],
+      deductions: [],
+      totalEarnings: 1500,
+      netPay: 1500,
+    })
+    expect(guidePayslip).not.toBeNull()
+    expect(guidePayslip?.earnings.length).toBe(1)
+    expect(guidePayslip?.earnings[0].code).toBeNull()
+
+    const steps = buildExplainer(guidePayslip!)
+    expect(steps.length).toBeGreaterThan(0)
+    const step = steps.find((s) => s.line?.description === "APOYO ESPECIAL EXTRAORDINARIO")
+    expect(step).toBeDefined()
+    expect(step?.explanation).toContain("APOYO ESPECIAL EXTRAORDINARIO")
+    expect(step?.cta).toBeUndefined() // Sin código no genera link roto a /guia/conceptos/null
+  })
+
+  it("caso con totales contables exactos ($14,256.87 perc, $10,354.87 ded, $3,902.00 neto) con conceptos reales", () => {
+    const rawPayslip = {
+      id: "slip-exact-sep",
+      period: "1A-SEP-2026",
+      totalEarnings: 14256.87,
+      totalDeductions: 10354.87,
+      netPay: 3902.0,
+      earnings: [
+        { code: "002", description: "SUELDO BASE", amount: 6250.30 },
+        { code: "011", description: "AYUDA PARA RENTA", amount: 2150.25 },
+        { code: "022", description: "ANTIGUEDAD", amount: 1856.32 },
+        { code: "032", description: "ESTIMULO DE ASISTENCIA", amount: 2000.00 },
+        { code: "033", description: "ESTIMULO DE PUNTUALIDAD", amount: 2000.00 },
+      ],
+      deductions: [
+        { code: "151", description: "I.S.R.", amount: 3500.87 },
+        { code: "107", description: "FONDO DE AHORRO SNTSS", amount: 2854.00 },
+        { code: "063", description: "PRESTAMO CAJA DE AHORRO", amount: 4000.00 },
+      ],
+    }
+
+    const guide = toGuidePayslip(rawPayslip)
+    expect(guide).not.toBeNull()
+    expect(guide?.earnings.length).toBe(5)
+    expect(guide?.deductions.length).toBe(3)
+
+    const sumPerc = guide!.earnings.reduce((s, l) => s + l.amount, 0)
+    const sumDed = guide!.deductions.reduce((s, l) => s + l.amount, 0)
+    expect(sumPerc).toBeCloseTo(14256.87, 2)
+    expect(sumDed).toBeCloseTo(10354.87, 2)
+    expect(sumPerc - sumDed).toBeCloseTo(3902.00, 2)
+
+    const summary = buildQuincenaSummary(guide!)
+    expect(summary.incompleteExtraction).toBe(false)
+    expect(summary.perceptions).toBe(5)
+    expect(summary.deductions).toBe(3)
+    expect(summary.netPay).toBe(3902.00)
+    expect(summary.totalEarnings).toBe(14256.87)
+    expect(summary.totalDeductions).toBe(10354.87)
+
+    const steps = buildExplainer(guide!)
+    const resumenStep = steps.find((s) => s.kind === "resumen")
+    expect(resumenStep?.title).toBe("Tu pago en pocas palabras")
+    expect(resumenStep?.explanation).toContain("Detectamos 5 percepciones y 3 deducciones")
   })
 })
 

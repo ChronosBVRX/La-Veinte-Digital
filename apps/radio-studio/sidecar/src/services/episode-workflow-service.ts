@@ -62,7 +62,7 @@ export interface GenerationTrace {
   promptVersion: string;
   provider: string;
   model: string;
-  generationMode: "groq" | "local-llm" | "fallback-determinista";
+  generationMode: "groq";
   intentMode: string;
   cacheHit: boolean;
   startedAt: string;
@@ -309,7 +309,7 @@ export class EpisodeWorkflowService {
     script: Script;
     verify: VerifyResult;
     rubric: QualityRubric;
-    generationMode: "groq" | "local-llm" | "fallback-determinista";
+    generationMode: "groq";
     steps: StepTrace[];
     scriptHash: string;
     providerInfo: { provider: string; model: string };
@@ -317,12 +317,10 @@ export class EpisodeWorkflowService {
     void opts.useCache;
     const startedAt = new Date().toISOString();
     const runId = crypto.randomUUID();
-    const steps: StepTrace[] = [];
-    let generationMode: "groq" | "local-llm" | "fallback-determinista" = "local-llm";
+    const generationMode = "groq" as const;
 
     // Obtener info del proveedor activo para el trace
     const providerInfo = this.inner.editorialLlm.providerInfo;
-    if (providerInfo.provider === "groq") generationMode = "groq";
 
     const project = this.inner.store.get(id);
     if (!project) throw new Error("PROJECT_NOT_FOUND");
@@ -330,16 +328,9 @@ export class EpisodeWorkflowService {
     if (!research) throw new Error("RESEARCH_REQUIRED");
     const intent = classifyRequest(project.topic);
 
-    // ── 1) Generar dos propuestas con enfoques distintos (solo normativo/procedimental)
-    let proposalA: Proposal;
+    // ── 1) Generar propuesta editorial con Groq
     let t = Date.now();
-    try {
-      proposalA = (await this.inner.createProposal(id)).proposal;
-      generationMode = "local-llm";
-    } catch {
-      proposalA = (await this.inner.createProposal(id)).proposal; // determinista interno
-      generationMode = "fallback-determinista";
-    }
+    const proposalA: Proposal = (await this.inner.createProposal(id)).proposal;
     steps.push({ name: "proposal_a", durationMs: Date.now() - t, retries: 0 });
 
     let proposalB: Proposal | null = null;
@@ -347,7 +338,6 @@ export class EpisodeWorkflowService {
     if (wantsTwo) {
       t = Date.now();
       try {
-        // Variante B: enfoque más breve/directo sobre la misma evidencia, vía Qwen.
         proposalB = (await this.inner.createProposalVariant(id)).proposal;
       } catch {
         proposalB = null;
@@ -370,17 +360,9 @@ export class EpisodeWorkflowService {
     else await this.inner.updateProposal(id, proposalA);
     await this.inner.approve(id);
 
-    // ── 3) Escribir el guion (Qwen si el proyecto es "ia"; determinista si es fallback explícito)
-    const genModo: "determinista" | "ia" = project.config.modo === "ia" ? "ia" : "determinista";
+    // ── 3) Escribir el guion mediante Groq Pipeline
     t = Date.now();
-    let scriptRes: { script: Script; verify: VerifyResult };
-    try {
-      scriptRes = await this.inner.generateScript(id, genModo);
-      generationMode = genModo === "ia" ? "local-llm" : (project.config.modo === "ia" ? "local-llm" : "fallback-determinista");
-    } catch {
-      scriptRes = await this.inner.generateScript(id, "determinista");
-      generationMode = "fallback-determinista";
-    }
+    const scriptRes = await this.inner.generateScript(id);
     steps.push({ name: "script", durationMs: Date.now() - t, retries: 0 });
 
     let { script, verify } = scriptRes;
@@ -424,7 +406,7 @@ bestRubric = evaluateRubric(selectedProposal, script, research, intent);
     while (rounds < 2 && bestRubric.fatalErrors.length > 0) {
       const weakScene = bestRubric.weakScenes[0];
       t = Date.now();
-      const repairedRes = await this.inner.generateScript(id, genModo);
+      const repairedRes = await this.inner.generateScript(id);
       const repairedRubric = evaluateRubric(selectedProposal, repairedRes.script, research, intent);
       const improves =
         repairedRubric.overall > bestRubric.overall &&
@@ -443,8 +425,8 @@ bestRubric = evaluateRubric(selectedProposal, script, research, intent);
     if (bestScript !== script) {
       this.inner.store.writeScript(id, bestScript);
       this.inner.store.update(id, { script: bestScript, state: "SCRIPT_READY" } as Partial<Project>);
-    script = bestScript
-    verify = bestVerify
+      script = bestScript;
+      verify = bestVerify;
     }
     const scriptHash = sha256(script.turns);
     const completedAt = new Date().toISOString();
@@ -452,13 +434,10 @@ bestRubric = evaluateRubric(selectedProposal, script, research, intent);
 
     // Obtener uso de Groq si aplica
     let rateLimitWaitMs = 0;
-    let fallbackUsed = false;
     try {
       const groqUsage = getGroqUsageForUI();
       if (groqUsage) {
         rateLimitWaitMs = groqUsage.rateLimitWaitMs;
-        fallbackUsed = groqUsage.fallbackUsed;
-        if (fallbackUsed) generationMode = "fallback-determinista";
       }
     } catch {}
 

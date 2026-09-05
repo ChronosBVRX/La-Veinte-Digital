@@ -105,19 +105,15 @@ export function buildImssLayoutRegions(items: PositionedPdfText[]): ImssLayoutRe
   const conceptHeaders = headerRowItems
     .filter((item) => item.norm.includes("CONCEPTO"))
     .sort((a, b) => a.x - b.x)
+  const importeHeaders = headerRowItems
+    .filter((item) => item.norm.includes("IMPORTE"))
+    .sort((a, b) => a.x - b.x)
   const hasTwoColumns = conceptHeaders.length >= 2 && conceptHeaders[1].x - conceptHeaders[0].x > 50
 
   const canSplitTables = (parallelTables || hasTwoColumns) && pageWidth > 0
 
   if (canSplitTables) {
     const tableTop = tableTopSearch
-    const endAnchor = findAnchor(normalized, ["MENSAJES", "OBSERVACIONES", "CERTIFICACION"], (earningsAnchor?.y ?? tableTop) + 15)
-    const tableBottom = endAnchor ? centerY(endAnchor) : Number.POSITIVE_INFINITY
-
-    const importeHeaders = headerRowItems
-      .filter((item) => item.norm.includes("IMPORTE"))
-      .sort((a, b) => a.x - b.x)
-
     let divider: number
     if (conceptHeaders.length >= 2 && importeHeaders.length >= 1) {
       const firstImporteRight = importeHeaders[0].x + importeHeaders[0].width
@@ -130,6 +126,20 @@ export function buildImssLayoutRegions(items: PositionedPdfText[]): ImssLayoutRe
     } else {
       divider = pageWidth * 0.51
     }
+
+    if (deductionsAnchor && deductionsAnchor.x > (earningsAnchor?.x ?? 0) + 30) {
+      // El divisor nunca debe invadir la columna de deducciones
+      divider = Math.min(divider, deductionsAnchor.x - 4)
+    }
+
+    const endAnchor = findAnchor(
+      normalized,
+      ["MENSAJES", "OBSERVACIONES", "CERTIFICACION", "SELLO DIGITAL", "INFORMACION FISCAL"],
+      (earningsAnchor?.y ?? tableTop) + 15
+    )
+    const tableBottom = endAnchor
+      ? (endAnchor.norm.includes("SELLO") || endAnchor.norm.includes("FISCAL") ? endAnchor.y - 5 : centerY(endAnchor))
+      : Number.POSITIVE_INFINITY
 
     const firstPageEarnings = reconstructLines(pageOneItems, {
       xMin: 0,
