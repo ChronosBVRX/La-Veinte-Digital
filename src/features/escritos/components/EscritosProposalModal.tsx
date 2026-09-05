@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react"
 import { Button } from "@/shared/components/ui/Button"
 import { Card } from "@/shared/components/ui/Card"
+import { useBackLayer } from "@/shared/navigation/useBackLayer"
 
 interface EscritosProposalModalProps {
   isOpen: boolean
@@ -24,6 +25,10 @@ export function EscritosProposalModal({
   onDiscard,
 }: EscritosProposalModalProps) {
   const modalRef = useRef<HTMLDivElement | null>(null)
+
+  // Capa transitoria canónica: Atrás descarta la propuesta (mismo onDiscard que
+  // Escape y el botón ✕) antes que retroceder de ruta.
+  useBackLayer(isOpen, onDiscard, "escritos-proposal")
 
   useEffect(() => {
     if (!isOpen) return

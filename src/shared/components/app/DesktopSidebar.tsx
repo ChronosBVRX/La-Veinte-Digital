@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { House, UserCircle, X, Article, ArrowsClockwise, FolderOpen } from "@phosphor-icons/react"
 import { DESKTOP_NAV_GROUPS } from "./navigation"
 import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
+import { useBackLayer } from "@/shared/navigation/useBackLayer"
 import type { CSSProperties } from "react"
 
 interface DesktopSidebarProps {
@@ -17,6 +18,9 @@ export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
   const isNative = useIsNativeApp()
   const platform = useNativePlatform()
   const isHomeActive = pathname === "/"
+
+  // Capa transitoria canónica: Atrás cierra el drawer móvil antes que retroceder.
+  useBackLayer(open, onClose, "sidebar-drawer")
 
   const brandingHeader = (
     <div

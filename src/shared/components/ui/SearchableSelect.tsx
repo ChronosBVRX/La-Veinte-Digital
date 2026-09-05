@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from "react"
 import { Input } from "./Input"
+import { useBackLayer } from "@/shared/navigation/useBackLayer"
 
 export interface SearchableOption {
   label: string
@@ -28,6 +29,12 @@ export function SearchableSelect({ label, name, defaultValue, options, placehold
     const q = query.toLowerCase()
     return options.filter((opt) => opt.label.toLowerCase().includes(q)).slice(0, 10)
   }, [options, query, selectedValue])
+
+  // Capa transitoria canónica: Atrás cierra el desplegable (p. ej. popover
+  // dentro de un modal) antes que retroceder de ruta.
+  // Todos los cierres desembocan en setIsOpen(false): click fuera, selección y Atrás.
+  const dropdownVisible = isOpen && filtered.length > 0
+  useBackLayer(dropdownVisible, () => setIsOpen(false), "searchable-select")
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {

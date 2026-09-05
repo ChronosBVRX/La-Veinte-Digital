@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef } from "react"
 import { createPortal } from "react-dom"
 import { X } from "@phosphor-icons/react"
+import { useBackLayer } from "@/shared/navigation/useBackLayer"
 import type { CSSProperties, ReactNode } from "react"
 
 interface ModalProps {
@@ -43,6 +44,9 @@ export function Modal({
   const overlayRef = useRef<HTMLDivElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
+
+  // Capa transitoria canónica: Atrás cierra este modal antes que retroceder de ruta.
+  useBackLayer(open, onClose, "modal")
 
   useEffect(() => {
     if (!open) return

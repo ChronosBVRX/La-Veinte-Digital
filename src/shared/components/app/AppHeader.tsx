@@ -5,6 +5,7 @@ import Image from "next/image"
 import { useEffect, useRef, useState } from "react"
 import { List, UserCircle, CaretDown, DeviceMobile } from "@phosphor-icons/react"
 import { useAppEnvironment } from "@/shared/hooks/useAppEnvironment"
+import { useBackLayer } from "@/shared/navigation/useBackLayer"
 
 interface AppHeaderProps {
   fullName: string | null
@@ -17,6 +18,9 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
   const { environment, platform, resolved } = useAppEnvironment()
   const shouldShowAndroidDownload = resolved && environment === "web" && platform === "android"
   const profileRef = useRef<HTMLDivElement>(null)
+
+  // Capa transitoria canónica: Atrás cierra el menú de perfil antes que retroceder.
+  useBackLayer(profileOpen, () => setProfileOpen(false), "profile-menu")
 
   useEffect(() => {
     if (!profileOpen) return

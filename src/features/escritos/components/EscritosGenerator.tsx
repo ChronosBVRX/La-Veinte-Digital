@@ -29,6 +29,7 @@ import { EscritosEditor } from "./EscritosEditor"
 import { EscritosResult } from "./EscritosResult"
 import { createClient } from "@/lib/supabase/client"
 import { getUserWithTimeout } from "@/shared/lib/auth-helpers"
+import { useBackLayer } from "@/shared/navigation/useBackLayer"
 
 export function EscritosGenerator() {
   const searchParams = useSearchParams()
@@ -52,6 +53,10 @@ export function EscritosGenerator() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [saveToast, setSaveToast] = useState<string | null>(null)
   const [pendingNavigationAction, setPendingNavigationAction] = useState<(() => void) | null>(null)
+
+  // Capa transitoria canónica: Atrás permanece en el escrito (mismo cierre que
+  // el botón "Permanecer en el escrito") antes que retroceder de ruta.
+  useBackLayer(pendingNavigationAction !== null, () => setPendingNavigationAction(null), "escritos-unsaved")
 
   // 1. Cargar sesión de usuario y perfil de forma segura
   useEffect(() => {

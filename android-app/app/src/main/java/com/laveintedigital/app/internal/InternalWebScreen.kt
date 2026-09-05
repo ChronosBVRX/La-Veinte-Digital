@@ -372,16 +372,77 @@ fun InternalWebScreen(
         }
     }
 
-    // Back press: WebView history first, then let the system handle (exit / NavHost pop)
+    // Back canónico (botones y gestos pasan por el mismo dispatcher):
+    // 1. Capa transitoria web abierta → cerrarla (window.LaVeinteNavigation.back()).
+    // 2. Sin capa y con historial WebView → webView.goBack().
+    // 3. Sin historial web → navegación Compose / onSystemBack().
+    // 4. Solo en la raíz real de toda la navegación se permite salir de la app.
+    // Un evento Atrás produce UNA sola acción: si la web consume, nada más se ejecuta.
+    val backHandling = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    val lastLayerConsumeAt = remember { java.util.concurrent.atomic.AtomicLong(0L) }
     DisposableEffect(activity) {
         val callback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (webView?.canGoBack() == true) {
-                    webView?.goBack()
-                } else {
+                // TEMPORAL (verificación BACK_NAV): retirar tras la prueba en dispositivo.
+                Log.d("BACK_NAV", "dispatch")
+                // Pulsaciones rápidas/dobles: absorber mientras el Back anterior
+                // sigue resolviéndose (el evaluateJavascript en vuelo).
+                if (!backHandling.compareAndSet(false, true)) return
+                val wv = webView
+                if (wv == null) {
+                    backHandling.set(false)
                     isEnabled = false
                     activity.onBackPressedDispatcher.onBackPressed()
                     isEnabled = true
+                    return
+                }
+                val probe = "(function(){try{if(window.LaVeinteNavigation&&typeof window.LaVeinteNavigation.back==='function'){return window.LaVeinteNavigation.back()?'consumed':'passthrough';}return 'missing';}catch(e){return 'error';}})()"
+                fun releaseToSystem() {
+                    // TEMPORAL (verificación BACK_NAV).
+                    Log.d("BACK_NAV", "native_back")
+                    isEnabled = false
+                    activity.onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                    backHandling.set(false)
+                }
+                fun releaseToHistoryOrSystem() {
+                    if (wv.canGoBack()) {
+                        // TEMPORAL (verificación BACK_NAV).
+                        Log.d("BACK_NAV", "webview_back")
+                        wv.goBack()
+                        backHandling.set(false)
+                    } else {
+                        releaseToSystem()
+                    }
+                }
+                runCatching {
+                    wv.evaluateJavascript(probe) { result ->
+                        val normalized = result?.trim('"')
+                        if (normalized == "consumed") {
+                            // 1. La web cerró la capa superior. Fin del evento.
+                            // TEMPORAL (verificación BACK_NAV).
+                            Log.d("BACK_NAV", "web_consumed result=$result")
+                            lastLayerConsumeAt.set(android.os.SystemClock.uptimeMillis())
+                            backHandling.set(false)
+                        } else {
+                            // TEMPORAL (verificación BACK_NAV).
+                            Log.d("BACK_NAV", "web_passthrough result=$result")
+                            // 2-3. Sin capa que cerrar. Antirrebote post-cierre:
+                            // un segundo Atrás inmediato tras cerrar una capa se
+                            // absorbe en lugar de retroceder de ruta (evita que
+                            // un doble tap cierre el modal Y cambie de página).
+                            // Los cierres anidados siguen funcionando porque cada
+                            // capa responde 'consumed' a su propio evento.
+                            val sinceConsume = android.os.SystemClock.uptimeMillis() - lastLayerConsumeAt.get()
+                            if (sinceConsume < BACK_CONSUME_COOLDOWN_MS) {
+                                backHandling.set(false)
+                            } else {
+                                releaseToHistoryOrSystem()
+                            }
+                        }
+                    }
+                }.onFailure {
+                    releaseToHistoryOrSystem()
                 }
             }
         }
@@ -647,3 +708,10 @@ internal fun laveinteOrigin(rawUrl: String): String {
 }
 
 private const val InternalWebScreenTAG = "InternalWebScreen"
+
+/**
+ * Ventana antirrebote tras cerrar una capa web: un Atrás que llegue antes de
+ * este lapso y que la web NO consuma se absorbe en lugar de retroceder de ruta.
+ * No afecta a cierres anidados (cada capa responde 'consumed' a su evento).
+ */
+private const val BACK_CONSUME_COOLDOWN_MS = 350L

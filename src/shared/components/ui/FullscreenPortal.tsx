@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react"
 import { createPortal } from "react-dom"
+import { useBackLayer } from "@/shared/navigation/useBackLayer"
+import { backNavigationCoordinator } from "@/shared/navigation/back-navigation-coordinator"
 
 export interface FullscreenPortalProps {
   open: boolean
@@ -40,6 +42,9 @@ export function FullscreenPortal({
   const previousActiveElement = useRef<HTMLElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
 
+  // Capa transitoria canónica: Atrás (Android/gestos) cierra la capa superior.
+  const layerId = useBackLayer(open && mounted, onClose, "portal")
+
   useEffect(() => {
     if (!open || !mounted) return
 
@@ -63,9 +68,10 @@ export function FullscreenPortal({
       }
     }
 
-    // Manejar navegación atrás de Android/navegador sin salir de la app
+    // Manejar navegación atrás del navegador: solo la capa superior responde,
+    // para que un único Atrás nunca cierre varios portales anidados a la vez.
     const handlePopState = () => {
-      if (onClose) {
+      if (onClose && backNavigationCoordinator.isTop(layerId)) {
         onClose()
       }
     }
@@ -93,7 +99,7 @@ export function FullscreenPortal({
         } catch {}
       }
     }
-  }, [open, mounted, onClose])
+  }, [open, mounted, onClose, layerId])
 
   if (!open || !mounted || typeof document === "undefined") {
     return null

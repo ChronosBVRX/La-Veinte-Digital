@@ -7,6 +7,7 @@ import { motion, useReducedMotion } from "framer-motion"
 import { X, Article, ArrowsClockwise, UserCircle, Briefcase, Newspaper, FolderOpen } from "@phosphor-icons/react"
 import { MOBILE_SHEET_GROUPS } from "./navigation"
 import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
+import { useBackLayer } from "@/shared/navigation/useBackLayer"
 
 interface MobileNavigationSheetProps {
   openKey: string | null
@@ -24,6 +25,10 @@ export function MobileNavigationSheet({ openKey, onClose, onNavigate }: MobileNa
   const isOpen = openKey !== null
   const group = openKey ? MOBILE_SHEET_GROUPS[openKey] : null
   const reduce = useReducedMotion()
+
+  // Capa transitoria canónica: Atrás cierra el sheet antes que retroceder de ruta.
+  // sheetKey era estado solo-React que Android desconocía; ahora queda registrado.
+  useBackLayer(isOpen, onClose, "mobile-sheet")
 
   useEffect(() => {
     if (!isOpen) return
