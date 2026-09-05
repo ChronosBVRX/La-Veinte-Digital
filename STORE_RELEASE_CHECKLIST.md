@@ -13,7 +13,8 @@ Checklist maestra para subir el AAB a Google Play. Marca `[x]` SOLO lo verificad
 - [x] `bundlePlayRelease` genera AAB (verificado durante la misión)
 - [x] `assemblePlayRelease` genérica AAB/APK (verificado)
 - [x] `assembleDirectRelease` (verificado)
-- [x] `versionCode`/`versionName` consistentes (198 / 1.0.98)
+- [x] `versionCode`/`versionName` consistentes (203 / 1.1.3 — Stable Baseline)
+- [x] Cambios estrictamente documentales (`docs-only`) no requieren bump de versión del APK.
 
 ## Google Play Policy
 

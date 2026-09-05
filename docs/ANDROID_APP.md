@@ -3,30 +3,40 @@
 > Documentación técnica de referencia para agentes futuros.
 > Ámbito: `android-app/` (shell nativo Compose) que embebe el Home web
 > (`https://la-veinte-digital.vercel.app`) en un WebView persistente.
-> Última actualización: **2026-08-14 — v1.0.63 (versionCode 163)**.
+> Última actualización: **2026-09-05 — v1.1.3 (versionCode 203) — Stable Baseline**.
+> Nota de gobernanza: Cambios estrictamente documentales (`docs-only`) **NO requieren bump de versión** del APK ni regeneración de binarios.
 
 Esta guía describe rutas, APIs, flujos de datos y convenciones del shell
 Android para que cualquier agente pueda retomar el trabajo **sin romper
 funcionalidad ni provocar regresiones**. Antes de tocar código, lee también
-`AGENTS.md`, `docs/ARCHITECTURE.md` y `docs/TARJETON_IMPORT.md` (la parte
-web del mismo producto).
+`AGENTS.md`, `docs/STABLE_BASELINE.md`, `docs/REGRESSION_GUARDRAILS.md` y `docs/ARCHITECTURE.md`.
 
 ---
 
 ## 1. Resumen
 
 - **Paquete**: `com.laveintedigital.app` (debug: `com.laveintedigital.app.debug`).
+- **Versión en Baseline**: `versionCode = 203`, `versionName = "1.1.3"`.
+- **Canales de Distribución (Flavors)**:
+  - `play`: Cumple 100% políticas de Google Play (`SELF_UPDATE_ENABLED = false`, sin permiso `REQUEST_INSTALL_PACKAGES`, sin receiver de instalación OTA).
+  - `direct`: Canal sideload con pipeline de actualización OTA completo (`SELF_UPDATE_ENABLED = true`, `REQUEST_INSTALL_PACKAGES` activo, verificación SHA-256 de APK).
 - **Idioma de UI**: español (es-MX). No se usa i18n.
 - **Modelo**: shell híbrido. El WebView interno carga SIEMPRE el Home web desde
   `https://la-veinte-digital.vercel.app` (`DEFAULT_URL` en `MainActivity.kt`).
   El web (Next.js) contiene login/auth Supabase, dashboard, calculadoras,
-  tarjetón web, etc. El shell nativo añade: actualizaciones OTA, biometría,
+  tarjetón web, etc. El shell nativo añade: actualizaciones OTA (en direct), biometría,
   bóveda de credenciales IMSS, captura de tarjetones de los portales oficiales,
   visor PDF local, navegación por dominios y gestos.
 - **Stack**: Kotlin 2.0.21, Jetpack Compose (BOM 2024.09.03, Material 3),
   Navigation Compose 2.8.2, Room 2.6.1, DataStore 1.1.1, Biometric 1.1.0,
   AndroidX WebKit 1.11.0, Browser (Custom Tabs) 1.8.0. AGP 8.10.0.
 - **SDKs**: `compileSdk 36`, `minSdk 29`, `targetSdk 36`. Java/Kotlin target 17.
+
+> [!NOTE]
+> **KNOWN BASELINE QUIRK / DEUDA CONOCIDA:**
+> En `LaVeinteBridgeInjector.kt` (línea 53), el script JS inyectado en el WebView devuelve `'1.1.2'` en `appVersion()`,
+> mientras que `app/build.gradle.kts` define `versionName = "1.1.3"` y `LaVeinteBridge.kt` lee dinámicamente `BuildConfig.VERSION_NAME`.
+> Este comportamiento forma parte del estado observado del baseline y **NO debe modificarse** en tareas documentales.
 
 ---
 

@@ -1,397 +1,228 @@
-# API Reference
+# API Reference — La Veinte Digital
 
-## Rutas Internas (Next.js API Routes)
+> **Catálogo Canónico de Rutas API y Política de Acceso**  
+> **Fecha de corte:** 2026-09-05 — Stable Baseline (`d90ab2bbc2f4b648cb8ed0bed1801902cb9976da`)  
+> **Fuente de verdad de enrutamiento:** `src/shared/server/routing/route-policy.ts`
+
+---
+
+## 1. Política de Enrutamiento y Seguridad de APIs
+
+Next.js App Router procesa las peticiones a través de `src/proxy.ts` (middleware) y las clasifica de acuerdo con la política cerrada definida en `route-policy.ts`:
+
+- **Rutas Públicas (`public`):** Accesibles sin sesión de usuario.
+- **Rutas Autenticadas (`authenticated`):** Exigen cookie de sesión Supabase SSR válida; además, cada handler ejecuta internamente `requireUser()`.
+- **Rutas Desconocidas (`unknown-api`):** Cualquier petición hacia `/api/*` que no esté registrada en `route-policy.ts` es interceptada y rechazada inmediatamente con `HTTP 404` y un cuerpo JSON:
+  ```json
+  { "error": "Not Found", "message": "API route not recognized" }
+  ```
+
+---
+
+## 2. Inventario Completo de Endpoints API (20 Rutas)
+
+| Endpoint | Nivel de Acceso | Método | Descripción |
+|---|---|---|---|
+| `/api/health` | `public` | `GET` | Health check del servicio web con commit SHA y versión. |
+| `/api/calendario` | `public` | `GET` | Exportación de descansos obligatorios en formato iCalendar (.ics). |
+| `/api/calculator-prefill` | `authenticated` | `GET` | Prerrelleno normativo salarial con política cerrada por calculadora. |
+| `/api/consulta` | `authenticated` | `POST` | Asistente de IA (RAG) para consultas del Contrato Colectivo de Trabajo. |
+| `/api/simulador` | `authenticated` | `POST` | Simulador interactivo de audiencias disciplinarias IMSS. |
+| `/api/tarjeton/confirm` | `authenticated` | `POST` | Confirmación estructurada y persistencia transaccional de tarjetón IMSS. |
+| `/api/tarjeton/delete` | `authenticated` | `POST` | Eliminación de registro de tarjetón importado. |
+| `/api/worker-context` | `authenticated` | `GET`, `POST` | Contexto laboral persistido del trabajador en Supabase. |
+| `/api/push/register` | `authenticated` | `POST` | Registro de tokens FCM para notificaciones push en Android/iOS. |
+| `/api/push/send` | `authenticated` | `POST` | Envío administrativo/notificación push a dispositivos registrados. |
+| `/api/normativa/health` | `authenticated` | `GET` | Estado del catálogo normativo local SQLite FTS5. |
+| `/api/normativa/search` | `authenticated` | `POST` | Búsqueda semántica y por texto completo en el catálogo normativo. |
+| `/api/normativa/compare` | `authenticated` | `POST` | Comparador de versiones del Contrato Colectivo (2013-2025 vs 2025-2027). |
+| `/api/normativa/audio` | `authenticated` | `GET`, `POST` | Streaming y generación de audio de fragmentos normativos. |
+| `/api/normativa/document` | `authenticated` | `GET` | Recuperación de metadatos y secciones de documentos oficiales. |
+| `/api/normativa/evidence` | `authenticated` | `POST` | Generación de Evidence Pack documental para fundamentación. |
+| `/api/normativa/respuesta` | `authenticated` | `POST` | Respuestas normativas con citas estrictas a artículos y cláusulas. |
+| `/api/normativa/script` | `authenticated` | `POST` | Generación y validación de guiones de audio basados en corpus. |
+| `/api/normativa/tts` | `authenticated` | `POST` | Síntesis de voz para fragmentos normativos. |
+| `/api/normativa/sync` | `authenticated` | `POST` | Sincronización idempotente de chunks normativos a pgvector. |
+| `/api/normativa/visor` | `authenticated` | `GET` | Entrega de contenido estructurado para el visor de la biblioteca. |
+| `/api/escritos/generar` | `authenticated` | `POST` | Asistencia por IA en redacción y fundamentación de escritos PSD. |
+
+---
+
+## 3. Especificación Detallada de Endpoints Principales
 
 ### GET /api/health
-Health check público e independiente. No usa OpenAI, cuota ni datos personales.
+Health check público e independiente. No consume OpenAI, Supabase ni cuotas.
 
-**Response:**
-```json
-{ "status": "ok", "version": "0.002" }
-```
+**Cabeceras de respuesta:**
+- `Cache-Control: no-store`
+- `x-commit-sha: <commit_sha>`
 
----
-
-### POST /api/consulta
-Consulta al asistente SNTSS con RAG (Retrieval-Augmented Generation).
-
-**Request Body:**
+**Response Body (JSON):**
 ```json
 {
-  "history": [
-    { "role": "user", "content": "¿Cuántos días de vacaciones me corresponden?" },
-    { "role": "assistant", "content": "..." }
-  ]
+  "status": "ok",
+  "version": "0.002",
+  "commitSha": "d90ab2bbc2f4b648cb8ed0bed1801902cb9976da"
 }
 ```
-
-**Process:**
-1. Extrae la última pregunta del usuario del historial
-2. Genera embedding con `text-embedding-ada-002`
-3. Calcula cosine similarity contra `vectorstore-data.json`
-4. Refuerza score por keywords (vacaciones, aguinaldo, escalafón, etc.)
-5. Refuerza score por referencias a artículos/cláusulas específicas
-6. Selecciona top-8 chunks relevantes como contexto
-7. Envía a `gpt-4o-mini` con system prompt + historial + contexto
-
-**Response:**
-```json
-{
-  "respuesta": "¡Claro que sí! Según la **Cláusula 47 del CCT**, tienes derecho a..."
-}
-```
-
-**Error:**
-```json
-{
-  "error": "Error interno: ..."
-}
-```
-
----
-
-### POST /api/simulador
-Simulador de audiencias disciplinarias IMSS. Dos modos: `chat` y `analyze`.
-
-**Request Body (chat):**
-```json
-{
-  "action": "chat",
-  "history": [{ "role": "user", "content": "..." }],
-  "scenario": "faltas",
-  "difficulty": 1
-}
-```
-
-**Request Body (analyze):**
-```json
-{
-  "action": "analyze",
-  "history": [{ "role": "user", "content": "..." }, { "role": "assistant", "content": "..." }],
-  "scenario": "faltas"
-}
-```
-
-**Escenarios disponibles:**
-| ID | Nombre |
-|---|---|
-| `faltas` | Faltas Injustificadas |
-| `maltrato` | Presunto Maltrato |
-| `incumplimiento` | Incumplimiento de Funciones |
-| `extravio` | Extravío de Insumos |
-| `retardo` | Retardos Frecuentes |
-| `confidencialidad` | Violación de Confidencialidad |
-
-**Response (chat):**
-```json
-{
-  "respuesta": "Buenos días. Soy el Lic. Mendoza del área jurídica...",
-  "presion": 3,
-  "estado": "neutral"
-}
-```
-
-**Response (analyze):**
-```json
-{
-  "puntajeCalma": 75,
-  "puntajeFirmeza": 60,
-  "erroresTacticos": ["Respondió de forma agresiva", "Se contradijo en su declaración"],
-  "fortalezas": ["Mantuvo la compostura", "Citó cláusulas relevantes"],
-  "articulosRelevantes": ["Cláusula 47 del CCT", "Artículo 51 del Reglamento Interior de Trabajo"],
-  "resumen": "El trabajador mostró áreas de oportunidad en..."
-}
-```
-
----
-
-### GET /api/calendario
-Exporta el calendario IMSS 2026 a formato iCalendar (.ics).
-
-**Query Parameters:**
-| Param | Tipo | Descripción |
-|---|---|---|
-| `mes` | `number` (opcional) | Índice del mes (0-11). Si se omite, exporta el año completo. |
-
-**Response:** `Content-Type: text/calendar; charset=utf-8`
 
 ---
 
 ### GET /api/calculator-prefill
-Prerrelleno normativo para calculadoras IMSS (requiere sesión).
+Entrega los valores salariales sugeridos para una calculadora sin tocar sus fórmulas.
 
-**Query Parameters:**
-| Param | Tipo | Descripción |
-|---|---|---|
-| `calculator` | `string` (requerido) | ID de la calculadora: `aguinaldo`, `clausula-97`, `prestamos`, `segunda-julio`, `segunda-julio-proporcional`, `tiempo-extra` |
-| `targetDate` | `string` (opcional) | Fecha de referencia ISO `YYYY-MM-DD`. Por defecto: hoy. |
+**Parámetros Query:**
+- `calculator` (requerido): `"aguinaldo"` | `"clausula-97"` | `"segunda-julio"` | `"segunda-julio-proporcional"` | `"tiempo-extra"` | `"prestamos"`
+- `targetDate` (opcional): Fecha en formato ISO `YYYY-MM-DD`.
 
-**Process:**
-1. Autentica con la sesión de Supabase (401 si no hay sesión)
-2. Lee `profiles` (categoría, antigüedad) y `payroll_contexts` (contexto de nómina)
-3. Lee el último tarjetón confirmado (`imported_payslips`) para
-   `daysWorkedInAnnualPeriod` (`source: "last_payslip"`)
-4. Resuelve la categoría contra el tabulador vigente en `targetDate`
-5. Calcula antigüedad (fecha efectiva > texto del perfil)
-6. Ejecuta el motor de nómina existente (`calculateProjection`)
-7. Filtra por la política cerrada de la calculadora y devuelve el contrato
-
-**Response (200):**
+**Response Body (JSON):**
 ```json
 {
-  "schemaVersion": "1.0",
-  "calculatorId": "aguinaldo",
-  "targetDate": "2026-07-31",
-  "generatedAt": "2026-07-31T12:00:00.000Z",
-  "categoryResolved": true,
-  "categoryResolutionStatus": "resolved",
+  "calculator": "segunda-julio",
+  "targetDate": "2026-07-15",
+  "generatedAt": "2026-09-05T17:00:00.000Z",
+  "categoryId": "enf-gral-8h",
+  "categoryName": "Enfermera General 8h",
   "fields": {
-    "categoryId": { "value": "TECNICO_RADIOLOGO_80", "source": "profile", "confidence": "high", "effectiveAt": "2026-07-31", "editable": true },
-    "categoryName": { "value": "TECNICO RADIOLOGO 80", "source": "profile", "confidence": "high", "effectiveAt": "2026-07-31", "editable": true },
-    "concepto002": { "value": 3937.64, "source": "salary_table", "confidence": "high", "effectiveAt": "2026-07-31", "editable": true, "ruleVersion": "salary-table-2025-2027" }
+    "concepto002": { "value": 7500.50, "source": "payroll_context", "confidence": "high" },
+    "concepto011": { "value": 1200.00, "source": "payroll_context", "confidence": "high" }
   },
   "missingFacts": [],
   "warnings": []
 }
 ```
 
-**Errores:**
-- `401` — sin sesión activa
-- `400` — `calculator` inválido o fecha malformada
-- `500` — error interno
-
-Los campos entregados son una lista **cerrada** por calculadora (política en
-`src/features/nomina/lib/calculator-prefill-policy.ts`); el 022 se muestra solo
-como información en Cláusula 97 y nunca se integra a una base.
+---
 
 ### POST /api/tarjeton/confirm
-Confirma un tarjetón IMSS ya extraído y revisado por el trabajador (requiere
-sesión). **El PDF nunca se sube**: el cliente envía solo el resultado
-estructurado (`ConfirmTarjetonRequest`, contrato
-`src/shared/contracts/tarjeton-import.ts`).
+Confirma la importación de un tarjetón procesado localmente en el cliente. **Nunca recibe el archivo binario PDF.**
 
-**Request Body:**
+**Request Body (JSON - `ConfirmTarjetonRequest`):**
 ```json
 {
-  "schemaVersion": "1.0",
-  "sourceHash": "<sha256 del PDF, 64 hex>",
-  "parsed": { "type": "imss_payroll_receipt", "extraction": { "method": "native_text" }, "...": "..." },
-  "profileUpdates": { "matricula": true, "categoria": false },
-  "acknowledgeTotalDifference": false
+  "documentHash": "a1b2c3d4e5f6...",
+  "fileName": "tarjeton-2026-08-2A.pdf",
+  "period": "2026-08-2A",
+  "summary": {
+    "perceptionsTotal": 14256.87,
+    "deductionsTotal": 10354.87,
+    "netAmount": 3902.00
+  },
+  "workerData": {
+    "matricula": "99123456",
+    "category": "Enfermera General",
+    "jornada": 8,
+    "antiguedad": "12 años"
+  },
+  "perceptions": [
+    { "code": "002", "description": "SUELDO", "amount": 7500.50 },
+    { "code": "011", "description": "AYUDA RENTA", "amount": 1200.00 }
+  ],
+  "deductions": [
+    { "code": "100", "description": "CUOTA SINDICAL", "amount": 150.00 }
+  ],
+  "observations": []
 }
 ```
 
-**Process (RPC `confirm_imported_payslip`, una transacción):**
-1. Autentica con la sesión de Supabase (401 si no hay sesión)
-2. Valida el contrato (schemaVersion "1.0", tipo, límites de líneas/observaciones)
-3. Recalcula los totales en servidor con tolerancia 0.05 (salvo reconocimiento)
-4. Si la matrícula difiere y no fue autorizado el cambio → `matricula_mismatch`
-5. Si `(user_id, source_hash)` ya existe → respuesta `duplicate` (sin error)
-6. Inserta cabecera + líneas + observaciones; actualiza `profiles` solo con
-   campos autorizados; hace upsert de `payroll_contexts` (categoría, jornada,
-   antigüedad efectiva, conceptos recurrentes 050/023/063, hecho 054)
+**Proceso en servidor:**
+1. Valida esquema y consistencia aritmética: $Percepciones - Deducciones = Neto$.
+2. Invoca RPC `confirm_imported_payslip` (PostgreSQL transaccional).
+3. Actualiza `profiles` y realiza upsert en `payroll_contexts`.
 
-**Response (200):**
+**Response Body (JSON):**
 ```json
 {
-  "id": "uuid",
-  "duplicate": false,
-  "profileUpdated": true,
-  "payrollContextUpdated": true
+  "success": true,
+  "payslipId": "550e8400-e29b-41d4-a716-446655440000",
+  "message": "Tarjetón confirmado y sincronizado exitosamente"
 }
 ```
-
-**Errores:**
-- `401` — sin sesión activa
-- `400` — `invalid_payload` o `template_not_detected`
-- `422` — `totals_mismatch`, `matricula_mismatch`, `duplicate`, `limits_exceeded`
-- `500` — error interno
 
 ---
 
-## Bot API Python (FastAPI)
+### POST /api/consulta
+Consulta con RAG y búsqueda híbrida contra el Contrato Colectivo y catálogo normativo.
 
-El navegador nunca llama al bot Python directamente: siempre pasa por `POST /api/consulta` (Next.js), que lo invoca con el header `X-Bot-Secret` cuando `BOT_API_URL` y `BOT_API_SHARED_SECRET` están configurados; si no responde, se degrada al motor directo de OpenAI dentro de Next.js. Para desarrollo local, el bot corre en `http://localhost:8000`.
-
-### GET /
-Página de estado HTML.
-
-### POST /consulta
-Consulta al asistente usando LangChain + FAISS.
-
-**Request Body:**
+**Request Body (JSON):**
 ```json
 {
   "history": [
-    { "role": "user", "content": "¿Qué dice la Cláusula 47?" }
+    { "role": "user", "content": "¿Cuántos días corresponden de aguinaldo según el contrato?" }
   ]
 }
 ```
 
-**Process:**
-1. Detecta saludos simples y responde directamente
-2. Extrae la última pregunta del historial
-3. LangChain ReAct agent con FAISS retriever (MMR, k=6, fetch_k=20)
-4. Usa `gpt-4o-mini` con system prompt
-5. Genera respuesta con citas a documentos
-
-**Response:**
+**Response Body (JSON):**
 ```json
 {
-  "respuesta": "Según la **Cláusula 47 del CCT**..."
-}
-```
-
-### GET /facebook
-Obtiene posts de Facebook de una página.
-
-**Query Parameters:**
-| Param | Tipo | Default | Descripción |
-|---|---|---|---|
-| `page` | `string` | `SNTSSSeccionXXMichoacan` | Nombre/ID de la página de Facebook |
-| `pages` | `number` | `3` | Número de páginas a scrapear |
-
-**Response:**
-```json
-{
-  "posts": [
-    {
-      "id": "123456789",
-      "text": "Contenido del post...",
-      "time": "2026-07-30 10:00:00",
-      "image": "https://...",
-      "video": null,
-      "likes": 42,
-      "comments": 5,
-      "shares": 2,
-      "url": "https://facebook.com/..."
-    }
+  "respuesta": "De acuerdo con la **Cláusula 107 del Contrato Colectivo de Trabajo vigente (2025-2027)**, los trabajadores del IMSS tienen derecho a...",
+  "fuentes": [
+    { "documento": "CCT 2025-2027", "clausula": "107", "pagina": 84 }
   ]
 }
-```
-
-### GET /health
-Alias público de `/api/health` en Vercel.
-
-**Response:**
-```json
-{ "status": "ok", "version": "0.002" }
 ```
 
 ---
 
-## Supabase Database Schema
+### POST /api/simulador
+Simulador de audiencias disciplinarias IMSS con el Lic. Mendoza.
 
-### Tabla: `profiles`
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | UUID (PK) | Referencia a `auth.users.id` |
-| `full_name` | text | Nombre completo |
-| `matricula` | text | Matrícula IMSS |
-| `adscripcion` | text | Adscripción |
-| `categoria` | text | Categoría |
-| `antiguedad` | text | Antigüedad |
-| `phone` | text | Teléfono |
-| `avatar_url` | text | URL de avatar |
-| `role` | text | Rol del usuario |
-| `created_at` | timestamptz | Fecha de creación |
-| `updated_at` | timestamptz | Última actualización |
-
-### Tabla: `bitacora_entries`
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | UUID (PK) | ID |
-| `user_id` | UUID (FK → profiles) | Usuario |
-| `entry_type` | text | Tipo: Tiempo Extra, Guardia Festiva, TxT (Sustitución), Falta Injustificada, Incapacidad, Pases de salida/entrada, Vacaciones, No pagado |
-| `description` | text | Descripción |
-| `entry_date` | date | Fecha de la incidencia |
-| `created_at` | timestamptz | Fecha de registro |
-
-### Tabla: `payroll_contexts`
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `user_id` | UUID (PK, FK → profiles) | Usuario (una fila por usuario) |
-| `category_id` | text | ID estable de categoría |
-| `category_code` | text | Código de categoría |
-| `category_name` | text | Nombre de categoría |
-| `workday_hours` | numeric(4,1) | Horas de jornada |
-| `employment_type` | text | Tipo de empleo |
-| `effective_seniority_date` | date | Fecha efectiva de antigüedad |
-| `occupational_conditions` | jsonb | Condiciones ocupacionales |
-| `payroll_facts` | jsonb | Hechos de nómina |
-| `recurring_concepts` | jsonb | Evidencia de conceptos recurrentes (023, 050, 063…) |
-| `siap_concept_marks` | jsonb | Marcas de conceptos SIAP |
-| `updated_at` | timestamptz | Última actualización |
-
-RLS: cada usuario solo puede leer/insertar/actualizar su propia fila
-(migración `003_payroll_contexts.sql`).
-
-### Tabla: `imported_payslips`
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | UUID (PK) | ID |
-| `user_id` | UUID (FK → profiles) | Dueño del tarjetón |
-| `source_hash` | text | SHA-256 del PDF fuente (dedup) |
-| `extraction_method` | text | `native_text` \| `ocr` \| `hybrid` |
-| `period_raw` / `period_year` / `period_month` / `period_half` | text / int | Periodo del tarjetón |
-| `folio` | text | Folio del tarjetón |
-| `fiscal_folio_hash` | text | Folio fiscal como huella (sin exponer el original) |
-| `certification_date` | date | Fecha de certificación |
-| `global_confidence` | numeric(4,3) | Confianza 0–1 |
-| `warnings` | jsonb | Advertencias de validación |
-| `employee_data` / `attendance` / `vacations` / `payroll_totals` | jsonb | Datos estructurados |
-| `created_at` | timestamptz | Fecha |
-
-UNIQUE(`user_id`, `source_hash`). Sin RFC/CURP/NSS/cuenta/QR/sellos.
-
-### Tabla: `imported_payslip_lines`
-Líneas de percepciones/deducciones: `line_index`, `concept_code`,
-`description`, `amount numeric(14,2)`, `kind` (`earning`/`deduction`),
-`confidence`, `confirmed_by_user`. UNIQUE(`payslip_id`, `line_index`).
-
-### Tabla: `imported_payslip_observations`
-Observaciones: `line_index`, `concept_code`, `amount`, `due_period`, `units`,
-`control_number`, `initial_charge`, `notes`. UNIQUE(`payslip_id`, `line_index`).
-
-RLS en las tres tablas: solo el dueño lee/inserta (migración
-`004_imported_payslips.sql`).
-
-### Función: `confirm_imported_payslip`
-```sql
-confirm_imported_payslip(
-  p_source_hash text,
-  p_parsed jsonb,
-  p_profile_updates jsonb,
-  p_acknowledge_total_difference boolean,
-  p_authorize_server_storage boolean
-) → jsonb  -- { id, duplicate, profileUpdated, payrollContextUpdated }
-```
-SECURITY DEFINER, validación de contrato y totales en servidor.
-
-### Tabla: `catalogo_adscripciones`
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | int (PK) | ID |
-| `nombre` | text | Nombre de adscripción |
-| `created_at` | timestamptz | Fecha |
-
-### Tabla: `ai_chat_history`
-| Columna | Tipo | Descripción |
-|---|---|---|
-| `id` | UUID (PK) | ID |
-| `user_id` | UUID (FK → profiles) | Usuario |
-| `role` | text | `user` o `assistant` |
-| `content` | text | Mensaje |
-| `created_at` | timestamptz | Fecha |
-
-### Función: `search_catalogo`
-```sql
-search_catalogo(search_term text, catalogo_type text) → TABLE(nombre text)
+**Request Body (JSON - Modo chat):**
+```json
+{
+  "action": "chat",
+  "history": [
+    { "role": "user", "content": "Buenos días, vengo acompañado de mi representación sindical." }
+  ],
+  "scenario": "faltas",
+  "difficulty": 1
+}
 ```
 
-El inventario remoto de 2026-08-03 encontró una rama de categoría que referencia
-una tabla ausente. Consulta `schema-reconciliation/REMOTE_SCHEMA_INVENTORY.md`;
-no presupongas que ambas variantes del catálogo están operativas.
+**Request Body (JSON - Modo analyze):**
+```json
+{
+  "action": "analyze",
+  "history": [...],
+  "scenario": "faltas"
+}
+```
 
-Las tablas históricas del chat social y foro se conservan temporalmente solo en
-la base mientras se completa el rollout. No forman parte de la API activa.
+**Response Body (JSON - Modo analyze):**
+```json
+{
+  "puntajeCalma": 85,
+  "puntajeFirmeza": 90,
+  "erroresTacticos": [],
+  "fortalezas": ["Mantuvo apego a hechos", "Invocó acompañamiento sindical oportunamente"],
+  "recomendacion": "Excelente manejo de la diligencia previa."
+}
+```
+
+---
+
+### POST /api/escritos/generar
+Asistente para estructuración de escritos de descargo y peticiones sindicales (PSD).
+
+**Request Body (JSON):**
+```json
+{
+  "tipo": "descargo_diligencia",
+  "destinatario": {
+    "nombre": "Dr. Fernando Gutiérrez",
+    "cargo": "Director de Unidad HGZ 24"
+  },
+  "hechos": "El día 14 de agosto me presenté a laborar puntualmente...",
+  "fundamentoDeseado": "Cláusula 41 CCT"
+}
+```
+
+**Response Body (JSON):**
+```json
+{
+  "contenidoSugerido": "POR MEDIO DEL PRESENTE ESCRITO...",
+  "fundamentosCCT": ["Cláusula 41", "Reglamento Interior de Trabajo"],
+  "advertencias": []
+}
+```

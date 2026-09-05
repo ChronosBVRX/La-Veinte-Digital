@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.007] - 2026-09-05 — Rediseño Integral de UX en Calculadoras
+
+### Added
+- Componentes UI compartidos y accesibles para el módulo de calculadoras:
+  - `FriendlyCalculatorIntro`: Explicación en lenguaje humano de qué es la prestación, cuándo se paga y cómo se calcula.
+  - `FriendlyField`: Campos de captura con etiquetas amigables, aclaraciones contextuales y ayuda desplegable.
+  - `CalculationResultHero`: Resultado monetario destacado con tarjeta accesible y badge oficial.
+  - `FriendlyBreakdown`: Desglose claro de percepciones y deducciones orientado al trabajador.
+  - `WorkerExplanation`: Sección "¿Qué significa esto para ti?" explicando el impacto práctico.
+  - `TechnicalDetails`: Acordeón técnico colapsado por defecto con fórmulas, claves CCT y fundamento normativo.
+  - `CalculatorNotice`: Mensajes de aviso amigables y no alarmistas.
+  - `TarjetonDataNotice`: Notificación sutil cuando los campos se precargan desde el tarjetón con opción de edición.
+
+### Changed
+- **Aguinaldo (`AguinaldoCalculator`)**: Introducción humana, desglose en 3 momentos de pago (Enero 047, Agosto 043, Diciembre 049) y detalle técnico colapsable.
+- **Segunda de Julio (`SegundaJulioCalculator`)**: Flujo unificado con selector claro de periodo completo vs proporcional, tratamiento estricto de unidades computables (sin asumir que unidades = días), ayuda didáctica de 180 unidades (50%) y ruta `/calculadoras/segunda-julio-proporcional` delegada sin romper compatibilidad.
+- **Anticipo de sueldo (`Clausula97Calculator`)**: Renombrado claro como "Anticipo de sueldo" (Cláusula 97 CCT), selector interactivo de 1 a 4 meses, visualización de cuota quincenal y 4 tarjetas comparativas.
+- **Tiempo Extra (`TiempoExtraCalculator`)**: Enfoque primero en lo que el trabajador conoce (horas trabajadas en la quincena, jornada 6/6.5/8/12h), desglose de horas dobles y triples con diálogo amigable ante excedentes.
+- **Préstamos por Categoría (`PrestamosCategoriaCalculator`)**: Búsqueda intuitiva de categoría, tarjetas con monto máximo disponible por tipo de préstamo y parámetros técnicos en acordeón.
+- **Índice (`CalculatorsIndex`)**: 5 tarjetas con lenguaje directo y grid optimizada para móviles (360×800, 390×844, 412×915).
+
+### Protected Behavior
+- Cero modificaciones a `src/features/calculators/lib/*`: todas las fórmulas matemáticas, factores, constantes y límites normativos permanecen 100% idénticos e intactos.
+
+## [0.006] - 2026-09-05 — Stable Baseline Declaration
+
+### Governance
+- El commit `d90ab2bbc2f4b648cb8ed0bed1801902cb9976da` (tree `267ea495aa773f01410759478ed412c174413f3c`) queda formalmente declarado como **baseline funcional estable** de La Veinte Digital.
+- Transición formal de fase de reconstrucción a fase de **ESTABILIZACIÓN + PULIDO INCREMENTAL**.
+- Política de cero regresiones no autorizadas: todo comportamiento existente es considerado comportamiento protegido.
+- Esta entrada documenta formalmente el estado existente y **no altera ningún comportamiento del software**.
+
+### Docs
+- Creación de `docs/STABLE_BASELINE.md`: Especificación canónica del baseline, arquitectura multiplataforma, fuentes de verdad, contratos y dependencias externas.
+- Creación de `docs/REGRESSION_GUARDRAILS.md`: Matriz integral de regresión por dominio, diagramas de flujos de datos críticos, protocolos Change Contract, Pre-Change Checklist y Post-Change Checklist.
+- Actualización de `AGENTS.md`: Inclusión del bloque `# STABLE BASELINE — READ BEFORE CHANGING CODE`, principios de no drive-by refactoring y actualización a la versión 0.006.
+- Actualización de `docs/ARCHITECTURE.md`, `docs/API.md`, `docs/ANDROID_APP.md`, `docs/IOS_APP.md`, `docs/CALCULATOR_PREFILL.md`, `docs/E2E_TESTING.md`, `docs/RADIO_STUDIO.md`, `README.md` y `STORE_RELEASE_CHECKLIST.md`.
+
 ## [0.003] - 2026-07-31
 
 ### Docs

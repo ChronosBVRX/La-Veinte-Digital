@@ -2,12 +2,14 @@
 
 import { useState, useMemo, useCallback, useActionState } from "react"
 import { todayForQueryParam } from "@/shared/lib/dates"
-import Link from "next/link"
-import { ArrowLeft, Search, Check, RotateCcw, AlertTriangle } from "lucide-react"
+import { Search, Check, RotateCcw, AlertTriangle, Building2, Car, Home, Wallet } from "lucide-react"
 import { Input } from "@/shared/components/ui/Input"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
-import { CalculatorDisclaimer } from "./CalculatorDisclaimer"
+import { FriendlyCalculatorIntro } from "./FriendlyCalculatorIntro"
+import { WorkerExplanation } from "./WorkerExplanation"
+import { TechnicalDetails } from "./TechnicalDetails"
+import { CalculatorNotice } from "./CalculatorNotice"
 import { PrefillStatus } from "./PrefillStatus"
 import { filterCategorias, calcularPrestamos, mapJsonToPrestamoRecord, normalizeSearch } from "../lib/prestamos"
 import { formatCurrency } from "../lib/money"
@@ -21,12 +23,21 @@ interface Props {
   initialCategoria?: string | null
 }
 
+function getLoanIcon(modalidad: string) {
+  const m = modalidad.toLowerCase()
+  if (m.includes("automóvil") || m.includes("automovil")) return Car
+  if (m.includes("hipotecario") || m.includes("enganche") || m.includes("vivienda")) return Home
+  if (m.includes("cláusula 97") || m.includes("clausula 97") || m.includes("anticipo")) return Wallet
+  return Building2
+}
+
 export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
   const targetDate = useMemo(() => todayForQueryParam(), [])
   const prefill = useCalculatorPrefill("prestamos", targetDate)
 
   const [query, setQuery] = useState(initialCategoria ?? "")
   const setQueryField = useCallback((_: "categoryName", value: string) => setQuery(value), [])
+
   usePrefillFields({
     fields: { categoryName: query },
     setField: setQueryField,
@@ -42,6 +53,7 @@ export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
       const cat = formData.get("categoria") as string
       try {
         await saveProfileCategoria(cat)
+        setSaved(true)
         return { ok: true }
       } catch {
         return { ok: false, error: "No se pudo guardar. Intenta de nuevo." }
@@ -84,106 +96,93 @@ export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
   }
 
   return (
-    <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-      <Link href="/calculadoras" style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem", fontSize: "0.875rem", color: "var(--primary)", textDecoration: "none", marginBottom: "1rem" }}>
-        <ArrowLeft size={16} /> Volver a calculadoras
-      </Link>
+    <div style={{ maxWidth: "800px", margin: "0 auto", paddingBottom: "2rem" }}>
+      <FriendlyCalculatorIntro
+        title="Consulta cuánto puedes solicitar según tu categoría"
+        badge="Tabulador IMSS-SNTSS"
+        description="Encuentra tu puesto de trabajo para conocer los préstamos institucionales y facilidades de pago disponibles según tu tabulador oficial."
+      />
 
-      <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "0 0 0.25rem" }}>Préstamos por categoría</h1>
-      <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0 0 1.5rem" }}>
-        Consulta montos de préstamos disponibles según tu categoría. Los montos provienen del tabulador cargado.
-      </p>
-
-      <div style={{ marginBottom: "1rem" }}>
+      <div style={{ marginBottom: "1.25rem" }}>
         <PrefillStatus data={prefill.data} loading={prefill.loading} error={prefill.error} />
       </div>
 
       {jsonUnavailable && (
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.3)", borderRadius: "var(--radius)", padding: "0.75rem 1rem", fontSize: "0.8125rem", marginBottom: "1rem" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: "0.5rem",
+            alignItems: "center",
+            background: "rgba(245, 158, 11, 0.08)",
+            border: "1px solid rgba(245, 158, 11, 0.3)",
+            borderRadius: "var(--radius-md)",
+            padding: "0.75rem 1rem",
+            fontSize: "0.8125rem",
+            marginBottom: "1rem",
+          }}
+        >
           <AlertTriangle size={16} color="var(--warning)" />
-          <span>No se pudo cargar el tabulador de préstamos (prestamos_categoria.json ausente o inválido).</span>
+          <span>No se pudo cargar el tabulador de préstamos institucional.</span>
         </div>
       )}
 
-      {selected && (
-        <div style={{ marginBottom: "1rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-            Categoría seleccionada: <strong style={{ color: "var(--fg)" }}>{selected.categoria}</strong>
-          </span>
-          <button
-            onClick={handleClear}
-            style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", fontSize: "0.75rem", color: "var(--primary)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+      {selected ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+          {/* Banner de categoría seleccionada */}
+          <div
+            style={{
+              background: "rgba(37, 99, 235, 0.04)",
+              border: "1px solid rgba(37, 99, 235, 0.2)",
+              borderRadius: "var(--radius-lg)",
+              padding: "1.25rem",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "1rem",
+              flexWrap: "wrap",
+            }}
           >
-            <RotateCcw size={12} /> Cambiar
-          </button>
-        </div>
-      )}
+            <div>
+              <span
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--primary)",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  display: "block",
+                  marginBottom: "0.25rem",
+                }}
+              >
+                Puesto seleccionado
+              </span>
+              <h2
+                style={{
+                  fontSize: "1.125rem",
+                  fontWeight: 700,
+                  color: "var(--fg)",
+                  margin: 0,
+                  lineHeight: 1.3,
+                  wordBreak: "break-word",
+                }}
+              >
+                {selected.categoria}
+              </h2>
+              {selected.descripcionTC && (
+                <p
+                  style={{
+                    fontSize: "0.78125rem",
+                    color: "var(--muted)",
+                    margin: "0.25rem 0 0",
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {selected.descripcionTC}
+                </p>
+              )}
+            </div>
 
-      {!selected && (
-        <div style={{ marginBottom: "1rem" }}>
-          <Input
-            id="buscar"
-            label="Buscar categoría"
-            value={query}
-            onChange={(e) => { setQuery(e.target.value) }}
-            placeholder="Ej: 08, 02, auxiliar, enfermera..."
-          />
-        </div>
-      )}
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: "1rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
-        <div style={{ width: "100%", minWidth: 0 }}>
-          {!selected && (
-            <>
-              <p style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", margin: "0 0 0.5rem" }}>
-                {filtered.length} categoría{filtered.length !== 1 ? "s" : ""}
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", maxHeight: "500px", overflowY: "auto", width: "100%", minWidth: 0 }}>
-                {filtered.length === 0 ? (
-                  <p style={{ fontSize: "0.8125rem", color: "var(--muted)", textAlign: "center", padding: "1rem" }}>
-                    No se encontraron categorías
-                  </p>
-                ) : (
-                  filtered.map((r, i) => (
-                    <button
-                      key={i}
-                      onClick={() => handleSelect(r)}
-                      style={{
-                        textAlign: "left", background: "var(--card)",
-                        color: "var(--fg)",
-                        border: `1px solid var(--border)`,
-                        borderRadius: "var(--radius-sm)", padding: "0.625rem 0.75rem",
-                        cursor: "pointer", fontSize: "0.8125rem", fontWeight: 500, transition: "all var(--transition)",
-                        width: "100%", boxSizing: "border-box", wordBreak: "break-word",
-                      }}
-                    >
-                      <span style={{ wordBreak: "break-word" }}>{r.categoria}</span>
-                      {r.descripcionTC && (
-                        <span style={{ display: "block", fontSize: "0.6875rem", opacity: 0.8, marginTop: "0.125rem", wordBreak: "break-word" }}>{r.descripcionTC}</span>
-                      )}
-                    </button>
-                  ))
-                )}
-              </div>
-            </>
-          )}
-        </div>
-
-        <div style={{ width: "100%", minWidth: 0 }}>
-          {selected ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", minWidth: 0 }}>
-              <Card padding="1rem" style={{ width: "100%", minWidth: 0, boxSizing: "border-box" }}>
-                <p style={{ fontSize: "0.875rem", fontWeight: 600, margin: "0 0 0.5rem", wordBreak: "break-word" }}>{selected.categoria}</p>
-                {selected.descripcionTC && <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0 0 0.5rem", wordBreak: "break-word" }}>{selected.descripcionTC}</p>}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 120px), 1fr))", gap: "0.5rem", fontSize: "0.75rem", width: "100%", minWidth: 0 }}>
-                  {selected.sueldoPlaza !== undefined && <InfoRow label="Sueldo plaza" value={formatCurrency(selected.sueldoPlaza)} />}
-                  {selected.sueldoQuincenal !== undefined && <InfoRow label="Sueldo quincenal" value={formatCurrency(selected.sueldoQuincenal)} />}
-                  {selected.concepto011 !== undefined && <InfoRow label="Concepto 011" value={formatCurrency(selected.concepto011)} />}
-                  {selected.smtabMas011 !== undefined && <InfoRow label="SMTAB + 011" value={formatCurrency(selected.smtabMas011)} />}
-                  {selected.smi !== undefined && <InfoRow label="SMI" value={formatCurrency(selected.smi)} />}
-                </div>
-              </Card>
-
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
               <form action={saveAction}>
                 <input type="hidden" name="categoria" value={selected.categoria} />
                 <Button
@@ -192,52 +191,362 @@ export function PrestamosCategoriaCalculator({ initialCategoria }: Props) {
                   size="sm"
                   loading={savePending}
                   disabled={saved || saveState?.ok || savePending}
-                  style={{ width: "100%" }}
                 >
                   {saved || saveState?.ok ? (
-                    <><Check size={14} /> Guardado en perfil</>
+                    <>
+                      <Check size={14} /> Guardado en tu perfil
+                    </>
                   ) : (
-                    "Guardar categoría en mi perfil"
+                    "Guardar en mi perfil"
                   )}
                 </Button>
-                {saveState?.error && (
-                  <p style={{ fontSize: "0.75rem", color: "var(--primary)", margin: "0.375rem 0 0" }}>{saveState.error}</p>
-                )}
               </form>
 
-              {selectedCalculos.map((c, i) => (
-                <Card key={i} padding="0.875rem">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <Button variant="secondary" size="sm" onClick={handleClear}>
+                <RotateCcw size={14} /> Cambiar puesto
+              </Button>
+            </div>
+          </div>
+
+          {/* Tarjetas destacadas de préstamos disponibles */}
+          <div>
+            <h3
+              style={{
+                fontSize: "1rem",
+                fontWeight: 700,
+                color: "var(--fg)",
+                margin: "0 0 0.875rem",
+              }}
+            >
+              Préstamos y montos disponibles para tu puesto
+            </h3>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                gap: "1rem",
+              }}
+            >
+              {selectedCalculos.map((c, i) => {
+                const Icon = getLoanIcon(c.modalidad)
+                return (
+                  <Card
+                    key={i}
+                    padding="1.25rem"
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      gap: "0.875rem",
+                      borderRadius: "var(--radius-lg)",
+                      border: "1px solid var(--border)",
+                      background: "var(--card)",
+                    }}
+                  >
                     <div>
-                      <p style={{ fontSize: "0.8125rem", fontWeight: 600, margin: 0 }}>{c.modalidad}</p>
-                      <p style={{ fontSize: "0.6875rem", color: "var(--muted)", margin: "0.125rem 0 0" }}>{c.formula}</p>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                          marginBottom: "0.5rem",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: "var(--radius-md)",
+                            background: "rgba(37, 99, 235, 0.08)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Icon size={18} style={{ color: "var(--primary)" }} />
+                        </div>
+                        <h4
+                          style={{
+                            fontSize: "0.875rem",
+                            fontWeight: 700,
+                            margin: 0,
+                            color: "var(--fg)",
+                            lineHeight: 1.3,
+                          }}
+                        >
+                          {c.modalidad}
+                        </h4>
+                      </div>
+
+                      <span
+                        style={{
+                          fontSize: "0.75rem",
+                          color: "var(--muted)",
+                          display: "block",
+                          marginTop: "0.25rem",
+                        }}
+                      >
+                        Puedes solicitar hasta
+                      </span>
+                      <div
+                        style={{
+                          fontSize: "1.375rem",
+                          fontWeight: 800,
+                          color: "var(--primary)",
+                          fontVariantNumeric: "tabular-nums",
+                          marginTop: "0.125rem",
+                        }}
+                      >
+                        {formatCurrency(c.valor)}
+                      </div>
                     </div>
-                    <p style={{ fontSize: "1rem", fontWeight: 700, margin: 0, color: "var(--primary)" }}>{formatCurrency(c.valor)}</p>
-                  </div>
-                </Card>
+
+                    <div
+                      style={{
+                        borderTop: "1px solid var(--border)",
+                        paddingTop: "0.5rem",
+                        fontSize: "0.71875rem",
+                        color: "var(--muted)",
+                      }}
+                    >
+                      <span>Sujeto a validación institucional y liquidez quincenal.</span>
+                    </div>
+                  </Card>
+                )
+              })}
+            </div>
+          </div>
+
+          <WorkerExplanation
+            title="¿Cómo tramitar un préstamo institucional?"
+            points={[
+              {
+                title: "Vía de solicitud",
+                text: "Los préstamos se gestionan a través de la representación sindical del SNTSS o directamente en el área de prestaciones económicas de tu unidad.",
+              },
+              {
+                title: "Capacidad de endeudamiento",
+                text: "El monto autorizado dependerá de que tus descuentos totales no superen los topes legales de tu sueldo neto quincenal.",
+              },
+              {
+                title: "Plazos de amortización",
+                text: "Cada crédito cuenta con plazos definidos en quincenas descontadas automáticamente vía nómina.",
+              },
+            ]}
+          />
+
+          <TechnicalDetails
+            title="Ver datos de tabulador y fórmulas utilizadas"
+            subtitle="Valores SMTAB, SMI y bases tabulares por categoría"
+          >
+            <div
+              style={{
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-md)",
+                padding: "1rem",
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                gap: "0.75rem",
+              }}
+            >
+              {selected.sueldoPlaza !== undefined && (
+                <InfoItem label="Sueldo plaza" value={formatCurrency(selected.sueldoPlaza)} />
+              )}
+              {selected.sueldoQuincenal !== undefined && (
+                <InfoItem label="Sueldo quincenal (002)" value={formatCurrency(selected.sueldoQuincenal)} />
+              )}
+              {selected.concepto011 !== undefined && (
+                <InfoItem label="Ayuda de renta (011)" value={formatCurrency(selected.concepto011)} />
+              )}
+              {selected.smtabMas011 !== undefined && (
+                <InfoItem label="SMTAB + 011 mensual" value={formatCurrency(selected.smtabMas011)} />
+              )}
+              {selected.smi !== undefined && (
+                <InfoItem label="SMI (Tabulador)" value={formatCurrency(selected.smi)} />
+              )}
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.5rem",
+                marginTop: "0.5rem",
+              }}
+            >
+              <h4 style={{ fontSize: "0.8125rem", fontWeight: 700, margin: 0, color: "var(--fg)" }}>
+                Fórmulas contractuales por modalidad
+              </h4>
+              {selectedCalculos.map((c, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    padding: "0.5rem 0.75rem",
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-sm)",
+                    fontSize: "0.75rem",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <span style={{ fontWeight: 600, color: "var(--fg)" }}>{c.modalidad}</span>
+                  <span style={{ color: "var(--muted)", fontFamily: "monospace" }}>{c.formula}</span>
+                </div>
               ))}
             </div>
-          ) : (
-            <div style={{ background: "var(--accent)", borderRadius: "var(--radius-sm)", padding: "2rem", textAlign: "center", fontSize: "0.875rem", color: "var(--muted)" }}>
-              <Search size={32} style={{ opacity: 0.3, marginBottom: "0.5rem" }} />
-              <p style={{ margin: 0 }}>Selecciona una categoría para ver sus préstamos</p>
-            </div>
-          )}
+          </TechnicalDetails>
+
+          <CalculatorNotice
+            title="Toma en cuenta"
+            text="Los montos máximos son de carácter informativo conforme al tabulador vigente. El otorgamiento final está sujeto a la disponibilidad del fondo de préstamos y a tu capacidad líquida de pago."
+          />
         </div>
-      </div>
+      ) : (
+        /* Búsqueda de categoría */
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <div
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-lg)",
+              padding: "1.25rem",
+            }}
+          >
+            <label
+              htmlFor="buscar"
+              style={{
+                display: "block",
+                fontSize: "0.875rem",
+                fontWeight: 700,
+                color: "var(--fg)",
+                marginBottom: "0.5rem",
+              }}
+            >
+              ¿Cuál es tu categoría o puesto de trabajo?
+            </label>
+
+            <Input
+              id="buscar"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Escribe tu puesto (ej: médico, enfermera, auxiliar, 08, 02...)"
+              icon={<Search size={16} />}
+              style={{ fontSize: "1rem" }}
+            />
+          </div>
+
+          <div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "0.5rem",
+                padding: "0 0.25rem",
+              }}
+            >
+              <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)" }}>
+                {filtered.length} categoría{filtered.length !== 1 ? "s" : ""} encontrada{filtered.length !== 1 ? "s" : ""}
+              </span>
+              <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                Toca tu puesto para ver sus préstamos
+              </span>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.375rem",
+                maxHeight: "450px",
+                overflowY: "auto",
+                paddingRight: "0.25rem",
+              }}
+            >
+              {filtered.length === 0 ? (
+                <div
+                  style={{
+                    background: "var(--card)",
+                    border: "1px dashed var(--border)",
+                    borderRadius: "var(--radius-md)",
+                    padding: "2rem",
+                    textAlign: "center",
+                    color: "var(--muted)",
+                    fontSize: "0.875rem",
+                  }}
+                >
+                  No encontramos categorías que coincidan con «{query}». Prueba buscando palabras clave como «enfermera», «médico» o «auxiliar».
+                </div>
+              ) : (
+                filtered.map((r, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => handleSelect(r)}
+                    style={{
+                      textAlign: "left",
+                      background: "var(--card)",
+                      color: "var(--fg)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--radius-md)",
+                      padding: "0.75rem 1rem",
+                      cursor: "pointer",
+                      fontSize: "0.84375rem",
+                      fontWeight: 600,
+                      transition: "all 0.15s ease",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      minHeight: "44px",
+                    }}
+                  >
+                    <div>
+                      <span style={{ display: "block", color: "var(--fg)" }}>{r.categoria}</span>
+                      {r.descripcionTC && (
+                        <span
+                          style={{
+                            display: "block",
+                            fontSize: "0.71875rem",
+                            color: "var(--muted)",
+                            fontWeight: 400,
+                            marginTop: "0.125rem",
+                          }}
+                        >
+                          {r.descripcionTC}
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: "0.75rem", color: "var(--primary)", fontWeight: 600 }}>
+                      Consultar →
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ marginTop: "1.5rem" }}>
-        <CalculatorDisclaimer />
+        <CalculatorNotice />
       </div>
     </div>
   )
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoItem({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem" }}>
-      <span style={{ color: "var(--muted)" }}>{label}</span>
-      <span style={{ fontWeight: 600 }}>{value}</span>
+    <div>
+      <span style={{ display: "block", fontSize: "0.6875rem", color: "var(--muted)" }}>{label}</span>
+      <span style={{ display: "block", fontSize: "0.875rem", fontWeight: 700, color: "var(--fg)", marginTop: "0.125rem" }}>
+        {value}
+      </span>
     </div>
   )
 }

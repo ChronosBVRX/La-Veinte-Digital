@@ -11,9 +11,16 @@ ninguna fórmula de cálculo**.
    `nomina`. Todo el prerrelleno viaja por el contrato compartido
    (`src/shared/contracts/calculator-prefill.ts`) y por la API interna
    `GET /api/calculator-prefill`.
-2. **Fórmulas intocadas**: los archivos en
-   `src/features/calculators/lib/{aguinaldo,clausula97,segundaJulio,tiempoExtra,prestamos,money}.ts`
-   no se modifican; solo cambia la capa de prerrelleno de los componentes.
+2. **Fórmulas laborales y comportamiento golden protegido**:
+   - Las fórmulas de cálculo en `src/features/calculators/lib/` son de alto riesgo y no deben modificarse de manera incidental.
+   - **GOLDEN BEHAVIOR PROTEGIDO — Segunda de Julio / Fondo de Ahorro (CCT Sección XX):**  
+     La fórmula de Fondo de Ahorro integra obligatoriamente el **Concepto 011 (Ayuda para Renta)** además del **Concepto 002 (Sueldo Base)**.  
+     $$\text{Base} = \text{Concepto 002} + \text{Concepto 011}$$  
+     Implementado en `src/features/calculators/lib/segundaJulio.ts` y `src/shared/lib/fondo-ahorro.ts`.  
+     **Pruebas de regresión que lo protegen:**  
+     - `src/features/calculators/__tests__/calculators.test.ts` (pruebas de cálculo de Segunda de Julio y proporcional con desglose de 002 + 011).  
+     - `src/features/nomina/__tests__/calculator-prefill.test.ts` (validación de entrega de 002 y 011 en el prefill de segunda-julio).  
+     > **PROHIBICIÓN ESTRICTA:** Ningún agente futuro está autorizado a revertir el cálculo a una fórmula que utilice exclusivamente el Concepto 002.
 3. **Nunca sobrescribir al usuario**: un campo editado no se reescribe. El
    prerrelleno se aplica una sola vez por respuesta y solo a campos vacíos; el
    botón "Restaurar valores sugeridos" reaplica los valores explícitamente.
