@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef } from "react"
 import { X } from "@phosphor-icons/react"
+import { useBackLayer } from "@/shared/navigation/useBackLayer"
 import type { CSSProperties, ReactNode } from "react"
 
 interface BottomSheetProps {
@@ -32,6 +33,9 @@ export function BottomSheet({
   const overlayRef = useRef<HTMLDivElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
+
+  // Capa transitoria canónica: Atrás cierra este sheet antes que retroceder de ruta.
+  useBackLayer(open, onClose, "sheet")
 
   useEffect(() => {
     if (!open) return

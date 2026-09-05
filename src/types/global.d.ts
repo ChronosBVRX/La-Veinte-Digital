@@ -55,7 +55,13 @@ declare global {
     data: string
   }
 
+  interface LaVeinteNavigationApi {
+    back: () => boolean
+    hasLayers: () => boolean
+  }
+
   interface Window {
+    LaVeinteNavigation?: LaVeinteNavigationApi
     LaVeinteApp?: LaVeinteNativeApp
     laVeintePdfBridge?: {
       postMessage(message: string): void

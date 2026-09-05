@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect } from "react"
 import { Button } from "@/shared/components/ui/Button"
+import { useBackLayer } from "@/shared/navigation/useBackLayer"
 import { dataUrlToBlob, saveBlobResource, deleteBlobResource } from "../services/escritos-indexeddb"
 
 interface SignaturePadModalProps {
@@ -28,6 +29,9 @@ export function SignaturePadModal({
   const [history, setHistory] = useState<ImageData[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const modalRef = useRef<HTMLDivElement | null>(null)
+
+  // Capa transitoria canónica: Atrás cierra el pad (mismo onClose que Escape).
+  useBackLayer(isOpen, onClose, "signature-pad")
 
   useEffect(() => {
     if (!isOpen) return
