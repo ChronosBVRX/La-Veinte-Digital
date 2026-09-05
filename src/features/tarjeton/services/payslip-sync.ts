@@ -37,34 +37,44 @@ export function buildImportedPayslip(
   const fallbackEarnings = payroll.earnings.reduce((s, l) => s + l.amount, 0)
   const fallbackDeductions = Math.abs(payroll.deductions.reduce((s, l) => s + l.amount, 0))
 
+  const earningsLines = payroll.earnings.map((l) => ({
+    code: l.code ?? "",
+    description: l.description,
+    amount: l.amount,
+    confirmedByUser: l.confirmedByUser,
+    includeInNextProjection: l.confirmedByUser,
+  }))
+
+  const deductionsLines = payroll.deductions.map((l) => ({
+    code: l.code ?? "",
+    description: l.description,
+    amount: l.amount,
+    confirmedByUser: l.confirmedByUser,
+    includeInNextProjection: l.confirmedByUser,
+  }))
+
+  const finalNet = payroll.netPay ?? fallbackEarnings - fallbackDeductions
+
   return {
     id: response.id,
     userId,
     period,
+    periodRaw: parsed.document.periodRaw,
     categoryName: parsed.employee.categoryName,
     institutionalEntryDate: parsed.employee.entryDate,
     displayedSeniority: seniority && seniority.fortnights === 0
       ? { years: seniority.years, months: 0, days: seniority.days }
       : undefined,
-    earnings: payroll.earnings.map((l) => ({
-      code: l.code ?? "",
-      description: l.description,
-      amount: l.amount,
-      confirmedByUser: l.confirmedByUser,
-      includeInNextProjection: l.confirmedByUser,
-    })),
-    deductions: payroll.deductions.map((l) => ({
-      code: l.code ?? "",
-      description: l.description,
-      amount: l.amount,
-      confirmedByUser: l.confirmedByUser,
-      includeInNextProjection: l.confirmedByUser,
-    })),
+    earnings: earningsLines,
+    deductions: deductionsLines,
+    perceptions: earningsLines,
     totalEarnings: payroll.totalEarnings ?? fallbackEarnings,
     totalDeductions: payroll.totalDeductions ?? fallbackDeductions,
-    netPay: payroll.netPay ?? fallbackEarnings - fallbackDeductions,
+    netPay: finalNet,
+    netAmount: finalNet,
     source: "pdf",
     confirmedByUser: true,
+    analysisStatus: "ready",
   }
 }
 

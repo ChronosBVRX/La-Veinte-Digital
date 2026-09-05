@@ -16,15 +16,37 @@ import { buildExplainer, buildQuincenaSummary, type ExplainerStep } from "@/feat
 import { buildReviewChecklist, type ReviewItem } from "@/features/tarjeton-guia/lib/review"
 import { compareQuincenas, describeChange } from "@/features/tarjeton-guia/lib/compare"
 import type { GuidePayslip } from "@/features/tarjeton-guia/lib/types"
+import { syncLatestSavedPayslip } from "@/features/tarjeton/services/sync-latest-payslip"
+import { analyzeAndPersistPayslip } from "@/features/tarjeton/services/analyze-and-persist-payslip"
 
 export function MiQuincenaPage({ serverPayslip, initialTab }: { serverPayslip: GuidePayslip | null; initialTab?: string }) {
   const { payslip, previous } = useLatestPayslip(serverPayslip)
   const [stepIndex, setStepIndex] = useState(0)
+  const [autoAnalyzing, setAutoAnalyzing] = useState(false)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reinicia el carrusel al cambiar de quincena
     setStepIndex(0)
   }, [payslip?.id])
+
+  const steps = payslip ? buildExplainer(payslip) : []
+  const review = payslip ? buildReviewChecklist(payslip) : []
+  const summary = payslip ? buildQuincenaSummary(payslip) : null
+  const comparison = payslip && previous ? compareQuincenas(payslip, previous) : null
+
+  useEffect(() => {
+    if (payslip && summary?.incompleteExtraction && !autoAnalyzing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-reanudación deliberada
+      setAutoAnalyzing(true)
+      void syncLatestSavedPayslip()
+        .then((res) => {
+          if (!res || res.concepts.length === 0) {
+            return analyzeAndPersistPayslip(payslip.id, { periodRaw: payslip.periodRaw || payslip.periodLabel })
+          }
+        })
+        .finally(() => setAutoAnalyzing(false))
+    }
+  }, [payslip, summary?.incompleteExtraction, autoAnalyzing])
 
   if (!payslip) {
     return (
@@ -48,11 +70,6 @@ export function MiQuincenaPage({ serverPayslip, initialTab }: { serverPayslip: G
       </PageContainer>
     )
   }
-
-  const steps = buildExplainer(payslip)
-  const review = buildReviewChecklist(payslip)
-  const summary = buildQuincenaSummary(payslip)
-  const comparison = previous ? compareQuincenas(payslip, previous) : null
 
   const step = steps[Math.min(stepIndex, steps.length - 1)]
   const startTab = initialTab === "revisar" ? "revisar" : "explicar"
@@ -82,10 +99,11 @@ export function MiQuincenaPage({ serverPayslip, initialTab }: { serverPayslip: G
               step={step}
               stepIndex={stepIndex}
               setStepIndex={setStepIndex}
-              summary={summary}
+              summary={summary!}
               total={steps.length}
               periodRaw={payslip?.periodLabel || payslip?.periodRaw}
               documentId={payslip?.id}
+              autoAnalyzing={autoAnalyzing}
             />
           )
         }
@@ -103,6 +121,7 @@ function ExplainTab({
   total,
   periodRaw,
   documentId,
+  autoAnalyzing = false,
 }: {
   steps: ExplainerStep[]
   step: ExplainerStep
@@ -112,6 +131,7 @@ function ExplainTab({
   total: number
   periodRaw?: string
   documentId?: string
+  autoAnalyzing?: boolean
 }) {
   const isLast = stepIndex >= total - 1
   return (
@@ -134,8 +154,38 @@ function ExplainTab({
         </div>
       </div>
 
-      {/* Fallback banner si no se leyeron conceptos pero sí totales */}
-      {summary.incompleteExtraction && (
+      {/* Auto-analizando banner */}
+      {autoAnalyzing && (
+        <div
+          style={{
+            background: "var(--accent)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            padding: "0.75rem 0.875rem",
+            fontSize: "0.8125rem",
+            color: "var(--muted)",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+          }}
+        >
+          <span
+            style={{
+              display: "inline-block",
+              width: 14,
+              height: 14,
+              border: "2px solid var(--primary)",
+              borderRightColor: "transparent",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite",
+            }}
+          />
+          <span>Estamos preparando la explicación de tu tarjetón más reciente.</span>
+        </div>
+      )}
+
+      {/* Fallback banner si no se leyeron conceptos pero sí totales y no se está auto-analizando */}
+      {!autoAnalyzing && summary.incompleteExtraction && (
         <div
           style={{
             background: "#fffbeb",

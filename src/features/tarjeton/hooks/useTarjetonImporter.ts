@@ -19,6 +19,12 @@ import { sanitizeTarjetonForPersistence } from "@/features/tarjeton/lib/safe-val
 import { confirmTarjetonClient } from "@/features/tarjeton/services/confirm-tarjeton-client"
 import { syncConfirmedPayslip } from "@/features/tarjeton/services/payslip-sync"
 import { saveTarjetonPdfBlob } from "@/shared/services/tarjeton-blob-storage"
+import {
+  CURRENT_PARSER_VERSION,
+  savePayslipAnalysis,
+  type PayslipConcept,
+} from "@/features/tarjeton/services/payslip-analysis-store"
+import { calculatePeriodRank } from "@/features/tarjeton/services/saved-payslip-repository"
 
 export interface TarjetonProfileSnapshot {
   fullName?: string | null
@@ -249,8 +255,68 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
 
     try {
       syncConfirmedPayslip(result.data, request, "local")
-      if (safeParsed.document.periodRaw && file) {
-        void saveTarjetonPdfBlob(safeParsed.document.periodRaw, file, file.name)
+      if (file) {
+        if (safeParsed.document.periodRaw) {
+          void saveTarjetonPdfBlob(safeParsed.document.periodRaw, file, file.name)
+        }
+        if (result.data.id) {
+          void saveTarjetonPdfBlob(result.data.id, file, file.name)
+        }
+      }
+
+      const concepts: PayslipConcept[] = []
+      for (const e of safeParsed.payroll.earnings) {
+        concepts.push({
+          code: e.code || null,
+          description: e.description,
+          amount: e.amount,
+          kind: "perception",
+        })
+      }
+      for (const d of safeParsed.payroll.deductions) {
+        concepts.push({
+          code: d.code || null,
+          description: d.description,
+          amount: Math.abs(d.amount),
+          kind: "deduction",
+        })
+      }
+
+      const pTotal = safeParsed.payroll.totalEarnings ?? concepts.filter((c) => c.kind === "perception").reduce((s, c) => s + c.amount, 0)
+      const dTotal = safeParsed.payroll.totalDeductions ?? concepts.filter((c) => c.kind === "deduction").reduce((s, c) => s + c.amount, 0)
+      const net = safeParsed.payroll.netPay ?? (pTotal - dTotal)
+      const pRank = calculatePeriodRank(safeParsed.document.year || 0, safeParsed.document.month || 0, safeParsed.document.half || 1)
+
+      savePayslipAnalysis({
+        documentId: result.data.id,
+        documentHash: request.sourceHash,
+        parserVersion: CURRENT_PARSER_VERSION,
+        period: safeParsed.document.periodRaw || `${safeParsed.document.half}A-${safeParsed.document.month}-${safeParsed.document.year}`,
+        periodRank: pRank,
+        perceptionsTotal: pTotal,
+        deductionsTotal: dTotal,
+        netAmount: net,
+        concepts,
+        status: "ready",
+        analyzedAt: new Date().toISOString(),
+        errorCode: null,
+      })
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("nomina_payslip_updated"))
+        window.dispatchEvent(
+          new CustomEvent("tarjeton_analysis_completed", {
+            detail: {
+              documentId: result.data.id,
+              periodRaw: safeParsed.document.periodRaw,
+              earningsCount: concepts.filter((c) => c.kind === "perception").length,
+              deductionsCount: concepts.filter((c) => c.kind === "deduction").length,
+              totalEarnings: pTotal,
+              totalDeductions: dTotal,
+              netPay: net,
+            },
+          })
+        )
       }
     } catch (err) {
       console.warn("[tarjeton] sincronización local falló:", err)

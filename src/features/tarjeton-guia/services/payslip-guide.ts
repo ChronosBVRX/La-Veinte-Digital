@@ -107,12 +107,16 @@ export function toGuidePayslip(raw: unknown): GuidePayslip | null {
 
   const totalEarnings = isNumber(p.totalEarnings)
     ? p.totalEarnings
+    : isNumber(p.perceptionsTotal)
+    ? (p.perceptionsTotal as number)
     : isNumber(p.total_percepciones)
     ? (p.total_percepciones as number)
     : undefined
 
   const totalDeductions = isNumber(p.totalDeductions)
     ? p.totalDeductions
+    : isNumber(p.deductionsTotal)
+    ? (p.deductionsTotal as number)
     : isNumber(p.total_deducciones)
     ? (p.total_deducciones as number)
     : undefined
@@ -144,6 +148,13 @@ export function toGuidePayslip(raw: unknown): GuidePayslip | null {
     netPay,
     netAmount: netPay,
     source: "local",
+    analysisStatus: (typeof p.analysisStatus === "string"
+      ? p.analysisStatus
+      : typeof p.status === "string"
+      ? p.status
+      : earnings.length > 0 || deductions.length > 0
+      ? "ready"
+      : "pending") as GuidePayslip["analysisStatus"],
   }
 }
 
@@ -232,5 +243,6 @@ export function dbRowToGuidePayslip(
     totalDeductions,
     netPay,
     source: "server",
+    analysisStatus: (earnings.length > 0 || deductions.length > 0 ? "ready" : "pending") as GuidePayslip["analysisStatus"],
   }
 }
