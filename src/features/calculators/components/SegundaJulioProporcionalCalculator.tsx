@@ -24,7 +24,7 @@ interface Props {
   initialCategoria?: string | null
 }
 
-type FieldKey = "c002" | "unidades"
+type FieldKey = "c002" | "c011" | "unidades"
 
 export function SegundaJulioProporcionalCalculator({ initialCategoria }: Props) {
   const targetDate = useMemo(() => todayForQueryParam(), [])
@@ -41,6 +41,9 @@ export function SegundaJulioProporcionalCalculator({ initialCategoria }: Props) 
   const [c002, setC002] = useState(() =>
     initialMatch?.sueldoQuincenal ? formatCurrency(initialMatch.sueldoQuincenal) : ""
   )
+  const [c011, setC011] = useState(() =>
+    initialMatch?.concepto011 !== undefined ? formatCurrency(initialMatch.concepto011) : ""
+  )
   const [unidades, setUnidades] = useState("")
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [result, setResult] = useState<ReturnType<typeof calculateSegundaJulioProporcional> | null>(null)
@@ -48,16 +51,18 @@ export function SegundaJulioProporcionalCalculator({ initialCategoria }: Props) 
     () => initialMatch?.categoria ?? null
   )
 
-  const fields = useMemo(() => ({ c002, unidades }), [c002, unidades])
+  const fields = useMemo(() => ({ c002, c011, unidades }), [c002, c011, unidades])
 
   const setField = useCallback((key: FieldKey, value: string) => {
     if (key === "c002") setC002(value)
+    else if (key === "c011") setC011(value)
     else setUnidades(value)
     if (!value) setResult(null)
   }, [])
 
-  const fieldMap = useMemo<Record<FieldKey, "concepto002" | "daysWorkedInAnnualPeriod">>(() => ({
+  const fieldMap = useMemo<Record<FieldKey, "concepto002" | "concepto011" | "daysWorkedInAnnualPeriod">>(() => ({
     c002: "concepto002",
+    c011: "concepto011",
     unidades: "daysWorkedInAnnualPeriod",
   }), [])
 
@@ -74,16 +79,20 @@ export function SegundaJulioProporcionalCalculator({ initialCategoria }: Props) 
   }, [prefillFields.markDirty, setField])
 
   const c002Num = parseCurrencyInput(c002)
+  const c011Num = parseCurrencyInput(c011)
 
   const handleCategorySelect = (record: PrestamoCategoriaRecord) => {
     setSelectedCategory(record.categoria)
     prefillFields.markDirty("c002")
+    prefillFields.markDirty("c011")
     if (record.sueldoQuincenal) setC002(formatCurrency(record.sueldoQuincenal))
+    if (record.concepto011 !== undefined) setC011(formatCurrency(record.concepto011))
   }
 
   function validate(): boolean {
     const e: Record<string, string> = {}
     if (c002Num === null) e.c002 = "Ingrese un importe válido"
+    if (c011Num === null) e.c011 = "Ingrese un importe válido (0 si no aplica)"
     const unidadesNum = parseInt(unidades, 10)
     if (!unidades || isNaN(unidadesNum)) e.unidades = "Ingrese las unidades computables"
     else {
@@ -91,18 +100,20 @@ export function SegundaJulioProporcionalCalculator({ initialCategoria }: Props) 
       if (err) e.unidades = err
     }
     setErrors(e)
-    return Object.keys(e).length === 0 && c002Num !== null
+    return Object.keys(e).length === 0 && c002Num !== null && c011Num !== null
   }
 
   function handleCalculate() {
-    if (!validate() || c002Num === null) return
+    if (!validate() || c002Num === null || c011Num === null) return
     setResult(calculateSegundaJulioProporcional({
-      concepto002: c002Num, unidades: parseInt(unidades, 10),
+      concepto002: c002Num,
+      concepto011: c011Num,
+      unidades: parseInt(unidades, 10),
     }))
   }
 
   function handleClear() {
-    setC002(""); setUnidades(""); setErrors({}); setResult(null)
+    setC002(""); setC011(""); setUnidades(""); setErrors({}); setResult(null)
     setSelectedCategory(null)
     prefillFields.clearDirty()
   }
@@ -115,12 +126,13 @@ export function SegundaJulioProporcionalCalculator({ initialCategoria }: Props) 
       <h1 style={{ fontSize: "1.5rem", fontWeight: 700, margin: "0 0 0.25rem" }}>Segunda de Julio Proporcional</h1>
       <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: "0 0 1.5rem" }}>
         Para categorías 08 y 02. Calcula el pago proporcional del Fondo de Ahorro según las unidades computables
-        del periodo anual (1 de julio – 30 de junio). Base = sueldo tabular (002).
+        del periodo anual (1 de julio – 30 de junio). Base = sueldo tabular (002) + ayuda de renta (011).
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
         <PrefillStatus data={prefill.data} loading={prefill.loading} error={prefill.error} />
         <CategorySelector initialCategory={selectedCategory ?? initialCategoria} onSelect={handleCategorySelect} />
         <CurrencyField label="Concepto 002" description="Importe quincenal del concepto 002 (sueldo tabular)." value={c002} onChange={handleCurrencyChange("c002")} error={errors.c002} />
+        <CurrencyField label="Concepto 011" description="Importe quincenal del concepto 011 (ayuda de renta Cl. 63 Bis b)." value={c011} onChange={handleCurrencyChange("c011")} error={errors.c011} />
         <div>
           <Input
             id="unidades"
@@ -140,8 +152,7 @@ export function SegundaJulioProporcionalCalculator({ initialCategoria }: Props) 
           )}
         </div>
         <div style={{ background: "var(--accent)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "0.75rem 1rem", fontSize: "0.8125rem", color: "var(--muted)" }}>
-          <strong>Régimen ordinario (proc. 1A74-003-024):</strong> la base es el sueldo tabular (002).
-          La prima 011 <strong>no</strong> integra esta base. Si solo laboraste parte del año, indica las unidades reales.
+          <strong>Régimen ordinario (Cláusula 144 CCT y Cláusula 63 Bis inc. b):</strong> la base se integra con el sueldo tabular (002) más la ayuda de renta (011). Si solo laboraste parte del año, indica las unidades reales.
         </div>
       </div>
       <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
@@ -154,7 +165,9 @@ export function SegundaJulioProporcionalCalculator({ initialCategoria }: Props) 
       {result && (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
           <ResultCard title="Resultado" rows={[
-            { label: "Base (002, sueldo tabular)", value: result.base },
+            { label: "Concepto 002 (sueldo tabular)", value: c002Num ?? 0 },
+            { label: "Concepto 011 (ayuda renta Cl. 63 Bis b)", value: c011Num ?? 0 },
+            { label: "Base integrada para Fondo de Ahorro", value: result.base },
             { label: "Importe completo (360 unidades)", value: result.importeCompleto },
             { label: "Proporción del periodo laborado", value: result.proporcion, format: "percent" },
             { label: "Importe proporcional", value: result.resultado, highlight: true },
@@ -164,7 +177,7 @@ export function SegundaJulioProporcionalCalculator({ initialCategoria }: Props) 
             <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>Monto informativo; no constituye garantía contractual.</p>
           </div>
           <FormulaExplanation steps={[
-            "Base = Concepto 002 (sueldo tabular)",
+            "Base = Concepto 002 (sueldo tabular) + Concepto 011 (ayuda de renta)",
             "Importe completo = (Base ÷ 15) × 46",
             "Proporción = Unidades computables ÷ 360",
             "Importe proporcional = Importe completo × Proporción",

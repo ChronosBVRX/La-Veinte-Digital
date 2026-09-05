@@ -285,13 +285,16 @@ describe("Fórmula 055 - Fondo de Ahorro", () => {
     const r = rule055.calculate(ctx2)
     expect(r.concept.verificationStatus).toBe("regulation_verified")
   })
-  it("base = 002 (NO integra 011 aunque esté disponible)", () => {
+  it("base = 002 + 011 (integra 011 por repercusión de Cl. 63 Bis inc. b)", () => {
     const c002 = rule002.calculate(createMockContext())
     const ctx = createMockContext({ calculatedConcepts: new Map([["002", c002.concept]]) })
     const c011 = rule011.calculate(ctx)
     const ctx2 = createMockContext({ calculatedConcepts: new Map([["002", c002.concept], ["011", c011.concept]]) })
     const r = rule055.calculate(ctx2)
-    expect(r.concept.dependencies).toEqual([{ code: "002", amount: mockCategory.biweeklyBaseSalary }])
+    expect(r.concept.dependencies).toEqual([
+      { code: "002", amount: mockCategory.biweeklyBaseSalary },
+      { code: "011", amount: c011.concept.amount },
+    ])
   })
   it("sin unidades confirmadas presenta supuesto 360 y exige confirmación", () => {
     const julyPeriod = getPayPeriod(2025, 7, 2)
