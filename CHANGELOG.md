@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased] — Feedback Nativo de Navegación Android
+
+### Added
+- Paquete aislado `android-app/.../internal/navigation/`: `NavFeedbackController` (máquina IDLE→PENDING→VISIBLE→SLOW con generaciones, carga real prioritaria sobre watchdog SPA), `NavFeedbackEvents` (protocolo mínimo `intent`/`commit`), `NavFeedbackDetector` (script document-start que solo observa clicks internos e History API + `WebMessageListener` independiente `laVeinteNavFeedback` con la misma allowlist del PDF bridge) y `NativeNavigationOverlay` (scrim ligero, isotipo, indicador, "Cargando…" → "La conexión está tardando un poco…", solo fade, respeta animaciones reducidas y TalkBack).
+- Cableado mínimo en `InternalWebScreen.kt`: controller post-splash, señales `onPageLoadStateChanged`/`onOffline`/externas, barra superior solo mientras el overlay no alcanzó su umbral. Sin tocar Back canónico, bridges, WebView, flavors ni web/iOS.
+- 42 tests JVM nuevos (`NavFeedbackControllerTest`, `NavFeedbackEventsTest`, `NavFeedbackDetectorTest`).
+
+### Protected Behavior
+- PR #66 intacto: `window.LaVeinteNavigation`, `BackNavigationCoordinator`, `useBackLayer`, cooldown de Back y logs temporales `BACK_NAV`/`BACK_NAV_WEB` sin cambios. Suite web 1519 tests en verde sin modificar tests existentes.
+
 ## [0.007] - 2026-09-05 — Rediseño Integral de UX en Calculadoras
 
 ### Added

@@ -63,6 +63,11 @@ import com.laveintedigital.app.OfflineErrorScreen
 import com.laveintedigital.app.UpdateTrigger
 import com.laveintedigital.app.R
 import com.laveintedigital.app.downloads.attachDownloadListener
+import com.laveintedigital.app.internal.navigation.NativeNavigationOverlay
+import com.laveintedigital.app.internal.navigation.NavFeedbackController
+import com.laveintedigital.app.internal.navigation.NavFeedbackDetector
+import com.laveintedigital.app.internal.navigation.NavFeedbackEvent
+import com.laveintedigital.app.internal.navigation.NavFeedbackEvents
 import com.laveintedigital.app.routing.NavigationTarget
 import com.laveintedigital.app.security.AppLockManager
 import com.laveintedigital.app.security.BiometricPreferences
@@ -101,6 +106,26 @@ fun InternalWebScreen(
     // Enrollment state: show invitation dialog after web reports authenticated
     var showEnrollmentInvite by remember { mutableStateOf(false) }
     val enrollmentDone by BiometricPreferences.isEnabled(context).collectAsState(false)
+
+    // Feedback nativo de navegación post-splash (paquete internal/navigation).
+    // Solo observa: jamás consume Back ni toca el flujo canónico del PR #66.
+    val navFeedback = remember { NavFeedbackController() }
+    var navUi by remember { mutableStateOf(navFeedback.snapshot()) }
+    DisposableEffect(navFeedback) {
+        navFeedback.onChange = { navUi = navFeedback.snapshot() }
+        onDispose { navFeedback.onChange = null }
+    }
+    // El controller solo trabaja tras el splash inicial (initialLoadDone).
+    navFeedback.setEnabled(initialLoadDone)
+    // Navegaciones consumidas fuera del WebView cancelan el pendiente sintético.
+    val handleExternalNavigation: (NavigationTarget) -> Unit = {
+        navFeedback.onExternallyConsumed()
+        onExternalNavigation(it)
+    }
+    val handleCustomTab: (String) -> Unit = {
+        navFeedback.onExternallyConsumed()
+        onCustomTab(it)
+    }
 
     // Set up bridge handlers (reliable JS injection, no addJavascriptInterface)
     var pendingCameraReq by remember { mutableStateOf<String?>(null) }
@@ -581,39 +606,33 @@ fun InternalWebScreen(
                         setAcceptThirdPartyCookies(wv, true)
                     }
                     webViewClient = LaVeinteInternalWebViewClient(
-                        onExternalNavigation = onExternalNavigation,
-                        onCustomTab = onCustomTab,
+                        onExternalNavigation = handleExternalNavigation,
+                        onCustomTab = handleCustomTab,
                         onUrlChanged = {},
                         onTitleChanged = {},
                         onPageLoadStateChanged = { loading ->
                             isLoading = loading
                             if (!loading && !initialLoadDone) initialLoadDone = true
                             isOffline = false
+                            // Fuente de verdad de documento; el controller solo
+                            // actúa post-splash (gated por setEnabled).
+                            if (initialLoadDone) navFeedback.onRealLoading(loading)
                         },
-                        onSslError = {},
-                        onOffline = { isOffline = true },
+                        onSslError = { navFeedback.onLoadFailed() },
+                        onOffline = {
+                            isOffline = true
+                            navFeedback.onOffline()
+                        },
                     )
                     webChromeClient = chromeClient
                     attachDownloadListener(ctx)
                     // Inject the native bridge at DOCUMENT START so it exists before Next.js hydrates,
                     // removing the bridge-missing race in the QR scanner. Falls back to onPageFinished.
                     LaVeinteBridgeInjector.installAtDocumentStart(wv)
+                    // Allowlist única de orígenes internos (PDF bridge y feedback
+                    // de navegación comparten exactamente la misma política).
+                    val allowedOrigins = NavFeedbackDetector.allowedOrigins()
                     runCatching {
-                        val productionOrigins = setOf(
-                            "https://la-veinte-digital.vercel.app",
-                            "https://laveinte-digital.vercel.app",
-                            "https://la-veinte-digital.pages.dev",
-                            "https://la20.com.mx",
-                            "https://www.la20.com.mx"
-                        )
-                        val allowedOrigins = if (com.laveintedigital.app.BuildConfig.DEBUG) {
-                            productionOrigins + setOf(
-                                "http://la-veinte-digital.localhost",
-                                "https://la-veinte-digital.localhost"
-                            )
-                        } else {
-                            productionOrigins
-                        }
                         androidx.webkit.WebViewCompat.addWebMessageListener(
                             wv,
                             "laVeintePdfBridge",
@@ -632,6 +651,16 @@ fun InternalWebScreen(
                     }.onFailure { e ->
                         android.util.Log.w("InternalWebScreen", "addWebMessageListener not supported or failed", e)
                     }
+                    // Detector SPA document-start + listener independiente del
+                    // PDF bridge. Solo observa clicks/history; la web queda
+                    // intacta y los modales jamás emiten intent.
+                    NavFeedbackDetector.install(wv, allowedOrigins) { raw ->
+                        when (val event = NavFeedbackEvents.parse(raw)) {
+                            is NavFeedbackEvent.Intent -> navFeedback.onIntent(event.path, event.pageGen)
+                            is NavFeedbackEvent.Commit -> navFeedback.onCommit(event.path, event.pageGen)
+                            NavFeedbackEvent.Invalid -> Unit
+                        }
+                    }
                     loadUrl(initialUrl)
                 }.also { webView = it }
             },
@@ -641,13 +670,21 @@ fun InternalWebScreen(
                 .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
         )
 
-        if (isLoading && initialLoadDone) {
+        // Barra discreta mientras el overlay aún no alcanzó su umbral; una vez
+        // visible el overlay la sustituye para no competir (siempre hay feedback).
+        if (isLoading && initialLoadDone && !navUi.overlayVisible) {
             LinearProgressIndicator(
                 modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding(),
                 color = Primary,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
             )
         }
+
+        // Overlay nativo post-splash: solo observa, no consume Back ni toques.
+        NativeNavigationOverlay(
+            visible = navUi.overlayVisible,
+            slow = navUi.slowText,
+        )
 
         if (isOffline && initialLoadDone) {
             OfflineErrorScreen(
