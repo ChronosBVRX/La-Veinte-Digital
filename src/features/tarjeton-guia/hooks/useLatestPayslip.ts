@@ -4,35 +4,70 @@ import { useEffect, useMemo, useState } from "react"
 import { getPayslips } from "@/shared/services/local-storage"
 import { toGuidePayslip } from "@/features/tarjeton-guia/services/payslip-guide"
 import type { GuidePayslip } from "@/features/tarjeton-guia/lib/types"
+import { getLatestPayslipAnalysis } from "@/features/tarjeton/services/payslip-analysis-store"
+import { syncLatestSavedPayslip } from "@/features/tarjeton/services/sync-latest-payslip"
 
 /**
  * Selecciona el tarjetón más reciente para la Guía de mi Tarjetón.
  *
- * Prioridad: el que tenga fecha de periodo más reciente entre localStorage
- * (fuente completa del flujo de import) y el servidor (última fila confirmada).
+ * Fuente canónica primaria: PayslipAnalysis del documento guardado en "Mis documentos"
+ * (Android Room / IndexedDB). Si no existe o está pendiente, dispara la sincronización
+ * automática en segundo plano y fusiona con los registros existentes de localStorage/servidor.
  */
 export function useLatestPayslip(serverPayslip: GuidePayslip | null) {
   const [revision, setRevision] = useState(0)
 
   useEffect(() => {
+    // Sincronizar automáticamente el tarjetón guardado en montaje
+    void syncLatestSavedPayslip().catch(() => {})
+
     const handler = () => setRevision((r) => r + 1)
+    const handleFocus = () => {
+      void syncLatestSavedPayslip().catch(() => {})
+    }
+
     window.addEventListener("storage", handler)
+    window.addEventListener("focus", handleFocus)
     window.addEventListener("nomina_payslip_updated", handler)
     window.addEventListener("tarjeton_analysis_completed", handler)
+    window.addEventListener("tarjeton_analysis_state_changed", handler)
     return () => {
       window.removeEventListener("storage", handler)
+      window.removeEventListener("focus", handleFocus)
       window.removeEventListener("nomina_payslip_updated", handler)
       window.removeEventListener("tarjeton_analysis_completed", handler)
+      window.removeEventListener("tarjeton_analysis_state_changed", handler)
     }
   }, [])
 
   return useMemo(() => {
     void revision
+
+    // 1. Consultar el análisis persistido canónico del documento guardado
+    const canonicalAnalysis = getLatestPayslipAnalysis()
+    const canonicalGuideSlip = canonicalAnalysis ? toGuidePayslip(canonicalAnalysis) : null
+
+    // 2. Registros locales
     const local = getPayslips()
       .map((p) => toGuidePayslip(p))
       .filter((p): p is GuidePayslip => p !== null)
 
-    const byPeriod = local.sort((a, b) => {
+    const allLocal = [...local]
+    if (canonicalGuideSlip) {
+      // Si ya hay un slip con el mismo ID o periodo, reemplazarlo o fusionarlo
+      const matchIdx = allLocal.findIndex(
+        (s) =>
+          s.id === canonicalGuideSlip.id ||
+          (s.periodRaw && canonicalGuideSlip.periodRaw && s.periodRaw === canonicalGuideSlip.periodRaw)
+      )
+      if (matchIdx >= 0) {
+        allLocal[matchIdx] = mergePayslips(canonicalGuideSlip, allLocal[matchIdx])
+      } else {
+        allLocal.unshift(canonicalGuideSlip)
+      }
+    }
+
+    const byPeriod = allLocal.sort((a, b) => {
       const pa = periodRank(a)
       const pb = periodRank(b)
       if (pa === pb) {
@@ -50,7 +85,31 @@ export function useLatestPayslip(serverPayslip: GuidePayslip | null) {
     let latest: GuidePayslip | null
     let previousLocal: GuidePayslip | null = byPeriod[1] ?? null
 
-    if (!candidateLocal && !candidateServer) return { payslip: null, previous: null, source: ("server" as const), total: 0 }
+    if (!candidateLocal && !candidateServer) {
+      if (canonicalAnalysis && (canonicalAnalysis.status === "analyzing" || canonicalAnalysis.status === "pending")) {
+        return {
+          payslip: {
+            id: canonicalAnalysis.documentId,
+            periodRaw: canonicalAnalysis.period,
+            periodLabel: canonicalAnalysis.period,
+            earnings: [],
+            deductions: [],
+            perceptions: [],
+            observations: [],
+            totalEarnings: 0,
+            totalDeductions: 0,
+            netPay: 0,
+            netAmount: 0,
+            source: "local" as const,
+            analysisStatus: canonicalAnalysis.status,
+          },
+          previous: null,
+          source: "local" as const,
+          total: 1,
+        }
+      }
+      return { payslip: null, previous: null, source: "server" as const, total: 0 }
+    }
 
     if (!candidateLocal) {
       latest = candidateServer
@@ -75,11 +134,8 @@ export function useLatestPayslip(serverPayslip: GuidePayslip | null) {
           latest = mergePayslips(candidateServer, candidateLocal)
         }
       } else if (rLocal > rServer) {
-        // Local es más reciente
         latest = localCount > 0 || serverCount === 0 ? candidateLocal : candidateServer
       } else if (rServer > rLocal) {
-        // Servidor tiene fecha más reciente, pero si no tiene conceptos y local sí tiene,
-        // comprobar si el local corresponde al mismo documento o si podemos fusionar
         if (serverCount === 0 && localCount > 0) {
           latest = mergePayslips(candidateServer, candidateLocal)
         } else {
@@ -95,8 +151,17 @@ export function useLatestPayslip(serverPayslip: GuidePayslip | null) {
       }
     }
 
-    const total = local.length + (candidateServer ? 1 : 0)
-    return { payslip: latest, previous: previousLocal, source: ("local" as const), total }
+    // Si tenemos un análisis canónico con conceptos listos, asegurar que el resultado los conserve
+    if (latest && canonicalGuideSlip && (canonicalGuideSlip.earnings.length > 0 || canonicalGuideSlip.deductions.length > 0)) {
+      const latestCount = (latest.earnings?.length ?? 0) + (latest.deductions?.length ?? 0)
+      const canonicalCount = canonicalGuideSlip.earnings.length + canonicalGuideSlip.deductions.length
+      if (canonicalCount > latestCount || periodRank(canonicalGuideSlip) >= periodRank(latest)) {
+        latest = mergePayslips(canonicalGuideSlip, latest)
+      }
+    }
+
+    const total = allLocal.length + (candidateServer ? 1 : 0)
+    return { payslip: latest, previous: previousLocal, source: "local" as const, total }
   }, [serverPayslip, revision])
 }
 
@@ -118,7 +183,10 @@ function mergePayslips(preferred: GuidePayslip, secondary: GuidePayslip): GuideP
     totalDeductions: preferred.totalDeductions ?? secondary.totalDeductions,
     netPay: preferred.netPay ?? secondary.netPay,
     netAmount: preferred.netAmount ?? secondary.netAmount ?? preferred.netPay ?? secondary.netPay,
-    analysisStatus: earnings.length > 0 || deductions.length > 0 ? "ready" : preferred.analysisStatus ?? secondary.analysisStatus ?? "pending",
+    analysisStatus:
+      earnings.length > 0 || deductions.length > 0
+        ? "ready"
+        : preferred.analysisStatus ?? secondary.analysisStatus ?? "pending",
   }
 }
 
@@ -127,7 +195,9 @@ function periodRank(p: GuidePayslip): number {
   const label = p.periodLabel ?? p.periodRaw ?? ""
   const year = Number(label.match(/\b20\d{2}\b/)?.[0] ?? 0)
   if (!year) return 0
-  const monthMatch = label.match(/(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)/i)
+  const monthMatch = label.match(
+    /(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre|ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)/i
+  )
   const MONTHS: Record<string, number> = {
     enero: 1, ene: 1,
     febrero: 2, feb: 2,

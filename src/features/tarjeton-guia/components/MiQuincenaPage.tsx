@@ -16,6 +16,7 @@ import { buildExplainer, buildQuincenaSummary, type ExplainerStep } from "@/feat
 import { buildReviewChecklist, type ReviewItem } from "@/features/tarjeton-guia/lib/review"
 import { compareQuincenas, describeChange } from "@/features/tarjeton-guia/lib/compare"
 import type { GuidePayslip } from "@/features/tarjeton-guia/lib/types"
+import { syncLatestSavedPayslip } from "@/features/tarjeton/services/sync-latest-payslip"
 import { analyzeAndPersistPayslip } from "@/features/tarjeton/services/analyze-and-persist-payslip"
 
 export function MiQuincenaPage({ serverPayslip, initialTab }: { serverPayslip: GuidePayslip | null; initialTab?: string }) {
@@ -37,7 +38,12 @@ export function MiQuincenaPage({ serverPayslip, initialTab }: { serverPayslip: G
     if (payslip && summary?.incompleteExtraction && !autoAnalyzing) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-reanudación deliberada
       setAutoAnalyzing(true)
-      void analyzeAndPersistPayslip(payslip.id, { periodRaw: payslip.periodRaw || payslip.periodLabel })
+      void syncLatestSavedPayslip()
+        .then((res) => {
+          if (!res || res.concepts.length === 0) {
+            return analyzeAndPersistPayslip(payslip.id, { periodRaw: payslip.periodRaw || payslip.periodLabel })
+          }
+        })
         .finally(() => setAutoAnalyzing(false))
     }
   }, [payslip, summary?.incompleteExtraction, autoAnalyzing])
@@ -174,7 +180,7 @@ function ExplainTab({
               animation: "spin 1s linear infinite",
             }}
           />
-          <span>Estamos terminando de analizar tu tarjetón...</span>
+          <span>Estamos preparando la explicación de tu tarjetón más reciente.</span>
         </div>
       )}
 

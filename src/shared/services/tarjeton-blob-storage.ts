@@ -201,3 +201,50 @@ export async function findTarjetonPdfBlob(candidates: (string | undefined | null
     return null
   }
 }
+
+export interface TarjetonBlobSummary {
+  key: string
+  fileName?: string
+  fileSize: number
+  mimeType: string
+  updatedAt: string
+  blob?: Blob
+}
+
+/**
+ * Retorna todos los registros de tarjetones guardados en IndexedDB.
+ */
+export async function listAllTarjetonBlobs(): Promise<TarjetonBlobSummary[]> {
+  if (typeof window === "undefined" || !window.indexedDB) return []
+  try {
+    const db = await openTarjetonDatabase()
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(STORE_NAME, "readonly")
+        const store = tx.objectStore(STORE_NAME)
+        const req = store.getAll()
+        req.onsuccess = () => {
+          db.close()
+          const records = (req.result || []) as TarjetonBlobRecord[]
+          resolve(records.map((r) => ({
+            key: r.key,
+            fileName: r.fileName,
+            fileSize: r.fileSize,
+            mimeType: r.mimeType,
+            updatedAt: r.updatedAt,
+            blob: r.blob,
+          })))
+        }
+        req.onerror = () => {
+          db.close()
+          resolve([])
+        }
+      } catch {
+        db.close()
+        resolve([])
+      }
+    })
+  } catch {
+    return []
+  }
+}

@@ -17,6 +17,8 @@ import { guideQuickLessons } from "@/features/tarjeton-guia/data/lessons"
 import { resolveRefHref } from "@/features/tarjeton-guia/lib/catalog"
 
 import { getPayslips } from "@/shared/services/local-storage"
+import { getLatestPayslipAnalysis } from "@/features/tarjeton/services/payslip-analysis-store"
+import { syncLatestSavedPayslip } from "@/features/tarjeton/services/sync-latest-payslip"
 import { analyzeAndPersistPayslip } from "@/features/tarjeton/services/analyze-and-persist-payslip"
 
 export interface GuiaHomeServerData {
@@ -33,23 +35,46 @@ export interface GuiaHomeServerData {
 export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
   const [tipIndex, setTipIndex] = useState(0)
   const [autoAnalyzing, setAutoAnalyzing] = useState(false)
+  const [hasLocalPayslip, setHasLocalPayslip] = useState(data.hasPayslip)
   const [overrideStats, setOverrideStats] = useState<{
     earningsCount?: number
     deductionsCount?: number
     netPay?: number
+    totalEarnings?: number
+    totalDeductions?: number
+    periodRaw?: string
   } | null>(null)
 
   const stats = {
     earningsCount: overrideStats?.earningsCount ?? data.earningsCount ?? 0,
     deductionsCount: overrideStats?.deductionsCount ?? data.deductionsCount ?? 0,
     netPay: overrideStats?.netPay ?? data.netPay,
-    totalEarnings: data.totalEarnings,
-    totalDeductions: data.totalDeductions,
+    totalEarnings: overrideStats?.totalEarnings ?? data.totalEarnings,
+    totalDeductions: overrideStats?.totalDeductions ?? data.totalDeductions,
+    periodRaw: overrideStats?.periodRaw ?? data.periodRaw,
   }
 
+  const hasPayslip = data.hasPayslip || hasLocalPayslip || (stats.earningsCount > 0 || stats.deductionsCount > 0)
+
   useEffect(() => {
-    // Sincronizar conceptos desde localStorage si ya existen para este periodo o el más reciente
+    // Sincronizar conceptos desde análisis canónico o localStorage
     const syncLocal = () => {
+      const canonical = getLatestPayslipAnalysis()
+      if (canonical && canonical.status === "ready" && canonical.concepts.length > 0) {
+        setHasLocalPayslip(true)
+        const eCount = canonical.concepts.filter((c) => c.kind === "perception").length
+        const dCount = canonical.concepts.filter((c) => c.kind === "deduction").length
+        setOverrideStats({
+          earningsCount: eCount,
+          deductionsCount: dCount,
+          netPay: canonical.netAmount,
+          totalEarnings: canonical.perceptionsTotal,
+          totalDeductions: canonical.deductionsTotal,
+          periodRaw: canonical.period,
+        })
+        return
+      }
+
       const slips = getPayslips()
       const target =
         slips.find((s) => {
@@ -62,6 +87,7 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
           return data.periodRaw ? pLabel.includes(data.periodRaw) || data.periodRaw.includes(pLabel) : false
         }) || slips.find((s) => (s.earnings?.length ?? 0) + (s.deductions?.length ?? 0) > 0) || slips[0]
       if (target) {
+        setHasLocalPayslip(true)
         const eCount = ((target.earnings ?? target.perceptions)?.length) ?? 0
         const dCount = target.deductions?.length ?? 0
         if (eCount > 0 || dCount > 0) {
@@ -69,6 +95,9 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
             earningsCount: eCount,
             deductionsCount: dCount,
             netPay: target.netPay ?? target.netAmount,
+            totalEarnings: target.totalEarnings,
+            totalDeductions: target.totalDeductions,
+            periodRaw: target.periodRaw,
           })
         }
       }
@@ -77,29 +106,49 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
     syncLocal()
     window.addEventListener("nomina_payslip_updated", syncLocal)
     window.addEventListener("tarjeton_analysis_completed", syncLocal)
+    window.addEventListener("tarjeton_analysis_state_changed", syncLocal)
     return () => {
       window.removeEventListener("nomina_payslip_updated", syncLocal)
       window.removeEventListener("tarjeton_analysis_completed", syncLocal)
+      window.removeEventListener("tarjeton_analysis_state_changed", syncLocal)
     }
   }, [data.documentId, data.periodRaw])
 
   useEffect(() => {
-    if (data.hasPayslip && (stats.earningsCount === 0 && stats.deductionsCount === 0) && !autoAnalyzing) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-reanudación en segundo plano
-      setAutoAnalyzing(true)
-      void analyzeAndPersistPayslip(data.documentId, { periodRaw: data.periodRaw })
-        .then((res) => {
-          if (res.ok && (res.earningsCount > 0 || res.deductionsCount > 0)) {
-            setOverrideStats({
-              earningsCount: res.earningsCount,
-              deductionsCount: res.deductionsCount,
-              netPay: res.netPay,
-            })
-          }
-        })
-        .finally(() => setAutoAnalyzing(false))
-    }
-  }, [data.hasPayslip, stats.earningsCount, stats.deductionsCount, data.documentId, data.periodRaw, autoAnalyzing])
+    // Sincronización automática de Tarjetón guardado en montaje
+    setAutoAnalyzing(true)
+    void syncLatestSavedPayslip()
+      .then((analysis) => {
+        if (analysis && analysis.status === "ready" && analysis.concepts.length > 0) {
+          setHasLocalPayslip(true)
+          const eCount = analysis.concepts.filter((c) => c.kind === "perception").length
+          const dCount = analysis.concepts.filter((c) => c.kind === "deduction").length
+          setOverrideStats({
+            earningsCount: eCount,
+            deductionsCount: dCount,
+            netPay: analysis.netAmount,
+            totalEarnings: analysis.perceptionsTotal,
+            totalDeductions: analysis.deductionsTotal,
+            periodRaw: analysis.period,
+          })
+        } else if (data.hasPayslip && (stats.earningsCount === 0 && stats.deductionsCount === 0)) {
+          return analyzeAndPersistPayslip(data.documentId, { periodRaw: data.periodRaw }).then((res) => {
+            if (res.ok && (res.earningsCount > 0 || res.deductionsCount > 0)) {
+              setHasLocalPayslip(true)
+              setOverrideStats({
+                earningsCount: res.earningsCount,
+                deductionsCount: res.deductionsCount,
+                netPay: res.netPay,
+                totalEarnings: res.totalEarnings,
+                totalDeductions: res.totalDeductions,
+                periodRaw: res.periodRaw,
+              })
+            }
+          })
+        }
+      })
+      .finally(() => setAutoAnalyzing(false))
+  }, [data.documentId, data.hasPayslip, data.periodRaw, stats.earningsCount, stats.deductionsCount])
 
   useEffect(() => {
     const now = new Date()
@@ -144,17 +193,17 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
           </span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.25rem" }}>
-              {data.hasPayslip ? "Tu quincena, explicada" : "✨ Entiende tu última quincena"}
+              {hasPayslip ? "Tu quincena, explicada" : "✨ Entiende tu última quincena"}
             </h2>
             <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
-              {data.hasPayslip
+              {hasPayslip
                 ? "Te explicamos cada pago y descuento utilizando tu tarjetón."
                 : "Te explicamos cada pago y descuento utilizando tu tarjetón."}
             </p>
           </div>
         </div>
 
-        {data.hasPayslip ? (
+        {hasPayslip ? (
           <div style={{ marginTop: "1rem" }}>
             <div
               style={{
@@ -163,7 +212,7 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
                 gap: "0.5rem",
               }}
             >
-              <SummaryStat label="Periodo" value={data.periodRaw ?? "—"} />
+              <SummaryStat label="Periodo" value={stats.periodRaw ?? data.periodRaw ?? "—"} />
               <SummaryStat label="Líquido" value={stats.netPay != null ? formatMoney(stats.netPay) : "—"} />
               <SummaryStat label="Percepciones" value={String(stats.earningsCount ?? 0)} />
               <SummaryStat label="Deducciones" value={String(stats.deductionsCount ?? 0)} />
@@ -195,7 +244,7 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
                     animation: "spin 1s linear infinite",
                   }}
                 />
-                <span>Estamos terminando de analizar tu tarjetón...</span>
+                <span>Estamos preparando la explicación de tu tarjetón más reciente.</span>
               </div>
             )}
 
