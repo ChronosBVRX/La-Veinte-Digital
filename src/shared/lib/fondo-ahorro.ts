@@ -5,8 +5,8 @@
  * calculadoras independientes (segunda de julio). Cualquier cambio de la
  * fórmula debe hacerse aquí.
  *
- * Régimen ordinario (procedimiento 1A74-003-024):
- *   Base             = Sueldo Tabular (concepto 002). NO incluye la prima 011.
+ * Régimen ordinario (Cláusula 144 CCT, Cláusula 63 Bis inc. b y procedimiento 1A74-003-024):
+ *   Base             = Sueldo Tabular (002) + Ayuda de Renta Cl. 63 Bis b (011)
  *   Valor diario     = Base ÷ 15
  *   Importe completo = Valor diario × 46 días (Cláusula 144)
  *   Importe real     = Importe completo × (unidades computables ÷ 360)
@@ -55,11 +55,13 @@ export interface FondoAhorroLegalBasis {
 export interface FondoAhorroDerivationInput {
   /** Sueldo tabular quincenal (002). */
   sueldoTabular: number
+  /** Ayuda de renta quincenal (011, Cl. 63 Bis inc. b). */
+  concepto011?: number
   /** Unidades computables confirmadas (p. ej. 360, 180). */
   unidades?: number
   /** Días del periodo anual (1 jul – 30 jun) como evidencia de proporcionalidad. */
   annualPeriodDays?: number
-  /** Régimen: ordinario (base 002). Confianza A se documenta aparte. */
+  /** Régimen: ordinario (base 002 + 011). Confianza A se documenta aparte. */
   regime?: FondoAhorroRegime
 }
 
@@ -138,7 +140,7 @@ export function calculateFondoAhorro(input: FondoAhorroDerivationInput): FondoAh
     )
   }
 
-  const base = input.sueldoTabular
+  const base = input.sueldoTabular + (input.concepto011 ?? 0)
   const dailyValue = base / FONDO_AHORRO_CONSTANTS.DAILY_BASE_DIVISOR
   const fullAmount = dailyValue * FONDO_AHORRO_CONSTANTS.DAYS_FULL_ANNUAL
 
@@ -171,9 +173,9 @@ export function calculateFondoAhorro(input: FondoAhorroDerivationInput): FondoAh
     legalBasis: {
       source: "regulation",
       title: "Fondo de Ahorro (régimen ordinario)",
-      reference: "Procedimiento 1A74-003-024 + Cláusula 144 CCT",
+      reference: "Cláusula 144 CCT + Cláusula 63 Bis inc. b + Procedimiento 1A74-003-024",
       notes:
-        "Base = sueldo tabular (002). El procedimiento 1A74-003-024 define el régimen ordinario con base 002; el Estatuto de Confianza A es un régimen aparte.",
+        "Base = sueldo tabular (002) + ayuda renta (011) por repercusión de la Cláusula 63 Bis inc. b CCT; 46 días anuales conforme a la Cláusula 144 CCT.",
     },
   }
 }

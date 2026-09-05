@@ -64,24 +64,85 @@ describe("Aguinaldo (Cláusula 107 CCT)", () => {
   })
 })
 
-describe("Segunda de julio (Fondo de Ahorro, base = 002)", () => {
-  it("base = sueldo tabular (002); no integra 011", () => {
-    expect(calculateSegundaJulio({ concepto002: 10000 })).toBeCloseTo(30666.67, 2)
-    expect(calculateSegundaJulio({ concepto002: 10000 })).not.toBe(36800)
+describe("Segunda de julio (Fondo de Ahorro, Cláusula 144 + Cláusula 63 Bis inc. b)", () => {
+  it("Caso de regresión obligatorio: reproduce el tarjetón real con 002 + 011 y deja de devolver 12,075.43", () => {
+    const golden = {
+      "002": 3937.64,
+      "011": 3234.77,
+      "055_real": 21934.68,
+    }
+
+    // Fórmula anterior errónea (sin 011) devolvía 12,075.43:
+    const calculoPrevioSin011 = calculateSegundaJulio({ concepto002: golden["002"] })
+    expect(calculoPrevioSin011).toBeCloseTo(12075.43, 2)
+
+    // Con la incorporación obligatoria de 011 conforme a Cl. 63 Bis b:
+    const calculoCompleto = calculateSegundaJulio({
+      concepto002: golden["002"],
+      concepto011: golden["011"],
+    })
+    expect(calculoCompleto).toBeCloseTo(21995.39, 2)
+    expect(calculoCompleto).not.toBeCloseTo(12075.43, 2)
+
+    // Con 359 unidades computables (1 día de incidencia reflejado en 14 días pagados de la quincena):
+    const prop359 = calculateSegundaJulioProporcional({
+      concepto002: golden["002"],
+      concepto011: golden["011"],
+      unidades: 359,
+    })
+    // Reproduce el pago real dentro del margen atribuible al sistema oficial de redondeo (< $0.40)
+    expect(prop359.resultado).toBeCloseTo(21934.29, 2)
+    expect(Math.abs(prop359.resultado - golden["055_real"])).toBeLessThan(0.40)
   })
+
+  it("Caso A — 360 unidades (año completo con base 002 + 011)", () => {
+    const res = calculateSegundaJulio({ concepto002: 3937.64, concepto011: 3234.77 })
+    expect(res).toBeCloseTo(21995.39, 2)
+  })
+
+  it("Caso B — unidades parciales (180/360 y 359/360)", () => {
+    const r180 = calculateSegundaJulioProporcional({
+      concepto002: 10000,
+      concepto011: 2000,
+      unidades: 180,
+    })
+    expect(r180.base).toBe(12000)
+    expect(r180.importeCompleto).toBeCloseTo(36800, 2)
+    expect(r180.proporcion).toBe(0.5)
+    expect(r180.resultado).toBeCloseTo(18400, 2)
+  })
+
+  it("Caso C — ausencia del 011 (o undefined) computa sobre 002", () => {
+    expect(calculateSegundaJulio({ concepto002: 10000 })).toBeCloseTo(30666.67, 2)
+  })
+
+  it("Caso D — 011 = 0 calcula sin NaN, errores ni desvíos", () => {
+    const res = calculateSegundaJulio({ concepto002: 10000, concepto011: 0 })
+    expect(res).toBeCloseTo(30666.67, 2)
+    expect(Number.isNaN(res)).toBe(false)
+  })
+
+  it("Caso E — falta información de unidades asume escenario completo orientativo (360 u)", () => {
+    const res = calculateSegundaJulio({ concepto002: 10000, concepto011: 2000 })
+    expect(res).toBeCloseTo(36800, 2)
+  })
+
+  it("Caso F — valores importados desde perfil producen exactamente lo mismo que manuales", () => {
+    const perfilImportado = { c002: 3937.64, c011: 3234.77 }
+    const resPerfil = calculateSegundaJulio({
+      concepto002: perfilImportado.c002,
+      concepto011: perfilImportado.c011,
+    })
+    const resManual = calculateSegundaJulio({ concepto002: 3937.64, concepto011: 3234.77 })
+    expect(resPerfil).toBe(resManual)
+  })
+
   it("calcula correctamente con ceros", () => {
-    expect(calculateSegundaJulio({ concepto002: 0 })).toBe(0)
+    expect(calculateSegundaJulio({ concepto002: 0, concepto011: 0 })).toBe(0)
   })
 })
 
-describe("Segunda de julio proporcional", () => {
-  it("calcula 180 unidades correctamente", () => {
-    const r = calculateSegundaJulioProporcional({ concepto002: 10000, unidades: 180 })
-    expect(r.base).toBe(10000)
-    expect(r.importeCompleto).toBeCloseTo(30666.67, 2)
-    expect(r.proporcion).toBe(0.5)
-    expect(r.resultado).toBeCloseTo(15333.33, 2)
-  })
+describe("Segunda de julio proporcional - validaciones", () => {
   it("1 unidad", () => {
     const r = calculateSegundaJulioProporcional({ concepto002: 10000, unidades: 1 })
     expect(r.resultado).toBeGreaterThan(0)

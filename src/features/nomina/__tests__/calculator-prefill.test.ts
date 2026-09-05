@@ -126,9 +126,12 @@ describe("Prerrelleno normativo - política por calculadora", () => {
     expect(res.fields.concepto002?.value).toBe(category().biweeklyBaseSalary)
   })
 
-  it("segunda-julio no introduce el 022", () => {
+  it("segunda-julio no introduce el 022 pero sí entrega 002 y 011", () => {
     const res = buildCalculatorPrefillResponse(makeContext({ calculatorId: "segunda-julio" }))
     expect(res.fields.concepto022).toBeUndefined()
+    expect(res.fields.concepto002?.value).toBe(category().biweeklyBaseSalary)
+    expect(res.fields.concepto011?.value).toBe(200)
+    expect(CALCULATOR_POLICIES["segunda-julio"].allowedConceptCodes).toContain("011")
   })
 })
 

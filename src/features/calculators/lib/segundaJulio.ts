@@ -9,18 +9,28 @@ export const SEGUNDA_JULIO_DAYS_FULL = FONDO_AHORRO_CONSTANTS.DAYS_FULL_ANNUAL
 export const SEGUNDA_JULIO_ANNUAL_BASE = FONDO_AHORRO_CONSTANTS.ANNUAL_BASE_DAYS
 
 /**
+ * Resuelve la base normativa del Fondo de Ahorro (055).
+ * Conforme a la Cláusula 144 del CCT y la repercusión expresa de la Cláusula 63 Bis inc. b,
+ * la base integra el sueldo tabular (002) y la ayuda de renta (011).
+ */
+export function resolveFondoAhorroBase(input: SegundaJulioInput): number {
+  return input.concepto002 + (input.concepto011 ?? 0)
+}
+
+/**
  * Segunda de julio (Fondo de Ahorro, 055) — régimen ordinario.
  *
- * Base = sueldo tabular (002). El procedimiento 1A74-003-024 fija el régimen
- * ordinario con base 002; la prima 011 NO integra la base.
+ * Base = sueldo tabular (002) + ayuda renta (011) por repercusión de la Cláusula 63 Bis inc. b CCT.
+ * Procedimiento 1A74-003-024 (46 días de sueldo tabular conforme a Cláusula 144 CCT).
  */
 export function calculateSegundaJulio(input: SegundaJulioInput): number {
-  return (input.concepto002 / FONDO_AHORRO_CONSTANTS.DAILY_BASE_DIVISOR) * FONDO_AHORRO_CONSTANTS.DAYS_FULL_ANNUAL
+  const base = resolveFondoAhorroBase(input)
+  return (base / FONDO_AHORRO_CONSTANTS.DAILY_BASE_DIVISOR) * FONDO_AHORRO_CONSTANTS.DAYS_FULL_ANNUAL
 }
 
 export function calculateSegundaJulioProporcional(input: SegundaJulioProporcionalInput): SegundaJulioProporcionalResult {
-  const base = input.concepto002
-  const importeCompleto = calculateSegundaJulio({ concepto002: base })
+  const base = resolveFondoAhorroBase(input)
+  const importeCompleto = calculateSegundaJulio(input)
   const proporcion = input.unidades / FONDO_AHORRO_CONSTANTS.ANNUAL_BASE_DAYS
 
   return {

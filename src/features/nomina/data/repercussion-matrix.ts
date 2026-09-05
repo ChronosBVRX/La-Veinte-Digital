@@ -1,5 +1,5 @@
 import type { NormativaVigencia } from "./vigencias"
-import { CCT_2025_2027, NORMA_1000_001_020, PROC_1A74_003_024, PROC_1A74_003_031 } from "./vigencias"
+import { CCT_2025_2027, NORMA_1000_001_020, PROC_1A74_003_031 } from "./vigencias"
 
 /**
  * Matriz declarativa de repercusiones entre conceptos.
@@ -126,9 +126,10 @@ const TIEMPO_EXTRA_BASE = ["002", "011", "019", "023", "054", "063", "020", "050
 const TIEMPO_EXTRA_NORMA = ["02", "012", "013", "057", "058", "061"]
 
 const MATRIX: ConceptImpactRule[] = [
-  // ── 055 Fondo de Ahorro (régimen ordinario, proc. 1A74-003-024) ──────────────
-  // Base = sueldo tabular (002). La prima 011 NO integra la base de 055.
-  verified("002", "055", PROC_1A74_003_024, "Procedimiento 1A74-003-024 (régimen ordinario; base = sueldo tabular)"),
+  // ── 055 Fondo de Ahorro (régimen ordinario, Cláusula 144 + Cláusula 63 Bis inc. b) ──
+  // Base = sueldo tabular (002) + ayuda renta (011 por repercusión de Cl. 63 Bis inc. b).
+  verified("002", "055", CCT_2025_2027, "Cláusula 144 CCT (base sueldo tabular)"),
+  verified("011", "055", CCT_2025_2027, "Cláusula 63 Bis inc. b (repercusión en prestaciones con base sueldo tabular)"),
 
   // ── 022 Ayuda de Renta por Antigüedad (Cláusula 63 Bis, inciso c) ────────────
   ...verifiedTriples(CCT_2025_2027, "Cláusula 63 Bis, inciso c", [

@@ -6,8 +6,8 @@ import { calculateFondoAhorro, FONDO_AHORRO_CONSTANTS } from "@/shared/lib/fondo
 /**
  * Fondo de Ahorro (055) — régimen ordinario.
  *
- * Base = sueldo tabular (002), excluye la prima 011 (p. 1A74-003-024).
- * Importe = (002 ÷ 15 × 46) × (unidades ÷ 360); se paga en la 2ª quincena de
+ * Base = sueldo tabular (002) + ayuda renta (011) por repercusión de la Cláusula 63 Bis inc. b CCT.
+ * Importe = ((002 + 011) ÷ 15 × 46) × (unidades ÷ 360); se paga en la 2ª quincena de
  * julio. Si no hay unidades confirmadas se presenta el escenario de año
  * completo como supuesto (requires_confirmation). El 022 (ayuda de renta
  * anual) nunca integra esta base.
@@ -20,15 +20,15 @@ import { calculateFondoAhorro, FONDO_AHORRO_CONSTANTS } from "@/shared/lib/fondo
  */
 export const rule055: PayrollRule = {
   id: "055",
-  version: "3.0.0",
+  version: "4.0.0",
   effectiveFrom: "2025-01-01",
-  dependencies: ["002"],
+  dependencies: ["002", "011"],
   valuePersistence: "replay_only",
   calculate(ctx: PayrollRuleContext): RuleCalculationResult {
     const c002 = ctx.calculatedConcepts.get("002")?.amount ?? 0
     const anchor = ctx.conceptAnchors.get("055")
 
-    // Base normativa: solo 002 repercute en 055 según el procedimiento.
+    // Base normativa: 002 + 011 repercuten en 055 según CCT Cláusula 144 y Cláusula 63 Bis b.
     const baseResult = buildBaseForConcept("055", ctx.calculatedConcepts, ctx.period.endDate)
     const base = baseResult.baseAmount > 0 ? baseResult.baseAmount : c002
 
@@ -47,7 +47,7 @@ export const rule055: PayrollRule = {
 
     const eligible = isJulySecondHalf
 
-    const DEPS = ["002"]
+    const DEPS = ["002", "011"]
     const status = dependenciesStatus(DEPS, ctx)
     const resolution = resolveWithAnchor({
       conceptCode: "055",
@@ -85,6 +85,8 @@ export const rule055: PayrollRule = {
       derivation.requiresConfirmation ? "requires_confirmation" :
       "medium"
 
+    const c011 = ctx.calculatedConcepts.get("011")?.amount ?? 0
+
     const concept: CalculatedPayrollConcept = {
       code: "055",
       name: "Fondo de Ahorro",
@@ -98,10 +100,13 @@ export const rule055: PayrollRule = {
       elegibilitySource: anchor ? "payslip_confirmed" : "contract_rule",
       anchorAmount: anchor?.amount,
       anchorDate: anchor?.date,
-      dependencies: [{ code: "002", amount: base }],
+      dependencies: [
+        { code: "002", amount: c002 },
+        ...(c011 > 0 ? [{ code: "011", amount: c011 }] : []),
+      ],
       resolutionAudit: resolution.audit,
       calculationSteps: [
-        { label: "Base (régimen ordinario)", expression: `002 (sueldo tabular) = ${base}`, value: base },
+        { label: "Base (régimen ordinario)", expression: `002 + 011 = ${base}`, value: base },
         { label: "Valor diario", expression: `${base} ÷ 15 = ${derivation.dailyValue}`, value: derivation.dailyValue },
         { label: "Importe completo (46 días)", expression: `${derivation.dailyValue} × 46 = ${fullAmount}`, value: fullAmount },
         { label: "Unidades computables", expression: `${derivation.unidades} ÷ 360 = ${derivation.proporcion}`, value: derivation.proporcion },
@@ -112,6 +117,6 @@ export const rule055: PayrollRule = {
       legalBasis: [derivation.legalBasis],
       warnings,
     }
-    return { concept, dependencies: ["002"] }
+    return { concept, dependencies: DEPS }
   },
 }

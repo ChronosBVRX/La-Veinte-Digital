@@ -58,9 +58,10 @@ export interface AguinaldoResult {
   }
 }
 
-/** Input del Fondo de Ahorro (segunda de julio): base = sueldo tabular (002). */
+/** Input del Fondo de Ahorro (segunda de julio): base = sueldo tabular (002) + ayuda renta Cl. 63 Bis inc. b (011). */
 export interface SegundaJulioInput {
   concepto002: number
+  concepto011?: number
 }
 
 export interface SegundaJulioProporcionalInput extends SegundaJulioInput {
