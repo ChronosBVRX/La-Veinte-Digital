@@ -8,8 +8,9 @@ import { Alert } from "@/shared/components/ui/Alert"
 import { CommitmentForm } from "./CommitmentForm"
 import { useCommitments } from "../hooks/useCommitments"
 import type { WorkerCommitment, CommitmentType } from "../types"
-import { COMMITMENT_TYPES, COMMITMENT_TYPE_LABELS, COMMITMENT_TYPE_ICONS } from "../types"
+import { PRIMARY_COMMITMENT_TYPES, COMMITMENT_TYPE_LABELS, COMMITMENT_TYPE_ICONS } from "../types"
 import type { CommitmentRow } from "../services/commitments-supabase"
+import { getCommitmentDetailLines, getCommitmentScheduleLabel } from "../lib/commitment-calendar"
 
 interface AgendaManagerPanelProps {
   userId: string
@@ -19,10 +20,6 @@ interface AgendaManagerPanelProps {
 }
 
 const MONTH_NAMES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", hour12: false })
-}
 
 function formatDayLabel(iso: string): string {
   const d = new Date(iso)
@@ -121,7 +118,7 @@ export function AgendaManagerPanel({ userId, initialCommitments, targetCommitmen
           >
             Todas
           </button>
-          {COMMITMENT_TYPES.map((t) => (
+          {PRIMARY_COMMITMENT_TYPES.map((t) => (
             <button
               key={t}
               onClick={() => setFilter(t)}
@@ -191,6 +188,7 @@ export function AgendaManagerPanel({ userId, initialCommitments, targetCommitmen
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }}>
                     {items.map((c) => {
                       const isTarget = targetCommitmentId === c.id
+                      const specificDetails = getCommitmentDetailLines(c)
                       return (
                         <div
                           key={c.id}
@@ -223,7 +221,7 @@ export function AgendaManagerPanel({ userId, initialCommitments, targetCommitmen
                               </span>
                             )}
                             <span style={{ fontSize: "0.75rem", color: "var(--muted)", flexShrink: 0 }}>
-                              {formatDayLabel(c.startAt)} · {formatTime(c.startAt)}–{formatTime(c.endAt)}
+                              {formatDayLabel(c.startAt)} · {getCommitmentScheduleLabel(c)}
                             </span>
                           </div>
                           {(c.substituteWorkerName || c.service || c.workplace || c.notes) && (
@@ -240,6 +238,11 @@ export function AgendaManagerPanel({ userId, initialCommitments, targetCommitmen
                               )}
                               {c.workplace && <span style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{c.workplace}</span>}
                               {c.notes && <div style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>{c.notes}</div>}
+                            </div>
+                          )}
+                          {specificDetails.length > 0 && (
+                            <div style={{ marginTop: "0.25rem", display: "flex", flexWrap: "wrap", gap: "0.25rem 0.75rem", fontSize: "0.75rem", color: "var(--muted)" }}>
+                              {specificDetails.map((detail) => <span key={detail}>{detail}</span>)}
                             </div>
                           )}
                         </div>

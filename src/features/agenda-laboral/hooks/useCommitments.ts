@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import type { Json } from "@/lib/supabase/types"
 import type { WorkerCommitment } from "../types"
 import type { CommitmentInsert, CommitmentUpdate, CommitmentRow } from "../services/commitments-supabase"
 import {
@@ -82,6 +83,7 @@ export function useCommitments(userId: string, initialRows?: CommitmentRow[]) {
           service: c.service || undefined,
           substitute_worker_name: c.substituteWorkerName || undefined,
           notes: c.notes || undefined,
+          details: (c.details ?? {}) as Json,
           reminder_day_before: c.reminder.dayBefore,
           reminder_hours_before: c.reminder.hoursBefore,
           reminder_at_start: c.reminder.atStart,
@@ -123,6 +125,7 @@ export function useCommitments(userId: string, initialRows?: CommitmentRow[]) {
       service: c.service || undefined,
       substitute_worker_name: c.substituteWorkerName || undefined,
       notes: c.notes || undefined,
+      details: (c.details ?? {}) as Json,
       reminder_day_before: c.reminder.dayBefore,
       reminder_hours_before: c.reminder.hoursBefore,
       reminder_at_start: c.reminder.atStart,

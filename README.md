@@ -179,8 +179,8 @@ valores salariales del perfil y del tabulador vigente (con política cerrada
 por calculadora; el 022 nunca se integra a una base y las horas extra siempre
 se capturan a mano). Detalle: `docs/CALCULATOR_PREFILL.md`.
 
-### 3. Bitácora Personal (`/profile` → sección)
-Registro diario de incidencias laborales con tipos predefinidos: Tiempo Extra, Guardia Festiva, TxT (Sustitución), Falta Injustificada, Incapacidad, Pases de salida/entrada, Vacaciones, No pagado. Los datos se almacenan en Supabase y se muestran en el perfil del usuario.
+### 3. Mi Agenda (`/bitacora`)
+Registro laboral con cuatro altas principales y campos propios para cada caso: Tiempo Extra, Deporte, Falta Injustificada y Reclamación Pendiente. Los datos se almacenan en Supabase, aparecen en el inicio y se integran al calendario. Los tipos anteriores se conservan en modo de lectura para no perder registros históricos.
 
 ### 4. Calendario IMSS (`/calendario`)
 Calendario laboral 2026 con fechas de pago, periodos de interactivo y vacacional. Exportable a formato `.ics` (iCalendar).

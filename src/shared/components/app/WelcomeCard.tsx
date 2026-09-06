@@ -25,6 +25,8 @@ import {
   formatLocalTime,
   getCommitmentDisplayTitle,
   getCommitmentDisplayIcon,
+  getCommitmentScheduleLabel,
+  isAllDayCommitment,
   type NextCommitmentResult,
 } from "@/features/agenda-laboral/lib/commitment-calendar"
 import { useCommitmentsListener } from "@/features/agenda-laboral/lib/agenda-bus"
@@ -300,8 +302,9 @@ export function WelcomeCard({ fullName, greeting, dateLabel }: WelcomeCardProps)
               <strong style={strong}>
                 {getCommitmentDisplayTitle(nextCommitmentState.result.commitment)}
               </strong>
-              {" hasta las "}
-              {formatLocalTime(nextCommitmentState.result.commitment.endAt)}
+              {isAllDayCommitment(nextCommitmentState.result.commitment)
+                ? " · Todo el día"
+                : ` hasta las ${formatLocalTime(nextCommitmentState.result.commitment.endAt)}`}
               {nextCommitmentState.result.commitment.service ? ` · ${nextCommitmentState.result.commitment.service}` : ""}
             </Line>
             <div style={{ marginTop: "0.25rem" }}>
@@ -321,8 +324,7 @@ export function WelcomeCard({ fullName, greeting, dateLabel }: WelcomeCardProps)
               </strong>
             </div>
             <div style={{ color: "#cbd5e1", fontSize: "var(--text-xs)" }}>
-              {formatHumanCommitmentDate(nextCommitmentState.result.commitment.startAt)} · {formatLocalTime(nextCommitmentState.result.commitment.startAt)}
-              {nextCommitmentState.result.commitment.endAt && `–${formatLocalTime(nextCommitmentState.result.commitment.endAt)}`}
+              {formatHumanCommitmentDate(nextCommitmentState.result.commitment.startAt)} · {getCommitmentScheduleLabel(nextCommitmentState.result.commitment)}
               {nextCommitmentState.result.commitment.service
                 ? ` · ${nextCommitmentState.result.commitment.service}`
                 : nextCommitmentState.result.commitment.workplace
