@@ -8,6 +8,8 @@ import type { CalendarEventType } from "@/shared/data/calendario"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/shared/components/ui/Button"
 import { readAllLocal, addCommitment as addLocalCommitment, deleteCommitment as deleteLocalCommitment } from "@/features/agenda-laboral/services/commitments-local"
+import { useSelectedAgendaDate, useCommitmentsListener, notifyCommitmentsChanged } from "@/features/agenda-laboral/lib/agenda-bus"
+import { formatLocalTime } from "@/features/agenda-laboral/lib/commitment-calendar"
 
 const STORAGE_KEY = "calendar_filters_v2"
 
@@ -161,9 +163,32 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
   const [userId, setUserId] = useState<string | null>(null)
   const [loadingAgenda, setLoadingAgenda] = useState(true)
   const [agendaError, setAgendaError] = useState<string | null>(null)
-  const [selectedDay, setSelectedDay] = useState<number | null>(fullPage ? now.getDate() : null)
+  const [selectedAgendaDate, setSelectedAgendaDate] = useSelectedAgendaDate()
+  const [selectedDay, setSelectedDay] = useState<number | null>(() => {
+    if (selectedAgendaDate) {
+      const [y, m, d] = selectedAgendaDate.split("-").map(Number)
+      if (y === now.getFullYear() && m - 1 === now.getMonth()) return d
+    }
+    return fullPage ? now.getDate() : null
+  })
   const [showAgendaFilters, setShowAgendaFilters] = useState(false)
   const [guardSubmitting, setGuardSubmitting] = useState(false)
+
+  const handleSelectDay = useCallback((d: number) => {
+    setSelectedDay(d)
+    const padM = String(month + 1).padStart(2, "0")
+    const padD = String(d).padStart(2, "0")
+    setSelectedAgendaDate(`${year}-${padM}-${padD}`)
+  }, [year, month, setSelectedAgendaDate])
+
+  useEffect(() => {
+    if (!selectedAgendaDate) return
+    const [y, m, d] = selectedAgendaDate.split("-").map(Number)
+    if (y === year && m - 1 === month) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync external date selection
+      setSelectedDay(d)
+    }
+  }, [selectedAgendaDate, year, month])
 
   const reloadCommitments = useCallback(async (uid: string | null) => {
     if (uid) {
@@ -187,7 +212,7 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
             id: `agenda-${c.id}`,
             date: start,
             title: c.title,
-            time: `${start.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}–${end.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`,
+            time: `${formatLocalTime(c.start_at)}–${formatLocalTime(c.end_at)}`,
             color,
             type: agendaType,
             detail: [c.service, c.substitute_worker_name ? `Cubres a ${c.substitute_worker_name}` : null, c.workplace].filter(Boolean).join(" · "),
@@ -211,7 +236,7 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
           id: `agenda-${c.id}`,
           date: start,
           title: c.title,
-          time: `${start.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}–${end.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`,
+          time: `${formatLocalTime(c.startAt)}–${formatLocalTime(c.endAt)}`,
           color,
           type: agendaType,
           detail: [c.service, c.substituteWorkerName ? `Cubres a ${c.substituteWorkerName}` : null, c.workplace].filter(Boolean).join(" · "),
@@ -233,6 +258,12 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
       reloadCommitments(uid)
     })
   }, [reloadCommitments])
+
+  const onCommitmentsUpdated = useCallback(() => {
+    reloadCommitments(userId)
+  }, [reloadCommitments, userId])
+
+  useCommitmentsListener(onCommitmentsUpdated)
 
   const toggleFilter = (key: FilterKey) => {
     setFilters((prev) => {
@@ -310,6 +341,7 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
         })
       }
       await reloadCommitments(userId)
+      notifyCommitmentsChanged()
     } finally {
       setGuardSubmitting(false)
     }
@@ -326,6 +358,7 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
         deleteLocalCommitment(rawId)
       }
       await reloadCommitments(userId)
+      notifyCommitmentsChanged()
     } finally {
       setGuardSubmitting(false)
     }
@@ -422,7 +455,7 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
     return (
       <div>
         {renderFilters()}
-        <CalendarGrid year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} startOffset={startOffset} daysInMonth={daysInMonth} dayEvents={dayEvents} selectedDay={selectedDay} setSelectedDay={setSelectedDay} isToday={isToday} />
+        <CalendarGrid year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} startOffset={startOffset} daysInMonth={daysInMonth} dayEvents={dayEvents} selectedDay={selectedDay} setSelectedDay={handleSelectDay} isToday={isToday} />
         <DayDetail
           year={year}
           month={month}
@@ -479,7 +512,7 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
         display: "flex", gap: "1rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box",
       }}>
         <div style={{ flex: "3", minWidth: 0, width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
-          <CalendarGrid year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} startOffset={startOffset} daysInMonth={daysInMonth} dayEvents={dayEvents} selectedDay={selectedDay} setSelectedDay={setSelectedDay} isToday={isToday} compact />
+          <CalendarGrid year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} startOffset={startOffset} daysInMonth={daysInMonth} dayEvents={dayEvents} selectedDay={selectedDay} setSelectedDay={handleSelectDay} isToday={isToday} compact />
         </div>
         <div style={{ flex: "2", minWidth: 0, width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
           <DayDetail

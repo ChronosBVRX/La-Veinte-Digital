@@ -1,5 +1,11 @@
 {
   "rewrites": [
     { "source": "/health", "destination": "/api/health" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/agenda-reminders",
+      "schedule": "0 1 * * *"
+    }
   ]
 }

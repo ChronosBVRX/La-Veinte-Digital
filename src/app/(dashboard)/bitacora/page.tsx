@@ -3,10 +3,18 @@ import { redirect } from "next/navigation"
 import { Notebook } from "@phosphor-icons/react/dist/ssr"
 import { AgendaManagerPanel } from "@/features/agenda-laboral/components/AgendaManagerPanel"
 
-export default async function BitacoraPage() {
+interface BitacoraPageProps {
+  searchParams?: Promise<{ date?: string; commitment?: string }>
+}
+
+export default async function BitacoraPage(props: BitacoraPageProps) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
+
+  const searchParams = props.searchParams ? await props.searchParams : undefined
+  const targetDate = searchParams?.date
+  const targetCommitmentId = searchParams?.commitment
 
   const { data: commitments } = await supabase
     .from("worker_commitments")
@@ -31,7 +39,12 @@ export default async function BitacoraPage() {
           </p>
         </div>
       </div>
-      <AgendaManagerPanel userId={user.id} initialCommitments={commitments ?? []} />
+      <AgendaManagerPanel
+        userId={user.id}
+        initialCommitments={commitments ?? []}
+        targetDate={targetDate}
+        targetCommitmentId={targetCommitmentId}
+      />
     </div>
   )
 }

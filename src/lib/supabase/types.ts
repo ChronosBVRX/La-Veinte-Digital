@@ -869,6 +869,50 @@ export type Database = {
           },
         ]
       }
+      commitment_reminder_deliveries: {
+        Row: {
+          commitment_id: string
+          delivered_at: string
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          reminder_type: string
+          scheduled_for: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          commitment_id: string
+          delivered_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          reminder_type: string
+          scheduled_for: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          commitment_id?: string
+          delivered_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          reminder_type?: string
+          scheduled_for?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commitment_reminder_deliveries_commitment_id_fkey"
+            columns: ["commitment_id"]
+            isOneToOne: false
+            referencedRelation: "worker_commitments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       worker_commitments: {
         Row: {
           created_at: string

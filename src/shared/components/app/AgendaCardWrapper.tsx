@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { AgendaCard } from "@/features/agenda-laboral/components/AgendaCard"
 import { useCommitments } from "@/features/agenda-laboral/hooks/useCommitments"
+import { useSelectedAgendaDate } from "@/features/agenda-laboral/lib/agenda-bus"
 import { Alert } from "@/shared/components/ui/Alert"
 import { Button } from "@/shared/components/ui/Button"
 import type { WorkerCommitment } from "@/features/agenda-laboral/types"
@@ -12,8 +13,13 @@ interface AgendaCardWrapperProps {
 }
 
 export function AgendaCardWrapper({ userId }: AgendaCardWrapperProps) {
-  const { upcoming, fetchError, migration, retryMigration, add, refresh } = useCommitments(userId)
+  const { getCommitmentsForDate, fetchError, migration, retryMigration, add, refresh } = useCommitments(userId)
+  const [selectedDate, setSelectedDate] = useSelectedAgendaDate()
   const [saveError, setSaveError] = useState<string | null>(null)
+
+  const selectedCommitments = useMemo(() => {
+    return getCommitmentsForDate(selectedDate)
+  }, [getCommitmentsForDate, selectedDate])
 
   const handleAdd = async (c: Omit<WorkerCommitment, "id" | "createdAt">) => {
     setSaveError(null)
@@ -27,7 +33,9 @@ export function AgendaCardWrapper({ userId }: AgendaCardWrapperProps) {
     <>
       <AgendaCard
         userId={userId}
-        commitments={upcoming}
+        commitments={selectedCommitments}
+        selectedDate={selectedDate}
+        onDateChange={setSelectedDate}
         onCommitmentsChange={refresh}
         onAdd={handleAdd}
       />

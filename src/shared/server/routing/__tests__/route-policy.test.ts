@@ -27,6 +27,7 @@ describe("API route policy", () => {
     expect(API_ACCESS).toEqual({
       "/api/health": "public",
       "/api/calendario": "public",
+      "/api/cron/agenda-reminders": "public",
       "/api/calculator-prefill": "authenticated",
       "/api/consulta": "authenticated",
       "/api/normativa/audio": "authenticated",

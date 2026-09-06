@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Plus, Clock, MapPin, User, Trash, CalendarBlank } from "@phosphor-icons/react"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
@@ -14,6 +14,8 @@ import type { CommitmentRow } from "../services/commitments-supabase"
 interface AgendaManagerPanelProps {
   userId: string
   initialCommitments?: CommitmentRow[]
+  targetDate?: string
+  targetCommitmentId?: string
 }
 
 const MONTH_NAMES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -29,12 +31,21 @@ function formatDayLabel(iso: string): string {
   return d.toLocaleDateString("es-MX", { weekday: "short", day: "numeric", month: "short" })
 }
 
-export function AgendaManagerPanel({ userId, initialCommitments }: AgendaManagerPanelProps) {
+export function AgendaManagerPanel({ userId, initialCommitments, targetCommitmentId }: AgendaManagerPanelProps) {
   const { commitments, fetchError, migration, retryMigration, add, remove } = useCommitments(userId, initialCommitments)
   const [filter, setFilter] = useState<CommitmentType | "all">("all")
   const [showForm, setShowForm] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (targetCommitmentId && typeof document !== "undefined") {
+      const el = document.getElementById(`commitment-${targetCommitmentId}`)
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" })
+      }
+    }
+  }, [targetCommitmentId, commitments])
 
   const handleDelete = async (id: string) => {
     setDeletingId(id)
@@ -178,16 +189,26 @@ export function AgendaManagerPanel({ userId, initialCommitments }: AgendaManager
                     {MONTH_NAMES[m]} {y}
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }}>
-                    {items.map((c) => (
-                      <div key={c.id} style={{
-                        display: "flex", alignItems: "flex-start", gap: "0.75rem",
-                        padding: "0.625rem 0.75rem",
-                        background: "var(--bg)", borderRadius: "var(--radius-sm)",
-                        border: "1px solid var(--border)",
-                        maxWidth: "100%",
-                        minWidth: 0,
-                        boxSizing: "border-box",
-                      }}>
+                    {items.map((c) => {
+                      const isTarget = targetCommitmentId === c.id
+                      return (
+                        <div
+                          key={c.id}
+                          id={`commitment-${c.id}`}
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: "0.75rem",
+                            padding: "0.625rem 0.75rem",
+                            background: isTarget ? "rgba(6, 182, 212, 0.08)" : "var(--bg)",
+                            borderRadius: "var(--radius-sm)",
+                            border: isTarget ? "1.5px solid var(--brand-cyan)" : "1px solid var(--border)",
+                            maxWidth: "100%",
+                            minWidth: 0,
+                            boxSizing: "border-box",
+                            transition: "border-color 0.2s ease, background-color 0.2s ease",
+                          }}
+                        >
                         <span style={{ fontSize: "1.125rem", lineHeight: 1.4, flexShrink: 0 }}>
                           {COMMITMENT_TYPE_ICONS[c.type]}
                         </span>
@@ -233,7 +254,8 @@ export function AgendaManagerPanel({ userId, initialCommitments }: AgendaManager
                           <Trash size={14} />
                         </Button>
                       </div>
-                    ))}
+                    )
+                  })}
                   </div>
                 </div>
               )
