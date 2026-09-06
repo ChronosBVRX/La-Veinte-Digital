@@ -10,9 +10,10 @@ export type CommitmentType =
   | "vacaciones"
   | "no_pagado"
   | "other"
+  | "general_reminder"
 
 export const COMMITMENT_TYPE_LABELS: Record<CommitmentType, string> = {
-  txt_substitution: "Sustitución TxT",
+  txt_substitution: "TxT",
   overtime: "Tiempo extra",
   shift_change: "Cambio de turno",
   sport: "Deporte",
@@ -23,6 +24,7 @@ export const COMMITMENT_TYPE_LABELS: Record<CommitmentType, string> = {
   vacaciones: "Vacaciones",
   no_pagado: "Reclamación pendiente",
   other: "Otro compromiso",
+  general_reminder: "Recordatorio general",
 }
 
 export const COMMITMENT_TYPE_ICONS: Record<CommitmentType, string> = {
@@ -37,6 +39,7 @@ export const COMMITMENT_TYPE_ICONS: Record<CommitmentType, string> = {
   vacaciones: "🏖",
   no_pagado: "📋",
   other: "📌",
+  general_reminder: "🔔",
 }
 
 export const COMMITMENT_TYPES: CommitmentType[] = [
@@ -51,15 +54,17 @@ export const COMMITMENT_TYPES: CommitmentType[] = [
   "vacaciones",
   "no_pagado",
   "other",
+  "general_reminder",
 ]
 
-/** Tipos que se pueden registrar desde la agenda actual. Los demás se conservan
- * únicamente para leer compromisos históricos sin perder compatibilidad. */
+/** Tipos que se pueden registrar desde la agenda actual (5 tipos autorizados).
+ * Los demás se conservan únicamente para leer compromisos históricos sin perder compatibilidad. */
 export const PRIMARY_COMMITMENT_TYPES: CommitmentType[] = [
   "overtime",
-  "sport",
   "falta_injustificada",
   "no_pagado",
+  "txt_substitution",
+  "general_reminder",
 ]
 
 export type SportModality =
@@ -90,16 +95,70 @@ export const AFFECTED_SHIFT_LABELS: Record<AffectedShift, string> = {
   other: "Otro",
 }
 
+export type ClaimStatus = "pendiente" | "en_seguimiento" | "resuelta"
+
+export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
+  pendiente: "Pendiente",
+  en_seguimiento: "En seguimiento",
+  resuelta: "Resuelta",
+}
+
+export type TxtPaidStatus = "si" | "no" | "pendiente"
+
+export const TXT_PAID_STATUS_LABELS: Record<TxtPaidStatus, string> = {
+  si: "Sí (pagado)",
+  no: "No (no pagado)",
+  pendiente: "Pendiente",
+}
+
+export type ReminderPriority = "normal" | "importante" | "urgente"
+
+export const REMINDER_PRIORITY_LABELS: Record<ReminderPriority, string> = {
+  normal: "Normal",
+  importante: "Importante",
+  urgente: "Urgente",
+}
+
+export type ReminderRecurrence = "none" | "daily" | "weekly" | "monthly"
+
+export const REMINDER_RECURRENCE_LABELS: Record<ReminderRecurrence, string> = {
+  none: "Ninguna",
+  daily: "Diaria",
+  weekly: "Semanal",
+  monthly: "Mensual",
+}
+
 /** Datos propios de cada tipo de registro. Se persisten en worker_commitments.details. */
 export interface CommitmentDetails {
   allDay?: boolean
-  authorizedBy?: string
-  activity?: string
-  sportModality?: SportModality
+  shift?: AffectedShift
   affectedShift?: AffectedShift
+  authorizedBy?: string
+  // Falta injustificada
+  affectedFortnight?: string
+  fortnightLabel?: string
+  baseSalaryUsed?: number
+  dailySalary?: number
+  estimatedDeduction?: number
+  deductionFormula?: string
+  calculationStatus?: "calculated" | "pending"
+  missingDataReason?: string
+  // Reclamación pendiente
   claimFiledDate?: string
   claimReference?: string
   responsibleArea?: string
+  claimStatus?: ClaimStatus
+  // TxT
+  paidStatus?: TxtPaidStatus
+  // Recordatorio general
+  reminderAt?: string
+  priority?: ReminderPriority
+  recurrence?: ReminderRecurrence
+  notificationsEnabled?: boolean
+  location?: string
+  // Históricos
+  activity?: string
+  sportModality?: SportModality
 }
 
 export interface Reminder {
