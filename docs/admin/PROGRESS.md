@@ -14,7 +14,7 @@
 | **T1** | Acceso y estructura administrativa | COMPLETADO | `src/shared/server/admin/*`, layouts, `DesktopSidebar.tsx` | Permisos por rol/email, navegación segura (6 tests) |
 | **T2** | Migraciones y servicios de contenido | COMPLETADO | Migración SQL, `types.ts`, `announcements-service.ts` | Integración Supabase, revisión optimista, RLS (10 tests) |
 | **T3** | Editor y bandeja de trabajadores | COMPLETADO | `/admin/avisos/*`, `/avisos/*`, componentes | Ciclo de aviso, lectura idempotente, responsive |
-| **T4** | Transporte, prueba y campañas inmediatas | PENDIENTE | `push-admin.ts`, `campaign-worker.ts`, `/admin/campanas/*` | Lotes <= 500, des-duplicación, SELF, URL parser |
+| **T4** | Transporte, prueba y campañas inmediatas | COMPLETADO | `push-admin.ts`, `campaign-worker.ts`, `/admin/campanas/*` | Lotes <= 500, des-duplicación, SELF, URL parser (37 tests) |
 | **T5** | Disparador cron y programación | PENDIENTE | `/api/cron/push-campaigns`, workflow GitHub Actions | Autenticación cron, reclamos transaccionales |
 | **T6** | Barra informativa administrable | PENDIENTE | `mobile-bar-service.ts`, `MobileValueBar.tsx` | Fusión con catálogo local, dismiss, safe area |
 | **T7** | Resumen operativo útil | PENDIENTE | `/admin/page.tsx`, widgets de salud y accesos | Agregados SQL, métricas reales sin fuga de PII |

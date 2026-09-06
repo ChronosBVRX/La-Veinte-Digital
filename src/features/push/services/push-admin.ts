@@ -24,24 +24,40 @@ export interface PushPayload {
   body: string
   /** Internal destination URL (allowlisted further down) — never arbitrary external URLs. */
   destination?: string
+  /** ID numérico opcional para que Android no sobreescriba notificaciones */
+  notificationId?: number
 }
 
-// Only internal destinations are allowed for a push deep link.
-const ALLOWED_DESTINATION_PREFIXES = [
-  "https://la-veinte-digital.vercel.app/",
-  "https://la-veinte-digital.vercel.app",
-  "/",
-]
+const CANONICAL_ORIGIN = "https://la-veinte-digital.vercel.app"
 
 export function sanitizeDestination(destination?: string | null): string | undefined {
   if (!destination) return undefined
-  if (destination.startsWith("/")) {
-    return `https://la-veinte-digital.vercel.app${destination}`
+  const trimmed = destination.trim()
+  if (!trimmed) return undefined
+
+  // Prevenir bypasses por protocolo relativo ("//") o barras invertidas ("/\")
+  if (trimmed.startsWith("//") || trimmed.startsWith("/\\") || trimmed.startsWith("\\")) {
+    return undefined
   }
-  if (ALLOWED_DESTINATION_PREFIXES.some((p) => destination.startsWith(p))) {
-    return destination
+
+  try {
+    const url = new URL(trimmed, CANONICAL_ORIGIN)
+    // El origen debe coincidir exactamente con el origen canónico
+    if (url.origin !== CANONICAL_ORIGIN) {
+      return undefined
+    }
+    // El protocolo debe ser https
+    if (url.protocol !== "https:") {
+      return undefined
+    }
+    // Rechazar credenciales embebidas (username o password)
+    if (url.username || url.password) {
+      return undefined
+    }
+    return url.toString()
+  } catch {
+    return undefined
   }
-  return undefined
 }
 
 interface FirebaseMessagingResult {
@@ -127,44 +143,82 @@ export async function sendToUsers(userIds: string[], payload: PushPayload) {
 
 export async function sendBroadcast(payload: PushPayload) {
   const supabase = serviceRoleClient()
-  const { data, error } = await supabase
-    .from("push_devices")
-    .select("fcm_token")
-    .eq("notifications_enabled", true)
-  if (error) throw error
-  const tokens = (data ?? []).map((d) => d.fcm_token).filter(Boolean)
-  return await deliver(tokens, payload)
+  const PAGE_SIZE = 1000
+  let from = 0
+  const allTokens: string[] = []
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("push_devices")
+      .select("fcm_token")
+      .eq("notifications_enabled", true)
+      .range(from, from + PAGE_SIZE - 1)
+
+    if (error) throw error
+    if (!data || data.length === 0) break
+
+    for (const d of data) {
+      if (d.fcm_token) allTokens.push(d.fcm_token)
+    }
+
+    if (data.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+
+  return await deliver(allTokens, payload)
 }
 
-async function deliver(tokens: string[], payload: PushPayload) {
-  if (!tokens.length) return { sent: 0, failed: 0, invalidTokens: 0 }
+const MAX_FCM_BATCH_SIZE = 500
+
+export async function deliver(tokens: string[], payload: PushPayload) {
+  // Deduplicación estricta de tokens
+  const uniqueTokens = Array.from(new Set(tokens.filter(Boolean)))
+  if (!uniqueTokens.length) return { sent: 0, failed: 0, invalidTokens: 0 }
+
   const { messaging } = await firebaseAdmin()
   const normalized = normalizePayload(payload)
-  const message = {
-    tokens,
-    android: { priority: "HIGH" as const, ttl: 60 * 60 * 4 },
-    data: {
-      type: normalized.type,
-      title: normalized.title,
-      body: normalized.body,
-      destination: normalized.destination ?? "",
-      silent: "false",
-    },
-  }
-  const result = await messaging.sendEachForMulticast(message)
-  const responses = result.responses ?? []
-  const invalid: string[] = []
-  let sent = 0
-  let failed = 0
-  responses.forEach((r, i) => {
-    if (r.success) {
-      sent++
-    } else if (r.error && (r.error.code === "messaging/registration-token-not-registered" || r.error.code === "UNREGISTERED")) {
-      invalid.push(tokens[i])
-    } else {
-      failed++
+
+  let totalSent = 0
+  let totalFailed = 0
+  const allInvalid: string[] = []
+
+  // Dividir en lotes de como máximo 500 (límite oficial de Firebase sendEachForMulticast)
+  for (let i = 0; i < uniqueTokens.length; i += MAX_FCM_BATCH_SIZE) {
+    const chunk = uniqueTokens.slice(i, i + MAX_FCM_BATCH_SIZE)
+    const message = {
+      tokens: chunk,
+      android: { priority: "HIGH" as const, ttl: 60 * 60 * 4 },
+      data: {
+        type: normalized.type,
+        title: normalized.title,
+        body: normalized.body,
+        destination: normalized.destination ?? "",
+        silent: "false",
+        ...(payload.notificationId ? { id: String(payload.notificationId) } : {}),
+      },
     }
-  })
-  if (invalid.length) await removeInvalidTokens(invalid)
-  return { sent, failed, invalidTokens: invalid.length }
+
+    const result = await messaging.sendEachForMulticast(message)
+    const responses = result.responses ?? []
+
+    responses.forEach((r, idx) => {
+      if (r.success) {
+        totalSent++
+      } else if (
+        r.error &&
+        (r.error.code === "messaging/registration-token-not-registered" ||
+          r.error.code === "UNREGISTERED")
+      ) {
+        allInvalid.push(chunk[idx])
+      } else {
+        totalFailed++
+      }
+    })
+  }
+
+  if (allInvalid.length) {
+    await removeInvalidTokens(allInvalid)
+  }
+
+  return { sent: totalSent, failed: totalFailed, invalidTokens: allInvalid.length }
 }
