@@ -15,6 +15,15 @@ import {
 import { useIsNativeApp } from "@/shared/hooks/useIsNativeApp"
 import { createClient } from "@/lib/supabase/client"
 import { getUserWithTimeout } from "@/shared/lib/auth-helpers"
+import {
+  getTodayCommitments,
+  getNextCommitment,
+  getCommitmentDisplayTitle,
+  formatHumanCommitmentDate,
+} from "@/features/agenda-laboral/lib/commitment-calendar"
+import { useCommitmentsListener } from "@/features/agenda-laboral/lib/agenda-bus"
+import type { WorkerCommitment } from "@/features/agenda-laboral/types"
+import { rowToCommitment, type CommitmentRow } from "@/features/agenda-laboral/services/commitments-supabase"
 
 type IconType = React.ComponentType<IconProps & { size?: number; weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone" }>
 
@@ -196,8 +205,11 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
   const isNative = useIsNativeApp()
   const router = useRouter()
 
-  const [agendaCount, setAgendaCount] = useState<number | null>(null)
-  const [agendaLoaded, setAgendaLoaded] = useState(false)
+  const [agendaSummary, setAgendaSummary] = useState<{
+    loaded: boolean
+    todayCount: number
+    nextStatus: string | null
+  }>({ loaded: false, todayCount: 0, nextStatus: null })
 
   const [tarjetonStatus, setTarjetonStatus] = useState<string | null>(null)
   const [tarjetonHasData, setTarjetonHasData] = useState(false)
@@ -205,73 +217,60 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
   const [checadaStatus, setChecadaStatus] = useState<string | null>(null)
   const [checadaHasData, setChecadaHasData] = useState(false)
 
-  // Agenda: compromisos del día
-  useEffect(() => {
-    let cancelled = false
-    const signal = { aborted: false }
+  // Agenda: compromisos usando la misma fuente de verdad canónica
+  const loadAgenda = useCallback(async () => {
+    let client: ReturnType<typeof createClient> | null = null
+    try {
+      client = createClient()
+    } catch {
+      setAgendaSummary({ loaded: true, todayCount: 0, nextStatus: null })
+      return
+    }
 
-    const loadAgenda = async () => {
-      let client: ReturnType<typeof createClient> | null = null
-      try {
-        client = createClient()
-      } catch {
-        if (!cancelled) {
-          setAgendaCount(0)
-          setAgendaLoaded(true)
-        }
+    try {
+      const authRes = await getUserWithTimeout(client, 4000)
+      if (!authRes.user) {
+        setAgendaSummary({ loaded: true, todayCount: 0, nextStatus: null })
         return
       }
 
-      try {
-        const authRes = await getUserWithTimeout(client, 4000, signal)
-        if (cancelled) return
+      const { data, error } = await client
+        .from("worker_commitments")
+        .select("*")
+        .eq("user_id", authRes.user.id)
+        .eq("status", "active")
 
-        if (!authRes.user) {
-          setAgendaLoaded(true)
-          setAgendaCount(0)
-          return
-        }
-
-        const { data, error } = await client
-          .from("worker_commitments")
-          .select("id,start_at")
-          .eq("user_id", authRes.user.id)
-          .eq("status", "active")
-
-        if (cancelled) return
-        if (error || !data) {
-          setAgendaCount(0)
-          setAgendaLoaded(true)
-          return
-        }
-
-        const rows = data as Array<{ start_at?: string }>
-        const today = new Date()
-        const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-        const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
-        const hoy = rows.filter((r) => {
-          const raw = r.start_at
-          if (!raw) return false
-          const d = new Date(raw)
-          return d >= start && d < end
-        }).length
-        setAgendaCount(hoy)
-        setAgendaLoaded(true)
-      } catch {
-        if (!cancelled) {
-          setAgendaCount(0)
-          setAgendaLoaded(true)
-        }
+      if (error || !data) {
+        setAgendaSummary({ loaded: true, todayCount: 0, nextStatus: null })
+        return
       }
-    }
 
-    loadAgenda()
+      const commitments: WorkerCommitment[] = (data as CommitmentRow[]).map(rowToCommitment)
+      const today = getTodayCommitments(commitments)
+      const next = getNextCommitment(commitments)
+      let nextStatus: string | null = null
+      if (today.length === 0 && next) {
+        const title = getCommitmentDisplayTitle(next.commitment)
+        const dateLabel = formatHumanCommitmentDate(next.commitment.startAt).toLowerCase()
+        nextStatus = `Próximo: ${title} · ${dateLabel}`
+      }
 
-    return () => {
-      cancelled = true
-      signal.aborted = true
+      setAgendaSummary({
+        loaded: true,
+        todayCount: today.length,
+        nextStatus,
+      })
+    } catch {
+      setAgendaSummary({ loaded: true, todayCount: 0, nextStatus: null })
     }
   }, [])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch on mount
+    loadAgenda()
+  }, [loadAgenda])
+
+  useCommitmentsListener(loadAgenda)
 
   // Tarjetón: último recibo
   useEffect(() => {
@@ -372,13 +371,15 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
 
   // Estados derivados para cada tarjeta
   const agendaDesc = "Registra compromisos y recordatorios"
-  const agendaStatus = !agendaLoaded
+  const agendaStatus = !agendaSummary.loaded
     ? "Cargando…"
-    : agendaCount === 0
-      ? "Sin compromisos hoy"
-      : agendaCount === 1
+    : agendaSummary.todayCount > 0
+      ? agendaSummary.todayCount === 1
         ? "1 compromiso hoy"
-        : `${agendaCount} compromisos hoy`
+        : `${agendaSummary.todayCount} compromisos hoy`
+      : agendaSummary.nextStatus
+        ? agendaSummary.nextStatus
+        : "Sin compromisos hoy"
 
   const tarjetonDesc = "Consulta tus recibos de pago"
   const tarjetonStatusDisplay =
@@ -418,7 +419,7 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
           title="Mi agenda"
           description={agendaDesc}
           status={agendaStatus}
-          statusTone={agendaCount !== null && agendaCount > 0 ? "success" : "muted"}
+          statusTone={agendaSummary.loaded && agendaSummary.todayCount > 0 ? "success" : "muted"}
           href="/bitacora"
           color="var(--area-work)"
           ariaLabel="Mi agenda: registra compromisos y recordatorios"

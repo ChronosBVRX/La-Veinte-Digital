@@ -12,6 +12,12 @@ import {
   upsertLegacyCommitment,
 } from "../services/commitments-supabase"
 import { getCommitments as getLocal, clearLocalForUser } from "../services/commitments-local"
+import { notifyCommitmentsChanged, useCommitmentsListener } from "../lib/agenda-bus"
+import {
+  getTodayCommitments,
+  getNextCommitment,
+  getCommitmentsForLocalDate,
+} from "../lib/commitment-calendar"
 
 type MigrationState = "pending" | "running" | "completed" | "failed"
 
@@ -49,6 +55,8 @@ export function useCommitments(userId: string, initialRows?: CommitmentRow[]) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async refresh on mount
     refresh()
   }, [refresh])
+
+  useCommitmentsListener(refresh)
 
   useEffect(() => {
     if (fetchError || migration !== "pending" || loading) return
@@ -92,6 +100,7 @@ export function useCommitments(userId: string, initialRows?: CommitmentRow[]) {
         clearLocalForUser(userId)
         setMigration("completed")
         await refresh()
+        notifyCommitmentsChanged()
       } else if (migrated > 0 && migrated < local.length) {
         setMigration("failed")
         console.warn("[useCommitments] Migracion parcial:", migrated, "de", local.length, "fallos:", errors)
@@ -122,6 +131,7 @@ export function useCommitments(userId: string, initialRows?: CommitmentRow[]) {
     const result = await supabaseInsert(insert)
     if (!result) return null
     await refresh()
+    notifyCommitmentsChanged()
     return rowToCommitment(result)
   }, [userId, refresh])
 
@@ -135,16 +145,32 @@ export function useCommitments(userId: string, initialRows?: CommitmentRow[]) {
     }
     await supabaseUpdate(id, dbUpdate)
     await refresh()
+    notifyCommitmentsChanged()
   }, [refresh])
 
   const remove = useCallback(async (id: string) => {
     await supabaseDelete(id)
     await refresh()
+    notifyCommitmentsChanged()
   }, [refresh])
 
   const retryMigration = useCallback(() => {
     setMigration("pending")
   }, [])
 
-  return { commitments, upcoming, loading, fetchError, migration, retryMigration, add, update, remove, refresh }
+  return {
+    commitments,
+    upcoming,
+    todayCommitments: getTodayCommitments(commitments),
+    nextCommitment: getNextCommitment(commitments),
+    getCommitmentsForDate: (dateStr: string) => getCommitmentsForLocalDate(commitments, dateStr),
+    loading,
+    fetchError,
+    migration,
+    retryMigration,
+    add,
+    update,
+    remove,
+    refresh,
+  }
 }

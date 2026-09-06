@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import {
   Sun,
@@ -19,6 +19,17 @@ import {
   getNextNonInteractiveDay,
   SHIFT_LABELS,
 } from "@/shared/lib/calendario-helpers"
+import {
+  getNextCommitment,
+  formatHumanCommitmentDate,
+  formatLocalTime,
+  getCommitmentDisplayTitle,
+  getCommitmentDisplayIcon,
+  type NextCommitmentResult,
+} from "@/features/agenda-laboral/lib/commitment-calendar"
+import { useCommitmentsListener } from "@/features/agenda-laboral/lib/agenda-bus"
+import type { WorkerCommitment } from "@/features/agenda-laboral/types"
+import { rowToCommitment, type CommitmentRow } from "@/features/agenda-laboral/services/commitments-supabase"
 
 interface WelcomeCardProps {
   fullName: string | null
@@ -39,7 +50,10 @@ const para = (days: number | null): string | null => {
 export function WelcomeCard({ fullName, greeting, dateLabel }: WelcomeCardProps) {
   const firstName = fullName?.split(" ")[0] ?? ""
   const [nominaProfile, setNominaProfile] = useState<NominaProfileLight | null>(null)
-  const [commitmentsCount, setCommitmentsCount] = useState<number | null>(null)
+  const [nextCommitmentState, setNextCommitmentState] = useState<{
+    loaded: boolean
+    result: NextCommitmentResult | null
+  }>({ loaded: false, result: null })
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -54,39 +68,37 @@ export function WelcomeCard({ fullName, greeting, dateLabel }: WelcomeCardProps)
     }
   }, [])
 
-  useEffect(() => {
-    let mounted = true
-    const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user || !mounted) {
-        setCommitmentsCount(0)
+  const loadNextCommitment = useCallback(async () => {
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setNextCommitmentState({ loaded: true, result: null })
         return
       }
-      supabase
+      const { data, error } = await supabase
         .from("worker_commitments")
-        .select("id,start_at")
+        .select("*")
         .eq("user_id", user.id)
         .eq("status", "active")
-        .then(({ data, error }) => {
-          if (error || !data || !mounted) {
-            setCommitmentsCount(0)
-            return
-          }
-          const today = new Date()
-          const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-          const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
-          const todayCount = data.filter((c) => {
-            if (!c.start_at) return false
-            const d = new Date(c.start_at)
-            return d >= start && d < end
-          }).length
-          setCommitmentsCount(todayCount)
-        })
-    })
-    return () => {
-      mounted = false
+      if (error || !data) {
+        setNextCommitmentState({ loaded: true, result: null })
+        return
+      }
+      const commitments: WorkerCommitment[] = (data as CommitmentRow[]).map(rowToCommitment)
+      const next = getNextCommitment(commitments)
+      setNextCommitmentState({ loaded: true, result: next })
+    } catch {
+      setNextCommitmentState({ loaded: true, result: null })
     }
   }, [])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch on mount
+    loadNextCommitment()
+  }, [loadNextCommitment])
+
+  useCommitmentsListener(loadNextCommitment)
 
   const now = new Date()
   const year = now.getFullYear()
@@ -275,20 +287,54 @@ export function WelcomeCard({ fullName, greeting, dateLabel }: WelcomeCardProps)
         </Block>
       )}
 
-      <Block icon={<CalendarCheck size={18} weight="duotone" />} label="Tus compromisos hoy">
-        {commitmentsCount === null ? (
+      <Block icon={<CalendarCheck size={18} weight="duotone" />} label="Tu próximo compromiso">
+        {!nextCommitmentState.loaded ? (
           <Line>Cargando…</Line>
-        ) : commitmentsCount === 0 ? (
-          <Line>
-            No tienes compromisos programados para hoy. ¡Aprovecha tu día!
-          </Line>
+        ) : !nextCommitmentState.result ? (
+          <Line>No tienes próximos compromisos.</Line>
+        ) : nextCommitmentState.result.inProgress ? (
+          <>
+            <Line>
+              <span style={{ color: "#38bdf8", fontWeight: 700 }}>En curso</span>
+              {" · "}
+              <strong style={strong}>
+                {getCommitmentDisplayTitle(nextCommitmentState.result.commitment)}
+              </strong>
+              {" hasta las "}
+              {formatLocalTime(nextCommitmentState.result.commitment.endAt)}
+              {nextCommitmentState.result.commitment.service ? ` · ${nextCommitmentState.result.commitment.service}` : ""}
+            </Line>
+            <div style={{ marginTop: "0.25rem" }}>
+              <Link href="#agenda" style={{ color: "#60a5fa", textDecoration: "underline", fontWeight: 600, fontSize: "var(--text-xs)" }}>
+                Ver en tu agenda
+              </Link>
+            </div>
+          </>
         ) : (
-          <Line>
-            Tienes <strong style={strong}>{commitmentsCount}</strong> compromiso{commitmentsCount !== 1 ? "s" : ""} hoy.{" "}
-            <Link href="#agenda" style={{ color: "#60a5fa", textDecoration: "underline", fontWeight: 600 }}>
-              Verlos en tu agenda
-            </Link>
-          </Line>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              <span style={{ fontSize: "1.1rem", lineHeight: 1 }}>
+                {getCommitmentDisplayIcon(nextCommitmentState.result.commitment.type)}
+              </span>
+              <strong style={strong}>
+                {getCommitmentDisplayTitle(nextCommitmentState.result.commitment)}
+              </strong>
+            </div>
+            <div style={{ color: "#cbd5e1", fontSize: "var(--text-xs)" }}>
+              {formatHumanCommitmentDate(nextCommitmentState.result.commitment.startAt)} · {formatLocalTime(nextCommitmentState.result.commitment.startAt)}
+              {nextCommitmentState.result.commitment.endAt && `–${formatLocalTime(nextCommitmentState.result.commitment.endAt)}`}
+              {nextCommitmentState.result.commitment.service
+                ? ` · ${nextCommitmentState.result.commitment.service}`
+                : nextCommitmentState.result.commitment.workplace
+                  ? ` · ${nextCommitmentState.result.commitment.workplace}`
+                  : ""}
+            </div>
+            <div style={{ marginTop: "0.25rem" }}>
+              <Link href="#agenda" style={{ color: "#60a5fa", textDecoration: "underline", fontWeight: 600, fontSize: "var(--text-xs)" }}>
+                Ver en tu agenda
+              </Link>
+            </div>
+          </div>
         )}
       </Block>
     </section>
