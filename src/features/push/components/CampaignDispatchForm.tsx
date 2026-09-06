@@ -15,7 +15,6 @@ import {
   Users,
   CheckCircle,
   WarningCircle,
-  ShieldCheck,
   RocketLaunch,
 } from "@phosphor-icons/react"
 

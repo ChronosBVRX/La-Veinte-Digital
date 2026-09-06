@@ -6,7 +6,7 @@ import { PageHeader } from "@/shared/components/app/PageHeader"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
 import { AnnouncementForm } from "@/features/announcements/components/AnnouncementForm"
-import { ArrowLeft, Bell, CaretRight, RocketLaunch } from "@phosphor-icons/react/dist/ssr"
+import { ArrowLeft, CaretRight, RocketLaunch } from "@phosphor-icons/react/dist/ssr"
 
 interface PageProps {
   params: Promise<{ id: string }>

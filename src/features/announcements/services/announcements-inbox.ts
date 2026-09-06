@@ -12,6 +12,11 @@ export interface WorkerInboxResult {
   unreadCount: number
 }
 
+export function isAnnouncementExpired(expiresAt: string | null): boolean {
+  if (!expiresAt) return false
+  return new Date(expiresAt).getTime() < Date.now()
+}
+
 /**
  * Obtiene la bandeja de avisos publicados para el trabajador autenticado.
  */

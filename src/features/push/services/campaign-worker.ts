@@ -1,6 +1,5 @@
 import "server-only"
 import { createClient as createServiceRoleClient } from "@supabase/supabase-js"
-import type { PushPayload } from "./push-admin"
 import { sanitizeDestination } from "./push-admin"
 
 function serviceClient() {

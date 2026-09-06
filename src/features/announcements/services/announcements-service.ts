@@ -1,6 +1,6 @@
 import "server-only"
 import { createClient } from "@/lib/supabase/server"
-import type { Announcement, AnnouncementInput, AnnouncementStatus } from "@/shared/contracts/announcements"
+import type { Announcement, AnnouncementStatus } from "@/shared/contracts/announcements"
 import { validateAnnouncementInput } from "./announcements-validate"
 
 export interface ServiceResult<T> {

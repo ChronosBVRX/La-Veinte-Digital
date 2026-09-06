@@ -2,7 +2,7 @@ import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getAnnouncementById } from "@/features/announcements/services/announcements-service"
-import { markAnnouncementAsRead } from "@/features/announcements/services/announcements-inbox"
+import { markAnnouncementAsRead, isAnnouncementExpired } from "@/features/announcements/services/announcements-inbox"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
 import { ArrowLeft, ArrowSquareOut, Calendar, Clock, BookOpen } from "@phosphor-icons/react/dist/ssr"
@@ -26,9 +26,7 @@ export default async function DetalleAvisoPage({ params }: PageProps) {
   // Marcar como leído de forma idempotente en servidor
   await markAnnouncementAsRead(announcement.id, user.id)
 
-  const isExpired = announcement.expires_at
-    ? new Date(announcement.expires_at).getTime() < Date.now()
-    : false
+  const isExpired = isAnnouncementExpired(announcement.expires_at)
 
   const destination = announcement.destination_path
 

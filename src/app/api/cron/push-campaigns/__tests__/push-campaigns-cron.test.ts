@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import { describe, it, expect, afterEach } from "vitest"
 import { NextRequest } from "next/server"
 
 describe("push-campaigns cron endpoint authorization", () => {

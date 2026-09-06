@@ -35,11 +35,10 @@ export function MobileValueBar({ items = MOBILE_VALUE_ITEMS }: MobileValueBarPro
   const pathname = usePathname() ?? "/"
   const [sessionSeed] = useState(() => Math.floor(Math.random() * 1_000_000_000))
   const [rotation, setRotation] = useState(0)
-  const [activeItems, setActiveItems] = useState<MobileValueItem[]>(items)
+  const [remoteItems, setRemoteItems] = useState<MobileValueItem[]>([])
 
   useEffect(() => {
     if (items !== MOBILE_VALUE_ITEMS) {
-      setActiveItems(items)
       return
     }
 
@@ -50,7 +49,7 @@ export function MobileValueBar({ items = MOBILE_VALUE_ITEMS }: MobileValueBarPro
         if (!res.ok) return
         const data = await res.json()
         if (isMounted && Array.isArray(data?.items) && data.items.length > 0) {
-          setActiveItems(mergeMobileBarItems(MOBILE_VALUE_ITEMS, data.items))
+          setRemoteItems(data.items)
         }
       } catch {
         // En caso de desconexión o fallo, conserva los items locales de fallback
@@ -63,6 +62,11 @@ export function MobileValueBar({ items = MOBILE_VALUE_ITEMS }: MobileValueBarPro
       isMounted = false
     }
   }, [items])
+
+  const combinedItems = useMemo(() => {
+    if (items !== MOBILE_VALUE_ITEMS) return items
+    return mergeMobileBarItems(items, remoteItems)
+  }, [items, remoteItems])
 
   // Dismiss solo por sesión; inicialización perezosa (sin setState en efecto).
   const [dismissed, setDismissed] = useState(() => {
@@ -83,8 +87,8 @@ export function MobileValueBar({ items = MOBILE_VALUE_ITEMS }: MobileValueBarPro
   )
 
   const item = useMemo(
-    () => pickMobileValueItem(pathname, { items: activeItems, seed: sessionSeed, offset: rotation }),
-    [pathname, activeItems, sessionSeed, rotation],
+    () => pickMobileValueItem(pathname, { items: combinedItems, seed: sessionSeed, offset: rotation }),
+    [pathname, combinedItems, sessionSeed, rotation],
   )
 
   useEffect(() => {

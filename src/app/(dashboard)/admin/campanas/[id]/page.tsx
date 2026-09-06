@@ -1,7 +1,6 @@
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import { getAdminCapabilities } from "@/shared/server/admin/admin-capabilities"
-import { PageHeader } from "@/shared/components/app/PageHeader"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
 import {
@@ -10,7 +9,7 @@ import {
   cancelCampaignAction,
   retryFailedDeliveriesAction,
 } from "@/features/push/actions/campaign-actions"
-import { ArrowLeft, Pause, Play, XCircle, ArrowClockwise, CheckCircle } from "@phosphor-icons/react/dist/ssr"
+import { ArrowLeft, Pause, Play, XCircle, ArrowClockwise } from "@phosphor-icons/react/dist/ssr"
 import { createClient as createServiceRoleClient } from "@supabase/supabase-js"
 
 interface PageProps {

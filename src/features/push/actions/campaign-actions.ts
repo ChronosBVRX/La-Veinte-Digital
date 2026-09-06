@@ -87,7 +87,7 @@ export async function sendLiveCampaignAction(
     }
 
     // Procesar primer lote sincrónico
-    const batchResult = await processCampaignBatch(campaign.id, 500)
+    await processCampaignBatch(campaign.id, 500)
 
     revalidatePath(`/admin/campanas/${campaign.id}`)
     revalidatePath("/admin")

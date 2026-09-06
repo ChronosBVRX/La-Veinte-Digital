@@ -5,7 +5,7 @@ import { listAdminAnnouncements } from "@/features/announcements/services/announ
 import { PageHeader } from "@/shared/components/app/PageHeader"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
-import { PlusCircle, Megaphone, CaretRight, CheckCircle, Clock, Archive } from "@phosphor-icons/react/dist/ssr"
+import { PlusCircle, Megaphone, CaretRight } from "@phosphor-icons/react/dist/ssr"
 
 interface PageProps {
   searchParams: Promise<{ status?: string }>
@@ -90,7 +90,6 @@ export default async function AdminAvisosPage({ searchParams }: PageProps) {
             const isDraft = item.status === "DRAFT"
             const isPublished = item.status === "PUBLISHED"
             const isScheduled = item.status === "SCHEDULED"
-            const isArchived = item.status === "ARCHIVED"
 
             const statusColor = isPublished ? "#059669" : isScheduled ? "#0284c7" : isDraft ? "#d97706" : "#64748b"
             const statusLabel = isPublished ? "Publicado" : isScheduled ? "Programado" : isDraft ? "Borrador" : "Archivado"

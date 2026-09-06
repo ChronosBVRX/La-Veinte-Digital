@@ -18,7 +18,7 @@
 | **T5** | Disparador cron y programación | COMPLETADO | `/api/cron/push-campaigns`, workflow GitHub Actions | Autenticación cron, reclamos transaccionales (23 tests) |
 | **T6** | Barra informativa administrable | COMPLETADO | `mobile-bar-service.ts`, `MobileValueBar.tsx`, `/admin/barra` | Fusión con catálogo local, dismiss, safe area (34 tests) |
 | **T7** | Resumen operativo útil | COMPLETADO | `/admin/page.tsx`, `admin-metrics-service.ts` | Agregados SQL, métricas reales sin fuga de PII (2 tests) |
-| **T8** | Verificación integral y entrega | PENDIENTE | `ROLLOUT_ROLLBACK.md`, reportes de auditoría | Gates completos: typecheck, lint, test, build |
+| **T8** | Verificación integral y entrega | COMPLETADO | `ROLLOUT_ROLLBACK.md`, reportes de auditoría | Gates completos: typecheck (OK), lint (OK), test (160 suites / 1,621 tests OK), build (OK) |
 
 ---
 
@@ -79,4 +79,12 @@
 - Hub `/admin` renovado con tarjetas de métricas en vivo, sin fuga de PII ni bloqueos si la BD está fría.
 - Accesos rápidos a herramientas operativas (push directo, vacaciones admin, releases Android, vista de trabajadores).
 - Tests: `admin-metrics-service.test.ts` (2 pasados). Typecheck OK.
-- Siguiente paso: **T8 — Verificación integral y entrega**.
+
+### T8 — Verificación integral y entrega (2026-09-06)
+- Documento operativo creado: `docs/admin/ROLLOUT_ROLLBACK.md`.
+- Verificación exhaustiva de compuertas de calidad:
+  - `npm run typecheck`: 0 errores.
+  - `npm run lint`: 0 errores (96 advertencias preexistentes del baseline preservadas, 0 nuevas).
+  - `npm test`: 160 suites pasadas, 1,621 tests pasando, 0 fallas (baseline era 152 suites y 1,571 tests; +8 suites y +50 tests unitarios/integración agregados).
+  - `npm run build`: Turbopack y compilación estática completadas exitosamente en 41s / 77 rutas.
+- Estado: **ENTREGA LISTA PARA PR / MERGE**.

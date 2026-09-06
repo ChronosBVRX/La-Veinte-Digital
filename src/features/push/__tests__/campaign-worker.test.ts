@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect } from "vitest"
 
 describe("Campaign Worker Delivery Logic", () => {
   it("deduplicates tokens and groups into batches of at most 500", () => {

@@ -1,7 +1,6 @@
 "use client"
 
 import { useActionState, useState } from "react"
-import Link from "next/link"
 import { Button } from "@/shared/components/ui/Button"
 import { Input, Textarea, Select } from "@/shared/components/ui/Input"
 import { Card } from "@/shared/components/ui/Card"
@@ -20,8 +19,6 @@ import {
   MAX_BODY_LENGTH,
 } from "../services/announcements-validate"
 import {
-  DeviceMobile,
-  EnvelopeSimple,
   Eye,
   FloppyDisk,
   PaperPlaneTilt,
@@ -49,7 +46,6 @@ const PREDEFINED_DESTINATIONS = [
 ]
 
 export function AnnouncementForm({ initialData }: AnnouncementFormProps) {
-  const isEditing = Boolean(initialData?.id)
   const isReadOnly = initialData?.status === "PUBLISHED" || initialData?.status === "ARCHIVED"
 
   const [title, setTitle] = useState(initialData?.title ?? "")

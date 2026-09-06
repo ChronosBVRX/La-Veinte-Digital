@@ -32,7 +32,6 @@ export default async function AdminBarraPage() {
   const barAnnouncements = items.filter((item) => item.show_in_bar)
 
   const activeDynamicItems = barAnnouncements.filter((item) => isAnnouncementEligibleForBar(item))
-  const pendingOrInactiveItems = barAnnouncements.filter((item) => !isAnnouncementEligibleForBar(item))
 
   return (
     <div style={{ maxWidth: "960px", margin: "0 auto", padding: "1.5rem 1rem", display: "flex", flexDirection: "column", gap: "1.5rem" }}>

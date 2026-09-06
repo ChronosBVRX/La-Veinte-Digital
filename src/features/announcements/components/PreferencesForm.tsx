@@ -4,7 +4,7 @@ import { useActionState } from "react"
 import { Button } from "@/shared/components/ui/Button"
 import { Card } from "@/shared/components/ui/Card"
 import { updatePreferencesAction, type ActionResponse } from "../actions/announcement-actions"
-import { Bell, Check, ShieldCheck } from "@phosphor-icons/react"
+import { Check, ShieldCheck } from "@phosphor-icons/react"
 
 interface PreferencesFormProps {
   initialEnabled: boolean
