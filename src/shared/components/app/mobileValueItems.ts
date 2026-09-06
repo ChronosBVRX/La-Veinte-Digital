@@ -199,3 +199,18 @@ export function pickMobileValueItem(
   const index = (hashString(pathname) + Math.abs(seed) + Math.abs(offset)) % pool.length
   return pool[index]
 }
+
+/**
+ * Combina los items dinámicos del servidor con el catálogo local de fallback.
+ * Evita duplicados por id y coloca los dinámicos al inicio.
+ */
+export function mergeMobileBarItems(
+  localItems: MobileValueItem[],
+  remoteItems: MobileValueItem[],
+): MobileValueItem[] {
+  if (!remoteItems || remoteItems.length === 0) return localItems
+  const seenIds = new Set(remoteItems.map((r) => r.id))
+  const filteredLocal = localItems.filter((l) => !seenIds.has(l.id))
+  return [...remoteItems, ...filteredLocal]
+}
+

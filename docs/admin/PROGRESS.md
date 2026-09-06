@@ -16,7 +16,7 @@
 | **T3** | Editor y bandeja de trabajadores | COMPLETADO | `/admin/avisos/*`, `/avisos/*`, componentes | Ciclo de aviso, lectura idempotente, responsive |
 | **T4** | Transporte, prueba y campañas inmediatas | COMPLETADO | `push-admin.ts`, `campaign-worker.ts`, `/admin/campanas/*` | Lotes <= 500, des-duplicación, SELF, URL parser (37 tests) |
 | **T5** | Disparador cron y programación | COMPLETADO | `/api/cron/push-campaigns`, workflow GitHub Actions | Autenticación cron, reclamos transaccionales (23 tests) |
-| **T6** | Barra informativa administrable | PENDIENTE | `mobile-bar-service.ts`, `MobileValueBar.tsx` | Fusión con catálogo local, dismiss, safe area |
+| **T6** | Barra informativa administrable | COMPLETADO | `mobile-bar-service.ts`, `MobileValueBar.tsx`, `/admin/barra` | Fusión con catálogo local, dismiss, safe area (34 tests) |
 | **T7** | Resumen operativo útil | PENDIENTE | `/admin/page.tsx`, widgets de salud y accesos | Agregados SQL, métricas reales sin fuga de PII |
 | **T8** | Verificación integral y entrega | PENDIENTE | `ROLLOUT_ROLLBACK.md`, reportes de auditoría | Gates completos: typecheck, lint, test, build |
 
@@ -65,4 +65,12 @@
 - Registro público en `src/shared/server/routing/route-policy.ts`.
 - Workflow de GitHub Actions: `.github/workflows/push-campaigns-cron.yml` (cada 15 minutos).
 - Tests: `push-campaigns-cron.test.ts` y `route-policy.test.ts` (23 pasados). Typecheck OK.
-- Siguiente paso: **T6 — Barra informativa administrable**.
+
+### T6 — Barra informativa administrable (2026-09-06)
+- Servicio `src/features/announcements/services/mobile-bar-service.ts` con reglas de elegibilidad, bloqueo automático de tips normativos sin revisión editorial formal (`requires_normativa_review`), mapeo y obtención con fallback.
+- Función pura `mergeMobileBarItems` en `src/shared/components/app/mobileValueItems.ts`.
+- Hidratación resiliente del lado cliente en `MobileValueBar.tsx` (conserva catálogo local intacto ante fallas de red).
+- Ruta API: `GET /api/announcements/bar` registrada en `route-policy.ts`.
+- Página administrativa: `src/app/(dashboard)/admin/barra/page.tsx` con preview móvil, estado de revisión editorial y visualizador del catálogo base.
+- Tests: 18 tests en `mobile-bar-service.test.ts`, 16 tests preservados en `mobile-value-bar.test.tsx`, 21 tests en `route-policy.test.ts`. Typecheck OK.
+- Siguiente paso: **T7 — Resumen operativo útil**.

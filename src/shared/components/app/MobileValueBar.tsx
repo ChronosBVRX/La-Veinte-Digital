@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react"
 import { CaretRight, Compass, Lightbulb, X } from "@phosphor-icons/react"
 import {
   MOBILE_VALUE_ITEMS,
+  mergeMobileBarItems,
   pickMobileValueItem,
   trackMobileValueEvent,
   type MobileValueItem,
@@ -34,6 +35,35 @@ export function MobileValueBar({ items = MOBILE_VALUE_ITEMS }: MobileValueBarPro
   const pathname = usePathname() ?? "/"
   const [sessionSeed] = useState(() => Math.floor(Math.random() * 1_000_000_000))
   const [rotation, setRotation] = useState(0)
+  const [activeItems, setActiveItems] = useState<MobileValueItem[]>(items)
+
+  useEffect(() => {
+    if (items !== MOBILE_VALUE_ITEMS) {
+      setActiveItems(items)
+      return
+    }
+
+    let isMounted = true
+    async function loadRemoteItems() {
+      try {
+        const res = await fetch("/api/announcements/bar")
+        if (!res.ok) return
+        const data = await res.json()
+        if (isMounted && Array.isArray(data?.items) && data.items.length > 0) {
+          setActiveItems(mergeMobileBarItems(MOBILE_VALUE_ITEMS, data.items))
+        }
+      } catch {
+        // En caso de desconexión o fallo, conserva los items locales de fallback
+      }
+    }
+
+    void loadRemoteItems()
+
+    return () => {
+      isMounted = false
+    }
+  }, [items])
+
   // Dismiss solo por sesión; inicialización perezosa (sin setState en efecto).
   const [dismissed, setDismissed] = useState(() => {
     try {
@@ -53,8 +83,8 @@ export function MobileValueBar({ items = MOBILE_VALUE_ITEMS }: MobileValueBarPro
   )
 
   const item = useMemo(
-    () => pickMobileValueItem(pathname, { items, seed: sessionSeed, offset: rotation }),
-    [pathname, items, sessionSeed, rotation],
+    () => pickMobileValueItem(pathname, { items: activeItems, seed: sessionSeed, offset: rotation }),
+    [pathname, activeItems, sessionSeed, rotation],
   )
 
   useEffect(() => {

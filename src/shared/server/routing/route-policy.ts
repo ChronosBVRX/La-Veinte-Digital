@@ -23,6 +23,7 @@ export const API_ACCESS = {
   "/api/escritos/generar": "authenticated",
   "/api/cron/agenda-reminders": "public",
   "/api/cron/push-campaigns": "public",
+  "/api/announcements/bar": "public",
 } as const
 
 export type ApiAccessLevel = (typeof API_ACCESS)[keyof typeof API_ACCESS]
