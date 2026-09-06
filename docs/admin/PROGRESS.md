@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | **T0** | Fijar punto de partida y contratos | COMPLETADO | `docs/admin/CHANGE_CONTRACT.md`, `docs/admin/PROGRESS.md` | Baseline suites (152 passed), typecheck, lint, build |
 | **T1** | Acceso y estructura administrativa | COMPLETADO | `src/shared/server/admin/*`, layouts, `DesktopSidebar.tsx` | Permisos por rol/email, navegación segura (6 tests) |
-| **T2** | Migraciones y servicios de contenido | PENDIENTE | Migración SQL, `types.ts`, `announcements-service.ts` | Integración Supabase, revisión optimista, RLS |
+| **T2** | Migraciones y servicios de contenido | COMPLETADO | Migración SQL, `types.ts`, `announcements-service.ts` | Integración Supabase, revisión optimista, RLS (10 tests) |
 | **T3** | Editor y bandeja de trabajadores | PENDIENTE | `/admin/avisos/*`, `/avisos/*`, componentes | Ciclo de aviso, lectura idempotente, responsive |
 | **T4** | Transporte, prueba y campañas inmediatas | PENDIENTE | `push-admin.ts`, `campaign-worker.ts`, `/admin/campanas/*` | Lotes <= 500, des-duplicación, SELF, URL parser |
 | **T5** | Disparador cron y programación | PENDIENTE | `/api/cron/push-campaigns`, workflow GitHub Actions | Autenticación cron, reclamos transaccionales |
