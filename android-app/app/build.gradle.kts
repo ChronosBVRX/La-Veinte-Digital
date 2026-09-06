@@ -23,8 +23,8 @@ android {
         applicationId = "com.laveintedigital.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 203
-        versionName = "1.1.3"
+        versionCode = 204
+        versionName = "1.1.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -90,9 +90,10 @@ android {
     applicationVariants.all {
         outputs.all {
             // Only rename APK outputs; bundle (.aab) outputs do not expose outputFileName.
+            // El nombre incluye versionCode (-b<code>) para identificación inequívoca del binario.
             if (outputFile?.name?.endsWith(".apk") == true) {
                 (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
-                    "LaVeinteDigital-${flavorName}-${buildType.name}-v${versionName}.apk"
+                    "LaVeinteDigital-${flavorName}-${buildType.name}-v${versionName}-b${versionCode}.apk"
             }
         }
     }

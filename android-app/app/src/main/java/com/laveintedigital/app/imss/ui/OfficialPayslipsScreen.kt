@@ -48,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -191,9 +192,35 @@ fun OfficialPayslipsScreen(
                         compact = compact,
                     )
                 }
+                // Identidad del build instalado (fuente canónica: BuildConfig).
+                // Pequeña y secundaria: solo trazabilidad de la versión en el teléfono.
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    AppBuildIdentityFooter()
+                }
             }
         }
     }
+}
+
+/**
+ * Identidad inequívoca del APK instalado: versión + canal desde BuildConfig
+ * (fuente única: build.gradle.kts). Nada hardcodeado.
+ */
+@Composable
+private fun AppBuildIdentityFooter() {
+    val channel = com.laveintedigital.app.BuildConfig.DISTRIBUTION_CHANNEL
+        .replaceFirstChar { it.uppercase() }
+    Text(
+        text = "Versión ${com.laveintedigital.app.BuildConfig.VERSION_NAME} " +
+            "(${com.laveintedigital.app.BuildConfig.VERSION_CODE})\nCanal: $channel",
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp, bottom = 4.dp),
+    )
 }
 
 @Composable

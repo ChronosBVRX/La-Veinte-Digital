@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.laveintedigital.app.BuildConfig
 import com.laveintedigital.app.imss.credentials.ImssPortal
 import com.laveintedigital.app.imss.portal.*
 import com.laveintedigital.app.imss.tarjeton.*
@@ -203,7 +204,7 @@ fun ImssPortalScreen(
                         val wv = this
                         layoutParams = ViewGroup.LayoutParams(-1, -1)
                         setBackgroundColor(android.graphics.Color.WHITE)
-                        settings.configureForLaVeinte("1.0.0")
+                        settings.configureForLaVeinte(BuildConfig.VERSION_NAME)
                         // Desktop viewport — ambos portales son sitios de escritorio (985px).
                         if (portal == ImssPortal.TU_PERFIL || portal == ImssPortal.TARJETON_DIGITAL) {
                             settings.useWideViewPort = true

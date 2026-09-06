@@ -134,7 +134,7 @@ fun TuPerfilBiometricScreen(
                         val wv = this
                         layoutParams = ViewGroup.LayoutParams(-1, -1)
                         setBackgroundColor(android.graphics.Color.WHITE)
-                        settings.configureForLaVeinte("1.0.0")
+                        settings.configureForLaVeinte(BuildConfig.VERSION_NAME)
                         settings.useWideViewPort = true
                         settings.loadWithOverviewMode = true
                         settings.builtInZoomControls = true
