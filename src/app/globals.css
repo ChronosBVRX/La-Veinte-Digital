@@ -26,6 +26,7 @@
   --sidebar-width: 240px;
   --sidebar-collapsed-width: 0px;
   --bottom-nav-height: 64px;
+  --mobile-value-bar-height: 64px;
   --transition: 0.2s ease;
   --brand-navy: #17324d;
   --brand-blue: #2e4f77;
@@ -235,7 +236,7 @@ a:focus-visible {
   }
 
   main {
-    padding-bottom: calc(var(--bottom-nav-height) + 1rem) !important;
+    padding-bottom: calc(var(--mobile-value-bar-height) + 1rem) !important;
   }
 }
 
@@ -257,6 +258,7 @@ a:focus-visible {
 
   :root {
     --bottom-nav-height: 56px;
+    --mobile-value-bar-height: 56px;
   }
 }
 
@@ -367,6 +369,17 @@ body {
 
 .mobile-bottom-nav {
   transition: transform 0.25s ease, opacity 0.2s ease;
+}
+
+/* Barra informativa inferior: mismo principio que la bottom nav anterior */
+.mobile-value-bar {
+  transition: transform 0.25s ease, opacity 0.2s ease;
+}
+
+.keyboard-open .mobile-value-bar {
+  transform: translateY(100%);
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Diálogos: respetar viewport visual con teclado */

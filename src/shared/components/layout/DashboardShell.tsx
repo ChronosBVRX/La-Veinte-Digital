@@ -1,12 +1,18 @@
 "use client"
 
+import dynamic from "next/dynamic"
 import { useState, useCallback } from "react"
 import { AppHeader } from "@/shared/components/app/AppHeader"
 import { DesktopSidebar } from "@/shared/components/app/DesktopSidebar"
-import { MobileBottomNav } from "@/shared/components/app/MobileBottomNav"
-import { MobileNavigationSheet } from "@/shared/components/app/MobileNavigationSheet"
 import { MobileViewportProvider } from "./MobileViewportProvider"
 import type { ReactNode } from "react"
+
+// Solo cliente (sin SSR): el contenido depende de sesión/azar del navegador.
+// Así el HTML del servidor nunca difiere del primer render (cero mismatch).
+const MobileValueBar = dynamic(
+  () => import("@/shared/components/app/MobileValueBar").then((m) => m.MobileValueBar),
+  { ssr: false },
+)
 
 interface DashboardShellProps {
   fullName: string | null
@@ -15,7 +21,6 @@ interface DashboardShellProps {
 
 export function DashboardShell({ fullName, children }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [sheetKey, setSheetKey] = useState<string | null>(null)
 
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((prev) => !prev)
@@ -23,14 +28,6 @@ export function DashboardShell({ fullName, children }: DashboardShellProps) {
 
   const closeSidebar = useCallback(() => {
     setSidebarOpen(false)
-  }, [])
-
-  const openSheet = useCallback((key: string) => {
-    setSheetKey(key)
-  }, [])
-
-  const closeSheet = useCallback(() => {
-    setSheetKey(null)
   }, [])
 
   return (
@@ -67,12 +64,7 @@ export function DashboardShell({ fullName, children }: DashboardShellProps) {
           </main>
         </div>
 
-        <MobileBottomNav onSheetOpen={openSheet} />
-        <MobileNavigationSheet
-          openKey={sheetKey}
-          onClose={closeSheet}
-          onNavigate={closeSheet}
-        />
+        <MobileValueBar />
       </div>
     </MobileViewportProvider>
   )

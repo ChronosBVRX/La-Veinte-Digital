@@ -265,7 +265,7 @@ export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
           transform: open ? "translateX(0)" : "translateX(-100%)",
           transition: "transform 0.25s ease, visibility 0.25s ease",
           pointerEvents: open ? "auto" : "none",
-          paddingBottom: "calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px))",
+          paddingBottom: "calc(var(--mobile-value-bar-height) + env(safe-area-inset-bottom, 0px))",
         }}
       >
         {mobileDrawerContent}
