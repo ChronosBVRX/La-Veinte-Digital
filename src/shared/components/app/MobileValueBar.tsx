@@ -19,9 +19,10 @@ interface MobileValueBarProps {
 }
 
 /**
- * Barra informativa móvil: ocupa la superficie inferior (antes navegación
- * redundante) con UN consejo/herramienta a la vez. Presentación + selección
- * sencilla: sin Supabase, auth, bridges ni lógica laboral.
+ * Barra informativa móvil compacta: una sola fila (icono + texto + chevron)
+ * con × independiente. El cuerpo completo es el CTA cuando hay `href`
+ * (sin etiquetas de texto tipo "Planear"/"Ver"); el × es hermano del enlace
+ * para que cerrarlo nunca pueda navegar.
  *
  * - Solo `mobile-only` (desktop >= 769px: no visible por CSS existente).
  * - No registra capa Back (no abre modales).
@@ -30,7 +31,6 @@ interface MobileValueBarProps {
  * - Cierre opcional solo por sesión (`sessionStorage`).
  */
 export function MobileValueBar({ items = MOBILE_VALUE_ITEMS }: MobileValueBarProps) {
-  // DashboardShell lo monta con ssr:false: este código solo corre en cliente.
   const pathname = usePathname() ?? "/"
   const [sessionSeed] = useState(() => Math.floor(Math.random() * 1_000_000_000))
   const [rotation, setRotation] = useState(0)
@@ -73,8 +73,13 @@ export function MobileValueBar({ items = MOBILE_VALUE_ITEMS }: MobileValueBarPro
 
   const isSponsor = item.type === "sponsor"
   const Icon = item.type === "tool" ? Compass : Lightbulb
+  // ctaLabel vive en el modelo para accesibilidad, no se muestra en móvil.
+  const linkLabel = item.ctaLabel ? `${item.ctaLabel}: ${item.text}` : item.text
 
-  const handleDismiss = () => {
+  const handleDismiss = (e: React.MouseEvent) => {
+    // El × es hermano del enlace, pero se detiene la propagación por seguridad.
+    e.stopPropagation()
+    e.preventDefault()
     try {
       window.sessionStorage.setItem(DISMISS_KEY, "1")
     } catch {
@@ -83,6 +88,72 @@ export function MobileValueBar({ items = MOBILE_VALUE_ITEMS }: MobileValueBarPro
     trackMobileValueEvent("mobile_value_dismiss", item.id)
     setDismissed(true)
   }
+
+  const body = (
+    <>
+      <span
+        aria-hidden
+        style={{
+          flexShrink: 0,
+          width: 34,
+          height: 34,
+          borderRadius: "50%",
+          background: "var(--accent)",
+          color: "var(--primary)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Icon size={18} weight="duotone" />
+      </span>
+
+      <span style={{ flex: 1, minWidth: 0, display: "block" }}>
+        {isSponsor ? (
+          <span
+            style={{
+              fontSize: "10px",
+              fontWeight: 700,
+              lineHeight: 1.1,
+              letterSpacing: "0.04em",
+              color: "var(--muted)",
+              textTransform: "uppercase",
+              display: "block",
+            }}
+          >
+            Patrocinado{item.sponsorName ? ` · ${item.sponsorName}` : ""}
+          </span>
+        ) : (
+          item.eyebrow && (
+            <span
+              style={{
+                fontSize: "10px",
+                fontWeight: 700,
+                lineHeight: 1.1,
+                letterSpacing: "0.04em",
+                color: "var(--primary)",
+                textTransform: "uppercase",
+                display: "block",
+              }}
+            >
+              {item.eyebrow}
+            </span>
+          )
+        )}
+        <span className="mobile-value-bar__text">{item.text}</span>
+      </span>
+
+      {item.href && (
+        <CaretRight
+          size={16}
+          weight="bold"
+          aria-hidden
+          color="var(--muted)"
+          style={{ flexShrink: 0 }}
+        />
+      )}
+    </>
+  )
 
   return (
     <aside
@@ -99,102 +170,47 @@ export function MobileValueBar({ items = MOBILE_VALUE_ITEMS }: MobileValueBarPro
         zIndex: 30,
         background: "var(--card)",
         borderTop: "1px solid var(--border)",
-        height: "var(--mobile-value-bar-height)",
-        display: "flex",
-        alignItems: "center",
-        gap: "0.625rem",
-        padding: "0.375rem 0.625rem",
-        paddingBottom: "calc(0.375rem + env(safe-area-inset-bottom, 0px))",
+        height: "calc(var(--mobile-value-bar-height) + env(safe-area-inset-bottom, 0px))",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
         boxShadow: "0 -1px 8px rgba(0,0,0,0.06)",
         overflow: "hidden",
+        display: "flex",
+        alignItems: "stretch",
       }}
     >
-      <span
-        aria-hidden
-        style={{
-          flexShrink: 0,
-          width: 32,
-          height: 32,
-          borderRadius: "50%",
-          background: "var(--accent)",
-          color: "var(--primary)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Icon size={18} weight="duotone" />
-      </span>
-
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {isSponsor ? (
-          <span
-            style={{
-              fontSize: "var(--text-xs)",
-              fontWeight: 700,
-              color: "var(--muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
-            }}
-          >
-            Patrocinado{item.sponsorName ? ` · ${item.sponsorName}` : ""}
-          </span>
-        ) : (
-          item.eyebrow && (
-            <span
-              style={{
-                fontSize: "var(--text-xs)",
-                fontWeight: 700,
-                color: "var(--primary)",
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                display: "block",
-                lineHeight: 1.2,
-              }}
-            >
-              {item.eyebrow}
-            </span>
-          )
-        )}
-        <p
-          style={{
-            margin: 0,
-            fontSize: "var(--text-sm)",
-            color: "var(--fg)",
-            lineHeight: 1.3,
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-            overflowWrap: "anywhere",
-          }}
-        >
-          {item.text}
-        </p>
-      </div>
-
-      {item.href && item.ctaLabel && (
+      {item.href ? (
         <Link
           href={item.href}
           onClick={() => trackMobileValueEvent("mobile_value_click", item.id)}
-          aria-label={`${item.ctaLabel}: ${item.text}`}
+          aria-label={linkLabel}
           className="pressable"
           style={{
-            flexShrink: 0,
+            flex: 1,
+            minWidth: 0,
             display: "flex",
             alignItems: "center",
-            gap: "0.125rem",
-            fontSize: "var(--text-sm)",
-            fontWeight: 600,
-            color: "var(--primary)",
+            gap: "0.625rem",
             textDecoration: "none",
-            padding: "0.5rem 0.25rem 0.5rem 0.5rem",
+            color: "inherit",
+            padding: "0 0 0 0.625rem",
             minHeight: 44,
           }}
         >
-          {item.ctaLabel}
-          <CaretRight size={14} weight="bold" />
+          {body}
         </Link>
+      ) : (
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: "0.625rem",
+            padding: "0 0 0 0.625rem",
+          }}
+        >
+          {body}
+        </span>
       )}
 
       <button
@@ -204,6 +220,7 @@ export function MobileValueBar({ items = MOBILE_VALUE_ITEMS }: MobileValueBarPro
         className="pressable"
         style={{
           flexShrink: 0,
+          alignSelf: "center",
           background: "none",
           border: "none",
           cursor: "pointer",
@@ -213,10 +230,10 @@ export function MobileValueBar({ items = MOBILE_VALUE_ITEMS }: MobileValueBarPro
           justifyContent: "center",
           minWidth: 40,
           minHeight: 44,
-          padding: "0.25rem",
+          marginRight: "0.25rem",
         }}
       >
-        <X size={16} weight="bold" />
+        <X size={15} weight="bold" />
       </button>
     </aside>
   )
