@@ -8,10 +8,11 @@ import type { WorkerCommitment } from "../types"
 import { COMMITMENT_TYPE_LABELS, COMMITMENT_TYPE_ICONS } from "../types"
 import {
   getTodayLocalDateString,
-  formatLocalTime,
   formatHumanCommitmentDate,
   isCommitmentInProgress,
   getCommitmentDisplayTitle,
+  getCommitmentDetailLines,
+  getCommitmentScheduleLabel,
 } from "../lib/commitment-calendar"
 
 interface AgendaCardProps {
@@ -115,6 +116,7 @@ export function AgendaCard({
               const title = getCommitmentDisplayTitle(c)
               const icon = COMMITMENT_TYPE_ICONS[c.type] ?? "📌"
               const typeLabel = COMMITMENT_TYPE_LABELS[c.type] ?? "Compromiso"
+              const specificDetails = getCommitmentDetailLines(c)
 
               return (
                 <div
@@ -203,7 +205,7 @@ export function AgendaCard({
                       wordBreak: "break-word",
                     }}>
                       <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
-                        <Clock size={12} style={{ flexShrink: 0 }} /> {formatLocalTime(c.startAt)}–{formatLocalTime(c.endAt)}
+                        <Clock size={12} style={{ flexShrink: 0 }} /> {getCommitmentScheduleLabel(c)}
                       </span>
                       {c.substituteWorkerName && (
                         <span style={{ display: "flex", alignItems: "center", gap: "0.25rem", overflowWrap: "anywhere", wordBreak: "break-word" }}>
@@ -221,6 +223,12 @@ export function AgendaCard({
                         </span>
                       )}
                     </div>
+                    {(specificDetails.length > 0 || c.notes) && (
+                      <div style={{ marginTop: "0.25rem", display: "flex", flexWrap: "wrap", gap: "0.25rem 0.75rem", fontSize: "var(--text-xs)", color: "var(--muted)", overflowWrap: "anywhere", wordBreak: "break-word" }}>
+                        {specificDetails.map((detail) => <span key={detail}>{detail}</span>)}
+                        {c.notes && <span>{c.notes}</span>}
+                      </div>
+                    )}
                   </div>
                 </div>
               )

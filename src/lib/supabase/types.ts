@@ -916,6 +916,7 @@ export type Database = {
       worker_commitments: {
         Row: {
           created_at: string
+          details: Json
           end_at: string
           id: string
           legacy_local_id: string | null
@@ -934,6 +935,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          details?: Json
           end_at: string
           id?: string
           legacy_local_id?: string | null
@@ -952,6 +954,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          details?: Json
           end_at?: string
           id?: string
           legacy_local_id?: string | null

@@ -8,8 +8,9 @@ import type { CalendarEventType } from "@/shared/data/calendario"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/shared/components/ui/Button"
 import { readAllLocal, addCommitment as addLocalCommitment, deleteCommitment as deleteLocalCommitment } from "@/features/agenda-laboral/services/commitments-local"
+import { rowToCommitment } from "@/features/agenda-laboral/services/commitments-supabase"
 import { useSelectedAgendaDate, useCommitmentsListener, notifyCommitmentsChanged } from "@/features/agenda-laboral/lib/agenda-bus"
-import { formatLocalTime } from "@/features/agenda-laboral/lib/commitment-calendar"
+import { getCommitmentDetailLines, getCommitmentScheduleLabel } from "@/features/agenda-laboral/lib/commitment-calendar"
 
 const STORAGE_KEY = "calendar_filters_v2"
 
@@ -26,6 +27,7 @@ type FilterKey =
   | "txt_substitution"
   | "overtime"
   | "shift_change"
+  | "sport"
   | "guardia_festiva"
   | "falta_injustificada"
   | "incapacidad"
@@ -38,6 +40,7 @@ const AGENDA_KEYS: FilterKey[] = [
   "txt_substitution",
   "overtime",
   "shift_change",
+  "sport",
   "guardia_festiva",
   "falta_injustificada",
   "incapacidad",
@@ -47,21 +50,22 @@ const AGENDA_KEYS: FilterKey[] = [
   "other",
 ]
 
-const FILTER_DEFS: { key: FilterKey; label: string; color: string; group: "institucional" | "agenda" }[] = [
+const FILTER_DEFS: { key: FilterKey; label: string; color: string; group: "institucional" | "agenda" | "legacy" }[] = [
   { key: "payments", label: "Pagos", color: "#ef4444", group: "institucional" },
   { key: "interactivo", label: "Interactivo", color: "#eab308", group: "institucional" },
   { key: "vacacional", label: "Vacaciones", color: "#22c55e", group: "institucional" },
   { key: "descanso_cct", label: "Descanso CCT", color: "#6366f1", group: "institucional" },
-  { key: "txt_substitution", label: "TxT", color: "#3b82f6", group: "agenda" },
+  { key: "txt_substitution", label: "TxT", color: "#3b82f6", group: "legacy" },
   { key: "overtime", label: "T. extra", color: "#f97316", group: "agenda" },
-  { key: "shift_change", label: "Turno", color: "#8b5cf6", group: "agenda" },
-  { key: "guardia_festiva", label: "Guardia", color: "#ec4899", group: "agenda" },
+  { key: "shift_change", label: "Turno", color: "#8b5cf6", group: "legacy" },
+  { key: "sport", label: "Deporte", color: "#16a34a", group: "agenda" },
+  { key: "guardia_festiva", label: "Guardia", color: "#ec4899", group: "legacy" },
   { key: "falta_injustificada", label: "Falta", color: "#f43f5e", group: "agenda" },
-  { key: "incapacidad", label: "Incapacidad", color: "#14b8a6", group: "agenda" },
-  { key: "pase_salida", label: "Pases", color: "#0ea5e9", group: "agenda" },
-  { key: "vacaciones", label: "Mis vacaciones", color: "#84cc16", group: "agenda" },
-  { key: "no_pagado", label: "No pagado", color: "#b45309", group: "agenda" },
-  { key: "other", label: "Otros", color: "#64748b", group: "agenda" },
+  { key: "incapacidad", label: "Incapacidad", color: "#14b8a6", group: "legacy" },
+  { key: "pase_salida", label: "Pases", color: "#0ea5e9", group: "legacy" },
+  { key: "vacaciones", label: "Mis vacaciones", color: "#84cc16", group: "legacy" },
+  { key: "no_pagado", label: "Reclamación", color: "#b45309", group: "agenda" },
+  { key: "other", label: "Otros", color: "#64748b", group: "legacy" },
 ]
 
 interface CalendarEvent {
@@ -93,6 +97,9 @@ function loadFilters(): FilterKey[] {
       const parsed: FilterKey[] = JSON.parse(raw)
       if (!parsed.includes("descanso_cct")) {
         parsed.push("descanso_cct")
+      }
+      if (!parsed.includes("sport")) {
+        parsed.push("sport")
       }
       return parsed
     }
@@ -203,23 +210,24 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
         setAgendaError(error.message)
       } else if (data) {
         setCommitments(data.map((c) => {
-          const start = new Date(c.start_at)
-          const end = new Date(c.end_at)
+          const commitment = rowToCommitment(c)
+          const start = new Date(commitment.startAt)
+          const end = new Date(commitment.endAt)
           const isNightShift = start.getDate() !== end.getDate() && end.getHours() < start.getHours()
-          const agendaType = (AGENDA_KEYS as string[]).includes(c.type) ? (c.type as FilterKey) : "other"
+          const agendaType = (AGENDA_KEYS as string[]).includes(commitment.type) ? (commitment.type as FilterKey) : "other"
           const color = FILTER_DEFS.find((f) => f.key === agendaType)?.color ?? "#64748b"
           return {
-            id: `agenda-${c.id}`,
+            id: `agenda-${commitment.id}`,
             date: start,
-            title: c.title,
-            time: `${formatLocalTime(c.start_at)}–${formatLocalTime(c.end_at)}`,
+            title: commitment.title,
+            time: getCommitmentScheduleLabel(commitment),
             color,
             type: agendaType,
-            detail: [c.service, c.substitute_worker_name ? `Cubres a ${c.substitute_worker_name}` : null, c.workplace].filter(Boolean).join(" · "),
+            detail: [commitment.service, commitment.substituteWorkerName ? `Cubres a ${commitment.substituteWorkerName}` : null, commitment.workplace, ...getCommitmentDetailLines(commitment)].filter(Boolean).join(" · "),
             isNightShift,
-            workplace: c.workplace ?? undefined,
-            service: c.service ?? undefined,
-            notes: c.notes ?? undefined,
+            workplace: commitment.workplace || undefined,
+            service: commitment.service || undefined,
+            notes: commitment.notes || undefined,
           }
         }))
       }
@@ -236,10 +244,10 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
           id: `agenda-${c.id}`,
           date: start,
           title: c.title,
-          time: `${formatLocalTime(c.startAt)}–${formatLocalTime(c.endAt)}`,
+          time: getCommitmentScheduleLabel(c),
           color,
           type: agendaType,
-          detail: [c.service, c.substituteWorkerName ? `Cubres a ${c.substituteWorkerName}` : null, c.workplace].filter(Boolean).join(" · "),
+          detail: [c.service, c.substituteWorkerName ? `Cubres a ${c.substituteWorkerName}` : null, c.workplace, ...getCommitmentDetailLines(c)].filter(Boolean).join(" · "),
           isNightShift,
           workplace: c.workplace,
           service: c.service,

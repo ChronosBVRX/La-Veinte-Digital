@@ -1,10 +1,15 @@
 import { createClient } from "@/lib/supabase/client"
-import type { Tables, TablesInsert, TablesUpdate } from "@/lib/supabase/types"
+import type { Json, Tables, TablesInsert, TablesUpdate } from "@/lib/supabase/types"
 import type { WorkerCommitment } from "../types"
 
 export type CommitmentRow = Tables<"worker_commitments">
 export type CommitmentInsert = TablesInsert<"worker_commitments">
 export type CommitmentUpdate = TablesUpdate<"worker_commitments">
+
+function parseCommitmentDetails(value: Json | null): WorkerCommitment["details"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined
+  return value as WorkerCommitment["details"]
+}
 
 export function rowToCommitment(row: CommitmentRow): WorkerCommitment {
   return {
@@ -18,6 +23,7 @@ export function rowToCommitment(row: CommitmentRow): WorkerCommitment {
     service: row.service ?? "",
     substituteWorkerName: row.substitute_worker_name ?? "",
     notes: row.notes ?? "",
+    details: parseCommitmentDetails(row.details),
     reminder: {
       dayBefore: row.reminder_day_before,
       hoursBefore: row.reminder_hours_before,
