@@ -53,6 +53,28 @@ describe("MobileValueBar", () => {
     expect(["/calculadoras", "/escritos", "/vacaciones", "/asistente"].some((r) => cta?.getAttribute("href") === r)).toBe(true)
   })
 
+  it("el cuerpo completo es el CTA: sin etiquetas de texto, solo chevron", () => {
+    render(<MobileValueBar />)
+    const bar = screen.getByLabelText("Consejo de La Veinte Digital")
+    const links = bar.querySelectorAll("a[href]")
+    expect(links).toHaveLength(1)
+    // Las etiquetas tipo Planear/Ver/Consultar viven en el modelo (aria), no en la UI.
+    for (const label of ["Planear", "Calcular", "Consultar", "Crear", "Preguntar", "Abrir", "Ver"]) {
+      expect(screen.queryByText(label)).toBeNull()
+    }
+    expect(bar.querySelector("svg")).toBeTruthy()
+  })
+
+  it("× es hermano del enlace: cerrarlo nunca navega", () => {
+    render(<MobileValueBar />)
+    const closeBtn = screen.getByLabelText("Cerrar consejo")
+    expect(closeBtn.tagName).toBe("BUTTON")
+    expect(closeBtn.closest("a")).toBeNull()
+    fireEvent.click(closeBtn)
+    expect(screen.queryByLabelText("Consejo de La Veinte Digital")).toBeNull()
+    expect(window.sessionStorage.getItem("mobile_value_bar_dismissed")).toBe("1")
+  })
+
   it("no muestra sponsors aunque estén habilitados (sin activación editorial)", () => {
     const items: MobileValueItem[] = [
       {
@@ -144,10 +166,13 @@ describe("MobileValueBar", () => {
       )
       const bar = container.querySelector("aside")
       expect(bar).toBeTruthy()
-      // El texto debe permitir wrapping para no empujar horizontalmente.
-      const text = container.querySelector("p")
+      // El texto trunca con elipsis (2 líneas máx. en <=360px por CSS) sin empujar.
+      const text = container.querySelector(".mobile-value-bar__text")
       expect(text).toBeTruthy()
-      expect((text as HTMLElement).style.overflowWrap).toBe("anywhere")
+      // Estructura compacta: icono + bloque flexible + chevron + cerrar.
+      const barEl = bar as HTMLElement
+      expect(barEl.querySelectorAll("a[href]")).toHaveLength(1)
+      expect(barEl.querySelectorAll("button")).toHaveLength(1)
     })
   })
 })
