@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { House, UserCircle, X, Article, ArrowsClockwise, FolderOpen } from "@phosphor-icons/react"
+import { House, UserCircle, X, Article, ArrowsClockwise, FolderOpen, ShieldCheck } from "@phosphor-icons/react"
 import { DESKTOP_NAV_GROUPS } from "./navigation"
 import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
 import { useBackLayer } from "@/shared/navigation/useBackLayer"
@@ -11,9 +11,10 @@ import type { CSSProperties } from "react"
 interface DesktopSidebarProps {
   open: boolean
   onClose: () => void
+  canAccessAdmin?: boolean
 }
 
-export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
+export function DesktopSidebar({ open, onClose, canAccessAdmin = false }: DesktopSidebarProps) {
   const pathname = usePathname()
   const isNative = useIsNativeApp()
   const platform = useNativePlatform()
@@ -189,7 +190,17 @@ export function DesktopSidebar({ open, onClose }: DesktopSidebarProps) {
         </div>
       )}
 
-      <div style={{ marginTop: "1rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem" }}>
+      <div style={{ marginTop: "1rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.125rem" }}>
+        {canAccessAdmin && (
+          <NavItem
+            href="/admin"
+            label="Administración"
+            icon={ShieldCheck}
+            isActive={pathname === "/admin" || pathname.startsWith("/admin/")}
+            color="var(--brand-navy, #1e3a8a)"
+            onClick={onClose}
+          />
+        )}
         <NavItem
           href="/profile"
           label="Mi perfil"
