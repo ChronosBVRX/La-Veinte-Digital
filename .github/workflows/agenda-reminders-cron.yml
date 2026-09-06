@@ -1,0 +1,23 @@
+name: Agenda Reminders Cron
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  agenda-reminders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger Agenda Reminders Cron
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            "https://la-veinte-digital.vercel.app/api/cron/agenda-reminders" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET || secrets.PUSH_ADMIN_KEY }}" \
+            -H "Content-Type: application/json")
+          echo "Status: $STATUS"
+          if [ "$STATUS" -ne 200 ] && [ "$STATUS" -ne 401 ]; then
+            echo "Unexpected HTTP status: $STATUS"
+            exit 1
+          fi
