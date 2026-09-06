@@ -1,18 +1,18 @@
 {
   "channel": "stable",
-  "versionCode": 203,
-  "versionName": "1.1.3",
+  "versionCode": 204,
+  "versionName": "1.1.4",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-09-02T23:05:00Z",
+  "publishedAt": "2026-09-06T00:43:46Z",
   "apk": {
-    "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "801a4b87248016bd77945cd525a3586f549d2edd0585034cd3e4ea6d8b833f5d",
-    "size": 24554945
+    "url": "https://ragktminwduiggvaoeix.supabase.co/storage/v1/object/public/android-releases/stable/1.1.4/LaVeinteDigital-1.1.4.apk",
+    "sha256": "6b735ad04005a0248524cc16102d641695fadf128f2cf07413619ca92090b9c6",
+    "size": 24587757
   },
   "releaseNotes": [
-    "Contrato bidireccional estricto con window.laVeintePdfBridge.onmessage para apertura instantánea del chooser nativo",
-    "Procesamiento secuencial estricto de chunks en Android para garantizar integridad del PDF",
-    "Compatibilidad con flujo de impresión QR y compartición nativa de tarjetones y checadas"
+    "Navegación Atrás integrada con menús, modales y capas internas",
+    "Nuevo feedback visual nativo durante cargas y navegación",
+    "Mejor identificación y trazabilidad de la versión instalada"
   ]
 }
