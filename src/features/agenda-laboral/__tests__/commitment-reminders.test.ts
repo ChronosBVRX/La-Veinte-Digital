@@ -38,6 +38,10 @@ describe("Commitment Reminders Engine: Casos Obligatorios 15 a 25", () => {
                     return Promise.resolve({ data: filtered, error: null })
                   },
                 }),
+                not: () => {
+                  const filtered = fakeCommitments.filter((c) => c.status === val && c.details?.reminderAt)
+                  return Promise.resolve({ data: filtered, error: null })
+                },
               }),
             }),
           }
@@ -389,4 +393,93 @@ describe("Commitment Reminders Engine: Casos Obligatorios 15 a 25", () => {
     // Both recorded in fakeDeliveries
     expect(fakeDeliveries.filter((d) => d.reminder_type === "DAY_BEFORE")).toHaveLength(2)
   })
+
+  it("26. recordatorio en fecha y hora programada (SCHEDULED_TIME) y deduplicación", async () => {
+    // Event has scheduled reminder at 10:00 CDMX on 2026-09-10 (16:00 UTC)
+    const scheduledIso = "2026-09-10T16:00:00.000Z"
+    fakeCommitments = [
+      {
+        id: "comm-scheduled",
+        user_id: "user-sched",
+        type: "general_reminder",
+        title: "Reunión con jefatura",
+        start_at: "2026-09-10T17:00:00.000Z", // 11:00 CDMX
+        end_at: "2026-09-10T18:00:00.000Z",
+        notes: "Llevar bitácora impresa",
+        details: {
+          notificationsEnabled: true,
+          reminderAt: scheduledIso,
+          location: "Dirección",
+        },
+        status: "active",
+        reminder_day_before: false,
+        reminder_hours_before: false,
+        reminder_at_start: false,
+      },
+    ]
+
+    const mockDb = createMockSupabase()
+
+    // 1st run: at 10:02 CDMX (16:02 UTC) -> triggers reminder
+    const now1602 = new Date("2026-09-10T16:02:00.000Z")
+    const summary1 = await processPendingCommitmentReminders({
+      now: now1602,
+      supabaseClient: mockDb,
+    })
+
+    expect(summary1.scheduledSent).toBe(1)
+    expect(mockSendToUser).toHaveBeenCalledTimes(1)
+    const [userId, payload] = mockSendToUser.mock.calls[0]
+    expect(userId).toBe("user-sched")
+    expect(payload.title).toBe("Reunión con jefatura")
+    expect(payload.body).toContain("Llevar bitácora impresa")
+    expect(payload.body).toContain("Dirección")
+
+    // Verify delivery recorded
+    const delivered = fakeDeliveries.find((d) => d.commitment_id === "comm-scheduled")
+    expect(delivered?.reminder_type).toBe("SCHEDULED_TIME")
+
+    // 2nd run: at 10:10 CDMX -> 0 sent (deduplication!)
+    const now1610 = new Date("2026-09-10T16:10:00.000Z")
+    const summary2 = await processPendingCommitmentReminders({
+      now: now1610,
+      supabaseClient: mockDb,
+    })
+    expect(summary2.scheduledSent).toBe(0)
+    expect(mockSendToUser).toHaveBeenCalledTimes(1)
+  })
+
+  it("27. notificationsEnabled = false suprime recordatorios completamente", async () => {
+    fakeCommitments = [
+      {
+        id: "comm-disabled",
+        user_id: "user-disabled",
+        type: "general_reminder",
+        title: "Evento sin notificación",
+        start_at: "2026-09-06T14:00:00.000Z",
+        end_at: "2026-09-06T18:00:00.000Z",
+        details: {
+          notificationsEnabled: false,
+          reminderAt: "2026-09-06T01:30:00.000Z",
+        },
+        status: "active",
+        reminder_day_before: true,
+        reminder_hours_before: true,
+        reminder_at_start: true,
+      },
+    ]
+
+    const now1930 = new Date("2026-09-06T01:30:00.000Z")
+    const summary = await processPendingCommitmentReminders({
+      now: now1930,
+      supabaseClient: createMockSupabase(),
+    })
+
+    expect(summary.dayBeforeSent).toBe(0)
+    expect(summary.hoursBeforeSent).toBe(0)
+    expect(summary.atStartSent).toBe(0)
+    expect(summary.scheduledSent).toBe(0)
+    expect(mockSendToUser).not.toHaveBeenCalled()
+  })
 })
+

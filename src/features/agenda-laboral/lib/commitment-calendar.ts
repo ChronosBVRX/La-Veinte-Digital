@@ -4,6 +4,10 @@ import {
   COMMITMENT_TYPE_LABELS,
   COMMITMENT_TYPE_ICONS,
   SPORT_MODALITY_LABELS,
+  CLAIM_STATUS_LABELS,
+  TXT_PAID_STATUS_LABELS,
+  REMINDER_PRIORITY_LABELS,
+  REMINDER_RECURRENCE_LABELS,
 } from "../types"
 
 export const DEFAULT_AGENDA_TIMEZONE = "America/Mexico_City"
@@ -267,15 +271,21 @@ export function getCommitmentScheduleLabel(
 
 /** Builds short, human-readable details without exposing the storage schema in the UI. */
 export function getCommitmentDetailLines(
-  commitment: Pick<WorkerCommitment, "type" | "details">,
+  commitment: Pick<WorkerCommitment, "type" | "details" | "substituteWorkerName">,
 ): string[] {
   const details = commitment.details
   if (!details) return []
 
   const lines: string[] = []
 
-  if (commitment.type === "overtime" && details.authorizedBy) {
-    lines.push(`Autorizó: ${details.authorizedBy}`)
+  if (commitment.type === "overtime") {
+    const shift = details.shift || details.affectedShift
+    if (shift && AFFECTED_SHIFT_LABELS[shift]) {
+      lines.push(`Turno: ${AFFECTED_SHIFT_LABELS[shift]}`)
+    }
+    if (details.authorizedBy) {
+      lines.push(`Autorizó: ${details.authorizedBy}`)
+    }
   }
 
   if (commitment.type === "sport") {
@@ -287,20 +297,77 @@ export function getCommitmentDetailLines(
     }
   }
 
-  if (commitment.type === "falta_injustificada" && details.affectedShift) {
-    lines.push(`Turno afectado: ${AFFECTED_SHIFT_LABELS[details.affectedShift]}`)
+  if (commitment.type === "shift_change" && details.affectedShift) {
+    lines.push(`Turno: ${AFFECTED_SHIFT_LABELS[details.affectedShift]}`)
+  }
+
+  if (commitment.type === "falta_injustificada") {
+    const shift = details.affectedShift || details.shift
+    if (shift && AFFECTED_SHIFT_LABELS[shift]) {
+      lines.push(`Turno afectado: ${AFFECTED_SHIFT_LABELS[shift]}`)
+    }
+    if (details.fortnightLabel) {
+      lines.push(`Quincena afectada: ${details.fortnightLabel}`)
+    } else if (details.affectedFortnight) {
+      lines.push(`Quincena afectada: ${details.affectedFortnight}`)
+    }
+
+    if (details.calculationStatus === "calculated") {
+      if (typeof details.baseSalaryUsed === "number") {
+        lines.push(`Salario base utilizado: $${details.baseSalaryUsed.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} quincenal`)
+      }
+      if (details.deductionFormula) {
+        lines.push(`Fórmula: ${details.deductionFormula}`)
+      }
+      if (typeof details.estimatedDeduction === "number") {
+        lines.push(`Descuento estimado: $${details.estimatedDeduction.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+      }
+    } else if (details.calculationStatus === "pending") {
+      lines.push(`Descuento estimado: pendiente de calcular (${details.missingDataReason || "falta sueldo base"})`)
+    }
   }
 
   if (commitment.type === "no_pagado") {
     if (details.claimFiledDate) {
       const [year, month, day] = details.claimFiledDate.split("-")
-      lines.push(`Presentada: ${day}/${month}/${year}`)
+      lines.push(`Solicitud presentada: ${day}/${month}/${year}`)
     }
     if (details.claimReference) {
       lines.push(`Folio: ${details.claimReference}`)
     }
     if (details.responsibleArea) {
       lines.push(`Seguimiento con: ${details.responsibleArea}`)
+    }
+    if (details.claimStatus && CLAIM_STATUS_LABELS[details.claimStatus]) {
+      lines.push(`Estado: ${CLAIM_STATUS_LABELS[details.claimStatus]}`)
+    }
+  }
+
+  if (commitment.type === "txt_substitution") {
+    if (commitment.substituteWorkerName) {
+      lines.push(`Sustituye a: ${commitment.substituteWorkerName}`)
+    }
+    const shift = details.shift || details.affectedShift
+    if (shift && AFFECTED_SHIFT_LABELS[shift]) {
+      lines.push(`Turno: ${AFFECTED_SHIFT_LABELS[shift]}`)
+    }
+    if (details.paidStatus && TXT_PAID_STATUS_LABELS[details.paidStatus]) {
+      lines.push(`Estatus de pago: ${TXT_PAID_STATUS_LABELS[details.paidStatus]}`)
+    }
+  }
+
+  if (commitment.type === "general_reminder") {
+    if (details.priority && REMINDER_PRIORITY_LABELS[details.priority]) {
+      lines.push(`Prioridad: ${REMINDER_PRIORITY_LABELS[details.priority]}`)
+    }
+    if (details.recurrence && details.recurrence !== "none" && REMINDER_RECURRENCE_LABELS[details.recurrence]) {
+      lines.push(`Repetición: ${REMINDER_RECURRENCE_LABELS[details.recurrence]}`)
+    }
+    if (details.location) {
+      lines.push(`Ubicación: ${details.location}`)
+    }
+    if (details.reminderAt) {
+      lines.push(`Recordatorio programado: ${details.reminderAt.replace("T", " ")}`)
     }
   }
 

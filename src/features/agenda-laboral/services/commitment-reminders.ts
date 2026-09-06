@@ -14,6 +14,7 @@ export interface ReminderJobSummary {
   dayBeforeSent: number
   hoursBeforeSent: number
   atStartSent: number
+  scheduledSent: number
   totalProcessed: number
   errors: string[]
 }
@@ -69,28 +70,53 @@ export async function processPendingCommitmentReminders(options?: {
     dayBeforeSent: 0,
     hoursBeforeSent: 0,
     atStartSent: 0,
+    scheduledSent: 0,
     totalProcessed: 0,
     errors: [],
   }
 
   // 1. Query active commitments with at least one reminder enabled
-  // Window: commitments whose start_at is within the next 48 hours or recently started (last 30 mins)
+  // Window: commitments whose start_at is within the next 48 hours or recently started (last 35 mins)
   const pastWindow = new Date(now.getTime() - 35 * 60 * 1000).toISOString()
   const futureWindow = new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString()
 
-  const { data: rows, error } = await supabase
+  let rows: CommitmentRow[] = []
+
+  const { data: startRows, error: startErr } = await supabase
     .from("worker_commitments")
     .select("*")
     .eq("status", "active")
     .gte("start_at", pastWindow)
     .lte("start_at", futureWindow)
 
-  if (error) {
-    summary.errors.push(`Error al consultar compromisos: ${error.message}`)
+  if (startErr) {
+    summary.errors.push(`Error al consultar compromisos: ${startErr.message}`)
     return summary
   }
 
-  if (!rows || rows.length === 0) {
+  const rowMap = new Map<string, CommitmentRow>()
+  for (const r of (startRows || []) as CommitmentRow[]) {
+    rowMap.set(r.id, r)
+  }
+
+  // Also query active commitments that have a specific reminderAt defined in details
+  try {
+    const { data: reminderRows } = await supabase
+      .from("worker_commitments")
+      .select("*")
+      .eq("status", "active")
+      .not("details->>reminderAt", "is", null)
+
+    for (const r of (reminderRows || []) as CommitmentRow[]) {
+      rowMap.set(r.id, r)
+    }
+  } catch {
+    // If not query is not supported in mock client, proceed with startRows
+  }
+
+  rows = Array.from(rowMap.values())
+
+  if (rows.length === 0) {
     return summary
   }
 
@@ -125,6 +151,7 @@ export async function processPendingCommitmentReminders(options?: {
 
     // Filter commitments starting tomorrow with reminder_day_before = true that haven't been delivered
     const dueDayBefore = commitments.filter((c) => {
+      if (c.details?.notificationsEnabled === false) return false
       if (!c.reminder.dayBefore) return false
       const cDate = getLocalDateString(c.startAt)
       if (cDate !== tomorrowStr) return false
@@ -150,14 +177,16 @@ export async function processPendingCommitmentReminders(options?: {
           const single = userCommitments[0]
           const displayTitle = getCommitmentDisplayTitle(single)
           title = "La Veinte Digital"
-          const timeDesc = `De ${formatLocalTime(single.startAt)} a ${formatLocalTime(single.endAt)}`
+          const timeDesc = single.details?.allDay
+            ? "Todo el día"
+            : `De ${formatLocalTime(single.startAt)} a ${formatLocalTime(single.endAt)}`
           const placeDesc = single.service || single.workplace ? ` · ${single.service || single.workplace}` : ""
           body = `Mañana tienes ${displayTitle}\n${timeDesc}${placeDesc}`
         } else {
           // Multiple commitments tomorrow: group them cleanly
           title = `Mañana tienes ${userCommitments.length} compromisos`
           const lines = userCommitments
-            .map((c) => `${getCommitmentDisplayTitle(c)} ${formatLocalTime(c.startAt)}`)
+            .map((c) => `${getCommitmentDisplayTitle(c)} ${c.details?.allDay ? "(todo el día)" : formatLocalTime(c.startAt)}`)
             .join(" · ")
           body = lines
         }
@@ -201,6 +230,7 @@ export async function processPendingCommitmentReminders(options?: {
   // =========================================================================
   const nowMs = now.getTime()
   const dueHoursBefore = commitments.filter((c) => {
+    if (c.details?.notificationsEnabled === false) return false
     if (!c.reminder.hoursBefore) return false
     if (deliveredSet.has(`${c.id}:HOURS_BEFORE`)) return false
 
@@ -245,9 +275,10 @@ export async function processPendingCommitmentReminders(options?: {
   }
 
   // =========================================================================
-  // TYPE 3: AT_START (Al comenzar el turno)
+  // TYPE 3: AT_START (Al comenzar el evento o en hora de seguimiento)
   // =========================================================================
   const dueAtStart = commitments.filter((c) => {
+    if (c.details?.notificationsEnabled === false) return false
     if (!c.reminder.atStart) return false
     if (deliveredSet.has(`${c.id}:AT_START`)) return false
 
@@ -261,9 +292,11 @@ export async function processPendingCommitmentReminders(options?: {
   for (const c of dueAtStart) {
     try {
       const displayTitle = getCommitmentDisplayTitle(c)
-      const title = `Es hora de tu ${displayTitle.toLowerCase()}`
+      const title = c.type === "general_reminder" ? c.title : `Es hora de tu ${displayTitle.toLowerCase()}`
       const placeDesc = c.service || c.workplace ? ` · ${c.service || c.workplace}` : ""
-      const body = `Programada para las ${formatLocalTime(c.startAt)}${placeDesc}`
+      const body = c.notes?.trim()
+        ? `${c.notes.trim()}${placeDesc}`
+        : `Programada para las ${formatLocalTime(c.startAt)}${placeDesc}`
       const destination = buildAgendaDeepLink(getLocalDateString(c.startAt), c.id)
 
       if (!dryRun) {
@@ -287,6 +320,52 @@ export async function processPendingCommitmentReminders(options?: {
       summary.atStartSent++
     } catch (e) {
       summary.errors.push(`Error enviando AT_START para ${c.id}: ${e instanceof Error ? e.message : "Desconocido"}`)
+    }
+  }
+
+  // =========================================================================
+  // TYPE 4: SCHEDULED_TIME (Fecha y hora programada específica en details.reminderAt)
+  // =========================================================================
+  const dueScheduled = commitments.filter((c) => {
+    if (c.details?.notificationsEnabled === false) return false
+    if (!c.details?.reminderAt) return false
+    if (deliveredSet.has(`${c.id}:SCHEDULED_TIME`)) return false
+
+    const schedMs = new Date(c.details.reminderAt).getTime()
+    return nowMs >= schedMs && nowMs <= schedMs + 25 * 60 * 1000
+  })
+
+  for (const c of dueScheduled) {
+    try {
+      const displayTitle = getCommitmentDisplayTitle(c)
+      const title = c.type === "general_reminder" ? c.title : `Recordatorio: ${displayTitle}`
+      const placeDesc = c.details?.location || c.workplace ? ` · ${c.details?.location || c.workplace}` : ""
+      const body = c.notes?.trim()
+        ? `${c.notes.trim()}${placeDesc}`
+        : `Recordatorio programado para hoy${placeDesc}`
+      const destination = buildAgendaDeepLink(getLocalDateString(c.startAt), c.id)
+
+      if (!dryRun) {
+        await sendToUser(c.userId, {
+          type: "AGENDA",
+          title,
+          body,
+          destination,
+        })
+
+        await supabase.from("commitment_reminder_deliveries").insert({
+          commitment_id: c.id,
+          user_id: c.userId,
+          reminder_type: "SCHEDULED_TIME",
+          scheduled_for: now.toISOString(),
+          status: "sent",
+        })
+      }
+
+      deliveredSet.add(`${c.id}:SCHEDULED_TIME`)
+      summary.scheduledSent++
+    } catch (e) {
+      summary.errors.push(`Error enviando SCHEDULED_TIME para ${c.id}: ${e instanceof Error ? e.message : "Desconocido"}`)
     }
   }
 

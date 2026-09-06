@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/client"
 import type { Json, Tables, TablesInsert, TablesUpdate } from "@/lib/supabase/types"
 import type { WorkerCommitment } from "../types"
+import { validateCommitmentInput } from "./commitments-validation"
 
 export type CommitmentRow = Tables<"worker_commitments">
 export type CommitmentInsert = TablesInsert<"worker_commitments">
@@ -54,6 +55,12 @@ export async function fetchCommitments(userId: string): Promise<FetchResult> {
 }
 
 export async function insertCommitment(commitment: CommitmentInsert): Promise<CommitmentRow | null> {
+  const validation = validateCommitmentInput(commitment)
+  if (!validation.ok) {
+    console.error("[commitments-supabase] validation failed:", validation.errors.join("; "))
+    return null
+  }
+
   const supabase = createClient()
   const { data, error } = await supabase
     .from("worker_commitments")

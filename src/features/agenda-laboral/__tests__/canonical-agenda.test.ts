@@ -310,10 +310,25 @@ describe("Canonical Agenda: Casos Obligatorios 1 a 14", () => {
   it("presenta los datos específicos y el horario de los nuevos registros", () => {
     const absence = createCommitment({
       type: "falta_injustificada",
-      details: { allDay: true, affectedShift: "afternoon" },
+      details: {
+        allDay: true,
+        affectedShift: "afternoon",
+        fortnightLabel: "1ª quincena (1–15 de septiembre de 2026)",
+        calculationStatus: "calculated",
+        baseSalaryUsed: 6000,
+        dailySalary: 400,
+        estimatedDeduction: 400,
+        deductionFormula: "$6,000.00 (sueldo base quincenal) ÷ 15 días = $400.00 por día",
+      },
     })
     expect(getCommitmentScheduleLabel(absence)).toBe("Todo el día")
-    expect(getCommitmentDetailLines(absence)).toEqual(["Turno afectado: Vespertino"])
+    expect(getCommitmentDetailLines(absence)).toEqual([
+      "Turno afectado: Vespertino",
+      "Quincena afectada: 1ª quincena (1–15 de septiembre de 2026)",
+      "Salario base utilizado: $6,000.00 quincenal",
+      "Fórmula: $6,000.00 (sueldo base quincenal) ÷ 15 días = $400.00 por día",
+      "Descuento estimado: $400.00",
+    ])
 
     const claim = createCommitment({
       type: "no_pagado",
@@ -321,12 +336,42 @@ describe("Canonical Agenda: Casos Obligatorios 1 a 14", () => {
         claimFiledDate: "2026-09-01",
         claimReference: "OF-123",
         responsibleArea: "Nómina",
+        claimStatus: "en_seguimiento",
       },
     })
     expect(getCommitmentDetailLines(claim)).toEqual([
-      "Presentada: 01/09/2026",
+      "Solicitud presentada: 01/09/2026",
       "Folio: OF-123",
       "Seguimiento con: Nómina",
+      "Estado: En seguimiento",
+    ])
+
+    const txt = createCommitment({
+      type: "txt_substitution",
+      substituteWorkerName: "María López",
+      details: {
+        affectedShift: "morning",
+        paidStatus: "si",
+      },
+    })
+    expect(getCommitmentDetailLines(txt)).toEqual([
+      "Sustituye a: María López",
+      "Turno: Matutino",
+      "Estatus de pago: Sí (pagado)",
+    ])
+
+    const reminder = createCommitment({
+      type: "general_reminder",
+      details: {
+        priority: "urgente",
+        recurrence: "weekly",
+        location: "Dirección General",
+      },
+    })
+    expect(getCommitmentDetailLines(reminder)).toEqual([
+      "Prioridad: Urgente",
+      "Repetición: Semanal",
+      "Ubicación: Dirección General",
     ])
   })
 })
