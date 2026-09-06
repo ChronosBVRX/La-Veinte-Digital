@@ -29,15 +29,19 @@ test.describe("Navegacion movil", () => {
     expect(hasScroll, "La pagina no debe tener scroll horizontal").toBe(false)
   })
 
-  test("menu movil inferior es visible en viewport estrecho", async ({ page }) => {
+  test("barra informativa inferior es visible en viewport estrecho", async ({ page }) => {
     await page.goto("/")
     await page.waitForLoadState("networkidle")
     const vw = page.viewportSize()
     if (vw && vw.width >= 768) {
-      test.skip(true, "Menu movil solo visible en viewports < 768px")
+      test.skip(true, "Barra informativa solo visible en viewports < 768px")
     }
-    const navItems = page.getByText(/Inicio|Mi trabajo|Asistente|Herramientas|Más/i)
-    await expect(navItems.first()).toBeAttached({ timeout: 5000 })
+    // La navegación inferior redundante se sustituyó por MobileValueBar:
+    // un consejo con CTA real y sin menú inferior antiguo.
+    const bar = page.getByLabel("Consejo de La Veinte Digital")
+    await expect(bar).toBeAttached({ timeout: 5000 })
+    await expect(bar.locator("a[href]")).toHaveCount(1)
+    await expect(page.locator(".mobile-bottom-nav")).toHaveCount(0)
   })
 })
 
