@@ -1,5 +1,10 @@
 import type { WorkerCommitment, CommitmentType } from "../types"
-import { COMMITMENT_TYPE_LABELS, COMMITMENT_TYPE_ICONS } from "../types"
+import {
+  AFFECTED_SHIFT_LABELS,
+  COMMITMENT_TYPE_LABELS,
+  COMMITMENT_TYPE_ICONS,
+  SPORT_MODALITY_LABELS,
+} from "../types"
 
 export const DEFAULT_AGENDA_TIMEZONE = "America/Mexico_City"
 
@@ -244,4 +249,60 @@ export function getCommitmentDisplayTitle(commitment: {
  */
 export function getCommitmentDisplayIcon(type: CommitmentType): string {
   return COMMITMENT_TYPE_ICONS[type] ?? "📌"
+}
+
+/** Indicates that a register represents a whole day instead of a timed appointment. */
+export function isAllDayCommitment(commitment: Pick<WorkerCommitment, "details">): boolean {
+  return commitment.details?.allDay === true
+}
+
+/** Returns the schedule text shared by Home and the agenda manager. */
+export function getCommitmentScheduleLabel(
+  commitment: Pick<WorkerCommitment, "startAt" | "endAt" | "details">,
+  timeZone = DEFAULT_AGENDA_TIMEZONE,
+): string {
+  if (isAllDayCommitment(commitment)) return "Todo el día"
+  return `${formatLocalTime(commitment.startAt, timeZone)}–${formatLocalTime(commitment.endAt, timeZone)}`
+}
+
+/** Builds short, human-readable details without exposing the storage schema in the UI. */
+export function getCommitmentDetailLines(
+  commitment: Pick<WorkerCommitment, "type" | "details">,
+): string[] {
+  const details = commitment.details
+  if (!details) return []
+
+  const lines: string[] = []
+
+  if (commitment.type === "overtime" && details.authorizedBy) {
+    lines.push(`Autorizó: ${details.authorizedBy}`)
+  }
+
+  if (commitment.type === "sport") {
+    if (details.sportModality) {
+      lines.push(SPORT_MODALITY_LABELS[details.sportModality])
+    }
+    if (details.activity) {
+      lines.push(`Actividad: ${details.activity}`)
+    }
+  }
+
+  if (commitment.type === "falta_injustificada" && details.affectedShift) {
+    lines.push(`Turno afectado: ${AFFECTED_SHIFT_LABELS[details.affectedShift]}`)
+  }
+
+  if (commitment.type === "no_pagado") {
+    if (details.claimFiledDate) {
+      const [year, month, day] = details.claimFiledDate.split("-")
+      lines.push(`Presentada: ${day}/${month}/${year}`)
+    }
+    if (details.claimReference) {
+      lines.push(`Folio: ${details.claimReference}`)
+    }
+    if (details.responsibleArea) {
+      lines.push(`Seguimiento con: ${details.responsibleArea}`)
+    }
+  }
+
+  return lines
 }

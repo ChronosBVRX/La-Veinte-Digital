@@ -35,7 +35,7 @@ export default async function BitacoraPage(props: BitacoraPageProps) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0, overflowWrap: "anywhere", wordBreak: "break-word" }}>Mi Agenda</h1>
           <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: "0.125rem 0 0", overflowWrap: "anywhere", wordBreak: "break-word" }}>
-            Tu registro de compromisos laborales: tiempo extra, vacaciones, cambios de turno y más
+            Tiempo extra, deporte, faltas injustificadas y reclamaciones pendientes en un solo lugar
           </p>
         </div>
       </div>

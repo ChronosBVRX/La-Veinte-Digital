@@ -11,6 +11,8 @@ import {
   getNextCommitment,
   getCommitmentDisplayTitle,
   getCommitmentDisplayIcon,
+  getCommitmentDetailLines,
+  getCommitmentScheduleLabel,
   DEFAULT_AGENDA_TIMEZONE,
 } from "../lib/commitment-calendar"
 import type { WorkerCommitment } from "../types"
@@ -32,6 +34,7 @@ function createCommitment(overrides: Partial<WorkerCommitment> = {}): WorkerComm
     service: overrides.service ?? "Urgencias",
     substituteWorkerName: overrides.substituteWorkerName ?? "",
     notes: overrides.notes ?? "",
+    details: overrides.details,
     reminder: overrides.reminder ?? { dayBefore: true, hoursBefore: true, atStart: false },
     status: overrides.status ?? "active",
     createdAt: overrides.createdAt ?? "2026-09-01T12:00:00.000Z",
@@ -293,5 +296,37 @@ describe("Canonical Agenda: Casos Obligatorios 1 a 14", () => {
       title: "",
     })
     expect(getCommitmentDisplayTitle(noTitleOther)).toBe("Otro compromiso")
+  })
+
+  it("conserva la lectura de cambios de turno históricos aunque ya no se ofrezcan para altas", () => {
+    const historicalShiftChange = createCommitment({
+      type: "shift_change",
+      title: "Cambio de turno",
+    })
+    expect(getCommitmentDisplayTitle(historicalShiftChange)).toBe("Cambio de turno")
+    expect(getCommitmentDisplayIcon(historicalShiftChange.type)).toBe("🔀")
+  })
+
+  it("presenta los datos específicos y el horario de los nuevos registros", () => {
+    const absence = createCommitment({
+      type: "falta_injustificada",
+      details: { allDay: true, affectedShift: "afternoon" },
+    })
+    expect(getCommitmentScheduleLabel(absence)).toBe("Todo el día")
+    expect(getCommitmentDetailLines(absence)).toEqual(["Turno afectado: Vespertino"])
+
+    const claim = createCommitment({
+      type: "no_pagado",
+      details: {
+        claimFiledDate: "2026-09-01",
+        claimReference: "OF-123",
+        responsibleArea: "Nómina",
+      },
+    })
+    expect(getCommitmentDetailLines(claim)).toEqual([
+      "Presentada: 01/09/2026",
+      "Folio: OF-123",
+      "Seguimiento con: Nómina",
+    ])
   })
 })
