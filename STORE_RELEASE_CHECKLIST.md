@@ -13,8 +13,9 @@ Checklist maestra para subir el AAB a Google Play. Marca `[x]` SOLO lo verificad
 - [x] `bundlePlayRelease` genera AAB (verificado durante la misión)
 - [x] `assemblePlayRelease` genérica AAB/APK (verificado)
 - [x] `assembleDirectRelease` (verificado)
-- [x] `versionCode`/`versionName` consistentes (203 / 1.1.3 — Stable Baseline)
+- [x] `versionCode`/`versionName` consistentes (204 / 1.1.4 — canal Direct estable)
 - [x] Cambios estrictamente documentales (`docs-only`) no requieren bump de versión del APK.
+- [x] **Regla canónica de versionado**: ningún APK instalable entregado para prueba o publicación reutiliza un `versionCode` ya entregado con contenido binario diferente. Todo cambio nativo (Kotlin, bridge, WebView, Manifest, comportamiento nativo) que requiera distribuir un APK nuevo incrementa `versionCode` en 1 y actualiza `versionName` (1.1.3/203 → 1.1.4/204 → 1.1.5/205…). Solo `versionCode` ordena actualizaciones (`isUpdateAvailable`); `build.gradle.kts` es la única fuente de verdad (bridge y User-Agent leen `BuildConfig`).
 
 ## Google Play Policy
 

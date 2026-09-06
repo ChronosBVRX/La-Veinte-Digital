@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased] — Versionado Canónico Android 1.1.4 (204)
+
+### Changed
+- `versionCode` 203 → 204, `versionName` 1.1.3 → 1.1.4 (`android-app/app/build.gradle.kts`, única fuente de verdad).
+- `LaVeinteBridgeInjector.appVersion()` y los 4 `configureForLaVeinte()` (WebViews interna, externa y portales IMSS) leen `BuildConfig.VERSION_NAME`: el User-Agent reporta `LaVeinteDigitalAndroid/1.1.4` y la web muestra la versión real.
+- Nombre de APK con código de build: `LaVeinteDigital-<flavor>-<type>-v<version>-b<code>.apk`.
+- Comparación del actualizador Direct centralizada en `isUpdateAvailable()` (solo `versionCode` ordena; semántica idéntica).
+- Workflow `android-build.yml`: subida a Supabase con path explícito `direct/release` (sin `find|head` ambiguo) e input `promote` real (actualiza y publica `latest.json` solo con `promote=true`).
+- Identidad del build: footer `Versión 1.1.4 (204) · Canal: Direct` en Servicios oficiales IMSS y log único `APP_BUILD version=… code=… channel=…` al arrancar.
+
+### Protected Behavior
+- Sin cambios a Back PR #66, feedback PR #67, fórmulas, navegación web, iOS ni políticas Play.
+
 ## [Unreleased] — Feedback Nativo de Navegación Android
 
 ### Added

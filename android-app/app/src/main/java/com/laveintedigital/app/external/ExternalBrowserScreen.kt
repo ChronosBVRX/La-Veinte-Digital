@@ -46,6 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.laveintedigital.app.BuildConfig
 import com.laveintedigital.app.downloads.attachDownloadListener
 import com.laveintedigital.app.ui.theme.BrandBlue
 import com.laveintedigital.app.ui.theme.BrandNavy
@@ -148,7 +149,7 @@ fun ExternalBrowserScreen(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                             )
-                            settings.configureForLaVeinte("1.0.0")
+                            settings.configureForLaVeinte(BuildConfig.VERSION_NAME)
                             CookieManager.getInstance().apply {
                                 setAcceptCookie(true)
                                 setAcceptThirdPartyCookies(wv, true)

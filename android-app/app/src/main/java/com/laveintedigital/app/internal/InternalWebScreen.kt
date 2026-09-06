@@ -58,6 +58,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.laveintedigital.app.BuildConfig
 import com.laveintedigital.app.DeepLinkBus
 import com.laveintedigital.app.OfflineErrorScreen
 import com.laveintedigital.app.UpdateTrigger
@@ -600,7 +601,7 @@ fun InternalWebScreen(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                     )
                     setBackgroundColor(AndroidColor.WHITE)
-                    settings.configureForLaVeinte("1.0.0")
+                    settings.configureForLaVeinte(BuildConfig.VERSION_NAME)
                     CookieManager.getInstance().apply {
                         setAcceptCookie(true)
                         setAcceptThirdPartyCookies(wv, true)

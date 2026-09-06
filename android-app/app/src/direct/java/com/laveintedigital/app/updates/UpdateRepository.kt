@@ -44,7 +44,8 @@ object UpdateRepository {
                 .getPackageInfo(context.packageName, 0)
                 .versionCode
 
-            if (manifest.versionCode <= currentCode) {
+            // Regla canónica: solo versionCode ordena (ver isUpdateAvailable).
+            if (!isUpdateAvailable(manifest.versionCode, currentCode)) {
                 // Already up to date
                 return@withContext Result.failure(
                     NoUpdateAvailableException(manifest)

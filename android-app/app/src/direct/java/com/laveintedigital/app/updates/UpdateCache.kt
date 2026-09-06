@@ -61,6 +61,7 @@ object UpdateCache {
         val cached = read(context) ?: return false
         if (!cached.forceUpdate) return false
         val current = context.packageManager.getPackageInfo(context.packageName, 0).versionCode
-        return cached.latestVersionCode > current
+        // Regla canónica: solo versionCode ordena (ver isUpdateAvailable).
+        return isUpdateAvailable(cached.latestVersionCode, current)
     }
 }

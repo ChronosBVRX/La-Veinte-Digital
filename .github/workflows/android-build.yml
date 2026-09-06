@@ -108,14 +108,65 @@ jobs:
 
       - name: Upload to Supabase Storage
         if: github.event_name == 'workflow_dispatch'
+        id: upload
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          APK=$(realpath "$(find app/build/outputs/apk/release -name '*.apk' | head -1)")
+          # Canal Direct = flavor direct explícito. Sin find/head ambiguos: el APK
+          # hasheado debe ser exactamente el mismo que se sube.
+          APK_DIR="app/build/outputs/apk/direct/release"
+          COUNT=$(ls "$APK_DIR"/*.apk 2>/dev/null | wc -l)
+          if [ "$COUNT" != "1" ]; then
+            echo "Se esperaba exactamente 1 APK en $APK_DIR, encontrados: $COUNT"
+            ls -la "$APK_DIR" || true
+            exit 1
+          fi
+          APK=$(realpath "$APK_DIR"/*.apk)
           cd ..
           npm install --no-audit --no-fund --ignore-scripts --no-save @supabase/supabase-js
-          node scripts/upload-android-release.mjs "$APK" "${{ github.event.inputs.channel }}" "${{ steps.version.outputs.versionName }}"
+          OUT=$(node scripts/upload-android-release.mjs "$APK" "${{ github.event.inputs.channel }}" "${{ steps.version.outputs.versionName }}")
+          echo "$OUT"
+          URL=$(echo "$OUT" | grep -oE 'https://[^ ]+/android-releases/[^ ]+' | head -1)
+          if [ -z "$URL" ]; then
+            echo "No se pudo extraer la URL pública del APK"
+            exit 1
+          fi
+          echo "public_url=${URL}" >> $GITHUB_OUTPUT
+
+      - name: Promote latest.json
+        # Contrato real del input `promote`:
+        # - promote=false → compilar/firmar/verificar/subir, SIN tocar latest.json.
+        # - promote=true  → además actualiza public/android/<channel>/latest.json
+        #   con los valores REALES (versión, SHA, tamaño, URL, fecha) y lo publica
+        #   commiteando a la misma rama. Si el push es rechazado, falla en voz alta.
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.promote == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd ..
+          CHANNEL="${{ github.event.inputs.channel }}"
+          node -e "
+            const fs = require('fs');
+            const p = 'public/android/' + '${CHANNEL}' + '/latest.json';
+            const latest = JSON.parse(fs.readFileSync(p, 'utf8'));
+            latest.channel = '${CHANNEL}';
+            latest.versionCode = Number('${{ steps.version.outputs.versionCode }}');
+            latest.versionName = '${{ steps.version.outputs.versionName }}';
+            latest.publishedAt = new Date().toISOString();
+            latest.apk = {
+              url: '${{ steps.upload.outputs.public_url }}',
+              sha256: '${{ steps.apk.outputs.sha256 }}',
+              size: Number('${{ steps.apk.outputs.size }}'),
+            };
+            fs.writeFileSync(p, JSON.stringify(latest, null, 2) + '\n');
+            console.log('latest.json actualizado: ' + p);
+          "
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "public/android/${CHANNEL}/latest.json"
+          git commit -m "chore(android): promote ${CHANNEL} to ${{ steps.version.outputs.versionName }} (${{ steps.version.outputs.versionCode }})" || { echo "Sin cambios que promover"; exit 0; }
+          git push origin "HEAD:${{ github.ref_name }}" || { echo "PUSH RECHAZADO: la política de rama bloqueó la promoción automática; aplicar latest.json manualmente"; exit 1; }
 
       - name: Print release summary
         if: github.event_name == 'workflow_dispatch'

@@ -37,7 +37,10 @@ object LaVeinteBridgeInjector {
         }
     }
 
+    // Fuente única de versión: BuildConfig (build.gradle.kts).
     private fun bridgeScript(): String {
+        // En JVM unit tests BuildConfig.VERSION_NAME puede ser nulo; fallback determinista.
+        val appVersion = com.laveintedigital.app.BuildConfig.VERSION_NAME ?: "1.0.0"
         return """
 (function() {
   if (window.LaVeinteApp && window.LaVeinteApp.__isInjected) return;
@@ -50,7 +53,7 @@ object LaVeinteBridgeInjector {
   window.LaVeinteApp = {
     __isInjected: true,
     appPlatform: function() { return 'android'; },
-    appVersion: function() { return '1.1.2'; },
+    appVersion: function() { return '$appVersion'; },
     sdkVersion: function() { return ${android.os.Build.VERSION.SDK_INT}; },
     packageName: function() { return 'com.laveintedigital.app'; },
     isNativeApp: function() { return true; },
