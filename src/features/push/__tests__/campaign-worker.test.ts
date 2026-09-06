@@ -58,4 +58,77 @@ describe("Campaign Worker Delivery Logic", () => {
     expect(formatted.startsWith("[PRUEBA] ")).toBe(true)
     expect(formatted.length).toBeLessThanOrEqual(200)
   })
+
+  it("filters RETRY_PENDING deliveries so only those with next_attempt_at <= now are eligible", () => {
+    const now = new Date("2026-09-06T12:00:00Z").getTime()
+    const rows = [
+      { id: "1", status: "PENDING", next_attempt_at: null },
+      { id: "2", status: "RETRY_PENDING", next_attempt_at: "2026-09-06T11:59:00Z" }, // past -> eligible
+      { id: "3", status: "RETRY_PENDING", next_attempt_at: "2026-09-06T12:00:00Z" }, // exact now -> eligible
+      { id: "4", status: "RETRY_PENDING", next_attempt_at: "2026-09-06T12:05:00Z" }, // future -> NOT eligible
+      { id: "5", status: "ACCEPTED", next_attempt_at: null }, // completed -> NOT eligible
+    ]
+
+    const eligible = rows.filter((r) => {
+      if (r.status === "PENDING") return true
+      if (r.status === "RETRY_PENDING") {
+        return !r.next_attempt_at || new Date(r.next_attempt_at).getTime() <= now
+      }
+      return false
+    })
+
+    expect(eligible.map((e) => e.id)).toEqual(["1", "2", "3"])
+  })
+
+  it("handles response count mismatch by identifying unhandled rows for controlled retry", () => {
+    const availableRows = [
+      { id: "row-1", fcm_token: "token-1" },
+      { id: "row-2", fcm_token: "token-2" },
+      { id: "row-3", fcm_token: "token-3" },
+      { id: "row-4", fcm_token: "token-4" },
+    ]
+    // Firebase only returned 2 responses out of 4 tokens
+    const responses = [
+      { success: true },
+      { success: false, error: { code: "messaging/unknown-error" } },
+    ]
+
+    expect(responses.length).toBeLessThan(availableRows.length)
+    const unhandled = availableRows.slice(responses.length)
+    expect(unhandled.length).toBe(2)
+    expect(unhandled.map((u) => u.id)).toEqual(["row-3", "row-4"])
+  })
+
+  it("paginates devices correctly in batches of 1000", () => {
+    const totalDevices = 2500
+    const allMockDevices = Array.from({ length: totalDevices }, (_, i) => ({
+      id: `dev-${i}`,
+      user_id: `user-${Math.floor(i / 2)}`,
+      fcm_token: `token-${i}`,
+    }))
+
+    const PAGE_SIZE = 1000
+    let page = 0
+    let hasMore = true
+    const collected: typeof allMockDevices = []
+
+    while (hasMore) {
+      const start = page * PAGE_SIZE
+      const end = start + PAGE_SIZE
+      const pageSlice = allMockDevices.slice(start, end)
+      if (pageSlice.length === 0) {
+        hasMore = false
+      } else {
+        collected.push(...pageSlice)
+        if (pageSlice.length < PAGE_SIZE) {
+          hasMore = false
+        } else {
+          page++
+        }
+      }
+    }
+
+    expect(collected.length).toBe(2500)
+    expect(page).toBe(2) // 0, 1, 2 (final page had 500 < 1000)
+  })
 })

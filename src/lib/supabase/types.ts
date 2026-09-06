@@ -1506,6 +1506,19 @@ export type Database = {
         Args: { p_announcement_id: string }
         Returns: undefined
       }
+      claim_campaign_deliveries: {
+        Args: {
+          p_campaign_id: string
+          p_batch_limit: number
+          p_claim_token: string
+          p_lease_until: string
+        }
+        Returns: {
+          id: string
+          fcm_token: string
+          attempts: number
+        }[]
+      }
       _insert_worker_event: {
         Args: { p_event_type: string; p_metadata?: Json; p_priority: string }
         Returns: undefined

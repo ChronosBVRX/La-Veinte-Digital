@@ -227,6 +227,20 @@ CREATE POLICY "announcement_reads_insert_own"
     )
   );
 
+CREATE POLICY "announcement_reads_update_own"
+  ON public.announcement_reads FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = user_id)
+  WITH CHECK (
+    auth.uid() = user_id
+    AND EXISTS (
+      SELECT 1 FROM public.announcements
+      WHERE id = announcement_id
+        AND status = 'PUBLISHED'
+        AND show_in_inbox = true
+    )
+  );
+
 CREATE POLICY "announcement_reads_delete_own"
   ON public.announcement_reads FOR DELETE
   TO authenticated
@@ -284,6 +298,47 @@ CREATE POLICY "notification_job_runs_select"
 -- RPCs TRANSACCIONALES
 -- ═══════════════════════════════════════════════════════════════════
 
+-- Reclamo atómico de lote de entregas para campaign worker (FOR UPDATE SKIP LOCKED)
+CREATE OR REPLACE FUNCTION public.claim_campaign_deliveries(
+  p_campaign_id uuid,
+  p_batch_limit integer,
+  p_claim_token text,
+  p_lease_until timestamptz
+) RETURNS TABLE (
+  id uuid,
+  fcm_token text,
+  attempts integer
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN QUERY
+  WITH available AS (
+    SELECT pcd.id
+    FROM public.push_campaign_deliveries pcd
+    WHERE pcd.campaign_id = p_campaign_id
+      AND (
+        (pcd.status = 'PENDING' AND (pcd.lease_until IS NULL OR pcd.lease_until < now()))
+        OR
+        (pcd.status = 'RETRY_PENDING' AND (pcd.next_attempt_at IS NULL OR pcd.next_attempt_at <= now()) AND (pcd.lease_until IS NULL OR pcd.lease_until < now()))
+      )
+    ORDER BY pcd.created_at ASC
+    LIMIT p_batch_limit
+    FOR UPDATE SKIP LOCKED
+  )
+  UPDATE public.push_campaign_deliveries pcd
+  SET status = 'PROCESSING',
+      lease_until = p_lease_until,
+      claim_token = p_claim_token,
+      updated_at = now()
+  FROM available
+  WHERE pcd.id = available.id
+  RETURNING pcd.id, pcd.fcm_token, pcd.attempts;
+END;
+$$;
+
 -- Archivar anuncio y cancelar transaccionalmente entregas pendientes
 CREATE OR REPLACE FUNCTION public.archive_announcement_atomic(
   p_announcement_id uuid
@@ -319,15 +374,17 @@ BEGIN
   WHERE announcement_id = p_announcement_id
     AND status IN ('QUEUED', 'PROCESSING', 'PAUSED');
 
-  -- 3. Omitir entregas pendientes
+  -- 3. Omitir entregas pendientes o en reintento
   UPDATE public.push_campaign_deliveries
   SET status = 'SKIPPED',
       error_code = 'ANNOUNCEMENT_ARCHIVED',
+      lease_until = NULL,
+      claim_token = NULL,
       updated_at = now()
   WHERE campaign_id IN (
     SELECT id FROM public.push_campaigns WHERE announcement_id = p_announcement_id
   )
-  AND status IN ('PENDING', 'RETRY_PENDING');
+  AND status IN ('PENDING', 'RETRY_PENDING', 'PROCESSING');
 END;
 $$;
 

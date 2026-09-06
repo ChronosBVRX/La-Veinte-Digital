@@ -110,20 +110,40 @@ export async function createPushCampaign(params: CreateCampaignParams) {
     throw new Error(`Error al crear campaña: ${campErr?.message}`)
   }
 
-  // 3. Congelar dispositivos elegibles para la audiencia
-  let deviceQuery = supabase
-    .from("push_devices")
-    .select("id, user_id, fcm_token")
-    .eq("notifications_enabled", true)
+  // 3. Congelar dispositivos elegibles para la audiencia con paginación
+  const PAGE_SIZE = 1000
+  let page = 0
+  let hasMore = true
+  const devices: Array<{ id: string; user_id: string; fcm_token: string }> = []
 
-  if (params.audience === "SELF") {
-    deviceQuery = deviceQuery.eq("user_id", params.creatorId)
-  }
+  while (hasMore) {
+    let deviceQuery = supabase
+      .from("push_devices")
+      .select("id, user_id, fcm_token")
+      .eq("notifications_enabled", true)
 
-  const { data: devices, error: devErr } = await deviceQuery
-  if (devErr) {
-    await supabase.from("push_campaigns").update({ status: "FAILED" }).eq("id", campaign.id)
-    throw new Error(`Error al consultar dispositivos: ${devErr.message}`)
+    if (params.audience === "SELF") {
+      deviceQuery = deviceQuery.eq("user_id", params.creatorId)
+    }
+
+    const { data: pageDevices, error: devErr } = await deviceQuery
+      .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+
+    if (devErr) {
+      await supabase.from("push_campaigns").update({ status: "FAILED" }).eq("id", campaign.id)
+      throw new Error(`Error al consultar dispositivos: ${devErr.message}`)
+    }
+
+    if (!pageDevices || pageDevices.length === 0) {
+      hasMore = false
+    } else {
+      devices.push(...pageDevices)
+      if (pageDevices.length < PAGE_SIZE) {
+        hasMore = false
+      } else {
+        page++
+      }
+    }
   }
 
   // Si la audiencia es ALL, filtrar usuarios que hayan deshabilitado avisos en notification_preferences
@@ -189,6 +209,14 @@ export async function createPushCampaign(params: CreateCampaignParams) {
     const { error: insErr } = await supabase.from("push_campaign_deliveries").insert(records)
     if (insErr) {
       console.error("[campaign-worker] Error inserting deliveries batch:", insErr)
+      await supabase
+        .from("push_campaigns")
+        .update({
+          status: "FAILED",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", campaign.id)
+      throw new Error(`Error al insertar lote de entregas de la campaña: ${insErr.message}`)
     }
   }
 
@@ -249,17 +277,64 @@ export async function processCampaignBatch(
   const now = new Date()
   const leaseUntil = new Date(now.getTime() + 2 * 60 * 1000).toISOString() // 2 min lease
 
-  // 2. Reclamar filas transaccionalmente
-  // Seleccionar filas disponibles para reclamo
-  const { data: availableRows } = await supabase
-    .from("push_campaign_deliveries")
-    .select("id, fcm_token, attempts")
-    .eq("campaign_id", campaignId)
-    .in("status", ["PENDING", "RETRY_PENDING"])
-    .or(`lease_until.is.null,lease_until.lt.${now.toISOString()}`)
-    .limit(batchLimit)
+  // 2. Reclamar filas atómicamente mediante RPC o fallback transaccional
+  let availableRows: Array<{ id: string; fcm_token: string; attempts: number }> = []
 
-  if (!availableRows || availableRows.length === 0) {
+  // Intentar reclamo atómico vía RPC (FOR UPDATE SKIP LOCKED)
+  const { data: rpcRows, error: rpcErr } = await supabase.rpc("claim_campaign_deliveries", {
+    p_campaign_id: campaignId,
+    p_batch_limit: batchLimit,
+    p_claim_token: claimToken,
+    p_lease_until: leaseUntil,
+  })
+
+  if (!rpcErr && Array.isArray(rpcRows)) {
+    availableRows = rpcRows.map((r) => ({
+      id: r.id,
+      fcm_token: r.fcm_token,
+      attempts: r.attempts ?? 0,
+    }))
+  } else {
+    // Fallback si la RPC aún no está creada en la base (ej. suite de pruebas unitarias o desarrollo)
+    // Filtra PENDING y RETRY_PENDING únicamente si next_attempt_at <= now()
+    const nowIso = now.toISOString()
+    const { data: directRows } = await supabase
+      .from("push_campaign_deliveries")
+      .select("id, fcm_token, attempts, status, next_attempt_at")
+      .eq("campaign_id", campaignId)
+      .in("status", ["PENDING", "RETRY_PENDING"])
+      .or(`lease_until.is.null,lease_until.lt.${nowIso}`)
+      .limit(batchLimit)
+
+    const eligibleRows = (directRows ?? []).filter((r) => {
+      if (r.status === "PENDING") return true
+      if (r.status === "RETRY_PENDING") {
+        return !r.next_attempt_at || new Date(r.next_attempt_at).getTime() <= now.getTime()
+      }
+      return false
+    })
+
+    if (eligibleRows.length > 0) {
+      const idsToClaim = eligibleRows.map((r) => r.id)
+      await supabase
+        .from("push_campaign_deliveries")
+        .update({
+          status: "PROCESSING",
+          lease_until: leaseUntil,
+          claim_token: claimToken,
+          updated_at: nowIso,
+        })
+        .in("id", idsToClaim)
+
+      availableRows = eligibleRows.map((r) => ({
+        id: r.id,
+        fcm_token: r.fcm_token,
+        attempts: r.attempts ?? 0,
+      }))
+    }
+  }
+
+  if (availableRows.length === 0) {
     // Comprobar si quedan filas en proceso de otros workers
     const { count: pendingCount } = await supabase
       .from("push_campaign_deliveries")
@@ -284,19 +359,6 @@ export async function processCampaignBatch(
       status: isFinished ? "COMPLETED" : "PROCESSING",
     }
   }
-
-  const idsToClaim = availableRows.map((r) => r.id)
-
-  // Asignar lease_until y claim_token
-  await supabase
-    .from("push_campaign_deliveries")
-    .update({
-      status: "PROCESSING",
-      lease_until: leaseUntil,
-      claim_token: claimToken,
-      updated_at: now.toISOString(),
-    })
-    .in("id", idsToClaim)
 
   // 3. Enviar a Firebase Multicast
   let messaging: FirebaseMessaging | null = null
@@ -463,6 +525,26 @@ export async function processCampaignBatch(
           .eq("claim_token", claimToken)
       }
     }
+  }
+
+  // 4b. Control de entregas huérfanas si Firebase devolvió menos respuestas que tokens
+  if (responses.length < availableRows.length) {
+    const unhandledRows = availableRows.slice(responses.length)
+    const unhandledIds = unhandledRows.map((r) => r.id)
+    await supabase
+      .from("push_campaign_deliveries")
+      .update({
+        status: "RETRY_PENDING",
+        error_code: "RESPONSE_COUNT_MISMATCH",
+        next_attempt_at: new Date(Date.now() + 60 * 1000).toISOString(),
+        lease_until: null,
+        claim_token: null,
+        updated_at: new Date().toISOString(),
+      })
+      .in("id", unhandledIds)
+      .eq("claim_token", claimToken)
+
+    retryPending += unhandledRows.length
   }
 
   // 5. Limpieza de tokens inválidos de push_devices

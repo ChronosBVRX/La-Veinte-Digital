@@ -278,6 +278,32 @@ export async function archiveAnnouncement(
     if (updateErr) {
       return { ok: false, error: updateErr.message }
     }
+
+    // Cancelar campañas asociadas encoladas, en proceso o pausadas
+    const { data: activeCampaigns } = await supabase
+      .from("push_campaigns")
+      .update({
+        status: "CANCELLED",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("announcement_id", id)
+      .in("status", ["QUEUED", "PROCESSING", "PAUSED"])
+      .select("id")
+
+    if (activeCampaigns && activeCampaigns.length > 0) {
+      const campIds = activeCampaigns.map((c) => c.id)
+      await supabase
+        .from("push_campaign_deliveries")
+        .update({
+          status: "SKIPPED",
+          error_code: "ANNOUNCEMENT_ARCHIVED",
+          lease_until: null,
+          claim_token: null,
+          updated_at: new Date().toISOString(),
+        })
+        .in("campaign_id", campIds)
+        .in("status", ["PENDING", "RETRY_PENDING", "PROCESSING"])
+    }
   }
 
   await logAdminAudit({
