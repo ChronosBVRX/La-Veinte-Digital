@@ -14,6 +14,369 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          details: Json | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          request_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          request_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          request_id?: string | null
+        }
+        Relationships: []
+      }
+      announcement_reads: {
+        Row: {
+          announcement_id: string
+          read_at: string
+          user_id: string
+        }
+        Insert: {
+          announcement_id: string
+          read_at?: string
+          user_id: string
+        }
+        Update: {
+          announcement_id?: string
+          read_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      announcements: {
+        Row: {
+          bar_text: string | null
+          body: string
+          created_at: string
+          created_by: string | null
+          destination_path: string | null
+          expires_at: string | null
+          id: string
+          kind: string
+          publish_at: string | null
+          push_summary: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          revision: number
+          show_in_bar: boolean
+          show_in_inbox: boolean
+          source_document: string | null
+          source_page: string | null
+          source_reference: string | null
+          source_version: string | null
+          status: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          bar_text?: string | null
+          body: string
+          created_at?: string
+          created_by?: string | null
+          destination_path?: string | null
+          expires_at?: string | null
+          id?: string
+          kind?: string
+          publish_at?: string | null
+          push_summary?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          revision?: number
+          show_in_bar?: boolean
+          show_in_inbox?: boolean
+          source_document?: string | null
+          source_page?: string | null
+          source_reference?: string | null
+          source_version?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          bar_text?: string | null
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          destination_path?: string | null
+          expires_at?: string | null
+          id?: string
+          kind?: string
+          publish_at?: string | null
+          push_summary?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          revision?: number
+          show_in_bar?: boolean
+          show_in_inbox?: boolean
+          source_document?: string | null
+          source_page?: string | null
+          source_reference?: string | null
+          source_version?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      notification_job_runs: {
+        Row: {
+          created_at: string
+          details: Json | null
+          error_code: string | null
+          finished_at: string | null
+          id: string
+          job_kind: string
+          processed_campaigns: number
+          processed_deliveries: number
+          started_at: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json | null
+          error_code?: string | null
+          finished_at?: string | null
+          id?: string
+          job_kind?: string
+          processed_campaigns?: number
+          processed_deliveries?: number
+          started_at?: string
+          status: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json | null
+          error_code?: string | null
+          finished_at?: string | null
+          id?: string
+          job_kind?: string
+          processed_campaigns?: number
+          processed_deliveries?: number
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      notification_preferences: {
+        Row: {
+          announcements_push_enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          announcements_push_enabled?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          announcements_push_enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      push_campaign_deliveries: {
+        Row: {
+          accepted_at: string | null
+          attempts: number
+          campaign_id: string
+          claim_token: string | null
+          created_at: string
+          device_id: string | null
+          error_code: string | null
+          fcm_token: string
+          id: string
+          lease_until: string | null
+          next_attempt_at: string | null
+          snapshot_device_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          attempts?: number
+          campaign_id: string
+          claim_token?: string | null
+          created_at?: string
+          device_id?: string | null
+          error_code?: string | null
+          fcm_token: string
+          id?: string
+          lease_until?: string | null
+          next_attempt_at?: string | null
+          snapshot_device_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          attempts?: number
+          campaign_id?: string
+          claim_token?: string | null
+          created_at?: string
+          device_id?: string | null
+          error_code?: string | null
+          fcm_token?: string
+          id?: string
+          lease_until?: string | null
+          next_attempt_at?: string | null
+          snapshot_device_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      push_campaigns: {
+        Row: {
+          accepted_count: number
+          announcement_id: string | null
+          announcement_revision: number
+          audience: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          failed_count: number
+          id: string
+          idempotency_key: string | null
+          invalid_tokens_count: number
+          notification_id: number
+          purpose: string
+          scheduled_at: string | null
+          skipped_count: number
+          snapshot_body: string
+          snapshot_destination: string | null
+          snapshot_title: string
+          snapshot_type: string
+          status: string
+          target_accounts: number
+          target_devices: number
+          unknown_count: number
+          updated_at: string
+        }
+        Insert: {
+          accepted_count?: number
+          announcement_id?: string | null
+          announcement_revision?: number
+          audience: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          failed_count?: number
+          id?: string
+          idempotency_key?: string | null
+          invalid_tokens_count?: number
+          notification_id?: number
+          purpose: string
+          scheduled_at?: string | null
+          skipped_count?: number
+          snapshot_body: string
+          snapshot_destination?: string | null
+          snapshot_title: string
+          snapshot_type?: string
+          status?: string
+          target_accounts?: number
+          target_devices?: number
+          unknown_count?: number
+          updated_at?: string
+        }
+        Update: {
+          accepted_count?: number
+          announcement_id?: string | null
+          announcement_revision?: number
+          audience?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          failed_count?: number
+          id?: string
+          idempotency_key?: string | null
+          invalid_tokens_count?: number
+          notification_id?: number
+          purpose?: string
+          scheduled_at?: string | null
+          skipped_count?: number
+          snapshot_body?: string
+          snapshot_destination?: string | null
+          snapshot_title?: string
+          snapshot_type?: string
+          status?: string
+          target_accounts?: number
+          target_devices?: number
+          unknown_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      push_devices: {
+        Row: {
+          android_version: string | null
+          app_version: string | null
+          created_at: string
+          device_model: string | null
+          fcm_token: string
+          id: string
+          last_seen_at: string
+          notifications_enabled: boolean
+          platform: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          android_version?: string | null
+          app_version?: string | null
+          created_at?: string
+          device_model?: string | null
+          fcm_token: string
+          id?: string
+          last_seen_at?: string
+          notifications_enabled?: boolean
+          platform?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          android_version?: string | null
+          app_version?: string | null
+          created_at?: string
+          device_model?: string | null
+          fcm_token?: string
+          id?: string
+          last_seen_at?: string
+          notifications_enabled?: boolean
+          platform?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_chat_history: {
         Row: {
           content: string
@@ -1139,6 +1502,23 @@ export type Database = {
       }
     }
     Functions: {
+      archive_announcement_atomic: {
+        Args: { p_announcement_id: string }
+        Returns: undefined
+      }
+      claim_campaign_deliveries: {
+        Args: {
+          p_campaign_id: string
+          p_batch_limit: number
+          p_claim_token: string
+          p_lease_until: string
+        }
+        Returns: {
+          id: string
+          fcm_token: string
+          attempts: number
+        }[]
+      }
       _insert_worker_event: {
         Args: { p_event_type: string; p_metadata?: Json; p_priority: string }
         Returns: undefined

@@ -12,13 +12,23 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name")
+    .select("full_name, role")
     .eq("id", user.id)
     .single()
 
+  const allowedEmails = (process.env.PUSH_ADMIN_ALLOWED_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+  const isLegacyAllowed = !!user.email && allowedEmails.includes(user.email.toLowerCase())
+  const canAccessAdmin = profile?.role === "admin" || isLegacyAllowed
+
   return (
     <ToastProvider>
-      <DashboardShell fullName={profile?.full_name ?? null}>
+      <DashboardShell
+        fullName={profile?.full_name ?? null}
+        canAccessAdmin={canAccessAdmin}
+      >
         {children}
       </DashboardShell>
       <PushTokenSync />
