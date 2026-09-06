@@ -17,7 +17,7 @@
 | **T4** | Transporte, prueba y campañas inmediatas | COMPLETADO | `push-admin.ts`, `campaign-worker.ts`, `/admin/campanas/*` | Lotes <= 500, des-duplicación, SELF, URL parser (37 tests) |
 | **T5** | Disparador cron y programación | COMPLETADO | `/api/cron/push-campaigns`, workflow GitHub Actions | Autenticación cron, reclamos transaccionales (23 tests) |
 | **T6** | Barra informativa administrable | COMPLETADO | `mobile-bar-service.ts`, `MobileValueBar.tsx`, `/admin/barra` | Fusión con catálogo local, dismiss, safe area (34 tests) |
-| **T7** | Resumen operativo útil | PENDIENTE | `/admin/page.tsx`, widgets de salud y accesos | Agregados SQL, métricas reales sin fuga de PII |
+| **T7** | Resumen operativo útil | COMPLETADO | `/admin/page.tsx`, `admin-metrics-service.ts` | Agregados SQL, métricas reales sin fuga de PII (2 tests) |
 | **T8** | Verificación integral y entrega | PENDIENTE | `ROLLOUT_ROLLBACK.md`, reportes de auditoría | Gates completos: typecheck, lint, test, build |
 
 ---
@@ -73,4 +73,10 @@
 - Ruta API: `GET /api/announcements/bar` registrada en `route-policy.ts`.
 - Página administrativa: `src/app/(dashboard)/admin/barra/page.tsx` con preview móvil, estado de revisión editorial y visualizador del catálogo base.
 - Tests: 18 tests en `mobile-bar-service.test.ts`, 16 tests preservados en `mobile-value-bar.test.tsx`, 21 tests en `route-policy.test.ts`. Typecheck OK.
-- Siguiente paso: **T7 — Resumen operativo útil**.
+
+### T7 — Resumen operativo útil (2026-09-06)
+- Servicio `src/features/announcements/services/admin-metrics-service.ts` con consultas seguras de agregados (avisos por estado, tokens push registrados, estado de última campaña, latido de cron).
+- Hub `/admin` renovado con tarjetas de métricas en vivo, sin fuga de PII ni bloqueos si la BD está fría.
+- Accesos rápidos a herramientas operativas (push directo, vacaciones admin, releases Android, vista de trabajadores).
+- Tests: `admin-metrics-service.test.ts` (2 pasados). Typecheck OK.
+- Siguiente paso: **T8 — Verificación integral y entrega**.
