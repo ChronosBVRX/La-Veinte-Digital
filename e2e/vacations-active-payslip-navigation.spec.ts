@@ -17,6 +17,8 @@ const PAYSLIP_A_ID = "a1a1a1a1-aaaa-4aaa-aaaa-aaaaaaaaaaaa"
 const PAYSLIP_B_ID = "b2b2b2b2-bbbb-4bbb-bbbb-bbbbbbbbbbbb"
 
 test.describe("Vacaciones - Navegación SPA y Tarjetón Activo Canónico", () => {
+  test.skip(({ isMobile }) => isMobile, "La navegación de barra lateral aplica a viewport de escritorio")
+
   test.beforeAll(async () => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
