@@ -93,6 +93,7 @@ fun InternalWebScreen(
     onCustomTab: (String) -> Unit,
     onOpenOfficialPayslips: () -> Unit = {},
     onOpenBiometrics: () -> Unit = {},
+    onOpenSavedDocuments: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var webView by remember { mutableStateOf<WebView?>(null) }
@@ -302,6 +303,8 @@ fun InternalWebScreen(
                 BiometricPreferences.clearLegacyEnrollment(context)
                 BiometricPreferences.setEnabled(context, false)
             }
+            // El propietario de sesión se limpia (sus documentos NO se borran).
+            runCatching { com.laveintedigital.app.offline.NativeSessionOwner.clear(context) }
         }
         onDispose {
             BridgeHandler.onOpenOfficialPayslips = null
@@ -379,6 +382,29 @@ fun InternalWebScreen(
             }
         } else {
             false
+        }
+    }
+
+    // Señal de conectividad del sistema para el aviso discreto de recuperación.
+    val backOnline by com.laveintedigital.app.offline.NetworkMonitor.validatedInternet.collectAsState()
+    // Recarga solicitada al volver de la pantalla offline con Internet recuperado.
+    val recoveryGen by com.laveintedigital.app.offline.OnlineRecovery.generation.collectAsState()
+    LaunchedEffect(recoveryGen) {
+        if (recoveryGen > 0L) {
+            val wv = webView
+            if (wv != null) {
+                isOffline = false
+                wv.post { wv.reload() }
+            }
+        }
+    }
+    // Diagnóstico de entrada a modo offline (una vez por episodio, sin datos sensibles).
+    LaunchedEffect(isOffline) {
+        if (isOffline) {
+            android.util.Log.i(
+                com.laveintedigital.app.offline.OfflineLog.TAG,
+                com.laveintedigital.app.offline.OfflineLog.EVENT_ENTERED,
+            )
         }
     }
 
@@ -687,12 +713,16 @@ fun InternalWebScreen(
             slow = navUi.slowText,
         )
 
-        if (isOffline && initialLoadDone) {
+        // Sin gating por initialLoadDone: en arranque sin Internet (modo avión) la primera
+        // carga falla y el usuario debe poder llegar a "Ver mis documentos" de todos modos.
+        if (isOffline) {
             OfflineErrorScreen(
                 onRetry = {
                     isOffline = false
                     webView?.reload()
                 },
+                onOpenSavedDocuments = onOpenSavedDocuments,
+                isBackOnline = backOnline == true,
             )
         }
     }

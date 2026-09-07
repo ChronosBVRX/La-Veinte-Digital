@@ -15,6 +15,7 @@ import { isEscritoDraftV2, migrateLegacyEscritoToV2 } from "@/shared/contracts/e
 import { getEscritoById, getEscritosGuardados } from "@/shared/services/escritos-storage"
 import { getBlobResource, saveBlobResource, buildBlobKey } from "@/shared/services/blob-storage"
 import { escritoToPdfFile } from "../lib/escrito-pdf"
+import { syncEscritoBlobToNative } from "./escrito-native-sync"
 import { readNativeDocumentAsFile } from "@/features/transferir/services/transfer"
 import type { DocumentoPersonalItem, UnifiedViewerDocument } from "../lib/documents"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
@@ -150,6 +151,16 @@ export async function adaptEscritoToViewerDocument(params: {
   let finalBlob = pdfBlob
   if (finalBlob.type !== "application/pdf") {
     finalBlob = new Blob([pdfBlob], { type: "application/pdf" })
+  }
+
+  // 4b. Respaldo offline Android (fire-and-forget): el PDF definitivo queda en Room/filesDir.
+  if (draft) {
+    syncEscritoBlobToNative(finalBlob, {
+      escritoId: draft.id,
+      title: draft.titulo || "Escrito Formal",
+      ownerId: safeUserId,
+      fecha: draft.fecha,
+    })
   }
 
   // 5. Crear la URL visualizable

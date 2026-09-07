@@ -1,5 +1,22 @@
 # Changelog
 
+## [Unreleased] — Modo offline Android: documentos guardados sin conexión
+
+### Added
+- Pantalla nativa `OfflineDocumentsScreen` (Compose, sin WebView ni red): Todos/Tarjetones/Checadas/Escritos, abrir con visor local, compartir por `FileProvider`, eliminar canónico. Ruta `offline_documents` con Back correcto.
+- `OfflineErrorScreen` evolucionada: "Sin conexión a Internet… Tus documentos guardados siguen disponibles." + [Ver mis documentos] + [Intentar de nuevo] (reintento intacto) + aviso "Conexión recuperada".
+- Persistencia local de escritos: la web respalda el PDF definitivo en Room + `filesDir/escritos` (upsert por id de escrito, sin duplicar) vía protocolo fragmentado `saveStart/chunk/commit`; borrado web sincroniza la copia nativa.
+- Detección real de offline: solo errores de conectividad del marco principal activan el fallback (HTTP 401/403/404/500 jamás), `NetworkMonitor` con `NET_CAPABILITY_VALIDATED`, arranque en modo avión soportado, recuperación con recarga única.
+- Aislamiento por usuario: Room v4 (`ownerId`, `externalKey`, migración 3→4 aditiva, sin borrados); legacy visibles, otros usuarios ocultos; propietario informado por la web y limpiado al logout sin borrar.
+- Docs: `docs/ANDROID_OFFLINE_DOCUMENTS.md` (propósito, arquitectura, almacenamiento, navegación, detección, recuperación, aislamiento, limitaciones, pruebas).
+
+### Tests
+- Android: `OfflineDetectionTest`, `NativeDocumentsOfflineTest` nuevos; `:app:testPlayDebugUnitTest` en verde; `assemblePlayDebug` + `assembleDirectDebug` OK (1.1.6/206).
+- Web: `escrito-native-sync.test.ts` nuevo; `npm test` full en verde; `typecheck` 0 errores; `lint` 0 errores; `npm run build` OK.
+
+### Protected Behavior
+- Web con Internet idéntica; bridge compatible hacia atrás (APKs viejas responden error inocuo, jamás comparten por accidente); tarjetones/checadas reutilizan Room + `filesDir` existentes sin copiar ni duplicar; sin PWA, sin réplica de Supabase, sin WorkManager, sin migraciones destructivas.
+
 ## [Unreleased] — Fix teclado móvil en modales (foco/remount)
 
 ### Fixed

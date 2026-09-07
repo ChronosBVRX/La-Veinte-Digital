@@ -47,6 +47,8 @@ declare global {
     fileSize: number
     downloadedAt: number
     mimeType: string
+    /** Clave externa del escrito (solo source === "ESCRITO"). */
+    escritoId?: string | null
   }
 
   interface NativeDocumentContent {

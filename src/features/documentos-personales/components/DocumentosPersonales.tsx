@@ -29,6 +29,10 @@ import {
   type ViewerDocument,
 } from "../services/document-viewer-adapter"
 import { sharePdfViaNativeBridge, isNativePdfShareSupported } from "@/shared/services/pdfShareBridge"
+import {
+  deleteNativeEscritoCopies,
+  setNativeDocsOwner,
+} from "../services/escrito-native-sync"
 
 const TIPO_ICON: Record<DocTipo, typeof FileText> = {
   tarjeton: FileText,
@@ -94,6 +98,8 @@ export function DocumentosPersonales() {
       if (cancelled) return
       if (user) {
         setUserId(user.id)
+        // Aislamiento offline Android: informar el propietario actual (best-effort).
+        setNativeDocsOwner(user.id)
         const userEscritos = getEscritosGuardados(user.id)
         setEscritos(
           userEscritos.map((e) => ({
@@ -266,6 +272,8 @@ export function DocumentosPersonales() {
     try {
       if (doc.kind === "escrito") {
         await eliminarEscrito(doc.id, userId || undefined)
+        // Mantener sincronizada la copia offline Android (fire-and-forget).
+        deleteNativeEscritoCopies(doc.id)
         setEscritos((prev) => prev.filter((e) => e.id !== doc.id))
         setConfirmDeleteDoc(null)
         setFeedback({ type: "success", message: "Escrito eliminado correctamente." })

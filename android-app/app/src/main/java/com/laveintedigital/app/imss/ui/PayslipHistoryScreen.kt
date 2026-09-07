@@ -175,8 +175,11 @@ fun PayslipHistoryScreen(
                     text = "Eliminar",
                     onClick = {
                         scope.launch {
-                            PayslipDatabase.getInstance(context).payslipDao().delete(doc)
-                            File(doc.localPath).delete()
+                            // Eliminación canónica: archivo físico + fila Room (+ conceptos y
+                            // PendingPrint si aplican), igual que el puente y la pantalla offline.
+                            com.laveintedigital.app.imss.payslips.NativeDocuments.deleteById(
+                                context, doc.id, doc.localPath,
+                            )
                             docs = PayslipDatabase.getInstance(context).payslipDao().getAll()
                         }
                         deleteTarget = null

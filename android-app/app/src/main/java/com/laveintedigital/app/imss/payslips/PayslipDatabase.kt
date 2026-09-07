@@ -35,6 +35,18 @@ data class PayslipDocument(
     val periodLabel: String? = null,
     val conceptsPath: String? = null,
     val sourceHost: String? = null,
+    /**
+     * Propietario lógico del documento (p. ej. user id de Supabase informado por la web).
+     * NULL = documento legacy sin atribución: se muestra a todo usuario del dispositivo
+     * (política conservadora documentada en docs/ANDROID_OFFLINE_DOCUMENTS.md; nunca se
+     * borra ni se oculta por una migración).
+     */
+    val ownerId: String? = null,
+    /**
+     * Clave externa estable para documentos generados por la web (p. ej. id del escrito).
+     * Permite actualizar la copia nativa sin duplicar filas cuando el contenido cambia.
+     */
+    val externalKey: String? = null,
 )
 
 @Dao
@@ -47,6 +59,12 @@ interface PayslipDao {
 
     @Query("SELECT * FROM payslip_documents WHERE sha256 = :hash LIMIT 1")
     suspend fun findByHash(hash: String): PayslipDocument?
+
+    @Query("SELECT * FROM payslip_documents WHERE source = :source AND externalKey = :key LIMIT 1")
+    suspend fun findByExternalKey(source: String, key: String): PayslipDocument?
+
+    @Query("SELECT * FROM payslip_documents WHERE source = :source AND externalKey = :key")
+    suspend fun findAllByExternalKey(source: String, key: String): List<PayslipDocument>
 
     @Query("SELECT COUNT(*) FROM payslip_documents")
     suspend fun count(): Int
@@ -64,7 +82,7 @@ interface PayslipDao {
     suspend fun updateConceptsPath(id: Long, path: String)
 }
 
-@Database(entities = [PayslipDocument::class], version = 3, exportSchema = false)
+@Database(entities = [PayslipDocument::class], version = 4, exportSchema = false)
 abstract class PayslipDatabase : RoomDatabase() {
     abstract fun payslipDao(): PayslipDao
 
@@ -112,6 +130,19 @@ abstract class PayslipDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migración 3 → 4 (modo offline): agrega atribución de propietario y clave externa.
+         * Estrictamente aditiva: columnas NULL por defecto, sin borrar ni reescribir filas.
+         * Instalaciones existentes conservan todos sus tarjetones/checadas (ownerId NULL =
+         * legacy, visible según la política documentada).
+         */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE payslip_documents ADD COLUMN ownerId TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE payslip_documents ADD COLUMN externalKey TEXT DEFAULT NULL")
+            }
+        }
+
         fun getInstance(context: Context): PayslipDatabase {
             return INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(
@@ -119,7 +150,7 @@ abstract class PayslipDatabase : RoomDatabase() {
                     PayslipDatabase::class.java,
                     "laveinte_payslips.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also {
                         INSTANCE = it

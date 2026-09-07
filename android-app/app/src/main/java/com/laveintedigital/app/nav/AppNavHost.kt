@@ -25,6 +25,8 @@ import com.laveintedigital.app.imss.ui.PayslipViewerScreen
 import com.laveintedigital.app.imss.ui.SaveImssCredentialsScreen
 import com.laveintedigital.app.imss.ui.TuPerfilBiometricScreen
 import com.laveintedigital.app.internal.InternalWebScreen
+import com.laveintedigital.app.offline.OfflineDocumentsScreen
+import com.laveintedigital.app.offline.OnlineRecovery
 import com.laveintedigital.app.routing.NavigationTarget
 
 @Composable
@@ -57,6 +59,21 @@ fun AppNavHost(
                 onCustomTab = onCustomTab,
                 onOpenOfficialPayslips = { navController.navigate(NavRoute.ImssPortal.create(ImssPortal.TU_PERFIL.id, false)) },
                 onOpenBiometrics = { navController.navigate(NavRoute.TuPerfilBiometrics.route) },
+                onOpenSavedDocuments = { navController.navigate(NavRoute.OfflineDocuments.route) },
+            )
+        }
+
+        composable(NavRoute.OfflineDocuments.route) {
+            OfflineDocumentsScreen(
+                onBack = { navController.popBackStack() },
+                onViewPdf = { path, title ->
+                    navController.navigate(NavRoute.PayslipViewer.create(path, title = title))
+                },
+                onReturnOnline = {
+                    // Volver al flujo web normal y recargar la WebView interna.
+                    OnlineRecovery.requestReload()
+                    navController.popBackStack(NavRoute.Internal.route, inclusive = false)
+                },
             )
         }
 
