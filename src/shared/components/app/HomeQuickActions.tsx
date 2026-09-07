@@ -293,10 +293,24 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
           return
         }
 
-        const { data } = await client
+        const { data: profile } = await client
+          .from("profiles")
+          .select("matricula")
+          .eq("id", authRes.user.id)
+          .maybeSingle()
+
+        const activeMatricula = profile?.matricula?.trim() || null
+
+        let query = client
           .from("imported_payslips")
-          .select("period_half,period_month,period_year,created_at")
+          .select("period_half,period_month,period_year,created_at,employee_number")
           .eq("user_id", authRes.user.id)
+
+        if (activeMatricula) {
+          query = query.eq("employee_number", activeMatricula)
+        }
+
+        const { data } = await query
           .order("period_year", { ascending: false, nullsFirst: false })
           .order("period_month", { ascending: false, nullsFirst: false })
           .order("period_half", { ascending: false, nullsFirst: false })

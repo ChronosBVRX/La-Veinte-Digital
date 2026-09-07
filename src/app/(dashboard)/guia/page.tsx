@@ -7,10 +7,24 @@ export default async function GuiaPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const { data: rows } = await supabase
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("matricula")
+    .eq("id", user.id)
+    .maybeSingle()
+
+  const activeMatricula = profile?.matricula?.trim() || null
+
+  let payslipQuery = supabase
     .from("imported_payslips")
-    .select("id, period_raw, payroll_totals")
+    .select("id, period_raw, payroll_totals, employee_number")
     .eq("user_id", user.id)
+
+  if (activeMatricula) {
+    payslipQuery = payslipQuery.eq("employee_number", activeMatricula)
+  }
+
+  const { data: rows } = await payslipQuery
     .order("period_year", { ascending: false, nullsFirst: false })
     .order("period_month", { ascending: false, nullsFirst: false })
     .order("period_half", { ascending: false, nullsFirst: false })

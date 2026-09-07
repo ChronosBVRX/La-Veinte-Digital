@@ -38,6 +38,7 @@ export interface WorkerContext {
     contractEndDate: string | null
   } | null
   payroll: {
+    employeeNumber?: string | null
     latestPeriod: string | null
     totalEarnings: number | null
     totalDeductions: number | null
@@ -70,6 +71,7 @@ export interface WorkerContext {
     entitlements?: VacationEntitlement[]
   } | null
   vacationProfile: {
+    employeeNumber?: string | null
     contractType: string | null
     category: string | null
     categoryCode: string | null
@@ -230,6 +232,7 @@ export function buildWorkerContextPayroll(
   latest: {
     period_raw: string | null
     payroll_totals: Record<string, number> | null
+    employee_number?: string | null
   } | null,
   ctxRecurring: unknown[],
   ctxFacts: unknown[],
@@ -242,6 +245,7 @@ export function buildWorkerContextPayroll(
   )
 
   return {
+    employeeNumber: latest?.employee_number ?? null,
     latestPeriod: latest?.period_raw ?? null,
     totalEarnings: latest?.payroll_totals?.totalEarnings ?? null,
     totalDeductions: latest?.payroll_totals?.totalDeductions ?? null,
@@ -287,6 +291,7 @@ export interface BuildWorkerContextParams {
     payroll_totals?: unknown
     employee_data?: unknown
     vacations?: unknown
+    employee_number?: string | null
   } | null
   payslipLines?: PayslipLineRow[]
   vacationProfileRow?: Record<string, unknown> | null
@@ -390,11 +395,13 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
     : null
 
   const payrollTotals = parseJsonIfString<Record<string, number>>(latest?.payroll_totals)
+  const payrollEmployeeNumber = latest?.employee_number ?? (employeeData?.employeeNumber as string | undefined) ?? null
   const payroll = buildWorkerContextPayroll(
     latest
       ? {
           period_raw: latest.period_raw ?? null,
           payroll_totals: payrollTotals,
+          employee_number: payrollEmployeeNumber,
         }
       : null,
     (ctx?.recurring_concepts as unknown[]) ?? [],
@@ -522,6 +529,7 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
 
   const vacationProfile = vacProfile
     ? {
+        employeeNumber: (vacProfile.employee_number as string) ?? null,
         contractType: (vacProfile.contract_type as string) ?? null,
         category: (vacProfile.category as string) ?? null,
         categoryCode: (vacProfile.category_code as string) ?? null,
@@ -547,4 +555,35 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
     vacations,
     vacationProfile,
   }
+}
+
+export class WorkerContextIdentityMismatchError extends Error {
+  constructor(message: string) {
+    super(`WORKER_CONTEXT_IDENTITY_MISMATCH: ${message}`)
+    this.name = "WorkerContextIdentityMismatchError"
+  }
+}
+
+/**
+ * Valida la invariante de identidad laboral:
+ * context.profile.matricula == latestPayslip.employeeNumber == vacationProfile.employeeNumber
+ * cuando las fuentes existan.
+ */
+export function checkWorkerContextIdentity(context: WorkerContext): { match: boolean; mismatchField?: string } {
+  const activeMatricula = context.profile?.matricula?.trim()
+  if (!activeMatricula) return { match: true }
+
+  if (context.payroll?.employeeNumber && context.payroll.employeeNumber.trim() !== activeMatricula) {
+    return {
+      match: false,
+      mismatchField: `payroll.employeeNumber (${context.payroll.employeeNumber}) !== profile.matricula (${activeMatricula})`,
+    }
+  }
+  if (context.vacationProfile?.employeeNumber && context.vacationProfile.employeeNumber.trim() !== activeMatricula) {
+    return {
+      match: false,
+      mismatchField: `vacationProfile.employeeNumber (${context.vacationProfile.employeeNumber}) !== profile.matricula (${activeMatricula})`,
+    }
+  }
+  return { match: true }
 }

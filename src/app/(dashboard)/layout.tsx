@@ -3,6 +3,7 @@ import { redirect } from "next/navigation"
 import { DashboardShell } from "@/shared/components/layout/DashboardShell"
 import { ToastProvider } from "@/shared/components/ui/Toast"
 import { PushTokenSync } from "@/features/push/components/PushTokenSync"
+import { PayslipGlobalInvalidation } from "@/shared/components/layout/PayslipGlobalInvalidation"
 import type { ReactNode } from "react"
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
@@ -32,6 +33,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         {children}
       </DashboardShell>
       <PushTokenSync />
+      <PayslipGlobalInvalidation />
     </ToastProvider>
   )
 }

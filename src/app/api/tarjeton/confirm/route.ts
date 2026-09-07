@@ -131,13 +131,13 @@ export async function POST(request: NextRequest) {
             .maybeSingle()
 
           const existingVac = (existingRow?.vacations as Record<string, unknown>) ?? {}
-          // No sobrescribir fechas válidas que ya existan
+          // Hallazgo 5: la nueva extracción confirmada repara fechas incompletas o erróneas previas
           const mergedVac = {
-            ...newVacations,
             ...existingVac,
-            porVencer: existingVac.porVencer || newVacations.porVencer,
-            dueDate: existingVac.dueDate || newVacations.dueDate || existingVac.porVencer || newVacations.porVencer,
-            porVencerRaw: existingVac.porVencerRaw || newVacations.porVencerRaw,
+            ...newVacations,
+            porVencer: newVacations.porVencer || existingVac.porVencer,
+            dueDate: newVacations.dueDate || newVacations.porVencer || existingVac.dueDate || existingVac.porVencer,
+            porVencerRaw: newVacations.porVencerRaw || existingVac.porVencerRaw,
           }
 
           await supabase

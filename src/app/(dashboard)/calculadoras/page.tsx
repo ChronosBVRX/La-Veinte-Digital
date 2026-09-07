@@ -7,10 +7,24 @@ export default async function CalculadorasPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const { count: tarjetonesCount } = await supabase
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("matricula")
+    .eq("id", user.id)
+    .maybeSingle()
+
+  const activeMatricula = profile?.matricula?.trim() || null
+
+  let query = supabase
     .from("imported_payslips")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
+
+  if (activeMatricula) {
+    query = query.eq("employee_number", activeMatricula)
+  }
+
+  const { count: tarjetonesCount } = await query
 
   const hasTarjeton = (tarjetonesCount ?? 0) > 0
 

@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { render, screen, fireEvent, act } from "@testing-library/react"
 import { VacationWizard } from "../components/VacationWizard"
+import { PayslipGlobalInvalidation } from "@/shared/components/layout/PayslipGlobalInvalidation"
 import type { WorkerContext } from "@/shared/server/worker-context-builder"
 
 const refreshMock = vi.fn()
@@ -171,7 +172,12 @@ describe("Vacaciones: Invalidation y aislamiento de contexto al cambiar tarjetó
   }
 
   it("al recibir nomina_payslip_updated, invoca router.refresh() para recargar getWorkerContext()", () => {
-    render(<VacationWizard initialContext={contextWorkerA} />)
+    render(
+      <>
+        <PayslipGlobalInvalidation />
+        <VacationWizard initialContext={contextWorkerA} />
+      </>
+    )
 
     act(() => {
       window.dispatchEvent(new CustomEvent("nomina_payslip_updated"))

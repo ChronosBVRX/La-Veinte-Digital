@@ -18,10 +18,18 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single()
 
-  const { count: tarjetonesCount } = await supabase
+  const activeMatricula = profile?.matricula?.trim() || null
+
+  let query = supabase
     .from("imported_payslips")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
+
+  if (activeMatricula) {
+    query = query.eq("employee_number", activeMatricula)
+  }
+
+  const { count: tarjetonesCount } = await query
 
   const hasTarjeton = (tarjetonesCount ?? 0) > 0
 
