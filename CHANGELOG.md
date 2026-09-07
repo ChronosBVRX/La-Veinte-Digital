@@ -17,6 +17,10 @@
 ### Protected Behavior
 - Web con Internet idéntica; bridge compatible hacia atrás (APKs viejas responden error inocuo, jamás comparten por accidente); tarjetones/checadas reutilizan Room + `filesDir` existentes sin copiar ni duplicar; sin PWA, sin réplica de Supabase, sin WorkManager, sin migraciones destructivas.
 
+### Deploy a producción (2026-09-06)
+- Web: deployment `dpl_6cMkJN9guNMarctpcpEsR1UPfqbg` (`target: production`, `● Ready`) con aliases `https://la-veinte-digital.vercel.app` y `https://la20.com.mx`. Verificado: `GET /api/health` → 200, `GET /` → 307 a `/login`.
+- Android: `bundlePlayRelease` generado (`app-play-release.aab`, 22 MB, v1.1.6/206, minificado, policy play/direct validada) y `LaVeinteDigital-direct-release-v1.1.6-b206.apk`. **Subida a Play Console pendiente (bloqueada por 2FA, acción del propietario).**
+
 ## [Unreleased] — Fix teclado móvil en modales (foco/remount)
 
 ### Fixed
