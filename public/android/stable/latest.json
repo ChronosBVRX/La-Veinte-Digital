@@ -1,18 +1,18 @@
 {
   "channel": "stable",
-  "versionCode": 204,
-  "versionName": "1.1.4",
+  "versionCode": 206,
+  "versionName": "1.1.6",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-09-06T00:43:46Z",
+  "publishedAt": "2026-09-07T04:12:00Z",
   "apk": {
-    "url": "https://ragktminwduiggvaoeix.supabase.co/storage/v1/object/public/android-releases/stable/1.1.4/LaVeinteDigital-1.1.4.apk",
-    "sha256": "6b735ad04005a0248524cc16102d641695fadf128f2cf07413619ca92090b9c6",
-    "size": 24587757
+    "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
+    "sha256": "904e47f387e59ed2bc443b677fbba61ce0f4da3ce76ebc24fa81a5719d77fbf4",
+    "size": 24641005
   },
   "releaseNotes": [
-    "Navegación Atrás integrada con menús, modales y capas internas",
-    "Nuevo feedback visual nativo durante cargas y navegación",
-    "Mejor identificación y trazabilidad de la versión instalada"
+    "Modo offline nativo: visualización y consulta de documentos personales, tarjetones, checadas y escritos sin conexión",
+    "Respaldo y sincronización automática de escritos en almacenamiento local seguro",
+    "Cumplimiento y compatibilidad completa con políticas actualizadas y fuentes oficiales"
   ]
 }
