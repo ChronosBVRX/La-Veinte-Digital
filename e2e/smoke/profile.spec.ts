@@ -67,7 +67,7 @@ test.describe("Perfil - edicion", () => {
     await page.getByRole("button", { name: /guardar cambios/i }).click()
     await expect(page.getByText("Perfil actualizado")).toBeVisible({ timeout: 10_000 })
     await page.reload()
-    await page.waitForLoadState("networkidle")
+    await page.waitForLoadState("domcontentloaded")
     await expect(page.getByLabel("Nombre completo")).toHaveValue(testName)
   })
 })
