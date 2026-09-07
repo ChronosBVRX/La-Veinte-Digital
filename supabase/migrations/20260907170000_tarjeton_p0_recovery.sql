@@ -60,7 +60,7 @@ WITH chosen AS (
   ) latest_ip ON true
 ), source_rows AS (
   SELECT
-    c.user_id,
+    c.user_id AS chosen_user_id,
     ip.*,
     COALESCE(rc.recurring_concepts, '[]'::jsonb) AS rebuilt_recurring
   FROM chosen c
@@ -105,7 +105,7 @@ INSERT INTO public.payroll_contexts (
   updated_at
 )
 SELECT
-  s.user_id,
+  s.chosen_user_id,
   COALESCE(NULLIF(trim(s.employee_number), ''), NULLIF(trim(s.employee_data->>'employeeNumber'), '')),
   NULLIF(trim(s.employee_data->>'categoryCode'), ''),
   NULLIF(trim(s.employee_data->>'categoryName'), ''),
@@ -129,7 +129,7 @@ FROM source_rows s
 WHERE NOT EXISTS (
   SELECT 1
   FROM public.payroll_contexts pc
-  WHERE pc.user_id = s.user_id
+  WHERE pc.user_id = s.chosen_user_id
 )
 ON CONFLICT (user_id) DO NOTHING;
 
