@@ -27,6 +27,8 @@ export default function PrivacyPage() {
           <li><strong>Documentos personales:</strong> los archivos que guardas, se almacenan de forma local en tu dispositivo; solo viajan a nuestros servidores cuando tú los envías mediante el flujo de transferencia/impresión por QR.</li>
           <li><strong>Cámara:</strong> se usa únicamente para leer códigos QR, solo cuando tú entras a esa función.</li>
           <li><strong>Notificaciones:</strong> un identificador de tu dispositivo (token de Firebase Cloud Messaging) para enviarte avisos.</li>
+          <li><strong>Asistente y escritos con IA:</strong> las preguntas y textos que escribes para generar respuestas o borradores se procesan para darte el servicio; las respuestas son orientativas y debes verificarlas con las fuentes oficiales (ver <a href="/informacion-y-fuentes" style={link}>Información y fuentes</a>).</li>
+          <li><strong>Reportes de contenido generado:</strong> si reportas una respuesta, guardamos en tu dispositivo la categoría, el identificador de la respuesta, la fecha y una vista previa redactada (sin NSS, CURP, correos ni teléfonos).</li>
           <li><strong>Credenciales IMSS:</strong> cuando decides usar los servicios del IMSS desde la app, las credenciales del portal que escribes se guardan <em>cifradas</em> solo en tu dispositivo (Android Keystore) y nunca se envían a los servidores de La Veinte Digital; se usan para operar dentro del portal oficial.</li>
         </ul>
       </section>

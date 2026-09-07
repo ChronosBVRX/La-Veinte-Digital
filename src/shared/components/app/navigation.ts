@@ -97,6 +97,7 @@ export const MOBILE_SHEET_GROUPS: Record<string, { label: string; color: string;
       ...DESKTOP_NAV_GROUPS[3].items,
       { href: "/profile", label: "Mi perfil", icon: UserCircle },
       { href: "/profile/mi-informacion-laboral", label: "Mi información laboral", icon: Briefcase },
+      { href: "/informacion-y-fuentes", label: "Información y fuentes", icon: FileText },
     ],
   },
 }

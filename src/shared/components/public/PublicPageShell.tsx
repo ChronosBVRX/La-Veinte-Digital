@@ -59,6 +59,12 @@ export function PublicPageShell({
         </div>
         <p style={{ textAlign: "center", color: "var(--muted)", fontSize: "0.8125rem", marginTop: "1.5rem" }}>
           <Link href="/" style={{ color: "var(--primary)", textDecoration: "none" }}>← Volver a La Veinte Digital</Link>
+          {" · "}
+          <Link href="/informacion-y-fuentes" style={{ color: "var(--primary)", textDecoration: "underline" }}>Información y fuentes</Link>
+          {" · "}
+          <Link href="/privacidad" style={{ color: "var(--primary)", textDecoration: "underline" }}>Privacidad</Link>
+          {" · "}
+          <Link href="/terminos" style={{ color: "var(--primary)", textDecoration: "underline" }}>Términos</Link>
         </p>
       </main>
     </div>

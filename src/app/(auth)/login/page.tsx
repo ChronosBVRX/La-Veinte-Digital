@@ -38,6 +38,12 @@ export default async function LoginPage() {
         }}>
           <LoginTabs />
         </div>
+        <p style={{ textAlign: "center", fontSize: "0.75rem", color: "var(--muted)", marginTop: "1rem", lineHeight: 1.6 }}>
+          Herramienta independiente: no es una app oficial del IMSS ni del Gobierno de México.{" "}
+          <a href="/informacion-y-fuentes" style={{ color: "var(--primary)", textDecoration: "underline" }}>
+            Información y fuentes
+          </a>
+        </p>
       </div>
     </div>
   )

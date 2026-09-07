@@ -89,6 +89,7 @@ describe("API route policy", () => {
     ["/terminos", "public-page"],
     ["/soporte", "public-page"],
     ["/acerca-de", "public-page"],
+    ["/informacion-y-fuentes", "public-page"],
     ["/eliminar-cuenta", "public-page"],
     ["/callback", "public-auth-route"],
     ["/login/help", "protected-page"],

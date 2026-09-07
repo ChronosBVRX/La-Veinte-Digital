@@ -46,8 +46,9 @@ export default function AboutPage() {
         <h2 style={h2}>Más información</h2>
         <p>
           Lee nuestra <a href="/privacidad" style={link}>Política de Privacidad</a>,{" "}
-          <a href="/terminos" style={link}>Términos de Uso</a> y{" "}
-          <a href="/soporte" style={link}>Soporte</a>.
+          <a href="/terminos" style={link}>Términos de Uso</a>,{" "}
+          <a href="/soporte" style={link}>Soporte</a> y{" "}
+          <a href="/informacion-y-fuentes" style={link}>Información y fuentes</a>.
         </p>
       </section>
     </PublicPageShell>
