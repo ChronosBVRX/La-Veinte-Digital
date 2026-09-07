@@ -1492,6 +1492,45 @@ export type Database = {
           },
         ]
       }
+      worker_active_context: {
+        Row: {
+          active_payslip_id: string | null
+          employee_number: string
+          selection_mode: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active_payslip_id?: string | null
+          employee_number: string
+          selection_mode?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active_payslip_id?: string | null
+          employee_number?: string
+          selection_mode?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "worker_active_context_active_payslip_id_fkey"
+            columns: ["active_payslip_id"]
+            isOneToOne: false
+            referencedRelation: "imported_payslips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "worker_active_context_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       limited_profiles: {
@@ -1630,6 +1669,13 @@ export type Database = {
           p_name: string
           p_size_bytes: number
           p_token: string
+        }
+        Returns: Json
+      }
+      set_active_payslip: {
+        Args: {
+          p_payslip_id: string
+          p_selection_mode?: string
         }
         Returns: Json
       }

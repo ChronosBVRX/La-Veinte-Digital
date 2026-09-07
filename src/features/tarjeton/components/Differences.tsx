@@ -41,9 +41,80 @@ interface DifferencesProps {
   profile: TarjetonProfileSnapshot | null
   updates: ConfirmTarjetonRequest["profileUpdates"]
   onToggle: (key: keyof ConfirmTarjetonRequest["profileUpdates"]) => void
+  onSetUpdates?: (updates: ConfirmTarjetonRequest["profileUpdates"]) => void
 }
 
-export function Differences({ parsed, profile, updates, onToggle }: DifferencesProps) {
+export function Differences({ parsed, profile, updates, onToggle, onSetUpdates }: DifferencesProps) {
+  const emp = parsed.employee
+  const isWorkerReplacement = Boolean(
+    profile?.matricula &&
+    emp.employeeNumber &&
+    profile.matricula.trim() !== emp.employeeNumber.trim()
+  )
+
+  // CASO: Sustitución de trabajador detectada (matrículas distintas)
+  // Requiere una única confirmación indivisible que actualiza atómicamente
+  // nombre, matrícula, categoría y antigüedad para evitar estados mixtos (matrícula B + nombre A).
+  if (isWorkerReplacement) {
+    const isAuthorized = updates.matricula === true
+
+    return (
+      <Card padding="1rem" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", borderColor: "var(--warning)", borderWidth: "1.5px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+          <Badge variant="warning">Cambio de trabajador detectado</Badge>
+          <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+            Este tarjetón pertenece a un trabajador diferente al registrado actualmente en tu perfil.
+          </span>
+        </div>
+
+        <div style={{ background: "var(--accent)", padding: "0.75rem", borderRadius: "var(--radius-sm)", fontSize: "0.8125rem", display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+          <div>
+            <span style={{ color: "var(--muted)" }}>Trabajador actual en perfil: </span>
+            <strong>{profile?.fullName ?? "Sin nombre"}</strong> (Matrícula: {profile?.matricula})
+          </div>
+          <div>
+            <span style={{ color: "var(--muted)" }}>Nuevo trabajador en tarjetón: </span>
+            <strong>{emp.fullName ?? "Sin nombre"}</strong> (Matrícula: {emp.employeeNumber})
+          </div>
+          {emp.categoryName && (
+            <div style={{ color: "var(--muted)", fontSize: "0.75rem" }}>
+              Categoría: {emp.categoryName}
+            </div>
+          )}
+        </div>
+
+        <Checkbox
+          checked={isAuthorized}
+          onChange={(e) => {
+            const authorized = e.target.checked
+            if (onSetUpdates) {
+              onSetUpdates(authorized ? { matricula: true, fullName: true, categoria: true, antiguedad: true } : {})
+            } else {
+              onToggle("matricula")
+            }
+          }}
+          style={{ display: "flex", alignItems: "flex-start", gap: "0.625rem", cursor: "pointer", fontSize: "0.875rem" }}
+        >
+          <span style={{ display: "flex", flexDirection: "column", gap: "0.125rem" }}>
+            <span style={{ fontWeight: 600, color: "var(--fg)" }}>
+              Cambiar al trabajador detectado en este tarjetón
+            </span>
+            <span style={{ color: "var(--muted)", fontSize: "0.8125rem" }}>
+              Se actualizarán de forma conjunta tu matrícula ({emp.employeeNumber}), nombre ({emp.fullName}), categoría y antigüedad.
+            </span>
+          </span>
+        </Checkbox>
+
+        {!isAuthorized && (
+          <div style={{ fontSize: "0.8125rem", color: "var(--error)", background: "#fef2f2", borderRadius: "var(--radius)", padding: "0.5rem 0.75rem" }}>
+            La matrícula es diferente. Para continuar, autoriza el cambio de trabajador marcando la casilla anterior.
+          </div>
+        )}
+      </Card>
+    )
+  }
+
+  // CASO: Mismo trabajador (o sin perfil previo)
   const differences = buildDifferences(parsed, profile)
   if (differences.length === 0) {
     return (
@@ -89,11 +160,6 @@ export function Differences({ parsed, profile, updates, onToggle }: DifferencesP
           </span>
         </Checkbox>
       ))}
-      {differences.some((d) => d.key === "matricula") && updates.matricula !== true && (
-        <div style={{ fontSize: "0.8125rem", color: "var(--error)", background: "#fef2f2", borderRadius: "var(--radius)", padding: "0.5rem 0.75rem" }}>
-          La matrícula es diferente. Para continuar, revisa el número y autoriza el cambio marcando la casilla.
-        </div>
-      )}
     </Card>
   )
 }

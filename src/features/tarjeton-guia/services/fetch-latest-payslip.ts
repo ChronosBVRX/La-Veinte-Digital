@@ -8,6 +8,7 @@
  */
 import "server-only"
 import { createClient } from "@/lib/supabase/server"
+import { resolveActivePayslip } from "@/shared/server/active-payslip"
 import { dbRowToGuidePayslip } from "@/features/tarjeton-guia/services/payslip-guide"
 import type { GuidePayslip } from "@/features/tarjeton-guia/lib/types"
 
@@ -28,24 +29,9 @@ export async function fetchLatestServerPayslip(userId: string): Promise<GuidePay
 
   const activeMatricula = profile?.matricula?.trim() || null
 
-  let payslipQuery = supabase
-    .from("imported_payslips")
-    .select("id, period_raw, period_year, period_month, period_half, created_at, employee_data, payroll_totals, employee_number")
-    .eq("user_id", userId)
-
-  if (activeMatricula) {
-    payslipQuery = payslipQuery.eq("employee_number", activeMatricula)
-  }
-
-  const { data: rows, error } = await payslipQuery
-    .order("period_year", { ascending: false, nullsFirst: false })
-    .order("period_month", { ascending: false, nullsFirst: false })
-    .order("period_half", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false })
-    .limit(1)
-
-  const latest = rows?.[0]
-  if (error || !latest) return null
+  const resolved = await resolveActivePayslip(supabase, userId, { activeMatricula })
+  const latest = resolved.payslip
+  if (!latest) return null
 
   const [linesRes, obsRes] = await Promise.all([
     supabase

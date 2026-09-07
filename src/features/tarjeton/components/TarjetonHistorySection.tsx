@@ -2,12 +2,14 @@
 
 import { useState, useCallback } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
+import { Badge } from "@/shared/components/ui/Badge"
 import { ConfirmDialog } from "@/shared/components/ui/ConfirmDialog"
-import { CheckCircle, Trash, Plus, Info, CaretDown } from "@phosphor-icons/react"
+import { CheckCircle, Trash, Plus, Info, CaretDown, Check, ArrowCounterClockwise } from "@phosphor-icons/react"
 
-interface PreviousImport {
+export interface PreviousImport {
   id: string
   periodRaw: string | null
   extractionMethod: string
@@ -17,21 +19,38 @@ interface PreviousImport {
   totalNet: number | null
 }
 
-export function TarjetonHistorySection({
-  imports: initial,
-  latestConcepts = [],
-  onUploadNew,
-  uploadHref,
-}: {
+interface TarjetonHistorySectionProps {
   imports: PreviousImport[]
+  activePayslipId?: string | null
+  selectionMode?: "AUTO_LATEST" | "PINNED"
   latestConcepts?: Array<{ code: string; description: string; amount: number; kind: "earning" | "deduction" }>
   onUploadNew?: () => void
   uploadHref?: string
-}) {
+}
+
+export function TarjetonHistorySection({
+  imports: initial,
+  activePayslipId: initialActiveId,
+  selectionMode: initialSelectionMode = "AUTO_LATEST",
+  latestConcepts = [],
+  onUploadNew,
+  uploadHref,
+}: TarjetonHistorySectionProps) {
+  const router = useRouter()
   const [imports, setImports] = useState(initial)
+  const [activeId, setActiveId] = useState<string | null>(
+    initialActiveId ?? (initial[0]?.id ?? null)
+  )
+  const [selectionMode, setSelectionMode] = useState<"AUTO_LATEST" | "PINNED">(initialSelectionMode)
+
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [activatingId, setActivatingId] = useState<string | null>(null)
+  const [activatingPeriod, setActivatingPeriod] = useState<string | null>(null)
+  const [isActivating, setIsActivating] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
+
+  const latest = imports[0]
 
   const handleConfirmDelete = useCallback(async () => {
     if (!deletingId) return
@@ -44,6 +63,15 @@ export function TarjetonHistorySection({
       })
       if (res.ok) {
         setImports((prev) => prev.filter((i) => i.id !== deletingId))
+        if (activeId === deletingId) {
+          const remaining = imports.filter((i) => i.id !== deletingId)
+          setActiveId(remaining[0]?.id ?? null)
+          setSelectionMode("AUTO_LATEST")
+        }
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("nomina_payslip_updated"))
+        }
+        router.refresh()
       }
     } catch {
       /* noop */
@@ -51,13 +79,59 @@ export function TarjetonHistorySection({
       setIsDeleting(false)
       setDeletingId(null)
     }
-  }, [deletingId])
+  }, [deletingId, activeId, imports, router])
 
-  const latest = imports[0]
+  const handleActivate = useCallback(async (payslipId: string) => {
+    setIsActivating(true)
+    try {
+      const res = await fetch("/api/tarjeton/select", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "pin", payslipId }),
+      })
+      if (res.ok) {
+        setActiveId(payslipId)
+        setSelectionMode("PINNED")
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("nomina_payslip_updated"))
+        }
+        router.refresh()
+      }
+    } catch {
+      /* noop */
+    } finally {
+      setIsActivating(false)
+      setActivatingId(null)
+      setActivatingPeriod(null)
+    }
+  }, [router])
+
+  const handleResetToLatest = useCallback(async () => {
+    setIsActivating(true)
+    try {
+      const res = await fetch("/api/tarjeton/select", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "auto_latest" }),
+      })
+      if (res.ok) {
+        setActiveId(latest?.id ?? null)
+        setSelectionMode("AUTO_LATEST")
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("nomina_payslip_updated"))
+        }
+        router.refresh()
+      }
+    } catch {
+      /* noop */
+    } finally {
+      setIsActivating(false)
+    }
+  }, [latest, router])
 
   if (imports.length === 0) {
     return (
-      <div style={{ marginTop: "2rem" }}>
+      <div style={{ marginTop: "1rem" }}>
         <Card padding="1.5rem" style={{ textAlign: "center", background: "var(--accent)" }}>
           <p style={{ fontSize: "var(--text-md)", fontWeight: 600, margin: "0 0 0.5rem" }}>
             No tienes tarjetones importados
@@ -85,122 +159,189 @@ export function TarjetonHistorySection({
     )
   }
 
+  const isPinnedOlder = selectionMode === "PINNED" && activeId !== latest?.id
+
   return (
-    <div style={{ marginTop: "2rem" }}>
-      {/* Latest tarjetón highlight */}
-      {latest && (
-        <Card padding="1.25rem" style={{ marginBottom: "1.25rem", borderColor: "var(--primary)", borderWidth: "1.5px" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", flex: 1 }}>
-              <CheckCircle size={24} weight="fill" color="var(--state-success-fg)" style={{ flexShrink: 0, marginTop: 2 }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.25rem" }}>
-                  <span style={{ fontSize: "var(--text-md)", fontWeight: 700, color: "var(--fg)" }}>
-                    Tarjetón · {latest.periodRaw ?? "Periodo reciente"}
-                  </span>
-                  <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)", background: "var(--accent)", padding: "0.125rem 0.5rem", borderRadius: "var(--radius-pill)" }}>
-                    {latest.employeeName ?? "Trabajador"}
-                  </span>
+    <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+      {/* Botón para volver al más reciente si está fijado uno anterior */}
+      {isPinnedOlder && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--accent)", padding: "0.75rem 1rem", borderRadius: "var(--radius)", flexWrap: "wrap", gap: "0.5rem" }}>
+          <span style={{ fontSize: "var(--text-sm)", color: "var(--muted)" }}>
+            Tienes un tarjetón anterior fijado como activo.
+          </span>
+          <Button variant="secondary" size="sm" onClick={handleResetToLatest} loading={isActivating}>
+            <ArrowCounterClockwise size={16} weight="bold" style={{ marginRight: "0.25rem" }} />
+            Volver al tarjetón más reciente
+          </Button>
+        </div>
+      )}
+
+      {/* Lista de tarjetones */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        {imports.map((imp, idx) => {
+          const isCurrentActive = imp.id === activeId
+          const isLatestRecord = idx === 0
+
+          return (
+            <Card
+              key={imp.id}
+              padding="1.125rem"
+              style={{
+                borderColor: isCurrentActive ? "var(--primary)" : "var(--border)",
+                borderWidth: isCurrentActive ? "2px" : "1px",
+                background: isCurrentActive ? "color-mix(in srgb, var(--primary) 3%, var(--card))" : "var(--card)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", flex: 1, minWidth: 260 }}>
+                  <CheckCircle
+                    size={22}
+                    weight="fill"
+                    color={isCurrentActive ? "var(--primary)" : "var(--state-success-fg)"}
+                    style={{ flexShrink: 0, marginTop: 2 }}
+                  />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.25rem" }}>
+                      <span style={{ fontSize: "var(--text-md)", fontWeight: 700, color: "var(--fg)" }}>
+                        Tarjetón · {imp.periodRaw ?? "Periodo no detectado"}
+                      </span>
+                      {isCurrentActive && (
+                        <Badge variant="info">
+                          <Check size={14} weight="bold" style={{ marginRight: 2 }} /> ACTIVO
+                        </Badge>
+                      )}
+                      {isLatestRecord && (
+                        <Badge variant={isCurrentActive ? "neutral" : "info"}>
+                          MÁS RECIENTE
+                        </Badge>
+                      )}
+                      {imp.employeeName && (
+                        <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)", background: "var(--accent)", padding: "0.125rem 0.5rem", borderRadius: "var(--radius-pill)" }}>
+                          {imp.employeeName}
+                        </span>
+                      )}
+                    </div>
+
+                    {imp.totalNet != null && (
+                      <div style={{ fontSize: "var(--text-md)", fontWeight: 700, color: isCurrentActive ? "var(--primary)" : "var(--fg)", margin: "0.25rem 0" }}>
+                        Neto: ${imp.totalNet.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    )}
+
+                    <p style={{ fontSize: "var(--text-xs)", color: "var(--muted)", margin: "0.25rem 0 0" }}>
+                      Importado el {new Date(imp.createdAt).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}
+                    </p>
+                  </div>
                 </div>
 
-                {latest.totalNet != null && (
-                  <div style={{ fontSize: "var(--text-lg)", fontWeight: 700, color: "var(--primary)", margin: "0.25rem 0" }}>
-                    Neto: ${latest.totalNet.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                )}
+                {/* Acciones para el tarjetón */}
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  {!isCurrentActive && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setActivatingId(imp.id)
+                        setActivatingPeriod(imp.periodRaw ?? "este periodo")
+                      }}
+                      loading={isActivating && activatingId === imp.id}
+                    >
+                      Usar este tarjetón
+                    </Button>
+                  )}
 
-                <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: "0.25rem 0 0" }}>
-                  Importado el {new Date(latest.createdAt).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}
-                </p>
-              </div>
-            </div>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setDeletingId(latest.id)}
-              aria-label="Eliminar tarjetón"
-              style={{
-                color: "var(--error)",
-                minWidth: 44,
-                minHeight: 44,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "0.5rem",
-              }}
-            >
-              <Trash size={18} weight="bold" />
-            </Button>
-          </div>
-
-          {/* Detalles técnicos colapsables */}
-          <div style={{ marginTop: "0.75rem" }}>
-            <button
-              type="button"
-              onClick={() => setShowDetails((v) => !v)}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: "0.25rem 0",
-                fontSize: "var(--text-xs)",
-                color: "var(--muted)",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.25rem",
-                fontFamily: "inherit",
-              }}
-            >
-              <CaretDown size={12} weight="bold" style={{ transform: showDetails ? "rotate(180deg)" : "none", transition: "transform var(--transition)" }} />
-              {showDetails ? "Ocultar detalles técnicos" : "Ver detalles técnicos"}
-            </button>
-            {showDetails && (
-              <div style={{ padding: "0.5rem 0.75rem", background: "var(--accent)", borderRadius: "var(--radius-sm)", marginTop: "0.375rem", fontSize: "var(--text-xs)", color: "var(--muted)" }}>
-                Método de extracción: {latest.extractionMethod === "native_text" ? "Texto digital" : "OCR"} · Confianza: {Math.round(latest.globalConfidence * 100)}%
-              </div>
-            )}
-          </div>
-
-          {/* Conceptos del último tarjetón */}
-          {latestConcepts.length > 0 && (
-            <div style={{ marginTop: "1rem", paddingTop: "0.875rem", borderTop: "1px solid var(--border)" }}>
-              <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--fg)", marginBottom: "0.5rem" }}>
-                Conceptos desglosados
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-                {latestConcepts.map((c, i) => (
-                  <Link
-                    key={`${c.code}-${i}`}
-                    href={`/guia/conceptos/${c.code}`}
-                    title={`Explicación del concepto ${c.code}`}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDeletingId(imp.id)}
+                    aria-label="Eliminar tarjetón"
                     style={{
-                      display: "inline-flex",
+                      color: "var(--error)",
+                      minWidth: 40,
+                      minHeight: 40,
+                      display: "flex",
                       alignItems: "center",
-                      gap: "0.375rem",
-                      padding: "0.375rem 0.75rem",
-                      borderRadius: "9999px",
-                      background: c.kind === "earning" ? "var(--state-info-bg)" : "var(--state-warning-bg)",
-                      color: c.kind === "earning" ? "var(--state-info-fg)" : "var(--state-warning-fg)",
-                      fontSize: "var(--text-xs)",
-                      fontWeight: 600,
-                      textDecoration: "none",
-                      lineHeight: 1.3,
+                      justifyContent: "center",
+                      padding: "0.375rem",
                     }}
                   >
-                    {c.code} · {c.description}
-                    <Info size={14} weight="fill" aria-hidden="true" />
-                  </Link>
-                ))}
+                    <Trash size={18} weight="bold" />
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
-        </Card>
-      )}
+
+              {/* Detalles técnicos y conceptos solo para el activo */}
+              {isCurrentActive && (
+                <>
+                  <div style={{ marginTop: "0.5rem" }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowDetails((v) => !v)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: "0.25rem 0",
+                        fontSize: "var(--text-xs)",
+                        color: "var(--muted)",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.25rem",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      <CaretDown size={12} weight="bold" style={{ transform: showDetails ? "rotate(180deg)" : "none", transition: "transform var(--transition)" }} />
+                      {showDetails ? "Ocultar detalles técnicos" : "Ver detalles técnicos"}
+                    </button>
+                    {showDetails && (
+                      <div style={{ padding: "0.5rem 0.75rem", background: "var(--accent)", borderRadius: "var(--radius-sm)", marginTop: "0.375rem", fontSize: "var(--text-xs)", color: "var(--muted)" }}>
+                        Método de extracción: {imp.extractionMethod === "native_text" ? "Texto digital" : "OCR"} · Confianza: {Math.round(imp.globalConfidence * 100)}%
+                      </div>
+                    )}
+                  </div>
+
+                  {latestConcepts.length > 0 && (
+                    <div style={{ marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid var(--border)" }}>
+                      <div style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--muted)", marginBottom: "0.375rem" }}>
+                        Conceptos de este tarjetón
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem" }}>
+                        {latestConcepts.map((c, i) => (
+                          <Link
+                            key={`${c.code}-${i}`}
+                            href={`/guia/conceptos/${c.code}`}
+                            title={`Explicación del concepto ${c.code}`}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "0.375rem",
+                              padding: "0.25rem 0.625rem",
+                              borderRadius: "9999px",
+                              background: c.kind === "earning" ? "var(--state-info-bg)" : "var(--state-warning-bg)",
+                              color: c.kind === "earning" ? "var(--state-info-fg)" : "var(--state-warning-fg)",
+                              fontSize: "var(--text-xs)",
+                              fontWeight: 600,
+                              textDecoration: "none",
+                              lineHeight: 1.3,
+                            }}
+                          >
+                            {c.code} · {c.description}
+                            <Info size={12} weight="fill" aria-hidden="true" />
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </Card>
+          )
+        })}
+      </div>
 
       {/* Upload new button */}
       {(uploadHref || onUploadNew) && (
-        <div style={{ marginBottom: imports.length > 1 ? "1.5rem" : 0 }}>
+        <div style={{ marginTop: "0.5rem" }}>
           {uploadHref ? (
             <Link href={uploadHref} style={{
               display: "inline-flex", alignItems: "center", gap: "0.5rem",
@@ -219,51 +360,22 @@ export function TarjetonHistorySection({
         </div>
       )}
 
-      {/* Older uploads */}
-      {imports.length > 1 && (
-        <>
-          <h3 style={{ fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.04em", margin: "0 0 0.75rem" }}>
-            Tarjetones anteriores ({imports.length - 1})
-          </h3>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-            {imports.slice(1).map((imp) => (
-              <Card key={imp.id} padding="0.875rem 1.25rem">
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flex: 1 }}>
-                    <CheckCircle size={18} weight="fill" color="var(--state-success-fg)" style={{ flexShrink: 0, opacity: 0.8 }} />
-                    <div>
-                      <div style={{ fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--fg)" }}>
-                        {imp.periodRaw ?? "Sin periodo"}
-                      </div>
-                      <div style={{ fontSize: "var(--text-xs)", color: "var(--muted)" }}>
-                        Neto: ${imp.totalNet?.toLocaleString("es-MX", { minimumFractionDigits: 2 }) ?? "—"} · Importado el {new Date(imp.createdAt).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" })}
-                      </div>
-                    </div>
-                  </div>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDeletingId(imp.id)}
-                    aria-label="Eliminar tarjetón"
-                    style={{
-                      color: "var(--error)",
-                      minWidth: 44,
-                      minHeight: 44,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: "0.5rem",
-                    }}
-                  >
-                    <Trash size={16} weight="bold" />
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </>
-      )}
+      {/* Diálogo de confirmación para usar un tarjetón anterior */}
+      <ConfirmDialog
+        open={activatingId !== null}
+        title={`¿Quieres usar el tarjetón de ${activatingPeriod ?? "este periodo"}?`}
+        description="Calculadoras, Vacaciones, Guía y las demás herramientas usarán sus datos para calcular tus derechos y nómina."
+        confirmLabel="Usar este tarjetón"
+        cancelLabel="Cancelar"
+        loading={isActivating}
+        onConfirm={() => {
+          if (activatingId) void handleActivate(activatingId)
+        }}
+        onCancel={() => {
+          setActivatingId(null)
+          setActivatingPeriod(null)
+        }}
+      />
 
       {/* Diálogo accesible de confirmación de eliminación */}
       <ConfirmDialog

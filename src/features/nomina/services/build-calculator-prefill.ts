@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { resolveActivePayslip } from "@/shared/server/active-payslip"
 import type { CalculatorId, CalculatorPrefillResponse, PrefillSource } from "@/shared/contracts/calculator-prefill"
 import type { Tables } from "@/lib/supabase/types"
 import type {
@@ -179,22 +180,8 @@ export async function buildCalculatorPrefill(args: BuildCalculatorPrefillArgs): 
   let daysWorkedInAnnualPeriod: { value: number; source: PrefillSource; note?: string } | undefined
   if (contextAllowed) {
     try {
-      let payslipQuery = supabase
-        .from("imported_payslips")
-        .select("payroll_totals, employee_number")
-        .eq("user_id", userId)
-
-      if (activeMatricula) {
-        payslipQuery = payslipQuery.eq("employee_number", activeMatricula)
-      }
-
-      const { data: latestPayslip } = await payslipQuery
-        .order("period_year", { ascending: false, nullsFirst: false })
-        .order("period_month", { ascending: false, nullsFirst: false })
-        .order("period_half", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
+      const resolved = await resolveActivePayslip(supabase, userId, { activeMatricula })
+      const latestPayslip = resolved.payslip
       const totals = latestPayslip?.payroll_totals
       const days = isObject(totals) ? asNumber(totals.daysWorkedInYear) : undefined
       if (days !== undefined && days > 0) {

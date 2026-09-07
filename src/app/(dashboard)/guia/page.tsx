@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import { resolveActivePayslip } from "@/shared/server/active-payslip"
 import { GuiaHome, type GuiaHomeServerData } from "@/features/tarjeton-guia/components/GuiaHome"
 
 export default async function GuiaPage() {
@@ -15,23 +16,8 @@ export default async function GuiaPage() {
 
   const activeMatricula = profile?.matricula?.trim() || null
 
-  let payslipQuery = supabase
-    .from("imported_payslips")
-    .select("id, period_raw, payroll_totals, employee_number")
-    .eq("user_id", user.id)
-
-  if (activeMatricula) {
-    payslipQuery = payslipQuery.eq("employee_number", activeMatricula)
-  }
-
-  const { data: rows } = await payslipQuery
-    .order("period_year", { ascending: false, nullsFirst: false })
-    .order("period_month", { ascending: false, nullsFirst: false })
-    .order("period_half", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false })
-    .limit(1)
-
-  const latest = rows?.[0]
+  const resolved = await resolveActivePayslip(supabase, user.id, { activeMatricula })
+  const latest = resolved.payslip
   const totals = (latest?.payroll_totals ?? {}) as Record<string, unknown> | null
 
   let counts = { earningsCount: 0, deductionsCount: 0 }
