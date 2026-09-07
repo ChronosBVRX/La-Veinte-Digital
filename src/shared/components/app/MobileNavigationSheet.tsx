@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import { useEffect, useRef } from "react"
 import { motion, useReducedMotion } from "framer-motion"
 import { X, Article, ArrowsClockwise, UserCircle, Briefcase, Newspaper, FolderOpen } from "@phosphor-icons/react"
-import { MOBILE_SHEET_GROUPS } from "./navigation"
+import { MOBILE_SHEET_GROUPS, shouldPrefetchRoute } from "./navigation"
 import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
 import { useBackLayer } from "@/shared/navigation/useBackLayer"
 
@@ -192,6 +192,7 @@ export function MobileNavigationSheet({ openKey, onClose, onNavigate }: MobileNa
                   <Link
                     key={item.href}
                     href={item.href}
+                    prefetch={shouldPrefetchRoute(item.href) ? undefined : false}
                     onClick={() => {
                       onClose()
                       onNavigate()
@@ -308,6 +309,7 @@ export function MobileNavigationSheet({ openKey, onClose, onNavigate }: MobileNa
                   </Link>
                   <Link
                     href="/profile/mi-informacion-laboral"
+                    prefetch={false}
                     onClick={() => {
                       onClose()
                       onNavigate()

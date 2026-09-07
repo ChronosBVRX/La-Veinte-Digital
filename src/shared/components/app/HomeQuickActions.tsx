@@ -23,6 +23,7 @@ import {
 } from "@/features/agenda-laboral/lib/commitment-calendar"
 import { useCommitmentsListener } from "@/features/agenda-laboral/lib/agenda-bus"
 import type { WorkerCommitment } from "@/features/agenda-laboral/types"
+import { shouldPrefetchRoute } from "./navigation"
 import { rowToCommitment, type CommitmentRow } from "@/features/agenda-laboral/services/commitments-supabase"
 
 type IconType = React.ComponentType<IconProps & { size?: number; weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone" }>
@@ -194,7 +195,13 @@ function QuickCard({
   }
 
   return (
-    <Link href={href} aria-label={ariaLabel} className="hover-lift pressable" style={baseStyle}>
+    <Link
+      href={href}
+      prefetch={shouldPrefetchRoute(href) ? undefined : false}
+      aria-label={ariaLabel}
+      className="hover-lift pressable"
+      style={baseStyle}
+    >
       {cardInner}
     </Link>
   )
@@ -361,11 +368,22 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
 
     loadTarjeton()
 
+    let bc: BroadcastChannel | null = null
     const onPayslipUpdated = () => {
       void loadTarjeton()
     }
     if (typeof window !== "undefined") {
       window.addEventListener("nomina_payslip_updated", onPayslipUpdated)
+      try {
+        bc = new BroadcastChannel("la20-worker-context")
+        bc.onmessage = (event) => {
+          if (event.data?.type === "nomina_payslip_updated") {
+            void loadTarjeton()
+          }
+        }
+      } catch {
+        // BroadcastChannel no soportado
+      }
     }
 
     return () => {
@@ -373,6 +391,9 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
       signal.aborted = true
       if (typeof window !== "undefined") {
         window.removeEventListener("nomina_payslip_updated", onPayslipUpdated)
+      }
+      if (bc) {
+        bc.close()
       }
     }
   }, [])

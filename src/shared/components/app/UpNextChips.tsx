@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { AirplaneTilt, CalendarDots, CalendarCheck } from "@phosphor-icons/react"
 import type { IconProps } from "@phosphor-icons/react"
+import { shouldPrefetchRoute } from "./navigation"
 
 type IconType = React.ComponentType<IconProps & { size?: number; weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone" }>
 
@@ -33,6 +34,7 @@ export function UpNextChips() {
             <Link
               key={chip.label}
               href={chip.href}
+              prefetch={shouldPrefetchRoute(chip.href) ? undefined : false}
               className="hover-lift pressable"
               style={{
                 display: "inline-flex",

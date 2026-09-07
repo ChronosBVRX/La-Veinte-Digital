@@ -12,6 +12,7 @@ export interface ResolvedActivePayslip {
   latestPayslipId: string | null
   latestPeriodRaw: string | null
   activeMatricula: string | null
+  contextRevision: string | null
 }
 
 export interface ResolveActivePayslipOptions {
@@ -53,7 +54,7 @@ export async function resolveActivePayslip(
   // 1. Consultar worker_active_context
   const { data: activeContext } = await supabase
     .from("worker_active_context")
-    .select("employee_number, active_payslip_id, selection_mode")
+    .select("employee_number, active_payslip_id, selection_mode, updated_at")
     .eq("user_id", userId)
     .maybeSingle()
 
@@ -105,6 +106,7 @@ export async function resolveActivePayslip(
           latestPayslipId,
           latestPeriodRaw,
           activeMatricula,
+          contextRevision: activeContext?.updated_at || pinnedRow.created_at || null,
         }
       }
     }
@@ -127,5 +129,6 @@ export async function resolveActivePayslip(
     latestPayslipId,
     latestPeriodRaw,
     activeMatricula,
+    contextRevision: activeContext?.updated_at || latestPayslip?.created_at || null,
   }
 }

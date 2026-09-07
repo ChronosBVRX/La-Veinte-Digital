@@ -15,6 +15,7 @@ export async function getWorkerContext(): Promise<WorkerContext> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return {
+      meta: null,
       profile: null,
       employment: null,
       payroll: null,
@@ -97,6 +98,13 @@ export async function getWorkerContext(): Promise<WorkerContext> {
   }
 
   return buildWorkerContext({
+    meta: {
+      activePayslipId: activePayslipResult.activePayslipId,
+      activePayslipPeriod: latest?.period_raw ?? activePayslipResult.latestPeriodRaw ?? null,
+      activeEmployeeNumber: activeMatricula || activePayslipResult.activeMatricula,
+      selectionMode: activePayslipResult.selectionMode,
+      contextRevision: activePayslipResult.contextRevision,
+    },
     profileRow: profile,
     payrollContextRow: ctx,
     latestPayslipRow: latest,

@@ -51,20 +51,25 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
       events = await svc.listWorkerEvents(20)
     }
   } catch (err) {
-    console.error("[worker-profile-page]", err instanceof Error ? err.message : err)
-    const displayMessage = err instanceof WorkerProfileUnavailableError
-      ? "El perfil laboral no está disponible en este momento. Inténtalo más tarde."
-      : err instanceof WorkerProfileUnauthorizedError
+    if (err instanceof WorkerProfileUnavailableError) {
+      // Estado de transición o sin perfil aún: degradar a unconfigured para
+      // permitir acceso al historial de tarjetones y al importador
+      console.warn("[worker-profile-page] Perfil no configurado o en transición:", err.message)
+      state = "unconfigured"
+    } else {
+      console.error("[worker-profile-page]", err instanceof Error ? err.message : err)
+      const displayMessage = err instanceof WorkerProfileUnauthorizedError
         ? "Debes iniciar sesión para ver tu información laboral."
         : "No se pudo cargar tu información laboral. Inténtalo de nuevo."
-    return (
-      <PageContainer maxWidth={600} padding="1.5rem 0">
-        <h1 style={{ fontSize: "1.25rem", margin: "0 0 0.5rem", wordBreak: "break-word" }}>Mi información laboral</h1>
-        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.375rem", padding: "1rem", color: "#991b1b", fontSize: "0.9375rem", wordBreak: "break-word" }}>
-          {displayMessage}
-        </div>
-      </PageContainer>
-    )
+      return (
+        <PageContainer maxWidth={600} padding="1.5rem 0">
+          <h1 style={{ fontSize: "1.25rem", margin: "0 0 0.5rem", wordBreak: "break-word" }}>Mi información laboral</h1>
+          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.375rem", padding: "1rem", color: "#991b1b", fontSize: "0.9375rem", wordBreak: "break-word" }}>
+            {displayMessage}
+          </div>
+        </PageContainer>
+      )
+    }
   }
 
   // Snapshot del perfil para detección de diferencias durante la importación.
@@ -166,6 +171,7 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
           <TarjetonHistorySection
             imports={previousImports}
             activePayslipId={resolved.activePayslipId}
+            latestPayslipId={resolved.latestPayslipId}
             selectionMode={resolved.selectionMode}
             latestConcepts={latestConcepts}
             uploadHref="#subir-tarjeton"

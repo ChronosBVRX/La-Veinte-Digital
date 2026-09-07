@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { ArrowRight, ArrowsLeftRight } from "@phosphor-icons/react"
 import { TransferDocumentsButton } from "@/features/transferir/components/TransferDocumentsButton"
+import { shouldPrefetchRoute } from "./navigation"
 
 const PILLS = [
   { href: "/bitacora", label: "Registrar incidencia" },
@@ -51,6 +52,7 @@ export function DesktopQuickPills() {
           <Link
             key={pill.href}
             href={pill.href}
+            prefetch={shouldPrefetchRoute(pill.href) ? undefined : false}
             className="hover-lift pressable"
             style={{
               display: "flex",

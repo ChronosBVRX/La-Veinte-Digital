@@ -22,6 +22,7 @@ export interface PreviousImport {
 interface TarjetonHistorySectionProps {
   imports: PreviousImport[]
   activePayslipId?: string | null
+  latestPayslipId?: string | null
   selectionMode?: "AUTO_LATEST" | "PINNED"
   latestConcepts?: Array<{ code: string; description: string; amount: number; kind: "earning" | "deduction" }>
   onUploadNew?: () => void
@@ -31,6 +32,7 @@ interface TarjetonHistorySectionProps {
 export function TarjetonHistorySection({
   imports: initial,
   activePayslipId: initialActiveId,
+  latestPayslipId,
   selectionMode: initialSelectionMode = "AUTO_LATEST",
   latestConcepts = [],
   onUploadNew,
@@ -50,8 +52,6 @@ export function TarjetonHistorySection({
   const [isActivating, setIsActivating] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
 
-  const latest = imports[0]
-
   const handleConfirmDelete = useCallback(async () => {
     if (!deletingId) return
     setIsDeleting(true)
@@ -61,15 +61,29 @@ export function TarjetonHistorySection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: deletingId }),
       })
-      if (res.ok) {
+      const response = await res.json()
+      if (res.ok && response.ok) {
         setImports((prev) => prev.filter((i) => i.id !== deletingId))
         if (activeId === deletingId) {
-          const remaining = imports.filter((i) => i.id !== deletingId)
-          setActiveId(remaining[0]?.id ?? null)
-          setSelectionMode("AUTO_LATEST")
+          setActiveId(response.activePayslipId ?? null)
+          setSelectionMode(response.selectionMode ?? "AUTO_LATEST")
         }
+
+        const detail = {
+          activePayslipId: response.activePayslipId,
+          selectionMode: response.selectionMode,
+          contextRevision: response.contextRevision,
+        }
+
         if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("nomina_payslip_updated"))
+          window.dispatchEvent(new CustomEvent("nomina_payslip_updated", { detail }))
+          try {
+            const bc = new BroadcastChannel("la20-worker-context")
+            bc.postMessage({ type: "nomina_payslip_updated", detail })
+            bc.close()
+          } catch {
+            // Ignorar si no está soportado
+          }
         }
         router.refresh()
       }
@@ -79,7 +93,7 @@ export function TarjetonHistorySection({
       setIsDeleting(false)
       setDeletingId(null)
     }
-  }, [deletingId, activeId, imports, router])
+  }, [deletingId, activeId, router])
 
   const handleActivate = useCallback(async (payslipId: string) => {
     setIsActivating(true)
@@ -89,11 +103,31 @@ export function TarjetonHistorySection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "pin", payslipId }),
       })
-      if (res.ok) {
-        setActiveId(payslipId)
-        setSelectionMode("PINNED")
+      const response = await res.json()
+      if (res.ok && response.ok) {
+        if (response.selectionMode === "PINNED" && response.activePayslipId !== payslipId) {
+          console.error("[TarjetonHistorySection] Inconsistencia: el servidor activó un tarjetón distinto al solicitado:", response)
+          return
+        }
+        setActiveId(response.activePayslipId)
+        setSelectionMode(response.selectionMode)
+
+        const detail = {
+          activePayslipId: response.activePayslipId,
+          employeeNumber: response.employeeNumber,
+          selectionMode: response.selectionMode,
+          contextRevision: response.contextRevision,
+        }
+
         if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("nomina_payslip_updated"))
+          window.dispatchEvent(new CustomEvent("nomina_payslip_updated", { detail }))
+          try {
+            const bc = new BroadcastChannel("la20-worker-context")
+            bc.postMessage({ type: "nomina_payslip_updated", detail })
+            bc.close()
+          } catch {
+            // Ignorar si no está soportado
+          }
         }
         router.refresh()
       }
@@ -114,11 +148,27 @@ export function TarjetonHistorySection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "auto_latest" }),
       })
-      if (res.ok) {
-        setActiveId(latest?.id ?? null)
-        setSelectionMode("AUTO_LATEST")
+      const response = await res.json()
+      if (res.ok && response.ok) {
+        setActiveId(response.activePayslipId)
+        setSelectionMode(response.selectionMode)
+
+        const detail = {
+          activePayslipId: response.activePayslipId,
+          employeeNumber: response.employeeNumber,
+          selectionMode: response.selectionMode,
+          contextRevision: response.contextRevision,
+        }
+
         if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("nomina_payslip_updated"))
+          window.dispatchEvent(new CustomEvent("nomina_payslip_updated", { detail }))
+          try {
+            const bc = new BroadcastChannel("la20-worker-context")
+            bc.postMessage({ type: "nomina_payslip_updated", detail })
+            bc.close()
+          } catch {
+            // Ignorar si no está soportado
+          }
         }
         router.refresh()
       }
@@ -127,7 +177,7 @@ export function TarjetonHistorySection({
     } finally {
       setIsActivating(false)
     }
-  }, [latest, router])
+  }, [router])
 
   if (imports.length === 0) {
     return (
@@ -159,7 +209,8 @@ export function TarjetonHistorySection({
     )
   }
 
-  const isPinnedOlder = selectionMode === "PINNED" && activeId !== latest?.id
+  const effectiveLatestId = latestPayslipId ?? imports[0]?.id ?? null
+  const isPinnedOlder = selectionMode === "PINNED" && (effectiveLatestId ? activeId !== effectiveLatestId : false)
 
   return (
     <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -178,20 +229,20 @@ export function TarjetonHistorySection({
 
       {/* Lista de tarjetones */}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        {imports.map((imp, idx) => {
+        {imports.map((imp) => {
           const isCurrentActive = imp.id === activeId
-          const isLatestRecord = idx === 0
+          const isLatestRecord = effectiveLatestId ? imp.id === effectiveLatestId : false
 
           return (
-            <Card
-              key={imp.id}
-              padding="1.125rem"
-              style={{
-                borderColor: isCurrentActive ? "var(--primary)" : "var(--border)",
-                borderWidth: isCurrentActive ? "2px" : "1px",
-                background: isCurrentActive ? "color-mix(in srgb, var(--primary) 3%, var(--card))" : "var(--card)",
-              }}
-            >
+            <div key={imp.id} data-testid={`tarjeton-card-${imp.id}`}>
+              <Card
+                padding="1.125rem"
+                style={{
+                  borderColor: isCurrentActive ? "var(--primary)" : "var(--border)",
+                  borderWidth: isCurrentActive ? "2px" : "1px",
+                  background: isCurrentActive ? "color-mix(in srgb, var(--primary) 3%, var(--card))" : "var(--card)",
+                }}
+              >
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", flex: 1, minWidth: 260 }}>
                   <CheckCircle
@@ -334,7 +385,8 @@ export function TarjetonHistorySection({
                   )}
                 </>
               )}
-            </Card>
+              </Card>
+            </div>
           )
         })}
       </div>
