@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useEffect, useMemo, type CSSProperties } from "react"
+import { useState, useEffect, useMemo, useRef, type CSSProperties } from "react"
 import Link from "next/link"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { createClient } from "@/lib/supabase/client"
+import { usePayslipInvalidation } from "@/shared/hooks/usePayslipInvalidation"
 import { prefillVacationSimulator } from "../domain/prefill"
 import { formatMexicanDate } from "@/features/tarjeton/lib/imss-date-parser"
 import { formatMexicanCurrency, calculateVacationPayment } from "../domain/payment-estimate"
@@ -177,6 +178,42 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
   const [calendar, setCalendar] = useState<AnnualVacationCalendar | null>(null)
   const [loadingCalendar, setLoadingCalendar] = useState<boolean>(true)
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false)
+
+  // Escuchar confirmación de nuevos tarjetones para refrescar el Server Component
+  usePayslipInvalidation({ refreshRouter: true })
+
+  // Huella única del trabajador/tarjetón para detectar cambios de identidad o periodo
+  const contextFingerprint = useMemo(() => {
+    if (!initialContext) return ""
+    return [
+      initialContext.profile?.matricula ?? "",
+      initialContext.profile?.fullName ?? "",
+      initialContext.payroll?.latestPeriod ?? "",
+      initialContext.vacations?.dueDate ?? initialContext.vacations?.porVencer ?? "",
+      initialContext.employment?.categoryName ?? "",
+      initialContext.employment?.effectiveSeniorityDate ?? initialContext.employment?.seniorityRaw ?? "",
+      initialContext.vacations?.continuityMark ?? "",
+      initialContext.vacations?.periodNumberToEnjoy ?? "",
+      initialContext.payroll?.integratedMonthlySalary ?? "",
+      initialContext.payroll?.totalEarnings ?? "",
+      initialContext.payroll?.netPay ?? "",
+    ].join("::")
+  }, [initialContext])
+
+  const prevFingerprintRef = useRef<string | null>(null)
+
+  // Al cambiar el trabajador o el tarjetón activo, reiniciar el estado derivado del asistente
+  // pero conservar el calendario anual ya cargado (evita parpadeos y llamadas redundantes).
+  useEffect(() => {
+    if (prevFingerprintRef.current !== null && prevFingerprintRef.current !== contextFingerprint) {
+      setStep("welcome")
+      setPriority("COMPARE_ALL")
+      setActivePeriodIdx(1)
+      setSelections({})
+      setSavedSuccess(false)
+    }
+    prevFingerprintRef.current = contextFingerprint
+  }, [contextFingerprint])
 
   const supabase = createClient()
 

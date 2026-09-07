@@ -20,6 +20,7 @@ import { getPayslips } from "@/shared/services/local-storage"
 import { getLatestPayslipAnalysis } from "@/features/tarjeton/services/payslip-analysis-store"
 import { syncLatestSavedPayslip } from "@/features/tarjeton/services/sync-latest-payslip"
 import { analyzeAndPersistPayslip } from "@/features/tarjeton/services/analyze-and-persist-payslip"
+import { usePayslipInvalidation } from "@/shared/hooks/usePayslipInvalidation"
 
 export interface GuiaHomeServerData {
   hasPayslip: boolean
@@ -33,6 +34,7 @@ export interface GuiaHomeServerData {
 }
 
 export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
+  usePayslipInvalidation({ refreshRouter: true })
   const [tipIndex, setTipIndex] = useState(0)
   const [autoAnalyzing, setAutoAnalyzing] = useState(false)
   const [hasLocalPayslip, setHasLocalPayslip] = useState(data.hasPayslip)

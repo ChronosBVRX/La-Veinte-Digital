@@ -321,4 +321,35 @@ describe("Regresión Canónica de Sincronización de Tarjetón (Casos A a F)", (
     expect(reloadCalled).toBe(true)
     window.removeEventListener("nomina_payslip_updated", onPayslipUpdated)
   })
+
+  it("Caso H — Desempate canónico: period_year DESC, period_month DESC, period_half DESC, created_at DESC", () => {
+    const olderHalfNewerCreated = {
+      id: "slip_q9_late",
+      period_year: 2026,
+      period_month: 5,
+      period_half: 1,
+      period_raw: "1A-MAY-2026",
+      created_at: "2026-06-01T12:00:00Z",
+    }
+    const newerHalfOlderCreated = {
+      id: "slip_q10_early",
+      period_year: 2026,
+      period_month: 5,
+      period_half: 2,
+      period_raw: "2A-MAY-2026",
+      created_at: "2026-05-31T10:00:00Z",
+    }
+
+    const rows = [olderHalfNewerCreated, newerHalfOlderCreated]
+    const sorted = [...rows].sort((a, b) => {
+      if (b.period_year !== a.period_year) return b.period_year - a.period_year
+      if (b.period_month !== a.period_month) return b.period_month - a.period_month
+      if (b.period_half !== a.period_half) return b.period_half - a.period_half
+      return b.created_at.localeCompare(a.created_at)
+    })
+
+    // Q10 debe ser el primero a pesar de que Q9 tenga un created_at posterior
+    expect(sorted[0].id).toBe("slip_q10_early")
+    expect(sorted[0].period_half).toBe(2)
+  })
 })

@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useCallback } from "react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
+import { usePayslipInvalidation } from "@/shared/hooks/usePayslipInvalidation"
 import {
   FileText, FolderOpen, Printer, Clock, Trash, PencilLine,
   DotsThree, UploadSimple, PencilSimple, Eye, ShareNetwork,
@@ -137,6 +138,25 @@ export function DocumentosPersonales() {
       cancelled = true
     }
   }, [supabase])
+
+  const reloadProfile = useCallback(async () => {
+    if (!userId || userId === "anonymous") return
+    const { data: p } = await supabase
+      .from("profiles")
+      .select("full_name, matricula, categoria, antiguedad")
+      .eq("id", userId)
+      .maybeSingle()
+    if (p) {
+      setProfile({
+        fullName: p.full_name ?? null,
+        matricula: p.matricula ?? null,
+        categoria: p.categoria ?? null,
+        antiguedad: p.antiguedad ?? null,
+      })
+    }
+  }, [supabase, userId])
+
+  usePayslipInvalidation({ onInvalidate: reloadProfile })
 
   // 2. Cargar documentos nativos si está en el contenedor móvil
   useEffect(() => {
