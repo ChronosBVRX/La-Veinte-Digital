@@ -4,7 +4,6 @@ import Link from "next/link"
 import { CalendarDots, CurrencyDollar, Clock, FileText, Calculator, UploadSimple, ArrowRight } from "@phosphor-icons/react"
 import { CalculatorCard } from "./CalculatorCard"
 import { SourceAttribution } from "@/shared/components/ui/SourceAttribution"
-import { usePayslipInvalidation } from "@/shared/hooks/usePayslipInvalidation"
 
 const calculators = [
   {
@@ -40,9 +39,7 @@ const calculators = [
   },
 ]
 
-export function CalculatorsIndex({ hasTarjeton }: { hasTarjeton: boolean }) {
-  usePayslipInvalidation({ refreshRouter: true })
-
+export function CalculatorsIndex({ hasTarjeton = false }: { hasTarjeton?: boolean }) {
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto", paddingBottom: "2rem" }}>
       <div style={{ marginBottom: "1.25rem" }}>

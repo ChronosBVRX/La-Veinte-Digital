@@ -663,6 +663,7 @@ export type Database = {
           certification_date: string | null
           created_at: string
           employee_data: Json
+          employee_number: string | null
           extraction_method: string
           fiscal_folio_hash: string | null
           folio: string | null
@@ -683,6 +684,7 @@ export type Database = {
           certification_date?: string | null
           created_at?: string
           employee_data?: Json
+          employee_number?: string | null
           extraction_method: string
           fiscal_folio_hash?: string | null
           folio?: string | null
@@ -703,6 +705,7 @@ export type Database = {
           certification_date?: string | null
           created_at?: string
           employee_data?: Json
+          employee_number?: string | null
           extraction_method?: string
           fiscal_folio_hash?: string | null
           folio?: string | null
@@ -1053,6 +1056,7 @@ export type Database = {
           effective_seniority_days: number | null
           effective_seniority_fortnights: number | null
           effective_seniority_years: number | null
+          employee_number: string | null
           entry_date: string | null
           id: string
           radiological_exposure: string | null
@@ -1074,6 +1078,7 @@ export type Database = {
           effective_seniority_days?: number | null
           effective_seniority_fortnights?: number | null
           effective_seniority_years?: number | null
+          employee_number?: string | null
           entry_date?: string | null
           id?: string
           radiological_exposure?: string | null
@@ -1095,6 +1100,7 @@ export type Database = {
           effective_seniority_days?: number | null
           effective_seniority_fortnights?: number | null
           effective_seniority_years?: number | null
+          employee_number?: string | null
           entry_date?: string | null
           id?: string
           radiological_exposure?: string | null

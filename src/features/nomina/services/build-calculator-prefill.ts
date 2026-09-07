@@ -137,13 +137,15 @@ export async function buildCalculatorPrefill(args: BuildCalculatorPrefillArgs): 
 
   const { data: profileRow, error: profileError } = await supabase
     .from("profiles")
-    .select("categoria, antiguedad")
+    .select("categoria, antiguedad, matricula")
     .eq("id", userId)
     .maybeSingle()
 
   if (profileError && isDev) {
     console.warn("[calculator-prefill] perfil no disponible:", profileError.message)
   }
+
+  const activeMatricula = profileRow?.matricula?.trim() || null
 
   let contextRow: PayrollContextRow | null = null
   try {
@@ -153,6 +155,12 @@ export async function buildCalculatorPrefill(args: BuildCalculatorPrefillArgs): 
       .eq("user_id", userId)
       .maybeSingle()
     contextRow = data ?? null
+    if (contextRow && activeMatricula && contextRow.matricula && contextRow.matricula.trim() !== activeMatricula) {
+      if (isDev) {
+        console.warn(`[calculator-prefill] contextRow matricula (${contextRow.matricula}) != profileRow (${activeMatricula}), ignorando contextRow`)
+      }
+      contextRow = null
+    }
   } catch (err) {
     if (isDev) {
       console.warn("[calculator-prefill] payroll_contexts no disponible:", err instanceof Error ? err.message : err)
@@ -171,10 +179,16 @@ export async function buildCalculatorPrefill(args: BuildCalculatorPrefillArgs): 
   let daysWorkedInAnnualPeriod: { value: number; source: PrefillSource; note?: string } | undefined
   if (contextAllowed) {
     try {
-      const { data: latestPayslip } = await supabase
+      let payslipQuery = supabase
         .from("imported_payslips")
-        .select("payroll_totals")
+        .select("payroll_totals, employee_number")
         .eq("user_id", userId)
+
+      if (activeMatricula) {
+        payslipQuery = payslipQuery.eq("employee_number", activeMatricula)
+      }
+
+      const { data: latestPayslip } = await payslipQuery
         .order("period_year", { ascending: false, nullsFirst: false })
         .order("period_month", { ascending: false, nullsFirst: false })
         .order("period_half", { ascending: false, nullsFirst: false })

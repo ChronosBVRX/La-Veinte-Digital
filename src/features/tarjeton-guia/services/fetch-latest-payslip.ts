@@ -20,10 +20,24 @@ export interface LatestPayslipResult {
 export async function fetchLatestServerPayslip(userId: string): Promise<GuidePayslip | null> {
   const supabase = await createClient()
 
-  const { data: rows, error } = await supabase
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("matricula")
+    .eq("id", userId)
+    .maybeSingle()
+
+  const activeMatricula = profile?.matricula?.trim() || null
+
+  let payslipQuery = supabase
     .from("imported_payslips")
-    .select("id, period_raw, period_year, period_month, period_half, created_at, employee_data, payroll_totals")
+    .select("id, period_raw, period_year, period_month, period_half, created_at, employee_data, payroll_totals, employee_number")
     .eq("user_id", userId)
+
+  if (activeMatricula) {
+    payslipQuery = payslipQuery.eq("employee_number", activeMatricula)
+  }
+
+  const { data: rows, error } = await payslipQuery
     .order("period_year", { ascending: false, nullsFirst: false })
     .order("period_month", { ascending: false, nullsFirst: false })
     .order("period_half", { ascending: false, nullsFirst: false })

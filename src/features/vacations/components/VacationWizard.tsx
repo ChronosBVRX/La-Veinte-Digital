@@ -6,7 +6,6 @@ import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { createClient } from "@/lib/supabase/client"
-import { usePayslipInvalidation } from "@/shared/hooks/usePayslipInvalidation"
 import { prefillVacationSimulator } from "../domain/prefill"
 import { formatMexicanDate } from "@/features/tarjeton/lib/imss-date-parser"
 import { formatMexicanCurrency, calculateVacationPayment } from "../domain/payment-estimate"
@@ -178,9 +177,6 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
   const [calendar, setCalendar] = useState<AnnualVacationCalendar | null>(null)
   const [loadingCalendar, setLoadingCalendar] = useState<boolean>(true)
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false)
-
-  // Escuchar confirmación de nuevos tarjetones para refrescar el Server Component
-  usePayslipInvalidation({ refreshRouter: true })
 
   // Huella única del trabajador/tarjetón para detectar cambios de identidad o periodo
   const contextFingerprint = useMemo(() => {
