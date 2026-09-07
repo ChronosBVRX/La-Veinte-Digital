@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { UploadSimple, X } from "@phosphor-icons/react"
 import { FullscreenPortal } from "@/shared/components/ui/FullscreenPortal"
 import { Button } from "@/shared/components/ui/Button"
@@ -13,6 +14,7 @@ import {
 import { ProgressBar } from "@/features/tarjeton/components/ProgressBar"
 import { Review } from "@/features/tarjeton/components/Review"
 import { ImportSuccess } from "@/features/tarjeton/components/ImportSuccess"
+import { completePayslipOnboardingAction } from "@/features/profile/actions/worker-profile-actions"
 
 type Status = "idle" | "reading" | "review" | "confirming" | "done" | "error"
 
@@ -39,10 +41,13 @@ export function ImportTarjetonModal({ open, file, profile, onClose }: ImportTarj
 function ImportTarjetonModalContent({ open, file, profile, onClose }: ImportTarjetonModalProps) {
   const { state, start, confirm, reset } = useTarjetonImporter(profile)
   const startedRef = useRef(false)
+  const successNotifiedRef = useRef(false)
+  const router = useRouter()
 
   useEffect(() => {
     if (!open) {
       startedRef.current = false
+      successNotifiedRef.current = false
       return
     }
     if (file && state.step === "idle" && !startedRef.current) {
@@ -52,15 +57,37 @@ function ImportTarjetonModalContent({ open, file, profile, onClose }: ImportTarj
   }, [open, file, state.step, start])
 
   useEffect(() => {
-    if (!open) reset()
+    if (!open) {
+      successNotifiedRef.current = false
+      reset()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    if (state.step !== "done" || successNotifiedRef.current) return
+    successNotifiedRef.current = true
+    void (async () => {
+      try {
+        await completePayslipOnboardingAction({
+          method: state.method,
+          confidence: state.parsed?.extraction.globalConfidence,
+          period: state.parsed?.document.periodRaw ?? null,
+        })
+      } catch (err) {
+        console.warn("[ImportTarjetonModal] completePayslipOnboardingAction falló:", err)
+      }
+      router.refresh()
+    })()
+  }, [open, state.step, state.method, state.parsed, router])
 
   const step: Status = state.step
 
   const retry = () => {
     if (!file) return
     startedRef.current = true
+    successNotifiedRef.current = false
     void start(file)
   }
 

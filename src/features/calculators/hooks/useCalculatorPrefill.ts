@@ -43,6 +43,19 @@ export function useCalculatorPrefill(
     }
   }, [calculatorId, targetDate, attempt])
 
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const handleUpdate = () => {
+      setLoading(true)
+      setError(null)
+      setAttempt((a) => a + 1)
+    }
+    window.addEventListener("nomina_payslip_updated", handleUpdate)
+    return () => {
+      window.removeEventListener("nomina_payslip_updated", handleUpdate)
+    }
+  }, [])
+
   const reload = useCallback(() => {
     setLoading(true)
     setError(null)

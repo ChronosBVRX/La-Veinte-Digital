@@ -26,6 +26,7 @@ export async function fetchLatestServerPayslip(userId: string): Promise<GuidePay
     .eq("user_id", userId)
     .order("period_year", { ascending: false, nullsFirst: false })
     .order("period_month", { ascending: false, nullsFirst: false })
+    .order("period_half", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(1)
 
