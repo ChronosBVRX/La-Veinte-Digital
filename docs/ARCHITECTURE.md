@@ -90,7 +90,6 @@ src/
 │   ├── profile/               # Gestión de información laboral y perfil
 │   ├── push/                  # Registro de tokens FCM y notificaciones
 │   ├── simulador/             # Máquina de estados de audiencia disciplinaria
-│   ├── simulador-nomina/      # Simulador en vivo con 4 escenarios de entrada
 │   ├── tarjeton/              # Parsers puros, OCR vendor local, confirmación
 │   ├── tarjeton-guia/         # Pipeline canónico de análisis y visualización
 │   ├── transferir/            # Emparejamiento por QR y transferencia P2P

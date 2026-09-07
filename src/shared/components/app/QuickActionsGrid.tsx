@@ -9,7 +9,6 @@ import {
   Calculator,
   FileText,
   Notebook,
-  ArrowsLeftRight,
 } from "@phosphor-icons/react"
 
 interface QuickActionProps {
@@ -97,12 +96,6 @@ export function QuickActionsGrid() {
       label: "Registrar en\nmi agenda",
       href: "/bitacora",
       color: "var(--area-community)",
-    },
-    {
-      icon: ArrowsLeftRight,
-      label: "Simulador\nde nómina",
-      href: "/simulador-nomina",
-      color: "var(--area-tools)",
     },
   ]
 

@@ -15,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.io.RandomAccessFile
@@ -36,8 +37,15 @@ object PdfShareManager {
         var nextExpectedIndex: Long = 0L,
         var receivedBytes: Long = 0L,
         var timeoutRunnable: Runnable? = null,
-        var replyProxy: JavaScriptReplyProxy? = null
+        var replyProxy: JavaScriptReplyProxy? = null,
+        /** SHARE = abrir hoja de compartir (comportamiento histórico); SAVE = persistir en Room/filesDir. */
+        val mode: TransferMode = TransferMode.SHARE,
+        val ownerId: String? = null,
+        val externalKey: String? = null,
+        val periodLabel: String? = null,
     )
+
+    private enum class TransferMode { SHARE, SAVE }
 
     private val mainHandler = Handler(Looper.getMainLooper())
     // Ejecutor de un solo hilo para procesar start, chunk y commit de forma estrictamente secuencial
@@ -99,6 +107,14 @@ object PdfShareManager {
             try {
                 val json = JSONObject(message)
                 val action = json.optString("action")
+
+                // setOwner no usa transferId (es señal de sesión, no transferencia).
+                // En APKs que no conocen esta acción se responde INVALID_REQUEST sin efectos.
+                if (action == "setOwner") {
+                    handleSetOwner(context, replyProxy, json.optString("userId"))
+                    return@launch
+                }
+
                 val transferId = json.optString("transferId", json.optString("reqId"))
 
                 if (!isValidTransferId(transferId)) {
@@ -110,6 +126,20 @@ object PdfShareManager {
                     "start" -> {
                         val fileName = json.optString("fileName", "documento.pdf")
                         start(context, replyProxy, transferId, fileName)
+                    }
+                    // saveStart/saveChunk/saveCommit persisten el PDF en Room/filesDir (modo offline
+                    // de escritos). Los fragmentos y el commit reutilizan el protocolo "chunk"/"commit":
+                    // la sesión guarda su modo y el commit decide. Desconocido en APKs viejas →
+                    // INVALID_REQUEST inocuo, jamás abre la hoja de compartir.
+                    "saveStart" -> {
+                        val rawName = json.optString("title", json.optString("fileName", "documento.pdf"))
+                        start(
+                            context, replyProxy, transferId, rawName,
+                            mode = TransferMode.SAVE,
+                            ownerId = json.optString("ownerId").ifBlank { null },
+                            externalKey = json.optString("escritoId").ifBlank { null },
+                            periodLabel = json.optString("fecha").ifBlank { null },
+                        )
                     }
                     "chunk" -> {
                         val index = json.optLong("index", -1L).toString()
@@ -148,7 +178,16 @@ object PdfShareManager {
         }
     }
 
-    private fun start(context: Context, replyProxy: JavaScriptReplyProxy?, transferId: String, fileName: String) {
+    private fun start(
+        context: Context,
+        replyProxy: JavaScriptReplyProxy?,
+        transferId: String,
+        fileName: String,
+        mode: TransferMode = TransferMode.SHARE,
+        ownerId: String? = null,
+        externalKey: String? = null,
+        periodLabel: String? = null,
+    ) {
         if (sessions.isNotEmpty()) {
             val existing = sessions.values.firstOrNull()
             if (existing != null && existing.transferId != transferId) {
@@ -172,7 +211,11 @@ object PdfShareManager {
                 partFile = partFile,
                 nextExpectedIndex = 0L,
                 receivedBytes = 0L,
-                replyProxy = replyProxy
+                replyProxy = replyProxy,
+                mode = mode,
+                ownerId = ownerId?.trim()?.ifBlank { null },
+                externalKey = externalKey?.trim()?.ifBlank { null },
+                periodLabel = periodLabel?.trim()?.ifBlank { null },
             )
             sessions[transferId] = session
             scheduleTimeout(context, replyProxy, transferId)
@@ -235,7 +278,7 @@ object PdfShareManager {
         }
     }
 
-    private fun commit(context: Context, replyProxy: JavaScriptReplyProxy?, transferId: String, expectedSha256: String, totalSizeStr: String) {
+    private suspend fun commit(context: Context, replyProxy: JavaScriptReplyProxy?, transferId: String, expectedSha256: String, totalSizeStr: String) {
         val session = sessions[transferId]
         if (session == null) {
             sendErrorResponse(context, replyProxy, "INVALID_REQUEST", "No hay una transferencia activa.", transferId)
@@ -280,6 +323,12 @@ object PdfShareManager {
             if (!computedHash.equals(expectedSha256, ignoreCase = true)) {
                 sendErrorResponse(context, replyProxy, "CHECKSUM_MISMATCH", "No se pudo verificar el archivo. Inténtalo de nuevo.", transferId)
                 cancel(transferId, "checksum_mismatch")
+                return
+            }
+
+            // Modo SAVE: persistir en Room/filesDir para consulta offline. Jamás abre compartir.
+            if (session.mode == TransferMode.SAVE) {
+                commitSave(context, replyProxy, session, transferId, computedHash)
                 return
             }
 
@@ -335,6 +384,74 @@ object PdfShareManager {
             sendErrorResponse(context, replyProxy, "INTERNAL_ERROR", "Error al procesar el archivo PDF.", transferId)
             cancel(transferId, "commit_exception")
         }
+    }
+
+    /**
+     * Finaliza una transferencia SAVE: lee los bytes del .part y los persiste vía
+     * [NativeDocuments.saveExternalPdf] (misma Room + filesDir que tarjetones/checadas).
+     * Limpia el .part temporal en todos los caminos.
+     */
+    private suspend fun commitSave(
+        context: Context,
+        replyProxy: JavaScriptReplyProxy?,
+        session: Session,
+        transferId: String,
+        computedHash: String,
+    ) {
+        try {
+            val bytes = withContext(Dispatchers.IO) { session.partFile.readBytes() }
+            val owner = session.ownerId
+                ?: com.laveintedigital.app.offline.NativeSessionOwner.current(context)
+            val docId = com.laveintedigital.app.imss.payslips.NativeDocuments.saveExternalPdf(
+                context = context,
+                bytes = bytes,
+                displayName = session.sanitizedFileName,
+                source = com.laveintedigital.app.imss.payslips.NativeDocuments.SOURCE_ESCRITO,
+                externalKey = session.externalKey,
+                ownerId = owner,
+                periodLabel = session.periodLabel,
+            )
+            sessions.remove(transferId)
+            runCatching { if (session.partFile.exists()) session.partFile.delete() }
+            if (docId <= 0) {
+                sendErrorResponse(context, replyProxy, "INVALID_PDF", "No se pudo guardar el documento.", transferId)
+                return
+            }
+            android.util.Log.i(
+                com.laveintedigital.app.offline.OfflineLog.TAG,
+                "${com.laveintedigital.app.offline.OfflineLog.EVENT_DOC_SAVED} id=$docId size=${bytes.size}",
+            )
+            postResult(replyProxy, JSONObject().apply {
+                put("ok", true)
+                put("status", "saved")
+                put("transferId", transferId)
+                put("fileName", session.sanitizedFileName)
+                put("byteLength", bytes.size.toLong())
+                put("sha256", computedHash)
+                put("docId", docId)
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "Error committing SAVE transfer $transferId", e)
+            sendErrorResponse(context, replyProxy, "INTERNAL_ERROR", "Error al guardar el documento.", transferId)
+            cancel(transferId, "save_commit_exception")
+        }
+    }
+
+    /**
+     * Señal de sesión: fija el propietario lógico actual para documentos guardados
+     * (best-effort; userId vacío limpia). Responde ack inocuo en APKs que lo soportan.
+     */
+    private fun handleSetOwner(context: Context, replyProxy: JavaScriptReplyProxy?, rawUserId: String?) {
+        val clean = rawUserId?.trim().orEmpty()
+        if (clean.isNotEmpty() && !com.laveintedigital.app.offline.NativeSessionOwner.isValidOwnerId(clean)) {
+            sendErrorResponse(context, replyProxy, "INVALID_REQUEST", "Identificador de usuario no válido.", null)
+            return
+        }
+        com.laveintedigital.app.offline.NativeSessionOwner.set(context, clean.ifBlank { null })
+        postResult(replyProxy, JSONObject().apply {
+            put("ok", true)
+            put("status", "owner_set")
+        })
     }
 
     fun cancel(transferId: String, reason: String) {

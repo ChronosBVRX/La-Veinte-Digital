@@ -8,8 +8,15 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.laveintedigital.app.offline.OfflineDetection
 import com.laveintedigital.app.routing.Domains
 import com.laveintedigital.app.routing.NavigationTarget
+
+/**
+ * El fallback offline ([onOffline]) se dispara SOLO ante errores de conectividad del marco
+ * principal (sin red, DNS, timeout). Los HTTP 401/403/404/500 llegan por [onReceivedHttpError]
+ * y jamás activan el modo offline. Ver [OfflineDetection].
+ */
 
 class LaVeinteInternalWebViewClient(
     private val onExternalNavigation: (NavigationTarget) -> Unit,
@@ -99,7 +106,11 @@ class LaVeinteInternalWebViewClient(
     ) {
         if (request?.isForMainFrame == true) {
             onPageLoadStateChanged(false)
-            onOffline()
+            // Solo pérdida real de conectividad → offline. Otros errores del marco principal
+            // (esquema, archivo, etc.) no deben atrapar al usuario en la pantalla offline.
+            if (error == null || OfflineDetection.isMainFrameConnectivityError(error.errorCode)) {
+                onOffline()
+            }
         }
     }
 

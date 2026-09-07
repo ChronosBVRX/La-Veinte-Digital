@@ -36,7 +36,7 @@ const TARJETON_REAL_LINES: PayslipLineRow[] = [
 
 const TOTAL_PERCEPCIONES_REAL = 14256.87
 
-describe("Pipeline tarjetón → worker-context → portada del simulador", () => {
+describe("Pipeline tarjetón → worker-context", () => {
   it("reconstruye TODAS las percepciones confirmadas, no solo el subset del RPC", () => {
     // Simula el estado legacy que dejaba el RPC: SOLO 050 persistido.
     const legacyRcFromRpc = [
@@ -63,22 +63,6 @@ describe("Pipeline tarjetón → worker-context → portada del simulador", () =
       expect(e.confirmed).toBe(true)
       expect(e.occurrenceType).not.toBe("one_time")
     }
-  })
-
-  it("selector de la portada suma el TOTAL COMPROBADO ($14,256.87), nunca una percepción suelta", async() => {
-    const { sumComprobadoTarjeton } = await import("@/features/simulador-nomina/services/simulate")
-
-    const legacyRcFromRpc = [
-      { conceptCode: "050", appearsNormally: true, lastAmount: 200, source: "last_payslip", confirmed: true },
-    ]
-    const rc = buildRecurringConceptsFromPayslipLines(TARJETON_REAL_LINES, "2026-08-31", legacyRcFromRpc)
-
-    // Perfil tal como queda tras la hidratación del simulador:
-    const profile = { recurringConcepts: rc as RecurringConceptEvidence[] } as never
-
-    const total = sumComprobadoTarjeton(profile)
-    expect(total).toBeCloseTo(TOTAL_PERCEPCIONES_REAL, 2)
-    expect(total).not.toBe(200)
   })
 
   it("buildWorkerContextPayroll mantiene los totales declarados del tarjetón", () => {

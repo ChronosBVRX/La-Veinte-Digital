@@ -1,4 +1,4 @@
-﻿// Capa editorial de "Guía de mi Tarjetón".
+// Capa editorial de "Guía de mi Tarjetón".
 // Contenido educativo curado para la UI, basado en el índice provisional
 // (concepts.ts) y en la normativa vigente ya validada por La Veinte Digital.
 //
@@ -82,17 +82,16 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       affects: [
         "Es la base de la ayuda de renta (011) y de muchos estímulos (032, 033).",
         "Se usa para el sueldo mensual integrado en el tarjetón.",
-        "Es la referencia del simulador de nómina y de las calculadoras de la app.",
+        "Es la referencia de las calculadoras de la app.",
       ],
       review: "Compara que el importe corresponda a tu categoría. Si cambió sin que cambie tu categoría o jornada, conviene revisarlo.",
       calculation: {
         kind: "current",
-        engine: "Simulador de nómina / Tabulador de sueldos",
+        engine: "Tabulador de sueldos",
         note: "La app ya tiene el tabulador vigente; no se usa la fórmula duna fuente provisional.",
       },
     },
     related: ["011", "022", "032", "033", "037", "field:57", "field:11"],
-    calculator: { route: "/simulador-nomina", label: "Simular mi nómina" },
     searchAliases: ["sueldo base", "salario base", "tabular"],
   },
   {
@@ -189,11 +188,10 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       calculation: {
         kind: "reference-only",
         formula: "002 + 011 (o 013 + 057 + 058 + 061, según el caso) × factor según años de servicio (fuente provisional)",
-        note: "Requiere la tabla/factor vigente; la app lo cubre en el simulador de nómina.",
+        note: "Requiere la tabla/factor contractual vigente.",
       },
     },
     related: ["field:13", "011", "002", "048", "field:45", "field:53"],
-    calculator: { route: "/simulador-nomina", label: "Simular mi nómina con mi antigüedad" },
     searchAliases: ["ayuda de renta antigüedad", "renta por antigüedad", "inciso c"],
   },
   {
@@ -348,12 +346,11 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       review: "Si no aparece, revisa tu quincena de incidencia y las incidencias registradas (faltas, licencias, incapacidades).",
       calculation: {
         kind: "current",
-        engine: "Simulador de nómina",
-        note: "El simulador de nómina de la app calcula estímulos con la lógica vigente.",
+        engine: "Reglamento de Asistencia y Puntualidad",
+        note: "Se calcula con la fórmula y condiciones contractuales vigentes.",
       },
     },
     related: ["033", "field:30", "022", "002", "011"],
-    calculator: { route: "/simulador-nomina", label: "Simular mis estímulos" },
     searchAliases: ["estímulo por asistencia", "asistencia", "estímulo 032"],
   },
   {
@@ -376,12 +373,11 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
       review: "El que no aparezca una quincena no significa un error: revisa las marcas de asistencia y el desfase de pago.",
       calculation: {
         kind: "current",
-        engine: "Simulador de nómina",
-        note: "El simulador de nómina de la app calcula estímulos con la lógica vigente.",
+        engine: "Reglamento de Asistencia y Puntualidad",
+        note: "Se calcula con la fórmula y condiciones contractuales vigentes.",
       },
     },
     related: ["032", "field:23", "field:39", "field:30", "002", "011"],
-    calculator: { route: "/simulador-nomina", label: "Simular mis estímulos" },
     searchAliases: ["estímulo por puntualidad", "puntualidad", "estímulo 033", "sin retardo"],
   },
   {
@@ -602,13 +598,13 @@ export const GUIDE_CONCEPT_CONTENT: GuideConceptContent[] = [
     code: "051",
     easy: {
       short: "Concepto de pago adicional que puede aparecer según tu categoría.",
-      whyMatters: "Forma parte de las combinaciones salariales que usa la aplicación en el simulador.",
+      whyMatters: "Forma parte de las combinaciones salariales registradas en el tabulador.",
       whenAppears: "Según tu categoría y condiciones laborales.",
     },
     detailed: {
       howItWorks: "Concepto registrado en el catálogo de percepciones; su presencia depende de tu nombramiento.",
       whenItAppears: "Cuando tu situación lo contempla.",
-      review: "La app lo reconoce en el simulador de nómina.",
+      review: "Corresponde a las percepciones contractuales tabulares.",
     },
     related: ["002", "011"],
   },

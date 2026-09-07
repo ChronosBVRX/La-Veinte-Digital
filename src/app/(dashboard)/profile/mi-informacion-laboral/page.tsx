@@ -112,7 +112,7 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
           <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: 0, lineHeight: 1.55, wordBreak: "break-word" }}>
             Sube tu archivo PDF de tarjetón para mantener tu información laboral al día.
             Tus datos se sincronizan de manera segura en tu dispositivo (categoría, antigüedad, jornada y conceptos)
-            para alimentar las calculadoras y el simulador de nómina.
+            para alimentar las calculadoras de la app.
           </p>
         </div>
 

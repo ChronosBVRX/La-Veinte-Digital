@@ -1,5 +1,42 @@
 # Changelog
 
+## [Unreleased] — Eliminación quirúrgica del Simulador de Nómina
+
+### Removed
+- Ruta `/simulador-nomina` (`src/app/(dashboard)/simulador-nomina/page.tsx`) y feature completa `src/features/simulador-nomina/**` (componentes `SimuladorNominaIndex`, `SimuladorNominaPageClient`, `ScenarioComparison`, servicio `simulate.ts` y tests unitarios).
+- Enlaces y accesos al Simulador de Nómina en navegación desktop/móvil (`navigation.ts`, `QuickActionsGrid.tsx`, `herramientas/page.tsx`, `ImportSuccess.tsx`, `AnnouncementForm.tsx`, `safe-return-path.ts`, `guide-calculator-links.ts`, `guide-content.ts`).
+
+### Changed
+- Redirecciones canónicas: `/nomina` y `/nomina/proyeccion` redirigen a `/calculadoras`.
+- `ImportSuccess.tsx`: enlace post-importación redirige a `/calculadoras`.
+
+### Protected Behavior
+- `src/features/nomina/**` (motor de nómina y fórmulas) 100% intacto.
+- `src/features/calculators/**` (todas las calculadoras de nómina: Aguinaldo, Segunda de Julio, Tiempo Extra, Cláusula 97, Préstamos) 100% intactas.
+- `src/features/simulador/**` y `/simulador` (Simulador de Audiencia) 100% intactos.
+- Android nativo y Supabase sin alteraciones.
+
+## [Unreleased] — Modo offline Android: documentos guardados sin conexión
+
+### Added
+- Pantalla nativa `OfflineDocumentsScreen` (Compose, sin WebView ni red): Todos/Tarjetones/Checadas/Escritos, abrir con visor local, compartir por `FileProvider`, eliminar canónico. Ruta `offline_documents` con Back correcto.
+- `OfflineErrorScreen` evolucionada: "Sin conexión a Internet… Tus documentos guardados siguen disponibles." + [Ver mis documentos] + [Intentar de nuevo] (reintento intacto) + aviso "Conexión recuperada".
+- Persistencia local de escritos: la web respalda el PDF definitivo en Room + `filesDir/escritos` (upsert por id de escrito, sin duplicar) vía protocolo fragmentado `saveStart/chunk/commit`; borrado web sincroniza la copia nativa.
+- Detección real de offline: solo errores de conectividad del marco principal activan el fallback (HTTP 401/403/404/500 jamás), `NetworkMonitor` con `NET_CAPABILITY_VALIDATED`, arranque en modo avión soportado, recuperación con recarga única.
+- Aislamiento por usuario: Room v4 (`ownerId`, `externalKey`, migración 3→4 aditiva, sin borrados); legacy visibles, otros usuarios ocultos; propietario informado por la web y limpiado al logout sin borrar.
+- Docs: `docs/ANDROID_OFFLINE_DOCUMENTS.md` (propósito, arquitectura, almacenamiento, navegación, detección, recuperación, aislamiento, limitaciones, pruebas).
+
+### Tests
+- Android: `OfflineDetectionTest`, `NativeDocumentsOfflineTest` nuevos; `:app:testPlayDebugUnitTest` en verde; `assemblePlayDebug` + `assembleDirectDebug` OK (1.1.6/206).
+- Web: `escrito-native-sync.test.ts` nuevo; `npm test` full en verde; `typecheck` 0 errores; `lint` 0 errores; `npm run build` OK.
+
+### Protected Behavior
+- Web con Internet idéntica; bridge compatible hacia atrás (APKs viejas responden error inocuo, jamás comparten por accidente); tarjetones/checadas reutilizan Room + `filesDir` existentes sin copiar ni duplicar; sin PWA, sin réplica de Supabase, sin WorkManager, sin migraciones destructivas.
+
+### Deploy a producción (2026-09-06)
+- Web: deployment `dpl_6cMkJN9guNMarctpcpEsR1UPfqbg` (`target: production`, `● Ready`) con aliases `https://la-veinte-digital.vercel.app` y `https://la20.com.mx`. Verificado: `GET /api/health` → 200, `GET /` → 307 a `/login`.
+- Android: `bundlePlayRelease` generado (`app-play-release.aab`, 22 MB, v1.1.6/206, minificado, policy play/direct validada) y `LaVeinteDigital-direct-release-v1.1.6-b206.apk`. **Subida a Play Console pendiente (bloqueada por 2FA, acción del propietario).**
+
 ## [Unreleased] — Fix teclado móvil en modales (foco/remount)
 
 ### Fixed

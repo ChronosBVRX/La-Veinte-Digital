@@ -209,6 +209,14 @@ export function DesktopSidebar({ open, onClose, canAccessAdmin = false }: Deskto
           color="var(--muted)"
           onClick={onClose}
         />
+        <NavItem
+          href="/informacion-y-fuentes"
+          label="Información y fuentes"
+          icon={Article}
+          isActive={pathname === "/informacion-y-fuentes"}
+          color="var(--muted)"
+          onClick={onClose}
+        />
       </div>
     </>
   )

@@ -42,6 +42,7 @@ export const PUBLIC_PAGE_PATHS = [
   "/terminos",
   "/soporte",
   "/acerca-de",
+  "/informacion-y-fuentes",
   "/eliminar-cuenta",
 ] as const
 

@@ -46,6 +46,8 @@ object Domains {
     // Hosts that must open as Custom Tabs (system browser engine) because they need the user's
     // browser cookies / credential manager / proper OAuth redirects, or they're known to refuse
     // embedded WebViews.
+    // Play compliance: official government/legislative sources (DOF, Diputados, gob.mx, IMSS
+    // document hosts) open OUTSIDE any WebView with the privileged bridge, in a Custom Tab.
     val CUSTOM_TAB_HOSTS: List<String> = listOf(
         "accounts.google.com",
         "accounts.youtube.com",
@@ -70,6 +72,10 @@ object Domains {
         "api.telegram.org",
         "wa.me",
         "www.wa.me",
+        "dof.gob.mx",
+        "www.dof.gob.mx",
+        "diputados.gob.mx",
+        "www.diputados.gob.mx",
     )
 
     // Schemes handled via Android Intent (open external app).

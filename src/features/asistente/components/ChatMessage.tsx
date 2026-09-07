@@ -4,6 +4,7 @@ import { useState } from "react"
 import Markdown from "react-markdown"
 import { Bot, User } from "lucide-react"
 import type { BotMessage } from "../services/bot"
+import { AiContentReport } from "@/shared/components/ui/AiContentReport"
 
 interface ChatMessageProps {
   message: BotMessage
@@ -149,6 +150,13 @@ export function ChatMessage({ message, onChip }: ChatMessageProps) {
               </button>
             )}
           </div>
+        )}
+        {!isUser && (
+          <AiContentReport
+            responseId={`${message.content.slice(0, 48)}-${fuentes.length}`}
+            source="asistente"
+            contentPreview={message.content}
+          />
         )}
       </div>
     </div>

@@ -14,6 +14,8 @@ import { SignaturePadModal } from "./SignaturePadModal"
 import { deleteBlobResource } from "../services/escritos-indexeddb"
 import { DestinatarioResumen } from "./DestinatarioResumen"
 import { shareGeneratedPdf } from "@/shared/services/pdfShareBridge"
+import { AiContentReport } from "@/shared/components/ui/AiContentReport"
+import { SourceAttribution } from "@/shared/components/ui/SourceAttribution"
 
 export interface EscritosResultProps {
   userId: string
@@ -117,6 +119,25 @@ export function EscritosResult({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
+      <div
+        style={{
+          background: "rgba(245, 158, 11, 0.06)",
+          border: "1px solid rgba(245, 158, 11, 0.3)",
+          borderRadius: "0.5rem",
+          padding: "0.625rem 0.875rem",
+          fontSize: "0.78rem",
+          lineHeight: 1.5,
+          color: "var(--fg)",
+        }}
+      >
+        Borrador generado con IA: revísalo antes de presentarlo. No constituye asesoría legal
+        ni resolución oficial.{" "}
+        <a href="/informacion-y-fuentes" style={{ color: "var(--primary)", textDecoration: "underline" }}>
+          Información y fuentes
+        </a>
+        <SourceAttribution sourceId="cct-imss-sntss-2025-2027" compact />
+        <AiContentReport responseId={draft.id ?? draft.titulo} source="escritos" contentPreview={draft.cuerpo} />
+      </div>
       {/* Toast de feedback al compartir */}
       {shareFeedback && (
         <div

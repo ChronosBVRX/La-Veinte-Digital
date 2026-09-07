@@ -53,7 +53,7 @@ test.describe("Sidebar desktop", () => {
     if (vw && vw.width < 768) {
       test.skip(true, "Sidebar desktop solo visible en viewports >= 768px")
     }
-    await expect(page.locator('a[href="/simulador-nomina"]').first()).toBeAttached()
+    await expect(page.locator('a[href="/calculadoras"]').first()).toBeAttached()
     await expect(page.locator('a[href="/escritos"]').first()).toBeAttached()
     await expect(page.locator('a[href="/asistente"]').first()).toBeAttached()
   })

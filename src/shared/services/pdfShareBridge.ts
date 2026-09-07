@@ -40,6 +40,22 @@ export interface PdfShareErrorResponse {
 
 export type PdfShareResult = PdfShareSuccessResponse | PdfShareErrorResponse
 
+/**
+ * Respuesta de guardado nativo (modo offline de escritos).
+ * La app persiste el PDF en Room/filesDir para consulta sin conexión.
+ */
+export interface NativeSaveSuccessResponse {
+  ok: true
+  status: "saved"
+  transferId: string
+  fileName: string
+  byteLength: number
+  sha256: string
+  docId?: number
+}
+
+export type NativeSaveResult = NativeSaveSuccessResponse | PdfShareErrorResponse
+
 const CHUNK_SIZE = 64 * 1024 // 64 KB bytes binarios por fragmento
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 
@@ -318,6 +334,231 @@ export async function sharePdfViaNativeBridge(file: File | Blob, rawFileName?: s
   })
 }
 
+/**
+ * Informa a la app nativa el propietario lógico actual (user id de Supabase) para el
+ * aislamiento de documentos por usuario en modo offline. Fire-and-forget: en APKs que no
+ * conocen la acción se responde error inocuo y en web no hace nada.
+ */
+export function setNativeDocsOwner(ownerId: string): void {
+  if (typeof window === "undefined") return
+  if (!isNativePdfShareSupported()) return
+  try {
+    postBridgeMessage({ action: "setOwner", userId: ownerId })
+  } catch {
+    /* best-effort */
+  }
+}
+
+export interface NativeSaveMeta {
+  /** Id estable del escrito (clave externa en Room). */
+  escritoId: string
+  title?: string
+  ownerId?: string
+  /** Fecha del escrito (se guarda como etiqueta). */
+  fecha?: string
+}
+
+/**
+ * Guarda un PDF generado en el almacenamiento nativo (Room + filesDir) para consulta
+ * offline. Reutiliza el protocolo fragmentado con acciones `saveStart`/`chunk`/`commit`:
+ * las APKs que no las conocen responden error inocuo y jamás abren la hoja de compartir.
+ * Fuera de la app nativa devuelve UNSUPPORTED sin efectos.
+ */
+export async function savePdfToNativeDocs(
+  file: File | Blob,
+  meta: NativeSaveMeta,
+  rawFileName?: string
+): Promise<NativeSaveResult> {
+  const fileName = rawFileName || (file instanceof File ? file.name : "documento.pdf") || "documento.pdf"
+
+  if (!meta || !meta.escritoId || !meta.escritoId.trim()) {
+    return { ok: false, code: "INVALID_REQUEST", message: "Identificador de escrito no válido." }
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    return { ok: false, code: "FILE_TOO_LARGE", message: "El archivo supera el límite de 10 MB." }
+  }
+
+  if (file.size === 0) {
+    return { ok: false, code: "INVALID_PDF", message: "El archivo generado está vacío." }
+  }
+
+  if (!isNativePdfShareSupported()) {
+    return { ok: false, code: "UNSUPPORTED", message: "Guardado nativo no disponible en este entorno." }
+  }
+
+  const arrayBuffer = await file.arrayBuffer()
+  const bytes = new Uint8Array(arrayBuffer)
+  const totalSize = bytes.byteLength
+
+  const headerBytes = bytes.slice(0, 5)
+  const headerStr = String.fromCharCode(...headerBytes)
+  if (headerStr !== "%PDF-") {
+    return { ok: false, code: "INVALID_PDF", message: "El archivo no contiene una cabecera de PDF válida." }
+  }
+
+  const sha256 = await computeSha256Hex(arrayBuffer)
+  const transferId = generateTransferId()
+
+  return new Promise<NativeSaveResult>((resolve) => {
+    let settled = false
+    let timeoutTimer: ReturnType<typeof setTimeout> | null = null
+
+    const cleanup = () => {
+      if (timeoutTimer) {
+        clearTimeout(timeoutTimer)
+        timeoutTimer = null
+      }
+      if (typeof window !== "undefined") {
+        if (window.laVeintePdfBridge) {
+          if (window.laVeintePdfBridge.onmessage === bridgeMessageHandler) {
+            window.laVeintePdfBridge.onmessage = null
+          }
+          if (typeof window.laVeintePdfBridge.removeEventListener === "function") {
+            window.laVeintePdfBridge.removeEventListener("message", bridgeMessageHandler)
+          }
+        }
+        if (typeof window.removeEventListener === "function") {
+          window.removeEventListener("message", windowMessageHandler)
+        }
+        if (window.__laveintePdfShareCallback === onBridgeResponse) {
+          window.__laveintePdfShareCallback = undefined
+        }
+      }
+    }
+
+    const finish = (result: NativeSaveResult) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve(result)
+    }
+
+    timeoutTimer = setTimeout(() => {
+      postBridgeMessage({ action: "cancel", transferId, reason: "client_timeout" })
+      finish({
+        ok: false,
+        code: "TIMEOUT",
+        message: "Tiempo de espera agotado al comunicar con la app nativa.",
+        transferId,
+      })
+    }, 35000)
+
+    const onBridgeResponse = (rawPayload: unknown) => {
+      try {
+        const data = (typeof rawPayload === "string" ? JSON.parse(rawPayload) : rawPayload) as Record<string, unknown>
+        if (!data || typeof data !== "object") return
+
+        if (data.transferId && data.transferId !== transferId) {
+          return
+        }
+
+        if (data.ok === true && data.status === "ready" && data.transferId === transferId) {
+          sendAllChunks().catch((err) => {
+            postBridgeMessage({ action: "cancel", transferId, reason: "chunk_error" })
+            finish({
+              ok: false,
+              code: "WRITE_FAILED",
+              message: err instanceof Error ? err.message : "Error enviando fragmentos de archivo.",
+              transferId,
+            })
+          })
+          return
+        }
+
+        if (data.ok === true && data.status === "saved" && data.transferId === transferId) {
+          finish(data as unknown as NativeSaveSuccessResponse)
+          return
+        }
+
+        if (data.ok === false) {
+          finish(data as unknown as PdfShareErrorResponse)
+          return
+        }
+      } catch (err) {
+        console.error("[PdfShareBridge] Error procesando respuesta del bridge:", err)
+      }
+    }
+
+    const bridgeMessageHandler = (event: { data: unknown }) => {
+      onBridgeResponse(event?.data)
+    }
+
+    const windowMessageHandler = (event: MessageEvent) => {
+      onBridgeResponse(event?.data)
+    }
+
+    if (typeof window !== "undefined") {
+      if (window.laVeintePdfBridge) {
+        window.laVeintePdfBridge.onmessage = bridgeMessageHandler
+        if (typeof window.laVeintePdfBridge.addEventListener === "function") {
+          window.laVeintePdfBridge.addEventListener("message", bridgeMessageHandler)
+        }
+      }
+      if (typeof window.addEventListener === "function") {
+        window.addEventListener("message", windowMessageHandler)
+      }
+      window.__laveintePdfShareCallback = onBridgeResponse
+    }
+
+    const sendAllChunks = async () => {
+      let offset = 0
+      let index = 0
+
+      while (offset < totalSize) {
+        const end = Math.min(offset + CHUNK_SIZE, totalSize)
+        const chunkSlice = bytes.slice(offset, end)
+        const base64Chunk = bufferToBase64(chunkSlice)
+
+        const chunkMsg = {
+          action: "chunk",
+          transferId,
+          index,
+          chunk: base64Chunk,
+        }
+
+        const sent = postBridgeMessage(chunkMsg)
+        if (!sent) {
+          throw new Error("No se pudo enviar el fragmento al puente nativo.")
+        }
+
+        offset = end
+        index++
+        if (index % 5 === 0) {
+          await new Promise((r) => setTimeout(r, 0))
+        }
+      }
+
+      const commitMsg = {
+        action: "commit",
+        transferId,
+        sha256,
+        totalSize,
+      }
+      postBridgeMessage(commitMsg)
+    }
+
+    const startMsg = {
+      action: "saveStart",
+      transferId,
+      fileName,
+      title: meta.title || fileName,
+      escritoId: meta.escritoId,
+      ownerId: meta.ownerId || "",
+      fecha: meta.fecha || "",
+    }
+
+    const started = postBridgeMessage(startMsg)
+    if (!started) {
+      finish({
+        ok: false,
+        code: "UNSUPPORTED",
+        message: "No fue posible comunicarse con el puente nativo de Android.",
+        transferId,
+      })
+    }
+  })
+}
 /**
  * Devuelve true si el código está ejecutándose dentro de la app nativa (WebView).
  * Nunca devuelve true en un navegador web normal, PWA o entorno SSR.

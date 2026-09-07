@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest"
 import { calculateProjection } from "../lib/engine"
-import { simulateScenario, compareProjections } from "../../simulador-nomina/services/simulate"
 import { formatProjectionAudit } from "../lib/audit"
 import type { CalculatedPayrollConcept, EmployeePayrollProfile, PayPeriod, PayrollProjection, ProjectionMode } from "../lib/types"
 import {
@@ -258,36 +257,5 @@ describe("Escenario Más antigüedad — tabla contractual 63 Bis c (días ÷ 36
     const c022 = conceptMap(projection).get("022")!
     expect(c022.included).toBe(false)
     expect(c022.amount).toBe(0)
-  })
-
-  it("producto completo simulateScenario: baseline inmutable y delta +$119.54 para 14→15", async () => {
-    const profile = buildGoldenProfile()
-    const baselineProj = runProjection({})
-    const profileBefore = JSON.stringify(profile)
-
-    const sim = simulateScenario(
-      baselineProj,
-      {
-        type: "seniority_bump",
-        label: "Más antigüedad",
-        description: "15 años totales",
-        targetSeniorityYears: 15,
-      },
-      profile,
-      [],
-    )
-    expect("error" in sim).toBe(false)
-    if ("error" in sim) throw new Error(sim.error)
-
-    // Inmutabilidad: ni el perfil ni el baseline mutaron.
-    expect(JSON.stringify(profile)).toBe(profileBefore)
-    expect(baselineProj.seniorityAtPeriodEnd.years).toBe(14)
-    expect(sim.projection.seniorityAtPeriodEnd.years).toBe(15)
-
-    const comparison = compareProjections(baselineProj, sim.projection)
-    expect(comparison.scenarioGross).toBeCloseTo(14376.41, 2)
-    expect(comparison.grossDelta).toBeCloseTo(119.54, 2)
-    const d022 = comparison.conceptDeltas.find((d) => d.code === "022")!
-    expect(d022.delta).toBeCloseTo(119.54, 2)
   })
 })

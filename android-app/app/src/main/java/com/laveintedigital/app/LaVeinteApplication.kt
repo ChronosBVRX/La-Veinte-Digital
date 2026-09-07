@@ -20,6 +20,7 @@ class LaVeinteApplication : Application() {
         Telemetry.init(this)
         LaVeinteNotificationManager.createChannels(this)
         PdfShareManager.cleanupOld(this)
+        com.laveintedigital.app.offline.NetworkMonitor.start(this)
         // Fetch/rotate the FCM token so the web (via the bridge getFcmToken()) can register it.
         FirebaseMessaging.getInstance().token
             .addOnSuccessListener { token -> PushTokenStore.saveToken(this, token) }

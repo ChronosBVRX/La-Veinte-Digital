@@ -24,6 +24,11 @@ import {
   revokeEscritoBlobs,
 } from "../services/escritos-indexeddb"
 import { generarEscrito } from "../services/generarEscrito"
+import {
+  syncEscritoPdfToNative,
+  deleteNativeEscritoCopies,
+  setNativeDocsOwner,
+} from "@/features/documentos-personales/services/escrito-native-sync"
 import { EscritosForm } from "./EscritosForm"
 import { EscritosEditor } from "./EscritosEditor"
 import { EscritosResult } from "./EscritosResult"
@@ -77,6 +82,8 @@ export function EscritosGenerator() {
         const user = res.user
         setUserId(user.id)
         setDraft((prev) => ({ ...prev, ownerId: user.id }))
+        // Aislamiento offline Android: informar el propietario actual (best-effort).
+        setNativeDocsOwner(user.id)
 
         // Ejecutar migración transaccional de legados
         await migrarEscritosLegadosSiEsNecesario(user.id).catch((err) => {
@@ -253,10 +260,16 @@ export function EscritosGenerator() {
       setLastSavedSnapshot(serializePersistableDraft(draft))
       setSaveToast("Escrito guardado correctamente en Mis Documentos.")
       setTimeout(() => setSaveToast(null), 3000)
+      // Respaldo offline Android (fire-and-forget): el PDF queda disponible sin conexión.
+      syncEscritoPdfToNative(draft, userId || draft.ownerId || "anonymous", {
+        nombre: workerProfile.nombre,
+        matricula: workerProfile.matricula,
+        categoria: workerProfile.categoria,
+      })
     } catch (e) {
       alert(e instanceof Error ? e.message : "Error al guardar el borrador.")
     }
-  }, [draft, userId])
+  }, [draft, userId, workerProfile])
 
   const performNewDraft = () => {
     revokeEscritoBlobs(draft)
@@ -306,6 +319,8 @@ export function EscritosGenerator() {
     if (window.confirm("¿Seguro que deseas eliminar este escrito guardado? Esta acción purgará también sus firmas y fotos adjuntas.")) {
       const updated = await eliminarEscrito(id, userId)
       setSavedList(updated)
+      // Mantener sincronizada la copia offline Android (fire-and-forget).
+      deleteNativeEscritoCopies(id)
       if (draft.id === id) {
         handleNewDraft()
       }

@@ -42,8 +42,8 @@ export function ImportSuccess({ parsed, response, onStartOver }: ImportSuccessPr
         <Button variant="secondary" onClick={onStartOver}>
           Subir otro tarjetón
         </Button>
-        <Link href="/simulador-nomina" style={{ textDecoration: "none" }}>
-          <Button>Ver mi nómina simulada</Button>
+        <Link href="/calculadoras" style={{ textDecoration: "none" }}>
+          <Button>Ir a calculadoras</Button>
         </Link>
         <Link href="/profile/mi-informacion-laboral" style={{ textDecoration: "none" }}>
           <Button variant="outline">Mi información laboral</Button>

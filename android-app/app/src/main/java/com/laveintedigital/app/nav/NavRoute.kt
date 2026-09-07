@@ -23,4 +23,6 @@ sealed class NavRoute(val route: String) {
             "payslip_viewer/${android.net.Uri.encode(filePath)}" + (if (!title.isNullOrBlank()) "?title=${android.net.Uri.encode(title)}" else "")
     }
     data object ManageImssCreds : NavRoute("manage_imss_creds")
+    /** Pantalla nativa de documentos offline (sin WebView ni red). */
+    data object OfflineDocuments : NavRoute("offline_documents")
 }

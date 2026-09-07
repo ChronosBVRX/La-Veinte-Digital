@@ -9,6 +9,8 @@ export interface NativeDocumentMeta {
   fileSize: number
   downloadedAt: number
   mimeType: string
+  /** Clave externa del escrito (solo source === "ESCRITO"; no se muestra en la lista web). */
+  escritoId?: string | null
 }
 
 export type DocTipo = "tarjeton" | "checadas" | "escrito"

@@ -112,7 +112,6 @@ la-veinte-digital/
 │   │   ├── bitacora/               # Bitácora personal de incidencias laborales
 │   │   ├── push/                   # Notificaciones push (FCM)
 │   │   ├── normativa/              # Catálogo SQLite FTS5, búsqueda y citas CCT
-│   │   ├── simulador-nomina/       # Simulador de nómina con 4 escenarios de entrada
 │   │   ├── profile/                # Perfil laboral y subida de tarjetón
 │   │   └── simulador/              # Simulador de audiencias disciplinarias IMSS
 │   │
