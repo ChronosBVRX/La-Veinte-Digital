@@ -46,7 +46,7 @@ function createMockTarjetonRequest(overrides: {
           years: overrides.seniorityYears ?? 10,
           fortnights: 0,
           days: 0,
-          rawSeniority: `${overrides.seniorityYears ?? 10} años`,
+          raw: `${overrides.seniorityYears ?? 10} años`,
           reconstructedEffectiveDate: "2016-01-16",
           referenceDate: overrides.periodRaw,
         },
