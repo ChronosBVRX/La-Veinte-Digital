@@ -747,6 +747,7 @@ export type Database = {
           consent_given: boolean
           consent_given_at: string | null
           consent_version: string | null
+          created_at?: string
           effective_seniority_date: string | null
           employment_type: string | null
           matricula: string | null
@@ -774,6 +775,7 @@ export type Database = {
           consent_given?: boolean
           consent_given_at?: string | null
           consent_version?: string | null
+          created_at?: string
           effective_seniority_date?: string | null
           employment_type?: string | null
           matricula?: string | null
@@ -801,6 +803,7 @@ export type Database = {
           consent_given?: boolean
           consent_given_at?: string | null
           consent_version?: string | null
+          created_at?: string
           effective_seniority_date?: string | null
           employment_type?: string | null
           matricula?: string | null
