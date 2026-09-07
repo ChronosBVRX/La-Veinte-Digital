@@ -1,6 +1,14 @@
 import { defineConfig, devices } from "@playwright/test"
 import path from "path"
 
+if (typeof process.loadEnvFile === "function") {
+  try {
+    process.loadEnvFile(".env.local")
+  } catch {
+    /* noop si no existe en CI */
+  }
+}
+
 const CI = !!process.env.CI
 
 const AUTH_FILE = path.join(__dirname, "e2e", ".auth", "user.json")

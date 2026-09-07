@@ -6,6 +6,7 @@ import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { createClient } from "@/lib/supabase/client"
+import { useLiveWorkerContext } from "@/shared/hooks/useLiveWorkerContext"
 import { prefillVacationSimulator } from "../domain/prefill"
 import { formatMexicanDate } from "@/features/tarjeton/lib/imss-date-parser"
 import { formatMexicanCurrency, calculateVacationPayment } from "../domain/payment-estimate"
@@ -170,6 +171,7 @@ const STRUCTURAL_ROLES_2027: VacationRole[] = [
 ]
 
 export function VacationWizard({ initialContext }: { initialContext?: WorkerContext | null }) {
+  const liveContext = useLiveWorkerContext(initialContext)
   const [step, setStep] = useState<WizardStep>("welcome")
   const [priority, setPriority] = useState<VacationPriority>("COMPARE_ALL")
   const [activePeriodIdx, setActivePeriodIdx] = useState<number>(1)
@@ -180,21 +182,23 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
   // Huella única del trabajador/tarjetón para detectar cambios de identidad o periodo
   const contextFingerprint = useMemo(() => {
-    if (!initialContext) return ""
+    if (!liveContext) return ""
     return [
-      initialContext.profile?.matricula ?? "",
-      initialContext.profile?.fullName ?? "",
-      initialContext.payroll?.latestPeriod ?? "",
-      initialContext.vacations?.dueDate ?? initialContext.vacations?.porVencer ?? "",
-      initialContext.employment?.categoryName ?? "",
-      initialContext.employment?.effectiveSeniorityDate ?? initialContext.employment?.seniorityRaw ?? "",
-      initialContext.vacations?.continuityMark ?? "",
-      initialContext.vacations?.periodNumberToEnjoy ?? "",
-      initialContext.payroll?.integratedMonthlySalary ?? "",
-      initialContext.payroll?.totalEarnings ?? "",
-      initialContext.payroll?.netPay ?? "",
+      liveContext.meta?.activePayslipId ?? "",
+      liveContext.meta?.contextRevision ?? "",
+      liveContext.profile?.matricula ?? "",
+      liveContext.profile?.fullName ?? "",
+      liveContext.payroll?.latestPeriod ?? "",
+      liveContext.vacations?.dueDate ?? liveContext.vacations?.porVencer ?? "",
+      liveContext.employment?.categoryName ?? "",
+      liveContext.employment?.effectiveSeniorityDate ?? liveContext.employment?.seniorityRaw ?? "",
+      liveContext.vacations?.continuityMark ?? "",
+      liveContext.vacations?.periodNumberToEnjoy ?? "",
+      liveContext.payroll?.integratedMonthlySalary ?? "",
+      liveContext.payroll?.totalEarnings ?? "",
+      liveContext.payroll?.netPay ?? "",
     ].join("::")
-  }, [initialContext])
+  }, [liveContext])
 
   const prevFingerprintRef = useRef<string | null>(null)
 
@@ -262,8 +266,8 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
   // Prefill desde el tarjetón / contexto
   const prefilled = useMemo(() => {
-    return prefillVacationSimulator(initialContext || null)
-  }, [initialContext])
+    return prefillVacationSimulator(liveContext || null)
+  }, [liveContext])
 
   const effectiveSeniorityYears = prefilled.profile?.effectiveSeniority?.years ?? 0
   const rawDueDate = prefilled.dueDate
@@ -272,13 +276,13 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
   const regime = prefilled.regime
 
   // Sueldo Mensual Integrado
-  const smi = initialContext?.payroll?.integratedMonthlySalary ?? null
-  const smiMeta = initialContext?.payroll?.integratedSalaryMeta
-  const sourcePayslipPeriod = initialContext?.payroll?.latestPeriod ?? undefined
+  const smi = liveContext?.payroll?.integratedMonthlySalary ?? null
+  const smiMeta = liveContext?.payroll?.integratedSalaryMeta
+  const sourcePayslipPeriod = liveContext?.payroll?.latestPeriod ?? undefined
   const isReconstructedSmi = smiMeta?.origin === "RECONSTRUCTED"
 
   // Detección de derecho V20
-  const twentyYearsOrMoreDays = initialContext?.vacations?.twentyYearsOrMoreDays ?? 0
+  const twentyYearsOrMoreDays = liveContext?.vacations?.twentyYearsOrMoreDays ?? 0
   const hasConfirmedV20 = twentyYearsOrMoreDays > 0
   const hasSeniorityForV20 = effectiveSeniorityYears >= 20
   const hasV20 = hasConfirmedV20 || hasSeniorityForV20
@@ -287,8 +291,8 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
   // Derechos vacacionales
   const entitlements: VacationEntitlement[] = useMemo(() => {
-    return initialContext?.vacations?.entitlements ?? prefilled.entitlements
-  }, [initialContext?.vacations?.entitlements, prefilled.entitlements])
+    return liveContext?.vacations?.entitlements ?? prefilled.entitlements
+  }, [liveContext?.vacations?.entitlements, prefilled.entitlements])
 
   const planInput: VacationPlanInput = useMemo(() => ({
     workerProfile: prefilled.profile,

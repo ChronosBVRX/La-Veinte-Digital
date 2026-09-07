@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { House, UserCircle, X, Article, ArrowsClockwise, FolderOpen, ShieldCheck } from "@phosphor-icons/react"
-import { DESKTOP_NAV_GROUPS } from "./navigation"
+import { DESKTOP_NAV_GROUPS, shouldPrefetchRoute } from "./navigation"
 import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
 import { useBackLayer } from "@/shared/navigation/useBackLayer"
 import type { CSSProperties } from "react"
@@ -321,6 +321,7 @@ function NavItem({
   return (
     <Link
       href={href}
+      prefetch={shouldPrefetchRoute(href) ? undefined : false}
       onClick={onClick}
       style={{
         display: "flex",

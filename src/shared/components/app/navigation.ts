@@ -22,6 +22,24 @@ export interface NavItem {
   icon: React.ComponentType<IconProps & { size?: number; weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone" }>
 }
 
+/**
+ * Rutas cuyo contenido depende del tarjetón o trabajador activo.
+ * Para evitar que el Router Cache de Next.js entregue snapshots RSC viejos
+ * generados por prefetch antes de un cambio de tarjetón, estas rutas NO se prefetchean.
+ */
+export const ACTIVE_WORKER_DATA_ROUTES = [
+  "/vacaciones",
+  "/guia",
+  "/calculadoras",
+  "/profile/mi-informacion-laboral",
+] as const
+
+export function shouldPrefetchRoute(href: string): boolean {
+  return !ACTIVE_WORKER_DATA_ROUTES.some(
+    (route) => href === route || href.startsWith(`${route}/`) || href.startsWith(`${route}?`)
+  )
+}
+
 export interface NavGroup {
   label: string
   area: "work" | "tools" | "assistance" | "community"

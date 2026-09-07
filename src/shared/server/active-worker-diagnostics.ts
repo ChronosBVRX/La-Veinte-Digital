@@ -13,10 +13,17 @@ export interface WorkerActiveDiagnostics {
   radiologicalSource: string | null
   selectionMode: "AUTO_LATEST" | "PINNED"
   isPinned: boolean
+  workerActiveContextPayslipId: string | null
+  resolvedActivePayslipId: string | null
+  payrollLatestPeriod: string | null
+  vacationsDueDate: string | null
+  vacationsContinuityMark: number | null
+  vacationsPeriodNumberToEnjoy: number | null
   invariants: {
     identityMismatch: boolean
     activePayslipNotOwned: boolean
     activePayslipEmployeeMismatch: boolean
+    pipelineMismatch: boolean
   }
 }
 
@@ -54,6 +61,24 @@ export async function getWorkerActiveDiagnostics(
     profileMatricula && payslipEmpNum && profileMatricula !== payslipEmpNum
   )
 
+  const vacationsObj = (typeof activePayslip?.vacations === "object" && activePayslip?.vacations !== null ? activePayslip.vacations : {}) as Record<string, unknown>
+  const vacationsDueDate = (vacationsObj.dueDate as string) || (vacationsObj.porVencer as string) || null
+  const vacationsContinuityMark = typeof vacationsObj.continuityMark === "number" ? vacationsObj.continuityMark : null
+  const vacationsPeriodNumberToEnjoy = typeof vacationsObj.periodNumberToEnjoy === "number" ? vacationsObj.periodNumberToEnjoy : null
+
+  const workerActiveContextPayslipId = activeContextRes.data?.active_payslip_id || null
+  const resolvedActivePayslipId = resolved.activePayslipId
+  const pipelineMismatch = Boolean(
+    resolved.selectionMode === "PINNED" &&
+    workerActiveContextPayslipId &&
+    resolvedActivePayslipId &&
+    workerActiveContextPayslipId !== resolvedActivePayslipId
+  )
+
+  if (pipelineMismatch && (process.env.NODE_ENV !== "production" || process.env.VITEST)) {
+    console.warn(`[active-worker-diagnostics] ACTIVE_PAYSLIP_PIPELINE_MISMATCH: worker_active_context (${workerActiveContextPayslipId}) !== resolved (${resolvedActivePayslipId})`)
+  }
+
   return {
     activeEmployee,
     activePayslipId: resolved.activePayslipId,
@@ -65,10 +90,17 @@ export async function getWorkerActiveDiagnostics(
     radiologicalSource,
     selectionMode: resolved.selectionMode,
     isPinned: resolved.isPinned,
+    workerActiveContextPayslipId,
+    resolvedActivePayslipId,
+    payrollLatestPeriod: activePayslip?.period_raw || null,
+    vacationsDueDate,
+    vacationsContinuityMark,
+    vacationsPeriodNumberToEnjoy,
     invariants: {
       identityMismatch,
       activePayslipNotOwned,
       activePayslipEmployeeMismatch,
+      pipelineMismatch,
     },
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { requireUser } from "@/shared/server/auth/require-user"
+import { resolveActivePayslip } from "@/shared/server/active-payslip"
 
 export async function POST(request: NextRequest) {
   const auth = await requireUser()
@@ -57,5 +58,12 @@ export async function POST(request: NextRequest) {
     console.warn("[tarjeton/delete] revalidatePath warning:", revalErr)
   }
 
-  return NextResponse.json({ ok: true })
+  const resolved = await resolveActivePayslip(supabase, auth.user.id)
+
+  return NextResponse.json({
+    ok: true,
+    activePayslipId: resolved.activePayslipId,
+    selectionMode: resolved.selectionMode,
+    contextRevision: resolved.contextRevision,
+  })
 }

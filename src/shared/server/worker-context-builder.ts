@@ -15,7 +15,16 @@ import { parsePorVencerDate } from "@/features/tarjeton/lib/imss-date-parser"
 import type { VacationEntitlement } from "@/features/vacations/domain/types"
 import { addCivilMonths } from "@/features/vacations/domain/role-eligibility"
 
+export interface WorkerContextMeta {
+  activePayslipId: string | null
+  activePayslipPeriod: string | null
+  activeEmployeeNumber: string | null
+  selectionMode: "AUTO_LATEST" | "PINNED"
+  contextRevision: string | null
+}
+
 export interface WorkerContext {
+  meta?: WorkerContextMeta | null
   profile: {
     fullName: string | null
     matricula: string | null
@@ -398,6 +407,7 @@ export interface BuildWorkerContextParams {
   } | null
   payslipLines?: PayslipLineRow[]
   vacationProfileRow?: Record<string, unknown> | null
+  meta?: WorkerContextMeta | null
 }
 
 export function buildWorkerContext(params: BuildWorkerContextParams): WorkerContext {
@@ -650,6 +660,7 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
     : null
 
   return {
+    meta: params.meta ?? null,
     profile,
     employment,
     payroll,

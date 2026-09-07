@@ -57,5 +57,33 @@ export async function POST(request: NextRequest) {
     console.warn("[api/tarjeton/select] revalidatePath falló:", revalidateErr)
   }
 
-  return NextResponse.json(data ?? { ok: true })
+  // Obtener la revisión canónica actualizada de worker_active_context
+  const { data: activeCtx } = await supabase
+    .from("worker_active_context")
+    .select("updated_at, employee_number, active_payslip_id, selection_mode")
+    .eq("user_id", auth.user.id)
+    .maybeSingle()
+
+  const rpcData = (typeof data === "object" && data !== null ? data : {}) as Record<string, unknown>
+  const activePayslipId = (rpcData.activePayslipId as string) ?? activeCtx?.active_payslip_id ?? null
+  const employeeNumber = (rpcData.employeeNumber as string) ?? activeCtx?.employee_number ?? null
+  const selectionMode = (rpcData.selectionMode as "AUTO_LATEST" | "PINNED") ?? activeCtx?.selection_mode ?? (action === "pin" ? "PINNED" : "AUTO_LATEST")
+  const workerChanged = Boolean(rpcData.workerChanged)
+  const contextRevision = activeCtx?.updated_at || new Date().toISOString()
+
+  if (workerChanged) {
+    void supabase
+      .from("worker_preferences")
+      .update({ onboarding_state: "basic", updated_at: new Date().toISOString() })
+      .eq("user_id", auth.user.id)
+  }
+
+  return NextResponse.json({
+    ok: true,
+    activePayslipId,
+    employeeNumber,
+    selectionMode,
+    workerChanged,
+    contextRevision,
+  })
 }

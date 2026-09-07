@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { CSSProperties } from "react"
-import { BOTTOM_NAV_ITEMS } from "./navigation"
+import { BOTTOM_NAV_ITEMS, shouldPrefetchRoute } from "./navigation"
 
 interface MobileBottomNavProps {
   onSheetOpen: (key: string) => void
@@ -122,7 +122,12 @@ export function MobileBottomNav({ onSheetOpen }: MobileBottomNavProps) {
 
         if (item.href) {
           return (
-            <Link key={item.key} href={item.href} {...sharedAttrs}>
+            <Link
+              key={item.key}
+              href={item.href}
+              prefetch={shouldPrefetchRoute(item.href) ? undefined : false}
+              {...sharedAttrs}
+            >
               {content}
             </Link>
           )

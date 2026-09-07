@@ -10,6 +10,7 @@ import {
   FileText,
   Notebook,
 } from "@phosphor-icons/react"
+import { shouldPrefetchRoute } from "./navigation"
 
 interface QuickActionProps {
   icon: React.ComponentType<IconProps & { size?: number; weight?: string }>
@@ -22,6 +23,7 @@ export function QuickAction({ icon: IconComponent, label, href, color }: QuickAc
   return (
     <Link
       href={href}
+      prefetch={shouldPrefetchRoute(href) ? undefined : false}
       style={{
         display: "flex",
         flexDirection: "column",
