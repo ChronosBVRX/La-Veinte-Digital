@@ -219,6 +219,13 @@ class MockDatabase {
     effective_seniority_years: number | null
   }> = []
 
+  workerPreferences: Array<{
+    user_id: string
+    onboarding_state: "unconfigured" | "basic" | "configured"
+    preferred_worker_mode: "manual" | "payslip" | null
+    updated_at: string
+  }> = []
+
   // Inicializar usuario
   initUser(userId: string, matricula?: string, fullName?: string) {
     this.profiles.push({
@@ -228,6 +235,12 @@ class MockDatabase {
       categoria: null,
       antiguedad: null,
       adscripcion: null,
+      updated_at: new Date().toISOString(),
+    })
+    this.workerPreferences.push({
+      user_id: userId,
+      onboarding_state: "configured",
+      preferred_worker_mode: "payslip",
       updated_at: new Date().toISOString(),
     })
   }
@@ -442,6 +455,27 @@ class MockDatabase {
       }
     }
 
+    // Reconstruir o actualizar payroll_contexts
+    const existingCtxIdx = this.payrollContexts.findIndex((c) => c.user_id === userId)
+    const ctxData = {
+      user_id: userId,
+      category_name: req.parsed.employee.categoryName || profile.categoria || null,
+      recurring_concepts: [],
+      payroll_facts: [],
+    }
+    if (existingCtxIdx >= 0) {
+      this.payrollContexts[existingCtxIdx] = ctxData
+    } else {
+      this.payrollContexts.push(ctxData)
+    }
+
+    const pref = this.workerPreferences.find((w) => w.user_id === userId)
+    if (pref) {
+      pref.onboarding_state = "configured"
+      pref.preferred_worker_mode = "payslip"
+      pref.updated_at = new Date().toISOString()
+    }
+
     return {
       id: payslip.id,
       duplicate: isDuplicate,
@@ -524,8 +558,6 @@ class MockDatabase {
       profile.antiguedad = empData.seniority?.raw ?? profile.antiguedad
       profile.updated_at = new Date().toISOString()
 
-      this.payrollContexts = this.payrollContexts.filter((c) => c.user_id !== userId)
-
       this.vacationProfileData = this.vacationProfileData.filter((v) => v.user_id !== userId)
       this.vacationProfileData.push({
         user_id: userId,
@@ -540,6 +572,33 @@ class MockDatabase {
         vac.radiological_exposure = has054 ? "YES" : "NO"
         vac.radiological_exposure_source = "ACTIVE_PAYSLIP"
       }
+    }
+
+    // Reconstruir SIEMPRE payroll_contexts a partir del tarjetón activo
+    const recurring = this.payslipLines
+      .filter((l) => l.payslip_id === payslip.id && l.kind === "earning" && l.amount > 0 && l.confirmed_by_user)
+      .map((l) => ({
+        conceptCode: l.concept_code,
+        appearsNormally: true,
+        lastAmount: l.amount,
+        source: "payslip_import",
+        lastSeenAt: payslip.period_raw,
+        confirmed: l.confirmed_by_user,
+      }))
+
+    this.payrollContexts = this.payrollContexts.filter((c) => c.user_id !== userId)
+    this.payrollContexts.push({
+      user_id: userId,
+      category_name: empData.categoryName || null,
+      recurring_concepts: recurring,
+      payroll_facts: [],
+    })
+
+    const pref = this.workerPreferences.find((w) => w.user_id === userId)
+    if (pref) {
+      pref.onboarding_state = "configured"
+      pref.preferred_worker_mode = "payslip"
+      pref.updated_at = new Date().toISOString()
     }
 
     const existingWac = this.workerActiveContext.find((w) => w.user_id === userId)
@@ -631,7 +690,7 @@ describe("Arquitectura de Tarjetón Activo y Reemplazo Atómico de Identidad", (
       categoryName: "ENFERMERA GENERAL",
       seniorityYears: 8,
     })
-    const resQ8 = db.confirmImportedPayslip(USER_ID, slipAQ8)
+    const _resQ8 = db.confirmImportedPayslip(USER_ID, slipAQ8)
 
     // Q10 sigue siendo el activo porque Q8 es anterior cronológicamente
     resolved = db.resolveActive(USER_ID)
@@ -929,5 +988,75 @@ describe("Arquitectura de Tarjetón Activo y Reemplazo Atómico de Identidad", (
     expect(db.profiles[0].full_name).toBe("ALICIA RAMIREZ")
     expect(db.vacationProfileData[0].radiological_exposure).toBe("YES")
     expect(db.resolveActive(USER_ID).activePayslipId).toBe(resA.id)
+  })
+
+  it("CASO K: Invariante P0 — Transición A -> B -> A mantiene configured/payslip y payroll_contexts sin degradar a basic ni vaciar contexto", () => {
+    const db = new MockDatabase()
+    db.initUser(USER_ID, "MAT_A", "ALICIA RAMIREZ")
+
+    const slipA = makeTarjetonPayload({
+      employeeNumber: "MAT_A",
+      fullName: "ALICIA RAMIREZ",
+      periodRaw: "2A-MAY-2026",
+      year: 2026,
+      month: 5,
+      half: 2,
+      categoryName: "ENFERMERA GENERAL",
+      seniorityYears: 8,
+      has054Radiation: true,
+    })
+    const slipB = makeTarjetonPayload({
+      employeeNumber: "MAT_B",
+      fullName: "BERNARDO SOTO",
+      periodRaw: "1A-JUN-2026",
+      year: 2026,
+      month: 6,
+      half: 1,
+      categoryName: "MEDICO GENERAL",
+      seniorityYears: 12,
+      has054Radiation: false,
+    })
+
+    // 1. Estado inicial: Usuario A configurado
+    const resA = db.confirmImportedPayslip(USER_ID, slipA)
+    const prefInit = db.workerPreferences.find((w) => w.user_id === USER_ID)!
+    expect(prefInit.onboarding_state).toBe("configured")
+    expect(prefInit.preferred_worker_mode).toBe("payslip")
+    const ctxInit = db.payrollContexts.find((c) => c.user_id === USER_ID)!
+    expect(ctxInit).toBeDefined()
+    expect(ctxInit.category_name).toBe("ENFERMERA GENERAL")
+    expect(db.resolveActive(USER_ID).activePayslipId).toBe(resA.id)
+
+    // 2. Acción: Importa y confirma tarjetón B permitido por el flujo
+    const resB = db.confirmImportedPayslip(USER_ID, slipB)
+
+    // 3. Resultado esperado: worker_preferences = configured/payslip, payroll_contexts = B, tarjetón B activo
+    // NUNCA worker_preferences = basic, NUNCA payroll_contexts = null
+    const prefB = db.workerPreferences.find((w) => w.user_id === USER_ID)!
+    expect(prefB.onboarding_state).toBe("configured")
+    expect(prefB.preferred_worker_mode).toBe("payslip")
+    const ctxB = db.payrollContexts.find((c) => c.user_id === USER_ID)!
+    expect(ctxB).toBeDefined()
+    expect(ctxB.category_name).toBe("MEDICO GENERAL")
+    expect(db.resolveActive(USER_ID).activePayslipId).toBe(resB.id)
+
+    // 4. Volver a seleccionar A desde el historial
+    const actA = db.setActivePayslip(USER_ID, resA.id, "PINNED")
+    expect(actA.ok).toBe(true)
+
+    // 5. Debe quedar nuevamente configured/payslip y payroll_contexts = A, sin perder históricos
+    const prefBackA = db.workerPreferences.find((w) => w.user_id === USER_ID)!
+    expect(prefBackA.onboarding_state).toBe("configured")
+    expect(prefBackA.preferred_worker_mode).toBe("payslip")
+    const ctxBackA = db.payrollContexts.find((c) => c.user_id === USER_ID)!
+    expect(ctxBackA).toBeDefined()
+    expect(ctxBackA.category_name).toBe("ENFERMERA GENERAL")
+    expect(db.resolveActive(USER_ID).activePayslipId).toBe(resA.id)
+
+    // Históricos intactos: ambos tarjetones deben existir en imported_payslips
+    const allSlips = db.importedPayslips.filter((p) => p.user_id === USER_ID)
+    expect(allSlips.length).toBe(2)
+    expect(allSlips.some((p) => p.id === resA.id)).toBe(true)
+    expect(allSlips.some((p) => p.id === resB.id)).toBe(true)
   })
 })

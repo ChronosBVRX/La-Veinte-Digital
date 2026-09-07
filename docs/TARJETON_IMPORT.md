@@ -148,3 +148,25 @@ trabajador).
      antes de reconstruir la antigüedad; si falta, el cálculo de antigüedad
      evolucionada se omite silenciosamente hasta que llegue un tarjetón con
      fecha de referencia completa.
+
+## Arquitectura Canónica del Tarjetón Activo e Incidente P0 (2026-09-07)
+
+### Causas Raíz del Incidente P0
+1. **Degradación automática a `basic`**: Al cambiar de tarjetón o trabajador, la lógica cliente/servidor forzaba `worker_preferences.onboarding_state = 'basic'`, degradando una cuenta previamente configurada a estado básico o no configurado.
+2. **Eliminación destructiva de `payroll_contexts`**: La función SQL `set_active_payslip` borraba filas de `payroll_contexts` ante cambios de trabajador sin reconstruirlas de forma atómica a partir del tarjetón seleccionado, dejando cuentas sin contexto laboral a pesar de tener tarjetones válidos.
+3. **Rechazo por contrato cliente de respuestas RPC con `warnings`**: La RPC `confirm_imported_payslip_v1` emitía avisos válidos de PostgreSQL (ej. tarjetón ya importado), pero el validador estricto del cliente (`isConfirmTarjetonResponse`) los consideraba respuestas inválidas, marcando la operación como fallida en la UI aunque la persistencia hubiese ocurrido.
+
+### Protecciones Implementadas y Comportamiento Protegido
+- **Transición Atómica de Identidad**: `set_active_payslip` y `confirm_imported_payslip_v1` reconstruyen atómicamente `payroll_contexts` a partir del tarjetón activo, manteniendo `worker_preferences.onboarding_state = 'configured'` y `preferred_worker_mode = 'payslip'`. Nunca degradan a `basic`.
+- **Regla Canónica de Selección Temporal**: El tarjetón más reciente para cualquier cálculo laboral se determina invariablemente por:
+  ```sql
+  ORDER BY
+    period_year DESC NULLS LAST,
+    period_month DESC NULLS LAST,
+    period_half DESC NULLS LAST,
+    created_at DESC
+  ```
+  `created_at` es exclusivamente criterio de desempate; una quincena antigua importada hoy jamás sustituye a una quincena más reciente importada ayer.
+- **Tolerancia a `warnings` Diagnósticos**: `normalizeRpcResponse` remueve metadatos diagnósticos del RPC antes de validar el contrato público, evitando falsos positivos de error en cliente.
+- **Inmunidad al Router Cache de Next.js**: `useLiveWorkerContext` y la política `prefetch={false}` en `ACTIVE_WORKER_DATA_ROUTES` garantizan que la navegación SPA nunca muestre snapshots obsoletos del contexto de trabajador tras cambiar el tarjetón activo.
+- **Backfill y Auto-Recuperación Idempotente**: La migración `20260907170000_tarjeton_p0_recovery.sql` recupera usuarios afectados en producción restaurando `payroll_contexts` y `worker_preferences` a partir del tarjetón canónico.
