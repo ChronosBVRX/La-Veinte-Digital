@@ -15,6 +15,8 @@
 > **Todo comportamiento que existe actualmente es comportamiento protegido y no puede eliminarse, cambiarse, simplificarse, sustituirse o degradarse salvo autorización explícita del usuario.**
 > 
 > **OBJETIVO PERMANENTE: CERO REGRESIONES NO AUTORIZADAS.**
+>
+> **Snapshot verificado:** `docs/BASELINE_ESTABLE.md` (tag `v2026.09.06-stable`, `main` `3bd9506058578df558bd8c4494e1df703b815be1`, 2026-09-06; gates en verde, solo documentación, Android intacto). Este snapshot extiende el baseline `d90ab2bb` sin sustituirlo.
 
 ---
 

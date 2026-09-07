@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from "vitest"
-import { render, screen, fireEvent } from "@testing-library/react"
+import { describe, it, expect, afterEach, vi } from "vitest"
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { Modal } from "../Modal"
 import { useState } from "react"
 
@@ -142,5 +142,53 @@ describe("Modal", () => {
       </Modal>
     )
     expect(screen.getByTestId("footer-btn")).toBeDefined()
+  })
+
+  it("keeps focus in content input when onClose identity changes while open", async () => {
+    // Regresión: escribir en un formulario re-renderiza al padre y crea una
+    // nueva identidad de onClose. Eso NUNCA debe reinicializar el autofocus
+    // del modal ni robar el foco (en móvil cierra el teclado virtual).
+    const { rerender } = render(
+      <Modal open={true} onClose={() => {}} title="Focus test">
+        <input data-testid="name-input" />
+      </Modal>
+    )
+    // Canario: el autofocus inicial sí debe funcionar en este entorno.
+    await waitFor(() => expect(document.activeElement?.tagName).toBe("BUTTON"), { timeout: 1000 })
+    const input = screen.getByTestId("name-input") as HTMLInputElement
+    input.focus()
+    expect(document.activeElement).toBe(input)
+    // Simula el re-render del padre al escribir (nueva identidad de onClose).
+    rerender(
+      <Modal open={true} onClose={() => {}} title="Focus test">
+        <input data-testid="name-input" />
+      </Modal>
+    )
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    })
+    // Sin remount del input…
+    expect(screen.getByTestId("name-input")).toBe(input)
+    // …y sin robo de foco.
+    expect(document.activeElement).toBe(input)
+  })
+
+  it("Escape calls the latest onClose after parent rerenders", () => {
+    // Protección contra closures obsoletas al desacoplar onClose del efecto.
+    const first = vi.fn()
+    const second = vi.fn()
+    const { rerender } = render(
+      <Modal open={true} onClose={first} title="Escape test">
+        <p>Content</p>
+      </Modal>
+    )
+    rerender(
+      <Modal open={true} onClose={second} title="Escape test">
+        <p>Content</p>
+      </Modal>
+    )
+    pressEscape()
+    expect(second).toHaveBeenCalledTimes(1)
+    expect(first).not.toHaveBeenCalled()
   })
 })

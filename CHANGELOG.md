@@ -1,5 +1,33 @@
 # Changelog
 
+## [Unreleased] — Fix teclado móvil en modales (foco/remount)
+
+### Fixed
+- `src/shared/components/ui/Modal.tsx`: el efecto de inicialización/foco dependía de `[open, onClose]`; cada letra escrita en un formulario (nueva identidad de `onClose`) re-ejecutaba el autofocus al primer elemento (botón X), robando el foco y cerrando el teclado virtual. Ahora el efecto depende solo de `open` y Escape usa `onCloseRef` (siempre la callback vigente, sin closures obsoletas).
+- `src/shared/components/ui/BottomSheet.tsx`: mismo defecto latente, misma corrección (sin consumidores actuales; sin cambio de comportamiento observable).
+- `src/features/agenda-laboral/components/CommitmentForm.tsx`: `onClose` inline estabilizado con `useCallback` (`handleClose`; mismo `reset()` + `onClose()`).
+
+### Tests
+- `Modal.test.tsx`: "keeps focus in content input when onClose identity changes" (fallaba antes del fix) y "Escape calls the latest onClose after parent rerenders".
+- `commitment-form.test.tsx`: "mantiene el foco al escribir de corrido" (fallaba antes del fix: foco robado al botón X).
+- Gates: typecheck 0 errores; lint 0 errores y 88 warnings (idéntico al baseline); `npm test` 1655 passed / 10 skipped / 0 fallos (+3 pruebas nuevas); `npm run build` OK.
+
+### Protected Behavior
+- Sin cambios de UX, textos, campos, validaciones, navegación, almacenamiento, esquema de BD ni Android/iOS.
+
+## [0.008] - 2026-09-06 — Snapshot estable v2026.09.06-stable (solo documentación)
+
+### Governance
+- Snapshot verificado de `main` `3bd9506058578df558bd8c4494e1df703b815be1` (merge PR #75): tag anotado `v2026.09.06-stable`. Extiende el baseline `d90ab2bb` (2026-09-05) sin sustituirlo.
+- Compuertas en verde: `npm test` (164 suites / 1652 tests OK), `npm run typecheck` (0 errores), `npm run lint` (0 errores, 88 warnings preexistentes), `npm run build` (OK).
+- Producción: `https://la-veinte-digital.vercel.app` (deployment `dpl_Cu4mgX5hAqeknzeghkcao8QoXCKu`, auto-deploy del HEAD).
+- Comportamiento protegido declarado en `docs/BASELINE_ESTABLE.md`: sin cambios funcionales, Android/iOS intactos, históricos de Agenda (incluido Cambio de turno) preservados, 5 tipos autorizados para nuevas altas.
+
+### Docs
+- Creación de `docs/BASELINE_ESTABLE.md`: SHA, producción, gates, migraciones, Agenda/notificaciones/admin, limitaciones.
+- `README.md`: Mi Agenda corregida (5 altas autorizadas + cálculo canónico + recordatorios), secciones de Panel de Administración y Notificaciones, tablas de BD ampliadas, puntero a versión estable.
+- `AGENTS.md`: puntero al snapshot (sin cambios de gobernanza).
+
 ## [Unreleased] — Versionado Canónico Android 1.1.4 (204)
 
 ### Changed

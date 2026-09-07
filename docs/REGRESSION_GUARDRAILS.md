@@ -232,3 +232,6 @@ Qué cosas NO están autorizadas para modificarse, refactorizarse o "limpiarse" 
 
 3. **CAMBIOS DE UI NO AUTORIZAN CAMBIOS DE DOMINIO:**  
    Una petición como *"Haz este botón más grande"* o *"Cambia el color de la tarjeta"* **BAJO NINGUNA CIRCUNSTANCIA** autoriza alterar fórmulas de cálculo, lógica de persistencia, endpoints de API ni políticas de seguridad.
+
+4. **EFECTOS DE MODAL NUNCA DEPENDEN DE CALLBACKS INESTABLES:**  
+   Los efectos de inicialización y manejo de foco de componentes Modal (y equivalentes: `BottomSheet`, sheets, portals con autofocus) no deben depender de callbacks cuya identidad pueda variar durante renders del contenido. Un render de un formulario dentro de un modal nunca debe provocar una reinicialización del autofocus ni hacer perder el foco al campo activo — en móvil esto cierra el teclado virtual. Patrón canónico: leer el cierre siempre vigente vía `useRef` (`onCloseRef.current()` en Escape/listeners) y dejar el ciclo de vida del efecto bajo control exclusivo de `open`. Pruebas que lo protegen: `src/shared/components/ui/__tests__/Modal.test.tsx` ("keeps focus…", "Escape calls the latest…") y `src/features/agenda-laboral/__tests__/commitment-form.test.tsx` ("mantiene el foco al escribir de corrido…").

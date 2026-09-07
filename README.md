@@ -180,7 +180,7 @@ por calculadora; el 022 nunca se integra a una base y las horas extra siempre
 se capturan a mano). Detalle: `docs/CALCULATOR_PREFILL.md`.
 
 ### 3. Mi Agenda (`/bitacora`)
-Registro laboral con cuatro altas principales y campos propios para cada caso: Tiempo Extra, Deporte, Falta Injustificada y Reclamación Pendiente. Los datos se almacenan en Supabase, aparecen en el inicio y se integran al calendario. Los tipos anteriores se conservan en modo de lectura para no perder registros históricos.
+Registro laboral con cinco altas autorizadas y campos propios para cada caso: Tiempo Extra, Falta Injustificada (con cálculo canónico de quincena y descuento estimado desde el concepto 002), Reclamación Pendiente, TxT y Recordatorio General (con prioridades). Los datos se almacenan en Supabase (`worker_commitments`), aparecen en el inicio, se integran al calendario y generan recordatorios idempotentes (`DAY_BEFORE`, `HOURS_BEFORE`, `AT_START`, `SCHEDULED_TIME` vía `/api/cron/agenda-reminders`). Los tipos históricos (Cambio de turno, Deporte, Guardia festiva, Incapacidad, Pase de salida/entrada, Vacaciones, Otro) se conservan en modo de lectura para no perder registros históricos.
 
 ### 4. Calendario IMSS (`/calendario`)
 Calendario laboral 2026 con fechas de pago, periodos de interactivo y vacacional. Exportable a formato `.ics` (iCalendar).
@@ -205,6 +205,12 @@ Importa el PDF de tu recibo de pago del IMSS. La extracción corre **100% en tu 
 
 ### 11. Simulador (`/simulador`)
 Simulador interactivo de audiencias disciplinarias IMSS con 6 escenarios (faltas, maltrato, incumplimiento, extravío, retardos, confidencialidad). Evalúa el desempeño del trabajador con análisis IA post-simulación.
+
+### 12. Panel de Administración (`/admin`)
+Hub operativo con métricas agregadas (sin fuga de PII), editor de avisos con revisión editorial (`/admin/avisos`, bandeja del trabajador en `/avisos`), barra informativa administrable (`/admin/barra` con fallback a catálogo local), campañas push con snapshot inmutable y worker transaccional (`/admin/campanas`), formulario push heredado (`/admin/push`) y consola de versiones Android (`/admin/android`). Acceso: rol `admin` en `profiles` (acceso completo) o email en `PUSH_ADMIN_ALLOWED_EMAILS` (solo `/admin/push`). Detalle operativo: `docs/admin/PROGRESS.md` y `docs/admin/ROLLOUT_ROLLBACK.md`.
+
+### 13. Notificaciones
+Recordatorios de agenda con entregas idempotentes (`commitment_reminder_deliveries`, cron `/api/cron/agenda-reminders` diario) y notificaciones push FCM con campañas programadas (cron `/api/cron/push-campaigns` cada 15 min vía GitHub Actions), preferencias por usuario (`/avisos/preferencias`) y lecturas idempotentes de comunicados.
 
 ---
 
@@ -295,6 +301,16 @@ El archivo `vercel.json` expone `/health` mediante el endpoint independiente `/a
 
 ---
 
+## Versión Estable
+
+El estado verificado y protegido contra regresiones está registrado en
+[`docs/BASELINE_ESTABLE.md`](./docs/BASELINE_ESTABLE.md) (snapshot
+`v2026.09.06-stable` sobre `main` `3bd9506`: tests, typecheck, lint y build
+en verde; sin cambios funcionales). La gobernanza permanente vive en
+`AGENTS.md`, `docs/STABLE_BASELINE.md` y `docs/REGRESSION_GUARDRAILS.md`.
+
+---
+
 ## Comandos Disponibles
 
 | Comando | Descripción |
@@ -303,6 +319,7 @@ El archivo `vercel.json` expone `/health` mediante el endpoint independiente `/a
 | `npm run build` | Construye para producción |
 | `npm start` | Inicia servidor de producción |
 | `npm run lint` | Ejecuta ESLint |
+| `npm run typecheck` | Verifica tipos con `tsc --noEmit` |
 | `npm test` | Ejecuta Vitest |
 
 ---
@@ -318,6 +335,12 @@ El archivo `vercel.json` expone `/health` mediante el endpoint independiente `/a
 | `ai_chat_history` | Historial de conversaciones con IA |
 | `payroll_contexts` | Contexto de nómina (categoría, jornada, antigüedad, recurrentes) |
 | `imported_payslips` (+ `_lines`, `_observations`) | Tarjetones confirmados, sin datos sensibles |
+| `worker_commitments` | Registros de Agenda (12 tipos en constraint; 5 autorizados para nuevas altas) |
+| `commitment_reminder_deliveries` | Entregas idempotentes de recordatorios de Agenda |
+| `announcements` (+ `_reads`) | Comunicados, tips y herramientas editoriales |
+| `notification_preferences` | Preferencias push de comunicados por usuario |
+| `push_campaigns` (+ `_deliveries`) | Campañas push con snapshot inmutable |
+| `admin_audit_log` | Registro append-only de acciones administrativas |
 
 El chat social y el foro fueron retirados del frontend. Sus tablas se conservan
 temporalmente hasta completar el respaldo, la reconciliación de migraciones y el

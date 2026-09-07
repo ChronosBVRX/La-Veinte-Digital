@@ -204,4 +204,28 @@ describe("CommitmentForm: altas autorizadas y captura específica", () => {
       reminder: { dayBefore: false, hoursBefore: false, atStart: false },
     }))
   })
+
+  it("mantiene el foco al escribir de corrido en un campo de texto (teclado móvil no debe cerrarse)", () => {
+    // Regresión: cada letra re-renderiza el formulario; el modal compartido
+    // no debe reinicializar su autofocus ni robar el foco del campo activo.
+    renderForm()
+    fireEvent.click(screen.getByRole("button", { name: /Recordatorio general/i }))
+
+    const titleInput = screen.getByLabelText(/Título/i) as HTMLInputElement
+    titleInput.focus()
+    expect(document.activeElement).toBe(titleInput)
+
+    // Escribe letra por letra, como un usuario real (rAF está stubbed síncrono
+    // en este archivo, así que un robo de foco ocurriría de inmediato).
+    const texto = "Este es un texto completo de prueba"
+    let acumulado = ""
+    for (const letra of texto) {
+      acumulado += letra
+      fireEvent.change(screen.getByLabelText(/Título/i), { target: { value: acumulado } })
+    }
+
+    const finalInput = screen.getByLabelText(/Título/i) as HTMLInputElement
+    expect(finalInput.value).toBe(texto)
+    expect(document.activeElement).toBe(finalInput)
+  })
 })
