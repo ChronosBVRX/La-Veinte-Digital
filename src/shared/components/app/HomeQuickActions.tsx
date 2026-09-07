@@ -295,8 +295,11 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
 
         const { data } = await client
           .from("imported_payslips")
-          .select("period_half,period_month,created_at")
+          .select("period_half,period_month,period_year,created_at")
           .eq("user_id", authRes.user.id)
+          .order("period_year", { ascending: false, nullsFirst: false })
+          .order("period_month", { ascending: false, nullsFirst: false })
+          .order("period_half", { ascending: false, nullsFirst: false })
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle()
@@ -319,9 +322,19 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
 
     loadTarjeton()
 
+    const onPayslipUpdated = () => {
+      void loadTarjeton()
+    }
+    if (typeof window !== "undefined") {
+      window.addEventListener("nomina_payslip_updated", onPayslipUpdated)
+    }
+
     return () => {
       cancelled = true
       signal.aborted = true
+      if (typeof window !== "undefined") {
+        window.removeEventListener("nomina_payslip_updated", onPayslipUpdated)
+      }
     }
   }, [])
 

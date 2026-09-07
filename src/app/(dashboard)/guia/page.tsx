@@ -11,6 +11,9 @@ export default async function GuiaPage() {
     .from("imported_payslips")
     .select("id, period_raw, payroll_totals")
     .eq("user_id", user.id)
+    .order("period_year", { ascending: false, nullsFirst: false })
+    .order("period_month", { ascending: false, nullsFirst: false })
+    .order("period_half", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(1)
 
