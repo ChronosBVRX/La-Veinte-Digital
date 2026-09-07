@@ -35,6 +35,7 @@ export interface WorkerContext {
     adscripcion: string | null
     weeklyRestDays: number[] | null
     radiologicalExposure: boolean | "UNSURE" | null
+    radiologicalExposureSource?: "USER_CONFIRMED" | "ACTIVE_PAYSLIP" | "LEGACY" | "NONE" | null
     contractEndDate: string | null
   } | null
   payroll: {
@@ -85,6 +86,8 @@ export interface WorkerContext {
     effectiveSeniorityFortnights: number | null
     effectiveSeniorityDays: number | null
     radiologicalExposure: string | null
+    radiologicalExposureSource?: string | null
+    radiologicalExposureUpdatedAt?: string | null
     weeklyRestDays: number[] | null
     contractEndDate: string | null
   } | null
@@ -224,6 +227,106 @@ export function resolveIntegratedMonthlySalary(
   }
 }
 
+export interface ResolveCurrentRadiologicalExposureParams {
+  activeEmployeeNumber?: string | null
+  vacationProfile?: {
+    employee_number?: string | null
+    radiological_exposure?: string | null
+    radiological_exposure_source?: string | null
+    radiological_exposure_updated_at?: string | null
+  } | null
+  latestPayslip?: {
+    employee_number?: string | null
+    period_raw?: string | null
+  } | null
+  payslipLines?: PayslipLineRow[]
+}
+
+export interface ResolvedRadiologicalExposure {
+  radiologicalExposure: boolean | "UNSURE" | null
+  source: "USER_CONFIRMED" | "ACTIVE_PAYSLIP" | "LEGACY" | "NONE"
+}
+
+/**
+ * Resuelve la condición actual de exposición radiológica del trabajador activo.
+ *
+ * REGLA CANÓNICA:
+ * Separa estrictamente CURRENT STATE de HISTORICAL EVIDENCE.
+ *
+ * Precedencia:
+ * 1. Confirmación manual explícita del trabajador actual:
+ *    Sólo si vacationProfile pertenece a la matrícula activa Y tiene source = "USER_CONFIRMED".
+ *    Actúa como override permanente.
+ * 2. Tarjetón ACTIVO de la matrícula activa:
+ *    Si contiene concepto 054 (earning, confirmado por usuario, monto > 0) -> true, source: "ACTIVE_PAYSLIP".
+ * 3. Tarjetón ACTIVO existe y NO contiene 054:
+ *    -> false, source: "ACTIVE_PAYSLIP".
+ * 4. Sin evidencia actual suficiente:
+ *    -> null, source: "NONE" (o "LEGACY" si venía de un registro no confirmado).
+ *
+ * PROHIBIDO:
+ * - Consultar tarjetones históricos anteriores para deducir exposición actual.
+ * - Consultar ctx.payroll_facts (concept_054_on_payslip) para definir exposición actual.
+ * - Aceptar un "YES" legacy sin procedencia confirmada.
+ */
+export function resolveCurrentRadiologicalExposure(
+  params: ResolveCurrentRadiologicalExposureParams
+): ResolvedRadiologicalExposure {
+  const activeEmp = params.activeEmployeeNumber?.trim() || null
+  const vacProfile = params.vacationProfile ?? null
+  const vacEmp = vacProfile?.employee_number?.trim() || null
+  const latest = params.latestPayslip ?? null
+  const latestEmp = latest?.employee_number?.trim() || null
+  const payslipLines = params.payslipLines ?? []
+
+  const effectiveActiveEmp = activeEmp || latestEmp || null
+
+  // 1. Confirmación manual explícita (USER_CONFIRMED) para la matrícula activa
+  const isSameWorkerProfile = Boolean(effectiveActiveEmp) && vacEmp === effectiveActiveEmp
+  const isUserConfirmed =
+    isSameWorkerProfile && vacProfile?.radiological_exposure_source === "USER_CONFIRMED"
+
+  if (isUserConfirmed) {
+    if (vacProfile?.radiological_exposure === "YES") {
+      return { radiologicalExposure: true, source: "USER_CONFIRMED" }
+    }
+    if (vacProfile?.radiological_exposure === "NO") {
+      return { radiologicalExposure: false, source: "USER_CONFIRMED" }
+    }
+    if (vacProfile?.radiological_exposure === "UNSURE") {
+      return { radiologicalExposure: "UNSURE", source: "USER_CONFIRMED" }
+    }
+  }
+
+  // 2 y 3. Tarjetón ACTIVO de la matrícula activa
+  const isPayslipForActiveWorker =
+    Boolean(latest) && (!effectiveActiveEmp || latestEmp === effectiveActiveEmp)
+
+  if (isPayslipForActiveWorker) {
+    const has054 = payslipLines.some(
+      (l) =>
+        l.concept_code === "054" &&
+        l.kind === "earning" &&
+        Boolean(l.confirmed_by_user) &&
+        Number(l.amount) > 0
+    )
+
+    if (has054) {
+      return { radiologicalExposure: true, source: "ACTIVE_PAYSLIP" }
+    }
+
+    // El tarjetón activo existe y NO contiene 054
+    return { radiologicalExposure: false, source: "ACTIVE_PAYSLIP" }
+  }
+
+  // 4. No hay evidencia actual suficiente
+  if (vacProfile?.radiological_exposure_source === "LEGACY") {
+    return { radiologicalExposure: null, source: "LEGACY" }
+  }
+
+  return { radiologicalExposure: null, source: "NONE" }
+}
+
 /**
  * Helper puro para pruebas y reutilización: arma `payroll` a partir de las
  * filas ya consultadas. Mantiene el contrato `WorkerContext` intacto.
@@ -329,25 +432,20 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
     seniorityRaw = profileRow.antiguedad
   }
 
-  // Radiación: vacationProfileRow -> concepto 054 en payslipLines -> facts
-  let radiologicalExposure: boolean | "UNSURE" | null = null
-  if (vacProfile?.radiological_exposure === "YES") {
-    radiologicalExposure = true
-  } else if (vacProfile?.radiological_exposure === "NO") {
-    radiologicalExposure = false
-  } else if (vacProfile?.radiological_exposure === "UNSURE") {
-    radiologicalExposure = "UNSURE"
-  } else {
-    const has054 = payslipLines.some((l) => l.concept_code === "054" && l.confirmed_by_user && l.amount > 0)
-    if (has054) {
-      radiologicalExposure = true
-    } else if (Array.isArray(ctx?.payroll_facts)) {
-      const fact = ctx.payroll_facts.find((f: unknown) => (f as { key?: string })?.key === "concept_054_on_payslip")
-      if ((fact as { value?: unknown })?.value === true) {
-        radiologicalExposure = true
-      }
-    }
-  }
+  // Radiación: se resuelve mediante la regla canónica estricta (precedencia y procedencia)
+  const activeEmployeeNumber = profileRow?.matricula ?? latest?.employee_number ?? null
+  const resolvedExposure = resolveCurrentRadiologicalExposure({
+    activeEmployeeNumber,
+    vacationProfile: vacProfile as {
+      employee_number?: string | null
+      radiological_exposure?: string | null
+      radiological_exposure_source?: string | null
+      radiological_exposure_updated_at?: string | null
+    } | null,
+    latestPayslip: latest,
+    payslipLines,
+  })
+  const radiologicalExposure = resolvedExposure.radiologicalExposure
 
   const employment = (ctx || employeeData || profileRow || vacProfile)
     ? {
@@ -390,6 +488,7 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
           null,
         weeklyRestDays: (vacProfile?.weekly_rest_days as number[]) ?? null,
         radiologicalExposure,
+        radiologicalExposureSource: resolvedExposure.source,
         contractEndDate: (vacProfile?.contract_end_date as string) ?? null,
       }
     : null
@@ -543,6 +642,8 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
         effectiveSeniorityFortnights: typeof vacProfile.effective_seniority_fortnights === "number" ? vacProfile.effective_seniority_fortnights : null,
         effectiveSeniorityDays: typeof vacProfile.effective_seniority_days === "number" ? vacProfile.effective_seniority_days : null,
         radiologicalExposure: (vacProfile.radiological_exposure as string) ?? null,
+        radiologicalExposureSource: (vacProfile.radiological_exposure_source as string) ?? null,
+        radiologicalExposureUpdatedAt: (vacProfile.radiological_exposure_updated_at as string) ?? null,
         weeklyRestDays: (vacProfile.weekly_rest_days as number[]) ?? null,
         contractEndDate: (vacProfile.contract_end_date as string) ?? null,
       }

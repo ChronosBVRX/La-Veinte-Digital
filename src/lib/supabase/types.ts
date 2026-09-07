@@ -1060,6 +1060,8 @@ export type Database = {
           entry_date: string | null
           id: string
           radiological_exposure: string | null
+          radiological_exposure_source: string | null
+          radiological_exposure_updated_at: string | null
           service: string | null
           shift: string | null
           unit: string | null
@@ -1082,6 +1084,8 @@ export type Database = {
           entry_date?: string | null
           id?: string
           radiological_exposure?: string | null
+          radiological_exposure_source?: string | null
+          radiological_exposure_updated_at?: string | null
           service?: string | null
           shift?: string | null
           unit?: string | null
@@ -1104,6 +1108,8 @@ export type Database = {
           entry_date?: string | null
           id?: string
           radiological_exposure?: string | null
+          radiological_exposure_source?: string | null
+          radiological_exposure_updated_at?: string | null
           service?: string | null
           shift?: string | null
           unit?: string | null

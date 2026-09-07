@@ -288,6 +288,7 @@ describe("Aislamiento Estricto de Trabajador Activo y Sustitución de Matrícula
       vacationProfileRow: {
         employee_number: "11111111",
         radiological_exposure: "YES",
+        radiological_exposure_source: "USER_CONFIRMED",
         category: "TECNICO RADIOLOGO",
       },
     })
@@ -316,7 +317,7 @@ describe("Aislamiento Estricto de Trabajador Activo y Sustitución de Matrícula
     expect(contextB.profile?.matricula).toBe("22222222")
     expect(contextB.profile?.fullName).toBe("TRABAJADOR B")
     expect(contextB.employment?.categoryName).toBe("OFICINISTA 80")
-    expect(contextB.employment?.radiologicalExposure).toBe(null)
+    expect(contextB.employment?.radiologicalExposure).toBe(false)
     expect(contextB.vacations?.dueDate).toBe("2026-05-15")
     expect(contextB.payroll?.integratedMonthlySalary).toBe(12000)
     // Régimen ordinario semestral: solo 2 periodos ordinarios, NINGÚN 3er periodo de exposición radiológica
