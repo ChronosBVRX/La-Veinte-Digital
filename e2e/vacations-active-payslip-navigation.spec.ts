@@ -1,5 +1,6 @@
 import { test, expect } from "./fixtures/test"
 import { createClient } from "@supabase/supabase-js"
+import { assertSafeDatabase } from "./utils/assert-safe-database"
 
 /**
  * E2E INTEGRATION TEST:
@@ -28,6 +29,9 @@ test.describe("Vacaciones - Navegación SPA y Tarjetón Activo Canónico", () =>
     if (!supabaseUrl || !supabaseAnon || !email || !password) {
       throw new Error("Variables de entorno para E2E no configuradas")
     }
+
+    // Blindaje de seguridad: Prohibido estrictamente ejecutar contra producción
+    assertSafeDatabase(supabaseUrl)
 
     const supabase = createClient(supabaseUrl, supabaseAnon)
     const { data: auth, error: authErr } = await supabase.auth.signInWithPassword({
@@ -287,4 +291,24 @@ test.describe("Vacaciones - Navegación SPA y Tarjetón Activo Canónico", () =>
     await navigateToVacacionesViaMenu()
     await assertVacationsShowsWorkerA()
   })
+
+  test.afterAll(async () => {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    const email = process.env.E2E_USER_EMAIL
+    const password = process.env.E2E_USER_PASSWORD
+    if (!supabaseUrl || !supabaseAnon || !email || !password) return
+
+    try {
+      assertSafeDatabase(supabaseUrl)
+      const supabase = createClient(supabaseUrl, supabaseAnon)
+      const { data: auth } = await supabase.auth.signInWithPassword({ email, password })
+      if (!auth?.user) return
+      const userId = auth.user.id
+      await supabase.from("imported_payslips").delete().in("id", [PAYSLIP_A_ID, PAYSLIP_B_ID]).eq("user_id", userId)
+    } catch {
+      // Ignorar errores durante el desmontaje
+    }
+  })
 })
+
