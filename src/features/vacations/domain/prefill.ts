@@ -258,18 +258,14 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
       ? employmentRow.weeklyRestDays
       : [5, 6]
 
-  // 4. Radiación
+  // 4. Radiación (Regla Canónica: solo fuente fiable o USER_CONFIRMED)
   const radiologicalExposure = (
     employmentRow?.radiologicalExposure !== null && employmentRow?.radiologicalExposure !== undefined
   )
     ? employmentRow.radiologicalExposure
-    : vacProfileRow?.radiologicalExposure === "YES"
-      ? true
-      : vacProfileRow?.radiologicalExposure === "NO"
-        ? false
-        : vacProfileRow?.radiologicalExposure === "UNSURE"
-          ? "UNSURE"
-          : false
+    : vacProfileRow?.radiologicalExposureSource === "USER_CONFIRMED"
+      ? (vacProfileRow.radiologicalExposure === "YES" ? true : vacProfileRow.radiologicalExposure === "NO" ? false : vacProfileRow.radiologicalExposure === "UNSURE" ? "UNSURE" : false)
+      : false
 
   // 5. Horario de trabajo
   const workScheduleType: WorkScheduleType = (vacProfileRow?.workScheduleType as WorkScheduleType) ?? "ORDINARY"
