@@ -7,8 +7,8 @@
   "publishedAt": "2026-09-07T04:12:00Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "904e47f387e59ed2bc443b677fbba61ce0f4da3ce76ebc24fa81a5719d77fbf4",
-    "size": 24641005
+    "sha256": "55313b80b2a56701acd37078486da9520207b35b13237aa824531b2ce729a7ef",
+    "size": 24653293
   },
   "releaseNotes": [
     "Modo offline nativo: visualización y consulta de documentos personales, tarjetones, checadas y escritos sin conexión",
