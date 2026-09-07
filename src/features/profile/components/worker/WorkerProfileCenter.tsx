@@ -13,6 +13,7 @@ import { ProfileHistoryList } from "./ProfileHistoryList"
 import { ChangeMethodDialog } from "./ChangeMethodDialog"
 import { DeleteWorkerDataSection } from "./DeleteWorkerDataSection"
 import { changeWorkerProfileModeAction } from "@/features/profile/actions/worker-profile-actions"
+import { usePayslipInvalidation } from "@/shared/hooks/usePayslipInvalidation"
 
 const OnboardingWizard = dynamic(
   () => import("./OnboardingWizard").then((m) => m.OnboardingWizard),
@@ -33,6 +34,7 @@ interface WorkerProfileCenterProps {
 }
 
 export function WorkerProfileCenter({ state, mode, profile, quality, requirements, events, returnTo, profileSnapshot }: WorkerProfileCenterProps) {
+  usePayslipInvalidation({ refreshRouter: true })
   const [viewState, setViewState] = useState<WorkerState>(state)
   const [viewMode, setViewMode] = useState<WorkerProfileMode | null>(mode ?? null)
   const [showChangeDialog, setShowChangeDialog] = useState(false)

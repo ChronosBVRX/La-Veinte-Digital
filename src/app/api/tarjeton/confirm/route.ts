@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { createClient } from "@/lib/supabase/server"
 import { requireUser } from "@/shared/server/auth/require-user"
 import { confirmTarjetonService } from "@/features/tarjeton/services/confirm-tarjeton"
@@ -149,6 +150,16 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       console.warn("[tarjeton/confirm] no fue posible actualizar líneas/vacations en payslip:", err)
     }
+  }
+
+  try {
+    revalidatePath("/vacaciones")
+    revalidatePath("/profile/mi-informacion-laboral")
+    revalidatePath("/calculadoras")
+    revalidatePath("/guia")
+    revalidatePath("/")
+  } catch (revalErr) {
+    console.warn("[tarjeton/confirm] revalidatePath warning:", revalErr)
   }
 
   return NextResponse.json(result.data, {
