@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
 import type { ConfirmTarjetonResponse, ParsedImssTarjeton } from "@/shared/contracts/tarjeton-import"
 import { Card } from "@/shared/components/ui/Card"
@@ -13,7 +14,31 @@ interface ImportSuccessProps {
 }
 
 export function ImportSuccess({ parsed, response, onStartOver }: ImportSuccessProps) {
+  const [pinned, setPinned] = useState(false)
+  const [isPinning, setIsPinning] = useState(false)
+
   const periodLabel = parsed.document.periodRaw || "periodo no detectado"
+
+  const handleUseInTools = async () => {
+    setIsPinning(true)
+    try {
+      const res = await fetch("/api/tarjeton/select", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "pin", payslipId: response.id }),
+      })
+      if (res.ok) {
+        setPinned(true)
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("nomina_payslip_updated"))
+        }
+      }
+    } catch {
+      /* noop */
+    } finally {
+      setIsPinning(false)
+    }
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: 560, margin: "0 auto" }}>
@@ -31,6 +56,7 @@ export function ImportSuccess({ parsed, response, onStartOver }: ImportSuccessPr
           {response.profileUpdated && <Badge variant="info">Perfil actualizado</Badge>}
           {response.payrollContextUpdated && <Badge variant="info">Contexto de nómina actualizado</Badge>}
           {response.duplicate && <Badge variant="warning">Ya habías subido este archivo</Badge>}
+          {pinned && <Badge variant="info">Fijado como activo</Badge>}
         </div>
         {response.duplicate && (
           <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
@@ -39,7 +65,12 @@ export function ImportSuccess({ parsed, response, onStartOver }: ImportSuccessPr
         )}
       </Card>
       <div style={{ display: "flex", justifyContent: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-        <Button variant="secondary" onClick={onStartOver}>
+        {!pinned && (
+          <Button variant="secondary" onClick={handleUseInTools} loading={isPinning}>
+            Usar este tarjetón en mis herramientas
+          </Button>
+        )}
+        <Button variant="ghost" onClick={onStartOver}>
           Subir otro tarjetón
         </Button>
         <Link href="/calculadoras" style={{ textDecoration: "none" }}>

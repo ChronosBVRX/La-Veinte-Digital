@@ -301,29 +301,54 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
 
         const activeMatricula = profile?.matricula?.trim() || null
 
-        let query = client
-          .from("imported_payslips")
-          .select("period_half,period_month,period_year,created_at,employee_number")
+        const { data: activeCtx } = await client
+          .from("worker_active_context")
+          .select("active_payslip_id, selection_mode")
           .eq("user_id", authRes.user.id)
-
-        if (activeMatricula) {
-          query = query.eq("employee_number", activeMatricula)
-        }
-
-        const { data } = await query
-          .order("period_year", { ascending: false, nullsFirst: false })
-          .order("period_month", { ascending: false, nullsFirst: false })
-          .order("period_half", { ascending: false, nullsFirst: false })
-          .order("created_at", { ascending: false })
-          .limit(1)
           .maybeSingle()
 
+        let row: { period_half?: number; period_month?: number } | null = null
+        let isPinned = false
+
+        if (activeCtx?.selection_mode === "PINNED" && activeCtx.active_payslip_id) {
+          const { data: pinnedData } = await client
+            .from("imported_payslips")
+            .select("period_half,period_month,period_year,created_at,employee_number")
+            .eq("id", activeCtx.active_payslip_id)
+            .eq("user_id", authRes.user.id)
+            .maybeSingle()
+          if (pinnedData && (!activeMatricula || pinnedData.employee_number === activeMatricula)) {
+            row = pinnedData as { period_half?: number; period_month?: number }
+            isPinned = true
+          }
+        }
+
+        if (!row) {
+          let query = client
+            .from("imported_payslips")
+            .select("period_half,period_month,period_year,created_at,employee_number")
+            .eq("user_id", authRes.user.id)
+
+          if (activeMatricula) {
+            query = query.eq("employee_number", activeMatricula)
+          }
+
+          const { data } = await query
+            .order("period_year", { ascending: false, nullsFirst: false })
+            .order("period_month", { ascending: false, nullsFirst: false })
+            .order("period_half", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          row = data as { period_half?: number; period_month?: number } | null
+        }
+
         if (cancelled) return
-        const row = data as { period_half?: number; period_month?: number } | null
         if (row?.period_half) {
           const q = formatQuincena(row.period_half, row.period_month ?? null)
           if (q) {
-            setTarjetonStatus(`Último: ${q}`)
+            setTarjetonStatus(isPinned ? `Activo: ${q}` : `Último: ${q}`)
             setTarjetonHasData(true)
             return
           }

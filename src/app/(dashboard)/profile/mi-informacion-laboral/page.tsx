@@ -6,6 +6,8 @@ import { isSafeInternalReturnPath } from "@/shared/domain/worker"
 import { PageContainer } from "@/shared/components/layout/PageContainer"
 import { WorkerProfileCenter } from "@/features/profile/components/worker/WorkerProfileCenter"
 import { TarjetonUploaderSection } from "@/features/profile/components/worker/TarjetonUploaderSection"
+import { TarjetonHistorySection, type PreviousImport } from "@/features/tarjeton/components/TarjetonHistorySection"
+import { resolveActivePayslip } from "@/shared/server/active-payslip"
 import type { WorkerProfile, ProfileQuality, FieldRequirement, WorkerDataEvent, WorkerProfileMode } from "@/shared/domain/worker"
 
 interface PageProps {
@@ -78,6 +80,54 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
     antiguedad: profileRes.data?.antiguedad ?? null,
   }
 
+  // Resolver tarjetón activo canónico
+  const resolved = await resolveActivePayslip(supabase, user.id, {
+    activeMatricula: snapshot.matricula,
+  })
+
+  // Consultar historial de tarjetones para este usuario
+  const payslipsRes = await supabase
+    .from("imported_payslips")
+    .select("id, period_raw, extraction_method, global_confidence, created_at, employee_data, payroll_totals")
+    .eq("user_id", user.id)
+    .order("period_year", { ascending: false, nullsFirst: false })
+    .order("period_month", { ascending: false, nullsFirst: false })
+    .order("period_half", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(20)
+
+  const previousImports: PreviousImport[] = (payslipsRes.data ?? []).map((p) => {
+    const empData = (p.employee_data ?? {}) as Record<string, unknown>
+    const totals = (p.payroll_totals ?? {}) as Record<string, unknown>
+    return {
+      id: p.id,
+      periodRaw: p.period_raw,
+      extractionMethod: p.extraction_method,
+      globalConfidence: typeof p.global_confidence === "number" ? p.global_confidence : 1,
+      createdAt: p.created_at,
+      employeeName: (empData.fullName as string) || (empData.name as string) || null,
+      totalNet: typeof totals.netPay === "number" ? totals.netPay : null,
+    }
+  })
+
+  // Obtener conceptos del tarjetón activo
+  let latestConcepts: Array<{ code: string; description: string; amount: number; kind: "earning" | "deduction" }> = []
+  if (resolved.activePayslipId) {
+    const { data: lines } = await supabase
+      .from("imported_payslip_lines")
+      .select("concept_code, description, amount, kind")
+      .eq("payslip_id", resolved.activePayslipId)
+      .order("line_index", { ascending: true })
+      .limit(20)
+
+    latestConcepts = (lines ?? []).map((l) => ({
+      code: l.concept_code,
+      description: l.description,
+      amount: l.amount,
+      kind: l.kind === "deduction" ? ("deduction" as const) : ("earning" as const),
+    }))
+  }
+
   return (
     <PageContainer maxWidth={700} style={{ display: "flex", flexDirection: "column", gap: "1.75rem", padding: "0.5rem 0" }}>
       <WorkerProfileCenter
@@ -90,6 +140,38 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
         returnTo={returnTo}
         profileSnapshot={snapshot}
       />
+
+      {/* Historial de tarjetones con control de tarjetón activo */}
+      {previousImports.length > 0 && (
+        <section id="historial-tarjetones" style={{
+          borderTop: "1px solid var(--border)",
+          paddingTop: "1.25rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.75rem",
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          boxSizing: "border-box",
+        }}>
+          <div>
+            <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.25rem", wordBreak: "break-word" }}>
+              Mis tarjetones importados
+            </h2>
+            <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: 0, lineHeight: 1.55, wordBreak: "break-word" }}>
+              Selecciona cuál tarjetón alimenta tus calculadoras, vacaciones y herramientas.
+            </p>
+          </div>
+
+          <TarjetonHistorySection
+            imports={previousImports}
+            activePayslipId={resolved.activePayslipId}
+            selectionMode={resolved.selectionMode}
+            latestConcepts={latestConcepts}
+            uploadHref="#subir-tarjeton"
+          />
+        </section>
+      )}
 
       {/* Sección unificada: aquí se sube el tarjetón y aquí se actualiza
           toda la información laboral (categoría, antigüedad, jornada,
@@ -107,7 +189,7 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
       }}>
         <div>
           <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.25rem", wordBreak: "break-word" }}>
-            Importar mi tarjetón IMSS
+            Importar nuevo tarjetón IMSS
           </h2>
           <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: 0, lineHeight: 1.55, wordBreak: "break-word" }}>
             Sube tu archivo PDF de tarjetón para mantener tu información laboral al día.

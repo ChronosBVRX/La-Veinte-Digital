@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
+import { resolveActivePayslip } from "./active-payslip"
 import {
   buildWorkerContext,
   type PayslipLineRow,
@@ -31,30 +32,14 @@ export async function getWorkerContext(): Promise<WorkerContext> {
 
   const activeMatricula = profile?.matricula?.trim() || null
 
-  // 2. Filtrar tarjetón activo por (user_id, employee_number)
-  let payslipQuery = supabase
-    .from("imported_payslips")
-    .select("id, period_raw, payroll_totals, employee_data, vacations, employee_number")
-    .eq("user_id", user.id)
-
-  if (activeMatricula) {
-    payslipQuery = payslipQuery.eq("employee_number", activeMatricula)
-  }
-
-  payslipQuery = payslipQuery
-    .order("period_year", { ascending: false, nullsFirst: false })
-    .order("period_month", { ascending: false, nullsFirst: false })
-    .order("period_half", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false })
-    .limit(1)
-
-  const [ctxRes, payslipRes, vacProfileRes] = await Promise.all([
+  // 2. Resolver el tarjetón activo mediante el resolver canónico
+  const [ctxRes, activePayslipResult, vacProfileRes] = await Promise.all([
     supabase
       .from("payroll_contexts")
       .select("*")
       .eq("user_id", user.id)
       .maybeSingle(),
-    payslipQuery,
+    resolveActivePayslip(supabase, user.id, { activeMatricula }),
     supabase
       .from("vacation_profile_data")
       .select("*")
@@ -63,7 +48,7 @@ export async function getWorkerContext(): Promise<WorkerContext> {
   ])
 
   let ctx = ctxRes.data
-  let latest = payslipRes.data?.[0] ?? null
+  let latest = activePayslipResult.payslip
   let vacProfile = vacProfileRes.data ?? null
 
   // 3. Invariante de identidad laboral: si alguna fuente tiene matrícula distinta a la activa,

@@ -48,6 +48,7 @@ describe("API route policy", () => {
       "/api/simulador": "authenticated",
       "/api/tarjeton/confirm": "authenticated",
       "/api/tarjeton/delete": "authenticated",
+      "/api/tarjeton/select": "authenticated",
       "/api/worker-context": "authenticated",
       "/api/escritos/generar": "authenticated",
     })

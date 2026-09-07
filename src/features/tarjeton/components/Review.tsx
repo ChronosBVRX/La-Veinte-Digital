@@ -158,6 +158,7 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
         profile={profile}
         updates={updates}
         onToggle={(key) => setUpdates((previous) => ({ ...previous, [key]: !previous[key] }))}
+        onSetUpdates={setUpdates}
       />
 
       {totalsMismatch && (
@@ -357,7 +358,14 @@ export function Review({ parsed, profile, confirming, onConfirm, onCancel }: Rev
             authorizeServerStorage: consentGiven,
             conceptLines: rows.filter((row) => row.deleted !== true),
           })}
-          disabled={(totalsMismatch && !acknowledge) || !consentGiven || invalidAmounts || visibleRows.length === 0 || pendingReview.length > 0}
+          disabled={
+            (totalsMismatch && !acknowledge) ||
+            !consentGiven ||
+            invalidAmounts ||
+            visibleRows.length === 0 ||
+            pendingReview.length > 0 ||
+            (Boolean(profile?.matricula && employee.employeeNumber && profile.matricula.trim() !== employee.employeeNumber.trim()) && updates.matricula !== true)
+          }
           loading={confirming}
         >
           Confirmar tarjetón
