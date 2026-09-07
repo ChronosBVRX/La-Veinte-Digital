@@ -41,15 +41,6 @@ test.describe("Nomina - Carga", () => {
   })
 })
 
-test.describe("Simulador de Nomina", () => {
-  test("carga el simulador de nomina", async ({ page }) => {
-    await page.goto("/simulador-nomina")
-    await page.waitForLoadState("networkidle")
-    const bodyText = await page.locator("body").innerText()
-    expect(bodyText.length).toBeGreaterThan(50)
-  })
-})
-
 test.describe("Simulador de Audiencia", () => {
   test("carga el simulador de audiencia", async ({ page }) => {
     await page.goto("/simulador")

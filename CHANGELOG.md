@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased] — Eliminación quirúrgica del Simulador de Nómina
+
+### Removed
+- Ruta `/simulador-nomina` (`src/app/(dashboard)/simulador-nomina/page.tsx`) y feature completa `src/features/simulador-nomina/**` (componentes `SimuladorNominaIndex`, `SimuladorNominaPageClient`, `ScenarioComparison`, servicio `simulate.ts` y tests unitarios).
+- Enlaces y accesos al Simulador de Nómina en navegación desktop/móvil (`navigation.ts`, `QuickActionsGrid.tsx`, `herramientas/page.tsx`, `ImportSuccess.tsx`, `AnnouncementForm.tsx`, `safe-return-path.ts`, `guide-calculator-links.ts`, `guide-content.ts`).
+
+### Changed
+- Redirecciones canónicas: `/nomina` y `/nomina/proyeccion` redirigen a `/calculadoras`.
+- `ImportSuccess.tsx`: enlace post-importación redirige a `/calculadoras`.
+
+### Protected Behavior
+- `src/features/nomina/**` (motor de nómina y fórmulas) 100% intacto.
+- `src/features/calculators/**` (todas las calculadoras de nómina: Aguinaldo, Segunda de Julio, Tiempo Extra, Cláusula 97, Préstamos) 100% intactas.
+- `src/features/simulador/**` y `/simulador` (Simulador de Audiencia) 100% intactos.
+- Android nativo y Supabase sin alteraciones.
+
 ## [Unreleased] — Modo offline Android: documentos guardados sin conexión
 
 ### Added

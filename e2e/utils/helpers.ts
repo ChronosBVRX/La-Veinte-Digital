@@ -14,7 +14,6 @@ export const ALL_ROUTES = [
   { href: "/vacaciones", label: "Vacaciones" },
   { href: "/bitacora", label: "Mi agenda" },
   { href: "/calculadoras", label: "Calculadoras" },
-  { href: "/simulador-nomina", label: "Simulador de nomina" },
   { href: "/escritos", label: "Crear un escrito" },
   { href: "/guia", label: "Guía de mi Tarjetón" },
   { href: "/guia/conceptos", label: "Guía Conceptos" },

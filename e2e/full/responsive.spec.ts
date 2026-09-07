@@ -23,7 +23,6 @@ const CORE_ROUTES = [
   "/calculadoras/segunda-julio",
   "/calculadoras/segunda-julio-proporcional",
   "/calculadoras/prestamos",
-  "/simulador-nomina",
   "/simulador",
   "/calendario",
   "/vacaciones",

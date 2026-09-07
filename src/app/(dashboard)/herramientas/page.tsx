@@ -1,12 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { Calculator, ArrowsLeftRight, FileText, Books, Scales } from "@phosphor-icons/react"
+import { Calculator, FileText, Books, Scales } from "@phosphor-icons/react"
 import { PageHeader } from "@/shared/components/app/PageHeader"
 
 const TOOLS = [
   { href: "/calculadoras", label: "Calculadoras", description: "Aguinaldo, tiempo extra, préstamos, segunda de julio y más.", icon: Calculator },
-  { href: "/simulador-nomina", label: "Simulador de nómina", description: "Compara cómo cambiaría tu quincena al modificar categoría o antigüedad.", icon: ArrowsLeftRight },
   { href: "/escritos", label: "Crear un escrito", description: "Genera documentos formales basados en tu situación laboral.", icon: FileText },
   { href: "/guia", label: "Guía de mi Tarjetón", description: "Entiende cada concepto, campo y detalle de tu tarjetón IMSS.", icon: Books },
   { href: "/simulador", label: "Practicar una audiencia", description: "Practica una audiencia de aclaración con un evaluador virtual.", icon: Scales },

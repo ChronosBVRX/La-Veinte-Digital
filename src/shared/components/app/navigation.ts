@@ -13,7 +13,6 @@ import {
   AirplaneTilt,
   Briefcase,
   Wrench,
-  ArrowsLeftRight,
 } from "@phosphor-icons/react"
 import type { IconProps } from "@phosphor-icons/react"
 
@@ -47,7 +46,6 @@ export const DESKTOP_NAV_GROUPS: NavGroup[] = [
     color: "var(--area-tools)",
     items: [
       { href: "/calculadoras", label: "Calculadoras", icon: Calculator },
-      { href: "/simulador-nomina", label: "Simulador de nómina", icon: ArrowsLeftRight },
       { href: "/escritos", label: "Crear un escrito", icon: FileText },
       { href: "/guia", label: "Guía de mi Tarjetón", icon: Books },
       { href: "/simulador", label: "Practicar una audiencia", icon: Scales },

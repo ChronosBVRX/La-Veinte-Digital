@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 
-/** La proyección de nómina vive en el simulador: /simulador-nomina. */
+/** La proyección de nómina y cálculos viven en /calculadoras. */
 export default function NominaProyeccionPage() {
-  redirect("/simulador-nomina")
+  redirect("/calculadoras")
 }

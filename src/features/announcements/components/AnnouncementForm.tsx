@@ -37,7 +37,6 @@ const PREDEFINED_DESTINATIONS = [
   { label: "Calendario de pagos y descansos (/calendario)", value: "/calendario" },
   { label: "Asistente vacacional (/vacaciones)", value: "/vacaciones" },
   { label: "Calculadoras de nómina (/calculadoras)", value: "/calculadoras" },
-  { label: "Simulador de nómina (/simulador-nomina)", value: "/simulador-nomina" },
   { label: "Generador de escritos (/escritos)", value: "/escritos" },
   { label: "Documentos personales (/documentos-personales)", value: "/documentos-personales" },
   { label: "Asistente de derechos SNTSS (/asistente)", value: "/asistente" },
