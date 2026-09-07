@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { CalendarDots, CurrencyDollar, Clock, FileText, Calculator, UploadSimple, ArrowRight } from "@phosphor-icons/react"
 import { CalculatorCard } from "./CalculatorCard"
+import { SourceAttribution } from "@/shared/components/ui/SourceAttribution"
 
 const calculators = [
   {
@@ -129,6 +130,13 @@ export function CalculatorsIndex({ hasTarjeton }: { hasTarjeton: boolean }) {
         }}
       >
         Cálculo orientativo basado en los datos proporcionados y la normativa vigente del CCT IMSS-SNTSS.
+        <SourceAttribution sourceId="cct-imss-sntss-2025-2027" detalle="prestaciones y cláusulas aplicables" />
+        <span style={{ display: "block", marginTop: "0.375rem" }}>
+          Herramienta independiente: no emite resoluciones oficiales.{" "}
+          <Link href="/informacion-y-fuentes" style={{ color: "var(--primary)", textDecoration: "underline" }}>
+            Información y fuentes
+          </Link>
+        </span>
       </div>
     </div>
   )

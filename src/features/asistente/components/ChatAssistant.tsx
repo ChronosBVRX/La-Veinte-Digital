@@ -7,6 +7,7 @@ import { useChat } from "../hooks/useChat"
 import { ChatMessage } from "./ChatMessage"
 import { ChatSuggestions } from "./ChatSuggestions"
 import { TypingIndicator } from "./TypingIndicator"
+import Link from "next/link"
 
 const INITIAL_MESSAGE = `¡Hola! 👋 Soy tu **asistente laboral**. Pregúntame sobre el **CCT**, **Estatutos**, vacaciones, aguinaldo o cualquier duda laboral.`
 
@@ -53,6 +54,12 @@ export function ChatAssistant() {
           <details style={{ marginTop: "0.2rem" }}>
             <summary style={{ fontSize: "0.75rem", color: "var(--primary)", cursor: "pointer", fontWeight: 600, listStyle: "none" }}>¿Qué puedo consultar? ▾</summary>
             <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.35rem 0 0", lineHeight: 1.5 }}>{HELP_HINT}</p>
+            <p style={{ fontSize: "0.72rem", color: "var(--muted)", margin: "0.25rem 0 0", lineHeight: 1.5 }}>
+              Respuestas orientativas con IA; verifica con las fuentes oficiales.{" "}
+              <Link href="/informacion-y-fuentes" style={{ color: "var(--primary)", textDecoration: "underline" }}>
+                Información y fuentes
+              </Link>
+            </p>
           </details>
         </div>
       </div>
