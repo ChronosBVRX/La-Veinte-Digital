@@ -8,6 +8,10 @@ import { requireUser } from "@/shared/server/auth/require-user"
  *
  * Permite al usuario fijar un tarjetón específico como activo (PINNED)
  * o restablecer la selección al tarjetón cronológicamente más reciente (AUTO_LATEST).
+ *
+ * IMPORTANTE: seleccionar otro tarjetón confirmado nunca degrada el perfil a
+ * modo básico. La transición de identidad y la reconstrucción del contexto
+ * laboral se realizan atómicamente dentro de `set_active_payslip`.
  */
 export async function POST(request: NextRequest) {
   const auth = await requireUser()
@@ -57,7 +61,8 @@ export async function POST(request: NextRequest) {
     console.warn("[api/tarjeton/select] revalidatePath falló:", revalidateErr)
   }
 
-  // Obtener la revisión canónica actualizada de worker_active_context
+  // Obtener la revisión canónica actualizada de worker_active_context.
+  // El RPC es la única operación que modifica identidad/contexto laboral.
   const { data: activeCtx } = await supabase
     .from("worker_active_context")
     .select("updated_at, employee_number, active_payslip_id, selection_mode")
@@ -69,14 +74,7 @@ export async function POST(request: NextRequest) {
   const employeeNumber = (rpcData.employeeNumber as string) ?? activeCtx?.employee_number ?? null
   const selectionMode = (rpcData.selectionMode as "AUTO_LATEST" | "PINNED") ?? activeCtx?.selection_mode ?? (action === "pin" ? "PINNED" : "AUTO_LATEST")
   const workerChanged = Boolean(rpcData.workerChanged)
-  const contextRevision = activeCtx?.updated_at || new Date().toISOString()
-
-  if (workerChanged) {
-    void supabase
-      .from("worker_preferences")
-      .update({ onboarding_state: "basic", updated_at: new Date().toISOString() })
-      .eq("user_id", auth.user.id)
-  }
+  const contextRevision = (rpcData.contextRevision as string) ?? activeCtx?.updated_at ?? new Date().toISOString()
 
   return NextResponse.json({
     ok: true,
@@ -85,5 +83,9 @@ export async function POST(request: NextRequest) {
     selectionMode,
     workerChanged,
     contextRevision,
+  }, {
+    headers: {
+      "Cache-Control": "private, no-store, no-cache, must-revalidate",
+    },
   })
 }

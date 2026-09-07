@@ -85,9 +85,18 @@ export interface ConfirmTarjetonServiceDeps {
   rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: RpcError | null }>
 }
 
-function normalizeRpcResponse(data: unknown): unknown {
-  if (typeof data !== "object" || data === null || Array.isArray(data) || "schemaVersion" in data) return data
-  return { schemaVersion: "1.0", ...data }
+/**
+ * Normaliza exclusivamente metadatos diagnósticos del RPC que no forman parte
+ * del contrato público. `warnings` puede venir de PostgreSQL aunque la
+ * persistencia haya sido correcta; no debe convertir una importación exitosa
+ * en un falso error. Cualquier otra clave inesperada se conserva para que el
+ * validador estricto siga rechazándola.
+ */
+export function normalizeRpcResponse(data: unknown): unknown {
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return data
+  const response = { ...(data as Record<string, unknown>) }
+  delete response.warnings
+  return "schemaVersion" in response ? response : { schemaVersion: "1.0", ...response }
 }
 
 /** Persiste la confirmación vía RPC (una sola transacción). */
