@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Clock, CaretLeft, CaretRight, CalendarBlank, WarningCircle } from "@phosphor-icons/react"
 import { Button } from "@/shared/components/ui/Button"
 import { Input, Select, Textarea } from "@/shared/components/ui/Input"
@@ -137,6 +137,16 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
     resetDetails()
     setReminder(DEFAULT_REMINDER)
   }
+
+  // Cierre estable: protección adicional para no entregar al Modal una
+  // identidad nueva de onClose en cada render del formulario. El arreglo
+  // principal vive en el Modal compartido (no reinicializa foco por renders).
+  const handleClose = useCallback(() => {
+    reset()
+    onClose()
+    // reset() solo invoca setters estables de useState.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClose])
 
   const chooseType = (nextType: CommitmentType) => {
     if (type !== nextType) resetDetails()
@@ -338,7 +348,7 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
   }
 
   return (
-    <Modal open={open} onClose={() => { reset(); onClose() }} title="Agregar a mi agenda" size="sm">
+    <Modal open={open} onClose={handleClose} title="Agregar a mi agenda" size="sm">
       {step === "type" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: 0 }}>

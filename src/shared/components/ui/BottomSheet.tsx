@@ -33,6 +33,13 @@ export function BottomSheet({
   const overlayRef = useRef<HTMLDivElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
+  // Mismo contrato que Modal: el cierre más reciente sin re-ejecutar la
+  // inicialización cuando el contenido re-renderiza (ver Modal.tsx).
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   // Capa transitoria canónica: Atrás cierra este sheet antes que retroceder de ruta.
   useBackLayer(open, onClose, "sheet")
@@ -44,7 +51,7 @@ export function BottomSheet({
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose()
+        onCloseRef.current()
         return
       }
       if (e.key === "Tab" && sheetRef.current) {
@@ -80,7 +87,8 @@ export function BottomSheet({
       document.removeEventListener("keydown", onKeyDown)
       document.body.style.overflow = ""
     }
-  }, [open, onClose])
+    // onClose intencionalmente excluido: se lee vía onCloseRef (ver Modal.tsx).
+  }, [open])
 
   useEffect(() => {
     if (!open && previousFocusRef.current) {

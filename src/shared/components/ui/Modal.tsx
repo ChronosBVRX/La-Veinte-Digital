@@ -44,8 +44,18 @@ export function Modal({
   const overlayRef = useRef<HTMLDivElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
+  // El cierre más reciente, sin re-ejecutar el efecto de apertura cuando el
+  // padre re-renderiza (p. ej. al escribir en un formulario: una identidad
+  // nueva de onClose reinicializaría el autofocus y robaría el foco,
+  // cerrando el teclado virtual en móvil).
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   // Capa transitoria canónica: Atrás cierra este modal antes que retroceder de ruta.
+  // useBackLayer ya lee el cierre vía ref; no se re-registra por render.
   useBackLayer(open, onClose, "modal")
 
   useEffect(() => {
@@ -55,7 +65,7 @@ export function Modal({
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose()
+        onCloseRef.current()
         return
       }
       if (e.key === "Tab" && dialogRef.current) {
@@ -91,7 +101,10 @@ export function Modal({
       document.removeEventListener("keydown", onKeyDown)
       document.body.style.overflow = ""
     }
-  }, [open, onClose])
+    // onClose intencionalmente excluido: se lee vía onCloseRef para que un
+    // re-render del contenido (nueva identidad de callback) no reinicie la
+    // inicialización ni el autofocus. El ciclo de vida lo controla `open`.
+  }, [open])
 
   useEffect(() => {
     if (!open && previousFocusRef.current) {
