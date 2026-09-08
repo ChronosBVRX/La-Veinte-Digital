@@ -9,6 +9,13 @@ if (typeof process.loadEnvFile === "function") {
   }
 }
 
+if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("ragktminwduiggvaoeix")) {
+  console.warn(
+    "\x1b[33m%s\x1b[0m",
+    "[SECURITY WARNING] Playwright detectó la URL de producción de Supabase (ragktminwduiggvaoeix). Las pruebas mutantes están bloqueadas por el guardrail assertSafeDatabase."
+  )
+}
+
 const CI = !!process.env.CI
 
 const AUTH_FILE = path.join(__dirname, "e2e", ".auth", "user.json")

@@ -510,4 +510,54 @@ describe("validacion de contrato seniority (parsed/status)", () => {
     if (result.ok) return
     expect(result.error.code).toBe("invalid_payload")
   })
+
+  it("permite vacations con porVencer, porVencerRaw y dueDate y los envía fielmente al RPC", async () => {
+    let capturedArgs: unknown = null
+    const rpc = vi.fn(async (_fn: string, args: Record<string, unknown>) => {
+      capturedArgs = args
+      return {
+        data: {
+          id: "33333333-3333-4333-8333-333333333333",
+          duplicate: false,
+          profileUpdated: false,
+          payrollContextUpdated: false,
+        },
+        error: null,
+      }
+    })
+
+    const request = makeRequest({
+      parsed: {
+        ...makeRequest().parsed,
+        vacations: {
+          enjoyedDays: 5,
+          daysInYear: 10,
+          continuityMark: 2,
+          periodNumberToEnjoy: 11,
+          porVencer: "2026-10-15",
+          porVencerRaw: "15102026",
+          dueDate: "2026-10-15",
+        },
+        extraction: {
+          ...makeRequest().parsed.extraction,
+          validations: { ...makeRequest().parsed.extraction.validations, templateDetected: true },
+        },
+      },
+    })
+
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, request)
+    expect(result.ok).toBe(true)
+    expect(capturedArgs).not.toBeNull()
+    const parsedSent = (capturedArgs as { p_parsed: { vacations: Record<string, unknown> } }).p_parsed
+    expect(parsedSent.vacations).toEqual({
+      enjoyedDays: 5,
+      daysInYear: 10,
+      continuityMark: 2,
+      periodNumberToEnjoy: 11,
+      porVencer: "2026-10-15",
+      porVencerRaw: "15102026",
+      dueDate: "2026-10-15",
+    })
+  })
 })
+
