@@ -36,6 +36,9 @@ const ALLOWED_CONSOLE_PATTERNS: (string | RegExp)[] = [
   // Facebook blocks iframe embedding in CI (X-Frame-Options: deny)
   /X-Frame-Options/i,
   /Refused to display.*facebook/i,
+  // React dev mode notice when CSP restricts unsafe-eval
+  /eval\(\) is not supported in this environment/i,
+  /React will never use eval\(\) in production mode/i,
 ]
 
 // ---------------------------------------------------------------------------
