@@ -114,7 +114,24 @@ export function Differences({ parsed, profile, updates, onToggle, onSetUpdates }
     )
   }
 
-  // CASO: Mismo trabajador (o sin perfil previo)
+  // CASO: Inicialización del perfil laboral (sin matrícula previa registrada)
+  if (!profile?.matricula && emp.employeeNumber) {
+    return (
+      <Card padding="1rem" style={{ display: "flex", flexDirection: "column", gap: "0.5rem", borderColor: "var(--primary)", borderWidth: "1.5px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+          <Badge variant="info">Completar información laboral</Badge>
+          <span style={{ fontSize: "0.875rem", color: "var(--fg)", fontWeight: 600 }}>
+            Completar tu información laboral con este tarjetón
+          </span>
+        </div>
+        <div style={{ fontSize: "0.8125rem", color: "var(--muted)", lineHeight: 1.5 }}>
+          Se configurará tu perfil de trabajador con la matrícula <strong>{emp.employeeNumber}</strong>, nombre <strong>{emp.fullName ?? "detectado"}</strong>{emp.categoryName ? `, categoría <strong>${emp.categoryName}</strong>` : ""} y antigüedad para activar las calculadoras y tu calendario de vacaciones.
+        </div>
+      </Card>
+    )
+  }
+
+  // CASO: Mismo trabajador previamente configurado
   const differences = buildDifferences(parsed, profile)
   if (differences.length === 0) {
     return (

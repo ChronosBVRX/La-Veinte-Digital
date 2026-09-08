@@ -138,6 +138,20 @@ export function sanitizeTarjetonForPersistence(parsed: ParsedImssTarjeton): Tarj
     ...parsed.employee,
     seniority: parsed.employee.seniority ? { ...parsed.employee.seniority } : undefined,
   }
+  if (employee.employmentType !== undefined && typeof employee.employmentType === "string") {
+    const rawEmp = employee.employmentType.trim().toLowerCase()
+    if (["base", "confianza", "eventual", "confianza_a_estatuto"].includes(rawEmp)) {
+      employee.employmentType = rawEmp
+    } else if (rawEmp.includes("confianza") && rawEmp.includes("estatuto")) {
+      employee.employmentType = "confianza_a_estatuto"
+    } else if (rawEmp.includes("confianza")) {
+      employee.employmentType = "confianza"
+    } else if (rawEmp.includes("eventual")) {
+      employee.employmentType = "eventual"
+    } else if (rawEmp.includes("base")) {
+      employee.employmentType = "base"
+    }
+  }
   if (employee.seniority?.reconstructedEffectiveDate !== undefined) {
     const effective = safeDate(employee.seniority.reconstructedEffectiveDate)
     if (effective === undefined) {

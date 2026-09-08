@@ -561,3 +561,70 @@ describe("validacion de contrato seniority (parsed/status)", () => {
   })
 })
 
+describe("diagnósticos de etapas y códigos PostgreSQL en mapRpcError", () => {
+  it("mapea TARJETON_CONFIRM_STAGE_FAILED con SQLSTATE 23514 a persistence_failed con requestId", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const rpc = async () => ({
+      data: null,
+      error: {
+        message: 'TARJETON_CONFIRM_STAGE_FAILED:STAGE_PAYROLL_CONTEXT:23514:new row for relation "payroll_contexts" violates check constraint "payroll_contexts_employment_type_check"',
+        code: "23514",
+      },
+    })
+
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, makeRequest())
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe("persistence_failed")
+    expect(result.error.message).toContain("no permitido en el perfil laboral")
+    expect(typeof result.error.requestId).toBe("string")
+    expect(result.error.requestId!.length).toBeGreaterThan(0)
+
+    const stageLog = consoleSpy.mock.calls.flat().find((arg) =>
+      typeof arg === "object" && arg !== null && "stage" in arg && arg.stage === "STAGE_PAYROLL_CONTEXT",
+    ) as Record<string, unknown> | undefined
+    expect(stageLog).toBeDefined()
+    expect(stageLog).toMatchObject({
+      stage: "STAGE_PAYROLL_CONTEXT",
+      sqlstate: "23514",
+    })
+    consoleSpy.mockRestore()
+  })
+
+  it("mapea código 23514 directo de Postgres a persistence_failed con requestId", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+    const rpc = async () => ({
+      data: null,
+      error: {
+        message: 'new row for relation "payroll_contexts" violates check constraint "payroll_contexts_employment_type_check"',
+        code: "23514",
+      },
+    })
+
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, makeRequest())
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe("persistence_failed")
+    expect(result.error.message).toContain("no permitido en el perfil laboral")
+    expect(typeof result.error.requestId).toBe("string")
+    consoleSpy.mockRestore()
+  })
+
+  it("mapea matricula_required a invalid_payload con requestId", async () => {
+    const rpc = async () => ({
+      data: null,
+      error: {
+        message: "matricula_required: tarjeton does not contain employeeNumber",
+      },
+    })
+
+    const result = await confirmTarjetonService({ userId: "u1", rpc }, makeRequest())
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error.code).toBe("invalid_payload")
+    expect(result.error.message).toContain("matrícula")
+    expect(typeof result.error.requestId).toBe("string")
+  })
+})
+
+

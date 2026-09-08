@@ -33,7 +33,7 @@ export type ConfirmTarjetonResult = {
   data: ConfirmTarjetonResponse
 } | {
   ok: false
-  error: { code: ConfirmTarjetonError["code"]; message: string }
+  error: { code: ConfirmTarjetonError["code"]; message: string; requestId?: string }
 }
 
 /**
@@ -108,10 +108,10 @@ export async function confirmTarjetonService(deps: ConfirmTarjetonServiceDeps, r
     request = sanitizeConfirmTarjetonRequest(raw)
   } catch (err) {
     if (err instanceof ConfirmTarjetonError) {
-      return { ok: false, error: { code: err.code, message: err.message } }
+      return { ok: false, error: { code: err.code, message: err.message, requestId } }
     }
     console.error("[tarjeton/confirm][validate]", { requestId, error: err instanceof Error ? err.message : String(err) })
-    return { ok: false, error: { code: "internal", message: "Error interno al validar el tarjetón." } }
+    return { ok: false, error: { code: "internal", message: "Error interno al validar el tarjetón.", requestId } }
   }
 
   // Datos secundarios: normaliza valores inválidos a undefined + warning.
@@ -124,6 +124,7 @@ export async function confirmTarjetonService(deps: ConfirmTarjetonServiceDeps, r
       error: {
         code: "invalid_payload",
         message: "Uno o más importes del tarjetón están fuera de rango. Corrige o elimina la fila antes de confirmar.",
+        requestId,
       },
     }
   }
@@ -159,7 +160,7 @@ export async function confirmTarjetonService(deps: ConfirmTarjetonServiceDeps, r
     }
     const normalizedData = normalizeRpcResponse(data)
     if (!normalizedData || !isConfirmTarjetonResponse(normalizedData)) {
-      return { ok: false, error: { code: "internal", message: "El servidor devolvió una respuesta inválida." } }
+      return { ok: false, error: { code: "internal", message: "El servidor devolvió una respuesta inválida.", requestId } }
     }
 
     return { ok: true, data: normalizedData }
@@ -167,18 +168,95 @@ export async function confirmTarjetonService(deps: ConfirmTarjetonServiceDeps, r
     const msg = err instanceof Error ? err.message : String(err)
     const stack = err instanceof Error ? err.stack?.split('\n').slice(0, 3).join('\n') : ''
     console.error("[tarjeton/confirm]", { requestId, error: msg, stack })
-    return { ok: false, error: { code: "internal", message: "No fue posible confirmar el tarjetón." } }
+    return { ok: false, error: { code: "internal", message: "No fue posible confirmar el tarjetón.", requestId } }
   }
 }
 
 const OBS_FAILED_PATTERN = /obs_insert_failed:\s*line\s+(\d+)\s+code\s+(\S*)\s+amount\s+(\S*)\s+units\s+(\S*)\s+initialCharge\s+(\S*)\s+error\s+(.*)/
 const LINE_FAILED_PATTERN = /line_insert_failed:\s*line\s+(\d+)\s+code\s+(\S*)\s+amount\s+(\S*)\s+confidence\s+(\S*)\s+error\s+(.*)/
+const STAGE_FAILED_PATTERN = /TARJETON_CONFIRM_STAGE_FAILED:([A-Z_]+):([0-9A-Z_]+):(.*)/
 
-function mapRpcError(error: RpcError, requestId: string): { ok: false; error: { code: ConfirmTarjetonError["code"]; message: string } } {
+function mapRpcError(error: RpcError, requestId: string): { ok: false; error: { code: ConfirmTarjetonError["code"]; message: string; requestId: string } } {
   const message = error.message
   const normalized = message.toLowerCase()
 
-  // Diagnóstico específico de la migración 017: identifica línea, campo y
+  // 1. Diagnóstico de etapas de persistencia (TARJETON_CONFIRM_STAGE_FAILED)
+  const stageMatch = message.match(STAGE_FAILED_PATTERN)
+  if (stageMatch) {
+    const stage = stageMatch[1]
+    const sqlstate = stageMatch[2]
+    const stageError = stageMatch[3]
+    console.error("[tarjeton/confirm][stage_failed]", {
+      requestId,
+      stage,
+      sqlstate,
+      error: stageError,
+      supabaseCode: error.code,
+      details: error.details,
+      hint: error.hint,
+    })
+
+    if (sqlstate === "23514") {
+      return {
+        ok: false,
+        error: {
+          code: "persistence_failed",
+          message: "No fue posible guardar el tarjetón por un valor no permitido en el perfil laboral. Intenta de nuevo; si persiste, contáctanos.",
+          requestId,
+        },
+      }
+    }
+    if (sqlstate === "23505") {
+      return {
+        ok: false,
+        error: {
+          code: "duplicate",
+          message: "Este tarjetón ya fue confirmado antes.",
+          requestId,
+        },
+      }
+    }
+    if (sqlstate === "23502" || sqlstate === "23503") {
+      return {
+        ok: false,
+        error: {
+          code: "persistence_failed",
+          message: "No fue posible guardar el tarjetón por datos requeridos faltantes en el perfil.",
+          requestId,
+        },
+      }
+    }
+    if (sqlstate === "22003" || sqlstate === "22P02") {
+      return {
+        ok: false,
+        error: {
+          code: "persistence_failed",
+          message: "No fue posible guardar el tarjetón por un valor fuera de rango. Revisa los importes e intenta de nuevo.",
+          requestId,
+        },
+      }
+    }
+    if (sqlstate === "42703" || sqlstate === "42883") {
+      return {
+        ok: false,
+        error: {
+          code: "internal",
+          message: "Error interno de esquema en la base de datos.",
+          requestId,
+        },
+      }
+    }
+    return {
+      ok: false,
+      error: {
+        code: "persistence_failed",
+        message: "No fue posible guardar el tarjetón durante la etapa de persistencia. Intenta de nuevo.",
+        requestId,
+      },
+    }
+  }
+
+  // 2. Diagnóstico específico de la migración 017: identifica línea, campo y
   // valor causante ANTES de traducir el error a un código de contrato.
   const obsMatch = message.match(OBS_FAILED_PATTERN)
   if (obsMatch) {
@@ -199,6 +277,7 @@ function mapRpcError(error: RpcError, requestId: string): { ok: false; error: { 
       error: {
         code: "persistence_failed",
         message: "No fue posible guardar el tarjetón por un dato de observaciones inválido. Intenta de nuevo; si persiste, contáctanos.",
+        requestId,
       },
     }
   }
@@ -221,8 +300,31 @@ function mapRpcError(error: RpcError, requestId: string): { ok: false; error: { 
       error: {
         code: "persistence_failed",
         message: "No fue posible guardar el tarjetón por un dato de conceptos inválido. Revisa los importes e intenta de nuevo.",
+        requestId,
       },
     }
+  }
+
+  // 3. Errores PostgreSQL directos por código
+  if (error.code === "23514") {
+    console.error("[tarjeton/confirm][check_violation]", { requestId, code: error.code, message, details: error.details })
+    return {
+      ok: false,
+      error: {
+        code: "persistence_failed",
+        message: "No fue posible guardar el tarjetón por un valor no permitido en el perfil laboral. Intenta de nuevo.",
+        requestId,
+      },
+    }
+  }
+  if (error.code === "23505") {
+    return { ok: false, error: { code: "duplicate", message: "Este tarjetón ya fue confirmado antes.", requestId } }
+  }
+  if (error.code === "23502" || error.code === "23503") {
+    return { ok: false, error: { code: "persistence_failed", message: "Falta un dato requerido para guardar el tarjetón.", requestId } }
+  }
+  if (error.code === "22003" || error.code === "22P02") {
+    return { ok: false, error: { code: "persistence_failed", message: "No fue posible guardar el tarjetón por un valor fuera de rango.", requestId } }
   }
 
   console.error("[tarjeton/confirm][rpc]", {
@@ -234,39 +336,44 @@ function mapRpcError(error: RpcError, requestId: string): { ok: false; error: { 
   })
 
   if (normalized.includes("duplicate") || normalized.includes("already exists")) {
-    return { ok: false, error: { code: "duplicate", message: "Este tarjetón ya fue confirmado antes." } }
+    return { ok: false, error: { code: "duplicate", message: "Este tarjetón ya fue confirmado antes.", requestId } }
   }
   if (normalized.includes("totals_mismatch")) {
-    return { ok: false, error: { code: "totals_mismatch", message: "Los totales del tarjetón no coinciden con la suma de conceptos." } }
+    return { ok: false, error: { code: "totals_mismatch", message: "Los totales del tarjetón no coinciden con la suma de conceptos.", requestId } }
   }
   if (normalized.includes("matricula_mismatch")) {
-    return { ok: false, error: { code: "matricula_mismatch", message: "La matrícula del tarjetón no coincide con la del perfil y no fue autorizado el cambio." } }
+    return { ok: false, error: { code: "matricula_mismatch", message: "La matrícula del tarjetón no coincide con la del perfil y no fue autorizado el cambio.", requestId } }
+  }
+  if (normalized.includes("matricula_required")) {
+    return { ok: false, error: { code: "invalid_payload", message: "El tarjetón no contiene una matrícula válida para identificar al trabajador.", requestId } }
   }
   if (normalized.includes("limits_exceeded")) {
-    return { ok: false, error: { code: "limits_exceeded", message: "El tarjetón excede los límites de líneas u observaciones." } }
+    return { ok: false, error: { code: "limits_exceeded", message: "El tarjetón excede los límites de líneas u observaciones.", requestId } }
   }
-  if (normalized.includes("unauthorized") || normalized.includes("unauthenticated")) {
-    return { ok: false, error: { code: "unauthorized", message: "No autenticado." } }
+  if (normalized.includes("unauthorized") || normalized.includes("unauthenticated") || normalized.includes("auth_required")) {
+    return { ok: false, error: { code: "unauthorized", message: "No autenticado.", requestId } }
   }
   if (normalized.includes("invalid_payload")) {
-    return { ok: false, error: { code: "invalid_payload", message: "El contenido no cumple el contrato del tarjetón." } }
+    return { ok: false, error: { code: "invalid_payload", message: "El contenido no cumple el contrato del tarjetón.", requestId } }
   }
   if (normalized.includes("consent_required")) {
-    return { ok: false, error: { code: "consent_required", message: "Es necesario autorizar el guardado de tus datos para continuar." } }
+    return { ok: false, error: { code: "consent_required", message: "Es necesario autorizar el guardado de tus datos para continuar.", requestId } }
   }
   if (
     normalized.includes("numeric field overflow") ||
     normalized.includes("value too long") ||
     normalized.includes("invalid input syntax") ||
-    normalized.includes("out of range")
+    normalized.includes("out of range") ||
+    normalized.includes("check constraint")
   ) {
     return {
       ok: false,
       error: {
         code: "persistence_failed",
-        message: "No fue posible guardar el tarjetón por un valor fuera de rango. Intenta de nuevo; si persiste, contáctanos.",
+        message: "No fue posible guardar el tarjetón por un valor fuera de rango o no permitido. Intenta de nuevo; si persiste, contáctanos.",
+        requestId,
       },
     }
   }
-  return { ok: false, error: { code: "internal", message: "No fue posible confirmar el tarjetón." } }
+  return { ok: false, error: { code: "internal", message: "No fue posible confirmar el tarjetón.", requestId } }
 }
