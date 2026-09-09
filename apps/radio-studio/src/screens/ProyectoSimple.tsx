@@ -24,9 +24,9 @@ const STEPS = [
 
 function stateToStep(state: string): number {
   if (["RESEARCHING"].includes(state)) return 0;
-  if (["RESEARCHED", "PROPOSAL_READY", "PROPOSAL_APPROVED"].includes(state)) return 1;
-  if (["SCRIPT_GENERATING", "SCRIPT_READY", "SCRIPT_APPROVED", "NEEDS_REVIEW"].includes(state)) return 2;
-  if (["PRODUCING", "NEEDS_REVIEW", "MASTERING", "DONE"].includes(state)) return 3;
+  if (["RESEARCHED", "GENERATING_PROPOSALS", "PROPOSAL_READY", "PROPOSAL_APPROVED", "PROPOSAL_GENERATION_FAILED"].includes(state)) return 1;
+  if (["SCRIPT_GENERATING", "SCRIPT_READY", "SCRIPT_APPROVED", "SCRIPT_GENERATION_FAILED", "SCRIPT_QUALITY_FAILED", "NEEDS_REVIEW"].includes(state)) return 2;
+  if (["PRODUCING", "MASTERING", "DONE"].includes(state)) return 3;
   return 0;
 }
 
