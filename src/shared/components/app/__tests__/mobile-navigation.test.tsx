@@ -30,11 +30,10 @@ import { OnboardingCard } from "../OnboardingCard"
 import { HomeQuickActions } from "../HomeQuickActions"
 
 describe("navegación móvil — Punto 3", () => {
-  it("el sheet de Herramientas incluye 'Practicar una audiencia'", () => {
+  it("el sheet de Herramientas no incluye el simulador de audiencia retirado", () => {
     const herramientas = MOBILE_SHEET_GROUPS.herramientas.items
     const audiencia = herramientas.find((i) => i.href === "/simulador")
-    expect(audiencia).toBeTruthy()
-    expect(audiencia?.label).toBe("Practicar una audiencia")
+    expect(audiencia).toBeUndefined()
   })
 
   it("el sheet de Herramientas conserva las herramientas base", () => {

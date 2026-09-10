@@ -40,12 +40,3 @@ test.describe("Nomina - Carga", () => {
     expect(hasScroll, "No debe haber scroll horizontal").toBe(true)
   })
 })
-
-test.describe("Simulador de Audiencia", () => {
-  test("carga el simulador de audiencia", async ({ page }) => {
-    await page.goto("/simulador")
-    await page.waitForLoadState("networkidle")
-    const bodyText = await page.locator("body").innerText()
-    expect(bodyText.length).toBeGreaterThan(50)
-  })
-})

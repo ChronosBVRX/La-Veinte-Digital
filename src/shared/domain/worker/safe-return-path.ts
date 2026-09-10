@@ -21,7 +21,6 @@ export const ALLOWED_INTERNAL_RETURN_PATHS: readonly string[] = [
   "/vacaciones",
   "/escritos",
   "/tarjeton",
-  "/simulador",
   "/asistente",
 ]
 

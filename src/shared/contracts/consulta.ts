@@ -1,7 +1,7 @@
 /**
  * Contrato de POST /api/consulta (Asistente SNTSS).
  *
- * Misma disciplina que el contrato del simulador:
+ * Disciplina de contrato estricto:
  * - Roles únicamente `user` | `assistant` (nunca `system` desde el cliente).
  * - Cada mensaje limitado, historial limitado, propiedades desconocidas
  *   rechazadas.
