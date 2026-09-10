@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { execSync } from "node:child_process";
 import fs from "node:fs";
@@ -10,9 +10,9 @@ try {
 } catch {}
 const buildTime = new Date().toISOString();
 
-const writeBuildInfoPlugin = {
+const writeBuildInfoPlugin: Plugin = {
   name: "write-build-info",
-  writeBundle(options: any) {
+  writeBundle(options) {
     const outDir = options.dir || path.resolve(__dirname, "dist");
     try {
       fs.mkdirSync(outDir, { recursive: true });

@@ -196,9 +196,10 @@ export function friendlyProjectError(e: unknown): { error: string; code: string;
     .replace(/(?:Bearer|key|secret)\s*[:=]?\s*[a-zA-Z0-9._-]{15,}/gi, "$1 ***");
 
   // Si es un error tipado de dominio
-  if (e && typeof e === "object" && "code" in e && "userMessage" in e) {
-    const code = String((e as any).code);
-    const userMessage = String((e as any).userMessage);
+  if (typeof e === "object" && e !== null && "code" in e && "userMessage" in e) {
+    const domainError = e as { code: unknown; userMessage: unknown };
+    const code = String(domainError.code ?? "UNKNOWN");
+    const userMessage = String(domainError.userMessage ?? "");
     return {
       error: userMessage,
       code,

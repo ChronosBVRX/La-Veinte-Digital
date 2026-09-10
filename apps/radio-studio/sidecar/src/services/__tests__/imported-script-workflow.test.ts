@@ -29,11 +29,13 @@ beforeEach(() => {
   fs.mkdirSync(commDir, { recursive: true });
   const commService = new CommercialLibraryService(commDir);
   // Workflow con mocks mínimos (el catálogo y llm no se invocan para guiones importados)
+  const mockCatalog = {} as unknown as ConstructorParameters<typeof ProjectWorkflowService>[2];
+  const mockLlm = {} as unknown as ConstructorParameters<typeof ProjectWorkflowService>[3];
   workflow = new ProjectWorkflowService(
     store,
     tempDir,
-    {} as any,
-    {} as any,
+    mockCatalog,
+    mockLlm,
     commService
   );
 });

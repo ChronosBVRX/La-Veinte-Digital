@@ -250,7 +250,7 @@ export function cleanAndNormalizeScriptText(input: string): string {
  * NUNCA sean vocalizadas por el motor de voz.
  */
 export function sanitizeTtsText(raw: string): string {
-  let s = raw
+  const s = raw
     .replace(CUE_REGEX, "")
     .replace(/\[[^\]]{1,120}\]/g, "")
     .replace(/^\s*\([^)]+\)\s*/g, "") // Limpiar dirección actoral entre paréntesis al inicio: (cálido, natural)
