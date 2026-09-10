@@ -21,7 +21,6 @@ export const ALL_ROUTES = [
   { href: "/guia/aprender", label: "Guía Aprender" },
   { href: "/guia/mi-quincena", label: "Guía Mi Quincena" },
   { href: "/asistente", label: "Asistente IA" },
-  { href: "/simulador", label: "Practicar una audiencia" },
   { href: "/facebook", label: "Noticias SNTSS" },
   { href: "/profile", label: "Mi Perfil" },
   { href: "/herramientas", label: "Herramientas" },

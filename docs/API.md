@@ -27,7 +27,6 @@ Next.js App Router procesa las peticiones a través de `src/proxy.ts` (middlewar
 | `/api/calendario` | `public` | `GET` | Exportación de descansos obligatorios en formato iCalendar (.ics). |
 | `/api/calculator-prefill` | `authenticated` | `GET` | Prerrelleno normativo salarial con política cerrada por calculadora. |
 | `/api/consulta` | `authenticated` | `POST` | Asistente de IA (RAG) para consultas del Contrato Colectivo de Trabajo. |
-| `/api/simulador` | `authenticated` | `POST` | Simulador interactivo de audiencias disciplinarias IMSS. |
 | `/api/tarjeton/confirm` | `authenticated` | `POST` | Confirmación estructurada y persistencia transaccional de tarjetón IMSS. |
 | `/api/tarjeton/delete` | `authenticated` | `POST` | Eliminación de registro de tarjetón importado. |
 | `/api/worker-context` | `authenticated` | `GET`, `POST` | Contexto laboral persistido del trabajador en Supabase. |
@@ -160,43 +159,6 @@ Consulta con RAG y búsqueda híbrida contra el Contrato Colectivo y catálogo n
   "fuentes": [
     { "documento": "CCT 2025-2027", "clausula": "107", "pagina": 84 }
   ]
-}
-```
-
----
-
-### POST /api/simulador
-Simulador de audiencias disciplinarias IMSS con el Lic. Mendoza.
-
-**Request Body (JSON - Modo chat):**
-```json
-{
-  "action": "chat",
-  "history": [
-    { "role": "user", "content": "Buenos días, vengo acompañado de mi representación sindical." }
-  ],
-  "scenario": "faltas",
-  "difficulty": 1
-}
-```
-
-**Request Body (JSON - Modo analyze):**
-```json
-{
-  "action": "analyze",
-  "history": [...],
-  "scenario": "faltas"
-}
-```
-
-**Response Body (JSON - Modo analyze):**
-```json
-{
-  "puntajeCalma": 85,
-  "puntajeFirmeza": 90,
-  "erroresTacticos": [],
-  "fortalezas": ["Mantuvo apego a hechos", "Invocó acompañamiento sindical oportunamente"],
-  "recomendacion": "Excelente manejo de la diligencia previa."
 }
 ```
 
