@@ -28,7 +28,8 @@ import {
 import { NormativeCatalog } from "../../../../src/features/normativa/services/catalog";
 import { buildCoverage } from "../../../../src/features/normativa/services/coverage";
 import { buildScriptFromEvidence } from "../../../../src/features/normativa/services/llm-provider";
-import { directRadioEpisode, analyzeDiversity, polishDialogue, sanitizeEditorialScript, editorialPromptRules, editorialSegmentGoal, validateCasting, VOICE_PERSONAS, GLOBAL_PRONUNCIATION_RULE, DEFAULT_SPEAKERS, type DirectorInput, type DialogueTurn, type EpisodeScript, type SpeakerProfile, type CitationMode, type VoiceSlot, validateRoleFirewall } from "@la-veinte/radio-core";
+import { directRadioEpisode, analyzeDiversity, polishDialogue, sanitizeEditorialScript, editorialPromptRules, editorialSegmentGoal, validateCasting, VOICE_PERSONAS, GLOBAL_PRONUNCIATION_RULE, DEFAULT_SPEAKERS, type DirectorInput, type DialogueTurn, type EpisodeScript, type SpeakerProfile, type CitationMode, type VoiceSlot, validateRoleFirewall, applyConversationalProsody } from "@la-veinte/radio-core";
+import { SmartMixer, type TurnMixSpec } from "./services/smart-mixer";
 import { runMasterQa } from "./master-qa";
 import { loadLlmConfig, LocalLLMService } from "./llm/local-llm";
 import { getGpuManager } from "./llm/gpu-manager";
@@ -162,7 +163,20 @@ async function procesarProduccion(): Promise<void> {
       if (!warmup.ok) throw new Error(`motor no disponible: ${warmup.error ?? "warmup"}`);
     }
     const job = leerJob();
-    if (!job || job.estado === "DONE" || job.estado === "FAILED") return;
+    if (!job || job.estado === "FAILED") return;
+    if (job.estado === "DONE") {
+      // Si la síntesis ya concluyó pero el máster aún no está completado en el proyecto, finalizarlo
+      const p = projectStore.get(job.id);
+      if (p && (!p.master || p.state !== "DONE")) {
+        try {
+          await finalizarProduccionJob(job);
+        } catch (e) {
+          job.notas.push(`master: ${e instanceof Error ? e.message : String(e)}`);
+          guardarJob(job);
+        }
+      }
+      return;
+    }
     job.estado = "RUNNING";
     guardarJob(job);
     for (let i = 0; i < job.bloques.length; i++) {
@@ -189,6 +203,7 @@ async function procesarProduccion(): Promise<void> {
             voiceSourceId: voiceId,
             modelRevision: b.modelRevision,
             seed,
+            ssml: b.ssml ?? undefined,
           });
           lastWorkerBeat = Date.now();
           if (cancelRequested || job.cancelado) { clearProductionCancel(); return; }
@@ -215,12 +230,58 @@ async function procesarProduccion(): Promise<void> {
     }
     job.estado = job.bloques.some((b) => b.estado === "fallo") ? "FAILED" : "DONE";
     guardarJob(job);
+    if (job.estado === "DONE") {
+      try {
+        await finalizarProduccionJob(job);
+      } catch (e) {
+        job.notas.push(`master: ${e instanceof Error ? e.message : String(e)}`);
+        guardarJob(job);
+      }
+    }
   } catch (e) {
     const job = leerJob();
     if (job) { job.estado = "FAILED"; job.notas.push(`worker: ${e instanceof Error ? e.message : String(e)}`); guardarJob(job); }
   } finally {
     produccionEnCurso = false;
     lastWorkerBeat = 0;
+  }
+}
+
+async function finalizarProduccionJob(job: ProductionJob): Promise<void> {
+  const outDir = path.join(REPO, "data", "tts", "master");
+  fs.mkdirSync(outDir, { recursive: true });
+  const outFile = path.join(outDir, `programa-${job.id}.mp3`);
+
+  const validBloques = job.bloques.filter((b) => b.wavPath && fs.existsSync(b.wavPath));
+  if (validBloques.length === 0) return;
+
+  const smartMixer = new SmartMixer(REPO);
+  const turns: TurnMixSpec[] = validBloques.map((b) => ({
+    id: b.id,
+    speaker: b.locutor,
+    wavPath: b.wavPath!,
+    pauseBeforeMs: b.pauseBeforeMs ?? 250,
+    pauseAfterMs: b.pauseAfterMs ?? 0,
+    authorPause: b.authorPause,
+    relation: b.relation,
+  }));
+
+  const masterResult = await smartMixer.mixEpisode(turns, outFile, {
+    kbps: 192,
+  });
+
+  const p = projectStore.get(job.id);
+  if (p) {
+    projectStore.update(job.id, {
+      state: "DONE",
+      master: masterResult,
+    });
+    projectLog(job.id, "production.completed", {
+      master: outFile,
+      bytes: masterResult.bytes,
+      duracionMs: masterResult.duraccionMs,
+      turnos: validBloques.length,
+    });
   }
 }
 
@@ -544,7 +605,7 @@ function vozPorLocutor(locutor: string, voces: Record<string, VoiceSlot>): Voice
   const directa = voces[locutor] ?? voces[locutor.toUpperCase()];
   if (directa) return directa;
   const id = locutor.toUpperCase();
-  if (id.includes("NARRADOR")) return "N";
+  if (id.includes("NARRADOR") || id.includes("JAVIER") || id.includes("ALONSO") || id.includes("ANALISTA")) return "N";
   if (id.includes("RODRIGO") || id.includes("CORRESPONSAL") || id.includes("REPORTERO")) return "C";
   if (id.includes("VALERIA") || id.includes("COMERCIAL") || id.includes("PATROCIN")) return "P";
   if (id.includes("MARIANA") || id.includes("ANDREA")) return "B";
@@ -653,7 +714,16 @@ async function handleCastingRefresh(res: http.ServerResponse) {
 
 async function handleGenerate(res: http.ServerResponse, body: Record<string, unknown>) {
   const bloques = Array.isArray(body.bloques)
-    ? (body.bloques as Array<{ id: string; texto: string; locutor: string }>)
+    ? (body.bloques as Array<{
+        id: string;
+        texto: string;
+        locutor: string;
+        ssml?: string;
+        pauseBeforeMs?: number;
+        pauseAfterMs?: number;
+        authorPause?: boolean;
+        relation?: string;
+      }>)
     : [];
   if (bloques.length === 0) return json(res, 400, { error: "sin bloques" });
 
@@ -680,6 +750,11 @@ async function handleGenerate(res: http.ServerResponse, body: Record<string, unk
         referenceAudioSha256: perfil?.referenceAudioSha256,
         voiceSourceId: perfil?.voiceSourceId,
         modelRevision: perfil?.modelRevision,
+        ssml: b.ssml,
+        pauseBeforeMs: b.pauseBeforeMs,
+        pauseAfterMs: b.pauseAfterMs,
+        authorPause: b.authorPause,
+        relation: b.relation,
       };
     }),
     voces
@@ -1984,9 +2059,23 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/director/ajustar") return await handleAjustarGuion(res, await readBody(req));
     if (req.method === "POST" && url.pathname === "/generate") return await handleGenerate(res, await readBody(req));
     if (req.method === "POST" && url.pathname === "/resume") return await handleResume(res);
-    if (req.method === "GET" && url.pathname === "/sistema") return await handleSistema(res);
-    if (req.method === "GET" && url.pathname === "/health") return json(res, 200, { ok: true, pid: process.pid, ready: true, port: PORT, bundle: BUNDLE_MTIME });
-    if (req.method === "GET" && url.pathname === "/llm/health") return await handleLlmHealth(res);
+    if (req.method === "GET" && url.pathname === "/health") {
+      let frontendBuild: unknown = null;
+      try {
+        const fePath = path.join(REPO, "apps", "radio-studio", "dist", "build-info.json");
+        if (fs.existsSync(fePath)) frontendBuild = JSON.parse(fs.readFileSync(fePath, "utf8"));
+      } catch {}
+      return json(res, 200, {
+        ok: true,
+        pid: process.pid,
+        ready: true,
+        port: PORT,
+        bundle: BUNDLE_MTIME,
+        gitCommit: process.env.SIDECAR_GIT_COMMIT ?? "dev",
+        sidecarBuild: process.env.SIDECAR_BUILD_TIME ?? new Date().toISOString(),
+        frontendBuild,
+      });
+    }
     if (req.method === "POST" && url.pathname === "/llm/unload") return await handleLlmUnload(res);
     if (req.method === "POST" && url.pathname === "/cancel") return await handleCancel(res);
     if (req.method === "POST" && url.pathname === "/discard") return await handleDiscard(res);
@@ -2026,10 +2115,29 @@ async function startProjectProduction(id: string, script: StudioScript): Promise
   for (const t of script.turns) {
     if (!voces[t.speaker]) voces[t.speaker] = vozPorLocutor(t.speaker, {});
   }
-  const bloques = script.turns.filter((t) => !t.adSlot).map((t) => ({ id: t.id, texto: t.ttsText ?? t.displayText, locutor: t.speaker }));
+  // Aplicar prosodia conversacional refinada (relaciones de turno, pausas dinámicas, preservación de pausas de autor)
+  const processedTurns = applyConversationalProsody(script.turns);
+
+  const bloques = processedTurns.filter((t) => !t.adSlot).map((t) => ({
+    id: t.id,
+    texto: t.ttsText ?? t.displayText,
+    locutor: t.speaker,
+    ssml: t.ssml ?? undefined,
+    pauseBeforeMs: t.pauseBeforeMs,
+    pauseAfterMs: t.pauseAfterMs,
+    authorPause: t.authorPause,
+    relation: t.relation,
+  }));
   const existente = leerJob();
-  // Ya hay producción de ESTE proyecto activa → reanudar, no fallar (idempotente).
-  if (existente && existente.estado !== "DONE" && existente.id === id) {
+  // Ya hay producción de ESTE proyecto activa → reanudar o finalizar si falta el máster (idempotente).
+  if (existente && existente.id === id) {
+    if (existente.estado === "DONE") {
+      const p = projectStore.get(id);
+      if (!p?.master || p.state !== "DONE") {
+        await finalizarProduccionJob(existente);
+      }
+      return { started: true, total: existente.bloques.length };
+    }
     spawnWorker();
     projectLog(id, "production.started", { total: existente.bloques.length, resumido: true });
     return { started: true, total: existente.bloques.length };
@@ -2053,6 +2161,11 @@ async function startProjectProduction(id: string, script: StudioScript): Promise
         referenceAudioSha256: perfil?.referenceAudioSha256,
         voiceSourceId: perfil?.voiceSourceId,
         modelRevision: perfil?.modelRevision,
+        ssml: b.ssml,
+        pauseBeforeMs: b.pauseBeforeMs,
+        pauseAfterMs: b.pauseAfterMs,
+        authorPause: b.authorPause,
+        relation: b.relation,
       };
     }),
     voces

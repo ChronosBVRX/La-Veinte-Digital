@@ -84,17 +84,25 @@ function normalizeLocale(v: SpeechifyVoice): string {
 
 function isCompatible(v: SpeechifyVoice): boolean {
   // debe ser compatible con simba-3.0 y español
-  const models = (v.models ?? (v.model ? [v.model] : [])) as string[];
-  if (models.length > 0 && !models.some((m) => String(m).toLowerCase().includes("simba"))) {
-    // si declara modelos y ninguno es simba, no es compatible
-    // pero algunos catálogos no declaran modelo → asumir compatible si locale es es-*
-    const locale = normalizeLocale(v);
-    if (!locale.startsWith("es")) return false;
-    // si declara modelos no-simba y locale es es, excluir
+  const rawModels = (v.models ?? (v.model ? [v.model] : []));
+  const modelNames: string[] = rawModels.map((m: unknown) => {
+    if (typeof m === "string") return m;
+    if (m && typeof m === "object" && "name" in m) return String((m as { name?: unknown }).name ?? "");
+    return "";
+  });
+  if (modelNames.length > 0 && !modelNames.some((m) => m.toLowerCase().includes("simba"))) {
     return false;
   }
   const locale = normalizeLocale(v);
-  return locale.startsWith("es");
+  if (locale.startsWith("es")) return true;
+  if (Array.isArray(v.models)) {
+    for (const m of v.models as Array<{ languages?: Array<{ locale?: string }> }>) {
+      if (Array.isArray(m?.languages)) {
+        if (m.languages.some((l) => String(l.locale ?? "").toLowerCase().startsWith("es"))) return true;
+      }
+    }
+  }
+  return false;
 }
 
 function scoreVoice(v: SpeechifyVoice): number {
@@ -103,10 +111,33 @@ function scoreVoice(v: SpeechifyVoice): number {
   if (locale.startsWith("es-mx")) return 90;
   if (locale.startsWith("es-")) return 50;
   if (locale === "es") return 40;
+  if (Array.isArray(v.models)) {
+    for (const m of v.models as Array<{ languages?: Array<{ locale?: string }> }>) {
+      if (Array.isArray(m?.languages)) {
+        if (m.languages.some((l) => String(l.locale ?? "").toLowerCase() === "es-mx")) return 80;
+        if (m.languages.some((l) => String(l.locale ?? "").toLowerCase().startsWith("es"))) return 30;
+      }
+    }
+  }
   return 0;
 }
 
 export async function fetchVoices(apiKey: string): Promise<SpeechifyVoice[]> {
+  // Intentar primero con ?locale=es-MX para obtener todas las voces es-MX directamente
+  try {
+    const r = await fetch("https://api.speechify.ai/v1/voices?locale=es-MX", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (r.ok) {
+      const j = await r.json() as { voices?: SpeechifyVoice[]; data?: SpeechifyVoice[] } | SpeechifyVoice[];
+      const list = Array.isArray(j) ? j : (j.voices ?? j.data ?? []);
+      if (list.length >= 5) return list as SpeechifyVoice[];
+    }
+  } catch {
+    // fallback al endpoint sin query params
+  }
+
   const r = await fetch("https://api.speechify.ai/v1/voices", {
     headers: { Authorization: `Bearer ${apiKey}` },
     signal: AbortSignal.timeout(15000),

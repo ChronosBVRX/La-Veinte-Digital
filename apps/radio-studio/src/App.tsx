@@ -8,7 +8,8 @@ import { BibliotecaAudio } from "./screens/BibliotecaAudio";
 import { BibliotecaNormativaStudio } from "./screens/BibliotecaNormativaStudio";
 import { Locutores } from "./screens/Locutores";
 import { fetchStudioStatus, createProject, type StudioStatus } from "./lib/studio-api";
-import { PROFUNDIDAD_MIN, type Profundidad } from "@la-veinte/studio-contract";
+import { PROFUNDIDAD_MIN, type Profundidad, type Script } from "@la-veinte/studio-contract";
+import { classifyInput, parseScript, deriveShortTitle } from "@la-veinte/radio-core";
 import "./studio.css";
 
 type Screen = "inicio" | "proyecto" | "crear" | "produccion" | "timeline" | "biblioteca" | "locutores" | "audio";
@@ -51,11 +52,36 @@ export default function App() {
     return () => { mounted = false; clearInterval(t); };
   }, []);
 
-  const abrirNuevoTema = async (tema: string, comerciales = false, profundidad: Profundidad = "estandar") => {
+  const abrirNuevoTema = async (
+    tema: string,
+    comerciales = false,
+    profundidad: Profundidad = "estandar",
+    options?: { script?: Script | null; forceTopic?: boolean }
+  ) => {
     if (!tema) return;
     try {
+      let scriptToPass: Script | null = options?.script ?? null;
+      if (!scriptToPass && !options?.forceTopic) {
+        const cl = classifyInput(tema);
+        if (cl.kind === "script") {
+          try {
+            scriptToPass = parseScript(tema);
+          } catch {
+            // si no se parsea, continuar como tema normal
+          }
+        }
+      }
+      const shortTitle = deriveShortTitle(tema);
+      console.log("[STUDIO-FRONTEND] Llamando a createProject:", {
+        topicLength: tema.length,
+        titulo: shortTitle,
+        hasScript: !!scriptToPass,
+        scriptTurns: scriptToPass?.turns?.length ?? 0,
+      });
       const p = await createProject({
         topic: tema,
+        titulo: shortTitle,
+        script: scriptToPass,
         config: {
           duracionMin: PROFUNDIDAD_MIN[profundidad] ?? 15,
           profundidad,
@@ -71,9 +97,18 @@ export default function App() {
           },
         },
       });
+      console.log("[STUDIO-FRONTEND] Respuesta de createProject recibida:", {
+        id: p.id,
+        titulo: p.titulo,
+        state: p.state,
+        hasScript: !!p.script,
+        hasResearch: !!p.research,
+        hasProposal: !!p.proposal,
+      });
       setProjectId(p.id);
       setScreen("proyecto");
-    } catch {
+    } catch (err) {
+      console.error("[STUDIO-FRONTEND] Error en createProject:", err);
       // fallback: pantalla clásica de creación si el sidecar no responde
       setCrearTema(tema);
       setWorkId((x) => x + 1);
@@ -108,8 +143,13 @@ export default function App() {
           >
             {mode === "simple" ? "CONTROLES AVANZADOS ↗" : "MODO SIMPLE ✓"}
           </button>
-          <div className={`sidecar-dot ${sidecarOnline ? "on" : ""}`} />
-          {sidecarOnline ? "Listo para trabajar" : "Conectando con el estudio"}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div className={`sidecar-dot ${sidecarOnline ? "on" : ""}`} />
+            <span>{sidecarOnline ? "Listo para trabajar" : "Conectando con el estudio"}</span>
+          </div>
+          <div style={{ fontSize: "10px", color: "var(--muted)", opacity: 0.8, fontFamily: "monospace", marginTop: 4 }}>
+            BUILD: {__BUILD_GIT_SHA__} · {__BUILD_TIME__}
+          </div>
         </div>
       </aside>
 

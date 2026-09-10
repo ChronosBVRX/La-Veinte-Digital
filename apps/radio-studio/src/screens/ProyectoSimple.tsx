@@ -9,11 +9,12 @@ import {
   projectVerify, projectProduce, projectProposalUpdate, obtenerProgreso, obtenerLlmSalud,
   SIDECAR_URL_EXPORT, type LlmHealthInfo,
 } from "../lib/studio-api";
-import type { Project, Proposal, VerifyResult, Turn } from "@la-veinte/studio-contract";
+import type { Project, Proposal, VerifyResult, Turn, StepProgressState } from "@la-veinte/studio-contract";
 import {
   FORMAT_LABELS, NIVEL_LABELS, EDITORIAL_FORMATS,
   PROFUNDIDAD_LABELS, PROFUNDIDAD_MIN, type Profundidad,
 } from "@la-veinte/studio-contract";
+import { deriveShortTitle, validateScriptIntegrity, type ScriptIntegrityReport } from "@la-veinte/radio-core";
 
 const STEPS = [
   { id: "research", label: "Investigar", icon: "🔎" },
@@ -52,7 +53,7 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [verify, setVerify] = useState<VerifyResult | null>(null);
-  const [progress, setProgress] = useState<{ done: number; total: number; estado: string | null; etaMin: number | null; rtf: number | null } | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number; estado: string | null; etaMin: number | null; rtf: number | null; notas?: string[] } | null>(null);
   const [inicioProduce, setInicioProduce] = useState<number | null>(null);
   const [ahora, setAhora] = useState<number>(() => Date.now());
   const [llm, setLlm] = useState<LlmHealthInfo | null>(null);
@@ -73,17 +74,106 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
   useEffect(() => {
     const t = setInterval(() => {
       void refresh();
-      void obtenerProgreso().then((r) => r && setProgress({ done: r.done, total: r.total, estado: r.estado ?? null, etaMin: r.etaMin ?? null, rtf: r.rtfReciente ?? null }));
+      void obtenerProgreso().then((r) => r && setProgress({ done: r.done, total: r.total, estado: r.estado ?? null, etaMin: r.etaMin ?? null, rtf: r.rtfReciente ?? null, notas: r.notas }));
       setAhora(Date.now());
     }, 4000);
     return () => clearInterval(t);
   }, [projectId]);
 
-  const stepIdx = stateToStep(project?.state ?? "DRAFT");
+  const isImportedScript = useMemo(() => {
+    if (!project) return false;
+    return (
+      project.script !== null &&
+      (project.research === null || project.script?.promptVersion === "imported-v1")
+    );
+  }, [project]);
+
+  const stepIdx = useMemo(() => {
+    if (isImportedScript) return 2;
+    return stateToStep(project?.state ?? "DRAFT");
+  }, [isImportedScript, project?.state]);
+
   const research = project?.research ?? null;
   const proposal = project?.proposal ?? null;
   const script = project?.script ?? null;
   const master = project?.master ?? null;
+
+  const integrity = useMemo<ScriptIntegrityReport | null>(() => {
+    if (!script) return null;
+    return validateScriptIntegrity(script);
+  }, [script]);
+
+  const getStepInfo = (stepId: string): { state: StepProgressState; label: string; badge: string } => {
+    if (isImportedScript) {
+      if (stepId === "research") return { state: "omitido", label: "Omitido", badge: "—" };
+      if (stepId === "proposal") return { state: "omitido", label: "Omitido", badge: "—" };
+      if (stepId === "script") return { state: "completado", label: "Importado", badge: "✓" };
+      if (stepId === "audio") {
+        if (busy === "Creando episodio" || project?.state === "PRODUCING" || project?.state === "MASTERING") {
+          return { state: "en_curso", label: "En curso", badge: "●" };
+        }
+        if (project?.state === "DONE" || master !== null) {
+          return { state: "completado", label: "Listo", badge: "✓" };
+        }
+        if (project?.state === "FAILED" || progress?.estado === "FAILED" || (error && busy === null)) {
+          return { state: "error", label: "Error", badge: "⚠" };
+        }
+        return { state: "pendiente", label: "Listo para iniciar", badge: "4" };
+      }
+    }
+
+    if (stepId === "research") {
+      if (busy === "Investigando" || project?.state === "RESEARCHING") {
+        return { state: "en_curso", label: "En curso", badge: "●" };
+      }
+      if (research) return { state: "completado", label: "Listo", badge: "✓" };
+      if (error && !research) return { state: "error", label: "Error", badge: "⚠" };
+      return { state: "pendiente", label: "Pendiente", badge: "1" };
+    }
+
+    if (stepId === "proposal") {
+      if (busy === "Preparando propuesta" || busy === "Aprobando" || project?.state === "GENERATING_PROPOSALS") {
+        return { state: "en_curso", label: "En curso", badge: "●" };
+      }
+      if (proposal) {
+        return { state: "completado", label: project?.state === "PROPOSAL_APPROVED" ? "Aprobada" : "Lista", badge: "✓" };
+      }
+      if (project?.state === "PROPOSAL_GENERATION_FAILED" || (error && research && !proposal)) {
+        return { state: "error", label: "Error", badge: "⚠" };
+      }
+      return { state: "pendiente", label: "Pendiente", badge: "2" };
+    }
+
+    if (stepId === "script") {
+      if (busy === "Escribiendo guion" || project?.state === "SCRIPT_GENERATING") {
+        return { state: "en_curso", label: "En curso", badge: "●" };
+      }
+      if (script) return { state: "completado", label: "Listo", badge: "✓" };
+      if (
+        project?.state === "SCRIPT_GENERATION_FAILED" ||
+        project?.state === "SCRIPT_QUALITY_FAILED" ||
+        (error && proposal && !script)
+      ) {
+        return { state: "error", label: "Error", badge: "⚠" };
+      }
+      return { state: "pendiente", label: "Pendiente", badge: "3" };
+    }
+
+    if (stepId === "audio") {
+      if (busy === "Creando episodio" || project?.state === "PRODUCING" || project?.state === "MASTERING") {
+        return { state: "en_curso", label: "En curso", badge: "●" };
+      }
+      if (project?.state === "DONE" || master !== null) {
+        return { state: "completado", label: "Listo", badge: "✓" };
+      }
+      if (project?.state === "FAILED" || progress?.estado === "FAILED" || (error && script && busy === null)) {
+        return { state: "error", label: "Error", badge: "⚠" };
+      }
+      return { state: "pendiente", label: script ? "Listo para iniciar" : "Pendiente", badge: "4" };
+    }
+
+    return { state: "pendiente", label: "Pendiente", badge: "?" };
+  };
 
   const run = async (label: string, fn: () => Promise<unknown>) => {
     setBusy(label); setError(null);
@@ -125,8 +215,12 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
       <div className="home-hero" style={{ marginBottom: 8 }}>
         <div>
           <button className="chip" onClick={onBack} style={{ marginBottom: 8 }}>← Episodios</button>
-          <h1>{project?.titulo ?? "Episodio"}</h1>
-          <p className="muted">Investigamos nuestras bibliotecas, te contamos qué encontramos y qué no, y tú decides el siguiente paso.</p>
+          <h1>{deriveShortTitle(project?.titulo ?? project?.topic ?? "Episodio")}</h1>
+          <p className="muted">
+            {isImportedScript
+              ? "Guion importado listo para revisión y producción de audio."
+              : "Investigamos nuestras bibliotecas, te contamos qué encontramos y qué no, y tú decides el siguiente paso."}
+          </p>
         </div>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
           <div className={`ready-pill ${llm?.health.ok ? "ok" : "warn"}`}>
@@ -137,38 +231,48 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
 
       {/* Paso a paso */}
       <div className="step-strip" style={{ marginBottom: 18 }}>
-        {STEPS.map((s, i) => (
-          <section key={s.id} className={`step-card ${i === stepIdx ? "active" : i < stepIdx ? "done" : ""}`}>
-            <span className="step-num">{i < stepIdx ? "✓" : i + 1}</span>
-            <div>
-              <h2>{s.icon} {s.label}</h2>
-              <p className="muted small">{i < stepIdx ? "Listo" : i === stepIdx ? "En curso" : "Pendiente"}</p>
-            </div>
-          </section>
-        ))}
+        {STEPS.map((s) => {
+          const info = getStepInfo(s.id);
+          return (
+            <section key={s.id} className={`step-card ${info.state}`}>
+              <span className="step-num">{info.badge}</span>
+              <div>
+                <h2>{s.icon} {s.label}</h2>
+                <p className="muted small">{info.label}</p>
+              </div>
+            </section>
+          );
+        })}
       </div>
 
       {error && (
         <div className="card" style={{ border: "1px solid #ef4444", background: "var(--panel-2)", marginBottom: 16 }}>
-          <h3 style={{ margin: "0 0 8px", color: "#ef4444" }}>No pudimos generar el episodio</h3>
-          <p style={{ margin: "0 0 6px" }}>
-            {error.toLowerCase().includes("límite") || error.toLowerCase().includes("rate limit")
-              ? "El servicio alcanzó temporalmente su límite de solicitudes."
-              : error.toLowerCase().includes("suficiente información")
-                ? "La biblioteca no contiene suficiente información verificada para explicar este tema con seguridad."
-                : "El motor editorial no respondió correctamente."}
+          <h3 style={{ margin: "0 0 8px", color: "#ef4444" }}>No pudimos completar este paso</h3>
+          <p style={{ margin: "0 0 6px", fontWeight: 500 }}>
+            {error}
           </p>
           <p className="muted small" style={{ margin: "0 0 14px" }}>
-            Tu investigación y el proyecto están guardados.
+            Tu trabajo y el estado del proyecto están guardados.
           </p>
           <div className="row" style={{ gap: 10 }}>
             <button
               className="btn-primary"
               onClick={() => {
                 setError(null);
-                if (project?.state === "PROPOSAL_APPROVED" || project?.state === "SCRIPT_GENERATING" || project?.state === "SCRIPT_QUALITY_FAILED" || project?.state === "SCRIPT_GENERATION_FAILED") {
+                if (isImportedScript) {
+                  void runProduce();
+                } else if (
+                  project?.state === "PROPOSAL_APPROVED" ||
+                  project?.state === "SCRIPT_GENERATING" ||
+                  project?.state === "SCRIPT_QUALITY_FAILED" ||
+                  project?.state === "SCRIPT_GENERATION_FAILED"
+                ) {
                   void run("Escribiendo guion", () => projectScript(projectId).then((r) => setVerify(r.verify)));
-                } else if (project?.state === "RESEARCHED" || project?.state === "GENERATING_PROPOSALS" || project?.state === "PROPOSAL_GENERATION_FAILED") {
+                } else if (
+                  project?.state === "RESEARCHED" ||
+                  project?.state === "GENERATING_PROPOSALS" ||
+                  project?.state === "PROPOSAL_GENERATION_FAILED"
+                ) {
                   void run("Preparando propuesta", () => projectProposal(projectId));
                 } else {
                   void run("Investigando", () => projectResearch(projectId));
@@ -178,14 +282,14 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
               VOLVER A INTENTAR
             </button>
             <button className="btn-secondary" onClick={() => setError(null)}>
-              Volver al proyecto
+              Cerrar aviso
             </button>
           </div>
         </div>
       )}
 
       {/* ═══ INVESTIGACIÓN ═══ */}
-      {stepIdx <= 1 && (
+      {!isImportedScript && stepIdx <= 1 && (
         <section className="card">
           <div className="scene-title">Fuentes encontradas</div>
           {!research ? (
@@ -228,7 +332,7 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
       )}
 
       {/* ═══ PROPUESTA ═══ */}
-      {stepIdx >= 1 && stepIdx <= 2 && proposal && (
+      {!isImportedScript && stepIdx >= 1 && stepIdx <= 2 && proposal && (
         <section className="card">
           <div className="scene-title">Propuesta de episodio</div>
           <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
@@ -318,12 +422,82 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
       )}
 
       {/* ═══ GUION ═══ */}
-      {stepIdx >= 2 && stepIdx < 3 && script && (
+      {script && (isImportedScript || stepIdx >= 2) && (
         <section className="card">
-          <div className="scene-title">Guion</div>
-          <div className="muted small" style={{ marginBottom: 10 }}>
-            {script.turns.length} intervenciones · ~{Math.round(script.estimacionDurSec / 60)} min · {script.turns.filter((t) => t.adSlot).length} bloques comerciales
-          </div>
+          <div className="scene-title">Guion {isImportedScript ? "(Importado)" : ""}</div>
+
+          {/* Resumen discreto de importación */}
+          {integrity && (
+            <div
+              className="import-summary-card"
+              style={{
+                padding: "10px 14px",
+                background: "var(--panel-2, rgba(15, 23, 42, 0.6))",
+                borderRadius: 8,
+                marginBottom: 12,
+                border: "1px solid var(--border, rgba(148, 163, 184, 0.2))",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
+                <span style={{ fontWeight: 600, fontSize: "0.88rem", color: "#3b82f6" }}>
+                  📋 {isImportedScript ? "Guion importado" : "Estructura del episodio"} · {integrity.stats.totalTurns} intervenciones (~{Math.round(script.estimacionDurSec / 60)} min)
+                </span>
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    padding: "2px 8px",
+                    borderRadius: 12,
+                    fontWeight: 600,
+                    background: integrity.canProduceAudio ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.15)",
+                    color: integrity.canProduceAudio ? "#22c55e" : "#ef4444",
+                    border: `1px solid ${integrity.canProduceAudio ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
+                  }}
+                >
+                  {integrity.canProduceAudio ? "Estructura válida ✓" : "Requiere revisión ⚠"}
+                </span>
+              </div>
+              <div className="muted small" style={{ display: "flex", gap: 14, flexWrap: "wrap", lineHeight: 1.4 }}>
+                <span>
+                  <strong>Locutores:</strong>{" "}
+                  {Object.entries(integrity.stats.speakerCounts)
+                    .map(([spk, count]) => `${nombreCorto(spk)}: ${count}`)
+                    .join(" · ")}
+                </span>
+                <span><strong>Pausas:</strong> {integrity.stats.totalPauses}</span>
+                <span><strong>Música:</strong> {integrity.stats.totalMusicEvents}</span>
+                <span><strong>SFX:</strong> {integrity.stats.totalSfxEvents}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Alerta de integridad si hay errores que bloquean la producción */}
+          {integrity && !integrity.canProduceAudio && (
+            <div
+              className="card"
+              style={{
+                border: "1px solid #ef4444",
+                background: "rgba(239, 68, 68, 0.08)",
+                padding: "12px 16px",
+                borderRadius: 8,
+                marginBottom: 14,
+              }}
+            >
+              <h4 style={{ margin: "0 0 6px", color: "#ef4444", fontSize: "0.92rem" }}>
+                ⚠ No pudimos interpretar completamente este guion
+              </h4>
+              <p className="muted small" style={{ margin: "0 0 8px" }}>
+                Corrige los siguientes puntos para habilitar la generación de audio:
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: "0.82rem", color: "#f87171" }}>
+                {integrity.errors.map((err, idx) => (
+                  <li key={idx} style={{ marginBottom: 4 }}>
+                    {err.speaker ? `[${nombreCorto(err.speaker)}] ` : ""}{err.message}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {verify && (
             <div className={`coverage ${verify.verified ? "ok" : "warn"}`} style={{ marginBottom: 12 }}>
               <div className="coverage-head">
@@ -334,17 +508,78 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
               <div className="muted small" style={{ marginTop: 6 }}>{verify.verifiedClaims} afirmaciones respaldadas · {verify.sources.length} fuentes.</div>
             </div>
           )}
-          {/* Documento limpio */}
+
+          {/* Vista limpia de intervenciones */}
           <div className="script-editor">
             {script.turns.map((t) => {
               const fuentes = turnoFuente(t);
+              const cleanDialogue = t.ttsText || t.displayText;
               return (
                 <div key={t.id} className={`script-line ${t.adSlot ? "ad" : ""}`}>
-                  <div className="script-locutor">
-                    <span className="locutor-tag" style={{ background: speakerColor(t.speaker) }}>{t.adSlot ? "Comercial" : nombreCorto(t.speaker)}</span>
-                    {fuentes.length > 0 && <span className="meta-chip cita" onClick={() => setFuenteAbierta(fuenteAbierta === t.id ? null : t.id)} style={{ cursor: "pointer" }}>📚 {fuentes.length}</span>}
+                  <div className="script-locutor" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                    <span className="locutor-tag" style={{ background: speakerColor(t.speaker) }}>
+                      {t.adSlot ? "Comercial" : nombreCorto(t.speaker)}
+                    </span>
+                    {t.delivery?.styles && t.delivery.styles.length > 0 && (
+                      <div style={{ display: "inline-flex", gap: 4 }}>
+                        {t.delivery.styles.map((s, sIdx) => (
+                          <span
+                            key={sIdx}
+                            style={{
+                              fontSize: "0.72rem",
+                              padding: "1px 7px",
+                              borderRadius: 10,
+                              background: "rgba(148, 163, 184, 0.15)",
+                              color: "#94a3b8",
+                              border: "1px solid rgba(148, 163, 184, 0.25)",
+                            }}
+                          >
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {t.authorPause && (
+                      <span
+                        style={{
+                          fontSize: "0.72rem",
+                          padding: "1px 7px",
+                          borderRadius: 10,
+                          background: "rgba(234, 179, 8, 0.12)",
+                          color: "#facc15",
+                          border: "1px solid rgba(234, 179, 8, 0.25)",
+                        }}
+                      >
+                        ⏱ pausa {t.pauseBeforeMs ?? 500} ms
+                      </span>
+                    )}
+                    {t.transition && (
+                      <span
+                        style={{
+                          fontSize: "0.72rem",
+                          padding: "1px 7px",
+                          borderRadius: 10,
+                          background: "rgba(59, 130, 246, 0.12)",
+                          color: "#93c5fd",
+                          border: "1px solid rgba(59, 130, 246, 0.25)",
+                        }}
+                      >
+                        ⚡ {t.transition}
+                      </span>
+                    )}
+                    {fuentes.length > 0 && (
+                      <span
+                        className="meta-chip cita"
+                        onClick={() => setFuenteAbierta(fuenteAbierta === t.id ? null : t.id)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        📚 {fuentes.length}
+                      </span>
+                    )}
                   </div>
-                  <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{t.displayText}</div>
+                  <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5, color: "var(--fg, #e2e8f0)" }}>
+                    {cleanDialogue}
+                  </div>
                   {fuenteAbierta === t.id && (
                     <div className="tag" style={{ marginTop: 6, whiteSpace: "normal", display: "block", background: "var(--panel-3)" }}>
                       {fuentes.map((f, i) => <div key={i} className="muted small" style={{ marginBottom: 4 }}>📄 {f.document}</div>)}
@@ -358,7 +593,11 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
             <button className="btn-secondary" disabled={!!busy} onClick={() => run("Verificando", () => projectVerify(projectId).then(setVerify))}>
               {busy === "Verificando" ? "Verificando…" : "VERIFICAR GUION"}
             </button>
-            <button className="btn-primary" disabled={!!busy} onClick={() => void runProduce()}>
+            <button
+              className="btn-primary"
+              disabled={!!busy || (integrity !== null && !integrity.canProduceAudio)}
+              onClick={() => void runProduce()}
+            >
               {busy === "Creando episodio" ? "Creando…" : "CREAR EPISODIO"}
             </button>
           </div>
@@ -366,7 +605,7 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
       )}
 
       {/* ═══ AUDIO / PRODUCCIÓN ═══ */}
-      {stepIdx >= 3 && (
+      {(stepIdx >= 3 || (isImportedScript && (progress || master || busy === "Creando episodio"))) && (
         <section className="card" ref={audioRef}>
           <div className="scene-title">Audio del episodio</div>
           {progress && progress.total > 0 && (
@@ -383,13 +622,64 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
             </>
           )}
           {master ? (
-            <div className="master-ok" style={{ marginTop: 12 }}>
-              <div style={{ marginBottom: 8 }}>Audio final listo · {(master.bytes / 1024 / 1024).toFixed(1)} MB · {Math.round(master.duraccionMs / 1000)}s</div>
-              {master.master && <audio controls src={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(master.master)}`} />}
+            <div className="master-ok" style={{ marginTop: 14, padding: "14px 16px", borderRadius: 10, background: "rgba(34, 197, 94, 0.08)", border: "1px solid rgba(34, 197, 94, 0.3)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                <strong style={{ color: "#22c55e", fontSize: "0.95rem" }}>
+                  ✓ Audio final listo · {(master.bytes / 1024 / 1024).toFixed(1)} MB · {Math.round(master.duraccionMs / 1000)}s (~{(master.duraccionMs / 60000).toFixed(1)} min)
+                </strong>
+                {master.master && (
+                  <a
+                    className="chip-mini ok"
+                    href={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(master.master)}`}
+                    download={`episodio-${projectId}.mp3`}
+                    style={{ textDecoration: "none", padding: "4px 10px", borderRadius: 8, background: "#22c55e", color: "#ffffff", fontWeight: 600, fontSize: "0.8rem" }}
+                  >
+                    ⬇ Descargar MP3
+                  </a>
+                )}
+              </div>
+              {master.master && (
+                <audio
+                  controls
+                  style={{ width: "100%", marginTop: 6 }}
+                  src={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(master.master)}`}
+                />
+              )}
+            </div>
+          ) : progress?.estado === "FAILED" ? (
+            <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: "rgba(239, 68, 68, 0.1)", border: "1px solid #ef4444" }}>
+              <div style={{ color: "#ef4444", fontWeight: 600, fontSize: "0.9rem", marginBottom: 4 }}>
+                ⚠ No se pudo completar la síntesis de audio
+              </div>
+              <p className="muted small" style={{ margin: 0 }}>
+                {progress.notas && progress.notas.length > 0
+                  ? progress.notas[progress.notas.length - 1]
+                  : "Ocurrió un error al sintetizar las voces con Speechify."}
+              </p>
+            </div>
+          ) : progress && progress.done >= progress.total && progress.total > 0 ? (
+            <div style={{ marginTop: 12, padding: "12px 14px", borderRadius: 8, background: "rgba(59, 130, 246, 0.08)", border: "1px solid #3b82f6" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                <span style={{ color: "#3b82f6", fontWeight: 600, fontSize: "0.9rem" }}>
+                  ✨ Voces sintetizadas (100 %). Montando conversación y master final…
+                </span>
+                <button
+                  className="btn-secondary"
+                  style={{ fontSize: "0.8rem", padding: "4px 10px" }}
+                  onClick={() => void runProduce()}
+                >
+                  Finalizar mezcla
+                </button>
+              </div>
+              <p className="muted small" style={{ margin: "6px 0 0" }}>
+                SmartMixer está recortando dead-air, insertando pausas milimétricas y normalizando a EBU R128.
+              </p>
             </div>
           ) : (
             <p className="muted small" style={{ marginTop: 10 }}>
-              {progress && progress.total > 0 ? "El estudio está generando las voces con el motor local…" : "Cuando des el OK, generaré las voces, montaré la conversación y mezclaré el audio final."}
+              {progress && progress.total > 0
+                ? "Sintetizando las voces del episodio con Speechify (simba-3.0)…"
+                : "Cuando des el OK, generaré las voces con Speechify, montaré la conversación y mezclaré el audio final."}
             </p>
           )}
         </section>
