@@ -188,6 +188,26 @@ export function monoToStereoPcmWav(monoBuf: Buffer): Buffer {
 }
 
 /**
+ * Resuelve la ruta al ejecutable de FFmpeg respetando prioridad:
+ * 1. Ruta explícita configurada mediante FFMPEG_PATH.
+ * 2. Ruta administrada o local de la aplicación (p. ej. AppData en Windows).
+ * 3. Ejecutable estándar "ffmpeg" en PATH.
+ */
+export function resolveFfmpegPath(explicitPath?: string): string {
+  if (explicitPath && explicitPath !== "ffmpeg") return explicitPath;
+  if (process.env.FFMPEG_PATH) return process.env.FFMPEG_PATH;
+
+  const localCandidates = [
+    path.join(os.homedir(), "AppData", "Local", "ffmpeg", "ffmpeg-8.1.1-essentials_build", "bin", "ffmpeg.exe"),
+  ];
+  for (const c of localCandidates) {
+    if (fs.existsSync(c)) return c;
+  }
+
+  return explicitPath || "ffmpeg";
+}
+
+/**
  * REGLA CANÓNICA:
  * "Modificar el sampleRate declarado de un archivo PCM no constituye resampling.
  * Cualquier conversión de sample rate debe preservar duración y pitch mediante resampling real."
@@ -216,11 +236,12 @@ export async function ensureCanonicalWavFormat(
   }
 
   // Caso 3: sampleRate o formato distinto -> RESAMPLING REAL con FFmpeg (aresample)
+  const resolvedBin = resolveFfmpegPath(ffmpegBin);
   const tmpIn = path.join(os.tmpdir(), `canon_in_${Date.now()}_${Math.random().toString(36).slice(2)}.wav`);
   const tmpOut = path.join(os.tmpdir(), `canon_out_${Date.now()}_${Math.random().toString(36).slice(2)}.wav`);
   try {
     fs.writeFileSync(tmpIn, wavBuf);
-    await execFileAsync(ffmpegBin, [
+    await execFileAsync(resolvedBin, [
       "-y",
       "-i", tmpIn,
       "-ar", String(targetSampleRate),
@@ -229,6 +250,19 @@ export async function ensureCanonicalWavFormat(
       tmpOut,
     ], { timeout: 30000 });
     return fs.readFileSync(tmpOut);
+  } catch (error: unknown) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code: unknown }).code === "ENOENT"
+    ) {
+      throw new Error(
+        `FFmpeg executable was not found. Install FFmpeg or configure FFMPEG_PATH. Attempted executable: ${resolvedBin}`,
+        { cause: error }
+      );
+    }
+    throw error;
   } finally {
     try { if (fs.existsSync(tmpIn)) fs.unlinkSync(tmpIn); } catch {}
     try { if (fs.existsSync(tmpOut)) fs.unlinkSync(tmpOut); } catch {}
@@ -289,9 +323,11 @@ export class SmartMixer {
 
   private async findFfmpeg(): Promise<string> {
     const candidates = [
+      resolveFfmpegPath(),
+      process.env.FFMPEG_PATH,
       "ffmpeg",
       path.join(os.homedir(), "AppData", "Local", "ffmpeg", "ffmpeg-8.1.1-essentials_build", "bin", "ffmpeg.exe"),
-    ];
+    ].filter(Boolean) as string[];
     for (const c of candidates) {
       try {
         await execFileAsync(c, ["-version"], { timeout: 10000 });

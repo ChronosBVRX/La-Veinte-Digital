@@ -123,4 +123,11 @@ describe("Regla Canónica de Formato de Audio y Resampling Real", () => {
       expect(Math.abs(freq - 1000)).toBeLessThan(25); // Frecuencia conservada sin subir a 2000 Hz
     });
   }
+
+  it("Regla 5: lanza error descriptivo con causa original si el ejecutable de FFmpeg no existe", async () => {
+    const tone = generateSineTone(1000, 0.1, 24000);
+    await expect(
+      ensureCanonicalWavFormat(tone, "ffmpeg_non_existent_bin_test", 48000, 2)
+    ).rejects.toThrow(/FFmpeg executable was not found/);
+  });
 });
