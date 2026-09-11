@@ -36,6 +36,9 @@ jobs:
       - name: Tests (Unit)
         run: npm test
 
+      - name: Coverage Gate (Fail-Closed)
+        run: npm run test:coverage
+
       - name: Build
         run: npm run build
 
