@@ -138,14 +138,14 @@ export function PrintSendPanel() {
 
     const onQr = async (decodedText: string) => {
       if (handledRef.current) return
-      console.log("PRINT_FLOW qr_decoded text=" + decodedText)
+      console.log("PRINT_FLOW qr_decoded")
       const token = extractTransferToken(decodedText)
       if (!token) {
-        console.log("PRINT_FLOW qr_invalid text=" + decodedText)
+        console.log("PRINT_FLOW qr_invalid")
         setMessage("Ese código no es válido. Escanea el código de 'Recibir' de la computadora.")
         return
       }
-      console.log("PRINT_FLOW qr_valid token=" + token)
+      console.log("PRINT_FLOW qr_valid")
       handledRef.current = true
       setStatus("uploading")
       try {

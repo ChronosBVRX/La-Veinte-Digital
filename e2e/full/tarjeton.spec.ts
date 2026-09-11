@@ -1,6 +1,6 @@
 import { test, expect, type Page, assertPageLoaded } from "../fixtures/test"
-import path from "path"
 import { jsPDF } from "jspdf"
+import { assertSafeDatabase } from "../utils/assert-safe-database"
 
 // ── Unique PDF generation per run (avoids hash collisions across CI runs) ──
 
@@ -103,6 +103,7 @@ async function waitForDropzone(page: Page) {
 }
 
 async function confirmTarjeton(page: Page) {
+  assertSafeDatabase()
   const consentCheckbox = page.locator('input[type="checkbox"]').first()
   if (await consentCheckbox.isVisible({ timeout: 3000 }).catch(() => false)) {
     await consentCheckbox.check()
