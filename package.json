@@ -20,6 +20,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "audit:production": "node --no-warnings --import tsx scripts/audit-production-dependencies.ts",
     "release:check": "node --no-warnings --import tsx scripts/release-check.ts",
     "e2e": "npx playwright test",
     "e2e:smoke": "npx playwright test e2e/smoke --project=chromium-desktop --project=chromium-public",
@@ -57,7 +58,7 @@
     "mupdf": "^1.28.0",
     "next": "16.2.12",
     "openai": "^7.0.0",
-    "pdfjs-dist": "6.1.200",
+    "pdfjs-dist": "^6.3.289",
     "qrcode.react": "^4.2.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -85,7 +86,8 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "sharp": "^0.35.0",
+    "sharp": "^0.35.4",
+    "nanoid": "^3.3.18",
     "postcss": "^8.5.18"
   }
 }
