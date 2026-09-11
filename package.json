@@ -21,6 +21,7 @@
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
     "audit:production": "node --no-warnings --import tsx scripts/audit-production-dependencies.ts",
+    "preflight:env": "node --no-warnings --import tsx scripts/preflight-env.ts",
     "release:check": "node --no-warnings --import tsx scripts/release-check.ts",
     "e2e": "npx playwright test",
     "e2e:smoke": "npx playwright test e2e/smoke --project=chromium-desktop --project=chromium-public",
