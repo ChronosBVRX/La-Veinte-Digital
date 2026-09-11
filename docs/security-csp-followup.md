@@ -17,7 +17,7 @@ Todas las respuestas servidas por la aplicación incorporan las siguientes cabec
 | **`X-Frame-Options`** | `DENY` | Bloquea totalmente el incrustado de la aplicación en `<iframe>` de terceros (anti-clickjacking). |
 | **`Referrer-Policy`** | `strict-origin-when-cross-origin` | Envía el origen completo solo en navegación HTTPS del mismo sitio; en cross-origin solo envía el hostname sin rutas ni query params. |
 | **`Permissions-Policy`** | `camera=(self), microphone=(self), geolocation=(), payment=(), usb=()` | Deshabilita explícitamente geolocalización, pagos y USB. Restringe cámara (escáner QR) y micrófono al origen propio. |
-| **`Strict-Transport-Security`** | `max-age=31536000; includeSubDomains; preload` | Fuerza comunicación HTTPS durante 1 año, protege subdominios e incluye la bandera para listas de precarga HSTS de navegadores. |
+| **`Strict-Transport-Security`** | `max-age=31536000; includeSubDomains` | Fuerza comunicación HTTPS durante 1 año y protege todos los subdominios del aplicativo. |
 | **`X-Powered-By`** | *Deshabilitado (`poweredByHeader: false`)* | Elimina la divulgación del framework (`Next.js`) en encabezados de respuesta. |
 
 ---
