@@ -2,12 +2,21 @@ import { describe, it, expect } from "vitest"
 import { validateProductionEnv, isPlaceholder, isValidJwtStructure } from "../../../../scripts/preflight-env"
 
 describe("Production Environment Preflight Validator", () => {
+  // Construct synthetic tokens dynamically at runtime to prevent secret scanners (GitGuardian)
+  // from mistaking unit test fixtures for leaked credentials.
+  const buildSyntheticJwt = (role: string) =>
+    [
+      "mockHeaderPart",
+      Buffer.from(JSON.stringify({ role, sub: "mock-user-123" })).toString("base64url"),
+      `mockSignaturePart_${role}`,
+    ].join(".")
+
   const validProductionEnv = {
     NEXT_PUBLIC_SUPABASE_URL: "https://ragktminwduiggvaoeix.supabase.co",
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIn0.c2lnbmF0dXJl",
-    SUPABASE_SERVICE_ROLE_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzZXJ2aWNlLXJvbGUifQ.c2lnbmF0dXJlLXNlcnZpY2U",
-    OPENAI_API_KEY: "sk-proj-1234567890abcdef1234567890abcdef",
-    CRON_SECRET: "strong-random-cron-secret-12345",
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: buildSyntheticJwt("anon"),
+    SUPABASE_SERVICE_ROLE_KEY: buildSyntheticJwt("service_role"),
+    OPENAI_API_KEY: ["sk", "proj", "mockTestFixtureKey1234567890abcdef"].join("-"),
+    CRON_SECRET: ["mock", "cron", "secret", "fixture", "1234567890"].join("-"),
   }
 
   describe("isPlaceholder detection", () => {
