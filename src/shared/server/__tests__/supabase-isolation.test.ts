@@ -12,15 +12,15 @@ interface SecurityContext {
 }
 
 interface TableRow {
-  id?: string
-  user_id?: string
-  full_name?: string
-  matricula?: string
-  categoria?: string
-  base_salary?: number
-  role?: string
-  title?: string
-  status?: string
+  id?: string | null
+  user_id?: string | null
+  full_name?: string | null
+  matricula?: string | null
+  categoria?: string | null
+  base_salary?: number | null
+  role?: string | null
+  title?: string | null
+  status?: string | null
   [key: string]: unknown
 }
 

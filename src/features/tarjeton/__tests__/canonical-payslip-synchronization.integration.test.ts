@@ -47,6 +47,7 @@ describe("Canonical Payroll (Payslip) Synchronization Integration Test", () => {
     vacations: {
       porVencer: "14102026", // Raw DDMMYYYY compact from IMSS tarjetón
       porVencerRaw: "14102026",
+      dueDate: undefined as string | undefined,
     },
     payroll: {
       earnings: [
@@ -144,16 +145,13 @@ describe("Canonical Payroll (Payslip) Synchronization Integration Test", () => {
       // Sanitización profunda del objeto
       const sanitized = stripSensitiveFields(mockParsedPayload)
 
-      // @ts-expect-error verificación en tiempo de ejecución
-      expect(sanitized.employee.curp).toBeUndefined()
-      // @ts-expect-error verificación en tiempo de ejecución
-      expect(sanitized.employee.rfc).toBeUndefined()
-      // @ts-expect-error verificación en tiempo de ejecución
-      expect(sanitized.employee.nss).toBeUndefined()
-      // @ts-expect-error verificación en tiempo de ejecución
-      expect(sanitized.employee.cuentaBancaria).toBeUndefined()
-      // @ts-expect-error verificación en tiempo de ejecución
-      expect(sanitized.document.folioFiscal).toBeUndefined()
+      const emp = sanitized.employee as Record<string, unknown>
+      const doc = sanitized.document as Record<string, unknown>
+      expect(emp.curp).toBeUndefined()
+      expect(emp.rfc).toBeUndefined()
+      expect(emp.nss).toBeUndefined()
+      expect(emp.cuentaBancaria).toBeUndefined()
+      expect(doc.folioFiscal).toBeUndefined()
 
       // Conserva fiscalFolioHash y datos laborales esenciales
       expect(sanitized.document.fiscalFolioHash).toBe(fiscalFolioHash)
