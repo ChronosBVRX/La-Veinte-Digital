@@ -27,6 +27,9 @@ const cspDirectives = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
+  },
   transpilePackages: ["@la-veinte/tts-core", "@la-veinte/radio-core"],
   outputFileTracingExcludes: {
     "*": ["data/tts/**", "data/normativa/**", "tools/**"],
