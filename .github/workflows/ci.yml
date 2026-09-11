@@ -77,6 +77,16 @@ jobs:
           docker exec "$db_container" psql -v ON_ERROR_STOP=1 -v VERBOSITY=verbose \
             -U postgres -d postgres -f - < supabase/tests/chat_rls.sql
 
+      - name: User Isolation RLS functional tests (multi-user)
+        run: |
+          db_container=$(docker ps --format '{{.Names}}' | grep -E 'supabase_db_' | head -1)
+          if [ -z "$db_container" ]; then
+            echo "::error::no se encontró el contenedor supabase_db_"
+            exit 1
+          fi
+          docker exec "$db_container" psql -v ON_ERROR_STOP=1 -v VERBOSITY=verbose \
+            -U postgres -d postgres -f - < supabase/tests/user_isolation_rls.sql
+
       - name: Tarjeton RPC functional contract tests
         run: |
           db_container=$(docker ps --format '{{.Names}}' | grep -E 'supabase_db_' | head -1)
