@@ -2,10 +2,28 @@ import { test, expect } from "../fixtures/test"
 
 test.describe("Business Journey 1 — Autenticación y navegación protegida", () => {
   test("usuario no autenticado es redirigido a login al intentar acceder a rutas privadas", async ({ page }) => {
-    const protectedRoutes = ["/nomina", "/asistente", "/bitacora", "/documentos-personales", "/vacaciones"]
+    const protectedRoutes = [
+      "/nomina",
+      "/asistente",
+      "/bitacora",
+      "/documentos-personales",
+      "/vacaciones",
+      "/calculadoras",
+      "/calculadoras/jubilacion",
+      "/calculadoras/aguinaldo",
+    ]
     for (const route of protectedRoutes) {
       await page.goto(route)
       await expect(page).toHaveURL(/\/login/)
+    }
+  })
+
+  test("páginas públicas legales y de soporte cargan directamente sin autenticación", async ({ page }) => {
+    const publicPages = ["/privacidad", "/terminos", "/soporte", "/acerca-de", "/informacion-y-fuentes"]
+    for (const p of publicPages) {
+      await page.goto(p)
+      await expect(page).toHaveURL(p)
+      await expect(page.locator("body")).not.toBeEmpty()
     }
   })
 

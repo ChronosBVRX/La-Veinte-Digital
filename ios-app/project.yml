@@ -21,6 +21,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         ENABLE_TESTABILITY: YES
         INFOPLIST_KEY_NSFaceIDUsageDescription: "Usamos Face ID / Touch ID para proteger tu información y acceder a tus tarjetones de forma segura."
+        INFOPLIST_KEY_NSCameraUsageDescription: "Usamos la cámara para escanear credenciales y códigos QR institucionales."
     info:
       path: LaVeinteDigital/Info.plist
       properties:
@@ -33,6 +34,8 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         ITSAppUsesNonExemptEncryption: false
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: false
         CFBundleURLTypes:
           - CFBundleURLName: com.laveintedigital.app
             CFBundleURLSchemes:

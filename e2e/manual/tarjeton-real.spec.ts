@@ -10,6 +10,7 @@
  *   npx playwright test e2e/manual/tarjeton-real.spec.ts --project=chromium-desktop --headed
  */
 import { test, expect } from "@playwright/test"
+import { assertSafeDatabase } from "../utils/assert-safe-database"
 
 const PDF_PATH = process.env.E2E_REAL_TARJETON_PATH
 
@@ -19,6 +20,9 @@ test.describe("Tarjeton real - diagnostico manual", () => {
       test.skip(true, "E2E_REAL_TARJETON_PATH no definida")
       return
     }
+
+    // Blindaje de seguridad: Prohibido estrictamente ejecutar contra producción
+    assertSafeDatabase()
 
     // 1. Navigate to tarjeton page
     await page.goto("/tarjeton")

@@ -32,27 +32,8 @@ test.describe("Perfil - visualizacion", () => {
   })
 })
 
-test.describe("Perfil - edicion", () => {
-  test("guarda nombre completo correctamente", async ({ page }) => {
-    await page.goto("/profile")
-    const nameInput = page.getByLabel("Nombre completo")
-    await expect(nameInput).toBeVisible({ timeout: 15_000 })
-    const original = await nameInput.inputValue()
-    try {
-      await nameInput.fill("Usuario de Prueba E2E")
-      await page.getByRole("button", { name: /guardar cambios/i }).click()
-      await expect(page.getByText("Perfil actualizado")).toBeVisible({ timeout: 10_000 })
-    } finally {
-      if (original && original !== "Usuario de Prueba E2E") {
-        await nameInput.clear()
-        await nameInput.fill(original)
-        await page.getByRole("button", { name: /guardar cambios/i }).click()
-        await expect(page.getByText("Perfil actualizado")).toBeVisible({ timeout: 10_000 }).catch(() => {})
-      }
-    }
-  })
-
-  test("nombre completo es obligatorio", async ({ page }) => {
+test.describe("Perfil - validacion cliente sin mutacion", () => {
+  test("nombre completo es obligatorio (validacion nativa HTML5, sin envio a servidor)", async ({ page }) => {
     await page.goto("/profile")
     const nameInput = page.getByLabel("Nombre completo")
     await expect(nameInput).toBeVisible({ timeout: 15_000 })
@@ -60,7 +41,7 @@ test.describe("Perfil - edicion", () => {
     try {
       await nameInput.clear()
       await page.getByRole("button", { name: /guardar cambios/i }).click()
-      // Browser native validation fires before server action; check validity
+      // La validación nativa del navegador bloquea el submit antes de llegar al backend
       await expect(nameInput).toHaveJSProperty("validity.valueMissing", true)
     } finally {
       if (original) {
@@ -69,7 +50,7 @@ test.describe("Perfil - edicion", () => {
     }
   })
 
-  test("telefono invalido muestra error", async ({ page }) => {
+  test("telefono invalido muestra error (validacion regex en cliente, sin persistencia en backend)", async ({ page }) => {
     await page.goto("/profile")
     const phoneInput = page.getByLabel("Teléfono")
     await expect(phoneInput).toBeVisible({ timeout: 15_000 })
@@ -77,35 +58,12 @@ test.describe("Perfil - edicion", () => {
     try {
       await phoneInput.fill("abc")
       await page.getByRole("button", { name: /guardar cambios/i }).click()
+      // La validación de regex en ProfileForm retorna un error antes de invocar supabase.rpc o update
       await expect(page.getByText(/teléfono inválido/i)).toBeVisible({ timeout: 5000 })
     } finally {
       await phoneInput.clear()
       if (originalPhone) {
         await phoneInput.fill(originalPhone)
-      }
-    }
-  })
-
-  test("persiste cambios tras recarga", async ({ page }) => {
-    await page.goto("/profile")
-    const nameInput = page.getByLabel("Nombre completo")
-    await expect(nameInput).toBeVisible({ timeout: 15_000 })
-    const original = await nameInput.inputValue()
-    try {
-      const testName = "Test E2E Persist"
-      await nameInput.clear()
-      await nameInput.fill(testName)
-      await page.getByRole("button", { name: /guardar cambios/i }).click()
-      await expect(page.getByText("Perfil actualizado")).toBeVisible({ timeout: 10_000 })
-      await page.reload()
-      await expect(nameInput).toBeVisible({ timeout: 15_000 })
-      await expect(nameInput).toHaveValue(testName)
-    } finally {
-      if (original && original !== "Test E2E Persist") {
-        await nameInput.clear()
-        await nameInput.fill(original)
-        await page.getByRole("button", { name: /guardar cambios/i }).click()
-        await expect(page.getByText("Perfil actualizado")).toBeVisible({ timeout: 10_000 }).catch(() => {})
       }
     }
   })

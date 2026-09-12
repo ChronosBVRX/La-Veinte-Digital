@@ -18,8 +18,11 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:coverage": "vitest run --config vitest.coverage.config.ts --coverage",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "audit:production": "node --no-warnings --import tsx scripts/audit-production-dependencies.ts",
+    "preflight:env": "node --no-warnings --import tsx scripts/preflight-env.ts",
     "release:check": "node --no-warnings --import tsx scripts/release-check.ts",
     "e2e": "npx playwright test",
     "e2e:smoke": "npx playwright test e2e/smoke --project=chromium-desktop --project=chromium-public",
@@ -57,7 +60,7 @@
     "mupdf": "^1.28.0",
     "next": "16.2.12",
     "openai": "^7.0.0",
-    "pdfjs-dist": "6.1.200",
+    "pdfjs-dist": "^6.3.289",
     "qrcode.react": "^4.2.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -76,6 +79,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/testing-library__jest-dom": "^5.14.9",
+    "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
     "fake-indexeddb": "^6.2.5",
@@ -85,7 +89,8 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "sharp": "^0.35.0",
+    "sharp": "^0.35.4",
+    "nanoid": "^3.3.18",
     "postcss": "^8.5.18"
   }
 }

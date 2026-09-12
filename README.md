@@ -202,10 +202,7 @@ Gestión de perfil de usuario: nombre, matrícula, adscripción, categoría, ant
 ### 10. Tarjetón IMSS (`/tarjeton`)
 Importa el PDF de tu recibo de pago del IMSS. La extracción corre **100% en tu navegador** (PDF.js + OCR Tesseract de respaldo para tarjetones escaneados); revisas cada campo y al confirmar se guarda solo el resultado estructurado — el PDF nunca se sube. RFC/CURP/NSS/cuenta se descartan o enmascaran; el folio fiscal se guarda como huella. La confirmación actualiza tu contexto de nómina (categoría, jornada, antigüedad, conceptos recurrentes) y el prerrelleno de las calculadoras. Detalle: `docs/TARJETON_IMPORT.md`.
 
-### 11. Simulador (`/simulador`)
-Simulador interactivo de audiencias disciplinarias IMSS con 6 escenarios (faltas, maltrato, incumplimiento, extravío, retardos, confidencialidad). Evalúa el desempeño del trabajador con análisis IA post-simulación.
-
-### 12. Panel de Administración (`/admin`)
+### 11. Panel de Administración (`/admin`)
 Hub operativo con métricas agregadas (sin fuga de PII), editor de avisos con revisión editorial (`/admin/avisos`, bandeja del trabajador en `/avisos`), barra informativa administrable (`/admin/barra` con fallback a catálogo local), campañas push con snapshot inmutable y worker transaccional (`/admin/campanas`), formulario push heredado (`/admin/push`) y consola de versiones Android (`/admin/android`). Acceso: rol `admin` en `profiles` (acceso completo) o email en `PUSH_ADMIN_ALLOWED_EMAILS` (solo `/admin/push`). Detalle operativo: `docs/admin/PROGRESS.md` y `docs/admin/ROLLOUT_ROLLBACK.md`.
 
 ### 13. Notificaciones
