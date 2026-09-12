@@ -128,7 +128,7 @@ def _find_refs(text: str) -> dict:
 
 def _scene_variant(seg: dict, text: str, refs: dict, duration_s: float) -> tuple[str, str]:
     intent = (seg.get("intent") or "statement").lower()
-    if intent == "brand" or "La Veinte Radio" in text:
+    if intent == "brand" or (len(text.split()) <= 10 and "La Veinte Radio" in text):
         return "brand", "brand-full"
     if intent == "closing":
         return "closing", "closing-full"
@@ -224,7 +224,7 @@ def build_visual_timeline(
     if first_speech_start > 0.05:
         events.append({
             "beat_id": "scene-opening",
-            "speaker": "Eduardo",
+            "speaker": "",
             "start": 0.0,
             "end": round(first_speech_start, 2),
             "intent": "brand",
@@ -310,7 +310,7 @@ def build_visual_timeline(
             if ident_end > ident_start + 0.1:
                 events.append({
                     "beat_id": f"scene-ident-{round(ident_start, 2)}",
-                    "speaker": "Eduardo",
+                    "speaker": "",
                     "start": round(ident_start, 2),
                     "end": round(ident_end, 2),
                     "intent": "brand",
@@ -343,7 +343,7 @@ def build_visual_timeline(
     if outro_start is not None and outro_start < duration_s - 0.05:
         events.append({
             "beat_id": "scene-closing",
-            "speaker": "Eduardo",
+            "speaker": "",
             "start": round(outro_start, 2),
             "end": round(duration_s, 2),
             "intent": "closing",

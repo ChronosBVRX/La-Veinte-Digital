@@ -38,8 +38,9 @@ def validate_visual_timeline(timeline: dict, duration_s: float) -> dict:
         if bid in seen:
             blocking.append(f"beat_id duplicado: {bid}")
         seen.add(bid)
-        if e.get("speaker") not in KNOWN:
-            blocking.append(f"speaker desconocido: {e.get('speaker')} ({bid})")
+        spk = e.get("speaker")
+        if spk not in KNOWN and not (spk in ("", None, "La Veinte Radio") and e.get("scene_type") in ("brand", "closing")):
+            blocking.append(f"speaker desconocido: {spk} ({bid})")
         if e.get("scene_type") not in SCENE_TYPES:
             blocking.append(f"escena inválida: {e.get('scene_type')} ({bid})")
         allowed = VARIANTS.get(e.get("scene_type"), set())

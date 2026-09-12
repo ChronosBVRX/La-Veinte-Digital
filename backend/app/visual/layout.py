@@ -96,8 +96,70 @@ def autofit(draw, text: str, level: str, box: Box, h: int,
             spacing = max(TOKENS["typography"]["line_spacing_min"], spacing - 0.05)
             continue
         size = int(size * 0.92) or lo - 1
-    return {"ok": False, "size": lo, "lines": words[:max_lines * 3],
-            "spacing": spacing, "compact": True, "max_w": 0}
+    fnt_lo = _font(True, lo)
+    fallback_lines: list[str] = []
+    cur = ""
+    for w in words:
+        t = (cur + " " + w).strip()
+        if draw.textlength(t, font=fnt_lo) <= box_w or not cur:
+            cur = t
+        else:
+            fallback_lines.append(cur)
+            cur = w
+    if cur:
+        fallback_lines.append(cur)
+    capped = fallback_lines[:max_lines] if fallback_lines else [""]
+    widths = [draw.textlength(ln, font=fnt_lo) for ln in capped]
+    return {"ok": False, "size": lo, "lines": capped,
+            "spacing": spacing, "compact": True, "max_w": max(widths) if widths else 0}
+
+
+def paginate_text(draw, text: str, level: str, box: Box, h: int,
+                  max_lines: int = 5, max_words_per_page: int = 24) -> list[str]:
+    """Fragmenta texto largo en varias páginas/tarjetas visuales dentro del mismo
+    turno para evitar columnas estrechas, texto diminuto o desbordes verticales."""
+    clean = (text or "").strip()
+    if not clean:
+        return [""]
+    fit_full = autofit(draw, clean, level, box, h, max_lines=max_lines)
+    if fit_full["ok"] and len(clean.split()) <= max_words_per_page:
+        return [clean]
+
+    import re
+    raw_sents = [p.strip() for p in re.split(r"(?<=[.!?…])\s+", clean) if p.strip()]
+    chunks: list[str] = []
+    for s in raw_sents:
+        words = s.split()
+        if len(words) > max_words_per_page:
+            parts = re.split(r"(?<=[,;:])\s+", s)
+            cur = ""
+            for p in parts:
+                cand = (cur + " " + p).strip()
+                if len(cand.split()) <= max_words_per_page or not cur:
+                    cur = cand
+                else:
+                    chunks.append(cur)
+                    cur = p
+            if cur:
+                chunks.append(cur)
+        else:
+            chunks.append(s)
+
+    pages: list[str] = []
+    cur = ""
+    for c in chunks:
+        cand = (cur + " " + c).strip()
+        cand_words = len(cand.split())
+        cand_fit = autofit(draw, cand, level, box, h, max_lines=max_lines)
+        if cand_fit["ok"] and cand_words <= max_words_per_page:
+            cur = cand
+        else:
+            if cur:
+                pages.append(cur)
+            cur = c
+    if cur:
+        pages.append(cur)
+    return pages if pages else [clean]
 
 
 def speaker_identity(name: str, rol: str, h: int, stacked: bool = True) -> dict:
@@ -245,7 +307,8 @@ def get_main_box(layout_name: str, variant: str, w: int, h: int) -> Box:
     vertical = h > w
     if vertical:
         # Vertical: respeta platform-safe [70,200,940,1450] para texto crítico.
-        return Box(70, 700, 940, 1350, "main")
+        # Deja y:220..405 para speaker badge, y:415..1340 para texto, y:1360..1445 para reactivo.
+        return Box(70, 415, 940, 1340, "main")
     if variant in ("conversation-left",):
         return Box(int(w * 0.38), int(h * 0.30), int(w * 0.92), int(h * 0.72), "main")
     if variant in ("conversation-right",):

@@ -112,34 +112,74 @@ class Renderer:
             plan["staged_primitives"] = staged_primitives
         else:
             text = ev.get("essential") or ev.get("display_text", "")
-            level = "display" if kind in ("question", "brand", "closing") else (
+            words_count = len(text.split())
+            level = "display" if (kind in ("question", "brand", "closing") and words_count <= 8) else (
                 "headline" if kind in ("warning", "reaction", "quote") else "body")
             # Inset para animación dx=8: texto crítico permanece dentro de platform.
-            inset = Box(main.x0 + 8, main.y0, main.x1 - 8, main.y1, name="main-inset")
-            fit = autofit(probe, text, level, inset, H, max_lines=4)
-            if not fit["ok"]:
-                plan["issues"].append(f"autofit compacto en {ev.get('beat_id')}")
-                fit = autofit(probe, text, "headline" if level != "headline" else "body",
-                              inset, H, max_lines=5)
-            plan["kinetic"] = fit
+            # En vertical, un inset horizontal de 20px garantiza que con dx=8 y scale=0.02
+            # nunca se sobrepase el límite derecho (940) o izquierdo (70) de platform-safe.
+            inset_pad = 20 if self.vertical else 8
+            inset = Box(main.x0 + inset_pad, main.y0, main.x1 - inset_pad, main.y1, name="main-inset")
+            from .layout import paginate_text
+            pages_text = paginate_text(probe, text, level, inset, H,
+                                       max_lines=5 if self.vertical else 4,
+                                       max_words_per_page=22 if self.vertical else 30)
+            pages_plan = []
+            total_words = max(1, sum(len(p.split()) for p in pages_text))
+            acc_prog = 0.0
+            for p_idx, p_text in enumerate(pages_text):
+                p_words = max(1, len(p_text.split()))
+                p_frac = p_words / total_words
+                p_start = acc_prog
+                p_end = 1.0 if p_idx == len(pages_text) - 1 else min(1.0, acc_prog + p_frac)
+                acc_prog = p_end
+
+                fit = autofit(probe, p_text, level, inset, H, max_lines=5 if self.vertical else 4)
+                if not fit["ok"]:
+                    plan["issues"].append(f"autofit compacto en {ev.get('beat_id')} p{p_idx}")
+                    fit = autofit(probe, p_text, "body" if level != "body" else "caption",
+                                  inset, H, max_lines=6 if self.vertical else 5)
+
+                p_y0 = inset.y0 + (inset.y1 - inset.y0 - fit["size"] * fit["spacing"] * len(fit["lines"])) / 2
+                p_prims: list[DrawText] = []
+                for i, ln in enumerate(fit["lines"]):
+                    w = probe.textlength(ln, font=_font(True, fit["size"]))
+                    x0 = inset.x0 + (inset.x1 - inset.x0 - w) / 2
+                    y = p_y0 + i * fit["size"] * fit["spacing"]
+                    box = Box(x0, y, x0 + w, y + fit["size"], name=f"text-p{p_idx}-{i}")
+                    dt = DrawText(ln, x0, y, _font(True, fit["size"]),
+                                  fit["size"], f"text-p{p_idx}-{i}", True, box,
+                                  {"dx": 8, "scale": 0.02})
+                    p_prims.append(dt)
+                pages_plan.append({
+                    "text": p_text,
+                    "fit": fit,
+                    "start_prog": p_start,
+                    "end_prog": p_end,
+                    "primitives": p_prims,
+                })
+                staged_primitives.append(p_prims)
+                primitives_flat.extend(p_prims)
+
+            plan["pages"] = pages_plan
+            plan["kinetic"] = pages_plan[0]["fit"] if pages_plan else {"ok": False, "size": 28, "lines": [text], "spacing": 1.22, "max_w": 0}
             plan["level"] = level
-            y0 = inset.y0 + (inset.y1 - inset.y0 - fit["size"] * fit["spacing"] * len(fit["lines"])) / 2
-            for i, ln in enumerate(fit["lines"]):
-                w = probe.textlength(ln, font=_font(True, fit["size"]))
-                x0 = inset.x0 + (inset.x1 - inset.x0 - w) / 2
-                y = y0 + i * fit["size"] * fit["spacing"]
-                box = Box(x0, y, x0 + w, y + fit["size"], name=f"text-{i}")
-                dt = DrawText(ln, x0, y, _font(True, fit["size"]),
-                              fit["size"], f"text-{i}", True, box,
-                              {"dx": 8, "scale": 0.02})
-                primitives_flat.append(dt)
-            staged_primitives.append(primitives_flat)
         plan["primitives"] = primitives_flat
         plan["staged_primitives"] = staged_primitives
-        # Speaker box.
-        plan["boxes"]["speaker"] = Box(main.x0, main.y0 - si["h"] - 24,
-                                      main.x0 + si["name_w"] + 40,
-                                      main.y0 - 24 + 0, "speaker")
+        # Speaker box: suprimir en aperturas/cierres institucionales
+        is_brand_or_closing = kind in ("brand", "closing") or not ev.get("speaker") or ev.get("speaker") == "La Veinte Radio"
+        if is_brand_or_closing:
+            plan["boxes"]["speaker"] = Box(0, 0, 0, 0, "speaker")
+        elif self.vertical:
+            # Dentro de platform-safe vertical [70,200,940,1450], elevado en top safe margin (y:220..320)
+            sp_y = 220
+            plan["boxes"]["speaker"] = Box(main.x0, sp_y,
+                                           main.x0 + si["name_w"] + 40,
+                                           sp_y + si["h"], "speaker")
+        else:
+            plan["boxes"]["speaker"] = Box(main.x0, main.y0 - si["h"] - 24,
+                                           main.x0 + si["name_w"] + 40,
+                                           main.y0 - 24 + 0, "speaker")
         if self.vertical:
             # Dentro de platform-safe vertical [70,200,940,1450], elevado sobre controles.
             plan["boxes"]["reactive"] = Box(70, 1360, 940, 1450, "reactive")
@@ -160,7 +200,8 @@ class Renderer:
                 plan["issues"].extend([f"stage{stage_idx}:{m}" for m in safe_issues])
         # Colisiones clásicas (speaker/reactive/frame vs texto principal).
         boxes = [Box(*[v for v in [main.x0, main.y0, main.x1, main.y1]], "text")]
-        boxes.append(plan["boxes"]["speaker"])
+        if plan["boxes"]["speaker"].x1 > plan["boxes"]["speaker"].x0:
+            boxes.append(plan["boxes"]["speaker"])
         boxes.append(plan["boxes"]["reactive"])
         boxes.append(Box(0, 0, W, 40 if not self.vertical else 60, "frame"))
         coll = check_collisions(boxes)
@@ -340,6 +381,24 @@ class Renderer:
             y += lh
         return y
 
+    def _render_pages_or_kinetic(self, d, plan, ev, prog, main, ccx, y_offset=20):
+        pages = plan.get("pages")
+        if pages and len(pages) > 1:
+            active_page = pages[-1]
+            for p in pages:
+                if p["start_prog"] <= prog < p["end_prog"]:
+                    active_page = p
+                    break
+            p_span = max(0.001, active_page["end_prog"] - active_page["start_prog"])
+            p_prog = min(1.0, max(0.0, (prog - active_page["start_prog"]) / p_span))
+            p_plan = {**plan, "kinetic": active_page["fit"]}
+            p_ev = {**ev, "emphasis_words": ev.get("emphasis_words", [])}
+            self._kinetic_block(d, p_plan, p_ev, main.x0, main.y0 + y_offset, p_prog, ccx)
+        elif pages and len(pages) == 1:
+            self._kinetic_block(d, {**plan, "kinetic": pages[0]["fit"]}, ev, main.x0, main.y0 + y_offset, prog, ccx)
+        elif plan.get("kinetic"):
+            self._kinetic_block(d, plan, ev, main.x0, main.y0 + y_offset, prog, ccx)
+
     # -- frame -------------------------------------------------------------------
     def frame(self, f: int, fps: int, ev: dict, char: dict, env: list[float],
               trans: float = 1.0, env_now: float = 0.5,
@@ -398,8 +457,10 @@ class Renderer:
             ccx = cx
         # Speaker arriba del bloque principal (medido, sin solape).
         si = plan["speaker"]
-        self._speaker_block(d, plan, ev, char, main.x0,
-                            max(60, main.y0 - si["h"] - 20))
+        sp_box = plan["boxes"].get("speaker")
+        is_brand_or_closing = kind in ("brand", "closing") or not ev.get("speaker") or ev.get("speaker") == "La Veinte Radio"
+        if not is_brand_or_closing and sp_box and sp_box.y1 > sp_box.y0:
+            self._speaker_block(d, plan, ev, char, sp_box.x0, sp_box.y0)
         # Contenido por variante — number usa primitivas validadas (única fuente).
         dur_f = max(1, int((ev.get("end", 0) - ev.get("start", 0)) * fps))
         prog = min(1.0, max(0.0, local_f / dur_f)) if dur_f else 1.0
@@ -427,10 +488,6 @@ class Renderer:
                 self._kinetic_block(d, {**plan, "kinetic": {
                     **plan["kinetic"], "lines": staged, "max_w": plan["kinetic"]["max_w"]}},
                     {**ev, "emphasis_words": []}, main.x0, main.y0 + 20, 1.0, ccx)
-        elif kind in ("question", "brand", "closing", "quote", "document"):
-            self._kinetic_block(d, plan, ev, main.x0, main.y0 + 10, 1.0, ccx)
-        elif kind == "reaction":
-            self._kinetic_block(d, plan, ev, main.x0, main.y0 + 40, 1.0, ccx)
         elif kind in ("explanation", "warning", "clarification", "summary"):
             # EditorialVisualInterpreter temporal: estados derivados del texto,
             # sincronizados a la frase (misma composición, no diapositivas).
@@ -461,11 +518,13 @@ class Renderer:
                     "max_w": max(plan["kinetic"]["max_w"], 10)}},
                     {**ev, "emphasis_words": emph}, main.x0, main.y0 + 20, ease, ccx)
             else:
-                self._kinetic_block(d, plan, ev, main.x0, main.y0 + 20, 1.0, ccx)
-        elif self.subtitles == "full":
-            lines = (ev.get("display_text", "") or "").split()
-            self._kinetic_block(d, plan, {**ev, "emphasis_words": []},
-                                main.x0, main.y0 + 20, 1.0, ccx)
+                self._render_pages_or_kinetic(d, plan, ev, prog, main, ccx, y_offset=20)
+        elif kind in ("question", "brand", "closing", "quote", "document"):
+            self._render_pages_or_kinetic(d, plan, ev, prog, main, ccx, y_offset=10)
+        elif kind == "reaction":
+            self._render_pages_or_kinetic(d, plan, ev, prog, main, ccx, y_offset=40)
+        else:
+            self._render_pages_or_kinetic(d, plan, ev, prog, main, ccx, y_offset=20)
         # V1.4 (Javier): aunque el evento sea 'conversation', su retícula
         # construye/desmonta estructura según avanza la explicación. Sin
         # eventos periódicos: los nodos entran con el discurso.

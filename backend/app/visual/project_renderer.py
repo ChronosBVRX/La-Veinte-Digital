@@ -123,7 +123,7 @@ def render_project_visual(
     for layout in ["16x9", "9x16"]:
         r = Renderer(layout=layout)
         for ev in timeline["events"]:
-            r.prepare(ev, dict(CHARACTERS.get(ev["speaker"], CHARACTERS["Eduardo"])))
+            r.prepare(ev, dict(CHARACTERS.get(ev.get("speaker") or "", CHARACTERS["Eduardo"])))
         geo["layouts"][layout] = {
             "elements_validated": sum(len(p.get("primitives", [])) for p in r.prepared.values()),
             "overflow_canvas": len([i for i in r.issues if "overflow canvas" in i]),
@@ -165,7 +165,7 @@ def render_project_visual(
         layout, w, h = VERSIONS[tag]
         rend = Renderer(layout=layout)
         for ev in events:
-            rend.prepare(ev, dict(CHARACTERS.get(ev["speaker"], CHARACTERS["Eduardo"])))
+            rend.prepare(ev, dict(CHARACTERS.get(ev.get("speaker") or "", CHARACTERS["Eduardo"])))
 
         silent = output_dir / f"silent-{tag}.mp4"
         cmd = [
