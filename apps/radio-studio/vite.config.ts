@@ -5,8 +5,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 let gitCommit = "unknown";
+let gitBranch = "unknown";
 try {
   gitCommit = execSync("git rev-parse --short HEAD").toString().trim();
+  gitBranch = execSync("git rev-parse --abbrev-ref HEAD").toString().trim();
 } catch {}
 const buildTime = new Date().toISOString();
 
@@ -18,7 +20,7 @@ const writeBuildInfoPlugin: Plugin = {
       fs.mkdirSync(outDir, { recursive: true });
       fs.writeFileSync(
         path.join(outDir, "build-info.json"),
-        JSON.stringify({ gitCommit, buildTime }, null, 2)
+        JSON.stringify({ gitBranch, gitCommit, buildTime }, null, 2)
       );
     } catch {}
   },
@@ -30,6 +32,7 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   plugins: [react(), writeBuildInfoPlugin],
   define: {
+    __BUILD_GIT_BRANCH__: JSON.stringify(gitBranch),
     __BUILD_GIT_SHA__: JSON.stringify(gitCommit),
     __BUILD_TIME__: JSON.stringify(buildTime),
   },

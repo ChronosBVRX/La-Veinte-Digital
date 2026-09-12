@@ -648,13 +648,21 @@ import type {
   VerifyResult,
   Script,
   Commercial,
+  AssetItem,
+  ReferenceItem,
+  VisualPlan,
+  VisualBeat,
+  ProductionPreferences,
 } from "@la-veinte/studio-contract";
+
+export type { ProductionPreferences, VisualPlan, VisualBeat, AssetItem, ReferenceItem };
 
 export interface CreateProjectInput {
   topic: string;
   titulo?: string;
   config?: Partial<ProjectConfig>;
   script?: Script | null;
+  productionPreferences?: ProductionPreferences;
 }
 
 export async function createProject(input: CreateProjectInput): Promise<Project> {
@@ -669,6 +677,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
       contextoExtra: "",
       modo: "ia",
       comerciales: { enabled: false, ids: [], allowDirectorChoice: true, count: "auto", ubicacion: "auto", interaccion: "natural", duracionSec: 30 },
+      ...(input.productionPreferences ? { productionPreferences: input.productionPreferences } : {}),
       ...(input.config ?? {}),
     },
   }, 20000, 3);
@@ -749,3 +758,115 @@ export async function listCommercials(): Promise<Commercial[]> {
 export async function seedCommercials(): Promise<{ added: number; items: Commercial[] }> {
   return post<{ added: number; items: Commercial[] }>("/commercials?seed=true", {}, 10000).catch(() => ({ added: 0, items: [] } as { added: number; items: Commercial[] }));
 }
+
+// ─── Producción Visual y Biblioteca de Assets ─────────────────────────────────
+
+export interface ListAssetsFilter {
+  category?: string;
+  type?: string;
+  query?: string;
+  tag?: string;
+  onlyFavorites?: boolean;
+}
+
+export async function listAssets(filter?: ListAssetsFilter): Promise<AssetItem[]> {
+  const params = new URLSearchParams();
+  if (filter?.category) params.set("category", filter.category);
+  if (filter?.type) params.set("type", filter.type);
+  if (filter?.query) params.set("q", filter.query);
+  if (filter?.tag) params.set("tag", filter.tag);
+  if (filter?.onlyFavorites) params.set("favorites", "true");
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  try {
+    return await get<AssetItem[]>(`/assets${qs}`, 5000);
+  } catch {
+    return [];
+  }
+}
+
+export async function uploadAsset(payload: {
+  filename: string;
+  base64: string;
+  entity?: string;
+  category?: string;
+  type?: string;
+  tags?: string[];
+  source?: string;
+  orientation?: string[];
+}): Promise<AssetItem> {
+  return post<AssetItem>("/assets/upload", payload, 30000);
+}
+
+export async function toggleAssetFavorite(id: string): Promise<{ id: string; favorite: boolean }> {
+  return post<{ id: string; favorite: boolean }>(`/assets/${id}/favorite`, {}, 5000);
+}
+
+export async function toggleAssetBlock(id: string): Promise<{ id: string; blocked: boolean }> {
+  return post<{ id: string; blocked: boolean }>(`/assets/${id}/block`, {}, 5000);
+}
+
+export async function researchAssetEntity(entity: string): Promise<{ entity: string; reference: ReferenceItem }> {
+  return post<{ entity: string; reference: ReferenceItem }>("/assets/research", { entity }, 60000);
+}
+
+export async function generateAsset(options: {
+  entity: string;
+  category?: string;
+  investigateReferences?: boolean;
+  orientations?: string[];
+  stylePrompt?: string;
+}): Promise<{
+  entity: string;
+  reference: ReferenceItem;
+  status: string;
+  generatedAsset?: AssetItem;
+  fallbackAsset?: AssetItem;
+  message?: string;
+}> {
+  return post("/assets/generate", options, 60000);
+}
+
+export async function getProjectVisualPlan(id: string): Promise<VisualPlan | null> {
+  try {
+    return await get<VisualPlan>(`/projects/${id}/visual-plan`, 5000);
+  } catch {
+    return null;
+  }
+}
+
+export async function updateProjectVisualBeat(
+  id: string,
+  beatId: string,
+  patch: Partial<VisualBeat>
+): Promise<{ ok: boolean; beatId: string; plan: VisualPlan }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+  try {
+    const res = await fetch(`${SIDECAR_URL}/projects/${id}/visual-plan/${beatId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw await parseError(res);
+    return (await res.json()) as { ok: boolean; beatId: string; plan: VisualPlan };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function getProjectReferences(id: string): Promise<Record<string, ReferenceItem> | null> {
+  try {
+    return await get<Record<string, ReferenceItem>>(`/projects/${id}/references`, 5000);
+  } catch {
+    return null;
+  }
+}
+
+export async function renderProjectVisual(
+  id: string,
+  options?: { formats?: string[] }
+): Promise<{ ok: boolean; projectId: string; formats: string[]; started: boolean }> {
+  return post(`/projects/${id}/render-visual`, options || {}, 15000);
+}
+

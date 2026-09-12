@@ -5,10 +5,10 @@ import { CrearEpisodio } from "./screens/CrearEpisodio";
 import { Produccion } from "./screens/Produccion";
 import { Timeline } from "./screens/Timeline";
 import { BibliotecaAudio } from "./screens/BibliotecaAudio";
-import { BibliotecaNormativaStudio } from "./screens/BibliotecaNormativaStudio";
 import { Locutores } from "./screens/Locutores";
+import { Bibliotecas } from "./screens/Bibliotecas";
 import { fetchStudioStatus, createProject, type StudioStatus } from "./lib/studio-api";
-import { PROFUNDIDAD_MIN, type Profundidad, type Script } from "@la-veinte/studio-contract";
+import { PROFUNDIDAD_MIN, type Profundidad, type Script, type ProductionPreferences } from "@la-veinte/studio-contract";
 import { classifyInput, parseScript, deriveShortTitle } from "@la-veinte/radio-core";
 import "./studio.css";
 
@@ -21,7 +21,7 @@ const NAV_ESTUDIO: Array<{ id: Screen; label: string; icon: string }> = [
   { id: "timeline", label: "Editar audio", icon: "🎚️" },
   { id: "locutores", label: "Voces", icon: "🗣️" },
   { id: "audio", label: "Música", icon: "🎧" },
-  { id: "biblioteca", label: "Documentos", icon: "📚" },
+  { id: "biblioteca", label: "Bibliotecas", icon: "📚" },
 ];
 
 const NAV_SIMPLE: Array<{ id: Screen; label: string; icon: string }> = [
@@ -31,10 +31,15 @@ const NAV_SIMPLE: Array<{ id: Screen; label: string; icon: string }> = [
 ];
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>("inicio");
+  const [screen, setScreen] = useState<Screen>(() => {
+    const s = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("screen") : null;
+    return s ? (s as Screen) : "inicio";
+  });
   const [status, setStatus] = useState<StudioStatus | null>(null);
   const [sidecarOnline, setSidecarOnline] = useState(false);
-  const [projectId, setProjectId] = useState<string | null>(null);
+  const [projectId, setProjectId] = useState<string | null>(() => {
+    return typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("projectId") : null;
+  });
   const [mode, setMode] = useState<"simple" | "estudio">(() => (localStorage.getItem("studio:modo") === "estudio" ? "estudio" : "simple"));
   const [crearTema, setCrearTema] = useState("");
   const [workId, setWorkId] = useState(0);
@@ -56,7 +61,7 @@ export default function App() {
     tema: string,
     comerciales = false,
     profundidad: Profundidad = "estandar",
-    options?: { script?: Script | null; forceTopic?: boolean }
+    options?: { script?: Script | null; forceTopic?: boolean; productionPreferences?: ProductionPreferences }
   ) => {
     if (!tema) return;
     try {
@@ -77,11 +82,13 @@ export default function App() {
         titulo: shortTitle,
         hasScript: !!scriptToPass,
         scriptTurns: scriptToPass?.turns?.length ?? 0,
+        productionPreferences: options?.productionPreferences,
       });
       const p = await createProject({
         topic: tema,
         titulo: shortTitle,
         script: scriptToPass,
+        productionPreferences: options?.productionPreferences,
         config: {
           duracionMin: PROFUNDIDAD_MIN[profundidad] ?? 15,
           profundidad,
@@ -147,8 +154,9 @@ export default function App() {
             <div className={`sidecar-dot ${sidecarOnline ? "on" : ""}`} />
             <span>{sidecarOnline ? "Listo para trabajar" : "Conectando con el estudio"}</span>
           </div>
-          <div style={{ fontSize: "10px", color: "var(--muted)", opacity: 0.8, fontFamily: "monospace", marginTop: 4 }}>
-            BUILD: {__BUILD_GIT_SHA__} · {__BUILD_TIME__}
+          <div style={{ fontSize: "10px", color: "var(--muted)", opacity: 0.85, fontFamily: "monospace", marginTop: 4, lineHeight: 1.4 }}>
+            <div>{__BUILD_GIT_BRANCH__} · {__BUILD_GIT_SHA__}</div>
+            <div>{__BUILD_TIME__}</div>
           </div>
         </div>
       </aside>
@@ -156,7 +164,7 @@ export default function App() {
       <main className="content">
         {mode === "simple" && screen === "inicio" && <Inicio onCrear={abrirNuevoTema} onOpen={(id) => { setProjectId(id); setScreen("proyecto"); }} />}
         {mode === "simple" && screen === "proyecto" && (projectId ? <ProyectoSimple projectId={projectId} onBack={() => setScreen("inicio")} /> : <p className="muted">Abre o crea un episodio desde Inicio.</p>)}
-        {mode === "simple" && screen === "biblioteca" && <BibliotecaNormativaStudio onCrearEpisodio={(t) => void abrirNuevoTema(t, false)} />}
+        {mode === "simple" && screen === "biblioteca" && <Bibliotecas onCrearEpisodio={(t) => void abrirNuevoTema(t, false)} />}
 
         {mode === "estudio" && (
           <>
@@ -165,7 +173,7 @@ export default function App() {
             {screen === "crear" && <CrearEpisodio key={workId} temaInicial={crearTema} status={status} onProducir={() => setScreen("produccion")} />}
             {screen === "produccion" && <Produccion />}
             {screen === "timeline" && <Timeline />}
-            {screen === "biblioteca" && <BibliotecaNormativaStudio onCrearEpisodio={(t) => void abrirNuevoTema(t, false)} />}
+            {screen === "biblioteca" && <Bibliotecas onCrearEpisodio={(t) => void abrirNuevoTema(t, false)} />}
             {screen === "locutores" && <Locutores />}
             {screen === "audio" && <BibliotecaAudio />}
           </>
