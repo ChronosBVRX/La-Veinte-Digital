@@ -122,9 +122,27 @@ def render_project_visual(
             json.dumps(research_report.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
-    resolver = AssetResolver()
-    planner = VisualEditorialPlanner(entity_detector=detector, asset_resolver=resolver, researcher=researcher)
-    visual_plan = planner.plan_project(proj.get("id", "master"), turns, alignment_obj, dur_s)
+    existing_plan_p = project_path.parent / "visual-plan.json"
+    if existing_plan_p.exists():
+        try:
+            plan_dict = json.loads(existing_plan_p.read_text(encoding="utf-8"))
+            from app.visual.editorial.visual_editorial_planner import VisualPlan
+            visual_plan = VisualPlan(
+                project_id=plan_dict.get("project_id", proj.get("id", "master")),
+                duration_s=float(plan_dict.get("duration_s", dur_s)),
+                total_beats=int(plan_dict.get("total_beats", len(plan_dict.get("beats", [])))),
+                visual_mix=plan_dict.get("visual_mix", {}),
+                beats=plan_dict.get("beats", []),
+            )
+        except Exception:
+            resolver = AssetResolver()
+            planner = VisualEditorialPlanner(entity_detector=detector, asset_resolver=resolver, researcher=researcher)
+            visual_plan = planner.plan_project(proj.get("id", "master"), turns, alignment_obj, dur_s)
+    else:
+        resolver = AssetResolver()
+        planner = VisualEditorialPlanner(entity_detector=detector, asset_resolver=resolver, researcher=researcher)
+        visual_plan = planner.plan_project(proj.get("id", "master"), turns, alignment_obj, dur_s)
+
     (output_dir / "visual-plan.json").write_text(
         json.dumps(visual_plan.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -273,7 +291,7 @@ def render_project_visual(
             if ev.get("scene_type") == "number" and number_reveal_f is None and lf >= 8:
                 number_reveal_f = lf
 
-            if f > 0 and f % 3000 == 0:
+            if f > 0 and f % 300 == 0:
                 sys.stderr.write(f"[{tag}] Frame {f}/{total_f} ({f*100//total_f}%) - {round(time.time() - t0, 1)}s\n")
                 sys.stderr.flush()
 
