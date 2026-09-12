@@ -261,6 +261,13 @@ export function Inicio({
                 ? `${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(p.master.master.replace(/\\/g, "/"))}`
                 : null;
               const tieneAudio = Boolean(audioUrl || p.state === "DONE");
+              const tieneVideo = Boolean(p.visual?.status === "READY" && p.visual?.files);
+              const video16x9Url = p.visual?.files?.video16x9
+                ? `${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(p.visual.files.video16x9.replace(/\\/g, "/"))}`
+                : null;
+              const video9x16Url = p.visual?.files?.video9x16
+                ? `${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(p.visual.files.video9x16.replace(/\\/g, "/"))}`
+                : null;
               return (
                 <section key={p.id} className="card" style={{ padding: 14 }}>
                   <div className="row" style={{ justifyContent: "space-between", width: "100%", gap: 10, flexWrap: "wrap" }}>
@@ -268,15 +275,18 @@ export function Inicio({
                       <div style={{ fontWeight: 700, fontSize: "1rem" }}>{titleOf(p)}</div>
                       <div className="muted small" style={{ marginTop: 2 }}>
                         <span style={{ color: tieneAudio ? "#22c55e" : undefined, fontWeight: tieneAudio ? 600 : undefined }}>
-                          {tieneAudio ? "✓ Audio listo" : (STATE_LABELS[p.state] ?? p.state)}
+                          {tieneAudio
+                            ? (tieneVideo ? "✓ Audio y Video listos" : "✓ Audio listo")
+                            : (STATE_LABELS[p.state] ?? p.state)}
                         </span>
                         {" · "}
                         {fecha(p)}
                         {p.master?.duraccionMs ? ` · ${formatoMinSeg(p.master.duraccionMs)}` : p.proposal ? ` · ~${p.proposal.duracionEstimadaMin} min` : ""}
                         {p.master?.bytes ? ` · ${(p.master.bytes / 1024 / 1024).toFixed(1)} MB` : ""}
+                        {tieneVideo ? " · 🎬 16:9 y 9:16" : ""}
                       </div>
                     </div>
-                    <div className="row" style={{ gap: 8, flexShrink: 0, alignItems: "center" }}>
+                    <div className="row" style={{ gap: 8, flexShrink: 0, alignItems: "center", flexWrap: "wrap" }}>
                       {audioUrl && (
                         <a
                           className="chip-mini ok"
@@ -299,8 +309,52 @@ export function Inicio({
                           ⬇ MP3
                         </a>
                       )}
+                      {video16x9Url && (
+                        <a
+                          className="chip-mini ok"
+                          href={video16x9Url}
+                          download={`episodio-${p.id}-16x9.mp4`}
+                          title="Descargar Video 16:9 (YouTube)"
+                          style={{
+                            textDecoration: "none",
+                            padding: "5px 10px",
+                            borderRadius: 8,
+                            background: "#3b82f6",
+                            color: "#ffffff",
+                            fontWeight: 600,
+                            fontSize: "0.8rem",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          🎬 Video 16:9
+                        </a>
+                      )}
+                      {video9x16Url && (
+                        <a
+                          className="chip-mini ok"
+                          href={video9x16Url}
+                          download={`episodio-${p.id}-9x16.mp4`}
+                          title="Descargar Video 9:16 (TikTok/Reels)"
+                          style={{
+                            textDecoration: "none",
+                            padding: "5px 10px",
+                            borderRadius: 8,
+                            background: "#8b5cf6",
+                            color: "#ffffff",
+                            fontWeight: 600,
+                            fontSize: "0.8rem",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          📱 Video 9:16
+                        </a>
+                      )}
                       <button className="btn-secondary" onClick={() => onOpen(p.id)}>
-                        {tieneAudio ? "VER EPISODIO" : "CONTINUAR"}
+                        {tieneAudio || tieneVideo ? "VER EPISODIO" : "CONTINUAR"}
                       </button>
                       {confirmando === p.id ? (
                         <>
