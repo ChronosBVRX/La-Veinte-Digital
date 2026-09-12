@@ -27,6 +27,11 @@ function mapEmailRateLimit(error: { message?: string; status?: number }): string
   return null
 }
 
+function getCaptchaToken(formData: FormData): string | undefined {
+  const token = (formData.get("captcha_token") as string)?.trim()
+  return token ? token : undefined
+}
+
 export async function signInAction(_prev: AuthState, formData: FormData) {
   const supabase = await createClient()
   const email = formData.get("email") as string
@@ -50,6 +55,7 @@ export async function signUpAction(
   const password = formData.get("password") as string
   const fullName = formData.get("full_name") as string
   const origin = await getRequestOrigin()
+  const captchaToken = getCaptchaToken(formData)
 
   const { error } = await supabase.auth.signUp({
     email,
@@ -57,6 +63,7 @@ export async function signUpAction(
     options: {
       data: { full_name: fullName },
       emailRedirectTo: `${origin}/callback`,
+      ...(captchaToken ? { captchaToken } : {}),
     },
   })
   if (error) {
@@ -81,9 +88,11 @@ export async function resetPasswordRequestAction(
   }
 
   const origin = await getRequestOrigin()
+  const captchaToken = getCaptchaToken(formData)
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/callback?next=/restablecer-password`,
+    ...(captchaToken ? { captchaToken } : {}),
   })
 
   if (error) {
@@ -133,11 +142,15 @@ export async function resendConfirmationAction(
   }
 
   const origin = await getRequestOrigin()
+  const captchaToken = getCaptchaToken(formData)
 
   const { error } = await supabase.auth.resend({
     type: "signup",
     email,
-    options: { emailRedirectTo: `${origin}/callback` },
+    options: {
+      emailRedirectTo: `${origin}/callback`,
+      ...(captchaToken ? { captchaToken } : {}),
+    },
   })
 
   if (error) {

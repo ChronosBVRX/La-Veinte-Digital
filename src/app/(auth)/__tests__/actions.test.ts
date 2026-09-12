@@ -100,6 +100,24 @@ describe("signUpAction", () => {
     expect(result).toEqual({ error: "Demasiados intentos. Espera 60 segundos antes de reintentarlo." })
   })
 
+  it("reenvía el captchaToken a Supabase cuando existe", async () => {
+    mocks.signUp.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null })
+    const fd = formData()
+    fd.append("captcha_token", "tok-123")
+
+    await signUpAction(undefined, fd)
+
+    expect(mocks.signUp).toHaveBeenCalledWith({
+      email: "user@test.local",
+      password: "secret123",
+      options: {
+        data: { full_name: "Test User" },
+        emailRedirectTo: "http://localhost:3000/callback",
+        captchaToken: "tok-123",
+      },
+    })
+  })
+
   it("no llama a profiles.upsert", async () => {
     mocks.signUp.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null })
 
@@ -154,5 +172,22 @@ describe("resendConfirmationAction", () => {
     const result = await resendConfirmationAction(undefined, emailOnly("user@test.local"))
 
     expect(result).toEqual({ error: "Demasiados intentos. Espera 60 segundos antes de reintentarlo." })
+  })
+
+  it("reenvía el captchaToken a Supabase cuando existe", async () => {
+    mocks.resend.mockResolvedValue({ data: {}, error: null })
+    const fd = emailOnly("user@test.local")
+    fd.append("captcha_token", "tok-abc")
+
+    await resendConfirmationAction(undefined, fd)
+
+    expect(mocks.resend).toHaveBeenCalledWith({
+      type: "signup",
+      email: "user@test.local",
+      options: {
+        emailRedirectTo: "http://localhost:3000/callback",
+        captchaToken: "tok-abc",
+      },
+    })
   })
 })
