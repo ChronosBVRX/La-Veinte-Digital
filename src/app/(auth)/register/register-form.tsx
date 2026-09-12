@@ -2,7 +2,7 @@
 
 import { useActionState } from "react"
 import Link from "next/link"
-import { Mail, Lock, UserPlus, AlertCircle, User } from "lucide-react"
+import { Mail, Lock, UserPlus, AlertCircle, User, CheckCircle } from "lucide-react"
 import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
 import { signUpAction } from "../actions"
@@ -10,6 +10,52 @@ import { signInWithOAuth } from "@/lib/services/auth-client"
 
 export function RegisterForm() {
   const [state, formAction, pending] = useActionState(signUpAction, undefined)
+
+  if (state?.success) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", textAlign: "center" }}>
+        <div style={{
+          width: 48,
+          height: 48,
+          borderRadius: "50%",
+          background: "var(--state-success-bg)",
+          color: "var(--state-success-fg)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          margin: "0 auto",
+        }}>
+          <CheckCircle size={28} />
+        </div>
+        <div>
+          <h2 style={{ fontSize: "var(--text-md)", fontWeight: 700, margin: "0 0 0.5rem" }}>
+            Revisa tu correo electrónico
+          </h2>
+          <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
+            {state.message}
+          </p>
+        </div>
+        <Link
+          href="/login"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.5rem",
+            padding: "0.75rem 1rem",
+            background: "var(--accent)",
+            borderRadius: "var(--radius)",
+            color: "var(--fg)",
+            textDecoration: "none",
+            fontSize: "var(--text-sm)",
+            fontWeight: 600,
+          }}
+        >
+          Ir al inicio de sesión
+        </Link>
+      </div>
+    )
+  }
 
   return (
     <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
