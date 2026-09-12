@@ -1,4 +1,4 @@
-﻿/**
+/**
  * visual-job-store.ts — Persistencia y reconciliación de jobs de renderizado visual.
  * Garantiza que el render sea recuperable tras caídas o reinicios del sidecar.
  */
@@ -26,6 +26,13 @@ export interface VisualJob {
   files: { preview?: string; video16x9?: string; video9x16?: string };
   report?: unknown;
   error?: string | null;
+  progress?: {
+    format: string;
+    frame: number;
+    totalFrames: number;
+    percent: number;
+    elapsedSec: number;
+  };
 }
 
 const VISUAL_JOBS_DIR = path.join(

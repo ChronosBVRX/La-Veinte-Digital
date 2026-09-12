@@ -44,6 +44,8 @@ import { CommercialLibraryService } from "./services/commercial-service";
 import { LocalEditorialLLM } from "./llm/editorial/editorial-llm";
 import { routeProject, friendlyProjectError, type ProjectRouteCtx } from "./routes/project-routes";
 import { routeCommercial, type CommercialRouteCtx } from "./routes/commercial-routes";
+import { VisualAssetService } from "./services/visual-asset-service";
+import { routeVisual, type VisualRouteCtx } from "./routes/visual-routes";
 import { resolveMediaSafe } from "./services/media-security";
 import type { Script as StudioScript, ProgressEventType } from "@la-veinte/studio-contract";
 
@@ -80,6 +82,7 @@ loadLocalEnv(path.join(REPO, ".env.local"));
 // ── Servicios del flujo de episodio (proposal-first) ──
 const projectStore = makeProjectStoreForRepo(REPO);
 const commercialService = new CommercialLibraryService(path.join(REPO, "data", "tts", "commercials"));
+const visualAssetService = new VisualAssetService(REPO);
 const editorialLlm = LocalEditorialLLM.create(REPO);
 let workflowSingleton: ProjectWorkflowService | null = null;
 function getWorkflow(): ProjectWorkflowService {
@@ -1844,6 +1847,8 @@ function mediaRoots(): string[] {
   return [
     path.join(REPO, "data", "tts"),
     path.join(REPO, "data", "projects"),
+    path.join(REPO, "assets"),
+    path.join(REPO, "qa"),
     path.join(REPO, "output"),
   ].map((p) => path.resolve(p));
 }
@@ -1854,7 +1859,16 @@ async function handleMedia(req: http.IncomingMessage, res: http.ServerResponse, 
   const target = resolveMediaSafe(raw, mediaRoots());
   if (!target) return json(res, 404, { error: "archivo no disponible" });
   const ext = path.extname(target).toLowerCase();
-  const mime = ext === ".wav" ? "audio/wav" : ext === ".mp3" ? "audio/mpeg" : ext === ".m4a" ? "audio/mp4" : ext === ".mp4" ? "video/mp4" : "application/octet-stream";
+  const mime =
+    ext === ".wav" ? "audio/wav"
+    : ext === ".mp3" ? "audio/mpeg"
+    : ext === ".m4a" ? "audio/mp4"
+    : ext === ".mp4" ? "video/mp4"
+    : ext === ".png" ? "image/png"
+    : ext === ".webp" ? "image/webp"
+    : ext === ".jpg" || ext === ".jpeg" ? "image/jpeg"
+    : ext === ".svg" ? "image/svg+xml"
+    : "application/octet-stream";
 
   const stat = fs.statSync(target);
   const totalSize = stat.size;
@@ -2151,6 +2165,13 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/master") return await handleMaster(res, await readBody(req));
     if (req.method === "POST" && url.pathname === "/regenerate") return await handleRegenerate(res, await readBody(req));
     if (req.method === "POST" && url.pathname === "/tts-fallback") return await handleFallbackTts(res, await readBody(req));
+    // ── Rutas visuales y catálogo de assets ──
+    const vctx: VisualRouteCtx = {
+      assetService: visualAssetService,
+      json,
+      startVisualProduction,
+    };
+    if (await routeVisual(url, req, res, vctx, () => readBody(req))) return;
     // ── Rutas de proyecto (proposal-first) ──
     const pctx: ProjectRouteCtx = {
       store: projectStore,
@@ -2160,6 +2181,7 @@ const server = http.createServer(async (req, res) => {
       startProduction: startProjectProduction,
       startVisualProduction,
       onDelete: deleteProjectCleanup,
+      getVisualJob: leerVisualJob,
     };
     if (await routeProject(url, req, res, pctx, () => readBody(req))) return;
     const cctx: CommercialRouteCtx = { commercials: commercialService, json };
@@ -2249,7 +2271,7 @@ async function startProjectProduction(id: string, script: StudioScript): Promise
 }
 
 /** Lanza la generación de video del proyecto en segundo plano. */
-async function startVisualProduction(id: string): Promise<void> {
+async function startVisualProduction(id: string, requestedFormats?: string[]): Promise<void> {
   const project = projectStore.get(id);
   if (!project) throw new Error("PROJECT_NOT_FOUND");
   if (!project.master?.master) throw new Error("MASTER_AUDIO_REQUIRED");
@@ -2294,15 +2316,19 @@ async function startVisualProduction(id: string): Promise<void> {
     ? project.master.master
     : path.join(REPO, project.master.master);
 
+  const formatsToUse = requestedFormats && requestedFormats.length > 0
+    ? requestedFormats
+    : ["preview", "16x9", "9x16"];
+
   projectStore.update(id, {
     visual: {
       status: "RENDERING",
       renderedAt: new Date().toISOString(),
-      files: {},
+      files: project.visual?.files || {},
       error: null,
     },
   });
-  projectLog(id, "visual.started", { projectId: id, alignment: activeAlignment });
+  projectLog(id, "visual.started", { projectId: id, alignment: activeAlignment, formats: formatsToUse });
 
   const scriptPath = path.join(REPO, "backend", "app", "visual", "project_renderer.py");
   const proc = spawn("python", [
@@ -2311,7 +2337,7 @@ async function startVisualProduction(id: string): Promise<void> {
     "--master", masterAudio,
     "--alignment", activeAlignment,
     "--output-dir", outDir,
-    "--formats", "preview,16x9,9x16",
+    "--formats", formatsToUse.join(","),
   ], {
     cwd: REPO,
     stdio: ["ignore", "pipe", "pipe"],
@@ -2324,17 +2350,33 @@ async function startVisualProduction(id: string): Promise<void> {
     pid: proc.pid,
     startedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    formats: ["preview", "16x9", "9x16"],
+    formats: formatsToUse,
     outputDir: outDir,
     alignmentPath: activeAlignment,
     masterPath: masterAudio,
-    files: {},
+    files: project.visual?.files || {},
     error: null,
   };
   guardarVisualJob(visualJob);
 
   let stderr = "";
-  proc.stderr.on("data", (d) => { stderr += d.toString(); });
+  proc.stderr.on("data", (d) => {
+    const text = d.toString();
+    stderr += text;
+    // Parse progress: [16x9] Frame 300/22079 (1%) - 4.5s
+    const progressMatch = text.match(/\[(\w+)\] Frame (\d+)\/(\d+) \((\d+)%\) - ([\d\.]+)s/);
+    if (progressMatch) {
+      visualJob.progress = {
+        format: progressMatch[1],
+        frame: parseInt(progressMatch[2], 10),
+        totalFrames: parseInt(progressMatch[3], 10),
+        percent: parseInt(progressMatch[4], 10),
+        elapsedSec: parseFloat(progressMatch[5]),
+      };
+      visualJob.updatedAt = new Date().toISOString();
+      guardarVisualJob(visualJob);
+    }
+  });
 
   proc.on("close", (code) => {
     if (code === 0) {
@@ -2352,12 +2394,14 @@ async function startVisualProduction(id: string): Promise<void> {
         const abs16x9 = path.join(REPO, rel16x9);
         const abs9x16 = path.join(REPO, rel9x16);
 
-        // Validar que los 3 videos realmente existan y tengan tamaño > 0
-        const filesToCheck = [
+        const allCandidates = [
           { tag: "preview", abs: absPreview, rel: relPreview },
           { tag: "16x9", abs: abs16x9, rel: rel16x9 },
           { tag: "9x16", abs: abs9x16, rel: rel9x16 },
         ];
+
+        // Validar únicamente los videos solicitados
+        const filesToCheck = allCandidates.filter((item) => formatsToUse.includes(item.tag));
 
         for (const item of filesToCheck) {
           if (!fs.existsSync(item.abs) || fs.statSync(item.abs).size === 0) {
@@ -2380,39 +2424,41 @@ async function startVisualProduction(id: string): Promise<void> {
           throw new Error(`ffprobe falló al verificar integridad del video: ${probeErr instanceof Error ? probeErr.message : String(probeErr)}`);
         }
 
-        const files = {
-          preview: relPreview,
-          video16x9: rel16x9,
-          video9x16: rel9x16,
-        };
+        const currentFiles = project.visual?.files || {};
+        const newFiles: { preview?: string; video16x9?: string; video9x16?: string } = { ...currentFiles };
+        if (formatsToUse.includes("preview")) newFiles.preview = relPreview;
+        if (formatsToUse.includes("16x9")) newFiles.video16x9 = rel16x9;
+        if (formatsToUse.includes("9x16")) newFiles.video9x16 = rel9x16;
 
         visualJob.status = "READY";
-        visualJob.files = files;
+        visualJob.files = newFiles;
         visualJob.report = reportData;
         visualJob.error = null;
+        visualJob.progress = undefined;
         guardarVisualJob(visualJob);
 
         projectStore.update(id, {
           visual: {
             status: "READY",
             renderedAt: new Date().toISOString(),
-            files,
+            files: newFiles,
             report: reportData,
             error: null,
           },
         });
-        projectLog(id, "visual.ready", files);
+        projectLog(id, "visual.ready", newFiles);
       } catch (e) {
         const errorMsg = e instanceof Error ? e.message : String(e);
         visualJob.status = "FAILED";
         visualJob.error = errorMsg;
+        visualJob.progress = undefined;
         guardarVisualJob(visualJob);
 
         projectStore.update(id, {
           visual: {
             status: "FAILED",
             error: errorMsg,
-            files: {},
+            files: project.visual?.files || {},
           },
         });
         projectLog(id, "visual.failed", { error: errorMsg });
@@ -2421,13 +2467,14 @@ async function startVisualProduction(id: string): Promise<void> {
       const errorMsg = stderr.trim() || `Render falló con código ${code}`;
       visualJob.status = "FAILED";
       visualJob.error = errorMsg;
+      visualJob.progress = undefined;
       guardarVisualJob(visualJob);
 
       projectStore.update(id, {
         visual: {
           status: "FAILED",
           error: errorMsg,
-          files: {},
+          files: project.visual?.files || {},
         },
       });
       projectLog(id, "visual.failed", { error: errorMsg });

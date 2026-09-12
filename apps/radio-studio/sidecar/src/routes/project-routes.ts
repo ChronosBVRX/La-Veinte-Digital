@@ -30,6 +30,8 @@ export interface ProjectRouteCtx {
   startVisualProduction?: (id: string) => Promise<void>;
   /** Limpia un trabajo de producción activo asociado al proyecto (implementada en index.ts). */
   onDelete?: (id: string) => void;
+  /** Consulta el estado del job visual para reportar progreso en tiempo real */
+  getVisualJob?: (id: string) => unknown;
 }
 
 function parseId(raw: string): string {
@@ -52,6 +54,18 @@ export async function routeProject(url: URL, req: import("node:http").IncomingMe
   if (method === "GET" && segments.length === 2 && id) {
     const project = ctx.store.get(id);
     if (!project) { ctx.json(res, 404, { error: "PROJECT_NOT_FOUND" }); return true; }
+    const vj = ctx.getVisualJob?.(id);
+    if (vj && vj.status === "RENDERING" && vj.progress) {
+      ctx.json(res, 200, {
+        ...project,
+        visual: {
+          ...(project.visual || {}),
+          status: "RENDERING",
+          progress: vj.progress,
+        },
+      });
+      return true;
+    }
     ctx.json(res, 200, project);
     return true;
   }
