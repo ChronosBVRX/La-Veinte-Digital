@@ -51,6 +51,15 @@ export const ClipResultSchema = z.object({
 });
 export type ClipResult = z.infer<typeof ClipResultSchema>;
 
+export const VisualProgressSchema = z.object({
+  format: z.string(),
+  frame: z.number(),
+  totalFrames: z.number(),
+  percent: z.number(),
+  elapsedSec: z.number(),
+});
+export type VisualProgress = z.infer<typeof VisualProgressSchema>;
+
 export const VisualResultSchema = z.object({
   status: z.enum(["IDLE", "RENDERING", "READY", "FAILED"]).default("IDLE"),
   error: z.string().nullable().optional(),
@@ -63,5 +72,6 @@ export const VisualResultSchema = z.object({
     })
     .default({}),
   report: z.unknown().nullable().optional(),
+  progress: VisualProgressSchema.nullable().optional(),
 });
 export type VisualResult = z.infer<typeof VisualResultSchema>;

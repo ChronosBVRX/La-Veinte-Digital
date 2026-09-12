@@ -34,6 +34,8 @@ export const PROFUNDIDAD_LABELS: Record<Profundidad, string> = {
   profundo: "A fondo — explicación completa",
 };
 
+import { ProductionPreferencesSchema } from "./visual-production";
+
 export const ProjectConfigSchema = z.object({
   duracionMin: z.number().default(15),
   profundidad: ProfundidadSchema.default("estandar"),
@@ -41,6 +43,7 @@ export const ProjectConfigSchema = z.object({
   contextoExtra: z.string().default(""),
   modo: z.enum(["determinista", "ia"]).default("ia"),
   comerciales: CommercialSelectionSchema,
+  productionPreferences: ProductionPreferencesSchema.optional(),
 });
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
 

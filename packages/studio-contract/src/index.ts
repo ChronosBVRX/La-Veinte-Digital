@@ -12,3 +12,4 @@ export * from "./production";
 export * from "./alignment";
 export * from "./events";
 export * from "./project";
+export * from "./visual-production";
