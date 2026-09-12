@@ -13,9 +13,18 @@ VARIANTS = {
                     "explanation-keywords"},
     "warning": {"warning-focus"}, "quote": {"quote-card"},
     "transition": {"transition-line"}, "closing": {"closing-full"},
+    "speaker_focus": {"conversation-center", "conversation-left", "conversation-right", "conversation-open"},
+    "brand_opening": {"brand-full"}, "brand_closing": {"closing-full"},
+    "real_building": {"building-hero", "conversation-center"},
+    "organization_context": {"organization-card", "conversation-center"},
+    "document_cover": {"document-card", "conversation-center"},
+    "topic_image": {"topic-card", "conversation-center"},
+    "stat_card": {"number-hero", "stat-card", "conversation-center"},
+    "comparison": {"comparison-card", "conversation-center"},
+    "payroll_visual": {"payroll-card", "conversation-center"},
 }
 
-KNOWN = {"Eduardo", "Andrea", "Javier Ríos", "Rodrigo Torres",
+KNOWN = {"Eduardo", "Andrea", "Javier Ríos", "Javier Rios", "Rodrigo Torres",
          "Valeria Soto", "Solo esto", "Solo recordarles"}
 
 
@@ -39,7 +48,7 @@ def validate_visual_timeline(timeline: dict, duration_s: float) -> dict:
             blocking.append(f"beat_id duplicado: {bid}")
         seen.add(bid)
         spk = e.get("speaker")
-        if spk not in KNOWN and not (spk in ("", None, "La Veinte Radio") and e.get("scene_type") in ("brand", "closing")):
+        if spk not in KNOWN and not (spk in ("", None, "La Veinte Radio") and e.get("scene_type") in ("brand", "closing", "brand_opening", "brand_closing")):
             blocking.append(f"speaker desconocido: {spk} ({bid})")
         if e.get("scene_type") not in SCENE_TYPES:
             blocking.append(f"escena inválida: {e.get('scene_type')} ({bid})")

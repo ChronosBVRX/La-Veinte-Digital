@@ -102,7 +102,73 @@ def render_project_visual(
 
     wav_path, dur_s = ensure_master_wav(master_audio, output_dir)
     segments = adapt_project_turns(turns, dur_s, alignment=alignment_obj)
-    timeline = build_visual_timeline(segments, dur_s, alignment=alignment_obj)
+
+    # 1. Pipeline Editorial: Análisis de contenido, investigación de referencias y plan de dirección visual
+    from app.visual.editorial import (
+        EntityDetector,
+        ReferenceResearcher,
+        AssetResolver,
+        VisualEditorialPlanner,
+    )
+    detector = EntityDetector()
+    detected_by_turn = detector.detect_in_script(turns)
+    researcher = ReferenceResearcher()
+    research_report = researcher.generate_report(proj.get("id", "master"), turns, detected_by_turn)
+    (output_dir / "reference-research.json").write_text(
+        json.dumps(research_report.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    if project_path.parent.exists():
+        (project_path.parent / "reference-research.json").write_text(
+            json.dumps(research_report.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+    resolver = AssetResolver()
+    planner = VisualEditorialPlanner(entity_detector=detector, asset_resolver=resolver, researcher=researcher)
+    visual_plan = planner.plan_project(proj.get("id", "master"), turns, alignment_obj, dur_s)
+    (output_dir / "visual-plan.json").write_text(
+        json.dumps(visual_plan.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    if project_path.parent.exists():
+        (project_path.parent / "visual-plan.json").write_text(
+            json.dumps(visual_plan.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+    # 2. Timeline visual enriquecido a partir del plan editorial
+    events = []
+    for b in visual_plan.beats:
+        st = b["scene_type"]
+        var = "brand-full" if st in ("brand", "brand_opening") else (
+            "closing-full" if st in ("closing", "brand_closing") else (
+                "number-hero" if st in ("number", "stat_card") else (
+                    "document-card" if st in ("document", "document_cover") else "conversation-center"
+                )
+            )
+        )
+        events.append({
+            "beat_id": b["beat_id"],
+            "speaker": b["speaker"],
+            "start": b["start_s"],
+            "end": b["end_s"],
+            "scene_type": st,
+            "variant": var,
+            "display_text": b["display_text"],
+            "essential": b["display_text"][:140],
+            "chart_type": b.get("chart_type"),
+            "resolved_asset": b.get("resolved_asset"),
+            "overlay_logos": b.get("overlay_logos", []),
+            "density": "normal",
+            "energy": 0.5,
+            "refs": {},
+            "section": False,
+            "emphasis_words": [],
+            "keywords": [],
+        })
+
+    timeline = {
+        "version": "1.2",
+        "duration_s": dur_s,
+        "events": events,
+    }
     (output_dir / "visual-timeline.json").write_text(
         json.dumps(timeline, ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -207,6 +273,10 @@ def render_project_visual(
             if ev.get("scene_type") == "number" and number_reveal_f is None and lf >= 8:
                 number_reveal_f = lf
 
+            if f > 0 and f % 3000 == 0:
+                sys.stderr.write(f"[{tag}] Frame {f}/{total_f} ({f*100//total_f}%) - {round(time.time() - t0, 1)}s\n")
+                sys.stderr.flush()
+
             side = SIDES.get(ev.get("speaker"), 0)
             if ev.get("beat_id") != prev_ev.get("beat_id") and prev_img is not None and not rend.reduced:
                 k = f - next((i for i, e in enumerate(by_frame) if e.get("beat_id") == ev.get("beat_id") and i <= f), f)
@@ -245,7 +315,7 @@ def render_project_visual(
             proc.stdin.write(np.asarray(img).tobytes())
 
         proc.stdin.close()
-        proc.wait(timeout=600)
+        proc.wait(timeout=1800)
         wall = round(time.time() - t0, 1)
 
         final = output_dir / f"episodio-{proj.get('id', 'master')}-{tag}.mp4"
@@ -254,7 +324,7 @@ def render_project_visual(
             "-i", str(silent), "-i", str(master_audio),
             "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
             "-map_metadata", "-1", "-shortest", str(final),
-        ], check=True, timeout=600)
+        ], check=True, timeout=1800)
 
         sync = check_sync(
             str(final), timeline["duration_s"],
@@ -311,6 +381,11 @@ def render_project_visual(
 
     report = {
         "editorial": editorial,
+        "visual_editorial": {
+            "research_report": research_report.to_dict(),
+            "visual_plan_beats": visual_plan.total_beats,
+            "visual_mix": visual_plan.visual_mix,
+        },
         "status": "needs-review" if any(
             v["overflow_canvas"] or v["overflow_platform_safe"]
             or v["animated_bound_violations"] or v["collisions"]

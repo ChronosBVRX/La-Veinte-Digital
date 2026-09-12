@@ -1,0 +1,242 @@
+{
+  "registry_version": "lv-reference-v1",
+  "count": 8,
+  "references": [
+    {
+      "id": "imss_official_identity",
+      "entity": "IMSS",
+      "type": "organization",
+      "research_date": "2026-09-11",
+      "sources": [
+        {
+          "url": "https://www.imss.gob.mx/",
+          "title": "Portal Oficial del Instituto Mexicano del Seguro Social",
+          "source_type": "official",
+          "license": "official"
+        },
+        {
+          "url": "https://upload.wikimedia.org/wikipedia/commons/e/ea/Logotipo_del_IMSS.svg",
+          "title": "Logotipo oficial del IMSS (Vector)",
+          "source_type": "wikimedia",
+          "license": "public-domain",
+          "attribution": "Símbolo patrio / entidad pública descentralizada de México"
+        }
+      ],
+      "verified_characteristics": {
+        "official_name": "Instituto Mexicano del Seguro Social",
+        "primary_color": "#0B4F37",
+        "secondary_color": "#BC955C",
+        "background_tone": "#F8FAFC",
+        "emblem": "Águila amamantando con figura materna protectora y siglas IMSS",
+        "signage_style": "Letras blancas o doradas sobre fondo verde oscuro institucional"
+      },
+      "status": "verified",
+      "stale_after": null,
+      "notes": ""
+    },
+    {
+      "id": "sntss_official_identity",
+      "entity": "SNTSS",
+      "type": "organization",
+      "research_date": "2026-09-11",
+      "sources": [
+        {
+          "url": "https://sntss.org.mx/",
+          "title": "Portal Oficial del Sindicato Nacional de Trabajadores del Seguro Social",
+          "source_type": "official",
+          "license": "official"
+        },
+        {
+          "url": "https://media.sntss.org.mx/media/elements/estatutos-sntss-2022-kc64-image.pdf",
+          "title": "Estatutos SNTSS Edición 2022",
+          "source_type": "official",
+          "license": "reference-only"
+        }
+      ],
+      "verified_characteristics": {
+        "official_name": "Sindicato Nacional de Trabajadores del Seguro Social",
+        "primary_color": "#007A33",
+        "accent_color": "#CE1126",
+        "emblem": "Escudo con engrane, libro y caduceo coronado por águila y siglas S.N.T.S.S.",
+        "congress_visuals": "Auditorio con presídium, pantallas de proyección de cifras, banderas de México y SNTSS"
+      },
+      "status": "verified",
+      "stale_after": null,
+      "notes": ""
+    },
+    {
+      "id": "cfcrl_official_identity",
+      "entity": "CFCRL",
+      "type": "organization",
+      "research_date": "2026-09-11",
+      "sources": [
+        {
+          "url": "https://centrolaboral.gob.mx/",
+          "title": "Centro Federal de Conciliación y Registro Laboral",
+          "source_type": "official",
+          "license": "official"
+        }
+      ],
+      "verified_characteristics": {
+        "official_name": "Centro Federal de Conciliación y Registro Laboral",
+        "primary_color": "#691C32",
+        "secondary_color": "#10312B",
+        "gold_accent": "#BC955C",
+        "legal_competence": "Registro de contratos colectivos, convenios salariales y verificación de consultas democráticas"
+      },
+      "status": "verified",
+      "stale_after": null,
+      "notes": ""
+    },
+    {
+      "id": "cct_imss_sntss_2025_2027",
+      "entity": "Contrato Colectivo de Trabajo",
+      "type": "document",
+      "research_date": "2026-09-11",
+      "sources": [
+        {
+          "url": "https://www.imss.gob.mx/sites/all/statics/pdf/CCT-2025-2027.pdf",
+          "title": "Contrato Colectivo de Trabajo IMSS-SNTSS 2025-2027 Oficial",
+          "source_type": "official",
+          "license": "reference-only"
+        }
+      ],
+      "verified_characteristics": {
+        "edition": "2025-2027",
+        "effective_from": "2025-10-16",
+        "effective_until": "2027-10-15",
+        "title": "CONTRATO COLECTIVO DE TRABAJO",
+        "subtitles": [
+          "INSTITUTO MEXICANO DEL SEGURO SOCIAL",
+          "SINDICATO NACIONAL DE TRABAJADORES DEL SEGURO SOCIAL"
+        ],
+        "verified_clauses": {
+          "63_bis": "Ayuda para renta (Concepto 11 en nómina)",
+          "157": "Régimen de Jubilaciones y Pensiones / Aportación patronal para el retiro trabajadores nueva generación (1.25% 2025 -> 2.50% 2026 -> 3.75% 2027 -> 5.0% 2028+)"
+        },
+        "cover_colors": [
+          "#FFFFFF",
+          "#0B4F37",
+          "#BC955C"
+        ]
+      },
+      "status": "verified",
+      "stale_after": null,
+      "notes": ""
+    },
+    {
+      "id": "lft_official_publication",
+      "entity": "Ley Federal del Trabajo",
+      "type": "law",
+      "research_date": "2026-09-11",
+      "sources": [
+        {
+          "url": "https://www.diputados.gob.mx/LeyesBiblio/pdf/LFT.pdf",
+          "title": "Ley Federal del Trabajo (Cámara de Diputados, texto vigente)",
+          "source_type": "official",
+          "license": "public-domain"
+        }
+      ],
+      "verified_characteristics": {
+        "official_title": "Ley Federal del Trabajo",
+        "verified_articles": {
+          "399_bis": "Revisión de salarios en efectivo por cuota diaria cada año",
+          "400_bis": "Revisión integral del Contrato Colectivo cada dos años con aprobación obligatoria por mayoría mediante voto personal, libre, directo y secreto",
+          "390_ter": "Procedimiento de consulta y votación democrática para la ratificación de contratos y convenios"
+        },
+        "header_style": "Cámara de Diputados del H. Congreso de la Unión — Secretaría General"
+      },
+      "status": "verified",
+      "stale_after": null,
+      "notes": ""
+    },
+    {
+      "id": "imss_tarjeton_structure",
+      "entity": "Tarjetón IMSS",
+      "type": "payslip",
+      "research_date": "2026-09-11",
+      "sources": [
+        {
+          "url": "file:///public/demo/demo-tarjeton-imss.pdf",
+          "title": "Estructura Verificada de Tarjetón de Pago IMSS",
+          "source_type": "institutional",
+          "license": "reference-only"
+        }
+      ],
+      "verified_characteristics": {
+        "sections": [
+          "Emisor",
+          "Receptor/Trabajador",
+          "Percepciones",
+          "Deducciones",
+          "Neto a Pagar",
+          "Mensajes"
+        ],
+        "verified_concepts": {
+          "002": "SUELDO BASE (Tabular)",
+          "011": "AYUDA DE RENTA CL. 63 BIS",
+          "010": "AYUDA ASISTENCIAL"
+        },
+        "verified_deductions": {
+          "001": "IMPUESTO SOBRE LA RENTA (ISR)",
+          "002": "CUOTA SINDICAL"
+        },
+        "appearance": "Comprobante estructurado con tablas quincenales, folio fiscal y sellos institucionales"
+      },
+      "status": "verified",
+      "stale_after": null,
+      "notes": ""
+    },
+    {
+      "id": "hgr1_charo_building",
+      "entity": "Hospital General Regional No. 1 Charo",
+      "type": "building",
+      "research_date": "2026-09-11",
+      "sources": [
+        {
+          "url": "https://www.imss.gob.mx/prensa/archivo/202110/487",
+          "title": "Hospital General Regional No. 1 Charo Morelia IMSS",
+          "source_type": "official",
+          "license": "reference-only"
+        }
+      ],
+      "verified_characteristics": {
+        "official_name": "Hospital General Regional No. 1 IMSS Michoacán",
+        "location": "Charo / Morelia, Michoacán",
+        "architecture": "Complejo hospitalario moderno de 4 plantas con módulos en concreto blanco y ventanales horizontales",
+        "signage": "Letrero institucional verde con imagotipo IMSS y tipografía blanca sobre la marquesina principal",
+        "entrances": "Acceso principal peatonal amplio y área separada de urgencias"
+      },
+      "status": "verified",
+      "stale_after": null,
+      "notes": ""
+    },
+    {
+      "id": "sntss_congress_presentation",
+      "entity": "Congreso Nacional SNTSS",
+      "type": "event",
+      "research_date": "2026-09-11",
+      "sources": [
+        {
+          "url": "https://sntss.org.mx/noticias/",
+          "title": "Resoluciones del Congreso Nacional Ordinario del SNTSS",
+          "source_type": "official",
+          "license": "reference-only"
+        }
+      ],
+      "verified_characteristics": {
+        "event_name": "Congreso Nacional del SNTSS",
+        "breakdown_shown": {
+          "ponderado_global": "8.55%",
+          "sueldo_tabular": "2.9%",
+          "concepto_11": "3.9%",
+          "clausula_157": "1.75% (Aportación retiro en presentación)"
+        },
+        "key_distinction": "El 8.55% es un valor ponderado global, no un aumento directo del 8.55% en el depósito de nómina de cada trabajador"
+      },
+      "status": "verified",
+      "stale_after": null,
+      "notes": ""
+    }
+  ]
+}

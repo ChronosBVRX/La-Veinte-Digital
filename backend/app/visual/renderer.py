@@ -60,6 +60,8 @@ class Renderer:
         self.subtitles = subtitles
         self.prepared: dict[str, dict] = {}
         self.issues: list[str] = []
+        from .editorial.scene_composer import SceneComposer
+        self.scene_composer = SceneComposer()
         # V1.2 — movimiento e interpretación editorial.
         self.ambient = AmbientMotionLayer()
         self.reactive = AudioReactiveIdentity()
@@ -99,7 +101,11 @@ class Renderer:
         # --- Primitivas de texto (única fuente) ---
         staged_primitives: list[list[DrawText]] = []
         primitives_flat: list[DrawText] = []
-        if kind == "number" and ev.get("refs", {}).get("cantidad"):
+        if ev.get("chart_type"):
+            plan["kinetic"] = {"size": 24, "lines": [""], "spacing": 1.0, "ok": True, "max_w": 0}
+            plan["pages"] = []
+            plan["staged_primitives"] = []
+        elif kind == "number" and ev.get("refs", {}).get("cantidad"):
             for stage_idx in range(3):
                 stage_prims = build_number_primitives(probe, ev, main, H, stage_idx)
                 staged_primitives.append(stage_prims)
@@ -441,9 +447,15 @@ class Renderer:
         if semantic_strong:
             self.semantic_strong_frames += 1
         calm = 0.35 if kind in ("question", "number", "document", "warning",
-                                "brand", "closing", "quote") else 1.0
+                                "brand", "closing", "quote", "stat_card",
+                                "comparison", "payroll_visual", "brand_opening",
+                                "brand_closing") else 1.0
         self._bg(d, f, energy * calm, char, ev.get("variant", ""), semantic_strong)
-        sting = ev.get("section", False) or kind in ("brand", "closing")
+        # Capa B-roll editorial si el evento tiene un asset resuelto
+        if ev.get("resolved_asset") and ev["resolved_asset"].get("file"):
+            img = self.scene_composer.compose_background(img, ev["resolved_asset"], self.W, self.H, self.vertical)
+            d = ImageDraw.Draw(img, "RGBA")
+        sting = ev.get("section", False) or kind in ("brand", "closing", "brand_opening", "brand_closing")
         self._brandbar(d, sting=sting, f=f)
         cx = self.W // 2
         main = plan["boxes"]["main"]
@@ -458,14 +470,22 @@ class Renderer:
         # Speaker arriba del bloque principal (medido, sin solape).
         si = plan["speaker"]
         sp_box = plan["boxes"].get("speaker")
-        is_brand_or_closing = kind in ("brand", "closing") or not ev.get("speaker") or ev.get("speaker") == "La Veinte Radio"
+        is_brand_or_closing = kind in ("brand", "closing", "brand_opening", "brand_closing") or not ev.get("speaker") or ev.get("speaker") == "La Veinte Radio"
         if not is_brand_or_closing and sp_box and sp_box.y1 > sp_box.y0:
             self._speaker_block(d, plan, ev, char, sp_box.x0, sp_box.y0)
         # Contenido por variante — number usa primitivas validadas (única fuente).
         dur_f = max(1, int((ev.get("end", 0) - ev.get("start", 0)) * fps))
         prog = min(1.0, max(0.0, local_f / dur_f)) if dur_f else 1.0
         semantic: dict | None = None
-        if kind == "number" and ev.get("refs", {}).get("cantidad"):
+        chart_t = ev.get("chart_type")
+        if chart_t:
+            chart_card = self.scene_composer.render_programmatic_chart_beat(
+                chart_t, self.W, self.H, vertical=self.vertical, progress=prog
+            )
+            if chart_card:
+                img = Image.alpha_composite(img.convert("RGBA"), chart_card).convert("RGB")
+                d = ImageDraw.Draw(img, "RGBA")
+        elif kind == "number" and ev.get("refs", {}).get("cantidad"):
             stages = plan.get("staged_primitives") or []
             if stages:
                 # V1.4: "$1,200" entra como UNA sola unidad desde el primer
@@ -535,6 +555,13 @@ class Renderer:
             revealed = min(total, 1 + int(prog * total))
             semantic = {"concepts": concepts, "revealed": revealed,
                         "closing": prog > 0.85}
+        # Overlays oficiales de logotipos
+        overlay_logos = ev.get("overlay_logos") or []
+        if overlay_logos:
+            img = self.scene_composer.overlay_official_logos(
+                img, overlay_logos, self.W, self.H, vertical=self.vertical
+            )
+            d = ImageDraw.Draw(img, "RGBA")
         # Reactive por personaje (cerca de identidad, no barra inferior).
         rx = plan["boxes"]["reactive"]
         rcx, rcy = (rx.x0 + rx.x1) // 2, (rx.y0 + rx.y1) // 2
