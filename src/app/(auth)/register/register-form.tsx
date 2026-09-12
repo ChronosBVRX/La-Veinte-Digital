@@ -6,6 +6,7 @@ import { Mail, Lock, UserPlus, AlertCircle, User, CheckCircle } from "lucide-rea
 import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
 import { signUpAction } from "../actions"
+import { TurnstileWidget } from "../turnstile-widget"
 import { signInWithOAuth } from "@/lib/services/auth-client"
 
 export function RegisterForm() {
@@ -104,6 +105,8 @@ export function RegisterForm() {
       <Button type="submit" loading={pending} style={{ width: "100%", justifyContent: "center" }}>
         {pending ? "Creando cuenta..." : <><UserPlus size={16} /> Crear cuenta</>}
       </Button>
+
+      <TurnstileWidget siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>

@@ -6,6 +6,7 @@ import { EnvelopeSimple, PaperPlaneTilt, WarningCircle, CheckCircle, ArrowLeft }
 import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
 import { resetPasswordRequestAction } from "../actions"
+import { TurnstileWidget } from "../turnstile-widget"
 
 export function RecuperarPasswordForm() {
   const [state, formAction, pending] = useActionState(resetPasswordRequestAction, undefined)
@@ -90,6 +91,8 @@ export function RecuperarPasswordForm() {
       <Button type="submit" loading={pending} style={{ width: "100%", justifyContent: "center" }}>
         {pending ? "Enviando enlace..." : <><PaperPlaneTilt size={18} weight="bold" /> Enviar enlace de recuperación</>}
       </Button>
+
+      <TurnstileWidget siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} />
 
       <div style={{ textAlign: "center", marginTop: "0.25rem" }}>
         <Link
