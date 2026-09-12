@@ -6,6 +6,27 @@ import { redirect } from "next/navigation"
 
 type AuthState = { error?: string } | undefined
 
+type AuthResultState =
+  | { error: string; success?: undefined; message?: undefined }
+  | { success: true; message: string; error?: undefined }
+  | undefined
+
+async function getRequestOrigin(): Promise<string> {
+  const { headers } = await import("next/headers")
+  const headersList = await headers()
+  const host = headersList.get("x-forwarded-host") || headersList.get("host") || "localhost:3000"
+  const proto = headersList.get("x-forwarded-proto") || "http"
+  return `${proto}://${host}`
+}
+
+function mapEmailRateLimit(error: { message?: string; status?: number }): string | null {
+  const message = error.message ?? ""
+  if (error.status === 429 || /rate limit|too many|over_email_send_rate_limit/i.test(message)) {
+    return "Demasiados intentos. Espera 60 segundos antes de reintentarlo."
+  }
+  return null
+}
+
 export async function signInAction(_prev: AuthState, formData: FormData) {
   const supabase = await createClient()
   const email = formData.get("email") as string
@@ -20,23 +41,32 @@ export async function signInAction(_prev: AuthState, formData: FormData) {
   redirect("/")
 }
 
-export async function signUpAction(_prev: AuthState, formData: FormData) {
+export async function signUpAction(
+  _prev: AuthResultState,
+  formData: FormData,
+): Promise<AuthResultState> {
   const supabase = await createClient()
   const email = formData.get("email") as string
   const password = formData.get("password") as string
   const fullName = formData.get("full_name") as string
+  const origin = await getRequestOrigin()
 
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName } },
+    options: {
+      data: { full_name: fullName },
+      emailRedirectTo: `${origin}/callback`,
+    },
   })
   if (error) {
-    return { error: "No se pudo crear la cuenta. Intenta con otro correo." }
+    return { error: mapEmailRateLimit(error) ?? "No se pudo crear la cuenta. Intenta con otro correo." }
   }
 
-  revalidatePath("/")
-  redirect("/")
+  return {
+    success: true,
+    message: "Te enviamos un correo de confirmación. Revisa tu bandeja de entrada o spam para activar tu cuenta.",
+  }
 }
 
 export async function resetPasswordRequestAction(
@@ -50,18 +80,14 @@ export async function resetPasswordRequestAction(
     return { error: "Ingresa tu correo electrónico." }
   }
 
-  const { headers } = await import("next/headers")
-  const headersList = await headers()
-  const host = headersList.get("x-forwarded-host") || headersList.get("host") || "localhost:3000"
-  const proto = headersList.get("x-forwarded-proto") || "http"
-  const origin = `${proto}://${host}`
+  const origin = await getRequestOrigin()
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/callback?next=/restablecer-password`,
   })
 
   if (error) {
-    return { error: "No pudimos enviar el enlace. Verifica que el correo sea correcto." }
+    return { error: mapEmailRateLimit(error) ?? "No pudimos enviar el enlace. Verifica que el correo sea correcto." }
   }
 
   return {
@@ -93,6 +119,35 @@ export async function updatePasswordAction(
 
   revalidatePath("/")
   return { success: true }
+}
+
+export async function resendConfirmationAction(
+  _prev: AuthResultState,
+  formData: FormData,
+): Promise<AuthResultState> {
+  const supabase = await createClient()
+  const email = (formData.get("email") as string)?.trim()
+
+  if (!email) {
+    return { error: "Ingresa tu correo electrónico." }
+  }
+
+  const origin = await getRequestOrigin()
+
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email,
+    options: { emailRedirectTo: `${origin}/callback` },
+  })
+
+  if (error) {
+    return { error: mapEmailRateLimit(error) ?? "No pudimos reenviar el correo. Verifica que el correo sea correcto." }
+  }
+
+  return {
+    success: true,
+    message: "Te reenviamos el correo de confirmación. Revisa tu bandeja de entrada o spam.",
+  }
 }
 
 export async function signOutAction() {

@@ -2,11 +2,19 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Image from "next/image"
 import { LoginTabs } from "./login-tabs"
+import { ResendConfirmationForm } from "./resend-confirmation-form"
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ error?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (user) redirect("/")
+
+  const params = await searchParams
+  const showResend = params?.error === "email_not_confirmed"
 
   return (
     <div style={{ minHeight: "100dvh", display: "grid", placeItems: "center", padding: "1rem" }}>
@@ -37,6 +45,14 @@ export default async function LoginPage() {
           boxShadow: "var(--shadow-md)",
         }}>
           <LoginTabs />
+          {showResend && (
+            <div style={{ marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid var(--border)" }}>
+              <p style={{ fontSize: "var(--text-sm)", fontWeight: 600, margin: "0 0 0.75rem" }}>
+                Confirma tu correo para continuar
+              </p>
+              <ResendConfirmationForm />
+            </div>
+          )}
         </div>
         <p style={{ textAlign: "center", fontSize: "0.75rem", color: "var(--muted)", marginTop: "1rem", lineHeight: 1.6 }}>
           Herramienta independiente: no es una app oficial del IMSS ni del Gobierno de México.{" "}
