@@ -76,6 +76,7 @@ def render_project_visual(
     master_audio: Path,
     output_dir: Path,
     formats: list[str] | None = None,
+    alignment_path: Path | str | None = None,
 ) -> dict:
     if formats is None:
         formats = ["preview", "16x9", "9x16"]
@@ -85,9 +86,23 @@ def render_project_visual(
     script = proj.get("script") or {}
     turns = script.get("turns") or proj.get("turns") or []
 
+    alignment_obj = None
+    if alignment_path:
+        al_p = Path(alignment_path)
+        if not al_p.exists():
+            raise FileNotFoundError(f"Alignment file not found: {al_p}")
+        alignment_obj = json.loads(al_p.read_text(encoding="utf-8"))
+    elif (project_path.parent / "timeline-alignment.json").exists():
+        alignment_obj = json.loads((project_path.parent / "timeline-alignment.json").read_text(encoding="utf-8"))
+    elif proj.get("alignment"):
+        alignment_obj = proj["alignment"]
+
+    if alignment_obj is None:
+        raise ValueError("ALIGNMENT_REQUIRED")
+
     wav_path, dur_s = ensure_master_wav(master_audio, output_dir)
-    segments = adapt_project_turns(turns, dur_s)
-    timeline = build_visual_timeline(segments, dur_s)
+    segments = adapt_project_turns(turns, dur_s, alignment=alignment_obj)
+    timeline = build_visual_timeline(segments, dur_s, alignment=alignment_obj)
     (output_dir / "visual-timeline.json").write_text(
         json.dumps(timeline, ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -127,12 +142,17 @@ def render_project_visual(
     by_frame = []
     for f in range(total_f):
         t = f / FPS
-        ev = events[0] if events else {}
+        ev = None
         for e in events:
-            if e["start"] <= t:
+            if e["start"] <= t <= e["end"]:
                 ev = e
-            else:
                 break
+        if ev is None:
+            if events and t < events[0]["start"]:
+                ev = events[0]
+            else:
+                past = [e for e in events if e["end"] <= t]
+                ev = past[-1] if past else (events[0] if events else {})
         by_frame.append(ev)
 
     results: dict[str, dict] = {}
@@ -238,7 +258,8 @@ def render_project_visual(
 
         sync = check_sync(
             str(final), timeline["duration_s"],
-            [{"id": e["beat_id"], "start": e["start"], "end": e["end"]} for e in timeline["events"]]
+            [{"id": e["beat_id"], "start": e["start"], "end": e["end"]} for e in timeline["events"]],
+            alignment=alignment_obj,
         )
 
         response = {sp: round(audio_visual_response_score(env_by_spk[sp], react_by_spk[sp]), 3) for sp in react_by_spk}
@@ -316,6 +337,7 @@ def main():
     p.add_argument("--project", required=True, help="Ruta a project.json")
     p.add_argument("--master", required=True, help="Ruta al master de audio (WAV o MP3)")
     p.add_argument("--output-dir", required=True, help="Directorio destino para los videos")
+    p.add_argument("--alignment", help="Ruta a timeline-alignment.json")
     p.add_argument("--formats", default="preview,16x9,9x16", help="Formatos separados por coma")
     args = p.parse_args()
 
@@ -325,6 +347,7 @@ def main():
         Path(args.master),
         Path(args.output_dir),
         formats=formats,
+        alignment_path=Path(args.alignment) if args.alignment else None,
     )
     print(json.dumps(res, ensure_ascii=False))
 

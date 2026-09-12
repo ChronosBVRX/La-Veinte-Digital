@@ -1,4 +1,4 @@
-﻿"""Pruebas del puente adaptador de proyectos La Veinte Radio al motor visual."""
+"""Pruebas del puente adaptador de proyectos La Veinte Radio al motor visual."""
 import sys
 from pathlib import Path
 
@@ -76,3 +76,95 @@ def test_adapt_and_build_timeline():
     assert tl["events"][0]["scene_type"] == "brand"
     assert tl["events"][1]["speaker"] == "Rodrigo Torres"
     assert tl["events"][1]["scene_type"] == "number"
+
+
+def test_adapt_project_turns_with_alignment():
+    turns = [
+        {"id": "t1", "speaker": "EDUARDO", "displayText": "Hola", "audioDurMs": 1000},
+        {"id": "t2", "speaker": "RODRIGO", "displayText": "Mundo", "audioDurMs": 1500},
+    ]
+    alignment = {
+        "version": 1,
+        "masterPath": "data/tts/master/master.mp3",
+        "durationMs": 10000,
+        "blocks": [],
+        "turns": [
+            {"turnId": "t1", "speaker": "Eduardo", "startMs": 5800, "endMs": 7000, "durationMs": 1200},
+            {"turnId": "t2", "speaker": "Rodrigo Torres", "startMs": 7200, "endMs": 9000, "durationMs": 1800},
+        ],
+    }
+    segs = adapt_project_turns(turns, alignment=alignment)
+    assert segs[0]["start"] == 5.8
+    assert segs[0]["end"] == 7.0
+    assert segs[0]["duration_s"] == 1.2
+    assert segs[1]["start"] == 7.2
+    assert segs[1]["end"] == 9.0
+    assert segs[1]["duration_s"] == 1.8
+
+
+def test_alignment_missing_turn_raises_error():
+    import pytest
+    turns = [
+        {"id": "t1", "speaker": "EDUARDO", "displayText": "Hola"},
+        {"id": "t2", "speaker": "RODRIGO", "displayText": "Mundo"},
+    ]
+    alignment = {
+        "version": 1,
+        "turns": [
+            {"turnId": "t1", "speaker": "Eduardo", "startMs": 5800, "endMs": 7000, "durationMs": 1200},
+        ],
+    }
+    with pytest.raises(ValueError, match="ALIGNMENT_TURN_MISSING:t2"):
+        adapt_project_turns(turns, alignment=alignment)
+
+
+def test_alignment_duplicate_turn_raises_error():
+    import pytest
+    turns = [
+        {"id": "t1", "speaker": "EDUARDO", "displayText": "Hola"},
+    ]
+    alignment = {
+        "version": 1,
+        "turns": [
+            {"turnId": "t1", "speaker": "Eduardo", "startMs": 1000, "endMs": 2000, "durationMs": 1000},
+            {"turnId": "t1", "speaker": "Eduardo", "startMs": 2000, "endMs": 3000, "durationMs": 1000},
+        ],
+    }
+    with pytest.raises(ValueError, match="ALIGNMENT_DUPLICATE_TURN:t1"):
+        adapt_project_turns(turns, alignment=alignment)
+
+
+def test_timeline_opening_and_closing_scenes():
+    turns = [
+        {"id": "t1", "speaker": "EDUARDO", "displayText": "Hola a todos"},
+    ]
+    alignment = {
+        "version": 1,
+        "durationMs": 12000,
+        "blocks": [
+            {"type": "opening", "startMs": 0, "endMs": 5000, "durationMs": 5000},
+            {"type": "speech", "startMs": 5800, "endMs": 9000, "durationMs": 3200, "turnId": "t1"},
+            {"type": "outro", "startMs": 9500, "endMs": 12000, "durationMs": 2500},
+        ],
+        "turns": [
+            {"turnId": "t1", "speaker": "Eduardo", "startMs": 5800, "endMs": 9000, "durationMs": 3200},
+        ],
+    }
+    segs = adapt_project_turns(turns, alignment=alignment)
+    tl = build_visual_timeline(segs, 12.0, alignment=alignment)
+    events = tl["events"]
+    assert len(events) == 3
+    # 1. Opening scene
+    assert events[0]["beat_id"] == "scene-opening"
+    assert events[0]["start"] == 0.0
+    assert events[0]["end"] == 5.8
+    assert events[0]["scene_type"] == "brand"
+    # 2. Speech scene
+    assert events[1]["beat_id"] == "t1"
+    assert events[1]["start"] == 5.8
+    assert events[1]["end"] == 9.0
+    # 3. Closing scene
+    assert events[2]["beat_id"] == "scene-closing"
+    assert events[2]["start"] == 9.5
+    assert events[2]["end"] == 12.0
+    assert events[2]["scene_type"] == "closing"

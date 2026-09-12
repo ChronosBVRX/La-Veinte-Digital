@@ -1,4 +1,4 @@
-﻿"""Bridge / Adaptador para proyectos de La Veinte Radio a segmentos del motor visual.
+"""Bridge / Adaptador para proyectos de La Veinte Radio a segmentos del motor visual.
 
 Convierte turnos de guion y bloques producidos con Speechify en el contrato
 estricto consumido por build_visual_timeline(...).
@@ -72,8 +72,35 @@ def adapt_turn_to_segment(turn: dict) -> dict:
     }
 
 
-def adapt_project_turns(turns: list[dict], total_duration_s: float | None = None) -> list[dict]:
+def adapt_project_turns(
+    turns: list[dict],
+    total_duration_s: float | None = None,
+    alignment: dict | None = None,
+) -> list[dict]:
     segs = [adapt_turn_to_segment(t) for t in turns]
+    if alignment is not None:
+        alignment_turns = alignment.get("turns", [])
+        seen_ids = set()
+        alignment_by_id = {}
+        for at in alignment_turns:
+            tid = at.get("turnId")
+            if not tid:
+                continue
+            if tid in seen_ids:
+                raise ValueError(f"ALIGNMENT_DUPLICATE_TURN:{tid}")
+            seen_ids.add(tid)
+            alignment_by_id[tid] = at
+
+        for s in segs:
+            tid = s["id"]
+            if not tid or tid not in alignment_by_id:
+                raise ValueError(f"ALIGNMENT_TURN_MISSING:{tid}")
+            at = alignment_by_id[tid]
+            s["start"] = at["startMs"] / 1000.0
+            s["end"] = at["endMs"] / 1000.0
+            s["duration_s"] = at["durationMs"] / 1000.0
+        return segs
+
     missing_durations = any(s["duration_s"] <= 0 for s in segs)
     if missing_durations and total_duration_s and total_duration_s > 0 and segs:
         total_gaps = sum(s["gap_before_ms"] / 1000.0 for s in segs)

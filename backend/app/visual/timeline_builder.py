@@ -205,24 +205,68 @@ def _density(events: list[dict]) -> None:
             e["density"] = "normal"
 
 
-def build_visual_timeline(segments: list[dict], duration_s: float) -> dict:
+def build_visual_timeline(
+    segments: list[dict],
+    duration_s: float,
+    alignment: dict | None = None,
+) -> dict:
     events: list[dict] = []
-    t = 0.0
+    blocks = alignment.get("blocks", []) if alignment else []
+    al_turns = alignment.get("turns", []) if alignment else []
+
+    # 1. Escena física de apertura (cubre 0 -> firstSpeechStart)
+    first_speech_start = 0.0
+    if al_turns:
+        first_speech_start = float(al_turns[0]["startMs"]) / 1000.0
+    elif segments and segments[0].get("start") is not None:
+        first_speech_start = float(segments[0]["start"])
+
+    if first_speech_start > 0.05:
+        events.append({
+            "beat_id": "scene-opening",
+            "speaker": "Eduardo",
+            "start": 0.0,
+            "end": round(first_speech_start, 2),
+            "intent": "brand",
+            "energy": 0.6,
+            "importance": 0.8,
+            "scene_type": "brand",
+            "variant": "brand-full",
+            "phrase_id": 0,
+            "hold": False,
+            "display_text": "La Veinte Radio",
+            "essential": "La Veinte Radio",
+            "emphasis_words": ["Radio"],
+            "keywords": ["Radio"],
+            "transition": "soft",
+            "layout_variant": "center",
+            "refs": {},
+            "section": True,
+            "overlap": False,
+            "density": "focus",
+        })
+
+    # 2. Segmentos de habla
+    t = first_speech_start
     prev_kind = ""
     prev_speaker = ""
     phrase = 0
     for s in segments:
         dur = float(s.get("duration_s") or 0)
         gap = float(s.get("gap_before_ms") or 0) / 1000.0
-        start = max(0.0, t + gap)
+        if s.get("start") is not None:
+            start = float(s["start"])
+            end_val = float(s.get("end") or (start + dur))
+        else:
+            start = max(0.0, t + gap)
+            end_val = start + dur
+
         text = s.get("text") or ""
         refs = _find_refs(text)
         kind, variant = _scene_variant(s, text, refs, dur)
         if kind == "conversation":
             variant = _CONV_VARIANT.get(s.get("speaker"), "conversation-center")
         timing = s.get("timing", "normal")
-        # Frase visual: continúa si mismo concepto (mismo speaker o reacción
-        # breve encadenada, sin sección y gap corto).
         cont = (events and s.get("speaker") == prev_speaker
                 and kind in ("conversation", "reaction")
                 and gap >= 0 and gap < 0.4
@@ -234,7 +278,7 @@ def build_visual_timeline(segments: list[dict], duration_s: float) -> dict:
             "beat_id": s.get("beat_id", s.get("id")),
             "speaker": s.get("speaker"),
             "start": round(start, 2),
-            "end": round(start + dur, 2),
+            "end": round(end_val, 2),
             "intent": s.get("intent", "statement"),
             "energy": float(s.get("energy", 0.5) or 0.5),
             "importance": _importance(s, dur),
@@ -256,6 +300,71 @@ def build_visual_timeline(segments: list[dict], duration_s: float) -> dict:
         events.append(ev)
         prev_kind = kind
         prev_speaker = s.get("speaker", "")
-        t = start + dur
+        t = end_val
+
+    # 3. Escenas de identidad sonora intermedias
+    for b in blocks:
+        if b.get("type") == "identity":
+            ident_start = float(b["startMs"]) / 1000.0
+            ident_end = float(b["endMs"]) / 1000.0
+            if ident_end > ident_start + 0.1:
+                events.append({
+                    "beat_id": f"scene-ident-{round(ident_start, 2)}",
+                    "speaker": "Eduardo",
+                    "start": round(ident_start, 2),
+                    "end": round(ident_end, 2),
+                    "intent": "brand",
+                    "energy": 0.6,
+                    "importance": 0.7,
+                    "scene_type": "brand",
+                    "variant": "brand-full",
+                    "phrase_id": phrase + 1,
+                    "hold": False,
+                    "display_text": "La Veinte Radio",
+                    "essential": "La Veinte Radio",
+                    "emphasis_words": ["Radio"],
+                    "keywords": ["Radio"],
+                    "transition": "soft",
+                    "layout_variant": "center",
+                    "refs": {},
+                    "section": True,
+                    "overlap": False,
+                    "density": "focus",
+                })
+
+    # 4. Escena de cierre / Outro
+    outro_start: float | None = None
+    outro_block = next((b for b in blocks if b.get("type") == "outro"), None)
+    if outro_block:
+        outro_start = float(outro_block["startMs"]) / 1000.0
+    elif al_turns:
+        outro_start = float(al_turns[-1]["endMs"]) / 1000.0
+
+    if outro_start is not None and outro_start < duration_s - 0.05:
+        events.append({
+            "beat_id": "scene-closing",
+            "speaker": "Eduardo",
+            "start": round(outro_start, 2),
+            "end": round(duration_s, 2),
+            "intent": "closing",
+            "energy": 0.5,
+            "importance": 0.8,
+            "scene_type": "closing",
+            "variant": "closing-full",
+            "phrase_id": 999,
+            "hold": False,
+            "display_text": "La Veinte Radio",
+            "essential": "La Veinte Radio",
+            "emphasis_words": ["Radio"],
+            "keywords": ["Radio"],
+            "transition": "soft",
+            "layout_variant": "center",
+            "refs": {},
+            "section": True,
+            "overlap": False,
+            "density": "focus",
+        })
+
+    events.sort(key=lambda e: (e["start"], e["end"]))
     _density(events)
     return {"duration_s": round(duration_s, 2), "events": events}
