@@ -9,5 +9,6 @@ export * from "./commercial";
 export * from "./proposal";
 export * from "./script";
 export * from "./production";
+export * from "./alignment";
 export * from "./events";
 export * from "./project";

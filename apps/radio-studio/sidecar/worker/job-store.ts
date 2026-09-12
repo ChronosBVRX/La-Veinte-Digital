@@ -24,6 +24,7 @@ export interface JobBloque {
   pauseAfterMs?: number;
   authorPause?: boolean;
   relation?: string | null;
+  transition?: string | null;
   estado: "pendiente" | "generado" | "fallo";
   chars: number;
   audioDurMs: number | null;
@@ -130,6 +131,7 @@ export function nuevoJob(
     pauseAfterMs?: number;
     authorPause?: boolean;
     relation?: string | null;
+    transition?: string | null;
   }>,
   voces: Record<string, VoiceSlot>
 ): ProductionJob {
@@ -153,6 +155,7 @@ export function nuevoJob(
       pauseAfterMs: b.pauseAfterMs ?? 250,
       authorPause: b.authorPause ?? false,
       relation: b.relation ?? null,
+      transition: b.transition ?? null,
       estado: "pendiente",
       chars: b.texto.length,
       audioDurMs: null,

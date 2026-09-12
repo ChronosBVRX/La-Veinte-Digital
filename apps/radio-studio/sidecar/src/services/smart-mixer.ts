@@ -17,7 +17,12 @@ import path from "node:path";
 import os from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import type { MasterResult } from "@la-veinte/studio-contract";
+import type {
+  MasterResult,
+  MixAlignmentManifest,
+  MixTimelineBlock,
+  TurnAlignment,
+} from "@la-veinte/studio-contract";
 
 const execFileAsync = promisify(execFile);
 
@@ -47,6 +52,32 @@ export interface SmartMixOptions {
 export interface TrimResult {
   buffer: Buffer;
   silenceCutMs: number;
+}
+
+/**
+ * Calcula la duración milimétrica exacta de un buffer WAV PCM a partir de su cabecera y datos reales.
+ * Invariante: duración física matemática = (bytesPCM / (sampleRate * channels * (bitsPerSample / 8))) * 1000.
+ */
+export function getPcmWavDurationMs(buf: Buffer): number {
+  if (!buf || buf.length < 44) return 0;
+  if (buf.subarray(0, 4).toString("ascii") !== "RIFF" || buf.subarray(8, 12).toString("ascii") !== "WAVE") {
+    return 0;
+  }
+  const sampleRate = buf.readUInt32LE(24);
+  const numChannels = buf.readUInt16LE(22);
+  const bitsPerSample = buf.readUInt16LE(34);
+  if (sampleRate <= 0 || numChannels <= 0 || bitsPerSample <= 0) return 0;
+
+  const bytesPerSample = (bitsPerSample / 8) * numChannels;
+  const dataMarker = buf.indexOf("data");
+  if (dataMarker === -1 || dataMarker + 8 > buf.length) {
+    const fallbackDataSize = Math.max(0, buf.length - 44);
+    return Math.round((fallbackDataSize / (sampleRate * bytesPerSample)) * 1000);
+  }
+
+  const declaredDataSize = buf.readUInt32LE(dataMarker + 4);
+  const actualDataSize = Math.min(declaredDataSize, buf.length - (dataMarker + 8));
+  return Math.round((actualDataSize / (sampleRate * bytesPerSample)) * 1000);
 }
 
 /**
@@ -358,7 +389,7 @@ export class SmartMixer {
     turns: TurnMixSpec[],
     outFilePath: string,
     options: SmartMixOptions = {}
-  ): Promise<MasterResult & { analytics: SmartMixAnalytics }> {
+  ): Promise<MasterResult & { analytics: SmartMixAnalytics; alignment: MixAlignmentManifest }> {
     if (!turns || turns.length === 0) {
       throw new Error("No hay turnos para mezclar");
     }
@@ -389,27 +420,62 @@ export class SmartMixer {
     let totalInterTurnSilenceMs = 0;
     let speechClipsCount = 0;
 
+    let cursorMs = 0;
+    const blocks: MixTimelineBlock[] = [];
+    const alignmentTurns: TurnAlignment[] = [];
+
+    const recordBlock = (
+      type: MixTimelineBlock["type"],
+      durationMs: number,
+      extra: { turnId?: string; speaker?: string; source?: string } = {}
+    ): { startMs: number; endMs: number; durationMs: number } => {
+      const startMs = cursorMs;
+      const endMs = startMs + durationMs;
+      const block: MixTimelineBlock = {
+        type,
+        startMs,
+        endMs,
+        durationMs,
+        ...(extra.turnId ? { turnId: extra.turnId } : {}),
+        ...(extra.speaker ? { speaker: extra.speaker } : {}),
+        ...(extra.source ? { source: extra.source } : {}),
+      };
+      blocks.push(block);
+      cursorMs = endMs;
+      return { startMs, endMs, durationMs };
+    };
+
     // 1. APERTURA INSTITUCIONAL (si está activada)
     if (options.includeMusic !== false && fs.existsSync(activeApertura)) {
+      const canonicalAperturaBuf = await ensureCanonicalWavFormat(fs.readFileSync(activeApertura), ffmpeg);
+      const aperturaDurMs = getPcmWavDurationMs(canonicalAperturaBuf);
       const jingleTemp = path.join(tempDir, "00-apertura.wav");
-      fs.writeFileSync(jingleTemp, await ensureCanonicalWavFormat(fs.readFileSync(activeApertura), ffmpeg));
+      fs.writeFileSync(jingleTemp, canonicalAperturaBuf);
       concatLines.push(`file '${jingleTemp.split(path.sep).join("/")}'`);
+      recordBlock("opening", aperturaDurMs, { source: activeApertura });
 
       // Breve pausa post-apertura (250 ms) en formato estéreo canónico
       const postAperturaSilence = path.join(tempDir, "00-silence-apertura.wav");
-      fs.writeFileSync(postAperturaSilence, generateSilenceWav(250, 48000, 2));
+      const silenceBuf = generateSilenceWav(250, 48000, 2);
+      fs.writeFileSync(postAperturaSilence, silenceBuf);
       concatLines.push(`file '${postAperturaSilence.split(path.sep).join("/")}'`);
+      recordBlock("silence", getPcmWavDurationMs(silenceBuf));
     }
 
     // 2. CLIC SUAVE DE MICRÓFONO INICIAL (si existe)
     if (fs.existsSync(micClickPath)) {
+      const canonicalClickBuf = await ensureCanonicalWavFormat(fs.readFileSync(micClickPath), ffmpeg);
+      const clickDurMs = getPcmWavDurationMs(canonicalClickBuf);
       const micClickTemp = path.join(tempDir, "01-clic-mic.wav");
-      fs.writeFileSync(micClickTemp, await ensureCanonicalWavFormat(fs.readFileSync(micClickPath), ffmpeg));
+      fs.writeFileSync(micClickTemp, canonicalClickBuf);
       concatLines.push(`file '${micClickTemp.split(path.sep).join("/")}'`);
+      recordBlock("mic_click", clickDurMs, { source: micClickPath });
 
       const postClickSilence = path.join(tempDir, "01-silence-click.wav");
-      fs.writeFileSync(postClickSilence, generateSilenceWav(300, 48000, 2));
+      const silenceBuf = generateSilenceWav(300, 48000, 2);
+      fs.writeFileSync(postClickSilence, silenceBuf);
       concatLines.push(`file '${postClickSilence.split(path.sep).join("/")}'`);
+      recordBlock("silence", getPcmWavDurationMs(silenceBuf));
     }
 
     // 3. PROCESAR CADA TURNO DE HABLA
@@ -430,19 +496,26 @@ export class SmartMixer {
         }
         totalInterTurnSilenceMs += t.pauseBeforeMs;
         const silenceFile = path.join(tempDir, `silence-${i}.wav`);
-        fs.writeFileSync(silenceFile, generateSilenceWav(t.pauseBeforeMs, 48000, 2));
+        const silenceBuf = generateSilenceWav(t.pauseBeforeMs, 48000, 2);
+        fs.writeFileSync(silenceFile, silenceBuf);
         concatLines.push(`file '${silenceFile.split(path.sep).join("/")}'`);
+        recordBlock("silence", getPcmWavDurationMs(silenceBuf));
       }
 
       // Si el turno contiene transición de identidad sonora intermedia:
       if (t.transition && /identidad|estaci[oó]n|la veinte radio/i.test(t.transition) && fs.existsSync(identPath)) {
+        const canonicalIdentBuf = await ensureCanonicalWavFormat(fs.readFileSync(identPath), ffmpeg);
+        const identDurMs = getPcmWavDurationMs(canonicalIdentBuf);
         const identTemp = path.join(tempDir, `ident-${i}.wav`);
-        fs.writeFileSync(identTemp, await ensureCanonicalWavFormat(fs.readFileSync(identPath), ffmpeg));
+        fs.writeFileSync(identTemp, canonicalIdentBuf);
         concatLines.push(`file '${identTemp.split(path.sep).join("/")}'`);
+        recordBlock("identity", identDurMs, { source: identPath });
 
         const postIdentSilence = path.join(tempDir, `post-ident-${i}.wav`);
-        fs.writeFileSync(postIdentSilence, generateSilenceWav(400, 48000, 2));
+        const postIdentBuf = generateSilenceWav(400, 48000, 2);
+        fs.writeFileSync(postIdentSilence, postIdentBuf);
         concatLines.push(`file '${postIdentSilence.split(path.sep).join("/")}'`);
+        recordBlock("silence", getPcmWavDurationMs(postIdentBuf));
       }
 
       // Truncar silencios artificiales del clip TTS (pre-roll 50ms, post-roll 90ms)
@@ -456,22 +529,42 @@ export class SmartMixer {
 
       // Estandarizar clip de voz al formato canónico estéreo 48 kHz
       const canonicalBuf = await ensureCanonicalWavFormat(gainedBuf, ffmpeg);
+      const clipDurMs = getPcmWavDurationMs(canonicalBuf);
 
       const trimmedFile = path.join(tempDir, `clip-${i}.wav`);
       fs.writeFileSync(trimmedFile, canonicalBuf);
       concatLines.push(`file '${trimmedFile.split(path.sep).join("/")}'`);
+
+      const { startMs, endMs } = recordBlock("speech", clipDurMs, {
+        turnId: t.id,
+        speaker: t.speaker,
+        source: t.wavPath,
+      });
+
+      alignmentTurns.push({
+        turnId: t.id,
+        speaker: t.speaker,
+        startMs,
+        endMs,
+        durationMs: clipDurMs,
+      });
     }
 
     // 4. SALIDA Y FADE OUT (si está activada)
     if (options.includeMusic !== false && (fs.existsSync(salidaPath) || fs.existsSync(activeApertura))) {
       const activeSalida = fs.existsSync(salidaPath) ? salidaPath : activeApertura;
       const postDialogueSilence = path.join(tempDir, "99-silence.wav");
-      fs.writeFileSync(postDialogueSilence, generateSilenceWav(400, 48000, 2));
+      const silenceBuf = generateSilenceWav(400, 48000, 2);
+      fs.writeFileSync(postDialogueSilence, silenceBuf);
       concatLines.push(`file '${postDialogueSilence.split(path.sep).join("/")}'`);
+      recordBlock("silence", getPcmWavDurationMs(silenceBuf));
 
+      const canonicalSalidaBuf = await ensureCanonicalWavFormat(fs.readFileSync(activeSalida), ffmpeg);
+      const salidaDurMs = getPcmWavDurationMs(canonicalSalidaBuf);
       const outroTemp = path.join(tempDir, "99-salida.wav");
-      fs.writeFileSync(outroTemp, await ensureCanonicalWavFormat(fs.readFileSync(activeSalida), ffmpeg));
+      fs.writeFileSync(outroTemp, canonicalSalidaBuf);
       concatLines.push(`file '${outroTemp.split(path.sep).join("/")}'`);
+      recordBlock("outro", salidaDurMs, { source: activeSalida });
     }
 
     // Escribir lista de concatenación
@@ -526,6 +619,14 @@ export class SmartMixer {
       fs.rmSync(tempDir, { recursive: true, force: true });
     } catch {}
 
+    const alignment: MixAlignmentManifest = {
+      version: 1,
+      masterPath: outFilePath,
+      durationMs: cursorMs,
+      blocks,
+      turns: alignmentTurns,
+    };
+
     const analytics: SmartMixAnalytics = {
       duracionMs,
       integratedLufs: measuredLufs,
@@ -554,6 +655,7 @@ export class SmartMixer {
       qa: null,
       mix: null,
       analytics,
+      alignment,
     };
   }
 }

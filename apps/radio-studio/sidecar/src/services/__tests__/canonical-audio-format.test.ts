@@ -7,6 +7,7 @@ import {
   monoToStereoPcmWav,
   ensureCanonicalWavFormat,
   applyGainToPcmWav,
+  getPcmWavDurationMs,
 } from "../smart-mixer";
 
 function generateSineTone(frequencyHz: number, durationSec: number, sampleRate: number): Buffer {
@@ -129,5 +130,19 @@ describe("Regla Canónica de Formato de Audio y Resampling Real", () => {
     await expect(
       ensureCanonicalWavFormat(tone, "ffmpeg_non_existent_bin_test", 48000, 2)
     ).rejects.toThrow(/FFmpeg executable was not found/);
+  });
+
+  it("Regla 6: getPcmWavDurationMs calcula exactamente la duración física en milisegundos", () => {
+    const silence250 = generateSilenceWav(250, 48000, 2);
+    expect(getPcmWavDurationMs(silence250)).toBe(250);
+
+    const silence400 = generateSilenceWav(400, 48000, 2);
+    expect(getPcmWavDurationMs(silence400)).toBe(400);
+
+    const sine1s = generateSineTone(1000, 1.0, 48000);
+    expect(getPcmWavDurationMs(sine1s)).toBe(1000);
+
+    const sineHalfSec = generateSineTone(440, 0.5, 24000);
+    expect(getPcmWavDurationMs(sineHalfSec)).toBe(500);
   });
 });
