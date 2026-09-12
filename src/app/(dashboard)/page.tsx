@@ -6,6 +6,7 @@ import { HomeQuickActions } from "@/shared/components/app/HomeQuickActions"
 import { DesktopQuickPills } from "@/shared/components/app/DesktopQuickPills"
 import { CalendarioLaboral } from "@/shared/components/app/CalendarioLaboral"
 import { AgendaCardWrapper } from "@/shared/components/app/AgendaCardWrapper"
+import { SalaryIncreaseCard } from "@/features/salary-estimate/components/SalaryIncreaseCard"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -71,6 +72,8 @@ export default async function DashboardPage() {
         greeting={greeting}
         dateLabel={dateLabel}
       />
+
+      <SalaryIncreaseCard />
 
       <div className="mobile-only">
         <OnboardingCard
