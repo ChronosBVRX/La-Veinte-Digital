@@ -733,7 +733,7 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
                     )}
                   </div>
 
-                  {(!project?.visual || project.visual.status === "IDLE" || project.visual.status === "FAILED") && (
+                  {(!project?.visual || project.visual.status === "IDLE") && (
                     <button
                       className="btn-primary"
                       disabled={!!busy}
@@ -741,6 +741,16 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
                       style={{ fontSize: "0.82rem", padding: "6px 14px" }}
                     >
                       {busy === "Renderizando video" ? "Iniciando render…" : "🎬 GENERAR VIDEO (16:9 y 9:16)"}
+                    </button>
+                  )}
+                  {project?.visual?.status === "FAILED" && (
+                    <button
+                      className="btn-primary"
+                      disabled={!!busy}
+                      onClick={() => void runRenderVisual()}
+                      style={{ fontSize: "0.82rem", padding: "6px 14px" }}
+                    >
+                      {busy === "Renderizando video" ? "Iniciando render…" : "🔄 Reintentar render"}
                     </button>
                   )}
                   {project?.visual?.status === "READY" && (

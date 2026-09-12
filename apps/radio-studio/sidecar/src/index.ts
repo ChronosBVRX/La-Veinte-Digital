@@ -36,6 +36,7 @@ import { getGpuManager } from "./llm/gpu-manager";
 import { ScriptPipeline, buildEvidencePackV2 } from "./llm/pipeline";
 import { eliminarJob, leerJob, guardarJob, nuevoJob, resumenJob, type ProductionJob } from "../worker/job-store";
 import { leerJobMusica, guardarJobMusica, nuevoJobMusica, resumenJobMusica, type MusicaTipo } from "../worker/musica-job-store";
+import { guardarVisualJob, leerVisualJob, reconciliarVisualJobs, isProcessAlive, type VisualJob } from "../worker/visual-job-store";
 import { createHash } from "node:crypto";
 import { makeProjectStoreForRepo, ProjectStore } from "./services/project-store";
 import { ProjectWorkflowService } from "./services/project-workflow";
@@ -264,25 +265,56 @@ async function finalizarProduccionJob(job: ProductionJob): Promise<void> {
     pauseAfterMs: b.pauseAfterMs ?? 0,
     authorPause: b.authorPause,
     relation: b.relation,
+    transition: b.transition,
   }));
 
   const masterResult = await smartMixer.mixEpisode(turns, outFile, {
     kbps: 192,
   });
 
+  // Guardar el manifiesto canónico de alineación atómicamente en el proyecto
+  const projectDir = path.join(REPO, "data", "projects", job.id);
+  fs.mkdirSync(projectDir, { recursive: true });
+  const alignmentPath = path.join(projectDir, "timeline-alignment.json");
+  const tmpAlignment = `${alignmentPath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmpAlignment, JSON.stringify(masterResult.alignment, null, 2), "utf8");
+  try {
+    fs.renameSync(tmpAlignment, alignmentPath);
+  } catch {
+    fs.copyFileSync(tmpAlignment, alignmentPath);
+    try { fs.unlinkSync(tmpAlignment); } catch {}
+  }
+
+  // Guardar copia junto al máster de audio para máxima robustez y portabilidad
+  const masterAlignmentPath = path.join(outDir, `timeline-${job.id}.json`);
+  try {
+    fs.writeFileSync(masterAlignmentPath, JSON.stringify(masterResult.alignment, null, 2), "utf8");
+  } catch {}
+
   const p = projectStore.get(job.id);
   if (p) {
     projectStore.update(job.id, {
       state: "DONE",
       master: masterResult,
+      alignment: masterResult.alignment,
+      visual: {
+        status: "RENDERING",
+        renderedAt: new Date().toISOString(),
+        files: {},
+        error: null,
+      },
     });
     projectLog(job.id, "production.completed", {
       master: outFile,
       bytes: masterResult.bytes,
       duracionMs: masterResult.duraccionMs,
       turnos: validBloques.length,
+      alignment: alignmentPath,
     });
   }
+
+  // Auto-chain determinista: un solo clic genera audio máster y luego video automáticamente
+  void startVisualProduction(job.id);
 }
 
 let workerVivoCache: { at: number; v: boolean } = { at: 0, v: false };
@@ -723,6 +755,7 @@ async function handleGenerate(res: http.ServerResponse, body: Record<string, unk
         pauseAfterMs?: number;
         authorPause?: boolean;
         relation?: string;
+        transition?: string;
       }>)
     : [];
   if (bloques.length === 0) return json(res, 400, { error: "sin bloques" });
@@ -755,6 +788,7 @@ async function handleGenerate(res: http.ServerResponse, body: Record<string, unk
         pauseAfterMs: b.pauseAfterMs,
         authorPause: b.authorPause,
         relation: b.relation,
+        transition: b.transition,
       };
     }),
     voces
@@ -2163,6 +2197,7 @@ async function startProjectProduction(id: string, script: StudioScript): Promise
     pauseAfterMs: t.pauseAfterMs,
     authorPause: t.authorPause,
     relation: t.relation,
+    transition: t.transition,
   }));
   const existente = leerJob();
   // Ya hay producción de ESTE proyecto activa → reanudar o finalizar si falta el máster (idempotente).
@@ -2202,6 +2237,7 @@ async function startProjectProduction(id: string, script: StudioScript): Promise
         pauseAfterMs: b.pauseAfterMs,
         authorPause: b.authorPause,
         relation: b.relation,
+        transition: b.transition,
       };
     }),
     voces
@@ -2217,12 +2253,46 @@ async function startVisualProduction(id: string): Promise<void> {
   const project = projectStore.get(id);
   if (!project) throw new Error("PROJECT_NOT_FOUND");
   if (!project.master?.master) throw new Error("MASTER_AUDIO_REQUIRED");
-  if (project.visual?.status === "RENDERING") return;
+
+  // Idempotencia: si ya hay un job visual corriendo para este proyecto con proceso vivo, no duplicar
+  const activeJob = leerVisualJob(id);
+  if (activeJob && activeJob.status === "RENDERING" && isProcessAlive(activeJob.pid)) {
+    return;
+  }
+  if (project.visual?.status === "RENDERING" && activeJob && isProcessAlive(activeJob.pid)) {
+    return;
+  }
 
   const projectDir = path.join(REPO, "data", "projects", id);
   const projectJsonPath = path.join(projectDir, "project.json");
+  const alignmentPath = path.join(projectDir, "timeline-alignment.json");
+  const masterAlignmentPath = path.join(REPO, "data", "tts", "master", `timeline-${id}.json`);
+
+  const activeAlignment = fs.existsSync(alignmentPath)
+    ? alignmentPath
+    : fs.existsSync(masterAlignmentPath)
+    ? masterAlignmentPath
+    : null;
+
+  if (!activeAlignment) {
+    const errMsg = "ALIGNMENT_REQUIRED: no se encontró timeline-alignment.json para el episodio";
+    projectStore.update(id, {
+      visual: {
+        status: "FAILED",
+        error: errMsg,
+        files: {},
+      },
+    });
+    projectLog(id, "visual.failed", { error: errMsg });
+    throw new Error(errMsg);
+  }
+
   const outDir = path.join(REPO, "data", "tts", "video", id);
   fs.mkdirSync(outDir, { recursive: true });
+
+  const masterAudio = path.isAbsolute(project.master.master)
+    ? project.master.master
+    : path.join(REPO, project.master.master);
 
   projectStore.update(id, {
     visual: {
@@ -2232,16 +2302,14 @@ async function startVisualProduction(id: string): Promise<void> {
       error: null,
     },
   });
-
-  const masterAudio = path.isAbsolute(project.master.master)
-    ? project.master.master
-    : path.join(REPO, project.master.master);
+  projectLog(id, "visual.started", { projectId: id, alignment: activeAlignment });
 
   const scriptPath = path.join(REPO, "backend", "app", "visual", "project_renderer.py");
   const proc = spawn("python", [
     scriptPath,
     "--project", projectJsonPath,
     "--master", masterAudio,
+    "--alignment", activeAlignment,
     "--output-dir", outDir,
     "--formats", "preview,16x9,9x16",
   ], {
@@ -2249,6 +2317,21 @@ async function startVisualProduction(id: string): Promise<void> {
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
+
+  const visualJob: VisualJob = {
+    projectId: id,
+    status: "RENDERING",
+    pid: proc.pid,
+    startedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    formats: ["preview", "16x9", "9x16"],
+    outputDir: outDir,
+    alignmentPath: activeAlignment,
+    masterPath: masterAudio,
+    files: {},
+    error: null,
+  };
+  guardarVisualJob(visualJob);
 
   let stderr = "";
   proc.stderr.on("data", (d) => { stderr += d.toString(); });
@@ -2265,42 +2348,89 @@ async function startVisualProduction(id: string): Promise<void> {
         const rel16x9 = path.join("data", "tts", "video", id, `episodio-${id}-16x9.mp4`).replace(/\\/g, "/");
         const rel9x16 = path.join("data", "tts", "video", id, `episodio-${id}-9x16.mp4`).replace(/\\/g, "/");
 
+        const absPreview = path.join(REPO, relPreview);
+        const abs16x9 = path.join(REPO, rel16x9);
+        const abs9x16 = path.join(REPO, rel9x16);
+
+        // Validar que los 3 videos realmente existan y tengan tamaño > 0
+        const filesToCheck = [
+          { tag: "preview", abs: absPreview, rel: relPreview },
+          { tag: "16x9", abs: abs16x9, rel: rel16x9 },
+          { tag: "9x16", abs: abs9x16, rel: rel9x16 },
+        ];
+
+        for (const item of filesToCheck) {
+          if (!fs.existsSync(item.abs) || fs.statSync(item.abs).size === 0) {
+            throw new Error(`Archivo de video faltante o vacío: ${item.tag} (${item.abs})`);
+          }
+        }
+
+        // Validación con ffprobe para asegurar streams de video válidos
+        try {
+          for (const item of filesToCheck) {
+            execFileSync("ffprobe", [
+              "-v", "error",
+              "-select_streams", "v:0",
+              "-show_entries", "stream=codec_name",
+              "-of", "default=noprint_wrappers=1:nokey=1",
+              item.abs,
+            ], { timeout: 15000 });
+          }
+        } catch (probeErr) {
+          throw new Error(`ffprobe falló al verificar integridad del video: ${probeErr instanceof Error ? probeErr.message : String(probeErr)}`);
+        }
+
+        const files = {
+          preview: relPreview,
+          video16x9: rel16x9,
+          video9x16: rel9x16,
+        };
+
+        visualJob.status = "READY";
+        visualJob.files = files;
+        visualJob.report = reportData;
+        visualJob.error = null;
+        guardarVisualJob(visualJob);
+
         projectStore.update(id, {
           visual: {
             status: "READY",
             renderedAt: new Date().toISOString(),
-            files: {
-              preview: relPreview,
-              video16x9: rel16x9,
-              video9x16: rel9x16,
-            },
+            files,
             report: reportData,
             error: null,
           },
         });
-        projectLog(id, "visual.ready", {
-          preview: relPreview,
-          video16x9: rel16x9,
-          video9x16: rel9x16,
-        });
+        projectLog(id, "visual.ready", files);
       } catch (e) {
+        const errorMsg = e instanceof Error ? e.message : String(e);
+        visualJob.status = "FAILED";
+        visualJob.error = errorMsg;
+        guardarVisualJob(visualJob);
+
         projectStore.update(id, {
           visual: {
             status: "FAILED",
-            error: e instanceof Error ? e.message : String(e),
+            error: errorMsg,
             files: {},
           },
         });
+        projectLog(id, "visual.failed", { error: errorMsg });
       }
     } else {
+      const errorMsg = stderr.trim() || `Render falló con código ${code}`;
+      visualJob.status = "FAILED";
+      visualJob.error = errorMsg;
+      guardarVisualJob(visualJob);
+
       projectStore.update(id, {
         visual: {
           status: "FAILED",
-          error: stderr.trim() || `Render falló con código ${code}`,
+          error: errorMsg,
           files: {},
         },
       });
-      projectLog(id, "visual.failed", { error: stderr.trim() || code });
+      projectLog(id, "visual.failed", { error: errorMsg });
     }
   });
 }
@@ -2374,6 +2504,7 @@ try { BUNDLE_MTIME = Math.floor(fs.statSync(__filename).mtimeMs); } catch {}
 
 server.listen(PORT, "127.0.0.1", () => {
   try { fs.mkdirSync(path.dirname(PID_FILE), { recursive: true }); fs.writeFileSync(PID_FILE, String(process.pid)); } catch {}
+  try { reconciliarVisualJobs(REPO, projectStore); } catch {}
   console.log(`[sidecar] AI Radio Studio local en http://127.0.0.1:${PORT} (pid ${process.pid})`);
 });
 
