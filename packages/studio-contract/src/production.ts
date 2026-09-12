@@ -50,3 +50,18 @@ export const ClipResultSchema = z.object({
   attempt: z.number().default(1),
 });
 export type ClipResult = z.infer<typeof ClipResultSchema>;
+
+export const VisualResultSchema = z.object({
+  status: z.enum(["IDLE", "RENDERING", "READY", "FAILED"]).default("IDLE"),
+  error: z.string().nullable().optional(),
+  renderedAt: z.string().nullable().optional(),
+  files: z
+    .object({
+      preview: z.string().nullable().optional(),
+      video16x9: z.string().nullable().optional(),
+      video9x16: z.string().nullable().optional(),
+    })
+    .default({}),
+  report: z.unknown().nullable().optional(),
+});
+export type VisualResult = z.infer<typeof VisualResultSchema>;

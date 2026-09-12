@@ -32,8 +32,8 @@ export interface EditorialSanitizeResult {
   qa: EditorialQaReport;
 }
 
-const MAX_PAUSE_BEFORE_MS = 180;
-const MAX_PAUSE_AFTER_MS = 260;
+const MAX_PAUSE_BEFORE_MS = 260;
+const MAX_PAUSE_AFTER_MS = 360;
 
 const PREMATURE_CLOSE_RE = /\b(nos vemos|hasta la proxima|hasta pronto|antes de irnos|para cerrar|por hoy|despedida)\b/i;
 const AIRCRAFT_OFFTOPIC_RE = /\b(pilotos?|tripulantes?|avion|avión|vuelo|descanso horizontal|musico|músico|obra de teatro|barco|buque|maritimo|marítimo|articulo 39|artículo 39)\b/i;
@@ -128,8 +128,10 @@ export function sanitizeEditorialScript(script: EpisodeScript): EditorialSanitiz
     }
 
     const t = { ...original };
-    const pauseBefore = clampPause(t.pauseBeforeMs, MAX_PAUSE_BEFORE_MS);
-    const pauseAfter = clampPause(t.pauseAfterMs, MAX_PAUSE_AFTER_MS);
+    const maxBefore = (t as unknown as { authorPause?: boolean }).authorPause || isTransition(t) ? 1500 : MAX_PAUSE_BEFORE_MS;
+    const maxAfter = (t as unknown as { authorPause?: boolean }).authorPause || isTransition(t) ? 800 : MAX_PAUSE_AFTER_MS;
+    const pauseBefore = clampPause(t.pauseBeforeMs, maxBefore);
+    const pauseAfter = clampPause(t.pauseAfterMs, maxAfter);
     if (pauseBefore !== t.pauseBeforeMs || pauseAfter !== t.pauseAfterMs) cambios += 1;
     t.pauseBeforeMs = pauseBefore;
     t.pauseAfterMs = pauseAfter;

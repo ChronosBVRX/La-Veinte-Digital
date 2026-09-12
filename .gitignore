@@ -78,6 +78,13 @@ next-env.d.ts
 /data/tts/music/*
 !/data/tts/music/bed-uniforme-vivo.wav
 !/data/tts/music/jingle-uniforme-vivo.wav
+!/data/tts/music/apertura-la-veinte.wav
+!/data/tts/music/ident-la-veinte.wav
+!/data/tts/music/salida-la-veinte.wav
+!/data/tts/music/LICENSE.md
+!/data/tts/sfx/
+/data/tts/sfx/*
+!/data/tts/sfx/clic-microfono.wav
 
 # modelos y herramientas locales pesadas/regenerables
 /tools/ACE-Step-1.5/
@@ -92,4 +99,5 @@ __pycache__/
 
 # Local temp & scratch
 /tmp/
+/output/
 

@@ -31,6 +31,7 @@ import {
   type MasterResult,
   type CommercialPlacement,
 } from "@la-veinte/studio-contract";
+import { deriveShortTitle } from "@la-veinte/radio-core";
 
 export const DEFAULT_ARTIFACTS = [
   "research.json",
@@ -83,6 +84,8 @@ export interface CreateProjectInput {
   topic: string;
   titulo?: string;
   config?: Project["config"];
+  script?: Script | null;
+  state?: ProjectState;
 }
 
 export class ProjectStore {
@@ -146,22 +149,28 @@ export class ProjectStore {
       modo: "ia",
       comerciales: { enabled: false, ids: [], allowDirectorChoice: true, count: "auto", ubicacion: "auto", interaccion: "natural", duracionSec: 30 },
     };
+    const cleanTitle = deriveShortTitle(input.titulo ?? input.topic);
+    const initialScript = input.script ?? null;
+    const initialState: ProjectState = input.state ?? (initialScript ? "SCRIPT_READY" : "DRAFT");
     const project: Project = {
       id,
-      titulo: input.titulo ?? input.topic,
+      titulo: cleanTitle || "Episodio",
       topic: input.topic,
-      state: "DRAFT",
+      state: initialState,
       createdAt: now,
       updatedAt: now,
       config,
       research: null,
       proposal: null,
-      script: null,
+      script: initialScript,
       production: null,
       master: null,
       error: null,
     };
     this.save(project);
+    if (initialScript) {
+      this.writeScript(id, initialScript);
+    }
     this.writeArtifact(id, "logs.json", []);
     return project;
   }
@@ -209,6 +218,9 @@ export class ProjectStore {
   }
   writeScript(id: string, s: Script): void {
     this.writeArtifact(id, "script.json", s);
+  }
+  readScript(id: string): Script | null {
+    return this.readArtifact<Script>(id, "script.json");
   }
   writeProduction(id: string, p: ProductionState): void {
     this.writeArtifact(id, "production.json", p);

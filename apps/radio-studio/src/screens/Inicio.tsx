@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
-import { listProjects, deleteProject } from "../lib/studio-api";
-import type { Project } from "@la-veinte/studio-contract";
+import { useEffect, useMemo, useState } from "react";
+import { listProjects, deleteProject, SIDECAR_URL_EXPORT } from "../lib/studio-api";
+import { MiniPlayer } from "../components/MiniPlayer";
+import type { Project, Script } from "@la-veinte/studio-contract";
 import { PROFUNDIDAD_LABELS, PROFUNDIDAD_MIN, type Profundidad } from "@la-veinte/studio-contract";
+import { classifyInput, parseScript, deriveShortTitle } from "@la-veinte/radio-core";
 
 const STATE_LABELS: Record<string, string> = {
   DRAFT: "Borrador",
@@ -20,7 +22,7 @@ const STATE_LABELS: Record<string, string> = {
 };
 
 function titleOf(p: Project): string {
-  return p.titulo || p.topic;
+  return deriveShortTitle(p.titulo || p.topic);
 }
 
 function fecha(p: Project): string {
@@ -28,7 +30,25 @@ function fecha(p: Project): string {
   return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
 }
 
-export function Inicio({ onCrear, onOpen }: { onCrear: (tema: string, comerciales: boolean, profundidad: Profundidad) => void; onOpen: (id: string) => void }) {
+function formatoMinSeg(ms: number): string {
+  const totalSec = Math.round(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2, "0")} min`;
+}
+
+export function Inicio({
+  onCrear,
+  onOpen,
+}: {
+  onCrear: (
+    tema: string,
+    comerciales: boolean,
+    profundidad: Profundidad,
+    options?: { script?: Script | null; forceTopic?: boolean }
+  ) => void;
+  onOpen: (id: string) => void;
+}) {
   const [tema, setTema] = useState("");
   const [comerciales, setComerciales] = useState(false);
   const [profundidad, setProfundidad] = useState<Profundidad>("estandar");
@@ -36,13 +56,32 @@ export function Inicio({ onCrear, onOpen }: { onCrear: (tema: string, comerciale
   const [eliminando, setEliminando] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const sugerencias = ["¿Qué pasa si me cambian de horario?", "Cómo solicitar vacaciones", "Accidente de trabajo: ST-7", "Tiempo extraordinario en el IMSS"];
+  const sugerencias = [
+    "¿Qué pasa si me cambian de horario?",
+    "Cómo solicitar vacaciones",
+    "Accidente de trabajo: ST-7",
+    "Tiempo extraordinario en el IMSS",
+  ];
 
   const recargar = () => void listProjects().then((ps) => setRecent(ps.slice(0, 6)));
 
   useEffect(() => {
     recargar();
   }, []);
+
+  const classification = useMemo(() => {
+    if (!tema.trim()) return null;
+    return classifyInput(tema);
+  }, [tema]);
+
+  const parsedScript = useMemo(() => {
+    if (!classification || classification.kind !== "script") return null;
+    try {
+      return parseScript(tema);
+    } catch {
+      return null;
+    }
+  }, [classification, tema]);
 
   // Confirmación IN-UI (en el webview de Tauri window.confirm no funciona).
   const eliminar = async (p: Project) => {
@@ -65,19 +104,130 @@ export function Inicio({ onCrear, onOpen }: { onCrear: (tema: string, comerciale
         <div>
           <div className="brand-title" style={{ fontSize: 20, marginBottom: 2 }}>LA VEINTE RADIO</div>
           <h1>¿Qué episodio quieres crear?</h1>
-          <p className="muted">Escribe un tema laboral. Yo investigo nuestras bibliotecas, te digo qué puedo demostrar y qué no, y preparo el programa.</p>
+          <p className="muted">Escribe un tema laboral para investigar, o pega directamente un guion ya escrito con tus personajes.</p>
         </div>
         <div className="ready-pill ok">Listo para trabajar</div>
       </div>
 
       <section className="card start-card">
         <label className="field">
-          <span>Tema del episodio</span>
-          <input value={tema} onChange={(e) => setTema(e.target.value)} placeholder="Ej. ¿Qué pasa si me cambian de horario sin avisarme?" autoFocus />
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span>Tema o guion del episodio</span>
+            {classification && (
+              <span
+                className="chip"
+                style={{
+                  fontSize: "0.76rem",
+                  padding: "2px 8px",
+                  background:
+                    classification.kind === "script"
+                      ? "rgba(16, 185, 129, 0.15)"
+                      : classification.kind === "ambiguous"
+                        ? "rgba(245, 158, 11, 0.15)"
+                        : "rgba(59, 130, 246, 0.15)",
+                  color:
+                    classification.kind === "script"
+                      ? "#10b981"
+                      : classification.kind === "ambiguous"
+                        ? "#f59e0b"
+                        : "#3b82f6",
+                  border: `1px solid ${
+                    classification.kind === "script"
+                      ? "#10b981"
+                      : classification.kind === "ambiguous"
+                        ? "#f59e0b"
+                        : "#3b82f6"
+                  }`,
+                }}
+              >
+                {classification.kind === "script"
+                  ? `📝 Guion detectado (${classification.stats.detectedSpeakers.join(", ")} · ${classification.stats.speakerLineCount} intervenciones)`
+                  : classification.kind === "ambiguous"
+                    ? "🤔 Formato mixto o ambiguo"
+                    : "🔎 Tema para investigar"}
+              </span>
+            )}
+          </div>
+          <textarea
+            value={tema}
+            onChange={(e) => setTema(e.target.value)}
+            placeholder="Ej. ¿Qué pasa si me cambian de horario sin avisarme?&#10;O pega un guion:&#10;EDUARDO: Bienvenidos a La Veinte Radio...&#10;ANDREA: Hoy revisaremos la Cláusula 22..."
+            autoFocus
+            rows={tema.includes("\n") || tema.length > 80 ? 6 : 2}
+            style={{
+              width: "100%",
+              minHeight: 64,
+              maxHeight: 280,
+              resize: "vertical",
+              fontFamily: "inherit",
+              fontSize: "0.95rem",
+              padding: "10px 12px",
+              borderRadius: "var(--radius-sm, 6px)",
+              border: "1px solid var(--border, #334155)",
+              background: "var(--panel-2, #1e293b)",
+              color: "inherit",
+              lineHeight: 1.45,
+            }}
+          />
         </label>
-        <button className="btn-primary btn-main-action" onClick={() => onCrear(tema.trim(), comerciales, profundidad)} disabled={!tema.trim()}>
-          INVESTIGAR Y PREPARAR EPISODIO
-        </button>
+
+        {classification?.kind === "script" ? (
+          <div className="row" style={{ gap: 10, marginTop: 10 }}>
+            <button
+              className="btn-primary btn-main-action"
+              style={{ flex: 2 }}
+              onClick={() =>
+                onCrear(tema.trim(), comerciales, profundidad, {
+                  script: parsedScript ?? undefined,
+                })
+              }
+              disabled={!tema.trim()}
+            >
+              📝 IMPORTAR GUION Y PREPARAR AUDIO
+            </button>
+            <button
+              className="btn-secondary"
+              style={{ flex: 1 }}
+              onClick={() => onCrear(tema.trim(), comerciales, profundidad, { forceTopic: true })}
+              disabled={!tema.trim()}
+              title="Investigar como tema en la biblioteca"
+            >
+              Investigar como tema
+            </button>
+          </div>
+        ) : classification?.kind === "ambiguous" ? (
+          <div className="row" style={{ gap: 10, marginTop: 10 }}>
+            <button
+              className="btn-primary btn-main-action"
+              style={{ flex: 1 }}
+              onClick={() =>
+                onCrear(tema.trim(), comerciales, profundidad, {
+                  script: parsedScript ?? undefined,
+                })
+              }
+              disabled={!tema.trim()}
+            >
+              📝 IMPORTAR COMO GUION
+            </button>
+            <button
+              className="btn-secondary btn-main-action"
+              style={{ flex: 1 }}
+              onClick={() => onCrear(tema.trim(), comerciales, profundidad, { forceTopic: true })}
+              disabled={!tema.trim()}
+            >
+              🔎 INVESTIGAR COMO TEMA
+            </button>
+          </div>
+        ) : (
+          <button
+            className="btn-primary btn-main-action"
+            onClick={() => onCrear(tema.trim(), comerciales, profundidad)}
+            disabled={!tema.trim()}
+          >
+            INVESTIGAR Y PREPARAR EPISODIO
+          </button>
+        )}
+
         <div className="depth-row" style={{ marginTop: 12 }}>
           <span className="muted small">Profundidad (aproximada):</span>
           <div className="quick-topics" style={{ marginTop: 8 }}>
@@ -106,37 +256,137 @@ export function Inicio({ onCrear, onOpen }: { onCrear: (tema: string, comerciale
           <div className="muted small">Todavía no tienes episodios. Escribe un tema arriba y comienza.</div>
         ) : (
           <div className="step-strip" style={{ flexDirection: "column", gap: 10 }}>
-            {recent.map((p) => (
-              <section key={p.id} className="card" style={{ padding: 14 }}>
-                <div className="row" style={{ justifyContent: "space-between", width: "100%", gap: 10 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 700 }}>{titleOf(p)}</div>
-                    <div className="muted small">{STATE_LABELS[p.state] ?? p.state} · {fecha(p)}</div>
-                    {p.proposal && <div className="muted small">~{p.proposal.duracionEstimadaMin} min</div>}
-                  </div>
-                  <div className="row" style={{ gap: 8, flexShrink: 0 }}>
-                    <button className="btn-secondary" onClick={() => onOpen(p.id)}>CONTINUAR</button>
-                    {confirmando === p.id ? (
-                      <>
-                        <button className="btn-danger" disabled={eliminando === p.id} onClick={() => void eliminar(p)}>
-                          {eliminando === p.id ? "Borrando…" : "SÍ, BORRAR"}
-                        </button>
-                        <button className="btn-secondary" disabled={eliminando === p.id} onClick={() => setConfirmando(null)}>NO</button>
-                      </>
-                    ) : (
-                      <button
-                        className="btn-danger"
-                        disabled={eliminando === p.id}
-                        title="Eliminar este episodio"
-                        onClick={() => setConfirmando(p.id)}
-                      >
-                        ELIMINAR
+            {recent.map((p) => {
+              const audioUrl = p.master?.master
+                ? `${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(p.master.master.replace(/\\/g, "/"))}`
+                : null;
+              const tieneAudio = Boolean(audioUrl || p.state === "DONE");
+              const tieneVideo = Boolean(p.visual?.status === "READY" && p.visual?.files);
+              const video16x9Url = p.visual?.files?.video16x9
+                ? `${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(p.visual.files.video16x9.replace(/\\/g, "/"))}`
+                : null;
+              const video9x16Url = p.visual?.files?.video9x16
+                ? `${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(p.visual.files.video9x16.replace(/\\/g, "/"))}`
+                : null;
+              return (
+                <section key={p.id} className="card" style={{ padding: 14 }}>
+                  <div className="row" style={{ justifyContent: "space-between", width: "100%", gap: 10, flexWrap: "wrap" }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: "1rem" }}>{titleOf(p)}</div>
+                      <div className="muted small" style={{ marginTop: 2 }}>
+                        <span style={{ color: tieneAudio ? "#22c55e" : undefined, fontWeight: tieneAudio ? 600 : undefined }}>
+                          {tieneAudio
+                            ? (tieneVideo ? "✓ Audio y Video listos" : "✓ Audio listo")
+                            : (STATE_LABELS[p.state] ?? p.state)}
+                        </span>
+                        {" · "}
+                        {fecha(p)}
+                        {p.master?.duraccionMs ? ` · ${formatoMinSeg(p.master.duraccionMs)}` : p.proposal ? ` · ~${p.proposal.duracionEstimadaMin} min` : ""}
+                        {p.master?.bytes ? ` · ${(p.master.bytes / 1024 / 1024).toFixed(1)} MB` : ""}
+                        {tieneVideo ? " · 🎬 16:9 y 9:16" : ""}
+                      </div>
+                    </div>
+                    <div className="row" style={{ gap: 8, flexShrink: 0, alignItems: "center", flexWrap: "wrap" }}>
+                      {audioUrl && (
+                        <a
+                          className="chip-mini ok"
+                          href={audioUrl}
+                          download={`episodio-${p.id}.mp3`}
+                          title="Descargar audio MP3"
+                          style={{
+                            textDecoration: "none",
+                            padding: "5px 10px",
+                            borderRadius: 8,
+                            background: "#22c55e",
+                            color: "#ffffff",
+                            fontWeight: 600,
+                            fontSize: "0.8rem",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          ⬇ MP3
+                        </a>
+                      )}
+                      {video16x9Url && (
+                        <a
+                          className="chip-mini ok"
+                          href={video16x9Url}
+                          download={`episodio-${p.id}-16x9.mp4`}
+                          title="Descargar Video 16:9 (YouTube)"
+                          style={{
+                            textDecoration: "none",
+                            padding: "5px 10px",
+                            borderRadius: 8,
+                            background: "#3b82f6",
+                            color: "#ffffff",
+                            fontWeight: 600,
+                            fontSize: "0.8rem",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          🎬 Video 16:9
+                        </a>
+                      )}
+                      {video9x16Url && (
+                        <a
+                          className="chip-mini ok"
+                          href={video9x16Url}
+                          download={`episodio-${p.id}-9x16.mp4`}
+                          title="Descargar Video 9:16 (TikTok/Reels)"
+                          style={{
+                            textDecoration: "none",
+                            padding: "5px 10px",
+                            borderRadius: 8,
+                            background: "#8b5cf6",
+                            color: "#ffffff",
+                            fontWeight: 600,
+                            fontSize: "0.8rem",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          📱 Video 9:16
+                        </a>
+                      )}
+                      <button className="btn-secondary" onClick={() => onOpen(p.id)}>
+                        {tieneAudio || tieneVideo ? "VER EPISODIO" : "CONTINUAR"}
                       </button>
-                    )}
+                      {confirmando === p.id ? (
+                        <>
+                          <button className="btn-danger" disabled={eliminando === p.id} onClick={() => void eliminar(p)}>
+                            {eliminando === p.id ? "Borrando…" : "SÍ, BORRAR"}
+                          </button>
+                          <button className="btn-secondary" disabled={eliminando === p.id} onClick={() => setConfirmando(null)}>NO</button>
+                        </>
+                      ) : (
+                        <button
+                          className="btn-danger"
+                          disabled={eliminando === p.id}
+                          title="Eliminar este episodio"
+                          onClick={() => setConfirmando(p.id)}
+                        >
+                          ELIMINAR
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </section>
-            ))}
+                  {audioUrl && (
+                    <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border, #334155)" }}>
+                      <MiniPlayer
+                        src={audioUrl}
+                        label={`Audio final: ${titleOf(p)}`}
+                        accent="#22c55e"
+                      />
+                    </div>
+                  )}
+                </section>
+              );
+            })}
           </div>
         )}
       </section>

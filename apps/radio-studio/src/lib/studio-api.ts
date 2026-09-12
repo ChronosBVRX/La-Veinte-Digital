@@ -32,8 +32,14 @@ function motorWorkingError(): Error {
 
 async function parseError(res: Response): Promise<Error> {
   try {
-    const body = await res.json() as { error?: string };
-    if (body?.error) return new Error(body.error);
+    const body = (await res.json()) as { error?: string; userMessage?: string; message?: string; code?: string };
+    const detail = body?.userMessage || body?.error || body?.message;
+    if (detail) {
+      const err = new Error(detail);
+      (err as unknown as { code?: string }).code = body?.code;
+      (err as unknown as { status?: number }).status = res.status;
+      return err;
+    }
   } catch { /* respuesta no JSON */ }
   return new Error(`sidecar ${res.status}`);
 }
@@ -646,12 +652,16 @@ import type {
 
 export interface CreateProjectInput {
   topic: string;
+  titulo?: string;
   config?: Partial<ProjectConfig>;
+  script?: Script | null;
 }
 
 export async function createProject(input: CreateProjectInput): Promise<Project> {
   return post<Project>("/projects", {
     topic: input.topic,
+    titulo: input.titulo,
+    script: input.script,
     config: {
       duracionMin: 15,
       profundidad: "estandar",
@@ -722,6 +732,10 @@ export async function projectVerify(id: string): Promise<VerifyResult> {
 
 export async function projectProduce(id: string): Promise<{ project: Project; started?: { started: boolean; total: number } }> {
   return post<{ project: Project; started?: { started: boolean; total: number } }>(`/projects/${id}/produce`, {}, 30000, 3);
+}
+
+export async function projectRenderVisual(id: string): Promise<{ project: Project; started: boolean }> {
+  return post<{ project: Project; started: boolean }>(`/projects/${id}/render-visual`, {}, 30000, 3);
 }
 
 export async function listCommercials(): Promise<Commercial[]> {

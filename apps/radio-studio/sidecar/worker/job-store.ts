@@ -13,12 +13,18 @@ export type JobState = "QUEUED" | "RUNNING" | "PAUSED" | "DONE" | "FAILED" | "IN
 export interface JobBloque {
   id: string;
   texto: string;
+  ssml?: string | null;
   locutor: string;
   voz: string;
   voiceProfileId?: string;
   referenceAudioSha256?: string;
   voiceSourceId?: string;
   modelRevision?: string;
+  pauseBeforeMs?: number;
+  pauseAfterMs?: number;
+  authorPause?: boolean;
+  relation?: string | null;
+  transition?: string | null;
   estado: "pendiente" | "generado" | "fallo";
   chars: number;
   audioDurMs: number | null;
@@ -29,6 +35,7 @@ export interface JobBloque {
   error: string | null;
   wavPath: string | null;
 }
+
 
 export interface ProductionJob {
   id: string;
@@ -107,7 +114,27 @@ export function guardarJob(job: ProductionJob): void {
   }
 }
 
-export function nuevoJob(id: string, tema: string, bloques: Array<{ id: string; texto: string; locutor: string; voz: string; voiceProfileId?: string; referenceAudioSha256?: string; voiceSourceId?: string; modelRevision?: string }>, voces: Record<string, VoiceSlot>): ProductionJob {
+export function nuevoJob(
+  id: string,
+  tema: string,
+  bloques: Array<{
+    id: string;
+    texto: string;
+    ssml?: string | null;
+    locutor: string;
+    voz: string;
+    voiceProfileId?: string;
+    referenceAudioSha256?: string;
+    voiceSourceId?: string;
+    modelRevision?: string;
+    pauseBeforeMs?: number;
+    pauseAfterMs?: number;
+    authorPause?: boolean;
+    relation?: string | null;
+    transition?: string | null;
+  }>,
+  voces: Record<string, VoiceSlot>
+): ProductionJob {
   return {
     id,
     tema,
@@ -117,12 +144,18 @@ export function nuevoJob(id: string, tema: string, bloques: Array<{ id: string; 
     bloques: bloques.map((b) => ({
       id: b.id,
       texto: b.texto,
+      ssml: b.ssml ?? null,
       locutor: b.locutor,
       voz: b.voz,
       voiceProfileId: b.voiceProfileId,
       referenceAudioSha256: b.referenceAudioSha256,
       voiceSourceId: b.voiceSourceId,
       modelRevision: b.modelRevision,
+      pauseBeforeMs: b.pauseBeforeMs ?? 200,
+      pauseAfterMs: b.pauseAfterMs ?? 250,
+      authorPause: b.authorPause ?? false,
+      relation: b.relation ?? null,
+      transition: b.transition ?? null,
       estado: "pendiente",
       chars: b.texto.length,
       audioDurMs: null,
@@ -141,6 +174,7 @@ export function nuevoJob(id: string, tema: string, bloques: Array<{ id: string; 
     notas: [],
   };
 }
+
 
 export function resumenJob(job: ProductionJob): Record<string, unknown> {
   const generados = job.bloques.filter((b) => b.estado === "generado");

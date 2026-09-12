@@ -28,13 +28,15 @@ import {
 import { NormativeCatalog } from "../../../../src/features/normativa/services/catalog";
 import { buildCoverage } from "../../../../src/features/normativa/services/coverage";
 import { buildScriptFromEvidence } from "../../../../src/features/normativa/services/llm-provider";
-import { directRadioEpisode, analyzeDiversity, polishDialogue, sanitizeEditorialScript, editorialPromptRules, editorialSegmentGoal, validateCasting, VOICE_PERSONAS, GLOBAL_PRONUNCIATION_RULE, DEFAULT_SPEAKERS, type DirectorInput, type DialogueTurn, type EpisodeScript, type SpeakerProfile, type CitationMode, type VoiceSlot, validateRoleFirewall } from "@la-veinte/radio-core";
+import { directRadioEpisode, analyzeDiversity, polishDialogue, sanitizeEditorialScript, editorialPromptRules, editorialSegmentGoal, validateCasting, VOICE_PERSONAS, GLOBAL_PRONUNCIATION_RULE, DEFAULT_SPEAKERS, type DirectorInput, type DialogueTurn, type EpisodeScript, type SpeakerProfile, type CitationMode, type VoiceSlot, validateRoleFirewall, applyConversationalProsody } from "@la-veinte/radio-core";
+import { SmartMixer, type TurnMixSpec } from "./services/smart-mixer";
 import { runMasterQa } from "./master-qa";
 import { loadLlmConfig, LocalLLMService } from "./llm/local-llm";
 import { getGpuManager } from "./llm/gpu-manager";
 import { ScriptPipeline, buildEvidencePackV2 } from "./llm/pipeline";
 import { eliminarJob, leerJob, guardarJob, nuevoJob, resumenJob, type ProductionJob } from "../worker/job-store";
 import { leerJobMusica, guardarJobMusica, nuevoJobMusica, resumenJobMusica, type MusicaTipo } from "../worker/musica-job-store";
+import { guardarVisualJob, leerVisualJob, reconciliarVisualJobs, isProcessAlive, type VisualJob } from "../worker/visual-job-store";
 import { createHash } from "node:crypto";
 import { makeProjectStoreForRepo, ProjectStore } from "./services/project-store";
 import { ProjectWorkflowService } from "./services/project-workflow";
@@ -162,7 +164,20 @@ async function procesarProduccion(): Promise<void> {
       if (!warmup.ok) throw new Error(`motor no disponible: ${warmup.error ?? "warmup"}`);
     }
     const job = leerJob();
-    if (!job || job.estado === "DONE" || job.estado === "FAILED") return;
+    if (!job || job.estado === "FAILED") return;
+    if (job.estado === "DONE") {
+      // Si la síntesis ya concluyó pero el máster aún no está completado en el proyecto, finalizarlo
+      const p = projectStore.get(job.id);
+      if (p && (!p.master || p.state !== "DONE")) {
+        try {
+          await finalizarProduccionJob(job);
+        } catch (e) {
+          job.notas.push(`master: ${e instanceof Error ? e.message : String(e)}`);
+          guardarJob(job);
+        }
+      }
+      return;
+    }
     job.estado = "RUNNING";
     guardarJob(job);
     for (let i = 0; i < job.bloques.length; i++) {
@@ -189,6 +204,7 @@ async function procesarProduccion(): Promise<void> {
             voiceSourceId: voiceId,
             modelRevision: b.modelRevision,
             seed,
+            ssml: b.ssml ?? undefined,
           });
           lastWorkerBeat = Date.now();
           if (cancelRequested || job.cancelado) { clearProductionCancel(); return; }
@@ -215,6 +231,14 @@ async function procesarProduccion(): Promise<void> {
     }
     job.estado = job.bloques.some((b) => b.estado === "fallo") ? "FAILED" : "DONE";
     guardarJob(job);
+    if (job.estado === "DONE") {
+      try {
+        await finalizarProduccionJob(job);
+      } catch (e) {
+        job.notas.push(`master: ${e instanceof Error ? e.message : String(e)}`);
+        guardarJob(job);
+      }
+    }
   } catch (e) {
     const job = leerJob();
     if (job) { job.estado = "FAILED"; job.notas.push(`worker: ${e instanceof Error ? e.message : String(e)}`); guardarJob(job); }
@@ -222,6 +246,75 @@ async function procesarProduccion(): Promise<void> {
     produccionEnCurso = false;
     lastWorkerBeat = 0;
   }
+}
+
+async function finalizarProduccionJob(job: ProductionJob): Promise<void> {
+  const outDir = path.join(REPO, "data", "tts", "master");
+  fs.mkdirSync(outDir, { recursive: true });
+  const outFile = path.join(outDir, `programa-${job.id}.mp3`);
+
+  const validBloques = job.bloques.filter((b) => b.wavPath && fs.existsSync(b.wavPath));
+  if (validBloques.length === 0) return;
+
+  const smartMixer = new SmartMixer(REPO);
+  const turns: TurnMixSpec[] = validBloques.map((b) => ({
+    id: b.id,
+    speaker: b.locutor,
+    wavPath: b.wavPath!,
+    pauseBeforeMs: b.pauseBeforeMs ?? 250,
+    pauseAfterMs: b.pauseAfterMs ?? 0,
+    authorPause: b.authorPause,
+    relation: b.relation,
+    transition: b.transition,
+  }));
+
+  const masterResult = await smartMixer.mixEpisode(turns, outFile, {
+    kbps: 192,
+  });
+
+  // Guardar el manifiesto canónico de alineación atómicamente en el proyecto
+  const projectDir = path.join(REPO, "data", "projects", job.id);
+  fs.mkdirSync(projectDir, { recursive: true });
+  const alignmentPath = path.join(projectDir, "timeline-alignment.json");
+  const tmpAlignment = `${alignmentPath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmpAlignment, JSON.stringify(masterResult.alignment, null, 2), "utf8");
+  try {
+    fs.renameSync(tmpAlignment, alignmentPath);
+  } catch {
+    fs.copyFileSync(tmpAlignment, alignmentPath);
+    try { fs.unlinkSync(tmpAlignment); } catch {}
+  }
+
+  // Guardar copia junto al máster de audio para máxima robustez y portabilidad
+  const masterAlignmentPath = path.join(outDir, `timeline-${job.id}.json`);
+  try {
+    fs.writeFileSync(masterAlignmentPath, JSON.stringify(masterResult.alignment, null, 2), "utf8");
+  } catch {}
+
+  const p = projectStore.get(job.id);
+  if (p) {
+    projectStore.update(job.id, {
+      state: "DONE",
+      master: masterResult,
+      alignment: masterResult.alignment,
+      visual: {
+        status: "RENDERING",
+        renderedAt: new Date().toISOString(),
+        files: {},
+        error: null,
+      },
+    });
+    projectLog(job.id, "production.completed", {
+      master: outFile,
+      bytes: masterResult.bytes,
+      duracionMs: masterResult.duraccionMs,
+      turnos: validBloques.length,
+      alignment: alignmentPath,
+    });
+  }
+
+  // Auto-chain determinista: un solo clic genera audio máster y luego video automáticamente
+  void startVisualProduction(job.id);
 }
 
 let workerVivoCache: { at: number; v: boolean } = { at: 0, v: false };
@@ -544,7 +637,7 @@ function vozPorLocutor(locutor: string, voces: Record<string, VoiceSlot>): Voice
   const directa = voces[locutor] ?? voces[locutor.toUpperCase()];
   if (directa) return directa;
   const id = locutor.toUpperCase();
-  if (id.includes("NARRADOR")) return "N";
+  if (id.includes("NARRADOR") || id.includes("JAVIER") || id.includes("ALONSO") || id.includes("ANALISTA")) return "N";
   if (id.includes("RODRIGO") || id.includes("CORRESPONSAL") || id.includes("REPORTERO")) return "C";
   if (id.includes("VALERIA") || id.includes("COMERCIAL") || id.includes("PATROCIN")) return "P";
   if (id.includes("MARIANA") || id.includes("ANDREA")) return "B";
@@ -653,7 +746,17 @@ async function handleCastingRefresh(res: http.ServerResponse) {
 
 async function handleGenerate(res: http.ServerResponse, body: Record<string, unknown>) {
   const bloques = Array.isArray(body.bloques)
-    ? (body.bloques as Array<{ id: string; texto: string; locutor: string }>)
+    ? (body.bloques as Array<{
+        id: string;
+        texto: string;
+        locutor: string;
+        ssml?: string;
+        pauseBeforeMs?: number;
+        pauseAfterMs?: number;
+        authorPause?: boolean;
+        relation?: string;
+        transition?: string;
+      }>)
     : [];
   if (bloques.length === 0) return json(res, 400, { error: "sin bloques" });
 
@@ -680,6 +783,12 @@ async function handleGenerate(res: http.ServerResponse, body: Record<string, unk
         referenceAudioSha256: perfil?.referenceAudioSha256,
         voiceSourceId: perfil?.voiceSourceId,
         modelRevision: perfil?.modelRevision,
+        ssml: b.ssml,
+        pauseBeforeMs: b.pauseBeforeMs,
+        pauseAfterMs: b.pauseAfterMs,
+        authorPause: b.authorPause,
+        relation: b.relation,
+        transition: b.transition,
       };
     }),
     voces
@@ -1735,19 +1844,54 @@ function mediaRoots(): string[] {
   return [
     path.join(REPO, "data", "tts"),
     path.join(REPO, "data", "projects"),
+    path.join(REPO, "output"),
   ].map((p) => path.resolve(p));
 }
 
-async function handleMedia(res: http.ServerResponse, url: URL) {
+async function handleMedia(req: http.IncomingMessage, res: http.ServerResponse, url: URL) {
   const raw = decodeURIComponent(url.searchParams.get("file") ?? "");
   if (!raw) return json(res, 400, { error: "file requerido" });
   const target = resolveMediaSafe(raw, mediaRoots());
   if (!target) return json(res, 404, { error: "archivo no disponible" });
   const ext = path.extname(target).toLowerCase();
-  const mime = ext === ".wav" ? "audio/wav" : ext === ".mp3" ? "audio/mpeg" : ext === ".m4a" ? "audio/mp4" : "application/octet-stream";
-  const buf = fs.readFileSync(target);
-  res.writeHead(200, { "Content-Type": mime, "Content-Length": buf.length, "Access-Control-Allow-Origin": "*" });
-  res.end(buf);
+  const mime = ext === ".wav" ? "audio/wav" : ext === ".mp3" ? "audio/mpeg" : ext === ".m4a" ? "audio/mp4" : ext === ".mp4" ? "video/mp4" : "application/octet-stream";
+
+  const stat = fs.statSync(target);
+  const totalSize = stat.size;
+  const range = req.headers.range;
+
+  if (range) {
+    const parts = range.replace(/bytes=/, "").split("-");
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
+
+    if (isNaN(start) || start >= totalSize || (parts[1] && isNaN(end)) || start > end) {
+      res.writeHead(416, {
+        "Content-Range": `bytes */${totalSize}`,
+        "Access-Control-Allow-Origin": "*",
+      });
+      return res.end();
+    }
+
+    const chunkSize = end - start + 1;
+    const stream = fs.createReadStream(target, { start, end });
+    res.writeHead(206, {
+      "Content-Range": `bytes ${start}-${end}/${totalSize}`,
+      "Accept-Ranges": "bytes",
+      "Content-Length": chunkSize,
+      "Content-Type": mime,
+      "Access-Control-Allow-Origin": "*",
+    });
+    stream.pipe(res);
+  } else {
+    res.writeHead(200, {
+      "Content-Length": totalSize,
+      "Content-Type": mime,
+      "Accept-Ranges": "bytes",
+      "Access-Control-Allow-Origin": "*",
+    });
+    fs.createReadStream(target).pipe(res);
+  }
 }
 
 const MUSICA_TIPOS: MusicaTipo[] = ["bed", "jingle", "sfx", "cortinilla", "ambiente"];
@@ -1974,7 +2118,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/musica/progreso") return await handleMusicaProgreso(res);
     if (req.method === "POST" && url.pathname === "/musica/generar") return await handleMusicaGenerar(res, await readBody(req));
     if (req.method === "POST" && url.pathname === "/musica/cancelar") return await handleMusicaCancelar(res);
-    if (req.method === "GET" && url.pathname === "/media") return await handleMedia(res, url);
+    if (req.method === "GET" && url.pathname === "/media") return await handleMedia(req, res, url);
     if (req.method === "GET" && url.pathname === "/events") return await handleSse(res, req);
     if (req.method === "GET" && url.pathname === "/normativa/documentos") return await handleDocList(res);
     if (req.method === "POST" && url.pathname === "/normativa/buscar") return await handleNormativaBuscar(res, await readBody(req));
@@ -1984,9 +2128,23 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/director/ajustar") return await handleAjustarGuion(res, await readBody(req));
     if (req.method === "POST" && url.pathname === "/generate") return await handleGenerate(res, await readBody(req));
     if (req.method === "POST" && url.pathname === "/resume") return await handleResume(res);
-    if (req.method === "GET" && url.pathname === "/sistema") return await handleSistema(res);
-    if (req.method === "GET" && url.pathname === "/health") return json(res, 200, { ok: true, pid: process.pid, ready: true, port: PORT, bundle: BUNDLE_MTIME });
-    if (req.method === "GET" && url.pathname === "/llm/health") return await handleLlmHealth(res);
+    if (req.method === "GET" && url.pathname === "/health") {
+      let frontendBuild: unknown = null;
+      try {
+        const fePath = path.join(REPO, "apps", "radio-studio", "dist", "build-info.json");
+        if (fs.existsSync(fePath)) frontendBuild = JSON.parse(fs.readFileSync(fePath, "utf8"));
+      } catch {}
+      return json(res, 200, {
+        ok: true,
+        pid: process.pid,
+        ready: true,
+        port: PORT,
+        bundle: BUNDLE_MTIME,
+        gitCommit: process.env.SIDECAR_GIT_COMMIT ?? "dev",
+        sidecarBuild: process.env.SIDECAR_BUILD_TIME ?? new Date().toISOString(),
+        frontendBuild,
+      });
+    }
     if (req.method === "POST" && url.pathname === "/llm/unload") return await handleLlmUnload(res);
     if (req.method === "POST" && url.pathname === "/cancel") return await handleCancel(res);
     if (req.method === "POST" && url.pathname === "/discard") return await handleDiscard(res);
@@ -2000,6 +2158,7 @@ const server = http.createServer(async (req, res) => {
       commercials: commercialService,
       json,
       startProduction: startProjectProduction,
+      startVisualProduction,
       onDelete: deleteProjectCleanup,
     };
     if (await routeProject(url, req, res, pctx, () => readBody(req))) return;
@@ -2026,10 +2185,30 @@ async function startProjectProduction(id: string, script: StudioScript): Promise
   for (const t of script.turns) {
     if (!voces[t.speaker]) voces[t.speaker] = vozPorLocutor(t.speaker, {});
   }
-  const bloques = script.turns.filter((t) => !t.adSlot).map((t) => ({ id: t.id, texto: t.ttsText ?? t.displayText, locutor: t.speaker }));
+  // Aplicar prosodia conversacional refinada (relaciones de turno, pausas dinámicas, preservación de pausas de autor)
+  const processedTurns = applyConversationalProsody(script.turns);
+
+  const bloques = processedTurns.filter((t) => !t.adSlot).map((t) => ({
+    id: t.id,
+    texto: t.ttsText ?? t.displayText,
+    locutor: t.speaker,
+    ssml: t.ssml ?? undefined,
+    pauseBeforeMs: t.pauseBeforeMs,
+    pauseAfterMs: t.pauseAfterMs,
+    authorPause: t.authorPause,
+    relation: t.relation,
+    transition: t.transition,
+  }));
   const existente = leerJob();
-  // Ya hay producción de ESTE proyecto activa → reanudar, no fallar (idempotente).
-  if (existente && existente.estado !== "DONE" && existente.id === id) {
+  // Ya hay producción de ESTE proyecto activa → reanudar o finalizar si falta el máster (idempotente).
+  if (existente && existente.id === id) {
+    if (existente.estado === "DONE") {
+      const p = projectStore.get(id);
+      if (!p?.master || p.state !== "DONE") {
+        await finalizarProduccionJob(existente);
+      }
+      return { started: true, total: existente.bloques.length };
+    }
     spawnWorker();
     projectLog(id, "production.started", { total: existente.bloques.length, resumido: true });
     return { started: true, total: existente.bloques.length };
@@ -2053,6 +2232,12 @@ async function startProjectProduction(id: string, script: StudioScript): Promise
         referenceAudioSha256: perfil?.referenceAudioSha256,
         voiceSourceId: perfil?.voiceSourceId,
         modelRevision: perfil?.modelRevision,
+        ssml: b.ssml,
+        pauseBeforeMs: b.pauseBeforeMs,
+        pauseAfterMs: b.pauseAfterMs,
+        authorPause: b.authorPause,
+        relation: b.relation,
+        transition: b.transition,
       };
     }),
     voces
@@ -2061,6 +2246,193 @@ async function startProjectProduction(id: string, script: StudioScript): Promise
   spawnWorker();
   projectLog(id, "production.started", { total: bloques.length });
   return { started: true, total: bloques.length };
+}
+
+/** Lanza la generación de video del proyecto en segundo plano. */
+async function startVisualProduction(id: string): Promise<void> {
+  const project = projectStore.get(id);
+  if (!project) throw new Error("PROJECT_NOT_FOUND");
+  if (!project.master?.master) throw new Error("MASTER_AUDIO_REQUIRED");
+
+  // Idempotencia: si ya hay un job visual corriendo para este proyecto con proceso vivo, no duplicar
+  const activeJob = leerVisualJob(id);
+  if (activeJob && activeJob.status === "RENDERING" && isProcessAlive(activeJob.pid)) {
+    return;
+  }
+  if (project.visual?.status === "RENDERING" && activeJob && isProcessAlive(activeJob.pid)) {
+    return;
+  }
+
+  const projectDir = path.join(REPO, "data", "projects", id);
+  const projectJsonPath = path.join(projectDir, "project.json");
+  const alignmentPath = path.join(projectDir, "timeline-alignment.json");
+  const masterAlignmentPath = path.join(REPO, "data", "tts", "master", `timeline-${id}.json`);
+
+  const activeAlignment = fs.existsSync(alignmentPath)
+    ? alignmentPath
+    : fs.existsSync(masterAlignmentPath)
+    ? masterAlignmentPath
+    : null;
+
+  if (!activeAlignment) {
+    const errMsg = "ALIGNMENT_REQUIRED: no se encontró timeline-alignment.json para el episodio";
+    projectStore.update(id, {
+      visual: {
+        status: "FAILED",
+        error: errMsg,
+        files: {},
+      },
+    });
+    projectLog(id, "visual.failed", { error: errMsg });
+    throw new Error(errMsg);
+  }
+
+  const outDir = path.join(REPO, "data", "tts", "video", id);
+  fs.mkdirSync(outDir, { recursive: true });
+
+  const masterAudio = path.isAbsolute(project.master.master)
+    ? project.master.master
+    : path.join(REPO, project.master.master);
+
+  projectStore.update(id, {
+    visual: {
+      status: "RENDERING",
+      renderedAt: new Date().toISOString(),
+      files: {},
+      error: null,
+    },
+  });
+  projectLog(id, "visual.started", { projectId: id, alignment: activeAlignment });
+
+  const scriptPath = path.join(REPO, "backend", "app", "visual", "project_renderer.py");
+  const proc = spawn("python", [
+    scriptPath,
+    "--project", projectJsonPath,
+    "--master", masterAudio,
+    "--alignment", activeAlignment,
+    "--output-dir", outDir,
+    "--formats", "preview,16x9,9x16",
+  ], {
+    cwd: REPO,
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  });
+
+  const visualJob: VisualJob = {
+    projectId: id,
+    status: "RENDERING",
+    pid: proc.pid,
+    startedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    formats: ["preview", "16x9", "9x16"],
+    outputDir: outDir,
+    alignmentPath: activeAlignment,
+    masterPath: masterAudio,
+    files: {},
+    error: null,
+  };
+  guardarVisualJob(visualJob);
+
+  let stderr = "";
+  proc.stderr.on("data", (d) => { stderr += d.toString(); });
+
+  proc.on("close", (code) => {
+    if (code === 0) {
+      try {
+        const reportPath = path.join(outDir, "render-report.json");
+        let reportData = null;
+        if (fs.existsSync(reportPath)) {
+          reportData = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
+        }
+        const relPreview = path.join("data", "tts", "video", id, `episodio-${id}-preview.mp4`).replace(/\\/g, "/");
+        const rel16x9 = path.join("data", "tts", "video", id, `episodio-${id}-16x9.mp4`).replace(/\\/g, "/");
+        const rel9x16 = path.join("data", "tts", "video", id, `episodio-${id}-9x16.mp4`).replace(/\\/g, "/");
+
+        const absPreview = path.join(REPO, relPreview);
+        const abs16x9 = path.join(REPO, rel16x9);
+        const abs9x16 = path.join(REPO, rel9x16);
+
+        // Validar que los 3 videos realmente existan y tengan tamaño > 0
+        const filesToCheck = [
+          { tag: "preview", abs: absPreview, rel: relPreview },
+          { tag: "16x9", abs: abs16x9, rel: rel16x9 },
+          { tag: "9x16", abs: abs9x16, rel: rel9x16 },
+        ];
+
+        for (const item of filesToCheck) {
+          if (!fs.existsSync(item.abs) || fs.statSync(item.abs).size === 0) {
+            throw new Error(`Archivo de video faltante o vacío: ${item.tag} (${item.abs})`);
+          }
+        }
+
+        // Validación con ffprobe para asegurar streams de video válidos
+        try {
+          for (const item of filesToCheck) {
+            execFileSync("ffprobe", [
+              "-v", "error",
+              "-select_streams", "v:0",
+              "-show_entries", "stream=codec_name",
+              "-of", "default=noprint_wrappers=1:nokey=1",
+              item.abs,
+            ], { timeout: 15000 });
+          }
+        } catch (probeErr) {
+          throw new Error(`ffprobe falló al verificar integridad del video: ${probeErr instanceof Error ? probeErr.message : String(probeErr)}`);
+        }
+
+        const files = {
+          preview: relPreview,
+          video16x9: rel16x9,
+          video9x16: rel9x16,
+        };
+
+        visualJob.status = "READY";
+        visualJob.files = files;
+        visualJob.report = reportData;
+        visualJob.error = null;
+        guardarVisualJob(visualJob);
+
+        projectStore.update(id, {
+          visual: {
+            status: "READY",
+            renderedAt: new Date().toISOString(),
+            files,
+            report: reportData,
+            error: null,
+          },
+        });
+        projectLog(id, "visual.ready", files);
+      } catch (e) {
+        const errorMsg = e instanceof Error ? e.message : String(e);
+        visualJob.status = "FAILED";
+        visualJob.error = errorMsg;
+        guardarVisualJob(visualJob);
+
+        projectStore.update(id, {
+          visual: {
+            status: "FAILED",
+            error: errorMsg,
+            files: {},
+          },
+        });
+        projectLog(id, "visual.failed", { error: errorMsg });
+      }
+    } else {
+      const errorMsg = stderr.trim() || `Render falló con código ${code}`;
+      visualJob.status = "FAILED";
+      visualJob.error = errorMsg;
+      guardarVisualJob(visualJob);
+
+      projectStore.update(id, {
+        visual: {
+          status: "FAILED",
+          error: errorMsg,
+          files: {},
+        },
+      });
+      projectLog(id, "visual.failed", { error: errorMsg });
+    }
+  });
 }
 
 /** Limpia el trabajo de producción del proyecto si se elimina desde la lista. */
@@ -2132,6 +2504,7 @@ try { BUNDLE_MTIME = Math.floor(fs.statSync(__filename).mtimeMs); } catch {}
 
 server.listen(PORT, "127.0.0.1", () => {
   try { fs.mkdirSync(path.dirname(PID_FILE), { recursive: true }); fs.writeFileSync(PID_FILE, String(process.pid)); } catch {}
+  try { reconciliarVisualJobs(REPO, projectStore); } catch {}
   console.log(`[sidecar] AI Radio Studio local en http://127.0.0.1:${PORT} (pid ${process.pid})`);
 });
 
