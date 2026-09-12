@@ -734,6 +734,10 @@ export async function projectProduce(id: string): Promise<{ project: Project; st
   return post<{ project: Project; started?: { started: boolean; total: number } }>(`/projects/${id}/produce`, {}, 30000, 3);
 }
 
+export async function projectRenderVisual(id: string): Promise<{ project: Project; started: boolean }> {
+  return post<{ project: Project; started: boolean }>(`/projects/${id}/render-visual`, {}, 30000, 3);
+}
+
 export async function listCommercials(): Promise<Commercial[]> {
   try {
     return await get<Commercial[]>("/commercials", 5000);

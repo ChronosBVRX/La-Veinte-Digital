@@ -10,7 +10,7 @@
  * - Coherencia del reparto de personajes.
  */
 
-import type { Script, Turn } from "@la-veinte/studio-contract";
+import type { Script } from "@la-veinte/studio-contract";
 
 export const CANONICAL_SPEAKER_IDS = ["EDUARDO", "ANDREA", "JAVIER", "NARRADOR", "RODRIGO", "VALERIA"] as const;
 

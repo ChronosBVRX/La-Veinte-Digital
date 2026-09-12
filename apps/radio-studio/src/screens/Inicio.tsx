@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { listProjects, deleteProject } from "../lib/studio-api";
+import { listProjects, deleteProject, SIDECAR_URL_EXPORT } from "../lib/studio-api";
+import { MiniPlayer } from "../components/MiniPlayer";
 import type { Project, Script } from "@la-veinte/studio-contract";
 import { PROFUNDIDAD_LABELS, PROFUNDIDAD_MIN, type Profundidad } from "@la-veinte/studio-contract";
 import { classifyInput, parseScript, deriveShortTitle } from "@la-veinte/radio-core";
@@ -27,6 +28,13 @@ function titleOf(p: Project): string {
 function fecha(p: Project): string {
   const d = new Date(p.updatedAt ?? p.createdAt);
   return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
+}
+
+function formatoMinSeg(ms: number): string {
+  const totalSec = Math.round(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2, "0")} min`;
 }
 
 export function Inicio({
@@ -248,37 +256,83 @@ export function Inicio({
           <div className="muted small">Todavía no tienes episodios. Escribe un tema arriba y comienza.</div>
         ) : (
           <div className="step-strip" style={{ flexDirection: "column", gap: 10 }}>
-            {recent.map((p) => (
-              <section key={p.id} className="card" style={{ padding: 14 }}>
-                <div className="row" style={{ justifyContent: "space-between", width: "100%", gap: 10 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 700 }}>{titleOf(p)}</div>
-                    <div className="muted small">{STATE_LABELS[p.state] ?? p.state} · {fecha(p)}</div>
-                    {p.proposal && <div className="muted small">~{p.proposal.duracionEstimadaMin} min</div>}
-                  </div>
-                  <div className="row" style={{ gap: 8, flexShrink: 0 }}>
-                    <button className="btn-secondary" onClick={() => onOpen(p.id)}>CONTINUAR</button>
-                    {confirmando === p.id ? (
-                      <>
-                        <button className="btn-danger" disabled={eliminando === p.id} onClick={() => void eliminar(p)}>
-                          {eliminando === p.id ? "Borrando…" : "SÍ, BORRAR"}
-                        </button>
-                        <button className="btn-secondary" disabled={eliminando === p.id} onClick={() => setConfirmando(null)}>NO</button>
-                      </>
-                    ) : (
-                      <button
-                        className="btn-danger"
-                        disabled={eliminando === p.id}
-                        title="Eliminar este episodio"
-                        onClick={() => setConfirmando(p.id)}
-                      >
-                        ELIMINAR
+            {recent.map((p) => {
+              const audioUrl = p.master?.master
+                ? `${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(p.master.master.replace(/\\/g, "/"))}`
+                : null;
+              const tieneAudio = Boolean(audioUrl || p.state === "DONE");
+              return (
+                <section key={p.id} className="card" style={{ padding: 14 }}>
+                  <div className="row" style={{ justifyContent: "space-between", width: "100%", gap: 10, flexWrap: "wrap" }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: "1rem" }}>{titleOf(p)}</div>
+                      <div className="muted small" style={{ marginTop: 2 }}>
+                        <span style={{ color: tieneAudio ? "#22c55e" : undefined, fontWeight: tieneAudio ? 600 : undefined }}>
+                          {tieneAudio ? "✓ Audio listo" : (STATE_LABELS[p.state] ?? p.state)}
+                        </span>
+                        {" · "}
+                        {fecha(p)}
+                        {p.master?.duraccionMs ? ` · ${formatoMinSeg(p.master.duraccionMs)}` : p.proposal ? ` · ~${p.proposal.duracionEstimadaMin} min` : ""}
+                        {p.master?.bytes ? ` · ${(p.master.bytes / 1024 / 1024).toFixed(1)} MB` : ""}
+                      </div>
+                    </div>
+                    <div className="row" style={{ gap: 8, flexShrink: 0, alignItems: "center" }}>
+                      {audioUrl && (
+                        <a
+                          className="chip-mini ok"
+                          href={audioUrl}
+                          download={`episodio-${p.id}.mp3`}
+                          title="Descargar audio MP3"
+                          style={{
+                            textDecoration: "none",
+                            padding: "5px 10px",
+                            borderRadius: 8,
+                            background: "#22c55e",
+                            color: "#ffffff",
+                            fontWeight: 600,
+                            fontSize: "0.8rem",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          ⬇ MP3
+                        </a>
+                      )}
+                      <button className="btn-secondary" onClick={() => onOpen(p.id)}>
+                        {tieneAudio ? "VER EPISODIO" : "CONTINUAR"}
                       </button>
-                    )}
+                      {confirmando === p.id ? (
+                        <>
+                          <button className="btn-danger" disabled={eliminando === p.id} onClick={() => void eliminar(p)}>
+                            {eliminando === p.id ? "Borrando…" : "SÍ, BORRAR"}
+                          </button>
+                          <button className="btn-secondary" disabled={eliminando === p.id} onClick={() => setConfirmando(null)}>NO</button>
+                        </>
+                      ) : (
+                        <button
+                          className="btn-danger"
+                          disabled={eliminando === p.id}
+                          title="Eliminar este episodio"
+                          onClick={() => setConfirmando(p.id)}
+                        >
+                          ELIMINAR
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </section>
-            ))}
+                  {audioUrl && (
+                    <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border, #334155)" }}>
+                      <MiniPlayer
+                        src={audioUrl}
+                        label={`Audio final: ${titleOf(p)}`}
+                        accent="#22c55e"
+                      />
+                    </div>
+                  )}
+                </section>
+              );
+            })}
           </div>
         )}
       </section>

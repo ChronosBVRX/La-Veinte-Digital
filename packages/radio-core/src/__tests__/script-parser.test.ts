@@ -418,4 +418,35 @@ ANDREA: Hola.`);
     expect(report.isValid).toBe(true);
     expect(report.canProduceAudio).toBe(true);
   });
+
+  it("reconoce locutores pegados a ']' o ')' sin espacios ni saltos de línea", () => {
+    const raw = `[MÚSICA DE APERTURA — 5 SEGUNDOS][SFX: CLIC SUAVE DE MICRÓFONO]RODRIGO:¿Ya estamos al aire?[PAUSA: 300 ms]ANDREA:Sí, todo listo en cabina.]EDUARDO:Bienvenidos a La Veinte Radio.)JAVIER:Listos para analizar el Contrato.`;
+    const script = parseScript(raw);
+    expect(script.turns.length).toBe(4);
+    expect(script.turns[0].speaker).toBe("RODRIGO");
+    expect(script.turns[0].ttsText).toContain("¿Ya estamos al aire?");
+    expect(script.turns[1].speaker).toBe("ANDREA");
+    expect(script.turns[1].ttsText).toContain("todo listo en cabina");
+    expect(script.turns[2].speaker).toBe("EDUARDO");
+    expect(script.turns[2].ttsText).toContain("Bienvenidos a La Veinte Radio");
+    expect(script.turns[3].speaker).toBe("JAVIER");
+    expect(script.turns[3].ttsText).toContain("Listos para analizar el Contrato");
+  });
+
+  it("conserva conectores discursivos (Dicho de otra forma:, Por ejemplo:) como diálogo y no crea personajes fantasma", () => {
+    const raw = `EDUARDO:
+La norma contractual reconoce el derecho con toda claridad.
+Dicho de otra forma: se acabaron las excusas de pasillo.
+Por ejemplo: si tienes permiso económico, debes tramitar el formato correspondiente.
+ANDREA:
+En otras palabras: nadie puede negarte el trámite si cumples el procedimiento.`;
+
+    const script = parseScript(raw);
+    expect(script.turns.length).toBe(2);
+    expect(script.turns[0].speaker).toBe("EDUARDO");
+    expect(script.turns[0].ttsText).toContain("Dicho de otra forma: se acabaron las excusas de pasillo");
+    expect(script.turns[0].ttsText).toContain("Por ejemplo: si tienes permiso económico");
+    expect(script.turns[1].speaker).toBe("ANDREA");
+    expect(script.turns[1].ttsText).toContain("En otras palabras: nadie puede negarte el trámite");
+  });
 });

@@ -9,7 +9,7 @@
  * - Conversation Rhythm Score (0-100).
  */
 
-import type { Script, Turn } from "@la-veinte/studio-contract";
+import type { Script } from "@la-veinte/studio-contract";
 import { calculatePauseDistribution, type PauseDistributionStats } from "./prosody-director";
 
 export interface DialogueAuditReport {

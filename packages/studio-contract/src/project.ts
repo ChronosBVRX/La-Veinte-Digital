@@ -6,7 +6,14 @@ import { ProjectStateSchema, InteractionLevelSchema, type ProjectState } from ".
 import { ResearchBundleSchema, type ResearchBundle } from "./research";
 import { ProposalSchema, type Proposal } from "./proposal";
 import { ScriptSchema, type Script } from "./script";
-import { ProductionStateSchema, MasterResultSchema, type ProductionState, type MasterResult } from "./production";
+import {
+  ProductionStateSchema,
+  MasterResultSchema,
+  VisualResultSchema,
+  type ProductionState,
+  type MasterResult,
+  type VisualResult,
+} from "./production";
 import { CommercialSelectionSchema, type CommercialSelection } from "./commercial";
 
 export const PROFUNDIDADES = ["breve", "estandar", "profundo"] as const;
@@ -49,10 +56,20 @@ export const ProjectSchema = z.object({
   script: ScriptSchema.nullable().optional(),
   production: ProductionStateSchema.nullable().optional(),
   master: MasterResultSchema.nullable().optional(),
+  visual: VisualResultSchema.nullable().optional(),
   error: z.string().nullable().optional(),
 });
 export type Project = z.infer<typeof ProjectSchema>;
-export type { ProjectState, ResearchBundle, Proposal, Script, ProductionState, MasterResult, CommercialSelection };
+export type {
+  ProjectState,
+  ResearchBundle,
+  Proposal,
+  Script,
+  ProductionState,
+  MasterResult,
+  VisualResult,
+  CommercialSelection,
+};
 
 /** Piezas del proyecto guardadas por separado bajo data/projects/<id>/. */
 export const PROJECT_ARTIFACTS = [

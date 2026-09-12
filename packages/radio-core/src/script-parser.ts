@@ -16,6 +16,7 @@ import {
   deriveShortTitle,
   isCueLine,
   isCueKeyword,
+  isValidSpeakerCandidate,
 } from "./script-classifier";
 
 export interface CanonicalSpeakerDef {
@@ -156,7 +157,7 @@ export function parseSpeakerHeader(line: string): ParsedSpeakerHeader | null {
 
   // Caso 1: Envuelto en asteriscos o corchetes: **EDUARDO — cálido, natural** ¿Ya estamos? o **EDUARDO:** ¿Ya estamos?
   const wrappedMatch = trimmed.match(
-    /^(?:#{1,4}\s*)?(?:\*{1,2}|\[)([\wÁÉÍÓÚáéíóúÑñ\s\/\-—–,():]+?)(?:\*{1,2}|\])\s*(?:[:–—-]\s*)?(.*)$/
+    /^(?:#{1,4}\s*)?(?:\*{1,2}|\[)([\wÁÉÍÓÚáéíóúÑñ\s\/\-—–,():.]+?)(?:\*{1,2}|\])\s*(?:[:–—-]\s*)?(.*)$/
   );
   if (wrappedMatch) {
     const headerInside = wrappedMatch[1].trim();
@@ -166,6 +167,7 @@ export function parseSpeakerHeader(line: string): ParsedSpeakerHeader | null {
     const nameMatch = headerInside.match(KNOWN_NAMES_REGEX);
     if (nameMatch) {
       const speakerCandidate = nameMatch[0].trim();
+      if (!isValidSpeakerCandidate(speakerCandidate)) return null;
       const restOfHeader = headerInside.slice(nameMatch[0].length).trim();
       const styles = parseDeliveryStyles(restOfHeader);
       const cleanInlineDialogue = wrappedMatch[2].replace(/^\*{1,2}|\*{1,2}$/g, "").trim();
@@ -186,11 +188,13 @@ export function parseSpeakerHeader(line: string): ParsedSpeakerHeader | null {
   // - EDUARDO: Hola.
   // - ANDREA (sola en una línea)
   const plainHeaderMatch = trimmed.match(
-    /^(?:#{1,4}\s*)?([A-Za-zÁÉÍÓÚáéíóúÑñ\s]{2,25}?)(?:\s*([—–\-]|,\s*)\s*([^:\n]+?))?(?:\s*\(([^)]+)\))?\s*(?:[:–—-]|\s*$)\s*(.*)$/
+    /^(?:#{1,4}\s*)?([A-Za-zÁÉÍÓÚáéíóúÑñ\s.]{2,30}?)(?:\s*([—–\-]|,\s*)\s*([^:\n]+?))?(?:\s*\(([^)]+)\))?\s*(?:[:–—-]|\s*$)\s*(.*)$/
   );
 
   if (plainHeaderMatch) {
     const candidate = plainHeaderMatch[1].trim();
+    if (!isValidSpeakerCandidate(candidate)) return null;
+
     const nameCheck = candidate.match(KNOWN_NAMES_REGEX);
     if (nameCheck && !isCueKeyword(candidate)) {
       const speakerCandidate = nameCheck[0].trim();
@@ -225,19 +229,33 @@ export function cleanAndNormalizeScriptText(input: string): string {
 
   // 2. Insertar salto de línea antes de acotaciones de producción estructurales (música, sfx, cortinilla)
   // NO romper acotaciones intra-turno ([PAUSA], [RISAS]) dentro del diálogo para preservar breaks SSML
-  s = s.replace(/(?<!^)(?<!\n)\s*(?=\[\s*(?:MÚSICA|MUSICA|SFX|EFECTO|CORTE|ENTRADA|SALIDA|FADE|CORTINILLA|VOZ EN OFF|LOCUCIÓN|LOCUCION)[^\]]*\])/gi, "\n");
+  s = s.replace(/(?<!^)(?<!\n)[^\S\r\n]*(?=\[\s*(?:MÚSICA|MUSICA|SFX|EFECTO|CORTE|ENTRADA|SALIDA|FADE|CORTINILLA|VOZ EN OFF|LOCUCIÓN|LOCUCION)[^\]]*\])/gi, "\n");
+  // Salto de línea después de acotaciones estructurales que cierran con ] si no hay ya un salto de línea:
+  s = s.replace(/(\[\s*(?:MÚSICA|MUSICA|SFX|EFECTO|CORTE|ENTRADA|SALIDA|FADE|CORTINILLA|VOZ EN OFF|LOCUCIÓN|LOCUCION)[^\]]*\])[^\S\r\n]*(?!\r?\n)/gi, "$1\n");
 
-  // 3. Insertar salto de línea antes de locutores en negritas: **ANDREA**, **EDUARDO — cálido**, etc.
+  // 3. Salto de línea antes de locutores pegados a ']' o ')':
+  // Reconoce etiquetas canónicas o nombres genéricos pegados tras corchetes/paréntesis
+  s = s.replace(/(?<=[\]\)])[^\S\r\n]*(?!\r?\n)(?=\b(?:EDUARDO|ANDREA|JAVIER|JAVIER RÍOS|JAVIER RIOS|RODRIGO|RODRIGO TORRES|VALERIA|VALERIA SOTO|NARRADOR|CORRESPONSAL|COMERCIAL|PATROCINIO|ALONSO)\b|[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚáéíóúÑñ .]{1,30}[:–—-])/g, (_match, offset, fullStr) => {
+    const post = fullStr.slice(offset).trim();
+    const colonIdx = post.search(/[:–—-]/);
+    if (colonIdx > 0 && colonIdx <= 30) {
+      const cand = post.slice(0, colonIdx).trim();
+      if (!isValidSpeakerCandidate(cand)) return "";
+    }
+    return "\n";
+  });
+
+  // 4. Insertar salto de línea antes de locutores en negritas: **ANDREA**, **EDUARDO — cálido**, etc.
   s = s.replace(/(?<!^)(?<!\n)\s*(?=\*\*(?:EDUARDO|ANDREA|JAVIER|RODRIGO|VALERIA|NARRADOR|CORRESPONSAL|COMERCIAL)[^*]{0,40}\*\*)/gi, "\n");
 
-  // 4. Insertar salto de línea antes de locutores canónicos con dos puntos o guion: EDUARDO: ..., ANDREA — ...
+  // 5. Insertar salto de línea antes de locutores canónicos con dos puntos o guion: EDUARDO: ..., ANDREA — ...
   // Requiere no estar precedido de asteriscos para no romper cabeceras en negritas
   s = s.replace(/(?<!^)(?<!\n)(?<!\*)\s*(?=\b(?:EDUARDO|ANDREA|JAVIER|JAVIER RÍOS|JAVIER RIOS|RODRIGO|RODRIGO TORRES|VALERIA|VALERIA SOTO|NARRADOR)\s*[:–—-])/gi, "\n");
 
-  // 5. Inserción conservadora para locutores sin dos puntos que perdieron el salto en el portapapeles:
-  // Requiere puntuación de cierre de frase (. ? ! ” " …), no estar dentro de negritas y mayúscula de arranque
+  // 6. Inserción conservadora para locutores sin dos puntos que perdieron el salto en el portapapeles:
+  // Requiere puntuación de cierre de frase (. ? ! ” " … ] )), no estar dentro de negritas y mayúscula de arranque
   s = s.replace(
-    /(?<=[.!?…”"'])(?<!\*)\s*(?=\b(EDUARDO|ANDREA|JAVIER|RODRIGO|VALERIA)\b\s+[A-ZÁÉÍÓÚÑ¿¡“"])(?!\s+(?:DICE|DIJO|COMENTA|COMENTÓ|PREGUNTA|PREGUNTÓ|RESPONDE|RESPONDIÓ|EXPLICA|EXPLICÓ|AFIRMA|AFIRMÓ)\b)/g,
+    /(?<=[.!?…”"'\]\)])(?<!\*)\s*(?=\b(EDUARDO|ANDREA|JAVIER|RODRIGO|VALERIA)\b\s+[A-ZÁÉÍÓÚÑ¿¡“"])(?!\s+(?:DICE|DIJO|COMENTA|COMENTÓ|PREGUNTA|PREGUNTÓ|RESPONDE|RESPONDIÓ|EXPLICA|EXPLICÓ|AFIRMA|AFIRMÓ)\b)/g,
     "\n"
   );
 
@@ -439,10 +457,17 @@ export function processDialogueCues(rawText: string): ProcessedDialogue {
   if (remaining) ssmlParts.push(remaining);
 
   const rawSsml = ssmlParts.length > 0 ? ssmlParts.join(" ").replace(/\s+/g, " ").trim() : text;
+  const cleanDisplay = text
+    .replace(CUE_REGEX, " ")
+    .replace(/\[[^\]]{1,120}\]/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;?!])/g, "$1")
+    .trim();
+
   const ttsText = sanitizeTtsText(text);
 
   return {
-    displayText: text,
+    displayText: cleanDisplay,
     ttsText,
     ssml: rawSsml,
     events,
@@ -491,7 +516,6 @@ export function parseScript(rawText: string, options: ParseScriptOptions = {}): 
   let activeLines: string[] = [];
   let activeEvents: ProductionEvent[] = [];
   let activePauseBeforeMs: number | null = null;
-  let activePauseAfterMs: number | null = null;
   let activeAuthorPause = false;
   let activeTransition: string | null = null;
 
@@ -593,7 +617,6 @@ export function parseScript(rawText: string, options: ParseScriptOptions = {}): 
     activeLines = [];
     activeEvents = [];
     activePauseBeforeMs = null;
-    activePauseAfterMs = null;
     activeAuthorPause = false;
     activeTransition = null;
   };
@@ -643,7 +666,6 @@ export function parseScript(rawText: string, options: ParseScriptOptions = {}): 
         // La acotación ocurre justo después de diálogo acumulado:
         // Cierra este nodo de habla para el locutor pero MANTIENE el activeSpeaker para diálogo posterior
         activeEvents.push(cueEv);
-        activePauseAfterMs = 0; // Garantiza 0 duplicación: la pausa pertenecerá a pauseBeforeMs del siguiente bloque
 
         closeCurrentTurn(true /* keepSpeaker = true */);
 

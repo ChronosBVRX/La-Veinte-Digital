@@ -6,9 +6,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getProject, projectResearch, projectProposal, projectApprove, projectScript,
-  projectVerify, projectProduce, projectProposalUpdate, obtenerProgreso, obtenerLlmSalud,
+  projectVerify, projectProduce, projectRenderVisual, projectProposalUpdate, obtenerProgreso, obtenerLlmSalud,
   SIDECAR_URL_EXPORT, type LlmHealthInfo,
 } from "../lib/studio-api";
+import { MiniPlayer } from "../components/MiniPlayer";
 import type { Project, Proposal, VerifyResult, Turn, StepProgressState } from "@la-veinte/studio-contract";
 import {
   FORMAT_LABELS, NIVEL_LABELS, EDITORIAL_FORMATS,
@@ -62,6 +63,7 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
   const [editFormato, setEditFormato] = useState<string>("");
   const [editProfundidad, setEditProfundidad] = useState<Profundidad>("estandar");
   const [editEnfoque, setEditEnfoque] = useState("");
+  const [formatoVideo, setFormatoVideo] = useState<"16x9" | "9x16" | "preview">("16x9");
 
   const refresh = async () => {
     const p = await getProject(projectId);
@@ -196,6 +198,19 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
     finally { setBusy(null); }
   };
 
+  const runRenderVisual = async () => {
+    setBusy("Renderizando video");
+    setError(null);
+    try {
+      await projectRenderVisual(projectId);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No pude iniciar el render de video");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const claims = useMemo(() => research?.claims ?? [], [research]);
   const fuentes = useMemo(() => research?.documents ?? [], [research]);
   void fuentes;
@@ -244,6 +259,57 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
           );
         })}
       </div>
+
+      {master?.master && (
+        <section
+          className="card"
+          style={{
+            marginBottom: 18,
+            padding: "16px 18px",
+            background: "rgba(34, 197, 94, 0.08)",
+            border: "1px solid rgba(34, 197, 94, 0.35)",
+            borderRadius: 12,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
+            <div>
+              <div style={{ color: "#22c55e", fontWeight: 700, fontSize: "1.05rem", display: "flex", alignItems: "center", gap: 8 }}>
+                <span>✓ Audio final del episodio disponible</span>
+                <span className="chip-mini ok" style={{ fontSize: "0.75rem", background: "rgba(34, 197, 94, 0.2)", border: "1px solid rgba(34, 197, 94, 0.4)" }}>
+                  LISTO
+                </span>
+              </div>
+              <div className="muted small" style={{ marginTop: 3 }}>
+                {(master.bytes / 1024 / 1024).toFixed(1)} MB · {Math.round(master.duraccionMs / 1000)}s (~{(master.duraccionMs / 60000).toFixed(1)} min) · MP3 192 kbps
+              </div>
+            </div>
+            <a
+              className="chip-mini ok"
+              href={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(master.master.replace(/\\/g, "/"))}`}
+              download={`episodio-${projectId}.mp3`}
+              style={{
+                textDecoration: "none",
+                padding: "6px 14px",
+                borderRadius: 8,
+                background: "#22c55e",
+                color: "#ffffff",
+                fontWeight: 600,
+                fontSize: "0.85rem",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              ⬇ Descargar MP3
+            </a>
+          </div>
+          <MiniPlayer
+            src={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(master.master.replace(/\\/g, "/"))}`}
+            label={deriveShortTitle(project?.titulo ?? project?.topic ?? "Episodio")}
+            accent="#22c55e"
+          />
+        </section>
+      )}
 
       {error && (
         <div className="card" style={{ border: "1px solid #ef4444", background: "var(--panel-2)", marginBottom: 16 }}>
@@ -513,7 +579,11 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
           <div className="script-editor">
             {script.turns.map((t) => {
               const fuentes = turnoFuente(t);
-              const cleanDialogue = t.ttsText || t.displayText;
+              const cleanDialogue = (t.displayText || t.ttsText || "")
+                .replace(/\[(?:PAUSA|PAUSE|SILENCIO)[\s\S]*?\]/gi, " ")
+                .replace(/\[(?:MÚSICA|MUSICA|MUSIC|SFX|CORTE|AUDIO|TRANSICIÓN|TRANSICION)[\s\S]*?\]/gi, " ")
+                .replace(/\s{2,}/g, " ")
+                .trim();
               return (
                 <div key={t.id} className={`script-line ${t.adSlot ? "ad" : ""}`}>
                   <div className="script-locutor" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
@@ -639,12 +709,173 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
                 )}
               </div>
               {master.master && (
-                <audio
-                  controls
-                  style={{ width: "100%", marginTop: 6 }}
-                  src={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(master.master)}`}
-                />
+                <div style={{ marginTop: 10 }}>
+                  <MiniPlayer
+                    src={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(master.master.replace(/\\/g, "/"))}`}
+                    label={deriveShortTitle(project?.titulo ?? project?.topic ?? "Episodio")}
+                    accent="#22c55e"
+                  />
+                </div>
               )}
+
+              {/* ── MEDIOS VISUALES / VIDEO DEL EPISODIO ── */}
+              <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(34, 197, 94, 0.2)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: "1.1rem" }}>🎬</span>
+                    <strong style={{ fontSize: "0.95rem", color: "var(--fg, #f8fafc)" }}>
+                      Video del episodio
+                    </strong>
+                    {project?.visual?.status === "READY" && (
+                      <span className="chip-mini ok" style={{ background: "rgba(34, 197, 94, 0.15)", color: "#22c55e", border: "1px solid rgba(34, 197, 94, 0.3)" }}>
+                        ✓ Listo para publicación
+                      </span>
+                    )}
+                  </div>
+
+                  {(!project?.visual || project.visual.status === "IDLE" || project.visual.status === "FAILED") && (
+                    <button
+                      className="btn-primary"
+                      disabled={!!busy}
+                      onClick={() => void runRenderVisual()}
+                      style={{ fontSize: "0.82rem", padding: "6px 14px" }}
+                    >
+                      {busy === "Renderizando video" ? "Iniciando render…" : "🎬 GENERAR VIDEO (16:9 y 9:16)"}
+                    </button>
+                  )}
+                  {project?.visual?.status === "READY" && (
+                    <button
+                      className="btn-secondary"
+                      disabled={!!busy}
+                      onClick={() => void runRenderVisual()}
+                      style={{ fontSize: "0.78rem", padding: "4px 10px" }}
+                    >
+                      {busy === "Renderizando video" ? "Renderizando…" : "🔄 Re-renderizar video"}
+                    </button>
+                  )}
+                </div>
+
+                {project?.visual?.status === "RENDERING" && (
+                  <div style={{ padding: "16px", borderRadius: 8, background: "rgba(59, 130, 246, 0.08)", border: "1px solid rgba(59, 130, 246, 0.3)", textAlign: "center" }}>
+                    <div style={{ color: "#60a5fa", fontWeight: 600, fontSize: "0.92rem", marginBottom: 6 }}>
+                      ⏳ Renderizando videos con aceleración por hardware (16:9, 9:16 y preview)…
+                    </div>
+                    <p className="muted small" style={{ margin: 0 }}>
+                      El motor visual está dibujando los cuadros, aplicando la identidad por locutor y sincronizando el audio máster.
+                    </p>
+                  </div>
+                )}
+
+                {project?.visual?.status === "FAILED" && (
+                  <div style={{ padding: "12px 14px", borderRadius: 8, background: "rgba(239, 68, 68, 0.1)", border: "1px solid #ef4444" }}>
+                    <div style={{ color: "#ef4444", fontWeight: 600, fontSize: "0.9rem", marginBottom: 4 }}>
+                      ⚠ Error al generar los videos del episodio
+                    </div>
+                    <p className="muted small" style={{ margin: 0 }}>
+                      {project.visual.error ?? "No se pudo completar el renderizado del video."}
+                    </p>
+                  </div>
+                )}
+
+                {project?.visual?.status === "READY" && project.visual.files && (
+                  <div>
+                    {/* Selector de formato */}
+                    <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+                      <button
+                        className={formatoVideo === "16x9" ? "btn-primary" : "btn-ghost"}
+                        onClick={() => setFormatoVideo("16x9")}
+                        style={{ fontSize: "0.8rem", padding: "5px 12px" }}
+                      >
+                        📺 Horizontal 16:9 (YouTube)
+                      </button>
+                      <button
+                        className={formatoVideo === "9x16" ? "btn-primary" : "btn-ghost"}
+                        onClick={() => setFormatoVideo("9x16")}
+                        style={{ fontSize: "0.8rem", padding: "5px 12px" }}
+                      >
+                        📱 Vertical 9:16 (TikTok / Reels)
+                      </button>
+                      <button
+                        className={formatoVideo === "preview" ? "btn-primary" : "btn-ghost"}
+                        onClick={() => setFormatoVideo("preview")}
+                        style={{ fontSize: "0.8rem", padding: "5px 12px" }}
+                      >
+                        ⚡ Preview ligero
+                      </button>
+                    </div>
+
+                    {/* Reproductor de video nativo */}
+                    {(() => {
+                      const activeRelFile =
+                        formatoVideo === "16x9"
+                          ? project.visual.files.video16x9
+                          : formatoVideo === "9x16"
+                          ? project.visual.files.video9x16
+                          : project.visual.files.preview;
+                      if (!activeRelFile) return null;
+                      const videoUrl = `${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(activeRelFile.replace(/\\/g, "/"))}`;
+
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          <div style={{ background: "#090d16", borderRadius: 8, overflow: "hidden", display: "flex", justifyContent: "center", alignItems: "center" }}>
+                            <video
+                              key={videoUrl}
+                              src={videoUrl}
+                              controls
+                              playsInline
+                              style={{
+                                maxWidth: "100%",
+                                maxHeight: formatoVideo === "9x16" ? 480 : 380,
+                                borderRadius: 8,
+                              }}
+                            />
+                          </div>
+
+                          {/* Botones de descarga de medios */}
+                          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                            {project.visual.files.video16x9 && (
+                              <a
+                                className="btn-secondary"
+                                href={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(project.visual.files.video16x9.replace(/\\/g, "/"))}`}
+                                download={`episodio-${projectId}-16x9.mp4`}
+                                style={{ textDecoration: "none", fontSize: "0.8rem", padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6 }}
+                              >
+                                ⬇ Descargar Video 16:9
+                              </a>
+                            )}
+                            {project.visual.files.video9x16 && (
+                              <a
+                                className="btn-secondary"
+                                href={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(project.visual.files.video9x16.replace(/\\/g, "/"))}`}
+                                download={`episodio-${projectId}-9x16.mp4`}
+                                style={{ textDecoration: "none", fontSize: "0.8rem", padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6 }}
+                              >
+                                ⬇ Descargar Video 9:16
+                              </a>
+                            )}
+                            {project.visual.files.preview && (
+                              <a
+                                className="btn-ghost"
+                                href={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(project.visual.files.preview.replace(/\\/g, "/"))}`}
+                                download={`episodio-${projectId}-preview.mp4`}
+                                style={{ textDecoration: "none", fontSize: "0.8rem", padding: "6px 12px", display: "inline-flex", alignItems: "center", gap: 6 }}
+                              >
+                                ⬇ Descargar Preview
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {(!project?.visual || project.visual.status === "IDLE") && (
+                  <p className="muted small" style={{ margin: "4px 0 0" }}>
+                    Genera las versiones en video horizontal (16:9) y vertical (9:16) con reactividad sonora y safe zones verificadas para redes sociales y plataformas de video.
+                  </p>
+                )}
+              </div>
             </div>
           ) : progress?.estado === "FAILED" ? (
             <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: 8, background: "rgba(239, 68, 68, 0.1)", border: "1px solid #ef4444" }}>

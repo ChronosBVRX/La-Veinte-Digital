@@ -72,6 +72,104 @@ export function isCueKeyword(name: string): boolean {
   return /^(SFX|EFECTO|MÚSICA|MUSICA|PAUSA|RISAS|FADE|CORTE|SILENCIO|CORTINILLA|APLAUSOS|SUSPIRO|LOCUCIÓN|LOCUCION)/i.test(name.trim());
 }
 
+export const DISCOURSE_CONNECTORS_BLACKLIST = new Set([
+  "dicho de otra forma",
+  "dicho de otro modo",
+  "en otras palabras",
+  "por ejemplo",
+  "es decir",
+  "en resumen",
+  "en conclusion",
+  "en conclusión",
+  "en pocas palabras",
+  "por lo tanto",
+  "por consiguiente",
+  "de igual manera",
+  "de la misma manera",
+  "de igual forma",
+  "de acuerdo con",
+  "de acuerdo a",
+  "por otro lado",
+  "por una parte",
+  "por otra parte",
+  "en primer lugar",
+  "en segundo lugar",
+  "en tercer lugar",
+  "ojo",
+  "nota",
+  "importante",
+  "aviso",
+  "dato",
+  "regla",
+  "paso",
+  "punto",
+  "atencion",
+  "atención",
+  "pregunta",
+  "respuesta",
+  "caso",
+  "ejemplo",
+  "recordemos",
+  "recordemos que",
+  "cabe señalar",
+  "cabe mencionar",
+  "vale la pena",
+  "como vemos",
+  "como vimos",
+  "o sea",
+  "la verdad",
+  "lo cierto es que",
+  "para empezar",
+  "para terminar",
+  "finalmente",
+  "primero",
+  "segundo",
+  "tercero",
+]);
+
+/**
+ * Valida si un candidato textual antes de dos puntos o guion puede representar
+ * legítimamente el nombre o rol de un locutor:
+ * - Longitud entre 2 y 30 caracteres
+ * - Máximo 3 palabras (ej. "EDUARDO", "JAVIER RÍOS", "DRA. CARMEN SOTO")
+ * - Sin signos de puntuación oracional (. ? ! , ; " …), permitiendo punto solo tras abreviaturas Dr./Dra.
+ * - No es acotación técnica ni marcador discursivo/explicativo de español.
+ */
+export function isValidSpeakerCandidate(candidate: string): boolean {
+  const trimmed = candidate.replace(/^[*_#[\]\s]+|[*_#[\]\s:]+$/g, "").trim();
+  if (trimmed.length < 2 || trimmed.length > 30) return false;
+
+  if (isCueKeyword(trimmed)) return false;
+
+  const normalizedLower = trimmed
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+  // Si está en la lista negra de conectores discursivos o empieza con uno de ellos
+  for (const connector of DISCOURSE_CONNECTORS_BLACKLIST) {
+    const connNorm = connector.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (normalizedLower === connNorm || normalizedLower.startsWith(connNorm + " ")) {
+      return false;
+    }
+  }
+
+  // Contar palabras (máximo 3)
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  if (words.length > 3) return false;
+
+  // No debe contener puntuación oracional ni comillas
+  // Permitir punto si es de abreviatura tipo DR., DRA., LIC., SR., SRA., ING.
+  const cleanedForPunct = trimmed.replace(/\b(?:DR|DRA|LIC|SR|SRA|ING)\./gi, "");
+  if (/[.?!,;"“”«»…;:]/.test(cleanedForPunct)) return false;
+
+  // Debe comenzar con letra mayúscula o ser un nombre alfanumérico válido
+  if (!/^[A-ZÁÉÍÓÚÑ]/.test(trimmed)) return false;
+
+  return true;
+}
+
 const KNOWN_SPEAKERS_SPLIT_REGEX = new RegExp(
   `(?<!^)(?<!\\n)(?<!\\[)\\s*(?=\\b(?:${KNOWN_SPEAKER_NAMES.map((n) => n.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")).join("|")})\\s*[:–—-])`,
   "gi"
@@ -85,17 +183,35 @@ function cleanAndNormalizeScriptText(input: string): string {
   if (!input) return "";
   let s = input.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
-  // Limpiar negritas rodeando corchetes: **[SFX: ...]** -> [SFX: ...]
+  // 1. Limpiar negritas rodeando corchetes: **[SFX: ...]** -> [SFX: ...]
   s = s.replace(/\*{1,2}(\[[^\]]+\])\*{1,2}/g, "$1");
 
-  // Insertar salto de línea antes de acotaciones estructurales de producción: [MÚSICA...], [SFX...], etc.
-  s = s.replace(/(?<!^)(?<!\n)\s*(?=\[\s*(?:MÚSICA|MUSICA|SFX|EFECTO|CORTE|ENTRADA|SALIDA|FADE|CORTINILLA|VOZ EN OFF|LOCUCIÓN|LOCUCION)[^\]]*\])/gi, "\n");
+  // 2. Insertar salto de línea antes y después de acotaciones estructurales de producción
+  s = s.replace(/(?<!^)(?<!\n)[^\S\r\n]*(?=\[\s*(?:MÚSICA|MUSICA|SFX|EFECTO|CORTE|ENTRADA|SALIDA|FADE|CORTINILLA|VOZ EN OFF|LOCUCIÓN|LOCUCION)[^\]]*\])/gi, "\n");
+  s = s.replace(/(\[\s*(?:MÚSICA|MUSICA|SFX|EFECTO|CORTE|ENTRADA|SALIDA|FADE|CORTINILLA|VOZ EN OFF|LOCUCIÓN|LOCUCION)[^\]]*\])[^\S\r\n]*(?!\r?\n)/gi, "$1\n");
 
-  // Insertar salto de línea antes de locutores en negritas: **ANDREA**, **EDUARDO**, etc.
+  // 3. Salto de línea antes de locutores pegados a ']' o ')'
+  s = s.replace(/(?<=[\]\)])[^\S\r\n]*(?!\r?\n)(?=\b(?:EDUARDO|ANDREA|JAVIER|JAVIER RÍOS|JAVIER RIOS|RODRIGO|RODRIGO TORRES|VALERIA|VALERIA SOTO|NARRADOR|CORRESPONSAL|COMERCIAL|PATROCINIO|ALONSO)\b|[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚáéíóúÑñ .]{1,30}[:–—-])/g, (_match, offset, fullStr) => {
+    const post = fullStr.slice(offset).trim();
+    const colonIdx = post.search(/[:–—-]/);
+    if (colonIdx > 0 && colonIdx <= 30) {
+      const cand = post.slice(0, colonIdx).trim();
+      if (!isValidSpeakerCandidate(cand)) return "";
+    }
+    return "\n";
+  });
+
+  // 4. Insertar salto de línea antes de locutores en negritas: **ANDREA**, **EDUARDO**, etc.
   s = s.replace(/(?<!^)(?<!\n)\s*(?=\*\*[A-ZÁÉÍÓÚÑ\s\/\-]{2,30}\*\*)/g, "\n");
 
-  // Insertar salto de línea antes de locutores canónicos conocidos con dos puntos
+  // 5. Insertar salto de línea antes de locutores canónicos conocidos con dos puntos
   s = s.replace(KNOWN_SPEAKERS_SPLIT_REGEX, "\n");
+
+  // 6. Inserción para locutores sin dos puntos que perdieron el salto tras puntuación o acotación
+  s = s.replace(
+    /(?<=[.!?…”"'\]\)])(?<!\*)\s*(?=\b(EDUARDO|ANDREA|JAVIER|RODRIGO|VALERIA)\b\s+[A-ZÁÉÍÓÚÑ¿¡“"])(?!\s+(?:DICE|DIJO|COMENTA|COMENTÓ|PREGUNTA|PREGUNTÓ|RESPONDE|RESPONDIÓ|EXPLICA|EXPLICÓ|AFIRMA|AFIRMÓ)\b)/g,
+    "\n"
+  );
 
   return s;
 }
@@ -120,17 +236,17 @@ export function matchSpeakerLine(line: string): MatchedSpeakerLine | null {
   );
   if (wrappedMatch) {
     const speakerCandidate = wrappedMatch[1].trim();
-    if (isCueKeyword(speakerCandidate)) return null;
+    if (!isValidSpeakerCandidate(speakerCandidate)) return null;
     return { speaker: speakerCandidate, dialogue: wrappedMatch[2].trim() };
   }
 
   // Caso 2: Nombre simple seguido estrictamente por dos puntos o guion: EDUARDO: diálogo
   const plainMatch = trimmed.match(
-    /^(?:#{1,4}\s*)?([A-Za-zÁÉÍÓÚáéíóúÑñ\s]{2,25})\s*[:–—-]\s*(.*)$/
+    /^(?:#{1,4}\s*)?([A-Za-zÁÉÍÓÚáéíóúÑñ\s.]{2,30})\s*[:–—-]\s*(.*)$/
   );
   if (plainMatch) {
     const speakerCandidate = plainMatch[1].trim();
-    if (isCueKeyword(speakerCandidate)) return null;
+    if (!isValidSpeakerCandidate(speakerCandidate)) return null;
     return { speaker: speakerCandidate, dialogue: plainMatch[2].trim() };
   }
 

@@ -6,7 +6,7 @@
  * evitando el efecto uniforme de "ping-pong" y preservando estrictamente las pausas del autor.
  */
 
-import type { Turn, Script } from "@la-veinte/studio-contract";
+import type { Turn } from "@la-veinte/studio-contract";
 
 export type TurnRelation =
   | "answer"
@@ -74,7 +74,7 @@ export function classifyTurnRelation(
   turn: Turn,
   prevTurn: Turn | null,
   turnIndex: number,
-  totalTurns: number
+  _totalTurns: number
 ): TurnRelation {
   const text = (turn.ttsText || turn.displayText || "").trim();
   const prevText = prevTurn ? (prevTurn.ttsText || prevTurn.displayText || "").trim() : "";
@@ -174,7 +174,7 @@ export interface ProsodyOptions {
  * - Preserva inviolables las pausas explícitas del autor.
  * - Asegura que no se aplasten los silencios en una banda estrecha.
  */
-export function applyConversationalProsody(turns: Turn[], options: ProsodyOptions = {}): Turn[] {
+export function applyConversationalProsody(turns: Turn[], _options: ProsodyOptions = {}): Turn[] {
   if (!turns || turns.length === 0) return [];
 
   const out: Turn[] = [];

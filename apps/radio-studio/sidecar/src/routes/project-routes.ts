@@ -26,6 +26,8 @@ export interface ProjectRouteCtx {
   json: (res: ServerResponse, code: number, body: unknown) => void;
   /** Dispara la cola de producción TTS real (implementada en index.ts). */
   startProduction?: (id: string, script: Script) => Promise<{ started: boolean; total: number }>;
+  /** Dispara la producción visual en segundo plano (implementada en index.ts). */
+  startVisualProduction?: (id: string) => Promise<void>;
   /** Limpia un trabajo de producción activo asociado al proyecto (implementada en index.ts). */
   onDelete?: (id: string) => void;
 }
@@ -64,6 +66,19 @@ export async function routeProject(url: URL, req: import("node:http").IncomingMe
     return true;
   }
 
+function sanitizeScriptTurns(script: Script): Script {
+  for (const turn of script.turns) {
+    if (turn.displayText) {
+      turn.displayText = turn.displayText
+        .replace(/\[(?:PAUSA|PAUSE|SILENCIO)[\s\S]*?\]/gi, " ")
+        .replace(/\[(?:MÚSICA|MUSICA|MUSIC|SFX|CORTE|AUDIO|TRANSICIÓN|TRANSICION)[\s\S]*?\]/gi, " ")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+    }
+  }
+  return script;
+}
+
   if (method === "POST" && segments.length === 1) {
     const body = await readBody();
     const topic = String(body.topic ?? "").trim();
@@ -71,23 +86,25 @@ export async function routeProject(url: URL, req: import("node:http").IncomingMe
 
     // Detección automática o guion explícito provisto
     let scriptToStore: Script | null = null;
-    if (body.script && typeof body.script === "object") {
+    const classification = classifyInput(topic);
+    if (classification.kind === "script") {
+      try {
+        scriptToStore = parseScript(topic);
+      } catch (e) {
+        ctx.json(res, 400, {
+          error: e instanceof Error ? e.message : "No se pudo interpretar el guion importado",
+        });
+        return true;
+      }
+    } else if (body.script && typeof body.script === "object") {
       const parsed = ScriptSchema.safeParse(body.script);
       if (parsed.success) {
         scriptToStore = parsed.data;
       }
-    } else {
-      const classification = classifyInput(topic);
-      if (classification.kind === "script") {
-        try {
-          scriptToStore = parseScript(topic);
-        } catch (e) {
-          ctx.json(res, 400, {
-            error: e instanceof Error ? e.message : "No se pudo interpretar el guion importado",
-          });
-          return true;
-        }
-      }
+    }
+
+    if (scriptToStore) {
+      sanitizeScriptTurns(scriptToStore);
     }
 
     const shortTitle = deriveShortTitle(body.titulo ? String(body.titulo) : topic);
@@ -142,14 +159,15 @@ export async function routeProject(url: URL, req: import("node:http").IncomingMe
   if (action === "script" && subAction === "import") {
     const body = await readBody();
     let scriptObj: Script;
-    if (body.script && typeof body.script === "object") {
-      scriptObj = ScriptSchema.parse(body.script);
-    } else if (body.rawScript && typeof body.rawScript === "string") {
+    if (body.rawScript && typeof body.rawScript === "string") {
       scriptObj = parseScript(body.rawScript);
+    } else if (body.script && typeof body.script === "object") {
+      scriptObj = ScriptSchema.parse(body.script);
     } else {
       ctx.json(res, 400, { error: "Falta script o rawScript" });
       return true;
     }
+    sanitizeScriptTurns(scriptObj);
     const project = await ctx.workflow.importScript(id, scriptObj);
     ctx.json(res, 200, project);
     return true;
@@ -180,6 +198,20 @@ export async function routeProject(url: URL, req: import("node:http").IncomingMe
       return true;
     }
     ctx.json(res, 202, project);
+    return true;
+  }
+  if (action === "render-visual") {
+    const project = ctx.store.get(id);
+    if (!project) { ctx.json(res, 404, { error: "PROJECT_NOT_FOUND" }); return true; }
+    if (!project.master?.master) {
+      ctx.json(res, 400, { error: "Se requiere haber generado el master de audio antes de renderizar video" });
+      return true;
+    }
+    if (ctx.startVisualProduction) {
+      await ctx.startVisualProduction(id);
+    }
+    const updated = ctx.store.get(id);
+    ctx.json(res, 202, { project: updated, started: true });
     return true;
   }
 

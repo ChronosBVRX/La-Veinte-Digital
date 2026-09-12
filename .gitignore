@@ -99,4 +99,5 @@ __pycache__/
 
 # Local temp & scratch
 /tmp/
+/output/
 

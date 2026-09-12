@@ -1810,19 +1810,54 @@ function mediaRoots(): string[] {
   return [
     path.join(REPO, "data", "tts"),
     path.join(REPO, "data", "projects"),
+    path.join(REPO, "output"),
   ].map((p) => path.resolve(p));
 }
 
-async function handleMedia(res: http.ServerResponse, url: URL) {
+async function handleMedia(req: http.IncomingMessage, res: http.ServerResponse, url: URL) {
   const raw = decodeURIComponent(url.searchParams.get("file") ?? "");
   if (!raw) return json(res, 400, { error: "file requerido" });
   const target = resolveMediaSafe(raw, mediaRoots());
   if (!target) return json(res, 404, { error: "archivo no disponible" });
   const ext = path.extname(target).toLowerCase();
-  const mime = ext === ".wav" ? "audio/wav" : ext === ".mp3" ? "audio/mpeg" : ext === ".m4a" ? "audio/mp4" : "application/octet-stream";
-  const buf = fs.readFileSync(target);
-  res.writeHead(200, { "Content-Type": mime, "Content-Length": buf.length, "Access-Control-Allow-Origin": "*" });
-  res.end(buf);
+  const mime = ext === ".wav" ? "audio/wav" : ext === ".mp3" ? "audio/mpeg" : ext === ".m4a" ? "audio/mp4" : ext === ".mp4" ? "video/mp4" : "application/octet-stream";
+
+  const stat = fs.statSync(target);
+  const totalSize = stat.size;
+  const range = req.headers.range;
+
+  if (range) {
+    const parts = range.replace(/bytes=/, "").split("-");
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
+
+    if (isNaN(start) || start >= totalSize || (parts[1] && isNaN(end)) || start > end) {
+      res.writeHead(416, {
+        "Content-Range": `bytes */${totalSize}`,
+        "Access-Control-Allow-Origin": "*",
+      });
+      return res.end();
+    }
+
+    const chunkSize = end - start + 1;
+    const stream = fs.createReadStream(target, { start, end });
+    res.writeHead(206, {
+      "Content-Range": `bytes ${start}-${end}/${totalSize}`,
+      "Accept-Ranges": "bytes",
+      "Content-Length": chunkSize,
+      "Content-Type": mime,
+      "Access-Control-Allow-Origin": "*",
+    });
+    stream.pipe(res);
+  } else {
+    res.writeHead(200, {
+      "Content-Length": totalSize,
+      "Content-Type": mime,
+      "Accept-Ranges": "bytes",
+      "Access-Control-Allow-Origin": "*",
+    });
+    fs.createReadStream(target).pipe(res);
+  }
 }
 
 const MUSICA_TIPOS: MusicaTipo[] = ["bed", "jingle", "sfx", "cortinilla", "ambiente"];
@@ -2049,7 +2084,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/musica/progreso") return await handleMusicaProgreso(res);
     if (req.method === "POST" && url.pathname === "/musica/generar") return await handleMusicaGenerar(res, await readBody(req));
     if (req.method === "POST" && url.pathname === "/musica/cancelar") return await handleMusicaCancelar(res);
-    if (req.method === "GET" && url.pathname === "/media") return await handleMedia(res, url);
+    if (req.method === "GET" && url.pathname === "/media") return await handleMedia(req, res, url);
     if (req.method === "GET" && url.pathname === "/events") return await handleSse(res, req);
     if (req.method === "GET" && url.pathname === "/normativa/documentos") return await handleDocList(res);
     if (req.method === "POST" && url.pathname === "/normativa/buscar") return await handleNormativaBuscar(res, await readBody(req));
@@ -2089,6 +2124,7 @@ const server = http.createServer(async (req, res) => {
       commercials: commercialService,
       json,
       startProduction: startProjectProduction,
+      startVisualProduction,
       onDelete: deleteProjectCleanup,
     };
     if (await routeProject(url, req, res, pctx, () => readBody(req))) return;
@@ -2174,6 +2210,99 @@ async function startProjectProduction(id: string, script: StudioScript): Promise
   spawnWorker();
   projectLog(id, "production.started", { total: bloques.length });
   return { started: true, total: bloques.length };
+}
+
+/** Lanza la generación de video del proyecto en segundo plano. */
+async function startVisualProduction(id: string): Promise<void> {
+  const project = projectStore.get(id);
+  if (!project) throw new Error("PROJECT_NOT_FOUND");
+  if (!project.master?.master) throw new Error("MASTER_AUDIO_REQUIRED");
+  if (project.visual?.status === "RENDERING") return;
+
+  const projectDir = path.join(REPO, "data", "projects", id);
+  const projectJsonPath = path.join(projectDir, "project.json");
+  const outDir = path.join(REPO, "data", "tts", "video", id);
+  fs.mkdirSync(outDir, { recursive: true });
+
+  projectStore.update(id, {
+    visual: {
+      status: "RENDERING",
+      renderedAt: new Date().toISOString(),
+      files: {},
+      error: null,
+    },
+  });
+
+  const masterAudio = path.isAbsolute(project.master.master)
+    ? project.master.master
+    : path.join(REPO, project.master.master);
+
+  const scriptPath = path.join(REPO, "backend", "app", "visual", "project_renderer.py");
+  const proc = spawn("python", [
+    scriptPath,
+    "--project", projectJsonPath,
+    "--master", masterAudio,
+    "--output-dir", outDir,
+    "--formats", "preview,16x9,9x16",
+  ], {
+    cwd: REPO,
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  });
+
+  let stderr = "";
+  proc.stderr.on("data", (d) => { stderr += d.toString(); });
+
+  proc.on("close", (code) => {
+    if (code === 0) {
+      try {
+        const reportPath = path.join(outDir, "render-report.json");
+        let reportData = null;
+        if (fs.existsSync(reportPath)) {
+          reportData = JSON.parse(fs.readFileSync(reportPath, "utf-8"));
+        }
+        const relPreview = path.join("data", "tts", "video", id, `episodio-${id}-preview.mp4`).replace(/\\/g, "/");
+        const rel16x9 = path.join("data", "tts", "video", id, `episodio-${id}-16x9.mp4`).replace(/\\/g, "/");
+        const rel9x16 = path.join("data", "tts", "video", id, `episodio-${id}-9x16.mp4`).replace(/\\/g, "/");
+
+        projectStore.update(id, {
+          visual: {
+            status: "READY",
+            renderedAt: new Date().toISOString(),
+            files: {
+              preview: relPreview,
+              video16x9: rel16x9,
+              video9x16: rel9x16,
+            },
+            report: reportData,
+            error: null,
+          },
+        });
+        projectLog(id, "visual.ready", {
+          preview: relPreview,
+          video16x9: rel16x9,
+          video9x16: rel9x16,
+        });
+      } catch (e) {
+        projectStore.update(id, {
+          visual: {
+            status: "FAILED",
+            error: e instanceof Error ? e.message : String(e),
+            files: {},
+          },
+        });
+      }
+    } else {
+      projectStore.update(id, {
+        visual: {
+          status: "FAILED",
+          error: stderr.trim() || `Render falló con código ${code}`,
+          files: {},
+        },
+      });
+      projectLog(id, "visual.failed", { error: stderr.trim() || code });
+    }
+  });
 }
 
 /** Limpia el trabajo de producción del proyecto si se elimina desde la lista. */

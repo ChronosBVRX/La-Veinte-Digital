@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { classifyInput, deriveShortTitle } from "../script-classifier";
+import {
+  classifyInput,
+  deriveShortTitle,
+  isValidSpeakerCandidate,
+  matchSpeakerLine,
+} from "../script-classifier";
 
 describe("script-classifier", () => {
   it("clasifica prompt corto normal como 'prompt'", () => {
@@ -93,6 +98,41 @@ RODRIGO: Reportando desde urgencias con testimonios en vivo.`;
     // Debe dar 'ambiguous' o 'prompt' con datos preservados, sin perder el texto
     expect(["ambiguous", "prompt"]).toContain(res.type);
     expect(res.suggestedTitle).toBeTruthy();
+  });
+
+  it("rechaza conectores discursivos en isValidSpeakerCandidate y matchSpeakerLine", () => {
+    expect(isValidSpeakerCandidate("Dicho de otra forma")).toBe(false);
+    expect(isValidSpeakerCandidate("Por ejemplo")).toBe(false);
+    expect(isValidSpeakerCandidate("En otras palabras")).toBe(false);
+    expect(isValidSpeakerCandidate("Es decir")).toBe(false);
+    expect(isValidSpeakerCandidate("En resumen")).toBe(false);
+    expect(isValidSpeakerCandidate("Ojo")).toBe(false);
+    expect(isValidSpeakerCandidate("Nota")).toBe(false);
+    expect(isValidSpeakerCandidate("Importante")).toBe(false);
+    expect(isValidSpeakerCandidate("Dato")).toBe(false);
+
+    // Nombres válidos
+    expect(isValidSpeakerCandidate("EDUARDO")).toBe(true);
+    expect(isValidSpeakerCandidate("ANDREA")).toBe(true);
+    expect(isValidSpeakerCandidate("JAVIER RÍOS")).toBe(true);
+    expect(isValidSpeakerCandidate("DRA. CARMEN SOTO")).toBe(true);
+
+    // matchSpeakerLine debe devolver null para líneas de diálogo con conectores
+    expect(matchSpeakerLine("Dicho de otra forma: se acabaron las excusas.")).toBeNull();
+    expect(matchSpeakerLine("Por ejemplo: en la cláusula 39 dice...")).toBeNull();
+    expect(matchSpeakerLine("EDUARDO: Bienvenidos")).not.toBeNull();
+  });
+
+  it("no cuenta 'Dicho de otra forma' como un locutor nuevo en classifyInput", () => {
+    const text = `EDUARDO: Bienvenidos a todos.
+Dicho de otra forma: hoy vamos a revisar el Contrato.
+ANDREA: Totalmente de acuerdo.`;
+
+    const res = classifyInput(text);
+    expect(res.stats.uniqueSpeakersFound).not.toContain("DICHO DE OTRA FORMA");
+    expect(res.stats.uniqueSpeakersFound).toContain("EDUARDO");
+    expect(res.stats.uniqueSpeakersFound).toContain("ANDREA");
+    expect(res.stats.uniqueSpeakersFound.length).toBe(2);
   });
 });
 
