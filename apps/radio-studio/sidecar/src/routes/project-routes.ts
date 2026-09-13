@@ -8,10 +8,16 @@ import type { ProjectStore } from "../services/project-store";
 import type { CommercialLibraryService } from "../services/commercial-service";
 import {
   ProjectSchema,
+  ScriptSchema,
   type Project,
   type Commercial,
   type Script,
 } from "@la-veinte/studio-contract";
+import {
+  classifyInput,
+  parseScript,
+  deriveShortTitle,
+} from "@la-veinte/radio-core";
 
 export interface ProjectRouteCtx {
   store: ProjectStore;
@@ -20,6 +26,8 @@ export interface ProjectRouteCtx {
   json: (res: ServerResponse, code: number, body: unknown) => void;
   /** Dispara la cola de producción TTS real (implementada en index.ts). */
   startProduction?: (id: string, script: Script) => Promise<{ started: boolean; total: number }>;
+  /** Dispara la producción visual en segundo plano (implementada en index.ts). */
+  startVisualProduction?: (id: string) => Promise<void>;
   /** Limpia un trabajo de producción activo asociado al proyecto (implementada en index.ts). */
   onDelete?: (id: string) => void;
 }
@@ -58,20 +66,71 @@ export async function routeProject(url: URL, req: import("node:http").IncomingMe
     return true;
   }
 
+function sanitizeScriptTurns(script: Script): Script {
+  for (const turn of script.turns) {
+    if (turn.displayText) {
+      turn.displayText = turn.displayText
+        .replace(/\[(?:PAUSA|PAUSE|SILENCIO)[\s\S]*?\]/gi, " ")
+        .replace(/\[(?:MÚSICA|MUSICA|MUSIC|SFX|CORTE|AUDIO|TRANSICIÓN|TRANSICION)[\s\S]*?\]/gi, " ")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+    }
+  }
+  return script;
+}
+
   if (method === "POST" && segments.length === 1) {
     const body = await readBody();
     const topic = String(body.topic ?? "").trim();
     if (!topic) { ctx.json(res, 400, { error: "topic vacío" }); return true; }
+
+    // Detección automática o guion explícito provisto
+    let scriptToStore: Script | null = null;
+    const classification = classifyInput(topic);
+    if (classification.kind === "script") {
+      try {
+        scriptToStore = parseScript(topic);
+      } catch (e) {
+        ctx.json(res, 400, {
+          error: e instanceof Error ? e.message : "No se pudo interpretar el guion importado",
+        });
+        return true;
+      }
+    } else if (body.script && typeof body.script === "object") {
+      const parsed = ScriptSchema.safeParse(body.script);
+      if (parsed.success) {
+        scriptToStore = parsed.data;
+      }
+    }
+
+    if (scriptToStore) {
+      sanitizeScriptTurns(scriptToStore);
+    }
+
+    const shortTitle = deriveShortTitle(body.titulo ? String(body.titulo) : topic);
+
     const template = ProjectSchema.safeParse({
-      id: "x", titulo: topic, topic, state: "DRAFT", createdAt: "", updatedAt: "", config: body.config,
+      id: "x",
+      titulo: shortTitle,
+      topic,
+      state: scriptToStore ? "SCRIPT_READY" : "DRAFT",
+      createdAt: "",
+      updatedAt: "",
+      config: body.config,
     });
     const config = template.success ? template.data.config : undefined;
-    const project = await ctx.workflow.create({ topic, config });
+    const project = await ctx.workflow.create({
+      topic,
+      titulo: shortTitle,
+      config,
+      script: scriptToStore,
+      state: scriptToStore ? "SCRIPT_READY" : "DRAFT",
+    });
     ctx.json(res, 201, project);
     return true;
   }
 
-  if (method === "POST" && segments.length === 3 && !id) return false;
+  if (method === "POST" && segments.length >= 3 && !id) return false;
   const action = segments[2];
   const subAction = segments[3];
 
@@ -94,6 +153,22 @@ export async function routeProject(url: URL, req: import("node:http").IncomingMe
   }
   if (action === "approve") {
     const project = await ctx.workflow.approve(id);
+    ctx.json(res, 200, project);
+    return true;
+  }
+  if (action === "script" && subAction === "import") {
+    const body = await readBody();
+    let scriptObj: Script;
+    if (body.rawScript && typeof body.rawScript === "string") {
+      scriptObj = parseScript(body.rawScript);
+    } else if (body.script && typeof body.script === "object") {
+      scriptObj = ScriptSchema.parse(body.script);
+    } else {
+      ctx.json(res, 400, { error: "Falta script o rawScript" });
+      return true;
+    }
+    sanitizeScriptTurns(scriptObj);
+    const project = await ctx.workflow.importScript(id, scriptObj);
     ctx.json(res, 200, project);
     return true;
   }
@@ -125,14 +200,46 @@ export async function routeProject(url: URL, req: import("node:http").IncomingMe
     ctx.json(res, 202, project);
     return true;
   }
+  if (action === "render-visual") {
+    const project = ctx.store.get(id);
+    if (!project) { ctx.json(res, 404, { error: "PROJECT_NOT_FOUND" }); return true; }
+    if (!project.master?.master) {
+      ctx.json(res, 400, { error: "Se requiere haber generado el master de audio antes de renderizar video" });
+      return true;
+    }
+    if (ctx.startVisualProduction) {
+      await ctx.startVisualProduction(id);
+    }
+    const updated = ctx.store.get(id);
+    ctx.json(res, 202, { project: updated, started: true });
+    return true;
+  }
 
   ctx.json(res, 404, { error: "ruta de proyecto desconocida" });
   return true;
 }
 
-/** Errores de flujo → mensaje amigable con código. */
-export function friendlyProjectError(e: unknown): { code: string; message: string; userMessage: string } {
-  const msg = e instanceof Error ? e.message : String(e);
+/** Errores de flujo → mensaje amigable con código y sanitización de credenciales. */
+export function friendlyProjectError(e: unknown): { error: string; code: string; message: string; userMessage: string } {
+  const rawMsg = e instanceof Error ? e.message : String(e);
+  // Sanitizar llaves y secretos para no exponer credenciales jamás
+  const sanitizedMsg = rawMsg
+    .replace(/gsk_[a-zA-Z0-9_-]{15,}/gi, "gsk_***")
+    .replace(/(?:Bearer|key|secret)\s*[:=]?\s*[a-zA-Z0-9._-]{15,}/gi, "$1 ***");
+
+  // Si es un error tipado de dominio
+  if (typeof e === "object" && e !== null && "code" in e && "userMessage" in e) {
+    const domainError = e as { code: unknown; userMessage: unknown };
+    const code = String(domainError.code ?? "UNKNOWN");
+    const userMessage = String(domainError.userMessage ?? "");
+    return {
+      error: userMessage,
+      code,
+      message: sanitizedMsg,
+      userMessage,
+    };
+  }
+
   const codeMap: Record<string, { code: string; userMessage: string }> = {
     PROJECT_NOT_FOUND: { code: "UNKNOWN", userMessage: "No encuentro ese episodio. Vuelve a abrirlo desde la lista." },
     RESEARCH_REQUIRED: { code: "UNKNOWN", userMessage: "Primero reviso las fuentes antes de armar la propuesta." },
@@ -149,7 +256,12 @@ export function friendlyProjectError(e: unknown): { code: string; message: strin
     "produccion en curso": { code: "UNKNOWN", userMessage: "Ya hay un episodio en producción. Espera a que termine o detén la producción actual." },
   };
   for (const [k, v] of Object.entries(codeMap)) {
-    if (msg.includes(k)) return { ...v, message: msg };
+    if (sanitizedMsg.includes(k)) return { error: v.userMessage, ...v, message: sanitizedMsg };
   }
-  return { code: "UNKNOWN", message: msg, userMessage: "Algo salió mal en la creación del episodio." };
+  return {
+    error: "Algo salió mal en la creación del episodio.",
+    code: "UNKNOWN",
+    message: sanitizedMsg,
+    userMessage: "Algo salió mal en la creación del episodio.",
+  };
 }

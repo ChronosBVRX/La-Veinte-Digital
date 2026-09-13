@@ -56,8 +56,29 @@ export function escapeXml(text: string): string {
     .replace(/'/g, "&apos;");
 }
 
-export function buildSsml(text: string, character: CharacterId): string {
-  const escaped = escapeXml(text);
+export const SSML_TAG_REGEX = /(<break\s+time="[^"]+"\s*\/?>|<\/?prosody[^>]*>|<\/?emphasis[^>]*>|<\/?speechify:[^>]*>|<\/?speak>)/gi;
+
+/**
+ * Escapa caracteres XML en un texto preservando intactos los tags SSML válidos para Speechify.
+ */
+export function escapeSsmlText(input: string): string {
+  const parts = input.split(SSML_TAG_REGEX);
+  return parts
+    .map((part) => {
+      if (/<break|<\/?prosody|<\/?emphasis|<\/?speechify:|<\/?speak/i.test(part)) {
+        return part;
+      }
+      return escapeXml(part);
+    })
+    .join("");
+}
+
+export function buildSsml(text: string, character: CharacterId, customSsml?: string | null): string {
+  let content = customSsml ? customSsml : text;
+  // Quitar etiquetas <speak> externas si ya vinieran incluidas
+  content = content.replace(/^<speak>/i, "").replace(/<\/speak>$/i, "").trim();
+
+  const escaped = escapeSsmlText(content);
   const profile = CHARACTER_SSML[character];
   let inner = escaped;
   if (profile.emotion) {
@@ -67,6 +88,7 @@ export function buildSsml(text: string, character: CharacterId): string {
   }
   return `<speak>${inner}</speak>`;
 }
+
 
 export function getCharacterForSlot(slot: VoiceSlot): CharacterId {
   return SLOT_TO_CHARACTER[slot] ?? "EDUARDO";
@@ -151,6 +173,7 @@ export class SpeechifyEngine {
   }
 
   async generate(text: string, voice: string, opts: {
+    ssml?: string;
     voiceId?: string;
     characterId?: string;
     seed?: number | null;
@@ -164,7 +187,7 @@ export class SpeechifyEngine {
     if (!clean) return { ok: false, id: `sp-${Date.now()}`, voice, error: "texto vacío" };
     const slot: VoiceSlot = (["A", "B", "N", "C", "P"].includes(voice.toUpperCase()) ? voice.toUpperCase() : "A") as VoiceSlot;
     const character: CharacterId = (opts.characterId as CharacterId) ?? getCharacterForSlot(slot);
-    const ssml = buildSsml(clean, character);
+    const ssml = buildSsml(clean, character, opts.ssml);
     if (ssml.length > MAX_CHARS) {
       return { ok: false, id: `sp-${Date.now()}`, voice, error: `SSML excede ${MAX_CHARS} caracteres (${ssml.length})` };
     }
@@ -183,14 +206,17 @@ export class SpeechifyEngine {
       model: MODEL,
       device: "cloud",
       voice: voiceId,
-      text: clean,
+      text: opts.ssml && opts.ssml.includes("<break") ? `${clean}__ssml:${opts.ssml}` : clean,
       language: LANGUAGE,
       voiceProfileId: character,
       referenceAudioSha256: ssmlProfileKey(character),
       voiceSourceId: slot,
       modelRevision: opts.modelRevision ?? MODEL_REVISION,
       seed: opts.seed ?? 0,
-      generationSettings: { ssmlProfile: ssmlProfileKey(character) },
+      generationSettings: {
+        ssmlProfile: ssmlProfileKey(character),
+        ssml: opts.ssml ?? "",
+      },
     });
     const cached = this.cache.get(cacheKey);
     if (cached) {

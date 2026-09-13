@@ -495,13 +495,45 @@ export class ProjectWorkflowService {
     return { project: next, script: studioScript, verify };
   }
 
+  async importScript(id: string, script: Script): Promise<Project> {
+    const p = this.store.get(id);
+    if (!p) throw new Error("PROJECT_NOT_FOUND");
+    this.store.writeScript(id, script);
+    return this.store.update(id, { script, state: "SCRIPT_READY" })!;
+  }
+
   async verify(id: string): Promise<VerifyResult> {
     const project = this.store.get(id);
     if (!project) throw new Error("PROJECT_NOT_FOUND");
     const script = project.script ?? this.store.readArtifact<Script>(id, "script.json");
     if (!script) throw new Error("SCRIPT_REQUIRED");
     const research = this.store.readArtifact<ResearchBundle>(id, "research.json");
-    if (!research) throw new Error("RESEARCH_REQUIRED");
+    if (!research) {
+      // Guion importado por el usuario: no tiene investigación en biblioteca normativa.
+      // Validar locutores conocidos sin bloquear por falta de claims.
+      const validSpeakers = new Set(["EDUARDO", "ANDREA", "NARRADOR", "RODRIGO", "VALERIA"]);
+      const issues: import("@la-veinte/studio-contract").VerifyIssue[] = [];
+      for (const t of script.turns) {
+        if (!validSpeakers.has(t.speaker.toUpperCase())) {
+          issues.push({
+            turnId: t.id,
+            speaker: t.speaker,
+            code: "UNKNOWN_SPEAKER",
+            detail: `Locutor no estándar: ${t.speaker}`,
+            severity: "warn",
+          });
+        }
+      }
+      return {
+        verified: true,
+        issues,
+        claimsCovered: 0,
+        claimsTotal: 0,
+        coveragePct: 100,
+        speakerValid: issues.length === 0,
+        roleFirewallPassed: true,
+      };
+    }
     const ctx: VerifierContext = {
       claims: research.claims,
       sources: new Map(research.documents.map((d) => [d.sourceId, d.document])),

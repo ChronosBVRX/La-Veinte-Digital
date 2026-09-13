@@ -5,11 +5,13 @@ import {
   obtenerMusicaProgreso,
   generarMusica,
   cancelarMusica,
+  SIDECAR_URL_EXPORT,
   type AudioItem,
   type MusicaMotor,
   type MusicaTipo,
   type MusicaProgreso,
 } from "../lib/studio-api";
+import { MiniPlayer } from "../components/MiniPlayer";
 
 const TIPOS: Array<{ tipo: MusicaTipo; etiqueta: string; desc: string }> = [
   { tipo: "bed", etiqueta: "Cama de programa", desc: "Fondo de la misma identidad sonora del programa (60 s)" },
@@ -199,15 +201,22 @@ export function BibliotecaAudio() {
             <div key={cat} style={{ marginBottom: 12 }}>
               <div className="scene-title">{etiqueta}</div>
               {group.map((i) => (
-                <div key={i.nombre} className="audio-item">
-                  <div>
-                    <strong>{i.nombre}</strong>{" "}
-                    <span className={`lic ${i.licencia === "TEST_ONLY_PLACEHOLDER" || i.licencia === "UNKNOWN" ? "bad" : "ok"}`}>
-                      {i.licencia === "TEST_ONLY_PLACEHOLDER" ? "TEST_ONLY" : i.licencia}
-                    </span>
+                <div key={i.nombre} className="audio-item" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+                    <div>
+                      <strong>{i.nombre}</strong>{" "}
+                      <span className={`lic ${i.licencia === "TEST_ONLY_PLACEHOLDER" || i.licencia === "UNKNOWN" ? "bad" : "ok"}`}>
+                        {i.licencia === "TEST_ONLY_PLACEHOLDER" ? "TEST_ONLY" : i.licencia}
+                      </span>
+                    </div>
+                    <div className="muted small">{i.origen} · {(i.bytes / 1024 / 1024).toFixed(1)} MB</div>
                   </div>
-                  <div className="muted small">{i.origen} · {(i.bytes / 1024 / 1024).toFixed(1)} MB</div>
                   {i.notas && <div className="warn small">⚠ {i.notas}</div>}
+                  <MiniPlayer
+                    compact
+                    src={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(`data/tts/music/${i.nombre}`)}`}
+                    accent="#6366f1"
+                  />
                 </div>
               ))}
             </div>

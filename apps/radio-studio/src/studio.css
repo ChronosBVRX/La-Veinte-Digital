@@ -167,6 +167,37 @@ h2 { font-size: 16px; margin: 0 0 10px; }
   flex-shrink: 0;
 }
 
+.step-card.active {
+  border-color: var(--primary, #3b82f6);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.step-card.done {
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.step-card.done .step-num {
+  background: #16a34a;
+}
+
+.step-card.error {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.step-card.error .step-num {
+  background: #ef4444;
+}
+
+.step-card.omitted {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+.step-card.omitted .step-num {
+  background: #64748b;
+}
+
 .quiet-card {
   opacity: .9;
 }

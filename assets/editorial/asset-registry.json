@@ -1,0 +1,327 @@
+{
+  "registry_version": "lv-assets-v1",
+  "count": 13,
+  "assets": [
+    {
+      "id": "logo_imss_official",
+      "file": "logos/imss_official_logo.png",
+      "type": "official",
+      "entity": "IMSS",
+      "category": "logos",
+      "tags": [
+        "IMSS",
+        "logo",
+        "oficial",
+        "institucional",
+        "salud"
+      ],
+      "orientation": [
+        "16:9",
+        "9:16"
+      ],
+      "based_on_verified_references": true,
+      "reference_ids": [
+        "imss_official_identity"
+      ],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "source": "Wikimedia Commons / Gobierno de México",
+        "license": "public-domain"
+      }
+    },
+    {
+      "id": "logo_sntss_official",
+      "file": "logos/sntss_official_logo.png",
+      "type": "official",
+      "entity": "SNTSS",
+      "category": "logos",
+      "tags": [
+        "SNTSS",
+        "logo",
+        "sindicato",
+        "oficial"
+      ],
+      "orientation": [
+        "16:9",
+        "9:16"
+      ],
+      "based_on_verified_references": true,
+      "reference_ids": [
+        "sntss_official_identity"
+      ],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "source": "SNTSS Oficial",
+        "license": "reference-only"
+      }
+    },
+    {
+      "id": "logo_cfcrl_official",
+      "file": "logos/cfcrl_official_logo.png",
+      "type": "official",
+      "entity": "CFCRL",
+      "category": "logos",
+      "tags": [
+        "CFCRL",
+        "logo",
+        "laboral",
+        "gobierno"
+      ],
+      "orientation": [
+        "16:9",
+        "9:16"
+      ],
+      "based_on_verified_references": true,
+      "reference_ids": [
+        "cfcrl_official_identity"
+      ],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "source": "CFCRL / STPS",
+        "license": "official"
+      }
+    },
+    {
+      "id": "cct_2025_2027_cover_asset",
+      "file": "documents/cct_2025_2027_cover.webp",
+      "type": "reference_based",
+      "entity": "Contrato Colectivo de Trabajo",
+      "category": "documents",
+      "tags": [
+        "CCT",
+        "Contrato Colectivo",
+        "2025-2027",
+        "IMSS",
+        "SNTSS",
+        "normativa"
+      ],
+      "orientation": [
+        "16:9"
+      ],
+      "based_on_verified_references": true,
+      "reference_ids": [
+        "cct_imss_sntss_2025_2027"
+      ],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "edition": "2025-2027"
+      }
+    },
+    {
+      "id": "cct_2025_2027_cover_asset_9x16",
+      "file": "documents/cct_2025_2027_cover_9x16.webp",
+      "type": "reference_based",
+      "entity": "Contrato Colectivo de Trabajo",
+      "category": "documents",
+      "tags": [
+        "CCT",
+        "Contrato Colectivo",
+        "2025-2027",
+        "IMSS",
+        "SNTSS",
+        "normativa"
+      ],
+      "orientation": [
+        "9:16"
+      ],
+      "based_on_verified_references": true,
+      "reference_ids": [
+        "cct_imss_sntss_2025_2027"
+      ],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "edition": "2025-2027"
+      }
+    },
+    {
+      "id": "hgr1_charo_exterior_asset",
+      "file": "buildings/imss/hgr1_charo_exterior.webp",
+      "type": "reference_based",
+      "entity": "Hospital General Regional No. 1 Charo",
+      "category": "buildings",
+      "tags": [
+        "IMSS",
+        "hospital",
+        "Charo",
+        "HGR 1",
+        "Michoacán",
+        "edificio"
+      ],
+      "orientation": [
+        "16:9"
+      ],
+      "based_on_verified_references": true,
+      "reference_ids": [
+        "hgr1_charo_building"
+      ],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "location": "Charo, Michoacán"
+      }
+    },
+    {
+      "id": "hgr1_charo_exterior_asset_9x16",
+      "file": "buildings/imss/hgr1_charo_exterior_9x16.webp",
+      "type": "reference_based",
+      "entity": "Hospital General Regional No. 1 Charo",
+      "category": "buildings",
+      "tags": [
+        "IMSS",
+        "hospital",
+        "Charo",
+        "HGR 1",
+        "Michoacán",
+        "edificio"
+      ],
+      "orientation": [
+        "9:16"
+      ],
+      "based_on_verified_references": true,
+      "reference_ids": [
+        "hgr1_charo_building"
+      ],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "location": "Charo, Michoacán"
+      }
+    },
+    {
+      "id": "hospital_general_exterior_asset",
+      "file": "buildings/imss/hospital_general_exterior.webp",
+      "type": "generic",
+      "entity": "Hospital General IMSS",
+      "category": "buildings",
+      "tags": [
+        "IMSS",
+        "hospital",
+        "clínica",
+        "genérico"
+      ],
+      "orientation": [
+        "16:9"
+      ],
+      "based_on_verified_references": false,
+      "reference_ids": [],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "attribution": "generic"
+      }
+    },
+    {
+      "id": "hospital_general_exterior_asset_9x16",
+      "file": "buildings/imss/hospital_general_exterior_9x16.webp",
+      "type": "generic",
+      "entity": "Hospital General IMSS",
+      "category": "buildings",
+      "tags": [
+        "IMSS",
+        "hospital",
+        "clínica",
+        "genérico"
+      ],
+      "orientation": [
+        "9:16"
+      ],
+      "based_on_verified_references": false,
+      "reference_ids": [],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "attribution": "generic"
+      }
+    },
+    {
+      "id": "sntss_congress_hall_asset",
+      "file": "union/sntss_congress_hall.webp",
+      "type": "reference_based",
+      "entity": "Congreso Nacional SNTSS",
+      "category": "union",
+      "tags": [
+        "SNTSS",
+        "congreso",
+        "sindicato",
+        "auditorio",
+        "asamblea"
+      ],
+      "orientation": [
+        "16:9"
+      ],
+      "based_on_verified_references": true,
+      "reference_ids": [
+        "sntss_congress_presentation"
+      ],
+      "style_version": "lv-editorial-v1",
+      "meta": {}
+    },
+    {
+      "id": "sntss_congress_hall_asset_9x16",
+      "file": "union/sntss_congress_hall_9x16.webp",
+      "type": "reference_based",
+      "entity": "Congreso Nacional SNTSS",
+      "category": "union",
+      "tags": [
+        "SNTSS",
+        "congreso",
+        "sindicato",
+        "auditorio",
+        "asamblea"
+      ],
+      "orientation": [
+        "9:16"
+      ],
+      "based_on_verified_references": true,
+      "reference_ids": [
+        "sntss_congress_presentation"
+      ],
+      "style_version": "lv-editorial-v1",
+      "meta": {}
+    },
+    {
+      "id": "tarjeton_imss_context_asset",
+      "file": "payroll/tarjeton_imss_context.webp",
+      "type": "reference_based",
+      "entity": "Tarjetón IMSS",
+      "category": "payroll",
+      "tags": [
+        "tarjetón",
+        "nómina",
+        "recibo",
+        "percepciones",
+        "deducciones",
+        "IMSS"
+      ],
+      "orientation": [
+        "16:9"
+      ],
+      "based_on_verified_references": true,
+      "reference_ids": [
+        "imss_tarjeton_structure"
+      ],
+      "style_version": "lv-editorial-v1",
+      "meta": {}
+    },
+    {
+      "id": "tarjeton_imss_context_asset_9x16",
+      "file": "payroll/tarjeton_imss_context_9x16.webp",
+      "type": "reference_based",
+      "entity": "Tarjetón IMSS",
+      "category": "payroll",
+      "tags": [
+        "tarjetón",
+        "nómina",
+        "recibo",
+        "percepciones",
+        "deducciones",
+        "IMSS"
+      ],
+      "orientation": [
+        "9:16"
+      ],
+      "based_on_verified_references": true,
+      "reference_ids": [
+        "imss_tarjeton_structure"
+      ],
+      "style_version": "lv-editorial-v1",
+      "meta": {}
+    }
+  ]
+}

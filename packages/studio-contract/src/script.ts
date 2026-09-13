@@ -23,11 +23,45 @@ export const SourceRefSchema = z.object({
 });
 export type SourceRef = z.infer<typeof SourceRefSchema>;
 
+export const ProductionEventTypeSchema = z.enum([
+  "pause",
+  "break",
+  "sfx",
+  "music",
+  "laughter",
+  "reaction",
+  "emphasis",
+  "whisper",
+  "speed",
+]);
+export type ProductionEventType = z.infer<typeof ProductionEventTypeSchema>;
+
+export const ProductionEventSchema = z.object({
+  type: ProductionEventTypeSchema,
+  position: z.enum(["before", "inline", "after"]),
+  durationMs: z.number().optional(),
+  label: z.string().optional(),
+  cueText: z.string().optional(),
+  ssmlTag: z.string().optional(),
+});
+export type ProductionEvent = z.infer<typeof ProductionEventSchema>;
+
+export const DeliverySchema = z.object({
+  styles: z.array(z.string()).default([]),
+  emotion: z.string().nullable().optional(),
+});
+export type Delivery = z.infer<typeof DeliverySchema>;
+
 export const TurnSchema = z.object({
   id: z.string(),
   speaker: z.string(),
   displayText: z.string(),
   ttsText: z.string().optional(),
+  delivery: DeliverySchema.nullable().optional(),
+  ssml: z.string().nullable().optional(),
+  productionEvents: z.array(ProductionEventSchema).default([]),
+  relation: z.string().nullable().optional(),
+  authorPause: z.boolean().default(false),
   section: z.string().nullable().optional(),
   intent: z.string().nullable().optional(),
   pauseIntent: PauseIntentSchema.nullable().optional(),
@@ -65,16 +99,25 @@ export const ScriptSchema = z.object({
   turns: z.array(TurnSchema).default([]),
   cutoff: z.string().nullable().optional(),
   estimacionDurSec: z.number().default(0),
+  rhythmScore: z
+    .object({
+      score: z.number(),
+      paceDistribution: z.record(z.string(), z.number()),
+      warnings: z.array(z.string()),
+    })
+    .optional(),
   /** Memoria editorial para que un 9B mantenga coherencia sin 50 turnos en contexto. */
-  memory: z.object({
-    factsCovered: z.array(z.string()).default([]),
-    claimsUsed: z.array(z.string()).default([]),
-    openQuestions: z.array(z.string()).default([]),
-    importantPointsRemaining: z.array(z.string()).default([]),
-    lastSpeaker: z.string().nullable().optional(),
-    tone: z.string().nullable().optional(),
-    commercialsUsed: z.array(z.string()).default([]),
-  }).optional(),
+  memory: z
+    .object({
+      factsCovered: z.array(z.string()).default([]),
+      claimsUsed: z.array(z.string()).default([]),
+      openQuestions: z.array(z.string()).default([]),
+      importantPointsRemaining: z.array(z.string()).default([]),
+      lastSpeaker: z.string().nullable().optional(),
+      tone: z.string().nullable().optional(),
+      commercialsUsed: z.array(z.string()).default([]),
+    })
+    .optional(),
   generatedAt: z.string().optional(),
   promptVersion: z.string().nullable().optional(),
 });

@@ -1,0 +1,57 @@
+{
+  "name": "la-veinte-radio-visual-v1",
+  "inmutable": false,
+  "typography": {
+    "family": "visual_engine/assets/fonts/Inter.ttf",
+    "fallback": "C:/Windows/Fonts/segoeui.ttf",
+    "fallback_bold": "C:/Windows/Fonts/segoeuib.ttf",
+    "scale": {
+      "display-xl": 150, "display": 110, "headline": 64,
+      "body": 34, "caption": 30, "metadata": 26
+    },
+    "min_px_1080p": {
+      "display-xl": 96, "display": 72, "headline": 48,
+      "body": 28, "caption": 24, "metadata": 22
+    },
+    "max_area": {
+      "h": {"w_frac": 0.68, "h_frac": 0.32},
+      "v": {"w_frac": 0.84, "h_frac": 0.28}
+    },
+    "line_spacing": 1.22,
+    "line_spacing_min": 1.05
+  },
+  "spacing": {"pad": 96, "gap": 28, "card_pad": 36},
+  "safe": {
+    "h": [96, 54, 1824, 1026],
+    "v": [54, 140, 1026, 1620],
+    "v_caption_free": [54, 140, 1026, 1480]
+  },
+  "platform": {
+    "h": [120, 90, 1800, 990],
+    "v": [70, 200, 940, 1450]
+  },
+  "radius": 18,
+  "stroke": {"thin": 2, "medium": 4, "bold": 6},
+  "opacity": {"bg_pattern": 1.0, "muted_text": 0.75, "ambient": 0.5},
+  "timings_ms": {
+    "enter": 350, "exit": 250, "sting": 600,
+    "kinetic_word": 120, "transition_soft": 200, "transition_quick": 120
+  },
+  "density": {"impact_max_frac": 0.15},
+  "colors": {
+    "bg": [16, 18, 24], "bg2": [22, 25, 34], "cream": [245, 241, 232],
+    "muted": [168, 162, 154], "accent": [245, 158, 11], "line": [44, 48, 60]
+  },
+  "speakers": {
+    "Eduardo": {"shape": "circles", "speed": 0.25, "accent": [245, 158, 11],
+                "rol": "Conductor", "side": "left", "variant": "center"},
+    "Andrea": {"shape": "curves", "speed": 0.45, "accent": [251, 191, 36],
+               "rol": "Co-conductora", "side": "right", "variant": "open"},
+    "Javier Ríos": {"shape": "grid", "speed": 0.18, "accent": [125, 211, 252],
+                    "rol": "Analista", "side": "left", "variant": "left"},
+    "Rodrigo Torres": {"shape": "bars", "speed": 0.35, "accent": [110, 231, 183],
+                       "rol": "Corresponsal", "side": "right", "variant": "right"},
+    "Valeria Soto": {"shape": "brand", "speed": 0.25, "accent": [245, 158, 11],
+                     "rol": "Identidad", "side": "center", "variant": "center"}
+  }
+}
