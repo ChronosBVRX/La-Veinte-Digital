@@ -1,60 +1,43 @@
 import { useEffect, useState } from "react";
 import { Inicio } from "./screens/Inicio";
 import { ProyectoSimple } from "./screens/ProyectoSimple";
-import { CrearEpisodio } from "./screens/CrearEpisodio";
-import { Produccion } from "./screens/Produccion";
-import { Timeline } from "./screens/Timeline";
-import { BibliotecaAudio } from "./screens/BibliotecaAudio";
-import { Locutores } from "./screens/Locutores";
 import { Bibliotecas } from "./screens/Bibliotecas";
-import { fetchStudioStatus, createProject, type StudioStatus } from "./lib/studio-api";
+import { Diagnostico } from "./screens/Diagnostico";
+import { fetchStudioStatus, createProject } from "./lib/studio-api";
 import { PROFUNDIDAD_MIN, type Profundidad, type Script, type ProductionPreferences } from "@la-veinte/studio-contract";
 import { classifyInput, parseScript, deriveShortTitle } from "@la-veinte/radio-core";
+import { Home, Mic, BookOpen, Activity, Radio } from "./components/ui/Icons";
+import { ToastProvider } from "./components/ui/Toast";
 import "./studio.css";
 
-type Screen = "inicio" | "proyecto" | "crear" | "produccion" | "timeline" | "biblioteca" | "locutores" | "audio";
-
-const NAV_ESTUDIO: Array<{ id: Screen; label: string; icon: string }> = [
-  { id: "inicio", label: "Inicio", icon: "🏠" },
-  { id: "crear", label: "Crear episodio", icon: "🎙️" },
-  { id: "produccion", label: "Generar audio", icon: "⚙️" },
-  { id: "timeline", label: "Editar audio", icon: "🎚️" },
-  { id: "locutores", label: "Voces", icon: "🗣️" },
-  { id: "audio", label: "Música", icon: "🎧" },
-  { id: "biblioteca", label: "Bibliotecas", icon: "📚" },
-];
-
-const NAV_SIMPLE: Array<{ id: Screen; label: string; icon: string }> = [
-  { id: "inicio", label: "Inicio", icon: "🏠" },
-  { id: "proyecto", label: "Proyecto", icon: "🎙️" },
-  { id: "biblioteca", label: "Bibliotecas", icon: "📚" },
-];
+type Screen = "inicio" | "proyecto" | "biblioteca" | "diagnostico";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>(() => {
     const s = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("screen") : null;
     return s ? (s as Screen) : "inicio";
   });
-  const [status, setStatus] = useState<StudioStatus | null>(null);
   const [sidecarOnline, setSidecarOnline] = useState(false);
   const [projectId, setProjectId] = useState<string | null>(() => {
-    return typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("projectId") : null;
+    return typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("projectId") : "d5f1fc16";
   });
-  const [mode, setMode] = useState<"simple" | "estudio">(() => (localStorage.getItem("studio:modo") === "estudio" ? "estudio" : "simple"));
-  const [crearTema, setCrearTema] = useState("");
-  const [workId, setWorkId] = useState(0);
-
-  useEffect(() => { localStorage.setItem("studio:modo", mode); }, [mode]);
 
   useEffect(() => {
     let mounted = true;
     const load = async () => {
-      const r = await fetchStudioStatus();
-      if (mounted) { setStatus(r.status); setSidecarOnline(r.sidecarOnline); }
+      try {
+        const r = await fetchStudioStatus();
+        if (mounted) setSidecarOnline(r.sidecarOnline);
+      } catch {
+        if (mounted) setSidecarOnline(false);
+      }
     };
     load();
-    const t = setInterval(load, 10000);
-    return () => { mounted = false; clearInterval(t); };
+    const t = setInterval(load, 8000);
+    return () => {
+      mounted = false;
+      clearInterval(t);
+    };
   }, []);
 
   const abrirNuevoTema = async (
@@ -71,19 +54,10 @@ export default function App() {
         if (cl.kind === "script") {
           try {
             scriptToPass = parseScript(tema);
-          } catch {
-            // si no se parsea, continuar como tema normal
-          }
+          } catch {}
         }
       }
       const shortTitle = deriveShortTitle(tema);
-      console.log("[STUDIO-FRONTEND] Llamando a createProject:", {
-        topicLength: tema.length,
-        titulo: shortTitle,
-        hasScript: !!scriptToPass,
-        scriptTurns: scriptToPass?.turns?.length ?? 0,
-        productionPreferences: options?.productionPreferences,
-      });
       const p = await createProject({
         topic: tema,
         titulo: shortTitle,
@@ -104,81 +78,99 @@ export default function App() {
           },
         },
       });
-      console.log("[STUDIO-FRONTEND] Respuesta de createProject recibida:", {
-        id: p.id,
-        titulo: p.titulo,
-        state: p.state,
-        hasScript: !!p.script,
-        hasResearch: !!p.research,
-        hasProposal: !!p.proposal,
-      });
       setProjectId(p.id);
       setScreen("proyecto");
     } catch (err) {
-      console.error("[STUDIO-FRONTEND] Error en createProject:", err);
-      // fallback: pantalla clásica de creación si el sidecar no responde
-      setCrearTema(tema);
-      setWorkId((x) => x + 1);
-      setScreen("crear");
+      console.error("[STUDIO-FRONTEND] Error creando proyecto:", err);
     }
   };
 
-  const nav = mode === "simple" ? NAV_SIMPLE : NAV_ESTUDIO;
+  const navItems = [
+    { id: "inicio" as Screen, label: "Inicio", icon: <Home size={16} /> },
+    { id: "proyecto" as Screen, label: "Episodio Actual", icon: <Mic size={16} />, badge: projectId ? "Activo" : undefined },
+    { id: "biblioteca" as Screen, label: "Biblioteca Normativa", icon: <BookOpen size={16} /> },
+    { id: "diagnostico" as Screen, label: "Diagnóstico", icon: <Activity size={16} /> },
+  ];
 
   return (
-    <div className="studio">
-      <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-logo">🎙️</span>
-          <div>
-            <div className="brand-title">AI Radio Studio</div>
-            <div className="brand-sub">La Veinte Radio</div>
+    <ToastProvider>
+      <div className="studio">
+        {/* Sidebar Profesional */}
+        <aside className="sidebar">
+          <div className="brand cursor-pointer" onClick={() => setScreen("inicio")}>
+            <div className="p-2 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30">
+              <Radio size={20} />
+            </div>
+            <div>
+              <div className="brand-title">AI Radio Studio</div>
+              <div className="brand-sub">La Veinte Radio</div>
+            </div>
           </div>
-        </div>
-        <nav>
-          {nav.map((n) => (
-            <button key={n.id} className={`nav-item ${screen === n.id ? "active" : ""}`} onClick={() => setScreen(n.id)}>
-              <span>{n.icon}</span> {n.label}
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-foot">
-          <button
-            className="chip"
-            onClick={() => { setMode((m) => (m === "simple" ? "estudio" : "simple")); setScreen("inicio"); }}
-            title={mode === "simple" ? "Mostrar controles avanzados" : "Volver al modo sencillo"}
-          >
-            {mode === "simple" ? "CONTROLES AVANZADOS ↗" : "MODO SIMPLE ✓"}
-          </button>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <div className={`sidecar-dot ${sidecarOnline ? "on" : ""}`} />
-            <span>{sidecarOnline ? "Listo para trabajar" : "Conectando con el estudio"}</span>
-          </div>
-          <div style={{ fontSize: "10px", color: "var(--muted)", opacity: 0.85, fontFamily: "monospace", marginTop: 4, lineHeight: 1.4 }}>
-            <div>{__BUILD_GIT_BRANCH__} · {__BUILD_GIT_SHA__}</div>
-            <div>{__BUILD_TIME__}</div>
-          </div>
-        </div>
-      </aside>
 
-      <main className="content">
-        {mode === "simple" && screen === "inicio" && <Inicio onCrear={abrirNuevoTema} onOpen={(id) => { setProjectId(id); setScreen("proyecto"); }} />}
-        {mode === "simple" && screen === "proyecto" && (projectId ? <ProyectoSimple projectId={projectId} onBack={() => setScreen("inicio")} /> : <p className="muted">Abre o crea un episodio desde Inicio.</p>)}
-        {mode === "simple" && screen === "biblioteca" && <Bibliotecas onCrearEpisodio={(t) => void abrirNuevoTema(t, false)} />}
+          <nav>
+            {navItems.map((n) => (
+              <button
+                key={n.id}
+                className={`nav-item ${screen === n.id ? "active" : ""}`}
+                onClick={() => setScreen(n.id)}
+              >
+                <span className="shrink-0">{n.icon}</span>
+                <span className="flex-1 text-left">{n.label}</span>
+                {n.badge && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                    {n.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </nav>
 
-        {mode === "estudio" && (
-          <>
-            {screen === "inicio" && <Inicio onCrear={abrirNuevoTema} onOpen={(id) => { setProjectId(id); setScreen("proyecto"); }} />}
-            {screen === "proyecto" && (projectId ? <ProyectoSimple projectId={projectId} onBack={() => setScreen("inicio")} /> : <p className="muted">Abre o crea un episodio desde Inicio.</p>)}
-            {screen === "crear" && <CrearEpisodio key={workId} temaInicial={crearTema} status={status} onProducir={() => setScreen("produccion")} />}
-            {screen === "produccion" && <Produccion />}
-            {screen === "timeline" && <Timeline />}
-            {screen === "biblioteca" && <Bibliotecas onCrearEpisodio={(t) => void abrirNuevoTema(t, false)} />}
-            {screen === "locutores" && <Locutores />}
-            {screen === "audio" && <BibliotecaAudio />}
-          </>
-        )}
-      </main>
-    </div>
+          {/* Footer limpio de conexión sin datos debug */}
+          <div className="sidebar-foot">
+            <div className="flex items-center gap-2.5 px-2 py-1">
+              <div className={`sidecar-dot ${sidecarOnline ? "on" : ""}`} />
+              <span className="text-xs font-medium text-slate-300">
+                {sidecarOnline ? "Estudio Conectado" : "Conectando con el motor…"}
+              </span>
+            </div>
+          </div>
+        </aside>
+
+        {/* Workspace Central */}
+        <main className="content">
+          {screen === "inicio" && (
+            <Inicio
+              onCrear={abrirNuevoTema}
+              onOpen={(id) => {
+                setProjectId(id);
+                setScreen("proyecto");
+              }}
+            />
+          )}
+
+          {screen === "proyecto" && (
+            projectId ? (
+              <ProyectoSimple projectId={projectId} onBack={() => setScreen("inicio")} />
+            ) : (
+              <div className="p-12 text-center text-slate-400 space-y-3">
+                <p>Selecciona un episodio desde Inicio para comenzar.</p>
+                <button
+                  onClick={() => setScreen("inicio")}
+                  className="px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold"
+                >
+                  Ir a Inicio
+                </button>
+              </div>
+            )
+          )}
+
+          {screen === "biblioteca" && (
+            <Bibliotecas onCrearEpisodio={(t) => void abrirNuevoTema(t, false)} />
+          )}
+
+          {screen === "diagnostico" && <Diagnostico />}
+        </main>
+      </div>
+    </ToastProvider>
   );
 }

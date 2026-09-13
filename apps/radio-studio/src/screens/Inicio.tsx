@@ -1,41 +1,48 @@
-import { useEffect, useMemo, useState } from "react";
-import { listProjects, deleteProject, SIDECAR_URL_EXPORT } from "../lib/studio-api";
-import { MiniPlayer } from "../components/MiniPlayer";
-import { AdvancedProductionDrawer } from "../components/AdvancedProductionDrawer";
-import type { Project, Script, ProductionPreferences } from "@la-veinte/studio-contract";
-import { PROFUNDIDAD_LABELS, PROFUNDIDAD_MIN, type Profundidad } from "@la-veinte/studio-contract";
-import { classifyInput, parseScript, deriveShortTitle } from "@la-veinte/radio-core";
+import { useEffect, useState } from "react";
+import { listProjects, deleteProject } from "../lib/studio-api";
+import type { Project, Script, ProductionPreferences, Profundidad } from "@la-veinte/studio-contract";
+import { deriveShortTitle } from "@la-veinte/radio-core";
+import {
+  Sparkles,
+  Video,
+  Headphones,
+  Sliders,
+  Trash2,
+  ChevronRight,
+  Radio,
+  Compass,
+} from "../components/ui/Icons";
+import { Button } from "../components/ui/Button";
+import { Badge } from "../components/ui/Badge";
 
-const STATE_LABELS: Record<string, string> = {
-  DRAFT: "Borrador",
-  RESEARCHING: "Investigando…",
-  RESEARCHED: "Fuentes listas",
-  PROPOSAL_READY: "Propuesta lista",
-  PROPOSAL_APPROVED: "Propuesta aprobada",
-  SCRIPT_GENERATING: "Escribiendo guion…",
-  SCRIPT_READY: "Guion listo",
-  SCRIPT_APPROVED: "Guion aprobado",
-  PRODUCING: "Generando audio…",
-  NEEDS_REVIEW: "Guion por revisar",
-  MASTERING: "Mezclando…",
-  DONE: "Listo",
-  FAILED: "No disponible",
+const STATE_HUMAN_LABELS: Record<string, { label: string; variant: "ready" | "pending" | "rendering" | "error" | "neutral" }> = {
+  DRAFT: { label: "Borrador", variant: "neutral" },
+  RESEARCHING: { label: "Investigando…", variant: "rendering" },
+  RESEARCHED: { label: "Fuentes listas", variant: "ready" },
+  PROPOSAL_READY: { label: "Propuesta lista", variant: "ready" },
+  PROPOSAL_APPROVED: { label: "Propuesta aprobada", variant: "ready" },
+  SCRIPT_GENERATING: { label: "Escribiendo…", variant: "rendering" },
+  SCRIPT_READY: { label: "Guion listo", variant: "ready" },
+  SCRIPT_APPROVED: { label: "Guion aprobado", variant: "ready" },
+  PRODUCING: { label: "Generando audio…", variant: "rendering" },
+  NEEDS_REVIEW: { label: "Por revisar", variant: "pending" },
+  MASTERING: { label: "Mezclando…", variant: "rendering" },
+  DONE: { label: "Listo para publicar", variant: "ready" },
+  FAILED: { label: "Requiere atención", variant: "error" },
 };
 
-function titleOf(p: Project): string {
-  return deriveShortTitle(p.titulo || p.topic);
-}
-
-function fecha(p: Project): string {
-  const d = new Date(p.updatedAt ?? p.createdAt);
-  return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
-}
-
-function formatoMinSeg(ms: number): string {
-  const totalSec = Math.round(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
+function formatDuration(ms?: number): string {
+  if (!ms) return "";
+  const sec = Math.round(ms / 1000);
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
   return `${m}:${s.toString().padStart(2, "0")} min`;
+}
+
+function formatDate(isoDate?: string): string {
+  if (!isoDate) return "";
+  const d = new Date(isoDate);
+  return d.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
 }
 
 export function Inicio({
@@ -51,642 +58,260 @@ export function Inicio({
   onOpen: (id: string) => void;
 }) {
   const [tema, setTema] = useState("");
-  const [comerciales, setComerciales] = useState(false);
+  const [modoProduccion, setModoProduccion] = useState<"audio_video" | "audio">("audio_video");
   const [profundidad, setProfundidad] = useState<Profundidad>("estandar");
-  const [duracionMin, setDuracionMin] = useState(15);
-  const [contextoExtra, setContextoExtra] = useState("");
-  const [modoProduccion, setModoProduccion] = useState<"audio" | "audio_video">("audio_video");
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
-
-  const [preferences, setPreferences] = useState<ProductionPreferences>({
-    mode: "audio_video",
-    outputFormats: ["preview", "16x9", "9x16"],
-    videoQuality: "produccion",
-    visualStyle: "equilibrado",
-    visualDirection: "documental",
-    onScreenTextMode: "editorial",
-    subtitlesEnabled: false,
-    visualDensity: "equilibrada",
-    realReferencePriority: true,
-    visualElements: {
-      realReferences: true,
-      illustrations: true,
-      buildings: true,
-      documents: true,
-      logos: true,
-      charts: true,
-      timelines: true,
-      diagrams: true,
-      keyStats: true,
-    },
-    researchReferences: true,
-    visualFidelity: "referencias_reales",
-    sourcesPriority: "oficiales",
-    showSources: true,
-    autoApproveVerified: true,
-    participantsMode: "auto",
-    selectedParticipants: ["EDUARDO", "ANDREA", "JAVIER RÍOS", "RODRIGO TORRES", "VALERIA SOTO"],
-    customDocuments: [],
-    customVisualReferences: [],
-  });
-
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [includeAds, setIncludeAds] = useState(false);
   const [recent, setRecent] = useState<Project[]>([]);
-  const [eliminando, setEliminando] = useState<string | null>(null);
-  const [confirmando, setConfirmando] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const sugerencias = [
-    "¿Qué pasa si me cambian de horario sin avisarme?",
-    "Cómo solicitar vacaciones y prima vacacional en el IMSS",
-    "Accidente de trabajo y llenado del formato ST-7",
-    "Tiempo extraordinario y descansos laborados en el IMSS",
-  ];
-
-  const recargar = () => void listProjects().then((ps) => setRecent(ps.slice(0, 8)));
+  const [loadingProjects, setLoadingProjects] = useState(true);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    recargar();
+    let mounted = true;
+    listProjects()
+      .then((projs) => {
+        if (mounted) {
+          setRecent(projs);
+          setLoadingProjects(false);
+        }
+      })
+      .catch(() => {
+        if (mounted) setLoadingProjects(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  const classification = useMemo(() => {
-    if (!tema.trim()) return null;
-    return classifyInput(tema);
-  }, [tema]);
+  const sugerencias = [
+    "¿Qué pasa si me cambian de horario de trabajo sin avisarme?",
+    "Cómo se calcula el Concepto 02 y Concepto 11 en mi tarjetón",
+    "Jubilaciones CCT Cláusula 157: Años de servicio y edad",
+    "Reforma a la Ley Federal del Trabajo: Artículos 399 y 400",
+  ];
 
-  const parsedScript = useMemo(() => {
-    if (!classification || classification.kind !== "script") return null;
+  const handleCreate = async () => {
+    if (!tema.trim() || creating) return;
+    setCreating(true);
     try {
-      return parseScript(tema);
-    } catch {
-      return null;
-    }
-  }, [classification, tema]);
-
-  const handleModeChange = (mode: "audio" | "audio_video") => {
-    setModoProduccion(mode);
-    setPreferences((prev) => ({
-      ...prev,
-      mode,
-      outputFormats: mode === "audio" ? [] : (prev.outputFormats && prev.outputFormats.length > 0 ? prev.outputFormats : ["preview", "16x9", "9x16"]),
-    }));
-  };
-
-  const handleCrear = (forceTopic = false) => {
-    if (!tema.trim()) return;
-    const finalPrefs: ProductionPreferences = {
-      ...preferences,
-      mode: modoProduccion,
-    };
-    onCrear(tema.trim(), comerciales, profundidad, {
-      script: !forceTopic && parsedScript ? parsedScript : undefined,
-      forceTopic,
-      productionPreferences: finalPrefs,
-    });
-  };
-
-  const handleDuplicar = (p: Project) => {
-    onCrear(p.topic, Boolean(p.config?.comerciales?.enabled), (p.config?.profundidad as Profundidad) || "estandar", {
-      script: p.script ?? undefined,
-      productionPreferences: p.config?.productionPreferences,
-    });
-  };
-
-  const eliminar = async (p: Project) => {
-    setEliminando(p.id);
-    setError(null);
-    try {
-      await deleteProject(p.id);
-      setRecent((prev) => prev.filter((x) => x.id !== p.id));
-      setConfirmando(null);
-      setMenuOpenId(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo eliminar el episodio");
+      onCrear(tema.trim(), includeAds, profundidad, {
+        productionPreferences: {
+          mode: modoProduccion,
+          outputFormats: modoProduccion === "audio_video" ? ["preview", "16x9", "9x16"] : ["preview"],
+          videoQuality: "produccion",
+          visualStyle: "equilibrado",
+          visualDirection: "documental",
+          onScreenTextMode: "editorial",
+        } as any,
+      });
     } finally {
-      setEliminando(null);
+      setCreating(false);
+    }
+  };
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm("¿Deseas eliminar este episodio?")) {
+      await deleteProject(id);
+      setRecent((prev) => prev.filter((p) => p.id !== id));
     }
   };
 
   return (
-    <div className="screen" onClick={() => setMenuOpenId(null)}>
-      {/* Hero */}
-      <div className="home-hero flex items-center justify-between">
-        <div>
-          <div className="brand-title" style={{ fontSize: 20, marginBottom: 2 }}>
-            LA VEINTE RADIO
-          </div>
-          <h1>Estudio Integral de Producción Audiovisual</h1>
-          <p className="muted">
-            Genera episodios de radio y televisión laboral con investigación documental y referencias reales verificadas.
-          </p>
+    <div className="max-w-4xl mx-auto space-y-12 py-4 animate-in fade-in duration-200">
+      {/* Header institucional limpio */}
+      <div className="text-center space-y-2">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold tracking-wide">
+          <Radio size={13} />
+          <span>LA VEINTE RADIO · AI RADIO STUDIO</span>
         </div>
-        <div className="ready-pill ok flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          SISTEMA LISTO
-        </div>
+        <h1 className="text-3xl font-extrabold text-slate-100 tracking-tight">
+          ¿Qué quieres crear hoy?
+        </h1>
+        <p className="text-sm text-slate-400 max-w-lg mx-auto">
+          Escribe un tema para investigar con evidencia normativa o pega un guion para producir audio y video profesional.
+        </p>
       </div>
 
-      {/* Main 2-Column Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 my-6">
-        {/* Left Column: Creator (7 cols) */}
-        <div className="lg:col-span-7 space-y-5">
-          <section className="card start-card p-5 space-y-4">
-            {/* Input Header & Area */}
-            <label className="field block">
-              <div className="flex justify-between items-center mb-2">
-                <span className="font-semibold text-sm text-zinc-200">Tema o guion del episodio</span>
-                {classification && (
-                  <span
-                    className="chip text-xs px-2.5 py-0.5 rounded-full font-semibold"
-                    style={{
-                      background:
-                        classification.kind === "script"
-                          ? "rgba(16, 185, 129, 0.15)"
-                          : classification.kind === "ambiguous"
-                            ? "rgba(245, 158, 11, 0.15)"
-                            : "rgba(59, 130, 246, 0.15)",
-                      color:
-                        classification.kind === "script"
-                          ? "#10b981"
-                          : classification.kind === "ambiguous"
-                            ? "#f59e0b"
-                            : "#3b82f6",
-                      border: `1px solid ${
-                        classification.kind === "script"
-                          ? "#10b981"
-                          : classification.kind === "ambiguous"
-                            ? "#f59e0b"
-                            : "#3b82f6"
-                      }`,
-                    }}
+      {/* Main Creation Card */}
+      <div className="p-6 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-2xl shadow-blue-950/20 space-y-5">
+        <div className="relative">
+          <textarea
+            value={tema}
+            onChange={(e) => setTema(e.target.value)}
+            placeholder="Escribe el tema o pega un guion aquí..."
+            className="w-full h-32 px-4 py-3.5 rounded-xl bg-slate-950/90 border border-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-slate-100 text-sm placeholder:text-slate-500 resize-none transition-all outline-none leading-relaxed"
+          />
+        </div>
+
+        {/* Format Selector: Audio + Video vs Solo Audio */}
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
+          <div className="flex items-center gap-2 bg-slate-950/80 p-1 rounded-xl border border-slate-800/80 text-xs">
+            <button
+              type="button"
+              onClick={() => setModoProduccion("audio_video")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-medium transition-all ${
+                modoProduccion === "audio_video"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Video size={14} />
+              <span>Audio + Video</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setModoProduccion("audio")}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-medium transition-all ${
+                modoProduccion === "audio"
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Headphones size={14} />
+              <span>Sólo Audio</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1 transition-colors px-2 py-1"
+            >
+              <Sliders size={13} />
+              <span>{showAdvanced ? "Menos opciones" : "Opciones de profundidad"}</span>
+            </button>
+            <Button
+              variant="primary"
+              size="md"
+              loading={creating}
+              disabled={!tema.trim()}
+              onClick={handleCreate}
+              icon={<Sparkles size={15} />}
+            >
+              Crear episodio
+            </Button>
+          </div>
+        </div>
+
+        {/* Progressive Disclosure: Depth and options */}
+        {showAdvanced && (
+          <div className="pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-4 text-xs animate-in fade-in duration-150">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400 font-medium">Profundidad editorial:</span>
+              <div className="flex gap-1.5">
+                {(["express", "estandar", "profundo"] as Profundidad[]).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setProfundidad(p)}
+                    className={`px-3 py-1 rounded-md border text-xs font-medium transition-colors ${
+                      profundidad === p
+                        ? "bg-slate-800 border-blue-500/50 text-blue-300"
+                        : "border-slate-800 text-slate-400 hover:text-slate-300"
+                    }`}
                   >
-                    {classification.kind === "script"
-                      ? `📝 Guion detectado (${classification.stats.detectedSpeakers.join(", ")} · ${classification.stats.speakerLineCount} intervenciones)`
-                      : classification.kind === "ambiguous"
-                        ? "🤔 Formato mixto o ambiguo"
-                        : "🔎 Tema para investigar"}
-                  </span>
-                )}
+                    {p === "breve" ? "Breve" : p === "estandar" ? "Equilibrado" : "Profundo"}
+                  </button>
+                ))}
               </div>
-              <textarea
-                value={tema}
-                onChange={(e) => setTema(e.target.value)}
-                placeholder="Ej. ¿Qué pasa si me cambian de horario sin avisarme?&#10;O pega un guion:&#10;EDUARDO: Bienvenidos a La Veinte Radio...&#10;ANDREA: Hoy revisaremos la Cláusula 22..."
-                autoFocus
-                rows={tema.includes("\n") || tema.length > 80 ? 5 : 2}
-                className="w-full text-sm p-3 rounded-xl border border-zinc-800 bg-zinc-900/90 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-all leading-relaxed"
+            </div>
+
+            <label className="flex items-center gap-2 text-slate-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={includeAds}
+                onChange={(e) => setIncludeAds(e.target.checked)}
+                className="rounded bg-slate-950 border-slate-800 text-blue-600 focus:ring-0"
               />
+              <span>Incluir menciones y avisos</span>
             </label>
-
-            {/* Selector de Modo de Producción */}
-            <div>
-              <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-                Tipo de Producción Solicitada
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div
-                  onClick={() => handleModeChange("audio_video")}
-                  className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                    modoProduccion === "audio_video"
-                      ? "bg-blue-950/25 border-blue-500 text-zinc-100 shadow-md shadow-blue-500/10"
-                      : "bg-zinc-900/40 border-zinc-800 text-zinc-400 hover:border-zinc-700"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xl">🎬</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                      Recomendado
-                    </span>
-                  </div>
-                  <div className="font-bold text-sm text-zinc-100 mt-2">Audio + Video Completo</div>
-                  <div className="text-xs text-zinc-400 mt-0.5">
-                    Master WAV/MP3 + Video 16:9 y 9:16 con referencias reales
-                  </div>
-                </div>
-
-                <div
-                  onClick={() => handleModeChange("audio")}
-                  className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                    modoProduccion === "audio"
-                      ? "bg-blue-950/25 border-blue-500 text-zinc-100 shadow-md shadow-blue-500/10"
-                      : "bg-zinc-900/40 border-zinc-800 text-zinc-400 hover:border-zinc-700"
-                  }`}
-                >
-                  <div className="text-xl">🎙️</div>
-                  <div className="font-bold text-sm text-zinc-100 mt-2">Solo Audio</div>
-                  <div className="text-xs text-zinc-400 mt-0.5">
-                    WAV 24k broadcast + MP3 podcast sin generación de video
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Botones de Creación y CTA Principal */}
-            <div className="pt-2 space-y-3">
-              {classification?.kind === "script" ? (
-                <div className="flex gap-2">
-                  <button
-                    className="btn-primary btn-main-action flex-1 py-3 font-bold text-sm"
-                    onClick={() => handleCrear(false)}
-                    disabled={!tema.trim()}
-                  >
-                    📝 IMPORTAR GUION Y PRODUCIR {modoProduccion === "audio_video" ? "(AUDIO + VIDEO)" : "(SOLO AUDIO)"}
-                  </button>
-                  <button
-                    className="btn-secondary px-4 text-xs font-semibold"
-                    onClick={() => handleCrear(true)}
-                    disabled={!tema.trim()}
-                    title="Investigar como tema en la biblioteca"
-                  >
-                    Investigar como tema
-                  </button>
-                </div>
-              ) : (
-                <button
-                  className="btn-primary btn-main-action w-full py-3 font-bold text-sm shadow-lg shadow-blue-600/20"
-                  onClick={() => handleCrear(false)}
-                  disabled={!tema.trim()}
-                >
-                  {modoProduccion === "audio_video"
-                    ? "🚀 CREAR EPISODIO COMPLETO (AUDIO + VIDEO)"
-                    : "🎙️ CREAR EPISODIO (SOLO AUDIO)"}
-                </button>
-              )}
-
-              {/* Badges de Entregables Dinámicos */}
-              <div className="flex flex-wrap gap-1.5 items-center justify-center pt-1 text-[11px] text-zinc-400">
-                <span className="font-medium text-zinc-500">Se generará:</span>
-                <span className="px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-300">WAV Master 24k</span>
-                <span className="px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-300">MP3 Podcast</span>
-                {modoProduccion === "audio_video" && (
-                  <>
-                    <span className="px-2 py-0.5 rounded bg-blue-950/40 border border-blue-700/50 text-blue-300">
-                      🎬 16:9 Full HD
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-purple-950/40 border border-purple-700/50 text-purple-300">
-                      📱 9:16 Vertical
-                    </span>
-                    <span className="px-2 py-0.5 rounded bg-emerald-950/40 border border-emerald-700/50 text-emerald-300">
-                      🏛️ Ref. Reales
-                    </span>
-                  </>
-                )}
-              </div>
-
-              {/* Botón de Controles Avanzados */}
-              <div className="flex justify-center pt-1">
-                <button
-                  type="button"
-                  onClick={() => setDrawerOpen(true)}
-                  className="flex items-center gap-2 text-xs text-zinc-400 hover:text-blue-400 transition-colors py-1 px-3 rounded-lg hover:bg-zinc-800/60"
-                >
-                  <span>⚙️</span>
-                  <span className="font-semibold underline">CONTROLES AVANZADOS</span>
-                  <span className="text-[10px] text-zinc-500">(calidad, apoyos visuales, locutores, fuentes)</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Depth & Suggestions */}
-            <div className="pt-2 border-t border-zinc-800/80 space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-zinc-400 font-medium">Profundidad aproximada:</span>
-                <div className="flex gap-2">
-                  {(["breve", "estandar", "profundo"] as Profundidad[]).map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      className={`chip text-xs px-2.5 py-1 ${profundidad === d ? "chip-active font-bold" : ""}`}
-                      onClick={() => {
-                        setProfundidad(d);
-                        setDuracionMin(PROFUNDIDAD_MIN[d] ?? 15);
-                      }}
-                    >
-                      {PROFUNDIDAD_LABELS[d]} · ~{PROFUNDIDAD_MIN[d]} min
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <label className="check flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={comerciales}
-                  onChange={(e) => setComerciales(e.target.checked)}
-                  className="accent-blue-500 rounded"
-                />
-                <span>Incluir anuncios institucionales y comerciales autorizados</span>
-              </label>
-
-              <div className="pt-2">
-                <span className="text-xs text-zinc-500 block mb-1.5">Sugerencias rápidas:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {sugerencias.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      className="chip text-[11px] hover:text-blue-300"
-                      onClick={() => setTema(s)}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-
-        {/* Right Column: Production Live Inspector (5 cols) */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="card p-5 bg-zinc-900/60 border border-zinc-800/90 rounded-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-base">📋</span>
-                <h3 className="font-bold text-sm text-zinc-200">Resumen de Producción</h3>
-              </div>
-              <button
-                onClick={() => setDrawerOpen(true)}
-                className="text-xs text-blue-400 hover:text-blue-300 font-semibold"
-              >
-                Editar
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div className="flex justify-between items-center py-1 border-b border-zinc-800/50">
-                <span className="text-zinc-400">Modo de Entrega</span>
-                <span className="font-bold text-zinc-200">
-                  {modoProduccion === "audio_video" ? "🎬 Audio + Video Completo" : "🎙️ Solo Audio"}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center py-1 border-b border-zinc-800/50">
-                <span className="text-zinc-400">Duración Prevista</span>
-                <span className="font-bold text-zinc-200">~{duracionMin} minutos</span>
-              </div>
-
-              {modoProduccion === "audio_video" && (
-                <>
-                  <div className="flex justify-between items-center py-1 border-b border-zinc-800/50">
-                    <span className="text-zinc-400">Estilo Visual</span>
-                    <span className="font-bold text-blue-400 capitalize">
-                      {preferences.visualStyle ?? "Equilibrado"}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center py-1 border-b border-zinc-800/50">
-                    <span className="text-zinc-400">Calidad de Video</span>
-                    <span className="font-bold text-zinc-200 capitalize">
-                      {preferences.videoQuality === "produccion"
-                        ? "1080p Estándar"
-                        : preferences.videoQuality === "maxima"
-                          ? "1080p Máxima"
-                          : "480p Rápido"}
-                    </span>
-                  </div>
-
-                  <div className="py-1 border-b border-zinc-800/50">
-                    <div className="text-zinc-400 mb-1">Apoyos Visuales Habilitados:</div>
-                    <div className="flex flex-wrap gap-1">
-                      {Object.entries(preferences.visualElements ?? {})
-                        .filter(([, v]) => v)
-                        .slice(0, 5)
-                        .map(([k]) => (
-                          <span key={k} className="px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-300">
-                            {k}
-                          </span>
-                        ))}
-                      {Object.values(preferences.visualElements ?? {}).filter(Boolean).length > 5 && (
-                        <span className="text-[10px] text-zinc-500">
-                          +{Object.values(preferences.visualElements ?? {}).filter(Boolean).length - 5} más
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              <div className="py-1 border-b border-zinc-800/50">
-                <div className="text-zinc-400 mb-1">Elenco Participante:</div>
-                <div className="flex flex-wrap gap-1">
-                  {(preferences.selectedParticipants ?? []).map((spk) => (
-                    <span key={spk} className="px-2 py-0.5 rounded-full bg-blue-950/40 text-blue-300 text-[10px] border border-blue-800/40 font-medium">
-                      {spk}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="py-1 flex items-start gap-2 text-zinc-400">
-                <span className="text-emerald-400">✓</span>
-                <span>
-                  Investigación visual real <strong>activa</strong>: busca logos oficiales y arquitectura de hospitales antes de renderizar.
-                </span>
-              </div>
-            </div>
-
-            <div className="p-3 rounded-xl bg-blue-950/20 border border-blue-500/20 text-[11px] text-blue-300/80 leading-relaxed">
-              💡 <strong>Cero costo de tokens:</strong> Cambiar el estilo visual, editar apoyos o re-renderizar video no vuelve a llamar a Speechify ni regenera las voces maestras.
-            </div>
           </div>
+        )}
+      </div>
+
+      {/* Sugerencias Rápidas */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          <Compass size={13} />
+          <span>Empieza con una idea</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {sugerencias.map((sug, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setTema(sug)}
+              className="text-xs text-slate-300 bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800/80 hover:border-slate-700 px-3 py-2 rounded-xl transition-all duration-150 text-left"
+            >
+              {sug}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Episodios Recientes con Menú Contextual */}
-      <section className="mt-8">
-        <div className="flex items-center justify-between mb-3">
-          <div className="scene-title font-bold text-lg text-zinc-100">Episodios recientes</div>
-          <span className="text-xs text-zinc-400">{recent.length} episodios en catálogo</span>
+      {/* Proyectos Recientes */}
+      <div className="space-y-4 pt-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-slate-200">Episodios y Proyectos Recientes</h2>
+          <span className="text-xs text-slate-500">{recent.length} episodios guardados</span>
         </div>
 
-        {error && <div className="error mb-3 p-3 rounded-xl bg-red-950/40 border border-red-800 text-red-300 text-xs">{error}</div>}
-
-        {recent.length === 0 ? (
-          <div className="muted small p-8 text-center bg-zinc-900/30 rounded-xl border border-zinc-800/60">
-            Todavía no tienes episodios. Escribe un tema arriba y presiona crear para iniciar.
+        {loadingProjects ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {[1, 2].map((n) => (
+              <div key={n} className="h-28 rounded-2xl bg-slate-900/40 border border-slate-800/60 animate-pulse" />
+            ))}
+          </div>
+        ) : recent.length === 0 ? (
+          <div className="p-8 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/20 text-slate-400 text-xs">
+            No tienes episodios recientes. Escribe un tema arriba para comenzar tu primer episodio.
           </div>
         ) : (
-          <div className="space-y-3">
-            {recent.map((p) => {
-              const audioUrl = p.master?.master
-                ? `${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(p.master.master.replace(/\\/g, "/"))}`
-                : null;
-              const tieneAudio = Boolean(audioUrl || p.state === "DONE");
-              const tieneVideo = Boolean(p.visual?.status === "READY" && p.visual?.files);
-              const video16x9Url = p.visual?.files?.video16x9
-                ? `${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(p.visual.files.video16x9.replace(/\\/g, "/"))}`
-                : null;
-              const video9x16Url = p.visual?.files?.video9x16
-                ? `${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(p.visual.files.video9x16.replace(/\\/g, "/"))}`
-                : null;
-
-              const isMenuOpen = menuOpenId === p.id;
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {recent.map((proj) => {
+              const stateInfo = STATE_HUMAN_LABELS[proj.state] || { label: proj.state, variant: "neutral" };
+              const title = deriveShortTitle(proj.titulo || proj.topic);
+              const dur = proj.master?.duraccionMs ? formatDuration(proj.master.duraccionMs) : "";
 
               return (
-                <section key={p.id} className="card p-4 hover:border-zinc-700 transition-all relative">
-                  <div className="flex items-center justify-between gap-4 flex-wrap">
-                    <div className="min-w-0 flex-1">
-                      <div className="font-bold text-base text-zinc-100 flex items-center gap-2">
-                        <span>{titleOf(p)}</span>
-                        {tieneVideo && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                            VIDEO
-                          </span>
-                        )}
-                      </div>
-                      <div className="muted small mt-1 flex flex-wrap items-center gap-2 text-xs">
-                        <span style={{ color: tieneAudio ? "#22c55e" : undefined, fontWeight: tieneAudio ? 600 : undefined }}>
-                          {tieneAudio
-                            ? tieneVideo
-                              ? "✓ Audio y Video listos"
-                              : "✓ Audio listo"
-                            : STATE_LABELS[p.state] ?? p.state}
-                        </span>
-                        <span>·</span>
-                        <span>{fecha(p)}</span>
-                        {p.master?.duraccionMs ? (
-                          <>
-                            <span>·</span>
-                            <span>{formatoMinSeg(p.master.duraccionMs)}</span>
-                          </>
-                        ) : null}
-                        {tieneVideo && (
-                          <>
-                            <span>·</span>
-                            <span className="text-zinc-300">16:9 + 9:16</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
+                <div
+                  key={proj.id}
+                  onClick={() => onOpen(proj.id)}
+                  className="group cursor-pointer p-4 rounded-2xl bg-slate-900/80 border border-slate-800 hover:border-blue-500/50 flex items-center justify-between gap-4 transition-all duration-150 hover:shadow-xl hover:shadow-blue-950/20"
+                >
+                  <div className="space-y-1.5 flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <button
-                        className="btn-primary py-2 px-4 text-xs font-bold"
-                        onClick={() => onOpen(p.id)}
-                      >
-                        {tieneAudio || tieneVideo ? "ABRIR ESTUDIO" : "CONTINUAR"}
-                      </button>
-
-                      {/* Menú Contextual ⋯ */}
-                      <div className="relative" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => setMenuOpenId(isMenuOpen ? null : p.id)}
-                          className="p-2 rounded-lg bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 transition-colors"
-                          title="Opciones del episodio"
-                        >
-                          ⋯
-                        </button>
-
-                        {isMenuOpen && (
-                          <div className="absolute right-0 top-full mt-1 w-56 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl py-1.5 z-40 text-xs">
-                            {audioUrl && (
-                              <a
-                                href={audioUrl}
-                                download={`episodio-${p.id}.mp3`}
-                                className="flex items-center gap-2 px-3.5 py-2 text-zinc-200 hover:bg-zinc-800 transition-colors"
-                              >
-                                <span>⬇️</span>
-                                <span>Descargar audio MP3</span>
-                              </a>
-                            )}
-                            {video16x9Url && (
-                              <a
-                                href={video16x9Url}
-                                download={`episodio-${p.id}-16x9.mp4`}
-                                className="flex items-center gap-2 px-3.5 py-2 text-zinc-200 hover:bg-zinc-800 transition-colors"
-                              >
-                                <span>🎬</span>
-                                <span>Descargar Video 16:9</span>
-                              </a>
-                            )}
-                            {video9x16Url && (
-                              <a
-                                href={video9x16Url}
-                                download={`episodio-${p.id}-9x16.mp4`}
-                                className="flex items-center gap-2 px-3.5 py-2 text-zinc-200 hover:bg-zinc-800 transition-colors"
-                              >
-                                <span>📱</span>
-                                <span>Descargar Video 9:16</span>
-                              </a>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleDuplicar(p);
-                                setMenuOpenId(null);
-                              }}
-                              className="flex items-center gap-2 w-full text-left px-3.5 py-2 text-zinc-200 hover:bg-zinc-800 transition-colors"
-                            >
-                              <span>📋</span>
-                              <span>Duplicar configuración</span>
-                            </button>
-                            <div className="border-t border-zinc-800 my-1"></div>
-                            {confirmando === p.id ? (
-                              <div className="p-2 space-y-1">
-                                <div className="text-[11px] text-red-400 font-semibold px-1">¿Eliminar episodio?</div>
-                                <div className="flex gap-1">
-                                  <button
-                                    className="flex-1 py-1 px-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded text-[11px]"
-                                    disabled={eliminando === p.id}
-                                    onClick={() => void eliminar(p)}
-                                  >
-                                    {eliminando === p.id ? "Borrando…" : "Sí, borrar"}
-                                  </button>
-                                  <button
-                                    className="py-1 px-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-[11px]"
-                                    onClick={() => setConfirmando(null)}
-                                  >
-                                    No
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => setConfirmando(p.id)}
-                                className="flex items-center gap-2 w-full text-left px-3.5 py-2 text-red-400 hover:bg-red-950/30 transition-colors"
-                              >
-                                <span>🗑️</span>
-                                <span>Eliminar episodio</span>
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                      <Badge variant={stateInfo.variant} size="sm">
+                        {stateInfo.label}
+                      </Badge>
+                      <span className="text-[11px] text-slate-500">{formatDate(proj.updatedAt || proj.createdAt)}</span>
+                      {dur && <span className="text-[11px] text-slate-500 font-mono">· {dur}</span>}
                     </div>
+                    <h3 className="font-semibold text-sm text-slate-100 truncate group-hover:text-blue-300 transition-colors">
+                      {title}
+                    </h3>
+                    <p className="text-xs text-slate-400 truncate max-w-sm">{proj.topic}</p>
                   </div>
 
-                  {audioUrl && (
-                    <div className="mt-3 pt-2.5 border-t border-zinc-800/60">
-                      <MiniPlayer
-                        src={audioUrl}
-                        label={`Audio final: ${titleOf(p)}`}
-                        accent="#22c55e"
-                      />
-                    </div>
-                  )}
-                </section>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => handleDelete(proj.id, e)}
+                      title="Eliminar episodio"
+                      className="p-2 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                    <ChevronRight size={18} className="text-slate-500 group-hover:text-slate-200 transition-colors" />
+                  </div>
+                </div>
               );
             })}
           </div>
         )}
-      </section>
-
-      {/* Advanced Production Drawer */}
-      <AdvancedProductionDrawer
-        isOpen={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        preferences={preferences}
-        onChange={setPreferences}
-        duracionMin={duracionMin}
-        onDuracionChange={setDuracionMin}
-        profundidad={profundidad}
-        onProfundidadChange={setProfundidad}
-        contextoExtra={contextoExtra}
-        onContextoChange={setContextoExtra}
-      />
+      </div>
     </div>
   );
 }

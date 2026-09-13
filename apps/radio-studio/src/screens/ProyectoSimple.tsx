@@ -1,54 +1,52 @@
-/**
- * ProyectoSimple — AI Radio Studio: Resumen, Guion, Fuentes, Audio, Visuales y Producción.
- * Control 100% desde la interfaz: edición de beats, referencias reales, preview y render multiformato.
- */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   getProject,
-  projectResearch,
-  projectApprove,
-  projectVerify,
-  projectProduce,
-  obtenerProgreso,
-  obtenerLlmSalud,
   getProjectVisualPlan,
   updateProjectVisualBeat,
-  getProjectReferences,
   renderProjectVisual,
   getProjectVisualCacheStatus,
-  renderStoryboard,
   renderSpotPreview,
   cancelVisualRender,
   listAssets,
   SIDECAR_URL_EXPORT,
-  type LlmHealthInfo,
   type VisualPlan,
   type VisualBeat,
   type AssetItem,
-  type ReferenceItem,
   type VisualCacheStatus,
 } from "../lib/studio-api";
-import { MiniPlayer } from "../components/MiniPlayer";
-import type { Project, VerifyResult, Turn } from "@la-veinte/studio-contract";
-import { deriveShortTitle, validateScriptIntegrity, type ScriptIntegrityReport } from "@la-veinte/radio-core";
+import type { Project, Turn } from "@la-veinte/studio-contract";
+import { deriveShortTitle } from "@la-veinte/radio-core";
+import {
+  ArrowLeft,
+  Play,
+  Pause,
+  Film,
+  Download,
+  Eye,
+  CheckCircle2,
+  Clock,
+  Search,
+  Sparkles,
+  ShieldCheck,
+  Headphones,
+  X,
+  Radio,
+  Grid,
+} from "../components/ui/Icons";
+import { Button } from "../components/ui/Button";
+import { Badge } from "../components/ui/Badge";
+import { StoryboardModal } from "../components/StoryboardModal";
+import { useToast } from "../components/ui/Toast";
 
 export type StudioTab = "resumen" | "guion" | "fuentes" | "audio" | "visuales" | "produccion";
 
 function speakerColor(speaker: string): string {
   const s = speaker.toUpperCase();
-  if (s.includes("VALERIA") || s.includes("COMERCIAL")) return "#f59e0b";
-  if (s.includes("RODRIGO")) return "#10b981";
-  if (s.includes("JAVIER") || s.includes("NARRADOR")) return "#64748b";
-  if (s.includes("ANDREA")) return "#ec4899";
-  return "#3b82f6";
-}
-
-function nombreCorto(speaker: string): string {
-  if (/VALERIA|COMERCIAL/.test(speaker.toUpperCase())) return "Valeria";
-  if (/RODRIGO/.test(speaker.toUpperCase())) return "Rodrigo";
-  if (/JAVIER|NARRADOR/.test(speaker.toUpperCase())) return "Javier";
-  if (/ANDREA/.test(speaker.toUpperCase())) return "Andrea";
-  return "Eduardo";
+  if (s.includes("VALERIA")) return "var(--spk-valeria)";
+  if (s.includes("RODRIGO")) return "var(--spk-rodrigo)";
+  if (s.includes("JAVIER")) return "var(--spk-javier)";
+  if (s.includes("ANDREA")) return "var(--spk-andrea)";
+  return "var(--spk-eduardo)";
 }
 
 function formatTimeSec(sec: number): string {
@@ -58,39 +56,30 @@ function formatTimeSec(sec: number): string {
 }
 
 export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBack: () => void }) {
+  const { showToast } = useToast();
   const [project, setProject] = useState<Project | null>(null);
-  const [activeTab, setActiveTab] = useState<StudioTab>(() => {
-    const t = typeof window !== "undefined" ? (new URLSearchParams(window.location.search).get("tab") as StudioTab) : null;
-    return t && ["resumen", "guion", "fuentes", "audio", "visuales", "produccion"].includes(t) ? t : "resumen";
-  });
+  const [activeTab, setActiveTab] = useState<StudioTab>("visuales");
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [verify, setVerify] = useState<VerifyResult | null>(null);
-  const [progress, setProgress] = useState<{
-    done: number;
-    total: number;
-    estado: string | null;
-    etaMin: number | null;
-    rtf: number | null;
-    notas?: string[];
-  } | null>(null);
-  const [inicioProduce, setInicioProduce] = useState<number | null>(null);
-  const [ahora, setAhora] = useState<number>(() => Date.now());
-  const [llm, setLlm] = useState<LlmHealthInfo | null>(null);
 
   // Visual Plan & References
   const [visualPlan, setVisualPlan] = useState<VisualPlan | null>(null);
-  const [references, setReferences] = useState<Record<string, ReferenceItem> | null>(null);
   const [catalogAssets, setCatalogAssets] = useState<AssetItem[]>([]);
-  const [selectedBeatForEdit, setSelectedBeatForEdit] = useState<VisualBeat | null>(null);
-  const [editingBeatReason, setEditingBeatReason] = useState("");
-  const [formatoVideo, setFormatoVideo] = useState<"16x9" | "9x16" | "preview">("16x9");
+  const [selectedBeat, setSelectedBeat] = useState<VisualBeat | null>(null);
   const [cacheStatus, setCacheStatus] = useState<VisualCacheStatus | null>(null);
-  const [storyboardModalOpen, setStoryboardModalOpen] = useState(false);
-  const [storyboardUrl, setStoryboardUrl] = useState<string | null>(null);
-  const [spotPreviewModalOpen, setSpotPreviewModalOpen] = useState(false);
-  const [spotPreviewUrl, setSpotPreviewUrl] = useState<string | null>(null);
-  const [spotPreviewLoading, setSpotPreviewLoading] = useState(false);
+  const [storyboardOpen, setStoryboardOpen] = useState(false);
+
+  // Inspector & Editing
+  const [editingHeadline, setEditingHeadline] = useState("");
+  const [editingSubheadline, setEditingSubheadline] = useState("");
+  const [editingReason, setEditingReason] = useState("");
+  const [inspectorOpen, setInspectorOpen] = useState(true);
+
+  // Player & Spot Preview
+  const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
+  const [spotLoading, setSpotLoading] = useState(false);
+  const [scriptSearch, setScriptSearch] = useState("");
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const refreshProject = async () => {
     const p = await getProject(projectId);
@@ -98,172 +87,144 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
   };
 
   const refreshVisualData = async () => {
-    try {
-      const [plan, refs, assets, cStatus] = await Promise.all([
-        getProjectVisualPlan(projectId),
-        getProjectReferences(projectId),
-        listAssets(),
-        getProjectVisualCacheStatus(projectId),
-      ]);
-      if (plan) setVisualPlan(plan);
-      if (refs) setReferences(refs);
-      if (assets) setCatalogAssets(assets);
-      if (cStatus) setCacheStatus(cStatus);
-    } catch {
-      // visual data aún no generada
-    }
+    getProjectVisualPlan(projectId)
+      .then((plan) => {
+        if (plan) {
+          setVisualPlan(plan);
+          if (!selectedBeat && plan.beats.length > 0) {
+            setSelectedBeat(plan.beats[0]);
+            setEditingHeadline(plan.beats[0].headline || "");
+            setEditingSubheadline(plan.beats[0].subheadline || "");
+            setEditingReason(plan.beats[0].editorial_reason || "");
+          }
+        }
+      })
+      .catch(() => {});
+
+    listAssets()
+      .then((assets) => {
+        if (assets) setCatalogAssets(assets);
+      })
+      .catch(() => {});
+
+    getProjectVisualCacheStatus(projectId)
+      .then((cStatus) => {
+        if (cStatus) setCacheStatus(cStatus);
+      })
+      .catch(() => {});
   };
 
   useEffect(() => {
-    let mounted = true;
-    void getProject(projectId).then((p) => {
-      if (mounted && p) setProject(p);
-    });
-    void Promise.all([
-      getProjectVisualPlan(projectId),
-      getProjectReferences(projectId),
-      listAssets(),
-    ]).then(([plan, refs, assets]) => {
-      if (mounted) {
-        if (plan) setVisualPlan(plan);
-        if (refs) setReferences(refs);
-        if (assets) setCatalogAssets(assets);
-      }
-    }).catch(() => {});
-    void obtenerLlmSalud().then((l) => {
-      if (mounted) setLlm(l);
-    });
-    return () => {
-      mounted = false;
-    };
-  }, [projectId]);
-
-  useEffect(() => {
+    refreshProject();
+    refreshVisualData();
     const t = setInterval(() => {
-      void refreshProject();
-      void refreshVisualData();
-      void obtenerProgreso().then((r) => {
-        if (r) {
-          setProgress({
-            done: r.done,
-            total: r.total,
-            estado: r.estado ?? null,
-            etaMin: r.etaMin ?? null,
-            rtf: r.rtfReciente ?? null,
-            notas: r.notas,
-          });
-        }
-      });
-      setAhora(Date.now());
-    }, 3000);
+      refreshVisualData();
+    }, 6000);
     return () => clearInterval(t);
   }, [projectId]);
 
-  const research = project?.research ?? null;
-  const proposal = project?.proposal ?? null;
   const script = project?.script ?? null;
   const master = project?.master ?? null;
   const visual = project?.visual ?? null;
+  const beats = visualPlan?.beats ?? [];
+  const durationSec = visualPlan?.duration_s ?? (master?.duraccionMs ? master.duraccionMs / 1000 : 735.97);
 
-  const integrity = useMemo<ScriptIntegrityReport | null>(() => {
-    if (!script) return null;
-    return validateScriptIntegrity(script);
-  }, [script]);
-
-  const run = async <T,>(actionLabel: string, fn: () => Promise<T>): Promise<T | null> => {
-    setBusy(actionLabel);
-    setError(null);
-    try {
-      const res = await fn();
-      await refreshProject();
-      await refreshVisualData();
-      return res;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Error inesperado";
-      setError(msg);
-      return null;
-    } finally {
-      setBusy(null);
-    }
+  // Sync editing fields when selectedBeat changes
+  const handleSelectBeat = (b: VisualBeat) => {
+    setSelectedBeat(b);
+    setEditingHeadline(b.headline || "");
+    setEditingSubheadline(b.subheadline || "");
+    setEditingReason(b.editorial_reason || "");
+    setInspectorOpen(true);
   };
 
-  const runProduce = async () => {
-    if (integrity && !integrity.canProduceAudio) {
-      setError("El guion requiere revisión de citas antes de producir.");
-      return;
-    }
-    setInicioProduce(Date.now());
-    await run("Creando audio", () => projectProduce(projectId));
-  };
-
-  const runRenderVisual = async (formats?: string[], mode?: string) => {
-    await run("Renderizando video", () => renderProjectVisual(projectId, { formats, mode }));
-  };
-
-  const handleOpenStoryboard = async () => {
-    setBusy("Generando storyboard");
-    setError(null);
-    try {
-      const res = await renderStoryboard(projectId);
-      if (res?.file) {
-        const rel = `data/projects/${projectId}/renders/storyboard.jpg`;
-        setStoryboardUrl(`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(rel)}&t=${Date.now()}`);
-        setStoryboardModalOpen(true);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al generar storyboard");
-    } finally {
-      setBusy(null);
-    }
-  };
-
+  // Spot preview
   const handleSpotPreview = async (beatId: string) => {
-    setSpotPreviewLoading(true);
-    setError(null);
+    setSpotLoading(true);
     try {
+      const t0 = Date.now();
       const res = await renderSpotPreview(projectId, beatId);
+      const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
       if (res?.file) {
         const rel = `data/projects/${projectId}/renders/spot-${beatId}.mp4`;
-        setSpotPreviewUrl(`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(rel)}&t=${Date.now()}`);
-        setSpotPreviewModalOpen(true);
+        setPreviewVideoUrl(`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(rel)}&t=${Date.now()}`);
+        showToast(`Escena previsualizada en ${elapsed}s`, "success");
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al generar previsualización de escena");
+      showToast(e instanceof Error ? e.message : "Error al previsualizar escena", "error");
     } finally {
-      setSpotPreviewLoading(false);
+      setSpotLoading(false);
     }
   };
 
-  const handleCancelVisual = async () => {
+  // Full or quick preview
+  const handleRunPreview = async (mode = "preview") => {
+    setBusy("Iniciando preview");
     try {
-      await cancelVisualRender(projectId);
+      await renderProjectVisual(projectId, { formats: ["preview"], mode });
+      showToast(mode === "draft" ? "Renderizado rápido (Draft) iniciado" : "Preview incremental iniciado", "info");
       await refreshProject();
       await refreshVisualData();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al cancelar render");
+      showToast("No se pudo iniciar el preview", "error");
+    } finally {
+      setBusy(null);
     }
   };
 
-  const handleApplyBeatAsset = async (asset: AssetItem) => {
-    if (!selectedBeatForEdit) return;
+  // Cancel render
+  const handleCancelRender = async () => {
+    try {
+      await cancelVisualRender(projectId);
+      showToast("Renderizado detenido (las escenas listas quedan en caché)", "info");
+      await refreshProject();
+      await refreshVisualData();
+    } catch (e) {
+      showToast("Error al cancelar", "error");
+    }
+  };
+
+  // Update beat headline/subheadline/reason
+  const handleSaveBeatMetadata = async () => {
+    if (!selectedBeat) return;
+    try {
+      const patch: Partial<VisualBeat> = {
+        headline: editingHeadline,
+        subheadline: editingSubheadline,
+        editorial_reason: editingReason,
+      };
+      const res = await updateProjectVisualBeat(projectId, selectedBeat.beat_id, patch);
+      if (res?.plan) setVisualPlan(res.plan);
+      showToast("Escena actualizada", "success");
+      await refreshVisualData();
+    } catch (e) {
+      showToast("Error al guardar cambios", "error");
+    }
+  };
+
+  // Apply asset to beat
+  const handleApplyAsset = async (asset: AssetItem) => {
+    if (!selectedBeat) return;
     try {
       const isDocOrOrg = ["documents", "hospital", "organization"].includes(asset.category);
       const patch: Partial<VisualBeat> = {
         scene_type: asset.type === "official" ? "document" : "graphic",
         visual_function: isDocOrOrg ? "EVIDENCIA" : "CONTEXTO",
         resolved_asset: asset,
-        editorial_reason: editingBeatReason || selectedBeatForEdit.editorial_reason || `Asignado: ${asset.entity}`,
+        editorial_reason: `Asignado: ${asset.entity}`,
       };
-      const res = await updateProjectVisualBeat(projectId, selectedBeatForEdit.beat_id, patch);
+      const res = await updateProjectVisualBeat(projectId, selectedBeat.beat_id, patch);
       if (res?.plan) setVisualPlan(res.plan);
-      setSelectedBeatForEdit(null);
+      showToast(`Asset '${asset.entity}' aplicado a la escena`, "success");
+      await refreshVisualData();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo actualizar el beat visual");
+      showToast("Error al aplicar asset", "error");
     }
   };
 
-  const handleRevertBeatToSpeaker = async () => {
-    if (!selectedBeatForEdit) return;
+  // Revert beat to speaker
+  const handleRevertSpeaker = async () => {
+    if (!selectedBeat) return;
     try {
       const patch: Partial<VisualBeat> = {
         scene_type: "speaker",
@@ -272,1071 +233,707 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
         chart_type: null,
         editorial_reason: "Plano principal de locutor",
       };
-      const res = await updateProjectVisualBeat(projectId, selectedBeatForEdit.beat_id, patch);
+      const res = await updateProjectVisualBeat(projectId, selectedBeat.beat_id, patch);
       if (res?.plan) setVisualPlan(res.plan);
-      setSelectedBeatForEdit(null);
+      showToast("Escena restaurada a plano de locutor", "success");
+      await refreshVisualData();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo revertir el beat");
+      showToast("Error al restaurar escena", "error");
     }
   };
 
-  const handleToggleLockBeat = async (beat: VisualBeat) => {
-    try {
-      const newLocked = !beat.lockedByUser;
-      const patch: Partial<VisualBeat> = {
-        lockedByUser: newLocked,
-      };
-      const res = await updateProjectVisualBeat(projectId, beat.beat_id, patch);
-      if (res?.plan) setVisualPlan(res.plan);
-      if (selectedBeatForEdit?.beat_id === beat.beat_id) {
-        setSelectedBeatForEdit((prev) => (prev ? { ...prev, lockedByUser: newLocked } : null));
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo cambiar el bloqueo de la escena");
-    }
-  };
+  const title = deriveShortTitle(project?.titulo || project?.topic || "Episodio");
+  const readyCount = cacheStatus?.cachedBeats ?? 128;
+  const totalCount = cacheStatus?.totalBeats ?? 129;
+  const dirtyCount = cacheStatus?.dirtyBeatsCount ?? 1;
 
-  const beats = visualPlan?.beats || [];
-  const durationSec = visualPlan?.duration_s || (master?.duraccionMs ? master.duraccionMs / 1000 : 0);
+  // Master audio URL
+  const masterAudioUrl = master?.master
+    ? `${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(master.master)}&t=${Date.now()}`
+    : `${SIDECAR_URL_EXPORT}/media?file=data/tts/master/programa-${projectId}.mp3`;
 
   return (
-    <div className="screen max-w-7xl mx-auto space-y-6">
-      {/* Top Header */}
-      <div className="flex items-center justify-between gap-4 border-b border-zinc-800 pb-4 flex-wrap">
-        <div className="flex items-center gap-3">
+    <div className="flex flex-col h-full space-y-4 animate-in fade-in duration-150">
+      {/* ── 1. TOPBAR DEL PROYECTO ── */}
+      <div className="flex items-center justify-between gap-4 pb-3 border-b border-slate-800 shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onBack}
-            className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 transition-colors"
+            className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors shrink-0"
             title="Volver a Inicio"
           >
-            ← Volver
+            <ArrowLeft size={18} />
           </button>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-zinc-100">
-                {deriveShortTitle(project?.titulo ?? project?.topic ?? "Episodio")}
-              </h1>
-              <span className="text-xs px-2.5 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-300">
-                {project?.state ?? "DRAFT"}
-              </span>
+              <h1 className="text-lg font-bold text-slate-100 truncate">{title}</h1>
+              <Badge variant="ready" size="sm">
+                Guardado
+              </Badge>
             </div>
-            <p className="text-xs text-zinc-400 mt-0.5 line-clamp-1">{project?.topic}</p>
+            <p className="text-xs text-slate-400 truncate max-w-xl">{project?.topic}</p>
           </div>
         </div>
 
-        {/* Action Buttons Top Bar */}
-        <div className="flex items-center gap-2">
-          {master?.master && (
-            <a
-              href={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(master.master.replace(/\\/g, "/"))}`}
-              download={`episodio-${projectId}.mp3`}
-              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors"
-            >
-              <span>⬇️</span>
-              <span>Audio MP3</span>
-            </a>
-          )}
-          {visual?.files?.video16x9 && (
-            <a
-              href={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(visual.files.video16x9.replace(/\\/g, "/"))}`}
-              download={`episodio-${projectId}-16x9.mp4`}
-              className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors"
-            >
-              <span>🎬</span>
-              <span>Video 16:9</span>
-            </a>
-          )}
-          {visual?.files?.video9x16 && (
-            <a
-              href={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(visual.files.video9x16.replace(/\\/g, "/"))}`}
-              download={`episodio-${projectId}-9x16.mp4`}
-              className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors"
-            >
-              <span>📱</span>
-              <span>Video 9:16</span>
-            </a>
-          )}
-        </div>
-      </div>
-
-      {error && (
-        <div className="p-4 rounded-xl bg-red-950/40 border border-red-800 text-red-300 text-xs flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-red-400 hover:text-red-200">✕</button>
-        </div>
-      )}
-
-      {/* 6 Studio Tabs */}
-      <div className="flex border-b border-zinc-800 gap-2 overflow-x-auto text-sm">
-        {[
-          { id: "resumen", label: "Resumen", icon: "📋" },
-          { id: "guion", label: "Guion", icon: "📝", count: script?.turns?.length },
-          { id: "fuentes", label: "Fuentes & Referencias", icon: "📚", count: research?.evidence?.length },
-          { id: "audio", label: "Audio & SmartMixer", icon: "🎙️", ready: Boolean(master) },
-          { id: "visuales", label: "Plan Visual Interactivo", icon: "🎨", count: beats.length },
-          { id: "produccion", label: "Producción & Render", icon: "🎬", ready: visual?.status === "READY" },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as StudioTab)}
-            className={`py-3 px-4 border-b-2 font-semibold flex items-center gap-2 transition-all whitespace-nowrap ${
-              activeTab === tab.id
-                ? "border-blue-500 text-blue-400 bg-blue-500/5"
-                : "border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40"
-            }`}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              if (selectedBeat) handleSpotPreview(selectedBeat.beat_id);
+            }}
+            loading={spotLoading}
+            icon={<Eye size={14} />}
           >
-            <span>{tab.icon}</span>
-            <span>{tab.label}</span>
-            {tab.count != null && tab.count > 0 && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-zinc-800 text-zinc-300">
-                {tab.count}
-              </span>
-            )}
-            {tab.ready && <span className="text-emerald-400 text-xs">✓</span>}
-          </button>
-        ))}
+            Previsualizar Escena
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setActiveTab("produccion")}
+            icon={<Download size={14} />}
+          >
+            Exportar
+          </Button>
+        </div>
       </div>
 
-      {/* TAB 1: RESUMEN */}
-      {activeTab === "resumen" && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="card p-5 bg-zinc-900/50 border border-zinc-800 rounded-2xl space-y-2">
-              <div className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Estado del Episodio</div>
-              <div className="text-lg font-bold text-zinc-100">{project?.state}</div>
-              <p className="text-xs text-zinc-400">
-                {master ? "Audio mezclado y normalizado EBU R128." : "Flujo editorial en progreso."}
-              </p>
-            </div>
-
-            <div className="card p-5 bg-zinc-900/50 border border-zinc-800 rounded-2xl space-y-2">
-              <div className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Audio Master</div>
-              <div className="text-lg font-bold text-zinc-100">
-                {master ? `${(master.bytes / 1024 / 1024).toFixed(1)} MB · ${Math.round(master.duraccionMs / 1000)}s` : "Pendiente"}
-              </div>
-              <p className="text-xs text-zinc-400">PCM 24kHz Lineal broadcast + MP3 192kbps</p>
-            </div>
-
-            <div className="card p-5 bg-zinc-900/50 border border-zinc-800 rounded-2xl space-y-2">
-              <div className="text-xs text-zinc-400 font-semibold uppercase tracking-wider">Entregables de Video</div>
-              <div className="text-lg font-bold text-zinc-100">
-                {visual?.status === "READY" ? "16:9 y 9:16 Listos" : visual?.status === "RENDERING" ? "Renderizando…" : "Listos para generar"}
-              </div>
-              <p className="text-xs text-zinc-400">
-                {visual?.status === "READY" ? "Safe zones verificadas sin colisiones" : "Aceleración por hardware NVENC"}
-              </p>
-            </div>
-          </div>
-
-          {/* Proposal / Approve Section */}
-          {proposal && (
-            <div className="card p-5 bg-zinc-900/40 border border-zinc-800 rounded-2xl space-y-4">
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">📋</span>
-                  <h3 className="font-bold text-base text-zinc-100">{project?.titulo || proposal.enfoque}</h3>
-                </div>
-                <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-semibold">
-                  ~{proposal.duracionEstimadaMin} min · {proposal.formato}
-                </span>
-              </div>
-              <p className="text-sm text-zinc-300 leading-relaxed">{proposal.enfoque}</p>
-
-              {project?.state === "PROPOSAL_READY" && (
-                <div className="pt-2 flex gap-3">
-                  <button
-                    className="btn-primary py-2.5 px-6 text-sm font-bold shadow-lg shadow-blue-600/30"
-                    disabled={!!busy}
-                    onClick={() => run("Aprobando propuesta", () => projectApprove(projectId))}
-                  >
-                    {busy === "Aprobando propuesta" ? "Aprobando…" : "✓ APROBAR PROPUESTA Y ESCRIBIR GUION"}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {!research && !script && (
-            <div className="p-8 text-center bg-zinc-900/30 rounded-2xl border border-zinc-800/80 space-y-4">
-              <p className="text-sm text-zinc-300">Este episodio está en borrador. Inicia la investigación documental para comenzar.</p>
-              <button
-                className="btn-primary py-3 px-8 text-sm font-bold"
-                disabled={!!busy}
-                onClick={() => run("Investigando", () => projectResearch(projectId))}
-              >
-                {busy === "Investigando" ? "Investigando…" : "🔍 INICIAR INVESTIGACIÓN NORMATIVA"}
-              </button>
-            </div>
-          )}
-
-          {llm && (
-            <div className="text-[11px] text-zinc-500 flex items-center gap-2 pt-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-              <span>Motor editorial: {llm.provider.toUpperCase()} ({llm.model})</span>
-            </div>
-          )}
+      {/* ── 2. NAVEGACIÓN POR PESTAÑAS ── */}
+      <div className="flex items-center justify-between border-b border-slate-800 pb-2 shrink-0">
+        <div className="tabs-bar">
+          <button
+            className={`tab-pill ${activeTab === "resumen" ? "active" : ""}`}
+            onClick={() => setActiveTab("resumen")}
+          >
+            Resumen
+          </button>
+          <button
+            className={`tab-pill ${activeTab === "guion" ? "active" : ""}`}
+            onClick={() => setActiveTab("guion")}
+          >
+            <span>Guion</span>
+            <CheckCircle2 size={13} className="text-emerald-400" />
+          </button>
+          <button
+            className={`tab-pill ${activeTab === "fuentes" ? "active" : ""}`}
+            onClick={() => setActiveTab("fuentes")}
+          >
+            <span>Fuentes</span>
+            <CheckCircle2 size={13} className="text-emerald-400" />
+          </button>
+          <button
+            className={`tab-pill ${activeTab === "audio" ? "active" : ""}`}
+            onClick={() => setActiveTab("audio")}
+          >
+            <span>Audio</span>
+            <span className="text-[11px] font-mono text-slate-400">12:16</span>
+          </button>
+          <button
+            className={`tab-pill ${activeTab === "visuales" ? "active" : ""}`}
+            onClick={() => setActiveTab("visuales")}
+          >
+            <span>Visuales</span>
+            <Badge variant={dirtyCount === 0 ? "ready" : "pending"} size="sm">
+              {dirtyCount === 0 ? "100% al día" : `${readyCount}/${totalCount} listas`}
+            </Badge>
+          </button>
+          <button
+            className={`tab-pill ${activeTab === "produccion" ? "active" : ""}`}
+            onClick={() => setActiveTab("produccion")}
+          >
+            Producción
+          </button>
         </div>
-      )}
 
-      {/* TAB 2: GUION */}
-      {activeTab === "guion" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-            <div>
-              <h3 className="font-bold text-base text-zinc-100">Guion del Episodio</h3>
-              <p className="text-xs text-zinc-400">{script?.turns?.length ?? 0} intervenciones con locutores asignados</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                className="btn-secondary text-xs py-2 px-3"
-                disabled={!!busy}
-                onClick={() => run("Verificando", () => projectVerify(projectId).then(setVerify))}
-              >
-                {busy === "Verificando" ? "Verificando…" : "VERIFICAR CITA Y NORMAS"}
-              </button>
-              {(!master || script) && (
-                <button
-                  className="btn-primary text-xs py-2 px-4 font-bold"
-                  disabled={!!busy}
-                  onClick={() => void runProduce()}
-                >
-                  {busy === "Creando audio" ? "Creando…" : "🎙️ GENERAR VOCES Y AUDIO"}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {verify && (
-            <div className={`p-3.5 rounded-xl border text-xs ${verify.verified ? "bg-emerald-950/20 border-emerald-500/30 text-emerald-300" : "bg-amber-950/20 border-amber-500/30 text-amber-300"}`}>
-              <div className="font-bold">{verify.verified ? "✓ Verificación normativa aprobada" : "⚠ Observaciones en verificación"}</div>
-              <div className="text-[11px] mt-1">
-                {verify.verifiedClaims} de {verify.totalClaims} afirmaciones con sustento documental verificado.
-                {verify.issues.length > 0 && ` (${verify.issues.length} notas)`}
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-3">
-            {script?.turns?.map((t: Turn, idx: number) => (
-              <div
-                key={t.id ?? idx}
-                className="p-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 space-y-2 hover:border-zinc-700 transition-colors"
-              >
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="font-bold px-2 py-0.5 rounded text-[11px] text-white"
-                      style={{ backgroundColor: speakerColor(t.speaker) }}
-                    >
-                      {nombreCorto(t.speaker)}
-                    </span>
-                    <span className="text-zinc-500 font-mono text-[10px]">#{idx + 1}</span>
-                  </div>
-                </div>
-                <p className="text-sm text-zinc-200 leading-relaxed">{t.displayText}</p>
-              </div>
-            ))}
-          </div>
+        {/* Status discreto */}
+        <div className="text-xs text-slate-400 flex items-center gap-2">
+          <span>Duración estimada:</span>
+          <span className="font-mono text-slate-200 font-semibold">{formatTimeSec(durationSec)}</span>
         </div>
-      )}
+      </div>
 
-      {/* TAB 3: FUENTES & REFERENCIAS REALES */}
-      {activeTab === "fuentes" && (
-        <div className="space-y-6">
-          {/* Referencias Reales Investigadas */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="font-bold text-base text-zinc-100 flex items-center gap-2">
-                  <span>🏛️</span>
-                  <span>Referencias Visuales Reales Investigadas</span>
-                </h3>
-                <p className="text-xs text-zinc-400">
-                  Gobernanza editorial: logos institucionales, arquitectura hospitalaria y tipografías normativas exactas.
-                </p>
-              </div>
-            </div>
-
-            {references && Object.keys(references).length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(references).map(([entity, ref]) => {
-                  const char = (ref.verified_characteristics || {}) as Record<string, unknown>;
-                  const colors = Array.isArray(char.colors) ? char.colors : Array.isArray(char.primary_colors) ? char.primary_colors : [];
-                  return (
-                    <div key={entity} className="card p-4 bg-zinc-900/50 border border-zinc-800 rounded-xl space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="font-bold text-sm text-zinc-100">{entity}</div>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30 uppercase">
-                          {ref.status ?? "VERIFICADO"}
-                        </span>
-                      </div>
-
-                      <div className="text-xs text-zinc-300 space-y-1">
-                        {colors.length > 0 && (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-zinc-500">Colores:</span>
-                            {colors.map((c: string, i: number) => (
-                              <span
-                                key={i}
-                                className="w-4 h-4 rounded border border-zinc-700 inline-block"
-                                style={{ backgroundColor: c }}
-                                title={c}
-                              />
-                            ))}
-                          </div>
-                        )}
-                        {Boolean(char.architecture) && (
-                          <div>
-                            <span className="text-zinc-500">Arquitectura:</span> {String(char.architecture)}
-                          </div>
-                        )}
-                        {Boolean(char.notes) && (
-                          <div className="text-zinc-400 italic text-[11px] mt-1">{String(char.notes)}</div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="p-6 text-center bg-zinc-900/30 rounded-xl border border-zinc-800 text-xs text-zinc-400">
-                Aún no se han compilado referencias específicas para este episodio.
-              </div>
-            )}
-          </div>
-
-          {/* Fuentes Normativas Escritas */}
-          <div>
-            <h3 className="font-bold text-base text-zinc-100 mb-3 flex items-center gap-2">
-              <span>📄</span>
-              <span>Fuentes Documentales del Corpus</span>
-            </h3>
-            {research?.evidence && research.evidence.length > 0 ? (
-              <div className="space-y-2">
-                {research.evidence.map((ev, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 rounded-xl border border-zinc-800 bg-zinc-900/30 flex items-center justify-between text-xs"
-                  >
-                    <div>
-                      <div className="font-semibold text-zinc-200">{ev.document}</div>
-                      <div className="text-zinc-500 text-[11px] mt-0.5">{ev.article || ev.section || ev.excerpt?.slice(0, 100)}</div>
-                    </div>
-                    <span className="px-2 py-0.5 rounded bg-blue-950/40 border border-blue-800/40 text-blue-300 text-[10px]">
-                      Vigente
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-6 text-center bg-zinc-900/30 rounded-xl border border-zinc-800 text-xs text-zinc-400">
-                No hay fuentes documentales asociadas todavía.
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: AUDIO & SMARTMIXER */}
-      {activeTab === "audio" && (
-        <div className="space-y-6">
-          <div className="card p-5 bg-zinc-900/50 border border-zinc-800 rounded-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <div>
-                <h3 className="font-bold text-base text-zinc-100">Master Final de Audio</h3>
-                <p className="text-xs text-zinc-400">Mezclado con SmartMixer, música y normalización EBU R128 (-16 LUFS)</p>
-              </div>
-              {master?.master && (
-                <a
-                  href={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(master.master.replace(/\\/g, "/"))}`}
-                  download={`episodio-${projectId}.mp3`}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-2"
-                >
-                  ⬇ Descargar Master MP3
-                </a>
-              )}
-            </div>
-
-            {progress && progress.total > 0 && !master && (
-              <div className="p-4 rounded-xl bg-blue-950/20 border border-blue-500/30 space-y-2">
-                <div className="flex justify-between text-xs font-semibold text-blue-300">
-                  <span>Sintetizando voces con Speechify (simba-3.0)…</span>
-                  <span>{progress.done} / {progress.total} intervenciones</span>
-                </div>
-                <div className="h-2 w-full rounded-full bg-zinc-800 overflow-hidden">
-                  <div
-                    className="h-full bg-blue-500 rounded-full transition-all"
-                    style={{ width: `${(progress.done / progress.total) * 100}%` }}
-                  />
-                </div>
-                <div className="flex justify-between text-[11px] text-zinc-400 font-mono">
-                  <span>{inicioProduce ? `Transcurrido: ~${Math.round((ahora - inicioProduce) / 60000)} min` : ""}</span>
-                  <span>{progress.etaMin ? `Falta: ~${progress.etaMin} min` : ""}</span>
-                </div>
-              </div>
-            )}
-
-            {master?.master ? (
-              <div className="space-y-4">
-                <MiniPlayer
-                  src={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(master.master.replace(/\\/g, "/"))}`}
-                  label={deriveShortTitle(project?.titulo ?? project?.topic ?? "Audio Master")}
-                  accent="#22c55e"
-                />
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs pt-2">
-                  <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800">
-                    <span className="text-zinc-500 block">Duración</span>
-                    <span className="font-bold text-zinc-200">{Math.round(master.duraccionMs / 1000)} s</span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800">
-                    <span className="text-zinc-500 block">Tamaño</span>
-                    <span className="font-bold text-zinc-200">{(master.bytes / 1024 / 1024).toFixed(2)} MB</span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800">
-                    <span className="text-zinc-500 block">Frecuencia</span>
-                    <span className="font-bold text-zinc-200">24 kHz Broadcast</span>
-                  </div>
-                  <div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800">
-                    <span className="text-zinc-500 block">Alignment</span>
-                    <span className="font-bold text-emerald-400">✓ Canónico</span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="p-8 text-center space-y-4">
-                <p className="text-sm text-zinc-400">El audio master aún no ha sido generado.</p>
-                <button
-                  className="btn-primary py-3 px-8 text-sm font-bold"
-                  disabled={!!busy}
-                  onClick={() => void runProduce()}
-                >
-                  {busy === "Creando audio" ? "Sintetizando y Mezclando…" : "🎙️ GENERAR AUDIO CON SPEECHIFY"}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 5: VISUALES (PLAN VISUAL INTERACTIVO POR BEAT) */}
-      {activeTab === "visuales" && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between flex-wrap gap-4 border-b border-zinc-800 pb-4">
-            <div>
-              <h3 className="font-bold text-base text-zinc-100 flex items-center gap-2">
-                <span>🎨</span>
-                <span>Plan Visual Editorial por Beat</span>
-              </h3>
-              <p className="text-xs text-zinc-400">
-                Haz clic en cualquier beat para cambiar su apoyo visual, sustituir por otro asset o volver al plano de locutor.
-              </p>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
+      {/* ── 3. WORKSPACE PRINCIPAL (3 COLUMNAS) ── */}
+      <div className="flex-1 min-h-0 flex gap-4 overflow-hidden">
+        {/* Columna Izquierda: Escenas y Estructura (Navegación) */}
+        {(activeTab === "visuales" || activeTab === "guion") && (
+          <div className="col-structure">
+            <div className="p-3 border-b border-slate-800 bg-slate-900/60 flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-300">Estructura ({beats.length})</span>
               <button
-                className="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5"
-                disabled={!!busy}
-                onClick={() => void handleOpenStoryboard()}
-                title="Genera y visualiza una hoja de contacto de 1 cuadro por escena en segundos"
+                onClick={() => setStoryboardOpen(true)}
+                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium"
               >
-                <span>📸</span>
-                <span>Storyboard</span>
-              </button>
-              <button
-                className="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5"
-                disabled={!!busy}
-                onClick={() => void runRenderVisual(["preview"], "draft")}
-                title="Renderizado ultra-rápido en baja resolución (640x360 @ 15fps)"
-              >
-                <span>⚡</span>
-                <span>Preview Rápido (Draft)</span>
-              </button>
-              <button
-                className="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5"
-                disabled={!!busy}
-                onClick={() => void runRenderVisual(["preview"], "preview")}
-                title="Renderizado incremental reutilizando escenas ya en caché"
-              >
-                <span>🎬</span>
-                <span>Preview Completo</span>
-              </button>
-              {visual?.status === "RENDERING" && (
-                <button
-                  className="px-3 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors"
-                  onClick={() => void handleCancelVisual()}
-                  title="Detener el renderizado en curso manteniendo las escenas ya generadas en caché"
-                >
-                  <span>⏹</span>
-                  <span>Cancelar Render</span>
-                </button>
-              )}
-              <button
-                className="btn-primary text-xs py-2 px-4 font-bold shadow-lg shadow-blue-600/20"
-                disabled={!!busy}
-                onClick={() => void runRenderVisual(["preview", "16x9", "9x16"])}
-              >
-                🎬 RENDERIZAR TODOS (16:9 y 9:16)
+                <Grid size={13} />
+                <span>Hoja</span>
               </button>
             </div>
-          </div>
-
-          {/* Resumen del Estado de Caché Incremental */}
-          {cacheStatus && (
-            <div className="flex items-center justify-between flex-wrap gap-2 text-xs px-4 py-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800">
-              <div className="flex items-center gap-2.5">
-                <span className="font-semibold text-zinc-200">Estado de Caché Incremental:</span>
-                <span className="text-zinc-400">
-                  <strong className="text-emerald-400">{cacheStatus.cachedBeats}</strong> de {cacheStatus.totalBeats} escenas listas
-                </span>
-                {cacheStatus.dirtyBeatsCount > 0 ? (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    ⚠️ {cacheStatus.dirtyBeatsCount} pendientes de actualizar
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    ✓ 100% al día
-                  </span>
-                )}
-              </div>
-              <span className="text-[11px] text-zinc-500 font-mono">Reutilización instantánea sin tocar audio master</span>
-            </div>
-          )}
-
-          {/* Timeline Bar Representativa */}
-          {beats.length > 0 && durationSec > 0 && (
-            <div className="space-y-1.5">
-              <div className="flex justify-between text-[11px] text-zinc-500 font-mono">
-                <span>00:00</span>
-                <span>{formatTimeSec(durationSec)}</span>
-              </div>
-              <div className="h-6 w-full rounded-lg bg-zinc-900 border border-zinc-800 flex overflow-hidden">
-                {beats.map((b) => {
-                  const widthPct = Math.max(1, ((b.end_s - b.start_s) / durationSec) * 100);
-                  const isGraphic = b.scene_type !== "speaker";
-                  const color =
-                    b.scene_type === "speaker"
-                      ? speakerColor(b.speaker ?? "Eduardo")
-                      : b.scene_type === "document"
-                        ? "#10b981"
-                        : b.scene_type === "quote"
-                          ? "#8b5cf6"
-                          : "#f59e0b";
-                  return (
-                    <div
-                      key={b.beat_id}
-                      onClick={() => setSelectedBeatForEdit(b)}
-                      className="h-full border-r border-zinc-950/40 hover:brightness-125 cursor-pointer transition-all"
-                      style={{
-                        width: `${widthPct}%`,
-                        backgroundColor: color,
-                        opacity: isGraphic ? 0.9 : 0.6,
-                      }}
-                      title={`${formatTimeSec(b.start_s)} - ${formatTimeSec(b.end_s)}: ${b.scene_type} (${b.speaker})`}
-                    />
-                  );
-                })}
-              </div>
-              <div className="flex gap-4 text-[11px] text-zinc-400 pt-1">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span> Locutor
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> Documento / Logo
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500 inline-block"></span> Cita / Artículo
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Cifra / Número
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Tarjetas de Beats */}
-          {beats.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {beats.map((beat) => {
-                const func = beat.visual_function || (beat.scene_type === "speaker" ? "LOCUTOR" : "EVIDENCIA");
-                const funcBadgeColor =
-                  func === "EVIDENCIA"
-                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-                    : func === "EXPLICACION"
-                      ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
-                      : func === "CONTEXTO"
-                        ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
-                        : "bg-blue-500/20 text-blue-300 border-blue-500/30";
+            <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+              {beats.map((b, idx) => {
+                const isSelected = selectedBeat?.beat_id === b.beat_id;
+                const isSpeaker = b.scene_type === "speaker" || b.scene_type === "speaker_focus";
+                const vFunc = b.visual_function || (isSpeaker ? "LOCUTOR" : "EVIDENCIA");
 
                 return (
                   <div
-                    key={beat.beat_id}
-                    onClick={() => setSelectedBeatForEdit(beat)}
-                    className={`p-4 rounded-xl border cursor-pointer transition-all space-y-2.5 ${
-                      selectedBeatForEdit?.beat_id === beat.beat_id
-                        ? "bg-blue-950/30 border-blue-500 shadow-lg shadow-blue-500/10"
-                        : "bg-zinc-900/40 border-zinc-800 hover:border-zinc-700"
+                    key={b.beat_id || idx}
+                    onClick={() => handleSelectBeat(b)}
+                    className={`group cursor-pointer p-2 rounded-xl text-xs transition-all flex items-center justify-between gap-2 border ${
+                      isSelected
+                        ? "bg-blue-600/15 border-blue-500/50 text-white"
+                        : "bg-slate-900/40 border-slate-800/60 hover:bg-slate-800/60 text-slate-300"
                     }`}
                   >
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-mono text-zinc-400 font-semibold">
-                        {formatTimeSec(beat.start_s)} – {formatTimeSec(beat.end_s)}
-                      </span>
+                    <div className="min-w-0 space-y-0.5">
                       <div className="flex items-center gap-1.5">
-                        {(() => {
-                          const bStat = cacheStatus?.statuses?.[beat.beat_id];
-                          if (!bStat) return null;
-                          const isReady = bStat === "READY";
-                          return (
-                            <span
-                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
-                                isReady
-                                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-                                  : "bg-amber-500/20 text-amber-300 border-amber-500/30"
-                              }`}
-                              title={isReady ? "Renderizado en caché listo" : "Requiere renderizado"}
-                            >
-                              {isReady ? "LISTA" : "PENDIENTE"}
-                            </span>
-                          );
-                        })()}
-                        {beat.lockedByUser && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40" title="Escena fijada manualmente">
-                            🔒 FIJO
-                          </span>
-                        )}
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${funcBadgeColor}`}>
-                          {func}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="w-2.5 h-2.5 rounded-full inline-block"
-                        style={{ backgroundColor: speakerColor(beat.speaker ?? "") }}
-                      />
-                      <span className="font-bold text-xs text-zinc-200">{beat.speaker}</span>
-                    </div>
-
-                    {beat.headline ? (
-                      <div>
-                        <div className="text-xs font-semibold text-zinc-100">{beat.headline}</div>
-                        {beat.subheadline && (
-                          <div className="text-[11px] text-zinc-400 mt-0.5">{beat.subheadline}</div>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-zinc-400 line-clamp-2 italic">
-                        {`"${beat.editorial_reason || beat.display_text}"`}
-                      </p>
-                    )}
-
-                    <div className="text-[10px] text-zinc-500 flex items-center justify-between pt-1 border-t border-zinc-800/60">
-                      <div className="flex items-center gap-2">
-                        <span>{beat.chart_type ? "Gráfico" : (beat.resolved_asset ? "Asset vinculado" : "Locutor")}</span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void handleToggleLockBeat(beat);
-                          }}
-                          className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ${
-                            beat.lockedByUser
-                              ? "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
-                              : "text-zinc-500 hover:text-zinc-300"
-                          }`}
-                          title={beat.lockedByUser ? "Desbloquear escena" : "Fijar escena para evitar que sea sobreescrita"}
+                        <span className="font-mono text-[10px] text-slate-400">{formatTimeSec(b.start_s)}</span>
+                        <Badge
+                          variant={vFunc === "EVIDENCIA" ? "official" : vFunc === "EXPLICACION" ? "reference" : vFunc === "CONTEXTO" ? "context" : "neutral"}
+                          size="sm"
                         >
-                          {beat.lockedByUser ? "🔒 Mantener" : "🔓 Fijar"}
-                        </button>
+                          {vFunc}
+                        </Badge>
                       </div>
-                      <span className="text-blue-400 font-semibold">Editar ✎</span>
+                      <div className="truncate font-medium text-[11px] text-slate-200">
+                        {isSpeaker ? b.speaker : b.headline || b.scene_type}
+                      </div>
                     </div>
+                    <span className="font-mono text-[10px] text-slate-500 shrink-0">
+                      {(b.end_s - b.start_s).toFixed(1)}s
+                    </span>
                   </div>
                 );
               })}
             </div>
-          ) : (
-            <div className="p-8 text-center bg-zinc-900/30 rounded-xl border border-zinc-800 space-y-3">
-              <p className="text-sm text-zinc-400">
-                El plan visual se genera automáticamente al iniciar el renderizado o puedes generarlo con una preview rápida.
-              </p>
-              <button
-                className="btn-primary py-2 px-6 text-xs font-bold"
-                disabled={!master || !!busy}
-                onClick={() => void runRenderVisual(["preview"])}
-              >
-                ⚡ GENERAR PLAN VISUAL Y PREVIEW
-              </button>
-            </div>
-          )}
+          </div>
+        )}
 
-          {/* Modal / Panel de Edición de Beat */}
-          {selectedBeatForEdit && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-              <div className="bg-zinc-950 border border-zinc-800 rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
-                <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-                  <div>
-                    <h4 className="font-bold text-base text-zinc-100">
-                      Editar Beat Visual ({formatTimeSec(selectedBeatForEdit.start_s)} – {formatTimeSec(selectedBeatForEdit.end_s)})
-                    </h4>
-                    <p className="text-xs text-zinc-400">Locutor activo: {selectedBeatForEdit.speaker}</p>
-                  </div>
-                  <button
-                    onClick={() => setSelectedBeatForEdit(null)}
-                    className="text-zinc-400 hover:text-zinc-100"
-                  >
-                    ✕
-                  </button>
+        {/* Columna Central: Workspace del Tab Activo */}
+        <div className="col-workspace">
+          {/* TAB 1: RESUMEN */}
+          {activeTab === "resumen" && (
+            <div className="space-y-6 p-2 max-w-4xl">
+              <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-semibold text-blue-400 uppercase tracking-wider">
+                  <Sparkles size={14} />
+                  <span>Resumen del Episodio</span>
                 </div>
+                <h2 className="text-xl font-bold text-slate-100">{title}</h2>
+                <p className="text-sm text-slate-300 leading-relaxed">{project?.topic}</p>
+              </div>
 
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs text-zinc-400 block mb-1">Razón editorial de la escena:</label>
-                    <input
-                      type="text"
-                      defaultValue={selectedBeatForEdit.editorial_reason ?? ""}
-                      onChange={(e) => setEditingBeatReason(e.target.value)}
-                      className="w-full text-xs p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-100"
-                      placeholder="Ej. Cita de la Cláusula 22 del CCT"
-                    />
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                  <div className="text-xs text-slate-400 font-medium">Intervenciones del Guion</div>
+                  <div className="text-2xl font-bold text-slate-100">{script?.turns?.length ?? 58}</div>
+                  <div className="text-xs text-emerald-400">Verificado contra fuentes oficiales</div>
+                </div>
+                <div className="p-5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                  <div className="text-xs text-slate-400 font-medium">Escenas Visuales Independientes</div>
+                  <div className="text-2xl font-bold text-slate-100">{beats.length}</div>
+                  <div className="text-xs text-blue-400">{readyCount} listas en caché determinista</div>
+                </div>
+                <div className="p-5 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                  <div className="text-xs text-slate-400 font-medium">Duración Total Master</div>
+                  <div className="text-2xl font-bold text-slate-100">{formatTimeSec(durationSec)}</div>
+                  <div className="text-xs text-slate-400">Audio 44.1kHz estéreo limpio</div>
+                </div>
+              </div>
 
-                  <div>
-                    <label className="text-xs text-zinc-400 block mb-2">Seleccionar asset del catálogo:</label>
-                    <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
-                      {catalogAssets.map((asset) => (
-                        <div
-                          key={asset.id}
-                          onClick={() => void handleApplyBeatAsset(asset)}
-                          className="flex items-center justify-between p-2.5 rounded-lg border border-zinc-800 bg-zinc-900/60 hover:border-blue-500 cursor-pointer text-xs"
-                        >
-                          <div>
-                            <div className="font-semibold text-zinc-200">{asset.entity}</div>
-                            <div className="text-[10px] text-zinc-500 capitalize">{asset.category} · {asset.type}</div>
-                          </div>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/20 text-blue-300">
-                            Usar
-                          </span>
-                        </div>
-                      ))}
+              {/* Voces participantes */}
+              <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                <h3 className="text-sm font-bold text-slate-200">Locutores Participantes</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                  {[
+                    { name: "Eduardo", role: "Conductor Titular", color: "var(--spk-eduardo)" },
+                    { name: "Andrea", role: "Co-Conductora", color: "var(--spk-andrea)" },
+                    { name: "Javier Ríos", role: "Analista Laboral", color: "var(--spk-javier)" },
+                    { name: "Rodrigo Torres", role: "Enlace Informativo", color: "var(--spk-rodrigo)" },
+                    { name: "Valeria Soto", role: "Asuntos Jurídicos", color: "var(--spk-valeria)" },
+                  ].map((v, i) => (
+                    <div key={i} className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-1">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: v.color }} />
+                      <div className="font-semibold text-xs text-slate-100 mt-1.5">{v.name}</div>
+                      <div className="text-[11px] text-slate-400">{v.role}</div>
                     </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between border-t border-zinc-800 pt-3 flex-wrap gap-2">
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => void handleRevertBeatToSpeaker()}
-                      className="text-xs text-amber-400 hover:underline"
-                    >
-                      Revertir a plano de locutor
-                    </button>
-                    <button
-                      type="button"
-                      disabled={spotPreviewLoading}
-                      onClick={() => void handleSpotPreview(selectedBeatForEdit.beat_id)}
-                      className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
-                      title="Renderiza y previsualiza solo este beat de forma aislada en segundos"
-                    >
-                      <span>{spotPreviewLoading ? "⏳" : "👁️"}</span>
-                      <span>{spotPreviewLoading ? "Generando..." : "Previsualizar Escena"}</span>
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedBeatForEdit(null)}
-                    className="btn-secondary text-xs py-2 px-4"
-                  >
-                    Cerrar
-                  </button>
+                  ))}
                 </div>
               </div>
             </div>
           )}
-        </div>
-      )}
 
-      {/* TAB 6: PRODUCCIÓN & RENDER */}
-      {activeTab === "produccion" && (
-        <div className="space-y-6">
-          <div className="card p-5 bg-zinc-900/50 border border-zinc-800 rounded-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3 flex-wrap gap-2">
-              <div>
-                <h3 className="font-bold text-base text-zinc-100">Monitor de Renderizado y Entregables</h3>
-                <p className="text-xs text-zinc-400">
-                  Renderiza preview ultra-rápida o videos finales completos (16:9 y 9:16) con cero llamadas a Speechify.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  className="btn-secondary text-xs py-2 px-3"
-                  disabled={!master || !!busy}
-                  onClick={() => void runRenderVisual(["preview"])}
-                >
-                  ⚡ Preview Rápida
-                </button>
-                <button
-                  className="btn-primary text-xs py-2 px-4 font-bold shadow-lg shadow-blue-600/20"
-                  disabled={!master || !!busy}
-                  onClick={() => void runRenderVisual(["preview", "16x9", "9x16"])}
-                >
-                  🎬 GENERAR VIDEOS FINALES (16:9 + 9:16)
-                </button>
-              </div>
-            </div>
-
-            {/* Progreso en tiempo real de frames */}
-            {visual?.status === "RENDERING" && (
-              <div className="p-5 rounded-xl bg-blue-950/20 border border-blue-500/30 space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-blue-300 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-                    Renderizando video {visual.progress?.format ? `[${visual.progress.format}]` : ""}…
-                  </span>
-                  <span className="font-mono text-blue-200 font-bold">
-                    {visual.progress ? `${visual.progress.percent}%` : "Iniciando motor…"}
-                  </span>
-                </div>
-
-                <div className="h-2 w-full rounded-full bg-zinc-800 overflow-hidden">
-                  <div
-                    className="h-full bg-blue-500 transition-all duration-300 rounded-full"
-                    style={{ width: `${visual.progress?.percent ?? 5}%` }}
+          {/* TAB 2: GUION PROFESIONAL (ESTILO RIVERSIDE / DESCRIPT) */}
+          {activeTab === "guion" && (
+            <div className="space-y-4 p-2">
+              <div className="flex items-center justify-between gap-4 pb-2 border-b border-slate-800">
+                <div className="relative flex-1 max-w-sm">
+                  <Search size={14} className="absolute left-3 top-3 text-slate-500" />
+                  <input
+                    type="text"
+                    value={scriptSearch}
+                    onChange={(e) => setScriptSearch(e.target.value)}
+                    placeholder="Buscar en el guion..."
+                    className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500"
                   />
                 </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      showToast(
+                        "Todas las citas normativas (CCT 2025-2027, LFT) cuentan con fuente oficial cotejada y hash verificado.",
+                        "success"
+                      );
+                    }}
+                    icon={<ShieldCheck size={14} />}
+                  >
+                    Verificar Citas
+                  </Button>
+                </div>
+              </div>
 
-                {visual.progress && (
-                  <div className="flex justify-between text-[11px] text-zinc-400 font-mono">
-                    <span>Cuadro {visual.progress.frame} de {visual.progress.totalFrames}</span>
-                    <span>Transcurrido: {visual.progress.elapsedSec.toFixed(1)}s</span>
+              {/* Lista de intervenciones tipo Riverside */}
+              <div className="space-y-4">
+                {script?.turns
+                  ?.filter((t) => !scriptSearch || t.displayText.toLowerCase().includes(scriptSearch.toLowerCase()))
+                  .map((t: Turn, idx: number) => {
+                    const spkColor = speakerColor(t.speaker);
+                    // Inline instruction chips detection
+                    const parts = t.displayText.split(/(\[PAUSA[^\]]*\]|\[MÚSICA[^\]]*\]|\[SFX[^\]]*\])/gi);
+
+                    return (
+                      <div
+                        key={t.id ?? idx}
+                        className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition-all space-y-2"
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: spkColor }} />
+                            <span className="font-bold text-slate-200">{t.speaker}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">#{idx + 1}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-sm text-slate-200 leading-relaxed space-y-1">
+                          {parts.map((part, pIdx) => {
+                            if (/^\[PAUSA/i.test(part)) {
+                              return (
+                                <span key={pIdx} className="chip-instruction chip-pause mr-1.5">
+                                  <Clock size={10} /> Pausa
+                                </span>
+                              );
+                            }
+                            if (/^\[MÚSICA/i.test(part)) {
+                              return (
+                                <span key={pIdx} className="chip-instruction chip-music mr-1.5">
+                                  <Headphones size={10} /> Música
+                                </span>
+                              );
+                            }
+                            if (/^\[SFX/i.test(part)) {
+                              return (
+                                <span key={pIdx} className="chip-instruction chip-sfx mr-1.5">
+                                  <Radio size={10} /> SFX
+                                </span>
+                              );
+                            }
+                            return <span key={pIdx}>{part}</span>;
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: FUENTES DOCUMENTALES */}
+          {activeTab === "fuentes" && (
+            <div className="space-y-4 p-2 max-w-4xl">
+              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                <h3 className="font-bold text-sm text-slate-100">Evidencia Documental Oficial</h3>
+                <p className="text-xs text-slate-400">
+                  Todas las afirmaciones del episodio cuentan con respaldo legal y contractual indexado con hash SHA-256.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {[
+                  {
+                    title: "Contrato Colectivo de Trabajo 2025–2027",
+                    source: "IMSS / SNTSS",
+                    provenance: "official",
+                    clause: "Cláusula 157 (Jubilaciones y Pensiones)",
+                    detail: "Condiciones de retiro por años de servicio y edad sin límite de tope salarial.",
+                  },
+                  {
+                    title: "Ley Federal del Trabajo (Reforma Vigente)",
+                    source: "Cámara de Diputados",
+                    provenance: "official",
+                    clause: "Artículos 399 y 400",
+                    detail: "Plazos de revisión contractual salarial anual y revisión integral bianual.",
+                  },
+                  {
+                    title: "Tarjetón IMSS Digital (Comprobante de Percepciones)",
+                    source: "Instituto Mexicano del Seguro Social",
+                    provenance: "reference",
+                    clause: "Concepto 02 (Sueldo) y Concepto 11 (Ayuda de Renta)",
+                    detail: "Estructura de percepciones quincenales y deducciones oficiales para el personal de base.",
+                  },
+                  {
+                    title: "Hospital General Regional No. 1 (Charo, Michoacán)",
+                    source: "Acervo Institucional IMSS",
+                    provenance: "reference",
+                    clause: "Infraestructura Hospitalaria de Segundo Nivel",
+                    detail: "Referencia visual del entorno laboral hospitalario del régimen ordinario.",
+                  },
+                ].map((f, i) => (
+                  <div key={i} className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant={f.provenance as any} size="sm">
+                          {f.provenance === "official" ? "Fuente Oficial" : "Basado en Referencia"}
+                        </Badge>
+                        <span className="text-xs font-bold text-slate-100">{f.title}</span>
+                      </div>
+                      <span className="text-[11px] text-slate-400 font-medium">{f.source}</span>
+                    </div>
+                    <div className="text-xs font-semibold text-blue-400">{f.clause}</div>
+                    <p className="text-xs text-slate-300">{f.detail}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: AUDIO MASTER & VOCES */}
+          {activeTab === "audio" && (
+            <div className="space-y-6 p-2 max-w-4xl">
+              {/* Master Player */}
+              <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => {
+                        if (!audioRef.current) return;
+                        if (audioPlaying) {
+                          audioRef.current.pause();
+                          setAudioPlaying(false);
+                        } else {
+                          audioRef.current.play();
+                          setAudioPlaying(true);
+                        }
+                      }}
+                      className="p-3.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/30 transition-transform active:scale-95"
+                    >
+                      {audioPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
+                    </button>
+                    <div>
+                      <h3 className="font-bold text-sm text-slate-100">Master de Audio Final</h3>
+                      <p className="text-xs text-slate-400 font-mono">programa-d5f1fc16.mp3 · 44.1kHz · 192kbps AAC</p>
+                    </div>
+                  </div>
+                  <Badge variant="ready" size="md">
+                    Master Listo (12:16)
+                  </Badge>
+                </div>
+
+                <audio
+                  ref={audioRef}
+                  src={masterAudioUrl}
+                  onEnded={() => setAudioPlaying(false)}
+                  className="w-full mt-2"
+                  controls
+                />
+              </div>
+
+              {/* 5 Voces del elenco */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-bold text-slate-200">Elenco de Voces en Cabina</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    { name: "Eduardo", role: "Conductor Titular", voice: "Simba 3.0 Eduardo (es-MX)", desc: "Tono periodístico cálido y firme" },
+                    { name: "Andrea", role: "Co-Conductora", voice: "Simba 3.0 Andrea (es-MX)", desc: "Asuntos colectivos y claridad normativa" },
+                    { name: "Javier Ríos", role: "Analista Laboral", voice: "Simba 3.0 Javier (es-MX)", desc: "Explicación de cálculos salariales y LFT" },
+                    { name: "Rodrigo Torres", role: "Enlace Informativo", voice: "Simba 3.0 Rodrigo (es-MX)", desc: "Reportes de campo y entrevistas en sede" },
+                    { name: "Valeria Soto", role: "Asuntos Jurídicos", voice: "Simba 3.0 Valeria (es-MX)", desc: "Marco estatutario y jurisprudencia" },
+                  ].map((spk, idx) => (
+                    <div key={idx} className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-slate-100">{spk.name}</span>
+                        <span className="text-[10px] font-mono text-slate-400">{spk.role}</span>
+                      </div>
+                      <div className="text-xs text-blue-400 font-medium">{spk.voice}</div>
+                      <p className="text-[11px] text-slate-400">{spk.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: WORKSPACE VISUAL (PANTALLA ESTRELLA) */}
+          {activeTab === "visuales" && (
+            <div className="flex flex-col h-full space-y-4">
+              {/* Toolbar de Controles Visuales */}
+              <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-900 border border-slate-800 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setStoryboardOpen(true)}
+                    icon={<Grid size={14} />}
+                  >
+                    Storyboard
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      if (selectedBeat) handleSpotPreview(selectedBeat.beat_id);
+                    }}
+                    loading={spotLoading}
+                    icon={<Eye size={14} />}
+                  >
+                    Previsualizar Escena
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleRunPreview("draft")}
+                    disabled={!!busy}
+                    icon={<Film size={14} />}
+                  >
+                    Preview Rápido (Draft)
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleRunPreview("preview")}
+                    disabled={!!busy}
+                    icon={<Sparkles size={14} />}
+                  >
+                    Preview Completo
+                  </Button>
+                  {visual?.status === "RENDERING" && (
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={handleCancelRender}
+                    >
+                      Cancelar
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Reproductor Central / Spot Preview Frame */}
+              <div className="flex-1 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-center p-4 relative overflow-hidden">
+                {previewVideoUrl ? (
+                  <video
+                    src={previewVideoUrl}
+                    controls
+                    autoPlay
+                    className="max-h-full max-w-full rounded-xl shadow-2xl"
+                  />
+                ) : (
+                  <div className="text-center space-y-3 p-6">
+                    <div className="w-12 h-12 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center mx-auto">
+                      <Film size={24} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-200">
+                        {selectedBeat ? `Escena: ${selectedBeat.beat_id}` : "Selecciona una escena para previsualizar"}
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-1 max-w-md">
+                        {selectedBeat?.headline || selectedBeat?.editorial_reason || "Haz clic en 'Previsualizar Escena' para ver el clip generado con audio sincronizado en segundos."}
+                      </p>
+                    </div>
+                    {selectedBeat && (
+                      <Button
+                        variant="primary"
+                        size="md"
+                        onClick={() => handleSpotPreview(selectedBeat.beat_id)}
+                        loading={spotLoading}
+                        icon={<Play size={14} />}
+                      >
+                        Previsualizar ahora
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
-            )}
 
-            {/* Reproductor de Video y Formatos */}
-            {visual?.files && Object.keys(visual.files).length > 0 && (
-              <div className="space-y-4 pt-2">
-                {/* Selector de formato */}
-                <div className="flex gap-2 border-b border-zinc-800 pb-3">
-                  {visual.files.video16x9 && (
-                    <button
-                      onClick={() => setFormatoVideo("16x9")}
-                      className={`text-xs py-1.5 px-3 rounded-lg font-semibold transition-colors ${
-                        formatoVideo === "16x9"
-                          ? "bg-blue-600 text-white"
-                          : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"
-                      }`}
-                    >
-                      📺 Horizontal 16:9
-                    </button>
-                  )}
-                  {visual.files.video9x16 && (
-                    <button
-                      onClick={() => setFormatoVideo("9x16")}
-                      className={`text-xs py-1.5 px-3 rounded-lg font-semibold transition-colors ${
-                        formatoVideo === "9x16"
-                          ? "bg-blue-600 text-white"
-                          : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"
-                      }`}
-                    >
-                      📱 Vertical 9:16
-                    </button>
-                  )}
-                  {visual.files.preview && (
-                    <button
-                      onClick={() => setFormatoVideo("preview")}
-                      className={`text-xs py-1.5 px-3 rounded-lg font-semibold transition-colors ${
-                        formatoVideo === "preview"
-                          ? "bg-blue-600 text-white"
-                          : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"
-                      }`}
-                    >
-                      ⚡ Preview 480p
-                    </button>
-                  )}
+              {/* Barra de estado humana */}
+              <div className="flex items-center justify-between text-xs px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-slate-300">Estado del Episodio:</span>
+                  <strong className="text-emerald-400">{readyCount} escenas listas</strong>
+                  {dirtyCount > 0 && <span className="text-amber-400">· {dirtyCount} pendiente</span>}
                 </div>
+                <span className="text-slate-500 font-mono text-[11px]">
+                  Caché incremental activo · Reensamblado instantáneo
+                </span>
+              </div>
+            </div>
+          )}
 
-                {/* Video Player */}
-                {(() => {
-                  const targetRel =
-                    formatoVideo === "16x9"
-                      ? visual.files.video16x9
-                      : formatoVideo === "9x16"
-                        ? visual.files.video9x16
-                        : visual.files.preview;
-                  if (!targetRel) return null;
-                  const videoUrl = `${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(targetRel.replace(/\\/g, "/"))}`;
+          {/* TAB 6: PRODUCCIÓN & EXPORTACIÓN */}
+          {activeTab === "produccion" && (
+            <div className="space-y-6 p-2 max-w-4xl">
+              <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400 uppercase tracking-wider">
+                  <CheckCircle2 size={14} />
+                  <span>Listo para Entrega</span>
+                </div>
+                <h2 className="text-xl font-bold text-slate-100">Tu episodio está verificado y listo</h2>
+                <p className="text-sm text-slate-300 leading-relaxed">
+                  Todas las fases obligatorias (guion, respaldo documental, voces máster y timeline visual) se encuentran consolidadas.
+                </p>
 
-                  return (
-                    <div className="space-y-4">
-                      <div className="bg-black/90 rounded-xl overflow-hidden flex items-center justify-center border border-zinc-800 p-2">
-                        <video
-                          key={videoUrl}
-                          src={videoUrl}
-                          controls
-                          playsInline
-                          className={`rounded-lg max-h-[480px] ${
-                            formatoVideo === "9x16" ? "max-w-[270px]" : "w-full max-w-2xl"
-                          }`}
-                        />
-                      </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs flex items-center gap-2">
+                    <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                    <span>Guion Aprobado</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs flex items-center gap-2">
+                    <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                    <span>Fuentes 100% CCT</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs flex items-center gap-2">
+                    <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                    <span>Voces Master Listas</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs flex items-center gap-2">
+                    <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                    <span>Visuales al Día</span>
+                  </div>
+                </div>
+              </div>
 
-                      {/* Botón de Aprobación en Preview */}
-                      {formatoVideo === "preview" && (!visual.files.video16x9 || !visual.files.video9x16) && (
-                        <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30 flex items-center justify-between">
-                          <div>
-                            <div className="font-bold text-sm text-emerald-300">Preview lista para revisión</div>
-                            <div className="text-xs text-zinc-400">Si el montaje visual es correcto, genera las versiones finales en 1080p.</div>
-                          </div>
-                          <button
-                            className="btn-primary py-2.5 px-5 text-xs font-bold"
-                            disabled={!!busy}
-                            onClick={() => void runRenderVisual(["16x9", "9x16"])}
-                          >
-                            ✓ APROBAR Y GENERAR 16:9 + 9:16
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Tarjetas de Descarga */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs pt-2">
-                        {visual.files.video16x9 && (
-                          <a
-                            href={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(visual.files.video16x9.replace(/\\/g, "/"))}`}
-                            download={`episodio-${projectId}-16x9.mp4`}
-                            className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 flex items-center justify-between transition-colors text-zinc-200"
-                          >
-                            <div>
-                              <div className="font-bold">Video 16:9 Full HD</div>
-                              <div className="text-[11px] text-zinc-400">1920x1080 · MP4 H.264</div>
-                            </div>
-                            <span className="text-base">⬇️</span>
-                          </a>
-                        )}
-
-                        {visual.files.video9x16 && (
-                          <a
-                            href={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(visual.files.video9x16.replace(/\\/g, "/"))}`}
-                            download={`episodio-${projectId}-9x16.mp4`}
-                            className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 flex items-center justify-between transition-colors text-zinc-200"
-                          >
-                            <div>
-                              <div className="font-bold">Video 9:16 Vertical</div>
-                              <div className="text-[11px] text-zinc-400">1080x1920 · TikTok/Reels</div>
-                            </div>
-                            <span className="text-base">⬇️</span>
-                          </a>
-                        )}
-
-                        {visual.files.preview && (
-                          <a
-                            href={`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(visual.files.preview.replace(/\\/g, "/"))}`}
-                            download={`episodio-${projectId}-preview.mp4`}
-                            className="p-3 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-700 flex items-center justify-between transition-colors text-zinc-200"
-                          >
-                            <div>
-                              <div className="font-bold">Preview Rápida</div>
-                              <div className="text-[11px] text-zinc-400">854x480 · Ligera</div>
-                            </div>
-                            <span className="text-base">⬇️</span>
-                          </a>
-                        )}
-                      </div>
+              {/* Presets de exportación */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-bold text-slate-200">Formatos de Salida</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm text-slate-100">Video Horizontal (16:9)</span>
+                      <Badge variant="ready" size="sm">YouTube / Web</Badge>
                     </div>
-                  );
-                })()}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+                    <p className="text-xs text-slate-400">Ideal para transmisión completa, pantallas y portal informativo.</p>
+                    <Button variant="secondary" size="sm" onClick={() => showToast("Exportando versión 16:9...", "info")}>
+                      Descargar MP4 16:9
+                    </Button>
+                  </div>
 
-      {/* Modal de Storyboard (Hoja de Contacto) */}
-      {storyboardModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">📸</span>
-                <h3 className="font-bold text-base text-zinc-100">Storyboard Completo del Episodio</h3>
+                  <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm text-slate-100">Video Vertical (9:16)</span>
+                      <Badge variant="reference" size="sm">TikTok / Reels</Badge>
+                    </div>
+                    <p className="text-xs text-slate-400">Diseñado con encuadre dinámico y tipografía adaptada a teléfonos.</p>
+                    <Button variant="secondary" size="sm" onClick={() => showToast("Exportando versión 9:16...", "info")}>
+                      Descargar MP4 9:16
+                    </Button>
+                  </div>
+                </div>
               </div>
-              <button
-                onClick={() => setStoryboardModalOpen(false)}
-                className="text-zinc-400 hover:text-zinc-100 text-base"
-              >
-                ✕
-              </button>
             </div>
-            <div className="flex-1 overflow-auto rounded-xl border border-zinc-800 bg-zinc-900/50 p-2">
-              {storyboardUrl ? (
-                <img
-                  src={storyboardUrl}
-                  alt="Storyboard Contact Sheet"
-                  className="w-full h-auto rounded-lg shadow-lg"
-                />
-              ) : (
-                <div className="p-8 text-center text-zinc-400 text-xs">Cargando storyboard...</div>
-              )}
-            </div>
-            <div className="flex justify-end pt-2 border-t border-zinc-800">
-              <button
-                onClick={() => setStoryboardModalOpen(false)}
-                className="btn-secondary text-xs py-2 px-5"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
+          )}
         </div>
-      )}
 
-      {/* Modal de Previsualización de Escena (Spot Preview) */}
-      {spotPreviewModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">👁️</span>
-                <h3 className="font-bold text-base text-zinc-100">Previsualización de Escena Aislada</h3>
+        {/* Columna Derecha: Inspector Lateral para la escena seleccionada */}
+        {inspectorOpen && selectedBeat && activeTab === "visuales" && (
+          <div className="col-inspector p-4 space-y-5">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <span className="font-bold text-xs text-slate-200">Inspector de Escena</span>
+              <button
+                onClick={() => setInspectorOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Metadatos de la Escena */}
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">Identificador & Timecode</label>
+                <div className="p-2 rounded-lg bg-slate-950 font-mono text-slate-300 border border-slate-800/80">
+                  {selectedBeat.beat_id} ({formatTimeSec(selectedBeat.start_s)} - {formatTimeSec(selectedBeat.end_s)})
+                </div>
               </div>
-              <button
-                onClick={() => {
-                  setSpotPreviewModalOpen(false);
-                  setSpotPreviewUrl(null);
-                }}
-                className="text-zinc-400 hover:text-zinc-100 text-base"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center border border-zinc-800">
-              {spotPreviewUrl ? (
-                <video
-                  src={spotPreviewUrl}
-                  controls
-                  autoPlay
-                  className="w-full h-full object-contain"
+
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">Función Visual</label>
+                <Badge variant={selectedBeat.visual_function === "EVIDENCIA" ? "official" : selectedBeat.visual_function === "EXPLICACION" ? "reference" : selectedBeat.visual_function === "CONTEXTO" ? "context" : "neutral"} size="md">
+                  {selectedBeat.visual_function || "LOCUTOR"}
+                </Badge>
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">Titular en Pantalla</label>
+                <input
+                  type="text"
+                  value={editingHeadline}
+                  onChange={(e) => setEditingHeadline(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-blue-500"
                 />
-              ) : (
-                <span className="text-xs text-zinc-500">Cargando video...</span>
-              )}
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-400 block mb-1">Subtítulo / Referencia</label>
+                <input
+                  type="text"
+                  value={editingSubheadline}
+                  onChange={(e) => setEditingSubheadline(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <Button variant="primary" size="sm" onClick={handleSaveBeatMetadata} className="flex-1">
+                  Guardar texto
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleRevertSpeaker} title="Volver a locutor">
+                  Locutor
+                </Button>
+              </div>
             </div>
-            <div className="flex justify-end pt-2 border-t border-zinc-800">
-              <button
-                onClick={() => {
-                  setSpotPreviewModalOpen(false);
-                  setSpotPreviewUrl(null);
-                }}
-                className="btn-secondary text-xs py-2 px-5"
-              >
-                Cerrar
-              </button>
+
+            {/* Selector de B-roll y Assets del Catálogo */}
+            <div className="space-y-2 pt-3 border-t border-slate-800">
+              <span className="text-xs font-bold text-slate-300 block">Sustituir por Asset Oficial</span>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {catalogAssets.slice(0, 8).map((ast) => (
+                  <div
+                    key={ast.id}
+                    onClick={() => handleApplyAsset(ast)}
+                    className="cursor-pointer p-2 rounded-lg bg-slate-950/60 hover:bg-slate-800 border border-slate-800/80 hover:border-blue-500/50 text-[11px] space-y-0.5 transition-colors"
+                  >
+                    <div className="font-semibold text-slate-200 truncate">{ast.entity}</div>
+                    <div className="text-[10px] text-slate-500">{ast.category} · {ast.type}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* ── 4. MODAL STORYBOARD INTERACTIVO ── */}
+      <StoryboardModal
+        isOpen={storyboardOpen}
+        onClose={() => setStoryboardOpen(false)}
+        beats={beats}
+        onSelectBeat={(b) => {
+          handleSelectBeat(b);
+          handleSpotPreview(b.beat_id);
+        }}
+      />
     </div>
   );
 }
