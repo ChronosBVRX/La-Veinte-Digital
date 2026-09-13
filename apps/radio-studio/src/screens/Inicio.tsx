@@ -140,21 +140,18 @@ export function Inicio({
             value={tema}
             onChange={(e) => setTema(e.target.value)}
             placeholder="Escribe el tema o pega un guion aquí..."
-            className="w-full h-32 px-4 py-3.5 rounded-xl bg-slate-950/90 border border-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-slate-100 text-sm placeholder:text-slate-500 resize-none transition-all outline-none leading-relaxed"
+            style={{ backgroundColor: "var(--bg-input)", color: "var(--text-primary)", borderColor: "var(--border-strong)" }}
+            className="w-full h-32 px-4 py-3.5 rounded-xl border focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm placeholder:text-slate-500 resize-none transition-all outline-none leading-relaxed"
           />
         </div>
 
         {/* Format Selector: Audio + Video vs Solo Audio */}
         <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
-          <div className="flex items-center gap-2 bg-slate-950/80 p-1 rounded-xl border border-slate-800/80 text-xs">
+          <div className="segmented-control">
             <button
               type="button"
               onClick={() => setModoProduccion("audio_video")}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-medium transition-all ${
-                modoProduccion === "audio_video"
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
+              className={`segmented-item ${modoProduccion === "audio_video" ? "active" : ""}`}
             >
               <Video size={14} />
               <span>Audio + Video</span>
@@ -162,11 +159,7 @@ export function Inicio({
             <button
               type="button"
               onClick={() => setModoProduccion("audio")}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-medium transition-all ${
-                modoProduccion === "audio"
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-slate-400 hover:text-slate-200"
-              }`}
+              className={`segmented-item ${modoProduccion === "audio" ? "active" : ""}`}
             >
               <Headphones size={14} />
               <span>Sólo Audio</span>
@@ -201,16 +194,12 @@ export function Inicio({
             <div className="flex items-center gap-2">
               <span className="text-slate-400 font-medium">Profundidad editorial:</span>
               <div className="flex gap-1.5">
-                {(["express", "estandar", "profundo"] as Profundidad[]).map((p) => (
+                {(["breve", "estandar", "profundo"] as Profundidad[]).map((p) => (
                   <button
                     key={p}
                     type="button"
                     onClick={() => setProfundidad(p)}
-                    className={`px-3 py-1 rounded-md border text-xs font-medium transition-colors ${
-                      profundidad === p
-                        ? "bg-slate-800 border-blue-500/50 text-blue-300"
-                        : "border-slate-800 text-slate-400 hover:text-slate-300"
-                    }`}
+                    className={`chip ${profundidad === p ? "chip-active" : ""}`}
                   >
                     {p === "breve" ? "Breve" : p === "estandar" ? "Equilibrado" : "Profundo"}
                   </button>
@@ -223,6 +212,7 @@ export function Inicio({
                 type="checkbox"
                 checked={includeAds}
                 onChange={(e) => setIncludeAds(e.target.checked)}
+                style={{ accentColor: "var(--primary)" }}
                 className="rounded bg-slate-950 border-slate-800 text-blue-600 focus:ring-0"
               />
               <span>Incluir menciones y avisos</span>
@@ -243,7 +233,7 @@ export function Inicio({
               key={i}
               type="button"
               onClick={() => setTema(sug)}
-              className="text-xs text-slate-300 bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800/80 hover:border-slate-700 px-3 py-2 rounded-xl transition-all duration-150 text-left"
+              className="suggestion-chip"
             >
               {sug}
             </button>
@@ -300,7 +290,8 @@ export function Inicio({
                       type="button"
                       onClick={(e) => handleDelete(proj.id, e)}
                       title="Eliminar episodio"
-                      className="p-2 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition-colors opacity-0 group-hover:opacity-100"
+                      className="btn-icon p-2 text-slate-400 hover:text-rose-400 rounded-lg opacity-0 group-hover:opacity-100 transition-colors"
+                      style={{ background: "transparent", border: "none" }}
                     >
                       <Trash2 size={14} />
                     </button>

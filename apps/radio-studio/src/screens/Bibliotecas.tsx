@@ -580,7 +580,7 @@ export function Bibliotecas({ onCrearEpisodio }: Props) {
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
-                  color: onlyFavorites ? "#000" : "#fbbf24",
+                  color: onlyFavorites ? "#ffffff" : "#fbbf24",
                   borderColor: "#fbbf24",
                 }}
               >

@@ -118,7 +118,8 @@ describe("Groq Editorial Governance — Reglas Arquitectónicas", () => {
 
   afterEach(() => {
     _resetLLMFactoryForTests();
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+    try { catalog.close(); } catch {}
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     vi.restoreAllMocks();
   });
 

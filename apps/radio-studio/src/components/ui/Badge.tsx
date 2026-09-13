@@ -43,7 +43,7 @@ export function Badge({
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 font-medium rounded-md border tracking-tight ${styles[variant]} ${sizes[size]} ${className}`}
+      className={`badge badge-${variant} badge-${size} inline-flex items-center gap-1.5 font-medium rounded-md border tracking-tight ${styles[variant]} ${sizes[size]} ${className}`}
     >
       {icon && <span className="opacity-90">{icon}</span>}
       {children}

@@ -50,7 +50,8 @@ export function Modal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+            className="btn-icon p-1.5 text-slate-400 hover:text-white rounded-lg transition-colors"
+            style={{ background: "transparent", border: "none" }}
           >
             <X size={16} />
           </button>

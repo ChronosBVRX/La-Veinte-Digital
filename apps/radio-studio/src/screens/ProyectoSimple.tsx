@@ -346,7 +346,7 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
         </div>
 
         {/* Status discreto */}
-        <div className="text-xs text-slate-400 flex items-center gap-2">
+        <div className="text-xs text-slate-400 hidden xl:flex items-center gap-2 shrink-0">
           <span>Duración estimada:</span>
           <span className="font-mono text-slate-200 font-semibold">{formatTimeSec(durationSec)}</span>
         </div>
