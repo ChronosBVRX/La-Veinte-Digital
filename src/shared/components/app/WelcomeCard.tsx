@@ -17,6 +17,7 @@ import {
   getNextPaymentDay,
   isInteractivoOpen,
   getNextNonInteractiveDay,
+  getInteractivoNotice,
   SHIFT_LABELS,
 } from "@/shared/lib/calendario-helpers"
 import {
@@ -115,6 +116,7 @@ export function WelcomeCard({ fullName, greeting, dateLabel }: WelcomeCardProps)
   const nextNonInteractive = interactiveOpen
     ? getNextNonInteractiveDay(year, monthIndex, day)
     : null
+  const interactivoNotice = getInteractivoNotice(now, interactiveOpen)
   const interactiveDaysLeft =
     nextNonInteractive !== null
       ? Math.ceil((nextNonInteractive.date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
@@ -271,6 +273,12 @@ export function WelcomeCard({ fullName, greeting, dateLabel }: WelcomeCardProps)
                 </>
               )
             ) : null}
+          </Line>
+        ) : interactivoNotice.kind === "non-business" && interactivoNotice.nextTramiteLabel ? (
+          <Line>
+            Hoy no estamos en periodo interactivo, pero {interactivoNotice.reason}, así que no hay
+            atención para trámites. Podrás hacer tus trámites y consultar lugares a partir del{" "}
+            <strong style={strong}>{interactivoNotice.nextTramiteLabel}</strong>.
           </Line>
         ) : (
           <Line>
