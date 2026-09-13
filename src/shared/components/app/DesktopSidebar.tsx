@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { House, UserCircle, X, Article, ArrowsClockwise, FolderOpen, ShieldCheck } from "@phosphor-icons/react"
 import { DESKTOP_NAV_GROUPS, shouldPrefetchRoute } from "./navigation"
+import { SignOutButton } from "./SignOutButton"
 import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
 import { useBackLayer } from "@/shared/navigation/useBackLayer"
 import type { CSSProperties } from "react"
@@ -217,6 +218,7 @@ export function DesktopSidebar({ open, onClose, canAccessAdmin = false }: Deskto
           color="var(--muted)"
           onClick={onClose}
         />
+        <SignOutButton onDone={onClose} />
       </div>
     </>
   )

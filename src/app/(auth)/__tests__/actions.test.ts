@@ -60,6 +60,33 @@ describe("signInAction", () => {
     expect(result).toEqual({ error: "Credenciales incorrectas. Verifica tu correo y contraseña." })
     expect(mocks.redirect).not.toHaveBeenCalled()
   })
+
+  it("reenvía el captchaToken en el inicio de sesión", async () => {
+    mocks.signInWithPassword.mockResolvedValue({
+      data: { user: { id: "user-1" } },
+      error: null,
+    })
+    const fd = formData()
+    fd.append("captcha_token", "tok-login")
+
+    await signInAction(undefined, fd)
+
+    expect(mocks.signInWithPassword).toHaveBeenCalledWith({
+      email: "user@test.local",
+      password: "secret123",
+      options: { captchaToken: "tok-login" },
+    })
+  })
+
+  it("mapea el fallo de captcha a mensaje de recarga", async () => {
+    mocks.signInWithPassword.mockResolvedValue({
+      data: { user: null },
+      error: new Error("captcha protection: request disallowed (no captcha_token found)"),
+    })
+
+    const result = await signInAction(undefined, formData())
+    expect(result).toEqual({ error: "Verificación de seguridad fallida. Recarga la página e inténtalo de nuevo." })
+  })
 })
 
 describe("signUpAction", () => {
