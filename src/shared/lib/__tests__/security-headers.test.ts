@@ -1,6 +1,25 @@
 import { describe, it, expect } from "vitest"
 import nextConfig from "../../../../next.config"
 
+const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com"
+
+function parseCsp(csp: string): Map<string, string[]> {
+  const directives = new Map<string, string[]>()
+  for (const part of csp.split(";")) {
+    const tokens = part.trim().split(/\s+/).filter(Boolean)
+    if (tokens.length === 0) continue
+    directives.set(tokens[0], tokens.slice(1))
+  }
+  return directives
+}
+
+async function getCsp(): Promise<string> {
+  const headerConfigs = await nextConfig.headers!()
+  const rootConfig = headerConfigs.find((c) => c.source === "/(.*)")
+  const csp = rootConfig!.headers.find((h) => h.key === "Content-Security-Policy")!.value
+  return csp
+}
+
 describe("Security Headers and CSP configuration", () => {
   it("defines required security headers for all routes", async () => {
     expect(nextConfig.headers).toBeDefined()
@@ -29,5 +48,35 @@ describe("Security Headers and CSP configuration", () => {
     expect(csp).toContain("connect-src")
     expect(csp).not.toContain("'unsafe-eval'")
     expect(csp).toContain("script-src 'self' 'unsafe-inline'")
+  })
+})
+
+describe("CSP permite Cloudflare Turnstile (regresión P0)", () => {
+  it("permite el script de Turnstile en script-src", async () => {
+    const directives = parseCsp(await getCsp())
+    expect(directives.get("script-src")).toContain(TURNSTILE_ORIGIN)
+  })
+
+  it("permite el iframe del reto en frame-src", async () => {
+    const directives = parseCsp(await getCsp())
+    expect(directives.get("frame-src")).toContain(TURNSTILE_ORIGIN)
+  })
+
+  it("permite la verificación en connect-src", async () => {
+    const directives = parseCsp(await getCsp())
+    expect(directives.get("connect-src")).toContain(TURNSTILE_ORIGIN)
+  })
+
+  it("conserva los orígenes existentes sin wildcards", async () => {
+    const csp = await getCsp()
+    const directives = parseCsp(csp)
+
+    expect(directives.get("frame-src")).toContain("https://www.facebook.com")
+    expect(directives.get("connect-src")!.some((o) => o.includes("supabase.co"))).toBe(true)
+    expect(directives.get("connect-src")).toContain("https://cdn.jsdelivr.net")
+    expect(directives.get("connect-src")).toContain("https://tessdata.projectnaptha.com")
+
+    expect(csp).not.toContain("*")
+    expect(csp).not.toContain("'unsafe-eval'")
   })
 })
