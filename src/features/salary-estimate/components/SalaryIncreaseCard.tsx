@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { useMemo } from "react"
-import { Card } from "@/shared/components/ui/Card"
+import type { CSSProperties } from "react"
+import { TrendUp } from "@phosphor-icons/react"
 import { useLiveWorkerContext } from "@/shared/hooks/useLiveWorkerContext"
 import { formatCurrency } from "@/features/calculators/lib/money"
 import { calculateSalaryIncrease } from "@/features/salary-estimate/lib/calculate-salary-increase"
@@ -11,11 +12,28 @@ import { selectSalaryEstimateInputs } from "@/features/salary-estimate/services/
 const IMPORT_HREF = "/profile/mi-informacion-laboral"
 const IMPORT_MESSAGE = "Importa tu tarjetón más reciente para conocer tu aumento salarial estimado."
 
+const capsule: CSSProperties = {
+  borderRadius: "var(--radius-lg)",
+  padding: "1.1rem 1.25rem",
+  minWidth: 0,
+  maxWidth: "100%",
+  boxSizing: "border-box",
+  overflowWrap: "break-word",
+}
+
+const label: CSSProperties = {
+  fontSize: "var(--text-xs)",
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+}
+
 /**
- * Card pequeño en inicio con el aumento quincenal bruto estimado.
- * Lee el tarjetón activo vía `useLiveWorkerContext` (misma fuente que las
- * calculadoras) y se actualiza con `nomina_payslip_updated` + BroadcastChannel.
- * Sin animaciones: respeta `prefers-reduced-motion` por construcción.
+ * Cápsula azul en inicio con el aumento quincenal bruto estimado.
+ * Mismo lenguaje visual que la tarjeta superior (WelcomeCard) para llamar la
+ * atención. Lee el tarjetón activo vía `useLiveWorkerContext` (misma fuente
+ * que las calculadoras) y se actualiza con `nomina_payslip_updated` +
+ * BroadcastChannel. Sin animaciones: respeta `prefers-reduced-motion`.
  */
 export function SalaryIncreaseCard() {
   const context = useLiveWorkerContext(null)
@@ -31,17 +49,43 @@ export function SalaryIncreaseCard() {
 
   if (result.calculationStatus !== "ok") {
     return (
-      <section aria-label="Tu aumento estimado" data-testid="salary-estimate-empty" style={{ marginBottom: "var(--space-4)", minWidth: 0, maxWidth: "100%" }}>
-        <Card style={{ padding: "var(--space-4)" }}>
-          <p style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--fg)", overflowWrap: "break-word" }}>
-            Tu aumento estimado
-          </p>
-          <p style={{ margin: "0.375rem 0 0", fontSize: "var(--text-sm)", color: "var(--muted)", lineHeight: 1.5, overflowWrap: "break-word" }}>
-            <Link href={IMPORT_HREF} style={{ color: "var(--primary)", fontWeight: 600 }}>
+      <section
+        aria-label="Tu aumento estimado"
+        data-testid="salary-estimate-empty"
+        style={{ marginBottom: "var(--space-4)", minWidth: 0, maxWidth: "100%" }}
+      >
+        <div
+          style={{
+            ...capsule,
+            background: "linear-gradient(135deg, #eff6ff, #dbeafe)",
+            border: "1px solid #bfdbfe",
+            boxShadow: "0 4px 14px rgba(37,99,235,0.12)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                background: "rgba(37,99,235,0.12)",
+                color: "#1d4ed8",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <TrendUp size={16} weight="bold" />
+            </span>
+            <span style={{ ...label, color: "#1d4ed8" }}>Tu aumento estimado</span>
+          </div>
+          <p style={{ margin: "0.5rem 0 0", fontSize: "var(--text-sm)", lineHeight: 1.5 }}>
+            <Link href={IMPORT_HREF} style={{ color: "#1d4ed8", fontWeight: 700, textDecoration: "underline" }}>
               {IMPORT_MESSAGE}
             </Link>
           </p>
-        </Card>
+        </div>
       </section>
     )
   }
@@ -49,18 +93,48 @@ export function SalaryIncreaseCard() {
   const aumentoFormateado = formatCurrency(result.estimatedFortnightlyIncrease)
 
   return (
-    <section aria-label="Tu aumento estimado" data-testid="salary-estimate-card" style={{ marginBottom: "var(--space-4)", minWidth: 0, maxWidth: "100%" }}>
-      <Card style={{ padding: "var(--space-4)" }}>
-        <p style={{ margin: 0, fontSize: "var(--text-sm)", fontWeight: 700, color: "var(--fg)", overflowWrap: "break-word" }}>
-          Tu aumento estimado
+    <section
+      aria-label="Tu aumento estimado"
+      data-testid="salary-estimate-card"
+      style={{ marginBottom: "var(--space-4)", minWidth: 0, maxWidth: "100%" }}
+    >
+      <div
+        style={{
+          ...capsule,
+          background: "linear-gradient(135deg, #1e3a8a, #2563eb)",
+          color: "#ffffff",
+          boxShadow: "0 6px 20px rgba(37,99,235,0.32)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <span
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              background: "rgba(191,219,254,0.18)",
+              color: "#bfdbfe",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <TrendUp size={16} weight="bold" />
+          </span>
+          <span style={{ ...label, color: "#bfdbfe" }}>Tu aumento estimado</span>
+        </div>
+        <p style={{ margin: "0.5rem 0 0", fontSize: "var(--text-md)", lineHeight: 1.55, color: "#ffffff" }}>
+          Con esta actualización salarial ganarías aproximadamente{" "}
+          <span style={{ fontSize: "var(--text-xl)", fontWeight: 800, whiteSpace: "nowrap" }}>
+            {aumentoFormateado}
+          </span>{" "}
+          más brutos por quincena.
         </p>
-        <p style={{ margin: "0.375rem 0 0", fontSize: "var(--text-sm)", color: "var(--fg)", lineHeight: 1.5, overflowWrap: "break-word" }}>
-          Con esta actualización salarial ganarías aproximadamente {aumentoFormateado} más brutos por quincena.
-        </p>
-        <p style={{ margin: "0.375rem 0 0", fontSize: "var(--text-xs)", color: "var(--muted)", lineHeight: 1.5, overflowWrap: "break-word" }}>
+        <p style={{ margin: "0.5rem 0 0", fontSize: "var(--text-xs)", lineHeight: 1.5, color: "#c7d2fe" }}>
           Estimación basada en tu tarjetón más reciente y sujeta al convenio salarial definitivo.
         </p>
-      </Card>
+      </div>
     </section>
   )
 }

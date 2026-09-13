@@ -23,8 +23,10 @@ describe("SalaryIncreaseCard", () => {
       { conceptCode: "011", lastAmount: 8215 },
     ])
     render(<SalaryIncreaseCard />)
-    const msg = await screen.findByText(/Con esta actualización salarial ganarías aproximadamente .* más brutos por quincena\./)
-    expect(msg).toBeTruthy()
+    await screen.findByTestId("salary-estimate-card")
+    expect(document.body.textContent).toMatch(
+      /Con esta actualización salarial ganarías aproximadamente \$929\.55 más brutos por quincena\./,
+    )
     expect(document.body.textContent).toContain("$929.55")
     expect(document.body.textContent).not.toContain("8.55%")
     expect(document.body.textContent).not.toContain("resultado es definitivo")
