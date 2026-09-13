@@ -1,10 +1,12 @@
 # 🎙️ BASELINE ESTABLE: AI RADIO STUDIO V1
 
-> **ESTADO DEL SISTEMA:** ESTABLE · V1.0.0-PREMIUM  
+> **ESTADO DEL SISTEMA:** ESTABLE · V1.0.0-PREMIUM · CLOSED_V1  
 > **FECHA DE CIERRE:** 2026-09-13  
 > **RAMA:** feat/radio-studio-v1-premium  
 > **EPISODIO PILOTO AUDITADO:** d5f1fc16 (12:16, 129 Beats Visuales)  
-> **AUDIO MASTER:** SHA-256 2432fc815fc050a2a3c8200e14fb818aff93de359accedccc8d8effc7f67e903 (17,664,813 bytes, Inalterable)
+> **AUDIO MASTER:** SHA-256 2432fc815fc050a2a3c8200e14fb818aff93de359accedccc8d8effc7f67e903 (17,664,813 bytes, Inalterable)  
+> **CHARACTER_VARIANTS_REAL:** PASS (30/30)  
+> **CHARACTER_IDENTITY_CONTINUITY:** PASS (30/30, 0 drift, 0 transform-only, 0 text/logos)
 
 ---
 
@@ -93,8 +95,15 @@ Queda estrictamente prohibida la introducción de activos sintéticos o de fanta
    - Los tarjetones de pago, cláusulas del CCT y artículos de la Ley Federal del Trabajo provienen exclusivamente de documentos oficiales digitalizados con hash SHA-256 verificado.
 3. **Cero Riesgo de Karaoke:**
    - La subtitulación y cintillos informativos utilizan plantillas de tipografía limpia, estática o de aparición discreta, sin animaciones estridentes tipo redes sociales de entretenimiento.
-4. **Variantes Visuales de Personajes:**
-   - Los 5 conductores y analistas (Eduardo, Andrea, Javier, Rodrigo, Valeria) cuentan con 6 estados de expresión (neutral, speaking, serious, emphasis, explaining, listening), totalizando **30 variantes de estudio** en alta definición con canal alfa limpio.
+4. **Variantes Visuales de Personajes y Auditoría de Identidad (Gate V1):**
+   - Meta total: 30 variantes de estudio (5 locutores × 6 poses: neutral, explaining, listening, serious, question, emphasis) con canal alfa limpio, gestos físicos genuinos y continuidad canónica estricta (referencia visual directa desde `neutral.png`, cero drift de edad/vestuario, cero texto/logotipos generados por IA en ropa, gafetes o documentos).
+   - Estado de Auditoría de Identidad (`qa/characters-v4.1-contact-sheet.jpg`):
+     * **Eduardo (6/6 IDENTITY_PASS):** Mismo rostro, edad (~38), barba recortada, traje azul marino y camisa blanca en las 6 poses genuinas. Cero texto IA.
+     * **Andrea (6/6 IDENTITY_PASS):** Mismo rostro, edad (~35), chongo bajo, aretes de perla, saco gris y blusa crema en las 6 poses genuinas. Cero texto IA.
+     * **Javier (6/6 IDENTITY_PASS):** Canónico al 100% (~58 años, cabello canoso salt-and-pepper, lentes rectangulares oscuros, suéter gris carbón en cuello V sobre camisa azul clara) en las 6 poses genuinas (`neutral`, `explaining`, `listening`, `serious`, `question`, `emphasis`). Cero drift, cero texto simulado.
+     * **Rodrigo (6/6 IDENTITY_PASS):** Canónico al 100% (~34 años, barba recortada, cabello castaño con volumen, sobrecamisa verde olivo lisa sobre playera oscura) en las 6 poses genuinas. Sobrecamisa y gafete completamente limpios de parches, texto simulado o logotipos apócrifos.
+     * **Valeria (6/6 IDENTITY_PASS):** Canónica al 100% (~38 años, corte bob castaño a hombros, broqueles de diamante, collar fino, blazer sastre azul marino sobre blusa blanca) en las 6 poses genuinas. Carpeta corporativa en `question` completamente lisa sin texto simulado ni resaltadores.
+   - Estado Global: **`STATUS = CLOSED_V1` (30/30 IDENTITY_PASS / transform-only remaining = 0 / identity drift = 0 / generated critical text/logos = 0)**. Cero trucos ni sustitutos sintéticos.
 5. **Cortes Semánticos Reales y Taxonomía de Procedencia:**
    - Prohibidas las reglas rígidas de duración (speaker <= 8s). La duración puede disparar análisis editorial, pero NO obligar al corte.
    - Todo corte requiere frontera semántica demostrable (cifra, documento, cláusula, entidad, contraste, ejemplo, conclusión). Si no existe frontera adecuada, el plano del locutor se sostiene sin corte arbitrario.
@@ -142,6 +151,12 @@ La interfaz de AI Radio Studio fue refactorizada en su totalidad para eliminar c
 - src/components/ui/Button.tsx: Botones con estilos primario, secundario, peligro, fantasma y esquema outline, con estados disabled y loading con spinner SVG integrado. Cero botones grises de navegador.
 - src/components/ui/Modal.tsx: Sistema de diálogo modal flotante con backdrop difuminado (backdrop-blur-sm), header con título, descripción y botón de cierre, y área de scroll contenida.
 - src/components/ui/Toast.tsx + ToastContext: Notificaciones no intrusivas en la esquina inferior derecha con auto-cierre a los 3.5 segundos.
+
+### Arquitectura Dark-First y Accesibilidad Global
+- **Tokens Centralizados (`studio.css`):** `--bg-app` (#090d16), `--bg-surface` (#0f172a), `--bg-surface-raised` (#1e293b), `--bg-control` (#1e293b), `--bg-input` (#060911), `--border-default` (#1e293b), `--text-primary` (#f8fafc), `--text-secondary` (#cbd5e1).
+- **Reset Global WebView2:** `color-scheme: dark;` forzado en `:root`, `html`, `body` y elementos de formulario (`button`, `input`, `textarea`, `select`), impidiendo cualquier caída a estilos claros de navegador o `ButtonFace`.
+- **Controles Normalizados:** Segmented controls (Audio+Video vs Sólo Audio), chips, suggestion-chips, tabs-bar con `white-space: nowrap` y prevención de colisión/desbordamiento horizontal en 1366x768 (`horizontalOverflow = 0`).
+- **Garantías de Contraste:** WCAG AA en todos los textos sobre superficies oscuras; estados `:disabled` oscuros con opacidad contenida y texto `#64748b`.
 
 ### Pantallas Principales
 1. **Inicio (src/screens/Inicio.tsx):**
