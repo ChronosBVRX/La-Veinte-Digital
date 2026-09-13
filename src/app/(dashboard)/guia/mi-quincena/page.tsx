@@ -11,5 +11,5 @@ export default async function MiQuincenaPageRoute({ searchParams }: { searchPara
   const serverPayslip = await fetchLatestServerPayslip(user.id)
   const { vista } = await searchParams
 
-  return <MiQuincenaPage serverPayslip={serverPayslip} initialTab={vista} />
+  return <MiQuincenaPage serverPayslip={serverPayslip} userId={user.id} initialTab={vista} />
 }

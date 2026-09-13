@@ -8,6 +8,9 @@ import { getPayPeriod } from "@/features/nomina/lib/periods"
 import type { ImportedPayslip } from "@/features/nomina/lib/types"
 import type { ReconstructedLine } from "@/features/tarjeton/lib/line-reconstruction"
 
+// Identidad autenticada de prueba: el almacenamiento local está separado por usuario.
+const TEST_USER = "test-user-payslip-concepts"
+
 describe("Guía del tarjetón: Reconocimiento robusto de conceptos y tolerancia a formatos", () => {
   // 1. Fixture anonimizada con edge cases: códigos de 2 y 3 dígitos, strings con $, comas, variaciones de clave
   const FIXTURE_DB_ROW = {
@@ -341,9 +344,9 @@ describe("Guía del tarjetón: Reconocimiento robusto de conceptos y tolerancia 
         source: "pdf" as const,
         confirmedByUser: true,
       }
-      savePayslip(emptySlip)
-      expect(getPayslips().length).toBe(1)
-      expect(getPayslips()[0].earnings.length).toBe(0)
+      savePayslip(TEST_USER, emptySlip)
+      expect(getPayslips(TEST_USER).length).toBe(1)
+      expect(getPayslips(TEST_USER)[0].earnings.length).toBe(0)
 
       // 2. Reanalizar y guardar resultado con percepciones y deducciones
       const reanalyzedSlip = {
@@ -362,10 +365,10 @@ describe("Guía del tarjetón: Reconocimiento robusto de conceptos y tolerancia 
         source: "pdf" as const,
         confirmedByUser: true,
       }
-      savePayslip(reanalyzedSlip)
+      savePayslip(TEST_USER, reanalyzedSlip)
 
       // 3. Verificar que NO se duplicó en el almacenamiento y que conservó el ID original con los conceptos nuevos
-      const slips = getPayslips()
+      const slips = getPayslips(TEST_USER)
       expect(slips.length).toBe(1)
       expect(slips[0].id).toBe("slip-initial-id")
       expect(slips[0].earnings.length).toBe(1)
@@ -419,9 +422,9 @@ describe("Guía del tarjetón: Reconocimiento robusto de conceptos y tolerancia 
         confirmedByUser: true,
       }
 
-      savePayslip(initialSlip)
+      savePayslip(TEST_USER, initialSlip)
 
-      const slips = getPayslips()
+      const slips = getPayslips(TEST_USER)
       expect(slips.length).toBe(1)
       const savedPayslip = slips[0]
 

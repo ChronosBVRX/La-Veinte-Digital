@@ -34,7 +34,7 @@ export interface AnalyzeAndPersistOptions {
   sourceUri?: string
   fileName?: string
   periodRaw?: string
-  userId?: string
+  userId: string
   force?: boolean
   onProgress?: (status: AnalysisStatus, message: string) => void
 }
@@ -55,10 +55,10 @@ export interface AnalyzeAndPersistResult {
 const inFlightLocks = new Map<string, Promise<AnalyzeAndPersistResult>>()
 
 export async function analyzeAndPersistPayslip(
-  documentId?: string,
-  options: AnalyzeAndPersistOptions = {}
+  documentId: string | undefined,
+  options: AnalyzeAndPersistOptions
 ): Promise<AnalyzeAndPersistResult> {
-  const lockKey = `${options.userId || "local"}_${documentId || options.periodRaw || "default"}_v2`
+  const lockKey = `${options.userId}_${documentId || options.periodRaw || "default"}_v2`
   const activePromise = inFlightLocks.get(lockKey)
   if (activePromise && !options.force) {
     return activePromise
@@ -85,7 +85,7 @@ export async function analyzeAndPersistPayslip(
         sourceBytes = new Uint8Array(await options.blob.arrayBuffer())
         originalBlobPresent = true
       } else {
-        const storedBlob = await findTarjetonPdfBlob([documentId, options.periodRaw])
+        const storedBlob = await findTarjetonPdfBlob(options.userId, [documentId, options.periodRaw])
         if (storedBlob) {
           sourceBytes = new Uint8Array(await storedBlob.arrayBuffer())
           originalBlobPresent = true
@@ -204,9 +204,9 @@ export async function analyzeAndPersistPayslip(
       if (targetPeriodRaw) {
         try {
           const blob = new Blob([sourceBytes.buffer as ArrayBuffer], { type: "application/pdf" })
-          await saveTarjetonPdfBlob(targetPeriodRaw, blob, fileName)
+          await saveTarjetonPdfBlob(options.userId, targetPeriodRaw, blob, fileName)
           if (documentId && documentId !== targetPeriodRaw) {
-            await saveTarjetonPdfBlob(documentId, blob, fileName)
+            await saveTarjetonPdfBlob(options.userId, documentId, blob, fileName)
           }
         } catch (storageErr) {
           console.warn("[analyzeAndPersistPayslip] Error guardando blob en IndexedDB:", storageErr)
@@ -214,7 +214,7 @@ export async function analyzeAndPersistPayslip(
       }
 
       // 7. Persistencia en localStorage
-      const currentSlips = getPayslips()
+      const currentSlips = getPayslips(options.userId)
       const existingSlip = currentSlips.find((s) => {
         if (documentId && s.id === documentId) return true
         const sPeriod = typeof s.period === "string" ? s.period : s.period?.id || s.period?.label || s.periodRaw || ""
@@ -246,7 +246,7 @@ export async function analyzeAndPersistPayslip(
 
       const updatedSlip: ImportedPayslip = {
         id: updatedSlipId,
-        userId: existingSlip?.userId || options.userId || "local",
+        userId: existingSlip?.userId || options.userId,
         period,
         periodRaw: targetPeriodRaw || existingSlip?.periodRaw,
         categoryName: safeParsed.employee.categoryName || existingSlip?.categoryName,
@@ -263,7 +263,7 @@ export async function analyzeAndPersistPayslip(
         analysisStatus: "ready",
       }
 
-      savePayslip(updatedSlip)
+      savePayslip(options.userId, updatedSlip)
 
       // 8. Sincronización en servidor si hay sesión activa
       try {
@@ -284,7 +284,7 @@ export async function analyzeAndPersistPayslip(
       }
 
       // 9. Aserción de persistencia
-      const reloadedSlips = getPayslips()
+      const reloadedSlips = getPayslips(options.userId)
       const verified = reloadedSlips.some(
         (s) => (s.id === updatedSlipId || (targetPeriodRaw && (s.periodRaw === targetPeriodRaw || String(s.period).includes(targetPeriodRaw)))) &&
           s.earnings.length > 0

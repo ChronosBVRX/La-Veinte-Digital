@@ -1,27 +1,38 @@
 import type { EmployeePayrollProfile, ImportedPayslip, PayrollProjection } from "@/features/nomina/lib/types"
+import { scopedStorageKey } from "@/shared/services/scoped-storage"
+
+/**
+ * Almacenamiento local de nómina con ámbito por usuario autenticado.
+ *
+ * Multiusuario: todas las claves se derivan de `user.id` (ver `scoped-storage`).
+ * Las claves globales antiguas (`nomina_profile`, `nomina_payslips`,
+ * `nomina_projections`, `nomina_consent`) quedan en cuarentena lógica: esta
+ * API ya no las lee ni las borra, y no se adjudican a ningún usuario.
+ */
 
 const NOMINA_PROFILE_KEY = "nomina_profile"
 const NOMINA_PAYSLIPS_KEY = "nomina_payslips"
 const NOMINA_PROJECTIONS_KEY = "nomina_projections"
 const NOMINA_CONSENT_KEY = "nomina_consent"
 
-export function hasConsent(): boolean {
+export function hasConsent(userId: string): boolean {
   if (typeof window === "undefined") return false
-  return localStorage.getItem(NOMINA_CONSENT_KEY) === "true"
+  return localStorage.getItem(scopedStorageKey(NOMINA_CONSENT_KEY, userId)) === "true"
 }
 
-export function saveConsent(given: boolean): void {
+export function saveConsent(userId: string, given: boolean): void {
   if (typeof window === "undefined") return
+  const key = scopedStorageKey(NOMINA_CONSENT_KEY, userId)
   if (given) {
-    localStorage.setItem(NOMINA_CONSENT_KEY, "true")
+    localStorage.setItem(key, "true")
   } else {
-    localStorage.removeItem(NOMINA_CONSENT_KEY)
+    localStorage.removeItem(key)
   }
 }
 
-export function getProfile(): EmployeePayrollProfile | null {
+export function getProfile(userId: string): EmployeePayrollProfile | null {
   if (typeof window === "undefined") return null
-  const raw = localStorage.getItem(NOMINA_PROFILE_KEY)
+  const raw = localStorage.getItem(scopedStorageKey(NOMINA_PROFILE_KEY, userId))
   if (!raw) return null
   try {
     const p = JSON.parse(raw) as EmployeePayrollProfile
@@ -35,16 +46,16 @@ export function getProfile(): EmployeePayrollProfile | null {
   }
 }
 
-export function deleteProjection(projectionId: string): void {
+export function deleteProjection(userId: string, projectionId: string): void {
   if (typeof window === "undefined") return
-  const projs = getProjections()
+  const projs = getProjections(userId)
   const filtered = projs.filter((p) => p.id !== projectionId)
-  localStorage.setItem(NOMINA_PROJECTIONS_KEY, JSON.stringify(filtered))
+  localStorage.setItem(scopedStorageKey(NOMINA_PROJECTIONS_KEY, userId), JSON.stringify(filtered))
 }
 
-export function saveProfile(profile: EmployeePayrollProfile): void {
+export function saveProfile(userId: string, profile: EmployeePayrollProfile): void {
   if (typeof window === "undefined") return
-  localStorage.setItem(NOMINA_PROFILE_KEY, JSON.stringify(profile))
+  localStorage.setItem(scopedStorageKey(NOMINA_PROFILE_KEY, userId), JSON.stringify(profile))
   try {
     window.dispatchEvent(new CustomEvent("nomina_profile_updated", { detail: profile }))
   } catch {
@@ -52,16 +63,16 @@ export function saveProfile(profile: EmployeePayrollProfile): void {
   }
 }
 
-export function deleteProfile(): void {
+export function deleteProfile(userId: string): void {
   if (typeof window === "undefined") return
-  localStorage.removeItem(NOMINA_PROFILE_KEY)
-  localStorage.removeItem(NOMINA_PAYSLIPS_KEY)
-  localStorage.removeItem(NOMINA_PROJECTIONS_KEY)
+  localStorage.removeItem(scopedStorageKey(NOMINA_PROFILE_KEY, userId))
+  localStorage.removeItem(scopedStorageKey(NOMINA_PAYSLIPS_KEY, userId))
+  localStorage.removeItem(scopedStorageKey(NOMINA_PROJECTIONS_KEY, userId))
 }
 
-export function getPayslips(): ImportedPayslip[] {
+export function getPayslips(userId: string): ImportedPayslip[] {
   if (typeof window === "undefined") return []
-  const raw = localStorage.getItem(NOMINA_PAYSLIPS_KEY)
+  const raw = localStorage.getItem(scopedStorageKey(NOMINA_PAYSLIPS_KEY, userId))
   if (!raw) return []
   try {
     const parsed = JSON.parse(raw) as ImportedPayslip[]
@@ -96,9 +107,9 @@ export function getPayslips(): ImportedPayslip[] {
   }
 }
 
-export function savePayslip(payslip: ImportedPayslip): void {
+export function savePayslip(userId: string, payslip: ImportedPayslip): void {
   if (typeof window === "undefined") return
-  const slips = getPayslips()
+  const slips = getPayslips(userId)
   const payslipPeriodKey =
     typeof payslip.period === "string"
       ? payslip.period
@@ -143,7 +154,7 @@ export function savePayslip(payslip: ImportedPayslip): void {
   } else {
     slips.push(normalizedPayslip)
   }
-  localStorage.setItem(NOMINA_PAYSLIPS_KEY, JSON.stringify(slips))
+  localStorage.setItem(scopedStorageKey(NOMINA_PAYSLIPS_KEY, userId), JSON.stringify(slips))
   try {
     window.dispatchEvent(new CustomEvent("nomina_payslip_updated", { detail: normalizedPayslip }))
   } catch {
@@ -151,10 +162,10 @@ export function savePayslip(payslip: ImportedPayslip): void {
   }
 }
 
-export function deduplicatePayslips(): void {
+export function deduplicatePayslips(userId: string): void {
   if (typeof window === "undefined") return
-  const slips = getPayslips()
-  localStorage.setItem(NOMINA_PAYSLIPS_KEY, JSON.stringify(slips))
+  const slips = getPayslips(userId)
+  localStorage.setItem(scopedStorageKey(NOMINA_PAYSLIPS_KEY, userId), JSON.stringify(slips))
   try {
     window.dispatchEvent(new CustomEvent("nomina_payslip_updated"))
   } catch {
@@ -162,9 +173,9 @@ export function deduplicatePayslips(): void {
   }
 }
 
-export function getProjections(): PayrollProjection[] {
+export function getProjections(userId: string): PayrollProjection[] {
   if (typeof window === "undefined") return []
-  const raw = localStorage.getItem(NOMINA_PROJECTIONS_KEY)
+  const raw = localStorage.getItem(scopedStorageKey(NOMINA_PROJECTIONS_KEY, userId))
   if (!raw) return []
   try {
     return JSON.parse(raw) as PayrollProjection[]
@@ -173,22 +184,22 @@ export function getProjections(): PayrollProjection[] {
   }
 }
 
-export function saveProjection(projection: PayrollProjection): void {
+export function saveProjection(userId: string, projection: PayrollProjection): void {
   if (typeof window === "undefined") return
-  const projs = getProjections()
+  const projs = getProjections(userId)
   const idx = projs.findIndex((p) => p.id === projection.id)
   if (idx >= 0) {
     projs[idx] = projection
   } else {
     projs.push(projection)
   }
-  localStorage.setItem(NOMINA_PROJECTIONS_KEY, JSON.stringify(projs))
+  localStorage.setItem(scopedStorageKey(NOMINA_PROJECTIONS_KEY, userId), JSON.stringify(projs))
 }
 
-export function deleteAllData(): void {
+export function deleteAllData(userId: string): void {
   if (typeof window === "undefined") return
-  localStorage.removeItem(NOMINA_PROFILE_KEY)
-  localStorage.removeItem(NOMINA_PAYSLIPS_KEY)
-  localStorage.removeItem(NOMINA_PROJECTIONS_KEY)
-  localStorage.removeItem(NOMINA_CONSENT_KEY)
+  localStorage.removeItem(scopedStorageKey(NOMINA_PROFILE_KEY, userId))
+  localStorage.removeItem(scopedStorageKey(NOMINA_PAYSLIPS_KEY, userId))
+  localStorage.removeItem(scopedStorageKey(NOMINA_PROJECTIONS_KEY, userId))
+  localStorage.removeItem(scopedStorageKey(NOMINA_CONSENT_KEY, userId))
 }

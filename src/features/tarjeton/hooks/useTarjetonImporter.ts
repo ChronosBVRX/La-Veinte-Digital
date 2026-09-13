@@ -68,7 +68,7 @@ async function hashText(text: string): Promise<string> {
   return computeFileSha256(new Blob([text]))
 }
 
-export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
+export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null, userId: string | null) {
   const [state, setState] = useState<TarjetonImportState>({ step: "idle", usedOcr: false, progress: 0 })
   const abortRef = useRef<AbortController | null>(null)
   const fileRef = useRef<File | null>(null)
@@ -166,8 +166,8 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
           ? profile.matricula === parsed.employee.employeeNumber
           : null
 
-      if (parsed.document.periodRaw) {
-        void saveTarjetonPdfBlob(parsed.document.periodRaw, file, file.name)
+      if (parsed.document.periodRaw && userId) {
+        void saveTarjetonPdfBlob(userId, parsed.document.periodRaw, file, file.name)
       }
 
       requestRef.current = null
@@ -198,6 +198,17 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
     const file = fileRef.current
     if (!parsed || !file) return
     if (!opts.authorizeServerStorage) return
+    if (!userId) {
+      setState((s) => ({
+        ...s,
+        step: "review",
+        error: {
+          code: "unauthorized",
+          message: "No pudimos identificar tu sesión. Vuelve a iniciar sesión e inténtalo de nuevo.",
+        },
+      }))
+      return
+    }
 
     const sourceHash = await computeFileSha256(await file.arrayBuffer())
 
@@ -254,13 +265,13 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
     }
 
     try {
-      syncConfirmedPayslip(result.data, request, "local")
+      syncConfirmedPayslip(result.data, request, userId)
       if (file) {
         if (safeParsed.document.periodRaw) {
-          void saveTarjetonPdfBlob(safeParsed.document.periodRaw, file, file.name)
+          void saveTarjetonPdfBlob(userId, safeParsed.document.periodRaw, file, file.name)
         }
         if (result.data.id) {
-          void saveTarjetonPdfBlob(result.data.id, file, file.name)
+          void saveTarjetonPdfBlob(userId, result.data.id, file, file.name)
         }
       }
 
@@ -287,7 +298,7 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null) {
       const net = safeParsed.payroll.netPay ?? (pTotal - dTotal)
       const pRank = calculatePeriodRank(safeParsed.document.year || 0, safeParsed.document.month || 0, safeParsed.document.half || 1)
 
-      savePayslipAnalysis({
+      savePayslipAnalysis(userId, {
         documentId: result.data.id,
         documentHash: request.sourceHash,
         parserVersion: CURRENT_PARSER_VERSION,

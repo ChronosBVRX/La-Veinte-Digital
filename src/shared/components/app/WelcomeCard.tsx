@@ -31,6 +31,7 @@ import {
   type NextCommitmentResult,
 } from "@/features/agenda-laboral/lib/commitment-calendar"
 import { useCommitmentsListener } from "@/features/agenda-laboral/lib/agenda-bus"
+import { scopedStorageKey } from "@/shared/services/scoped-storage"
 import type { WorkerCommitment } from "@/features/agenda-laboral/types"
 import { rowToCommitment, type CommitmentRow } from "@/features/agenda-laboral/services/commitments-supabase"
 
@@ -38,6 +39,7 @@ interface WelcomeCardProps {
   fullName: string | null
   greeting: string
   dateLabel: string
+  userId: string
 }
 
 interface NominaProfileLight {
@@ -50,7 +52,7 @@ const para = (days: number | null): string | null => {
   return `${days} día${days !== 1 ? "s" : ""}`
 }
 
-export function WelcomeCard({ fullName, greeting, dateLabel }: WelcomeCardProps) {
+export function WelcomeCard({ fullName, greeting, dateLabel, userId }: WelcomeCardProps) {
   const firstName = fullName?.split(" ")[0] ?? ""
   const [nominaProfile, setNominaProfile] = useState<NominaProfileLight | null>(null)
   const [nextCommitmentState, setNextCommitmentState] = useState<{
@@ -60,7 +62,7 @@ export function WelcomeCard({ fullName, greeting, dateLabel }: WelcomeCardProps)
 
   useEffect(() => {
     if (typeof window === "undefined") return
-    const raw = localStorage.getItem("nomina_profile")
+    const raw = localStorage.getItem(scopedStorageKey("nomina_profile", userId))
     if (!raw) return
     try {
       const parsed = JSON.parse(raw)
@@ -69,7 +71,7 @@ export function WelcomeCard({ fullName, greeting, dateLabel }: WelcomeCardProps)
     } catch {
       // ignore
     }
-  }, [])
+  }, [userId])
 
   const loadNextCommitment = useCallback(async () => {
     try {

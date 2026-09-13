@@ -9,6 +9,7 @@ import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarje
 
 interface TarjetonUploaderSectionProps {
   profileSnapshot: TarjetonProfileSnapshot | null
+  userId: string
 }
 
 /**
@@ -17,7 +18,7 @@ interface TarjetonUploaderSectionProps {
  * (modo tarjetón) sin reescribir campos —los valores ya fueron guardados
  * por la confirmación canónica— y refresca la vista servidor.
  */
-export function TarjetonUploaderSection({ profileSnapshot }: TarjetonUploaderSectionProps) {
+export function TarjetonUploaderSection({ profileSnapshot, userId }: TarjetonUploaderSectionProps) {
   const [syncError, setSyncError] = useState<string | null>(null)
   const router = useRouter()
 
@@ -38,7 +39,7 @@ export function TarjetonUploaderSection({ profileSnapshot }: TarjetonUploaderSec
           {syncError}
         </div>
       )}
-      <TarjetonImporterWrapper profile={profileSnapshot} onSuccess={handleSuccess} />
+      <TarjetonImporterWrapper profile={profileSnapshot} userId={userId} onSuccess={handleSuccess} />
     </div>
   )
 }

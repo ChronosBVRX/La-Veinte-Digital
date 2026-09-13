@@ -1,9 +1,10 @@
 import { useRef, useState } from "react"
 import { ArrowsClockwise, CheckCircle, WarningCircle } from "@phosphor-icons/react"
 import { Button } from "@/shared/components/ui/Button"
-import { analyzeAndPersistPayslip } from "@/features/tarjeton/services/analyze-and-persist-payslip"
+import { analyzeAndPersistPayslip, type AnalyzeAndPersistOptions } from "@/features/tarjeton/services/analyze-and-persist-payslip"
 
 interface BotonReintentarAnalisisProps {
+  userId: string
   periodRaw?: string
   documentId?: string
   sourceUri?: string
@@ -13,6 +14,7 @@ interface BotonReintentarAnalisisProps {
 }
 
 export function BotonReintentarAnalisis({
+  userId,
   periodRaw,
   documentId,
   sourceUri,
@@ -25,7 +27,7 @@ export function BotonReintentarAnalisis({
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  const executeAnalysis = async (options: Parameters<typeof analyzeAndPersistPayslip>[1] = {}) => {
+  const executeAnalysis = async (options: Partial<AnalyzeAndPersistOptions> = {}) => {
     setLoading(true)
     setError(null)
     setFeedback("Analizando tarjetón...")
@@ -35,6 +37,7 @@ export function BotonReintentarAnalisis({
         periodRaw,
         sourceUri,
         ...options,
+        userId,
         onProgress: (_status, message) => {
           setFeedback(message)
         },

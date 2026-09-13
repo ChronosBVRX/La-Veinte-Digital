@@ -14,12 +14,13 @@ import { ImportSuccess } from "./ImportSuccess"
 
 interface TarjetonImporterProps {
   profile: TarjetonProfileSnapshot | null
+  userId: string
   /** Se dispara una sola vez cuando el tarjetón queda confirmado en el servidor. */
   onSuccess?: (meta: TarjetonImportSuccessMeta) => void
 }
 
-export function TarjetonImporter({ profile, onSuccess }: TarjetonImporterProps) {
-  const { state, start, confirm, reset } = useTarjetonImporter(profile)
+export function TarjetonImporter({ profile, userId, onSuccess }: TarjetonImporterProps) {
+  const { state, start, confirm, reset } = useTarjetonImporter(profile, userId)
   const successNotifiedRef = useRef(false)
 
   useEffect(() => {

@@ -10,8 +10,16 @@
  * La Veinte Digital.
  */
 
+import { scopedStorageKey } from "@/shared/services/scoped-storage"
+
 export const CURRENT_PARSER_VERSION = "2026.09.v1"
-const STORAGE_KEY = "la_veinte_payslip_analyses"
+const STORAGE_KEY_PREFIX = "la_veinte_payslip_analyses"
+
+/**
+ * Multiusuario: cada análisis se guarda bajo el namespace del `user.id`
+ * autenticado (`la_veinte_payslip_analyses:v2:<userId>`). La clave global
+ * antigua queda en cuarentena lógica: no se lee ni se borra automáticamente.
+ */
 
 export type PayslipConceptKind = "perception" | "deduction"
 
@@ -40,10 +48,10 @@ export interface PayslipAnalysis {
   errorMessage?: string
 }
 
-function getStoreMap(): Record<string, PayslipAnalysis> {
+function getStoreMap(userId: string): Record<string, PayslipAnalysis> {
   if (typeof window === "undefined") return {}
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
+    const raw = window.localStorage.getItem(scopedStorageKey(STORAGE_KEY_PREFIX, userId))
     if (!raw) return {}
     return JSON.parse(raw) as Record<string, PayslipAnalysis>
   } catch {
@@ -51,10 +59,10 @@ function getStoreMap(): Record<string, PayslipAnalysis> {
   }
 }
 
-function setStoreMap(map: Record<string, PayslipAnalysis>): void {
+function setStoreMap(userId: string, map: Record<string, PayslipAnalysis>): void {
   if (typeof window === "undefined") return
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(map))
+    window.localStorage.setItem(scopedStorageKey(STORAGE_KEY_PREFIX, userId), JSON.stringify(map))
   } catch (err) {
     console.warn("[payslip-analysis-store] Error persistiendo análisis:", err)
   }
@@ -67,15 +75,15 @@ function makeCompositeKey(documentHash: string, parserVersion: string = CURRENT_
 /**
  * Guarda o actualiza un análisis de tarjetón en localStorage.
  */
-export function savePayslipAnalysis(analysis: PayslipAnalysis): void {
-  const map = getStoreMap()
+export function savePayslipAnalysis(userId: string, analysis: PayslipAnalysis): void {
+  const map = getStoreMap(userId)
   const key = makeCompositeKey(analysis.documentHash, analysis.parserVersion)
   map[key] = analysis
   // También guardar con alias de documentId si es distinto para búsqueda rápida
   if (analysis.documentId) {
     map[`id_${analysis.documentId}`] = analysis
   }
-  setStoreMap(map)
+  setStoreMap(userId, map)
 
   if (typeof window !== "undefined") {
     window.dispatchEvent(
@@ -90,11 +98,12 @@ export function savePayslipAnalysis(analysis: PayslipAnalysis): void {
  * Recupera un análisis por hash del archivo y versión del parser.
  */
 export function getPayslipAnalysisByHash(
+  userId: string,
   documentHash: string,
   parserVersion: string = CURRENT_PARSER_VERSION
 ): PayslipAnalysis | null {
   if (!documentHash) return null
-  const map = getStoreMap()
+  const map = getStoreMap(userId)
   const key = makeCompositeKey(documentHash, parserVersion)
   return map[key] || null
 }
@@ -102,9 +111,9 @@ export function getPayslipAnalysisByHash(
 /**
  * Recupera un análisis por documentId.
  */
-export function getPayslipAnalysisById(documentId: string): PayslipAnalysis | null {
+export function getPayslipAnalysisById(userId: string, documentId: string): PayslipAnalysis | null {
   if (!documentId) return null
-  const map = getStoreMap()
+  const map = getStoreMap(userId)
   if (map[`id_${documentId}`]) return map[`id_${documentId}`]
 
   for (const item of Object.values(map)) {
@@ -116,8 +125,8 @@ export function getPayslipAnalysisById(documentId: string): PayslipAnalysis | nu
 /**
  * Lista todos los análisis guardados en el dispositivo.
  */
-export function getAllPayslipAnalyses(): PayslipAnalysis[] {
-  const map = getStoreMap()
+export function getAllPayslipAnalyses(userId: string): PayslipAnalysis[] {
+  const map = getStoreMap(userId)
   const list: PayslipAnalysis[] = []
   const seenHashes = new Set<string>()
 
@@ -145,8 +154,8 @@ export function getAllPayslipAnalyses(): PayslipAnalysis[] {
 /**
  * Obtiene el análisis más reciente con estado 'ready' (o el más reciente disponible).
  */
-export function getLatestPayslipAnalysis(): PayslipAnalysis | null {
-  const all = getAllPayslipAnalyses()
+export function getLatestPayslipAnalysis(userId: string): PayslipAnalysis | null {
+  const all = getAllPayslipAnalyses(userId)
   if (all.length === 0) return null
 
   // Priorizar el que esté 'ready' con el periodo más reciente

@@ -9,6 +9,7 @@ import {
 } from "@phosphor-icons/react"
 import { DashboardStat } from "./DashboardStat"
 import { CALENDARIOS } from "@/shared/data/calendario"
+import { scopedStorageKey } from "@/shared/services/scoped-storage"
 
 interface ProfileSummary {
   antiguedad: string | null
@@ -56,10 +57,10 @@ function getNextVacation(): { date: Date } | null {
   return { date: candidates[0] }
 }
 
-function hasImportedPayslip(): boolean {
+function hasImportedPayslip(userId: string): boolean {
   if (typeof window === "undefined") return false
   try {
-    const raw = localStorage.getItem("nomina_profile")
+    const raw = localStorage.getItem(scopedStorageKey("nomina_profile", userId))
     if (!raw) return false
     const parsed = JSON.parse(raw)
     return typeof parsed.displayedSeniorityAtLastPayslip?.referenceDate === "string"
@@ -70,12 +71,13 @@ function hasImportedPayslip(): boolean {
 
 interface DashboardStatsGridProps {
   profile: ProfileSummary
+  userId: string
 }
 
-export function DashboardStatsGrid({ profile }: DashboardStatsGridProps) {
+export function DashboardStatsGrid({ profile, userId }: DashboardStatsGridProps) {
   const hasTarjeton = useSyncExternalStore(
     () => () => {},
-    () => hasImportedPayslip(),
+    () => hasImportedPayslip(userId),
     () => false,
   )
 

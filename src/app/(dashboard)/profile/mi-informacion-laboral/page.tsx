@@ -19,6 +19,22 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return <p style={{ padding: "2rem" }}>Debes iniciar sesión.</p>
 
+  // Inicialización idempotente del perfil: un usuario autenticado puede abrir
+  // esta página directamente (sin visitar antes /profile). Sin fila en
+  // public.profiles, la confirmación del tarjetón fallaría por llave foránea.
+  const { error: ensureProfileError } = await supabase.rpc("ensure_profile_exists")
+  if (ensureProfileError) {
+    console.error("[worker-profile-page] ensure_profile_exists:", ensureProfileError.code)
+    return (
+      <PageContainer maxWidth={600} padding="1.5rem 0">
+        <h1 style={{ fontSize: "1.25rem", margin: "0 0 0.5rem", wordBreak: "break-word" }}>Mi información laboral</h1>
+        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.375rem", padding: "1rem", color: "#991b1b", fontSize: "0.9375rem", wordBreak: "break-word" }}>
+          No se pudo preparar tu perfil para cargar tu información laboral. Recarga la página e inténtalo de nuevo.
+        </div>
+      </PageContainer>
+    )
+  }
+
   // Validar y sanitizar returnTo en servidor.
   const resolvedSearchParams = await searchParams
   const rawReturnTo = resolvedSearchParams?.returnTo
@@ -144,6 +160,7 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
         events={events}
         returnTo={returnTo}
         profileSnapshot={snapshot}
+        userId={user.id}
       />
 
       {/* Historial de tarjetones con control de tarjetón activo */}
@@ -204,7 +221,7 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
           </p>
         </div>
 
-        <TarjetonUploaderSection profileSnapshot={snapshot} />
+        <TarjetonUploaderSection profileSnapshot={snapshot} userId={user.id} />
 
         <Link
           href="/documentos-personales"

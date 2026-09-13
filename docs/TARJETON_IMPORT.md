@@ -170,3 +170,44 @@ trabajador).
 - **Tolerancia a `warnings` Diagnósticos**: `normalizeRpcResponse` remueve metadatos diagnósticos del RPC antes de validar el contrato público, evitando falsos positivos de error en cliente.
 - **Inmunidad al Router Cache de Next.js**: `useLiveWorkerContext` y la política `prefetch={false}` en `ACTIVE_WORKER_DATA_ROUTES` garantizan que la navegación SPA nunca muestre snapshots obsoletos del contexto de trabajador tras cambiar el tarjetón activo.
 - **Backfill y Auto-Recuperación Idempotente**: La migración `20260907170000_tarjeton_p0_recovery.sql` recupera usuarios afectados en producción restaurando `payroll_contexts` y `worker_preferences` a partir del tarjetón canónico.
+
+---
+
+## Aislamiento multiusuario y bootstrap de perfil (P0, 2026-09-13)
+
+### Causa raiz del fallo de confirmacion
+`public.imported_payslips.user_id` tiene FK a `public.profiles(id)`. Un usuario
+autenticado sin fila en `profiles` (p. ej. creado antes del trigger
+`on_auth_user_created`) provocaba SQLSTATE 23503 al confirmar, devolviendo 500.
+El administrador funcionaba porque ya tenia perfil.
+
+### Correccion
+- `src/app/(dashboard)/profile/mi-informacion-laboral/page.tsx` ejecuta
+  `ensure_profile_exists` (idempotente) para CUALQUIER usuario autenticado antes
+  de consultar `profiles` o renderizar el importador. Ya no depende de visitar
+  antes `/profile`.
+- `src/app/api/tarjeton/confirm/route.ts` ejecuta `ensure_profile_exists` antes
+  de `confirm_imported_payslip`. Si falla: 500 con
+  `No se pudo preparar tu perfil para guardar el tarjetón.` (sin SQL, details ni
+  stack). Sin sesion sigue devolviendo 401. No usa service role ni relaja RLS.
+
+### Aislamiento local por `auth.uid()`
+- `src/shared/services/scoped-storage.ts`: `scopedStorageKey(base, userId)`
+  -> `base:v2:<userId>`; sin `userId` lanza error (nunca cae a clave compartida).
+- `local-storage` (perfil, tarjetones, proyecciones, consentimiento),
+  `payslip-analysis-store` y `tarjeton-blob-storage` (IndexedDB) reciben el
+  `userId` autenticado y filtran por dueño.
+- `useTarjetonImporter(profile, userId)` usa el UUID real; se elimino el dueño
+  literal `"local"` (hay una prueba de regresion que falla si reaparece).
+- El fallback "ultimo PDF" en IndexedDB se limita al dueño actual.
+- **Datos heredados sin dueño**: las claves antiguas (`nomina_*`,
+  `la_veinte_payslip_analyses`, registros IndexedDB sin `ownerUserId`) quedan en
+  cuarentena logica: NO se leen, NO se borran y NO se adjudican automaticamente.
+
+### Como probar dos usuarios
+- Unitarias: `npx vitest run src/shared/services/__tests__ src/features/tarjeton/__tests__/payslip-analysis-store-isolation.test.ts src/features/tarjeton/__tests__/no-local-owner-regression.test.ts src/app/api/tarjeton/confirm/__tests__`
+- Integracion local (usuario nuevo, sin `profiles`):
+  `src/features/tarjeton/__tests__/confirm-new-user.local.test.ts`
+  (requiere `SUPABASE_LOCAL_ANON_KEY` y Supabase local; se omite sin ellos).
+- E2E multiusuario: `e2e/full/tarjeton-multiuser.spec.ts`
+  (requiere `E2E_MULTIUSER_*`; dos contextos separados, nunca produccion).
