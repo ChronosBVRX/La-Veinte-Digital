@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { PublicPageShell } from "@/shared/components/public/PublicPageShell"
 import { DeleteAccountButton } from "@/features/account/components/DeleteAccountButton"
+import { CONTACT_EMAIL, CONTACT_MAILTO } from "@/shared/lib/contact"
 
 export const metadata = {
   title: "Eliminar mi cuenta | La Veinte Digital",
@@ -51,8 +52,9 @@ export default async function DeleteAccountPage() {
             <Link href="/login" style={link}>Inicia sesión aquí</Link> y vuelve a esta página.
           </p>
           <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-            Si no puedes iniciar sesión o prefieres que un equipo te ayude, escríbenos por Soporte:{" "}
-            <em>[REQUIERE_DATO_DEL_PROPIETARIO — canal oficial de soporte]</em>.
+            Si no puedes iniciar sesión o prefieres que un equipo te ayude, escríbenos por{" "}
+            <a href={CONTACT_MAILTO} style={link}>{CONTACT_EMAIL}</a> o desde la página de{" "}
+            <Link href="/soporte" style={link}>Soporte</Link>.
           </p>
         </section>
       )}

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { CONTACT_EMAIL, CONTACT_MAILTO, CONTACT_PHONE_DISPLAY, CONTACT_PHONE_HREF } from "@/shared/lib/contact"
 
 /**
  * Shell for public, no-account-required pages (privacy, terms, support, about, account requests).
@@ -65,6 +66,12 @@ export function PublicPageShell({
           <Link href="/privacidad" style={{ color: "var(--primary)", textDecoration: "underline" }}>Privacidad</Link>
           {" · "}
           <Link href="/terminos" style={{ color: "var(--primary)", textDecoration: "underline" }}>Términos</Link>
+        </p>
+        <p style={{ textAlign: "center", color: "var(--muted)", fontSize: "0.8125rem", marginTop: "0.5rem" }}>
+          Contacto:{" "}
+          <a href={CONTACT_MAILTO} style={{ color: "var(--primary)", textDecoration: "underline" }}>{CONTACT_EMAIL}</a>
+          {" · "}
+          <a href={CONTACT_PHONE_HREF} style={{ color: "var(--primary)", textDecoration: "underline" }}>{CONTACT_PHONE_DISPLAY}</a>
         </p>
       </main>
     </div>

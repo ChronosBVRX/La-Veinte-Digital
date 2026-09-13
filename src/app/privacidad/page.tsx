@@ -1,4 +1,5 @@
 import { PublicPageShell } from "@/shared/components/public/PublicPageShell"
+import { OWNER_NAME, OWNER_ROLE, CONTACT_EMAIL, CONTACT_MAILTO, CONTACT_PHONE_DISPLAY, CONTACT_PHONE_HREF } from "@/shared/lib/contact"
 
 export const metadata = {
   title: "Política de Privacidad | La Veinte Digital",
@@ -14,6 +15,9 @@ export default function PrivacyPage() {
           La Veinte Digital es una plataforma digital independiente de la comunidad SNTSS.{" "}
           <strong>No es una aplicación oficial del IMSS ni de ninguna institución de gobierno.</strong>{" "}
           Solo proporciona herramientas informativas y de acceso a portales públicos y oficiales.
+        </p>
+        <p>
+          Responsable del tratamiento de tus datos: <strong>{OWNER_NAME}</strong>, {OWNER_ROLE}.
         </p>
       </section>
 
@@ -69,10 +73,14 @@ export default function PrivacyPage() {
 
       <section>
         <h2 style={h2}>8. Contacto</h2>
-        {/* REQUIERE_DATO_DEL_PROPIETARIO: se debe completar el correo/contacto real de soporte de La Veinte Digital */}
         <p>
-          Para dudas sobre privacidad: soporte de La Veinte Digital.{" "}
-          <em>[REQUIERE_DATO_DEL_PROPIETARIO — correo de contacto oficial]</em>
+          Para dudas sobre privacidad, protección de datos o para ejercer tus derechos (acceso,
+          rectificación, cancelación y oposición), contáctanos:
+        </p>
+        <p>
+          Correo: <a href={CONTACT_MAILTO} style={link}>{CONTACT_EMAIL}</a>
+          {" · "}
+          Teléfono: <a href={CONTACT_PHONE_HREF} style={link}>{CONTACT_PHONE_DISPLAY}</a>
         </p>
         <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
           Consulta también nuestros <a href="/terminos" style={link}>Términos de Uso</a> y la página de{" "}

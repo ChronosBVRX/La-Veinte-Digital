@@ -364,6 +364,15 @@ Ver `AGENTS.md` para las reglas completas de arquitectura:
 
 ---
 
+## Contacto
+
+- **Responsable:** Eduardo Bolaños Vazquez (Técnico Radiólogo)
+- **Correo:** noirsysan@gmail.com
+- **Teléfono:** +52 443 366 7106
+- **Sitio:** https://la20.com.mx
+
+---
+
 ## Licencia
 
 Privado - SNTSS Sección XX
