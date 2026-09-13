@@ -30,10 +30,12 @@ test.describe("Acceso publico - sin sesion", () => {
     await expect(page.getByText("Regístrate")).toBeVisible()
   })
 
-  test("login tiene botones OAuth", async ({ page }) => {
+  test("login tiene Google y oculta Facebook por flag", async ({ page }) => {
+    // Facebook Login oculto temporalmente (Meta exige verificación empresarial).
+    // Se reactiva con NEXT_PUBLIC_ENABLE_FACEBOOK_LOGIN=true sin cambiar código.
     await page.goto("/login")
     await expect(page.getByRole("button", { name: /google/i })).toBeVisible()
-    await expect(page.getByRole("button", { name: /facebook/i })).toBeVisible()
+    await expect(page.getByRole("button", { name: /facebook/i })).toHaveCount(0)
   })
 
   test("pagina de registro carga correctamente", async ({ page }) => {
