@@ -163,8 +163,8 @@ describe("Pipeline Canónico: Documento Guardado como Fuente de Verdad (13 Escen
     const analysis = createSample17Analysis("doc-reload", "hash-reload")
     savePayslipAnalysis(TEST_USER, analysis)
 
-    const rawStorage = window.localStorage.getItem("la_veinte_payslip_analyses")
-    expect(rawStorage).toBeDefined()
+    const rawStorage = window.localStorage.getItem(scopedStorageKey("la_veinte_payslip_analyses", TEST_USER))
+    expect(rawStorage).not.toBeNull()
 
     // Simular nueva carga de página
     const latest = getLatestPayslipAnalysis(TEST_USER)

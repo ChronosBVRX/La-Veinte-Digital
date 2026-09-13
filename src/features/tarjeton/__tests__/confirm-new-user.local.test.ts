@@ -18,7 +18,7 @@ import { createClient } from "@supabase/supabase-js"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { execSync } from "child_process"
 
-const LOCAL_URL = "http://127.0.0.1:54321"
+const LOCAL_URL = process.env.SUPABASE_LOCAL_URL ?? "http://127.0.0.1:54321"
 const LOCAL_ANON_KEY = process.env.SUPABASE_LOCAL_ANON_KEY ?? ""
 const DOCKER_DB = process.env.SUPABASE_LOCAL_DB_CONTAINER ?? "supabase_db_La_Veinte_Digital"
 const TEST_EMAIL = "tarjeton-new-user@test.local"
@@ -116,4 +116,103 @@ describe.skipIf(!available)("Tarjetón — usuario nuevo sin profiles previo (Su
     const res = await client.rpc("ensure_profile_exists")
     expect(res.error).toBeNull()
   })
+
+  it("P0: confirmar SIN perfil falla por FK; con ensure_profile_exists previo funciona, asocia al UUID y es idempotente", async () => {
+    const sourceHash = `e2e-newuser-${Date.now()}`
+    const parsed = buildSyntheticParsed("1A-ENE-2026", 2026, 1, 1, "900123")
+
+    // 1. Estado inicial: sin fila en profiles (trigger eliminado a mano).
+    execDb(`
+      delete from public.imported_payslips where user_id = '${userId}';
+      delete from public.worker_preferences where user_id = '${userId}';
+      delete from public.payroll_contexts where user_id = '${userId}';
+      delete from public.profiles where id = '${userId}';
+    `)
+    expect(execDb(`select count(*) from public.profiles where id = '${userId}';`).trim()).toBe("0")
+
+    // 2. Confirmar SIN bootstrap reproduce el fallo original (violación de FK).
+    const withoutBootstrap = await client.rpc("confirm_imported_payslip", {
+      p_source_hash: sourceHash,
+      p_parsed: parsed,
+      p_profile_updates: { categoria: true, antiguedad: true },
+      p_acknowledge_total_difference: true,
+      p_authorize_server_storage: true,
+    })
+    expect(withoutBootstrap.error).not.toBeNull()
+
+    // 3. Flujo canónico: ensure_profile_exists + confirm.
+    const ensured = await client.rpc("ensure_profile_exists")
+    expect(ensured.error).toBeNull()
+
+    const first = await client.rpc("confirm_imported_payslip", {
+      p_source_hash: sourceHash,
+      p_parsed: parsed,
+      p_profile_updates: { categoria: true, antiguedad: true },
+      p_acknowledge_total_difference: true,
+      p_authorize_server_storage: true,
+    })
+    expect(first.error).toBeNull()
+
+    // 4. profiles.id = auth.uid()
+    expect(execDb(`select count(*) from public.profiles where id = '${userId}';`).trim()).toBe("1")
+
+    // 5. imported_payslips.user_id = mismo UUID
+    expect(
+      execDb(`select count(*) from public.imported_payslips where user_id = '${userId}';`).trim(),
+    ).toBe("1")
+
+    // 6. Preferencias y contexto laboral inicializados.
+    expect(
+      execDb(`select onboarding_state from public.worker_preferences where user_id = '${userId}';`).trim(),
+    ).toBe("configured")
+    expect(
+      execDb(`select count(*) from public.payroll_contexts where user_id = '${userId}';`).trim(),
+    ).toBe("1")
+
+    // 7. Idempotencia: mismo source_hash no duplica.
+    const second = await client.rpc("confirm_imported_payslip", {
+      p_source_hash: sourceHash,
+      p_parsed: parsed,
+      p_profile_updates: { categoria: true, antiguedad: true },
+      p_acknowledge_total_difference: true,
+      p_authorize_server_storage: true,
+    })
+    expect(second.error).toBeNull()
+    expect(
+      execDb(`select count(*) from public.imported_payslips where user_id = '${userId}';`).trim(),
+    ).toBe("1")
+  })
 })
+
+/** Tarjetón sintético con balance contable exacto (sin datos personales reales). */
+function buildSyntheticParsed(periodRaw: string, year: number, month: number, half: number, matricula: string) {
+  const earnings = [
+    { code: "002", description: "SUELDO BASE", amount: 3937.64, kind: "earning", confidence: 0.95, confirmedByUser: true },
+    { code: "011", description: "PRESTACIONES EN DINERO", amount: 3234.77, kind: "earning", confidence: 0.95, confirmedByUser: true },
+  ]
+  const deductions = [
+    { code: "212", description: "IMPUESTO SOBRE LA RENTA", amount: 1234.56, kind: "deduction", confidence: 0.95, confirmedByUser: true },
+  ]
+  const totalEarnings = 7172.41
+  const totalDeductions = 1234.56
+  const netPay = 5937.85
+
+  return {
+    document: { periodRaw, year, month, half, folio: "998877", certificationDate: "2026-01-31" },
+    employee: {
+      employeeNumber: matricula,
+      fullName: "SINTETICO PRUEBA",
+      categoryName: "ENFERMERA GENERAL",
+      categoryCode: "6112",
+      workdayHours: 8,
+      entryDate: "2003-03-01",
+      employmentType: "base",
+      location: "HGZ DEMO",
+      seniority: { years: 22, fortnights: 10, days: 2, reconstructedEffectiveDate: "2003-03-01", raw: "22 anos 10 qnas 2 dias" },
+    },
+    attendance: {},
+    vacations: {},
+    payroll: { earnings, deductions, totalEarnings, totalDeductions, netPay, observations: [] },
+    extraction: { method: "native_text", globalConfidence: 0.33, validations: { templateDetected: true }, warnings: [] },
+  }
+}

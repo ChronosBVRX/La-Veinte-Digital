@@ -211,3 +211,14 @@ El administrador funcionaba porque ya tenia perfil.
   (requiere `SUPABASE_LOCAL_ANON_KEY` y Supabase local; se omite sin ellos).
 - E2E multiusuario: `e2e/full/tarjeton-multiuser.spec.ts`
   (requiere `E2E_MULTIUSER_*`; dos contextos separados, nunca produccion).
+
+### Almacenamiento por usuario: alcance y limites
+
+- El namespace `:v2:<userId>` evita la MEZCLA accidental de datos entre
+  cuentas dentro de la aplicacion (una cuenta no lee el namespace de otra).
+- NO constituye cifrado del almacenamiento del dispositivo: los datos siguen
+  en localStorage/IndexedDB en claro y cualquier persona con acceso al perfil
+  del navegador/dispositivo podria leerlos. El cifrado de credenciales IMSS es
+  responsabilidad de la boveda nativa (Android Keystore/iOS Keychain).
+- No hay migracion automatica de datos heredados sin dueno: se dejan intactos
+  en cuarentena logica.
