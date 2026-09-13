@@ -28,10 +28,6 @@ interface GateStep {
   error?: string
 }
 
-const isWin = process.platform === "win32"
-const gradlewCmd = isWin ? "gradlew.bat" : "./gradlew"
-const cleanNextCmd = 'node -e "const fs = require(\'fs\'); if (fs.existsSync(\'.next\')) fs.rmSync(\'.next\', { recursive: true, force: true });"'
-
 const steps: GateStep[] = [
   {
     name: "TypeScript Typecheck",
@@ -60,19 +56,19 @@ const steps: GateStep[] = [
   },
   {
     name: "Next.js Production Build",
-    command: `${cleanNextCmd} && npm run build`,
+    command: "rm -rf .next && npm run build",
   },
   {
     name: "Android Unit Tests (All Flavors)",
-    command: `cd android-app && ${gradlewCmd} test`,
+    command: "cd android-app && ./gradlew test",
   },
   {
     name: "Android Release Lint (playRelease)",
-    command: `cd android-app && ${gradlewCmd} lintPlayRelease`,
+    command: "cd android-app && ./gradlew lintPlayRelease",
   },
   {
     name: "Android Distribution Policy (Google Play Contract)",
-    command: `cd android-app && ${gradlewCmd} validateDistributionPolicyPlayRelease`,
+    command: "cd android-app && ./gradlew validateDistributionPolicyPlayRelease",
   },
 ]
 

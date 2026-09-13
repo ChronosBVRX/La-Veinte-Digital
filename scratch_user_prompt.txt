@@ -1,0 +1,1796 @@
+<USER_REQUEST>
+INSTRUCCIÓN MAESTRA — DIRECCIÓN AUDIOVISUAL DOCUMENTAL, NO KARAOKE, PARA LA VEINTE RADIO
+OBJETIVO
+
+Quiero evolucionar nuevamente el motor visual de La Veinte Radio.
+
+La versión actual ha mejorado sustancialmente:
+
+sincronización audio/video;
+personajes;
+gráficos;
+documentos;
+referencias reales;
+assets;
+16:9;
+9:16;
+Visual Plan;
+edición desde AI Radio Studio.
+
+Pero visualmente todavía tiene dos problemas importantes:
+
+PROBLEMA 1 — SE SIENTE DEMASIADO GENÉRICO
+
+Hay demasiadas escenas basadas en:
+
+fondo oscuro
++
+locutor
++
+bloque de texto
+
+o:
+
+fondo oscuro
++
+tarjeta rectangular
++
+texto
+
+Incluso cuando existen imágenes, edificios, documentos y referencias investigadas, muchas veces terminan relegadas a fondos o decoraciones.
+
+Quiero que las referencias reales puedan convertirse en protagonistas visuales.
+
+PROBLEMA 2 — PARECE KARAOKE
+
+Actualmente demasiado contenido hablado termina apareciendo escrito en pantalla.
+
+Esto es incorrecto.
+
+EL VIDEO NO DEBE TRANSCRIBIR EL PODCAST.
+
+El espectador ya está escuchando la voz.
+
+La pantalla debe COMPLEMENTAR el audio.
+
+No repetirlo.
+
+1. PRINCIPIO EDITORIAL FUNDAMENTAL
+
+La nueva regla absoluta será:
+
+Si el audio ya lo está diciendo, la pantalla sólo debe escribirlo si verlo aporta información adicional.
+
+Por tanto:
+
+AUDIO = narración principal
+
+VIDEO = evidencia + contexto + explicación + ritmo
+
+No:
+
+AUDIO = frase
+VIDEO = misma frase escrita
+2. PROHIBIDO EL EFECTO KARAOKE
+
+Queda prohibido como comportamiento predeterminado:
+
+mostrar todo el guion;
+mostrar cada oración;
+mostrar párrafos completos mientras son pronunciados;
+resaltar palabra por palabra;
+hacer aparecer cada palabra al ritmo de la voz;
+utilizar texto como sustituto constante de imágenes;
+ocupar media pantalla con la transcripción;
+cambiar el texto simplemente porque el locutor comenzó una frase nueva.
+
+NO quiero:
+
+Eduardo dice:
+
+"Bienvenidas y bienvenidos al primer episodio de La Veinte Radio..."
+
+PANTALLA:
+
+BIENVENIDAS Y BIENVENIDOS
+AL PRIMER EPISODIO
+DE LA VEINTE RADIO...
+
+Eso es karaoke.
+
+3. TEXTO EDITORIAL, NO TRANSCRIPCIÓN
+
+La pantalla puede utilizar texto cuando tenga una función editorial.
+
+Ejemplo hablado:
+
+“Este incremento contractual se integra por distintos componentes y no significa que tu quincena vaya a aumentar directamente 8.55 por ciento.”
+
+Visual correcto:
+
+8.55%
+
+NO ES UN AUMENTO
+DIRECTO A TU QUINCENA
+
+o incluso mejor:
+
+2.90%
+3.90%
+1.75%
+
+con un gráfico explicativo.
+
+NO:
+
+Este incremento contractual se integra por distintos componentes
+y no significa que tu quincena vaya a aumentar directamente...
+4. REGLA DE REDUCCIÓN DE TEXTO
+
+Cuando se utilice texto editorial:
+
+HEADLINE
+
+Ideal:
+
+2–7 palabras
+
+Máximo normal:
+
+10 palabras
+SUBHEADLINE
+
+Ideal:
+
+4–12 palabras
+BULLETS
+
+Máximo normal:
+
+3–4 bullets
+
+Cada bullet:
+
+3–10 palabras
+TARJETAS LEGALES
+
+Mostrar:
+
+documento
+referencia
+idea clave
+
+NO párrafos.
+
+5. SUBTÍTULOS SON UNA CAPA DIFERENTE
+
+No confundas:
+
+texto editorial
+
+con:
+
+subtítulos
+
+Implementar dos capas completamente independientes.
+
+TEXTO EDITORIAL
+
+Forma parte de la dirección visual.
+
+SUBTÍTULOS
+
+Función opcional de accesibilidad.
+
+6. NUEVO CONTROL EN LA GUI
+
+En:
+
+Controles avanzados
+→ Visuales
+
+agrega:
+
+TEXTO EN PANTALLA
+
+Opciones:
+
+● Editorial — recomendado
+
+○ Editorial + subtítulos
+
+○ Sólo subtítulos
+
+○ Mínimo
+
+Predeterminado:
+
+Editorial
+7. MODO EDITORIAL
+
+NO muestra transcripción.
+
+Sólo:
+
+titulares;
+cifras;
+nombres;
+artículos;
+cláusulas;
+conceptos;
+fechas;
+pasos;
+etiquetas;
+fuentes;
+datos que realmente ayudan a entender.
+8. EDITORIAL + SUBTÍTULOS
+
+Puede existir para accesibilidad.
+
+Pero los subtítulos:
+
+van separados del diseño editorial;
+máximo 2 líneas;
+frases naturales;
+nunca palabra por palabra;
+nunca resaltado karaoke;
+nunca ocupar media pantalla;
+respetar safe zones.
+9. SUBTÍTULOS
+
+Aunque estén habilitados:
+
+PROHIBIDO:
+
+palabra
+por
+palabra
+
+Usar fragmentación lingüística natural.
+
+Ejemplo:
+
+Este aumento no llega
+directamente a tu quincena.
+
+Y después:
+
+Está compuesto por
+distintos conceptos.
+10. NUEVO PRINCIPIO: EVIDENCE-FIRST VISUAL STORYTELLING
+
+Reestructura las decisiones del VisualEditorialPlanner.
+
+En vez de comenzar preguntando:
+
+¿Qué plantilla pongo?
+
+debe comenzar preguntando:
+
+¿Qué debería VER el espectador para entender mejor esta parte?
+
+La jerarquía editorial debe ser:
+
+EVIDENCIA
+↓
+EXPLICACIÓN
+↓
+CONTEXTO
+↓
+LOCUTOR
+
+según corresponda.
+
+No significa que siempre deba existir evidencia.
+
+Significa que debe buscar primero si realmente existe algo valioso que enseñar.
+
+11. CUATRO GRANDES FUNCIONES VISUALES
+
+Simplifica conceptualmente el motor a cuatro familias.
+
+A. LOCUTOR
+
+Cuando la personalidad o conversación es lo importante.
+
+B. EVIDENCIA
+
+Cuando existe algo real que puede enseñarse.
+
+C. EXPLICACIÓN
+
+Cuando un gráfico o diagrama ayuda a comprender.
+
+D. CONTEXTO
+
+Cuando una imagen ayuda a imaginar el entorno o situación.
+
+Los sceneType existentes pueden seguir existiendo internamente.
+
+Pero el planner debe pensar primero en estas cuatro funciones.
+
+12. LOCUTOR
+
+Usar:
+
+introducciones;
+opiniones;
+preguntas;
+reacciones;
+transiciones;
+conversación;
+conclusiones;
+partes donde ningún apoyo aporta algo importante.
+
+El locutor sigue siendo el hilo conductor.
+
+Pero:
+
+NO NECESITA TENER TODO LO QUE DICE ESCRITO JUNTO A ÉL.
+
+Puede aparecer:
+
+JAVIER RÍOS
+Análisis normativo
+
+durante unos segundos.
+
+Después dejar simplemente:
+
+Javier + ambientación visual
+
+sin párrafos.
+
+13. EVIDENCIA
+
+Utilizar cuando el audio mencione:
+
+documento real;
+ley;
+contrato;
+cláusula;
+edificio;
+hospital;
+clínica;
+institución;
+logotipo;
+publicación;
+tarjetón;
+recibo;
+calendario;
+página;
+formulario;
+tabla real;
+mapa;
+fotografía/referencia real.
+14. DOCUMENTOS DEBEN VERSE COMO DOCUMENTOS
+
+Si hablan del:
+
+Contrato Colectivo de Trabajo
+
+NO quiero únicamente:
+
+CCT 2025–2027
+
+[tarjeta azul]
+
+Quiero poder ver:
+
+portada/referencia
+
+como protagonista.
+
+Después:
+
+zoom / pan editorial
+
+hacia:
+
+CLÁUSULA 63 BIS
+
+y superponer únicamente:
+
+Ayuda de Renta
+
+o el concepto necesario.
+
+15. MOVIMIENTO SOBRE DOCUMENTOS
+
+Implementar movimiento cinematográfico ligero:
+
+pan
+slow zoom
+crop focus
+highlight region
+spotlight
+underline
+
+Ejemplo:
+
+portada CCT
+↓
+zoom
+↓
+Cláusula 63 Bis
+↓
+highlight
+↓
+regresa al locutor
+
+No convertir documentos en fondos estáticos durante 20 segundos.
+
+16. TARJETÓN
+
+Cuando se habla de conceptos de nómina:
+
+NO utilizar siempre una tabla artificial.
+
+Si existe una representación legítima del tarjetón:
+
+mostrar:
+
+tarjetón
+
+Después:
+
+zoom Concepto 02
+
+mostrar:
+
+SUELDO TABULAR
++ $...
+
+Después:
+
+zoom Concepto 11
+
+mostrar:
+
+AYUDA DE RENTA
++ $...
+
+Después:
+
+resumen gráfico
+
+La pantalla debe enseñar:
+
+“Aquí está.”
+
+17. EDIFICIOS
+
+Si el audio menciona:
+
+HGR No. 1 Charo
+
+y tenemos referencia investigada:
+
+el edificio debe ocupar realmente la pantalla.
+
+No quiero:
+
+fondo del edificio al 15% de opacidad
++
+enorme tarjeta encima
+
+Preferir:
+
+edificio protagonista
++
+label discreto:
+HGR No. 1 — Charo
+18. CONGRESO / ASAMBLEAS
+
+Si se habla del Congreso Nacional del SNTSS:
+
+secuencia posible:
+
+locutor
+↓
+edificio / sede / contexto
+↓
+salón / asamblea
+↓
+identidad SNTSS
+↓
+dato relevante
+↓
+locutor
+
+No:
+
+tarjeta 8.55%
+
+durante toda la explicación.
+
+19. LEY FEDERAL DEL TRABAJO
+
+Cuando se habla de LFT:
+
+preferir:
+
+documento / publicación
+↓
+artículo relevante
+↓
+highlight
+
+Por ejemplo:
+
+ART. 399 BIS
+
+Después una frase:
+
+Revisión anual
+
+No una diapositiva con 100 palabras.
+
+20. DOF / DOCUMENTOS OFICIALES
+
+Mismo principio.
+
+Cuando existe evidencia documental:
+
+mostrar evidencia.
+
+Después agregar nuestra interpretación visual por encima.
+
+21. EXPLICACIÓN
+
+Utilizar gráficos cuando realmente ayuden.
+
+Ejemplos:
+
+barras;
+comparación;
+timeline;
+proceso;
+cálculo;
+calendario;
+composición porcentual;
+antes/después;
+flujo.
+
+NO utilizar gráficos sólo para “tener movimiento”.
+
+22. GRÁFICO DEL 8.55%
+
+Actualmente se repite demasiado.
+
+Corrige esto específicamente.
+
+El asset:
+
+stat_breakdown_855
+
+o equivalente NO debe aparecer reiteradamente durante todo el episodio simplemente porque vuelve a mencionarse 8.55%.
+
+Añade:
+
+strongRepetitionPenalty
+23. REGLA DE REPETICIÓN
+
+Un gráfico completo que ya explicó un concepto NO debe reaparecer cada vez que se vuelve a mencionar.
+
+Primera explicación:
+
+gráfico completo
+
+Menciones posteriores:
+
+puede aparecer:
+
+8.55%
+
+como pequeño dato.
+
+O simplemente no mostrar nada.
+
+24. MEMORIA EDITORIAL
+
+El planner necesita saber:
+
+conceptAlreadyExplained
+assetRecentlyUsed
+visualAlreadyShown
+
+Crear algo equivalente a:
+
+EditorialMemory
+25. EDITORIAL MEMORY
+
+Debe registrar:
+
+conceptsIntroduced
+conceptsExplained
+assetsUsed
+documentsShown
+chartsShown
+entitiesShown
+lastSceneFamilies
+26. REGLA
+
+Si:
+
+8.55%
+
+ya fue explicado visualmente:
+
+la siguiente mención NO necesita volver a explicar el gráfico completo.
+
+27. CONTEXTO
+
+Utilizar imágenes para dar ambiente cuando:
+
+hablan de hospital;
+turno;
+área médica;
+oficina;
+sindicato;
+trabajo;
+vacaciones;
+trámites;
+atención;
+checador;
+nómina.
+
+Pero siempre relacionadas realmente.
+
+28. B-ROLL DEBE SER PROTAGONISTA
+
+Cuando entre B-roll:
+
+permitir que ocupe:
+
+80–100% del canvas
+
+según escena.
+
+No relegarlo constantemente a:
+
+background darkened 80%
+29. OVERLAY SOBRE B-ROLL
+
+El texto encima debe ser mínimo.
+
+Ejemplo:
+
+HGR No. 1
+CHARO, MICHOACÁN
+
+Nada más.
+
+30. PICTURE-IN-PICTURE
+
+Puede mantener continuidad del locutor:
+
+B-roll grande
++
+locutor pequeño
+
+ocasionalmente.
+
+No obligatorio.
+
+31. MÁS VARIEDAD DE COMPOSICIÓN
+
+Evitar que todo termine:
+
+rectángulo central
+
+Crear composiciones:
+
+FULL BLEED
+[       IMAGEN COMPLETA       ]
+SPLIT
+[ imagen ] [ gráfico ]
+DOCUMENT FOCUS
+       [ documento ]
+    highlight puntual
+DATA FOCUS
+        $368
+   diferencia estimada
+LOCUTOR
+persona + identidad
+PICTURE-IN-PICTURE
+[ contexto        ]
+[          speaker]
+32. CAMBIOS VISUALES NO DEPENDEN DE CADA FRASE
+
+No usar:
+
+sentence boundary = new scene
+
+Debe existir:
+
+editorial idea boundary = possible scene change
+33. RITMO
+
+Duración normal orientativa:
+
+4–9 segundos
+
+pero NO forzar.
+
+Un buen plano puede durar:
+
+10–15 segundos
+
+si sigue siendo relevante.
+
+34. NO CAMBIAR POR MIEDO AL SILENCIO VISUAL
+
+Una imagen interesante puede respirar.
+
+Una gráfica puede permanecer mientras se explica.
+
+Un locutor puede permanecer mientras desarrolla una idea.
+
+No debe moverse todo constantemente.
+
+35. DENSIDAD VISUAL REVISADA
+
+En modo:
+
+EQUILIBRADO
+
+objetivo aproximado:
+
+LOCUTOR
+35–50%
+
+EVIDENCIA REAL
+20–30%
+
+EXPLICACIÓN / GRÁFICOS
+10–20%
+
+CONTEXTO / B-ROLL
+10–20%
+
+BRAND
+resto
+
+No hardcodear los porcentajes.
+
+Son orientación editorial.
+
+36. EL TEXTO NO CUENTA COMO “VISUAL NUEVO”
+
+No incrementar diversidad visual porque:
+
+cambió un párrafo por otro
+
+Texto sobre mismo fondo sigue siendo prácticamente la misma escena.
+
+37. NUEVO SCORING
+
+El planner debe puntuar candidatos aproximadamente por:
+
+evidenceValue
+explanatoryValue
+contextValue
+novelty
+visualInterest
+relevance
+
+y penalizar:
+
+textDensity
+repetition
+genericness
+recentSimilarity
+38. GENERICNESS PENALTY
+
+Implementar explícitamente algo equivalente a:
+
+genericnessPenalty
+
+Ejemplo:
+
+dark card + text
+
+debe perder prioridad cuando existe:
+
+verified document
+
+o:
+
+reference asset
+
+o:
+
+useful chart
+39. TEXT DENSITY SCORE
+
+Cada escena debe calcular:
+
+textDensity
+
+Si supera límite:
+
+reformular.
+
+No reducir fuente hasta que quepa.
+
+40. NO MOSTRAR TODO LO QUE DICE EL AUDIO
+
+Ésta es regla de test.
+
+Calcula aproximadamente:
+
+spokenWordCount
+onScreenNarrativeWordCount
+
+NO contar:
+
+nombres;
+fuentes;
+logos;
+labels de gráficos.
+
+Para modo Editorial equilibrado, el texto narrativo visible debería ser una fracción pequeña del audio.
+
+Objetivo inicial orientativo:
+
+onScreenNarrativeWords
+<= 15–25% de spokenWords
+
+NO hardcodear exactamente 25%.
+
+Pero si aparece:
+
+80% del guion
+
+en pantalla:
+
+FAIL.
+
+41. TEST ANTI_KARAOKE
+
+Añade prueba automatizada.
+
+Debe detectar escenas donde:
+
+screenText
+
+es demasiado similar al:
+
+spokenText
+
+Usar:
+
+token overlap;
+similarity;
+longest common sequence;
+
+o mecanismo apropiado.
+
+42. CRITERIO ANTI-KARAOKE
+
+Si una escena repite casi literalmente una oración hablada larga:
+
+marcar:
+
+KARAOKE_RISK
+43. EXCEPCIONES
+
+Puede repetirse literalmente:
+
+una cifra;
+una cláusula;
+un artículo;
+un nombre;
+una frase muy corta importante;
+una cita extremadamente breve;
+un titular.
+
+Ejemplo válido:
+
+Audio:
+
+“Esto representa 8.55%.”
+
+Pantalla:
+
+8.55%
+
+Perfecto.
+
+44. SUBTÍTULOS NO ENTRAN AL ANTI-KARAOKE
+
+Porque pertenecen a capa de accesibilidad.
+
+Pero no deben formar parte de la composición editorial.
+
+45. CAPTIONS SE PUEDEN QUEMAR POR SEPARADO
+
+Arquitectura:
+
+scene render
+↓
+editorial overlays
+↓
+optional subtitle layer
+
+Así podemos exportar:
+
+video editorial limpio
+
+o:
+
+video con subtítulos
+
+más adelante.
+
+46. GUI — NUEVOS CONTROLES
+
+En:
+
+Controles avanzados
+→ Estilo y apoyos
+
+agregar:
+
+TEXTO EN PANTALLA
+● Editorial — sólo información clave
+
+○ Editorial + subtítulos
+
+○ Subtítulos
+
+○ Mínimo
+47. GUI — ESTILO DE DIRECCIÓN
+
+Agregar:
+
+Dirección visual:
+
+○ Conversacional
+● Documental
+○ Infográfica
+48. CONVERSACIONAL
+
+Más locutores.
+
+Menos B-roll.
+
+49. DOCUMENTAL
+
+Predeterminado recomendado para La Veinte Radio.
+
+Más:
+
+evidencia;
+documentos;
+edificios;
+imágenes;
+referencias reales;
+contexto.
+50. INFOGRÁFICA
+
+Más:
+
+datos;
+gráficos;
+diagramas;
+timelines.
+51. DOCUMENTAL NO SIGNIFICA LLENAR DE IMÁGENES
+
+Debe mantener al locutor como hilo.
+
+52. GUI — PREVIEW DEL PLAN
+
+En:
+
+Visuales
+
+cada beat debe mostrar su función:
+
+LOCUTOR
+EVIDENCIA
+EXPLICACIÓN
+CONTEXTO
+
+con etiquetas fáciles.
+
+53. EL USUARIO PUEDE CAMBIAR LA FUNCIÓN
+
+Al editar escena:
+
+Tipo:
+
+○ Locutor
+○ Evidencia
+○ Explicación
+○ Contexto
+
+Luego el sistema ofrece opciones pertinentes.
+
+54. EJEMPLO DE EVIDENCIA
+
+Si selecciona:
+
+Evidencia
+
+mostrar:
+
+CCT 2025–2027
+LFT
+HGR 1 Charo
+Tarjetón IMSS
+SNTSS
+...
+
+dependiendo del segmento.
+
+55. EJEMPLO DE EXPLICACIÓN
+
+Ofrecer:
+
+Gráfico
+Comparación
+Timeline
+Proceso
+Número
+56. EJEMPLO DE CONTEXTO
+
+Ofrecer assets relacionados:
+
+hospital
+oficina
+radiología
+trabajador
+congreso
+57. IMÁGENES INVESTIGADAS DEBEN TENER PRIORIDAD
+
+Si existe:
+
+HGR1 exact asset
+
+usar ese antes de:
+
+hospital generic
+58. NO CONFUNDIR ESPECÍFICO CON GENÉRICO
+
+Nunca mostrar:
+
+generic hospital
+
+con label:
+
+HGR 1 Charo
+59. DOCUMENTOS REALES
+
+Mantener clasificación:
+
+OFICIAL
+BASADO EN REFERENCIAS
+GENÉRICO
+PROPIO
+
+visible en Studio.
+
+60. ASSETS IA
+
+Si se genera entorno:
+
+texto crítico programático;
+logos overlay;
+logos nunca generados por IA;
+no alucinar documentos.
+61. ANIMACIÓN DOCUMENTAL
+
+Añadir movimientos:
+
+slow zoom
+pan
+parallax ligero
+mask reveal
+document highlight
+chart build
+number count
+62. EVITAR POWERPOINT
+
+No abusar:
+
+slide in
+slide out
+rectángulos
+bullet list
+63. TRANSICIONES
+
+Preferir:
+
+cut
+crossfade
+subtle push
+match dissolve
+
+según contexto.
+
+64. EJEMPLO COMPLETO — 8.55%
+
+No:
+
+locutor
+↓
+8.55 tarjeta
+↓
+locutor
+↓
+8.55 tarjeta
+↓
+locutor
+↓
+8.55 tarjeta
+
+Sí:
+
+Javier introduce
+↓
+SNTSS / contexto de acuerdo
+↓
+8.55%
+↓
+gráfico 2.90 + 3.90 + 1.75
+↓
+CCT
+↓
+Cláusula 63 Bis
+↓
+tarjetón ejemplo
+↓
+Concepto 02 / Concepto 11
+↓
+Javier concluye
+
+Las siguientes menciones a 8.55:
+
+NO vuelven a mostrar el gráfico completo.
+
+65. EJEMPLO — LEY FEDERAL DEL TRABAJO
+
+Audio explica revisión.
+
+Video:
+
+Javier
+↓
+LFT real/contextual
+↓
+zoom Art. 399 Bis
+↓
+"Revisión anual"
+↓
+zoom Art. 400 Bis
+↓
+"Revisión integral"
+↓
+comparación visual
+↓
+Javier
+
+Poco texto.
+
+66. EJEMPLO — TARJETÓN
+tarjetón
+↓
+zoom Concepto 02
+↓
++$290
+↓
+zoom Concepto 11
+↓
++$78
+↓
++$368 TOTAL DEL EJEMPLO
+
+No:
+
+3 párrafos explicativos
+67. EJEMPLO — HOSPITAL
+
+Audio:
+
+“En el HGR No. 1 de Charo…”
+
+Video:
+
+exterior investigado
+
+label:
+
+HGR No. 1
+Charo, Michoacán
+
+Nada más.
+
+68. INTRO
+
+Opening:
+
+marca pura.
+
+No párrafos.
+
+69. CIERRE
+
+Closing:
+
+puede utilizar una idea final MUY corta.
+
+Ejemplo:
+
+INFORMACIÓN PARA DEFENDER TUS DERECHOS
+
+o simplemente identidad La Veinte Radio.
+
+No volver a transcribir la conclusión completa.
+
+70. CONDUCTORES
+
+Durante diálogos:
+
+lower third aparece al comienzo:
+
+ANDREA
+Co-conductora
+
+Luego desaparece.
+
+No mantener permanentemente:
+
+Nombre
++
+cargo
++
+texto
++
+párrafo
+71. CHARACTER MOTION
+
+Puede conservarse geometría/animación actual.
+
+Pero no utilizar texto como principal fuente de actividad visual.
+
+72. ASSET SELECTION DEBE CONOCER EL CONTEXTO COMPLETO
+
+No clasificar cada frase de manera aislada.
+
+Analizar:
+
+previous turn
+current turn
+next turn
+section topic
+concepts already explained
+73. PLANIFICACIÓN POR SECCIÓN
+
+Antes de beats individuales:
+
+crear:
+
+EditorialSection
+
+Ejemplo:
+
+Introducción
+Acuerdo contractual
+Desglose
+Ejemplo nómina
+Marco jurídico
+Conclusión
+74. CADA SECCIÓN DEBE TENER ARCO VISUAL
+
+Ejemplo:
+
+presentar
+↓
+mostrar evidencia
+↓
+explicar
+↓
+regresar al conductor
+
+Esto evitará el aspecto aleatorio.
+
+75. NO PLANIFICAR BEATS SÓLO POR TURNOS
+
+Puede existir un mismo concepto atravesando 3 turnos.
+
+El plan visual puede coordinar esos turnos.
+
+Sin alterar alignment.
+
+76. NO TOCAR AUDIO
+
+Esta tarea NO puede:
+
+regenerar voces;
+llamar Speechify;
+cambiar SmartMixer;
+modificar audio;
+cambiar guion;
+cambiar alignment.
+77. PRIMERO PREVIEW
+
+Implementa cambios.
+
+Después genera únicamente:
+
+preview
+
+para d5f1fc16.
+
+No gastes tiempo inmediatamente en dos Full HD.
+
+78. CONTACT SHEET NUEVA
+
+Crear:
+
+qa/documentary-v2-contact-sheet.jpg
+
+con mínimo 36 frames.
+
+79. COMPARACIÓN OLD VS NEW
+
+Genera también:
+
+qa/visual-before-after.jpg
+
+con ejemplos paralelos:
+
+ANTES
+tarjeta genérica
+
+DESPUÉS
+documento / edificio / gráfico contextual
+80. MÉTRICAS NUEVAS
+
+Reportar:
+
+total scenes
+speaker scenes
+evidence scenes
+explanation scenes
+context scenes
+brand scenes
+
+spoken words
+editorial on-screen words
+ratio
+
+karaoke risk scenes
+
+unique real/reference assets
+generic assets
+repeated assets
+81. OBJETIVOS DE QA
+
+Para modo:
+
+Documental + Editorial
+
+esperado:
+
+KARAOKE_RISK = 0
+
+Exceptuando subtítulos opcionales.
+
+82. GENERIC SCENE RATIO
+
+Calcula qué porcentaje de escenas es:
+
+generic_card
+
+o equivalente.
+
+Debe reducirse significativamente respecto al renderer anterior.
+
+83. REPETITION
+
+Reportar:
+
+mostRepeatedVisual
+count
+
+Si una tarjeta explicativa completa aparece más de lo editorialmente razonable:
+
+revisarla.
+
+84. DOCUMENTARY EVIDENCE COVERAGE
+
+Para entidades visualizables importantes:
+
+entity
+visual evidence available
+shown
+
+Ejemplo:
+
+CCT              YES YES
+LFT              YES YES
+HGR 1            YES YES
+Tarjetón         YES YES
+SNTSS            YES YES
+
+No significa que cada entidad deba aparecer.
+
+Pero si es central y tenemos asset, debería aprovecharse.
+
+85. QA HUMANO AUTOMATIZADO
+
+Extrae frames:
+
+antes;
+durante;
+después;
+
+de los principales visuales.
+
+Inspecciona:
+
+relación con audio;
+exceso de texto;
+deformación;
+repetición;
+legibilidad.
+86. GUI
+
+Todo debe quedar configurable dentro de:
+
+AI RADIO STUDIO
+
+El usuario NO debe pedirle a Antigravity:
+
+hazlo menos karaoke.
+
+Debe poder seleccionar:
+
+Texto:
+Editorial
+
+y:
+
+Dirección:
+Documental
+87. PRESETS
+
+Actualizar preset:
+
+EXPLICACIÓN NORMATIVA
+
+Valores por defecto:
+
+Dirección:
+Documental
+
+Texto:
+Editorial
+
+Referencias reales:
+ON
+
+Documentos:
+ON
+
+Gráficos:
+ON
+
+B-roll contextual:
+ON
+
+Subtítulos:
+OFF
+88. NOTICIA LABORAL
+Documental
+Editorial
+Más evidencia real
+Menos gráficos
+89. PODCAST
+Conversacional
+Editorial mínimo
+Más speakers
+90. CÁPSULA SHORTS
+
+Puede tener más texto.
+
+Pero:
+
+NO karaoke.
+
+Usar:
+
+titulares
+frases clave
+números
+91. TEST DE INTERFAZ
+
+Desde GUI:
+
+Dirección = Documental
+Texto = Editorial
+
+Crear preview.
+
+Debe aplicar realmente esos valores.
+
+No sólo guardar toggles sin conexión con backend.
+
+92. PERSISTENCIA
+
+Guardar:
+
+visualDirection
+onScreenTextMode
+subtitleEnabled
+visualDensity
+realReferencePriority
+
+en proyecto.
+
+93. PROYECTOS EXISTENTES
+
+Defaults:
+
+visualDirection = documentary
+onScreenTextMode = editorial
+
+para nuevos proyectos.
+
+No romper anteriores.
+
+94. NO SOBRESCRIBIR DECISIONES MANUALES
+
+Si el usuario cambió una escena manualmente:
+
+regenerar VisualPlan NO debe borrarla silenciosamente.
+
+Marcar:
+
+lockedByUser
+95. LOCK VISUAL
+
+En UI:
+
+🔒 Mantener esta escena
+
+El planner no la reemplaza.
+
+96. NUEVO RESULTADO DESEADO
+
+La impresión final NO debe ser:
+
+“estoy viendo subtítulos bonitos”.
+
+Ni:
+
+“estoy viendo un PowerPoint”.
+
+Debe ser:
+
+“estoy viendo un programa informativo/documental que utiliza conductores, evidencia y gráficos para explicarme algo.”
+
+97. CRITERIOS DE ACEPTACIÓN
+
+No declares PASS hasta que:
+
+No se muestre sistemáticamente el guion completo.
+Modo Editorial funcione.
+Subtítulos sean capa separada.
+No exista resaltado palabra por palabra.
+KARAOKE_RISK = 0 en escenas editoriales.
+Documentos reales tengan protagonismo.
+Edificios reales puedan ocupar pantalla completa.
+B-roll no esté siempre oscurecido detrás de tarjetas.
+El 8.55% no repita la misma tarjeta constantemente.
+EditorialMemory funcione.
+Exista penalización por repetición.
+Exista genericnessPenalty.
+Exista planificación por sección.
+CCT tenga tratamiento documental.
+LFT tenga tratamiento documental.
+Tarjetón tenga tratamiento documental.
+Lugares tengan tratamiento visual.
+Gráficos sólo aparezcan cuando expliquen.
+Texto editorial sea breve.
+Locutores puedan aparecer sin párrafos.
+Preview sea visualmente más variado.
+9:16 siga sin overflow.
+Alignment permanezca intacto.
+Speechify calls = 0.
+GUI permita seleccionar Documental.
+GUI permita seleccionar Editorial.
+Configuración persista.
+Cambiar dirección visual no regenere audio.
+Tests pasen.
+Preview de d5f1fc16 demuestre claramente el cambio.
+98. REPORTE FINAL
+
+Entrégame:
+
+ESTADO:
+PASS / FAIL
+
+Rama:
+Commit base:
+Commits:
+
+CONFIGURACIÓN:
+Visual direction:
+On-screen text:
+Subtitles:
+
+EPISODIO:
+d5f1fc16
+
+SCENES:
+Total:
+
+Speaker:
+Evidence:
+Explanation:
+Context:
+Brand:
+
+TEXT:
+Spoken words:
+Editorial on-screen words:
+Ratio:
+Karaoke risk scenes:
+
+ASSETS:
+Real/reference:
+Generic:
+Unique:
+Most repeated:
+Repeat count:
+
+DOCUMENT COVERAGE:
+CCT:
+LFT:
+Tarjetón:
+SNTSS:
+HGR 1:
+Otros:
+
+8.55:
+Full chart appearances:
+Compact references:
+Repetition corrected:
+YES/NO
+
+QA:
+Overflow:
+Text collisions:
+Karaoke violations:
+Wrong contextual visuals:
+Generic visual warnings:
+
+AUDIO:
+Changed:
+NO
+
+ALIGNMENT:
+Changed:
+NO
+
+SPEECHIFY:
+Calls:
+0
+
+PREVIEW:
+Path:
+
+CONTACT SHEET:
+Path:
+
+BEFORE/AFTER:
+Path:
+
+GUI:
+Documental selectable:
+YES/NO
+
+Editorial text selectable:
+YES/NO
+
+Subtitles selectable:
+YES/NO
+
+Settings persisted:
+YES/NO
+
+TESTS:
+...
+
+REGRESSIONS:
+...
+
+PENDIENTES:
+...
+99. NO RENDERIZAR FULL HD TODAVÍA
+
+Primero:
+
+planner
+↓
+preview
+↓
+contact sheet
+↓
+QA
+
+Me entregas el resultado.
+
+Sólo si el preview cumple:
+
+sin karaoke
+más evidencia
+menos tarjetas genéricas
+más variedad
+
+se generan:
+
+16:9
+9:16
+PRINCIPIO FINAL
+
+Graba esto como regla permanente del motor:
+
+La voz cuenta la historia. La pantalla muestra lo que vale la pena ver.
+
+Y:
+
+Nunca escribimos algo en pantalla sólo porque acaba de ser pronunciado.
+
+Si el audio dice:
+
+“La cláusula 63 Bis establece…”
+
+la pantalla puede mostrar el contrato y destacar la cláusula.
+
+Si el audio dice:
+
+“Son 3.9 por ciento…”
+
+la pantalla puede mostrar 3.9%.
+
+Si el audio explica cómo se ve un tarjetón:
+
+mostramos el tarjetón.
+
+Si el audio simplemente conecta dos ideas:
+
+dejamos al locutor hablar.
+
+No todo necesita texto.
+
+No todo necesita gráfico.
+
+No todo necesita una imagen.
+
+Pero cuando existe algo concreto que verdaderamente ayuda a entender, debemos mostrarlo de forma protagonista.
+
+El resultado debe acercarse más a:
+
+documental informativo
++
+programa de televisión
++
+podcast visual
+
+y alejarse de:
+
+karaoke
++
+PowerPoint
++
+audiograma
+IMPLEMENTA ESTO SOBRE EL MOTOR ACTUAL SIN REHACER LO QUE YA FUNCIONA, CONECTA LOS CONTROLES A AI RADIO STUDIO Y DEMUÉSTRALO PRIMERO CON UN NUEVO PREVIEW DE d5f1fc16.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-09-12T13:14:29-06:00.
+</ADDITIONAL_METADATA>

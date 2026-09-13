@@ -6,6 +6,7 @@ import {
   FileText,
   Books,
   Sparkle,
+  Scales,
   Newspaper,
   UserCircle,
   SquaresFour,
@@ -65,6 +66,7 @@ export const DESKTOP_NAV_GROUPS: NavGroup[] = [
       { href: "/calculadoras", label: "Calculadoras", icon: Calculator },
       { href: "/escritos", label: "Crear un escrito", icon: FileText },
       { href: "/guia", label: "Guía de mi Tarjetón", icon: Books },
+      { href: "/simulador", label: "Practicar una audiencia", icon: Scales },
     ],
   },
   {

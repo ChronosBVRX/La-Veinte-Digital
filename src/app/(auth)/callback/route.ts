@@ -9,6 +9,7 @@ const ALLOWED_INTERNAL_PATHS = [
   "/bitacora",
   "/nomina",
   "/vacaciones",
+  "/simulador",
   "/calendario",
   "/tarjeton",
   "/escritos",
