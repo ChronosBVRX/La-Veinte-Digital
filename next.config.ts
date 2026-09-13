@@ -2,22 +2,27 @@ import type { NextConfig } from "next";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://ragktminwduiggvaoeix.supabase.co";
 
+// Cloudflare Turnstile: script del CAPTCHA + iframe del reto + verificación.
+// Requerido por src/app/(auth)/turnstile-widget.tsx para obtener captcha_token.
+const turnstileOrigin = "https://challenges.cloudflare.com";
+
 const connectSources = [
   "'self'",
   supabaseUrl,
   "https://tessdata.projectnaptha.com",
   "https://cdn.jsdelivr.net",
+  turnstileOrigin,
 ].join(" ");
 
 const cspDirectives = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline' ${turnstileOrigin}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
   `connect-src ${connectSources}`,
   "worker-src 'self' blob: https://cdn.jsdelivr.net",
-  "frame-src https://www.facebook.com",
+  `frame-src https://www.facebook.com ${turnstileOrigin}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
