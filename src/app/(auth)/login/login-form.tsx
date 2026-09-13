@@ -6,6 +6,7 @@ import { EnvelopeSimple, Lock, SignIn, WarningCircle, DownloadSimple } from "@ph
 import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
 import { signInAction } from "../actions"
+import { TurnstileWidget } from "../turnstile-widget"
 import { signInWithOAuth } from "@/lib/services/auth-client"
 import { useAppEnvironment } from "@/shared/hooks/useAppEnvironment"
 
@@ -65,6 +66,8 @@ export function LoginForm() {
       <Button type="submit" loading={pending} style={{ width: "100%", justifyContent: "center" }}>
         {pending ? "Entrando..." : <><SignIn size={18} weight="bold" /> Iniciar sesión</>}
       </Button>
+
+      <TurnstileWidget siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>

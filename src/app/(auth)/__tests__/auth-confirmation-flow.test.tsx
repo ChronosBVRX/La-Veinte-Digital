@@ -21,6 +21,7 @@ vi.mock("next/headers", () => ({ headers: async () => new Headers() }))
 
 import { ResendConfirmationForm } from "@/app/(auth)/login/resend-confirmation-form"
 import { RegisterForm } from "@/app/(auth)/register/register-form"
+import { LoginForm } from "@/app/(auth)/login/login-form"
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -75,3 +76,35 @@ describe("RegisterForm", () => {
     expect(screen.getByText(/bandeja de entrada o spam/i)).toBeTruthy()
   })
 })
+
+describe("LoginForm", () => {
+  it("incluye el campo captcha_token cuando Turnstile está configurado", async () => {
+    process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY = "test-site-key"
+    ;(window as unknown as Record<string, unknown>).turnstile = {
+      render: vi.fn(() => "widget-1"),
+      remove: vi.fn(),
+    }
+    try {
+      const { container } = render(<LoginForm />)
+      await waitForCaptchaInput(container)
+      expect(container.querySelector('input[name="captcha_token"]')).toBeTruthy()
+    } finally {
+      delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
+      delete (window as unknown as Record<string, unknown>).turnstile
+    }
+  })
+
+  it("no exige captcha cuando Turnstile no está configurado", () => {
+    delete process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
+    const { container } = render(<LoginForm />)
+    expect(container.querySelector('input[name="captcha_token"]')).toBeNull()
+  })
+})
+
+async function waitForCaptchaInput(container: HTMLElement) {
+  for (let i = 0; i < 50; i++) {
+    if (container.querySelector('input[name="captcha_token"]')) return
+    await new Promise((r) => setTimeout(r, 20))
+  }
+  throw new Error("captcha_token input no apareció")
+}

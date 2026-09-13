@@ -36,9 +36,17 @@ export async function signInAction(_prev: AuthState, formData: FormData) {
   const supabase = await createClient()
   const email = formData.get("email") as string
   const password = formData.get("password") as string
+  const captchaToken = getCaptchaToken(formData)
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+    options: { ...(captchaToken ? { captchaToken } : {}) },
+  })
   if (error) {
+    if (/captcha/i.test(error.message ?? "")) {
+      return { error: "Verificación de seguridad fallida. Recarga la página e inténtalo de nuevo." }
+    }
     return { error: "Credenciales incorrectas. Verifica tu correo y contraseña." }
   }
 
