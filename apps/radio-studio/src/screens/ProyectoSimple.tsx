@@ -906,18 +906,25 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
 
             {/* Selector de B-roll y Assets del Catálogo */}
             <div className="space-y-2 pt-3 border-t border-slate-800">
-              <span className="text-xs font-bold text-slate-300 block">Sustituir por Asset Oficial</span>
+              <span className="text-xs font-bold text-slate-300 block">Sustituir por Activo Editorial</span>
               <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                {catalogAssets.slice(0, 8).map((ast) => (
-                  <div
-                    key={ast.id}
-                    onClick={() => handleApplyAsset(ast)}
-                    className="cursor-pointer p-2 rounded-lg bg-slate-950/60 hover:bg-slate-800 border border-slate-800/80 hover:border-blue-500/50 text-[11px] space-y-0.5 transition-colors"
-                  >
-                    <div className="font-semibold text-slate-200 truncate">{ast.entity}</div>
-                    <div className="text-[10px] text-slate-500">{ast.category} · {ast.type}</div>
-                  </div>
-                ))}
+                {catalogAssets.slice(0, 8).map((ast) => {
+                  const typeLabel = 
+                    ast.type === "official" ? "Fuente oficial" :
+                    ast.type === "reference_based" ? "Basado en referencia" :
+                    ast.type === "generic" ? "Contexto visual generado" :
+                    ast.type === "user_provided" ? "Aportado por usuario" : ast.type;
+                  return (
+                    <div
+                      key={ast.id}
+                      onClick={() => handleApplyAsset(ast)}
+                      className="cursor-pointer p-2 rounded-lg bg-slate-950/60 hover:bg-slate-800 border border-slate-800/80 hover:border-blue-500/50 text-[11px] space-y-0.5 transition-colors"
+                    >
+                      <div className="font-semibold text-slate-200 truncate">{ast.entity}</div>
+                      <div className="text-[10px] text-slate-500">{ast.category} · {typeLabel}</div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

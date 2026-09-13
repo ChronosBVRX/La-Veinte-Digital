@@ -95,8 +95,14 @@ Queda estrictamente prohibida la introducción de activos sintéticos o de fanta
    - La subtitulación y cintillos informativos utilizan plantillas de tipografía limpia, estática o de aparición discreta, sin animaciones estridentes tipo redes sociales de entretenimiento.
 4. **Variantes Visuales de Personajes:**
    - Los 5 conductores y analistas (Eduardo, Andrea, Javier, Rodrigo, Valeria) cuentan con 6 estados de expresión (neutral, speaking, serious, emphasis, explaining, listening), totalizando **30 variantes de estudio** en alta definición con canal alfa limpio.
-5. **Cortes Semánticos Obligatorios:**
-   - Ningún locutor permanece a cuadro más de 8 segundos continuos sin alternancia hacia infografía de desglose, documento contractual, fotografía documental de sede u hospital, o mapa conceptual.
+5. **Cortes Semánticos Reales y Taxonomía de Procedencia:**
+   - Prohibidas las reglas rígidas de duración (speaker <= 8s). La duración puede disparar análisis editorial, pero NO obligar al corte.
+   - Todo corte requiere frontera semántica demostrable (cifra, documento, cláusula, entidad, contraste, ejemplo, conclusión). Si no existe frontera adecuada, el plano del locutor se sostiene sin corte arbitrario.
+   - Taxonomía estricta de 4 tipos de procedencia visual:
+     * OFFICIAL -> Fuente oficial (logos, sellos vectoriales, documentos depositados ante CFCRL/STPS).
+     * REFERENCE_BASED -> Basado en referencia (reconstrucciones visuales a partir de documentos o arquitectura real).
+     * GENERIC_CONTEXTUAL_AI -> Contexto visual generado (imágenes contextuales IA neutras sin texto apócrifo).
+     * USER_PROVIDED -> Aportado por usuario (evidencia fotográfica o documental facilitada por trabajadores).
 
 ---
 
@@ -110,17 +116,17 @@ Se generó la hoja de contactos oficial que audita 16 marcas de tiempo represent
   - 00:02 Apertura de cabina y branding sobrio de La Veinte Radio.
   - 00:15 Eduardo (Locutor Titular) con badge de cabina.
   - 00:26 Infografía salarial (2.90% Sueldo Tabular, 3.90% Renta, 1.75% Cláusula 157).
-  - 00:53 Fotografía documental de trabajadora IMSS revisando tarjetón.
+  - 00:53 Contexto visual generado: trabajadora revisando nómina.
   - 01:05 Ficha documental de Cláusula 157 CCT con folio del CFCRL.
   - 01:57 Tarjetón Digital IMSS original de alta resolución.
   - 02:15 Desglose de conceptos de nómina (01, 02, 11, 22).
   - 03:30 Rodrigo Torres (Corresponsal de campo).
-  - 04:35 Fotografía documental de Oficina de Personal de Hospital IMSS.
+  - 04:35 Contexto visual generado: oficina de personal hospitalario.
   - 05:45 Andrea (Co-conductora).
   - 06:25 Carátula oficial del Contrato Colectivo de Trabajo 2025-2027.
   - 07:40 Cinética de datos (8.55% Ponderado).
   - 09:00 Cuadro comparativo de tipos de revisión de la LFT (Art. 399 Bis).
-  - 10:50 Fotografía documental de Sede Sindical SNTSS durante el Congreso Nacional.
+  - 10:50 Contexto visual generado: representación de sede sindical durante asamblea.
   - 11:50 Cabina de cierre con Andrea.
   - 12:12 Cierre oficial de transmisión La Veinte Digital.
 
