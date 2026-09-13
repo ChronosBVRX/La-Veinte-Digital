@@ -1,4 +1,5 @@
 import { PublicPageShell } from "@/shared/components/public/PublicPageShell"
+import { OWNER_NAME, OWNER_ROLE, CONTACT_EMAIL, CONTACT_MAILTO, CONTACT_PHONE_DISPLAY, CONTACT_PHONE_HREF } from "@/shared/lib/contact"
 
 export const metadata = {
   title: "Términos de Uso | La Veinte Digital",
@@ -47,7 +48,12 @@ export default function TermsPage() {
       <section>
         <h2 style={h2}>6. Contacto</h2>
         <p>
-          <em>[REQUIERE_DATO_DEL_PROPIETARIO — correo de contacto oficial]</em>
+          Responsable: <strong>{OWNER_NAME}</strong>, {OWNER_ROLE}.
+        </p>
+        <p>
+          Correo: <a href={CONTACT_MAILTO} style={link}>{CONTACT_EMAIL}</a>
+          {" · "}
+          Teléfono: <a href={CONTACT_PHONE_HREF} style={link}>{CONTACT_PHONE_DISPLAY}</a>
         </p>
         <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
           Consulta nuestra <a href="/privacidad" style={link}>Política de Privacidad</a> y la página de{" "}

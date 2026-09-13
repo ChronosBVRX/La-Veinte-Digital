@@ -77,7 +77,9 @@ Añadimos una sección pública de Información y fuentes, enlaces directos a pu
 - Política de privacidad: `https://la20.com.mx/privacidad`
 - Eliminación de cuenta (URL para Play Console): `https://la20.com.mx/eliminar-cuenta`
 - Información y fuentes (pública, sin login): `https://la20.com.mx/informacion-y-fuentes`
-- Correo de soporte: `[REQUIERE_DATO_DEL_PROPIETARIO — correo oficial]`
+- Correo de soporte: `noirsysan@gmail.com`
+- Teléfono de soporte: `+52 443 366 7106`
+- Responsable: `Eduardo Bolaños Vazquez (Técnico Radiólogo)`
 
 ## Instrucciones de acceso para el revisor
 

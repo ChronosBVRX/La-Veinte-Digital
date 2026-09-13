@@ -1,4 +1,5 @@
 import { PublicPageShell } from "@/shared/components/public/PublicPageShell"
+import { OWNER_NAME, CONTACT_EMAIL, CONTACT_MAILTO, CONTACT_PHONE_DISPLAY, CONTACT_PHONE_HREF } from "@/shared/lib/contact"
 
 export const metadata = {
   title: "Soporte | La Veinte Digital",
@@ -31,8 +32,15 @@ export default function SupportPage() {
       <section>
         <h2 style={h2}>Contacto</h2>
         <p>
-          {/* REQUIERE_DATO_DEL_PROPIETARIO: correo/chat de soporte real */}
-          <em>[REQUIERE_DATO_DEL_PROPIETARIO — canal oficial de soporte de La Veinte Digital]</em>
+          ¿Tienes una duda, problema o sugerencia? Escríbenos y con gusto te ayudamos.
+        </p>
+        <p>
+          Correo: <a href={CONTACT_MAILTO} style={link}>{CONTACT_EMAIL}</a>
+          {" · "}
+          Teléfono: <a href={CONTACT_PHONE_HREF} style={link}>{CONTACT_PHONE_DISPLAY}</a>
+        </p>
+        <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+          Atiende: {OWNER_NAME}, soporte de La Veinte Digital.
         </p>
         <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
           Consulta nuestra <a href="/privacidad" style={link}>Política de Privacidad</a> y nuestros{" "}
