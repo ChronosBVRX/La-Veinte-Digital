@@ -33,6 +33,10 @@ from app.visual.motion import (
 from app.visual.renderer import Renderer
 from app.visual.timeline_builder import build_visual_timeline
 from app.visual.validation import validate_visual_timeline
+from app.visual.render_cache import BeatRenderCache, compute_beat_render_hash
+from app.visual.beat_renderer import BeatRenderer
+from app.visual.parallel_renderer import IncrementalPipelineRenderer
+from app.visual.assembler import assemble_video_clips, mux_audio_master
 
 FPS = 30
 PSTEP = 3
@@ -76,7 +80,16 @@ def render_project_visual(
     master_audio: Path,
     output_dir: Path,
     formats: list[str] | None = None,
-    alignment_path: Path | str | None = None,
+    alignment_path: Path | None = None,
+    force_replan: bool = False,
+    direction: str = "documental",
+    text_mode: str = "editorial",
+    mode: str = "preview",
+    beat_id: str | None = None,
+    time_range: tuple[float, float] | None = None,
+    workers: int | None = None,
+    incremental: bool = True,
+    cache_status: bool = False,
 ) -> dict:
     if formats is None:
         formats = ["preview", "16x9", "9x16"]
@@ -85,6 +98,13 @@ def render_project_visual(
     proj = json.loads(project_path.read_text(encoding="utf-8"))
     script = proj.get("script") or {}
     turns = script.get("turns") or proj.get("turns") or []
+
+    # Extraer preferencias si están guardadas en el proyecto
+    prefs = proj.get("preferences") or {}
+    if "visualDirection" in prefs and not direction:
+        direction = prefs["visualDirection"]
+    if "onScreenTextMode" in prefs and not text_mode:
+        text_mode = prefs["onScreenTextMode"]
 
     alignment_obj = None
     if alignment_path:
@@ -123,25 +143,39 @@ def render_project_visual(
         )
 
     existing_plan_p = project_path.parent / "visual-plan.json"
-    if existing_plan_p.exists():
+    should_replan = force_replan or not existing_plan_p.exists()
+    if not should_replan and existing_plan_p.exists():
         try:
             plan_dict = json.loads(existing_plan_p.read_text(encoding="utf-8"))
-            from app.visual.editorial.visual_editorial_planner import VisualPlan
-            visual_plan = VisualPlan(
-                project_id=plan_dict.get("project_id", proj.get("id", "master")),
-                duration_s=float(plan_dict.get("duration_s", dur_s)),
-                total_beats=int(plan_dict.get("total_beats", len(plan_dict.get("beats", [])))),
-                visual_mix=plan_dict.get("visual_mix", {}),
-                beats=plan_dict.get("beats", []),
-            )
+            # Si el plan existente no tiene la arquitectura moderna de 4 familias, forzar replan
+            beats_list = plan_dict.get("beats", [])
+            if not beats_list or "visual_function" not in beats_list[0]:
+                should_replan = True
+            else:
+                from app.visual.editorial.visual_editorial_planner import VisualPlan
+                visual_plan = VisualPlan(
+                    project_id=plan_dict.get("project_id", proj.get("id", "master")),
+                    duration_s=float(plan_dict.get("duration_s", dur_s)),
+                    total_beats=int(plan_dict.get("total_beats", len(beats_list))),
+                    visual_mix=plan_dict.get("visual_mix", {}),
+                    beats=beats_list,
+                    metrics=plan_dict.get("metrics", {}),
+                )
         except Exception:
-            resolver = AssetResolver()
-            planner = VisualEditorialPlanner(entity_detector=detector, asset_resolver=resolver, researcher=researcher)
-            visual_plan = planner.plan_project(proj.get("id", "master"), turns, alignment_obj, dur_s)
-    else:
+            should_replan = True
+
+    if should_replan:
         resolver = AssetResolver()
         planner = VisualEditorialPlanner(entity_detector=detector, asset_resolver=resolver, researcher=researcher)
-        visual_plan = planner.plan_project(proj.get("id", "master"), turns, alignment_obj, dur_s)
+        visual_plan = planner.plan_project(
+            proj.get("id", "master"),
+            turns,
+            alignment_obj,
+            dur_s,
+            direction=direction,
+            text_mode=text_mode,
+            existing_plan=json.loads(existing_plan_p.read_text(encoding="utf-8")) if existing_plan_p.exists() else None,
+        )
 
     (output_dir / "visual-plan.json").write_text(
         json.dumps(visual_plan.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
@@ -168,6 +202,11 @@ def render_project_visual(
             "start": b["start_s"],
             "end": b["end_s"],
             "scene_type": st,
+            "visual_function": b.get("visual_function", "LOCUTOR"),
+            "headline": b.get("headline", ""),
+            "subheadline": b.get("subheadline", ""),
+            "key_points": b.get("key_points", []),
+            "composition": b.get("composition", "full_bleed"),
             "variant": var,
             "display_text": b["display_text"],
             "essential": b["display_text"][:140],
@@ -183,8 +222,9 @@ def render_project_visual(
         })
 
     timeline = {
-        "version": "1.2",
+        "version": "1.3",
         "duration_s": dur_s,
+        "metrics": visual_plan.metrics,
         "events": events,
     }
     (output_dir / "visual-timeline.json").write_text(
@@ -222,6 +262,71 @@ def render_project_visual(
     import numpy as np
 
     events = timeline["events"]
+    proj_dir = project_path.parent
+
+    # 1. Consulta de Estado de Cache únicamente
+    if cache_status:
+        cache = BeatRenderCache(proj_dir)
+        summary = cache.get_status_summary(events, orientation="16x9", mode="preview")
+        return {
+            "ok": True,
+            "cache_status": summary,
+            "total_beats": len(events),
+        }
+
+    # 2. Modo Storyboard (1 contact sheet en milisegundos sin video)
+    if mode == "storyboard":
+        br = BeatRenderer(layout="16x9")
+        out_sheet = output_dir / "storyboard.jpg"
+        br.render_storyboard_contact_sheet(events, out_sheet)
+        return {
+            "ok": True,
+            "mode": "storyboard",
+            "file": str(out_sheet.resolve()),
+            "total_beats": len(events),
+        }
+
+    # 3. Modo Spot Preview (1 beat aislado con audio sincronizado)
+    if mode == "spot" and beat_id:
+        br = BeatRenderer(layout="16x9")
+        target_ev = next((e for e in events if e.get("beat_id") == beat_id), None)
+        if not target_ev:
+            raise ValueError(f"Beat {beat_id} not found in timeline events")
+        out_spot = output_dir / f"spot-{beat_id}.mp4"
+        br.render_spot_preview(target_ev, out_spot, master_audio_path=master_audio, mode="preview")
+        return {
+            "ok": True,
+            "mode": "spot",
+            "beat_id": beat_id,
+            "file": str(out_spot.resolve()),
+        }
+
+    # 4. Modo Section Preview (rango de tiempo [start, end])
+    if mode == "section" and time_range:
+        s_start, s_end = time_range
+        sec_events = [e for e in events if e.get("end", 0) > s_start and e.get("start", 0) < s_end]
+        if not sec_events:
+            raise ValueError(f"No events found in range {s_start} - {s_end}")
+        pipe = IncrementalPipelineRenderer(
+            project_dir=proj_dir,
+            layout="16x9",
+            max_workers=workers or 2,
+        )
+        out_sec = output_dir / f"section-{int(s_start)}-{int(s_end)}.mp4"
+        pipe.render_full_pipeline(
+            events=sec_events,
+            master_audio_path=master_audio,
+            output_mp4_path=out_sec,
+            mode="preview",
+            env_smooth=envelope.get("smooth"),
+        )
+        return {
+            "ok": True,
+            "mode": "section",
+            "file": str(out_sec.resolve()),
+            "events_count": len(sec_events),
+        }
+
     total_f = int(round(timeline["duration_s"] * FPS))
     by_frame = []
     for f in range(total_f):
@@ -246,6 +351,49 @@ def render_project_visual(
     for tag in formats:
         if tag not in VERSIONS:
             continue
+
+        if tag == "preview" and incremental:
+            final = output_dir / f"episodio-{proj.get('id', 'master')}-{tag}.mp4"
+            canonical_preview = output_dir / "preview.mp4"
+            pipe = IncrementalPipelineRenderer(
+                project_dir=proj_dir,
+                layout="16x9",
+                max_workers=workers or 2,
+            )
+            t0 = time.time()
+            def _prog(info):
+                pct = info.get("pct", 0)
+                sys.stderr.write(f"[{tag}] Frame {int(pct*total_f/100)}/{total_f} ({int(pct)}%) - {round(time.time() - t0, 1)}s (hits={info.get('hits')}, misses={info.get('misses')})\n")
+                sys.stderr.flush()
+
+            _, rep = pipe.render_full_pipeline(
+                events=events,
+                master_audio_path=master_audio,
+                output_mp4_path=final,
+                mode="preview",
+                env_smooth=envelope.get("smooth"),
+                progress_callback=_prog,
+            )
+            if final.exists():
+                try:
+                    shutil.copyfile(final, canonical_preview)
+                except Exception:
+                    pass
+            wall = round(time.time() - t0, 1)
+            results[tag] = {
+                "encoder": enc,
+                "wall_s": wall,
+                "bytes": final.stat().st_size if final.exists() else 0,
+                "sync": check_sync(
+                    str(final), timeline["duration_s"],
+                    [{"id": e["beat_id"], "start": e["start"], "end": e["end"]} for e in timeline["events"]],
+                    alignment=alignment_obj,
+                ),
+                "cache_report": rep,
+            }
+            out_files[tag] = str(final.resolve())
+            continue
+
         layout, w, h = VERSIONS[tag]
         rend = Renderer(layout=layout)
         for ev in events:
@@ -397,12 +545,33 @@ def render_project_visual(
             "preservation": r["preservation"],
         })
 
+    planned_context_s = sum(
+        b["duration_s"] for b in visual_plan.beats if b.get("visual_function") == "CONTEXTO"
+    )
+    rendered_context_s = sum(
+        b["duration_s"] for b in visual_plan.beats
+        if b.get("visual_function") == "CONTEXTO" and b.get("resolved_asset") and b["resolved_asset"].get("file")
+    )
+    missing_asset_s = sum(
+        b["duration_s"] for b in visual_plan.beats
+        if b.get("visual_function") in ("EVIDENCIA", "CONTEXTO") and not b.get("resolved_asset") and not b.get("chart_type")
+    )
+    unexpected_fallback_s = 0.0
+
+    rendered_asset_coverage = {
+        "plannedContextSeconds": round(planned_context_s, 2),
+        "actuallyRenderedContextSeconds": round(rendered_context_s, 2),
+        "missingAssetSeconds": round(missing_asset_s, 2),
+        "unexpectedFallbackSeconds": round(unexpected_fallback_s, 2),
+    }
+
     report = {
         "editorial": editorial,
         "visual_editorial": {
             "research_report": research_report.to_dict(),
             "visual_plan_beats": visual_plan.total_beats,
             "visual_mix": visual_plan.visual_mix,
+            "rendered_asset_coverage": rendered_asset_coverage,
         },
         "status": "needs-review" if any(
             v["overflow_canvas"] or v["overflow_platform_safe"]
@@ -432,15 +601,44 @@ def main():
     p.add_argument("--output-dir", required=True, help="Directorio destino para los videos")
     p.add_argument("--alignment", help="Ruta a timeline-alignment.json")
     p.add_argument("--formats", default="preview,16x9,9x16", help="Formatos separados por coma")
+    p.add_argument("--force-replan", action="store_true", help="Fuerza la regeneración del plan visual")
+    p.add_argument("--direction", default="documental", help="Dirección visual: documental, conversacional, infografica")
+    p.add_argument("--text-mode", default="editorial", help="Modo de texto en pantalla: editorial, editorial_subtitulos, solo_subtitulos, minimo")
+    p.add_argument("--mode", default="preview", choices=["storyboard", "draft", "preview", "final", "spot", "section", "all"], help="Modo de revisión o render")
+    p.add_argument("--beat-id", help="ID del beat para modo spot")
+    p.add_argument("--range", help="Rango de segundos para modo section (ej. 10.0,25.0)")
+    p.add_argument("--workers", type=int, default=2, help="Número de workers concurrentes")
+    p.add_argument("--no-incremental", action="store_true", help="Desactiva el renderizado incremental por cache")
+    p.add_argument("--cache-status", action="store_true", help="Consulta solo el estado del cache")
     args = p.parse_args()
 
     formats = [f.strip() for f in args.formats.split(",") if f.strip()]
+    if args.mode == "storyboard":
+        formats = []
+    elif args.mode in ("draft", "preview", "spot", "section"):
+        formats = [args.mode] if args.mode in ("preview", "draft") else []
+
+    t_range = None
+    if args.range:
+        parts = [float(x.strip()) for x in args.range.split(",") if x.strip()]
+        if len(parts) >= 2:
+            t_range = (parts[0], parts[1])
+
     res = render_project_visual(
         Path(args.project),
         Path(args.master),
         Path(args.output_dir),
         formats=formats,
         alignment_path=Path(args.alignment) if args.alignment else None,
+        force_replan=args.force_replan,
+        direction=args.direction,
+        text_mode=args.text_mode,
+        mode=args.mode,
+        beat_id=args.beat_id,
+        time_range=t_range,
+        workers=args.workers,
+        incremental=not args.no_incremental,
+        cache_status=args.cache_status,
     )
     print(json.dumps(res, ensure_ascii=False))
 

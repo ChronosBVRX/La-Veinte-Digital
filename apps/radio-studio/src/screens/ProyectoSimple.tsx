@@ -15,6 +15,10 @@ import {
   updateProjectVisualBeat,
   getProjectReferences,
   renderProjectVisual,
+  getProjectVisualCacheStatus,
+  renderStoryboard,
+  renderSpotPreview,
+  cancelVisualRender,
   listAssets,
   SIDECAR_URL_EXPORT,
   type LlmHealthInfo,
@@ -22,6 +26,7 @@ import {
   type VisualBeat,
   type AssetItem,
   type ReferenceItem,
+  type VisualCacheStatus,
 } from "../lib/studio-api";
 import { MiniPlayer } from "../components/MiniPlayer";
 import type { Project, VerifyResult, Turn } from "@la-veinte/studio-contract";
@@ -80,6 +85,12 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
   const [selectedBeatForEdit, setSelectedBeatForEdit] = useState<VisualBeat | null>(null);
   const [editingBeatReason, setEditingBeatReason] = useState("");
   const [formatoVideo, setFormatoVideo] = useState<"16x9" | "9x16" | "preview">("16x9");
+  const [cacheStatus, setCacheStatus] = useState<VisualCacheStatus | null>(null);
+  const [storyboardModalOpen, setStoryboardModalOpen] = useState(false);
+  const [storyboardUrl, setStoryboardUrl] = useState<string | null>(null);
+  const [spotPreviewModalOpen, setSpotPreviewModalOpen] = useState(false);
+  const [spotPreviewUrl, setSpotPreviewUrl] = useState<string | null>(null);
+  const [spotPreviewLoading, setSpotPreviewLoading] = useState(false);
 
   const refreshProject = async () => {
     const p = await getProject(projectId);
@@ -88,14 +99,16 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
 
   const refreshVisualData = async () => {
     try {
-      const [plan, refs, assets] = await Promise.all([
+      const [plan, refs, assets, cStatus] = await Promise.all([
         getProjectVisualPlan(projectId),
         getProjectReferences(projectId),
         listAssets(),
+        getProjectVisualCacheStatus(projectId),
       ]);
       if (plan) setVisualPlan(plan);
       if (refs) setReferences(refs);
       if (assets) setCatalogAssets(assets);
+      if (cStatus) setCacheStatus(cStatus);
     } catch {
       // visual data aún no generada
     }
@@ -183,15 +196,61 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
     await run("Creando audio", () => projectProduce(projectId));
   };
 
-  const runRenderVisual = async (formats?: string[]) => {
-    await run("Renderizando video", () => renderProjectVisual(projectId, { formats }));
+  const runRenderVisual = async (formats?: string[], mode?: string) => {
+    await run("Renderizando video", () => renderProjectVisual(projectId, { formats, mode }));
+  };
+
+  const handleOpenStoryboard = async () => {
+    setBusy("Generando storyboard");
+    setError(null);
+    try {
+      const res = await renderStoryboard(projectId);
+      if (res?.file) {
+        const rel = `data/projects/${projectId}/renders/storyboard.jpg`;
+        setStoryboardUrl(`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(rel)}&t=${Date.now()}`);
+        setStoryboardModalOpen(true);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al generar storyboard");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleSpotPreview = async (beatId: string) => {
+    setSpotPreviewLoading(true);
+    setError(null);
+    try {
+      const res = await renderSpotPreview(projectId, beatId);
+      if (res?.file) {
+        const rel = `data/projects/${projectId}/renders/spot-${beatId}.mp4`;
+        setSpotPreviewUrl(`${SIDECAR_URL_EXPORT}/media?file=${encodeURIComponent(rel)}&t=${Date.now()}`);
+        setSpotPreviewModalOpen(true);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al generar previsualización de escena");
+    } finally {
+      setSpotPreviewLoading(false);
+    }
+  };
+
+  const handleCancelVisual = async () => {
+    try {
+      await cancelVisualRender(projectId);
+      await refreshProject();
+      await refreshVisualData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al cancelar render");
+    }
   };
 
   const handleApplyBeatAsset = async (asset: AssetItem) => {
     if (!selectedBeatForEdit) return;
     try {
+      const isDocOrOrg = ["documents", "hospital", "organization"].includes(asset.category);
       const patch: Partial<VisualBeat> = {
         scene_type: asset.type === "official" ? "document" : "graphic",
+        visual_function: isDocOrOrg ? "EVIDENCIA" : "CONTEXTO",
         resolved_asset: asset,
         editorial_reason: editingBeatReason || selectedBeatForEdit.editorial_reason || `Asignado: ${asset.entity}`,
       };
@@ -208,7 +267,9 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
     try {
       const patch: Partial<VisualBeat> = {
         scene_type: "speaker",
+        visual_function: "LOCUTOR",
         resolved_asset: null,
+        chart_type: null,
         editorial_reason: "Plano principal de locutor",
       };
       const res = await updateProjectVisualBeat(projectId, selectedBeatForEdit.beat_id, patch);
@@ -216,6 +277,22 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
       setSelectedBeatForEdit(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo revertir el beat");
+    }
+  };
+
+  const handleToggleLockBeat = async (beat: VisualBeat) => {
+    try {
+      const newLocked = !beat.lockedByUser;
+      const patch: Partial<VisualBeat> = {
+        lockedByUser: newLocked,
+      };
+      const res = await updateProjectVisualBeat(projectId, beat.beat_id, patch);
+      if (res?.plan) setVisualPlan(res.plan);
+      if (selectedBeatForEdit?.beat_id === beat.beat_id) {
+        setSelectedBeatForEdit((prev) => (prev ? { ...prev, lockedByUser: newLocked } : null));
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo cambiar el bloqueo de la escena");
     }
   };
 
@@ -243,7 +320,7 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
                 {project?.state ?? "DRAFT"}
               </span>
             </div>
-            <p className="text-xs text-zinc-400 mt-0.5" style={{ maxWidth: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{project?.topic}</p>
+            <p className="text-xs text-zinc-400 mt-0.5 line-clamp-1">{project?.topic}</p>
           </div>
         </div>
 
@@ -654,16 +731,46 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
                 Haz clic en cualquier beat para cambiar su apoyo visual, sustituir por otro asset o volver al plano de locutor.
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
-                className="btn-secondary text-xs py-2 px-3"
+                className="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5"
                 disabled={!!busy}
-                onClick={() => void runRenderVisual(["preview"])}
+                onClick={() => void handleOpenStoryboard()}
+                title="Genera y visualiza una hoja de contacto de 1 cuadro por escena en segundos"
               >
-                ⚡ Generar Preview Rápida
+                <span>📸</span>
+                <span>Storyboard</span>
               </button>
               <button
-                className="btn-primary text-xs py-2 px-4 font-bold"
+                className="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5"
+                disabled={!!busy}
+                onClick={() => void runRenderVisual(["preview"], "draft")}
+                title="Renderizado ultra-rápido en baja resolución (640x360 @ 15fps)"
+              >
+                <span>⚡</span>
+                <span>Preview Rápido (Draft)</span>
+              </button>
+              <button
+                className="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5"
+                disabled={!!busy}
+                onClick={() => void runRenderVisual(["preview"], "preview")}
+                title="Renderizado incremental reutilizando escenas ya en caché"
+              >
+                <span>🎬</span>
+                <span>Preview Completo</span>
+              </button>
+              {visual?.status === "RENDERING" && (
+                <button
+                  className="px-3 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors"
+                  onClick={() => void handleCancelVisual()}
+                  title="Detener el renderizado en curso manteniendo las escenas ya generadas en caché"
+                >
+                  <span>⏹</span>
+                  <span>Cancelar Render</span>
+                </button>
+              )}
+              <button
+                className="btn-primary text-xs py-2 px-4 font-bold shadow-lg shadow-blue-600/20"
                 disabled={!!busy}
                 onClick={() => void runRenderVisual(["preview", "16x9", "9x16"])}
               >
@@ -671,6 +778,28 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
               </button>
             </div>
           </div>
+
+          {/* Resumen del Estado de Caché Incremental */}
+          {cacheStatus && (
+            <div className="flex items-center justify-between flex-wrap gap-2 text-xs px-4 py-2.5 rounded-xl bg-zinc-900/80 border border-zinc-800">
+              <div className="flex items-center gap-2.5">
+                <span className="font-semibold text-zinc-200">Estado de Caché Incremental:</span>
+                <span className="text-zinc-400">
+                  <strong className="text-emerald-400">{cacheStatus.cachedBeats}</strong> de {cacheStatus.totalBeats} escenas listas
+                </span>
+                {cacheStatus.dirtyBeatsCount > 0 ? (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    ⚠️ {cacheStatus.dirtyBeatsCount} pendientes de actualizar
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    ✓ 100% al día
+                  </span>
+                )}
+              </div>
+              <span className="text-[11px] text-zinc-500 font-mono">Reutilización instantánea sin tocar audio master</span>
+            </div>
+          )}
 
           {/* Timeline Bar Representativa */}
           {beats.length > 0 && durationSec > 0 && (
@@ -727,7 +856,16 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
           {beats.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {beats.map((beat) => {
-                const isGraphic = beat.scene_type !== "speaker";
+                const func = beat.visual_function || (beat.scene_type === "speaker" ? "LOCUTOR" : "EVIDENCIA");
+                const funcBadgeColor =
+                  func === "EVIDENCIA"
+                    ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                    : func === "EXPLICACION"
+                      ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
+                      : func === "CONTEXTO"
+                        ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                        : "bg-blue-500/20 text-blue-300 border-blue-500/30";
+
                 return (
                   <div
                     key={beat.beat_id}
@@ -742,15 +880,33 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
                       <span className="font-mono text-zinc-400 font-semibold">
                         {formatTimeSec(beat.start_s)} – {formatTimeSec(beat.end_s)}
                       </span>
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          isGraphic
-                            ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                            : "bg-zinc-800 text-zinc-300"
-                        }`}
-                      >
-                        {beat.scene_type.toUpperCase()}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {(() => {
+                          const bStat = cacheStatus?.statuses?.[beat.beat_id];
+                          if (!bStat) return null;
+                          const isReady = bStat === "READY";
+                          return (
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
+                                isReady
+                                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                                  : "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                              }`}
+                              title={isReady ? "Renderizado en caché listo" : "Requiere renderizado"}
+                            >
+                              {isReady ? "LISTA" : "PENDIENTE"}
+                            </span>
+                          );
+                        })()}
+                        {beat.lockedByUser && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40" title="Escena fijada manualmente">
+                            🔒 FIJO
+                          </span>
+                        )}
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${funcBadgeColor}`}>
+                          {func}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -761,12 +917,38 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
                       <span className="font-bold text-xs text-zinc-200">{beat.speaker}</span>
                     </div>
 
-                    <p className="text-xs text-zinc-400 line-clamp-2 italic">
-                      {`"${beat.editorial_reason || beat.display_text}"`}
-                    </p>
+                    {beat.headline ? (
+                      <div>
+                        <div className="text-xs font-semibold text-zinc-100">{beat.headline}</div>
+                        {beat.subheadline && (
+                          <div className="text-[11px] text-zinc-400 mt-0.5">{beat.subheadline}</div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-zinc-400 line-clamp-2 italic">
+                        {`"${beat.editorial_reason || beat.display_text}"`}
+                      </p>
+                    )}
 
                     <div className="text-[10px] text-zinc-500 flex items-center justify-between pt-1 border-t border-zinc-800/60">
-                      <span>{beat.resolved_asset ? "Asset vinculado" : "Plano estándar"}</span>
+                      <div className="flex items-center gap-2">
+                        <span>{beat.chart_type ? "Gráfico" : (beat.resolved_asset ? "Asset vinculado" : "Locutor")}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleToggleLockBeat(beat);
+                          }}
+                          className={`px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ${
+                            beat.lockedByUser
+                              ? "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
+                              : "text-zinc-500 hover:text-zinc-300"
+                          }`}
+                          title={beat.lockedByUser ? "Desbloquear escena" : "Fijar escena para evitar que sea sobreescrita"}
+                        >
+                          {beat.lockedByUser ? "🔒 Mantener" : "🔓 Fijar"}
+                        </button>
+                      </div>
                       <span className="text-blue-400 font-semibold">Editar ✎</span>
                     </div>
                   </div>
@@ -841,20 +1023,32 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between border-t border-zinc-800 pt-3">
-                  <button
-                    type="button"
-                    onClick={() => void handleRevertBeatToSpeaker()}
-                    className="text-xs text-amber-400 hover:underline"
-                  >
-                    Revertir a plano de locutor
-                  </button>
+                <div className="flex items-center justify-between border-t border-zinc-800 pt-3 flex-wrap gap-2">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void handleRevertBeatToSpeaker()}
+                      className="text-xs text-amber-400 hover:underline"
+                    >
+                      Revertir a plano de locutor
+                    </button>
+                    <button
+                      type="button"
+                      disabled={spotPreviewLoading}
+                      onClick={() => void handleSpotPreview(selectedBeatForEdit.beat_id)}
+                      className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                      title="Renderiza y previsualiza solo este beat de forma aislada en segundos"
+                    >
+                      <span>{spotPreviewLoading ? "⏳" : "👁️"}</span>
+                      <span>{spotPreviewLoading ? "Generando..." : "Previsualizar Escena"}</span>
+                    </button>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setSelectedBeatForEdit(null)}
                     className="btn-secondary text-xs py-2 px-4"
                   >
-                    Cancelar
+                    Cerrar
                   </button>
                 </div>
               </div>
@@ -1055,6 +1249,91 @@ export function ProyectoSimple({ projectId, onBack }: { projectId: string; onBac
                 })()}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Storyboard (Hoja de Contacto) */}
+      {storyboardModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">📸</span>
+                <h3 className="font-bold text-base text-zinc-100">Storyboard Completo del Episodio</h3>
+              </div>
+              <button
+                onClick={() => setStoryboardModalOpen(false)}
+                className="text-zinc-400 hover:text-zinc-100 text-base"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto rounded-xl border border-zinc-800 bg-zinc-900/50 p-2">
+              {storyboardUrl ? (
+                <img
+                  src={storyboardUrl}
+                  alt="Storyboard Contact Sheet"
+                  className="w-full h-auto rounded-lg shadow-lg"
+                />
+              ) : (
+                <div className="p-8 text-center text-zinc-400 text-xs">Cargando storyboard...</div>
+              )}
+            </div>
+            <div className="flex justify-end pt-2 border-t border-zinc-800">
+              <button
+                onClick={() => setStoryboardModalOpen(false)}
+                className="btn-secondary text-xs py-2 px-5"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Previsualización de Escena (Spot Preview) */}
+      {spotPreviewModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-zinc-950 border border-zinc-800 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">👁️</span>
+                <h3 className="font-bold text-base text-zinc-100">Previsualización de Escena Aislada</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setSpotPreviewModalOpen(false);
+                  setSpotPreviewUrl(null);
+                }}
+                className="text-zinc-400 hover:text-zinc-100 text-base"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center border border-zinc-800">
+              {spotPreviewUrl ? (
+                <video
+                  src={spotPreviewUrl}
+                  controls
+                  autoPlay
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <span className="text-xs text-zinc-500">Cargando video...</span>
+              )}
+            </div>
+            <div className="flex justify-end pt-2 border-t border-zinc-800">
+              <button
+                onClick={() => {
+                  setSpotPreviewModalOpen(false);
+                  setSpotPreviewUrl(null);
+                }}
+                className="btn-secondary text-xs py-2 px-5"
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -9,7 +9,12 @@ import { VisualAssetService } from "../services/visual-asset-service";
 export interface VisualRouteCtx {
   assetService: VisualAssetService;
   json: (res: ServerResponse, code: number, body: unknown) => void;
-  startVisualProduction?: (id: string, formats?: string[]) => Promise<void>;
+  startVisualProduction?: (id: string, formats?: string[], mode?: string) => Promise<void>;
+  cancelVisualProduction?: (id: string) => Promise<boolean>;
+  getVisualCacheStatus?: (id: string) => Promise<any>;
+  renderStoryboard?: (id: string) => Promise<any>;
+  renderSpotPreview?: (id: string, beatId: string) => Promise<any>;
+  renderSectionPreview?: (id: string, start: number, end: number) => Promise<any>;
 }
 
 export async function routeVisual(
@@ -157,11 +162,61 @@ export async function routeVisual(
     if (method === "POST" && action === "render-visual") {
       const body = await readBody();
       const formats = Array.isArray(body.formats) ? body.formats.map(String) : ["preview", "16x9", "9x16"];
+      const mode = typeof body.mode === "string" ? body.mode : undefined;
       if (ctx.startVisualProduction) {
-        await ctx.startVisualProduction(projectId, formats);
+        await ctx.startVisualProduction(projectId, formats, mode);
       }
       ctx.json(res, 202, { ok: true, projectId, formats, started: true });
       return true;
+    }
+
+    // GET /projects/:id/visual-cache o /projects/:id/visual/cache-status
+    if (method === "GET" && (action === "visual-cache" || (action === "visual" && subAction === "cache-status"))) {
+      if (ctx.getVisualCacheStatus) {
+        const status = await ctx.getVisualCacheStatus(projectId);
+        ctx.json(res, 200, status);
+        return true;
+      }
+    }
+
+    // POST /projects/:id/visual/storyboard
+    if (method === "POST" && action === "visual" && subAction === "storyboard") {
+      if (ctx.renderStoryboard) {
+        const result = await ctx.renderStoryboard(projectId);
+        ctx.json(res, 200, result);
+        return true;
+      }
+    }
+
+    // POST /projects/:id/visual/spot-preview/:beatId
+    if (method === "POST" && action === "visual" && subAction === "spot-preview" && segments[4]) {
+      const beatId = segments[4];
+      if (ctx.renderSpotPreview) {
+        const result = await ctx.renderSpotPreview(projectId, beatId);
+        ctx.json(res, 200, result);
+        return true;
+      }
+    }
+
+    // POST /projects/:id/visual/section-preview
+    if (method === "POST" && action === "visual" && subAction === "section-preview") {
+      const body = await readBody();
+      const start = Number(body.start || 0);
+      const end = Number(body.end || 0);
+      if (ctx.renderSectionPreview) {
+        const result = await ctx.renderSectionPreview(projectId, start, end);
+        ctx.json(res, 200, result);
+        return true;
+      }
+    }
+
+    // POST /projects/:id/visual/cancel
+    if (method === "POST" && action === "visual" && subAction === "cancel") {
+      if (ctx.cancelVisualProduction) {
+        const ok = await ctx.cancelVisualProduction(projectId);
+        ctx.json(res, 200, { ok, cancelled: true });
+        return true;
+      }
     }
   }
 

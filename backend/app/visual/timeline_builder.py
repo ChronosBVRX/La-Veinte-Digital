@@ -9,7 +9,8 @@ SCENE_TYPES = {"brand", "conversation", "question", "reaction", "number",
                "document", "explanation", "warning", "quote", "transition",
                "closing", "speaker_focus", "brand_opening", "brand_closing",
                "real_building", "organization_context", "document_cover",
-               "topic_image", "stat_card", "comparison", "payroll_visual"}
+               "topic_image", "stat_card", "comparison", "payroll_visual",
+               "context_broll"}
 
 _STOP = {"que", "los", "las", "una", "para", "con", "sin", "por", "como",
          "esto", "esta", "este", "pero", "porque", "cuando", "donde",

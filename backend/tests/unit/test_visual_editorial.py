@@ -116,7 +116,7 @@ def test_anti_false_attribution_guard():
     # No debe atribuirse como una unidad específica verificada
     if res.asset_id:
         asset = resolver.assets.get(res.asset_id)
-        assert asset.type == "generic" or not asset.based_on_verified_references
+        assert asset.type in ("generic", "GENERIC_CONTEXTUAL_AI") or not asset.based_on_verified_references
         assert res.entity != "UMF 999"
 
 

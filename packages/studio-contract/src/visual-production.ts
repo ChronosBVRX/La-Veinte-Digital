@@ -12,6 +12,15 @@ export type VideoQuality = z.infer<typeof VideoQualitySchema>;
 export const VisualStyleSchema = z.enum(["sobrio", "equilibrado", "dinamico"]);
 export type VisualStyle = z.infer<typeof VisualStyleSchema>;
 
+export const VisualDirectionSchema = z.enum(["documental", "conversacional", "infografica"]);
+export type VisualDirection = z.infer<typeof VisualDirectionSchema>;
+
+export const OnScreenTextModeSchema = z.enum(["editorial", "editorial_subtitulos", "solo_subtitulos", "minimo"]);
+export type OnScreenTextMode = z.infer<typeof OnScreenTextModeSchema>;
+
+export const VisualFunctionSchema = z.enum(["LOCUTOR", "EVIDENCIA", "EXPLICACION", "CONTEXTO"]);
+export type VisualFunction = z.infer<typeof VisualFunctionSchema>;
+
 export const VisualFidelitySchema = z.enum(["referencias_reales", "contextual"]);
 export type VisualFidelity = z.infer<typeof VisualFidelitySchema>;
 
@@ -26,6 +35,11 @@ export const ProductionPreferencesSchema = z.object({
   outputFormats: z.array(OutputFormatSchema).default(["preview", "16x9", "9x16"]),
   videoQuality: VideoQualitySchema.default("produccion"),
   visualStyle: VisualStyleSchema.default("equilibrado"),
+  visualDirection: VisualDirectionSchema.default("documental"),
+  onScreenTextMode: OnScreenTextModeSchema.default("editorial"),
+  subtitlesEnabled: z.boolean().default(false),
+  visualDensity: z.enum(["baja", "equilibrada", "alta"]).default("equilibrada"),
+  realReferencePriority: z.boolean().default(true),
   visualElements: z
     .object({
       realReferences: z.boolean().default(true),
@@ -87,11 +101,33 @@ export const VisualBeatSchema = z.object({
   end_s: z.number(),
   duration_s: z.number(),
   scene_type: z.string(),
+  visual_function: VisualFunctionSchema.default("LOCUTOR"),
+  headline: z.string().optional(),
+  subheadline: z.string().optional(),
+  key_points: z.array(z.string()).default([]),
   resolved_asset: z.record(z.string(), z.unknown()).nullable().optional(),
   chart_type: z.string().nullable().optional(),
   editorial_reason: z.string(),
   display_text: z.string(),
   overlay_logos: z.array(z.string()).default([]),
+  lockedByUser: z.boolean().default(false),
+  composition: z.enum(["full_bleed", "split", "document_focus", "data_focus", "speaker", "pip"]).optional(),
+  document_treatment: z
+    .object({
+      focus_clause: z.string().optional(),
+      focus_article: z.string().optional(),
+      motion: z.string().optional(),
+    })
+    .optional(),
+  subtitles: z
+    .array(
+      z.object({
+        text: z.string(),
+        start_s: z.number(),
+        end_s: z.number(),
+      })
+    )
+    .optional(),
 });
 export type VisualBeat = z.infer<typeof VisualBeatSchema>;
 

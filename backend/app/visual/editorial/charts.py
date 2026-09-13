@@ -357,3 +357,206 @@ class ProgrammaticChartRenderer:
                 sy += sh
 
         return img
+
+    def render_lft_document_card(
+        self,
+        w: int,
+        h: int,
+        article_code: str = "399bis",
+        vertical: bool = False,
+    ) -> Image.Image:
+        """Renderiza una representación documental oficial de la Ley Federal del Trabajo."""
+        img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+
+        box_x0, box_y0, box_x1, box_y1, s = self._get_boxes_and_scale(w, h, vertical)
+
+        # Tarjeta contenedor estilo documento oficial (papel marfil sobrio)
+        radius = int(20 * s)
+        d.rounded_rectangle([box_x0, box_y0, box_x1, box_y1], radius=max(8, radius), fill=(248, 250, 252), outline=(203, 213, 225), width=max(1, int(2 * s)))
+
+        f_header = _get_font(True, int((16 if not vertical else 18) * s))
+        f_title = _get_font(True, int((32 if not vertical else 36) * s))
+        f_sub = _get_font(True, int((20 if not vertical else 22) * s))
+        f_quote = _get_font(False, int((22 if not vertical else 24) * s))
+        f_note = _get_font(False, int((15 if not vertical else 16) * s))
+
+        pad_x = int(40 * s)
+        pad_y = int(35 * s)
+
+        # Encabezado institucional
+        d.rectangle([box_x0 + pad_x, box_y0 + pad_y, box_x1 - pad_x, box_y0 + pad_y + int(4 * s)], fill=(185, 28, 28))
+        d.text((box_x0 + pad_x, box_y0 + pad_y + int(12 * s)), "CÁMARA DE DIPUTADOS · DIARIO OFICIAL DE LA FEDERACIÓN", font=f_header, fill=(100, 116, 139))
+        d.text((box_x0 + pad_x, box_y0 + pad_y + int(36 * s)), "LEY FEDERAL DEL TRABAJO — TEXTO VIGENTE", font=f_sub, fill=(15, 23, 42))
+
+        # Bloque de artículo según código
+        art_y = box_y0 + int((130 if not vertical else 150) * s)
+        if article_code == "400bis":
+            art_label = "ARTÍCULO 400 BIS"
+            art_topic = "REVISIÓN CONTRACTUAL INTEGRAL (BIENAL)"
+            quote_text = (
+                "Los contratos colectivos de trabajo serán revisables cada dos años en lo que se refiere a las demás condiciones de trabajo. "
+                "La solicitud de revisión debe presentarse por lo menos sesenta días naturales antes del vencimiento."
+            )
+        else:
+            art_label = "ARTÍCULO 399 BIS"
+            art_topic = "REVISIÓN SALARIAL ANUAL EN EFECTIVO"
+            quote_text = (
+                "Los contratos colectivos de trabajo serán revisables cada año en lo que se refiere a los salarios en efectivo por cuota diaria. "
+                "La solicitud de esta revisión deberá hacerse por lo menos treinta días naturales antes del cumplimiento de un año."
+            )
+
+        d.text((box_x0 + pad_x, art_y), art_label, font=f_title, fill=(185, 28, 28))
+        d.text((box_x0 + pad_x, art_y + int(42 * s)), art_topic, font=f_sub, fill=(71, 85, 105))
+
+        # Caja de texto legal con resaltado de marca-textos ámbar
+        box_hl_y0 = art_y + int(85 * s)
+        box_hl_y1 = box_y1 - int((65 if not vertical else 80) * s)
+        d.rounded_rectangle([box_x0 + pad_x, box_hl_y0, box_x1 - pad_x, box_hl_y1], radius=max(6, int(10 * s)), fill=(254, 249, 195), outline=(250, 204, 21), width=1)
+
+        # Barra lateral roja
+        d.rectangle([box_x0 + pad_x, box_hl_y0, box_x0 + pad_x + int(8 * s), box_hl_y1], fill=(185, 28, 28))
+
+        # Texto de la cita
+        _draw_wrapped_text(
+            d,
+            f'"{quote_text}"',
+            f_quote,
+            (30, 41, 59),
+            box_x0 + pad_x + int(24 * s),
+            box_hl_y0 + int(24 * s),
+            box_x1 - box_x0 - pad_x * 2 - int(48 * s),
+            line_spacing=1.35,
+        )
+
+        # Pie de página documental
+        d.text((box_x0 + pad_x, box_y1 - int(40 * s)), "Evidencia documental oficial · Cámara de Diputados del H. Congreso de la Unión", font=f_note, fill=(148, 163, 184))
+
+        return img
+
+    def render_cct_clause_card(
+        self,
+        w: int,
+        h: int,
+        clause_code: str = "157",
+        vertical: bool = False,
+    ) -> Image.Image:
+        """Renderiza una representación documental oficial del Contrato Colectivo IMSS-SNTSS."""
+        img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+
+        box_x0, box_y0, box_x1, box_y1, s = self._get_boxes_and_scale(w, h, vertical)
+
+        radius = int(20 * s)
+        d.rounded_rectangle([box_x0, box_y0, box_x1, box_y1], radius=max(8, radius), fill=(248, 250, 252), outline=(203, 213, 225), width=max(1, int(2 * s)))
+
+        f_header = _get_font(True, int((16 if not vertical else 18) * s))
+        f_title = _get_font(True, int((32 if not vertical else 36) * s))
+        f_sub = _get_font(True, int((20 if not vertical else 22) * s))
+        f_quote = _get_font(False, int((22 if not vertical else 24) * s))
+        f_note = _get_font(False, int((15 if not vertical else 16) * s))
+
+        pad_x = int(40 * s)
+        pad_y = int(35 * s)
+
+        d.rectangle([box_x0 + pad_x, box_y0 + pad_y, box_x1 - pad_x, box_y0 + pad_y + int(4 * s)], fill=(11, 79, 55))
+        d.text((box_x0 + pad_x, box_y0 + pad_y + int(12 * s)), "IMSS · SNTSS · CONTRATO COLECTIVO DE TRABAJO", font=f_header, fill=(100, 116, 139))
+        d.text((box_x0 + pad_x, box_y0 + pad_y + int(36 * s)), "BIENIO VIGENTE 2025–2027", font=f_sub, fill=(15, 23, 42))
+
+        art_y = box_y0 + int((130 if not vertical else 150) * s)
+        cl_label = f"CLÁUSULA {clause_code}"
+        cl_topic = "APORTACIONES COMPLEMENTARIAS PARA EL RETIRO"
+        quote_text = (
+            "El Instituto realizará aportaciones patronales complementarias para el retiro de los trabajadores "
+            "de Base, Sustitutos y Confianza B de Nueva Generación, de acuerdo con la tabla de escalonamiento pactada."
+        )
+
+        d.text((box_x0 + pad_x, art_y), cl_label, font=f_title, fill=(11, 79, 55))
+        d.text((box_x0 + pad_x, art_y + int(42 * s)), cl_topic, font=f_sub, fill=(71, 85, 105))
+
+        box_hl_y0 = art_y + int(85 * s)
+        box_hl_y1 = box_y1 - int((65 if not vertical else 80) * s)
+        d.rounded_rectangle([box_x0 + pad_x, box_hl_y0, box_x1 - pad_x, box_hl_y1], radius=max(6, int(10 * s)), fill=(240, 253, 244), outline=(134, 239, 172), width=1)
+
+        d.rectangle([box_x0 + pad_x, box_hl_y0, box_x0 + pad_x + int(8 * s), box_hl_y1], fill=(11, 79, 55))
+
+        _draw_wrapped_text(
+            d,
+            f'"{quote_text}"',
+            f_quote,
+            (30, 41, 59),
+            box_x0 + pad_x + int(24 * s),
+            box_hl_y0 + int(24 * s),
+            box_x1 - box_x0 - pad_x * 2 - int(48 * s),
+            line_spacing=1.35,
+        )
+
+        d.text((box_x0 + pad_x, box_y1 - int(40 * s)), "Texto oficial depositado ante el Centro Federal de Conciliación y Registro Laboral", font=f_note, fill=(148, 163, 184))
+
+        return img
+
+    def render_tarjeton_detail_card(
+        self,
+        w: int,
+        h: int,
+        concept_code: str = "02",
+        vertical: bool = False,
+    ) -> Image.Image:
+        """Renderiza el desglose enfocado de un concepto dentro del Tarjetón Digital IMSS."""
+        img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+
+        box_x0, box_y0, box_x1, box_y1, s = self._get_boxes_and_scale(w, h, vertical)
+
+        radius = int(20 * s)
+        d.rounded_rectangle([box_x0, box_y0, box_x1, box_y1], radius=max(8, radius), fill=(248, 250, 252), outline=(203, 213, 225), width=max(1, int(2 * s)))
+
+        f_header = _get_font(True, int((16 if not vertical else 18) * s))
+        f_title = _get_font(True, int((30 if not vertical else 34) * s))
+        f_sub = _get_font(True, int((20 if not vertical else 22) * s))
+        f_badge = _get_font(True, int((18 if not vertical else 20) * s))
+        f_row = _get_font(True, int((18 if not vertical else 20) * s))
+        f_row_sub = _get_font(False, int((14 if not vertical else 16) * s))
+        f_note = _get_font(False, int((14 if not vertical else 15) * s))
+
+        pad_x = int(35 * s)
+        pad_y = int(30 * s)
+
+        d.rectangle([box_x0 + pad_x, box_y0 + pad_y, box_x1 - pad_x, box_y0 + pad_y + int(4 * s)], fill=(11, 79, 55))
+        d.text((box_x0 + pad_x, box_y0 + pad_y + int(12 * s)), "INSTITUTO MEXICANO DEL SEGURO SOCIAL", font=f_header, fill=(11, 79, 55))
+        d.text((box_x0 + pad_x, box_y0 + pad_y + int(34 * s)), "TARJETÓN DIGITAL DE PAGO · COMPROBANTE DE PERCEPCIONES", font=f_sub, fill=(15, 23, 42))
+
+        rows_y0 = box_y0 + int((115 if not vertical else 135) * s)
+        row_h = int((68 if not vertical else 80) * s)
+
+        concepts = [
+            ("01", "SUELDO ORDINARIO", "Percepción ordinaria por jornada regular", False, ""),
+            ("02", "SUELDO TABULAR", "Salario base asignado a categoría y jornada contractual", concept_code == "02", "+2.90% AL TABULADOR"),
+            ("11", "AYUDA DE RENTA", "Prestación ligada al sueldo (Cláusula 63 Bis CCT)", concept_code == "11", "+3.90% A CLÁUSULA 63 BIS"),
+            ("22", "ANTIGÜEDAD EFECTIVA", "Prestación complementaria calculada sobre sueldo base", False, ""),
+        ]
+
+        cur_y = rows_y0
+        for code, name, desc, is_focus, badge in concepts:
+            fill_bg = (254, 240, 138) if is_focus else ((255, 255, 255) if int(code) % 2 == 0 else (241, 245, 249))
+            border_col = (234, 179, 8) if is_focus else (226, 232, 240)
+            d.rounded_rectangle([box_x0 + pad_x, cur_y, box_x1 - pad_x, cur_y + row_h], radius=max(4, int(6 * s)), fill=fill_bg, outline=border_col, width=max(1, int(2 * s) if is_focus else 1))
+
+            d.text((box_x0 + pad_x + int(15 * s), cur_y + int(12 * s)), f"{code}  {name}", font=f_row, fill=(15, 23, 42) if not is_focus else (113, 63, 18))
+            d.text((box_x0 + pad_x + int(15 * s), cur_y + int(36 * s)), desc, font=f_row_sub, fill=(71, 85, 105))
+
+            if badge:
+                # Pill destacada
+                bw = int(240 * s)
+                bx1 = box_x1 - pad_x - int(15 * s)
+                bx0 = bx1 - bw
+                by0 = cur_y + int(16 * s)
+                by1 = by0 + int(36 * s)
+                d.rounded_rectangle([bx0, by0, bx1, by1], radius=int(18 * s), fill=(185, 28, 28) if "TABULADOR" in badge else (37, 99, 235))
+                d.text((bx0 + int(14 * s), by0 + int(8 * s)), badge, font=f_badge, fill=(255, 255, 255))
+
+            cur_y += row_h + int(10 * s)
+
+        d.text((box_x0 + pad_x, box_y1 - int(35 * s)), "Ubicación oficial de conceptos en el talón de pago quincenal IMSS", font=f_note, fill=(148, 163, 184))
+
+        return img

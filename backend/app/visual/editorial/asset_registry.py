@@ -1,9 +1,10 @@
 """Catálogo y Registro de Assets Editoriales para La Veinte Radio.
 
-Clasifica assets estrictamente en tres tipos:
-- official: Logos y símbolos oficiales de uso informativo permitido (SVG/PNG transparente).
-- reference_based: Ilustraciones y fondos creados tras investigar hechos reales verificables.
-- generic: Escenas contextuales sin atribución a un edificio o entidad específica.
+Taxonomía estricta de 4 tipos:
+- OFFICIAL: Logos y símbolos oficiales de uso informativo permitido (SVG/PNG transparente).
+- REFERENCE_BASED: Ilustraciones y activos creados a partir de referencias documentales o arquitectónicas verificadas.
+- GENERIC_CONTEXTUAL_AI: Escenas y B-roll generados por IA para contexto neutro (sin logos ni texto institucional generado).
+- USER_PROVIDED: Materiales aportados por usuarios o colaboradores.
 """
 from __future__ import annotations
 
@@ -17,7 +18,7 @@ from typing import Any
 class AssetItem:
     id: str
     file: str  # Ruta relativa desde assets/editorial/
-    type: str  # official, reference_based, generic
+    type: str  # OFFICIAL, REFERENCE_BASED, GENERIC_CONTEXTUAL_AI, USER_PROVIDED
     entity: str
     category: str  # organizations, logos, buildings, documents, payroll, medical, workplace, union
     tags: list[str] = field(default_factory=list)

@@ -1,11 +1,11 @@
 {
-  "registry_version": "lv-assets-v1",
-  "count": 13,
+  "registry_version": "lv-assets-v2",
+  "count": 21,
   "assets": [
     {
       "id": "logo_imss_official",
       "file": "logos/imss_official_logo.png",
-      "type": "official",
+      "type": "OFFICIAL",
       "entity": "IMSS",
       "category": "logos",
       "tags": [
@@ -32,7 +32,7 @@
     {
       "id": "logo_sntss_official",
       "file": "logos/sntss_official_logo.png",
-      "type": "official",
+      "type": "OFFICIAL",
       "entity": "SNTSS",
       "category": "logos",
       "tags": [
@@ -58,7 +58,7 @@
     {
       "id": "logo_cfcrl_official",
       "file": "logos/cfcrl_official_logo.png",
-      "type": "official",
+      "type": "OFFICIAL",
       "entity": "CFCRL",
       "category": "logos",
       "tags": [
@@ -84,7 +84,7 @@
     {
       "id": "cct_2025_2027_cover_asset",
       "file": "documents/cct_2025_2027_cover.webp",
-      "type": "reference_based",
+      "type": "REFERENCE_BASED",
       "entity": "Contrato Colectivo de Trabajo",
       "category": "documents",
       "tags": [
@@ -110,7 +110,7 @@
     {
       "id": "cct_2025_2027_cover_asset_9x16",
       "file": "documents/cct_2025_2027_cover_9x16.webp",
-      "type": "reference_based",
+      "type": "REFERENCE_BASED",
       "entity": "Contrato Colectivo de Trabajo",
       "category": "documents",
       "tags": [
@@ -136,7 +136,7 @@
     {
       "id": "hgr1_charo_exterior_asset",
       "file": "buildings/imss/hgr1_charo_exterior.webp",
-      "type": "reference_based",
+      "type": "REFERENCE_BASED",
       "entity": "Hospital General Regional No. 1 Charo",
       "category": "buildings",
       "tags": [
@@ -162,7 +162,7 @@
     {
       "id": "hgr1_charo_exterior_asset_9x16",
       "file": "buildings/imss/hgr1_charo_exterior_9x16.webp",
-      "type": "reference_based",
+      "type": "REFERENCE_BASED",
       "entity": "Hospital General Regional No. 1 Charo",
       "category": "buildings",
       "tags": [
@@ -188,8 +188,8 @@
     {
       "id": "hospital_general_exterior_asset",
       "file": "buildings/imss/hospital_general_exterior.webp",
-      "type": "generic",
-      "entity": "Hospital General IMSS",
+      "type": "GENERIC_CONTEXTUAL_AI",
+      "entity": "Hospital General (Fachada Contextual)",
       "category": "buildings",
       "tags": [
         "IMSS",
@@ -204,14 +204,16 @@
       "reference_ids": [],
       "style_version": "lv-editorial-v1",
       "meta": {
-        "attribution": "generic"
+        "source": "Generación IA Contextual",
+        "attribution": "generic",
+        "license": "editorial-internal"
       }
     },
     {
       "id": "hospital_general_exterior_asset_9x16",
       "file": "buildings/imss/hospital_general_exterior_9x16.webp",
-      "type": "generic",
-      "entity": "Hospital General IMSS",
+      "type": "GENERIC_CONTEXTUAL_AI",
+      "entity": "Hospital General (Fachada Contextual)",
       "category": "buildings",
       "tags": [
         "IMSS",
@@ -226,13 +228,15 @@
       "reference_ids": [],
       "style_version": "lv-editorial-v1",
       "meta": {
-        "attribution": "generic"
+        "source": "Generación IA Contextual",
+        "attribution": "generic",
+        "license": "editorial-internal"
       }
     },
     {
       "id": "sntss_congress_hall_asset",
       "file": "union/sntss_congress_hall.webp",
-      "type": "reference_based",
+      "type": "REFERENCE_BASED",
       "entity": "Congreso Nacional SNTSS",
       "category": "union",
       "tags": [
@@ -255,7 +259,7 @@
     {
       "id": "sntss_congress_hall_asset_9x16",
       "file": "union/sntss_congress_hall_9x16.webp",
-      "type": "reference_based",
+      "type": "REFERENCE_BASED",
       "entity": "Congreso Nacional SNTSS",
       "category": "union",
       "tags": [
@@ -278,7 +282,7 @@
     {
       "id": "tarjeton_imss_context_asset",
       "file": "payroll/tarjeton_imss_context.webp",
-      "type": "reference_based",
+      "type": "REFERENCE_BASED",
       "entity": "Tarjetón IMSS",
       "category": "payroll",
       "tags": [
@@ -302,7 +306,7 @@
     {
       "id": "tarjeton_imss_context_asset_9x16",
       "file": "payroll/tarjeton_imss_context_9x16.webp",
-      "type": "reference_based",
+      "type": "REFERENCE_BASED",
       "entity": "Tarjetón IMSS",
       "category": "payroll",
       "tags": [
@@ -322,6 +326,210 @@
       ],
       "style_version": "lv-editorial-v1",
       "meta": {}
+    },
+    {
+      "id": "hospital_corridor_asset",
+      "file": "context/hospital_corridor.webp",
+      "type": "GENERIC_CONTEXTUAL_AI",
+      "entity": "Entorno Clínico Hospitalario",
+      "category": "context",
+      "tags": [
+        "hospital",
+        "clínica",
+        "pasillo",
+        "entorno laboral",
+        "personal",
+        "b-roll"
+      ],
+      "orientation": [
+        "16:9"
+      ],
+      "based_on_verified_references": false,
+      "reference_ids": [],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "source": "Generación IA Contextual",
+        "license": "editorial-internal"
+      }
+    },
+    {
+      "id": "hospital_corridor_asset_9x16",
+      "file": "context/hospital_corridor_9x16.webp",
+      "type": "GENERIC_CONTEXTUAL_AI",
+      "entity": "Entorno Clínico Hospitalario",
+      "category": "context",
+      "tags": [
+        "hospital",
+        "clínica",
+        "pasillo",
+        "entorno laboral",
+        "personal",
+        "b-roll"
+      ],
+      "orientation": [
+        "9:16"
+      ],
+      "based_on_verified_references": false,
+      "reference_ids": [],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "source": "Generación IA Contextual",
+        "license": "editorial-internal"
+      }
+    },
+    {
+      "id": "administrative_office_imss_asset",
+      "file": "context/administrative_office_imss.webp",
+      "type": "GENERIC_CONTEXTUAL_AI",
+      "entity": "Área de Gestión Administrativa",
+      "category": "context",
+      "tags": [
+        "oficina",
+        "administrativa",
+        "recursos humanos",
+        "personal",
+        "expedientes",
+        "b-roll"
+      ],
+      "orientation": [
+        "16:9"
+      ],
+      "based_on_verified_references": false,
+      "reference_ids": [],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "source": "Generación IA Contextual",
+        "license": "editorial-internal"
+      }
+    },
+    {
+      "id": "administrative_office_imss_asset_9x16",
+      "file": "context/administrative_office_imss_9x16.webp",
+      "type": "GENERIC_CONTEXTUAL_AI",
+      "entity": "Área de Gestión Administrativa",
+      "category": "context",
+      "tags": [
+        "oficina",
+        "administrativa",
+        "recursos humanos",
+        "personal",
+        "expedientes",
+        "b-roll"
+      ],
+      "orientation": [
+        "9:16"
+      ],
+      "based_on_verified_references": false,
+      "reference_ids": [],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "source": "Generación IA Contextual",
+        "license": "editorial-internal"
+      }
+    },
+    {
+      "id": "worker_reviewing_payslip_asset",
+      "file": "context/worker_reviewing_payslip.webp",
+      "type": "GENERIC_CONTEXTUAL_AI",
+      "entity": "Revisión de Percepciones y Nómina",
+      "category": "context",
+      "tags": [
+        "trabajador",
+        "tarjetón",
+        "nómina",
+        "talón",
+        "revisión",
+        "quincena",
+        "b-roll"
+      ],
+      "orientation": [
+        "16:9"
+      ],
+      "based_on_verified_references": false,
+      "reference_ids": [],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "source": "Generación IA Contextual",
+        "license": "editorial-internal"
+      }
+    },
+    {
+      "id": "worker_reviewing_payslip_asset_9x16",
+      "file": "context/worker_reviewing_payslip_9x16.webp",
+      "type": "GENERIC_CONTEXTUAL_AI",
+      "entity": "Revisión de Percepciones y Nómina",
+      "category": "context",
+      "tags": [
+        "trabajador",
+        "tarjetón",
+        "nómina",
+        "talón",
+        "revisión",
+        "quincena",
+        "b-roll"
+      ],
+      "orientation": [
+        "9:16"
+      ],
+      "based_on_verified_references": false,
+      "reference_ids": [],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "source": "Generación IA Contextual",
+        "license": "editorial-internal"
+      }
+    },
+    {
+      "id": "worker_reviewing_document_asset",
+      "file": "context/worker_reviewing_document.webp",
+      "type": "GENERIC_CONTEXTUAL_AI",
+      "entity": "Consulta de Normativa Laboral",
+      "category": "context",
+      "tags": [
+        "trabajador",
+        "documento",
+        "CCT",
+        "normativa",
+        "contrato",
+        "lectura",
+        "b-roll"
+      ],
+      "orientation": [
+        "16:9"
+      ],
+      "based_on_verified_references": false,
+      "reference_ids": [],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "source": "Generación IA Contextual",
+        "license": "editorial-internal"
+      }
+    },
+    {
+      "id": "worker_reviewing_document_asset_9x16",
+      "file": "context/worker_reviewing_document_9x16.webp",
+      "type": "GENERIC_CONTEXTUAL_AI",
+      "entity": "Consulta de Normativa Laboral",
+      "category": "context",
+      "tags": [
+        "trabajador",
+        "documento",
+        "CCT",
+        "normativa",
+        "contrato",
+        "lectura",
+        "b-roll"
+      ],
+      "orientation": [
+        "9:16"
+      ],
+      "based_on_verified_references": false,
+      "reference_ids": [],
+      "style_version": "lv-editorial-v1",
+      "meta": {
+        "source": "Generación IA Contextual",
+        "license": "editorial-internal"
+      }
     }
   ]
 }

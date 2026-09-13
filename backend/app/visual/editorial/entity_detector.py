@@ -48,6 +48,10 @@ class EntityDetector:
             (r"\b(Reglamento Interior de Trabajo|RIT)\b", "Reglamento Interior de Trabajo", "document", {"organization": "IMSS-SNTSS"}),
             (r"\b(Tabulador(?: de Sueldos| de Base)?)\b", "Tabulador de Sueldos IMSS", "document", {"scope": "personal_base"}),
             (r"\b(tarjet[oó]n(?: de pago)?(?:\s+IMSS)?)\b", "Tarjetón IMSS", "document", {"type": "payslip"}),
+            (r"\b(formato\s+ST[-\s]?7|aviso\s+de\s+atenci[oó]n\s+m[eé]dica\s+inicial|ST[-\s]?7)\b",
+             "Formato ST-7 Riesgo de Trabajo", "document", {"type": "medical_format", "procedure": "riesgo_trabajo"}),
+            (r"\b(solicitud\s+de\s+vacaciones|rol\s+de\s+vacaciones|d[ií]as\s+de\s+vacaciones)\b",
+             "Solicitud de Vacaciones", "document", {"type": "labor_request", "topic": "vacaciones"}),
         ]
 
         # Leyes y Códigos
@@ -87,12 +91,19 @@ class EntityDetector:
              {"code": "002", "category": "deduccion"}),
             (r"\b(impuestos|ISR|impuesto sobre la renta)\b", "Deducción ISR", "payroll_concept",
              {"code": "001", "category": "deduccion"}),
+            (r"\b(prima\s+vacacional)\b", "Prima Vacacional", "payroll_concept",
+             {"category": "percepcion"}),
+            (r"\b(incapacidad\s+temporal(?:\s+al\s+100%)?|subsidio\s+por\s+incapacidad)\b",
+             "Incapacidad Temporal 100%", "payroll_concept",
+             {"category": "prestacion"}),
             (r"\b(Nueva Generaci[oó]n)\b", "Trabajadores Nueva Generación", "topic",
              {"scope": "Cláusula 157 CCT"}),
         ]
 
         # Cifras y porcentajes clave del episodio
         self.stat_patterns = [
+            (r"\b(cien\s+por\s+ciento|100\s*%|100\s+por\s+ciento)\b", "100% Salario Base", "financial_stat",
+             {"value": 100.0, "type": "percentage", "metric": "incapacidad_temporal"}),
             (r"\b(ocho punto cincuenta y cinco|8\.55)\s*(?:%|por ciento)?\b", "8.55% Incremento Ponderado", "financial_stat",
              {"value": 8.55, "type": "percentage", "metric": "ponderado_congreso"}),
             (r"\b(dos punto nueve|2\.9)\s*(?:%|por ciento)?\b", "2.9% Sueldo Tabular", "financial_stat",
@@ -151,7 +162,7 @@ class EntityDetector:
                             attributes=attrs.copy(),
                         ))
 
-        # Detección de montos en moneda ($10,000, etc.)
+        # Detección de montos en moneda ($10,000, diez mil pesos, etc.)
         monto_matches = re.finditer(r"\$\s*([\d,]+(?:\.\d+)?)\s*(?:pesos)?|(\d+[\d,]*\s*pesos)", text, re.IGNORECASE)
         for m in monto_matches:
             raw = m.group(0).strip()
@@ -170,6 +181,92 @@ class EntityDetector:
                     ))
                 except ValueError:
                     pass
+
+        # Montos en palabras (ej. "diez mil pesos", "doscientos noventa pesos")
+        palabras_pesos = re.finditer(
+            r"\b(?:un|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|doscientos|trescientos|cuatrocientos|quinientos|seiscientos|setecientos|ochocientos|novecientos|mil)"
+            r"(?:\s+(?:y\s+)?(?:un|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien|ciento|doscientos|trescientos|cuatrocientos|quinientos|seiscientos|setecientos|ochocientos|novecientos|mil))*"
+            r"\s+pesos\b",
+            text,
+            re.IGNORECASE,
+        )
+        for pm in palabras_pesos:
+            raw_p = pm.group(0).strip()
+            if raw_p not in seen_names and not any(raw_p in e.raw_text for e in results):
+                seen_names.add(raw_p)
+                results.append(DetectedEntity(
+                    name=f"Monto: {raw_p.title()}",
+                    category="financial_stat",
+                    raw_text=raw_p,
+                    confidence=0.88,
+                    attributes={"currency": "MXN", "raw_currency": raw_p},
+                ))
+
+        # Detección general de artículos legales no cubiertos específicamente
+        for art_m in re.finditer(r"\bart[íi]culo\s+(\d+(?:\s*(?:bis|ter|qu[aá]ter))?)\b", text, re.IGNORECASE):
+            art_raw = art_m.group(0).strip()
+            art_num = art_m.group(1).strip()
+            art_name = f"Artículo {art_num.title()}"
+            if not any(art_num in e.name for e in results) and art_name not in seen_names:
+                seen_names.add(art_name)
+                # Inferir ley si está cerca en el texto
+                law_ref = "LSS" if "seguro social" in text.lower() or "lss" in text.lower() else ("LFT" if "ley federal del trabajo" in text.lower() or "lft" in text.lower() or "trabajo" in text.lower() else "Ley")
+                results.append(DetectedEntity(
+                    name=f"{art_name} {law_ref}",
+                    category="law",
+                    raw_text=art_raw,
+                    confidence=0.90,
+                    attributes={"article": art_num, "law": law_ref, "generic": True},
+                ))
+
+        # Detección general de cláusulas contractuales no cubiertas específicamente
+        for cl_m in re.finditer(r"\bcl[áa]usula\s+(\d+(?:\s*(?:bis|ter))?)\b", text, re.IGNORECASE):
+            cl_raw = cl_m.group(0).strip()
+            cl_num = cl_m.group(1).strip()
+            cl_name = f"Cláusula {cl_num.title()} CCT"
+            if not any(cl_num in e.name for e in results) and cl_name not in seen_names:
+                seen_names.add(cl_name)
+                results.append(DetectedEntity(
+                    name=cl_name,
+                    category="clause",
+                    raw_text=cl_raw,
+                    confidence=0.90,
+                    attributes={"clause": cl_num, "document": "CCT", "generic": True},
+                ))
+
+        # Detección general de conceptos de nómina
+        for con_m in re.finditer(r"\bconcepto\s+(\d+)\b", text, re.IGNORECASE):
+            con_raw = con_m.group(0).strip()
+            con_num = con_m.group(1).strip()
+            con_name = f"Concepto {con_num}"
+            if not any(con_num in e.name for e in results) and con_name not in seen_names:
+                seen_names.add(con_name)
+                results.append(DetectedEntity(
+                    name=con_name,
+                    category="payroll_concept",
+                    raw_text=con_raw,
+                    confidence=0.90,
+                    attributes={"code": con_num, "generic": True},
+                ))
+
+        # Detección general de porcentajes
+        for pct_m in re.finditer(r"\b(\d+(?:\.\d+)?)\s*(?:%|por ciento)\b", text, re.IGNORECASE):
+            pct_raw = pct_m.group(0).strip()
+            pct_val = pct_m.group(1).strip()
+            pct_name = f"{pct_val}%"
+            if not any(pct_val in e.name for e in results) and pct_name not in seen_names:
+                seen_names.add(pct_name)
+                try:
+                    p_float = float(pct_val)
+                except ValueError:
+                    p_float = 0.0
+                results.append(DetectedEntity(
+                    name=pct_name,
+                    category="financial_stat",
+                    raw_text=pct_raw,
+                    confidence=0.88,
+                    attributes={"value": p_float, "type": "percentage", "generic": True},
+                ))
 
         return results
 

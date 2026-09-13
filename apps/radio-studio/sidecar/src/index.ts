@@ -2170,6 +2170,11 @@ const server = http.createServer(async (req, res) => {
       assetService: visualAssetService,
       json,
       startVisualProduction,
+      cancelVisualProduction,
+      getVisualCacheStatus,
+      renderStoryboard,
+      renderSpotPreview,
+      renderSectionPreview,
     };
     if (await routeVisual(url, req, res, vctx, () => readBody(req))) return;
     // ── Rutas de proyecto (proposal-first) ──
@@ -2271,7 +2276,7 @@ async function startProjectProduction(id: string, script: StudioScript): Promise
 }
 
 /** Lanza la generación de video del proyecto en segundo plano. */
-async function startVisualProduction(id: string, requestedFormats?: string[]): Promise<void> {
+async function startVisualProduction(id: string, requestedFormats?: string[], mode?: string): Promise<void> {
   const project = projectStore.get(id);
   if (!project) throw new Error("PROJECT_NOT_FOUND");
   if (!project.master?.master) throw new Error("MASTER_AUDIO_REQUIRED");
@@ -2328,17 +2333,22 @@ async function startVisualProduction(id: string, requestedFormats?: string[]): P
       error: null,
     },
   });
-  projectLog(id, "visual.started", { projectId: id, alignment: activeAlignment, formats: formatsToUse });
+  projectLog(id, "visual.started", { projectId: id, alignment: activeAlignment, formats: formatsToUse, mode });
 
   const scriptPath = path.join(REPO, "backend", "app", "visual", "project_renderer.py");
-  const proc = spawn("python", [
+  const pyArgs = [
     scriptPath,
     "--project", projectJsonPath,
     "--master", masterAudio,
     "--alignment", activeAlignment,
     "--output-dir", outDir,
     "--formats", formatsToUse.join(","),
-  ], {
+  ];
+  if (mode) {
+    pyArgs.push("--mode", mode);
+  }
+
+  const proc = spawn("python", pyArgs, {
     cwd: REPO,
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
@@ -2480,6 +2490,161 @@ async function startVisualProduction(id: string, requestedFormats?: string[]): P
       projectLog(id, "visual.failed", { error: errorMsg });
     }
   });
+}
+
+/** Cancela el proceso de renderizado visual en curso sin tocar la caché completada. */
+async function cancelVisualProduction(id: string): Promise<boolean> {
+  const activeJob = leerVisualJob(id);
+  if (activeJob && activeJob.pid && isProcessAlive(activeJob.pid)) {
+    try {
+      if (process.platform === "win32") {
+        execSync(`taskkill /PID ${activeJob.pid} /T /F`, { stdio: "ignore" });
+      } else {
+        process.kill(activeJob.pid, "SIGTERM");
+      }
+    } catch {
+      // Ignorar si ya terminó
+    }
+  }
+  if (activeJob) {
+    activeJob.status = "CANCELLED";
+    activeJob.updatedAt = new Date().toISOString();
+    guardarVisualJob(activeJob);
+  }
+  const project = projectStore.get(id);
+  if (project) {
+    projectStore.update(id, {
+      visual: {
+        ...(project.visual || {}),
+        status: "CANCELLED" as any,
+        error: "Render cancelado por el usuario",
+      },
+    });
+    projectLog(id, "visual.cancelled", { id });
+  }
+  return true;
+}
+
+/** Consulta el desglose de estado del caché de beats para un proyecto. */
+async function getVisualCacheStatus(id: string): Promise<any> {
+  const projectDir = path.join(REPO, "data", "projects", id);
+  const projectJsonPath = path.join(projectDir, "project.json");
+  const alignmentPath = path.join(projectDir, "timeline-alignment.json");
+  const masterAlignmentPath = path.join(REPO, "data", "tts", "master", `timeline-${id}.json`);
+  const activeAlignment = fs.existsSync(alignmentPath) ? alignmentPath : masterAlignmentPath;
+  const project = projectStore.get(id);
+  const masterAudio = project?.master?.master
+    ? (path.isAbsolute(project.master.master) ? project.master.master : path.join(REPO, project.master.master))
+    : path.join(REPO, "data", "tts", "master", `programa-${id}.mp3`);
+  const outDir = path.join(projectDir, "renders");
+
+  const scriptPath = path.join(REPO, "backend", "app", "visual", "project_renderer.py");
+  const out = execFileSync("python", [
+    scriptPath,
+    "--project", projectJsonPath,
+    "--master", masterAudio,
+    "--alignment", activeAlignment,
+    "--output-dir", outDir,
+    "--cache-status",
+  ], { cwd: REPO, timeout: 15000, encoding: "utf-8" });
+
+  try {
+    return JSON.parse(out);
+  } catch {
+    return { ok: false, error: "Failed to parse cache status" };
+  }
+}
+
+/** Genera la hoja de contacto Storyboard con 1 fotograma estático por escena en segundos. */
+async function renderStoryboard(id: string): Promise<any> {
+  const projectDir = path.join(REPO, "data", "projects", id);
+  const projectJsonPath = path.join(projectDir, "project.json");
+  const alignmentPath = path.join(projectDir, "timeline-alignment.json");
+  const masterAlignmentPath = path.join(REPO, "data", "tts", "master", `timeline-${id}.json`);
+  const activeAlignment = fs.existsSync(alignmentPath) ? alignmentPath : masterAlignmentPath;
+  const project = projectStore.get(id);
+  const masterAudio = project?.master?.master
+    ? (path.isAbsolute(project.master.master) ? project.master.master : path.join(REPO, project.master.master))
+    : path.join(REPO, "data", "tts", "master", `programa-${id}.mp3`);
+  const outDir = path.join(projectDir, "renders");
+
+  const scriptPath = path.join(REPO, "backend", "app", "visual", "project_renderer.py");
+  const out = execFileSync("python", [
+    scriptPath,
+    "--project", projectJsonPath,
+    "--master", masterAudio,
+    "--alignment", activeAlignment,
+    "--output-dir", outDir,
+    "--mode", "storyboard",
+  ], { cwd: REPO, timeout: 60000, encoding: "utf-8" });
+
+  try {
+    return JSON.parse(out);
+  } catch {
+    return { ok: false, error: "Failed to generate storyboard" };
+  }
+}
+
+/** Renderiza una escena aislada (spot preview) con audio sincronizado en segundos. */
+async function renderSpotPreview(id: string, beatId: string): Promise<any> {
+  const projectDir = path.join(REPO, "data", "projects", id);
+  const projectJsonPath = path.join(projectDir, "project.json");
+  const alignmentPath = path.join(projectDir, "timeline-alignment.json");
+  const masterAlignmentPath = path.join(REPO, "data", "tts", "master", `timeline-${id}.json`);
+  const activeAlignment = fs.existsSync(alignmentPath) ? alignmentPath : masterAlignmentPath;
+  const project = projectStore.get(id);
+  const masterAudio = project?.master?.master
+    ? (path.isAbsolute(project.master.master) ? project.master.master : path.join(REPO, project.master.master))
+    : path.join(REPO, "data", "tts", "master", `programa-${id}.mp3`);
+  const outDir = path.join(projectDir, "renders");
+
+  const scriptPath = path.join(REPO, "backend", "app", "visual", "project_renderer.py");
+  const out = execFileSync("python", [
+    scriptPath,
+    "--project", projectJsonPath,
+    "--master", masterAudio,
+    "--alignment", activeAlignment,
+    "--output-dir", outDir,
+    "--mode", "spot",
+    "--beat-id", beatId,
+  ], { cwd: REPO, timeout: 60000, encoding: "utf-8" });
+
+  try {
+    return JSON.parse(out);
+  } catch {
+    return { ok: false, error: "Failed to render spot preview" };
+  }
+}
+
+/** Renderiza una sección temporal [start, end] con audio sincronizado. */
+async function renderSectionPreview(id: string, start: number, end: number): Promise<any> {
+  const projectDir = path.join(REPO, "data", "projects", id);
+  const projectJsonPath = path.join(projectDir, "project.json");
+  const alignmentPath = path.join(projectDir, "timeline-alignment.json");
+  const masterAlignmentPath = path.join(REPO, "data", "tts", "master", `timeline-${id}.json`);
+  const activeAlignment = fs.existsSync(alignmentPath) ? alignmentPath : masterAlignmentPath;
+  const project = projectStore.get(id);
+  const masterAudio = project?.master?.master
+    ? (path.isAbsolute(project.master.master) ? project.master.master : path.join(REPO, project.master.master))
+    : path.join(REPO, "data", "tts", "master", `programa-${id}.mp3`);
+  const outDir = path.join(projectDir, "renders");
+
+  const scriptPath = path.join(REPO, "backend", "app", "visual", "project_renderer.py");
+  const out = execFileSync("python", [
+    scriptPath,
+    "--project", projectJsonPath,
+    "--master", masterAudio,
+    "--alignment", activeAlignment,
+    "--output-dir", outDir,
+    "--mode", "section",
+    "--range", `${start},${end}`,
+  ], { cwd: REPO, timeout: 60000, encoding: "utf-8" });
+
+  try {
+    return JSON.parse(out);
+  } catch {
+    return { ok: false, error: "Failed to render section preview" };
+  }
 }
 
 /** Limpia el trabajo de producción del proyecto si se elimina desde la lista. */

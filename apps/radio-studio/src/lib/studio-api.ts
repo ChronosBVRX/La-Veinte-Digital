@@ -865,8 +865,39 @@ export async function getProjectReferences(id: string): Promise<Record<string, R
 
 export async function renderProjectVisual(
   id: string,
-  options?: { formats?: string[] }
+  options?: { formats?: string[]; mode?: string }
 ): Promise<{ ok: boolean; projectId: string; formats: string[]; started: boolean }> {
   return post(`/projects/${id}/render-visual`, options || {}, 15000);
 }
+
+export interface VisualCacheStatus {
+  totalBeats: number;
+  cachedBeats: number;
+  dirtyBeatsCount: number;
+  dirtyBeats: string[];
+  isFullyCached: boolean;
+  statuses: Record<string, "READY" | "PENDING" | "RENDERING" | "ERROR">;
+}
+
+export async function getProjectVisualCacheStatus(id: string): Promise<VisualCacheStatus | null> {
+  try {
+    const res = await get<{ ok: boolean; cache_status: VisualCacheStatus }>(`/projects/${id}/visual-cache`, 8000);
+    return res?.cache_status ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function renderStoryboard(id: string): Promise<{ ok: boolean; file: string; total_beats: number }> {
+  return post<{ ok: boolean; file: string; total_beats: number }>(`/projects/${id}/visual/storyboard`, {}, 60000);
+}
+
+export async function renderSpotPreview(id: string, beatId: string): Promise<{ ok: boolean; file: string; beat_id: string }> {
+  return post<{ ok: boolean; file: string; beat_id: string }>(`/projects/${id}/visual/spot-preview/${beatId}`, {}, 60000);
+}
+
+export async function cancelVisualRender(id: string): Promise<{ ok: boolean; cancelled: boolean }> {
+  return post<{ ok: boolean; cancelled: boolean }>(`/projects/${id}/visual/cancel`, {}, 5000);
+}
+
 

@@ -4,6 +4,8 @@ import type {
   OutputFormat,
   VideoQuality,
   VisualStyle,
+  VisualDirection,
+  OnScreenTextMode,
   VisualFidelity,
   SourcesPriority,
   Profundidad,
@@ -27,6 +29,11 @@ const DEFAULT_PREFERENCES: ProductionPreferences = {
   outputFormats: ["preview", "16x9", "9x16"],
   videoQuality: "produccion",
   visualStyle: "equilibrado",
+  visualDirection: "documental",
+  onScreenTextMode: "editorial",
+  subtitlesEnabled: false,
+  visualDensity: "equilibrada",
+  realReferencePriority: true,
   visualElements: {
     realReferences: true,
     illustrations: true,
@@ -335,9 +342,125 @@ export function AdvancedProductionDrawer({
           {/* TAB 2: ESTILO Y APOYOS */}
           {activeTab === "estilo" && (
             <div className="space-y-6">
+              {/* Dirección Audiovisual */}
               <div>
                 <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-2">
-                  Estilo Visual Editorial
+                  Dirección Audiovisual
+                </h3>
+                <p className="text-xs text-zinc-400 mb-3">
+                  Determina la jerarquía del lenguaje visual. El modelo documental prioriza documentos y edificios reales sobre tarjetas genéricas.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {[
+                    {
+                      id: "documental",
+                      icon: "📑",
+                      title: "Documental",
+                      badge: "Recomendado",
+                      desc: "Evidencia protagonista: CCT, leyes, tarjetón, edificios e investigación real.",
+                    },
+                    {
+                      id: "conversacional",
+                      icon: "🎙️",
+                      title: "Conversacional",
+                      desc: "Mayor presencia de los conductores, ritmo pausado y menor carga de B-roll.",
+                    },
+                    {
+                      id: "infografica",
+                      icon: "📊",
+                      title: "Infográfica",
+                      desc: "Énfasis en cifras, comparativas contractuales, desglose y líneas de tiempo.",
+                    },
+                  ].map((dir) => (
+                    <div
+                      key={dir.id}
+                      onClick={() => updatePrefs({ visualDirection: dir.id as VisualDirection })}
+                      className={`p-4 rounded-xl border cursor-pointer transition-all relative ${
+                        (currentPrefs.visualDirection ?? "documental") === dir.id
+                          ? "bg-blue-950/20 border-blue-500 text-zinc-100"
+                          : "bg-zinc-900/40 border-zinc-800 text-zinc-400 hover:border-zinc-700"
+                      }`}
+                    >
+                      {dir.badge && (
+                        <span className="absolute top-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                          {dir.badge}
+                        </span>
+                      )}
+                      <div className="text-2xl mb-2">{dir.icon}</div>
+                      <div className="font-bold text-sm text-zinc-100">{dir.title}</div>
+                      <div className="text-xs text-zinc-400 mt-1">{dir.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Texto en Pantalla (Anti-Karaoke) */}
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-2">
+                  Texto en Pantalla
+                </h3>
+                <p className="text-xs text-zinc-400 mb-3">
+                  Controla cómo se muestra la información escrita. Prohibido transcribir el podcast palabra por palabra.
+                </p>
+                <div className="space-y-2">
+                  {[
+                    {
+                      id: "editorial",
+                      label: "Editorial (Recomendado)",
+                      badge: "Anti-Karaoke",
+                      desc: "Sólo información clave: titulares sintéticos (2-7 palabras), cifras exactas, cláusulas y referencias normativas.",
+                    },
+                    {
+                      id: "editorial_subtitulos",
+                      label: "Editorial + Subtítulos",
+                      desc: "Diseño editorial protagonista más subtítulos opcionales en bloque natural para accesibilidad (máximo 2 líneas).",
+                    },
+                    {
+                      id: "solo_subtitulos",
+                      label: "Sólo Subtítulos",
+                      desc: "Sin titulares de apoyo; únicamente subtítulos naturales de accesibilidad sincronizados a las frases.",
+                    },
+                    {
+                      id: "minimo",
+                      label: "Mínimo",
+                      desc: "Pantalla completamente limpia; sólo números críticos o citas indispensables.",
+                    },
+                  ].map((opt) => (
+                    <label
+                      key={opt.id}
+                      className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                        (currentPrefs.onScreenTextMode ?? "editorial") === opt.id
+                          ? "bg-blue-950/20 border-blue-500/50 text-zinc-100"
+                          : "bg-zinc-900/40 border-zinc-800 text-zinc-400 hover:border-zinc-700"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="onScreenTextMode"
+                        value={opt.id}
+                        checked={(currentPrefs.onScreenTextMode ?? "editorial") === opt.id}
+                        onChange={() => updatePrefs({ onScreenTextMode: opt.id as OnScreenTextMode })}
+                        className="mt-1 accent-blue-500"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-sm text-zinc-100">{opt.label}</span>
+                          {opt.badge && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                              {opt.badge}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-zinc-400 mt-0.5">{opt.desc}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-2">
+                  Ritmo y Densidad
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   {[

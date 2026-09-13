@@ -23,7 +23,7 @@ from .reference_registry import ReferenceRegistry
 @dataclass
 class ResolvedAsset:
     asset_id: str | None
-    asset_type: str  # official, reference_based, generic, fallback_speaker
+    asset_type: str  # OFFICIAL, REFERENCE_BASED, GENERIC_CONTEXTUAL_AI, USER_PROVIDED, fallback_speaker
     file: str | None
     resolution_method: str  # exact_entity, verified_reference, category, generic, fallback_speaker
     entity: str
@@ -133,24 +133,29 @@ class AssetResolver:
                 "building": "buildings",
                 "document": "documents",
                 "law": "documents",
+                "clause": "documents",
                 "payroll_concept": "payroll",
+                "financial_stat": "payroll",
                 "event": "union",
+                "context": "context",
+                "workplace": "context",
             }
             target_cat = cat_map.get(ent.category)
             if target_cat:
                 cat_candidates = self.assets.find_by_category(target_cat, orientation=orientation)
                 # Priorizar assets genéricos para evitar falsa atribución si la entidad no está verificada
-                generic_candidates = [c for c in cat_candidates if c.type == "generic"]
+                generic_candidates = [c for c in cat_candidates if c.type in ("GENERIC_CONTEXTUAL_AI", "generic", "contextual")]
                 best = self._pick_least_recent(generic_candidates or cat_candidates, current_time_s)
                 if best:
                     # Salvaguarda: si es un hospital genérico, no atribuir a una unidad no verificada
                     self._record_usage(best.id, current_time_s)
                     overlays = self._get_applicable_logos(ent.name)
+                    is_gen = best.type in ("GENERIC_CONTEXTUAL_AI", "generic", "contextual")
                     return ResolvedAsset(
                         asset_id=best.id,
                         asset_type=best.type,
                         file=best.file,
-                        resolution_method="category" if best.type != "generic" else "generic",
+                        resolution_method="generic" if is_gen else "category",
                         entity=ent.name if best.based_on_verified_references else "Entorno contextual",
                         scene_type=self._infer_scene_type(best, ent),
                         overlay_logos=overlays,
@@ -158,7 +163,7 @@ class AssetResolver:
                         reason=f"Contexto visual por categoría '{target_cat}' sin falsa atribución.",
                     )
 
-        # 4. Fallback a speaker_focus
+        # 4. Fallback a locutor si ninguna regla visual aplica o hay penalización
         return ResolvedAsset(
             asset_id=None,
             asset_type="fallback_speaker",
@@ -168,6 +173,35 @@ class AssetResolver:
             scene_type="speaker_focus",
             reason="Sin asset específico disponible o penalización por repetición activa; foco en el locutor.",
         )
+
+    def resolve_context(
+        self,
+        context_hint: str,
+        current_time_s: float = 0.0,
+        orientation: str = "16:9",
+    ) -> ResolvedAsset | None:
+        """Resuelve un activo contextual específico para B-roll documental."""
+        candidates = self.assets.find_by_category("context", orientation=orientation)
+        if not candidates:
+            return None
+        hint_low = context_hint.lower()
+        matched = [c for c in candidates if any(t in hint_low for t in c.tags) or hint_low in c.id]
+        pool = matched or candidates
+        best = self._pick_least_recent(pool, current_time_s)
+        if best:
+            self._record_usage(best.id, current_time_s)
+            return ResolvedAsset(
+                asset_id=best.id,
+                asset_type=best.type,
+                file=best.file,
+                resolution_method="context_broll",
+                entity=best.entity,
+                scene_type="context_broll",
+                overlay_logos=["logo_imss_official"],
+                confidence=0.85,
+                reason=f"Contexto B-roll '{best.entity}' para enriquecer la narrativa documental.",
+            )
+        return None
 
     def _pick_least_recent(self, candidates: list[AssetItem], current_time_s: float) -> AssetItem | None:
         """Selecciona el candidato con menor penalización por repetición."""
@@ -211,4 +245,6 @@ class AssetResolver:
             return "payroll_visual"
         if asset.category == "union":
             return "organization_context"
+        if asset.category == "context":
+            return "context_broll"
         return "topic_image"

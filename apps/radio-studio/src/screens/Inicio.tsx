@@ -64,6 +64,11 @@ export function Inicio({
     outputFormats: ["preview", "16x9", "9x16"],
     videoQuality: "produccion",
     visualStyle: "equilibrado",
+    visualDirection: "documental",
+    onScreenTextMode: "editorial",
+    subtitlesEnabled: false,
+    visualDensity: "equilibrada",
+    realReferencePriority: true,
     visualElements: {
       realReferences: true,
       illustrations: true,

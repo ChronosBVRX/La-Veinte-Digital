@@ -22,6 +22,7 @@ VARIANTS = {
     "stat_card": {"number-hero", "stat-card", "conversation-center"},
     "comparison": {"comparison-card", "conversation-center"},
     "payroll_visual": {"payroll-card", "conversation-center"},
+    "context_broll": {"conversation-center", "full-bleed"},
 }
 
 KNOWN = {"Eduardo", "Andrea", "Javier Ríos", "Javier Rios", "Rodrigo Torres",

@@ -172,8 +172,14 @@ class Renderer:
             plan["level"] = level
         plan["primitives"] = primitives_flat
         plan["staged_primitives"] = staged_primitives
-        # Speaker box: suprimir en aperturas/cierres institucionales
-        is_brand_or_closing = kind in ("brand", "closing") or not ev.get("speaker") or ev.get("speaker") == "La Veinte Radio"
+        # Speaker box: suprimir en aperturas/cierres institucionales y escenas documentales/gráficas
+        is_brand_or_closing = (
+            kind in ("brand", "closing")
+            or not ev.get("speaker")
+            or ev.get("speaker") == "La Veinte Radio"
+            or ev.get("visual_function") in ("EVIDENCIA", "CONTEXTO")
+            or bool(ev.get("chart_type"))
+        )
         if is_brand_or_closing:
             plan["boxes"]["speaker"] = Box(0, 0, 0, 0, "speaker")
         elif self.vertical:
@@ -268,13 +274,17 @@ class Renderer:
         d.text((x, y), "LA VEINTE RADIO", font=_f(True, size),
                fill=(245, 241, 232) if sting else (168, 162, 154))
 
-    def _speaker_block(self, d, plan, ev, char, x, y):
+    def _speaker_block(self, d, plan, ev, char, x, y, alpha: float = 1.0):
+        if alpha <= 0.01:
+            return
         si = plan["speaker"]
+        spk_fill = tuple(int(c * alpha) for c in (245, 241, 232))
+        rol_fill = tuple(int(c * alpha) for c in (168, 162, 154))
         d.text((x, y), ev.get("speaker", ""),
-               font=font_for("headline", self.H), fill=(245, 241, 232))
+               font=font_for("headline", self.H), fill=spk_fill)
         if char.get("rol"):
             d.text((x, y + si["role_y"] + 4),
-                   char["rol"], font=font_for("caption", self.H), fill=(168, 162, 154))
+                   char["rol"], font=font_for("caption", self.H), fill=rol_fill)
 
     def _reactive(self, d, plan, ev, char, f, cx, cy, R, smooth: float,
                   energy: float, semantic: dict | None = None,
@@ -451,8 +461,77 @@ class Renderer:
                                 "comparison", "payroll_visual", "brand_opening",
                                 "brand_closing") else 1.0
         self._bg(d, f, energy * calm, char, ev.get("variant", ""), semantic_strong)
-        # Capa B-roll editorial si el evento tiene un asset resuelto
-        if ev.get("resolved_asset") and ev["resolved_asset"].get("file"):
+        # Progreso temporal del beat
+        dur_f = max(1, int((ev.get("end", 0) - ev.get("start", 0)) * fps))
+        prog = min(1.0, max(0.0, local_f / dur_f)) if dur_f else 1.0
+
+        # Strict fallback guard against empty / ghost scenes
+        if ev.get("visual_function") in ("EVIDENCIA", "CONTEXTO"):
+            has_asset = bool(ev.get("resolved_asset") and ev["resolved_asset"].get("file"))
+            has_chart = bool(ev.get("chart_type"))
+            if not has_asset and not has_chart:
+                import logging
+                logging.warning(
+                    f"RENDER_FALLBACK_TRIGGERED: beat {ev.get('beat_id')} has {ev.get('visual_function')} with no asset or chart. Falling back to speaker_focus."
+                )
+                ev = {**ev, "visual_function": "LOCUTOR", "scene_type": "speaker_focus"}
+                kind = "speaker_focus"
+
+        # Capa documental, B-roll editorial o escena de locutor
+        if ev.get("visual_function") == "EVIDENCIA" and ev.get("resolved_asset") and ev["resolved_asset"].get("file"):
+            img = self.scene_composer.render_documentary_evidence_scene(
+                img,
+                ev["resolved_asset"],
+                headline=ev.get("headline", ""),
+                subheadline=ev.get("subheadline", ""),
+                w=self.W,
+                h=self.H,
+                vertical=self.vertical,
+                overlay_logos=ev.get("overlay_logos", []),
+                progress=prog,
+            )
+            d = ImageDraw.Draw(img, "RGBA")
+        elif ev.get("visual_function") == "CONTEXTO" and ev.get("resolved_asset") and ev["resolved_asset"].get("file"):
+            img = self.scene_composer.render_documentary_context_scene(
+                img,
+                ev["resolved_asset"],
+                headline=ev.get("headline", ""),
+                subheadline=ev.get("subheadline", ""),
+                w=self.W,
+                h=self.H,
+                vertical=self.vertical,
+                progress=prog,
+            )
+            d = ImageDraw.Draw(img, "RGBA")
+        elif (ev.get("visual_function") == "LOCUTOR" or kind == "speaker_focus") and kind not in ("brand", "closing", "brand_opening", "brand_closing"):
+            # Infer character variant
+            spk_txt = ev.get("display_text", "")
+            spk_var = "neutral"
+            if "?" in spk_txt:
+                spk_var = "question"
+            elif energy > 0.65 or density == "impact":
+                spk_var = "emphasis"
+            elif kind in ("explanation", "clarification"):
+                spk_var = "explaining"
+            elif density == "focus" or prog < 0.20:
+                spk_var = "listening"
+
+            img = self.scene_composer.render_speaker_character_scene(
+                base_img=img,
+                speaker_name=ev.get("speaker", ""),
+                rol=char.get("rol", ""),
+                accent=char.get("accent"),
+                w=self.W,
+                h=self.H,
+                vertical=self.vertical,
+                variant=spk_var,
+                headline=ev.get("headline", ""),
+                subheadline=ev.get("subheadline", ""),
+                progress=prog,
+                react_val=react_val,
+            )
+            d = ImageDraw.Draw(img, "RGBA")
+        elif ev.get("resolved_asset") and ev["resolved_asset"].get("file"):
             img = self.scene_composer.compose_background(img, ev["resolved_asset"], self.W, self.H, self.vertical)
             d = ImageDraw.Draw(img, "RGBA")
         sting = ev.get("section", False) or kind in ("brand", "closing", "brand_opening", "brand_closing")
@@ -467,12 +546,24 @@ class Renderer:
             ccx = int(self.W * 0.38)
         else:
             ccx = cx
-        # Speaker arriba del bloque principal (medido, sin solape).
+        # Speaker arriba del bloque principal con cintillo inferior temporizado (3.0s a 3.5s fade-out)
         si = plan["speaker"]
         sp_box = plan["boxes"].get("speaker")
-        is_brand_or_closing = kind in ("brand", "closing", "brand_opening", "brand_closing") or not ev.get("speaker") or ev.get("speaker") == "La Veinte Radio"
-        if not is_brand_or_closing and sp_box and sp_box.y1 > sp_box.y0:
-            self._speaker_block(d, plan, ev, char, sp_box.x0, sp_box.y0)
+        is_brand_or_closing = (
+            kind in ("brand", "closing", "brand_opening", "brand_closing")
+            or not ev.get("speaker")
+            or ev.get("speaker") == "La Veinte Radio"
+            or ev.get("visual_function") in ("LOCUTOR", "EVIDENCIA", "CONTEXTO")
+            or bool(ev.get("chart_type"))
+        )
+        
+        local_s = local_f / max(1, fps)
+        spk_alpha = 1.0
+        if local_s > 3.0:
+            spk_alpha = max(0.0, 1.0 - (local_s - 3.0) / 0.5)
+
+        if not is_brand_or_closing and sp_box and sp_box.y1 > sp_box.y0 and spk_alpha > 0.01:
+            self._speaker_block(d, plan, ev, char, sp_box.x0, sp_box.y0, alpha=spk_alpha)
         # Contenido por variante — number usa primitivas validadas (única fuente).
         dur_f = max(1, int((ev.get("end", 0) - ev.get("start", 0)) * fps))
         prog = min(1.0, max(0.0, local_f / dur_f)) if dur_f else 1.0
@@ -539,6 +630,10 @@ class Renderer:
                     {**ev, "emphasis_words": emph}, main.x0, main.y0 + 20, ease, ccx)
             else:
                 self._render_pages_or_kinetic(d, plan, ev, prog, main, ccx, y_offset=20)
+        elif ev.get("visual_function") in ("LOCUTOR", "EVIDENCIA", "CONTEXTO"):
+            # En escenas documentales, de contexto o de locutor con character library,
+            # la escena estructurada y sus badges son los protagonistas (cero teleprompter karaoke)
+            pass
         elif kind in ("question", "brand", "closing", "quote", "document"):
             self._render_pages_or_kinetic(d, plan, ev, prog, main, ccx, y_offset=10)
         elif kind == "reaction":
@@ -562,13 +657,14 @@ class Renderer:
                 img, overlay_logos, self.W, self.H, vertical=self.vertical
             )
             d = ImageDraw.Draw(img, "RGBA")
-        # Reactive por personaje (cerca de identidad, no barra inferior).
-        rx = plan["boxes"]["reactive"]
-        rcx, rcy = (rx.x0 + rx.x1) // 2, (rx.y0 + rx.y1) // 2
-        rR = min(rx.x1 - rx.x0, rx.y1 - rx.y0) // 2
-        enter = min(1.0, (self._speaker_age + 1) / 8.0)
-        self._reactive(d, plan, ev, char, f, rcx, rcy, rR, react_val, energy,
-                       semantic=semantic, enter=enter)
+        # Reactive por personaje (cerca de identidad, no barra inferior) - solo en turnos de locutor legacy
+        if not (ev.get("visual_function") in ("LOCUTOR", "EVIDENCIA", "CONTEXTO") or ev.get("chart_type")):
+            rx = plan["boxes"]["reactive"]
+            rcx, rcy = (rx.x0 + rx.x1) // 2, (rx.y0 + rx.y1) // 2
+            rR = min(rx.x1 - rx.x0, rx.y1 - rx.y0) // 2
+            enter = min(1.0, (self._speaker_age + 1) / 8.0)
+            self._reactive(d, plan, ev, char, f, rcx, rcy, rR, react_val, energy,
+                           semantic=semantic, enter=enter)
         if trans < 1.0:
             ov = Image.new("RGB", (self.W, self.H), (16, 18, 24))
             img = Image.blend(ov, img, max(0.0, min(1.0, trans)))

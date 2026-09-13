@@ -13,6 +13,7 @@ from .reference_registry import ReferenceRegistry, ReferenceItem
 from .asset_registry import AssetRegistry, AssetItem
 from .asset_resolver import AssetResolver, ResolvedAsset
 from .visual_editorial_planner import VisualEditorialPlanner, VisualPlan
+from .editorial_memory import EditorialMemory
 from .charts import ProgrammaticChartRenderer
 from .scene_composer import SceneComposer
 
@@ -29,6 +30,8 @@ __all__ = [
     "ResolvedAsset",
     "VisualEditorialPlanner",
     "VisualPlan",
+    "EditorialMemory",
     "ProgrammaticChartRenderer",
     "SceneComposer",
 ]
+
