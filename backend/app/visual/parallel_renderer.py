@@ -216,7 +216,7 @@ class IncrementalPipelineRenderer:
 
         concat_temp = out_final.with_suffix(".concat_tmp.mp4")
         assemble_video_clips(ordered_clips, concat_temp)
-        mux_audio_master(concat_temp, master_audio_path, out_final)
+        mux_audio_master(concat_temp, master_audio_path, out_final, cache_dir=self.cache.cache_root)
         if concat_temp.exists():
             concat_temp.unlink()
 
