@@ -92,6 +92,12 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
 
   const isAdmin = memberships.some((m) => m.role === "union_admin");
   const delegationCode = memberships[0]?.delegation_code || "XXI";
+  const displayIdentity =
+    userName && typeof userName === "string" && !userName.includes("@") && userName.trim().length > 0
+      ? userName.trim()
+      : isAdmin
+      ? "Administrador Sindical"
+      : "Representante Sindical";
 
   return (
     <div
@@ -268,7 +274,7 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
           </div>
 
           {/* Lista de los 9 módulos */}
-          <nav style={{ padding: "0 0.5rem", flex: 1 }}>
+          <nav aria-label="Módulos sindicales" style={{ padding: "0 0.5rem", flex: 1 }}>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.25rem" }}>
               {UNION_MODULES.map((mod) => {
                 const isActive =
@@ -322,14 +328,12 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
               gap: "0.5rem",
             }}
           >
-            {userName ? (
-              <div style={{ fontSize: "0.75rem", color: "var(--muted, #64748b)" }}>
-                Conectado: <strong style={{ color: "var(--fg, #0f172a)" }}>{userName}</strong>
-                <div style={{ fontSize: "0.6875rem", color: isAdmin ? "#16a34a" : "var(--muted)" }}>
-                  {isAdmin ? "Rol: Administrador Sindical" : "Rol: Representante Sindical"}
-                </div>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted, #64748b)" }}>
+              Conectado: <strong style={{ color: "var(--fg, #0f172a)" }}>{displayIdentity}</strong>
+              <div style={{ fontSize: "0.6875rem", color: isAdmin ? "#16a34a" : "var(--muted)" }}>
+                {isAdmin ? "Rol: Administrador Sindical" : "Rol: Representante Sindical"}
               </div>
-            ) : null}
+            </div>
 
             <Link
               href="/representacion/aviso-privacidad"
@@ -379,7 +383,9 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
             zIndex: 60,
             boxShadow: drawerOpen ? "4px 0 24px rgba(0,0,0,0.25)" : "none",
             transform: drawerOpen ? "translateX(0)" : "translateX(-100%)",
-            transition: "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+            visibility: drawerOpen ? "visible" : "hidden",
+            pointerEvents: drawerOpen ? "auto" : "none",
+            transition: "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s ease",
             display: "flex",
             flexDirection: "column",
             overflowY: "auto",
@@ -505,11 +511,12 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
               gap: "0.5rem",
             }}
           >
-            {userName ? (
-              <div style={{ fontSize: "0.75rem", color: "var(--muted, #64748b)" }}>
-                Conectado: <strong style={{ color: "var(--fg, #0f172a)" }}>{userName}</strong>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted, #64748b)" }}>
+              Conectado: <strong style={{ color: "var(--fg, #0f172a)" }}>{displayIdentity}</strong>
+              <div style={{ fontSize: "0.6875rem", color: isAdmin ? "#16a34a" : "var(--muted)" }}>
+                {isAdmin ? "Rol: Administrador Sindical" : "Rol: Representante Sindical"}
               </div>
-            ) : null}
+            </div>
 
             <Link
               href="/representacion/aviso-privacidad"

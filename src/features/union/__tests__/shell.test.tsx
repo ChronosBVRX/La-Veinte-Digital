@@ -154,4 +154,40 @@ describe("UnionApplicationShell", () => {
     const signOutButtons = screen.getAllByRole("button", { name: "Cerrar sesión" });
     expect(signOutButtons.length).toBeGreaterThanOrEqual(1);
   });
+
+  it("minimización de PII: no muestra correos electrónicos en el encabezado ni en los paneles", () => {
+    const rawEmail = "delegado.secreto@la20.com.mx";
+    const { container } = render(
+      <UnionApplicationShell memberships={mockMemberships} userName={rawEmail}>
+        <div>Contenido</div>
+      </UnionApplicationShell>
+    );
+
+    // El correo no debe aparecer en ninguna parte del DOM
+    expect(container.textContent).not.toContain(rawEmail);
+    // En su lugar, debe mostrar el rol sindical
+    expect(screen.getAllByText("Administrador Sindical").length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("UnionAccessDenied", () => {
+  it("renderiza el mensaje discreto de acceso denegado y opción de cerrar sesión", async () => {
+    const { UnionAccessDenied } = await import("../components/UnionAccessDenied");
+    const { container } = render(<UnionAccessDenied />);
+
+    expect(
+      screen.getByText("No tienes autorización para acceder a Representación Sindical.")
+    ).toBeDefined();
+    expect(
+      screen.getByText(/Este espacio está reservado para el cuerpo de representación/)
+    ).toBeDefined();
+
+    // Botón de cerrar sesión disponible
+    expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeDefined();
+
+    // Cero módulos sindicales ni barras generales
+    expect(screen.queryByText("MÓDULOS SINDICALES")).toBeNull();
+    expect(screen.queryByText("BETA PRIVADA")).toBeNull();
+    expect(container.querySelector(".mobile-bottom-nav")).toBeNull();
+  });
 });

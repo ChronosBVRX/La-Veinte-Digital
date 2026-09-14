@@ -40,11 +40,11 @@ describe("Aislamiento Estructural de Representación Sindical", () => {
     expect(content).toMatch(/follow:\s*false/);
   });
 
-  it("src/app/(union)/layout.tsx debe verificar membresía en servidor y redirigir a no miembros", () => {
+  it("src/app/(union)/layout.tsx debe verificar membresía en servidor y denegar acceso a no miembros", () => {
     const layoutPath = path.join(unionAppDir, "layout.tsx");
     const content = fs.readFileSync(layoutPath, "utf-8");
     expect(content).toContain("getUnionMemberships");
-    expect(content).toContain('redirect("/")');
+    expect(content).toContain("UnionAccessDenied");
     expect(content).toContain('redirect("/login")');
   });
 
