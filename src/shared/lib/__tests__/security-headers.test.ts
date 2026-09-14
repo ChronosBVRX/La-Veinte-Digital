@@ -67,6 +67,13 @@ describe("CSP permite Cloudflare Turnstile (regresión P0)", () => {
     expect(directives.get("connect-src")).toContain(TURNSTILE_ORIGIN)
   })
 
+  it("permite WebAssembly ('wasm-unsafe-eval') para el OCR de Tesseract sin habilitar unsafe-eval", async () => {
+    const csp = await getCsp()
+    const directives = parseCsp(csp)
+    expect(directives.get("script-src")).toContain("'wasm-unsafe-eval'")
+    expect(csp).not.toContain("'unsafe-eval'")
+  })
+
   it("conserva los orígenes existentes sin wildcards", async () => {
     const csp = await getCsp()
     const directives = parseCsp(csp)

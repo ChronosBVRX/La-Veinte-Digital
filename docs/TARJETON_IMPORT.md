@@ -222,3 +222,17 @@ El administrador funcionaba porque ya tenia perfil.
   responsabilidad de la boveda nativa (Android Keystore/iOS Keychain).
 - No hay migracion automatica de datos heredados sin dueno: se dejan intactos
   en cuarentena logica.
+
+### Fixture E2E de tarjeton y CSP de OCR (2026-09-13)
+
+- El tarjeton sintetico del E2E se genera en
+  `e2e/fixtures/pdfs/build-tarjeton-pdf.ts`. Debe incluir la seccion `RECEPTOR`
+  con anclas `RETARDOS:`/`PERIODO DE PAGO:` y el bloque de conceptos en dos
+  columnas: sin `RECEPTOR`, `buildImssLayoutRegions` no aisla el bloque y la
+  identidad (matricula/nombre) se pierde. Generado con jsPDF en puntos y
+  columnas dentro de la pagina (612 pt) para evitar recortes de PDF.js.
+  Prueba determinista: `src/features/tarjeton/__tests__/synthetic-pdf-identity.test.ts`
+  (PDF -> PDF.js real -> extractor de produccion -> parser real).
+- CSP: `script-src` incluye `'wasm-unsafe-eval'` (token minimo para compilar
+  WebAssembly). Sin el, Tesseract no instancia y el OCR de tarjetones
+  escaneados falla. NO habilita `unsafe-eval` de JavaScript.

@@ -15,8 +15,8 @@
  *      real de la interfaz (no se manipula localStorage a mano).
  */
 import { test, expect, type BrowserContext, type Page } from "@playwright/test"
-import { jsPDF } from "jspdf"
 import { assertSafeDatabase } from "../utils/assert-safe-database"
+import { buildSyntheticTarjetonPdf } from "../fixtures/pdfs/build-tarjeton-pdf"
 
 const BASE = process.env.E2E_MULTIUSER_BASE_URL
 const A_EMAIL = process.env.E2E_MULTIUSER_A_EMAIL
@@ -36,49 +36,12 @@ test.skip(
 
 const RUN_ID = Date.now().toString(36)
 
-/** Tarjetón sintético, sin datos personales reales. */
-function makeValidPdf(workerName: string, matricula: string, period: string): Buffer {
-  const doc = new jsPDF()
-  doc.setFont("helvetica")
-  doc.setFontSize(10)
-  const X = 14
-  let y = 20
-  const line = (t: string) => { doc.text(t, X, y); y += 8 }
-
-  line("INSTITUTO MEXICANO DEL SEGURO SOCIAL")
-  line("RECIBO DE PAGO DE NOMINA")
-  line(`PERIODO DE PAGO ${period}`)
-  line(`MATRICULA ${matricula}`)
-  line(`NOMBRE ${workerName}`)
-  line("CLAVE DE CATEGORIA/PUESTO 6112")
-  line("NOMBRE CATEGORIA/PUESTO ENFERMERA GENERAL 80")
-  line("FECHA DE INGRESO 01-03-2003")
-  line("ANTIGUEDAD EFECTIVA 22 anos 10 qnas 2 dias")
-  line("FOLIO 998877")
-  line(`FOLIO FISCAL RF-2026-${RUN_ID}`)
-  line("PERCEPCIONES")
-  line("002 SUELDO BASE 3937.64")
-  line("011 PRESTACIONES EN DINERO 3234.77")
-  line("055 MAYOR IMPORTE 400.00")
-  line("TOTAL PERCEPCIONES 7572.41")
-  line("DEDUCCIONES")
-  line("212 IMPUESTO SOBRE LA RENTA 1234.56")
-  line("TOTAL DEDUCCIONES 1234.56")
-  line("LIQUIDO 6337.85")
-  line("OBSERVACIONES")
-  line(`055 VENCIMIENTO ${RUN_ID}`)
-  line("DIAS LABORADOS EN EL ANO 12")
-  line("CERTIFICACION 31-01-2026")
-
-  return Buffer.from(doc.output("arraybuffer"))
-}
-
 const A_NAME = `AISLADA A ${RUN_ID}`
 const B_NAME = `AISLADA B ${RUN_ID}`
 // Mismo periodo para ambos: deben quedar separados por usuario.
-const SHARED_PERIOD = "01/01/2026-15/01/2026"
-const pdfA = makeValidPdf(A_NAME, "900001", SHARED_PERIOD)
-const pdfB = makeValidPdf(B_NAME, "900002", SHARED_PERIOD)
+const SHARED_PERIOD = "1A-ENE-2026"
+const pdfA = buildSyntheticTarjetonPdf({ fullName: A_NAME, matricula: "900001", periodRaw: SHARED_PERIOD })
+const pdfB = buildSyntheticTarjetonPdf({ fullName: B_NAME, matricula: "900002", periodRaw: SHARED_PERIOD })
 
 async function signIn(context: BrowserContext, email: string, password: string): Promise<Page> {
   const page = await context.newPage()
@@ -104,10 +67,8 @@ async function importAndConfirm(page: Page, buffer: Buffer) {
     buffer,
   })
   await expect(page.getByText("Revisa los datos detectados")).toBeVisible({ timeout: 30_000 })
-  const consentCheckbox = page.locator('input[type="checkbox"]').first()
-  if (await consentCheckbox.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await consentCheckbox.check()
-  }
+  const consentCheckbox = page.getByRole("checkbox", { name: /Autorizo guardar los datos confirmados/i })
+  await consentCheckbox.check()
   await page.getByRole("button", { name: "Confirmar tarjetón" }).click()
   await expect(page.getByText("Tarjetón confirmado")).toBeVisible({ timeout: 30_000 })
 }
@@ -127,7 +88,8 @@ test.describe("Aislamiento con dos contextos separados", () => {
     const contextB = await browser.newContext({ storageState: EMPTY_STATE })
     const pageB = await signIn(contextB, B_EMAIL!, B_PASS!)
     await pageB.goto(`${BASE}/profile/mi-informacion-laboral`)
-    await expect(pageB.getByText(A_NAME)).toHaveCount(0)
+    // B no debe ver la matrícula de A (ni sus datos importados).
+    await expect(pageB.getByText("900001")).toHaveCount(0)
     expect(await pageB.evaluate(() => Object.keys(localStorage))).not.toContain("nomina_profile")
     await contextB.close()
   })
@@ -146,7 +108,9 @@ test.describe("Cambio de cuenta en un mismo contexto (A → B → A)", () => {
     const pageA = await signIn(context, A_EMAIL!, A_PASS!)
     await importAndConfirm(pageA, pdfA)
     await pageA.goto(`${BASE}/profile/mi-informacion-laboral`)
-    await expect(pageA.getByText(A_NAME).first()).toBeVisible()
+    // A ve su propia matrícula (marcador de propiedad) y no la de B.
+    await expect(pageA.getByText("900001").first()).toBeVisible()
+    await expect(pageA.getByText("900002")).toHaveCount(0)
 
     // ── Logout real de A (sin destruir el contexto) ──
     await signOut(pageA)
@@ -154,31 +118,30 @@ test.describe("Cambio de cuenta en un mismo contexto (A → B → A)", () => {
     // ── B: inicia sesión en el MISMO contexto ──
     const pageB = await signIn(context, B_EMAIL!, B_PASS!)
     await pageB.goto(`${BASE}/profile/mi-informacion-laboral`)
-    // Ningún dato de A (nombre, matrícula, periodo) debe aparecer para B.
-    await expect(pageB.getByText(A_NAME)).toHaveCount(0)
+    // Sin datos de A tras el cambio de cuenta.
     await expect(pageB.getByText("900001")).toHaveCount(0)
+    await expect(pageB.getByText("900002")).toHaveCount(0)
 
     // B importa un tarjetón del MISMO periodo.
     await importAndConfirm(pageB, pdfB)
     await pageB.goto(`${BASE}/profile/mi-informacion-laboral`)
-    await expect(pageB.getByText(B_NAME).first()).toBeVisible()
-    // B tampoco ve el nombre de A en su historial.
-    await expect(pageB.getByText(A_NAME)).toHaveCount(0)
+    await expect(pageB.getByText("900002").first()).toBeVisible()
+    await expect(pageB.getByText("900001")).toHaveCount(0)
 
     // ── Logout de B y regreso a A ──
     await signOut(pageB)
     const pageA2 = await signIn(context, A_EMAIL!, A_PASS!)
     await pageA2.goto(`${BASE}/profile/mi-informacion-laboral`)
     // A conserva SOLO lo suyo.
-    await expect(pageA2.getByText(A_NAME).first()).toBeVisible()
-    await expect(pageA2.getByText(B_NAME)).toHaveCount(0)
+    await expect(pageA2.getByText("900001").first()).toBeVisible()
+    await expect(pageA2.getByText("900002")).toHaveCount(0)
 
     // ── Regreso a B: conserva solo lo suyo ──
     await signOut(pageA2)
     const pageB2 = await signIn(context, B_EMAIL!, B_PASS!)
     await pageB2.goto(`${BASE}/profile/mi-informacion-laboral`)
-    await expect(pageB2.getByText(B_NAME).first()).toBeVisible()
-    await expect(pageB2.getByText(A_NAME)).toHaveCount(0)
+    await expect(pageB2.getByText("900002").first()).toBeVisible()
+    await expect(pageB2.getByText("900001")).toHaveCount(0)
 
     await context.close()
   })
