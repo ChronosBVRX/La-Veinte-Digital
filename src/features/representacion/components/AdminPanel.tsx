@@ -93,6 +93,9 @@ export function AdminPanel(): React.JSX.Element {
     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
       <Card>
         <h2 style={{ margin: "0 0 0.5rem", fontSize: "1rem" }}>Configuración de Delegación XXI</h2>
+        <p style={{ margin: "0 0 0.625rem", fontSize: "0.75rem", color: "var(--muted)" }}>
+          Representación Sindical · Versión beta (acceso privado por membresía).
+        </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "0.5rem" }}>
           <Input label="Nombre de delegación" value={settings.delegation_display_name} onChange={(e) => set("delegation_display_name", e.target.value)} />
           <Input label="Centro de trabajo" value={settings.center_name} onChange={(e) => set("center_name", e.target.value)} />

@@ -1,4 +1,6 @@
-// Permisos del módulo sindical — extiende RBAC existente (profiles.role).
+// Permisos del módulo sindical — BETA PRIVADA.
+// El acceso depende EXCLUSIVAMENTE de union_members (union_rep/union_admin).
+// profiles.role='admin' NO otorga acceso a expedientes sindicales.
 // Nunca confía en IDs del navegador sin verificar delegación en servidor.
 
 import { createClient } from "@/lib/supabase/server";
@@ -40,26 +42,11 @@ export async function getUnionMemberships(): Promise<UnionMembership[]> {
 
 export async function requireUnionMembership(delegationId?: string): Promise<UnionMembership[]> {
   const memberships = await getUnionMemberships();
-  // profiles.role='admin' actúa como super-admin global del módulo.
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role === "admin") {
-    if (delegationId) {
-      const { data: dep } = await supabase.from("union_delegations").select("id, code").eq("id", delegationId).single();
-      if (dep) return [{ delegation_id: dep.id, delegation_code: dep.code, role: "union_admin" }];
-    } else {
-      const { data: deps } = await supabase.from("union_delegations").select("id, code").eq("active", true);
-      return (deps ?? []).map((d: { id: string; code: string }) => ({
-        delegation_id: d.id,
-        delegation_code: d.code,
-        role: "union_admin" as UnionRole,
-      }));
-    }
-  }
   if (memberships.length === 0) throw new Error("Sin acceso a Representación Sindical");
   if (delegationId && !memberships.some((m) => m.delegation_id === delegationId)) {
     throw new Error("Sin acceso a esta delegación");
@@ -73,8 +60,6 @@ export async function requireUnionAdmin(delegationId: string): Promise<void> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("No autenticado");
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role === "admin") return;
   const { data } = await supabase
     .from("union_members")
     .select("id")
@@ -89,13 +74,5 @@ export async function requireUnionAdmin(delegationId: string): Promise<void> {
 export async function getDefaultDelegationId(): Promise<string | null> {
   const memberships = await getUnionMemberships();
   if (memberships.length > 0) return memberships[0].delegation_id;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "admin") return null;
-  const { data: dep } = await supabase.from("union_delegations").select("id").eq("code", "XXI").single();
-  return dep?.id ?? null;
+  return null;
 }

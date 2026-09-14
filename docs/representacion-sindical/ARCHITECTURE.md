@@ -40,9 +40,8 @@
 ## Permisos
 
 - Reutiliza Supabase Auth. No hay contraseñas propias.
-- `union_members(user_id, delegation_id, role, active)` extiende el RBAC
-  existente (`profiles.role='admin'` actúa como super-admin). No se altera el
-  constraint `profiles_role_check`.
+- `union_members(user_id, delegation_id, role, active)` es la única fuente de
+  acceso al módulo (sin bypass de `profiles.role='admin'` en beta privada).
 - Soporta N representantes por delegación.
 - `union_delegations` aísla por delegación desde el día 1 (seed: XXI / HGR No. 1).
 - Todas las escrituras verifican delegación en servidor; nunca confían en IDs del navegador.

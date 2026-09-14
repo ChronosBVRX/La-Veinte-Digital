@@ -23,8 +23,8 @@ create table if not exists public.union_delegations (
 );
 
 -- ============================================================
--- 2. Membresías / roles sindicales (RBAC extendido, no paralelo)
---    Reutiliza auth.users + profiles.role='admin' como super-admin.
+-- 2. Membresías / roles sindicales (RBAC propio del módulo).
+--    BETA: solo union_members otorga acceso; profiles.role='admin' NO bypass.
 -- ============================================================
 create table if not exists public.union_members (
   id uuid primary key default gen_random_uuid(),
@@ -385,7 +385,8 @@ create table if not exists public.union_settings (
 
 -- ============================================================
 -- 9. Helpers de permisos (SECURITY DEFINER, search_path fijo)
--- ============================================================
+-- BETA PRIVADA: el acceso depende EXCLUSIVAMENTE de union_members.
+-- profiles.role='admin' NO otorga acceso a expedientes sindicales.
 create or replace function public.union_is_member(p_delegation uuid)
 returns boolean
 language sql
@@ -398,9 +399,6 @@ as $$
     where m.user_id = auth.uid()
       and m.delegation_id = p_delegation
       and m.active = true
-  ) or exists (
-    select 1 from public.profiles p
-    where p.id = auth.uid() and p.role = 'admin'
   );
 $$;
 
@@ -417,9 +415,6 @@ as $$
       and m.delegation_id = p_delegation
       and m.active = true
       and m.role = 'union_admin'
-  ) or exists (
-    select 1 from public.profiles p
-    where p.id = auth.uid() and p.role = 'admin'
   );
 $$;
 
@@ -431,10 +426,7 @@ security definer
 set search_path = public
 as $$
   select m.delegation_id from public.union_members m
-  where m.user_id = auth.uid() and m.active = true
-  union
-  select d.id from public.union_delegations d
-  where exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin');
+  where m.user_id = auth.uid() and m.active = true;
 $$;
 
 revoke all on function public.union_is_member(uuid) from public;
@@ -605,9 +597,9 @@ create policy "union_settings_admin_write"
   with check (public.union_is_admin(delegation_id));
 
 drop policy if exists "union_counters_rw" on public.union_folio_counters;
-create policy "union_counters_rw"
-  on public.union_folio_counters for all to authenticated
-  using (true) with check (true);
+-- Sin policies de acceso directo: solo el RPC SECURITY DEFINER
+-- union_next_folio (ejecutado como owner, bypass RLS) puede avanzar folios.
+-- Cualquier SELECT/INSERT/UPDATE/DELETE directo vía PostgREST queda denegado.
 
 -- ============================================================
 -- 11. Folio interno atómico (XXI-2026-LIC-000001)
@@ -667,20 +659,44 @@ on conflict (id) do nothing;
 drop policy if exists "union_private_member_read" on storage.objects;
 create policy "union_private_member_read"
   on storage.objects for select to authenticated
-  using (bucket_id = 'union-private');
+  using (
+    bucket_id = 'union-private'
+    and exists (
+      select 1 from public.union_members m
+      where m.user_id = auth.uid() and m.active = true
+    )
+  );
 
 drop policy if exists "union_private_member_write" on storage.objects;
 create policy "union_private_member_write"
   on storage.objects for insert to authenticated
-  with check (bucket_id = 'union-private');
+  with check (
+    bucket_id = 'union-private'
+    and exists (
+      select 1 from public.union_members m
+      where m.user_id = auth.uid() and m.active = true
+    )
+  );
 
 drop policy if exists "union_private_member_update" on storage.objects;
 create policy "union_private_member_update"
   on storage.objects for update to authenticated
-  using (bucket_id = 'union-private')
+  using (
+    bucket_id = 'union-private'
+    and exists (
+      select 1 from public.union_members m
+      where m.user_id = auth.uid() and m.active = true
+    )
+  )
   with check (bucket_id = 'union-private');
 
 drop policy if exists "union_private_member_delete" on storage.objects;
 create policy "union_private_member_delete"
   on storage.objects for delete to authenticated
-  using (bucket_id = 'union-private');
+  using (
+    bucket_id = 'union-private'
+    and exists (
+      select 1 from public.union_members m
+      where m.user_id = auth.uid() and m.active = true
+    )
+  );

@@ -6,8 +6,11 @@
 - No autenticado: 0 acceso. Autenticado sin membresía: 0 acceso (páginas
   redirigen a `/`, APIs 403).
 - `union_rep`: solo delegaciones asignadas (`union_is_member`).
-- `union_admin` (o `profiles.role='admin'` global): además escribe settings,
+- `union_admin`: además escribe settings,
   miembros y overrides.
+- BETA PRIVADA: `profiles.role='admin'` NO otorga acceso sindical; todo acceso
+  depende exclusivamente de `union_members` (helpers SQL y capa de aplicación
+  sin bypass global).
 - Tablas detalle (maternidad/lactancia/pasajes/licencias/documentos/eventos)
   autorizan vía delegación del caso padre.
 - `union_folio_counters`: escritura autenticada (folio atómico vía RPC
