@@ -32,7 +32,7 @@ export interface GuiaHomeServerData {
   deductionsCount?: number
 }
 
-export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
+export function GuiaHome({ data, userId }: { data: GuiaHomeServerData; userId: string }) {
   const [tipIndex, setTipIndex] = useState(0)
   const [autoAnalyzing, setAutoAnalyzing] = useState(false)
   const [hasLocalPayslip, setHasLocalPayslip] = useState(data.hasPayslip)
@@ -59,7 +59,7 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
   useEffect(() => {
     // Sincronizar conceptos desde análisis canónico o localStorage
     const syncLocal = () => {
-      const canonical = getLatestPayslipAnalysis()
+      const canonical = getLatestPayslipAnalysis(userId)
       if (canonical && canonical.status === "ready" && canonical.concepts.length > 0) {
         setHasLocalPayslip(true)
         const eCount = canonical.concepts.filter((c) => c.kind === "perception").length
@@ -75,7 +75,7 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
         return
       }
 
-      const slips = getPayslips()
+      const slips = getPayslips(userId)
       const target =
         slips.find((s) => {
           if (data.documentId && s.id === data.documentId) return true
@@ -112,7 +112,7 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
       window.removeEventListener("tarjeton_analysis_completed", syncLocal)
       window.removeEventListener("tarjeton_analysis_state_changed", syncLocal)
     }
-  }, [data.documentId, data.periodRaw])
+  }, [data.documentId, data.periodRaw, userId])
 
   useEffect(() => {
     let active = true
@@ -120,7 +120,7 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
       if (active) setAutoAnalyzing(true)
     }, 0)
 
-    void syncLatestSavedPayslip()
+    void syncLatestSavedPayslip(userId)
       .then((analysis) => {
         if (!active) return
         if (analysis && analysis.status === "ready" && analysis.concepts.length > 0) {
@@ -136,7 +136,7 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
             periodRaw: analysis.period,
           })
         } else if (data.hasPayslip && (stats.earningsCount === 0 && stats.deductionsCount === 0)) {
-          return analyzeAndPersistPayslip(data.documentId, { periodRaw: data.periodRaw }).then((res) => {
+          return analyzeAndPersistPayslip(data.documentId, { userId, periodRaw: data.periodRaw }).then((res) => {
             if (!active) return
             if (res.ok && (res.earningsCount > 0 || res.deductionsCount > 0)) {
               setHasLocalPayslip(true)
@@ -160,7 +160,7 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
       active = false
       clearTimeout(timer)
     }
-  }, [data.documentId, data.hasPayslip, data.periodRaw, stats.earningsCount, stats.deductionsCount])
+  }, [data.documentId, data.hasPayslip, data.periodRaw, stats.earningsCount, stats.deductionsCount, userId])
 
   useEffect(() => {
     const now = new Date()
@@ -281,6 +281,7 @@ export function GuiaHome({ data }: { data: GuiaHomeServerData }) {
                 </div>
                 <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
                   <BotonReintentarAnalisis
+                    userId={userId}
                     periodRaw={data.periodRaw}
                     documentId={data.documentId}
                     size="sm"

@@ -14,16 +14,16 @@ import { syncLatestSavedPayslip } from "@/features/tarjeton/services/sync-latest
  * (Android Room / IndexedDB). Si no existe o está pendiente, dispara la sincronización
  * automática en segundo plano y fusiona con los registros existentes de localStorage/servidor.
  */
-export function useLatestPayslip(serverPayslip: GuidePayslip | null) {
+export function useLatestPayslip(serverPayslip: GuidePayslip | null, userId: string) {
   const [revision, setRevision] = useState(0)
 
   useEffect(() => {
     // Sincronizar automáticamente el tarjetón guardado en montaje
-    void syncLatestSavedPayslip().catch(() => {})
+    void syncLatestSavedPayslip(userId).catch(() => {})
 
     const handler = () => setRevision((r) => r + 1)
     const handleFocus = () => {
-      void syncLatestSavedPayslip().catch(() => {})
+      void syncLatestSavedPayslip(userId).catch(() => {})
     }
 
     window.addEventListener("storage", handler)
@@ -38,17 +38,17 @@ export function useLatestPayslip(serverPayslip: GuidePayslip | null) {
       window.removeEventListener("tarjeton_analysis_completed", handler)
       window.removeEventListener("tarjeton_analysis_state_changed", handler)
     }
-  }, [])
+  }, [userId])
 
   return useMemo(() => {
     void revision
 
     // 1. Consultar el análisis persistido canónico del documento guardado
-    const canonicalAnalysis = getLatestPayslipAnalysis()
+    const canonicalAnalysis = getLatestPayslipAnalysis(userId)
     const canonicalGuideSlip = canonicalAnalysis ? toGuidePayslip(canonicalAnalysis) : null
 
     // 2. Registros locales
-    const local = getPayslips()
+    const local = getPayslips(userId)
       .map((p) => toGuidePayslip(p))
       .filter((p): p is GuidePayslip => p !== null)
 
@@ -162,7 +162,7 @@ export function useLatestPayslip(serverPayslip: GuidePayslip | null) {
 
     const total = allLocal.length + (candidateServer ? 1 : 0)
     return { payslip: latest, previous: previousLocal, source: "local" as const, total }
-  }, [serverPayslip, revision])
+  }, [serverPayslip, revision, userId])
 }
 
 function mergePayslips(preferred: GuidePayslip, secondary: GuidePayslip): GuidePayslip {

@@ -235,3 +235,21 @@ Qué cosas NO están autorizadas para modificarse, refactorizarse o "limpiarse" 
 
 4. **EFECTOS DE MODAL NUNCA DEPENDEN DE CALLBACKS INESTABLES:**  
    Los efectos de inicialización y manejo de foco de componentes Modal (y equivalentes: `BottomSheet`, sheets, portals con autofocus) no deben depender de callbacks cuya identidad pueda variar durante renders del contenido. Un render de un formulario dentro de un modal nunca debe provocar una reinicialización del autofocus ni hacer perder el foco al campo activo — en móvil esto cierra el teclado virtual. Patrón canónico: leer el cierre siempre vigente vía `useRef` (`onCloseRef.current()` en Escape/listeners) y dejar el ciclo de vida del efecto bajo control exclusivo de `open`. Pruebas que lo protegen: `src/shared/components/ui/__tests__/Modal.test.tsx` ("keeps focus…", "Escape calls the latest…") y `src/features/agenda-laboral/__tests__/commitment-form.test.tsx` ("mantiene el foco al escribir de corrido…").
+
+---
+
+## 4. Guardrail multiusuario (2026-09-13)
+
+- **Bootstrap de perfil (P0):** toda ruta que confirme un tarjeton o consulte el
+  perfil laboral ejecuta `ensure_profile_exists` (idempotente) con la sesion del
+  usuario. Prohibido depender de `role === "admin"` o de visitar otra pantalla.
+- **Almacenamiento local por `auth.uid()`:** perfil, tarjetones, proyecciones,
+  consentimiento, analisis y PDFs (IndexedDB) usan namespace `:v2:<userId>`
+  (`scoped-storage.ts`). Prohibido el dueño literal `"local"` y las claves
+  globales (`nomina_*`, `la_veinte_payslip_analyses`).
+- **Cuarentena:** los datos heredados sin dueño no se leen, no se borran y no se
+  adjudican a ningun usuario.
+- **Pruebas:** `src/shared/services/__tests__/*`, `src/features/tarjeton/__tests__/no-local-owner-regression.test.ts`,
+  `src/app/api/tarjeton/confirm/__tests__/route.test.ts`,
+  `src/features/tarjeton/__tests__/confirm-new-user.local.test.ts` (local, omitida sin infra),
+  `e2e/full/tarjeton-multiuser.spec.ts` (dos contextos, nunca produccion).

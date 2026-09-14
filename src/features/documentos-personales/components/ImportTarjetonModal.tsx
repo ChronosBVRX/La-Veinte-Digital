@@ -22,6 +22,7 @@ interface ImportTarjetonModalProps {
   open: boolean
   file: File | null
   profile: TarjetonProfileSnapshot | null
+  userId: string | null
   onClose: () => void
 }
 
@@ -29,17 +30,17 @@ interface ImportTarjetonModalProps {
  * Reutiliza el flujo completo de importación del tarjetón (extracción → revisión
  * → confirmación que actualiza el perfil laboral) sobre un PDF ya descargado.
  */
-export function ImportTarjetonModal({ open, file, profile, onClose }: ImportTarjetonModalProps) {
+export function ImportTarjetonModal({ open, file, profile, userId, onClose }: ImportTarjetonModalProps) {
   if (!open) return null
   return (
     <FullscreenPortal open={open} onClose={onClose} ariaLabel="Actualizar perfil con tarjetón">
-      <ImportTarjetonModalContent open={open} file={file} profile={profile} onClose={onClose} />
+      <ImportTarjetonModalContent open={open} file={file} profile={profile} userId={userId} onClose={onClose} />
     </FullscreenPortal>
   )
 }
 
-function ImportTarjetonModalContent({ open, file, profile, onClose }: ImportTarjetonModalProps) {
-  const { state, start, confirm, reset } = useTarjetonImporter(profile)
+function ImportTarjetonModalContent({ open, file, profile, userId, onClose }: ImportTarjetonModalProps) {
+  const { state, start, confirm, reset } = useTarjetonImporter(profile, userId)
   const startedRef = useRef(false)
   const successNotifiedRef = useRef(false)
   const router = useRouter()

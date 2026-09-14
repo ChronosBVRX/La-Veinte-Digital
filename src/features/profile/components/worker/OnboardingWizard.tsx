@@ -22,10 +22,11 @@ import type { ConfirmedWorkerProfileUpdate, WorkerProfileDraft } from "@/shared/
 interface OnboardingWizardProps {
   returnTo?: string
   profileSnapshot?: TarjetonProfileSnapshot | null
+  userId: string
   onComplete: () => void
 }
 
-export function OnboardingWizard({ returnTo, profileSnapshot, onComplete }: OnboardingWizardProps) {
+export function OnboardingWizard({ returnTo, profileSnapshot, userId, onComplete }: OnboardingWizardProps) {
   const [step, setStep] = useState(1)
   const [chosenMode, setChosenMode] = useState<"basic" | "configured" | null>(null)
   const [chosenMethod, setChosenMethod] = useState<"manual" | "payslip" | null>(null)
@@ -149,6 +150,7 @@ export function OnboardingWizard({ returnTo, profileSnapshot, onComplete }: Onbo
           ) : (
             <TarjetonImporterWrapper
               profile={profileSnapshot ?? null}
+              userId={userId}
               onSuccess={handlePayslipSuccess}
             />
           )}

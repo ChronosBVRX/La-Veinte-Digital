@@ -30,9 +30,10 @@ interface WorkerProfileCenterProps {
   events: WorkerDataEvent[]
   returnTo?: string
   profileSnapshot?: TarjetonProfileSnapshot | null
+  userId: string
 }
 
-export function WorkerProfileCenter({ state, mode, profile, quality, requirements, events, returnTo, profileSnapshot }: WorkerProfileCenterProps) {
+export function WorkerProfileCenter({ state, mode, profile, quality, requirements, events, returnTo, profileSnapshot, userId }: WorkerProfileCenterProps) {
   const [viewState, setViewState] = useState<WorkerState>(state)
   const [viewMode, setViewMode] = useState<WorkerProfileMode | null>(mode ?? null)
   const [showChangeDialog, setShowChangeDialog] = useState(false)
@@ -49,6 +50,7 @@ export function WorkerProfileCenter({ state, mode, profile, quality, requirement
       <OnboardingWizard
         returnTo={returnTo}
         profileSnapshot={profileSnapshot}
+        userId={userId}
         onComplete={handleComplete}
       />
     )

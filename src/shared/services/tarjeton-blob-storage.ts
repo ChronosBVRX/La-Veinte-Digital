@@ -2,6 +2,12 @@
  * Servicio IndexedDB para almacenamiento y recuperación de archivos PDF de tarjetón.
  * Permite que el botón "Reintentar análisis" recupere el PDF original del dispositivo
  * y vuelva a ejecutar la extracción sin obligar al usuario a subir el archivo otra vez.
+ *
+ * Multiusuario: cada registro lleva `ownerUserId` y se guarda bajo una llave
+ * compuesta `<userId>:<clave>`. Las búsquedas y listados filtran por dueño. Los
+ * registros heredados sin `ownerUserId` quedan en cuarentena lógica: no se
+ * devuelven al flujo autenticado ni se borran.
+ *
  * La Veinte Digital
  */
 
@@ -11,6 +17,7 @@ const STORE_NAME = "tarjeton_files"
 
 interface TarjetonBlobRecord {
   key: string
+  ownerUserId: string
   blob: Blob
   fileName?: string
   fileSize: number
@@ -43,16 +50,25 @@ function sanitizeKey(key: string): string {
   return key.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "_")
 }
 
+/** Llave lógica compuesta: separa los PDFs por usuario autenticado. */
+function ownerScopedKey(ownerUserId: string, key: string): string {
+  if (typeof ownerUserId !== "string" || ownerUserId.trim() === "") {
+    throw new Error("Authenticated userId is required")
+  }
+  return `${ownerUserId}:${sanitizeKey(key)}`
+}
+
 /**
- * Guarda un PDF de tarjetón en IndexedDB asociado a su periodo o hash.
+ * Guarda un PDF de tarjetón en IndexedDB asociado a su dueño y periodo o hash.
  */
 export async function saveTarjetonPdfBlob(
+  ownerUserId: string,
   key: string,
   blobOrFile: Blob | File,
   fileName?: string,
 ): Promise<void> {
   if (typeof window === "undefined" || !window.indexedDB) return
-  const safeKey = sanitizeKey(key)
+  const safeKey = ownerScopedKey(ownerUserId, key)
   if (!safeKey) return
 
   const db = await openTarjetonDatabase()
@@ -63,6 +79,7 @@ export async function saveTarjetonPdfBlob(
 
       const record: TarjetonBlobRecord = {
         key: safeKey,
+        ownerUserId,
         blob: blobOrFile,
         fileName: fileName ?? ("name" in blobOrFile ? blobOrFile.name : "tarjeton.pdf"),
         fileSize: blobOrFile.size,
@@ -94,9 +111,9 @@ export async function saveTarjetonPdfBlob(
 /**
  * Recupera el File o Blob del tarjetón original guardado en el dispositivo.
  */
-export async function getTarjetonPdfBlob(key: string): Promise<File | null> {
+export async function getTarjetonPdfBlob(ownerUserId: string, key: string): Promise<File | null> {
   if (typeof window === "undefined" || !window.indexedDB) return null
-  const safeKey = sanitizeKey(key)
+  const safeKey = ownerScopedKey(ownerUserId, key)
   if (!safeKey) return null
 
   try {
@@ -141,23 +158,27 @@ export async function getTarjetonPdfBlob(key: string): Promise<File | null> {
 /**
  * Verifica si existe un PDF guardado para la clave.
  */
-export async function hasTarjetonPdfBlob(key: string): Promise<boolean> {
-  const blob = await getTarjetonPdfBlob(key)
+export async function hasTarjetonPdfBlob(ownerUserId: string, key: string): Promise<boolean> {
+  const blob = await getTarjetonPdfBlob(ownerUserId, key)
   return blob !== null
 }
 
 /**
- * Intenta recuperar el PDF probando múltiples claves posibles (periodRaw, documentId, etc.)
- * Si ninguna coincide, busca el registro más recientemente actualizado en IndexedDB.
+ * Intenta recuperar el PDF del usuario probando múltiples claves posibles
+ * (periodRaw, documentId, etc.). Si ninguna coincide, busca el registro más
+ * reciente DEL USUARIO ACTUAL. Nunca cruza registros entre cuentas.
  */
-export async function findTarjetonPdfBlob(candidates: (string | undefined | null)[]): Promise<File | null> {
+export async function findTarjetonPdfBlob(
+  ownerUserId: string,
+  candidates: (string | undefined | null)[],
+): Promise<File | null> {
   for (const c of candidates) {
     if (!c) continue
-    const found = await getTarjetonPdfBlob(c)
+    const found = await getTarjetonPdfBlob(ownerUserId, c)
     if (found) return found
   }
 
-  // Búsqueda del último archivo almacenado como respaldo
+  // Búsqueda del último archivo almacenado como respaldo (solo del dueño)
   if (typeof window === "undefined" || !window.indexedDB) return null
   try {
     const db = await openTarjetonDatabase()
@@ -168,7 +189,9 @@ export async function findTarjetonPdfBlob(candidates: (string | undefined | null
         const req = store.getAll()
         req.onsuccess = () => {
           db.close()
-          const records = (req.result || []) as TarjetonBlobRecord[]
+          const records = ((req.result || []) as TarjetonBlobRecord[]).filter(
+            (r) => r.ownerUserId === ownerUserId,
+          )
           if (records.length === 0) {
             resolve(null)
             return
@@ -204,6 +227,7 @@ export async function findTarjetonPdfBlob(candidates: (string | undefined | null
 
 export interface TarjetonBlobSummary {
   key: string
+  ownerUserId?: string
   fileName?: string
   fileSize: number
   mimeType: string
@@ -212,9 +236,10 @@ export interface TarjetonBlobSummary {
 }
 
 /**
- * Retorna todos los registros de tarjetones guardados en IndexedDB.
+ * Retorna todos los registros de tarjetones guardados en IndexedDB para el
+ * usuario autenticado. Los registros heredados sin dueño se omiten.
  */
-export async function listAllTarjetonBlobs(): Promise<TarjetonBlobSummary[]> {
+export async function listAllTarjetonBlobs(ownerUserId: string): Promise<TarjetonBlobSummary[]> {
   if (typeof window === "undefined" || !window.indexedDB) return []
   try {
     const db = await openTarjetonDatabase()
@@ -225,9 +250,12 @@ export async function listAllTarjetonBlobs(): Promise<TarjetonBlobSummary[]> {
         const req = store.getAll()
         req.onsuccess = () => {
           db.close()
-          const records = (req.result || []) as TarjetonBlobRecord[]
+          const records = ((req.result || []) as TarjetonBlobRecord[]).filter(
+            (r) => r.ownerUserId === ownerUserId,
+          )
           resolve(records.map((r) => ({
             key: r.key,
+            ownerUserId: r.ownerUserId,
             fileName: r.fileName,
             fileSize: r.fileSize,
             mimeType: r.mimeType,

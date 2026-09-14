@@ -16,6 +16,10 @@ import {
 import { buildQuincenaSummary } from "@/features/tarjeton-guia/lib/explainer"
 import { toGuidePayslip } from "@/features/tarjeton-guia/services/payslip-guide"
 import { resolveViewerDocument } from "@/features/documentos-personales/services/document-viewer-adapter"
+import { scopedStorageKey } from "@/shared/services/scoped-storage"
+
+// Identidad autenticada de prueba: el almacenamiento local está separado por usuario.
+const TEST_USER = "test-user-saved-pipeline"
 
 const sample17Concepts: PayslipConcept[] = [
   { code: "002", description: "SUELDO", amount: 6245.10, kind: "perception" },
@@ -110,7 +114,7 @@ describe("Pipeline Canónico: Documento Guardado como Fuente de Verdad (13 Escen
       }),
     } as unknown as typeof window.LaVeinteApp
 
-    const docs = await listSavedPayslipDocuments()
+    const docs = await listSavedPayslipDocuments(TEST_USER)
     expect(docs.length).toBe(1)
     expect(docs[0].id).toBe("native_102") // Más reciente por downloadedAt
   })
@@ -128,7 +132,7 @@ describe("Pipeline Canónico: Documento Guardado como Fuente de Verdad (13 Escen
     }
 
     const docAnalysis = createSample17Analysis("doc-saved-pdf", "hash-real-doc")
-    savePayslipAnalysis(docAnalysis)
+    savePayslipAnalysis(TEST_USER, docAnalysis)
 
     const guideSlipFromProfile = toGuidePayslip(rawProfileSlip)!
     const summaryBefore = buildQuincenaSummary(guideSlipFromProfile)
@@ -145,9 +149,9 @@ describe("Pipeline Canónico: Documento Guardado como Fuente de Verdad (13 Escen
   // Escenario 4: El parser recupera 9 percepciones y 8 deducciones: se persisten los 17 conceptos.
   it("Escenario 4: Se persisten íntegramente los 17 conceptos (9 percepciones y 8 deducciones)", () => {
     const analysis = createSample17Analysis("doc-17-concepts", "hash-17")
-    savePayslipAnalysis(analysis)
+    savePayslipAnalysis(TEST_USER, analysis)
 
-    const retrieved = getPayslipAnalysisByHash("hash-17", CURRENT_PARSER_VERSION)
+    const retrieved = getPayslipAnalysisByHash(TEST_USER, "hash-17", CURRENT_PARSER_VERSION)
     expect(retrieved).not.toBeNull()
     expect(retrieved!.concepts.length).toBe(17)
     expect(retrieved!.concepts.filter((c) => c.kind === "perception").length).toBe(9)
@@ -157,13 +161,13 @@ describe("Pipeline Canónico: Documento Guardado como Fuente de Verdad (13 Escen
   // Escenario 5: Después de recargar: continúan apareciendo 9/8.
   it("Escenario 5: Persistencia comprobada tras reinicio simulado", () => {
     const analysis = createSample17Analysis("doc-reload", "hash-reload")
-    savePayslipAnalysis(analysis)
+    savePayslipAnalysis(TEST_USER, analysis)
 
-    const rawStorage = window.localStorage.getItem("la_veinte_payslip_analyses")
-    expect(rawStorage).toBeDefined()
+    const rawStorage = window.localStorage.getItem(scopedStorageKey("la_veinte_payslip_analyses", TEST_USER))
+    expect(rawStorage).not.toBeNull()
 
     // Simular nueva carga de página
-    const latest = getLatestPayslipAnalysis()
+    const latest = getLatestPayslipAnalysis(TEST_USER)
     expect(latest).not.toBeNull()
     expect(latest!.concepts.filter((c) => c.kind === "perception").length).toBe(9)
     expect(latest!.concepts.filter((c) => c.kind === "deduction").length).toBe(8)
@@ -171,9 +175,9 @@ describe("Pipeline Canónico: Documento Guardado como Fuente de Verdad (13 Escen
 
   // Escenario 6: Abrir la Guía sin pulsar botones: muestra los datos directamente.
   it("Escenario 6: toGuidePayslip produce la ficha lista sin requerir interacción", () => {
-    savePayslipAnalysis(createSample17Analysis("doc-open", "hash-open"))
+    savePayslipAnalysis(TEST_USER, createSample17Analysis("doc-open", "hash-open"))
 
-    const latest = getLatestPayslipAnalysis()!
+    const latest = getLatestPayslipAnalysis(TEST_USER)!
     const guidePayslip = toGuidePayslip(latest)!
 
     expect(guidePayslip.earnings.length).toBe(9)
@@ -200,7 +204,7 @@ describe("Pipeline Canónico: Documento Guardado como Fuente de Verdad (13 Escen
       analyzedAt: null,
       errorCode: null,
     }
-    savePayslipAnalysis(pendingAnalysis)
+    savePayslipAnalysis(TEST_USER, pendingAnalysis)
 
     const pendingGuide = toGuidePayslip(pendingAnalysis)!
     expect(pendingGuide.analysisStatus).toBe("analyzing")
@@ -218,9 +222,9 @@ describe("Pipeline Canónico: Documento Guardado como Fuente de Verdad (13 Escen
       ],
       analyzedAt: new Date().toISOString(),
     }
-    savePayslipAnalysis(completedAnalysis)
+    savePayslipAnalysis(TEST_USER, completedAnalysis)
 
-    const updatedGuide = toGuidePayslip(getLatestPayslipAnalysis()!)!
+    const updatedGuide = toGuidePayslip(getLatestPayslipAnalysis(TEST_USER)!)!
     expect(updatedGuide.analysisStatus).toBe("ready")
     expect(updatedGuide.earnings.length).toBeGreaterThan(0)
   })
@@ -248,7 +252,7 @@ describe("Pipeline Canónico: Documento Guardado como Fuente de Verdad (13 Escen
       analyzedAt: new Date().toISOString(),
       errorCode: null,
     }
-    savePayslipAnalysis(analysis)
+    savePayslipAnalysis(TEST_USER, analysis)
 
     const guide = toGuidePayslip(analysis)!
     expect(guide.earnings.length).toBe(1)
@@ -258,9 +262,9 @@ describe("Pipeline Canónico: Documento Guardado como Fuente de Verdad (13 Escen
 
   // Escenario 9: El mismo documento no se procesa repetidamente.
   it("Escenario 9: documentHash + parserVersion reutiliza el análisis existente", () => {
-    savePayslipAnalysis(createSample17Analysis("doc-dedup", "hash-dedup"))
+    savePayslipAnalysis(TEST_USER, createSample17Analysis("doc-dedup", "hash-dedup"))
 
-    const existing = getPayslipAnalysisByHash("hash-dedup", CURRENT_PARSER_VERSION)
+    const existing = getPayslipAnalysisByHash(TEST_USER, "hash-dedup", CURRENT_PARSER_VERSION)
     expect(existing).not.toBeNull()
     expect(existing!.status).toBe("ready")
   })
@@ -268,7 +272,7 @@ describe("Pipeline Canónico: Documento Guardado como Fuente de Verdad (13 Escen
   // Escenario 10: Importar un nuevo periodo cambia automáticamente la Guía.
   it("Escenario 10: Un nuevo periodo (2A-SEP-2026) desplaza al anterior (1A-SEP-2026)", () => {
     const olderAnalysis = createSample17Analysis("doc-older", "hash-older")
-    savePayslipAnalysis(olderAnalysis)
+    savePayslipAnalysis(TEST_USER, olderAnalysis)
 
     const newerAnalysis: PayslipAnalysis = {
       documentId: "doc-newer",
@@ -287,9 +291,9 @@ describe("Pipeline Canónico: Documento Guardado como Fuente de Verdad (13 Escen
       analyzedAt: new Date().toISOString(),
       errorCode: null,
     }
-    savePayslipAnalysis(newerAnalysis)
+    savePayslipAnalysis(TEST_USER, newerAnalysis)
 
-    const latest = getLatestPayslipAnalysis()!
+    const latest = getLatestPayslipAnalysis(TEST_USER)!
     expect(latest.period).toBe("2A-SEP-2026")
     expect(latest.documentId).toBe("doc-newer")
     expect(latest.netAmount).toBe(10000.00)
@@ -335,10 +339,10 @@ describe("Pipeline Canónico: Documento Guardado como Fuente de Verdad (13 Escen
       errorCode: null,
     }
 
-    savePayslipAnalysis(analysisV1)
-    savePayslipAnalysis({ ...analysisV1, analyzedAt: new Date().toISOString() })
+    savePayslipAnalysis(TEST_USER, analysisV1)
+    savePayslipAnalysis(TEST_USER, { ...analysisV1, analyzedAt: new Date().toISOString() })
 
-    const list = window.localStorage.getItem("la_veinte_payslip_analyses")
+    const list = window.localStorage.getItem(scopedStorageKey("la_veinte_payslip_analyses", TEST_USER))
     const map = JSON.parse(list || "{}")
     // Verificamos que la clave única por hash evite acumular duplicados
     const uniqueKeys = Object.keys(map).filter((k) => !k.startsWith("id_"))

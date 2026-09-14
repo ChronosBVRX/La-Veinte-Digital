@@ -132,7 +132,7 @@ export function parsePeriodFromText(raw: string): {
  * Consulta y lista todos los tarjetones guardados en el dispositivo (Android Room e IndexedDB),
  * ordenados principalmente por periodo quincenal (más reciente primero) y desempate por fecha.
  */
-export async function listSavedPayslipDocuments(): Promise<SavedPayslipDocument[]> {
+export async function listSavedPayslipDocuments(userId: string): Promise<SavedPayslipDocument[]> {
   const docs: SavedPayslipDocument[] = []
 
   // 1. Android Nativo (Room Database)
@@ -186,7 +186,7 @@ export async function listSavedPayslipDocuments(): Promise<SavedPayslipDocument[
 
   // 2. Almacenamiento Web / IndexedDB
   try {
-    const blobRecords = await listAllTarjetonBlobs()
+    const blobRecords = await listAllTarjetonBlobs(userId)
     for (const record of blobRecords) {
       const name = record.fileName || record.key || "tarjeton.pdf"
       const parsedPeriod = parsePeriodFromText(name) || parsePeriodFromText(record.key)
@@ -210,7 +210,7 @@ export async function listSavedPayslipDocuments(): Promise<SavedPayslipDocument[
           if (record.blob) {
             return new Uint8Array(await record.blob.arrayBuffer())
           }
-          const file = await getTarjetonPdfBlob(record.key)
+          const file = await getTarjetonPdfBlob(userId, record.key)
           if (!file) return null
           return new Uint8Array(await file.arrayBuffer())
         },
@@ -248,7 +248,7 @@ export async function listSavedPayslipDocuments(): Promise<SavedPayslipDocument[
 /**
  * Localiza el tarjetón guardado más reciente en "Mis documentos".
  */
-export async function getLatestSavedPayslipDocument(): Promise<SavedPayslipDocument | null> {
-  const list = await listSavedPayslipDocuments()
+export async function getLatestSavedPayslipDocument(userId: string): Promise<SavedPayslipDocument | null> {
+  const list = await listSavedPayslipDocuments(userId)
   return list.length > 0 ? list[0] : null
 }

@@ -44,5 +44,5 @@ export default async function GuiaPage() {
     ...counts,
   }
 
-  return <GuiaHome data={data} />
+  return <GuiaHome data={data} userId={user.id} />
 }

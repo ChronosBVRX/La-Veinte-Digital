@@ -1,48 +1,16 @@
 import { test, expect, type Page, assertPageLoaded } from "../fixtures/test"
 import { jsPDF } from "jspdf"
 import { assertSafeDatabase } from "../utils/assert-safe-database"
+import { buildSyntheticTarjetonPdf } from "../fixtures/pdfs/build-tarjeton-pdf"
 
 // ── Unique PDF generation per run (avoids hash collisions across CI runs) ──
 
 const RUN_ID = Date.now().toString(36)
 
 function makeValidPdf(workerName: string, period: string): Buffer {
-  const doc = new jsPDF()
-  doc.setFont("helvetica")
-  doc.setFontSize(10)
-
-  // Golden fixture based on parseImssTarjeton unit tests.
-  // All text at same x-position so PDF.js extracts lines in order.
-  const X = 14
-  let y = 20
-  const line = (t: string) => { doc.text(t, X, y); y += 8 }
-
-  line("INSTITUTO MEXICANO DEL SEGURO SOCIAL")
-  line("RECIBO DE PAGO DE NOMINA")
-  line(`PERIODO DE PAGO ${period}`)
-  line(`MATRICULA 123456`)
-  line(`NOMBRE ${workerName}`)
-  line("CLAVE DE CATEGORIA/PUESTO 6112")
-  line("NOMBRE CATEGORIA/PUESTO ENFERMERA GENERAL 80")
-  line("FECHA DE INGRESO 01-03-2003")
-  line("ANTIGUEDAD EFECTIVA 22 anos 10 qnas 2 dias")
-  line("FOLIO 998877")
-  line("FOLIO FISCAL RF-2026-000123")
-  line("PERCEPCIONES")
-  line("002 SUELDO BASE 3937.64")
-  line("011 PRESTACIONES EN DINERO 3234.77")
-  line("055 MAYOR IMPORTE 400.00")
-  line("TOTAL PERCEPCIONES 7572.41")
-  line("DEDUCCIONES")
-  line("212 IMPUESTO SOBRE LA RENTA 1234.56")
-  line("TOTAL DEDUCCIONES 1234.56")
-  line("LIQUIDO 6337.85")
-  line("OBSERVACIONES")
-  line(`055 VENCIMIENTO ${RUN_ID}`)
-  line("DIAS LABORADOS EN EL ANO 12")
-  line("CERTIFICACION 31-01-2026")
-
-  return Buffer.from(doc.output("arraybuffer"))
+  // Tarjetón sintético con la disposición real que exige el parser
+  // (sección RECEPTOR + columnas). Ver e2e/fixtures/pdfs/build-tarjeton-pdf.ts.
+  return buildSyntheticTarjetonPdf({ fullName: workerName, matricula: "900001", periodRaw: period })
 }
 
 function makeGenericPdf(): Buffer {
@@ -68,9 +36,9 @@ function makeIMSSNonTarjeton(): Buffer {
 }
 
 // Generate unique PDFs for this test run
-const pdf1 = makeValidPdf(`A1 TEST ${RUN_ID}`, `01/01/2026-15/01/2026`)
-const pdf2 = makeValidPdf(`B2 TEST ${RUN_ID}`, `16/01/2026-31/01/2026`)
-const pdf3 = makeValidPdf(`C3 TEST ${RUN_ID}`, `01/02/2026-15/02/2026`)
+const pdf1 = makeValidPdf(`A1 TEST ${RUN_ID}`, `1A-ENE-2026`)
+const pdf2 = makeValidPdf(`B2 TEST ${RUN_ID}`, `2A-ENE-2026`)
+const pdf3 = makeValidPdf(`C3 TEST ${RUN_ID}`, `1A-FEB-2026`)
 const pdfGeneric = makeGenericPdf()
 const pdfIMSS = makeIMSSNonTarjeton()
 
@@ -78,7 +46,12 @@ const pdfIMSS = makeIMSSNonTarjeton()
 
 async function gotoAndAssert(page: Page) {
   await page.goto("/tarjeton")
-  await page.waitForLoadState("networkidle")
+  // `networkidle` no estabiliza: la app mantiene sondeos en segundo plano
+  // (contexto de trabajador/agenda). Se espera el dropzone real.
+  await page
+    .locator('[aria-label="Seleccionar tarjetón PDF"]')
+    .first()
+    .waitFor({ state: "visible", timeout: 30_000 })
   await assertPageLoaded(page)
 }
 
@@ -104,10 +77,7 @@ async function waitForDropzone(page: Page) {
 
 async function confirmTarjeton(page: Page) {
   assertSafeDatabase()
-  const consentCheckbox = page.locator('input[type="checkbox"]').first()
-  if (await consentCheckbox.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await consentCheckbox.check()
-  }
+  await page.getByRole("checkbox", { name: /Autorizo guardar los datos confirmados/i }).check()
   await page.getByRole("button", { name: "Confirmar tarjetón" }).click()
 }
 

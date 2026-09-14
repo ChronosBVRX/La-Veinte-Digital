@@ -29,10 +29,12 @@ const TarjetonImporterInner = dynamic(
 
 export function TarjetonImporterWrapper({
   profile,
+  userId,
   onSuccess,
 }: {
   profile: TarjetonProfileSnapshot | null
+  userId: string
   onSuccess?: (meta: TarjetonImportSuccessMeta) => void
 }) {
-  return <TarjetonImporterInner profile={profile} onSuccess={onSuccess} />
+  return <TarjetonImporterInner profile={profile} userId={userId} onSuccess={onSuccess} />
 }

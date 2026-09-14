@@ -18,14 +18,27 @@ export async function POST(request: NextRequest) {
   }
   const user = auth.user
 
+  const supabase = await createClient()
+
+  // Inicialización idempotente del perfil ANTES de persistir: imported_payslips
+  // tiene FK a public.profiles(id). Un usuario autenticado sin fila (p. ej.
+  // creado antes del trigger) provocaría un 23503. No se usa service role: el
+  // RPC corre con la sesión del usuario y RLS sigue aislando por auth.uid().
+  const { error: ensureProfileError } = await supabase.rpc("ensure_profile_exists")
+  if (ensureProfileError) {
+    console.error("[tarjeton/confirm][ensure_profile]", { code: ensureProfileError.code })
+    return NextResponse.json(
+      { error: "No se pudo preparar tu perfil para guardar el tarjetón.", code: "profile_init_failed" },
+      { status: 500, headers: { "Cache-Control": "private, no-store" } },
+    )
+  }
+
   let body: unknown
   try {
     body = await request.json()
   } catch {
     return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 })
   }
-
-  const supabase = await createClient()
 
   const result = await confirmTarjetonService(
     {

@@ -3,17 +3,18 @@
 import { useState, useEffect } from "react"
 import { Wallet, Clock } from "@phosphor-icons/react"
 import { getNextPaymentDay, SHIFT_LABELS } from "@/shared/lib/calendario-helpers"
+import { scopedStorageKey } from "@/shared/services/scoped-storage"
 
 interface NominaProfileLight {
   shift?: string
   workdayHours?: number
 }
 
-export function TodaySummary() {
+export function TodaySummary({ userId }: { userId: string }) {
   const [nominaProfile, setNominaProfile] = useState<NominaProfileLight | null>(null)
 
   useEffect(() => {
-    const raw = typeof window !== "undefined" ? localStorage.getItem("nomina_profile") : null
+    const raw = typeof window !== "undefined" ? localStorage.getItem(scopedStorageKey("nomina_profile", userId)) : null
     if (!raw) return
     try {
       const parsed = JSON.parse(raw)
@@ -22,7 +23,7 @@ export function TodaySummary() {
     } catch {
       // ignore
     }
-  }, [])
+  }, [userId])
 
   const now = new Date()
   const year = now.getFullYear()

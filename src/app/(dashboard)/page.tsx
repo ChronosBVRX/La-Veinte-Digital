@@ -71,6 +71,7 @@ export default async function DashboardPage() {
         fullName={profile?.full_name ?? null}
         greeting={greeting}
         dateLabel={dateLabel}
+        userId={user.id}
       />
 
       <SalaryIncreaseCard />

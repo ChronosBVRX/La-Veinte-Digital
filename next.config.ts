@@ -4,8 +4,11 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://ragktminwdu
 
 // Cloudflare Turnstile: script del CAPTCHA + iframe del reto + verificación.
 // Requerido por src/app/(auth)/turnstile-widget.tsx para obtener captcha_token.
-const turnstileOrigin = "https://challenges.cloudflare.com";
+const turnstileOrigin = "https://challenges.cloudflare.com"
 
+// `'wasm-unsafe-eval'` es el token mínimo que exige Chrome para compilar
+// WebAssembly; sin él, Tesseract (OCR de tarjetones escaneados, 100% local)
+// no puede instanciar su módulo. NO habilita `eval` de JavaScript.
 const connectSources = [
   "'self'",
   supabaseUrl,
@@ -16,7 +19,7 @@ const connectSources = [
 
 const cspDirectives = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' ${turnstileOrigin}`,
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' ${turnstileOrigin}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",

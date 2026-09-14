@@ -178,9 +178,9 @@ export function syncConfirmedPayslip(
   userId: string,
 ): PayslipSyncResult {
   const payslip = buildImportedPayslip(response, request, userId)
-  savePayslip(payslip)
+  savePayslip(userId, payslip)
 
-  const profile = getProfile()
+  const profile = getProfile(userId)
   const now = new Date().toISOString()
   const baseProfile: EmployeePayrollProfile = profile ?? {
     id: `profile_${userId}`,
@@ -200,7 +200,7 @@ export function syncConfirmedPayslip(
     updatedAt: now,
   }
   const updatedProfile = applyPayslipToProfile(baseProfile, request.parsed, request)
-  saveProfile(updatedProfile)
+  saveProfile(userId, updatedProfile)
 
   return { payslip, profile: updatedProfile }
 }

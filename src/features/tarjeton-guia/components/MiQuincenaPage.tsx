@@ -19,8 +19,8 @@ import type { GuidePayslip } from "@/features/tarjeton-guia/lib/types"
 import { syncLatestSavedPayslip } from "@/features/tarjeton/services/sync-latest-payslip"
 import { analyzeAndPersistPayslip } from "@/features/tarjeton/services/analyze-and-persist-payslip"
 
-export function MiQuincenaPage({ serverPayslip, initialTab }: { serverPayslip: GuidePayslip | null; initialTab?: string }) {
-  const { payslip, previous } = useLatestPayslip(serverPayslip)
+export function MiQuincenaPage({ serverPayslip, userId, initialTab }: { serverPayslip: GuidePayslip | null; userId: string; initialTab?: string }) {
+  const { payslip, previous } = useLatestPayslip(serverPayslip, userId)
   const [stepIndex, setStepIndex] = useState(0)
   const [autoAnalyzing, setAutoAnalyzing] = useState(false)
 
@@ -38,15 +38,15 @@ export function MiQuincenaPage({ serverPayslip, initialTab }: { serverPayslip: G
     if (payslip && summary?.incompleteExtraction && !autoAnalyzing) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- auto-reanudación deliberada
       setAutoAnalyzing(true)
-      void syncLatestSavedPayslip()
+      void syncLatestSavedPayslip(userId)
         .then((res) => {
           if (!res || res.concepts.length === 0) {
-            return analyzeAndPersistPayslip(payslip.id, { periodRaw: payslip.periodRaw || payslip.periodLabel })
+            return analyzeAndPersistPayslip(payslip.id, { userId, periodRaw: payslip.periodRaw || payslip.periodLabel })
           }
         })
         .finally(() => setAutoAnalyzing(false))
     }
-  }, [payslip, summary?.incompleteExtraction, autoAnalyzing])
+  }, [payslip, summary?.incompleteExtraction, autoAnalyzing, userId])
 
   if (!payslip) {
     return (
@@ -103,6 +103,7 @@ export function MiQuincenaPage({ serverPayslip, initialTab }: { serverPayslip: G
               total={steps.length}
               periodRaw={payslip?.periodLabel || payslip?.periodRaw}
               documentId={payslip?.id}
+              userId={userId}
               autoAnalyzing={autoAnalyzing}
             />
           )
@@ -121,6 +122,7 @@ function ExplainTab({
   total,
   periodRaw,
   documentId,
+  userId,
   autoAnalyzing = false,
 }: {
   steps: ExplainerStep[]
@@ -131,6 +133,7 @@ function ExplainTab({
   total: number
   periodRaw?: string
   documentId?: string
+  userId: string
   autoAnalyzing?: boolean
 }) {
   const isLast = stepIndex >= total - 1
@@ -208,6 +211,7 @@ function ExplainTab({
           </p>
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
             <BotonReintentarAnalisis
+              userId={userId}
               periodRaw={periodRaw}
               documentId={documentId}
               size="sm"

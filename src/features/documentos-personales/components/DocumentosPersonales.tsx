@@ -980,6 +980,7 @@ export function DocumentosPersonales() {
         open={!!importDoc}
         file={importDoc?.file ?? null}
         profile={profile}
+        userId={userId}
         onClose={() => setImportDoc(null)}
       />
     </div>

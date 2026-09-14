@@ -39,18 +39,21 @@ export interface SyncLatestPayslipOptions {
   onProgress?: (status: string, message: string) => void
 }
 
-let syncInFlightPromise: Promise<PayslipAnalysis | null> | null = null
+// Cerrojo por usuario: evita que una cuenta reciba la promesa de otra.
+const syncInFlightByUser = new Map<string, Promise<PayslipAnalysis | null>>()
 
 export async function syncLatestSavedPayslip(
+  userId: string,
   options: SyncLatestPayslipOptions = {}
 ): Promise<PayslipAnalysis | null> {
-  if (syncInFlightPromise && !options.force) {
-    return syncInFlightPromise
+  const inFlight = syncInFlightByUser.get(userId)
+  if (inFlight && !options.force) {
+    return inFlight
   }
 
   const task = (async (): Promise<PayslipAnalysis | null> => {
-    // 1. Localizar el tarjetón más reciente en "Mis documentos"
-    const doc = await getLatestSavedPayslipDocument()
+    // 1. Localizar el tarjetón más reciente en "Mis documentos" del usuario
+    const doc = await getLatestSavedPayslipDocument(userId)
     if (!doc) {
       return null
     }
@@ -73,14 +76,14 @@ export async function syncLatestSavedPayslip(
     const documentHash = await computeFileSha256(bytes.buffer as ArrayBuffer)
 
     // 5. Verificar idempotencia: si ya fue analizado con esta versión del parser y está listo, reutilizar
-    const cached = getPayslipAnalysisByHash(documentHash, CURRENT_PARSER_VERSION)
+    const cached = getPayslipAnalysisByHash(userId, documentHash, CURRENT_PARSER_VERSION)
     if (cached && cached.status === "ready" && cached.concepts.length > 0 && !options.force) {
       return cached
     }
 
     // 6. Notificar estado analyzing
     options.onProgress?.("analyzing", "Analizando conceptos del tarjetón...")
-    savePayslipAnalysis({
+    savePayslipAnalysis(userId, {
       documentId: doc.id,
       documentHash,
       parserVersion: CURRENT_PARSER_VERSION,
@@ -128,7 +131,7 @@ export async function syncLatestSavedPayslip(
       })
 
       if (!outcome.ok) {
-        savePayslipAnalysis({
+        savePayslipAnalysis(userId, {
           documentId: doc.id,
           documentHash,
           parserVersion: CURRENT_PARSER_VERSION,
@@ -209,7 +212,7 @@ export async function syncLatestSavedPayslip(
         errorCode: null,
       }
 
-      savePayslipAnalysis(readyAnalysis)
+      savePayslipAnalysis(userId, readyAnalysis)
 
       // 12. Sincronizar en localStorage como ImportedPayslip para compatibilidad
       const earningsLines: ImportedPayslipLine[] = concepts
@@ -232,7 +235,7 @@ export async function syncLatestSavedPayslip(
           includeInNextProjection: true,
         }))
 
-      const currentSlips = getPayslips()
+      const currentSlips = getPayslips(userId)
       const existingSlip = currentSlips.find(
         (s) =>
           s.id === doc.id ||
@@ -244,9 +247,9 @@ export async function syncLatestSavedPayslip(
           ? getPayPeriod(docYear, docMonth, docHalf)
           : existingSlip?.period || getPayPeriod(institutionalToday().getFullYear(), institutionalToday().getMonth() + 1, 1)
 
-      savePayslip({
+      savePayslip(userId, {
         id: slipId,
-        userId: existingSlip?.userId || "local",
+        userId: existingSlip?.userId || userId,
         period: periodObj,
         periodRaw: finalPeriod,
         categoryName: safeParsed.employee.categoryName || existingSlip?.categoryName,
@@ -264,7 +267,7 @@ export async function syncLatestSavedPayslip(
       })
 
       // 13. Actualizar perfil laboral derivado respetando campos manuales
-      const existingProfile = getProfile()
+      const existingProfile = getProfile(userId)
       if (existingProfile) {
         const updatedProfile = { ...existingProfile }
         // Actualizar categoría solo si no fue fijada manualmente por el usuario
@@ -285,7 +288,7 @@ export async function syncLatestSavedPayslip(
         if (!existingProfile.institutionalEntryDate && safeParsed.employee.entryDate) {
           updatedProfile.institutionalEntryDate = safeParsed.employee.entryDate
         }
-        saveProfile(updatedProfile)
+        saveProfile(userId, updatedProfile)
       }
 
       // 14. Notificar a la app
@@ -301,7 +304,7 @@ export async function syncLatestSavedPayslip(
       return readyAnalysis
     } catch (err) {
       console.error("[syncLatestSavedPayslip] Error durante el análisis:", err)
-      savePayslipAnalysis({
+      savePayslipAnalysis(userId, {
         documentId: doc.id,
         documentHash,
         parserVersion: CURRENT_PARSER_VERSION,
@@ -320,10 +323,10 @@ export async function syncLatestSavedPayslip(
     }
   })()
 
-  syncInFlightPromise = task
+  syncInFlightByUser.set(userId, task)
   try {
     return await task
   } finally {
-    syncInFlightPromise = null
+    syncInFlightByUser.delete(userId)
   }
 }
