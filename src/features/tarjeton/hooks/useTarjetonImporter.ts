@@ -186,7 +186,7 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null, use
       console.error("[tarjeton] import fallido:", err)
       fail({ code: "internal", message: "No fue posible leer el archivo. Intenta con otro tarjetón." })
     }
-  }, [profile, fail])
+  }, [profile, userId, fail])
 
   const confirm = useCallback(async (opts: {
     profileUpdates: ConfirmTarjetonRequest["profileUpdates"]
@@ -334,7 +334,7 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null, use
     }
 
     setState((s) => ({ ...s, step: "done", confirmResponse: result.data, error: undefined }))
-  }, [state.parsed])
+  }, [state.parsed, userId])
 
   const reset = useCallback(() => {
     abortRef.current?.abort()
