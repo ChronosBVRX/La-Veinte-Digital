@@ -1,16 +1,17 @@
 // Importador de una sola vez — Lockers 2025 → union_lockers.
 // Uso:
-//   node scripts/import-union-lockers.mjs --source "D:/..." --dry-run
-//   node scripts/import-union-lockers.mjs --source "D:/..." --apply
+//   node scripts/import-union-lockers.mjs --source "<ruta local>" --dry-run
+//   node scripts/import-union-lockers.mjs --source "<ruta local>" --apply
 // Nunca modifica el Excel original. Conflictos → reporte local (fuera de git).
 // El reporte puede contener PII: se escribe en .local-private/ por defecto.
+// Lector: ExcelJS (sin xlsx/SheetJS — ver auditoría de dependencias).
 
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const XLSX = require("xlsx");
+const ExcelJS = require("exceljs");
 
 function arg(name, fallback = null) {
   const i = process.argv.indexOf(name);
@@ -33,10 +34,16 @@ if (!fs.existsSync(source)) {
 }
 
 function normStr(v) {
-  return String(v ?? "").replace(/\s+/g, " ").trim();
+  if (v === null || v === undefined) return "";
+  if (typeof v === "object") {
+    if (v.text) return normStr(v.text);
+    if (v.result !== undefined) return normStr(v.result);
+    return "";
+  }
+  return String(v).replace(/\s+/g, " ").trim();
 }
 function normLocker(v) {
-  const digits = String(v ?? "").replace(/[^0-9]/g, "");
+  const digits = normStr(v).replace(/[^0-9]/g, "");
   if (!digits) return "";
   return String(parseInt(digits, 10));
 }
@@ -45,18 +52,33 @@ function maskMatricula(m) {
   return s.length > 4 ? `***${s.slice(-4)}` : "***";
 }
 
-const wb = XLSX.readFile(source, { dense: false });
-console.log(`Libro: ${source}`);
-console.log(`Hojas: ${wb.SheetNames.join(", ")}`);
+function sheetRows(ws) {
+  const rows = [];
+  ws.eachRow({ includeEmpty: false }, (row) => {
+    const arr = [];
+    for (let c = 1; c <= row.cellCount; c += 1) {
+      const cell = row.getCell(c);
+      arr.push(cell.value);
+    }
+    rows.push(arr);
+  });
+  return rows;
+}
 
-const ws = wb.Sheets["Hoja1"];
+const wb = new ExcelJS.Workbook();
+await wb.xlsx.readFile(source);
+const sheetNames = wb.worksheets.map((w) => w.name);
+console.log(`Libro: ${source}`);
+console.log(`Hojas: ${sheetNames.join(", ")}`);
+
+const ws = wb.getWorksheet("Hoja1");
 if (!ws) {
   console.error("No se encontró Hoja1");
   process.exit(2);
 }
-const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: true });
+const rows = sheetRows(ws);
 const header = rows[0] || [];
-console.log(`Encabezado: ${header.slice(0, 11).join(" | ")}`);
+console.log(`Encabezado: ${header.slice(0, 11).map(normStr).join(" | ")}`);
 console.log(`Filas totales (incl. encabezado): ${rows.length}`);
 
 const seenLocker = new Map();
@@ -96,8 +118,8 @@ for (let i = 1; i < rows.length; i += 1) {
 
 // Hoja3: posible lista de espera (estructura distinta) — solo conteo, sin PII.
 let waitlistCount = 0;
-if (wb.SheetNames.includes("Hoja3")) {
-  const w3 = XLSX.utils.sheet_to_json(wb.Sheets["Hoja3"], { header: 1, defval: "" });
+if (sheetNames.includes("Hoja3")) {
+  const w3 = sheetRows(wb.getWorksheet("Hoja3"));
   waitlistCount = Math.max(0, w3.length - 1);
 }
 
