@@ -1547,11 +1547,341 @@ export type Database = {
         Relationships: []
       }
       union_workers: {
-        Row: { id: string; delegation_id: string; employee_number: string; first_name: string; paternal_surname: string; maternal_surname: string | null; category: string; assignment: string; turn: string; schedule: string | null; rest_days: string | null; phone: string | null; active: boolean; notes: string | null; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string }
-        Insert: { id?: string; delegation_id: string; employee_number: string; first_name: string; paternal_surname: string; maternal_surname?: string | null; category?: string; assignment?: string; turn?: string; schedule?: string | null; rest_days?: string | null; phone?: string | null; active?: boolean; notes?: string | null; created_by?: string | null; updated_by?: string | null; created_at?: string; updated_at?: string }
-        Update: { id?: string; delegation_id?: string; employee_number?: string; first_name?: string; paternal_surname?: string; maternal_surname?: string | null; category?: string; assignment?: string; turn?: string; schedule?: string | null; rest_days?: string | null; phone?: string | null; active?: boolean; notes?: string | null; created_by?: string | null; updated_by?: string | null; created_at?: string; updated_at?: string }
-        Relationships: []
-      }
+        Row: {
+          id: string;
+          delegation_id: string;
+          employee_number: string;
+          first_name: string;
+          paternal_surname: string;
+          maternal_surname: string | null;
+          category: string;
+          assignment: string;
+          turn: string;
+          schedule: string | null;
+          rest_days: string | null;
+          phone: string | null;
+          active: boolean;
+          notes: string | null;
+          contract_type_code: string;
+          plaza_code: string;
+          responsibility_area_code: string;
+          occupation_start_date: string | null;
+          occupation_limit_date: string | null;
+          occupation_mark_code: string;
+          plaza_type_code: string;
+          shift_code: string;
+          associated_concepts_mask: string;
+          associated_concepts: Json;
+          position_code: string;
+          position_description: string;
+          department_code: string;
+          department_description: string;
+          schedule_code: string;
+          schedule_description: string;
+          seniority_raw: string;
+          seniority_years: number | null;
+          seniority_fortnights: number | null;
+          seniority_days: number | null;
+          rfc: string;
+          curp: string;
+          nss: string;
+          employment_start_date: string | null;
+          reemployment_date: string | null;
+          source_status_code: string;
+          termination_code: string;
+          termination_date: string | null;
+          micro_group_code: string;
+          siap_full_name: string;
+          occupation_limit_is_sentinel: boolean;
+          last_import_batch_id: string | null;
+          source_created_by_batch_id: string | null;
+          source_last_seen_at: string | null;
+          source_missing_since: string | null;
+          source_rolled_back_at: string | null;
+          created_by: string | null;
+          updated_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          delegation_id: string;
+          employee_number: string;
+          first_name: string;
+          paternal_surname: string;
+          maternal_surname?: string | null;
+          category?: string;
+          assignment?: string;
+          turn?: string;
+          schedule?: string | null;
+          rest_days?: string | null;
+          phone?: string | null;
+          active?: boolean;
+          notes?: string | null;
+          contract_type_code?: string;
+          plaza_code?: string;
+          responsibility_area_code?: string;
+          occupation_start_date?: string | null;
+          occupation_limit_date?: string | null;
+          occupation_limit_is_sentinel?: boolean;
+          occupation_mark_code?: string;
+          plaza_type_code?: string;
+          shift_code?: string;
+          associated_concepts_mask?: string;
+          associated_concepts?: Json;
+          position_code?: string;
+          position_description?: string;
+          department_code?: string;
+          department_description?: string;
+          schedule_code?: string;
+          schedule_description?: string;
+          seniority_raw?: string;
+          seniority_years?: number | null;
+          seniority_fortnights?: number | null;
+          seniority_days?: number | null;
+          rfc?: string;
+          curp?: string;
+          nss?: string;
+          employment_start_date?: string | null;
+          reemployment_date?: string | null;
+          source_status_code?: string;
+          termination_code?: string;
+          termination_date?: string | null;
+          micro_group_code?: string;
+          siap_full_name?: string;
+          last_import_batch_id?: string | null;
+          source_created_by_batch_id?: string | null;
+          source_last_seen_at?: string | null;
+          source_missing_since?: string | null;
+          source_rolled_back_at?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          delegation_id?: string;
+          employee_number?: string;
+          first_name?: string;
+          paternal_surname?: string;
+          maternal_surname?: string | null;
+          category?: string;
+          assignment?: string;
+          turn?: string;
+          schedule?: string | null;
+          rest_days?: string | null;
+          phone?: string | null;
+          active?: boolean;
+          notes?: string | null;
+          contract_type_code?: string;
+          plaza_code?: string;
+          responsibility_area_code?: string;
+          occupation_start_date?: string | null;
+          occupation_limit_date?: string | null;
+          occupation_limit_is_sentinel?: boolean;
+          occupation_mark_code?: string;
+          plaza_type_code?: string;
+          shift_code?: string;
+          associated_concepts_mask?: string;
+          associated_concepts?: Json;
+          position_code?: string;
+          position_description?: string;
+          department_code?: string;
+          department_description?: string;
+          schedule_code?: string;
+          schedule_description?: string;
+          seniority_raw?: string;
+          seniority_years?: number | null;
+          seniority_fortnights?: number | null;
+          seniority_days?: number | null;
+          rfc?: string;
+          curp?: string;
+          nss?: string;
+          employment_start_date?: string | null;
+          reemployment_date?: string | null;
+          source_status_code?: string;
+          termination_code?: string;
+          termination_date?: string | null;
+          micro_group_code?: string;
+          siap_full_name?: string;
+          last_import_batch_id?: string | null;
+          source_created_by_batch_id?: string | null;
+          source_last_seen_at?: string | null;
+          source_missing_since?: string | null;
+          source_rolled_back_at?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      union_worker_import_batches: {
+        Row: {
+          id: string;
+          delegation_id: string;
+          imported_by: string;
+          file_name: string;
+          file_size_bytes: number;
+          file_sha256: string;
+          format_version: string;
+          total_rows: number;
+          new_workers_count: number;
+          updated_workers_count: number;
+          unchanged_workers_count: number;
+          warnings_count: number;
+          invalid_rows_count: number;
+          conflicts_count: number;
+          missing_in_file_count: number;
+          status: "preview" | "confirmed" | "rolled_back" | "failed";
+          applied_at: string | null;
+          confirmed_at: string | null;
+          confirmed_by: string | null;
+          rolled_back_at: string | null;
+          rolled_back_by: string | null;
+          notes: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          delegation_id: string;
+          imported_by: string;
+          file_name: string;
+          file_size_bytes: number;
+          file_sha256: string;
+          format_version?: string;
+          total_rows?: number;
+          new_workers_count?: number;
+          updated_workers_count?: number;
+          unchanged_workers_count?: number;
+          warnings_count?: number;
+          invalid_rows_count?: number;
+          conflicts_count?: number;
+          missing_in_file_count?: number;
+          status?: "preview" | "confirmed" | "rolled_back" | "failed";
+          applied_at?: string | null;
+          confirmed_at?: string | null;
+          confirmed_by?: string | null;
+          rolled_back_at?: string | null;
+          rolled_back_by?: string | null;
+          notes?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          delegation_id?: string;
+          imported_by?: string;
+          file_name?: string;
+          file_size_bytes?: number;
+          file_sha256?: string;
+          format_version?: string;
+          total_rows?: number;
+          new_workers_count?: number;
+          updated_workers_count?: number;
+          unchanged_workers_count?: number;
+          warnings_count?: number;
+          invalid_rows_count?: number;
+          conflicts_count?: number;
+          missing_in_file_count?: number;
+          status?: "preview" | "confirmed" | "rolled_back" | "failed";
+          applied_at?: string | null;
+          confirmed_at?: string | null;
+          confirmed_by?: string | null;
+          rolled_back_at?: string | null;
+          rolled_back_by?: string | null;
+          notes?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      union_worker_import_rows: {
+        Row: {
+          id: string;
+          batch_id: string;
+          row_number: number;
+          matricula: string;
+          full_name: string;
+          raw_data: Json;
+          parsed_data: Json;
+          row_status: "new" | "updated" | "unchanged" | "warning" | "invalid" | "conflict";
+          action_taken: "pending" | "applied" | "skipped" | "conflict_hold";
+          issues: Json;
+          diff: Json;
+          target_worker_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          batch_id: string;
+          row_number: number;
+          matricula: string;
+          full_name: string;
+          raw_data?: Json;
+          parsed_data?: Json;
+          row_status: "new" | "updated" | "unchanged" | "warning" | "invalid" | "conflict";
+          action_taken?: "pending" | "applied" | "skipped" | "conflict_hold";
+          issues?: Json;
+          diff?: Json;
+          target_worker_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          batch_id?: string;
+          row_number?: number;
+          matricula?: string;
+          full_name?: string;
+          raw_data?: Json;
+          parsed_data?: Json;
+          row_status?: "new" | "updated" | "unchanged" | "warning" | "invalid" | "conflict";
+          action_taken?: "pending" | "applied" | "skipped" | "conflict_hold";
+          issues?: Json;
+          diff?: Json;
+          target_worker_id?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      union_worker_change_history: {
+        Row: {
+          id: string;
+          delegation_id: string;
+          batch_id: string | null;
+          worker_id: string;
+          field_name: string;
+          old_value: string | null;
+          new_value: string | null;
+          changed_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          delegation_id: string;
+          batch_id?: string | null;
+          worker_id: string;
+          field_name: string;
+          old_value?: string | null;
+          new_value?: string | null;
+          changed_by: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          delegation_id?: string;
+          batch_id?: string | null;
+          worker_id?: string;
+          field_name?: string;
+          old_value?: string | null;
+          new_value?: string | null;
+          changed_by?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       union_cases: {
         Row: { id: string; delegation_id: string; worker_id: string; case_type: string; folio: string; status: string; opened_at: string; closed_at: string | null; worker_snapshot: Json; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string }
         Insert: { id?: string; delegation_id: string; worker_id: string; case_type: string; folio: string; status?: string; opened_at?: string; closed_at?: string | null; worker_snapshot?: Json; created_by?: string | null; updated_by?: string | null; created_at?: string; updated_at?: string }
@@ -1785,6 +2115,14 @@ export type Database = {
       union_is_member: { Args: { p_delegation: string }; Returns: boolean }
       union_is_admin: { Args: { p_delegation: string }; Returns: boolean }
       union_my_delegations: { Args: never; Returns: string[] }
+      union_confirm_worker_import: {
+        Args: { p_batch_id: string }
+        Returns: Json
+      }
+      union_rollback_worker_import: {
+        Args: { p_batch_id: string }
+        Returns: Json
+      }
       unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {

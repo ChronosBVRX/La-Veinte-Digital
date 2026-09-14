@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/shared/components/ui/Button";
 import { Input } from "@/shared/components/ui/Input";
 import { Card } from "@/shared/components/ui/Card";
@@ -91,6 +92,33 @@ export function AdminPanel(): React.JSX.Element {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+          <div>
+            <h2 style={{ margin: "0 0 0.25rem", fontSize: "1rem" }}>Plantilla de Personal IMSS (SIAP)</h2>
+            <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)" }}>
+              Carga y actualiza continuamente el padrón de trabajadores desde archivos oficiales de Excel (.xlsx).
+            </p>
+          </div>
+          <Link
+            href="/representacion/administracion/importar-trabajadores"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.375rem",
+              padding: "0.375rem 0.75rem",
+              borderRadius: "0.375rem",
+              backgroundColor: "var(--primary)",
+              color: "var(--primary-fg, #fff)",
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            📊 Importar plantilla Excel
+          </Link>
+        </div>
+      </Card>
       <Card>
         <h2 style={{ margin: "0 0 0.5rem", fontSize: "1rem" }}>Configuración de Delegación XXI</h2>
         <p style={{ margin: "0 0 0.625rem", fontSize: "0.75rem", color: "var(--muted)" }}>
