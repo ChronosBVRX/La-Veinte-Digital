@@ -4,3 +4,4 @@ export {
   type UnionApplicationShellProps,
   type UnionNavModule,
 } from "./components/UnionApplicationShell";
+export { UnionAccessDenied } from "./components/UnionAccessDenied";
