@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { House, UserCircle, X, Article, ArrowsClockwise, FolderOpen, ShieldCheck } from "@phosphor-icons/react"
+import { House, UserCircle, X, Article, ArrowsClockwise, FolderOpen, ShieldCheck, Handshake } from "@phosphor-icons/react"
 import { DESKTOP_NAV_GROUPS, shouldPrefetchRoute } from "./navigation"
 import { SignOutButton } from "./SignOutButton"
 import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
@@ -13,9 +13,10 @@ interface DesktopSidebarProps {
   open: boolean
   onClose: () => void
   canAccessAdmin?: boolean
+  canAccessUnion?: boolean
 }
 
-export function DesktopSidebar({ open, onClose, canAccessAdmin = false }: DesktopSidebarProps) {
+export function DesktopSidebar({ open, onClose, canAccessAdmin = false, canAccessUnion = false }: DesktopSidebarProps) {
   const pathname = usePathname()
   const isNative = useIsNativeApp()
   const platform = useNativePlatform()
@@ -192,6 +193,16 @@ export function DesktopSidebar({ open, onClose, canAccessAdmin = false }: Deskto
       )}
 
       <div style={{ marginTop: "1rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.125rem" }}>
+        {canAccessUnion && (
+          <NavItem
+            href="/representacion"
+            label="Representación Sindical"
+            icon={Handshake}
+            isActive={pathname === "/representacion" || pathname.startsWith("/representacion/")}
+            color="var(--brand-navy, #1e3a8a)"
+            onClick={onClose}
+          />
+        )}
         {canAccessAdmin && (
           <NavItem
             href="/admin"

@@ -92,4 +92,11 @@ __pycache__/
 
 # Local temp & scratch
 /tmp/
+/output/
+
+# Representación sindical: trabajo local con PII (nunca versionar)
+.local-private/
+.tools-venv/
+*.xlsm
+!supabase/tests/**
 

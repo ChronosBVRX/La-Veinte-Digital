@@ -24,11 +24,22 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   const isLegacyAllowed = !!user.email && allowedEmails.includes(user.email.toLowerCase())
   const canAccessAdmin = profile?.role === "admin" || isLegacyAllowed
 
+  // Representación Sindical XXI (BETA PRIVADA): acceso SOLO con membresía
+  // activa en union_members. profiles.role='admin' NO otorga acceso sindical.
+  // Aditivo: no altera el resto del layout.
+  const { count: unionCount } = await supabase
+    .from("union_members")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .eq("active", true)
+  const canAccessUnion = (unionCount ?? 0) > 0
+
   return (
     <ToastProvider>
       <DashboardShell
         fullName={profile?.full_name ?? null}
         canAccessAdmin={canAccessAdmin}
+        canAccessUnion={canAccessUnion}
       >
         {children}
       </DashboardShell>

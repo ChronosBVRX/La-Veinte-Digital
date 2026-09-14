@@ -78,6 +78,10 @@ docker exec -i "$db_container" psql -v ON_ERROR_STOP=1 -U postgres -d postgres <
     FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
       EXECUTE 'TRUNCATE TABLE public.' || quote_ident(r.tablename) || ' CASCADE;';
     END LOOP;
+    -- Las migraciones pueden sembrar buckets de storage (p. ej. union-private);
+    -- el dump data-only los incluye, así que storage debe vaciarse también
+    -- para que la restauración no choque con claves preexistentes.
+    EXECUTE 'TRUNCATE TABLE storage.buckets CASCADE;';
     EXECUTE 'TRUNCATE TABLE auth.users CASCADE;';
   END $$;
 EOF

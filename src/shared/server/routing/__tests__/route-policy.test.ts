@@ -50,6 +50,19 @@ describe("API route policy", () => {
       "/api/tarjeton/select": "authenticated",
       "/api/worker-context": "authenticated",
       "/api/escritos/generar": "authenticated",
+      "/api/union/workers": "authenticated",
+      "/api/union/cases": "authenticated",
+      "/api/union/lockers": "authenticated",
+      "/api/union/waitlist": "authenticated",
+      "/api/union/passages": "authenticated",
+      "/api/union/passages/pdf": "authenticated",
+      "/api/union/licenses": "authenticated",
+      "/api/union/licenses/excel": "authenticated",
+      "/api/union/licenses/word": "authenticated",
+      "/api/union/dashboard": "authenticated",
+      "/api/union/members": "authenticated",
+      "/api/union/settings": "authenticated",
+      "/api/union/audit": "authenticated",
     })
   })
 

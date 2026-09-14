@@ -1534,6 +1534,102 @@ export type Database = {
           },
         ]
       }
+      union_delegations: {
+        Row: { id: string; code: string; name: string; section: string; facility: string; active: boolean; created_at: string; updated_at: string }
+        Insert: { id?: string; code: string; name: string; section?: string; facility?: string; active?: boolean; created_at?: string; updated_at?: string }
+        Update: { id?: string; code?: string; name?: string; section?: string; facility?: string; active?: boolean; created_at?: string; updated_at?: string }
+        Relationships: []
+      }
+      union_members: {
+        Row: { id: string; user_id: string; delegation_id: string; role: string; active: boolean; created_at: string; updated_at: string }
+        Insert: { id?: string; user_id: string; delegation_id: string; role?: string; active?: boolean; created_at?: string; updated_at?: string }
+        Update: { id?: string; user_id?: string; delegation_id?: string; role?: string; active?: boolean; created_at?: string; updated_at?: string }
+        Relationships: []
+      }
+      union_workers: {
+        Row: { id: string; delegation_id: string; employee_number: string; first_name: string; paternal_surname: string; maternal_surname: string | null; category: string; assignment: string; turn: string; schedule: string | null; rest_days: string | null; phone: string | null; active: boolean; notes: string | null; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; delegation_id: string; employee_number: string; first_name: string; paternal_surname: string; maternal_surname?: string | null; category?: string; assignment?: string; turn?: string; schedule?: string | null; rest_days?: string | null; phone?: string | null; active?: boolean; notes?: string | null; created_by?: string | null; updated_by?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; delegation_id?: string; employee_number?: string; first_name?: string; paternal_surname?: string; maternal_surname?: string | null; category?: string; assignment?: string; turn?: string; schedule?: string | null; rest_days?: string | null; phone?: string | null; active?: boolean; notes?: string | null; created_by?: string | null; updated_by?: string | null; created_at?: string; updated_at?: string }
+        Relationships: []
+      }
+      union_cases: {
+        Row: { id: string; delegation_id: string; worker_id: string; case_type: string; folio: string; status: string; opened_at: string; closed_at: string | null; worker_snapshot: Json; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; delegation_id: string; worker_id: string; case_type: string; folio: string; status?: string; opened_at?: string; closed_at?: string | null; worker_snapshot?: Json; created_by?: string | null; updated_by?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; delegation_id?: string; worker_id?: string; case_type?: string; folio?: string; status?: string; opened_at?: string; closed_at?: string | null; worker_snapshot?: Json; created_by?: string | null; updated_by?: string | null; created_at?: string; updated_at?: string }
+        Relationships: []
+      }
+      union_folio_counters: {
+        Row: { delegation_code: string; year: number; case_prefix: string; last_seq: number; updated_at: string }
+        Insert: { delegation_code: string; year: number; case_prefix: string; last_seq?: number; updated_at?: string }
+        Update: { delegation_code?: string; year?: number; case_prefix?: string; last_seq?: number; updated_at?: string }
+        Relationships: []
+      }
+      union_maternity_cases: {
+        Row: { case_id: string; incapacity_start: string; incapacity_end: string; return_to_work: string; lactation_start: string; lactation_end: string; rule_version: string; notes: string | null }
+        Insert: { case_id: string; incapacity_start: string; incapacity_end: string; return_to_work: string; lactation_start: string; lactation_end: string; rule_version?: string; notes?: string | null }
+        Update: { case_id?: string; incapacity_start?: string; incapacity_end?: string; return_to_work?: string; lactation_start?: string; lactation_end?: string; rule_version?: string; notes?: string | null }
+        Relationships: []
+      }
+      union_lactation_cases: {
+        Row: { case_id: string; return_to_work: string; period_start: string; period_end: string; workday_type: string; selected_modality: string | null; rule_version: string; notes: string | null }
+        Insert: { case_id: string; return_to_work: string; period_start: string; period_end: string; workday_type?: string; selected_modality?: string | null; rule_version?: string; notes?: string | null }
+        Update: { case_id?: string; return_to_work?: string; period_start?: string; period_end?: string; workday_type?: string; selected_modality?: string | null; rule_version?: string; notes?: string | null }
+        Relationships: []
+      }
+      union_passage_cases: {
+        Row: { case_id: string; concept: string; request_date: string; control_number: string | null; ooad: string | null; discontinuous_schedule: string | null; extramural_functions: string | null; transfer_period: string | null; worker_address: Json; assignment_address: Json; phone: string | null; observations: string | null; external_status: string; external_resolution_at: string | null; external_resolution_note: string | null }
+        Insert: { case_id: string; concept: string; request_date: string; control_number?: string | null; ooad?: string | null; discontinuous_schedule?: string | null; extramural_functions?: string | null; transfer_period?: string | null; worker_address?: Json; assignment_address?: Json; phone?: string | null; observations?: string | null; external_status?: string; external_resolution_at?: string | null; external_resolution_note?: string | null }
+        Update: { case_id?: string; concept?: string; request_date?: string; control_number?: string | null; ooad?: string | null; discontinuous_schedule?: string | null; extramural_functions?: string | null; transfer_period?: string | null; worker_address?: Json; assignment_address?: Json; phone?: string | null; observations?: string | null; external_status?: string; external_resolution_at?: string | null; external_resolution_note?: string | null }
+        Relationships: []
+      }
+      union_license_cases: {
+        Row: { case_id: string; with_pay: boolean; license_range_type: string; start_date: string; end_date: string; total_days: number; previous_license_start: string | null; previous_license_end: string | null; is_extension: boolean; reason: string | null; proof_description: string | null; debt_control_required: boolean; debt_certification_status: string; notes: string | null; external_status: string; external_resolution_at: string | null; external_resolution_note: string | null }
+        Insert: { case_id: string; with_pay?: boolean; license_range_type?: string; start_date: string; end_date: string; total_days: number; previous_license_start?: string | null; previous_license_end?: string | null; is_extension?: boolean; reason?: string | null; proof_description?: string | null; debt_control_required?: boolean; debt_certification_status?: string; notes?: string | null; external_status?: string; external_resolution_at?: string | null; external_resolution_note?: string | null }
+        Update: { case_id?: string; with_pay?: boolean; license_range_type?: string; start_date?: string; end_date?: string; total_days?: number; previous_license_start?: string | null; previous_license_end?: string | null; is_extension?: boolean; reason?: string | null; proof_description?: string | null; debt_control_required?: boolean; debt_certification_status?: string; notes?: string | null; external_status?: string; external_resolution_at?: string | null; external_resolution_note?: string | null }
+        Relationships: []
+      }
+      union_lockers: {
+        Row: { id: string; delegation_id: string; locker_number: string; location: string | null; section: string | null; status: string; notes: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; delegation_id: string; locker_number: string; location?: string | null; section?: string | null; status?: string; notes?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; delegation_id?: string; locker_number?: string; location?: string | null; section?: string | null; status?: string; notes?: string | null; created_at?: string; updated_at?: string }
+        Relationships: []
+      }
+      union_locker_assignments: {
+        Row: { id: string; locker_id: string; worker_id: string; assigned_at: string; released_at: string | null; status: string; assignment_reason: string | null; release_reason: string | null; resguardo_status: string | null; admin_override: boolean; admin_override_reason: string | null; created_by: string | null; created_at: string }
+        Insert: { id?: string; locker_id: string; worker_id: string; assigned_at?: string; released_at?: string | null; status?: string; assignment_reason?: string | null; release_reason?: string | null; resguardo_status?: string | null; admin_override?: boolean; admin_override_reason?: string | null; created_by?: string | null; created_at?: string }
+        Update: { id?: string; locker_id?: string; worker_id?: string; assigned_at?: string; released_at?: string | null; status?: string; assignment_reason?: string | null; release_reason?: string | null; resguardo_status?: string | null; admin_override?: boolean; admin_override_reason?: string | null; created_by?: string | null; created_at?: string }
+        Relationships: []
+      }
+      union_locker_waitlist: {
+        Row: { id: string; delegation_id: string; worker_id: string; requested_at: string; priority_override: number | null; status: string; notes: string | null; created_by: string | null; created_at: string; updated_at: string }
+        Insert: { id?: string; delegation_id: string; worker_id: string; requested_at?: string; priority_override?: number | null; status?: string; notes?: string | null; created_by?: string | null; created_at?: string; updated_at?: string }
+        Update: { id?: string; delegation_id?: string; worker_id?: string; requested_at?: string; priority_override?: number | null; status?: string; notes?: string | null; created_by?: string | null; created_at?: string; updated_at?: string }
+        Relationships: []
+      }
+      union_case_documents: {
+        Row: { id: string; case_id: string; document_type: string; storage_path: string | null; file_name: string | null; mime_type: string | null; template_version: string | null; created_by: string | null; created_at: string }
+        Insert: { id?: string; case_id: string; document_type: string; storage_path?: string | null; file_name?: string | null; mime_type?: string | null; template_version?: string | null; created_by?: string | null; created_at?: string }
+        Update: { id?: string; case_id?: string; document_type?: string; storage_path?: string | null; file_name?: string | null; mime_type?: string | null; template_version?: string | null; created_by?: string | null; created_at?: string }
+        Relationships: []
+      }
+      union_case_events: {
+        Row: { id: string; case_id: string; event_type: string; title: string; detail: string | null; created_by: string | null; created_at: string }
+        Insert: { id?: string; case_id: string; event_type: string; title: string; detail?: string | null; created_by?: string | null; created_at?: string }
+        Update: { id?: string; case_id?: string; event_type?: string; title?: string; detail?: string | null; created_by?: string | null; created_at?: string }
+        Relationships: []
+      }
+      union_audit_log: {
+        Row: { id: string; delegation_id: string | null; user_id: string | null; entity_type: string; entity_id: string; action: string; metadata: Json; created_at: string }
+        Insert: { id?: string; delegation_id?: string | null; user_id?: string | null; entity_type: string; entity_id?: string; action: string; metadata?: Json; created_at?: string }
+        Update: { id?: string; delegation_id?: string | null; user_id?: string | null; entity_type?: string; entity_id?: string; action?: string; metadata?: Json; created_at?: string }
+        Relationships: []
+      }
+      union_settings: {
+        Row: { delegation_id: string; delegation_display_name: string | null; center_name: string | null; center_address: string | null; default_recipient_name: string | null; default_recipient_role: string | null; general_secretary: string | null; interior_secretary: string | null; conflicts_secretary: string | null; admission_secretary: string | null; social_welfare_secretary: string | null; default_signer_name: string | null; default_signer_role: string | null; institutional_motto: string | null; active_templates: Json; updated_by: string | null; updated_at: string }
+        Insert: { delegation_id: string; delegation_display_name?: string | null; center_name?: string | null; center_address?: string | null; default_recipient_name?: string | null; default_recipient_role?: string | null; general_secretary?: string | null; interior_secretary?: string | null; conflicts_secretary?: string | null; admission_secretary?: string | null; social_welfare_secretary?: string | null; default_signer_name?: string | null; default_signer_role?: string | null; institutional_motto?: string | null; active_templates?: Json; updated_by?: string | null; updated_at?: string }
+        Update: { delegation_id?: string; delegation_display_name?: string | null; center_name?: string | null; center_address?: string | null; default_recipient_name?: string | null; default_recipient_role?: string | null; general_secretary?: string | null; interior_secretary?: string | null; conflicts_secretary?: string | null; admission_secretary?: string | null; social_welfare_secretary?: string | null; default_signer_name?: string | null; default_signer_role?: string | null; institutional_motto?: string | null; active_templates?: Json; updated_by?: string | null; updated_at?: string }
+        Relationships: []
+      }
     }
     Views: {
       limited_profiles: {
@@ -1682,6 +1778,13 @@ export type Database = {
         }
         Returns: Json
       }
+      union_next_folio: {
+        Args: { p_delegation_code: string; p_year: number; p_prefix: string }
+        Returns: string
+      }
+      union_is_member: { Args: { p_delegation: string }; Returns: boolean }
+      union_is_admin: { Args: { p_delegation: string }; Returns: boolean }
+      union_my_delegations: { Args: never; Returns: string[] }
       unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
