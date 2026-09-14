@@ -17,10 +17,11 @@ const MobileValueBar = dynamic(
 interface DashboardShellProps {
   fullName: string | null
   canAccessAdmin?: boolean
+  canAccessUnion?: boolean
   children: ReactNode
 }
 
-export function DashboardShell({ fullName, canAccessAdmin = false, children }: DashboardShellProps) {
+export function DashboardShell({ fullName, canAccessAdmin = false, canAccessUnion = false, children }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const toggleSidebar = useCallback(() => {
@@ -37,7 +38,7 @@ export function DashboardShell({ fullName, canAccessAdmin = false, children }: D
         <AppHeader fullName={fullName} onMenuToggle={toggleSidebar} />
 
         <div style={{ display: "flex", flex: 1, minHeight: 0, position: "relative" }}>
-          <DesktopSidebar open={sidebarOpen} onClose={closeSidebar} canAccessAdmin={canAccessAdmin} />
+          <DesktopSidebar open={sidebarOpen} onClose={closeSidebar} canAccessAdmin={canAccessAdmin} canAccessUnion={canAccessUnion} />
           <main
             className="mobile-app-shell__scroll"
             style={{
