@@ -201,8 +201,8 @@ describe("DocumentScannerFlow: guardar y modo copiadora", () => {
       expect(screen.getByText(/Revisa tus páginas/i)).toBeDefined()
     })
 
-    // El usuario debe ver claramente que NO se conservará.
-    expect(screen.getByText(/no se guardará en el dispositivo/i)).toBeDefined()
+    // El usuario debe ver claramente que NO se conservará por defecto.
+    expect(screen.getByText(/solo se utilizará para enviarlo a imprimir/i)).toBeDefined()
 
     fireEvent.click(screen.getByRole("button", { name: /Enviar a imprimir/i }))
 
@@ -216,9 +216,11 @@ describe("DocumentScannerFlow: guardar y modo copiadora", () => {
     expect(await listScanDocuments(USER)).toHaveLength(0)
   })
 
-  it("permite guardar también en el modo copiadora si el usuario lo marca", async () => {
+  it("permite guardar también en el modo copiadora (PRINT + SAVE) y llama a onPrintRequest", async () => {
     installNativeScan({ ok: true, engine: "mlkit", pages: [pagePayload()] })
     const onPrintRequest = vi.fn()
+    const onClose = vi.fn()
+    const onSaved = vi.fn()
 
     render(
       <DocumentScannerFlow
@@ -226,7 +228,50 @@ describe("DocumentScannerFlow: guardar y modo copiadora", () => {
         mode="document"
         intent="print"
         userId={USER}
-        onClose={vi.fn()}
+        onClose={onClose}
+        onSaved={onSaved}
+        onPrintRequest={onPrintRequest}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText(/Revisa tus páginas/i)).toBeDefined()
+    })
+    // En modo print, la casilla empieza desmarcada
+    const checkbox = screen.getByRole("checkbox") as HTMLInputElement
+    expect(checkbox.checked).toBe(false)
+
+    // Activamos la casilla de guardado opcional
+    fireEvent.click(checkbox)
+    expect(checkbox.checked).toBe(true)
+
+    // El botón sigue siendo "Enviar a imprimir" (no cambia a "Guardar PDF")
+    const printBtn = screen.getByRole("button", { name: /Enviar a imprimir/i })
+    fireEvent.click(printBtn)
+
+    await waitFor(async () => {
+      expect(await listScanDocuments(USER)).toHaveLength(1)
+      expect(onSaved).toHaveBeenCalledTimes(1)
+      expect(onPrintRequest).toHaveBeenCalledTimes(1)
+      expect(onClose).toHaveBeenCalled()
+    })
+    const [file] = onPrintRequest.mock.calls[0]
+    expect(file).toBeInstanceOf(File)
+  })
+
+  it("si el guardado opcional falla, no destruye el flujo de impresión", async () => {
+    installNativeScan({ ok: true, engine: "mlkit", pages: [pagePayload()] })
+    const onPrintRequest = vi.fn()
+    const onClose = vi.fn()
+
+    // Renderizamos con userId que forzará fallo o mock
+    render(
+      <DocumentScannerFlow
+        open
+        mode="document"
+        intent="print"
+        userId="user-test-fallback"
+        onClose={onClose}
         onPrintRequest={onPrintRequest}
       />
     )
@@ -235,11 +280,11 @@ describe("DocumentScannerFlow: guardar y modo copiadora", () => {
       expect(screen.getByText(/Revisa tus páginas/i)).toBeDefined()
     })
     fireEvent.click(screen.getByRole("checkbox"))
-    fireEvent.click(screen.getByRole("button", { name: /Guardar PDF/i }))
+    fireEvent.click(screen.getByRole("button", { name: /Enviar a imprimir/i }))
 
-    await waitFor(async () => {
-      expect(await listScanDocuments(USER)).toHaveLength(1)
+    await waitFor(() => {
+      expect(onPrintRequest).toHaveBeenCalledTimes(1)
+      expect(onClose).toHaveBeenCalled()
     })
-    expect(onPrintRequest).not.toHaveBeenCalled()
   })
 })

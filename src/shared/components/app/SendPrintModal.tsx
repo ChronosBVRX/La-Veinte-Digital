@@ -22,9 +22,10 @@ export interface SendPrintModalProps {
   getFile: () => Promise<File | null>
   onClose: () => void
   onDirectPrint?: () => void
+  onSent?: () => void
 }
 
-export function SendPrintModal({ open, docName, getFile, onClose, onDirectPrint }: SendPrintModalProps) {
+export function SendPrintModal({ open, docName, getFile, onClose, onDirectPrint, onSent }: SendPrintModalProps) {
   if (!open) return null
   return (
     <FullscreenPortal open={open} onClose={onClose} ariaLabel="Enviar a imprimir por código QR">
@@ -34,12 +35,13 @@ export function SendPrintModal({ open, docName, getFile, onClose, onDirectPrint 
         getFile={getFile}
         onClose={onClose}
         onDirectPrint={onDirectPrint}
+        onSent={onSent}
       />
     </FullscreenPortal>
   )
 }
 
-function SendPrintModalContent({ open, docName, getFile, onClose, onDirectPrint }: SendPrintModalProps) {
+function SendPrintModalContent({ open, docName, getFile, onClose, onDirectPrint, onSent }: SendPrintModalProps) {
   const [status, setStatus] = useState<Status>("starting")
   const [message, setMessage] = useState<string | null>(null)
   const [warningMessage, setWarningMessage] = useState<string | null>(null)
@@ -48,6 +50,11 @@ function SendPrintModalContent({ open, docName, getFile, onClose, onDirectPrint 
   const [uploadedSize, setUploadedSize] = useState<number | null>(null)
   const [cachedFile, setCachedFile] = useState<File | null>(null)
   const [lastValidToken, setLastValidToken] = useState<string | null>(null)
+
+  const onSentRef = useRef(onSent)
+  useEffect(() => {
+    onSentRef.current = onSent
+  }, [onSent])
 
   const ctxRef = useRef<ScannerErrorContext>({ bridgeReady: false, nativeShell: false })
   const scannerRef = useRef<Html5Qrcode | null>(null)
@@ -170,6 +177,7 @@ function SendPrintModalContent({ open, docName, getFile, onClose, onDirectPrint 
         setUploadedSize(meta.sizeBytes)
         setStatus("sent")
         triggerHaptic("success")
+        onSentRef.current?.()
 
         // Limpiar PendingPrint en Android si existía
         if (typeof window !== "undefined" && window.LaVeinteApp?.clearPendingPrintDoc) {

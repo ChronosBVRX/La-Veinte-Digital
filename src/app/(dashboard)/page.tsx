@@ -6,6 +6,7 @@ import { HomeQuickActions } from "@/shared/components/app/HomeQuickActions"
 import { DesktopQuickPills } from "@/shared/components/app/DesktopQuickPills"
 import { CalendarioLaboral } from "@/shared/components/app/CalendarioLaboral"
 import { AgendaCardWrapper } from "@/shared/components/app/AgendaCardWrapper"
+import { CopyServiceHeroCard } from "@/features/copy-service/components/CopyServiceHeroCard"
 import { SalaryIncreaseCard } from "@/features/salary-estimate/components/SalaryIncreaseCard"
 
 export default async function DashboardPage() {
@@ -73,6 +74,8 @@ export default async function DashboardPage() {
         dateLabel={dateLabel}
         userId={user.id}
       />
+
+      <CopyServiceHeroCard />
 
       <SalaryIncreaseCard />
 
