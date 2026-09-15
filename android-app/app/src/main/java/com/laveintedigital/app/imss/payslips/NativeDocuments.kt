@@ -28,6 +28,24 @@ object NativeDocuments {
 
     /** Fuente Room para copias nativas de escritos generados en la web. */
     const val SOURCE_ESCRITO = "ESCRITO"
+    /** Fuente Room para documentos digitalizados (Document Scanner). */
+    const val SOURCE_DOCUMENT_SCAN = "DOCUMENT_SCAN"
+    /** Fuente Room para INE (frente + reverso en una hoja). */
+    const val SOURCE_INE_SCAN = "INE_SCAN"
+
+    /** Fuentes externas aceptadas por [saveExternalPdf] (allowlist explícita). */
+    val EXTERNAL_SOURCES = setOf(SOURCE_ESCRITO, SOURCE_DOCUMENT_SCAN, SOURCE_INE_SCAN)
+
+    /** Valida la fuente antes de persistir; evita clasificar por nombre de archivo. */
+    fun sanitizeExternalSource(raw: String?): String =
+        if (raw != null && raw in EXTERNAL_SOURCES) raw else SOURCE_ESCRITO
+
+    /** Directorio físico por clase de documento (los escaneos no viven en "escritos"). */
+    fun directoryNameFor(source: String): String = when (source) {
+        SOURCE_DOCUMENT_SCAN -> "documentos"
+        SOURCE_INE_SCAN -> "identificaciones"
+        else -> "escritos"
+    }
 
     suspend fun list(context: Context): JSONArray {
         // Ejecutar reparación preventiva de duplicados/blobs heredados
@@ -206,6 +224,7 @@ object NativeDocuments {
         }
         val appContext = context.applicationContext
         val safeName = sanitizeDisplayName(displayName)
+        val safeSource = sanitizeExternalSource(source)
         val sha = sha256Bytes(bytes)
         val db = PayslipDatabase.getInstance(appContext)
         val base = appContext.filesDir.canonicalFile
@@ -213,13 +232,13 @@ object NativeDocuments {
         // 1. Upsert por clave externa estable.
         val cleanKey = externalKey?.trim().orEmpty()
         if (cleanKey.isNotEmpty()) {
-            val prev = db.payslipDao().findByExternalKey(source, cleanKey)
+            val prev = db.payslipDao().findByExternalKey(safeSource, cleanKey)
             if (prev != null) {
                 if (prev.sha256 == sha) {
                     val f = runCatching { File(prev.localPath).canonicalFile }.getOrNull()
                     if (f != null && f.path.startsWith(base.path) && f.exists()) return prev.id
                 }
-                val dir = File(appContext.filesDir, "escritos").also { it.mkdirs() }
+                val dir = File(appContext.filesDir, directoryNameFor(safeSource)).also { it.mkdirs() }
                 val file = atomicWritePdf(dir, safeName, bytes) ?: return -1L
                 deleteFileIfInsideBase(base, prev.localPath, keep = file.absolutePath)
                 db.payslipDao().deleteById(prev.id)
@@ -232,7 +251,7 @@ object NativeDocuments {
                     periodLabel = periodLabel ?: prev.periodLabel,
                     ownerId = ownerId?.trim()?.ifBlank { null } ?: prev.ownerId,
                 ))
-                Log.i(TAG, "OFFLINE_DOC_SAVED source=$source id=$id updated=true size=${bytes.size}")
+                Log.i(TAG, "OFFLINE_DOC_SAVED source=$safeSource id=$id updated=true size=${bytes.size}")
                 return id
             }
         }
@@ -245,10 +264,10 @@ object NativeDocuments {
         }
 
         // 3. Inserción nueva.
-        val dir = File(appContext.filesDir, "escritos").also { it.mkdirs() }
+        val dir = File(appContext.filesDir, directoryNameFor(safeSource)).also { it.mkdirs() }
         val file = atomicWritePdf(dir, safeName, bytes) ?: return -1L
         val id = db.payslipDao().insert(PayslipDocument(
-            source = source,
+            source = safeSource,
             displayName = safeName,
             localPath = file.absolutePath,
             fileSize = bytes.size.toLong(),
@@ -262,7 +281,7 @@ object NativeDocuments {
             val rec = db.payslipDao().findByHash(sha)
             if (rec != null) return rec.id
         }
-        Log.i(TAG, "OFFLINE_DOC_SAVED source=$source id=$id updated=false size=${bytes.size}")
+        Log.i(TAG, "OFFLINE_DOC_SAVED source=$safeSource id=$id updated=false size=${bytes.size}")
         return id
     }
 
