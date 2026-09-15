@@ -58,21 +58,104 @@ export interface SaveScanDocumentInput {
   createdAt?: number
 }
 
+export type ScanStorageFailure =
+  | "quota_exceeded"
+  | "storage_unavailable"
+  | "write_failed"
+  | "unknown"
+
+export class ScanStorageError extends Error {
+  readonly failure: ScanStorageFailure
+  readonly cause?: unknown
+
+  constructor(failure: ScanStorageFailure, message: string, cause?: unknown) {
+    super(message)
+    this.name = "ScanStorageError"
+    this.failure = failure
+    this.cause = cause
+  }
+}
+
+/**
+ * Clasifica de forma determinista y segura errores de almacenamiento de IndexedDB / Storage,
+ * reconociendo QuotaExceededError, NS_ERROR_DOM_QUOTA_REACHED, DOMException code 22,
+ * restricciones de entorno y fallos transaccionales sin depender únicamente de texto libre.
+ */
+export function classifyStorageError(error: unknown): ScanStorageFailure {
+  if (!error) return "unknown"
+  if (error instanceof ScanStorageError) return error.failure
+
+  const errObj = typeof error === "object" ? (error as Record<string, unknown>) : {}
+  const name = typeof errObj.name === "string" ? errObj.name : ""
+  const message = typeof errObj.message === "string" ? errObj.message : ""
+  const code = typeof errObj.code === "number" ? errObj.code : 0
+
+  // 1. QuotaExceededError (W3C standard, Firefox NS_ERROR_DOM_QUOTA_REACHED, legacy code 22)
+  if (
+    name === "QuotaExceededError" ||
+    name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+    code === 22 ||
+    /quota/i.test(name) ||
+    /quota/i.test(message)
+  ) {
+    return "quota_exceeded"
+  }
+
+  // 2. Storage unavailable (IndexedDB no soportado, bloqueado en iframe/sandbox o modo estricto)
+  if (
+    name === "SecurityError" ||
+    name === "InvalidStateError" ||
+    /not available/i.test(message) ||
+    /no está disponible/i.test(message)
+  ) {
+    return "storage_unavailable"
+  }
+
+  // 3. Fallos en escritura/transacción
+  if (
+    name === "TransactionInactiveError" ||
+    name === "ReadOnlyError" ||
+    name === "ConstraintError" ||
+    name === "AbortError" ||
+    name === "UnknownError" ||
+    /abort/i.test(name) ||
+    /abort/i.test(message) ||
+    /transaction/i.test(name) ||
+    /transacción/i.test(message)
+  ) {
+    return "write_failed"
+  }
+
+  return "unknown"
+}
+
 function openScanDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof window === "undefined" || !window.indexedDB) {
-      reject(new Error("IndexedDB no está disponible en este entorno."))
+      reject(new ScanStorageError("storage_unavailable", "IndexedDB no está disponible en este entorno."))
       return
     }
-    const request = window.indexedDB.open(DB_NAME, DB_VERSION)
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "key" })
+    try {
+      const request = window.indexedDB.open(DB_NAME, DB_VERSION)
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          db.createObjectStore(STORE_NAME, { keyPath: "key" })
+        }
       }
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => {
+        const err = request.error || new Error("Error abriendo la base de escaneos.")
+        const failure = classifyStorageError(err)
+        reject(new ScanStorageError(failure, "Error abriendo la base de datos de escaneos.", err))
+      }
+      request.onblocked = () => {
+        reject(new ScanStorageError("storage_unavailable", "La base de datos de escaneos está bloqueada."))
+      }
+    } catch (e) {
+      const failure = classifyStorageError(e)
+      reject(new ScanStorageError(failure, "No se pudo acceder a IndexedDB.", e))
     }
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error || new Error("Error abriendo la base de escaneos."))
   })
 }
 
@@ -128,13 +211,24 @@ export async function saveScanDocument(
   const key = ownerScopedKey(user, id)
 
   if (typeof window === "undefined" || !window.indexedDB) {
-    throw new Error("IndexedDB no está disponible en este entorno.")
+    throw new ScanStorageError("storage_unavailable", "IndexedDB no está disponible en este entorno.")
   }
   if (!input.blob || input.blob.size === 0) {
-    throw new Error("El documento escaneado está vacío.")
+    throw new ScanStorageError("write_failed", "El documento escaneado está vacío.")
   }
 
   const now = Date.now()
+  let bytes: ArrayBuffer
+  try {
+    bytes = await input.blob.arrayBuffer()
+  } catch (err) {
+    throw new ScanStorageError("write_failed", "No se pudieron leer los bytes del documento.", err)
+  }
+
+  if (bytes.byteLength === 0) {
+    throw new ScanStorageError("write_failed", "El documento escaneado no contiene bytes válidos.")
+  }
+
   const record: ScanDocumentRecord = {
     key,
     id,
@@ -146,29 +240,62 @@ export async function saveScanDocument(
     pageCount: Math.max(1, Math.floor(input.pageCount)),
     createdAt: input.createdAt ?? now,
     updatedAt: new Date(now).toISOString(),
-    bytes: await input.blob.arrayBuffer(),
+    bytes,
   }
 
   const db = await openScanDatabase()
   await new Promise<void>((resolve, reject) => {
+    let completed = false
     try {
       const tx = db.transaction(STORE_NAME, "readwrite")
-      tx.objectStore(STORE_NAME).put(record)
+      const store = tx.objectStore(STORE_NAME)
+      const putRequest = store.put(record)
+
+      putRequest.onerror = (e) => {
+        const targetRequest = e.target as IDBRequest | null
+        const err = putRequest.error || targetRequest?.error || e
+        const failure = classifyStorageError(err || putRequest.error)
+        if (!completed) {
+          completed = true
+          try { db.close() } catch {}
+          reject(new ScanStorageError(failure, "Error al escribir el documento en el almacenamiento.", err))
+        }
+      }
+
       tx.oncomplete = () => {
-        db.close()
-        resolve()
+        if (!completed) {
+          completed = true
+          try { db.close() } catch {}
+          resolve()
+        }
       }
+
       tx.onerror = () => {
-        db.close()
-        reject(tx.error || new Error("Error guardando el escaneo."))
+        if (!completed) {
+          completed = true
+          const err = tx.error || new Error("Error en transacción")
+          const failure = classifyStorageError(err)
+          try { db.close() } catch {}
+          reject(new ScanStorageError(failure, "Error en la transacción de almacenamiento.", err))
+        }
       }
+
       tx.onabort = () => {
-        db.close()
-        reject(new Error("Transacción abortada."))
+        if (!completed) {
+          completed = true
+          const err = tx.error || new Error("Transacción abortada")
+          const failure = classifyStorageError(err)
+          try { db.close() } catch {}
+          reject(new ScanStorageError(failure, "Transacción de almacenamiento abortada.", err))
+        }
       }
     } catch (error) {
-      db.close()
-      reject(error)
+      if (!completed) {
+        completed = true
+        try { db.close() } catch {}
+        const failure = classifyStorageError(error)
+        reject(new ScanStorageError(failure, "Error iniciando la transacción de almacenamiento.", error))
+      }
     }
   })
 

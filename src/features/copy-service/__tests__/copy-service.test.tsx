@@ -24,6 +24,7 @@ vi.mock("@/features/document-scanner/components/DocumentScannerFlow", () => ({
     intent,
     onPrintRequest,
     onSaved,
+    onSaveFailed,
     onClose,
   }: ComponentProps<typeof DocumentScannerFlow>) => {
     if (!open) return null
@@ -41,6 +42,24 @@ vi.mock("@/features/document-scanner/components/DocumentScannerFlow", () => ({
           }}
         >
           Simular Guardado Opcional
+        </button>
+        <button
+          onClick={() => {
+            onSaveFailed?.("quota_exceeded")
+            const fakeFile = new File(["fake pdf"], "Doc.pdf", { type: "application/pdf" })
+            onPrintRequest?.(fakeFile, "Doc.pdf", { alsoSaved: false, saveFailure: "quota_exceeded" })
+          }}
+        >
+          Simular Fallo Guardado Quota
+        </button>
+        <button
+          onClick={() => {
+            onSaveFailed?.("storage_unavailable")
+            const fakeFile = new File(["fake pdf"], "Doc.pdf", { type: "application/pdf" })
+            onPrintRequest?.(fakeFile, "Doc.pdf", { alsoSaved: false, saveFailure: "storage_unavailable" })
+          }}
+        >
+          Simular Fallo Guardado Storage
         </button>
         <button
           onClick={() => {
@@ -188,6 +207,42 @@ describe("CopyServicePage", () => {
     await waitFor(() => {
       expect(screen.getByTestId("copy-service-success")).toBeDefined()
       expect(screen.getByText("También guardamos una copia en Mis documentos.")).toBeDefined()
+    })
+  })
+
+  it("muestra advertencia ámbar cuando el guardado falló por falta de espacio y no muestra falso éxito", async () => {
+    render(<CopyServicePage userId="user-test-123" />)
+
+    fireEvent.click(screen.getByTestId("copy-option-document"))
+    fireEvent.click(screen.getByText("Simular Fallo Guardado Quota"))
+
+    fireEvent.click(screen.getByText("Confirmar Envío QR"))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("copy-service-success")).toBeDefined()
+      expect(screen.getByText("¡Listo!")).toBeDefined()
+      expect(
+        screen.getByText(/no pudo guardarse porque no hay suficiente espacio disponible en este dispositivo/i)
+      ).toBeDefined()
+      expect(screen.queryByText(/También guardamos una copia en Mis documentos/i)).toBeNull()
+    })
+  })
+
+  it("muestra advertencia ámbar cuando el guardado falló por error de almacenamiento general y no muestra falso éxito", async () => {
+    render(<CopyServicePage userId="user-test-123" />)
+
+    fireEvent.click(screen.getByTestId("copy-option-document"))
+    fireEvent.click(screen.getByText("Simular Fallo Guardado Storage"))
+
+    fireEvent.click(screen.getByText("Confirmar Envío QR"))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("copy-service-success")).toBeDefined()
+      expect(screen.getByText("¡Listo!")).toBeDefined()
+      expect(
+        screen.getByText(/no fue posible guardarlo en Mis documentos/i)
+      ).toBeDefined()
+      expect(screen.queryByText(/También guardamos una copia en Mis documentos/i)).toBeNull()
     })
   })
 })

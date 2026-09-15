@@ -62,9 +62,9 @@ export class WebDocumentScanner {
    * Detección automática de bordes: OpenCV.js si está disponible localmente,
    * y siempre como respaldo el detector propio (sin dependencias).
    */
-  async detectCorners(raster: RasterImage): Promise<DetectedQuad | null> {
+  async detectCorners(raster: RasterImage, options?: { retryOpenCv?: boolean }): Promise<DetectedQuad | null> {
     try {
-      const cv = await loadOpenCv()
+      const cv = await loadOpenCv({ retry: options?.retryOpenCv })
       if (cv) {
         const detected = detectQuadWithOpenCv(cv, raster)
         if (detected) return detected

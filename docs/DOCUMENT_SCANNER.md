@@ -1,9 +1,13 @@
-# Digitalizador de documentos (Document Scanner)
+# Digitalizador de documentos y servicio Sacar copias
 
-Módulo tipo CamScanner para **Documentos personales**: escanear desde el teléfono,
-detectar bordes, corregir perspectiva, recortar, mejorar la imagen, capturar varias
-páginas, generar un PDF, guardarlo, abrirlo, compartirlo, eliminarlo y enviarlo a
-imprimir por el flujo QR existente.
+Módulo tipo CamScanner que alimenta el servicio independiente **Sacar copias** (`/copias`):
+escanear desde el teléfono o tomar foto, detectar bordes, corregir perspectiva, recortar,
+mejorar la imagen, capturar varias páginas, generar un PDF localmente y enviarlo a imprimir
+por el flujo QR existente hacia la PC.
+
+De forma opcional, el trabajador puede marcar la casilla "Guardar también en Mis documentos".
+Por lo tanto, **Mis documentos** (`/documentos-personales`) funge como el repositorio personal
+y visor de documentos guardados, no como el lanzador principal del escáner.
 
 Todo el procesamiento es **local**. No hay APIs SaaS, no se suben imágenes ni PDFs a
 servidores y no se usa IA generativa ni OCR para modificar la imagen.
@@ -13,10 +17,13 @@ servidores y no se usa IA generativa ni OCR para modificar la imagen.
 ## Arquitectura
 
 ```text
-Documentos personales (web)
-        │  <DocumentScannerLauncher />
+Inicio (Hero Card "Sacar copias" / Navegación)
+        │
         ▼
-DocumentScannerFlow (modal, aislado)
+Sacar copias (/copias) — CopyServicePage
+        │  [Escanear documento] / [Escanear INE]
+        ▼
+DocumentScannerFlow (modal, aislado, intent="print")
         │
         ├─ NativeMlKitDocumentScanner   (Android con Play services)
         │      window.LaVeinteApp.scanDocument({ mode, allowGallery, pageLimit })
@@ -24,7 +31,8 @@ DocumentScannerFlow (modal, aislado)
         │
         └─ WebDocumentScanner           (navegador / APK antigua / sin Play services)
                captura getUserMedia → análisis → detección de cuadrilátero
-               → ajuste manual de esquinas → warpPerspective → filtro
+               → ajuste manual de esquinas (con reintento controlado de OpenCV)
+               → warpPerspective → filtro
         │
         ▼
 Revisión: reordenar / rotar / eliminar / filtro / volver a tomar
@@ -32,16 +40,27 @@ Revisión: reordenar / rotar / eliminar / filtro / volver a tomar
         ├─ Documento normal → pdf-lib (A4, multipágina, imágenes centradas)
         └─ INE             → pdf-lib (Carta, UNA página: frente arriba, reverso abajo)
         │
-        ├─ Guardar  → persistScannedDocument
-        │                ├─ Android nuevo → Room/filesDir con source DOCUMENT_SCAN | INE_SCAN
-        │                └─ Web / fallback → IndexedDB la_veinte_scan_docs_db (por usuario)
+        ▼
+Confirmación (intent="print")
         │
-        └─ Imprimir → File en memoria → SendPrintModal existente → uploadTransferFile (QR)
+        ├─ Casilla opcional: "Guardar también en Mis documentos" (desactivada por defecto)
+        │      ├─ Intento de persistencia (Android Room o IndexedDB)
+        │      ├─ Si falla (ej. QuotaExceededError):
+        │      │     • NO bloquea la impresión (P0: imprimir es independiente de guardar)
+        │      │     • Clasifica la falla: quota_exceeded, storage_unavailable, write_failed, unknown
+        │      │     • Emite onSaveFailed y notifica a la pantalla final
+        │      │     • Muestra aviso amigable al usuario (no muestra confirmación falsa de guardado)
+        │      └─ Si tiene éxito:
+        │            • Muestra badge verde confirmando el guardado
+        │
+        └─ Envío a impresión (siempre prioritario):
+               File en memoria → SendPrintModal existente → uploadTransferFile (QR de la PC)
 ```
 
 Regla de oro del flujo de impresión: **no existe un segundo sistema QR**. El escáner
 solo produce un `File` y lo entrega al `SendPrintModal` / `uploadTransferFile`
 existentes.
+
 
 ---
 
@@ -141,8 +160,28 @@ Documento escaneado → getFile() → SendPrintModal existente → cámara → Q
 
 - Modo copiadora: `Escanear para imprimir` → por defecto **no guarda**; el PDF vive
   solo en memoria y se entrega al modal existente. La casilla
-  “Guardar también en mis documentos” es explícita en la UI.
+  “Guardar también en mis documentos” es opcional y desactivada por defecto.
 - El QR sigue conteniendo únicamente el token efímero del sistema actual.
+
+### Hardening de persistencia y clasificación de errores
+
+Cuando el usuario activa la opción de guardar en Mis documentos durante el flujo de copias:
+1. **Independencia absoluta de la impresión (P0):** Si el guardado falla (por ejemplo por cuota de almacenamiento llena), la impresión **no se aborta**. El documento en memoria se envía a imprimir normalmente.
+2. **Clasificación de errores (`ScanStorageFailure`):**
+   - `quota_exceeded`: detecta `QuotaExceededError`, `NS_ERROR_DOM_QUOTA_REACHED` (Firefox) o código numérico 22.
+   - `storage_unavailable`: IndexedDB inaccesible, `SecurityError`, o `InvalidStateError`.
+   - `write_failed`: aborto de transacción, error de restricción o fallo de escritura.
+   - `unknown`: cualquier otra falla no anticipada.
+3. **Transacciones atómicas y verificación estricta:** `saveScanDocument` espera la confirmación en `tx.oncomplete` antes de considerar la escritura como exitosa, rechazando blobs vacíos (0 bytes) y escuchando abortos de transacción.
+4. **Claridad hacia el usuario:** Si el guardado falla, la UI **nunca** muestra el mensaje de confirmación "También guardamos una copia en Mis documentos". En su lugar, la pantalla de finalización ("¡Listo!") muestra una alerta ámbar explicativa (ej. *"El documento se envió a imprimir, pero no pudo guardarse porque no hay suficiente espacio disponible en este dispositivo."*).
+
+### Resiliencia del cargador de OpenCV.js
+
+- El cargador `opencv-loader.ts` deduplica solicitudes concurrentes mediante una promesa compartida.
+- Si la carga inicial falla (por red o script bloqueado), no bloquea la aplicación: el detector propio en TypeScript asume la detección.
+- Se permite **un único reintento controlado** manual (`retryOpenCv()`, verificado vía `canRetryOpenCv()`).
+- Al reintentar, se remueve el tag `<script>` fallido del DOM para no saturar el encabezado y se restablece el estado de manera determinista. No se permiten bucles de reintento infinito.
+
 
 ## Tamaño y compresión
 
