@@ -20,7 +20,7 @@ import {
   parseWorkerRow,
   TC_CATALOG,
   TIPO_PLAZA_CATALOG,
-  CONFIRMED_MO_CODES,
+  OBSERVED_MO_CODES,
   formatOccupationMark,
   OCCUPATION_LIMIT_SENTINEL_LABEL,
   formatOccupationLimitDate,
@@ -105,19 +105,21 @@ describe("Worker Importer - Excel Security", () => {
     uncompressedSize?: number;
     compressedSize?: number;
     totalEntriesHeader?: number;
+    fileName?: string;
   }): Buffer {
     const count = options.entriesCount ?? 1;
     const uncompressed = options.uncompressedSize ?? 100;
     const compressed = options.compressedSize ?? 50;
     const totalEntries = options.totalEntriesHeader ?? count;
+    const fileName = options.fileName ?? "test";
 
+    const fileNameBuf = Buffer.from(fileName);
     const localHeader = Buffer.alloc(30);
     localHeader.writeUInt32LE(0x04034b50, 0);
     localHeader.writeUInt16LE(20, 4);
     localHeader.writeUInt32LE(compressed, 18);
     localHeader.writeUInt32LE(uncompressed, 22);
-    localHeader.writeUInt16LE(4, 26);
-    const fileNameBuf = Buffer.from("test");
+    localHeader.writeUInt16LE(fileNameBuf.length, 26);
     const fileData = Buffer.alloc(Math.min(compressed, 100));
 
     const cdHeaders: Buffer[] = [];
@@ -128,12 +130,12 @@ describe("Worker Importer - Excel Security", () => {
       cd.writeUInt16LE(20, 6);
       cd.writeUInt32LE(compressed, 20);
       cd.writeUInt32LE(uncompressed, 24);
-      cd.writeUInt16LE(4, 28);
+      cd.writeUInt16LE(fileNameBuf.length, 28);
       cdHeaders.push(Buffer.concat([cd, fileNameBuf]));
     }
 
     const cdData = Buffer.concat(cdHeaders);
-    const cdOffset = 30 + 4 + fileData.length;
+    const cdOffset = 30 + fileNameBuf.length + fileData.length;
 
     const eocd = Buffer.alloc(22);
     eocd.writeUInt32LE(0x06054b50, 0);
@@ -179,6 +181,20 @@ describe("Worker Importer - Excel Security", () => {
     const res = validateExcelSecurity(bomb, "bomb.xlsx");
     expect(res.valid).toBe(false);
     expect(res.error).toContain("Ratio de compresión anómalo");
+  });
+
+  it("defends against Zip Slip: rejects zip containing path traversal '../evil.xml'", () => {
+    const slipZip = createMockZip({ fileName: "../evil.xml" });
+    const res = validateExcelSecurity(slipZip, "slip.xlsx");
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain("Directory Traversal");
+  });
+
+  it("defends against Zip Slip: rejects zip containing absolute path '/root/evil.xml'", () => {
+    const slipZip = createMockZip({ fileName: "/root/evil.xml" });
+    const res = validateExcelSecurity(slipZip, "slip.xlsx");
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain("Directory Traversal");
   });
 
   it("accepts valid zip with central directory within all security thresholds", () => {
@@ -472,33 +488,96 @@ describe("Worker Importer - Row Parser", () => {
     expect(res3.issues.some((i) => i.code === "TIPO_PLAZA_UNKNOWN")).toBe(true);
   });
 
-  it("validates Marca de Ocupación (MO) accepting confirmed codes and warning on non-numeric or unconfirmed", () => {
-    const allConfirmed = ["0", "1", "5", "7", "9", "11", "20", "62", "63", "64", "65", "71", "73", "75", "77", "90", "98", "99"];
-    expect(CONFIRMED_MO_CODES.size).toBe(allConfirmed.length);
-    for (const code of allConfirmed) {
-      expect(CONFIRMED_MO_CODES.has(code)).toBe(true);
+  it("validates Marca de Ocupación (MO) accepting all 18 observed codes, raw preservation, and numeric codes without warnings", () => {
+    const allObserved = ["0", "1", "5", "7", "9", "11", "20", "62", "63", "64", "65", "71", "73", "75", "77", "90", "98", "99"];
+    expect(OBSERVED_MO_CODES.length).toBe(18);
+    for (const code of allObserved) {
+      expect(OBSERVED_MO_CODES).toContain(code);
       const res = parseWorkerRow(
         { matricula_raw: "99000001", full_name_raw: "A B", plaza_raw: "1", occupation_mark_raw: code },
         2
       );
       expect(res.parsed.occupation_mark_code).toBe(code);
-      expect(res.issues.some((i) => i.code === "UNCONFIRMED_MO_CODE")).toBe(false);
-      expect(res.issues.some((i) => i.code === "NON_NUMERIC_MO")).toBe(false);
-      expect(formatOccupationMark(code)).toBe(`Código SIAP ${code}`);
+      expect(res.issues.some((i) => i.code === "MO_INVALID_FORMAT")).toBe(false);
+      expect(formatOccupationMark(code)).toBe(code);
     }
 
-    const unconfirmed = parseWorkerRow(
-      { matricula_raw: "99000001", full_name_raw: "A B", plaza_raw: "1", occupation_mark_raw: "42" },
+    // Explicit test for 0, 62, 90, 98, 99
+    const testCases = ["0", "62", "90", "98", "99"];
+    for (const code of testCases) {
+      const res = parseWorkerRow(
+        { matricula_raw: "99000001", full_name_raw: "A B", plaza_raw: "1", occupation_mark_raw: code },
+        2
+      );
+      expect(res.parsed.occupation_mark_code).toBe(code);
+      expect(res.issues.length).toBe(0);
+    }
+
+    // Does NOT pad 0 to 00, or 1 to 01
+    const resZero = parseWorkerRow(
+      { matricula_raw: "99000001", full_name_raw: "A B", plaza_raw: "1", occupation_mark_raw: "0" },
       2
     );
-    expect(unconfirmed.parsed.occupation_mark_code).toBe("42");
-    expect(unconfirmed.issues.some((i) => i.code === "UNCONFIRMED_MO_CODE")).toBe(true);
+    expect(resZero.parsed.occupation_mark_code).toBe("0");
 
+    const resOne = parseWorkerRow(
+      { matricula_raw: "99000001", full_name_raw: "A B", plaza_raw: "1", occupation_mark_raw: "1" },
+      2
+    );
+    expect(resOne.parsed.occupation_mark_code).toBe("1");
+
+    // Accepts future numeric code (e.g. 123) without any warning
+    const futureNumeric = parseWorkerRow(
+      { matricula_raw: "99000001", full_name_raw: "A B", plaza_raw: "1", occupation_mark_raw: "123" },
+      2
+    );
+    expect(futureNumeric.parsed.occupation_mark_code).toBe("123");
+    expect(futureNumeric.issues.some((i) => i.field === "occupation_mark")).toBe(false);
+    expect(futureNumeric.isValid).toBe(true);
+
+    // Spaces around code: trimmed and preserved as raw digits
+    const spaced = parseWorkerRow(
+      { matricula_raw: "99000001", full_name_raw: "A B", plaza_raw: "1", occupation_mark_raw: "  62  " },
+      2
+    );
+    expect(spaced.parsed.occupation_mark_code).toBe("62");
+    expect(spaced.issues.some((i) => i.field === "occupation_mark")).toBe(false);
+
+    // Non-numeric value generates MO_INVALID_FORMAT
     const nonNum = parseWorkerRow(
       { matricula_raw: "99000001", full_name_raw: "A B", plaza_raw: "1", occupation_mark_raw: "ABC" },
       2
     );
-    expect(nonNum.issues.some((i) => i.code === "NON_NUMERIC_MO")).toBe(true);
+    expect(nonNum.issues.some((i) => i.code === "MO_INVALID_FORMAT")).toBe(true);
+  });
+
+  it("validates Micro y grupo: preserves raw value, does not fabricate 5 on empty, and does not reinterpret", () => {
+    // Value 5 is preserved
+    const res5 = parseWorkerRow(
+      { matricula_raw: "99000001", full_name_raw: "A B", plaza_raw: "1", micro_group_raw: "5" },
+      2
+    );
+    expect(res5.parsed.micro_group_code).toBe("5");
+
+    // Another value is preserved without reinterpretation
+    const res12 = parseWorkerRow(
+      { matricula_raw: "99000001", full_name_raw: "A B", plaza_raw: "1", micro_group_raw: "12" },
+      2
+    );
+    expect(res12.parsed.micro_group_code).toBe("12");
+
+    // Empty does NOT become 5
+    const resEmpty = parseWorkerRow(
+      { matricula_raw: "99000001", full_name_raw: "A B", plaza_raw: "1", micro_group_raw: "" },
+      2
+    );
+    expect(resEmpty.parsed.micro_group_code).toBe("");
+
+    const resUndefined = parseWorkerRow(
+      { matricula_raw: "99000001", full_name_raw: "A B", plaza_raw: "1" },
+      2
+    );
+    expect(resUndefined.parsed.micro_group_code).toBe("");
   });
 
   it("validates AR as 3 alphanumeric positions and does NOT pad to 2 digits", () => {

@@ -564,6 +564,14 @@ begin
         v_history.field_name
       ) using v_history.old_value, auth.uid(), v_now, v_history.worker_id;
 
+      if v_history.field_name = 'position_description' then
+        update public.union_workers set category = coalesce(v_history.old_value, '') where id = v_history.worker_id;
+      elsif v_history.field_name = 'department_description' then
+        update public.union_workers set assignment = coalesce(v_history.old_value, '') where id = v_history.worker_id;
+      elsif v_history.field_name = 'schedule_description' then
+        update public.union_workers set schedule = coalesce(v_history.old_value, '') where id = v_history.worker_id;
+      end if;
+
       v_restored_fields_count := v_restored_fields_count + 1;
     end if;
   end loop;

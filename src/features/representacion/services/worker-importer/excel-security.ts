@@ -70,6 +70,21 @@ export function validateZipBomb(buffer: Buffer): { valid: boolean; error?: strin
     const extraLen = buffer.readUInt16LE(curr + 30);
     const commentLen = buffer.readUInt16LE(curr + 32);
 
+    const entryNameEnd = curr + 46 + fileNameLen;
+    if (entryNameEnd <= buffer.length) {
+      const entryName = buffer.toString("utf8", curr + 46, entryNameEnd);
+      if (
+        entryName.includes("..") ||
+        entryName.startsWith("/") ||
+        entryName.startsWith("\\")
+      ) {
+        return {
+          valid: false,
+          error: `Ruta de archivo interna sospechosa detectada ('${entryName}'). Rechazado por prevención de Directory Traversal (Zip Slip).`,
+        };
+      }
+    }
+
     if (uncompressedSize > MAX_SINGLE_ENTRY_BYTES) {
       return {
         valid: false,
@@ -211,7 +226,20 @@ export function validateExcelSecurity(
     const zip = new PizZip(buffer);
     const fileEntries = Object.keys(zip.files).map((f) => f.toLowerCase());
 
-    const hasVba = fileEntries.some((f) => f.includes("vbaproject") || f.endsWith(".bin"));
+    const hasTraversal = fileEntries.some((f) => f.includes("..") || f.startsWith("/") || f.startsWith("\\"));
+    if (hasTraversal) {
+      return {
+        valid: false,
+        error: "El archivo contiene rutas relativas o peligrosas (Zip Slip). Rechazado por seguridad.",
+        sha256,
+      };
+    }
+
+    const hasVba = fileEntries.some(
+      (f) =>
+        f.includes("vbaproject") ||
+        (f.endsWith(".bin") && !f.includes("printersettings"))
+    );
     if (hasVba) {
       return {
         valid: false,

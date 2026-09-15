@@ -33,14 +33,15 @@ export const SHIFT_CATALOG: Record<string, string> = {
   "5": "Jornada acumulada",
 };
 
-// Códigos confirmados de Marca de Ocupación (MO) en el archivo institucional SIAP
-export const CONFIRMED_MO_CODES = new Set([
+// Valores observados en el archivo HGR No. 1 analizado: 0, 1, 5, 7, 9, 11, 20, 62, 63, 64, 65, 71, 73, 75, 77, 90, 98 y 99.
+// Esta relación es evidencia del archivo, no un catálogo normativo completo.
+export const OBSERVED_MO_CODES = [
   "0", "1", "5", "7", "9", "11", "20", "62", "63", "64", "65", "71", "73", "75", "77", "90", "98", "99"
-]);
+] as const;
 
 export function formatOccupationMark(code: string): string {
   if (!code) return "-";
-  return `Código SIAP ${code}`;
+  return code;
 }
 
 export const OCCUPATION_LIMIT_SENTINEL_LABEL =
@@ -406,20 +407,15 @@ export function parseWorkerRow(
   const occupation_limit_date = parseExcelDate(raw.occupation_limit_raw);
   const occupation_limit_is_sentinel = occupation_limit_date === "2050-01-01";
 
-  // 9. Marca de Ocupación (MO): Aceptar cualquier código numérico ^[0-9]+$, preservar como texto
+  // 9. Marca de Ocupación (MO): Código técnico SIAP. Texto numérico de 1 o más posiciones (^[0-9]+$)
+  // Preservar valor crudo recibido. Todo valor numérico se acepta sin bloqueo ni advertencia inventada.
+  // Valor no numérico emite MO_INVALID_FORMAT.
   const occupation_mark_code = (raw.occupation_mark_raw ?? "").toString().trim();
   if (occupation_mark_code) {
     if (!/^\d+$/.test(occupation_mark_code)) {
       issues.push({
-        code: "NON_NUMERIC_MO",
+        code: "MO_INVALID_FORMAT",
         message: `La marca de ocupación '${occupation_mark_code}' contiene caracteres no numéricos.`,
-        severity: "warning",
-        field: "occupation_mark",
-      });
-    } else if (!CONFIRMED_MO_CODES.has(occupation_mark_code)) {
-      issues.push({
-        code: "UNCONFIRMED_MO_CODE",
-        message: `Código de Marca de Ocupación '${occupation_mark_code}' no está en la lista de códigos confirmados.`,
         severity: "warning",
         field: "occupation_mark",
       });
