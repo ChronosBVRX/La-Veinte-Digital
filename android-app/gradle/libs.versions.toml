@@ -31,6 +31,9 @@ espressoCore = "3.6.1"
 googleServices = "4.4.2"
 firebaseBom = "33.5.1"
 
+# ML Kit (Document Scanner — motor Android del módulo de digitalización)
+mlkitDocumentScanner = "16.0.0"
+
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
@@ -68,6 +71,9 @@ androidx-room-compiler = { group = "androidx.room", name = "room-compiler", vers
 # Firebase
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
+
+# ML Kit Document Scanner (motor principal del escáner en Android)
+play-services-mlkit-document-scanner = { group = "com.google.android.gms", name = "play-services-mlkit-document-scanner", version.ref = "mlkitDocumentScanner" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }

@@ -7,7 +7,7 @@ import { usePayslipInvalidation } from "@/shared/hooks/usePayslipInvalidation"
 import {
   FileText, FolderOpen, Printer, Clock, Trash, PencilLine,
   DotsThree, UploadSimple, PencilSimple, Eye, ShareNetwork,
-  WarningCircle, CheckCircle, X,
+  WarningCircle, CheckCircle, X, Files, IdentificationCard,
 } from "@phosphor-icons/react"
 import { getEscritosGuardados, eliminarEscrito } from "@/shared/services/escritos-storage"
 import {
@@ -19,6 +19,13 @@ import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { SendPrintModal } from "./SendPrintModal"
 import { ImportTarjetonModal } from "./ImportTarjetonModal"
 import { DocumentViewerModal } from "./DocumentViewerModal"
+import { DocumentScannerLauncher } from "@/features/document-scanner/components/DocumentScannerLauncher"
+import type { SavedScanSummary } from "@/features/document-scanner/components/DocumentScannerFlow"
+import {
+  deleteWebScannedDocument,
+  getWebScannedDocumentFile,
+  listWebScannedDocuments,
+} from "@/features/document-scanner/services/scan-persistence"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
 import { escritoToPdfFile } from "../lib/escrito-pdf"
 import {
@@ -38,12 +45,16 @@ import {
 const TIPO_ICON: Record<DocTipo, typeof FileText> = {
   tarjeton: FileText,
   checadas: Clock,
+  documento: Files,
+  ine: IdentificationCard,
   escrito: PencilLine,
 }
 
 const TIPO_COLOR: Record<DocTipo, string> = {
   tarjeton: "#2563eb",
   checadas: "#16a34a",
+  documento: "#0f766e",
+  ine: "#b45309",
   escrito: "#7c3aed",
 }
 
@@ -52,6 +63,7 @@ export function DocumentosPersonales() {
   const [userId, setUserId] = useState<string | null>(null)
   const [nativos, setNativos] = useState<DocumentoPersonalItem[]>([])
   const [escritos, setEscritos] = useState<DocumentoPersonalItem[]>([])
+  const [escaneados, setEscaneados] = useState<DocumentoPersonalItem[]>([])
   const [cargando, setCargando] = useState(true)
   const [profile, setProfile] = useState<TarjetonProfileSnapshot | null>(null)
   const [activeViewerDoc, setActiveViewerDoc] = useState<ViewerDocument | null>(null)
@@ -72,6 +84,31 @@ export function DocumentosPersonales() {
       .then((docs) => setNativos((docs ?? []).map(toNativo).filter((d): d is NonNullable<typeof d> => !!d)))
       .catch(() => setNativos([]))
   }
+
+  /** Documentos escaneados guardados en IndexedDB (solo web/fallback). */
+  const reloadEscaneados = useCallback(async (uid: string | null) => {
+    if (!uid || uid === "anonymous") {
+      setEscaneados([])
+      return
+    }
+    try {
+      const docs = await listWebScannedDocuments(uid)
+      setEscaneados(
+        docs.map((doc) => ({
+          kind: "escaneado" as const,
+          tipo: doc.kind,
+          id: doc.id,
+          name: doc.name,
+          fileSize: doc.fileSize,
+          createdAt: doc.createdAt,
+          mimeType: doc.mimeType,
+          pageCount: doc.pageCount,
+        }))
+      )
+    } catch {
+      setEscaneados([])
+    }
+  }, [])
 
   // Auto-cerrar feedback toast
   useEffect(() => {
@@ -112,6 +149,7 @@ export function DocumentosPersonales() {
             escrito: e,
           }))
         )
+        void reloadEscaneados(user.id)
 
         const { data: p } = await supabase
           .from("profiles")
@@ -130,6 +168,7 @@ export function DocumentosPersonales() {
       } else {
         setUserId("anonymous")
         setEscritos([])
+        setEscaneados([])
       }
       setCargando(false)
     })
@@ -137,7 +176,7 @@ export function DocumentosPersonales() {
     return () => {
       cancelled = true
     }
-  }, [supabase])
+  }, [supabase, reloadEscaneados])
 
   const reloadProfile = useCallback(async () => {
     if (!userId || userId === "anonymous") return
@@ -172,13 +211,19 @@ export function DocumentosPersonales() {
   }, [isNative])
 
   const items = useMemo(() => {
-    const todos = [...nativos, ...escritos]
-    const orden: Record<string, number> = { tarjeton: 0, checadas: 1, escrito: 2 }
+    const todos = [...nativos, ...escritos, ...escaneados]
+    const orden: Record<string, number> = { tarjeton: 0, checadas: 1, documento: 2, ine: 3, escrito: 4 }
     return todos.sort((a, b) => (orden[a.tipo] ?? 9) - (orden[b.tipo] ?? 9))
-  }, [nativos, escritos])
+  }, [nativos, escritos, escaneados])
 
   const grouped = useMemo(() => {
-    const g: Record<DocTipo, DocumentoPersonalItem[]> = { tarjeton: [], checadas: [], escrito: [] }
+    const g: Record<DocTipo, DocumentoPersonalItem[]> = {
+      tarjeton: [],
+      checadas: [],
+      documento: [],
+      ine: [],
+      escrito: [],
+    }
     for (const it of items) g[it.tipo]?.push(it)
     return g
   }, [items])
@@ -186,6 +231,9 @@ export function DocumentosPersonales() {
   const getDocFile = async (doc: DocumentoPersonalItem): Promise<File | null> => {
     if (doc.kind === "nativo") {
       return readNativeDocumentAsFile({ name: doc.name, mimeType: doc.mimeType, localPath: doc.localPath })
+    }
+    if (doc.kind === "escaneado") {
+      return getWebScannedDocumentFile(userId ?? "anonymous", doc.id)
     }
     return escritoToPdfFile(doc.escrito, userId ?? "anonymous", {
       nombre: profile?.fullName ?? undefined,
@@ -200,6 +248,35 @@ export function DocumentosPersonales() {
     setPreparingDocId(doc.id)
 
     try {
+      if (doc.kind === "escaneado") {
+        const file = await getWebScannedDocumentFile(userId ?? "anonymous", doc.id)
+        if (!file || file.size === 0) {
+          throw new Error("No se encontró el documento escaneado en este dispositivo.")
+        }
+        const renderUrl = URL.createObjectURL(file)
+        let cleaned = false
+        setActiveViewerDoc({
+          id: doc.id,
+          name: doc.name,
+          mimeType: file.type || "application/pdf",
+          renderUrl,
+          sourceType: doc.tipo,
+          file,
+          fileSize: file.size,
+          createdAt: doc.createdAt,
+          cleanup: () => {
+            if (!cleaned) {
+              cleaned = true
+              try {
+                URL.revokeObjectURL(renderUrl)
+              } catch {
+                // ignore
+              }
+            }
+          },
+        })
+        return
+      }
       const resolved = await resolveViewerDocument(doc, userId ?? "anonymous", profile)
       setActiveViewerDoc(resolved)
     } catch (err) {
@@ -279,6 +356,30 @@ export function DocumentosPersonales() {
     setMenuDoc(null)
   }
 
+  /** Escaneo guardado (nativo o IndexedDB): refrescar la bandeja. */
+  const handleScanSaved = (saved: SavedScanSummary) => {
+    if (saved.storage === "native") reloadNativos()
+    void reloadEscaneados(userId)
+    setFeedback({ type: "success", message: "Documento guardado en Documentos personales." })
+  }
+
+  /** Copiadora: PDF temporal en memoria, sin persistencia, hacia el flujo QR existente. */
+  const handleScanPrintRequest = (file: File, name: string) => {
+    setSendDoc({
+      doc: {
+        kind: "escaneado",
+        tipo: "documento",
+        id: "scan-print-temp",
+        name,
+        fileSize: file.size,
+        createdAt: Date.now(),
+        mimeType: "application/pdf",
+        pageCount: 1,
+      },
+      getFile: async () => file,
+    })
+  }
+
   const handleRequestDelete = (doc: DocumentoPersonalItem) => {
     setMenuDoc(null)
     setConfirmDeleteDoc(doc)
@@ -290,7 +391,19 @@ export function DocumentosPersonales() {
 
     setBorrandoId(doc.id)
     try {
-      if (doc.kind === "escrito") {
+      if (doc.kind === "escaneado") {
+        const ok = await deleteWebScannedDocument(userId || "anonymous", doc.id)
+        setConfirmDeleteDoc(null)
+        if (ok) {
+          setEscaneados((prev) => prev.filter((d) => d.id !== doc.id))
+          setFeedback({ type: "success", message: "Documento eliminado." })
+        } else {
+          setFeedback({
+            type: "error",
+            message: "No se pudo eliminar el documento. Inténtalo de nuevo.",
+          })
+        }
+      } else if (doc.kind === "escrito") {
         await eliminarEscrito(doc.id, userId || undefined)
         // Mantener sincronizada la copia offline Android (fire-and-forget).
         deleteNativeEscritoCopies(doc.id)
@@ -333,11 +446,21 @@ export function DocumentosPersonales() {
   }
 
   const titulo = (doc: DocumentoPersonalItem) =>
-    doc.kind === "nativo" ? doc.name : doc.escrito.titulo || "Escrito"
+    doc.kind === "nativo" || doc.kind === "escaneado" ? doc.name : doc.escrito.titulo || "Escrito"
   const fecha = (doc: DocumentoPersonalItem) =>
-    doc.kind === "nativo" ? formatFecha(doc.downloadedAt) : formatFechaEscrito(doc.escrito.fecha)
-  const detalle = (doc: DocumentoPersonalItem) =>
-    doc.kind === "nativo" ? formatBytes(doc.fileSize) : "Borrador guardado"
+    doc.kind === "escaneado"
+      ? formatFecha(doc.createdAt)
+      : doc.kind === "nativo"
+        ? formatFecha(doc.downloadedAt)
+        : formatFechaEscrito(doc.escrito.fecha)
+  const detalle = (doc: DocumentoPersonalItem) => {
+    if (doc.kind === "nativo") return formatBytes(doc.fileSize)
+    if (doc.kind === "escaneado") {
+      const size = formatBytes(doc.fileSize)
+      return doc.pageCount > 1 ? `${size} · ${doc.pageCount} páginas` : size
+    }
+    return "Borrador guardado"
+  }
   const puedeBorrarNativo = typeof window !== "undefined" && (
     !!window.LaVeinteApp?.deleteNativeDocumentById || !!window.LaVeinteApp?.deleteNativeDocument
   )
@@ -422,10 +545,16 @@ export function DocumentosPersonales() {
         <div style={{ minWidth: 0, flex: 1, wordBreak: "break-word" }}>
           <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0, lineHeight: 1.25 }}>Documentos personales</h1>
           <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: "0.125rem 0 0", lineHeight: 1.4 }}>
-            Tus tarjetones, checadas y escritos en un solo lugar.
+            Tus tarjetones, checadas, escritos y documentos digitalizados en un solo lugar.
           </p>
         </div>
       </div>
+
+      <DocumentScannerLauncher
+        userId={userId}
+        onSaved={handleScanSaved}
+        onPrintRequest={handleScanPrintRequest}
+      />
 
       {!isNative && nativos.length === 0 && (
         <div style={{
@@ -449,7 +578,8 @@ export function DocumentosPersonales() {
         }}>
           <h2 style={{ fontSize: "1.0625rem", fontWeight: 700, margin: "0 0 0.25rem" }}>Aún no tienes documentos</h2>
           <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: "0 0 1.25rem", lineHeight: 1.5, wordBreak: "break-word" }}>
-            Cuando descargues tarjetones o checadas del IMSS, o redactes un escrito, aparecerán aquí.
+            Digitaliza un documento con la cámara, descarga tarjetones o checadas del IMSS, o redacta un escrito:
+            todo aparecerá aquí.
           </p>
           <Link
             href="/escritos"

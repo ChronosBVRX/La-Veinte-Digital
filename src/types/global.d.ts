@@ -34,6 +34,20 @@ declare global {
     getFcmToken(): Promise<{ token: string }>
     getPendingPrintDoc(): Promise<{ localPath: string } | null>
     clearPendingPrintDoc(): void
+    /**
+     * Document Scanner nativo (ML Kit). Solo presente en APKs que lo soportan.
+     * Las páginas llegan como JPEG base64; el PDF se construye en la web.
+     */
+    scanDocument?(options: {
+      mode: "document" | "ine-front" | "ine-back"
+      allowGallery?: boolean
+      pageLimit?: number
+    }): Promise<{
+      ok: boolean
+      reason?: string
+      engine?: string
+      pages?: Array<{ base64: string; mimeType: string; width: number; height: number }>
+    }>
     shareNativeDocument?(localPath: string, title?: string): void
     sendPdfShareMessage?(msg: string | Record<string, unknown>): boolean
     openAppSettings(): void

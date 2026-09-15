@@ -20,7 +20,7 @@ import { readNativeDocumentAsFile } from "@/features/transferir/services/transfe
 import type { DocumentoPersonalItem, UnifiedViewerDocument } from "../lib/documents"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
 
-export type ViewerSourceType = "escrito" | "tarjeton" | "checada"
+export type ViewerSourceType = "escrito" | "tarjeton" | "checada" | "documento" | "ine"
 
 export interface ViewerDocument {
   id: string
@@ -196,6 +196,18 @@ export async function adaptEscritoToViewerDocument(params: {
 }
 
 /**
+ * Mapea el tipo de un documento a la fuente del visor. Los escaneos
+ * ("documento"/"ine") NO deben caer en "tarjeton" para no habilitar
+ * acciones exclusivas de tarjetón (exportar al perfil).
+ */
+function resolveViewerSourceType(rawType: string): ViewerSourceType {
+  if (rawType === "checadas" || rawType === "checada") return "checada"
+  if (rawType === "documento") return "documento"
+  if (rawType === "ine") return "ine"
+  return "tarjeton"
+}
+
+/**
  * Adaptador de Tarjetón / Checada en entorno Web:
  * Recupera Blob local o URL persistente y genera el contrato ViewerDocument.
  */
@@ -204,7 +216,7 @@ export async function adaptTarjetonChecadaWebToViewerDocument(
 ): Promise<ViewerDocument> {
   const docId = item.id
   const rawType = ("tipo" in item ? item.tipo : ("type" in item ? item.type : "tarjeton")) as string
-  const sourceType: ViewerSourceType = rawType === "checadas" || rawType === "checada" ? "checada" : "tarjeton"
+  const sourceType: ViewerSourceType = resolveViewerSourceType(rawType)
   const name = ("name" in item && item.name ? String(item.name) : ("titulo" in item && item.titulo ? String(item.titulo) : "Documento.pdf"))
 
   // Si ya tiene un renderUrl o sourceUri válido
@@ -280,7 +292,7 @@ export async function adaptTarjetonChecadaAndroidToViewerDocument(
 ): Promise<ViewerDocument> {
   const docId = item.id
   const rawType = ("tipo" in item ? item.tipo : ("type" in item ? item.type : "tarjeton")) as string
-  const sourceType: ViewerSourceType = rawType === "checadas" || rawType === "checada" ? "checada" : "tarjeton"
+  const sourceType: ViewerSourceType = resolveViewerSourceType(rawType)
   const name = ("name" in item && item.name ? String(item.name) : "Documento.pdf")
   const localPath = ("localPath" in item && item.localPath ? String(item.localPath) : "")
   const mimeType = ("mimeType" in item && item.mimeType ? String(item.mimeType) : "application/pdf")
