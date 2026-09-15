@@ -111,9 +111,11 @@ function setupFixtures() {
     DELETE FROM auth.users WHERE id IN (${usersList});
     DELETE FROM public.union_delegations WHERE id = '${DELEGATION_B_ID}';
 
-    -- Ensure Delegation B exists
+    -- Ensure Delegations A and B exist
     INSERT INTO public.union_delegations (id, code, name, section, facility, active, created_at, updated_at)
-    VALUES ('${DELEGATION_B_ID}', 'DEL_B', 'Delegación B de Prueba', 'XXI', 'HGR 2', true, now(), now())
+    VALUES
+      ('${DELEGATION_A_ID}', 'DEL_A', 'Delegación A de Prueba', 'XX', 'HGR 1', true, now(), now()),
+      ('${DELEGATION_B_ID}', 'DEL_B', 'Delegación B de Prueba', 'XXI', 'HGR 2', true, now(), now())
     ON CONFLICT (id) DO NOTHING;
 
     -- Ensure Auth users
@@ -306,7 +308,7 @@ describe.skipIf(!isAvailable)("PostgreSQL Integration: SIAP Worker Importer", { 
     `)
 
     // Obtain worker id
-    const _workerId = execDb(`
+    const workerId = execDb(`
       SELECT id FROM public.union_workers WHERE employee_number = 'M_ROLL_1';
     `)
     expect(workerId).toBeTruthy()
@@ -839,12 +841,11 @@ describe.skipIf(!isAvailable)("PostgreSQL Integration: SIAP Worker Importer", { 
         'SIAP_2026', 1, 'preview'
       );
       INSERT INTO public.union_worker_import_rows (
-        batch_id, delegation_id, row_number, matricula, full_name, row_type,
-        parsed_data, diff, action_taken
+        batch_id, row_number, matricula, full_name, raw_data, parsed_data, row_status, action_taken, issues, diff
       ) VALUES (
-        '${batchRevertId}', '${DELEGATION_A_ID}', 1, 'REACTIVATED_1', 'REACTIVATED WORKER', 'new',
+        '${batchRevertId}', 1, 'REACTIVATED_1', 'REACTIVATED WORKER', '{}'::jsonb,
         '{"siap_full_name": "REACTIVATED WORKER", "position_description": "ENFERMERO"}'::jsonb,
-        '{}'::jsonb, 'pending'
+        'new', 'pending', '[]'::jsonb, '{}'::jsonb
       );
       SELECT public.union_confirm_worker_import('${batchRevertId}');
       COMMIT;
@@ -875,12 +876,11 @@ describe.skipIf(!isAvailable)("PostgreSQL Integration: SIAP Worker Importer", { 
         'SIAP_2026', 1, 'preview'
       );
       INSERT INTO public.union_worker_import_rows (
-        batch_id, delegation_id, row_number, matricula, full_name, row_type,
-        parsed_data, diff, action_taken
+        batch_id, row_number, matricula, full_name, raw_data, parsed_data, row_status, action_taken, issues, diff
       ) VALUES (
-        '${batchReactivateId}', '${DELEGATION_A_ID}', 1, 'REACTIVATED_1', 'REACTIVATED WORKER', 'unchanged',
+        '${batchReactivateId}', 1, 'REACTIVATED_1', 'REACTIVATED WORKER', '{}'::jsonb,
         '{"siap_full_name": "REACTIVATED WORKER", "position_description": "ENFERMERO"}'::jsonb,
-        '{}'::jsonb, 'pending'
+        'unchanged', 'pending', '[]'::jsonb, '{}'::jsonb
       );
       SELECT public.union_confirm_worker_import('${batchReactivateId}');
       COMMIT;

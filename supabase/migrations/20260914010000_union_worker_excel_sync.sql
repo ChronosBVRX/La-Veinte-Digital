@@ -40,7 +40,7 @@ alter table public.union_workers
   add column if not exists source_last_seen_at timestamptz,
   add column if not exists source_missing_since timestamptz,
   add column if not exists source_rolled_back_at timestamptz,
-  add column if not exists source_import_state text not null default 'active';
+  add column if not exists source_import_state text default 'active';
 
 create index if not exists union_workers_rfc_idx on public.union_workers (delegation_id, rfc);
 create index if not exists union_workers_curp_idx on public.union_workers (delegation_id, curp);
