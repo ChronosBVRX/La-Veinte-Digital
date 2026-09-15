@@ -305,4 +305,57 @@ describe("DocumentosPersonales (Integración con Escritos y Panel Inline)", () =
       expect(screen.queryByText("Oficio de Justificación")).toBeNull()
     })
   })
+
+  it("renderiza el diálogo de confirmación en document.body (portal) e impide cancelar durante el borrado", async () => {
+    let resolveDelete!: (val: { ok: boolean }) => void
+    const deletePromise = new Promise<{ ok: boolean }>((resolve) => {
+      resolveDelete = resolve
+    })
+    const deleteByIdMock = vi.fn().mockImplementation(() => deletePromise)
+
+    window.LaVeinteApp = {
+      listNativeDocuments: vi.fn().mockResolvedValue([
+        {
+          id: 301,
+          name: "DocPortalTest.pdf",
+          localPath: "/data/docs/doc301.pdf",
+          source: "TU_PERFIL",
+          fileSize: 1000,
+          downloadedAt: Date.now(),
+          mimeType: "application/pdf",
+        },
+      ]),
+      deleteNativeDocumentById: deleteByIdMock,
+    } as unknown as typeof window.LaVeinteApp
+
+    render(<DocumentosPersonales />)
+
+    await waitFor(() => {
+      expect(screen.getByText("DocPortalTest.pdf")).toBeDefined()
+    })
+
+    fireEvent.click(screen.getByLabelText("Eliminar documento"))
+
+    await waitFor(() => {
+      const dialog = screen.getByRole("dialog")
+      expect(dialog).toBeDefined()
+      // El diálogo debe estar portaleado a document.body
+      expect(document.body.contains(dialog)).toBe(true)
+    })
+
+    const confirmBtn = screen.getAllByRole("button", { name: /^Eliminar$/i })[0]
+    fireEvent.click(confirmBtn)
+
+    // Mientras borra, no se puede cancelar por tecla Escape
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.getByRole("dialog")).toBeDefined()
+
+    // Resolver el borrado
+    resolveDelete({ ok: true })
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull()
+      expect(screen.getByText("Documento eliminado.")).toBeDefined()
+    })
+  })
 })
