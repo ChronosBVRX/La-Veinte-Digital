@@ -12,7 +12,7 @@ const DB_NAME = "la_veinte_scan_docs_db"
 // jsdom no decodifica imágenes ni canvas: el re-render de páginas se sustituye por
 // la fuente original (el pipeline real de canvas se prueba en navegador).
 vi.mock("../lib/page-renderer", () => ({
-  renderPageBlob: async (source: Blob, _filter: string, _rotation: number) => {
+  renderPageBlob: async (source: Blob) => {
     const bytes = await source.arrayBuffer()
     return { blob: new Blob([bytes], { type: "image/jpeg" }), width: 2, height: 2 }
   },

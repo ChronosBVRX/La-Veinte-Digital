@@ -1,0 +1,178 @@
+
+> la-veinte-digital@0.002 lint
+> eslint
+
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\postcss.config.mjs
+  1:1  warning  Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\scripts\produccion-ia.ts
+  75:103  warning  'i' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\scripts\prueba-aceptacion.mjs
+  100:3  warning  'prevFin' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\scripts\qa-acestep-mix.ts
+  80:9  warning  'voiceLabels' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  87:5  warning  'cursorMs' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  97:9  warning  'introMs' is assigned a value but never used      @typescript-eslint/no-unused-vars
+  99:9  warning  'bedMs' is assigned a value but never used        @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\scripts\regen-master-ia.ts
+  46:94  warning  'i' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\src\__tests__\groq-editorial-governance.test.ts
+  17:3   warning  'ProposalGenerationFailedError' is defined but never used  @typescript-eslint/no-unused-vars
+  20:15  warning  'Proposal' is defined but never used                       @typescript-eslint/no-unused-vars
+  20:25  warning  'Script' is defined but never used                         @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\src\index.ts
+    31:89   warning  'editorialPromptRules' is defined but never used        @typescript-eslint/no-unused-vars
+    31:111  warning  'editorialSegmentGoal' is defined but never used        @typescript-eslint/no-unused-vars
+    38:10   warning  'createHash' is defined but never used                  @typescript-eslint/no-unused-vars
+    39:35   warning  'ProjectStore' is defined but never used                @typescript-eslint/no-unused-vars
+   227:5    warning  'workerVivoCache' is assigned a value but never used    @typescript-eslint/no-unused-vars
+   345:16   warning  'readBenchmarkRtf' is defined but never used            @typescript-eslint/no-unused-vars
+  1315:10   warning  'speakerPromptLine' is defined but never used           @typescript-eslint/no-unused-vars
+  1336:10   warning  'interactionStylePrompt' is defined but never used      @typescript-eslint/no-unused-vars
+  1365:10   warning  'normalizeTurnByInteraction' is defined but never used  @typescript-eslint/no-unused-vars
+  1569:9    warning  'mapaDocumental' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  1577:9    warning  'speakerIds' is assigned a value but never used         @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\src\llm\__tests__\groq-provider.test.ts
+  9:45  warning  'detectsSensitiveContent' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\src\llm\editorial\editorial-llm.ts
+   27:3   warning  'ProposalSchema' is defined but never used   @typescript-eslint/no-unused-vars
+  169:11  warning  'preset' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\src\llm\gpu-manager.ts
+  61:7  warning  'globalKey' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\src\llm\llm-factory.ts
+  21:10  warning  'GroqUnavailableError' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\src\llm\pipeline.ts
+   16:10  warning  'LocalLLMService' is defined but never used           @typescript-eslint/no-unused-vars
+   68:10  warning  'loadLlmConfig' is defined but never used             @typescript-eslint/no-unused-vars
+   83:10  warning  'readPromptVersion' is defined but never used         @typescript-eslint/no-unused-vars
+  284:9   warning  'globalTurnIndex' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\src\llm\privacy-filter.ts
+  11:5  warning  'areaCounter' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\src\routes\project-routes.ts
+  11:8   warning  'Project' is defined but never used     @typescript-eslint/no-unused-vars
+  12:8   warning  'Commercial' is defined but never used  @typescript-eslint/no-unused-vars
+  27:10  warning  'parseId' is defined but never used     @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\src\services\__tests__\project-store.test.ts
+  7:15  warning  'Project' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\src\services\claim-entailment-gate.ts
+  24:9   warning  'normalizedDoc' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  93:10  warning  'extractTrigrams' is defined but never used         @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\src\services\commercial-service.ts
+   16:3  warning  'CommercialTypeSchema' is defined but never used  @typescript-eslint/no-unused-vars
+  258:3  warning  'library' is defined but never used               @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\src\services\episode-workflow-service.ts
+  395:13  warning  'result' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\src\services\project-workflow.ts
+   30:3   warning  'validateRoleFirewall' is defined but never used  @typescript-eslint/no-unused-vars
+   34:8   warning  'CitationMode' is defined but never used          @typescript-eslint/no-unused-vars
+   45:8   warning  'Profundidad' is defined but never used           @typescript-eslint/no-unused-vars
+   52:48  warning  'Coverage' is defined but never used              @typescript-eslint/no-unused-vars
+  117:48  warning  'comerciales' is defined but never used           @typescript-eslint/no-unused-vars
+  164:3   warning  'research' is defined but never used              @typescript-eslint/no-unused-vars
+  546:58  warning  'project' is defined but never used               @typescript-eslint/no-unused-vars
+  585:97  warning  'service' is defined but never used               @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\sidecar\src\services\studio-converters.ts
+  32:49  warning  'idx' is defined but never used  @typescript-eslint/no-unused-vars
+  74:39  warning  'i' is defined but never used    @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\apps\radio-studio\src\screens\ProyectoSimple.tsx
+  71:40  warning  React Hook useEffect has a missing dependency: 'refresh'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  80:6   warning  React Hook useEffect has a missing dependency: 'refresh'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\packages\radio-core\src\conversation.ts
+  203:60  warning  '_speakers' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\packages\tts-core\qwen\launcher.ts
+   11:8   warning  'os' is defined but never used            @typescript-eslint/no-unused-vars
+   60:10  warning  'cacheKey' is defined but never used      @typescript-eslint/no-unused-vars
+  189:10  warning  'joinClauses' is defined but never used   @typescript-eslint/no-unused-vars
+  189:30  warning  'outBase' is defined but never used       @typescript-eslint/no-unused-vars
+  278:45  warning  'text' is defined but never used          @typescript-eslint/no-unused-vars
+  286:11  warning  'gap' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\packages\tts-core\src\speechify-cast.ts
+  159:11  warning  'allSorted' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  168:9   warning  'pick' is assigned a value but never used       @typescript-eslint/no-unused-vars
+  188:30  warning  'pool' is assigned a value but never used       @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\packages\tts-core\src\speechify-engine.ts
+   9:8   warning  'crypto' is defined but never used             @typescript-eslint/no-unused-vars
+  87:10  warning  'isRetryableStatus' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\scripts\bench-consulta.ts
+   23:6   warning  'Row' is defined but never used            @typescript-eslint/no-unused-vars
+  255:13  warning  'text' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\scripts\bench-motor.ts
+  189:66  warning  'intent' is defined but never used       @typescript-eslint/no-unused-vars
+  189:82  warning  'onRpc' is defined but never used        @typescript-eslint/no-unused-vars
+  203:11  warning  'ts' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  338:17  warning  'rd' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\src\features\account\actions.ts
+  17:3  warning  '_prevState' is defined but never used  @typescript-eslint/no-unused-vars
+  18:3  warning  '_formData' is defined but never used   @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\src\features\asistente\lib\acompanamiento.ts
+  73:3  warning  'intent' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\src\features\calendario\__tests__\mandatory-rest-days.test.ts
+  7:3  warning  'getNthDayOfWeek' is defined but never used               @typescript-eslint/no-unused-vars
+  8:3  warning  'VERSIONED_ELECTORAL_HOLIDAYS' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\src\features\calendario\services\calendarioData.ts
+  12:37  warning  'getImssMandatoryRestDaysForMonth' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\src\features\document-scanner\__tests__\document-scanner-flow.test.tsx
+  15:40  warning  '_filter' is defined but never used    @typescript-eslint/no-unused-vars
+  15:57  warning  '_rotation' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\src\features\document-scanner\components\DocumentScannerReview.tsx
+  211:11  warning  Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images  jsx-a11y/alt-text
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\src\features\documentos-personales\__tests__\unified-document-viewer-regression.test.tsx
+  58:41  warning  '_b' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\src\features\documentos-personales\__tests__\viewer-object-url-lifecycle.test.tsx
+  96:41  warning  '_blob' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\src\features\documentos-personales\components\DocumentViewerModal.tsx
+  295:6  warning  React Hook useEffect has missing dependencies: 'profile' and 'rawDoc'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\src\features\escritos\components\EscritosForm.tsx
+  530:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\src\features\escritos\components\EscritosResult.tsx
+  293:19  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  372:23  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  418:25  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\src\features\tarjeton\__tests__\active-payslip-lifecycle.test.ts
+  693:11  warning  '_resQ8' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Axel Rosete\Desktop\La-Veinte-Digital-scanner\src\features\vacations\__tests__\advisor-and-roles.test.ts
+  5:3   warning  'SEMESTRAL_TRANSITIONS' is defined but never used   @typescript-eslint/no-unused-vars
+  8:15  warning  'SemestralContinuity' is defined but never used     @typescript-eslint/no-unused-vars
+  8:36  warning  'SemestralInclusionMark' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 91 problems (0 errors, 91 warnings)
+

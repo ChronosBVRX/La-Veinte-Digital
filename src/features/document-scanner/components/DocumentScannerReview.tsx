@@ -13,7 +13,7 @@ import {
   ArrowsClockwise,
   Camera,
   Check,
-  Image,
+  Info,
   Plus,
   Trash,
 } from "@phosphor-icons/react"
@@ -80,7 +80,9 @@ export function DocumentScannerReview({
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%" }}>
-        {pages.map((page, index) => (
+        {pages.map((page, index) => {
+          const pageLabel = isIne ? (index === 0 ? "Frente" : "Reverso") : `Página ${index + 1}`
+          return (
           <div
             key={page.id}
             style={{
@@ -108,7 +110,7 @@ export function DocumentScannerReview({
               {/* eslint-disable-next-line @next/next/no-img-element -- previsualización local de un blob */}
               <img
                 src={page.previewUrl}
-                alt={isIne ? (index === 0 ? "Frente" : "Reverso") : `Página ${index + 1}`}
+                alt={pageLabel}
                 style={{
                   width: "100%",
                   height: "100%",
@@ -121,7 +123,7 @@ export function DocumentScannerReview({
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
                 <span style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--fg)" }}>
-                  {isIne ? (index === 0 ? "Frente" : "Reverso") : `Página ${index + 1}`}
+                  {pageLabel}
                 </span>
                 <span style={{ fontSize: "0.6875rem", color: "var(--muted)" }}>
                   {page.width}×{page.height}
@@ -183,7 +185,8 @@ export function DocumentScannerReview({
               </div>
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
 
       {!isIne && (
@@ -208,7 +211,7 @@ export function DocumentScannerReview({
             lineHeight: 1.45,
           }}
         >
-          <Image size={18} weight="duotone" style={{ flexShrink: 0, marginTop: 2 }} />
+          <Info size={18} weight="duotone" style={{ flexShrink: 0, marginTop: 2 }} />
           <span>
             No se leen ni extraen datos del INE (nombre, CURP, clave de elector, QR). Solo se compone la imagen en
             una hoja tamaño carta.
