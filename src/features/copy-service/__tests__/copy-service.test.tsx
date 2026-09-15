@@ -36,8 +36,7 @@ vi.mock("@/features/document-scanner/components/DocumentScannerFlow", () => ({
               id: "doc-1",
               kind: mode === "ine-front" ? "ine" : "documento",
               name: "Doc.pdf",
-              pageCount: 1,
-              blob: new Blob(),
+              storage: "indexeddb",
             })
           }}
         >
