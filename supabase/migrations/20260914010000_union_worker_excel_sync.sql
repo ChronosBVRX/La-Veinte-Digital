@@ -412,9 +412,11 @@ begin
 
         v_applied_count := v_applied_count + 1;
       else
-        -- Sin cambios sustantivos: solo refrescar last_seen
+        -- Sin cambios sustantivos: refrescar last_seen y reactivar si estaba revertido
         update public.union_workers
         set
+          source_import_state = 'active',
+          source_rolled_back_at = null,
           last_import_batch_id = p_batch_id,
           source_last_seen_at = v_now,
           source_missing_since = null,

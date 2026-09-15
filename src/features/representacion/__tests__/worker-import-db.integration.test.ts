@@ -802,4 +802,100 @@ describe.skipIf(!isAvailable)("PostgreSQL Integration: SIAP Worker Importer", { 
       `)
     }).toThrow(/ROLLBACK_CONFLICT_NEWER_CHANGES/)
   })
+
+  it("7. Reactivation of rolled-back worker and inclusion of NULL source_import_state", () => {
+    const batchRevertId = "70000000-0000-0000-0000-0000000000b1"
+    const batchReactivateId = "70000000-0000-0000-0000-0000000000b2"
+
+    // A) Insert a worker with source_import_state = NULL (simulating legacy pre-import worker)
+    execDb(`
+      INSERT INTO public.union_workers (
+        id, delegation_id, employee_number, siap_full_name, first_name, paternal_surname, maternal_surname,
+        category, assignment, turn, schedule, rest_days, active, notes, source_import_state, created_by, updated_by
+      ) VALUES (
+        '70000000-0000-0000-0000-000000000001', '${DELEGATION_A_ID}', 'LEGACY_NULL_1', 'LEGACY WORKER NULL', 'Carlos', 'Ruiz', '',
+        'MEDICO', 'HGR 1', 'M', '08-16', 'S-D', true, '', NULL, '${ADMIN_A_ID}', '${ADMIN_A_ID}'
+      );
+    `)
+
+    // Query with IS DISTINCT FROM 'rolled_back' logic (source_import_state IS NULL OR != 'rolled_back')
+    const nullIncluded = execDb(`
+      SELECT count(*) FROM public.union_workers
+      WHERE delegation_id = '${DELEGATION_A_ID}'
+        AND employee_number = 'LEGACY_NULL_1'
+        AND source_import_state IS DISTINCT FROM 'rolled_back';
+    `)
+    expect(Number(nullIncluded)).toBe(1)
+
+    // B) Create a worker via batch and then rollback
+    execDb(`
+      BEGIN;
+      SET LOCAL "request.jwt.claim.sub" = '${ADMIN_A_ID}';
+      INSERT INTO public.union_worker_import_batches (
+        id, delegation_id, imported_by, file_name, file_size_bytes, file_sha256,
+        format_version, total_rows, status
+      ) VALUES (
+        '${batchRevertId}', '${DELEGATION_A_ID}', '${ADMIN_A_ID}', 'revert.xlsx', 100, 'hashrev',
+        'SIAP_2026', 1, 'preview'
+      );
+      INSERT INTO public.union_worker_import_rows (
+        batch_id, delegation_id, row_number, matricula, full_name, row_type,
+        parsed_data, diff, action_taken
+      ) VALUES (
+        '${batchRevertId}', '${DELEGATION_A_ID}', 1, 'REACTIVATED_1', 'REACTIVATED WORKER', 'new',
+        '{"siap_full_name": "REACTIVATED WORKER", "position_description": "ENFERMERO"}'::jsonb,
+        '{}'::jsonb, 'pending'
+      );
+      SELECT public.union_confirm_worker_import('${batchRevertId}');
+      COMMIT;
+    `)
+
+    // Rollback batch
+    execDb(`
+      BEGIN;
+      SET LOCAL "request.jwt.claim.sub" = '${ADMIN_A_ID}';
+      SELECT public.union_rollback_worker_import('${batchRevertId}');
+      COMMIT;
+    `)
+
+    const rolledBackState = execDb(`
+      SELECT source_import_state FROM public.union_workers WHERE employee_number = 'REACTIVATED_1';
+    `)
+    expect(rolledBackState).toBe("rolled_back")
+
+    // C) Re-import the exact same matricula with a new batch (re-activation without duplication)
+    execDb(`
+      BEGIN;
+      SET LOCAL "request.jwt.claim.sub" = '${ADMIN_A_ID}';
+      INSERT INTO public.union_worker_import_batches (
+        id, delegation_id, imported_by, file_name, file_size_bytes, file_sha256,
+        format_version, total_rows, status
+      ) VALUES (
+        '${batchReactivateId}', '${DELEGATION_A_ID}', '${ADMIN_A_ID}', 'reactivate.xlsx', 100, 'hashreact',
+        'SIAP_2026', 1, 'preview'
+      );
+      INSERT INTO public.union_worker_import_rows (
+        batch_id, delegation_id, row_number, matricula, full_name, row_type,
+        parsed_data, diff, action_taken
+      ) VALUES (
+        '${batchReactivateId}', '${DELEGATION_A_ID}', 1, 'REACTIVATED_1', 'REACTIVATED WORKER', 'unchanged',
+        '{"siap_full_name": "REACTIVATED WORKER", "position_description": "ENFERMERO"}'::jsonb,
+        '{}'::jsonb, 'pending'
+      );
+      SELECT public.union_confirm_worker_import('${batchReactivateId}');
+      COMMIT;
+    `)
+
+    // Verify: not duplicated, state is active, rolled_back_at is null
+    const workerCount = execDb(`
+      SELECT count(*) FROM public.union_workers WHERE employee_number = 'REACTIVATED_1';
+    `)
+    expect(Number(workerCount)).toBe(1)
+
+    const reactivatedData = execDb(`
+      SELECT source_import_state || '|' || (source_rolled_back_at IS NULL)::text
+      FROM public.union_workers WHERE employee_number = 'REACTIVATED_1';
+    `)
+    expect(reactivatedData).toBe("active|true")
+  })
 })

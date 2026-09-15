@@ -27,7 +27,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       .from("union_workers")
       .select("id, employee_number, first_name, paternal_surname, maternal_surname, siap_full_name, category, assignment, turn, schedule, rest_days, active, created_at")
       .eq("delegation_id", depId)
-      .neq("source_import_state", "rolled_back")
+      .or("source_import_state.is.null,source_import_state.neq.rolled_back")
       .order("paternal_surname", { ascending: true })
       .limit(50);
     if (q) {
