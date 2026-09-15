@@ -277,7 +277,7 @@ export function DocumentScannerFlow({
   )
 
   const handleConfirm = useCallback(async () => {
-    if (!userId) {
+    if (!userId && (intent === "save" || saveToDocuments)) {
       setError("Inicia sesión para guardar tus documentos digitalizados.")
       return
     }
@@ -292,38 +292,57 @@ export function DocumentScannerFlow({
 
       let savedSummary: SavedScanSummary | null = null
       if (saveToDocuments) {
-        const result = await persistScannedDocument({
-          userId,
-          kind: finalized.kind,
-          name: finalized.file.name,
-          pdfFile: finalized.file,
-          pageCount: finalized.pageCount,
-        })
-        if (!result.ok) {
-          throw new Error("No se pudo guardar el documento en el dispositivo.")
+        try {
+          const effectiveUserId = userId || "anonymous"
+          const result = await persistScannedDocument({
+            userId: effectiveUserId,
+            kind: finalized.kind,
+            name: finalized.file.name,
+            pdfFile: finalized.file,
+            pageCount: finalized.pageCount,
+          })
+          if (result.ok) {
+            savedSummary = {
+              id: result.id,
+              kind: finalized.kind,
+              name: finalized.file.name,
+              storage: result.storage,
+            }
+          } else {
+            console.warn("[DocumentScannerFlow] Guardado opcional falló (no fatal):", result)
+            if (intent === "save") {
+              throw new Error("No se pudo guardar el documento en el dispositivo.")
+            }
+          }
+        } catch (saveError) {
+          if (intent === "save") {
+            throw saveError
+          }
+          console.warn("[DocumentScannerFlow] Error al guardar copia opcional:", saveError)
         }
-        savedSummary = {
-          id: result.id,
-          kind: finalized.kind,
-          name: finalized.file.name,
-          storage: result.storage,
-        }
-      }
-
-      if (!saveToDocuments) {
-        if (!onPrintRequest) {
-          throw new Error("La impresión no está disponible en este momento.")
-        }
-        onPrintRequest(finalized.file, finalized.file.name)
       }
 
       if (savedSummary && onSaved) {
         onSaved(savedSummary)
       }
 
-      if (saveToDocuments) {
-        scanner.setStatus("saved")
+      if (intent === "print") {
+        if (!onPrintRequest) {
+          throw new Error("La impresión no está disponible en este momento.")
+        }
         closeFlow()
+        onPrintRequest(finalized.file, finalized.file.name)
+      } else {
+        if (!saveToDocuments) {
+          if (!onPrintRequest) {
+            throw new Error("La impresión no está disponible en este momento.")
+          }
+          closeFlow()
+          onPrintRequest(finalized.file, finalized.file.name)
+        } else {
+          scanner.setStatus("saved")
+          closeFlow()
+        }
       }
     } catch (confirmError) {
       setError(
@@ -332,7 +351,7 @@ export function DocumentScannerFlow({
     } finally {
       setBusy(false)
     }
-  }, [closeFlow, isIne, mode, onPrintRequest, onSaved, saveToDocuments, scanner, userId])
+  }, [closeFlow, intent, isIne, mode, onPrintRequest, onSaved, saveToDocuments, scanner, userId])
 
   if (!open) return null
 
@@ -454,6 +473,7 @@ export function DocumentScannerFlow({
           {step === "review" && (
             <DocumentScannerReview
               mode={mode}
+              intent={intent}
               pages={pages}
               busy={busy}
               error={error}

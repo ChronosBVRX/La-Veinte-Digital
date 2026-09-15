@@ -23,6 +23,7 @@ import type { MoveDirection, ScanPage } from "../types/scanner-types"
 
 export interface DocumentScannerReviewProps {
   mode: ScanMode
+  intent?: "save" | "print"
   pages: ScanPage[]
   busy: boolean
   error: string | null
@@ -48,6 +49,7 @@ const FILTER_LABELS: Record<ScanFilter, string> = {
 
 export function DocumentScannerReview({
   mode,
+  intent,
   pages,
   busy,
   error,
@@ -239,11 +241,13 @@ export function DocumentScannerReview({
           style={{ marginTop: "0.15rem", width: 18, height: 18, accentColor: "var(--primary)" }}
         />
         <span style={{ fontSize: "0.8125rem", color: "var(--fg)", lineHeight: 1.45 }}>
-          <strong>Guardar también en mis documentos</strong>
+          <strong>Guardar también en Mis documentos</strong>
           <span style={{ display: "block", color: "var(--muted)", marginTop: "0.125rem" }}>
-            {saveToDocuments
-              ? "El PDF se conservará en Documentos personales."
-              : "El PDF solo se enviará a imprimir; no se guardará en el dispositivo."}
+            {intent === "print"
+              ? "Opcional. Si no lo activas, el archivo solo se utilizará para enviarlo a imprimir."
+              : saveToDocuments
+                ? "El PDF se conservará en Documentos personales."
+                : "El PDF solo se enviará a imprimir; no se guardará en el dispositivo."}
           </span>
         </span>
       </label>
@@ -277,7 +281,7 @@ export function DocumentScannerReview({
         </Button>
         <Button variant="primary" size="md" loading={busy} disabled={!canConfirm || busy} onClick={onConfirm}>
           <Check size={18} />
-          {saveToDocuments ? "Guardar PDF" : "Enviar a imprimir"}
+          {intent === "print" ? "Enviar a imprimir" : saveToDocuments ? "Guardar PDF" : "Enviar a imprimir"}
         </Button>
       </div>
     </div>

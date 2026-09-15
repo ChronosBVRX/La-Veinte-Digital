@@ -52,14 +52,14 @@ beforeEach(async () => {
 })
 
 describe("Documentos personales + módulo de digitalización", () => {
-  it("muestra las acciones de digitalización (documento, INE y copiadora)", async () => {
+  it("no muestra launcher de digitalización directa (reubicado en servicio Sacar copias)", async () => {
     render(<DocumentosPersonales />)
 
     await waitFor(() => {
-      expect(screen.getByText(/Digitalizar documento/i)).toBeDefined()
+      expect(screen.queryByText(/Digitalizar documento/i)).toBeNull()
     })
-    expect(screen.getByText(/Escanear INE/i)).toBeDefined()
-    expect(screen.getByText(/Escanear para imprimir/i)).toBeDefined()
+    expect(screen.queryByText(/Escanear INE/i)).toBeNull()
+    expect(screen.queryByText(/Escanear para imprimir/i)).toBeNull()
   })
 
   it("lista los documentos escaneados web bajo la sección Documentos", async () => {

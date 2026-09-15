@@ -20,8 +20,6 @@ import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { SendPrintModal } from "./SendPrintModal"
 import { ImportTarjetonModal } from "./ImportTarjetonModal"
 import { DocumentViewerModal } from "./DocumentViewerModal"
-import { DocumentScannerLauncher } from "@/features/document-scanner/components/DocumentScannerLauncher"
-import type { SavedScanSummary } from "@/features/document-scanner/components/DocumentScannerFlow"
 import {
   deleteWebScannedDocument,
   getWebScannedDocumentFile,
@@ -357,30 +355,6 @@ export function DocumentosPersonales() {
     setMenuDoc(null)
   }
 
-  /** Escaneo guardado (nativo o IndexedDB): refrescar la bandeja. */
-  const handleScanSaved = (saved: SavedScanSummary) => {
-    if (saved.storage === "native") reloadNativos()
-    void reloadEscaneados(userId)
-    setFeedback({ type: "success", message: "Documento guardado en Documentos personales." })
-  }
-
-  /** Copiadora: PDF temporal en memoria, sin persistencia, hacia el flujo QR existente. */
-  const handleScanPrintRequest = (file: File, name: string) => {
-    setSendDoc({
-      doc: {
-        kind: "escaneado",
-        tipo: "documento",
-        id: "scan-print-temp",
-        name,
-        fileSize: file.size,
-        createdAt: Date.now(),
-        mimeType: "application/pdf",
-        pageCount: 1,
-      },
-      getFile: async () => file,
-    })
-  }
-
   const handleRequestDelete = (doc: DocumentoPersonalItem) => {
     setMenuDoc(null)
     setConfirmDeleteDoc(doc)
@@ -551,12 +525,6 @@ export function DocumentosPersonales() {
         </div>
       </div>
 
-      <DocumentScannerLauncher
-        userId={userId}
-        onSaved={handleScanSaved}
-        onPrintRequest={handleScanPrintRequest}
-      />
-
       {!isNative && nativos.length === 0 && (
         <div style={{
           background: "var(--accent)", border: "1px solid var(--border)",
@@ -579,7 +547,7 @@ export function DocumentosPersonales() {
         }}>
           <h2 style={{ fontSize: "1.0625rem", fontWeight: 700, margin: "0 0 0.25rem" }}>Aún no tienes documentos</h2>
           <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: "0 0 1.25rem", lineHeight: 1.5, wordBreak: "break-word" }}>
-            Digitaliza un documento con la cámara, descarga tarjetones o checadas del IMSS, o redacta un escrito:
+            Descarga tarjetones o checadas del IMSS, redacta un escrito o consulta tus copias guardadas:
             todo aparecerá aquí.
           </p>
           <Link
