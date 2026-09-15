@@ -4,6 +4,7 @@ import "fake-indexeddb/auto"
 import { render, screen, waitFor, fireEvent } from "@testing-library/react"
 import { DocumentScannerFlow } from "../components/DocumentScannerFlow"
 import { listScanDocuments } from "@/shared/services/scan-document-storage"
+import * as scanPersistence from "../services/scan-persistence"
 import { tinyJpegBytes } from "./helpers/jpeg"
 
 const USER = "user-flow-uuid"
@@ -259,20 +260,25 @@ describe("DocumentScannerFlow: guardar y modo copiadora", () => {
     expect(file).toBeInstanceOf(File)
   })
 
-  it("si el guardado opcional falla, no destruye el flujo de impresión", async () => {
+  it("si el guardado opcional falla por cuota de almacenamiento, no destruye el flujo de impresión y emite onSaveFailed", async () => {
     installNativeScan({ ok: true, engine: "mlkit", pages: [pagePayload()] })
     const onPrintRequest = vi.fn()
+    const onSaveFailed = vi.fn()
     const onClose = vi.fn()
 
-    // Renderizamos con userId que forzará fallo o mock
+    const persistSpy = vi.spyOn(scanPersistence, "persistScannedDocument").mockRejectedValue(
+      new DOMException("The quota has been exceeded.", "QuotaExceededError")
+    )
+
     render(
       <DocumentScannerFlow
         open
         mode="document"
         intent="print"
-        userId="user-test-fallback"
+        userId="user-test-quota"
         onClose={onClose}
         onPrintRequest={onPrintRequest}
+        onSaveFailed={onSaveFailed}
       />
     )
 
@@ -283,8 +289,107 @@ describe("DocumentScannerFlow: guardar y modo copiadora", () => {
     fireEvent.click(screen.getByRole("button", { name: /Enviar a imprimir/i }))
 
     await waitFor(() => {
+      // 1. La impresión NO se aborta
       expect(onPrintRequest).toHaveBeenCalledTimes(1)
+      // 2. Se reporta la falla clasificada
+      expect(onSaveFailed).toHaveBeenCalledWith("quota_exceeded", expect.anything())
+      // 3. Opciones pasadas a onPrintRequest indican que no se guardó y la falla
+      const [file, fileName, options] = onPrintRequest.mock.calls[0]
+      expect(file).toBeInstanceOf(File)
+      expect(fileName).toBeDefined()
+      expect(options).toEqual({ alsoSaved: false, saveFailure: "quota_exceeded" })
+      // 4. El modal de escáner se cierra
       expect(onClose).toHaveBeenCalled()
     })
+
+    persistSpy.mockRestore()
+  })
+
+  it("en modo save directo, si falla por cuota muestra mensaje comprensible en pantalla y emite onSaveFailed exactamente 1 vez", async () => {
+    installNativeScan({ ok: true, engine: "mlkit", pages: [pagePayload()] })
+    const onSaved = vi.fn()
+    const onSaveFailed = vi.fn()
+    const onClose = vi.fn()
+
+    const persistSpy = vi.spyOn(scanPersistence, "persistScannedDocument").mockRejectedValue(
+      new DOMException("The quota has been exceeded.", "QuotaExceededError")
+    )
+
+    render(
+      <DocumentScannerFlow
+        open
+        mode="document"
+        intent="save"
+        userId="user-test-quota"
+        onClose={onClose}
+        onSaved={onSaved}
+        onSaveFailed={onSaveFailed}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText(/Revisa tus páginas/i)).toBeDefined()
+    })
+
+    const saveBtn = screen.getByRole("button", { name: /Guardar PDF/i })
+    fireEvent.click(saveBtn)
+
+    await waitFor(() => {
+      expect(onSaveFailed).toHaveBeenCalledTimes(1)
+      expect(onSaveFailed).toHaveBeenCalledWith("quota_exceeded", expect.anything())
+      expect(
+        screen.getByText(/No hay suficiente espacio disponible en este dispositivo para guardar el documento/i)
+      ).toBeDefined()
+      expect(onSaved).not.toHaveBeenCalled()
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
+    persistSpy.mockRestore()
+  })
+
+  it("en modo save directo, si falla por cuota mediante resultado estructurado emite onSaveFailed exactamente 1 vez y muestra error", async () => {
+    installNativeScan({ ok: true, engine: "mlkit", pages: [pagePayload()] })
+    const onSaved = vi.fn()
+    const onSaveFailed = vi.fn()
+    const onClose = vi.fn()
+
+    const persistSpy = vi.spyOn(scanPersistence, "persistScannedDocument").mockResolvedValue({
+      ok: false,
+      id: "doc-quota-fail",
+      storage: "indexeddb",
+      failure: "quota_exceeded",
+      reason: "QuotaExceededError",
+    })
+
+    render(
+      <DocumentScannerFlow
+        open
+        mode="document"
+        intent="save"
+        userId="user-test-quota"
+        onClose={onClose}
+        onSaved={onSaved}
+        onSaveFailed={onSaveFailed}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText(/Revisa tus páginas/i)).toBeDefined()
+    })
+
+    const saveBtn = screen.getByRole("button", { name: /Guardar PDF/i })
+    fireEvent.click(saveBtn)
+
+    await waitFor(() => {
+      expect(onSaveFailed).toHaveBeenCalledTimes(1)
+      expect(onSaveFailed).toHaveBeenCalledWith("quota_exceeded", expect.anything())
+      expect(
+        screen.getByText(/No hay suficiente espacio disponible en este dispositivo para guardar el documento/i)
+      ).toBeDefined()
+      expect(onSaved).not.toHaveBeenCalled()
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
+    persistSpy.mockRestore()
   })
 })

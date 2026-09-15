@@ -28,12 +28,22 @@ import {
 import type { DetectedQuad, Quad } from "../types/scanner-types"
 import { useDocumentScanner } from "../hooks/useDocumentScanner"
 import { WebDocumentScanner, toSourceQuad, type AnalysisImage } from "../services/web-document-scanner"
-import { persistScannedDocument, type ScanStorageKind } from "../services/scan-persistence"
+import {
+  persistScannedDocument,
+  classifyStorageError,
+  type ScanStorageKind,
+  type ScanStorageFailure,
+} from "../services/scan-persistence"
 import { ScanCaptureStep } from "./ScanCaptureStep"
 import { ScanCornerEditor } from "./ScanCornerEditor"
 import { DocumentScannerReview } from "./DocumentScannerReview"
 
 type Step = "preparing" | "capture" | "corners" | "review"
+
+export interface ScanPrintOptions {
+  alsoSaved: boolean
+  saveFailure?: ScanStorageFailure | null
+}
 
 export interface DocumentScannerFlowProps {
   open: boolean
@@ -43,7 +53,8 @@ export interface DocumentScannerFlowProps {
   userId: string | null
   onClose: () => void
   onSaved?: (document: SavedScanSummary) => void
-  onPrintRequest?: (file: File, name: string) => void
+  onPrintRequest?: (file: File, name: string, options?: ScanPrintOptions) => void
+  onSaveFailed?: (failure: ScanStorageFailure, error?: unknown) => void
 }
 
 export interface SavedScanSummary {
@@ -61,6 +72,7 @@ export function DocumentScannerFlow({
   onClose,
   onSaved,
   onPrintRequest,
+  onSaveFailed,
 }: DocumentScannerFlowProps) {
   const scanner = useDocumentScanner()
   const [step, setStep] = useState<Step>("preparing")
@@ -184,7 +196,7 @@ export function DocumentScannerFlow({
     if (!analysis || !webScannerRef.current) return
     setBusy(true)
     try {
-      const found = await webScannerRef.current.detectCorners(analysis.raster)
+      const found = await webScannerRef.current.detectCorners(analysis.raster, { retryOpenCv: true })
       setDetected(found)
       setEditorKey((key) => key + 1)
     } finally {
@@ -291,9 +303,12 @@ export function DocumentScannerFlow({
         : await scanner.buildDocumentPdf(title)
 
       let savedSummary: SavedScanSummary | null = null
+      let saveFailure: ScanStorageFailure | null = null
+
       if (saveToDocuments) {
+        const effectiveUserId = userId || "anonymous"
+        let saveError: unknown = null
         try {
-          const effectiveUserId = userId || "anonymous"
           const result = await persistScannedDocument({
             userId: effectiveUserId,
             kind: finalized.kind,
@@ -309,16 +324,24 @@ export function DocumentScannerFlow({
               storage: result.storage,
             }
           } else {
-            console.warn("[DocumentScannerFlow] Guardado opcional falló (no fatal):", result)
-            if (intent === "save") {
-              throw new Error("No se pudo guardar el documento en el dispositivo.")
-            }
+            saveFailure = result.failure || "unknown"
+            saveError = new Error(result.reason || "Error de persistencia")
           }
-        } catch (saveError) {
+        } catch (err) {
+          saveFailure = classifyStorageError(err)
+          saveError = err
+        }
+
+        if (saveFailure) {
+          onSaveFailed?.(saveFailure, saveError)
+          console.warn("[DocumentScannerFlow] Guardado falló:", saveFailure, saveError)
           if (intent === "save") {
-            throw saveError
+            const uiMessage =
+              saveFailure === "quota_exceeded"
+                ? "No hay suficiente espacio disponible en este dispositivo para guardar el documento."
+                : "No se pudo guardar el documento en el dispositivo."
+            throw new Error(uiMessage)
           }
-          console.warn("[DocumentScannerFlow] Error al guardar copia opcional:", saveError)
         }
       }
 
@@ -331,14 +354,20 @@ export function DocumentScannerFlow({
           throw new Error("La impresión no está disponible en este momento.")
         }
         closeFlow()
-        onPrintRequest(finalized.file, finalized.file.name)
+        onPrintRequest(finalized.file, finalized.file.name, {
+          alsoSaved: Boolean(savedSummary),
+          saveFailure,
+        })
       } else {
         if (!saveToDocuments) {
           if (!onPrintRequest) {
             throw new Error("La impresión no está disponible en este momento.")
           }
           closeFlow()
-          onPrintRequest(finalized.file, finalized.file.name)
+          onPrintRequest(finalized.file, finalized.file.name, {
+            alsoSaved: false,
+            saveFailure: null,
+          })
         } else {
           scanner.setStatus("saved")
           closeFlow()
@@ -351,7 +380,7 @@ export function DocumentScannerFlow({
     } finally {
       setBusy(false)
     }
-  }, [closeFlow, intent, isIne, mode, onPrintRequest, onSaved, saveToDocuments, scanner, userId])
+  }, [closeFlow, intent, isIne, mode, onPrintRequest, onSaveFailed, onSaved, saveToDocuments, scanner, userId])
 
   if (!open) return null
 

@@ -20,8 +20,15 @@ import {
   listScanDocuments,
   newScanDocumentId,
   saveScanDocument,
+  classifyStorageError,
+  type ScanStorageFailure,
   type ScanDocumentSummary,
 } from "@/shared/services/scan-document-storage"
+
+export {
+  classifyStorageError,
+  type ScanStorageFailure,
+}
 
 export type ScanStorageKind = "native" | "indexeddb"
 
@@ -31,6 +38,7 @@ export interface SaveScannedDocumentResult {
   id: string
   docId?: number
   reason?: string
+  failure?: ScanStorageFailure
 }
 
 export interface PersistScannedDocumentParams {
@@ -83,11 +91,13 @@ export async function persistScannedDocument(
       })
       return { ok: true, storage: "indexeddb", id: fallbackId, reason: result.code }
     } catch (error) {
+      const failure = classifyStorageError(error)
       return {
         ok: false,
         storage: "indexeddb",
         id: fallbackId,
         reason: error instanceof Error ? error.message : "save_failed",
+        failure,
       }
     }
   }
@@ -102,11 +112,13 @@ export async function persistScannedDocument(
     })
     return { ok: true, storage: "indexeddb", id: fallbackId }
   } catch (error) {
+    const failure = classifyStorageError(error)
     return {
       ok: false,
       storage: "indexeddb",
       id: fallbackId,
       reason: error instanceof Error ? error.message : "save_failed",
+      failure,
     }
   }
 }
