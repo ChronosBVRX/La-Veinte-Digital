@@ -70,6 +70,7 @@ import com.laveintedigital.app.internal.navigation.NavFeedbackDetector
 import com.laveintedigital.app.internal.navigation.NavFeedbackEvent
 import com.laveintedigital.app.internal.navigation.NavFeedbackEvents
 import com.laveintedigital.app.routing.NavigationTarget
+import com.laveintedigital.app.scanner.awaitResult
 import com.laveintedigital.app.security.AppLockManager
 import com.laveintedigital.app.security.BiometricPreferences
 import com.laveintedigital.app.security.LaveinteBiometricManager
@@ -169,6 +170,84 @@ fun InternalWebScreen(
     }
 
     val internalOrigin = remember(initialUrl) { laveinteOrigin(initialUrl) }
+
+    // Document Scanner (ML Kit): captura nativa de documentos e INE.
+    // El flujo de UI (viewfinder, detección de bordes, perspectiva y limpieza) lo provee
+    // Google Play services; aquí solo se orquestan request/response y la lectura de páginas.
+    var pendingScanReq by remember { mutableStateOf<String?>(null) }
+    val scannerService = remember { com.laveintedigital.app.scanner.NativeMlKitDocumentScanner() }
+    val scanLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result ->
+        val req = pendingScanReq
+        pendingScanReq = null
+        if (req == null) return@rememberLauncherForActivityResult
+        android.util.Log.i("SCAN_FLOW", "scan_result_code=${result.resultCode}")
+        if (result.resultCode != Activity.RESULT_OK || result.data == null) {
+            pushBridgeResult(webView, req, com.laveintedigital.app.scanner.ScanResultPayload.failure("cancelled"))
+            return@rememberLauncherForActivityResult
+        }
+        val scanResult = runCatching {
+            com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult.fromActivityResultIntent(result.data)
+        }.getOrNull()
+        val uris = scanResult?.pages?.mapNotNull { it.imageUri } ?: emptyList()
+        if (uris.isEmpty()) {
+            pushBridgeResult(webView, req, com.laveintedigital.app.scanner.ScanResultPayload.failure("failed"))
+            return@rememberLauncherForActivityResult
+        }
+        scope.launch {
+            val payload = runCatching {
+                val pages = scannerService.readPages(context, uris)
+                if (pages.isEmpty()) {
+                    com.laveintedigital.app.scanner.ScanResultPayload.failure("failed")
+                } else {
+                    com.laveintedigital.app.scanner.ScanResultPayload.success(pages)
+                }
+            }.getOrElse { e ->
+                android.util.Log.e("SCAN_FLOW", "read_pages_failed", e)
+                com.laveintedigital.app.scanner.ScanResultPayload.failure(
+                    com.laveintedigital.app.scanner.ScanResultPayload.mapFailureReason(e)
+                )
+            }
+            android.util.Log.i("SCAN_FLOW", "scan_pages=${uris.size}")
+            pushBridgeResult(webView, req, payload)
+        }
+    }
+    val scanDocumentResolver = remember {
+        object : (WebView?, String, String) -> Unit {
+            override fun invoke(wv: WebView?, req: String, optionsJson: String) {
+                val options = com.laveintedigital.app.scanner.ScanDocumentOptions.parse(optionsJson)
+                if (options == null) {
+                    pushBridgeResult(wv, req, com.laveintedigital.app.scanner.ScanResultPayload.failure("invalid_options"))
+                    return
+                }
+                if (!scannerService.isAvailable(activity)) {
+                    pushBridgeResult(wv, req, com.laveintedigital.app.scanner.ScanResultPayload.failure("play_services_unavailable"))
+                    return
+                }
+                if (pendingScanReq != null) {
+                    pushBridgeResult(wv, req, com.laveintedigital.app.scanner.ScanResultPayload.failure("busy"))
+                    return
+                }
+                scope.launch {
+                    try {
+                        val intentSender = scannerService.startScanIntent(activity, options).awaitResult()
+                        pendingScanReq = req
+                        android.util.Log.i("SCAN_FLOW", "scan_start mode=${options.mode}")
+                        scanLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(intentSender).build())
+                    } catch (e: Exception) {
+                        android.util.Log.e("SCAN_FLOW", "start_scan_failed", e)
+                        pushBridgeResult(
+                            wv, req,
+                            com.laveintedigital.app.scanner.ScanResultPayload.failure(
+                                com.laveintedigital.app.scanner.ScanResultPayload.mapFailureReason(e)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
 
     // Pending "Imprimir" (send via QR): the native viewer stored the doc and popped back to this
     // WebView. When the WebView exists and the pending generation has not been consumed, load the
@@ -291,6 +370,8 @@ fun InternalWebScreen(
             }
         }
 
+        BridgeHandler.onScanDocument = scanDocumentResolver
+
         BridgeHandler.onAuthenticated = {
             if (!enrollmentDone && LaveinteBiometricManager.canAuthenticate(context)) {
                 showEnrollmentInvite = true
@@ -320,6 +401,7 @@ fun InternalWebScreen(
             BridgeHandler.onDeleteNativeDocument = null
             BridgeHandler.onGetFcmToken = null
             BridgeHandler.onGetPendingPrintDoc = null
+            BridgeHandler.onScanDocument = null
             BridgeHandler.onShare = null
             BridgeHandler.onShareNativeDocument = null
         }

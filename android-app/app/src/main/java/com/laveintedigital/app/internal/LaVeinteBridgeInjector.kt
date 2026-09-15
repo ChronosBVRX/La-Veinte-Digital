@@ -115,6 +115,14 @@ object LaVeinteBridgeInjector {
         window.location.href = 'laveinte://bridge/getFcmToken?req=' + id;
       });
     },
+    scanDocument: function(options) {
+      return new Promise(function(resolve) {
+        var id = 'req' + (++__seq);
+        __pending[id] = function(p) { try { resolve(JSON.parse(p || '{"ok":false,"reason":"failed"}')); } catch(e) { resolve({ok:false,reason:"failed"}); } };
+        var payload = encodeURIComponent(JSON.stringify(options || {}));
+        window.location.href = 'laveinte://bridge/scanDocument?req=' + id + '&options=' + payload;
+      });
+    },
     getPendingPrintDoc: function() {
       return new Promise(function(resolve) {
         var id = 'req' + (++__seq);
@@ -198,6 +206,11 @@ fun handleBridgeUrl(url: String, webView: WebView?): Boolean {
             val req = parsed.queryParams["req"] ?: return true
             BridgeHandler.onGetFcmToken?.invoke(webView, req)
         }
+        "/scanDocument" -> {
+            val req = parsed.queryParams["req"] ?: return true
+            val options = parsed.queryParams["options"] ?: "{}"
+            BridgeHandler.onScanDocument?.invoke(webView, req, options)
+        }
         "/getPendingPrintDoc" -> {
             val req = parsed.queryParams["req"] ?: return true
             BridgeHandler.onGetPendingPrintDoc?.invoke(webView, req)
@@ -243,6 +256,8 @@ object BridgeHandler {
     var onDeleteNativeDocumentById: ((WebView?, String, Long, String?) -> Unit)? = null
     var onGetFcmToken: ((WebView?, String) -> Unit)? = null
     var onGetPendingPrintDoc: ((WebView?, String) -> Unit)? = null
+    /** Escaneo de documentos con ML Kit: (webView, reqId, optionsJson). */
+    var onScanDocument: ((WebView?, String, String) -> Unit)? = null
     var onOpenAppSettings: (() -> Unit)? = null
     var onShare: ((String?, String?) -> Unit)? = null
     var onShareNativeDocument: ((String, String?) -> Unit)? = null
