@@ -14,9 +14,24 @@ import type { WorkerContext } from "@/shared/server/worker-context-builder"
  *    matrícula difieren de lo que se muestra actualmente, sustituye el contexto atómicamente.
  * 4. Escucha el evento global `nomina_payslip_updated` (misma ventana).
  * 5. Escucha `BroadcastChannel("la20-worker-context")` para sincronización en tiempo real entre pestañas.
+ *
+ * `useWorkerContextSync` además expone `status` para distinguir "cargando" y
+ * "no se pudo confirmar" de "sin tarjetón". Un fallo de red o una respuesta
+ * no-ok NUNCA se interpretan como ausencia de dato.
  */
-export function useLiveWorkerContext(initialContext?: WorkerContext | null): WorkerContext | null {
+
+export type WorkerContextSyncStatus = "loading" | "ready" | "error"
+
+export interface WorkerContextSync {
+  context: WorkerContext | null
+  status: WorkerContextSyncStatus
+}
+
+export function useWorkerContextSync(initialContext?: WorkerContext | null): WorkerContextSync {
   const [context, setContext] = useState<WorkerContext | null>(initialContext ?? null)
+  const [status, setStatus] = useState<WorkerContextSyncStatus>(
+    initialContext ? "ready" : "loading",
+  )
   const isMountedRef = useRef(true)
 
   const [prevInitial, setPrevInitial] = useState(initialContext)
@@ -62,7 +77,8 @@ export function useLiveWorkerContext(initialContext?: WorkerContext | null): Wor
       },
     })
       .then((res) => {
-        if (!res.ok || !isMountedRef.current) return null
+        if (!isMountedRef.current) return null
+        if (!res.ok) throw new Error(`/api/worker-context responded with ${res.status}`)
         return res.json() as Promise<WorkerContext>
       })
       .then((freshContext) => {
@@ -90,8 +106,11 @@ export function useLiveWorkerContext(initialContext?: WorkerContext | null): Wor
 
           return hasChanged ? freshContext : prev
         })
+        setStatus("ready")
       })
       .catch((err) => {
+        if (!isMountedRef.current) return
+        setStatus((prev) => (prev === "ready" ? prev : "error"))
         if (process.env.NODE_ENV !== "production") {
           console.warn("[useLiveWorkerContext] Error al consultar /api/worker-context:", err)
         }
@@ -132,5 +151,9 @@ export function useLiveWorkerContext(initialContext?: WorkerContext | null): Wor
     }
   }, [syncContextFromServer])
 
-  return context
+  return { context, status }
+}
+
+export function useLiveWorkerContext(initialContext?: WorkerContext | null): WorkerContext | null {
+  return useWorkerContextSync(initialContext).context
 }

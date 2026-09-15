@@ -12,6 +12,15 @@ function mockWorkerContext(concepts: Array<{ conceptCode: string; lastAmount: nu
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => context }) as Response))
 }
 
+function mockWorkerContextWithoutPayslip() {
+  const context = {
+    meta: { activePayslipId: null, activePayslipPeriod: null, activeEmployeeNumber: null, selectionMode: "AUTO_LATEST", contextRevision: null },
+    profile: null,
+    payroll: { latestPeriod: null, recurringConcepts: [] },
+  }
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => context }) as Response))
+}
+
 beforeEach(() => {
   vi.unstubAllGlobals()
 })
@@ -34,14 +43,41 @@ describe("SalaryIncreaseCard", () => {
     expect(document.body.textContent).toContain("sujeta al convenio salarial definitivo")
   })
 
-  it("11. sin tarjetón muestra invitación a importar y nunca $0.00", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, json: async () => null }) as unknown as Response))
+  it("11. sin tarjetón (ausencia confirmada) muestra invitación a importar y nunca $0.00", async () => {
+    mockWorkerContextWithoutPayslip()
     render(<SalaryIncreaseCard />)
     const invite = await screen.findByText("Importa tu tarjetón más reciente para conocer tu aumento salarial estimado.")
     expect(invite).toBeTruthy()
     expect(document.body.textContent).not.toContain("$0.00")
     const link = document.querySelector('a[href="/profile/mi-informacion-laboral"]')
     expect(link).toBeTruthy()
+  })
+
+  it("11a. si la consulta falla NO invita a importar ni muestra $0.00", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      throw new Error("network down")
+    }))
+    render(<SalaryIncreaseCard />)
+    await screen.findByTestId("salary-estimate-error")
+    expect(document.body.textContent).not.toContain("Importa tu tarjetón")
+    expect(document.body.textContent).not.toContain("$0.00")
+    expect(document.querySelector('a[href="/profile/mi-informacion-laboral"]')).toBeNull()
+  })
+
+  it("11a2. respuesta no-ok del API se trata como desconocido, no como ausencia", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 500, json: async () => null }) as unknown as Response))
+    render(<SalaryIncreaseCard />)
+    await screen.findByTestId("salary-estimate-error")
+    expect(document.body.textContent).not.toContain("Importa tu tarjetón")
+    expect(document.body.textContent).not.toContain("$0.00")
+  })
+
+  it("11a3. mientras se consulta muestra estado neutral sin invitación a importar", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})))
+    render(<SalaryIncreaseCard />)
+    expect(screen.getByTestId("salary-estimate-loading")).toBeTruthy()
+    expect(document.body.textContent).not.toContain("Importa tu tarjetón")
+    expect(document.body.textContent).not.toContain("$0.00")
   })
 
   it("11b. con tabular pero sin Concepto 11 pide revisar en lugar de calcular", async () => {
