@@ -11,11 +11,17 @@ export interface UnionWorkerOption {
   first_name: string;
   paternal_surname: string;
   maternal_surname: string;
+  siap_full_name?: string;
   category: string;
   assignment: string;
   turn: string;
   schedule?: string;
   rest_days?: string;
+}
+
+export function getWorkerDisplayName(w: { first_name?: string; paternal_surname?: string; maternal_surname?: string; siap_full_name?: string }): string {
+  const parts = [w.paternal_surname, w.maternal_surname, w.first_name].filter(Boolean).join(" ").trim();
+  return parts || w.siap_full_name || "Sin nombre";
 }
 
 export function WorkerPicker({
@@ -67,7 +73,7 @@ export function WorkerPicker({
         >
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 700, fontSize: "0.875rem" }}>
-              {selected.paternal_surname} {selected.maternal_surname} {selected.first_name}
+              {getWorkerDisplayName(selected)}
             </div>
             <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
               Mat. {selected.employee_number} · {selected.category} · {selected.turn}
@@ -120,7 +126,7 @@ export function WorkerPicker({
                     }}
                   >
                     <span style={{ display: "block", fontWeight: 700, fontSize: "0.875rem" }}>
-                      {w.paternal_surname} {w.maternal_surname} {w.first_name}
+                      {getWorkerDisplayName(w)}
                     </span>
                     <span style={{ display: "block", fontSize: "0.75rem", color: "var(--muted)" }}>
                       Mat. {w.employee_number} · {w.category} · {w.assignment} · {w.turn}

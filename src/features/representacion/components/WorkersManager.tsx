@@ -11,12 +11,13 @@ interface WorkerRow {
   first_name: string;
   paternal_surname: string;
   maternal_surname: string;
+  siap_full_name?: string;
   category: string;
   assignment: string;
   turn: string;
 }
 
-const TURNS = ["MATUTINO", "VESPERTINO", "NOCTURNO", "JORNADA ACUMULADA", "MIXTO"];
+const TURNS = ["MATUTINO", "VESPERTINO", "NOCTURNO", "MÓVIL", "JORNADA ACUMULADA"];
 
 export function WorkersManager(): React.JSX.Element {
   const [q, setQ] = useState("");
@@ -93,7 +94,9 @@ export function WorkersManager(): React.JSX.Element {
             {rows.map((w) => (
               <li key={w.id} style={{ fontSize: "0.875rem", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "0.5rem 0.625rem" }}>
                 <strong>
-                  {w.paternal_surname} {w.maternal_surname} {w.first_name}
+                  {(w.first_name || w.paternal_surname)
+                    ? `${w.paternal_surname} ${w.maternal_surname} ${w.first_name}`.trim()
+                    : (w.siap_full_name || "Sin nombre")}
                 </strong>
                 <br />
                 <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>

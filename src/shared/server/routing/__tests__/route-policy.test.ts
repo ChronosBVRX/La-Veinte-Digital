@@ -63,6 +63,11 @@ describe("API route policy", () => {
       "/api/union/members": "authenticated",
       "/api/union/settings": "authenticated",
       "/api/union/audit": "authenticated",
+      "/api/union/workers/import/preview": "authenticated",
+      "/api/union/workers/import/confirm": "authenticated",
+      "/api/union/workers/import/rollback": "authenticated",
+      "/api/union/workers/imports": "authenticated",
+      "/api/union/workers/import/errors": "authenticated",
     })
   })
 
