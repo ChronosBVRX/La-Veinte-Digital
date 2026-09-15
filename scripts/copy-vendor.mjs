@@ -78,6 +78,32 @@ async function main() {
     console.log("[copy-vendor] spa.traineddata.gz ya existe, se omite la descarga")
   }
 
+  // OpenCV.js (opcional): detección de bordes preferente del escáner de documentos.
+  // Es un archivo grande (~10 MB). Si la descarga falla, el escáner web usa su
+  // detector propio en TypeScript (misma funcionalidad, sin dependencias).
+  const opencvDest = join(root, "public", "vendor", "opencv", "opencv.js")
+  if (!existsSync(opencvDest) && process.env.LA_VEINTE_SKIP_OPENCV_VENDOR !== "1") {
+    const OPENCV_URL = "https://docs.opencv.org/4.9.0/opencv.js"
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 90_000)
+      const res = await fetch(OPENCV_URL, { signal: controller.signal, redirect: "follow" })
+      clearTimeout(timer)
+      if (res.ok) {
+        mkdirSync(dirname(opencvDest), { recursive: true })
+        const bytes = Buffer.from(await res.arrayBuffer())
+        writeFileSync(opencvDest, bytes)
+        console.log(`[copy-vendor] opencv.js (${(bytes.length / 1024 / 1024).toFixed(1)} MB)`)
+      } else {
+        console.warn(`[copy-vendor] descarga de opencv.js falló (HTTP ${res.status}); el escáner usará su detector propio`)
+      }
+    } catch {
+      console.warn("[copy-vendor] descarga de opencv.js falló; el escáner usará su detector propio")
+    }
+  } else if (!existsSync(opencvDest)) {
+    console.log("[copy-vendor] opencv.js omitido por LA_VEINTE_SKIP_OPENCV_VENDOR")
+  }
+
   console.log("[copy-vendor] archivos de vendor listos en public/vendor/")
 }
 
