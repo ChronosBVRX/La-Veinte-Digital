@@ -43,6 +43,11 @@ object PdfShareManager {
         val ownerId: String? = null,
         val externalKey: String? = null,
         val periodLabel: String? = null,
+        /**
+         * Fuente de persistencia explícita en modo SAVE (ESCRITO / DOCUMENT_SCAN / INE_SCAN).
+         * El nativo valida contra allowlist; null = comportamiento histórico (ESCRITO).
+         */
+        val source: String? = null,
     )
 
     private enum class TransferMode { SHARE, SAVE }
@@ -137,8 +142,9 @@ object PdfShareManager {
                             context, replyProxy, transferId, rawName,
                             mode = TransferMode.SAVE,
                             ownerId = json.optString("ownerId").ifBlank { null },
-                            externalKey = json.optString("escritoId").ifBlank { null },
+                            externalKey = json.optString("escritoId").ifBlank { json.optString("externalKey").ifBlank { null } },
                             periodLabel = json.optString("fecha").ifBlank { null },
+                            source = json.optString("source").ifBlank { null },
                         )
                     }
                     "chunk" -> {
@@ -187,6 +193,7 @@ object PdfShareManager {
         ownerId: String? = null,
         externalKey: String? = null,
         periodLabel: String? = null,
+        source: String? = null,
     ) {
         if (sessions.isNotEmpty()) {
             val existing = sessions.values.firstOrNull()
@@ -216,6 +223,7 @@ object PdfShareManager {
                 ownerId = ownerId?.trim()?.ifBlank { null },
                 externalKey = externalKey?.trim()?.ifBlank { null },
                 periodLabel = periodLabel?.trim()?.ifBlank { null },
+                source = source?.trim()?.ifBlank { null },
             )
             sessions[transferId] = session
             scheduleTimeout(context, replyProxy, transferId)
@@ -406,7 +414,7 @@ object PdfShareManager {
                 context = context,
                 bytes = bytes,
                 displayName = session.sanitizedFileName,
-                source = com.laveintedigital.app.imss.payslips.NativeDocuments.SOURCE_ESCRITO,
+                source = com.laveintedigital.app.imss.payslips.NativeDocuments.sanitizeExternalSource(session.source),
                 externalKey = session.externalKey,
                 ownerId = owner,
                 periodLabel = session.periodLabel,

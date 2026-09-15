@@ -356,6 +356,12 @@ export interface NativeSaveMeta {
   ownerId?: string
   /** Fecha del escrito (se guarda como etiqueta). */
   fecha?: string
+  /**
+   * Fuente de persistencia explícita (ESCRITO / DOCUMENT_SCAN / INE_SCAN).
+   * APKs antiguas ignoran el campo y guardan como ESCRITO; la web solo lo usa
+   * cuando el bridge del escáner está presente (misma versión de APK).
+   */
+  source?: string
 }
 
 /**
@@ -546,6 +552,7 @@ export async function savePdfToNativeDocs(
       escritoId: meta.escritoId,
       ownerId: meta.ownerId || "",
       fecha: meta.fecha || "",
+      ...(meta.source ? { source: meta.source } : {}),
     }
 
     const started = postBridgeMessage(startMsg)

@@ -190,6 +190,9 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
 
+    // ML Kit Document Scanner (escáner de documentos, 100% en dispositivo vía Play services)
+    implementation(libs.play.services.mlkit.document.scanner)
+
     // Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
