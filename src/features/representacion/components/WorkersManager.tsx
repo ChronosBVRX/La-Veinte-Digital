@@ -1,153 +1,353 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowsDownUp, Funnel, MagnifyingGlass, Plus, X } from "@phosphor-icons/react";
 import { Button } from "@/shared/components/ui/Button";
-import { Input } from "@/shared/components/ui/Input";
+import { Input, Select } from "@/shared/components/ui/Input";
 import { Card } from "@/shared/components/ui/Card";
+import { BottomSheet } from "@/shared/components/ui/BottomSheet";
+import { useToast } from "@/shared/components/ui/Toast";
+import {
+  EMPTY_WORKER_DIRECTORY_QUERY,
+  activeWorkerFilterCount,
+  hasWorkerDirectoryFilters,
+  toWorkerDirectoryApiParams,
+  workerDetailHref,
+  workerDirectoryHref,
+  WORKER_DIRECTORY_SORTS,
+  type WorkerDirectoryQuery,
+  type WorkerDirectorySortId,
+} from "../lib/worker-directory-params";
+import type { WorkerDirectoryFacets, WorkerDirectoryRow } from "../services/worker-directory";
+import { WorkerActiveChips, WorkerFilterControls, WorkerSortList } from "./workers/WorkerFilters";
+import { WorkerCard } from "./workers/WorkerCard";
+import { WorkerCreateForm } from "./workers/WorkerCreateForm";
+import { WorkerEmptyState } from "./workers/WorkerEmptyState";
+import { WorkerPagination } from "./workers/WorkerPagination";
+import { WorkerTable } from "./workers/WorkerTable";
 
-interface WorkerRow {
-  id: string;
-  employee_number: string;
-  first_name: string;
-  paternal_surname: string;
-  maternal_surname: string;
-  siap_full_name?: string;
-  category: string;
-  assignment: string;
-  turn: string;
+interface DirectoryResponse {
+  workers?: WorkerDirectoryRow[];
+  total?: number;
+  options?: WorkerDirectoryFacets;
+  error?: string;
 }
 
-const TURNS = ["MATUTINO", "VESPERTINO", "NOCTURNO", "MÓVIL", "JORNADA ACUMULADA"];
+export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectoryQuery }): React.JSX.Element {
+  const router = useRouter();
+  const { toast } = useToast();
 
-export function WorkersManager(): React.JSX.Element {
-  const [q, setQ] = useState("");
-  const [rows, setRows] = useState<WorkerRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    employee_number: "",
-    first_name: "",
-    paternal_surname: "",
-    maternal_surname: "",
-    category: "",
-    assignment: "HGR No. 1",
-    turn: "VESPERTINO",
-    schedule: "",
-    rest_days: "",
-    phone: "",
-  });
+  const [query, setQuery] = useState<WorkerDirectoryQuery>(initialQuery);
+  const [searchDraft, setSearchDraft] = useState(initialQuery.q);
+  const [workers, setWorkers] = useState<WorkerDirectoryRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [options, setOptions] = useState<WorkerDirectoryFacets | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [draft, setDraft] = useState<WorkerDirectoryQuery>(initialQuery);
+  const [draftTotal, setDraftTotal] = useState<number | null>(null);
+  const [desktopFiltersOpen, setDesktopFiltersOpen] = useState(false);
 
-  async function search(): Promise<void> {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/union/workers?q=${encodeURIComponent(q)}`, { cache: "no-store" });
-      const j = (await res.json()) as { workers?: WorkerRow[]; error?: string };
-      if (!res.ok) throw new Error(j.error ?? "Error");
-      setRows(j.workers ?? []);
-    } catch {
-      setError("No se pudo buscar.");
-    } finally {
-      setLoading(false);
+  const applyQuery = useCallback(
+    (next: WorkerDirectoryQuery) => {
+      setQuery(next);
+      router.replace(workerDirectoryHref(next), { scroll: false });
+    },
+    [router],
+  );
+
+  const apiParams = useMemo(() => toWorkerDirectoryApiParams(query).toString(), [query]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadOptions(): Promise<void> {
+      try {
+        const res = await fetch("/api/union/workers?facets=1", { cache: "no-store" });
+        if (!res.ok) return;
+        const json = (await res.json()) as DirectoryResponse;
+        if (active && json.options) setOptions(json.options);
+      } catch {
+        // Las opciones de filtro no bloquean el directorio.
+      }
     }
-  }
+    void loadOptions();
+    return () => {
+      active = false;
+    };
+  }, [refreshKey]);
 
-  async function create(): Promise<void> {
-    setLoading(true);
-    setError(null);
-    setOk(null);
-    try {
-      const res = await fetch("/api/union/workers", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form }),
-      });
-      const j = (await res.json()) as { error?: string; issues?: unknown };
-      if (!res.ok) throw new Error(j.error ?? "Error");
-      setOk("Trabajador registrado. Ya puede usarse en todos los trámites.");
-      setForm({ employee_number: "", first_name: "", paternal_surname: "", maternal_surname: "", category: "", assignment: "HGR No. 1", turn: "VESPERTINO", schedule: "", rest_days: "", phone: "" });
-      void search();
-    } catch {
-      setError("No se pudo registrar. Revisa matrícula, nombre, categoría, adscripción y turno.");
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    async function load(): Promise<void> {
+      setLoading(true);
+      setError(false);
+      try {
+        const res = await fetch(`/api/union/workers?${apiParams}`, { cache: "no-store", signal: controller.signal });
+        const json = (await res.json()) as DirectoryResponse;
+        if (!res.ok) throw new Error(json.error ?? "Error");
+        if (!active) return;
+        setWorkers(json.workers ?? []);
+        setTotal(typeof json.total === "number" ? json.total : 0);
+      } catch {
+        if (!active || controller.signal.aborted) return;
+        setError(true);
+      } finally {
+        if (active) setLoading(false);
+      }
     }
+    void load();
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [apiParams, refreshKey]);
+
+  useEffect(() => {
+    if (searchDraft === query.q) return;
+    const timer = setTimeout(() => {
+      applyQuery({ ...query, q: searchDraft, page: 1 });
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchDraft, query, applyQuery]);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const params = toWorkerDirectoryApiParams(draft);
+    params.set("count", "1");
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/union/workers?${params.toString()}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const json = (await res.json()) as { total?: number };
+        if (typeof json.total === "number") setDraftTotal(json.total);
+      } catch {
+        setDraftTotal(null);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [filtersOpen, draft]);
+
+  const filterCount = activeWorkerFilterCount(query);
+  const hasFilters = hasWorkerDirectoryFilters(query);
+  const buildDetailHref = useCallback((workerId: string) => workerDetailHref(workerId, query), [query]);
+
+  function openFilters(): void {
+    setDraft(query);
+    setDraftTotal(null);
+    setFiltersOpen(true);
   }
 
-  function set<K extends keyof typeof form>(k: K, v: string): void {
-    setForm((f) => ({ ...f, [k]: v }));
+  function clearAll(): void {
+    const next: WorkerDirectoryQuery = { ...EMPTY_WORKER_DIRECTORY_QUERY, pageSize: query.pageSize };
+    setSearchDraft("");
+    applyQuery(next);
   }
+
+  function applyDraft(): void {
+    setSearchDraft(draft.q);
+    applyQuery(draft);
+    setFiltersOpen(false);
+  }
+
+  function clearDraft(): void {
+    const next: WorkerDirectoryQuery = { ...EMPTY_WORKER_DIRECTORY_QUERY, pageSize: query.pageSize };
+    setDraft(next);
+    setSearchDraft("");
+    applyQuery(next);
+    setFiltersOpen(false);
+  }
+
+  const sortLabel = WORKER_DIRECTORY_SORTS.find((option) => option.id === query.sort)?.label ?? "Ordenar";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-      <Card>
-        <h2 style={{ margin: "0 0 0.5rem", fontSize: "1rem" }}>Buscar</h2>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <Input aria-label="Buscar por matrícula o nombre" placeholder="Matrícula o apellido…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <Button onClick={() => void search()} loading={loading}>
-            Buscar
-          </Button>
+      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+          <Input
+            aria-label="Buscar trabajador"
+            placeholder="Buscar por nombre, matrícula, categoría o adscripción…"
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                applyQuery({ ...query, q: searchDraft, page: 1 });
+              }
+            }}
+            leadingIcon={<MagnifyingGlass size={16} />}
+            trailingElement={
+              searchDraft ? (
+                <button
+                  type="button"
+                  aria-label="Limpiar búsqueda"
+                  onClick={() => {
+                    setSearchDraft("");
+                    applyQuery({ ...query, q: "", page: 1 });
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "var(--muted)",
+                    display: "flex",
+                    alignItems: "center",
+                    padding: 0,
+                  }}
+                >
+                  <X size={14} weight="bold" />
+                </button>
+              ) : undefined
+            }
+          />
         </div>
-        {rows.length > 0 ? (
-          <ul style={{ listStyle: "none", margin: "0.625rem 0 0", padding: 0, display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-            {rows.map((w) => (
-              <li key={w.id} style={{ fontSize: "0.875rem", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "0.5rem 0.625rem" }}>
-                <strong>
-                  {(w.first_name || w.paternal_surname)
-                    ? `${w.paternal_surname} ${w.maternal_surname} ${w.first_name}`.trim()
-                    : (w.siap_full_name || "Sin nombre")}
-                </strong>
-                <br />
-                <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>
-                  Mat. {w.employee_number} · {w.category} · {w.assignment} · {w.turn}
-                </span>
-              </li>
+
+        <Button
+          variant={filterCount > 0 ? "primary" : "secondary"}
+          size="sm"
+          onClick={openFilters}
+          leadingIcon={<Funnel size={15} />}
+          fullWidth={false}
+        >
+          {filterCount > 0 ? `Filtros ${filterCount}` : "Filtros"}
+        </Button>
+
+        <div className="desktop-only" style={{ width: 176 }}>
+          <Select
+            aria-label="Ordenar trabajadores"
+            value={query.sort}
+            onChange={(e) => applyQuery({ ...query, sort: e.target.value as WorkerDirectorySortId, page: 1 })}
+          >
+            {WORKER_DIRECTORY_SORTS.filter((option) => option.dataAvailable).map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
             ))}
-          </ul>
-        ) : null}
-      </Card>
-      <Card>
-        <h2 style={{ margin: "0 0 0.5rem", fontSize: "1rem" }}>Alta de trabajador</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.5rem" }}>
-          <Input label="Matrícula" value={form.employee_number} onChange={(e) => set("employee_number", e.target.value)} />
-          <Input label="Nombre(s)" value={form.first_name} onChange={(e) => set("first_name", e.target.value)} />
-          <Input label="Apellido paterno" value={form.paternal_surname} onChange={(e) => set("paternal_surname", e.target.value)} />
-          <Input label="Apellido materno" value={form.maternal_surname} onChange={(e) => set("maternal_surname", e.target.value)} />
-          <Input label="Categoría" value={form.category} onChange={(e) => set("category", e.target.value)} placeholder="ENFERMERA GENERAL" />
-          <Input label="Adscripción" value={form.assignment} onChange={(e) => set("assignment", e.target.value)} />
-          <div>
-            <label htmlFor="w-turn" style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, marginBottom: "0.375rem" }}>
-              Turno
-            </label>
-            <select id="w-turn" value={form.turn} onChange={(e) => set("turn", e.target.value)} style={{ width: "100%", minHeight: 44, borderRadius: "var(--radius)", border: "1px solid var(--border)", padding: "0.5rem" }}>
-              {TURNS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-          <Input label="Horario" value={form.schedule} onChange={(e) => set("schedule", e.target.value)} placeholder="14:00 A 21:30" />
-          <Input label="Descansos" value={form.rest_days} onChange={(e) => set("rest_days", e.target.value)} />
-          <Input label="Teléfono (opcional)" value={form.phone} onChange={(e) => set("phone", e.target.value)} inputMode="tel" />
+          </Select>
         </div>
-        {error ? (
-          <p role="alert" style={{ color: "var(--error)", fontSize: "0.8125rem" }}>
-            {error}
-          </p>
+        <Button
+          className="mobile-only"
+          variant="secondary"
+          size="sm"
+          onClick={() => setSortOpen(true)}
+          leadingIcon={<ArrowsDownUp size={15} />}
+        >
+          {query.sort === "nombre_asc" ? "Ordenar" : sortLabel}
+        </Button>
+
+        <Button size="sm" onClick={() => setCreateOpen(true)} leadingIcon={<Plus size={15} weight="bold" />}>
+          Nuevo trabajador
+        </Button>
+      </div>
+
+      {hasFilters ? <WorkerActiveChips query={query} onChange={applyQuery} /> : null}
+
+      <div className="desktop-only">
+        <button
+          type="button"
+          onClick={() => setDesktopFiltersOpen((prev) => !prev)}
+          aria-expanded={desktopFiltersOpen}
+          style={{
+            background: "none",
+            border: "none",
+            padding: 0,
+            color: "var(--primary)",
+            fontSize: "0.8125rem",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          {desktopFiltersOpen ? "Ocultar filtros" : "Mostrar filtros"}
+        </button>
+      </div>
+      {desktopFiltersOpen ? (
+        <Card className="desktop-only" padding="0.875rem">
+          <WorkerFilterControls idPrefix="desktop" options={options} draft={query} onChange={applyQuery} />
+        </Card>
+      ) : null}
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+        <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+          {loading ? "Cargando…" : `${total} ${total === 1 ? "trabajador" : "trabajadores"}`}
+        </span>
+        {loading && workers.length > 0 ? (
+          <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Actualizando…</span>
         ) : null}
-        {ok ? (
-          <p role="status" style={{ color: "var(--success)", fontSize: "0.875rem" }}>
-            {ok}
-          </p>
-        ) : null}
-        <div style={{ marginTop: "0.625rem" }}>
-          <Button onClick={() => void create()} loading={loading} fullWidth>
-            Registrar trabajador
+      </div>
+
+      {error ? (
+        <WorkerEmptyState variant="error" onRetry={() => setRefreshKey((key) => key + 1)} />
+      ) : !loading && workers.length === 0 ? (
+        <WorkerEmptyState variant="empty" query={hasFilters ? query.q : undefined} onClear={clearAll} />
+      ) : (
+        <>
+          <div className="desktop-only">
+            <WorkerTable workers={workers} buildHref={buildDetailHref} />
+          </div>
+          <div className="mobile-only" style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {workers.map((worker) => (
+              <WorkerCard key={worker.id} worker={worker} href={buildDetailHref(worker.id)} />
+            ))}
+          </div>
+        </>
+      )}
+
+      <WorkerPagination
+        page={query.page}
+        pageSize={query.pageSize}
+        total={total}
+        onPageChange={(page) => applyQuery({ ...query, page })}
+      />
+
+      <BottomSheet open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filtros" height="large">
+        <WorkerFilterControls idPrefix="mobile" options={options} draft={draft} onChange={setDraft} />
+        <div
+          style={{
+            display: "flex",
+            gap: "0.5rem",
+            marginTop: "1rem",
+            paddingTop: "0.75rem",
+            borderTop: "1px solid var(--border)",
+            position: "sticky",
+            bottom: 0,
+            background: "var(--card)",
+          }}
+        >
+          <Button variant="secondary" onClick={clearDraft} fullWidth>
+            Limpiar
+          </Button>
+          <Button onClick={applyDraft} fullWidth>
+            {draftTotal === null
+              ? "Ver resultados"
+              : `Ver ${draftTotal} ${draftTotal === 1 ? "trabajador" : "trabajadores"}`}
           </Button>
         </div>
-      </Card>
+      </BottomSheet>
+
+      <BottomSheet open={sortOpen} onClose={() => setSortOpen(false)} title="Ordenar por">
+        <WorkerSortList
+          value={query.sort}
+          onChange={(sort) => {
+            applyQuery({ ...query, sort, page: 1 });
+            setSortOpen(false);
+          }}
+        />
+      </BottomSheet>
+
+      <BottomSheet open={createOpen} onClose={() => setCreateOpen(false)} title="Alta de trabajador" height="large">
+        <WorkerCreateForm
+          onCreated={(displayName) => {
+            setCreateOpen(false);
+            toast(`${displayName} registrado. Ya puede usarse en todos los trámites.`, "success");
+            setRefreshKey((key) => key + 1);
+          }}
+        />
+      </BottomSheet>
     </div>
   );
 }

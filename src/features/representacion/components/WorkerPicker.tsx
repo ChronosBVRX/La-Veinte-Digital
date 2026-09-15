@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/shared/components/ui/Button";
 import { Input } from "@/shared/components/ui/Input";
 import { Card } from "@/shared/components/ui/Card";
@@ -19,7 +20,12 @@ export interface UnionWorkerOption {
   rest_days?: string;
 }
 
-export function getWorkerDisplayName(w: { first_name?: string; paternal_surname?: string; maternal_surname?: string; siap_full_name?: string }): string {
+export function getWorkerDisplayName(w: {
+  first_name?: string | null;
+  paternal_surname?: string | null;
+  maternal_surname?: string | null;
+  siap_full_name?: string | null;
+}): string {
   const parts = [w.paternal_surname, w.maternal_surname, w.first_name].filter(Boolean).join(" ").trim();
   return parts || w.siap_full_name || "Sin nombre";
 }
@@ -137,7 +143,7 @@ export function WorkerPicker({
             </ul>
           ) : null}
           <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)" }}>
-            Si no aparece, dalo de alta en <a href="/representacion/trabajadores">Trabajadores</a> y vuelve aquí.
+            Si no aparece, dalo de alta en <Link href="/representacion/trabajadores">Trabajadores</Link> y vuelve aquí.
           </p>
         </div>
       )}

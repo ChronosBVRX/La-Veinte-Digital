@@ -2,16 +2,38 @@ import { redirect } from "next/navigation";
 import { getUnionMemberships } from "@/features/representacion/services/permissions";
 import { UnionPageHeader } from "@/features/representacion/components/UnionPageHeader";
 import { WorkersManager } from "@/features/representacion/components/WorkersManager";
+import {
+  parseWorkerDirectoryQuery,
+  workerDirectoryToSearchParams,
+} from "@/features/representacion/lib/worker-directory-params";
 
 export const dynamic = "force-dynamic";
 
-export default async function TrabajadoresPage(): Promise<React.JSX.Element> {
+export default async function TrabajadoresPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<React.JSX.Element> {
   const m = await getUnionMemberships();
   if (m.length === 0) redirect("/");
+  const sp = await searchParams;
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    if (typeof value === "string") params.set(key, value);
+    else if (Array.isArray(value)) {
+      for (const item of value) params.append(key, item);
+    }
+  }
+  const initialQuery = parseWorkerDirectoryQuery(params);
+  const queryKey = workerDirectoryToSearchParams(initialQuery).toString();
+
   return (
     <div>
-      <UnionPageHeader title="Trabajadores" subtitle="Padrón por delegación. Busca por matrícula o nombre; el alta alimenta todos los trámites." />
-      <WorkersManager />
+      <UnionPageHeader
+        title="Trabajadores"
+        subtitle="Padrón por delegación. Busca, filtra por categoría, turno o adscripción y abre el expediente."
+      />
+      <WorkersManager key={queryKey} initialQuery={initialQuery} />
     </div>
   );
 }
