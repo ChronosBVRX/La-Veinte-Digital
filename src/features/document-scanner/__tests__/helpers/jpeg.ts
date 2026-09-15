@@ -14,7 +14,6 @@ export function tinyJpegBytes(): Uint8Array {
 
 export function tinyJpegBlob(): Blob {
   const bytes = tinyJpegBytes()
-  return new Blob([bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)], {
-    type: "image/jpeg",
-  })
+  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+  return new Blob([buffer], { type: "image/jpeg" })
 }
