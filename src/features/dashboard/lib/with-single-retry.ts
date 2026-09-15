@@ -5,6 +5,11 @@
  * la página. Los errores permanentes (permisos/RLS, esquema, query inválida)
  * no se reintentan: se devuelven tal cual para que el llamador los trate como
  * estado desconocido, jamás como ausencia de dato.
+ *
+ * Un status HTTP conocido tiene prioridad sobre el código: 4xx (excepto 408 y
+ * 429) nunca se reintenta aunque falte el código; 5xx, 408 y 429 siempre se
+ * reintentan. Solo cuando no hay status se evalúan los códigos de
+ * PostgreSQL/PostgREST, y un error de red sin código se considera transitorio.
  */
 
 export interface QueryResultLike {
@@ -34,11 +39,9 @@ const TRANSIENT_PG_CODES = new Set([
 export function isTransientQueryFailure(result: QueryResultLike): boolean {
   if (!result.error) return false
   if (result.status === 0) return true
-  if (
-    typeof result.status === "number" &&
-    (result.status === 408 || result.status === 429 || result.status >= 500)
-  ) {
-    return true
+  if (typeof result.status === "number") {
+    if (result.status === 408 || result.status === 429 || result.status >= 500) return true
+    if (result.status >= 400 && result.status < 500) return false
   }
   const code = (result.error as { code?: unknown }).code
   if (typeof code !== "string" || code === "") return true

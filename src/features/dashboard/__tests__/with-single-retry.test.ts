@@ -28,6 +28,40 @@ describe("isTransientQueryFailure", () => {
     expect(isTransientQueryFailure({ error: { code: "PGRST116" }, status: 406 })).toBe(false)
   })
 
+  it("4xx con status conocido y sin código NO se reintentan", () => {
+    expect(isTransientQueryFailure({ error: { message: "bad request" }, status: 400 })).toBe(false)
+    expect(isTransientQueryFailure({ error: { message: "unauthorized" }, status: 401 })).toBe(false)
+    expect(isTransientQueryFailure({ error: { message: "forbidden" }, status: 403 })).toBe(false)
+    expect(isTransientQueryFailure({ error: { message: "not found" }, status: 404 })).toBe(false)
+  })
+
+  it("408, 429 y 5xx con status conocido y sin código se reintentan", () => {
+    expect(isTransientQueryFailure({ error: { message: "request timeout" }, status: 408 })).toBe(true)
+    expect(isTransientQueryFailure({ error: { message: "rate limited" }, status: 429 })).toBe(true)
+    expect(isTransientQueryFailure({ error: { message: "internal error" }, status: 500 })).toBe(true)
+    expect(isTransientQueryFailure({ error: { message: "bad gateway" }, status: 502 })).toBe(true)
+  })
+
+  it("status 0 o error de red sin status ni código se reintentan", () => {
+    expect(isTransientQueryFailure({ error: { message: "fetch failed" }, status: 0 })).toBe(true)
+    expect(isTransientQueryFailure({ error: { message: "TypeError: fetch failed" } })).toBe(true)
+  })
+
+  it("sin status, los códigos PostgreSQL/PostgREST deciden", () => {
+    expect(isTransientQueryFailure({ error: { code: "57P03" } })).toBe(true)
+    expect(isTransientQueryFailure({ error: { code: "08006" } })).toBe(true)
+    expect(isTransientQueryFailure({ error: { code: "PGRST003" } })).toBe(true)
+    expect(isTransientQueryFailure({ error: { code: "42501" } })).toBe(false)
+    expect(isTransientQueryFailure({ error: { code: "42P01" } })).toBe(false)
+    expect(isTransientQueryFailure({ error: { code: "22P02" } })).toBe(false)
+    expect(isTransientQueryFailure({ error: { code: "PGRST116" } })).toBe(false)
+  })
+
+  it("el status HTTP conocido tiene prioridad sobre el código", () => {
+    expect(isTransientQueryFailure({ error: { code: "42501" }, status: 503 })).toBe(true)
+    expect(isTransientQueryFailure({ error: { code: "57P03" }, status: 400 })).toBe(false)
+  })
+
   it("códigos transitorios de PostgreSQL se reintentan", () => {
     expect(isTransientQueryFailure({ error: { code: "57P03" }, status: 503 })).toBe(true)
     expect(isTransientQueryFailure({ error: { code: "08006" }, status: 500 })).toBe(true)
