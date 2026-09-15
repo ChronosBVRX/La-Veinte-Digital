@@ -64,6 +64,7 @@ export interface ParsedWorkerRow {
   seniority_days: number | null;
   rfc: string;
   curp: string;
+  nss_raw: string;
   nss: string;
   employment_start_date: string | null;
   reemployment_date: string | null;

@@ -25,13 +25,14 @@ export async function GET(req: Request): Promise<NextResponse> {
     const supabase = await createClient();
     let query = supabase
       .from("union_workers")
-      .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment, turn, schedule, rest_days, active, created_at")
+      .select("id, employee_number, first_name, paternal_surname, maternal_surname, siap_full_name, category, assignment, turn, schedule, rest_days, active, created_at")
       .eq("delegation_id", depId)
+      .neq("source_import_state", "rolled_back")
       .order("paternal_surname", { ascending: true })
       .limit(50);
     if (q) {
       const like = `%${q}%`;
-      query = query.or(`employee_number.ilike.${like},first_name.ilike.${like},paternal_surname.ilike.${like},maternal_surname.ilike.${like}`);
+      query = query.or(`employee_number.ilike.${like},first_name.ilike.${like},paternal_surname.ilike.${like},maternal_surname.ilike.${like},siap_full_name.ilike.${like}`);
     }
     const { data, error } = await query;
     if (error) throw error;

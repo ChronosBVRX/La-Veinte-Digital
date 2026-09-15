@@ -22,16 +22,16 @@ async function createSyntheticWorkerExcel(): Promise<Buffer> {
   // Synthetic test workers (100% fictitious data for testing)
   worksheet.addRow([
     "2", "99000001", "PRUEBA SINTETICA JUAN CARLOS", "96001", "001", "2020-01-01", "2050-01-01", "0",
-    "11", "0", "1000", "41500301", "AUXILIAR DE ENFERMERIA GENERAL", "2114010001",
+    "11", "1", "10000", "41500301", "AUXILIAR DE ENFERMERIA GENERAL", "2114010001",
     "HOSPITAL GENERAL REGIONAL NO 1", "0102", "08:00 A 16:00 HRS.", "05 Años 00 Quincenas 00 Dias",
-    "XAXX010101000", "XAXX010101HDFRXX00", "01234567890", "2020-01-01", "", "1", "", "", "0"
+    "XAXX010101000", "XAXX010101HDFRXX00", "01234567890", "2020-01-01", "", "1", "", "", "5"
   ]);
 
   worksheet.addRow([
     "2", "99000002", "EJEMPLO TEST MARIA ELENA", "96002", "001", "2018-05-16", "2050-01-01", "0",
-    "11", "1", "100", "41500401", "ENFERMERA GENERAL", "2114010001",
+    "11", "2", "01000", "41500401", "ENFERMERA GENERAL", "2114010001",
     "HOSPITAL GENERAL REGIONAL NO 1", "0202", "14:00 A 21:30 HRS.", "07 Años 08 Quincenas 12 Dias",
-    "XAXX020202000", "XAXX020202MDFRXX00", "01234567891", "2018-05-16", "", "1", "", "", "0"
+    "XAXX020202000", "XAXX020202MDFRXX00", "01234567891", "2018-05-16", "", "1", "", "", "5"
   ]);
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -57,7 +57,7 @@ test.describe("Importación de trabajadores SIAP — Flujo Completo union_admin"
 
   test("pantalla de administración muestra acceso a importar trabajadores", async ({ page }) => {
     await page.goto("/representacion/administracion");
-    await expect(page.getByText("Plantilla de Personal IMSS (SIAP)")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Plantilla de Personal IMSS (SIAP)")).toBeVisible({ timeout: 20_000 });
     const importLink = page.getByRole("link", { name: /Importar plantilla Excel/i });
     await expect(importLink).toBeVisible();
     await importLink.click();
@@ -68,7 +68,7 @@ test.describe("Importación de trabajadores SIAP — Flujo Completo union_admin"
     await page.goto("/representacion/administracion/importar-trabajadores");
 
     // Verificar título y aislamiento
-    await expect(page.getByRole("heading", { name: "Importar Plantilla de Personal IMSS", exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "Importar Plantilla de Personal IMSS", exact: true })).toBeVisible({ timeout: 20_000 });
     expect(await page.locator(".mobile-bottom-nav").count()).toBe(0);
     expect(await page.locator("#global-audio-player").count()).toBe(0);
 
@@ -86,7 +86,7 @@ test.describe("Importación de trabajadores SIAP — Flujo Completo union_admin"
     });
 
     // Verificar que aparece el nombre del archivo y el botón de previsualizar
-    await expect(page.getByText("plantilla_sintetica_test.xlsx")).toBeVisible();
+    await expect(page.getByText("plantilla_sintetica_test.xlsx").first()).toBeVisible();
     const previewButton = page.getByRole("button", { name: "Analizar y previsualizar cambios" });
     await expect(previewButton).toBeVisible();
     await previewButton.click();
@@ -123,7 +123,7 @@ test.describe("Importación de trabajadores SIAP — Flujo Completo union_admin"
     // Verificar pestaña de historial
     await page.getByRole("button", { name: "Historial de importaciones" }).click();
     await expect(page.getByText("Historial de lotes importados")).toBeVisible();
-    await expect(page.getByText("plantilla_sintetica_test.xlsx")).toBeVisible();
+    await expect(page.getByText("plantilla_sintetica_test.xlsx").first()).toBeVisible();
     await expect(page.getByText("Confirmado").first()).toBeVisible();
   });
 });

@@ -39,12 +39,14 @@ alter table public.union_workers
   add column if not exists source_created_by_batch_id uuid,
   add column if not exists source_last_seen_at timestamptz,
   add column if not exists source_missing_since timestamptz,
-  add column if not exists source_rolled_back_at timestamptz;
+  add column if not exists source_rolled_back_at timestamptz,
+  add column if not exists source_import_state text not null default 'active';
 
 create index if not exists union_workers_rfc_idx on public.union_workers (delegation_id, rfc);
 create index if not exists union_workers_curp_idx on public.union_workers (delegation_id, curp);
 create index if not exists union_workers_nss_idx on public.union_workers (delegation_id, nss);
 create index if not exists union_workers_plaza_idx on public.union_workers (delegation_id, plaza_code);
+create index if not exists union_workers_import_state_idx on public.union_workers (delegation_id, source_import_state);
 
 -- 2. Tabla de lotes de importación
 create table if not exists public.union_worker_import_batches (
@@ -265,6 +267,7 @@ begin
         source_last_seen_at,
         source_missing_since,
         source_rolled_back_at,
+        source_import_state,
         created_by,
         updated_by,
         created_at,
@@ -273,9 +276,9 @@ begin
         v_batch.delegation_id,
         v_row.matricula,
         coalesce(v_row.parsed_data->>'siap_full_name', v_row.full_name),
-        coalesce(v_row.parsed_data->>'first_name', ''),
-        coalesce(v_row.parsed_data->>'paternal_surname', ''),
-        coalesce(v_row.parsed_data->>'maternal_surname', ''),
+        '',
+        '',
+        '',
         coalesce(v_row.parsed_data->>'position_description', ''),
         coalesce(v_row.parsed_data->>'department_description', ''),
         coalesce(v_row.parsed_data->>'turn', ''),
@@ -318,6 +321,7 @@ begin
         v_now,
         null,
         null,
+        'active',
         auth.uid(),
         auth.uid(),
         v_now,
@@ -363,9 +367,7 @@ begin
         update public.union_workers
         set
           siap_full_name = coalesce(v_row.parsed_data->>'siap_full_name', siap_full_name),
-          first_name = case when first_name = '' then coalesce(v_row.parsed_data->>'first_name', '') else first_name end,
-          paternal_surname = case when paternal_surname = '' then coalesce(v_row.parsed_data->>'paternal_surname', '') else paternal_surname end,
-          maternal_surname = case when maternal_surname = '' then coalesce(v_row.parsed_data->>'maternal_surname', '') else maternal_surname end,
+          source_import_state = 'active',
           category = coalesce(v_row.parsed_data->>'position_description', category),
           assignment = coalesce(v_row.parsed_data->>'department_description', assignment),
           turn = coalesce(v_row.parsed_data->>'turn', turn),
@@ -498,34 +500,42 @@ begin
   end if;
 
   -- 4. Verificar si hubo modificaciones posteriores en trabajadores afectados por este lote
+  -- Caso A: Trabajadores creados por este lote pero modificados posteriormente por otro lote
   select w.employee_number into v_conflict_emp
-  from public.union_worker_change_history h
-  join public.union_workers w on w.id = h.worker_id
-  where h.batch_id = p_batch_id
-    and (
-      w.last_import_batch_id <> p_batch_id
-      or exists (
-        select 1 from public.union_worker_change_history h_newer
-        where h_newer.worker_id = h.worker_id
-          and h_newer.created_at > h.created_at
-      )
-    )
+  from public.union_workers w
+  where w.delegation_id = v_batch.delegation_id
+    and w.source_created_by_batch_id = p_batch_id
+    and w.last_import_batch_id <> p_batch_id
   limit 1;
+
+  if v_conflict_emp is null then
+    -- Caso B: Trabajadores actualizados por este lote con historial posterior
+    select w.employee_number into v_conflict_emp
+    from public.union_worker_change_history h
+    join public.union_workers w on w.id = h.worker_id
+    where h.batch_id = p_batch_id
+      and (
+        w.last_import_batch_id <> p_batch_id
+        or exists (
+          select 1 from public.union_worker_change_history h_newer
+          where h_newer.worker_id = h.worker_id
+            and h_newer.created_at > h.created_at
+        )
+      )
+    limit 1;
+  end if;
 
   if v_conflict_emp is not null then
     raise exception 'ROLLBACK_CONFLICT_NEWER_CHANGES: El trabajador con matrícula % ha sido modificado posteriormente.', v_conflict_emp;
   end if;
 
   -- 5. REVERSIÓN NO DESTRUCTIVA: Trabajadores creados exclusivamente por este lote
-  -- NUNCA DELETE FROM union_workers. Se marcan como source_rolled_back_at = now() y active = false
+  -- NUNCA DELETE FROM union_workers. NUNCA modificar active, notes, phone ni nombres manuales.
+  -- Se marcan con source_rolled_back_at = v_now y source_import_state = 'rolled_back'
   update public.union_workers
   set
     source_rolled_back_at = v_now,
-    active = false,
-    notes = case
-      when notes = '' then '[Deshecho por reversión de importación]'
-      else trim(notes) || ' [Deshecho por reversión de importación]'
-    end,
+    source_import_state = 'rolled_back',
     updated_by = auth.uid(),
     updated_at = v_now
   where delegation_id = v_batch.delegation_id

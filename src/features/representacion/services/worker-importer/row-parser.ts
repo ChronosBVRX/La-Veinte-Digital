@@ -24,6 +24,36 @@ export const TC_CATALOG: Record<string, string> = {
   "9": "Residente",
 };
 
+// Catálogo institucional SIAP de Turno (Jor / Turno)
+export const SHIFT_CATALOG: Record<string, string> = {
+  "1": "Matutino",
+  "2": "Vespertino",
+  "3": "Nocturno",
+  "4": "Móvil",
+  "5": "Jornada acumulada",
+};
+
+// Códigos confirmados de Marca de Ocupación (MO) en el archivo institucional SIAP
+export const CONFIRMED_MO_CODES = new Set([
+  "0", "1", "5", "7", "9", "11", "20", "62", "63", "64", "65", "71", "73", "75", "77", "90", "98", "99"
+]);
+
+export function formatOccupationMark(code: string): string {
+  if (!code) return "-";
+  return `Código SIAP ${code}`;
+}
+
+export const OCCUPATION_LIMIT_SENTINEL_LABEL =
+  "Fecha centinela institucional 01/01/2050. Sin interpretación automática del tipo o definitividad de la plaza";
+
+export function formatOccupationLimitDate(dateStr: string | null): string {
+  if (!dateStr) return "-";
+  if (dateStr === "2050-01-01") {
+    return OCCUPATION_LIMIT_SENTINEL_LABEL;
+  }
+  return dateStr;
+}
+
 // Catálogo institucional SIAP de Tipo de Plaza (normalizado a 2 posiciones)
 export const TIPO_PLAZA_CATALOG: Record<string, string> = {
   "01": "Operativa Confianza",
@@ -157,6 +187,13 @@ export function decodeAssociatedConcepts(rawVal: string | number): {
   return { mask, concepts };
 }
 
+export function formatAssociatedConcepts(mask: string): string {
+  if (!mask || mask === "00000") return "Sin concepto asociado";
+  const { concepts } = decodeAssociatedConcepts(mask);
+  if (concepts.length === 0) return "Sin concepto asociado";
+  return concepts.map((c) => `${c.code} ${c.name}`).join(", ");
+}
+
 export function splitFullName(fullName: string): {
   paternal_surname: string;
   maternal_surname: string;
@@ -206,6 +243,10 @@ export function splitFullName(fullName: string): {
 }
 
 export function deriveTurn(shiftCode: string, scheduleDesc: string): string {
+  const code = (shiftCode ?? "").toString().trim();
+  if (SHIFT_CATALOG[code]) {
+    return SHIFT_CATALOG[code];
+  }
   const s = (scheduleDesc ?? "").toUpperCase();
   if (s.includes("08:00 A 16:00") || s.includes("07:00 A 15:00") || s.includes("06:00 A 14:00") || s.includes("MATUTINO")) {
     return "Matutino";
@@ -216,10 +257,13 @@ export function deriveTurn(shiftCode: string, scheduleDesc: string): string {
   if (s.includes("21:00 A") || s.includes("22:00 A") || s.includes("NOCTURNO") || s.includes("VELADA")) {
     return "Nocturno";
   }
-  if (s.includes("JORNADA ACUMULADA") || s.includes("ACUMULADA") || shiftCode === "3") {
-    return "Jornada Acumulada";
+  if (s.includes("JORNADA ACUMULADA") || s.includes("ACUMULADA")) {
+    return "Jornada acumulada";
   }
-  return "Jornada Regular";
+  if (s.includes("MOVIL") || s.includes("MÓVIL")) {
+    return "Móvil";
+  }
+  return "Jornada regular";
 }
 
 export function maskRfc(rfc: string): string {
@@ -275,7 +319,6 @@ export function parseWorkerRow(
       field: "full_name",
     });
   }
-  const { paternal_surname, maternal_surname, first_name } = splitFullName(rawFullName);
 
   // 3. Plaza: Longitud numérica variable (entre 2 y 5 dígitos en el archivo real)
   // Convertir a texto, limpiar espacios, no rellenar con ceros a 7 dígitos.
@@ -322,21 +365,25 @@ export function parseWorkerRow(
     }
   }
 
-  // 6. NSS: Aceptar 10 u 11 dígitos. En archivo SIAP existen registros de 10 dígitos (sin dígito verificador).
-  // No rellenar con ceros iniciales.
-  const nss = (raw.nss_raw ?? "").toString().trim().replace(/\D/g, "");
-  if (nss) {
-    if (nss.length === 10) {
+  // 6. NSS: Guardar nss_raw (valor exacto como cadena, ej. 10 u 11 dígitos).
+  // Si tiene 10 dígitos: normalizar a 11 dígitos con padStart(11, '0') y emitir advertencia NSS_LEADING_ZERO_RESTORED.
+  // Si tiene 11 dígitos: preservar.
+  const rawNssStr = (raw.nss_raw ?? "").toString().trim();
+  const nss_raw = rawNssStr.replace(/\D/g, "");
+  let nss = nss_raw;
+  if (nss_raw) {
+    if (nss_raw.length === 10) {
+      nss = nss_raw.padStart(11, "0");
       issues.push({
-        code: "NSS_10_DIGITS",
-        message: `NSS con 10 dígitos (sin dígito verificador): ${maskNss(nss)}.`,
+        code: "NSS_LEADING_ZERO_RESTORED",
+        message: `NSS de 10 dígitos detectado ('${maskNss(nss_raw)}'). Se normalizó a 11 dígitos agregando cero inicial: ${maskNss(nss)}.`,
         severity: "warning",
         field: "nss",
       });
-    } else if (nss.length !== 11) {
+    } else if (nss_raw.length !== 11) {
       issues.push({
         code: "INVALID_NSS_LENGTH",
-        message: `El NSS tiene una longitud no estándar (${nss.length} dígitos en lugar de 10 u 11).`,
+        message: `El NSS tiene una longitud no estándar (${nss_raw.length} dígitos en lugar de 10 u 11).`,
         severity: "warning",
         field: "nss",
       });
@@ -359,11 +406,31 @@ export function parseWorkerRow(
   const occupation_limit_date = parseExcelDate(raw.occupation_limit_raw);
   const occupation_limit_is_sentinel = occupation_limit_date === "2050-01-01";
 
-  // 9. Conceptos Asociados (C A)
+  // 9. Marca de Ocupación (MO): Aceptar cualquier código numérico ^[0-9]+$, preservar como texto
+  const occupation_mark_code = (raw.occupation_mark_raw ?? "").toString().trim();
+  if (occupation_mark_code) {
+    if (!/^\d+$/.test(occupation_mark_code)) {
+      issues.push({
+        code: "NON_NUMERIC_MO",
+        message: `La marca de ocupación '${occupation_mark_code}' contiene caracteres no numéricos.`,
+        severity: "warning",
+        field: "occupation_mark",
+      });
+    } else if (!CONFIRMED_MO_CODES.has(occupation_mark_code)) {
+      issues.push({
+        code: "UNCONFIRMED_MO_CODE",
+        message: `Código de Marca de Ocupación '${occupation_mark_code}' no está en la lista de códigos confirmados.`,
+        severity: "warning",
+        field: "occupation_mark",
+      });
+    }
+  }
+
+  // 10. Conceptos Asociados (C A)
   const { mask: associated_concepts_mask, concepts: associated_concepts } =
     decodeAssociatedConcepts(raw.associated_concepts_raw ?? "");
 
-  // 10. Puesto (8 posiciones exactas) y Departamento (10 posiciones exactas)
+  // 11. Puesto (8 posiciones exactas) y Departamento (10 posiciones exactas)
   const position_code = (raw.position_code_raw ?? "").toString().trim().toUpperCase();
   if (position_code && !/^[A-Z0-9]{8}$/.test(position_code)) {
     issues.push({
@@ -387,7 +454,7 @@ export function parseWorkerRow(
   // department_description es opcional (puede venir vacía en el archivo canónico)
   const department_description = (raw.department_desc_raw ?? "").toString().trim().toUpperCase();
 
-  // 11. Horario y Turno
+  // 12. Horario y Turno
   // Si horario es numérico, rellenar a 4 posiciones (ej. 112 -> 0112); alfanuméricos como D731 se preservan
   let schedule_code = (raw.schedule_code_raw ?? "").toString().trim().toUpperCase();
   if (schedule_code && /^\d+$/.test(schedule_code) && schedule_code.length < 4) {
@@ -395,19 +462,27 @@ export function parseWorkerRow(
   }
   const schedule_description = (raw.schedule_desc_raw ?? "").toString().trim().toUpperCase();
   const shift_code = (raw.shift_raw ?? "").toString().trim();
+  if (shift_code && !SHIFT_CATALOG[shift_code]) {
+    issues.push({
+      code: "SHIFT_UNKNOWN_CODE",
+      message: `Código de turno '${shift_code}' no catalogado oficialmente en SIAP.`,
+      severity: "warning",
+      field: "shift_code",
+    });
+  }
   const turn = deriveTurn(shift_code, schedule_description);
 
-  // 12. Antigüedad
+  // 13. Antigüedad
   const seniority_raw = (raw.seniority_raw ?? "").toString().trim();
   const { years: seniority_years, fortnights: seniority_fortnights, days: seniority_days } =
     parseSeniority(seniority_raw);
 
-  // 13. Fechas Laborales
+  // 14. Fechas Laborales
   const employment_start_date = parseExcelDate(raw.employment_start_raw);
   const reemployment_date = parseExcelDate(raw.reemployment_date_raw);
   const termination_date = parseExcelDate(raw.termination_date_raw);
 
-  // 14. Tipo de Contratación (TC): '0' | '1' | '2' | '5' | '9'
+  // 15. Tipo de Contratación (TC): '0' | '1' | '2' | '5' | '9'
   const contract_type_code = (raw.contract_type_raw ?? "").toString().trim();
   if (contract_type_code && !TC_CATALOG[contract_type_code]) {
     issues.push({
@@ -418,7 +493,7 @@ export function parseWorkerRow(
     });
   }
 
-  // 15. Tipo de Plaza: normalizar a 2 posiciones ('1' -> '01')
+  // 16. Tipo de Plaza: normalizar a 2 posiciones ('1' -> '01')
   let plaza_type_code = (raw.plaza_type_raw ?? "").toString().trim();
   if (plaza_type_code.length === 1 && /^\d$/.test(plaza_type_code)) {
     plaza_type_code = plaza_type_code.padStart(2, "0");
@@ -432,6 +507,7 @@ export function parseWorkerRow(
     });
   }
 
+  // No automatic name decomposition: manual names remain strictly empty upon import
   const parsed: ParsedWorkerRow = {
     contract_type_code,
     plaza_code,
@@ -439,7 +515,7 @@ export function parseWorkerRow(
     occupation_start_date,
     occupation_limit_date,
     occupation_limit_is_sentinel,
-    occupation_mark_code: (raw.occupation_mark_raw ?? "").toString().trim(),
+    occupation_mark_code,
     plaza_type_code,
     shift_code,
     associated_concepts_mask,
@@ -452,15 +528,16 @@ export function parseWorkerRow(
     schedule_description,
     matricula,
     siap_full_name: rawFullName,
-    first_name,
-    paternal_surname,
-    maternal_surname,
+    first_name: "",
+    paternal_surname: "",
+    maternal_surname: "",
     seniority_raw,
     seniority_years,
     seniority_fortnights,
     seniority_days,
     rfc,
     curp,
+    nss_raw,
     nss,
     employment_start_date,
     reemployment_date,

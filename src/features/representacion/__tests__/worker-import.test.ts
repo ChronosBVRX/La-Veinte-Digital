@@ -11,12 +11,19 @@ import {
   parseExcelDate,
   parseSeniority,
   decodeAssociatedConcepts,
+  formatAssociatedConcepts,
   splitFullName,
   deriveTurn,
   maskRfc,
   maskCurp,
   maskNss,
   parseWorkerRow,
+  TC_CATALOG,
+  TIPO_PLAZA_CATALOG,
+  CONFIRMED_MO_CODES,
+  formatOccupationMark,
+  OCCUPATION_LIMIT_SENTINEL_LABEL,
+  formatOccupationLimitDate,
 } from "../services/worker-importer/row-parser";
 import {
   detectConflictsAndDiff,
@@ -93,12 +100,91 @@ describe("Worker Importer - Excel Security", () => {
     expect(res.error).toContain("oleObject");
   });
 
+  function createMockZip(options: {
+    entriesCount?: number;
+    uncompressedSize?: number;
+    compressedSize?: number;
+    totalEntriesHeader?: number;
+  }): Buffer {
+    const count = options.entriesCount ?? 1;
+    const uncompressed = options.uncompressedSize ?? 100;
+    const compressed = options.compressedSize ?? 50;
+    const totalEntries = options.totalEntriesHeader ?? count;
+
+    const localHeader = Buffer.alloc(30);
+    localHeader.writeUInt32LE(0x04034b50, 0);
+    localHeader.writeUInt16LE(20, 4);
+    localHeader.writeUInt32LE(compressed, 18);
+    localHeader.writeUInt32LE(uncompressed, 22);
+    localHeader.writeUInt16LE(4, 26);
+    const fileNameBuf = Buffer.from("test");
+    const fileData = Buffer.alloc(Math.min(compressed, 100));
+
+    const cdHeaders: Buffer[] = [];
+    for (let i = 0; i < count; i++) {
+      const cd = Buffer.alloc(46);
+      cd.writeUInt32LE(0x02014b50, 0);
+      cd.writeUInt16LE(20, 4);
+      cd.writeUInt16LE(20, 6);
+      cd.writeUInt32LE(compressed, 20);
+      cd.writeUInt32LE(uncompressed, 24);
+      cd.writeUInt16LE(4, 28);
+      cdHeaders.push(Buffer.concat([cd, fileNameBuf]));
+    }
+
+    const cdData = Buffer.concat(cdHeaders);
+    const cdOffset = 30 + 4 + fileData.length;
+
+    const eocd = Buffer.alloc(22);
+    eocd.writeUInt32LE(0x06054b50, 0);
+    eocd.writeUInt16LE(totalEntries, 8);
+    eocd.writeUInt16LE(totalEntries, 10);
+    eocd.writeUInt32LE(cdData.length, 12);
+    eocd.writeUInt32LE(cdOffset, 16);
+
+    return Buffer.concat([localHeader, fileNameBuf, fileData, cdData, eocd]);
+  }
+
   it("accepts valid zip header with .xlsx extension", () => {
     const buf = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00]);
     const res = validateExcelSecurity(buf, "plantilla.xlsx");
     expect(res.valid).toBe(true);
     expect(res.sha256).toBeDefined();
     expect(res.sha256.length).toBe(64);
+  });
+
+  it("defends against ZIP bomb: rejects zip exceeding MAX_ZIP_ENTRIES (100)", () => {
+    const bomb = createMockZip({ entriesCount: 101, totalEntriesHeader: 105 });
+    const res = validateExcelSecurity(bomb, "bomb.xlsx");
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain("demasiadas entradas");
+  });
+
+  it("defends against ZIP bomb: rejects single entry exceeding MAX_SINGLE_ENTRY_BYTES (30 MB)", () => {
+    const bomb = createMockZip({ entriesCount: 1, uncompressedSize: 35 * 1024 * 1024, compressedSize: 1000 });
+    const res = validateExcelSecurity(bomb, "bomb.xlsx");
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain("30 MB");
+  });
+
+  it("defends against ZIP bomb: rejects total uncompressed exceeding MAX_TOTAL_UNCOMPRESSED_BYTES (50 MB)", () => {
+    const bomb = createMockZip({ entriesCount: 3, uncompressedSize: 20 * 1024 * 1024, compressedSize: 1000 * 1024 });
+    const res = validateExcelSecurity(bomb, "bomb.xlsx");
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain("50 MB");
+  });
+
+  it("defends against ZIP bomb: rejects anomalous compression ratio > 100:1 for entries > 1 MB", () => {
+    const bomb = createMockZip({ entriesCount: 1, uncompressedSize: 2 * 1024 * 1024, compressedSize: 1000 });
+    const res = validateExcelSecurity(bomb, "bomb.xlsx");
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain("Ratio de compresión anómalo");
+  });
+
+  it("accepts valid zip with central directory within all security thresholds", () => {
+    const safeZip = createMockZip({ entriesCount: 14, uncompressedSize: 10000, compressedSize: 5000 });
+    const res = validateExcelSecurity(safeZip, "safe.xlsx");
+    expect(res.valid).toBe(true);
   });
 });
 
@@ -215,7 +301,7 @@ describe("Worker Importer - Row Parser", () => {
     expect(res3.first_name).toBe("PEDRO");
   });
 
-  it("preserves siap_full_name intact without modifications", () => {
+  it("preserves siap_full_name intact and leaves manual names empty on import", () => {
     const raw = {
       matricula_raw: "99000001",
       full_name_raw: "DE LA ROSA SANTOS MARIA DEL CARMEN",
@@ -223,6 +309,9 @@ describe("Worker Importer - Row Parser", () => {
     };
     const res = parseWorkerRow(raw, 2);
     expect(res.parsed.siap_full_name).toBe("DE LA ROSA SANTOS MARIA DEL CARMEN");
+    expect(res.parsed.first_name).toBe("");
+    expect(res.parsed.paternal_surname).toBe("");
+    expect(res.parsed.maternal_surname).toBe("");
   });
 
   it("parses seniority string into years, fortnights, days", () => {
@@ -244,60 +333,89 @@ describe("Worker Importer - Row Parser", () => {
     expect(parseExcelDate("")).toBeNull();
   });
 
-  it("derives turn correctly from schedule description and shift code", () => {
-    expect(deriveTurn("0", "08:00 A 16:00 HRS.")).toBe("Matutino");
-    expect(deriveTurn("1", "14:00 A 21:30 HRS.")).toBe("Vespertino");
-    expect(deriveTurn("2", "21:00 A 07:00 HRS.")).toBe("Nocturno");
-    expect(deriveTurn("3", "JORNADA ACUMULADA")).toBe("Jornada Acumulada");
+  it("derives turn correctly according to SHIFT_CATALOG (1-5) and schedule cross-reference", () => {
+    // 5 exact official codes from SHIFT_CATALOG
+    expect(deriveTurn("1", "08:00 A 16:00 HRS.")).toBe("Matutino");
+    expect(deriveTurn("2", "14:00 A 21:30 HRS.")).toBe("Vespertino");
+    expect(deriveTurn("3", "21:00 A 07:00 HRS.")).toBe("Nocturno");
+    expect(deriveTurn("4", "MOVIL")).toBe("Móvil");
+    expect(deriveTurn("5", "JORNADA ACUMULADA")).toBe("Jornada acumulada");
+
+    // Crossing with schedule description when shift code is absent
+    expect(deriveTurn("", "08:00 A 16:00 HRS.")).toBe("Matutino");
+    expect(deriveTurn("", "14:00 A 21:30 HRS.")).toBe("Vespertino");
+    expect(deriveTurn("", "21:00 A 07:00 HRS.")).toBe("Nocturno");
+    expect(deriveTurn("", "JORNADA ACUMULADA 12 HORAS")).toBe("Jornada acumulada");
+    expect(deriveTurn("", "TURNO MOVIL")).toBe("Móvil");
+    expect(deriveTurn("", "OTRO HORARIO")).toBe("Jornada regular");
   });
 
-  it("decodes associated concepts (C A) bitmask according to SIAP procedure", () => {
-    // 0 -> 00000 (no concepts)
+  it("decodes associated concepts (C A) 5-bit mask left-to-right according to SIAP procedure", () => {
+    // 00000 -> no concepts
     const c0 = decodeAssociatedConcepts("0");
     expect(c0.mask).toBe("00000");
     expect(c0.concepts).toHaveLength(0);
+    expect(formatAssociatedConcepts("00000")).toBe("Sin concepto asociado");
 
-    // 10000 -> 10000 (concept 012 - Horario discontinuo)
+    // 10000 -> bit 0: 012 Horario discontinuo
     const c10000 = decodeAssociatedConcepts("10000");
     expect(c10000.mask).toBe("10000");
     expect(c10000.concepts).toHaveLength(1);
     expect(c10000.concepts[0].code).toBe("012");
+    expect(c10000.concepts[0].name).toBe("Horario discontinuo");
 
-    // 1000 -> 01000 (concept 014 - Infectocontagiosidad no médica)
-    const c1000 = decodeAssociatedConcepts("1000");
-    expect(c1000.mask).toBe("01000");
-    expect(c1000.concepts).toHaveLength(1);
-    expect(c1000.concepts[0].code).toBe("014");
+    // 01000 -> bit 1: 014 Infectocontagiosidad no médica
+    const c01000 = decodeAssociatedConcepts("01000");
+    expect(c01000.mask).toBe("01000");
+    expect(c01000.concepts).toHaveLength(1);
+    expect(c01000.concepts[0].code).toBe("014");
+    expect(c01000.concepts[0].name).toBe("Infectocontagiosidad no médica");
 
-    // 100 -> 00100 (concept 023 - Infectocontagiosidad médica)
-    const c100 = decodeAssociatedConcepts("100");
-    expect(c100.mask).toBe("00100");
-    expect(c100.concepts).toHaveLength(1);
-    expect(c100.concepts[0].code).toBe("023");
+    // 00100 -> bit 2: 023 Infectocontagiosidad médica
+    const c00100 = decodeAssociatedConcepts("00100");
+    expect(c00100.mask).toBe("00100");
+    expect(c00100.concepts).toHaveLength(1);
+    expect(c00100.concepts[0].code).toBe("023");
+    expect(c00100.concepts[0].name).toBe("Infectocontagiosidad médica");
 
-    // 10 -> 00010 (concept 054 - Emanaciones radiactivas no médicas)
-    const c10 = decodeAssociatedConcepts("10");
-    expect(c10.mask).toBe("00010");
-    expect(c10.concepts).toHaveLength(1);
-    expect(c10.concepts[0].code).toBe("054");
+    // 00010 -> bit 3: 054 Emanaciones radiactivas no médicas
+    const c00010 = decodeAssociatedConcepts("00010");
+    expect(c00010.mask).toBe("00010");
+    expect(c00010.concepts).toHaveLength(1);
+    expect(c00010.concepts[0].code).toBe("054");
+    expect(c00010.concepts[0].name).toBe("Emanaciones radiactivas no médicas");
 
-    // 1 -> 00001 (concept 063 - Emanaciones radiactivas)
-    const c1 = decodeAssociatedConcepts("1");
-    expect(c1.mask).toBe("00001");
-    expect(c1.concepts).toHaveLength(1);
-    expect(c1.concepts[0].code).toBe("063");
+    // 00001 -> bit 4: 063 Emanaciones radiactivas
+    const c00001 = decodeAssociatedConcepts("00001");
+    expect(c00001.mask).toBe("00001");
+    expect(c00001.concepts).toHaveLength(1);
+    expect(c00001.concepts[0].code).toBe("063");
+    expect(c00001.concepts[0].name).toBe("Emanaciones radiactivas");
+
+    // Combination: 01100 -> 014 (Infecto no médica) and 023 (Infecto médica)
+    const c01100 = decodeAssociatedConcepts("01100");
+    expect(c01100.mask).toBe("01100");
+    expect(c01100.concepts).toHaveLength(2);
+    expect(c01100.concepts.map((c) => c.code)).toEqual(["014", "023"]);
+    expect(formatAssociatedConcepts("01100")).toContain("014");
+    expect(formatAssociatedConcepts("01100")).toContain("023");
   });
 
-  it("normalizes TC (Tipo Contratación) and warns on unknown codes", () => {
-    const rawValid = {
-      matricula_raw: "99000001",
-      full_name_raw: "GARCIA LOPEZ JUAN",
-      plaza_raw: "96280",
-      contract_type_raw: "2", // Base
-    };
-    const resValid = parseWorkerRow(rawValid, 2);
-    expect(resValid.parsed.contract_type_code).toBe("2");
-    expect(resValid.issues.some((i) => i.code === "TC_UNKNOWN_CODE")).toBe(false);
+  it("verifies exact TC catalog mapping (0=Estatuto, 1=Confianza, 2=Base, 5=Becario, 9=Residente)", () => {
+    expect(TC_CATALOG["0"]).toBe("Estatuto");
+    expect(TC_CATALOG["1"]).toBe("Confianza");
+    expect(TC_CATALOG["2"]).toBe("Base");
+    expect(TC_CATALOG["5"]).toBe("Becario");
+    expect(TC_CATALOG["9"]).toBe("Residente");
+
+    for (const code of ["0", "1", "2", "5", "9"]) {
+      const res = parseWorkerRow(
+        { matricula_raw: "99000001", full_name_raw: "TRABAJADOR PRUEBA", plaza_raw: "1", contract_type_raw: code },
+        2
+      );
+      expect(res.parsed.contract_type_code).toBe(code);
+      expect(res.issues.some((i) => i.code === "TC_UNKNOWN_CODE")).toBe(false);
+    }
 
     const rawUnknown = {
       matricula_raw: "99000002",
@@ -310,7 +428,19 @@ describe("Worker Importer - Row Parser", () => {
     expect(resUnknown.issues.some((i) => i.code === "TC_UNKNOWN_CODE")).toBe(true);
   });
 
-  it("normalizes Tipo de Plaza to 2 digits (e.g. '1' -> '01') and warns on unknown codes", () => {
+  it("normalizes Tipo de Plaza to 2 digits including '13 = Cubre Descansos Base' and warns on unknown codes", () => {
+    expect(TIPO_PLAZA_CATALOG["13"]).toBe("Cubre Descansos Base");
+
+    const rawCubreDescanso = {
+      matricula_raw: "99000000",
+      full_name_raw: "LOPEZ LOPEZ MARIA",
+      plaza_raw: "96279",
+      plaza_type_raw: "13", // Cubre Descansos Base
+    };
+    const res0 = parseWorkerRow(rawCubreDescanso, 1);
+    expect(res0.parsed.plaza_type_code).toBe("13");
+    expect(res0.issues.some((i) => i.code === "TIPO_PLAZA_UNKNOWN")).toBe(false);
+
     const rawSingleDigit = {
       matricula_raw: "99000001",
       full_name_raw: "LOPEZ LOPEZ ANA",
@@ -340,6 +470,35 @@ describe("Worker Importer - Row Parser", () => {
     const res3 = parseWorkerRow(rawUnknown, 4);
     expect(res3.parsed.plaza_type_code).toBe("99");
     expect(res3.issues.some((i) => i.code === "TIPO_PLAZA_UNKNOWN")).toBe(true);
+  });
+
+  it("validates Marca de Ocupación (MO) accepting confirmed codes and warning on non-numeric or unconfirmed", () => {
+    const allConfirmed = ["0", "1", "5", "7", "9", "11", "20", "62", "63", "64", "65", "71", "73", "75", "77", "90", "98", "99"];
+    expect(CONFIRMED_MO_CODES.size).toBe(allConfirmed.length);
+    for (const code of allConfirmed) {
+      expect(CONFIRMED_MO_CODES.has(code)).toBe(true);
+      const res = parseWorkerRow(
+        { matricula_raw: "99000001", full_name_raw: "A B", plaza_raw: "1", occupation_mark_raw: code },
+        2
+      );
+      expect(res.parsed.occupation_mark_code).toBe(code);
+      expect(res.issues.some((i) => i.code === "UNCONFIRMED_MO_CODE")).toBe(false);
+      expect(res.issues.some((i) => i.code === "NON_NUMERIC_MO")).toBe(false);
+      expect(formatOccupationMark(code)).toBe(`Código SIAP ${code}`);
+    }
+
+    const unconfirmed = parseWorkerRow(
+      { matricula_raw: "99000001", full_name_raw: "A B", plaza_raw: "1", occupation_mark_raw: "42" },
+      2
+    );
+    expect(unconfirmed.parsed.occupation_mark_code).toBe("42");
+    expect(unconfirmed.issues.some((i) => i.code === "UNCONFIRMED_MO_CODE")).toBe(true);
+
+    const nonNum = parseWorkerRow(
+      { matricula_raw: "99000001", full_name_raw: "A B", plaza_raw: "1", occupation_mark_raw: "ABC" },
+      2
+    );
+    expect(nonNum.issues.some((i) => i.code === "NON_NUMERIC_MO")).toBe(true);
   });
 
   it("validates AR as 3 alphanumeric positions and does NOT pad to 2 digits", () => {
@@ -412,7 +571,7 @@ describe("Worker Importer - Row Parser", () => {
     expect(res2.parsed.schedule_code).toBe("D731");
   });
 
-  it("flags sentinel date 2050-01-01 via occupation_limit_is_sentinel", () => {
+  it("flags sentinel date 2050-01-01 and formats with neutral institutional label", () => {
     const rawSentinel = {
       matricula_raw: "99000001",
       full_name_raw: "GARCIA LOPEZ MARIA",
@@ -421,6 +580,8 @@ describe("Worker Importer - Row Parser", () => {
     };
     const res1 = parseWorkerRow(rawSentinel, 2);
     expect(res1.parsed.occupation_limit_is_sentinel).toBe(true);
+    expect(formatOccupationLimitDate(res1.parsed.occupation_limit_date)).toBe(OCCUPATION_LIMIT_SENTINEL_LABEL);
+    expect(OCCUPATION_LIMIT_SENTINEL_LABEL).toContain("Fecha centinela institucional 01/01/2050");
 
     const rawNormal = {
       matricula_raw: "99000002",
@@ -430,9 +591,11 @@ describe("Worker Importer - Row Parser", () => {
     };
     const res2 = parseWorkerRow(rawNormal, 3);
     expect(res2.parsed.occupation_limit_is_sentinel).toBe(false);
+    expect(formatOccupationLimitDate(res2.parsed.occupation_limit_date)).toBe("2026-10-31");
+    expect(formatOccupationLimitDate(null)).toBe("-");
   });
 
-  it("handles 10-digit NSS without padding and accepts 11-digit NSS", () => {
+  it("handles 10-digit NSS by saving nss_raw and normalizing to 11 digits with NSS_LEADING_ZERO_RESTORED warning", () => {
     const raw10 = {
       matricula_raw: "99386341",
       full_name_raw: "GARCIA LOPEZ MARIA",
@@ -441,19 +604,23 @@ describe("Worker Importer - Row Parser", () => {
     };
     const res10 = parseWorkerRow(raw10, 2);
     expect(res10.isValid).toBe(true);
-    expect(res10.parsed.nss).toBe("1234567890"); // Kept as 10 digits, not padded
-    const nssWarning = res10.issues.find((i) => i.code === "NSS_10_DIGITS");
+    expect(res10.parsed.nss_raw).toBe("1234567890"); // Preserves raw 10 digits
+    expect(res10.parsed.nss).toBe("01234567890"); // Normalized with leading zero to 11 digits
+    const nssWarning = res10.issues.find((i) => i.code === "NSS_LEADING_ZERO_RESTORED");
     expect(nssWarning).toBeDefined();
+    expect(nssWarning?.severity).toBe("warning");
 
     const raw11 = {
       matricula_raw: "99386342",
       full_name_raw: "GARCIA LOPEZ PEDRO",
       plaza_raw: "96281",
-      nss_raw: "12345678901", // 11 digits
+      nss_raw: "01234567890", // 11 digits
     };
     const res11 = parseWorkerRow(raw11, 3);
     expect(res11.isValid).toBe(true);
-    expect(res11.parsed.nss).toBe("12345678901");
+    expect(res11.parsed.nss_raw).toBe("01234567890");
+    expect(res11.parsed.nss).toBe("01234567890");
+    expect(res11.issues.some((i) => i.code === "NSS_LEADING_ZERO_RESTORED")).toBe(false);
   });
 
   it("accepts row with Fecha de Baja present and Status=1", () => {
