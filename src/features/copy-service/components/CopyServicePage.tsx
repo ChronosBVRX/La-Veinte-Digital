@@ -8,14 +8,16 @@ import {
   FileText,
   IdentificationCard,
   CheckCircle,
+  WarningCircle,
   ShieldCheck,
   ArrowLeft,
   ArrowRight,
 } from "@phosphor-icons/react"
 import { Button } from "@/shared/components/ui/Button"
-import { DocumentScannerFlow } from "@/features/document-scanner/components/DocumentScannerFlow"
+import { DocumentScannerFlow, type ScanPrintOptions } from "@/features/document-scanner/components/DocumentScannerFlow"
 import { SendPrintModal } from "@/shared/components/app/SendPrintModal"
 import type { ScanMode } from "@/shared/contracts/document-scan"
+import type { ScanStorageFailure } from "@/shared/services/scan-document-storage"
 
 export interface CopyServicePageProps {
   userId: string | null
@@ -25,29 +27,41 @@ interface PendingPrintItem {
   file: File
   name: string
   alsoSaved: boolean
+  saveFailure: ScanStorageFailure | null
+}
+
+interface CompletedCopyState {
+  name: string
+  alsoSaved: boolean
+  saveFailure: ScanStorageFailure | null
 }
 
 export function CopyServicePage({ userId }: CopyServicePageProps) {
   const [activeScanMode, setActiveScanMode] = useState<ScanMode | null>(null)
   const [pendingPrint, setPendingPrint] = useState<PendingPrintItem | null>(null)
   const [alsoSavedFlag, setAlsoSavedFlag] = useState(false)
-  const [completedCopy, setCompletedCopy] = useState<{ name: string; alsoSaved: boolean } | null>(null)
+  const [saveFailureFlag, setSaveFailureFlag] = useState<ScanStorageFailure | null>(null)
+  const [completedCopy, setCompletedCopy] = useState<CompletedCopyState | null>(null)
 
   const wasSentRef = useRef(false)
 
   const handleSelectMode = (mode: ScanMode) => {
     setAlsoSavedFlag(false)
+    setSaveFailureFlag(null)
     wasSentRef.current = false
     setActiveScanMode(mode)
   }
 
-  const handlePrintRequest = (file: File, name: string) => {
+  const handlePrintRequest = (file: File, name: string, options?: ScanPrintOptions) => {
     // Al recibir el archivo, DocumentScannerFlow ya cerró su estado interno
     setActiveScanMode(null)
+    const isSaved = options?.alsoSaved ?? alsoSavedFlag
+    const failure = options?.saveFailure ?? saveFailureFlag
     setPendingPrint({
       file,
       name,
-      alsoSaved: alsoSavedFlag,
+      alsoSaved: isSaved,
+      saveFailure: failure,
     })
   }
 
@@ -56,6 +70,7 @@ export function CopyServicePage({ userId }: CopyServicePageProps) {
       setCompletedCopy({
         name: pendingPrint.name,
         alsoSaved: pendingPrint.alsoSaved,
+        saveFailure: pendingPrint.saveFailure,
       })
     }
     wasSentRef.current = false
@@ -66,6 +81,7 @@ export function CopyServicePage({ userId }: CopyServicePageProps) {
     setCompletedCopy(null)
     setPendingPrint(null)
     setAlsoSavedFlag(false)
+    setSaveFailureFlag(null)
     wasSentRef.current = false
     setActiveScanMode(null)
   }
@@ -148,6 +164,34 @@ export function CopyServicePage({ userId }: CopyServicePageProps) {
             >
               <CheckCircle size={18} weight="bold" />
               <span>También guardamos una copia en Mis documentos.</span>
+            </div>
+          )}
+
+          {completedCopy.saveFailure && (
+            <div
+              role="status"
+              data-testid="copy-save-warning"
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "0.625rem",
+                padding: "0.75rem 1rem",
+                borderRadius: "0.5rem",
+                background: "#fffbeb",
+                border: "1px solid #fde68a",
+                color: "#92400e",
+                fontSize: "0.84375rem",
+                lineHeight: 1.45,
+                textAlign: "left",
+                maxWidth: "460px",
+              }}
+            >
+              <WarningCircle size={20} weight="fill" style={{ color: "#d97706", flexShrink: 0, marginTop: 1 }} />
+              <span>
+                {completedCopy.saveFailure === "quota_exceeded"
+                  ? "El documento se envió a imprimir, pero no pudo guardarse porque no hay suficiente espacio disponible en este dispositivo."
+                  : "El documento se envió a imprimir, pero no fue posible guardarlo en Mis documentos."}
+              </span>
             </div>
           )}
 
@@ -392,6 +436,11 @@ export function CopyServicePage({ userId }: CopyServicePageProps) {
           onClose={() => setActiveScanMode(null)}
           onSaved={() => {
             setAlsoSavedFlag(true)
+            setSaveFailureFlag(null)
+          }}
+          onSaveFailed={(failure) => {
+            setAlsoSavedFlag(false)
+            setSaveFailureFlag(failure)
           }}
           onPrintRequest={handlePrintRequest}
         />

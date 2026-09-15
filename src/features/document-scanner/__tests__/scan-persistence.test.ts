@@ -210,6 +210,19 @@ describe("scan-persistence: guardado y ciclo de vida web", () => {
     })
     expect(result.ok).toBe(false)
   })
+
+  it("si el almacenamiento falla, retorna ok: false con failure clasificado", async () => {
+    const emptyFile = new File([], "vacio.pdf", { type: "application/pdf" })
+    const result = await persistScannedDocument({
+      userId: USER,
+      kind: "documento",
+      name: "vacio.pdf",
+      pdfFile: emptyFile,
+      pageCount: 1,
+    })
+    expect(result.ok).toBe(false)
+    expect(result.failure).toBe("write_failed")
+  })
 })
 
 describe("scan-persistence: contratos de fuente", () => {

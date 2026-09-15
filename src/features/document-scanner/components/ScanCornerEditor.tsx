@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ArrowsClockwise, Check, MagicWand } from "@phosphor-icons/react"
 import { Button } from "@/shared/components/ui/Button"
 import { orderCorners } from "../lib/geometry"
+import { canRetryOpenCv } from "../lib/opencv-loader"
 import type { AnalysisImage } from "../services/web-document-scanner"
 import type { DetectedQuad, Point, Quad } from "../types/scanner-types"
 
@@ -182,7 +183,7 @@ export function ScanCornerEditor({
       <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
         <Button variant="secondary" size="sm" onClick={onRedetect} disabled={busy}>
           <MagicWand size={16} />
-          Reintentar automático
+          {canRetryOpenCv() ? "Reintentar detección automática" : "Reintentar automático"}
         </Button>
         <Button
           variant="ghost"

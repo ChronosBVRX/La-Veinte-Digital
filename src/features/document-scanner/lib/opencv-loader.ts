@@ -45,39 +45,116 @@ export interface OpenCvModule {
   CHAIN_APPROX_SIMPLE: number
 }
 
+export interface LoadOpenCvOptions {
+  /**
+   * Si es true, permite invalidar un fallo previo y reintentar la carga UNA única vez.
+   * Si ya se intentó un reintento (exitoso o fallido), se mantiene el resultado sin bucles.
+   */
+  retry?: boolean
+}
+
 const LOCAL_SOURCES = ["/vendor/opencv/opencv.js", "/vendor/opencv.js"]
 const LOAD_TIMEOUT_MS = 12_000
 
 let cached: Promise<OpenCvModule | null> | null = null
+let hasFailedOnce = false
+let retryAttempted = false
 
-export function loadOpenCv(): Promise<OpenCvModule | null> {
-  if (!cached) {
-    cached = loadFromLocalSources()
+export function loadOpenCv(options?: LoadOpenCvOptions): Promise<OpenCvModule | null> {
+  const isRetry = Boolean(options?.retry)
+
+  // Si ya tenemos una promesa en curso o resuelta y no se solicitó reintento:
+  if (cached && !isRetry) {
+    return cached
   }
+
+  // Si se solicita reintento:
+  if (isRetry) {
+    // Si ya se agotó el único reintento permitido, devolver el estado actual
+    if (retryAttempted) {
+      return cached ?? Promise.resolve(null)
+    }
+    // Si ya está disponible globalmente y usable, reutilizarlo
+    const existingGlobal = openCvGlobal()
+    if (existingGlobal && isUsableOpenCv(existingGlobal)) {
+      return Promise.resolve(existingGlobal)
+    }
+
+    retryAttempted = true
+    cached = null // Limpiar el fallo previo para permitir la segunda y última carga
+  }
+
+  if (!cached) {
+    cached = loadFromLocalSources(isRetry)
+      .then((cv) => {
+        if (!cv) {
+          hasFailedOnce = true
+        }
+        return cv
+      })
+      .catch(() => {
+        hasFailedOnce = true
+        return null
+      })
+  }
+
   return cached
+}
+
+/** Ejecuta un único reintento controlado de carga de OpenCV si falló previamente. */
+export function retryOpenCv(): Promise<OpenCvModule | null> {
+  return loadOpenCv({ retry: true })
+}
+
+/** Indica si la carga falló al menos una vez y OpenCV no está disponible. */
+export function hasOpenCvFailed(): boolean {
+  return hasFailedOnce && !isOpenCvLoaded()
+}
+
+/** Indica si se puede realizar el reintento (falló previamente y aún no se ha intentado el reintento). */
+export function canRetryOpenCv(): boolean {
+  return hasFailedOnce && !retryAttempted && !isOpenCvLoaded()
+}
+
+export function isOpenCvLoaded(): boolean {
+  const cv = openCvGlobal()
+  return Boolean(cv && isUsableOpenCv(cv))
 }
 
 /** Solo para pruebas: permite limpiar el caché entre escenarios. */
 export function resetOpenCvCacheForTests(): void {
   cached = null
+  hasFailedOnce = false
+  retryAttempted = false
 }
 
-async function loadFromLocalSources(): Promise<OpenCvModule | null> {
+async function loadFromLocalSources(isRetry = false): Promise<OpenCvModule | null> {
   if (typeof window === "undefined" || typeof document === "undefined") return null
   for (const source of LOCAL_SOURCES) {
-    const loaded = await tryLoadScript(source)
+    const loaded = await tryLoadScript(source, isRetry)
     if (loaded) return loaded
   }
   return null
 }
 
-async function tryLoadScript(source: string): Promise<OpenCvModule | null> {
+async function tryLoadScript(source: string, isRetry = false): Promise<OpenCvModule | null> {
   try {
     const loaded = await new Promise<boolean>((resolve) => {
-      const existing = document.querySelector<HTMLScriptElement>(`script[data-opencv-src="${source}"]`)
+      let existing = document.querySelector<HTMLScriptElement>(`script[data-opencv-src="${source}"]`)
       if (existing) {
-        resolve(existing.dataset.loaded === "true")
-        return
+        if (existing.dataset.loaded === "true") {
+          resolve(true)
+          return
+        }
+        // Si estamos en reintento y el script previo falló o no cargó, removerlo
+        // para no duplicar tags en el DOM y permitir un nuevo intento limpio.
+        if (isRetry && existing.dataset.failed === "true") {
+          existing.remove()
+          existing = null
+        } else {
+          resolve(existing.dataset.loaded === "true")
+          return
+        }
       }
       const script = document.createElement("script")
       script.src = source
@@ -87,9 +164,17 @@ async function tryLoadScript(source: string): Promise<OpenCvModule | null> {
         script.dataset.loaded = "true"
         resolve(true)
       }
-      script.onerror = () => resolve(false)
+      script.onerror = () => {
+        script.dataset.failed = "true"
+        resolve(false)
+      }
       document.head.appendChild(script)
-      window.setTimeout(() => resolve(script.dataset.loaded === "true"), LOAD_TIMEOUT_MS)
+      window.setTimeout(() => {
+        if (script.dataset.loaded !== "true") {
+          script.dataset.failed = "true"
+        }
+        resolve(script.dataset.loaded === "true")
+      }, LOAD_TIMEOUT_MS)
     })
     if (!loaded) return null
 
