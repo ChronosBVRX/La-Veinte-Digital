@@ -61,7 +61,9 @@ export function replacePage(pages: ScanPage[], id: string, replacement: ScanPage
 export function updatePage(
   pages: ScanPage[],
   id: string,
-  patch: Partial<Pick<ScanPage, "blob" | "previewUrl" | "filter" | "rotation" | "corners" | "width" | "height">>
+  patch: Partial<
+    Pick<ScanPage, "blob" | "previewUrl" | "filter" | "rotation" | "corners" | "width" | "height" | "sourceBlob" | "engine">
+  >
 ): ScanPage[] {
   return pages.map((p) => (p.id === id ? { ...p, ...patch } : p))
 }

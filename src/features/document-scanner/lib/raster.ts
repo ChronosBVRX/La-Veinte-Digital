@@ -184,8 +184,8 @@ export function rasterToJpegBlob(raster: RasterImage, quality = 0.85): Promise<B
  * Decodifica un archivo/blob de imagen a raster. Re-encodear en canvas elimina
  * de forma natural metadatos EXIF del archivo original.
  */
-export async function rasterFromBlob(blob: Blob): Promise<RasterImage> {
-  const bitmap = await decodeBlobToDrawable(blob)
+export async function rasterFromBlob(blob: Blob, decodeTimeoutMs = 20_000): Promise<RasterImage> {
+  const bitmap = await decodeBlobToDrawable(blob, decodeTimeoutMs)
   const canvas = document.createElement("canvas")
   canvas.width = bitmap.width
   canvas.height = bitmap.height
@@ -202,7 +202,7 @@ interface DrawableImage {
   height: number
 }
 
-async function decodeBlobToDrawable(blob: Blob): Promise<DrawableImage> {
+async function decodeBlobToDrawable(blob: Blob, timeoutMs: number): Promise<DrawableImage> {
   if (typeof createImageBitmap === "function") {
     try {
       const bitmap = await createImageBitmap(blob)
@@ -215,11 +215,18 @@ async function decodeBlobToDrawable(blob: Blob): Promise<DrawableImage> {
   try {
     const image = await new Promise<HTMLImageElement>((resolve, reject) => {
       const img = new Image()
-      img.onload = () => resolve(img)
-      img.onerror = () => reject(new Error("No se pudo leer la imagen."))
+      const timer = setTimeout(() => reject(new Error("La imagen tardó demasiado en procesarse.")), timeoutMs)
+      img.onload = () => {
+        clearTimeout(timer)
+        resolve(img)
+      }
+      img.onerror = () => {
+        clearTimeout(timer)
+        reject(new Error("No se pudo leer la imagen."))
+      }
       img.src = url
     })
-    return { source: image, width: image.naturalWidth, height: image.naturalHeight }
+    return { source: image, width: image.naturalWidth || image.width, height: image.naturalHeight || image.height }
   } finally {
     URL.revokeObjectURL(url)
   }

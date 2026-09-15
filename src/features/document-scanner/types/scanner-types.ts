@@ -36,6 +36,8 @@ export interface ScanPage {
   filter: ScanFilter
   rotation: RotationDegrees
   engine: ScanEngine
+  /** Fuente JPEG sin filtrar (permite re-renderizar filtro/rotación sin volver a capturar). */
+  sourceBlob?: Blob
   /** Esquinas usadas en el recorte (solo escaneo web; útil para re-editar). */
   corners?: Quad
 }

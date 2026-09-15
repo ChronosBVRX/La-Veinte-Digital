@@ -91,6 +91,27 @@ export class WebDocumentScanner {
     return { blob, width: filtered.width, height: filtered.height }
   }
 
+  /**
+   * Endereza sin filtro: produce la imagen fuente de la página.
+   * Los filtros se aplican después con `renderPageBlob` (una sola ruta de render).
+   */
+  async extractSource(params: {
+    source: Blob
+    corners: Quad
+    maxDimension?: number
+    jpegQuality?: number
+  }): Promise<ProcessedPage> {
+    const maxDimension = params.maxDimension ?? DEFAULT_PROCESS_MAX_DIMENSION
+    const full = await rasterFromBlob(params.source)
+    const corners = clampQuadToImage(params.corners, full)
+    const warped = warpPerspectiveRaster(full, corners, { maxDimension })
+    if (!warped) {
+      throw new Error("No se pudo enderezar el documento con las esquinas seleccionadas.")
+    }
+    const blob = await rasterToJpegBlob(warped, params.jpegQuality ?? DEFAULT_JPEG_QUALITY)
+    return { blob, width: warped.width, height: warped.height }
+  }
+
   /** Versión sin canvas del paso de procesamiento (para pruebas unitarias). */
   processRaster(raster: RasterImage, corners: Quad, filter: ScanFilter, maxDimension = DEFAULT_PROCESS_MAX_DIMENSION): RasterImage | null {
     const clamped = clampQuadToImage(corners, raster)

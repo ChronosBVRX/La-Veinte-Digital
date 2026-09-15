@@ -1,4 +1,5 @@
 import type { EscritoDraftV2 } from "@/shared/contracts/escrito-draft"
+import { scanKindForSource, type ScanDocumentKind } from "@/shared/contracts/document-scan"
 export type { ViewerDocument, ViewerSourceType } from "../services/document-viewer-adapter"
 
 export interface NativeDocumentMeta {
@@ -13,11 +14,11 @@ export interface NativeDocumentMeta {
   escritoId?: string | null
 }
 
-export type DocTipo = "tarjeton" | "checadas" | "escrito"
+export type DocTipo = "tarjeton" | "checadas" | "documento" | "ine" | "escrito"
 
 export interface DocNativo {
   kind: "nativo"
-  tipo: "tarjeton" | "checadas"
+  tipo: "tarjeton" | "checadas" | "documento" | "ine"
   id: string
   numericId?: number
   name: string
@@ -37,11 +38,26 @@ export interface DocEscrito {
   escrito: EscritoDraftV2
 }
 
-export type DocumentoPersonalItem = DocNativo | DocEscrito
+/**
+ * Documento escaneado con el módulo de digitalización y guardado en IndexedDB
+ * (solo web; en Android los escaneos viven como documentos nativos).
+ */
+export interface DocEscaneado {
+  kind: "escaneado"
+  tipo: ScanDocumentKind
+  id: string
+  name: string
+  fileSize: number
+  createdAt: number
+  mimeType: string
+  pageCount: number
+}
+
+export type DocumentoPersonalItem = DocNativo | DocEscrito | DocEscaneado
 
 export interface UnifiedViewerDocument {
   id: string
-  type: "tarjeton" | "checadas" | "escrito" | "documento"
+  type: "tarjeton" | "checadas" | "escrito" | "documento" | "ine"
   name: string
   mimeType?: string
   sourceUri?: string
@@ -66,6 +82,15 @@ export function toUnifiedViewerDocument(
         fileSize: item.fileSize,
         createdAt: item.downloadedAt,
       }
+    } else if (item.kind === "escaneado") {
+      return {
+        id: item.id,
+        type: item.tipo,
+        name: item.name,
+        mimeType: item.mimeType,
+        fileSize: item.fileSize,
+        createdAt: item.createdAt,
+      }
     } else {
       return {
         id: item.id,
@@ -80,8 +105,13 @@ export function toUnifiedViewerDocument(
   return item
 }
 
-/** Clasifica un documento nativo (source de Room: TU_PERFIL / TARJETON_DIGITAL / TU_PERFIL_BIOMETRIC). */
-export function tipoDeSource(source: string): "tarjeton" | "checadas" | null {
+/**
+ * Clasifica un documento nativo por su `source` EXPLÍCITO (Room), nunca por nombre
+ * de archivo: TU_PERFIL / TARJETON_DIGITAL / TU_PERFIL_BIOMETRIC / DOCUMENT_SCAN / INE_SCAN.
+ */
+export function tipoDeSource(source: string): "tarjeton" | "checadas" | "documento" | "ine" | null {
+  const scanKind = scanKindForSource(source)
+  if (scanKind) return scanKind
   if (source.includes("BIOMETRIC")) return "checadas"
   if (source === "TU_PERFIL" || source === "TARJETON_DIGITAL") return "tarjeton"
   return null
@@ -129,6 +159,8 @@ export function grupoLabel(tipo: DocTipo | UnifiedViewerDocument["type"] | "chec
       return "Checadas"
     case "escrito":
       return "Escritos"
+    case "ine":
+      return "Identificaciones"
     case "documento":
       return "Documentos"
     default:
@@ -137,11 +169,12 @@ export function grupoLabel(tipo: DocTipo | UnifiedViewerDocument["type"] | "chec
 }
 
 export function fechaDe(item: DocumentoPersonalItem): string {
+  if (item.kind === "escaneado") return formatFecha(item.createdAt)
   if (item.kind === "nativo") return formatFecha(item.downloadedAt)
   return formatFechaEscrito(item.fecha)
 }
 
 export function tituloDe(item: DocumentoPersonalItem): string {
-  if (item.kind === "nativo") return item.name
+  if (item.kind === "nativo" || item.kind === "escaneado") return item.name
   return item.escrito.titulo || "Escrito"
 }
