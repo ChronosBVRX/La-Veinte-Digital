@@ -3,6 +3,7 @@ import path from "node:path"
 import { describe, expect, it } from "vitest"
 import {
   API_ACCESS,
+  PUBLIC_STATIC_ASSET_PATHS,
   classifyRequestPath,
 } from "../route-policy"
 
@@ -110,10 +111,27 @@ describe("API route policy", () => {
     ["/informacion-y-fuentes", "public-page"],
     ["/eliminar-cuenta", "public-page"],
     ["/callback", "public-auth-route"],
+    ["/vendor/opencv/opencv.js", "public-static-asset"],
+    ["/vendor/pdfjs/pdf.worker.min.mjs", "public-static-asset"],
+    ["/vendor/tesseract/worker.min.js", "protected-page"],
+    ["/vendor/opencv/opencv.js.map", "protected-page"],
+    ["/vendor/opencv/", "protected-page"],
+    ["/vendor/", "protected-page"],
+    ["/app.js", "protected-page"],
+    ["/documentos-personales/datos.js", "protected-page"],
     ["/login/help", "protected-page"],
     ["/register-other", "protected-page"],
     ["/", "protected-page"],
   ] as const)("classifies %s as %s", (pathname, expected) => {
     expect(classifyRequestPath(pathname)).toBe(expected)
+  })
+
+  it("only opens exact vendor asset files, never a generic .js extension", () => {
+    for (const assetPath of PUBLIC_STATIC_ASSET_PATHS) {
+      expect(assetPath).toMatch(/^\/vendor\/[a-z0-9-]+\/[a-z0-9.-]+\.(?:js|mjs)$/)
+      expect(assetPath.endsWith("/")).toBe(false)
+    }
+    expect(classifyRequestPath("/vendor/opencv")).toBe("protected-page")
+    expect(classifyRequestPath("/vendor/pdfjs")).toBe("protected-page")
   })
 })

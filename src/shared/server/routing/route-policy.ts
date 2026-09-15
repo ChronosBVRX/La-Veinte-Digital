@@ -66,12 +66,23 @@ export const PUBLIC_PAGE_PATHS = [
 
 export const PUBLIC_AUTH_ROUTE_PATHS = ["/callback"] as const
 
+// Assets estáticos públicos, servidos desde `public/vendor/` (regenerados por
+// `scripts/copy-vendor.mjs` en prebuild). Son bundles de motor, sin datos de
+// usuario: el escáner de documentos (OpenCV.js) y el visor de PDF (worker de
+// pdf.js) deben poder cargarse sin sesión. Lista EXACTA por archivo: jamás se
+// abre por prefijo ni por extensión `.js` genérica.
+export const PUBLIC_STATIC_ASSET_PATHS = [
+  "/vendor/opencv/opencv.js",
+  "/vendor/pdfjs/pdf.worker.min.mjs",
+] as const
+
 export type RequestRouteClass =
   | "public-api"
   | "authenticated-api"
   | "unknown-api"
   | "public-page"
   | "public-auth-route"
+  | "public-static-asset"
   | "protected-page"
 
 function includesExact(paths: readonly string[], pathname: string): boolean {
@@ -100,6 +111,10 @@ export function classifyRequestPath(pathname: string): RequestRouteClass {
 
   if (includesExact(PUBLIC_AUTH_ROUTE_PATHS, pathname)) {
     return "public-auth-route"
+  }
+
+  if (includesExact(PUBLIC_STATIC_ASSET_PATHS, pathname)) {
+    return "public-static-asset"
   }
 
   return "protected-page"

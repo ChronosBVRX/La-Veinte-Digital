@@ -38,7 +38,12 @@ export async function proxy(request: NextRequest) {
     return apiError(404, "No encontrado", "not_found")
   }
 
-  if (routeClass === "public-api" || routeClass === "public-page" || routeClass === "public-auth-route") {
+  if (
+    routeClass === "public-api" ||
+    routeClass === "public-page" ||
+    routeClass === "public-auth-route" ||
+    routeClass === "public-static-asset"
+  ) {
     return NextResponse.next({ request })
   }
 
