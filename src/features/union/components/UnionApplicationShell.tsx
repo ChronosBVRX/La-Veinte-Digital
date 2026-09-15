@@ -17,6 +17,7 @@ import {
   X,
   Handshake,
   Shield,
+  DotsThreeCircle,
 } from "@phosphor-icons/react";
 import { SignOutButton } from "@/shared/components/app/SignOutButton";
 import { useBackLayer } from "@/shared/navigation/useBackLayer";
@@ -34,22 +35,64 @@ export interface UnionNavModule {
   adminOnly?: boolean;
 }
 
-export const UNION_MODULES: UnionNavModule[] = [
-  { href: "/representacion", label: "Resumen", description: "Tablero general", icon: House },
-  { href: "/representacion/trabajadores", label: "Trabajadores", description: "Padrón y búsqueda", icon: Users },
-  { href: "/representacion/maternidad", label: "Maternidad", description: "Cálculo 90 días", icon: Baby },
-  { href: "/representacion/lactancia", label: "Lactancia", description: "365 días y modalidades", icon: Drop },
-  { href: "/representacion/lockers", label: "Lockers", description: "Asignaciones y espera", icon: Lockers },
-  { href: "/representacion/pasajes", label: "Pasajes", description: "Formatos 026 / 027", icon: Ticket },
-  { href: "/representacion/licencias", label: "Licencias", description: "Solicitud y oficio", icon: FileText },
-  { href: "/representacion/expedientes", label: "Expedientes", description: "Timeline de casos", icon: Folder },
-  { href: "/representacion/administracion", label: "Administración", description: "Comité y auditoría", icon: ShieldCheck },
+export interface UnionNavGroup {
+  id: string;
+  label: string;
+  modules: UnionNavModule[];
+}
+
+export const UNION_NAV_GROUPS: UnionNavGroup[] = [
+  {
+    id: "panel",
+    label: "Panel",
+    modules: [{ href: "/representacion", label: "Resumen", description: "Tablero general", icon: House }],
+  },
+  {
+    id: "personas",
+    label: "Personas",
+    modules: [
+      { href: "/representacion/trabajadores", label: "Trabajadores", description: "Padrón, filtros y expediente", icon: Users },
+      { href: "/representacion/expedientes", label: "Expedientes", description: "Timeline de casos", icon: Folder },
+    ],
+  },
+  {
+    id: "prestaciones",
+    label: "Prestaciones y trámites",
+    modules: [
+      { href: "/representacion/maternidad", label: "Maternidad", description: "Cálculo 90 días", icon: Baby },
+      { href: "/representacion/lactancia", label: "Lactancia", description: "365 días y modalidades", icon: Drop },
+      { href: "/representacion/licencias", label: "Licencias", description: "Solicitud y oficio", icon: FileText },
+      { href: "/representacion/pasajes", label: "Pasajes", description: "Formatos 026 / 027", icon: Ticket },
+      { href: "/representacion/lockers", label: "Lockers", description: "Asignaciones y espera", icon: Lockers },
+    ],
+  },
+  {
+    id: "gestion",
+    label: "Gestión",
+    modules: [
+      { href: "/representacion/administracion", label: "Administración", description: "Comité y auditoría", icon: ShieldCheck },
+    ],
+  },
 ];
+
+export const UNION_MODULES: UnionNavModule[] = UNION_NAV_GROUPS.flatMap((group) => group.modules);
+
+const MOBILE_PRIMARY_MODULES: UnionNavModule[] = [
+  "/representacion",
+  "/representacion/trabajadores",
+  "/representacion/expedientes",
+]
+  .map((href) => UNION_MODULES.find((module) => module.href === href))
+  .filter((module): module is UnionNavModule => Boolean(module));
 
 export interface UnionApplicationShellProps {
   memberships: UnionMembership[];
   userName?: string | null;
   children: ReactNode;
+}
+
+function isModuleActive(pathname: string, href: string): boolean {
+  return href === "/representacion" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
 export function UnionApplicationShell({ memberships, userName, children }: UnionApplicationShellProps): React.JSX.Element {
@@ -64,10 +107,8 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
     setDrawerOpen(false);
   }, []);
 
-  // Registro en el Back canónico para cerrar el drawer antes de salir de la página
   useBackLayer(drawerOpen, closeDrawer, "union-mobile-drawer");
 
-  // Cerrar con Escape
   useEffect(() => {
     if (!drawerOpen) return;
     function onKeyDown(e: KeyboardEvent) {
@@ -79,16 +120,14 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [drawerOpen, closeDrawer]);
 
-  const activeModule = UNION_MODULES.find((m) =>
-    m.href === "/representacion"
-      ? pathname === "/representacion"
-      : pathname === m.href || pathname.startsWith(`${m.href}/`)
-  ) ?? {
-    href: "/representacion",
-    label: "Representación Sindical",
-    description: "Delegación XXI",
-    icon: Handshake,
-  };
+  const activeModule =
+    UNION_MODULES.find((m) => isModuleActive(pathname, m.href)) ??
+    ({
+      href: "/representacion",
+      label: "Representación Sindical",
+      description: "Delegación XXI",
+      icon: Handshake,
+    } satisfies UnionNavModule);
 
   const isAdmin = memberships.some((m) => m.role === "union_admin");
   const delegationCode = memberships[0]?.delegation_code || "XXI";
@@ -96,8 +135,76 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
     userName && typeof userName === "string" && !userName.includes("@") && userName.trim().length > 0
       ? userName.trim()
       : isAdmin
-      ? "Administrador Sindical"
-      : "Representante Sindical";
+        ? "Administrador Sindical"
+        : "Representante Sindical";
+
+  const renderDesktopNavItem = (mod: UnionNavModule): React.JSX.Element => {
+    const isActive = isModuleActive(pathname, mod.href);
+    const Icon = mod.icon;
+    return (
+      <li key={mod.href}>
+        <Link
+          href={mod.href}
+          aria-current={isActive ? "page" : undefined}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            padding: "0.5rem 0.625rem",
+            borderRadius: "var(--radius-sm)",
+            textDecoration: "none",
+            fontSize: "0.8125rem",
+            fontWeight: isActive ? 700 : 500,
+            color: isActive ? "var(--primary)" : "var(--fg)",
+            background: isActive ? "#eff6ff" : "transparent",
+            borderLeft: isActive ? "3px solid var(--primary)" : "3px solid transparent",
+            minHeight: 40,
+            boxSizing: "border-box",
+            transition: "background 0.15s ease, color 0.15s ease",
+          }}
+        >
+          <Icon size={17} weight={isActive ? "fill" : "regular"} style={{ flexShrink: 0 }} />
+          <span style={{ minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{mod.label}</span>
+          {mod.adminOnly ? <Shield size={13} weight="bold" style={{ opacity: isActive ? 0.9 : 0.4 }} /> : null}
+        </Link>
+      </li>
+    );
+  };
+
+  const renderDrawerNavItem = (mod: UnionNavModule): React.JSX.Element => {
+    const isActive = isModuleActive(pathname, mod.href);
+    const Icon = mod.icon;
+    return (
+      <li key={mod.href}>
+        <Link
+          href={mod.href}
+          onClick={closeDrawer}
+          aria-current={isActive ? "page" : undefined}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            padding: "0.5rem 0.75rem",
+            borderRadius: "var(--radius-sm)",
+            textDecoration: "none",
+            fontSize: "0.9375rem",
+            fontWeight: isActive ? 700 : 500,
+            color: isActive ? "var(--primary)" : "var(--fg)",
+            background: isActive ? "#eff6ff" : "transparent",
+            minHeight: 44,
+            boxSizing: "border-box",
+          }}
+        >
+          <Icon size={20} weight={isActive ? "fill" : "regular"} style={{ flexShrink: 0 }} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div>{mod.label}</div>
+            <div style={{ fontSize: "0.6875rem", color: "var(--muted)" }}>{mod.description}</div>
+          </div>
+          {mod.adminOnly ? <Shield size={14} weight="bold" style={{ opacity: isActive ? 0.9 : 0.4 }} /> : null}
+        </Link>
+      </li>
+    );
+  };
 
   return (
     <div
@@ -109,24 +216,32 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
         color: "var(--fg, #0f172a)",
       }}
     >
-      {/* HEADER SUPERIOR INSTITUCIONAL (Común para móvil y escritorio) */}
+      <style>{`
+        @media (max-width: 768px) {
+          .union-header-subtitle { display: none !important; }
+        }
+        @media (min-width: 769px) {
+          .union-mobile-nav { display: none !important; }
+        }
+      `}</style>
+
       <header
         style={{
-          height: "60px",
+          height: 56,
           background: "linear-gradient(135deg, #1e3a8a 0%, #172554 100%)",
           color: "#ffffff",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0 1rem",
+          padding: "0 0.75rem",
           position: "sticky",
           top: 0,
           zIndex: 40,
           boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+          gap: "0.5rem",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", minWidth: 0 }}>
-          {/* Botón hamburguesa accesible en móvil (mínimo 44x44) */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", minWidth: 0, flex: 1 }}>
           <button
             type="button"
             onClick={toggleDrawer}
@@ -138,8 +253,8 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              width: "44px",
-              height: "44px",
+              width: 44,
+              height: 44,
               background: "rgba(255,255,255,0.12)",
               border: "1px solid rgba(255,255,255,0.2)",
               borderRadius: "0.5rem",
@@ -149,12 +264,11 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
               flexShrink: 0,
             }}
           >
-            {drawerOpen ? <X size={22} weight="bold" /> : <List size={22} weight="bold" />}
+            {drawerOpen ? <X size={20} weight="bold" /> : <List size={20} weight="bold" />}
           </button>
 
-          {/* Identidad institucional */}
           <div style={{ minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
               <Link
                 href="/representacion"
                 style={{
@@ -164,47 +278,53 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
                   color: "#ffffff",
                   textDecoration: "none",
                   fontWeight: 800,
-                  fontSize: "1rem",
+                  fontSize: "0.9375rem",
                   letterSpacing: "-0.01em",
+                  minWidth: 0,
                 }}
               >
-                <Handshake size={20} weight="fill" style={{ color: "#60a5fa" }} />
-                <span>Representación Sindical</span>
+                <Handshake size={18} weight="fill" style={{ color: "#60a5fa", flexShrink: 0 }} />
+                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Representación Sindical</span>
               </Link>
               <span
                 style={{
-                  fontSize: "0.6875rem",
+                  fontSize: "0.625rem",
                   fontWeight: 700,
                   background: "rgba(96, 165, 250, 0.2)",
                   color: "#bfdbfe",
                   border: "1px solid rgba(96, 165, 250, 0.35)",
-                  padding: "0.125rem 0.4rem",
+                  padding: "0.0625rem 0.375rem",
                   borderRadius: "9999px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
+                  letterSpacing: "0.04em",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
                 }}
               >
                 Delegación {delegationCode}
               </span>
               <span
+                className="desktop-only"
                 style={{
                   fontSize: "0.625rem",
                   fontWeight: 700,
                   background: "rgba(234, 179, 8, 0.2)",
                   color: "#fef08a",
                   border: "1px solid rgba(234, 179, 8, 0.35)",
-                  padding: "0.125rem 0.375rem",
+                  padding: "0.0625rem 0.3125rem",
                   borderRadius: "9999px",
                   letterSpacing: "0.04em",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
                 }}
               >
                 BETA PRIVADA
               </span>
             </div>
             <p
+              className="union-header-subtitle"
               style={{
                 margin: 0,
-                fontSize: "0.75rem",
+                fontSize: "0.6875rem",
                 color: "#93c5fd",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
@@ -216,8 +336,7 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
           </div>
         </div>
 
-        {/* Módulo activo en desktop + Salida sindical */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", flexShrink: 0 }}>
           <div
             className="desktop-only"
             style={{
@@ -227,25 +346,26 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
               borderRadius: "0.375rem",
               color: "#e0f2fe",
               fontWeight: 600,
+              maxWidth: 220,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
           >
             {activeModule.label}
           </div>
-
-          <div style={{ flexShrink: 0 }}>
+          <div className="desktop-only">
             <SignOutButton />
           </div>
         </div>
       </header>
 
-      {/* CUERPO PRINCIPAL (Sidebar escritorio + Área de contenido) */}
       <div style={{ display: "flex", flex: 1, minHeight: 0, position: "relative" }}>
-        {/* SIDEBAR ESCRITORIO (Solo módulos sindicales) */}
         <aside
           className="desktop-only"
           aria-label="Navegación sindical de escritorio"
           style={{
-            width: "260px",
+            width: 232,
             background: "var(--card, #ffffff)",
             borderRight: "1px solid var(--border, #e2e8f0)",
             display: "flex",
@@ -253,79 +373,41 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
             flexShrink: 0,
             overflowY: "auto",
             position: "sticky",
-            top: "60px",
-            height: "calc(100vh - 60px)",
+            top: 56,
+            height: "calc(100vh - 56px)",
           }}
         >
-          {/* Título de navegación */}
-          <div style={{ padding: "1rem 1rem 0.5rem" }}>
-            <span
-              style={{
-                fontSize: "0.6875rem",
-                fontWeight: 700,
-                color: "var(--muted, #64748b)",
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                display: "block",
-              }}
-            >
-              MÓDULOS SINDICALES
-            </span>
-          </div>
-
-          {/* Lista de los 9 módulos */}
-          <nav aria-label="Módulos sindicales" style={{ padding: "0 0.5rem", flex: 1 }}>
-            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              {UNION_MODULES.map((mod) => {
-                const isActive =
-                  mod.href === "/representacion"
-                    ? pathname === "/representacion"
-                    : pathname === mod.href || pathname.startsWith(`${mod.href}/`);
-                const Icon = mod.icon;
-
-                return (
-                  <li key={mod.href}>
-                    <Link
-                      href={mod.href}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.625rem",
-                        padding: "0.625rem 0.75rem",
-                        borderRadius: "0.375rem",
-                        textDecoration: "none",
-                        fontSize: "0.875rem",
-                        fontWeight: isActive ? 700 : 500,
-                        color: isActive ? "#ffffff" : "var(--fg, #0f172a)",
-                        background: isActive ? "var(--primary, #2563eb)" : "transparent",
-                        minHeight: "44px",
-                        boxSizing: "border-box",
-                        transition: "background 0.15s ease, color 0.15s ease",
-                      }}
-                    >
-                      <Icon size={18} weight={isActive ? "fill" : "regular"} style={{ flexShrink: 0 }} />
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{mod.label}</div>
-                      </div>
-                      {mod.adminOnly ? (
-                        <Shield size={14} weight="bold" style={{ opacity: isActive ? 0.9 : 0.4 }} />
-                      ) : null}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
+          <nav aria-label="Módulos sindicales" style={{ padding: "0.625rem 0.5rem", flex: 1 }}>
+            {UNION_NAV_GROUPS.map((group, index) => (
+              <div key={group.id} style={{ marginTop: index === 0 ? 0 : "0.75rem" }}>
+                <span
+                  style={{
+                    fontSize: "0.625rem",
+                    fontWeight: 700,
+                    color: "var(--muted, #64748b)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    display: "block",
+                    padding: "0 0.625rem 0.25rem",
+                  }}
+                >
+                  {group.label}
+                </span>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.125rem" }}>
+                  {group.modules.map(renderDesktopNavItem)}
+                </ul>
+              </div>
+            ))}
           </nav>
 
-          {/* Pie de navegación lateral: Info de usuario, Aviso de privacidad y Salida */}
           <div
             style={{
-              padding: "0.75rem",
+              padding: "0.625rem",
               borderTop: "1px solid var(--border, #e2e8f0)",
               background: "var(--accent, #f8fafc)",
               display: "flex",
               flexDirection: "column",
-              gap: "0.5rem",
+              gap: "0.375rem",
             }}
           >
             <div style={{ fontSize: "0.75rem", color: "var(--muted, #64748b)" }}>
@@ -334,22 +416,15 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
                 {isAdmin ? "Rol: Administrador Sindical" : "Rol: Representante Sindical"}
               </div>
             </div>
-
             <Link
               href="/representacion/aviso-privacidad"
-              style={{
-                fontSize: "0.75rem",
-                color: "var(--muted, #64748b)",
-                textDecoration: "none",
-                padding: "0.25rem 0",
-              }}
+              style={{ fontSize: "0.75rem", color: "var(--muted, #64748b)", textDecoration: "none", padding: "0.25rem 0" }}
             >
               Aviso de privacidad sindical
             </Link>
           </div>
         </aside>
 
-        {/* DRAWER MÓVIL SINDICAL (Accesible, táctil >= 44px, safe area, escape, backdrop) */}
         {drawerOpen ? (
           <div
             id="union-mobile-drawer-backdrop"
@@ -361,7 +436,6 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
               backdropFilter: "blur(2px)",
               WebkitBackdropFilter: "blur(2px)",
               zIndex: 50,
-              transition: "opacity 0.2s ease",
             }}
           />
         ) : null}
@@ -377,7 +451,7 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
             top: 0,
             left: 0,
             bottom: 0,
-            width: "300px",
+            width: 300,
             maxWidth: "85vw",
             background: "var(--card, #ffffff)",
             zIndex: 60,
@@ -394,20 +468,18 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
             boxSizing: "border-box",
           }}
         >
-          {/* Encabezado del Drawer móvil */}
           <div
             style={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              padding: "0.75rem 1rem",
+              gap: "0.5rem",
+              padding: "0.625rem 0.75rem",
               borderBottom: "1px solid var(--border, #e2e8f0)",
             }}
           >
-            <div>
-              <div style={{ fontWeight: 800, fontSize: "0.9375rem", color: "var(--fg, #0f172a)" }}>
-                Representación Sindical
-              </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 800, fontSize: "0.9375rem", color: "var(--fg, #0f172a)" }}>Representación Sindical</div>
               <div style={{ fontSize: "0.75rem", color: "var(--muted, #64748b)" }}>
                 Delegación {delegationCode} · HGR No. 1
               </div>
@@ -420,87 +492,44 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: "44px",
-                height: "44px",
+                width: 44,
+                height: 44,
                 background: "transparent",
                 border: "none",
                 borderRadius: "0.375rem",
                 color: "var(--muted, #64748b)",
                 cursor: "pointer",
                 padding: 0,
+                flexShrink: 0,
               }}
             >
               <X size={20} weight="bold" />
             </button>
           </div>
 
-          {/* Lista de módulos en el drawer móvil (mínimo 44px de altura) */}
-          <nav style={{ padding: "0.75rem 0.5rem", flex: 1 }}>
-            <span
-              style={{
-                fontSize: "0.6875rem",
-                fontWeight: 700,
-                color: "var(--muted, #64748b)",
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                padding: "0 0.5rem",
-                marginBottom: "0.375rem",
-                display: "block",
-              }}
-            >
-              MÓDULOS SINDICALES
-            </span>
-            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-              {UNION_MODULES.map((mod) => {
-                const isActive =
-                  mod.href === "/representacion"
-                    ? pathname === "/representacion"
-                    : pathname === mod.href || pathname.startsWith(`${mod.href}/`);
-                const Icon = mod.icon;
-
-                return (
-                  <li key={mod.href}>
-                    <Link
-                      href={mod.href}
-                      onClick={closeDrawer}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.75rem",
-                        padding: "0.625rem 0.75rem",
-                        borderRadius: "0.375rem",
-                        textDecoration: "none",
-                        fontSize: "0.9375rem",
-                        fontWeight: isActive ? 700 : 500,
-                        color: isActive ? "#ffffff" : "var(--fg, #0f172a)",
-                        background: isActive ? "var(--primary, #2563eb)" : "transparent",
-                        minHeight: "44px",
-                        boxSizing: "border-box",
-                      }}
-                    >
-                      <Icon size={20} weight={isActive ? "fill" : "regular"} style={{ flexShrink: 0 }} />
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div>{mod.label}</div>
-                        <div
-                          style={{
-                            fontSize: "0.6875rem",
-                            color: isActive ? "#dbeafe" : "var(--muted, #64748b)",
-                          }}
-                        >
-                          {mod.description}
-                        </div>
-                      </div>
-                      {mod.adminOnly ? (
-                        <Shield size={14} weight="bold" style={{ opacity: isActive ? 0.9 : 0.4 }} />
-                      ) : null}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
+          <nav aria-label="Módulos sindicales móviles" style={{ padding: "0.625rem 0.5rem", flex: 1 }}>
+            {UNION_NAV_GROUPS.map((group, index) => (
+              <div key={group.id} style={{ marginTop: index === 0 ? 0 : "0.75rem" }}>
+                <span
+                  style={{
+                    fontSize: "0.625rem",
+                    fontWeight: 700,
+                    color: "var(--muted, #64748b)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    display: "block",
+                    padding: "0 0.75rem 0.25rem",
+                  }}
+                >
+                  {group.label}
+                </span>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.125rem" }}>
+                  {group.modules.map(renderDrawerNavItem)}
+                </ul>
+              </div>
+            ))}
           </nav>
 
-          {/* Pie del Drawer móvil: Aviso de privacidad y Salida */}
           <div
             style={{
               padding: "0.75rem 1rem",
@@ -517,7 +546,6 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
                 {isAdmin ? "Rol: Administrador Sindical" : "Rol: Representante Sindical"}
               </div>
             </div>
-
             <Link
               href="/representacion/aviso-privacidad"
               onClick={closeDrawer}
@@ -525,19 +553,17 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
                 fontSize: "0.75rem",
                 color: "var(--muted, #64748b)",
                 textDecoration: "none",
-                minHeight: "44px",
+                minHeight: 44,
                 display: "flex",
                 alignItems: "center",
               }}
             >
               Aviso de privacidad sindical
             </Link>
-
             <SignOutButton onDone={closeDrawer} />
           </div>
         </div>
 
-        {/* ÁREA DE CONTENIDO PRINCIPAL */}
         <main
           style={{
             flex: 1,
@@ -563,6 +589,81 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
           </div>
         </main>
       </div>
+
+      <nav
+        className="mobile-only union-mobile-nav"
+        aria-label="Navegación rápida sindical"
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 30,
+          display: "flex",
+          alignItems: "stretch",
+          background: "var(--card, #ffffff)",
+          borderTop: "1px solid var(--border, #e2e8f0)",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          boxShadow: "0 -1px 4px rgba(0,0,0,0.06)",
+        }}
+      >
+        {MOBILE_PRIMARY_MODULES.map((mod) => {
+          const isActive = isModuleActive(pathname, mod.href);
+          const Icon = mod.icon;
+          return (
+            <Link
+              key={mod.href}
+              href={mod.href}
+              aria-current={isActive ? "page" : undefined}
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.125rem",
+                padding: "0.375rem 0.25rem",
+                minHeight: 56,
+                textDecoration: "none",
+                color: isActive ? "var(--primary)" : "var(--muted)",
+                fontWeight: isActive ? 700 : 500,
+                fontSize: "0.6875rem",
+                boxSizing: "border-box",
+                minWidth: 0,
+              }}
+            >
+              <Icon size={20} weight={isActive ? "fill" : "regular"} />
+              <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" }}>{mod.label}</span>
+            </Link>
+          );
+        })}
+        <button
+          type="button"
+          onClick={toggleDrawer}
+          aria-label={drawerOpen ? "Cerrar más módulos sindicales" : "Abrir más módulos sindicales"}
+          aria-expanded={drawerOpen}
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.125rem",
+            padding: "0.375rem 0.25rem",
+            minHeight: 56,
+            background: "none",
+            border: "none",
+            color: "var(--muted)",
+            fontWeight: 500,
+            fontSize: "0.6875rem",
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          <DotsThreeCircle size={20} />
+          <span>Más</span>
+        </button>
+      </nav>
     </div>
   );
 }
