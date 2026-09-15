@@ -8,32 +8,61 @@ import { CalendarioLaboral } from "@/shared/components/app/CalendarioLaboral"
 import { AgendaCardWrapper } from "@/shared/components/app/AgendaCardWrapper"
 import { CopyServiceHeroCard } from "@/features/copy-service/components/CopyServiceHeroCard"
 import { SalaryIncreaseCard } from "@/features/salary-estimate/components/SalaryIncreaseCard"
+import {
+  describeSupabaseError,
+  resolveDashboardProfile,
+  resolvePayslipPresence,
+} from "@/features/dashboard/lib/dashboard-data-state"
+import { withSingleRetry } from "@/features/dashboard/lib/with-single-retry"
 
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single()
+  const profileResult = await withSingleRetry(() =>
+    supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle()
+  )
 
-  const activeMatricula = profile?.matricula?.trim() || null
-
-  let query = supabase
-    .from("imported_payslips")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-
-  if (activeMatricula) {
-    query = query.eq("employee_number", activeMatricula)
+  const profileState = resolveDashboardProfile(profileResult.value)
+  if (profileResult.value.error) {
+    console.error("Failed to load dashboard profile", {
+      userId: user.id,
+      attempts: profileResult.attempts,
+      ...describeSupabaseError(profileResult.value.error),
+    })
   }
 
-  const { count: tarjetonesCount } = await query
+  const activeMatricula = profileState.matricula?.trim() || null
 
-  const hasTarjeton = (tarjetonesCount ?? 0) > 0
+  const payslipResult = await withSingleRetry(() => {
+    let query = supabase
+      .from("imported_payslips")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+
+    if (activeMatricula) {
+      query = query.eq("employee_number", activeMatricula)
+    }
+
+    return query
+  })
+
+  const payslipPresence = resolvePayslipPresence(payslipResult.value)
+  if (payslipResult.value.error) {
+    console.error("Failed to determine dashboard payslip state", {
+      userId: user.id,
+      attempts: payslipResult.attempts,
+      ...describeSupabaseError(payslipResult.value.error),
+    })
+  }
+
+  const hasTarjeton: boolean | null =
+    payslipPresence === "present" ? true : payslipPresence === "absent" ? false : null
 
   const now = new Date()
 
@@ -69,7 +98,7 @@ export default async function DashboardPage() {
       }}
     >
       <WelcomeCard
-        fullName={profile?.full_name ?? null}
+        fullName={profileState.fullName}
         greeting={greeting}
         dateLabel={dateLabel}
         userId={user.id}
@@ -81,9 +110,9 @@ export default async function DashboardPage() {
 
       <div className="mobile-only">
         <OnboardingCard
-          hasAntiguedad={!!profile?.antiguedad}
+          hasAntiguedad={profileState.hasAntiguedad}
           hasTarjeton={hasTarjeton}
-          hasCategoria={!!profile?.categoria}
+          hasCategoria={profileState.hasCategoria}
         />
         <HomeQuickActions />
         <CalendarioLaboral />
@@ -99,9 +128,9 @@ export default async function DashboardPage() {
         </div>
         <aside className="dashboard-rail">
           <OnboardingCard
-            hasAntiguedad={!!profile?.antiguedad}
+            hasAntiguedad={profileState.hasAntiguedad}
             hasTarjeton={hasTarjeton}
-            hasCategoria={!!profile?.categoria}
+            hasCategoria={profileState.hasCategoria}
           />
           <div id="agenda" style={{ scrollMarginTop: "calc(var(--nav-height) + 1.5rem)" }}>
             <AgendaCardWrapper userId={user.id} />

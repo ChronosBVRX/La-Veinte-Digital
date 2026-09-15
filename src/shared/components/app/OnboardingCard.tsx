@@ -3,9 +3,11 @@
 import Link from "next/link"
 import { CheckCircle, CaretRight, Sparkle } from "@phosphor-icons/react"
 
+type OnboardingFactStatus = "present" | "absent" | "unknown"
+
 interface OnboardingStep {
   key: string
-  done: boolean
+  status: OnboardingFactStatus
   label: string
   description: string
   actionLabel: string
@@ -13,16 +15,25 @@ interface OnboardingStep {
 }
 
 interface OnboardingCardProps {
-  hasAntiguedad: boolean
-  hasTarjeton: boolean
-  hasCategoria: boolean
+  /** true = confirmado, false = confirmado ausente, null = no se pudo confirmar */
+  hasAntiguedad: boolean | null
+  /** true = confirmado, false = confirmado ausente, null = no se pudo confirmar */
+  hasTarjeton: boolean | null
+  /** true = confirmado, false = confirmado ausente, null = no se pudo confirmar */
+  hasCategoria: boolean | null
+}
+
+function factStatus(value: boolean | null | undefined): OnboardingFactStatus {
+  if (value === true) return "present"
+  if (value === false) return "absent"
+  return "unknown"
 }
 
 export function OnboardingCard({ hasAntiguedad, hasTarjeton, hasCategoria }: OnboardingCardProps) {
   const steps: OnboardingStep[] = [
     {
       key: "categoria",
-      done: hasCategoria,
+      status: factStatus(hasCategoria),
       label: "Registra tu categoría",
       description: "Tu categoría sindical ayuda a las calculadoras a estimar bien tus prestaciones.",
       actionLabel: "Registrar mi categoría",
@@ -30,7 +41,7 @@ export function OnboardingCard({ hasAntiguedad, hasTarjeton, hasCategoria }: Onb
     },
     {
       key: "antiguedad",
-      done: hasAntiguedad,
+      status: factStatus(hasAntiguedad),
       label: "Registra tu antigüedad",
       description: "Con tu antigüedad, las vacaciones y prestaciones se calculan con exactitud.",
       actionLabel: "Registrar mi antigüedad",
@@ -38,7 +49,7 @@ export function OnboardingCard({ hasAntiguedad, hasTarjeton, hasCategoria }: Onb
     },
     {
       key: "tarjeton",
-      done: hasTarjeton,
+      status: factStatus(hasTarjeton),
       label: "Importa tu tarjetón",
       description: "Importa tu tarjetón del IMSS y tus datos laborales se actualizan solos.",
       actionLabel: "Importar mi tarjetón",
@@ -46,13 +57,14 @@ export function OnboardingCard({ hasAntiguedad, hasTarjeton, hasCategoria }: Onb
     },
   ]
 
-  const doneCount = steps.filter((s) => s.done).length
-  const total = steps.length
-  if (doneCount === total) return null
+  const activeIndex = steps.findIndex((s) => s.status === "absent")
+  if (activeIndex === -1) return null
 
-  const activeIndex = steps.findIndex((s) => !s.done)
+  const knownTotal = steps.filter((s) => s.status !== "unknown").length
+  const doneCount = steps.filter((s) => s.status === "present").length
+  const unknownCount = steps.length - knownTotal
   const active = steps[activeIndex]
-  const remaining = total - doneCount
+  const remaining = knownTotal - doneCount
 
   return (
     <section
@@ -86,7 +98,8 @@ export function OnboardingCard({ hasAntiguedad, hasTarjeton, hasCategoria }: Onb
               Prepara tu cuenta
             </h2>
             <p style={{ margin: "0.125rem 0 0", fontSize: "var(--text-xs)", color: "var(--muted)" }}>
-              {doneCount} de {total} pasos completados
+              {doneCount} de {knownTotal} pasos completados
+              {unknownCount > 0 ? ` · ${unknownCount} por confirmar` : ""}
             </p>
           </div>
         </div>
@@ -102,7 +115,7 @@ export function OnboardingCard({ hasAntiguedad, hasTarjeton, hasCategoria }: Onb
             whiteSpace: "nowrap",
           }}
         >
-          Falta {remaining} de {total}
+          Falta {remaining} de {knownTotal}
         </span>
       </div>
 
@@ -115,11 +128,14 @@ export function OnboardingCard({ hasAntiguedad, hasTarjeton, hasCategoria }: Onb
               flex: 1,
               height: 6,
               borderRadius: "var(--radius-pill)",
-              background: s.done
-                ? "linear-gradient(90deg, var(--area-work), #34d399)"
-                : i === activeIndex
-                ? "var(--brand-blue)"
-                : "rgba(100, 116, 139, 0.18)",
+              background:
+                s.status === "present"
+                  ? "linear-gradient(90deg, var(--area-work), #34d399)"
+                  : i === activeIndex
+                  ? "var(--brand-blue)"
+                  : s.status === "unknown"
+                  ? "rgba(100, 116, 139, 0.28)"
+                  : "rgba(100, 116, 139, 0.18)",
             }}
           />
         ))}
@@ -137,6 +153,7 @@ export function OnboardingCard({ hasAntiguedad, hasTarjeton, hasCategoria }: Onb
       >
         {steps.map((s, i) => {
           const isActive = i === activeIndex
+          const isUnknown = s.status === "unknown"
           return (
             <li
               key={s.key}
@@ -144,7 +161,7 @@ export function OnboardingCard({ hasAntiguedad, hasTarjeton, hasCategoria }: Onb
                 display: "flex",
                 alignItems: "flex-start",
                 gap: "0.625rem",
-                opacity: s.done ? 1 : isActive ? 1 : 0.6,
+                opacity: s.status === "present" || isActive ? 1 : isUnknown ? 0.75 : 0.6,
               }}
             >
               <span
@@ -156,13 +173,20 @@ export function OnboardingCard({ hasAntiguedad, hasTarjeton, hasCategoria }: Onb
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: s.done ? "var(--area-work)" : isActive ? "var(--brand-blue)" : "var(--accent)",
-                  color: s.done || isActive ? "var(--primary-fg)" : "var(--muted)",
+                  background:
+                    s.status === "present"
+                      ? "var(--area-work)"
+                      : isActive
+                      ? "var(--brand-blue)"
+                      : "var(--accent)",
+                  color: s.status === "present" || isActive ? "var(--primary-fg)" : "var(--muted)",
                   marginTop: 1,
                 }}
               >
-                {s.done ? (
+                {s.status === "present" ? (
                   <CheckCircle size={16} weight="fill" />
+                ) : isUnknown ? (
+                  <span style={{ fontSize: "0.6875rem", fontWeight: 700 }}>?</span>
                 ) : (
                   <span style={{ fontSize: "0.6875rem", fontWeight: 700 }}>{i + 1}</span>
                 )}
@@ -173,7 +197,7 @@ export function OnboardingCard({ hasAntiguedad, hasTarjeton, hasCategoria }: Onb
                     fontSize: "var(--text-sm)",
                     fontWeight: isActive ? 600 : 500,
                     color: "var(--fg)",
-                    textDecoration: s.done ? "line-through" : "none",
+                    textDecoration: s.status === "present" ? "line-through" : "none",
                     textDecorationColor: "rgba(100,116,139,0.4)",
                   }}
                 >
@@ -184,9 +208,14 @@ export function OnboardingCard({ hasAntiguedad, hasTarjeton, hasCategoria }: Onb
                     {s.description}
                   </p>
                 )}
-                {s.done && (
+                {s.status === "present" && (
                   <span style={{ fontSize: "var(--text-xs)", color: "var(--area-work)", fontWeight: 600 }}>
                     Completado
+                  </span>
+                )}
+                {isUnknown && (
+                  <span style={{ fontSize: "var(--text-xs)", color: "var(--muted)", fontWeight: 600 }}>
+                    Por confirmar
                   </span>
                 )}
               </div>
