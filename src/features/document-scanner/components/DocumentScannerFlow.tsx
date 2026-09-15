@@ -306,8 +306,9 @@ export function DocumentScannerFlow({
       let saveFailure: ScanStorageFailure | null = null
 
       if (saveToDocuments) {
+        const effectiveUserId = userId || "anonymous"
+        let saveError: unknown = null
         try {
-          const effectiveUserId = userId || "anonymous"
           const result = await persistScannedDocument({
             userId: effectiveUserId,
             kind: finalized.kind,
@@ -324,26 +325,23 @@ export function DocumentScannerFlow({
             }
           } else {
             saveFailure = result.failure || "unknown"
-            onSaveFailed?.(saveFailure)
-            console.warn("[DocumentScannerFlow] Guardado opcional falló (no fatal):", result)
-            if (intent === "save") {
-              throw new Error(
-                result.failure === "quota_exceeded"
-                  ? "No hay suficiente espacio disponible en este dispositivo para guardar el documento."
-                  : "No se pudo guardar el documento en el dispositivo."
-              )
-            }
+            saveError = new Error(result.reason || "Error de persistencia")
           }
-        } catch (saveError) {
-          saveFailure = classifyStorageError(saveError)
+        } catch (err) {
+          saveFailure = classifyStorageError(err)
+          saveError = err
+        }
+
+        if (saveFailure) {
           onSaveFailed?.(saveFailure, saveError)
+          console.warn("[DocumentScannerFlow] Guardado falló:", saveFailure, saveError)
           if (intent === "save") {
-            if (saveFailure === "quota_exceeded") {
-              throw new Error("No hay suficiente espacio disponible en este dispositivo para guardar el documento.")
-            }
-            throw saveError
+            const uiMessage =
+              saveFailure === "quota_exceeded"
+                ? "No hay suficiente espacio disponible en este dispositivo para guardar el documento."
+                : "No se pudo guardar el documento en el dispositivo."
+            throw new Error(uiMessage)
           }
-          console.warn("[DocumentScannerFlow] Error al guardar copia opcional:", saveError)
         }
       }
 

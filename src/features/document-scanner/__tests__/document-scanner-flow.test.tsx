@@ -305,9 +305,10 @@ describe("DocumentScannerFlow: guardar y modo copiadora", () => {
     persistSpy.mockRestore()
   })
 
-  it("en modo save directo, si falla por cuota muestra mensaje comprensible en pantalla", async () => {
+  it("en modo save directo, si falla por cuota muestra mensaje comprensible en pantalla y emite onSaveFailed exactamente 1 vez", async () => {
     installNativeScan({ ok: true, engine: "mlkit", pages: [pagePayload()] })
     const onSaved = vi.fn()
+    const onSaveFailed = vi.fn()
     const onClose = vi.fn()
 
     const persistSpy = vi.spyOn(scanPersistence, "persistScannedDocument").mockRejectedValue(
@@ -322,6 +323,7 @@ describe("DocumentScannerFlow: guardar y modo copiadora", () => {
         userId="user-test-quota"
         onClose={onClose}
         onSaved={onSaved}
+        onSaveFailed={onSaveFailed}
       />
     )
 
@@ -333,6 +335,54 @@ describe("DocumentScannerFlow: guardar y modo copiadora", () => {
     fireEvent.click(saveBtn)
 
     await waitFor(() => {
+      expect(onSaveFailed).toHaveBeenCalledTimes(1)
+      expect(onSaveFailed).toHaveBeenCalledWith("quota_exceeded", expect.anything())
+      expect(
+        screen.getByText(/No hay suficiente espacio disponible en este dispositivo para guardar el documento/i)
+      ).toBeDefined()
+      expect(onSaved).not.toHaveBeenCalled()
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
+    persistSpy.mockRestore()
+  })
+
+  it("en modo save directo, si falla por cuota mediante resultado estructurado emite onSaveFailed exactamente 1 vez y muestra error", async () => {
+    installNativeScan({ ok: true, engine: "mlkit", pages: [pagePayload()] })
+    const onSaved = vi.fn()
+    const onSaveFailed = vi.fn()
+    const onClose = vi.fn()
+
+    const persistSpy = vi.spyOn(scanPersistence, "persistScannedDocument").mockResolvedValue({
+      ok: false,
+      id: "doc-quota-fail",
+      storage: "indexeddb",
+      failure: "quota_exceeded",
+      reason: "QuotaExceededError",
+    })
+
+    render(
+      <DocumentScannerFlow
+        open
+        mode="document"
+        intent="save"
+        userId="user-test-quota"
+        onClose={onClose}
+        onSaved={onSaved}
+        onSaveFailed={onSaveFailed}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText(/Revisa tus páginas/i)).toBeDefined()
+    })
+
+    const saveBtn = screen.getByRole("button", { name: /Guardar PDF/i })
+    fireEvent.click(saveBtn)
+
+    await waitFor(() => {
+      expect(onSaveFailed).toHaveBeenCalledTimes(1)
+      expect(onSaveFailed).toHaveBeenCalledWith("quota_exceeded", expect.anything())
       expect(
         screen.getByText(/No hay suficiente espacio disponible en este dispositivo para guardar el documento/i)
       ).toBeDefined()

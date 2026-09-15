@@ -36,13 +36,14 @@ function mockCvModule(): OpenCvModule {
 beforeEach(() => {
   resetOpenCvCacheForTests()
   delete (window as { cv?: unknown }).cv
-  document.querySelectorAll("script[data-scanner-opencv]").forEach((s) => s.remove())
+  document.querySelectorAll("script").forEach((s) => s.remove())
 })
 
 afterEach(() => {
   resetOpenCvCacheForTests()
   delete (window as { cv?: unknown }).cv
-  document.querySelectorAll("script[data-scanner-opencv]").forEach((s) => s.remove())
+  document.querySelectorAll("script").forEach((s) => s.remove())
+  vi.restoreAllMocks()
 })
 
 describe("opencv-loader", () => {
@@ -125,6 +126,54 @@ describe("opencv-loader", () => {
     expect(isOpenCvLoaded()).toBe(true)
     expect(hasOpenCvFailed()).toBe(false)
     expect(canRetryOpenCv()).toBe(false)
+
+    appendSpy.mockRestore()
+  })
+
+  it("soporta reintento exitoso tras fallo inicial y no descarga en un tercer intento", async () => {
+    let scriptAttempts = 0
+    const mockCv = mockCvModule()
+
+    const appendSpy = vi.spyOn(document.head, "appendChild").mockImplementation((node) => {
+      if (node instanceof HTMLScriptElement) {
+        scriptAttempts++
+        const attempt = scriptAttempts
+        setTimeout(() => {
+          if (attempt <= 2) {
+            // El primer intento de loadOpenCv prueba las 2 fuentes locales (LOCAL_SOURCES). Ambas fallan:
+            node.onerror?.(new Event("error") as unknown as string)
+          } else {
+            // En el reintento manual (retryOpenCv), el script carga exitosamente:
+            ;(window as unknown as { cv: OpenCvModule }).cv = mockCv
+            node.onload?.(new Event("load"))
+          }
+        }, 0)
+      }
+      return node
+    })
+
+    // 1. Primer intento falla
+    const firstResult = await loadOpenCv()
+    expect(firstResult).toBeNull()
+    expect(isOpenCvLoaded()).toBe(false)
+    expect(hasOpenCvFailed()).toBe(true)
+    expect(canRetryOpenCv()).toBe(true)
+
+    // 2. Reintento manual controlado tiene éxito
+    const retryResult = await retryOpenCv()
+    expect(retryResult).toBe(mockCv)
+    expect(isOpenCvLoaded()).toBe(true)
+    expect(canRetryOpenCv()).toBe(false)
+    expect(hasOpenCvFailed()).toBe(false)
+
+    // 3. Tercer intento no provoca otra descarga ni reinicia el estado
+    const callsBefore = appendSpy.mock.calls.length
+    const thirdResult = await retryOpenCv()
+    expect(thirdResult).toBe(mockCv)
+    expect(appendSpy.mock.calls.length).toBe(callsBefore)
+    expect(isOpenCvLoaded()).toBe(true)
+    expect(canRetryOpenCv()).toBe(false)
+    expect(hasOpenCvFailed()).toBe(false)
 
     appendSpy.mockRestore()
   })
