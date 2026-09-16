@@ -73,6 +73,11 @@ export interface ParsedWorkerRow {
   termination_date: string | null;
   micro_group_code: string;
   turn: string;
+  position_number?: string;
+  source_name_raw?: string;
+  locker?: string;
+  is_semantic_locker?: boolean;
+  raw_observations?: string;
 }
 
 export const SIAP_MANAGED_FIELDS = [
@@ -122,11 +127,13 @@ export interface RowIssue {
 
 export type RowStatus =
   | "new"
+  | "update"
   | "updated"
   | "unchanged"
   | "warning"
   | "invalid"
-  | "conflict";
+  | "conflict"
+  | "ignored";
 
 export interface FieldDiff {
   field: string;
@@ -138,17 +145,37 @@ export interface FieldDiff {
 export interface RowDiff {
   changes: FieldDiff[];
   conflictReason?: string;
+  lockerChange?: {
+    currentLocker: string | null;
+    excelLocker: string | null;
+    action: "none" | "new_assignment" | "change_assignment" | "conflict" | "semantic_skip";
+  };
 }
 
 export interface ImportSummary {
   totalRows: number;
-  newCount: number;
-  updatedCount: number;
-  unchangedCount: number;
-  warningsCount: number;
-  invalidCount: number;
-  conflictsCount: number;
+  validWorkers?: number;
+  newWorkers?: number;
+  updatedWorkers?: number;
+  unchangedWorkers?: number;
+  duplicateMatriculas?: number;
+  missingMatricula?: number;
+  lockersDetected?: number;
+  newLockers?: number;
+  lockerChanges?: number;
+  duplicateLockers?: number;
+  conflicts?: number;
+  ignoredRows?: number;
   missingInFileCount: number;
+  hasSupplementarySheet?: boolean;
+  supplementarySheetRows?: number;
+  // Compatibilidad con vistas previas existentes
+  newCount?: number;
+  updatedCount?: number;
+  unchangedCount?: number;
+  warningsCount?: number;
+  invalidCount?: number;
+  conflictsCount?: number;
 }
 
 export interface PreviewRow {
@@ -159,12 +186,19 @@ export interface PreviewRow {
   category: string;
   department: string;
   plaza: string;
-  maskedRfc: string;
-  maskedCurp: string;
-  maskedNss: string;
+  turn?: string;
+  schedule?: string;
+  lockerCurrent?: string;
+  lockerExcel?: string;
+  positionNumber?: string;
+  observations?: string;
+  maskedRfc?: string;
+  maskedCurp?: string;
+  maskedNss?: string;
   status: RowStatus;
   issues: RowIssue[];
   diff?: RowDiff;
+  resolutions?: Record<string, string>;
 }
 
 export interface ImportPreviewResult {
@@ -180,16 +214,21 @@ export interface ImportPreviewResult {
     full_name: string;
     category: string;
     department: string;
+    locker?: string;
   }>;
 }
 
 export interface ImportConfirmResult {
   batchId: string;
-  status: "confirmed";
+  status: "confirmed" | "applied";
   appliedCount: number;
+  updatedCount?: number;
   unchangedCount: number;
+  newLockersCount?: number;
+  lockerChangesCount?: number;
   missingMarkedCount: number;
-  historyRecordsCreated: number;
+  historyRecordsCreated?: number;
+  skippedConflicts?: number;
 }
 
 export interface ImportRollbackResult {
@@ -199,3 +238,4 @@ export interface ImportRollbackResult {
   deactivatedWorkersCount: number;
   deletedWorkersCount?: number;
 }
+

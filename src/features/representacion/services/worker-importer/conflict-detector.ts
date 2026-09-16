@@ -39,7 +39,21 @@ export interface ExistingWorkerRecord {
   termination_code?: string | null;
   termination_date?: string | null;
   micro_group_code?: string | null;
+  position_number?: string | null;
+  source_name_raw?: string | null;
+  active_locker_number?: string | null;
+  active_assignment_id?: string | null;
   active: boolean;
+}
+
+export interface ExistingLockerRecord {
+  id: string;
+  locker_number: string;
+  status: string;
+  active_worker_id?: string | null;
+  active_worker_matricula?: string | null;
+  active_worker_name?: string | null;
+  active_assignment_id?: string | null;
 }
 
 export interface AnalyzedRow {
@@ -56,12 +70,12 @@ const COMPARABLE_FIELDS: Array<{
   label: string;
   getOld: (w: ExistingWorkerRecord) => string | null | undefined;
 }> = [
-  { key: "siap_full_name", label: "Nombre Completo (SIAP)", getOld: (w) => w.siap_full_name || `${w.paternal_surname || ""} ${w.maternal_surname || ""} ${w.first_name || ""}`.trim() },
+  { key: "siap_full_name", label: "Nombre Completo", getOld: (w) => w.siap_full_name || `${w.paternal_surname || ""} ${w.maternal_surname || ""} ${w.first_name || ""}`.trim() },
   { key: "position_description", label: "Categoría / Puesto", getOld: (w) => w.category },
   { key: "department_description", label: "Adscripción / Depto", getOld: (w) => w.assignment },
   { key: "turn", label: "Turno", getOld: (w) => w.turn },
   { key: "schedule_description", label: "Horario", getOld: (w) => w.schedule },
-  { key: "plaza_code", label: "Plaza", getOld: (w) => w.plaza_code },
+  { key: "plaza_code", label: "Plaza", getOld: (w) => w.plaza_code || w.position_number },
   { key: "contract_type_code", label: "Tipo Contrato", getOld: (w) => w.contract_type_code },
   { key: "responsibility_area_code", label: "Área Responsabilidad", getOld: (w) => w.responsibility_area_code },
   { key: "plaza_type_code", label: "Tipo Plaza", getOld: (w) => w.plaza_type_code },
@@ -86,15 +100,28 @@ const COMPARABLE_FIELDS: Array<{
 
 export function detectConflictsAndDiff(
   rows: Array<{ parsed: ParsedWorkerRow; issues: RowIssue[]; isValid: boolean; rowNumber: number }>,
-  existingWorkersMap: Map<string, ExistingWorkerRecord>
+  existingWorkersMap: Map<string, ExistingWorkerRecord>,
+  existingLockersMap?: Map<string, ExistingLockerRecord>
 ): AnalyzedRow[] {
   const analyzed: AnalyzedRow[] = [];
   const seenMatriculasInFile = new Map<string, number>();
+  const seenLockersInFile = new Map<string, { rowNumber: number; matricula: string }>();
 
   for (const { parsed, issues, isValid, rowNumber } of rows) {
     const rowIssues = [...issues];
 
-    // Check duplicate within the same file
+    // Fila completamente vacía o semántica sin trabajador
+    if (!parsed.matricula && !parsed.siap_full_name) {
+      analyzed.push({
+        rowNumber,
+        parsed,
+        status: "ignored",
+        issues: rowIssues,
+      });
+      continue;
+    }
+
+    // Comprobación de matrícula duplicada en el archivo
     if (parsed.matricula) {
       if (seenMatriculasInFile.has(parsed.matricula)) {
         const prevRow = seenMatriculasInFile.get(parsed.matricula)!;
@@ -107,6 +134,55 @@ export function detectConflictsAndDiff(
       } else {
         seenMatriculasInFile.set(parsed.matricula, rowNumber);
       }
+    }
+
+    // Comprobación de casillero / locker en el archivo
+    if (parsed.locker && !parsed.is_semantic_locker) {
+      if (seenLockersInFile.has(parsed.locker)) {
+        const prev = seenLockersInFile.get(parsed.locker)!;
+        if (prev.matricula !== parsed.matricula) {
+          rowIssues.push({
+            code: "DUPLICATE_LOCKER_IN_FILE",
+            message: `El casillero ${parsed.locker} está reclamado por múltiples trabajadores (fila ${prev.rowNumber} y fila ${rowNumber}).`,
+            severity: "error",
+            field: "locker",
+          });
+        }
+      } else {
+        seenLockersInFile.set(parsed.locker, { rowNumber, matricula: parsed.matricula });
+      }
+
+      // Comprobar si el locker está ocupado en base de datos por otro trabajador
+      if (existingLockersMap) {
+        const dbLocker = existingLockersMap.get(parsed.locker);
+        if (dbLocker && dbLocker.active_worker_matricula && dbLocker.active_worker_matricula !== parsed.matricula) {
+          rowIssues.push({
+            code: "LOCKER_ALREADY_ASSIGNED",
+            message: `El casillero ${parsed.locker} ya está asignado a otro trabajador (${dbLocker.active_worker_name ? dbLocker.active_worker_name + " - " : ""}matrícula ${dbLocker.active_worker_matricula}).`,
+            severity: "error",
+            field: "locker",
+          });
+        }
+      }
+    }
+
+    // Si tiene errores de casillero o conflicto en importación maestra
+    const hasLockerConflict = rowIssues.some(
+      (i) => i.code === "DUPLICATE_LOCKER_IN_FILE" ||
+             i.code === "LOCKER_ALREADY_ASSIGNED"
+    );
+
+    if (hasLockerConflict || (existingLockersMap !== undefined && rowIssues.some((i) => i.code === "DUPLICATE_MATRICULA_IN_FILE"))) {
+      analyzed.push({
+        rowNumber,
+        parsed,
+        status: "conflict",
+        issues: rowIssues,
+        diff: {
+          changes: [],
+          conflictReason: rowIssues.find((i) => i.severity === "error")?.message,
+        },
+      });
     }
 
     if (!isValid || rowIssues.some((i) => i.severity === "error")) {
@@ -122,11 +198,19 @@ export function detectConflictsAndDiff(
     const existing = existingWorkersMap.get(parsed.matricula);
 
     if (!existing) {
+      let lockerDiff: RowDiff["lockerChange"] = undefined;
+      if (parsed.locker && !parsed.is_semantic_locker) {
+        lockerDiff = { currentLocker: null, excelLocker: parsed.locker, action: "new_assignment" };
+      } else if (parsed.is_semantic_locker) {
+        lockerDiff = { currentLocker: null, excelLocker: parsed.locker ?? null, action: "semantic_skip" };
+      }
+
       analyzed.push({
         rowNumber,
         parsed,
         status: rowIssues.some((i) => i.severity === "warning") ? "warning" : "new",
         issues: rowIssues,
+        diff: lockerDiff ? { changes: [], lockerChange: lockerDiff } : undefined,
       });
       continue;
     }
@@ -201,6 +285,31 @@ export function detectConflictsAndDiff(
       }
     }
 
+    // Comprobación de cambio o asignación de casillero
+    let lockerDiff: RowDiff["lockerChange"] = undefined;
+    const currentLocker = existing.active_locker_number || null;
+    const excelLocker = parsed.locker && !parsed.is_semantic_locker ? parsed.locker : null;
+
+    if (currentLocker && excelLocker && currentLocker !== excelLocker) {
+      changes.push({
+        field: "locker",
+        label: "Casillero / Locker",
+        oldValue: currentLocker,
+        newValue: excelLocker,
+      });
+      lockerDiff = { currentLocker, excelLocker, action: "change_assignment" };
+    } else if (!currentLocker && excelLocker) {
+      changes.push({
+        field: "locker",
+        label: "Casillero / Locker",
+        oldValue: null,
+        newValue: excelLocker,
+      });
+      lockerDiff = { currentLocker: null, excelLocker, action: "new_assignment" };
+    } else if (parsed.is_semantic_locker) {
+      lockerDiff = { currentLocker, excelLocker: parsed.locker ?? null, action: "semantic_skip" };
+    }
+
     let status: RowStatus = "unchanged";
     if (changes.length > 0) {
       status = "updated";
@@ -214,7 +323,7 @@ export function detectConflictsAndDiff(
       status,
       issues: rowIssues,
       existingWorkerId: existing.id,
-      diff: changes.length > 0 ? { changes } : undefined,
+      diff: changes.length > 0 || lockerDiff ? { changes, lockerChange: lockerDiff } : undefined,
     });
   }
 

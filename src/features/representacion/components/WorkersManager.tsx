@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ArrowsDownUp, Funnel, MagnifyingGlass, Plus, X } from "@phosphor-icons/react";
 import { Button } from "@/shared/components/ui/Button";
 import { Input, Select } from "@/shared/components/ui/Input";
@@ -243,6 +244,24 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
         <Button size="sm" onClick={() => setCreateOpen(true)} leadingIcon={<Plus size={15} weight="bold" />}>
           Nuevo trabajador
         </Button>
+
+        <Link
+          href="/representacion/administracion/actualizar-base"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "0.375rem 0.625rem",
+            borderRadius: "0.375rem",
+            border: "1px solid var(--border)",
+            backgroundColor: "var(--card)",
+            color: "var(--fg)",
+            fontSize: "0.8125rem",
+            fontWeight: 600,
+            textDecoration: "none",
+          }}
+        >
+          Importar / actualizar base
+        </Link>
       </div>
 
       {hasFilters ? <WorkerActiveChips query={query} onChange={applyQuery} /> : null}

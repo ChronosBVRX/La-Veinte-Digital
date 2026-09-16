@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/shared/components/ui/Button";
 import { Input } from "@/shared/components/ui/Input";
 import { Card } from "@/shared/components/ui/Card";
@@ -109,11 +110,30 @@ export function LockerBoard(): React.JSX.Element {
             </Button>
           ))}
         </div>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <Input aria-label="Buscar por número" placeholder="Número de locker…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ flex: 1, minWidth: "180px" }}>
+            <Input aria-label="Buscar por número" placeholder="Número de locker…" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
           <Button onClick={() => void load()} loading={loading}>
             Buscar
           </Button>
+          <Link
+            href="/representacion/administracion/actualizar-base"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "0.45rem 0.75rem",
+              borderRadius: "0.375rem",
+              border: "1px solid var(--border)",
+              backgroundColor: "var(--card)",
+              color: "var(--fg)",
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            Importar base
+          </Link>
         </div>
         {error ? (
           <p role="alert" style={{ color: "var(--error)", fontSize: "0.8125rem" }}>

@@ -1592,6 +1592,9 @@ export type Database = {
           termination_date: string | null;
           micro_group_code: string;
           siap_full_name: string;
+          position_number: string;
+          source_name_raw: string;
+          import_notes: string;
           occupation_limit_is_sentinel: boolean;
           last_import_batch_id: string | null;
           source_created_by_batch_id: string | null;
@@ -1650,6 +1653,9 @@ export type Database = {
           termination_date?: string | null;
           micro_group_code?: string;
           siap_full_name?: string;
+          position_number?: string;
+          source_name_raw?: string;
+          import_notes?: string;
           last_import_batch_id?: string | null;
           source_created_by_batch_id?: string | null;
           source_last_seen_at?: string | null;
@@ -1707,6 +1713,9 @@ export type Database = {
           termination_date?: string | null;
           micro_group_code?: string;
           siap_full_name?: string;
+          position_number?: string;
+          source_name_raw?: string;
+          import_notes?: string;
           last_import_batch_id?: string | null;
           source_created_by_batch_id?: string | null;
           source_last_seen_at?: string | null;
@@ -1881,6 +1890,132 @@ export type Database = {
           old_value?: string | null;
           new_value?: string | null;
           changed_by?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      union_import_batches: {
+        Row: {
+          id: string;
+          delegation_id: string;
+          filename: string;
+          file_hash: string;
+          uploaded_by: string;
+          created_at: string;
+          applied_at: string | null;
+          status: "preview" | "applied" | "failed" | "cancelled";
+          total_rows: number;
+          new_workers: number;
+          updated_workers: number;
+          unchanged_workers: number;
+          conflicts: number;
+          invalid_rows: number;
+          new_lockers: number;
+          locker_changes: number;
+          notes: string;
+          metadata: Json;
+        };
+        Insert: {
+          id?: string;
+          delegation_id: string;
+          filename: string;
+          file_hash: string;
+          uploaded_by: string;
+          created_at?: string;
+          applied_at?: string | null;
+          status?: "preview" | "applied" | "failed" | "cancelled";
+          total_rows?: number;
+          new_workers?: number;
+          updated_workers?: number;
+          unchanged_workers?: number;
+          conflicts?: number;
+          invalid_rows?: number;
+          new_lockers?: number;
+          locker_changes?: number;
+          notes?: string;
+          metadata?: Json;
+        };
+        Update: {
+          id?: string;
+          delegation_id?: string;
+          filename?: string;
+          file_hash?: string;
+          uploaded_by?: string;
+          created_at?: string;
+          applied_at?: string | null;
+          status?: "preview" | "applied" | "failed" | "cancelled";
+          total_rows?: number;
+          new_workers?: number;
+          updated_workers?: number;
+          unchanged_workers?: number;
+          conflicts?: number;
+          invalid_rows?: number;
+          new_lockers?: number;
+          locker_changes?: number;
+          notes?: string;
+          metadata?: Json;
+        };
+        Relationships: [];
+      };
+      union_import_rows: {
+        Row: {
+          id: string;
+          batch_id: string;
+          row_number: number;
+          matricula: string;
+          raw_name: string;
+          category: string;
+          turn: string;
+          schedule: string;
+          position_number: string;
+          locker_number: string;
+          row_status: "new" | "update" | "unchanged" | "conflict" | "invalid" | "ignored";
+          action_taken: "pending" | "applied" | "skipped" | "conflict_resolved";
+          worker_id: string | null;
+          locker_id: string | null;
+          diff: Json;
+          issues: Json;
+          resolutions: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          batch_id: string;
+          row_number: number;
+          matricula?: string;
+          raw_name?: string;
+          category?: string;
+          turn?: string;
+          schedule?: string;
+          position_number?: string;
+          locker_number?: string;
+          row_status: "new" | "update" | "unchanged" | "conflict" | "invalid" | "ignored";
+          action_taken?: "pending" | "applied" | "skipped" | "conflict_resolved";
+          worker_id?: string | null;
+          locker_id?: string | null;
+          diff?: Json;
+          issues?: Json;
+          resolutions?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          batch_id?: string;
+          row_number?: number;
+          matricula?: string;
+          raw_name?: string;
+          category?: string;
+          turn?: string;
+          schedule?: string;
+          position_number?: string;
+          locker_number?: string;
+          row_status?: "new" | "update" | "unchanged" | "conflict" | "invalid" | "ignored";
+          action_taken?: "pending" | "applied" | "skipped" | "conflict_resolved";
+          worker_id?: string | null;
+          locker_id?: string | null;
+          diff?: Json;
+          issues?: Json;
+          resolutions?: Json;
           created_at?: string;
         };
         Relationships: [];
@@ -2124,6 +2259,13 @@ export type Database = {
       }
       union_rollback_worker_import: {
         Args: { p_batch_id: string }
+        Returns: Json
+      }
+      union_apply_master_import: {
+        Args: {
+          p_batch_id: string
+          p_resolutions?: Json
+        }
         Returns: Json
       }
       unaccent: { Args: { "": string }; Returns: string }

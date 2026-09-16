@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/shared/components/ui/Card";
 import { Button } from "@/shared/components/ui/Button";
 import { ImportDropzone } from "./ImportDropzone";
@@ -11,11 +12,13 @@ import { ImportHistoryList } from "./ImportHistoryList";
 import type { ImportPreviewResult, ImportConfirmResult } from "../../services/worker-importer/types";
 
 export function WorkerImportWizard(): React.JSX.Element {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewResult, setPreviewResult] = useState<ImportPreviewResult | null>(null);
   const [confirmResult, setConfirmResult] = useState<ImportConfirmResult | null>(null);
+  const [resolutions, setResolutions] = useState<Record<number, Record<string, string>>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"import" | "history">("import");
 
@@ -24,19 +27,20 @@ export function WorkerImportWizard(): React.JSX.Element {
     setError(null);
     setPreviewResult(null);
     setConfirmResult(null);
+    setResolutions({});
 
     try {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch("/api/union/workers/import/preview", {
+      const res = await fetch("/api/union/import/preview", {
         method: "POST",
         body: formData,
       });
 
       const data = (await res.json()) as ImportPreviewResult & { error?: string };
       if (!res.ok) {
-        throw new Error(data.error ?? "Ocurrió un error al procesar la plantilla Excel.");
+        throw new Error(data.error ?? "Ocurrió un error al procesar el archivo Excel.");
       }
 
       setPreviewResult(data);
@@ -47,16 +51,51 @@ export function WorkerImportWizard(): React.JSX.Element {
     }
   }
 
+  const handleResolveField = useCallback((rowNumber: number, field: string, choice: "keep" | "excel") => {
+    setResolutions((prev) => ({
+      ...prev,
+      [rowNumber]: {
+        ...(prev[rowNumber] || {}),
+        [field]: choice,
+      },
+    }));
+  }, []);
+
+  const handleResolveAction = useCallback((rowNumber: number, action: "resolve" | "skip") => {
+    setResolutions((prev) => ({
+      ...prev,
+      [rowNumber]: {
+        ...(prev[rowNumber] || {}),
+        action,
+      },
+    }));
+  }, []);
+
+  // Verificar si existen conflictos bloqueantes no resueltos
+  const unresolvedConflicts = (previewResult?.rows ?? []).filter((r) => {
+    if (r.status !== "conflict") return false;
+    const res = resolutions[r.rowNumber];
+    if (!res || (res.action !== "skip" && res.action !== "resolve")) {
+      return true;
+    }
+    return false;
+  });
+
+  const hasBlockingConflicts = unresolvedConflicts.length > 0;
+
   async function handleConfirmImport(): Promise<void> {
     if (!previewResult) return;
     setConfirming(true);
     setError(null);
 
     try {
-      const res = await fetch("/api/union/workers/import/confirm", {
+      const res = await fetch("/api/union/import/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ batch_id: previewResult.batchId }),
+        body: JSON.stringify({
+          batch_id: previewResult.batchId,
+          resolutions,
+        }),
       });
 
       const data = (await res.json()) as ImportConfirmResult & { error?: string };
@@ -66,8 +105,11 @@ export function WorkerImportWizard(): React.JSX.Element {
 
       setConfirmResult(data);
       setIsModalOpen(false);
+
+      // Refresco de datos del enrutador sin recarga manual (sin F5)
+      router.refresh();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error al confirmar la importación.");
+      setError(err instanceof Error ? err.message : "Error al aplicar la importación.");
     } finally {
       setConfirming(false);
     }
@@ -76,12 +118,13 @@ export function WorkerImportWizard(): React.JSX.Element {
   function handleReset(): void {
     setPreviewResult(null);
     setConfirmResult(null);
+    setResolutions({});
     setError(null);
   }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      {/* Header Tabs */}
+      {/* Pestañas de Navegación */}
       <div style={{ display: "flex", gap: "0.5rem", borderBottom: "1px solid var(--border)", paddingBottom: "0.5rem" }}>
         <button
           type="button"
@@ -97,7 +140,7 @@ export function WorkerImportWizard(): React.JSX.Element {
             cursor: "pointer",
           }}
         >
-          Nueva importación
+          Actualizar base sindical
         </button>
         <button
           type="button"
@@ -113,13 +156,13 @@ export function WorkerImportWizard(): React.JSX.Element {
             cursor: "pointer",
           }}
         >
-          Historial de importaciones
+          Historial de actualizaciones
         </button>
       </div>
 
       {activeTab === "history" ? (
         <Card padding="1rem">
-          <h3 style={{ margin: "0 0 0.75rem", fontSize: "0.9375rem" }}>Historial de lotes importados</h3>
+          <h3 style={{ margin: "0 0 0.75rem", fontSize: "0.9375rem" }}>Historial de bases importadas</h3>
           <ImportHistoryList />
         </Card>
       ) : (
@@ -144,32 +187,39 @@ export function WorkerImportWizard(): React.JSX.Element {
             <Card padding="1.5rem">
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", textAlign: "center" }}>
                 <div style={{ fontSize: "2.5rem" }}>✅</div>
-                <h3 style={{ margin: 0, fontSize: "1.125rem" }}>¡Importación confirmada con éxito!</h3>
+                <h3 style={{ margin: 0, fontSize: "1.125rem" }}>¡Actualización aplicada con éxito!</h3>
                 <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)" }}>
-                  Se aplicaron correctamente los cambios al padrón sindical oficial.
+                  La base sindical y casilleros fueron conciliados de forma atómica y segura.
                 </p>
                 <div
                   style={{
                     display: "flex",
                     justifyContent: "center",
-                    gap: "1.5rem",
+                    flexWrap: "wrap",
+                    gap: "1.25rem",
                     margin: "1rem 0",
                     fontSize: "0.875rem",
                   }}
                 >
                   <span>
-                    Trabajadores aplicados: <strong>{confirmResult.appliedCount}</strong>
+                    Trabajadores nuevos: <strong>{confirmResult.appliedCount}</strong>
+                  </span>
+                  <span>
+                    Trabajadores actualizados: <strong>{confirmResult.updatedCount ?? 0}</strong>
                   </span>
                   <span>
                     Sin cambios: <strong>{confirmResult.unchangedCount}</strong>
                   </span>
                   <span>
-                    Ausentes marcados: <strong>{confirmResult.missingMarkedCount}</strong>
+                    Nuevos casilleros: <strong>{confirmResult.newLockersCount ?? 0}</strong>
+                  </span>
+                  <span>
+                    Cambios de casillero: <strong>{confirmResult.lockerChangesCount ?? 0}</strong>
                   </span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "center", gap: "0.5rem" }}>
                   <Button variant="primary" size="sm" onClick={handleReset}>
-                    Importar otro archivo
+                    Actualizar con otra base
                   </Button>
                 </div>
               </div>
@@ -177,9 +227,23 @@ export function WorkerImportWizard(): React.JSX.Element {
           ) : previewResult ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
               <Card padding="1rem">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-                  <h3 style={{ margin: 0, fontSize: "1rem" }}>Resumen previo a la importación</h3>
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "0.75rem",
+                    flexWrap: "wrap",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: "1rem" }}>Fase 1: Resumen de conciliación</h3>
+                    <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)" }}>
+                      Revisa los cambios detectados antes de escribir en la base de datos oficial.
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
                     <Button variant="ghost" size="sm" onClick={handleReset} disabled={confirming}>
                       Descartar y volver
                     </Button>
@@ -187,9 +251,11 @@ export function WorkerImportWizard(): React.JSX.Element {
                       variant="primary"
                       size="sm"
                       onClick={() => setIsModalOpen(true)}
-                      disabled={confirming}
+                      disabled={confirming || hasBlockingConflicts}
                     >
-                      Confirmar importación al padrón
+                      {hasBlockingConflicts
+                        ? `Resolver ${unresolvedConflicts.length} conflicto(s) pendientes`
+                        : "Confirmar actualización"}
                     </Button>
                   </div>
                 </div>
@@ -202,9 +268,14 @@ export function WorkerImportWizard(): React.JSX.Element {
 
               <Card padding="1rem">
                 <h3 style={{ margin: "0 0 0.75rem", fontSize: "0.9375rem" }}>
-                  Detalle fila por fila y diferencias detectadas
+                  Detalle fila por fila, casilleros y discrepancias
                 </h3>
-                <ImportDiffTable rows={previewResult.rows} />
+                <ImportDiffTable
+                  rows={previewResult.rows}
+                  resolutions={resolutions}
+                  onResolveField={handleResolveField}
+                  onResolveAction={handleResolveAction}
+                />
               </Card>
 
               <ImportConfirmationModal
@@ -218,12 +289,12 @@ export function WorkerImportWizard(): React.JSX.Element {
           ) : (
             <Card padding="1.25rem">
               <h3 style={{ margin: "0 0 0.5rem", fontSize: "1rem" }}>
-                Importar plantilla de personal IMSS (.xlsx)
+                Actualizar base sindical (Excel .xlsx)
               </h3>
               <p style={{ margin: "0 0 1rem", fontSize: "0.8125rem", color: "var(--muted)" }}>
-                Carga la plantilla periódica generada por los sistemas institucionales (SIAP) en formato Excel canónico.
-                El sistema comparará automáticamente la plantilla contra el padrón actual, identificará trabajadores nuevos,
-                actualizará adscripciones y plazas, y conservará intactos los expedientes, casilleros y notas sindicales.
+                Carga el archivo Excel con la plantilla administrativa más reciente. El sistema analizará las filas,
+                identificará trabajadores nuevos, conciliará casilleros y cambios de asignación, y te mostrará un desglose
+                completo para resolver cualquier discrepancia antes de confirmar.
               </p>
               <ImportDropzone onFileSelected={handleFileSelected} isLoading={loading} />
             </Card>
