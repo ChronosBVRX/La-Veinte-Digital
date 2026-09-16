@@ -4,6 +4,15 @@ import { requireUser } from "@/shared/server/auth/require-user";
 import { requireUnionMembership } from "@/features/representacion/services/permissions";
 import { workerSchema } from "@/features/representacion/lib/validation";
 import { writeAuditLog } from "@/features/representacion/services/audit";
+import {
+  WORKER_DIRECTORY_API_DEFAULT_PAGE_SIZE,
+  parseWorkerDirectoryQuery,
+} from "@/features/representacion/lib/worker-directory-params";
+import {
+  countUnionWorkers,
+  getUnionWorkerFacets,
+  listUnionWorkers,
+} from "@/features/representacion/services/worker-directory";
 
 export const dynamic = "force-dynamic";
 
@@ -16,27 +25,43 @@ export async function GET(req: Request): Promise<NextResponse> {
   const auth = await requireUser();
   if (auth.response) return auth.response;
   const url = new URL(req.url);
-  const q = (url.searchParams.get("q") ?? "").trim();
   const delegationId = url.searchParams.get("delegation_id");
   try {
     const memberships = await requireUnionMembership(delegationId ?? undefined);
     const depId = delegationId ?? memberships[0]?.delegation_id;
     if (!depId) return noStore(NextResponse.json({ error: "Sin delegación" }, { status: 403 }));
-    const supabase = await createClient();
-    let query = supabase
-      .from("union_workers")
-      .select("id, employee_number, first_name, paternal_surname, maternal_surname, siap_full_name, category, assignment, turn, schedule, rest_days, active, created_at")
-      .eq("delegation_id", depId)
-      .or("source_import_state.is.null,source_import_state.neq.rolled_back")
-      .order("paternal_surname", { ascending: true })
-      .limit(50);
-    if (q) {
-      const like = `%${q}%`;
-      query = query.or(`employee_number.ilike.${like},first_name.ilike.${like},paternal_surname.ilike.${like},maternal_surname.ilike.${like},siap_full_name.ilike.${like}`);
+
+    const query = parseWorkerDirectoryQuery(url.searchParams);
+    // Compatibilidad: sin `limite` explícito se conserva el tope histórico de 50.
+    if (!url.searchParams.get("limite")) {
+      query.pageSize = WORKER_DIRECTORY_API_DEFAULT_PAGE_SIZE;
     }
-    const { data, error } = await query;
-    if (error) throw error;
-    return noStore(NextResponse.json({ workers: data ?? [] }));
+    const filters = {
+      q: query.q,
+      categories: query.categories,
+      turns: query.turns,
+      assignments: query.assignments,
+      status: query.status,
+    };
+
+    if (url.searchParams.get("count") === "1") {
+      const total = await countUnionWorkers(depId, filters);
+      return noStore(NextResponse.json({ total }));
+    }
+
+    const result = await listUnionWorkers(depId, query);
+    const wantsFacets = url.searchParams.get("facets") === "1";
+    const options = wantsFacets ? await getUnionWorkerFacets(depId) : null;
+    return noStore(
+      NextResponse.json({
+        workers: result.workers,
+        total: result.total,
+        page: result.page,
+        pageSize: result.pageSize,
+        hasMore: result.hasMore,
+        ...(options ? { options } : {}),
+      }),
+    );
   } catch (e) {
     const message = e instanceof Error ? e.message : "Error";
     const status = message.includes("Sin acceso") || message.includes("autenticado") ? 403 : 500;
