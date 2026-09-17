@@ -659,6 +659,7 @@ export async function applyLockerImportBatch(params: {
     new_locker_assignments: number;
     locker_changes: number;
     skipped_conflicts: number;
+    pending_review_count?: number;
   };
 
   await writeAuditLog({
@@ -671,6 +672,7 @@ export async function applyLockerImportBatch(params: {
       new_locker_assignments: res.new_locker_assignments ?? 0,
       locker_changes: res.locker_changes ?? 0,
       skipped_conflicts: res.skipped_conflicts ?? 0,
+      pending_review_count: res.pending_review_count ?? 0,
     },
   });
 
@@ -682,6 +684,7 @@ export async function applyLockerImportBatch(params: {
     unchangedCount: 0,
     newLockersCount: res.new_locker_assignments ?? 0,
     lockerChangesCount: res.locker_changes ?? 0,
+    pendingReviewCount: res.pending_review_count ?? 0,
     missingMarkedCount: 0,
     skippedConflicts: res.skipped_conflicts ?? 0,
   };
@@ -707,6 +710,7 @@ export async function rollbackLockerImportBatch(params: {
   const res = (data as unknown) as {
     reverted_assignments: number;
     restored_assignments: number;
+    cancelled_review_items?: number;
   };
 
   await writeAuditLog({
@@ -718,6 +722,7 @@ export async function rollbackLockerImportBatch(params: {
       format_version: "UNION_LOCKERS_V1",
       reverted_assignments: res.reverted_assignments ?? 0,
       restored_assignments: res.restored_assignments ?? 0,
+      cancelled_review_items: res.cancelled_review_items ?? 0,
     },
   });
 
@@ -728,6 +733,7 @@ export async function rollbackLockerImportBatch(params: {
     deactivatedWorkersCount: 0,
     revertedAssignmentsCount: res.reverted_assignments ?? 0,
     restoredAssignmentsCount: res.restored_assignments ?? 0,
+    cancelledReviewItemsCount: res.cancelled_review_items ?? 0,
     deletedWorkersCount: 0,
   };
 }

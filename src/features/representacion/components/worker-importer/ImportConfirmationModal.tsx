@@ -31,8 +31,6 @@ export function ImportConfirmationModal({
   const unchangedWorkers = summary.unchangedWorkers ?? summary.unchangedCount ?? 0;
   const newLockers = summary.newCount ?? summary.newLockers ?? 0;
   const lockerChanges = summary.lockerChanges ?? summary.updatedCount ?? 0;
-  const unchangedLockers = summary.unchangedCount ?? 0;
-  const conflictsOmitted = summary.conflicts ?? summary.conflictsCount ?? 0;
 
   return (
     <div
@@ -69,7 +67,7 @@ export function ImportConfirmationModal({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h3 id="modal-title" style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700 }}>
             {isLocker
-              ? "Confirmar actualización de base de lockers"
+              ? "Importar base de lockers"
               : "Confirmar actualización de base de trabajadores"}
           </h3>
           <button
@@ -90,7 +88,7 @@ export function ImportConfirmationModal({
 
         <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)" }}>
           {isLocker
-            ? "Por favor revisa el balance de operaciones antes de escribir las asignaciones de casilleros:"
+            ? "Por favor revisa el balance antes de guardar tu base:"
             : "Por favor revisa el balance de operaciones antes de escribir los cambios en el padrón laboral:"}
         </p>
 
@@ -105,24 +103,26 @@ export function ImportConfirmationModal({
             gap: "0.5rem",
           }}
         >
-          <strong style={{ fontSize: "0.875rem" }}>Se realizarán:</strong>
+          <strong style={{ fontSize: "0.875rem" }}>Se guardarán:</strong>
           {isLocker ? (
             <>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Nuevas asignaciones de casillero:</span>
-                <strong style={{ color: "#16a34a" }}>{newLockers}</strong>
+                <span>Lockers inventariados:</span>
+                <strong style={{ color: "#0891b2" }}>{(summary.lockersDetected ?? summary.totalRows).toLocaleString("es-MX")}</strong>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Reasignaciones de casillero:</span>
-                <strong style={{ color: "var(--primary)" }}>{lockerChanges}</strong>
+                <span>Asignaciones identificadas:</span>
+                <strong style={{ color: "#16a34a" }}>{(newLockers + lockerChanges).toLocaleString("es-MX")}</strong>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Casilleros sin cambios:</span>
-                <strong style={{ color: "var(--muted)" }}>{unchangedLockers}</strong>
+              <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed var(--border)", paddingTop: "0.375rem" }}>
+                <span>Registros pendientes de revisión:</span>
+                <strong style={{ color: "#c2410c" }}>
+                  {((summary.conflictBreakdown?.WORKER_NOT_FOUND ?? summary.missingMatricula ?? 0) +
+                    (summary.realConflictsCount ?? summary.conflicts ?? 0)).toLocaleString("es-MX")}
+                </strong>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Cambios en datos laborales:</span>
-                <strong style={{ color: "#15803d" }}>0 (operación aislada)</strong>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem", lineHeight: 1.4 }}>
+                Ningún trabajador será creado o modificado desde esta importación. Podrás corregir los pendientes después desde Lockers.
               </div>
             </>
           ) : (
@@ -149,12 +149,6 @@ export function ImportConfirmationModal({
               </div>
             </>
           )}
-          {conflictsOmitted > 0 ? (
-            <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed var(--border)", paddingTop: "0.375rem" }}>
-              <span style={{ color: "var(--muted)" }}>Conflictos omitidos:</span>
-              <strong style={{ color: "#b91c1c" }}>{conflictsOmitted}</strong>
-            </div>
-          ) : null}
         </div>
 
         <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", margin: "0.25rem 0" }}>
@@ -168,7 +162,7 @@ export function ImportConfirmationModal({
           />
           <label htmlFor="confirm-checkbox" style={{ fontSize: "0.8125rem", cursor: "pointer", color: "var(--fg)" }}>
             {isLocker
-              ? "Confirmo que he revisado las asignaciones y autorizo la actualización de la base de casilleros."
+              ? "Autorizo guardar la base de casilleros y conservar los pendientes para su revisión posterior."
               : "Confirmo que he revisado las diferencias y autorizo la actualización del padrón de trabajadores."}
           </label>
         </div>
@@ -184,7 +178,7 @@ export function ImportConfirmationModal({
             loading={isLoading}
             disabled={!doubleConfirmed || isLoading}
           >
-            Confirmar actualización
+            {isLocker ? "Importar y continuar" : "Confirmar actualización"}
           </Button>
         </div>
       </div>

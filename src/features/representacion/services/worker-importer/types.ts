@@ -262,6 +262,7 @@ export interface ImportConfirmResult {
   unchangedCount: number;
   newLockersCount?: number;
   lockerChangesCount?: number;
+  pendingReviewCount?: number;
   missingMarkedCount: number;
   historyRecordsCreated?: number;
   skippedConflicts?: number;
@@ -275,5 +276,26 @@ export interface ImportRollbackResult {
   revertedAssignmentsCount?: number;
   restoredAssignmentsCount?: number;
   deletedWorkersCount?: number;
+  cancelledReviewItemsCount?: number;
+}
+
+export interface LockerReviewItem {
+  id: string;
+  delegation_id: string;
+  locker_id: string | null;
+  locker_number: string;
+  source_batch_id: string;
+  source_row_number: number | null;
+  source_employee_number: string | null;
+  source_worker_name: string | null;
+  source_notes: string | null;
+  reason: string;
+  status: "pending" | "resolved" | "ignored" | "cancelled_by_rollback";
+  resolved_by: string | null;
+  resolved_at: string | null;
+  resolution: Record<string, unknown> | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }
 

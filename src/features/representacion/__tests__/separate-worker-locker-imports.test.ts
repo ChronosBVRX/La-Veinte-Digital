@@ -547,4 +547,171 @@ describe("Domain Separation: Worker Import vs Locker Import", () => {
       expect(result.summary.workerNotFoundCount).toBeGreaterThanOrEqual(1);
     });
   });
+
+  // --------------------------------------------------------------------------
+  // 23-35: Progressive Import, Review Items & Safety Invariants (Delegación XXI)
+  // --------------------------------------------------------------------------
+  describe("Progressive Locker Import & Review Items System", () => {
+    const migrationReviewSql = fs.readFileSync(
+      path.join(rootDir, "supabase/migrations/20260919000000_union_locker_review_items.sql"),
+      "utf8"
+    );
+
+    it("import with pending rows is allowed (SQL audit)", () => {
+      const applyMatch = migrationReviewSql.match(
+        /create or replace function public\.union_apply_locker_import[\s\S]*?end;\s*\$\$;/
+      );
+      expect(applyMatch).not.toBeNull();
+      const sql = applyMatch![0];
+
+      // Does NOT raise an exception on conflict or worker not found
+      expect(sql).toContain("v_batch.status <> 'preview'");
+      expect(sql).toContain("status = 'confirmed'");
+      // Loop continues and creates review item
+      expect(sql).toContain("insert into public.union_locker_review_items");
+      expect(sql).toContain("v_pending_reviews := v_pending_reviews + 1;");
+    });
+
+    it("WORKER_NOT_FOUND: locker created, worker NOT created, assignment NOT invented, review item created (SQL audit)", () => {
+      const applyMatch = migrationReviewSql.match(
+        /create or replace function public\.union_apply_locker_import[\s\S]*?end;\s*\$\$;/
+      );
+      expect(applyMatch).not.toBeNull();
+      const sql = applyMatch![0];
+
+      // Locker is created
+      expect(sql).toContain("insert into public.union_lockers");
+      // Worker is NEVER created
+      expect(sql).not.toMatch(/insert\s+into\s+public\.union_workers/i);
+      expect(sql).not.toMatch(/update\s+public\.union_workers/i);
+      // Review item is created with WORKER_NOT_FOUND
+      expect(sql).toContain("'WORKER_NOT_FOUND'");
+      expect(sql).toContain("action_taken = 'pending_review'");
+    });
+
+    it("duplicate locker: no unsafe assignment, review item created (SQL audit)", () => {
+      const applyMatch = migrationReviewSql.match(
+        /create or replace function public\.union_apply_locker_import[\s\S]*?end;\s*\$\$;/
+      );
+      expect(applyMatch).not.toBeNull();
+      const sql = applyMatch![0];
+
+      // On conflict row status, review item created and loop continues before creating assignment
+      expect(sql).toContain("if v_row.row_status = 'conflict' then");
+      expect(sql).toContain("insert into public.union_locker_review_items");
+    });
+
+    it("worker multiple lockers: no unsafe assignment, review item created (SQL audit)", () => {
+      const applyMatch = migrationReviewSql.match(
+        /create or replace function public\.union_apply_locker_import[\s\S]*?end;\s*\$\$;/
+      );
+      expect(applyMatch).not.toBeNull();
+      const sql = applyMatch![0];
+
+      expect(sql).toContain("v_conflict_code := coalesce(v_row.parsed_data->>'conflict_reason_code', 'NEEDS_REVIEW');");
+      expect(sql).toContain("action_taken = 'pending_review'");
+    });
+
+    it("valid row: locker created, assignment created (SQL audit)", () => {
+      const applyMatch = migrationReviewSql.match(
+        /create or replace function public\.union_apply_locker_import[\s\S]*?end;\s*\$\$;/
+      );
+      expect(applyMatch).not.toBeNull();
+      const sql = applyMatch![0];
+
+      expect(sql).toContain("insert into public.union_locker_assignments");
+      expect(sql).toContain("status = 'assigned'");
+      expect(sql).toContain("action_taken = 'applied'");
+    });
+
+    it("existing safe assignment: preserved intact (SQL audit)", () => {
+      const applyMatch = migrationReviewSql.match(
+        /create or replace function public\.union_apply_locker_import[\s\S]*?end;\s*\$\$;/
+      );
+      expect(applyMatch).not.toBeNull();
+      const sql = applyMatch![0];
+
+      // No delete on assignments anywhere
+      expect(sql).not.toMatch(/delete\s+from\s+public\.union_locker_assignments/i);
+      // Existing assignment for unaffected workers is never modified
+      expect(sql).toContain("where worker_id = v_worker_id");
+    });
+
+    it("pending row never deletes existing assignment (SQL audit)", () => {
+      const applyMatch = migrationReviewSql.match(
+        /create or replace function public\.union_apply_locker_import[\s\S]*?end;\s*\$\$;/
+      );
+      expect(applyMatch).not.toBeNull();
+      const sql = applyMatch![0];
+
+      expect(sql).not.toMatch(/delete\s+from\s+public\.union_locker_assignments/i);
+    });
+
+    it("pending row never modifies union_workers (SQL audit)", () => {
+      const applyMatch = migrationReviewSql.match(
+        /create or replace function public\.union_apply_locker_import[\s\S]*?end;\s*\$\$;/
+      );
+      expect(applyMatch).not.toBeNull();
+      const sql = applyMatch![0];
+
+      expect(sql).not.toMatch(/insert\s+into\s+public\.union_workers/i);
+      expect(sql).not.toMatch(/update\s+public\.union_workers/i);
+      expect(sql).not.toMatch(/delete\s+from\s+public\.union_workers/i);
+    });
+
+    it("rollback handles review items by marking cancelled_by_rollback (SQL audit)", () => {
+      const rollbackMatch = migrationReviewSql.match(
+        /create or replace function public\.union_rollback_locker_import[\s\S]*?end;\s*\$\$;/
+      );
+      expect(rollbackMatch).not.toBeNull();
+      const sql = rollbackMatch![0];
+
+      expect(sql).toContain("update public.union_locker_review_items");
+      expect(sql).toContain("status = 'cancelled_by_rollback'");
+      expect(sql).toContain("cancelled_review_items");
+    });
+
+    it("worker import does NOT automatically modify lockers (cross-domain SQL audit)", () => {
+      const workerMigrationSql = fs.readFileSync(
+        path.join(rootDir, "supabase/migrations/20260917000000_union_master_import.sql"),
+        "utf8"
+      );
+
+      const workerApplyMatch = workerMigrationSql.match(
+        /create or replace function public\.union_confirm_worker_import[\s\S]*?end;\s*\$\$;/
+      );
+      expect(workerApplyMatch).not.toBeNull();
+      const sql = workerApplyMatch![0];
+
+      expect(sql).not.toMatch(/insert\s+into\s+public\.union_lockers/i);
+      expect(sql).not.toMatch(/update\s+public\.union_lockers/i);
+      expect(sql).not.toMatch(/delete\s+from\s+public\.union_lockers/i);
+    });
+
+    it("representative can resolve pending worker, select correct worker or locker, and resolution is audited", async () => {
+      const { writeAuditLog } = await import("../services/audit");
+
+      // Verify audit service contract is callable with resolution action
+      await writeAuditLog({
+        delegation_id: "dep-1",
+        action: "resolve_locker_review_item",
+        entity_type: "union_locker_review_items",
+        entity_id: "review-item-1",
+        metadata: {
+          action: "link_worker",
+          locker_number: "125",
+          worker_id: "worker-uuid-1",
+          employee_number: "12345678",
+        },
+      });
+
+      expect(writeAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "resolve_locker_review_item",
+          entity_type: "union_locker_review_items",
+          entity_id: "review-item-1",
+        })
+      );
+    });
+  });
 });

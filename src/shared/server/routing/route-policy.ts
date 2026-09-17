@@ -49,6 +49,7 @@ export const API_ACCESS = {
   "/api/union/lockers/import/rollback": "authenticated",
   "/api/union/lockers/import/history": "authenticated",
   "/api/union/lockers/import/errors": "authenticated",
+  "/api/union/lockers/pendientes": "authenticated",
   "/api/cron/agenda-reminders": "public",
   "/api/cron/push-campaigns": "public",
   "/api/announcements/bar": "public",

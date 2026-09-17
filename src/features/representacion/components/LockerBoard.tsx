@@ -31,6 +31,19 @@ export function LockerBoard(): React.JSX.Element {
   const [worker, setWorker] = useState<UnionWorkerOption | null>(null);
   const [selectedLocker, setSelectedLocker] = useState<string>("");
   const [overrideReason, setOverrideReason] = useState("");
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
+
+  const loadPendingCount = useCallback(async (): Promise<void> => {
+    try {
+      const res = await fetch("/api/union/lockers/pendientes", { cache: "no-store" });
+      if (res.ok) {
+        const j = (await res.json()) as { counts?: { total?: number } };
+        setPendingCount(j.counts?.total ?? 0);
+      }
+    } catch {
+      // Ignorar errores en carga de contador auxiliar
+    }
+  }, []);
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -53,7 +66,8 @@ export function LockerBoard(): React.JSX.Element {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch on mount
     void load();
-  }, [load]);
+    void loadPendingCount();
+  }, [load, loadPendingCount]);
 
   async function assign(): Promise<void> {
     if (!selectedLocker || !worker) return;
@@ -102,6 +116,50 @@ export function LockerBoard(): React.JSX.Element {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+      {pendingCount !== null ? (
+        pendingCount > 0 ? (
+          <Card padding="1rem">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ fontSize: "1.125rem" }}>📋</span>
+                  <h3 style={{ margin: 0, fontSize: "1rem" }}>
+                    Pendientes de revisión: <strong>{pendingCount.toLocaleString("es-MX")}</strong>
+                  </h3>
+                </div>
+                <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--muted)" }}>
+                  Hay información de la última actualización que necesita ser revisada.
+                </p>
+              </div>
+              <Link
+                href="/representacion/lockers/pendientes"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "0.45rem 0.875rem",
+                  borderRadius: "0.375rem",
+                  backgroundColor: "var(--primary)",
+                  color: "var(--primary-fg)",
+                  fontSize: "0.8125rem",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                }}
+              >
+                Revisar pendientes
+              </Link>
+            </div>
+          </Card>
+        ) : (
+          <Card padding="0.75rem 1rem">
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#166534", fontSize: "0.875rem" }}>
+              <span>✓</span>
+              <strong>Base revisada</strong>
+              <span style={{ color: "var(--muted)" }}>— No hay pendientes.</span>
+            </div>
+          </Card>
+        )
+      ) : null}
+
       <Card>
         <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap", marginBottom: "0.5rem" }} role="group" aria-label="Filtrar por estado">
           {FILTERS.map((f) => (
