@@ -142,7 +142,25 @@ export function normalizeWorkerName(worker: {
 
   // If only siap_full_name exists
   if (siap) {
-    const tokens = siap.split(/\s+/).filter(Boolean);
+    // SIAP encodes 'Ñ' as '&' (e.g. BOLA&OS -> BOLAÑOS)
+    const cleanSiap = siap.replace(/&/g, "Ñ");
+
+    // SIAP often uses slash-delimited format: PATERNO/MATERNO/NOMBRE(S)
+    if (cleanSiap.includes("/")) {
+      const parts = cleanSiap.split("/").map((p) => p.trim()).filter(Boolean);
+      const paternalSurname = parts[0] ?? "";
+      const maternalSurname = parts[1] ?? "";
+      const firstName = parts.slice(2).join(" ");
+      const fullName = [paternalSurname, maternalSurname, firstName].filter(Boolean).join(" ");
+      return {
+        firstName: firstName.toUpperCase(),
+        paternalSurname: paternalSurname.toUpperCase(),
+        maternalSurname: maternalSurname.toUpperCase(),
+        fullName: fullName.toUpperCase(),
+      };
+    }
+
+    const tokens = cleanSiap.split(/\s+/).filter(Boolean);
     let paternalSurname = "";
     let maternalSurname = "";
     let firstName = "";
@@ -163,11 +181,13 @@ export function normalizeWorkerName(worker: {
       firstName = tokens.slice(2).join(" ");
     }
 
+    const fullName = [paternalSurname, maternalSurname, firstName].filter(Boolean).join(" ");
+
     return {
       firstName: firstName.toUpperCase(),
       paternalSurname: paternalSurname.toUpperCase(),
       maternalSurname: maternalSurname.toUpperCase(),
-      fullName: siap.toUpperCase(),
+      fullName: fullName.toUpperCase() || cleanSiap.toUpperCase(),
     };
   }
 
