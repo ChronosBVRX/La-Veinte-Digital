@@ -24,8 +24,8 @@ export function ImportDropzone({ onFileSelected, isLoading }: ImportDropzoneProp
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setValidationError(`El archivo es demasiado grande (${(file.size / (1024 * 1024)).toFixed(2)} MB). El límite máximo es de 10 MB.`);
+    if (file.size > 15 * 1024 * 1024) {
+      setValidationError(`El archivo es demasiado grande (${(file.size / (1024 * 1024)).toFixed(2)} MB). El límite máximo es de 15 MB.`);
       return;
     }
 
@@ -90,7 +90,7 @@ export function ImportDropzone({ onFileSelected, isLoading }: ImportDropzoneProp
         <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)" }}>
           {selectedFile
             ? `Tamaño: ${(selectedFile.size / 1024).toFixed(1)} KB · Formato .xlsx válido`
-            : "Formato canónico SIAP (.xlsx) · Máximo 10 MB · Las macros (.xlsm) están bloqueadas"}
+            : "Formato Excel (.xlsx) · Máximo 15 MB · Las macros (.xlsm) están bloqueadas"}
         </p>
       </div>
 

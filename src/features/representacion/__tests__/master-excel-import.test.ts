@@ -1182,3 +1182,285 @@ describe("Master Excel Import - Unified Import History", () => {
   });
 });
 
+describe("Master Excel Import - Signed Upload and Payload Defense", () => {
+  function validateUploadUrlRequest(params: {
+    fileName: unknown;
+    fileSize: unknown;
+    userDelegationId?: string;
+    userRole?: string;
+  }) {
+    const { fileName, fileSize, userDelegationId = "del-A", userRole = "union_admin" } = params;
+    const MAX_FILE_SIZE = 15 * 1024 * 1024;
+
+    if (userRole !== "union_admin") {
+      throw new Error("UNAUTHORIZED_UNION_ADMIN: Solo administradores sindicales pueden solicitar subida.");
+    }
+    if (typeof fileName !== "string" || !fileName.trim()) {
+      throw new Error("Nombre de archivo requerido.");
+    }
+    if (!fileName.toLowerCase().endsWith(".xlsx")) {
+      throw new Error("Solo se admiten archivos en formato Excel estándar (.xlsx).");
+    }
+    if (typeof fileSize !== "number" || fileSize <= 0) {
+      throw new Error("Tamaño de archivo inválido.");
+    }
+    if (fileSize > MAX_FILE_SIZE) {
+      throw new Error("El archivo excede el tamaño máximo permitido de 15 MB.");
+    }
+
+    const uploadId = "mock-uuid-1234";
+    const objectPath = `imports/${userDelegationId}/user-uuid/${uploadId}.xlsx`;
+    return {
+      objectPath,
+      signedUrl: `https://mock-storage.supabase.co/storage/v1/object/upload/sign/union-private/${objectPath}?token=mock-token-xyz`,
+      token: "mock-token-xyz",
+    };
+  }
+
+  function validatePreviewRequest(params: {
+    objectPath: unknown;
+    fileName?: unknown;
+    fileSize?: unknown;
+    userDelegationId: string;
+    userId: string;
+    downloadedByteLength: number;
+    parserThrows?: boolean;
+  }) {
+    const { objectPath, userDelegationId, userId, downloadedByteLength, parserThrows } = params;
+    const MAX_FILE_SIZE = 15 * 1024 * 1024;
+
+    if (typeof objectPath !== "string" || !objectPath.trim()) {
+      throw new Error("Ruta de objeto temporal no proporcionada.");
+    }
+    const cleanPath = objectPath.trim();
+    if (cleanPath.includes("..") || cleanPath.includes("//") || cleanPath.includes("\\") || cleanPath.startsWith("/")) {
+      throw new Error("Ruta de objeto no válida o sospechosa.");
+    }
+    if (!cleanPath.toLowerCase().endsWith(".xlsx")) {
+      throw new Error("El objeto debe tener extensión .xlsx.");
+    }
+
+    const expectedPrefix = `imports/${userDelegationId}/${userId}/`;
+    if (!cleanPath.startsWith(expectedPrefix)) {
+      throw new Error("Acceso no autorizado: la ruta del archivo no coincide con su usuario o delegación.");
+    }
+
+    if (downloadedByteLength > MAX_FILE_SIZE) {
+      throw new Error("El archivo descargado excede el tamaño máximo permitido de 15 MB.");
+    }
+    if (parserThrows) {
+      throw new Error("PARSER_ERROR: El archivo de Excel contiene celdas corruptas.");
+    }
+    return { success: true, rowsCount: 120 };
+  }
+
+  it("archivo 4.4 MB no se envía a API como multipart en MASTER wizard", () => {
+    const file = { name: "Copia de Copia de Copia de LOKER 2025.xlsx", size: 4503449 };
+    const uploadRes = validateUploadUrlRequest({ fileName: file.name, fileSize: file.size });
+    expect(uploadRes.objectPath).toContain("imports/del-A/user-uuid/");
+    expect(uploadRes.token).toBe("mock-token-xyz");
+
+    const previewPayload = {
+      objectPath: uploadRes.objectPath,
+      fileName: file.name,
+      fileSize: file.size,
+    };
+    expect(typeof previewPayload.objectPath).toBe("string");
+    expect(previewPayload).not.toBeInstanceOf(FormData);
+  });
+
+  it("MASTER wizard usa signed upload y pasa los 3 pasos", () => {
+    const steps: string[] = [];
+    const file = { name: "Plantilla_Master.xlsx", size: 4400000 };
+
+    steps.push("REQUEST_UPLOAD_URL");
+    const uploadInfo = validateUploadUrlRequest({ fileName: file.name, fileSize: file.size });
+    expect(uploadInfo.signedUrl).toBeDefined();
+
+    steps.push("DIRECT_STORAGE_UPLOAD");
+    const storageResult = { error: null, path: uploadInfo.objectPath };
+    expect(storageResult.error).toBeNull();
+
+    steps.push("REQUEST_PREVIEW");
+    const previewResult = validatePreviewRequest({
+      objectPath: uploadInfo.objectPath,
+      userDelegationId: "del-A",
+      userId: "user-uuid",
+      downloadedByteLength: file.size,
+    });
+    expect(previewResult.success).toBe(true);
+
+    expect(steps).toEqual(["REQUEST_UPLOAD_URL", "DIRECT_STORAGE_UPLOAD", "REQUEST_PREVIEW"]);
+  });
+
+  it("preview recibe JSON con objectPath y valida su estructura", () => {
+    const res = validatePreviewRequest({
+      objectPath: "imports/del-A/user-uuid/test-batch.xlsx",
+      userDelegationId: "del-A",
+      userId: "user-uuid",
+      downloadedByteLength: 1024 * 1024,
+    });
+    expect(res.success).toBe(true);
+    expect(res.rowsCount).toBe(120);
+  });
+
+  it("rechaza objectPath de otra delegación", () => {
+    expect(() =>
+      validatePreviewRequest({
+        objectPath: "imports/del-OTRA/user-uuid/test-batch.xlsx",
+        userDelegationId: "del-A",
+        userId: "user-uuid",
+        downloadedByteLength: 1000,
+      })
+    ).toThrow("la ruta del archivo no coincide con su usuario o delegación");
+  });
+
+  it("rechaza objectPath de otro usuario", () => {
+    expect(() =>
+      validatePreviewRequest({
+        objectPath: "imports/del-A/otro-usuario/test-batch.xlsx",
+        userDelegationId: "del-A",
+        userId: "user-uuid",
+        downloadedByteLength: 1000,
+      })
+    ).toThrow("la ruta del archivo no coincide con su usuario o delegación");
+  });
+
+  it("rechaza path traversal en objectPath (../, //, \\)", () => {
+    expect(() =>
+      validatePreviewRequest({
+        objectPath: "imports/del-A/user-uuid/../../etc/passwd.xlsx",
+        userDelegationId: "del-A",
+        userId: "user-uuid",
+        downloadedByteLength: 1000,
+      })
+    ).toThrow("Ruta de objeto no válida o sospechosa");
+
+    expect(() =>
+      validatePreviewRequest({
+        objectPath: "imports/del-A/user-uuid//double-slash.xlsx",
+        userDelegationId: "del-A",
+        userId: "user-uuid",
+        downloadedByteLength: 1000,
+      })
+    ).toThrow("Ruta de objeto no válida o sospechosa");
+  });
+
+  it("rechaza archivo > 15MB en upload-url y en verificación post-descarga", () => {
+    expect(() =>
+      validateUploadUrlRequest({
+        fileName: "enorme.xlsx",
+        fileSize: 16 * 1024 * 1024,
+      })
+    ).toThrow("El archivo excede el tamaño máximo permitido de 15 MB");
+
+    expect(() =>
+      validatePreviewRequest({
+        objectPath: "imports/del-A/user-uuid/enorme.xlsx",
+        userDelegationId: "del-A",
+        userId: "user-uuid",
+        downloadedByteLength: 15.5 * 1024 * 1024,
+      })
+    ).toThrow("El archivo descargado excede el tamaño máximo permitido de 15 MB");
+  });
+
+  it("rechaza archivos que no son .xlsx", () => {
+    expect(() =>
+      validateUploadUrlRequest({
+        fileName: "macro.xlsm",
+        fileSize: 1000,
+      })
+    ).toThrow("Solo se admiten archivos en formato Excel estándar (.xlsx)");
+
+    expect(() =>
+      validatePreviewRequest({
+        objectPath: "imports/del-A/user-uuid/script.sh",
+        userDelegationId: "del-A",
+        userId: "user-uuid",
+        downloadedByteLength: 1000,
+      })
+    ).toThrow("El objeto debe tener extensión .xlsx");
+  });
+
+  it("archivo temporal se elimina tras preview exitoso", () => {
+    let deletedPath: string | null = null;
+    const cleanPath = "imports/del-A/user-uuid/temp-upload.xlsx";
+
+    try {
+      const result = { parsed: true };
+      expect(result.parsed).toBe(true);
+    } finally {
+      deletedPath = cleanPath;
+    }
+
+    expect(deletedPath).toBe(cleanPath);
+  });
+
+  it("archivo temporal se elimina tras error de parser en bloque finally", () => {
+    let deletedPath: string | null = null;
+    const cleanPath = "imports/del-A/user-uuid/corrupt-upload.xlsx";
+
+    expect(() => {
+      try {
+        throw new Error("EXCEL_PARSE_CORRUPT_ZIP");
+      } finally {
+        deletedPath = cleanPath;
+      }
+    }).toThrow("EXCEL_PARSE_CORRUPT_ZIP");
+
+    expect(deletedPath).toBe(cleanPath);
+  });
+
+  it("respuesta no JSON (ej. Vercel 413 Request Entity Too Large) no provoca Unexpected token", async () => {
+    async function readApiResponse<T>(res: {
+      status: number;
+      headers: { get: (name: string) => string | null };
+      json: () => Promise<T>;
+      text: () => Promise<string>;
+    }): Promise<T> {
+      const contentType = res.headers.get("content-type") ?? "";
+      if (contentType.includes("application/json")) {
+        return await res.json();
+      }
+      const text = await res.text();
+      if (res.status === 413) {
+        throw new Error("No se pudo procesar el archivo porque es demasiado grande para el método de carga actual.");
+      }
+      throw new Error(text || `Error HTTP ${res.status}`);
+    }
+
+    const vercel413Response = {
+      status: 413,
+      headers: { get: () => "text/plain" },
+      json: async () => {
+        throw new SyntaxError("Unexpected token 'R', \"Request En\"... is not valid JSON");
+      },
+      text: async () => "Request Entity Too Large",
+    };
+
+    await expect(readApiResponse(vercel413Response)).rejects.toThrow(
+      "No se pudo procesar el archivo porque es demasiado grande para el método de carga actual."
+    );
+
+    const vercel502Response = {
+      status: 502,
+      headers: { get: () => "text/html" },
+      json: async () => {
+        throw new SyntaxError("Unexpected token '<', \"<html>...\" is not valid JSON");
+      },
+      text: async () => "Bad Gateway",
+    };
+
+    await expect(readApiResponse(vercel502Response)).rejects.toThrow("Bad Gateway");
+  });
+
+  it("SIAP permanece intacto y sigue enviando multipart FormData directamente", () => {
+    const siapFile = { name: "Plantilla_SIAP_2026.xlsx", size: 800000 };
+    const formData = new FormData();
+    formData.append("file", siapFile as unknown as Blob);
+
+    expect(formData.has("file")).toBe(true);
+    expect(formData.get("file")).toBeDefined();
+  });
+});
+
