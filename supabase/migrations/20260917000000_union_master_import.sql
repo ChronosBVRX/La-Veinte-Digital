@@ -383,6 +383,14 @@ begin
     raise exception 'UNAUTHORIZED_UNION_ADMIN: No tienes permisos de administrador sindical en esta delegación.';
   end if;
 
+  if v_batch.status = 'rolled_back' then
+    raise exception 'BATCH_ALREADY_ROLLED_BACK: El lote % ya fue revertido previamente.', p_batch_id;
+  end if;
+
+  if v_batch.status = 'preview' then
+    raise exception 'INVALID_BATCH_STATUS_FOR_ROLLBACK: Solo se pueden revertir lotes confirmados. Estado actual: "preview".';
+  end if;
+
   if v_batch.status <> 'confirmed' then
     raise exception 'INVALID_BATCH_STATUS_FOR_ROLLBACK: Solo se pueden revertir lotes confirmados. Estado actual: "%".', v_batch.status;
   end if;
@@ -828,6 +836,7 @@ as $$
 declare
   v_batch record;
   v_history record;
+  v_row record;
   v_assignment record;
   v_deactivated_workers integer := 0;
   v_restored_fields integer := 0;
@@ -835,6 +844,7 @@ declare
   v_restored_assignments integer := 0;
   v_now timestamptz := clock_timestamp();
   v_conflict_emp text;
+  v_conflict_locker text;
 begin
   -- 1. Obtener y bloquear el lote
   select * into v_batch
@@ -846,12 +856,20 @@ begin
     raise exception 'BATCH_NOT_FOUND: Lote % no encontrado.', p_batch_id;
   end if;
 
-  -- 2. Validar formato
+  -- 2. Validar formato aislado
   if v_batch.format_version <> 'UNION_MASTER_LOCKERS_V1' then
     raise exception 'INVALID_FORMAT_VERSION: Este lote no corresponde al formato UNION_MASTER_LOCKERS_V1 (formato actual: "%").', v_batch.format_version;
   end if;
 
-  -- 3. Validar estado
+  -- 3. Validar estado e idempotencia
+  if v_batch.status = 'rolled_back' then
+    raise exception 'BATCH_ALREADY_ROLLED_BACK: El lote % ya fue revertido previamente.', p_batch_id;
+  end if;
+
+  if v_batch.status = 'preview' then
+    raise exception 'INVALID_BATCH_STATUS_FOR_ROLLBACK: Solo se pueden revertir lotes confirmados. Estado actual: "preview".';
+  end if;
+
   if v_batch.status <> 'confirmed' then
     raise exception 'INVALID_BATCH_STATUS_FOR_ROLLBACK: Solo se pueden revertir lotes confirmados. Estado actual: "%".', v_batch.status;
   end if;
@@ -861,38 +879,91 @@ begin
     raise exception 'UNAUTHORIZED_UNION_ADMIN: No cuentas con permisos de union_admin en la delegación %.', v_batch.delegation_id;
   end if;
 
-  -- 5. Verificar modificaciones posteriores conflictivas
+  -- 5. Verificar modificaciones posteriores conflictivas en TRABAJADORES
+  -- A) Trabajador creado por este lote modificado posteriormente
   select w.employee_number into v_conflict_emp
   from public.union_workers w
   where w.delegation_id = v_batch.delegation_id
     and w.source_created_by_batch_id = p_batch_id
-    and w.last_import_batch_id <> p_batch_id
-  limit 1;
-
-  if v_conflict_emp is null then
-    select w.employee_number into v_conflict_emp
-    from public.union_worker_change_history h
-    join public.union_workers w on w.id = h.worker_id
-    where h.batch_id = p_batch_id
-      and (
-        w.last_import_batch_id <> p_batch_id
-        or exists (
-          select 1 from public.union_worker_change_history h_newer
-          where h_newer.worker_id = h.worker_id
-            and h_newer.created_at > h.created_at
-        )
+    and (
+      w.last_import_batch_id <> p_batch_id
+      or exists (
+        select 1 from public.union_worker_change_history h
+        where h.worker_id = w.id
+          and h.batch_id <> p_batch_id
+          and h.created_at > coalesce(v_batch.applied_at, v_batch.confirmed_at, v_batch.created_at)
       )
+    )
   limit 1;
-  end if;
 
   if v_conflict_emp is not null then
-    raise exception 'ROLLBACK_CONFLICT_NEWER_CHANGES: El trabajador con matrícula % ha sido modificado posteriormente.', v_conflict_emp;
+    raise exception 'ROLLBACK_CONFLICT_NEWER_CHANGES: No se puede revertir el trabajador con matrícula % porque recibió cambios después de esta importación.', v_conflict_emp;
   end if;
 
-  -- 6. REVERSIÓN DE TRABAJADORES
+  -- B) Trabajador existente actualizado por este lote modificado posteriormente
+  select w.employee_number into v_conflict_emp
+  from public.union_worker_change_history h
+  join public.union_workers w on w.id = h.worker_id
+  where h.batch_id = p_batch_id
+    and (
+      w.last_import_batch_id <> p_batch_id
+      or exists (
+        select 1 from public.union_worker_change_history h_newer
+        where h_newer.worker_id = h.worker_id
+          and h_newer.batch_id <> p_batch_id
+          and h_newer.created_at > h.created_at
+      )
+    )
+  limit 1;
+
+  if v_conflict_emp is not null then
+    raise exception 'ROLLBACK_CONFLICT_NEWER_CHANGES: No se puede revertir el trabajador con matrícula % porque recibió cambios después de esta importación.', v_conflict_emp;
+  end if;
+
+  -- 6. Verificar modificaciones posteriores conflictivas en CASILLEROS
+  -- A) Asignación creada por este lote que fue posteriormente alterada o el casillero fue asignado a alguien más
+  select l.locker_number into v_conflict_locker
+  from public.union_locker_assignments a
+  join public.union_lockers l on l.id = a.locker_id
+  where a.assignment_reason = 'import_master_batch:' || p_batch_id::text
+    and (
+      a.status <> 'active'
+      or exists (
+        select 1 from public.union_locker_assignments a_newer
+        where a_newer.locker_id = a.locker_id
+          and a_newer.id <> a.id
+          and a_newer.created_at > a.assigned_at
+      )
+    )
+  limit 1;
+
+  if v_conflict_locker is not null then
+    raise exception 'ROLLBACK_CONFLICT_NEWER_CHANGES: El casillero % fue modificado o reasignado con posterioridad a esta importación y no puede ser revertido.', v_conflict_locker;
+  end if;
+
+  -- B) Asignación previa liberada por este lote cuyo casillero ahora tiene otra asignación activa distinta
+  select l.locker_number into v_conflict_locker
+  from public.union_locker_assignments a
+  join public.union_lockers l on l.id = a.locker_id
+  where a.release_reason = 'released_by_import_master_batch:' || p_batch_id::text
+    and exists (
+      select 1 from public.union_locker_assignments a_other
+      where a_other.locker_id = a.locker_id
+        and a_other.status = 'active'
+        and a_other.id <> a.id
+        and a_other.assignment_reason <> 'import_master_batch:' || p_batch_id::text
+    )
+  limit 1;
+
+  if v_conflict_locker is not null then
+    raise exception 'ROLLBACK_CONFLICT_NEWER_CHANGES: El casillero % fue reasignado posteriormente a este lote y no puede restaurarse la asignación anterior.', v_conflict_locker;
+  end if;
+
+  -- 7. REVERSIÓN DE TRABAJADORES
   -- A. Trabajadores creados exclusivamente por este lote: marcado no destructivo (NUNCA DELETE)
   update public.union_workers
   set
+    active = false,
     source_rolled_back_at = v_now,
     source_import_state = 'rolled_back',
     updated_by = auth.uid(),
@@ -908,27 +979,80 @@ begin
     where h.batch_id = p_batch_id
     order by h.created_at desc
   loop
-    if v_history.field_name in (
-      'category', 'position_description', 'turn', 'schedule', 'schedule_description',
-      'plaza_code', 'source_name_raw', 'import_notes'
-    ) then
-      execute format(
-        'update public.union_workers set %I = $1, updated_by = $2, updated_at = $3 where id = $4',
-        v_history.field_name
-      ) using v_history.old_value, auth.uid(), v_now, v_history.worker_id;
-
-      if v_history.field_name = 'position_description' then
-        update public.union_workers set category = coalesce(v_history.old_value, '') where id = v_history.worker_id;
-      end if;
-      if v_history.field_name = 'schedule_description' then
-        update public.union_workers set schedule = coalesce(v_history.old_value, '') where id = v_history.worker_id;
-      end if;
-
+    if v_history.field_name in ('category', 'position_description') then
+      update public.union_workers
+      set category = coalesce(v_history.old_value, ''),
+          position_description = coalesce(v_history.old_value, ''),
+          updated_by = auth.uid(),
+          updated_at = v_now
+      where id = v_history.worker_id;
+      v_restored_fields := v_restored_fields + 1;
+    elsif v_history.field_name in ('schedule', 'schedule_description') then
+      update public.union_workers
+      set schedule = coalesce(v_history.old_value, ''),
+          schedule_description = coalesce(v_history.old_value, ''),
+          updated_by = auth.uid(),
+          updated_at = v_now
+      where id = v_history.worker_id;
+      v_restored_fields := v_restored_fields + 1;
+    elsif v_history.field_name = 'turn' then
+      update public.union_workers
+      set turn = coalesce(v_history.old_value, ''),
+          updated_by = auth.uid(),
+          updated_at = v_now
+      where id = v_history.worker_id;
+      v_restored_fields := v_restored_fields + 1;
+    elsif v_history.field_name = 'plaza_code' then
+      update public.union_workers
+      set plaza_code = coalesce(v_history.old_value, ''),
+          updated_by = auth.uid(),
+          updated_at = v_now
+      where id = v_history.worker_id;
+      v_restored_fields := v_restored_fields + 1;
+    elsif v_history.field_name = 'source_name_raw' then
+      update public.union_workers
+      set source_name_raw = coalesce(v_history.old_value, ''),
+          updated_by = auth.uid(),
+          updated_at = v_now
+      where id = v_history.worker_id;
+      v_restored_fields := v_restored_fields + 1;
+    elsif v_history.field_name in ('import_notes', 'raw_observations') then
+      update public.union_workers
+      set import_notes = coalesce(v_history.old_value, ''),
+          updated_by = auth.uid(),
+          updated_at = v_now
+      where id = v_history.worker_id;
       v_restored_fields := v_restored_fields + 1;
     end if;
   end loop;
 
-  -- 7. REVERSIÓN DE CASILLEROS (Operaciones históricas coherentes, sin borrar el pasado)
+  -- C. Snapshot complementario inmutable desde union_worker_import_rows.diff->'previous_snapshot'
+  for v_row in
+    select r.target_worker_id, r.diff->'previous_snapshot' as prev
+    from public.union_worker_import_rows r
+    where r.batch_id = p_batch_id
+      and r.target_worker_id is not null
+      and r.diff ? 'previous_snapshot'
+      and r.action_taken = 'applied'
+  loop
+    if v_row.prev is not null then
+      update public.union_workers
+      set
+        plaza_code = coalesce(v_row.prev->>'plaza_code', plaza_code),
+        category = coalesce(v_row.prev->>'category', category),
+        position_description = coalesce(v_row.prev->>'position_description', position_description),
+        turn = coalesce(v_row.prev->>'turn', turn),
+        schedule = coalesce(v_row.prev->>'schedule', schedule),
+        schedule_description = coalesce(v_row.prev->>'schedule_description', schedule_description),
+        source_name_raw = coalesce(v_row.prev->>'source_name_raw', source_name_raw),
+        import_notes = coalesce(v_row.prev->>'import_notes', import_notes),
+        updated_by = auth.uid(),
+        updated_at = v_now
+      where id = v_row.target_worker_id;
+    end if;
+  end loop;
+
+  -- 8. REVERSIÓN DE CASILLEROS (Operaciones históricas coherentes, sin borrar el pasado)
   -- A. Revertir asignaciones creadas por este lote (marcarlas released)
   for v_assignment in
     select id, locker_id
@@ -977,7 +1101,7 @@ begin
     v_restored_assignments := v_restored_assignments + 1;
   end loop;
 
-  -- 8. Actualizar estado del lote
+  -- 9. Actualizar estado del lote
   update public.union_worker_import_batches
   set
     status = 'rolled_back',
@@ -985,6 +1109,30 @@ begin
     rolled_back_by = auth.uid(),
     updated_at = v_now
   where id = p_batch_id;
+
+  -- 10. Registrar en auditoría sindical
+  insert into public.union_audit_logs (
+    delegation_id,
+    user_id,
+    action,
+    entity_type,
+    entity_id,
+    details,
+    created_at
+  ) values (
+    v_batch.delegation_id,
+    auth.uid(),
+    'rollback_master_import',
+    'union_worker_import_batches',
+    p_batch_id,
+    jsonb_build_object(
+      'deactivated_workers', v_deactivated_workers,
+      'restored_fields', v_restored_fields,
+      'reverted_assignments', v_reverted_assignments,
+      'restored_assignments', v_restored_assignments
+    ),
+    v_now
+  );
 
   return jsonb_build_object(
     'batch_id', p_batch_id,

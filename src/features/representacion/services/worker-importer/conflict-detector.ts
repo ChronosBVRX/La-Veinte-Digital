@@ -4,6 +4,7 @@ import type {
   RowStatus,
   FieldDiff,
   RowDiff,
+  PreviousWorkerSnapshot,
 } from "./types";
 import { maskRfc, maskCurp, maskNss } from "./row-parser";
 
@@ -40,6 +41,7 @@ export interface ExistingWorkerRecord {
   termination_date?: string | null;
   micro_group_code?: string | null;
   source_name_raw?: string | null;
+  import_notes?: string | null;
   active_locker_number?: string | null;
   active_assignment_id?: string | null;
   active: boolean;
@@ -75,6 +77,8 @@ const COMPARABLE_FIELDS: Array<{
   { key: "turn", label: "Turno", getOld: (w) => w.turn },
   { key: "schedule_description", label: "Horario", getOld: (w) => w.schedule },
   { key: "plaza_code", label: "Plaza", getOld: (w) => w.plaza_code },
+  { key: "source_name_raw", label: "Nombre en Fuente Maestra", getOld: (w) => w.source_name_raw },
+  { key: "raw_observations", label: "Observaciones de Importación", getOld: (w) => w.import_notes },
   { key: "contract_type_code", label: "Tipo Contrato", getOld: (w) => w.contract_type_code },
   { key: "responsibility_area_code", label: "Área Responsabilidad", getOld: (w) => w.responsibility_area_code },
   { key: "plaza_type_code", label: "Tipo Plaza", getOld: (w) => w.plaza_type_code },
@@ -265,6 +269,11 @@ export function detectConflictsAndDiff(
     // Calculate changes against SIAP managed fields
     const changes: FieldDiff[] = [];
     for (const field of COMPARABLE_FIELDS) {
+      // source_name_raw e import_notes son exclusivos de la importación maestra (cuando existingLockersMap está presente)
+      if ((field.key === "source_name_raw" || field.key === "raw_observations") && existingLockersMap === undefined) {
+        continue;
+      }
+
       let oldVal = (field.getOld(existing) ?? "").toString().trim();
       let newVal = (parsed[field.key] ?? "").toString().trim();
 
@@ -276,13 +285,30 @@ export function detectConflictsAndDiff(
 
       if (oldVal !== newVal && (oldVal || newVal)) {
         changes.push({
-          field: field.key,
+          field: field.key === "raw_observations" ? "import_notes" : field.key,
           label: field.label,
           oldValue: oldVal || null,
           newValue: newVal || null,
         });
       }
     }
+
+    // Snapshot inmutable previo del trabajador antes de aplicar este lote
+    const previousSnapshot: PreviousWorkerSnapshot = {
+      worker_id: existing.id,
+      employee_number: existing.employee_number,
+      category: existing.category,
+      position_description: existing.category,
+      turn: existing.turn,
+      schedule: existing.schedule || "",
+      schedule_description: existing.schedule || "",
+      plaza_code: existing.plaza_code || null,
+      source_name_raw: existing.source_name_raw || null,
+      import_notes: existing.import_notes || null,
+      active: existing.active,
+      active_locker_number: existing.active_locker_number || null,
+      active_assignment_id: existing.active_assignment_id || null,
+    };
 
     // Comprobación de cambio o asignación de casillero
     let lockerDiff: RowDiff["lockerChange"] = undefined;
@@ -322,7 +348,11 @@ export function detectConflictsAndDiff(
       status,
       issues: rowIssues,
       existingWorkerId: existing.id,
-      diff: changes.length > 0 || lockerDiff ? { changes, lockerChange: lockerDiff } : undefined,
+      diff: changes.length > 0 || lockerDiff ? {
+        changes,
+        previous_snapshot: previousSnapshot,
+        lockerChange: lockerDiff,
+      } : undefined,
     });
   }
 

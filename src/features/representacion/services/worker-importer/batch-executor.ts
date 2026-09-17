@@ -383,6 +383,8 @@ export async function rollbackImportBatch(params: {
 
   let restoredFieldsCount = 0;
   let deactivatedWorkersCount = 0;
+  let revertedAssignmentsCount = 0;
+  let restoredAssignmentsCount = 0;
 
   if (batch.format_version === "UNION_MASTER_LOCKERS_V1") {
     const { data, error } = await supabase.rpc("union_rollback_master_import", {
@@ -399,6 +401,8 @@ export async function rollbackImportBatch(params: {
     };
     restoredFieldsCount = res.restored_fields ?? 0;
     deactivatedWorkersCount = res.deactivated_workers ?? 0;
+    revertedAssignmentsCount = res.reverted_assignments ?? 0;
+    restoredAssignmentsCount = res.restored_assignments ?? 0;
   } else {
     const { data, error } = await supabase.rpc("union_rollback_worker_import", {
       p_batch_id: batchId,
@@ -423,6 +427,8 @@ export async function rollbackImportBatch(params: {
       format_version: batch.format_version,
       restored_fields_count: restoredFieldsCount,
       deactivated_workers_count: deactivatedWorkersCount,
+      reverted_assignments_count: revertedAssignmentsCount,
+      restored_assignments_count: restoredAssignmentsCount,
     },
   });
 
@@ -431,6 +437,8 @@ export async function rollbackImportBatch(params: {
     status: "rolled_back",
     restoredFieldsCount,
     deactivatedWorkersCount,
+    revertedAssignmentsCount,
+    restoredAssignmentsCount,
     deletedWorkersCount: 0,
   };
 }
@@ -581,7 +589,7 @@ export async function parseAndPreviewMasterImport(params: {
       .select(`
         id, employee_number, first_name, paternal_surname, maternal_surname,
         category, assignment, turn, schedule, plaza_code,
-        source_name_raw, active
+        source_name_raw, import_notes, active
       `)
       .eq("delegation_id", delegationId),
     supabase

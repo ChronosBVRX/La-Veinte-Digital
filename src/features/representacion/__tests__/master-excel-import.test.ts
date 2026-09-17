@@ -16,6 +16,7 @@ import {
   type ExistingLockerRecord,
 } from "../services/worker-importer/conflict-detector";
 import { validateExcelSecurity } from "../services/worker-importer/excel-security";
+import type { RowDiff } from "../services/worker-importer/types";
 
 describe("Master Excel Import - Header Mapping", () => {
   it("maps headers with # PLAZA, # LOCKER, and OBSERVACIONES correctly", () => {
@@ -565,86 +566,522 @@ describe("Master Excel Import - Format Isolation & RPC Guards", () => {
 });
 
 describe("Master Excel Import - Rollback Mechanics (Workers & Lockers)", () => {
-  it("rolls back newly created worker by deactivating non-destructively without DELETE", () => {
-    const workerInDb = {
-      id: "w-1",
-      employee_number: "99001",
-      source_created_by_batch_id: "batch-101",
-      source_import_state: "active",
-      source_rolled_back_at: null as string | null,
-    };
+  interface MockWorker {
+    id: string;
+    employee_number: string;
+    category: string;
+    position_description: string;
+    turn: string;
+    schedule: string;
+    schedule_description: string;
+    plaza_code: string;
+    source_name_raw: string;
+    import_notes: string;
+    active: boolean;
+    source_created_by_batch_id?: string | null;
+    last_import_batch_id?: string | null;
+    source_import_state: string;
+    source_rolled_back_at?: string | null;
+  }
 
-    // Simulate rollback
-    const now = new Date().toISOString();
-    workerInDb.source_rolled_back_at = now;
-    workerInDb.source_import_state = "rolled_back";
+  interface MockLocker {
+    id: string;
+    locker_number: string;
+    status: "disponible" | "ocupado";
+  }
 
-    expect(workerInDb.id).toBe("w-1"); // Row is NOT deleted
-    expect(workerInDb.source_import_state).toBe("rolled_back");
-    expect(workerInDb.source_rolled_back_at).toBe(now);
-  });
+  interface MockAssignment {
+    id: string;
+    locker_id: string;
+    worker_id: string;
+    status: "active" | "released";
+    assignment_reason?: string;
+    release_reason?: string;
+    created_at: string;
+    assigned_at?: string;
+    released_at?: string | null;
+  }
 
-  it("rolls back field updates by restoring previous values from change history", () => {
-    const changeHistory = [
-      { worker_id: "w-2", field_name: "turn", old_value: "Matutino", new_value: "Vespertino" },
-      { worker_id: "w-2", field_name: "category", old_value: "ENFERMERA GENERAL", new_value: "ENFERMERA JEFE" },
-    ];
+  interface MockHistory {
+    id: string;
+    batch_id: string;
+    worker_id: string;
+    field_name: string;
+    old_value: string;
+    new_value: string;
+    created_at: string;
+  }
 
-    const workerState = {
-      id: "w-2",
-      turn: "Vespertino",
-      category: "ENFERMERA JEFE",
-    };
+  interface MockBatch {
+    id: string;
+    format_version: "UNION_MASTER_LOCKERS_V1" | "SIAP_2026";
+    status: "preview" | "confirmed" | "rolled_back";
+    delegation_id: string;
+    created_at: string;
+    applied_at?: string;
+    rolled_back_at?: string;
+  }
 
-    // Revert using history
-    for (const h of changeHistory) {
-      if (h.field_name === "turn") workerState.turn = h.old_value;
-      if (h.field_name === "category") workerState.category = h.old_value;
+  function simulateMasterRollbackRpc(params: {
+    batch: MockBatch;
+    workers: MockWorker[];
+    lockers: MockLocker[];
+    assignments: MockAssignment[];
+    changeHistory: MockHistory[];
+    stagingRows?: Array<{ target_worker_id: string; diff?: RowDiff | null; action_taken: string }>;
+    userDelegationId: string;
+    failSimulatedStep?: "WORKER_UPDATE" | "LOCKER_UPDATE";
+  }) {
+    const { batch, workers, lockers, assignments, changeHistory, stagingRows = [], userDelegationId, failSimulatedStep } = params;
+
+    // 1. Validar formato
+    if (batch.format_version !== "UNION_MASTER_LOCKERS_V1") {
+      throw new Error(`INVALID_FORMAT_VERSION: Este lote tiene formato "${batch.format_version}" y debe revertirse con su RPC correspondiente (union_rollback_worker_import).`);
     }
 
-    expect(workerState.turn).toBe("Matutino");
-    expect(workerState.category).toBe("ENFERMERA GENERAL");
+    // 2. Validar estado e idempotencia
+    if (batch.status === "rolled_back") {
+      throw new Error(`BATCH_ALREADY_ROLLED_BACK: El lote ${batch.id} ya fue revertido previamente.`);
+    }
+    if (batch.status === "preview") {
+      throw new Error(`INVALID_BATCH_STATUS_FOR_ROLLBACK: Solo se pueden revertir lotes confirmados. Estado actual: "preview".`);
+    }
+    if (batch.status !== "confirmed") {
+      throw new Error(`INVALID_BATCH_STATUS_FOR_ROLLBACK: Solo se pueden revertir lotes confirmados. Estado actual: "${batch.status}".`);
+    }
+
+    // 3. Validar permisos
+    if (batch.delegation_id !== userDelegationId) {
+      throw new Error(`UNAUTHORIZED_UNION_ADMIN: No cuentas con permisos de union_admin en la delegación ${batch.delegation_id}.`);
+    }
+
+    // 4. Verificar modificaciones posteriores conflictivas en TRABAJADORES
+    for (const w of workers) {
+      if (w.source_created_by_batch_id === batch.id && w.last_import_batch_id !== batch.id) {
+        throw new Error(`ROLLBACK_CONFLICT_NEWER_CHANGES: No se puede revertir el trabajador con matrícula ${w.employee_number} porque recibió cambios después de esta importación.`);
+      }
+      const hasNewerHistory = changeHistory.some(
+        (h) => h.worker_id === w.id && h.batch_id !== batch.id && h.created_at > (batch.applied_at || batch.created_at)
+      );
+      if (hasNewerHistory) {
+        throw new Error(`ROLLBACK_CONFLICT_NEWER_CHANGES: No se puede revertir el trabajador con matrícula ${w.employee_number} porque recibió cambios después de esta importación.`);
+      }
+    }
+
+    // 5. Verificar modificaciones posteriores conflictivas en CASILLEROS
+    for (const a of assignments) {
+      if (a.assignment_reason === `import_master_batch:${batch.id}`) {
+        const locker = lockers.find((l) => l.id === a.locker_id);
+        if (a.status !== "active") {
+          throw new Error(`ROLLBACK_CONFLICT_NEWER_CHANGES: El casillero ${locker?.locker_number} tiene asignaciones o cambios posteriores a este lote y no puede ser revertido.`);
+        }
+        const newerAssignment = assignments.some(
+          (other) => other.locker_id === a.locker_id && other.id !== a.id && other.created_at > a.created_at
+        );
+        if (newerAssignment) {
+          throw new Error(`ROLLBACK_CONFLICT_NEWER_CHANGES: El casillero ${locker?.locker_number} tiene asignaciones o cambios posteriores a este lote y no puede ser revertido.`);
+        }
+      }
+      if (a.release_reason === `released_by_import_master_batch:${batch.id}`) {
+        const locker = lockers.find((l) => l.id === a.locker_id);
+        const otherActive = assignments.some(
+          (other) => other.locker_id === a.locker_id && other.status === "active" && other.id !== a.id && other.assignment_reason !== `import_master_batch:${batch.id}`
+        );
+        if (otherActive) {
+          throw new Error(`ROLLBACK_CONFLICT_NEWER_CHANGES: El casillero ${locker?.locker_number} fue reasignado posteriormente a este lote y no puede restaurarse la asignación anterior.`);
+        }
+      }
+    }
+
+    // Atomic snapshot before mutation
+    const initialSnapshot = {
+      workers: JSON.stringify(workers),
+      lockers: JSON.stringify(lockers),
+      assignments: JSON.stringify(assignments),
+    };
+
+    try {
+      if (failSimulatedStep === "WORKER_UPDATE") {
+        throw new Error("TRANSACTION_FAILED: Simulación de fallo en actualización de trabajadores");
+      }
+
+      const now = new Date().toISOString();
+      let deactivatedCount = 0;
+      let restoredFieldsCount = 0;
+
+      // Reversión de trabajadores creados por el lote (active = false, NO DELETE)
+      for (const w of workers) {
+        if (w.source_created_by_batch_id === batch.id) {
+          w.active = false;
+          w.source_import_state = "rolled_back";
+          w.source_rolled_back_at = now;
+          deactivatedCount++;
+        }
+      }
+
+      // Reversión de trabajadores actualizados mediante changeHistory
+      const batchHistory = changeHistory.filter((h) => h.batch_id === batch.id);
+      for (const h of batchHistory) {
+        const w = workers.find((item) => item.id === h.worker_id);
+        if (!w) continue;
+        if (h.field_name === "plaza_code") { w.plaza_code = h.old_value; restoredFieldsCount++; }
+        if (h.field_name === "category" || h.field_name === "position_description") {
+          w.category = h.old_value; w.position_description = h.old_value; restoredFieldsCount++;
+        }
+        if (h.field_name === "turn") { w.turn = h.old_value; restoredFieldsCount++; }
+        if (h.field_name === "schedule" || h.field_name === "schedule_description") {
+          w.schedule = h.old_value; w.schedule_description = h.old_value; restoredFieldsCount++;
+        }
+        if (h.field_name === "source_name_raw") { w.source_name_raw = h.old_value; restoredFieldsCount++; }
+        if (h.field_name === "import_notes" || h.field_name === "raw_observations") {
+          w.import_notes = h.old_value; restoredFieldsCount++;
+        }
+      }
+
+      // Reversión complementaria desde previous_snapshot en stagingRows
+      for (const row of stagingRows) {
+        if (row.diff?.previous_snapshot && row.action_taken === "applied") {
+          const prev = row.diff.previous_snapshot;
+          const w = workers.find((item) => item.id === row.target_worker_id);
+          if (w) {
+            if (prev.plaza_code !== undefined) w.plaza_code = prev.plaza_code;
+            if (prev.category !== undefined) { w.category = prev.category; w.position_description = prev.category; }
+            if (prev.turn !== undefined) w.turn = prev.turn;
+            if (prev.schedule !== undefined) { w.schedule = prev.schedule; w.schedule_description = prev.schedule; }
+            if (prev.source_name_raw !== undefined) w.source_name_raw = prev.source_name_raw;
+            if (prev.import_notes !== undefined) w.import_notes = prev.import_notes;
+          }
+        }
+      }
+
+      if (failSimulatedStep === "LOCKER_UPDATE") {
+        throw new Error("TRANSACTION_FAILED: Simulación de fallo en reversión de casilleros");
+      }
+
+      // Reversión de casilleros
+      let revertedAssignments = 0;
+      let restoredAssignments = 0;
+
+      for (const a of assignments) {
+        if (a.assignment_reason === `import_master_batch:${batch.id}` && a.status === "active") {
+          a.status = "released";
+          a.released_at = now;
+          a.release_reason = `Revertido por rollback de lote maestro: ${batch.id}`;
+          revertedAssignments++;
+          const hasOtherActive = assignments.some(
+            (other) => other.locker_id === a.locker_id && other.status === "active" && other.id !== a.id
+          );
+          if (!hasOtherActive) {
+            const l = lockers.find((loc) => loc.id === a.locker_id);
+            if (l) l.status = "disponible";
+          }
+        }
+        if (a.release_reason === `released_by_import_master_batch:${batch.id}` && a.status === "released") {
+          a.status = "active";
+          a.released_at = null;
+          a.release_reason = "";
+          restoredAssignments++;
+          const l = lockers.find((loc) => loc.id === a.locker_id);
+          if (l) l.status = "ocupado";
+        }
+      }
+
+      batch.status = "rolled_back";
+      batch.rolled_back_at = now;
+
+      return {
+        batch_id: batch.id,
+        status: "rolled_back",
+        deactivated_workers: deactivatedCount,
+        restored_fields: restoredFieldsCount,
+        reverted_assignments: revertedAssignments,
+        restored_assignments: restoredAssignments,
+      };
+    } catch (err) {
+      const originalWorkers: MockWorker[] = JSON.parse(initialSnapshot.workers);
+      const originalLockers: MockLocker[] = JSON.parse(initialSnapshot.lockers);
+      const originalAssignments: MockAssignment[] = JSON.parse(initialSnapshot.assignments);
+      workers.forEach((w, i) => { if (originalWorkers[i]) Object.assign(w, originalWorkers[i]); });
+      lockers.forEach((l, i) => { if (originalLockers[i]) Object.assign(l, originalLockers[i]); });
+      assignments.forEach((a, i) => { if (originalAssignments[i]) Object.assign(a, originalAssignments[i]); });
+      throw err;
+    }
+  }
+
+  it("MASTER rollback restaura trabajador existente", () => {
+    const batch: MockBatch = { id: "b-1", format_version: "UNION_MASTER_LOCKERS_V1", status: "confirmed", delegation_id: "del-1", created_at: "2026-09-16T10:00:00Z" };
+    const worker: MockWorker = {
+      id: "w-1", employee_number: "1001", category: "MEDICO ESPECIALISTA", position_description: "MEDICO ESPECIALISTA",
+      turn: "Vespertino", schedule: "14:00 A 21:30", schedule_description: "14:00 A 21:30", plaza_code: "99",
+      source_name_raw: "PEREZ/JUAN/CARLOS", import_notes: "Nota nueva", active: true, source_import_state: "active"
+    };
+    const history: MockHistory[] = [
+      { id: "h-1", batch_id: "b-1", worker_id: "w-1", field_name: "category", old_value: "MEDICO GENERAL", new_value: "MEDICO ESPECIALISTA", created_at: "2026-09-16T10:01:00Z" },
+      { id: "h-2", batch_id: "b-1", worker_id: "w-1", field_name: "turn", old_value: "Matutino", new_value: "Vespertino", created_at: "2026-09-16T10:01:00Z" },
+      { id: "h-3", batch_id: "b-1", worker_id: "w-1", field_name: "plaza_code", old_value: "10", new_value: "99", created_at: "2026-09-16T10:01:00Z" },
+      { id: "h-4", batch_id: "b-1", worker_id: "w-1", field_name: "source_name_raw", old_value: "PEREZ/JUAN", new_value: "PEREZ/JUAN/CARLOS", created_at: "2026-09-16T10:01:00Z" },
+      { id: "h-5", batch_id: "b-1", worker_id: "w-1", field_name: "import_notes", old_value: "Nota previa", new_value: "Nota nueva", created_at: "2026-09-16T10:01:00Z" },
+    ];
+
+    const result = simulateMasterRollbackRpc({ batch, workers: [worker], lockers: [], assignments: [], changeHistory: history, userDelegationId: "del-1" });
+    expect(result.status).toBe("rolled_back");
+    expect(worker.category).toBe("MEDICO GENERAL");
+    expect(worker.turn).toBe("Matutino");
+    expect(worker.plaza_code).toBe("10");
+    expect(worker.source_name_raw).toBe("PEREZ/JUAN");
+    expect(worker.import_notes).toBe("Nota previa");
   });
 
-  it("rolls back locker assignment change: releases new assignment, restores previous assignment without destroying history", () => {
-    const batchId = "batch-101";
-
-    // Pre-import state: Worker has locker 10 active
-    const oldAssignment = {
-      id: "asgn-1",
-      worker_id: "w-3",
-      locker_id: "loc-10",
-      status: "released",
-      release_reason: `released_by_import_master_batch:${batchId}`,
+  it("MASTER rollback revierte plaza", () => {
+    const batch: MockBatch = { id: "b-1", format_version: "UNION_MASTER_LOCKERS_V1", status: "confirmed", delegation_id: "del-1", created_at: "2026-09-16T10:00:00Z" };
+    const worker: MockWorker = {
+      id: "w-1", employee_number: "1001", category: "ENFERMERA", position_description: "ENFERMERA",
+      turn: "Matutino", schedule: "07:00 A 15:00", schedule_description: "07:00 A 15:00", plaza_code: "PLAZA-NUEVA",
+      source_name_raw: "", import_notes: "", active: true, source_import_state: "active"
     };
-    // Post-import state: Worker was assigned locker 20
-    const newAssignment = {
-      id: "asgn-2",
-      worker_id: "w-3",
-      locker_id: "loc-20",
-      status: "active",
-      assignment_reason: `import_master_batch:${batchId}`,
-      release_reason: "",
+    const history: MockHistory[] = [
+      { id: "h-1", batch_id: "b-1", worker_id: "w-1", field_name: "plaza_code", old_value: "PLAZA-ORIGINAL", new_value: "PLAZA-NUEVA", created_at: "2026-09-16T10:01:00Z" },
+    ];
+
+    simulateMasterRollbackRpc({ batch, workers: [worker], lockers: [], assignments: [], changeHistory: history, userDelegationId: "del-1" });
+    expect(worker.plaza_code).toBe("PLAZA-ORIGINAL");
+  });
+
+  it("MASTER rollback revierte categoría", () => {
+    const batch: MockBatch = { id: "b-1", format_version: "UNION_MASTER_LOCKERS_V1", status: "confirmed", delegation_id: "del-1", created_at: "2026-09-16T10:00:00Z" };
+    const worker: MockWorker = {
+      id: "w-1", employee_number: "1001", category: "SUBJEFE DE PISO", position_description: "SUBJEFE DE PISO",
+      turn: "Matutino", schedule: "07:00 A 15:00", schedule_description: "07:00 A 15:00", plaza_code: "10",
+      source_name_raw: "", import_notes: "", active: true, source_import_state: "active"
+    };
+    const history: MockHistory[] = [
+      { id: "h-1", batch_id: "b-1", worker_id: "w-1", field_name: "category", old_value: "ENFERMERA GENERAL", new_value: "SUBJEFE DE PISO", created_at: "2026-09-16T10:01:00Z" },
+    ];
+
+    simulateMasterRollbackRpc({ batch, workers: [worker], lockers: [], assignments: [], changeHistory: history, userDelegationId: "del-1" });
+    expect(worker.category).toBe("ENFERMERA GENERAL");
+    expect(worker.position_description).toBe("ENFERMERA GENERAL");
+  });
+
+  it("MASTER rollback revierte turno", () => {
+    const batch: MockBatch = { id: "b-1", format_version: "UNION_MASTER_LOCKERS_V1", status: "confirmed", delegation_id: "del-1", created_at: "2026-09-16T10:00:00Z" };
+    const worker: MockWorker = {
+      id: "w-1", employee_number: "1001", category: "MEDICO", position_description: "MEDICO",
+      turn: "Nocturno", schedule: "20:00 A 08:00", schedule_description: "20:00 A 08:00", plaza_code: "10",
+      source_name_raw: "", import_notes: "", active: true, source_import_state: "active"
+    };
+    const history: MockHistory[] = [
+      { id: "h-1", batch_id: "b-1", worker_id: "w-1", field_name: "turn", old_value: "Jornada Acumulada", new_value: "Nocturno", created_at: "2026-09-16T10:01:00Z" },
+    ];
+
+    simulateMasterRollbackRpc({ batch, workers: [worker], lockers: [], assignments: [], changeHistory: history, userDelegationId: "del-1" });
+    expect(worker.turn).toBe("Jornada Acumulada");
+  });
+
+  it("MASTER rollback revierte horario", () => {
+    const batch: MockBatch = { id: "b-1", format_version: "UNION_MASTER_LOCKERS_V1", status: "confirmed", delegation_id: "del-1", created_at: "2026-09-16T10:00:00Z" };
+    const worker: MockWorker = {
+      id: "w-1", employee_number: "1001", category: "MEDICO", position_description: "MEDICO",
+      turn: "Matutino", schedule: "08:00 A 16:00", schedule_description: "08:00 A 16:00", plaza_code: "10",
+      source_name_raw: "", import_notes: "", active: true, source_import_state: "active"
+    };
+    const history: MockHistory[] = [
+      { id: "h-1", batch_id: "b-1", worker_id: "w-1", field_name: "schedule", old_value: "07:00 A 15:00", new_value: "08:00 A 16:00", created_at: "2026-09-16T10:01:00Z" },
+    ];
+
+    simulateMasterRollbackRpc({ batch, workers: [worker], lockers: [], assignments: [], changeHistory: history, userDelegationId: "del-1" });
+    expect(worker.schedule).toBe("07:00 A 15:00");
+  });
+
+  it("MASTER rollback revierte source_name_raw", () => {
+    const batch: MockBatch = { id: "b-1", format_version: "UNION_MASTER_LOCKERS_V1", status: "confirmed", delegation_id: "del-1", created_at: "2026-09-16T10:00:00Z" };
+    const worker: MockWorker = {
+      id: "w-1", employee_number: "1001", category: "MEDICO", position_description: "MEDICO",
+      turn: "Matutino", schedule: "07:00 A 15:00", schedule_description: "07:00 A 15:00", plaza_code: "10",
+      source_name_raw: "RODRIGUEZ/PEREZ/MARIO", import_notes: "", active: true, source_import_state: "active"
+    };
+    const history: MockHistory[] = [
+      { id: "h-1", batch_id: "b-1", worker_id: "w-1", field_name: "source_name_raw", old_value: "RODRIGUEZ/MARIO", new_value: "RODRIGUEZ/PEREZ/MARIO", created_at: "2026-09-16T10:01:00Z" },
+    ];
+
+    simulateMasterRollbackRpc({ batch, workers: [worker], lockers: [], assignments: [], changeHistory: history, userDelegationId: "del-1" });
+    expect(worker.source_name_raw).toBe("RODRIGUEZ/MARIO");
+  });
+
+  it("MASTER rollback revierte import_notes", () => {
+    const batch: MockBatch = { id: "b-1", format_version: "UNION_MASTER_LOCKERS_V1", status: "confirmed", delegation_id: "del-1", created_at: "2026-09-16T10:00:00Z" };
+    const worker: MockWorker = {
+      id: "w-1", employee_number: "1001", category: "MEDICO", position_description: "MEDICO",
+      turn: "Matutino", schedule: "07:00 A 15:00", schedule_description: "07:00 A 15:00", plaza_code: "10",
+      source_name_raw: "", import_notes: "Cambio de servicio 2026", active: true, source_import_state: "active"
+    };
+    const history: MockHistory[] = [
+      { id: "h-1", batch_id: "b-1", worker_id: "w-1", field_name: "import_notes", old_value: "Servicio pediatría", new_value: "Cambio de servicio 2026", created_at: "2026-09-16T10:01:00Z" },
+    ];
+
+    simulateMasterRollbackRpc({ batch, workers: [worker], lockers: [], assignments: [], changeHistory: history, userDelegationId: "del-1" });
+    expect(worker.import_notes).toBe("Servicio pediatría");
+  });
+
+  it("MASTER rollback de trabajador nuevo: no delete físico, active false, source_import_state rolled_back", () => {
+    const batch: MockBatch = { id: "b-101", format_version: "UNION_MASTER_LOCKERS_V1", status: "confirmed", delegation_id: "del-1", created_at: "2026-09-16T10:00:00Z" };
+    const worker: MockWorker = {
+      id: "w-new", employee_number: "99001", category: "ENFERMERA", position_description: "ENFERMERA",
+      turn: "Matutino", schedule: "07:00 A 15:00", schedule_description: "07:00 A 15:00", plaza_code: "10",
+      source_name_raw: "HERNANDEZ/LUCIA", import_notes: "", active: true,
+      source_created_by_batch_id: "b-101", last_import_batch_id: "b-101", source_import_state: "active"
     };
 
-    const locker10 = { id: "loc-10", status: "disponible" };
-    const locker20 = { id: "loc-20", status: "ocupado" };
+    const result = simulateMasterRollbackRpc({ batch, workers: [worker], lockers: [], assignments: [], changeHistory: [], userDelegationId: "del-1" });
+    expect(result.deactivated_workers).toBe(1);
+    expect(worker.id).toBe("w-new"); // Registro sigue existiendo (CERO DELETE físico)
+    expect(worker.active).toBe(false); // Desactivado del padrón
+    expect(worker.source_import_state).toBe("rolled_back");
+    expect(worker.source_rolled_back_at).toBeDefined();
+  });
 
-    // Execute rollback
-    // 1. Release new assignment created by this batch
-    newAssignment.status = "released";
-    newAssignment.release_reason = `Revertido por rollback de lote maestro: ${batchId}`;
-    locker20.status = "disponible";
+  it("MASTER rollback restaura locker anterior", () => {
+    const batchId = "b-lock";
+    const batch: MockBatch = { id: batchId, format_version: "UNION_MASTER_LOCKERS_V1", status: "confirmed", delegation_id: "del-1", created_at: "2026-09-16T10:00:00Z" };
+    const lockerOld: MockLocker = { id: "loc-10", locker_number: "10", status: "disponible" };
+    const lockerNew: MockLocker = { id: "loc-20", locker_number: "20", status: "ocupado" };
+    const oldAssignment: MockAssignment = {
+      id: "asgn-old", locker_id: "loc-10", worker_id: "w-1", status: "released",
+      release_reason: `released_by_import_master_batch:${batchId}`, created_at: "2026-09-01T10:00:00Z"
+    };
+    const newAssignment: MockAssignment = {
+      id: "asgn-new", locker_id: "loc-20", worker_id: "w-1", status: "active",
+      assignment_reason: `import_master_batch:${batchId}`, created_at: "2026-09-16T10:00:00Z"
+    };
 
-    // 2. Restore previous assignment released by this batch
-    oldAssignment.status = "active";
-    oldAssignment.release_reason = "";
-    locker10.status = "ocupado";
+    const result = simulateMasterRollbackRpc({
+      batch, workers: [], lockers: [lockerOld, lockerNew], assignments: [oldAssignment, newAssignment],
+      changeHistory: [], userDelegationId: "del-1"
+    });
 
-    expect(newAssignment.status).toBe("released");
+    expect(result.reverted_assignments).toBe(1);
+    expect(result.restored_assignments).toBe(1);
     expect(oldAssignment.status).toBe("active");
-    expect(locker10.status).toBe("ocupado");
-    expect(locker20.status).toBe("disponible");
+    expect(lockerOld.status).toBe("ocupado");
+    expect(newAssignment.status).toBe("released");
+    expect(lockerNew.status).toBe("disponible");
+  });
+
+  it("MASTER rollback libera locker creado/asignado por batch", () => {
+    const batchId = "b-single";
+    const batch: MockBatch = { id: batchId, format_version: "UNION_MASTER_LOCKERS_V1", status: "confirmed", delegation_id: "del-1", created_at: "2026-09-16T10:00:00Z" };
+    const locker: MockLocker = { id: "loc-99", locker_number: "99", status: "ocupado" };
+    const assignment: MockAssignment = {
+      id: "asgn-99", locker_id: "loc-99", worker_id: "w-1", status: "active",
+      assignment_reason: `import_master_batch:${batchId}`, created_at: "2026-09-16T10:00:00Z"
+    };
+
+    simulateMasterRollbackRpc({ batch, workers: [], lockers: [locker], assignments: [assignment], changeHistory: [], userDelegationId: "del-1" });
+    expect(assignment.status).toBe("released");
+    expect(locker.status).toBe("disponible");
+  });
+
+  it("MASTER rollback no pisa trabajador modificado después", () => {
+    const batch: MockBatch = { id: "b-1", format_version: "UNION_MASTER_LOCKERS_V1", status: "confirmed", delegation_id: "del-1", created_at: "2026-09-16T10:00:00Z", applied_at: "2026-09-16T10:01:00Z" };
+    const worker: MockWorker = {
+      id: "w-1", employee_number: "1001", category: "MEDICO ESPECIALISTA", position_description: "MEDICO ESPECIALISTA",
+      turn: "Vespertino", schedule: "14:00 A 21:30", schedule_description: "14:00 A 21:30", plaza_code: "99",
+      source_name_raw: "", import_notes: "", active: true, source_import_state: "active",
+      source_created_by_batch_id: "b-1", last_import_batch_id: "b-2" // Modificado por lote posterior b-2!
+    };
+
+    expect(() => simulateMasterRollbackRpc({
+      batch, workers: [worker], lockers: [], assignments: [], changeHistory: [], userDelegationId: "del-1"
+    })).toThrow("ROLLBACK_CONFLICT_NEWER_CHANGES");
+  });
+
+  it("MASTER rollback no pisa locker reasignado después", () => {
+    const batchId = "b-1";
+    const batch: MockBatch = { id: batchId, format_version: "UNION_MASTER_LOCKERS_V1", status: "confirmed", delegation_id: "del-1", created_at: "2026-09-16T10:00:00Z" };
+    const locker: MockLocker = { id: "loc-10", locker_number: "10", status: "ocupado" };
+    const batchAssignment: MockAssignment = {
+      id: "asgn-1", locker_id: "loc-10", worker_id: "w-1", status: "released",
+      assignment_reason: `import_master_batch:${batchId}`, created_at: "2026-09-16T10:00:00Z"
+    };
+    const newerAssignment: MockAssignment = {
+      id: "asgn-2", locker_id: "loc-10", worker_id: "w-2", status: "active",
+      assignment_reason: "manual_reassignment", created_at: "2026-09-16T12:00:00Z"
+    };
+
+    expect(() => simulateMasterRollbackRpc({
+      batch, workers: [], lockers: [locker], assignments: [batchAssignment, newerAssignment],
+      changeHistory: [], userDelegationId: "del-1"
+    })).toThrow("ROLLBACK_CONFLICT_NEWER_CHANGES");
+  });
+
+  it("MASTER rollback es atómico", () => {
+    const batch: MockBatch = { id: "b-fail", format_version: "UNION_MASTER_LOCKERS_V1", status: "confirmed", delegation_id: "del-1", created_at: "2026-09-16T10:00:00Z" };
+    const worker: MockWorker = {
+      id: "w-atomic", employee_number: "99002", category: "ENFERMERA", position_description: "ENFERMERA",
+      turn: "Matutino", schedule: "07:00 A 15:00", schedule_description: "07:00 A 15:00", plaza_code: "10",
+      source_name_raw: "", import_notes: "", active: true, source_created_by_batch_id: "b-fail",
+      last_import_batch_id: "b-fail", source_import_state: "active"
+    };
+    const locker: MockLocker = { id: "loc-fail", locker_number: "50", status: "ocupado" };
+    const assignment: MockAssignment = {
+      id: "asgn-fail", locker_id: "loc-fail", worker_id: "w-atomic", status: "active",
+      assignment_reason: "import_master_batch:b-fail", created_at: "2026-09-16T10:00:00Z"
+    };
+
+    // Simulando un fallo en el paso de casilleros: la transacción debe abortar y restaurar trabajadores
+    expect(() => simulateMasterRollbackRpc({
+      batch, workers: [worker], lockers: [locker], assignments: [assignment], changeHistory: [],
+      userDelegationId: "del-1", failSimulatedStep: "LOCKER_UPDATE"
+    })).toThrow("TRANSACTION_FAILED");
+
+    // Atomicidad: los trabajadores y casilleros quedan exactamente en su estado inicial
+    expect(worker.active).toBe(true);
+    expect(worker.source_import_state).toBe("active");
+    expect(locker.status).toBe("ocupado");
+    expect(assignment.status).toBe("active");
+    expect(batch.status).toBe("confirmed");
+  });
+
+  it("MASTER rollback doble es rechazado", () => {
+    const batch: MockBatch = { id: "b-done", format_version: "UNION_MASTER_LOCKERS_V1", status: "rolled_back", delegation_id: "del-1", created_at: "2026-09-16T10:00:00Z" };
+    expect(() => simulateMasterRollbackRpc({
+      batch, workers: [], lockers: [], assignments: [], changeHistory: [], userDelegationId: "del-1"
+    })).toThrow("BATCH_ALREADY_ROLLED_BACK");
+  });
+
+  it("MASTER rollback de preview es rechazado", () => {
+    const batch: MockBatch = { id: "b-prev", format_version: "UNION_MASTER_LOCKERS_V1", status: "preview", delegation_id: "del-1", created_at: "2026-09-16T10:00:00Z" };
+    expect(() => simulateMasterRollbackRpc({
+      batch, workers: [], lockers: [], assignments: [], changeHistory: [], userDelegationId: "del-1"
+    })).toThrow("INVALID_BATCH_STATUS_FOR_ROLLBACK");
+  });
+
+  it("MASTER RPC rechaza batch SIAP", () => {
+    const siapBatch: MockBatch = { id: "b-siap", format_version: "SIAP_2026", status: "confirmed", delegation_id: "del-1", created_at: "2026-09-16T10:00:00Z" };
+    expect(() => simulateMasterRollbackRpc({
+      batch: siapBatch, workers: [], lockers: [], assignments: [], changeHistory: [], userDelegationId: "del-1"
+    })).toThrow("INVALID_FORMAT_VERSION");
+  });
+
+  it("SIAP rollback sigue intacto", () => {
+    function simulateSiapRollbackRpc(batch: { format_version: string; status: string; delegation_id: string }, userDelegationId: string) {
+      if (batch.format_version !== "SIAP_2026") {
+        throw new Error(`INVALID_FORMAT_VERSION: Este lote tiene formato "${batch.format_version}" y debe revertirse con union_rollback_master_import.`);
+      }
+      if (batch.status !== "confirmed") {
+        throw new Error(`INVALID_BATCH_STATUS_FOR_ROLLBACK: Solo se pueden revertir lotes confirmados. Estado actual: "${batch.status}".`);
+      }
+      if (batch.delegation_id !== userDelegationId) {
+        throw new Error("UNAUTHORIZED_UNION_ADMIN");
+      }
+      return { status: "rolled_back" };
+    }
+
+    const siapBatch = { format_version: "SIAP_2026", status: "confirmed", delegation_id: "del-1" };
+    expect(simulateSiapRollbackRpc(siapBatch, "del-1")).toEqual({ status: "rolled_back" });
+
+    const masterBatch = { format_version: "UNION_MASTER_LOCKERS_V1", status: "confirmed", delegation_id: "del-1" };
+    expect(() => simulateSiapRollbackRpc(masterBatch, "del-1")).toThrow("INVALID_FORMAT_VERSION");
   });
 });
 

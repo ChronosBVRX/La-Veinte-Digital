@@ -140,9 +140,26 @@ export interface FieldDiff {
   newValue: string | null;
 }
 
+export interface PreviousWorkerSnapshot {
+  worker_id: string;
+  employee_number: string;
+  category: string;
+  position_description: string;
+  turn: string;
+  schedule: string;
+  schedule_description: string;
+  plaza_code: string | null;
+  source_name_raw: string | null;
+  import_notes: string | null;
+  active: boolean;
+  active_locker_number: string | null;
+  active_assignment_id: string | null;
+}
+
 export interface RowDiff {
   changes: FieldDiff[];
   conflictReason?: string;
+  previous_snapshot?: PreviousWorkerSnapshot;
   lockerChange?: {
     currentLocker: string | null;
     excelLocker: string | null;
@@ -233,6 +250,8 @@ export interface ImportRollbackResult {
   status: "rolled_back";
   restoredFieldsCount: number;
   deactivatedWorkersCount: number;
+  revertedAssignmentsCount?: number;
+  restoredAssignmentsCount?: number;
   deletedWorkersCount?: number;
 }
 
