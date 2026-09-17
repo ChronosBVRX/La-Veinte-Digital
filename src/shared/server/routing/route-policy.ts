@@ -57,6 +57,20 @@ export const API_ACCESS = {
   "/api/cron/agenda-reminders": "public",
   "/api/cron/push-campaigns": "public",
   "/api/announcements/bar": "public",
+  // Centro de Administración de Usuarios (solo platform admin, validado en el
+  // servidor dentro de cada ruta y de nuevo en las RPC).
+  "/api/admin/users": "authenticated",
+  "/api/admin/users/[id]": "authenticated",
+  "/api/admin/users/[id]/role": "authenticated",
+  "/api/admin/users/[id]/suspend": "authenticated",
+  "/api/admin/users/[id]/reactivate": "authenticated",
+  "/api/admin/users/[id]/trash": "authenticated",
+  "/api/admin/users/[id]/restore": "authenticated",
+  "/api/admin/users/[id]/sessions/revoke": "authenticated",
+  "/api/admin/users/[id]/resend-confirmation": "authenticated",
+  "/api/admin/users/[id]/password-recovery": "authenticated",
+  "/api/admin/users/[id]/purge": "authenticated",
+  "/api/admin/audit-log": "authenticated",
 } as const
 
 export type ApiAccessLevel = (typeof API_ACCESS)[keyof typeof API_ACCESS]
@@ -77,6 +91,8 @@ export const PUBLIC_PAGE_PATHS = [
   "/acerca-de",
   "/informacion-y-fuentes",
   "/eliminar-cuenta",
+  // Aviso público para cuentas suspendidas o en papelera (sin datos internos).
+  "/cuenta-suspendida",
 ] as const
 
 export const PUBLIC_AUTH_ROUTE_PATHS = ["/callback"] as const

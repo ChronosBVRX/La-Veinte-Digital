@@ -84,6 +84,19 @@ describe("API route policy", () => {
       "/api/union/lockers/import/history": "authenticated",
       "/api/union/lockers/import/errors": "authenticated",
       "/api/union/lockers/pendientes": "authenticated",
+      // Centro de Administración de Usuarios (migración 20260919000000)
+      "/api/admin/users": "authenticated",
+      "/api/admin/users/[id]": "authenticated",
+      "/api/admin/users/[id]/role": "authenticated",
+      "/api/admin/users/[id]/suspend": "authenticated",
+      "/api/admin/users/[id]/reactivate": "authenticated",
+      "/api/admin/users/[id]/trash": "authenticated",
+      "/api/admin/users/[id]/restore": "authenticated",
+      "/api/admin/users/[id]/sessions/revoke": "authenticated",
+      "/api/admin/users/[id]/resend-confirmation": "authenticated",
+      "/api/admin/users/[id]/password-recovery": "authenticated",
+      "/api/admin/users/[id]/purge": "authenticated",
+      "/api/admin/audit-log": "authenticated",
     })
   })
 
