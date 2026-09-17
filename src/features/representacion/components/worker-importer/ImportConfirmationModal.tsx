@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/shared/components/ui/Button";
 import type { ImportSummary } from "../../services/worker-importer/types";
 
@@ -18,9 +19,15 @@ export function ImportConfirmationModal({
   isLoading,
   summary,
 }: ImportConfirmationModalProps): React.JSX.Element | null {
+  const [doubleConfirmed, setDoubleConfirmed] = useState(false);
+
   if (!isOpen) return null;
 
-  const totalToApply = summary.newCount + summary.updatedCount + summary.unchangedCount;
+  const newWorkers = summary.newWorkers ?? summary.newCount ?? 0;
+  const updatedWorkers = summary.updatedWorkers ?? summary.updatedCount ?? 0;
+  const newLockers = summary.newLockers ?? 0;
+  const lockerChanges = summary.lockerChanges ?? 0;
+  const conflictsOmitted = summary.conflicts ?? summary.conflictsCount ?? 0;
 
   return (
     <div
@@ -56,7 +63,7 @@ export function ImportConfirmationModal({
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h3 id="modal-title" style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700 }}>
-            Confirmar importación de trabajadores
+            Confirmar actualización de base sindical
           </h3>
           <button
             type="button"
@@ -75,7 +82,7 @@ export function ImportConfirmationModal({
         </div>
 
         <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)" }}>
-          Por favor revisa el balance de operaciones antes de aplicar los cambios en el padrón de la delegación:
+          Por favor revisa el balance de operaciones antes de escribir los cambios en la base de datos oficial:
         </p>
 
         <div
@@ -86,45 +93,64 @@ export function ImportConfirmationModal({
             fontSize: "0.8125rem",
             display: "flex",
             flexDirection: "column",
-            gap: "0.375rem",
+            gap: "0.5rem",
           }}
         >
+          <strong style={{ fontSize: "0.875rem" }}>Se realizarán:</strong>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Nuevos trabajadores a registrar:</span>
-            <strong style={{ color: "#16a34a" }}>+{summary.newCount}</strong>
+            <span>Trabajadores nuevos:</span>
+            <strong style={{ color: "#16a34a" }}>{newWorkers}</strong>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Trabajadores con modificaciones:</span>
-            <strong style={{ color: "var(--primary)" }}>{summary.updatedCount}</strong>
+            <span>Trabajadores actualizados:</span>
+            <strong style={{ color: "var(--primary)" }}>{updatedWorkers}</strong>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Sin modificaciones (solo actualiza fecha):</span>
-            <strong>{summary.unchangedCount}</strong>
+            <span>Nuevas asignaciones de locker:</span>
+            <strong style={{ color: "#0891b2" }}>{newLockers}</strong>
           </div>
-          {summary.conflictsCount > 0 ? (
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#9333ea" }}>
-              <span>Conflictos de identidad (retenidos, no se tocan):</span>
-              <strong>{summary.conflictsCount}</strong>
-            </div>
-          ) : null}
-          {summary.missingInFileCount > 0 ? (
-            <div style={{ display: "flex", justifyContent: "space-between", color: "#ea580c" }}>
-              <span>Ausentes en archivo (se conservan en padrón):</span>
-              <strong>{summary.missingInFileCount}</strong>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>Cambios de locker:</span>
+            <strong style={{ color: "#2563eb" }}>{lockerChanges}</strong>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>Eliminaciones físicas:</span>
+            <strong style={{ color: "#15803d" }}>0 eliminaciones</strong>
+          </div>
+          {conflictsOmitted > 0 ? (
+            <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed var(--border)", paddingTop: "0.375rem" }}>
+              <span style={{ color: "var(--muted)" }}>Conflictos omitidos:</span>
+              <strong style={{ color: "#b91c1c" }}>{conflictsOmitted}</strong>
             </div>
           ) : null}
         </div>
 
-        <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)" }}>
-          🛡️ Los campos manuales (teléfonos, notas, casilleros y expedientes activos) no se sobrescriben. Cada campo modificado quedará registrado en la bitácora de auditoría sindical.
-        </p>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", margin: "0.25rem 0" }}>
+          <input
+            id="confirm-checkbox"
+            type="checkbox"
+            checked={doubleConfirmed}
+            onChange={(e) => setDoubleConfirmed(e.target.checked)}
+            disabled={isLoading}
+            style={{ marginTop: "0.2rem", cursor: "pointer" }}
+          />
+          <label htmlFor="confirm-checkbox" style={{ fontSize: "0.8125rem", cursor: "pointer", color: "var(--fg)" }}>
+            Confirmo que he revisado las diferencias y autorizo la actualización atómica del padrón y casilleros.
+          </label>
+        </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.25rem" }}>
           <Button variant="ghost" size="sm" onClick={onClose} disabled={isLoading}>
             Cancelar
           </Button>
-          <Button variant="primary" size="sm" onClick={onConfirm} loading={isLoading}>
-            Confirmar y aplicar ({totalToApply} trabajadores)
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onConfirm}
+            loading={isLoading}
+            disabled={!doubleConfirmed || isLoading}
+          >
+            Confirmar actualización
           </Button>
         </div>
       </div>

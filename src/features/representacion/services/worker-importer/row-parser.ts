@@ -195,16 +195,98 @@ export function formatAssociatedConcepts(mask: string): string {
   return concepts.map((c) => `${c.code} ${c.name}`).join(", ");
 }
 
+export const SEMANTIC_LOCKER_KEYWORDS = new Set([
+  "S/N",
+  "SN",
+  "SIN NUMERO",
+  "SIN NÚMERO",
+  "DE PASO",
+  "PASO",
+  "VACIO",
+  "VACÍO",
+  "ABRIR",
+  "ABIERTO",
+  "JUBILADO",
+  "BAJA",
+  "PENDIENTE",
+]);
+
+export function isSemanticLocker(val: unknown): boolean {
+  if (val === null || val === undefined) return false;
+  const s = String(val).trim().toUpperCase().replace(/\s+/g, " ");
+  if (!s) return false;
+  if (SEMANTIC_LOCKER_KEYWORDS.has(s)) return true;
+  if (s.startsWith("ACTUALIZADO") || s.startsWith("ACTUALIZACION") || s.startsWith("ACT.")) return true;
+  return false;
+}
+
+export function normalizeLockerNumber(val: unknown): {
+  normalized: string;
+  isSemantic: boolean;
+  raw: string;
+} {
+  if (val === null || val === undefined) {
+    return { normalized: "", isSemantic: false, raw: "" };
+  }
+  const raw = String(val).trim();
+  if (!raw) {
+    return { normalized: "", isSemantic: false, raw: "" };
+  }
+  const upper = raw.toUpperCase().replace(/\s+/g, " ");
+  if (isSemanticLocker(upper)) {
+    return { normalized: upper, isSemantic: true, raw };
+  }
+  const digits = raw.replace(/[^0-9]/g, "");
+  if (digits) {
+    return {
+      normalized: String(parseInt(digits, 10)),
+      isSemantic: false,
+      raw,
+    };
+  }
+  return { normalized: upper, isSemantic: true, raw };
+}
+
 export function splitFullName(fullName: string): {
   paternal_surname: string;
   maternal_surname: string;
   first_name: string;
+  source_name_raw?: string;
 } {
-  const cleaned = (fullName ?? "").trim().toUpperCase().replace(/\s+/g, " ");
-  if (!cleaned) {
-    return { paternal_surname: "", maternal_surname: "", first_name: "" };
+  const rawCleaned = (fullName ?? "").trim();
+  if (!rawCleaned) {
+    return { paternal_surname: "", maternal_surname: "", first_name: "", source_name_raw: "" };
   }
 
+  // Si contiene diagonales /, el formato es PATERNO/MATERNO/NOMBRE(S)
+  if (rawCleaned.includes("/")) {
+    const parts = rawCleaned
+      .split("/")
+      .map((p) => p.trim().toUpperCase().replace(/\s+/g, " "))
+      .filter((p) => p.length > 0);
+
+    if (parts.length === 0) {
+      return { paternal_surname: "", maternal_surname: "", first_name: "", source_name_raw: rawCleaned };
+    }
+    if (parts.length === 1) {
+      return { paternal_surname: parts[0], maternal_surname: "", first_name: "", source_name_raw: rawCleaned };
+    }
+    if (parts.length === 2) {
+      return { paternal_surname: parts[0], maternal_surname: "", first_name: parts[1], source_name_raw: rawCleaned };
+    }
+    if (parts.length === 3) {
+      return { paternal_surname: parts[0], maternal_surname: parts[1], first_name: parts[2], source_name_raw: rawCleaned };
+    }
+    // 4 o más partes con diagonales
+    return {
+      paternal_surname: parts[0],
+      maternal_surname: parts[1],
+      first_name: parts.slice(2).join(" "),
+      source_name_raw: rawCleaned,
+    };
+  }
+
+  const cleaned = rawCleaned.toUpperCase().replace(/\s+/g, " ");
   const rawTokens = cleaned.split(" ");
   const tokens: string[] = [];
 
@@ -226,13 +308,13 @@ export function splitFullName(fullName: string): {
   }
 
   if (tokens.length === 1) {
-    return { paternal_surname: tokens[0], maternal_surname: "", first_name: "" };
+    return { paternal_surname: tokens[0], maternal_surname: "", first_name: "", source_name_raw: rawCleaned };
   }
   if (tokens.length === 2) {
-    return { paternal_surname: tokens[0], maternal_surname: "", first_name: tokens[1] };
+    return { paternal_surname: tokens[0], maternal_surname: "", first_name: tokens[1], source_name_raw: rawCleaned };
   }
   if (tokens.length === 3) {
-    return { paternal_surname: tokens[0], maternal_surname: tokens[1], first_name: tokens[2] };
+    return { paternal_surname: tokens[0], maternal_surname: tokens[1], first_name: tokens[2], source_name_raw: rawCleaned };
   }
 
   // 4 or more tokens: token[0] = paternal, token[1] = maternal, token[2...] = first_name
@@ -240,6 +322,7 @@ export function splitFullName(fullName: string): {
     paternal_surname: tokens[0],
     maternal_surname: tokens[1],
     first_name: tokens.slice(2).join(" "),
+    source_name_raw: rawCleaned,
   };
 }
 
@@ -542,6 +625,10 @@ export function parseWorkerRow(
     termination_date,
     micro_group_code: (raw.micro_group_raw ?? "").toString().trim(),
     turn,
+    source_name_raw: rawFullName,
+    locker: normalizeLockerNumber(raw.locker_raw).normalized,
+    is_semantic_locker: normalizeLockerNumber(raw.locker_raw).isSemantic,
+    raw_observations: (raw.observations_raw ?? "").toString().trim(),
   };
 
   const hasError = issues.some((i) => i.severity === "error");

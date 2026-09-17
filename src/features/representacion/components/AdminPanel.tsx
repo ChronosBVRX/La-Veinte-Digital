@@ -95,13 +95,13 @@ export function AdminPanel(): React.JSX.Element {
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
           <div>
-            <h2 style={{ margin: "0 0 0.25rem", fontSize: "1rem" }}>Plantilla de Personal IMSS (SIAP)</h2>
+            <h2 style={{ margin: "0 0 0.25rem", fontSize: "1rem" }}>Actualizar base sindical</h2>
             <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)" }}>
-              Carga y actualiza continuamente el padrón de trabajadores desde archivos oficiales de Excel (.xlsx).
+              Carga y concilia de forma segura el padrón de trabajadores y casilleros desde el Excel administrativo más reciente.
             </p>
           </div>
           <Link
-            href="/representacion/administracion/importar-trabajadores"
+            href="/representacion/administracion/actualizar-base"
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -115,7 +115,7 @@ export function AdminPanel(): React.JSX.Element {
               textDecoration: "none",
             }}
           >
-            📊 Importar plantilla Excel
+            📊 Actualizar base sindical
           </Link>
         </div>
       </Card>

@@ -1592,6 +1592,8 @@ export type Database = {
           termination_date: string | null;
           micro_group_code: string;
           siap_full_name: string;
+          source_name_raw: string;
+          import_notes: string;
           occupation_limit_is_sentinel: boolean;
           last_import_batch_id: string | null;
           source_created_by_batch_id: string | null;
@@ -1650,6 +1652,8 @@ export type Database = {
           termination_date?: string | null;
           micro_group_code?: string;
           siap_full_name?: string;
+          source_name_raw?: string;
+          import_notes?: string;
           last_import_batch_id?: string | null;
           source_created_by_batch_id?: string | null;
           source_last_seen_at?: string | null;
@@ -1707,6 +1711,8 @@ export type Database = {
           termination_date?: string | null;
           micro_group_code?: string;
           siap_full_name?: string;
+          source_name_raw?: string;
+          import_notes?: string;
           last_import_batch_id?: string | null;
           source_created_by_batch_id?: string | null;
           source_last_seen_at?: string | null;
@@ -1744,6 +1750,10 @@ export type Database = {
           rolled_back_at: string | null;
           rolled_back_by: string | null;
           notes: string;
+          new_lockers_count: number;
+          locker_changes_count: number;
+          locker_conflicts_count: number;
+          summary_metadata: Json;
           created_at: string;
           updated_at: string;
         };
@@ -1770,6 +1780,10 @@ export type Database = {
           rolled_back_at?: string | null;
           rolled_back_by?: string | null;
           notes?: string;
+          new_lockers_count?: number;
+          locker_changes_count?: number;
+          locker_conflicts_count?: number;
+          summary_metadata?: Json;
           created_at?: string;
           updated_at?: string;
         };
@@ -1796,6 +1810,10 @@ export type Database = {
           rolled_back_at?: string | null;
           rolled_back_by?: string | null;
           notes?: string;
+          new_lockers_count?: number;
+          locker_changes_count?: number;
+          locker_conflicts_count?: number;
+          summary_metadata?: Json;
           created_at?: string;
           updated_at?: string;
         };
@@ -1810,7 +1828,7 @@ export type Database = {
           full_name: string;
           raw_data: Json;
           parsed_data: Json;
-          row_status: "new" | "updated" | "unchanged" | "warning" | "invalid" | "conflict";
+          row_status: "new" | "updated" | "unchanged" | "warning" | "invalid" | "conflict" | "ignored";
           action_taken: "pending" | "applied" | "skipped" | "conflict_hold";
           issues: Json;
           diff: Json;
@@ -1825,7 +1843,7 @@ export type Database = {
           full_name: string;
           raw_data?: Json;
           parsed_data?: Json;
-          row_status: "new" | "updated" | "unchanged" | "warning" | "invalid" | "conflict";
+          row_status: "new" | "updated" | "unchanged" | "warning" | "invalid" | "conflict" | "ignored";
           action_taken?: "pending" | "applied" | "skipped" | "conflict_hold";
           issues?: Json;
           diff?: Json;
@@ -1840,7 +1858,7 @@ export type Database = {
           full_name?: string;
           raw_data?: Json;
           parsed_data?: Json;
-          row_status?: "new" | "updated" | "unchanged" | "warning" | "invalid" | "conflict";
+          row_status?: "new" | "updated" | "unchanged" | "warning" | "invalid" | "conflict" | "ignored";
           action_taken?: "pending" | "applied" | "skipped" | "conflict_hold";
           issues?: Json;
           diff?: Json;
@@ -2124,6 +2142,19 @@ export type Database = {
       }
       union_rollback_worker_import: {
         Args: { p_batch_id: string }
+        Returns: Json
+      }
+      union_apply_master_import: {
+        Args: {
+          p_batch_id: string
+          p_resolutions?: Json
+        }
+        Returns: Json
+      }
+      union_rollback_master_import: {
+        Args: {
+          p_batch_id: string
+        }
         Returns: Json
       }
       unaccent: { Args: { "": string }; Returns: string }

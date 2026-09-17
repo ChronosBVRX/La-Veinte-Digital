@@ -5,12 +5,31 @@ export function normalizeHeaderText(header: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // Remove accents
     .replace(/\./g, "")              // Remove dots e.g. C.U.R.P. -> curp
-    .replace(/[_\-/\\]/g, " ")       // Replace hyphens, slashes with space
+    .replace(/[_\-/\\#]/g, " ")      // Replace hyphens, slashes, # with space
     .replace(/\s+/g, " ")            // Collapse multi-spaces
     .trim();
 }
 
 export const CANONICAL_FIELD_MAP: Record<string, string> = {
+  // Locker / Casillero
+  "locker": "locker_raw",
+  "lockers": "locker_raw",
+  "no locker": "locker_raw",
+  "num locker": "locker_raw",
+  "numero locker": "locker_raw",
+  "casillero": "locker_raw",
+  "casilleros": "locker_raw",
+  "no casillero": "locker_raw",
+  "num casillero": "locker_raw",
+  "numero casillero": "locker_raw",
+
+  // Observaciones
+  "observaciones": "observations_raw",
+  "observacion": "observations_raw",
+  "observaciones de actualizacion": "observations_raw",
+  "actualizacion": "observations_raw",
+  "actualizado": "observations_raw",
+
   // Tipo Contrato
   "tc": "contract_type_raw",
   "tipo contrato": "contract_type_raw",
