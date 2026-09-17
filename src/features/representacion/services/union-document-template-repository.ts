@@ -6,6 +6,8 @@ import type { Database } from "@/lib/supabase/types";
 export type UnionDocumentTemplateKind =
   | "license_word"
   | "license_excel"
+  | "license_word_print"
+  | "license_excel_print"
   | "passage_026"
   | "passage_027";
 

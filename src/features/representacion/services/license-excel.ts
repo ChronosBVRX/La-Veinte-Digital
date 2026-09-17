@@ -42,8 +42,63 @@ export interface LicenseExcelInput {
 
 const LOCAL_FALLBACK_TEMPLATE_PATH = path.join(
   process.cwd(),
+  "assets/templates/union/licencias/formato-licencia-1A74-009-036-v2.xlsm",
+);
+const LEGACY_FALLBACK_TEMPLATE_PATH = path.join(
+  process.cwd(),
   "assets/templates/union/licencias/formato-licencia-1A74-009-036.xlsm",
 );
+
+/**
+ * Dynamically resolves the physical worksheet XML file path (e.g. xl/worksheets/sheet1.xml)
+ * for a given sheet name by inspecting xl/workbook.xml and xl/_rels/workbook.xml.rels.
+ * Never hardcodes sheet numbers or assumes physical relationship ordering.
+ */
+export function resolveSheetPathByName(zip: PizZip, sheetName: string): string {
+  const wbXmlStr = zip.file("xl/workbook.xml")?.asText();
+  if (!wbXmlStr) {
+    throw new Error("No se encontró xl/workbook.xml en la plantilla Excel");
+  }
+  const relsXmlStr = zip.file("xl/_rels/workbook.xml.rels")?.asText();
+  if (!relsXmlStr) {
+    throw new Error("No se encontró xl/_rels/workbook.xml.rels en la plantilla Excel");
+  }
+
+  // 1. Locate <sheet name="sheetName" ... r:id="..."/>
+  const sheetRegex = new RegExp(
+    `<sheet[^>]*name="${sheetName}"[^>]*r:id="([^"]+)"|<sheet[^>]*r:id="([^"]+)"[^>]*name="${sheetName}"`,
+    "i",
+  );
+  const match = wbXmlStr.match(sheetRegex);
+  const rId = match ? match[1] || match[2] : null;
+  if (!rId) {
+    throw new Error(`No se encontró la hoja "${sheetName}" en xl/workbook.xml`);
+  }
+
+  // 2. Locate <Relationship Id="rId" ... Target="..."/> in workbook.xml.rels
+  const relRegex = new RegExp(
+    `<Relationship[^>]*Id="${rId}"[^>]*Target="([^"]+)"|<Relationship[^>]*Target="([^"]+)"[^>]*Id="${rId}"`,
+    "i",
+  );
+  const relMatch = relsXmlStr.match(relRegex);
+  const target = relMatch ? relMatch[1] || relMatch[2] : null;
+  if (!target) {
+    throw new Error(`No se encontró la relación "${rId}" para la hoja "${sheetName}" en workbook.xml.rels`);
+  }
+
+  // 3. Normalize relative path to zip root (e.g. worksheets/sheet1.xml -> xl/worksheets/sheet1.xml)
+  const cleanTarget = target.startsWith("/") ? target.slice(1) : target;
+  return cleanTarget.startsWith("xl/") ? cleanTarget : `xl/${cleanTarget}`;
+}
+
+export function hasSheet(zip: PizZip, sheetName: string): boolean {
+  try {
+    resolveSheetPathByName(zip, sheetName);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function setCellText(doc: XmlDocument, cellRef: string, text: string): void {
   const cells = doc.getElementsByTagName("c");
@@ -149,6 +204,8 @@ export async function buildLicenseExcelDocument(
   if (!templateBuf) {
     if (fs.existsSync(LOCAL_FALLBACK_TEMPLATE_PATH)) {
       templateBuf = fs.readFileSync(LOCAL_FALLBACK_TEMPLATE_PATH);
+    } else if (fs.existsSync(LEGACY_FALLBACK_TEMPLATE_PATH)) {
+      templateBuf = fs.readFileSync(LEGACY_FALLBACK_TEMPLATE_PATH);
     } else {
       throw new Error(
         `Plantilla Excel oficial no proporcionada y no encontrada en fallback: ${LOCAL_FALLBACK_TEMPLATE_PATH}`,
@@ -157,101 +214,156 @@ export async function buildLicenseExcelDocument(
   }
 
   const zip = new PizZip(templateBuf);
-
   const parser = new DOMParser();
   const serializer = new XMLSerializer();
 
-  // 1. Update Sheet 1: Generador
-  const s1XmlStr = zip.file("xl/worksheets/sheet1.xml")?.asText();
-  if (!s1XmlStr) {
-    throw new Error("No se encontró xl/worksheets/sheet1.xml en la plantilla");
-  }
-  const doc1 = parser.parseFromString(s1XmlStr, "text/xml");
-
-  // Elaboration date & Folio
-  setCellNum(doc1, "E9", parseInt(data.elaborationDay, 10) || 1);
-  setCellNum(doc1, "F9", parseInt(data.elaborationMonth, 10) || 1);
-  setCellNum(doc1, "G9", parseInt(data.elaborationYear, 10) || 2026);
-  setCellText(doc1, "J12", data.folio);
-
-  // Worker Info
-  setCellText(doc1, "E11", data.worker.firstName);
-  setCellText(doc1, "F11", data.worker.paternalSurname);
-  setCellText(doc1, "G11", data.worker.maternalSurname);
-  setCellText(doc1, "E12", data.worker.category);
-  setCellText(doc1, "E13", data.worker.schedule);
-  setCellText(doc1, "E14", data.worker.turn);
-  setCellText(doc1, "E15", data.worker.employeeNumber);
-  setCellText(doc1, "E16", data.worker.restDays);
-  setCellText(doc1, "E17", data.license.reason);
-  setCellText(doc1, "E18", data.license.proof);
-  setCellText(doc1, "E19", data.worker.phone);
-  setCellText(doc1, "E20", data.license.withPay ? "Con goce" : "Sin goce");
-
-  // License Period & Total Days
-  setCellNum(doc1, "E23", parseInt(data.license.startDay, 10) || 1);
-  setCellNum(doc1, "F23", parseInt(data.license.startMonth, 10) || 1);
-  setCellNum(doc1, "G23", parseInt(data.license.startYear, 10) || 2026);
-  setCellNum(doc1, "I23", parseInt(data.license.endDay, 10) || 1);
-  setCellNum(doc1, "J23", parseInt(data.license.endMonth, 10) || 1);
-  setCellNum(doc1, "K23", parseInt(data.license.endYear, 10) || 2026);
-  setCellText(doc1, "E24", `${data.license.totalDays}  ${data.license.daysUnit}`);
-
-  // 2. Update Sheet 2: Licencia Checkboxes
-  const s2XmlStr = zip.file("xl/worksheets/sheet2.xml")?.asText();
-  if (!s2XmlStr) {
-    throw new Error("No se encontró xl/worksheets/sheet2.xml en la plantilla");
-  }
-  const doc2 = parser.parseFromString(s2XmlStr, "text/xml");
-
-  // Clear all checkboxes first
-  clearCell(doc2, "H9");
-  clearCell(doc2, "P9");
-  clearCell(doc2, "H11");
-  clearCell(doc2, "P11");
-  clearCell(doc2, "B24");
-  clearCell(doc2, "D24");
-
-  // License type checkbox
-  if (data.license.withPay) {
-    setCellText(doc2, "H9", "X"); // Licencia con sueldo
-  } else {
-    const range = data.license.licenseRangeType;
-    if (range === "r1_3") {
-      setCellText(doc2, "P9", "X"); // Licencia sin sueldo de 1 a 3 días
-    } else if (range === "r4_60") {
-      setCellText(doc2, "H11", "X"); // Licencia sin sueldo de 4 a 60 días
-    } else {
-      setCellText(doc2, "P11", "X"); // Licencia sin sueldo de 61 a 365 días
+  // 1. If legacy "Generador" sheet exists, update it for backward compatibility
+  if (hasSheet(zip, "Generador")) {
+    const genPath = resolveSheetPathByName(zip, "Generador");
+    const genXmlStr = zip.file(genPath)?.asText();
+    if (genXmlStr) {
+      const docGen = parser.parseFromString(genXmlStr, "text/xml");
+      setCellNum(docGen, "E9", parseInt(data.elaborationDay, 10) || 1);
+      setCellNum(docGen, "F9", parseInt(data.elaborationMonth, 10) || 1);
+      setCellNum(docGen, "G9", parseInt(data.elaborationYear, 10) || 2026);
+      setCellText(docGen, "J12", data.folio);
+      setCellText(docGen, "E11", data.worker.firstName);
+      setCellText(docGen, "F11", data.worker.paternalSurname);
+      setCellText(docGen, "G11", data.worker.maternalSurname);
+      setCellText(docGen, "E12", data.worker.category);
+      setCellText(docGen, "E13", data.worker.schedule);
+      setCellText(docGen, "E14", data.worker.turn);
+      setCellText(docGen, "E15", data.worker.employeeNumber);
+      setCellText(docGen, "E16", data.worker.restDays);
+      setCellText(docGen, "E17", data.license.reason);
+      setCellText(docGen, "E18", data.license.proof);
+      setCellText(docGen, "E19", data.worker.phone);
+      setCellText(docGen, "E20", data.license.withPay ? "Con goce" : "Sin goce");
+      setCellNum(docGen, "E23", parseInt(data.license.startDay, 10) || 1);
+      setCellNum(docGen, "F23", parseInt(data.license.startMonth, 10) || 1);
+      setCellNum(docGen, "G23", parseInt(data.license.startYear, 10) || 2026);
+      setCellNum(docGen, "I23", parseInt(data.license.endDay, 10) || 1);
+      setCellNum(docGen, "J23", parseInt(data.license.endMonth, 10) || 1);
+      setCellNum(docGen, "K23", parseInt(data.license.endYear, 10) || 2026);
+      setCellText(docGen, "E24", `${data.license.totalDays}  ${data.license.daysUnit}`);
+      zip.file(genPath, serializer.serializeToString(docGen));
     }
   }
 
-  // Prórroga checkbox
-  if (data.license.isExtension) {
-    setCellText(doc2, "B24", "X"); // SÍ
-  } else {
-    setCellText(doc2, "D24", "X"); // NO
+  // 2. Resolve "Licencia" sheet dynamically (e.g. xl/worksheets/sheet1.xml)
+  const licenciaPath = resolveSheetPathByName(zip, "Licencia");
+  const licXmlStr = zip.file(licenciaPath)?.asText();
+  if (!licXmlStr) {
+    throw new Error(`No se pudo leer el XML de la hoja Licencia en: ${licenciaPath}`);
   }
 
-  // If previous dates provided
+  const docLic = parser.parseFromString(licXmlStr, "text/xml");
+
+  // Elaboration Date & Folio
+  setCellText(docLic, "M7", data.folio);
+  setCellNum(docLic, "Q7", parseInt(data.elaborationDay, 10) || 1);
+  setCellNum(docLic, "R7", parseInt(data.elaborationMonth, 10) || 1);
+  setCellNum(docLic, "S7", parseInt(data.elaborationYear, 10) || 2026);
+
+  // License type checkboxes
+  clearCell(docLic, "H9");
+  clearCell(docLic, "P9");
+  clearCell(docLic, "H11");
+  clearCell(docLic, "P11");
+
+  if (data.license.withPay) {
+    setCellText(docLic, "H9", "X"); // Licencia con sueldo
+  } else {
+    const range = data.license.licenseRangeType;
+    if (range === "r1_3") {
+      setCellText(docLic, "P9", "X"); // Licencia sin sueldo de 1 a 3 días
+    } else if (range === "r4_60") {
+      setCellText(docLic, "H11", "X"); // Licencia sin sueldo de 4 a 60 días
+    } else {
+      setCellText(docLic, "P11", "X"); // Licencia sin sueldo de 61 a 365 días
+    }
+  }
+
+  // Worker Info
+  setCellText(docLic, "B15", data.worker.paternalSurname);
+  setCellText(docLic, "F15", data.worker.maternalSurname);
+  setCellText(docLic, "J15", data.worker.firstName);
+  setCellText(docLic, "Q15", data.worker.employeeNumber);
+  setCellText(docLic, "S15", data.worker.turn);
+
+  // Category
+  setCellText(docLic, "C17", data.worker.category);
+
+  // Schedule & Rest Days
+  setCellText(docLic, "S1", data.worker.schedule);
+  setCellText(docLic, "S2", data.worker.restDays);
+
+  // License Period
+  setCellNum(docLic, "B21", parseInt(data.license.startDay, 10) || 1);
+  setCellNum(docLic, "D21", parseInt(data.license.startMonth, 10) || 1);
+  setCellNum(docLic, "E21", parseInt(data.license.startYear, 10) || 2026);
+  setCellNum(docLic, "F21", parseInt(data.license.endDay, 10) || 1);
+  setCellNum(docLic, "H21", parseInt(data.license.endMonth, 10) || 1);
+  setCellNum(docLic, "I21", parseInt(data.license.endYear, 10) || 2026);
+
+  // Previous dates if provided
   if (data.license.previousStartDate) {
     const prevS = data.license.previousStartDate.split("-");
-    setCellNum(doc2, "J21", parseInt(prevS[2] ?? "0", 10));
-    setCellNum(doc2, "M21", parseInt(prevS[1] ?? "0", 10));
-    setCellNum(doc2, "O21", parseInt(prevS[0] ?? "0", 10));
+    setCellNum(docLic, "J21", parseInt(prevS[2] ?? "0", 10));
+    setCellNum(docLic, "M21", parseInt(prevS[1] ?? "0", 10));
+    setCellNum(docLic, "O21", parseInt(prevS[0] ?? "0", 10));
   }
   if (data.license.previousEndDate) {
     const prevE = data.license.previousEndDate.split("-");
-    setCellNum(doc2, "Q21", parseInt(prevE[2] ?? "0", 10));
-    setCellNum(doc2, "R21", parseInt(prevE[1] ?? "0", 10));
-    setCellNum(doc2, "S21", parseInt(prevE[0] ?? "0", 10));
+    setCellNum(docLic, "Q21", parseInt(prevE[2] ?? "0", 10));
+    setCellNum(docLic, "R21", parseInt(prevE[1] ?? "0", 10));
+    setCellNum(docLic, "S21", parseInt(prevE[0] ?? "0", 10));
   }
 
-  const newS1Str = serializer.serializeToString(doc1);
-  const newS2Str = serializer.serializeToString(doc2);
+  // Prórroga Checkbox
+  clearCell(docLic, "B24");
+  clearCell(docLic, "D24");
+  if (data.license.isExtension) {
+    setCellText(docLic, "B24", "X"); // SÍ
+  } else {
+    setCellText(docLic, "D24", "X"); // NO
+  }
 
-  zip.file("xl/worksheets/sheet1.xml", newS1Str);
-  zip.file("xl/worksheets/sheet2.xml", newS2Str);
+  // Total Days
+  setCellText(docLic, "F24", `${data.license.totalDays}  ${data.license.daysUnit}`);
+
+  // Phone
+  setCellText(docLic, "A26", data.worker.phone ? `TEL. ${data.worker.phone}` : "TEL. ");
+
+  // Reason & Proof
+  setCellText(docLic, "F27", data.license.reason);
+  setCellText(docLic, "F28", data.license.proof);
+
+  // Worker Signature Name
+  setCellText(docLic, "B47", `C. ${data.worker.fullName}`);
+
+  let serializedLic = serializer.serializeToString(docLic);
+
+  // Eradicate any residual #REF! in Licencia XML
+  if (serializedLic.includes("#REF!")) {
+    serializedLic = serializedLic
+      .replace(/<x14:conditionalFormattings>[\s\S]*?<\/x14:conditionalFormattings>/g, "")
+      .replace(/<f>#REF!<\/f>/g, "")
+      .replace(/<v>#REF!<\/v>/g, "");
+  }
+
+  zip.file(licenciaPath, serializedLic);
+
+  // 3. Remove obsolete calcChain.xml to guarantee clean opening in Excel without repairs
+  zip.remove("xl/calcChain.xml");
+  const ctStr = zip.file("[Content_Types].xml")?.asText();
+  if (ctStr && ctStr.includes("calcChain.xml")) {
+    zip.file("[Content_Types].xml", ctStr.replace(/<Override PartName="\/xl\/calcChain\.xml"[^>]*\/>/g, ""));
+  }
+  const wbRelsStr = zip.file("xl/_rels/workbook.xml.rels")?.asText();
+  if (wbRelsStr && wbRelsStr.includes("calcChain.xml")) {
+    zip.file("xl/_rels/workbook.xml.rels", wbRelsStr.replace(/<Relationship[^>]*Target="calcChain\.xml"[^>]*\/>/g, ""));
+  }
 
   const outBuf = zip.generate({ type: "nodebuffer" });
   return Buffer.from(outBuf);
