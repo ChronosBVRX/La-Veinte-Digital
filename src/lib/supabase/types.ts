@@ -1904,9 +1904,9 @@ export type Database = {
         Relationships: [];
       };
       union_cases: {
-        Row: { id: string; delegation_id: string; worker_id: string; case_type: string; folio: string; status: string; opened_at: string; closed_at: string | null; worker_snapshot: Json; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string }
-        Insert: { id?: string; delegation_id: string; worker_id: string; case_type: string; folio: string; status?: string; opened_at?: string; closed_at?: string | null; worker_snapshot?: Json; created_by?: string | null; updated_by?: string | null; created_at?: string; updated_at?: string }
-        Update: { id?: string; delegation_id?: string; worker_id?: string; case_type?: string; folio?: string; status?: string; opened_at?: string; closed_at?: string | null; worker_snapshot?: Json; created_by?: string | null; updated_by?: string | null; created_at?: string; updated_at?: string }
+        Row: { id: string; delegation_id: string; worker_id: string; case_type: string; folio: string; status: string; opened_at: string; closed_at: string | null; worker_snapshot: Json; created_by: string | null; updated_by: string | null; created_at: string; updated_at: string; current_step: number; revision_number: number; document_revision: number; deleted_at: string | null; deleted_by: string | null; status_before_delete: string | null }
+        Insert: { id?: string; delegation_id: string; worker_id: string; case_type: string; folio: string; status?: string; opened_at?: string; closed_at?: string | null; worker_snapshot?: Json; created_by?: string | null; updated_by?: string | null; created_at?: string; updated_at?: string; current_step?: number; revision_number?: number; document_revision?: number; deleted_at?: string | null; deleted_by?: string | null; status_before_delete?: string | null }
+        Update: { id?: string; delegation_id?: string; worker_id?: string; case_type?: string; folio?: string; status?: string; opened_at?: string; closed_at?: string | null; worker_snapshot?: Json; created_by?: string | null; updated_by?: string | null; created_at?: string; updated_at?: string; current_step?: number; revision_number?: number; document_revision?: number; deleted_at?: string | null; deleted_by?: string | null; status_before_delete?: string | null }
         Relationships: []
       }
       union_folio_counters: {
@@ -1934,9 +1934,15 @@ export type Database = {
         Relationships: []
       }
       union_license_cases: {
-        Row: { case_id: string; with_pay: boolean; license_range_type: string; start_date: string; end_date: string; total_days: number; previous_license_start: string | null; previous_license_end: string | null; is_extension: boolean; reason: string | null; proof_description: string | null; debt_control_required: boolean; debt_certification_status: string; notes: string | null; external_status: string; external_resolution_at: string | null; external_resolution_note: string | null }
-        Insert: { case_id: string; with_pay?: boolean; license_range_type?: string; start_date: string; end_date: string; total_days: number; previous_license_start?: string | null; previous_license_end?: string | null; is_extension?: boolean; reason?: string | null; proof_description?: string | null; debt_control_required?: boolean; debt_certification_status?: string; notes?: string | null; external_status?: string; external_resolution_at?: string | null; external_resolution_note?: string | null }
-        Update: { case_id?: string; with_pay?: boolean; license_range_type?: string; start_date?: string; end_date?: string; total_days?: number; previous_license_start?: string | null; previous_license_end?: string | null; is_extension?: boolean; reason?: string | null; proof_description?: string | null; debt_control_required?: boolean; debt_certification_status?: string; notes?: string | null; external_status?: string; external_resolution_at?: string | null; external_resolution_note?: string | null }
+        Row: { case_id: string; with_pay: boolean; license_range_type: string; start_date: string | null; end_date: string | null; total_days: number; previous_license_start: string | null; previous_license_end: string | null; is_extension: boolean; reason: string | null; proof_description: string | null; debt_control_required: boolean; debt_certification_status: string; notes: string | null; external_status: string; external_resolution_at: string | null; external_resolution_note: string | null }
+        Insert: { case_id: string; with_pay?: boolean; license_range_type?: string; start_date?: string | null; end_date?: string | null; total_days?: number; previous_license_start?: string | null; previous_license_end?: string | null; is_extension?: boolean; reason?: string | null; proof_description?: string | null; debt_control_required?: boolean; debt_certification_status?: string; notes?: string | null; external_status?: string; external_resolution_at?: string | null; external_resolution_note?: string | null }
+        Update: { case_id?: string; with_pay?: boolean; license_range_type?: string; start_date?: string | null; end_date?: string | null; total_days?: number; previous_license_start?: string | null; previous_license_end?: string | null; is_extension?: boolean; reason?: string | null; proof_description?: string | null; debt_control_required?: boolean; debt_certification_status?: string; notes?: string | null; external_status?: string; external_resolution_at?: string | null; external_resolution_note?: string | null }
+        Relationships: []
+      }
+      union_license_revisions: {
+        Row: { id: string; case_id: string; revision_number: number; change_summary: string | null; snapshot: Json; created_by: string | null; created_at: string }
+        Insert: { id?: string; case_id: string; revision_number: number; change_summary?: string | null; snapshot: Json; created_by?: string | null; created_at?: string }
+        Update: { id?: string; case_id?: string; revision_number?: number; change_summary?: string | null; snapshot?: Json; created_by?: string | null; created_at?: string }
         Relationships: []
       }
       union_lockers: {

@@ -6,6 +6,7 @@ import { buildUnionLicenseDocumentData } from "@/features/representacion/service
 import { buildLicensePrintPackage } from "@/features/representacion/services/license-print-package";
 import { UnionTemplateError } from "@/features/representacion/services/union-document-template-repository";
 import { addCaseEvent } from "@/features/representacion/services/cases";
+import { markLicenseDocumentsGenerated } from "@/features/representacion/services/license-management";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,8 @@ export async function POST(req: Request): Promise<NextResponse> {
     await requireUnionMembership(docData.delegationId);
 
     const result = await buildLicensePrintPackage(docData, { supabase });
+
+    await markLicenseDocumentsGenerated(parsed.data.case_id);
 
     // Audit event without sensitive worker data
     await addCaseEvent(
