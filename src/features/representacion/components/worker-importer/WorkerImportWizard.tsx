@@ -4,6 +4,8 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/shared/components/ui/Card";
 import { Button } from "@/shared/components/ui/Button";
+import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner";
+import { createClient } from "@/lib/supabase/client";
 import { ImportDropzone } from "./ImportDropzone";
 import { ImportPreviewDashboard } from "./ImportPreviewDashboard";
 import { ImportDiffTable } from "./ImportDiffTable";
@@ -15,9 +17,32 @@ export interface WorkerImportWizardProps {
   format?: "MASTER" | "SIAP";
 }
 
+async function readApiResponse<T = unknown>(res: Response): Promise<T> {
+  const contentType = res.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    const data = (await res.json()) as Record<string, unknown>;
+    if (!res.ok) {
+      throw new Error((data.error as string) ?? `Error HTTP ${res.status}`);
+    }
+    return data as T;
+  }
+
+  const text = await res.text();
+
+  if (res.status === 413) {
+    throw new Error(
+      "No se pudo procesar el archivo porque es demasiado grande para el método de carga actual."
+    );
+  }
+
+  throw new Error(text || `Error HTTP ${res.status}`);
+}
+
 export function WorkerImportWizard({ format = "MASTER" }: WorkerImportWizardProps): React.JSX.Element {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewResult, setPreviewResult] = useState<ImportPreviewResult | null>(null);
@@ -38,30 +63,100 @@ export function WorkerImportWizard({ format = "MASTER" }: WorkerImportWizardProp
 
   async function handleFileSelected(file: File): Promise<void> {
     setLoading(true);
+    setLoadingStage(null);
     setError(null);
     setPreviewResult(null);
     setConfirmResult(null);
     setResolutions({});
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const res = await fetch(previewEndpoint, {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = (await res.json()) as ImportPreviewResult & { error?: string };
-      if (!res.ok) {
-        throw new Error(data.error ?? "Ocurrió un error al procesar el archivo Excel.");
+      const MAX_FILE_SIZE = 15 * 1024 * 1024;
+      if (file.size > MAX_FILE_SIZE) {
+        throw new Error(
+          `El archivo es demasiado grande (${(file.size / (1024 * 1024)).toFixed(2)} MB). El límite máximo es de 15 MB.`
+        );
       }
 
-      setPreviewResult(data);
+      if (!file.name.toLowerCase().endsWith(".xlsx")) {
+        throw new Error("Solo se admiten archivos en formato Excel estándar (.xlsx).");
+      }
+
+      if (format === "MASTER") {
+        // 1. Solicitar URL firmada de subida (el archivo nunca atraviesa el payload de Vercel)
+        setLoadingStage("Solicitando autorización de carga segura...");
+        const uploadUrlRes = await fetch("/api/union/workers/import/master/upload-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileSize: file.size,
+          }),
+        });
+
+        const uploadInfo = await readApiResponse<{
+          objectPath: string;
+          signedUrl: string;
+          token: string;
+        }>(uploadUrlRes);
+
+        // 2. Subida DIRECTA desde el navegador a Supabase Storage
+        setLoadingStage("Subiendo archivo a almacenamiento seguro...");
+        const supabase = createClient();
+        if (supabase.storage?.from) {
+          const { error: uploadError } = await supabase.storage
+            .from("union-private")
+            .uploadToSignedUrl(uploadInfo.objectPath, uploadInfo.token, file);
+
+          if (uploadError) {
+            throw new Error(`Error al subir archivo a almacenamiento seguro: ${uploadError.message}`);
+          }
+        } else {
+          // Fallback para entornos de prueba o clientes directos
+          const form = new FormData();
+          form.append("cacheControl", "3600");
+          form.append("", file);
+          const putRes = await fetch(uploadInfo.signedUrl, {
+            method: "POST",
+            body: form,
+          });
+          if (!putRes.ok) {
+            throw new Error(`Error al subir archivo a almacenamiento (HTTP ${putRes.status})`);
+          }
+        }
+
+        // 3. Solicitar análisis y preview enviando solo metadata y objectPath
+        setLoadingStage("Analizando base sindical y comparando casilleros...");
+        const previewRes = await fetch(previewEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            objectPath: uploadInfo.objectPath,
+            fileName: file.name,
+            fileSize: file.size,
+          }),
+        });
+
+        const data = await readApiResponse<ImportPreviewResult>(previewRes);
+        setPreviewResult(data);
+      } else {
+        // Formato SIAP: Carga directa estándar preservada
+        setLoadingStage("Analizando plantilla SIAP...");
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch(previewEndpoint, {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await readApiResponse<ImportPreviewResult>(res);
+        setPreviewResult(data);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Error inesperado al subir el archivo.");
     } finally {
       setLoading(false);
+      setLoadingStage(null);
     }
   }
 
@@ -119,10 +214,7 @@ export function WorkerImportWizard({ format = "MASTER" }: WorkerImportWizardProp
         body: JSON.stringify(payload),
       });
 
-      const data = (await res.json()) as ImportConfirmResult & { error?: string };
-      if (!res.ok) {
-        throw new Error(data.error ?? "Ocurrió un error al confirmar la importación.");
-      }
+      const data = await readApiResponse<ImportConfirmResult>(res);
 
       setConfirmResult(data);
       setIsModalOpen(false);
@@ -317,6 +409,24 @@ export function WorkerImportWizard({ format = "MASTER" }: WorkerImportWizardProp
                 identificará trabajadores nuevos, conciliará casilleros y cambios de asignación, y te mostrará un desglose
                 completo para resolver cualquier discrepancia antes de confirmar.
               </p>
+              {loading && loadingStage ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.75rem",
+                    padding: "0.875rem 1rem",
+                    borderRadius: "0.5rem",
+                    backgroundColor: "var(--accent)",
+                    border: "1px solid var(--border)",
+                    fontSize: "0.875rem",
+                    color: "var(--fg)",
+                    marginBottom: "1rem",
+                  }}
+                >
+                  <LoadingSpinner text={loadingStage} />
+                </div>
+              ) : null}
               <ImportDropzone onFileSelected={handleFileSelected} isLoading={loading} />
             </Card>
           )}

@@ -41,6 +41,7 @@ export const API_ACCESS = {
   "/api/union/workers/import/errors": "authenticated",
   "/api/union/workers/import/master/preview": "authenticated",
   "/api/union/workers/import/master/apply": "authenticated",
+  "/api/union/workers/import/master/upload-url": "authenticated",
   "/api/cron/agenda-reminders": "public",
   "/api/cron/push-campaigns": "public",
   "/api/announcements/bar": "public",
