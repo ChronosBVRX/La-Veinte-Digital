@@ -47,6 +47,9 @@ export async function signInAction(_prev: AuthState, formData: FormData) {
     if (/captcha/i.test(error.message ?? "")) {
       return { error: "Verificación de seguridad fallida. Recarga la página e inténtalo de nuevo." }
     }
+    if (/banned/i.test(error.message ?? "")) {
+      return { error: "Tu cuenta está suspendida. Si crees que es un error, contacta a soporte." }
+    }
     return { error: "Credenciales incorrectas. Verifica tu correo y contraseña." }
   }
 
