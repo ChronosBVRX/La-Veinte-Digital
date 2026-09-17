@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import PizZip from "pizzip";
-import { DOMParser, XMLSerializer, type Document as XmlDocument } from "@xmldom/xmldom";
+import { DOMParser, XMLSerializer, type Document as XmlDocument, type Element as XmlElement } from "@xmldom/xmldom";
 import type { UnionLicenseDocumentData } from "./license-document-dto";
 
 export interface LicenseExcelWorker {
@@ -48,6 +48,26 @@ const LEGACY_FALLBACK_TEMPLATE_PATH = path.join(
   process.cwd(),
   "assets/templates/union/licencias/formato-licencia-1A74-009-036.xlsm",
 );
+
+export const LICENSE_TYPE_CELLS = {
+  withPay: "H9",
+  withoutPay1To3: "O9",
+  withoutPay4To60: "H11",
+  withoutPay61To365: "O11",
+} as const;
+
+export const LICENSE_EXTENSION_SHAPES = {
+  yes: {
+    drawing: "xl/drawings/drawing1.xml",
+    id: "5",
+    name: "4 Rectángulo",
+  },
+  no: {
+    drawing: "xl/drawings/drawing1.xml",
+    id: "4",
+    name: "3 Rectángulo",
+  },
+} as const;
 
 /**
  * Dynamically resolves the physical worksheet XML file path (e.g. xl/worksheets/sheet1.xml)
@@ -191,6 +211,195 @@ function clearCell(doc: XmlDocument, cellRef: string): void {
 }
 
 /**
+ * Ensures style definitions for license type checkbox cells in xl/styles.xml
+ * have center horizontal and vertical alignment, so the "X" renders perfectly
+ * centered rather than hugging the left border.
+ */
+function ensureCenteredCheckboxStyles(zip: PizZip, docLic: XmlDocument): void {
+  const stylesXmlStr = zip.file("xl/styles.xml")?.asText();
+  if (!stylesXmlStr) return;
+
+  const parser = new DOMParser();
+  const serializer = new XMLSerializer();
+  const stylesDoc = parser.parseFromString(stylesXmlStr, "text/xml");
+  const cellXfs = stylesDoc.getElementsByTagName("cellXfs")[0];
+  if (!cellXfs) return;
+
+  const directXfs: XmlElement[] = [];
+  for (let i = 0; i < cellXfs.childNodes.length; i++) {
+    const node = cellXfs.childNodes[i];
+    if (node.nodeType === 1) {
+      directXfs.push(node as unknown as XmlElement);
+    }
+  }
+
+  // Find style indices on the checkbox cells from docLic
+  const targetCells = [
+    LICENSE_TYPE_CELLS.withPay,
+    LICENSE_TYPE_CELLS.withoutPay1To3,
+    LICENSE_TYPE_CELLS.withoutPay4To60,
+    LICENSE_TYPE_CELLS.withoutPay61To365,
+  ];
+
+  const styleIndices = new Set<number>();
+  const cells = docLic.getElementsByTagName("c");
+  for (let i = 0; i < cells.length; i++) {
+    const c = cells[i];
+    const r = c.getAttribute("r");
+    if (r && (targetCells as readonly string[]).includes(r)) {
+      const s = c.getAttribute("s");
+      if (s) {
+        const idx = parseInt(s, 10);
+        if (!isNaN(idx)) {
+          styleIndices.add(idx);
+        }
+      }
+    }
+  }
+
+  // Fallback defaults if not found in docLic: 49, 50, 16, 17
+  if (styleIndices.size === 0) {
+    styleIndices.add(49);
+    styleIndices.add(50);
+    styleIndices.add(16);
+    styleIndices.add(17);
+  }
+
+  let modified = false;
+  for (const idx of styleIndices) {
+    const xf = directXfs[idx];
+    if (xf) {
+      xf.setAttribute("applyAlignment", "1");
+      let alignment = xf.getElementsByTagName("alignment")[0];
+      if (!alignment) {
+        alignment = stylesDoc.createElement("alignment");
+        xf.appendChild(alignment as unknown as XmlElement);
+      }
+      alignment.setAttribute("horizontal", "center");
+      alignment.setAttribute("vertical", "center");
+      modified = true;
+    }
+  }
+
+  if (modified) {
+    zip.file("xl/styles.xml", serializer.serializeToString(stylesDoc));
+  }
+}
+
+/**
+ * Updates Prórroga SÍ / NO DrawingML shapes in xl/drawings/drawing1.xml:
+ * - Shape id="5", name="4 Rectángulo" -> SÍ
+ * - Shape id="4", name="3 Rectángulo" -> NO
+ *
+ * Selected shape receives solid black fill (000000) and black border (19050).
+ * Unselected shape receives solid white fill (FFFFFF) and black border (19050).
+ * Throws an error with code UNION_TEMPLATE_INVALID if shapes are missing.
+ */
+function updateLicenseExtensionShapes(zip: PizZip, isExtension: boolean): void {
+  const drawingPath = LICENSE_EXTENSION_SHAPES.yes.drawing;
+  const drawingXmlStr = zip.file(drawingPath)?.asText();
+  if (!drawingXmlStr) {
+    const err = Object.assign(
+      new Error(`No se encontró el archivo de dibujo ${drawingPath} en la plantilla Excel`),
+      { code: "UNION_TEMPLATE_INVALID" },
+    );
+    throw err;
+  }
+
+  const parser = new DOMParser();
+  const serializer = new XMLSerializer();
+  const drawingDoc = parser.parseFromString(drawingXmlStr, "text/xml");
+
+  const spList = drawingDoc.getElementsByTagName("xdr:sp");
+  let shapeYes: XmlElement | null = null;
+  let shapeNo: XmlElement | null = null;
+
+  for (let i = 0; i < spList.length; i++) {
+    const sp = spList[i] as unknown as XmlElement;
+    const cNvPr = sp.getElementsByTagName("xdr:cNvPr")[0];
+    if (!cNvPr) continue;
+    const id = cNvPr.getAttribute("id");
+    const name = cNvPr.getAttribute("name");
+
+    if (id === LICENSE_EXTENSION_SHAPES.yes.id || name === LICENSE_EXTENSION_SHAPES.yes.name) {
+      shapeYes = sp;
+    } else if (id === LICENSE_EXTENSION_SHAPES.no.id || name === LICENSE_EXTENSION_SHAPES.no.name) {
+      shapeNo = sp;
+    }
+  }
+
+  if (!shapeYes || !shapeNo) {
+    const err = Object.assign(
+      new Error(
+        `No se encontraron las figuras requeridas de prórroga en ${drawingPath} (esperadas: ${LICENSE_EXTENSION_SHAPES.yes.name} y ${LICENSE_EXTENSION_SHAPES.no.name})`,
+      ),
+      { code: "UNION_TEMPLATE_INVALID" },
+    );
+    throw err;
+  }
+
+  const setShapeStyle = (sp: XmlElement, isSelectedBlack: boolean) => {
+    let spPr = sp.getElementsByTagName("xdr:spPr")[0] as unknown as XmlElement;
+    if (!spPr) {
+      spPr = drawingDoc.createElement("xdr:spPr") as unknown as XmlElement;
+      sp.appendChild(spPr as unknown as XmlElement);
+    }
+
+    // Remove existing solidFill or other fill elements
+    for (let j = spPr.childNodes.length - 1; j >= 0; j--) {
+      const child = spPr.childNodes[j];
+      const nodeName = child.nodeName;
+      if (
+        nodeName === "a:solidFill" ||
+        nodeName === "a:noFill" ||
+        nodeName === "a:gradFill" ||
+        nodeName === "a:blipFill" ||
+        nodeName === "a:pattFill" ||
+        nodeName === "a:grpFill"
+      ) {
+        spPr.removeChild(child);
+      }
+    }
+
+    // Ensure black outline border with width 19050
+    let ln = spPr.getElementsByTagName("a:ln")[0] as unknown as XmlElement;
+    const lnAlreadyPresent = Boolean(ln);
+    if (!ln) {
+      ln = drawingDoc.createElement("a:ln") as unknown as XmlElement;
+    }
+    ln.setAttribute("w", "19050");
+    while (ln.firstChild) {
+      ln.removeChild(ln.firstChild);
+    }
+    const lnFill = drawingDoc.createElement("a:solidFill");
+    const lnClr = drawingDoc.createElement("a:srgbClr");
+    lnClr.setAttribute("val", "000000");
+    lnFill.appendChild(lnClr as unknown as XmlElement);
+    ln.appendChild(lnFill as unknown as XmlElement);
+
+    // In DrawingML CT_ShapeProperties schema, EG_FillProperties MUST precede a:ln
+    const solidFill = drawingDoc.createElement("a:solidFill");
+    const srgbClr = drawingDoc.createElement("a:srgbClr");
+    srgbClr.setAttribute("val", isSelectedBlack ? "000000" : "FFFFFF");
+    solidFill.appendChild(srgbClr as unknown as XmlElement);
+
+    if (lnAlreadyPresent && ln.parentNode === spPr) {
+      spPr.insertBefore(solidFill as unknown as XmlElement, ln as unknown as XmlElement);
+    } else {
+      spPr.appendChild(solidFill as unknown as XmlElement);
+      spPr.appendChild(ln as unknown as XmlElement);
+    }
+  };
+
+  // If isExtension is true: SÍ is black (selected), NO is white (unselected)
+  // If isExtension is false: SÍ is white (unselected), NO is black (selected)
+  setShapeStyle(shapeYes, isExtension);
+  setShapeStyle(shapeNo, !isExtension);
+
+  zip.file(drawingPath, serializer.serializeToString(drawingDoc));
+}
+
+/**
  * Builds the official institutional license Excel form 1A74-009-036 (.xlsm)
  * by reading the master template buffer (from private storage or fallback),
  * modifying Generador and Licencia sheets in-memory, and preserving 100% of shapes,
@@ -266,21 +475,21 @@ export async function buildLicenseExcelDocument(
   setCellNum(docLic, "S7", parseInt(data.elaborationYear, 10) || 2026);
 
   // License type checkboxes
-  clearCell(docLic, "H9");
-  clearCell(docLic, "P9");
-  clearCell(docLic, "H11");
-  clearCell(docLic, "P11");
+  clearCell(docLic, LICENSE_TYPE_CELLS.withPay);
+  clearCell(docLic, LICENSE_TYPE_CELLS.withoutPay1To3);
+  clearCell(docLic, LICENSE_TYPE_CELLS.withoutPay4To60);
+  clearCell(docLic, LICENSE_TYPE_CELLS.withoutPay61To365);
 
   if (data.license.withPay) {
-    setCellText(docLic, "H9", "X"); // Licencia con sueldo
+    setCellText(docLic, LICENSE_TYPE_CELLS.withPay, "X"); // Licencia con sueldo (H9)
   } else {
     const range = data.license.licenseRangeType;
     if (range === "r1_3") {
-      setCellText(docLic, "P9", "X"); // Licencia sin sueldo de 1 a 3 días
+      setCellText(docLic, LICENSE_TYPE_CELLS.withoutPay1To3, "X"); // Licencia sin sueldo de 1 a 3 días (O9)
     } else if (range === "r4_60") {
-      setCellText(docLic, "H11", "X"); // Licencia sin sueldo de 4 a 60 días
+      setCellText(docLic, LICENSE_TYPE_CELLS.withoutPay4To60, "X"); // Licencia sin sueldo de 4 a 60 días (H11)
     } else {
-      setCellText(docLic, "P11", "X"); // Licencia sin sueldo de 61 a 365 días
+      setCellText(docLic, LICENSE_TYPE_CELLS.withoutPay61To365, "X"); // Licencia sin sueldo de 61 a 365 días (O11)
     }
   }
 
@@ -320,14 +529,8 @@ export async function buildLicenseExcelDocument(
     setCellNum(docLic, "S21", parseInt(prevE[0] ?? "0", 10));
   }
 
-  // Prórroga Checkbox
-  clearCell(docLic, "B24");
-  clearCell(docLic, "D24");
-  if (data.license.isExtension) {
-    setCellText(docLic, "B24", "X"); // SÍ
-  } else {
-    setCellText(docLic, "D24", "X"); // NO
-  }
+  // Prórroga is controlled via DrawingML shapes in xl/drawings/drawing1.xml (NEVER in cells B24/D24)
+  updateLicenseExtensionShapes(zip, data.license.isExtension);
 
   // Total Days
   setCellText(docLic, "F24", `${data.license.totalDays}  ${data.license.daysUnit}`);
@@ -351,6 +554,9 @@ export async function buildLicenseExcelDocument(
       .replace(/<f>#REF!<\/f>/g, "")
       .replace(/<v>#REF!<\/v>/g, "");
   }
+
+  // Ensure checkbox cells have centered horizontal & vertical alignment in xl/styles.xml
+  ensureCenteredCheckboxStyles(zip, docLic);
 
   zip.file(licenciaPath, serializedLic);
 
