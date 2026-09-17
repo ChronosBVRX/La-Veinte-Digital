@@ -1,186 +1,283 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Button } from "@/shared/components/ui/Button";
-import { Input } from "@/shared/components/ui/Input";
-import { Card } from "@/shared/components/ui/Card";
-import { WorkerPicker, type UnionWorkerOption } from "./WorkerPicker";
-
-interface LockerRow {
-  id: string;
-  locker_number: string;
-  location: string;
-  section: string;
-  status: string;
-  active_assignment: {
-    id: string;
-    assigned_at: string;
-    union_workers: { first_name: string; paternal_surname: string; maternal_surname: string; employee_number: string } | Array<{ first_name: string; paternal_surname: string; maternal_surname: string; employee_number: string }>;
-  } | null;
-}
-
-const FILTERS = ["all", "available", "assigned", "reserved", "maintenance", "blocked"] as const;
+import { LockerSummaryCards, type LockerSummaryCounts } from "./lockers/LockerSummaryCards";
+import { LockerToolbar } from "./lockers/LockerToolbar";
+import { LockerDesktopTable, type LockerItem } from "./lockers/LockerDesktopTable";
+import { LockerMobileList } from "./lockers/LockerMobileList";
+import { LockerAssignSheet } from "./lockers/LockerAssignSheet";
+import { LockerDetailSheet } from "./lockers/LockerDetailSheet";
+import { LockerReleaseModal } from "./lockers/LockerReleaseModal";
 
 export function LockerBoard(): React.JSX.Element {
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
-  const [q, setQ] = useState("");
-  const [rows, setRows] = useState<LockerRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [, startTransition] = useTransition();
+
+  // Estados de consulta sincronizados con URL
+  const initialQ = searchParams.get("q") ?? "";
+  const initialStatus = searchParams.get("status") ?? "all";
+  const initialSort = searchParams.get("sort") ?? "number_asc";
+  const initialPage = parseInt(searchParams.get("page") ?? "1", 10) || 1;
+  const initialPageSize = parseInt(searchParams.get("pageSize") ?? "25", 10) || 25;
+
+  const [q, setQ] = useState(initialQ);
+  const [status, setStatus] = useState(initialStatus);
+  const [sort, setSort] = useState(initialSort);
+  const [page, setPage] = useState(initialPage);
+  const [pageSize, setPageSize] = useState(initialPageSize);
+
+  // Estados de datos
+  const [lockers, setLockers] = useState<LockerItem[]>([]);
+  const [counts, setCounts] = useState<LockerSummaryCounts | null>(null);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalFiltered, setTotalFiltered] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [worker, setWorker] = useState<UnionWorkerOption | null>(null);
-  const [selectedLocker, setSelectedLocker] = useState<string>("");
-  const [overrideReason, setOverrideReason] = useState("");
-  const [pendingCount, setPendingCount] = useState<number | null>(null);
 
-  const loadPendingCount = useCallback(async (): Promise<void> => {
-    try {
-      const res = await fetch("/api/union/lockers/pendientes", { cache: "no-store" });
-      if (res.ok) {
-        const j = (await res.json()) as { counts?: { total?: number } };
-        setPendingCount(j.counts?.total ?? 0);
+  // Modales y Sheets laterales
+  const [isAssignSheetOpen, setIsAssignSheetOpen] = useState(false);
+  const [assignTargetLocker, setAssignTargetLocker] = useState<LockerItem | null>(null);
+
+  const [detailLockerId, setDetailLockerId] = useState<string | null>(null);
+  const [isDetailSheetOpen, setIsDetailSheetOpen] = useState(false);
+
+  const [releaseTarget, setReleaseTarget] = useState<{ assignmentId: string; lockerNumber: string } | null>(null);
+  const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
+  const [releasing, setReleasing] = useState(false);
+
+  // Sincronizar parámetros en URL
+  const updateUrlParams = useCallback(
+    (newParams: { q?: string; status?: string; sort?: string; page?: number; pageSize?: number }) => {
+      const params = new URLSearchParams(searchParams.toString());
+
+      if (newParams.q !== undefined) {
+        if (newParams.q) params.set("q", newParams.q);
+        else params.delete("q");
       }
-    } catch {
-      // Ignorar errores en carga de contador auxiliar
-    }
-  }, []);
+      if (newParams.status !== undefined) {
+        if (newParams.status !== "all") params.set("status", newParams.status);
+        else params.delete("status");
+      }
+      if (newParams.sort !== undefined) {
+        if (newParams.sort !== "number_asc") params.set("sort", newParams.sort);
+        else params.delete("sort");
+      }
+      if (newParams.page !== undefined) {
+        if (newParams.page > 1) params.set("page", String(newParams.page));
+        else params.delete("page");
+      }
+      if (newParams.pageSize !== undefined) {
+        if (newParams.pageSize !== 25) params.set("pageSize", String(newParams.pageSize));
+        else params.delete("pageSize");
+      }
 
-  const load = useCallback(async (): Promise<void> => {
+      startTransition(() => {
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      });
+    },
+    [router, pathname, searchParams]
+  );
+
+  // Carga de datos server-side con paginación
+  const loadData = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (filter !== "all") params.set("status", filter);
+      if (status !== "all") params.set("status", status);
       if (q.trim()) params.set("q", q.trim());
+      if (sort) params.set("sort", sort);
+      params.set("page", String(page));
+      params.set("pageSize", String(pageSize));
+
       const res = await fetch(`/api/union/lockers?${params.toString()}`, { cache: "no-store" });
-      const j = (await res.json()) as { lockers?: LockerRow[]; error?: string };
-      if (!res.ok) throw new Error(j.error ?? "Error");
-      setRows(j.lockers ?? []);
+      const j = (await res.json()) as {
+        lockers?: LockerItem[];
+        pagination?: { total: number; page: number; pageSize: number; totalPages: number };
+        counts?: LockerSummaryCounts;
+        error?: string;
+      };
+
+      if (!res.ok) throw new Error(j.error ?? "Error al cargar casilleros");
+
+      setLockers(j.lockers ?? []);
+      if (j.pagination) {
+        setTotalPages(j.pagination.totalPages);
+        setTotalFiltered(j.pagination.total);
+      }
+      if (j.counts) {
+        setCounts(j.counts);
+      }
     } catch {
-      setError("No se pudo cargar lockers.");
+      setError("No se pudieron cargar los casilleros. Intenta de nuevo.");
     } finally {
       setLoading(false);
     }
-  }, [filter, q]);
+  }, [q, status, sort, page, pageSize]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch on mount
-    void load();
-    void loadPendingCount();
-  }, [load, loadPendingCount]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch on filter/page change
+    void loadData();
+  }, [loadData]);
 
-  async function assign(): Promise<void> {
-    if (!selectedLocker || !worker) return;
-    setError(null);
-    const res = await fetch("/api/union/lockers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "assign",
-        locker_id: selectedLocker,
-        worker_id: worker.id,
-        admin_override: Boolean(overrideReason.trim()),
-        admin_override_reason: overrideReason.trim(),
-      }),
-    });
-    const j = (await res.json()) as { error?: string };
-    if (!res.ok) {
-      setError(j.error ?? "No se pudo asignar.");
-      return;
+  // Manejadores de Toolbar
+  function handleSearchChange(newQ: string): void {
+    setQ(newQ);
+    setPage(1);
+    updateUrlParams({ q: newQ, page: 1 });
+  }
+
+  function handleStatusChange(newStatus: string): void {
+    setStatus(newStatus);
+    setPage(1);
+    updateUrlParams({ status: newStatus, page: 1 });
+  }
+
+  function handleSortChange(newSort: string): void {
+    setSort(newSort);
+    updateUrlParams({ sort: newSort });
+  }
+
+  function handlePageSizeChange(newSize: number): void {
+    setPageSize(newSize);
+    setPage(1);
+    updateUrlParams({ pageSize: newSize, page: 1 });
+  }
+
+  function handleResetFilters(): void {
+    setQ("");
+    setStatus("all");
+    setSort("number_asc");
+    setPage(1);
+    updateUrlParams({ q: "", status: "all", sort: "number_asc", page: 1 });
+  }
+
+  function handlePageChange(newPage: number): void {
+    const valid = Math.max(1, Math.min(newPage, totalPages));
+    setPage(valid);
+    updateUrlParams({ page: valid });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // Acciones de Locker
+  function handleOpenAssign(locker?: LockerItem): void {
+    setAssignTargetLocker(locker ?? null);
+    setIsAssignSheetOpen(true);
+  }
+
+  function handleOpenDetail(lockerId: string): void {
+    setDetailLockerId(lockerId);
+    setIsDetailSheetOpen(true);
+  }
+
+  function handleOpenRelease(assignmentId: string, lockerNumber: string): void {
+    setReleaseTarget({ assignmentId, lockerNumber });
+    setIsReleaseModalOpen(true);
+  }
+
+  async function handleConfirmRelease(reason: string): Promise<void> {
+    if (!releaseTarget) return;
+    setReleasing(true);
+    try {
+      const res = await fetch("/api/union/lockers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "release",
+          assignment_id: releaseTarget.assignmentId,
+          release_reason: reason,
+        }),
+      });
+      if (!res.ok) {
+        const j = (await res.json()) as { error?: string };
+        throw new Error(j.error ?? "No se pudo liberar el casillero.");
+      }
+      setIsReleaseModalOpen(false);
+      setReleaseTarget(null);
+      void loadData();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Error al liberar casillero.");
+    } finally {
+      setReleasing(false);
     }
-    setWorker(null);
-    setSelectedLocker("");
-    setOverrideReason("");
-    void load();
   }
 
-  async function release(assignmentId: string): Promise<void> {
-    const reason = window.prompt("Motivo de liberación (se conserva en historial):") ?? "";
-    if (!reason.trim()) return;
-    await fetch("/api/union/lockers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "release", assignment_id: assignmentId, release_reason: reason.trim() }),
-    });
-    void load();
+  async function handleSetStatus(lockerId: string, newStatus: string): Promise<void> {
+    try {
+      await fetch("/api/union/lockers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "status",
+          locker_id: lockerId,
+          status: newStatus,
+        }),
+      });
+      void loadData();
+    } catch {
+      // Ignorar fallo puntual
+    }
   }
 
-  async function setStatus(lockerId: string, status: string): Promise<void> {
-    await fetch("/api/union/lockers", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "status", locker_id: lockerId, status }),
-    });
-    void load();
-  }
+  const startRecord = (page - 1) * pageSize + 1;
+  const endRecord = Math.min(page * pageSize, totalFiltered);
+  const hasActiveFilters = Boolean(q.trim()) || status !== "all" || sort !== "number_asc";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-      {pendingCount !== null ? (
-        pendingCount > 0 ? (
-          <Card padding="1rem">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <span style={{ fontSize: "1.125rem" }}>📋</span>
-                  <h3 style={{ margin: 0, fontSize: "1rem" }}>
-                    Pendientes de revisión: <strong>{pendingCount.toLocaleString("es-MX")}</strong>
-                  </h3>
-                </div>
-                <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--muted)" }}>
-                  Hay información de la última actualización que necesita ser revisada.
-                </p>
-              </div>
-              <Link
-                href="/representacion/lockers/pendientes"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  padding: "0.45rem 0.875rem",
-                  borderRadius: "0.375rem",
-                  backgroundColor: "var(--primary)",
-                  color: "var(--primary-fg)",
-                  fontSize: "0.8125rem",
-                  fontWeight: 600,
-                  textDecoration: "none",
-                }}
-              >
-                Revisar pendientes
-              </Link>
-            </div>
-          </Card>
-        ) : (
-          <Card padding="0.75rem 1rem">
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#166534", fontSize: "0.875rem" }}>
-              <span>✓</span>
-              <strong>Base revisada</strong>
-              <span style={{ color: "var(--muted)" }}>— No hay pendientes.</span>
-            </div>
-          </Card>
-        )
-      ) : null}
-
-      <Card>
-        <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap", marginBottom: "0.5rem" }} role="group" aria-label="Filtrar por estado">
-          {FILTERS.map((f) => (
-            <Button key={f} size="sm" variant={filter === f ? "primary" : "secondary"} onClick={() => setFilter(f)}>
-              {f === "all" ? "Todos" : f}
-            </Button>
-          ))}
+    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      {/* 1. ENCABEZADO INSTITUCIONAL CON ACCIONES PRINCIPALES */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+          gap: "1rem",
+        }}
+      >
+        <div style={{ minWidth: "260px" }}>
+          <Link
+            href="/representacion"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              fontSize: "0.8125rem",
+              color: "var(--primary)",
+              textDecoration: "none",
+              fontWeight: 600,
+              marginBottom: "0.25rem",
+            }}
+          >
+            ← Representación Sindical
+          </Link>
+          <h1
+            style={{
+              margin: "0.125rem 0 0.25rem",
+              fontSize: "clamp(1.375rem, 4vw, 1.625rem)",
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            Lockers
+          </h1>
+          <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)", lineHeight: 1.4 }}>
+            Administra los casilleros de la delegación, sus asignaciones y pendientes.
+          </p>
         </div>
+
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: "180px" }}>
-            <Input aria-label="Buscar por número" placeholder="Número de locker…" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
-          <Button onClick={() => void load()} loading={loading}>
-            Buscar
-          </Button>
           <Link
             href="/representacion/lockers/importar"
             style={{
               display: "inline-flex",
               alignItems: "center",
-              padding: "0.45rem 0.75rem",
+              justifyContent: "center",
+              padding: "0.5rem 0.875rem",
               borderRadius: "0.375rem",
               border: "1px solid var(--border)",
               backgroundColor: "var(--card)",
@@ -188,61 +285,230 @@ export function LockerBoard(): React.JSX.Element {
               fontSize: "0.8125rem",
               fontWeight: 600,
               textDecoration: "none",
+              minHeight: 40,
+              whiteSpace: "nowrap",
             }}
           >
             Actualizar base de lockers
           </Link>
-        </div>
-        {error ? (
-          <p role="alert" style={{ color: "var(--error)", fontSize: "0.8125rem" }}>
-            {error}
-          </p>
-        ) : null}
-      </Card>
-      <Card>
-        <h2 style={{ margin: "0 0 0.5rem", fontSize: "1rem" }}>Asignar locker</h2>
-        <WorkerPicker selected={worker} onSelect={setWorker} />
-        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
-          <Input aria-label="Locker a asignar" placeholder="ID o número (selecciona abajo)" value={selectedLocker} onChange={(e) => setSelectedLocker(e.target.value)} />
-        </div>
-        <Input label="Override administrativo (opcional, requiere motivo auditado)" placeholder="Motivo de doble asignación…" value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} />
-        <div style={{ marginTop: "0.5rem" }}>
-          <Button onClick={() => void assign()} disabled={!worker || !selectedLocker} fullWidth>
-            Asignar
+          <Button
+            variant="primary"
+            onClick={() => handleOpenAssign()}
+            style={{ minHeight: 40, whiteSpace: "nowrap" }}
+          >
+            + Asignar locker
           </Button>
         </div>
-      </Card>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.5rem" }}>
-        {rows.map((l) => {
-          const w = l.active_assignment?.union_workers;
-          const person = Array.isArray(w) ? w[0] : w;
-          return (
-            <Card key={l.id} padding="0.625rem">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem" }}>
-                <strong>Locker {l.locker_number}</strong>
-                <span style={{ fontSize: "0.6875rem", background: "var(--accent)", borderRadius: 999, padding: "0.125rem 0.5rem" }}>{l.status}</span>
-              </div>
-              <div style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.25rem 0" }}>
-                {person ? `${person.paternal_surname} ${person.first_name} · Mat. ${person.employee_number}` : "Disponible"}
-              </div>
-              <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
-                <Button size="sm" variant="secondary" onClick={() => setSelectedLocker(l.id)}>
-                  Elegir
-                </Button>
-                {l.active_assignment ? (
-                  <Button size="sm" variant="secondary" onClick={() => void release(l.active_assignment?.id ?? "")}>
-                    Liberar
-                  </Button>
-                ) : (
-                  <Button size="sm" variant="ghost" onClick={() => void setStatus(l.id, l.status === "maintenance" ? "available" : "maintenance")}>
-                    {l.status === "maintenance" ? "Reactivar" : "Mantenimiento"}
-                  </Button>
-                )}
-              </div>
-            </Card>
-          );
-        })}
       </div>
+
+      {/* 2. RESUMEN VISUAL CON 4 MÉTRICAS REALES Y TARJETA DE PENDIENTES */}
+      <LockerSummaryCards
+        counts={counts}
+        onFilterPending={() => handleStatusChange("pending")}
+      />
+
+      {/* 3. BARRA DE HERRAMIENTAS: BUSCADOR UNIFICADO, ESTADOS EN ESPAÑOL, ORDEN NATURAL */}
+      <LockerToolbar
+        searchQuery={q}
+        onSearchChange={handleSearchChange}
+        statusFilter={status}
+        onStatusChange={handleStatusChange}
+        sortOrder={sort}
+        onSortChange={handleSortChange}
+        pageSize={pageSize}
+        onPageSizeChange={handlePageSizeChange}
+        onResetFilters={handleResetFilters}
+        hasActiveFilters={hasActiveFilters}
+        loading={loading}
+      />
+
+      {/* 4. ERROR SI OCURRE */}
+      {error ? (
+        <div
+          role="alert"
+          style={{
+            padding: "0.75rem 1rem",
+            backgroundColor: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: "var(--radius)",
+            color: "#b91c1c",
+            fontSize: "0.875rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span>{error}</span>
+          <Button size="sm" variant="secondary" onClick={() => void loadData()}>
+            Reintentar
+          </Button>
+        </div>
+      ) : null}
+
+      {/* 5. VISUALIZACIÓN: TABLA DESKTOP (≥ 768px) O TARJETAS MOBILE (< 768px) */}
+      {!loading && lockers.length === 0 ? (
+        <div
+          style={{
+            backgroundColor: "var(--card)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius)",
+            padding: "2.5rem 1.5rem",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "0.75rem",
+          }}
+        >
+          <span style={{ fontSize: "2rem" }} aria-hidden="true">
+            🔍
+          </span>
+          <h3 style={{ margin: 0, fontSize: "1.0625rem", fontWeight: 700 }}>
+            {status !== "all"
+              ? `No encontramos lockers con estado "${status}"`
+              : "No encontramos casilleros con la búsqueda ingresada"}
+          </h3>
+          <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)", maxWidth: "44ch" }}>
+            Prueba con otro término de búsqueda o limpia los filtros activos para ver la base completa.
+          </p>
+          {hasActiveFilters ? (
+            <Button variant="secondary" size="sm" onClick={handleResetFilters}>
+              Limpiar filtros
+            </Button>
+          ) : null}
+        </div>
+      ) : (
+        <>
+          {/* Vista Escritorio: Tabla Administrativa Compacta */}
+          <div className="locker-desktop-only" style={{ display: "none" }}>
+            <LockerDesktopTable
+              lockers={lockers}
+              onOpenDetail={handleOpenDetail}
+              onOpenAssign={handleOpenAssign}
+              onOpenRelease={handleOpenRelease}
+              onSetStatus={handleSetStatus}
+              loading={loading}
+            />
+          </div>
+
+          {/* Vista Móvil: Tarjetas Compactas */}
+          <div className="locker-mobile-only" style={{ display: "block" }}>
+            <LockerMobileList
+              lockers={lockers}
+              onOpenDetail={handleOpenDetail}
+              onOpenAssign={handleOpenAssign}
+              onOpenRelease={handleOpenRelease}
+              loading={loading}
+            />
+          </div>
+        </>
+      )}
+
+      {/* 6. CONTROLES DE PAGINACIÓN SERVER-SIDE */}
+      {totalFiltered > 0 ? (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "0.75rem",
+            padding: "0.75rem 1rem",
+            backgroundColor: "var(--card)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius)",
+            fontSize: "0.8125rem",
+            color: "var(--muted)",
+          }}
+        >
+          <div>
+            Mostrando <strong>{startRecord}–{endRecord}</strong> de{" "}
+            <strong>{totalFiltered.toLocaleString("es-MX")}</strong> lockers
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => handlePageChange(page - 1)}
+              disabled={page <= 1 || loading}
+              aria-label="Página anterior"
+              style={{ minHeight: 36 }}
+            >
+              ‹ Anterior
+            </Button>
+
+            <span style={{ fontWeight: 600, color: "var(--fg)", padding: "0 0.25rem" }}>
+              Página {page} de {totalPages}
+            </span>
+
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => handlePageChange(page + 1)}
+              disabled={page >= totalPages || loading}
+              aria-label="Página siguiente"
+              style={{ minHeight: 36 }}
+            >
+              Siguiente ›
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {/* 7. SHEETS Y MODALES */}
+      <LockerAssignSheet
+        isOpen={isAssignSheetOpen}
+        onClose={() => {
+          setIsAssignSheetOpen(false);
+          setAssignTargetLocker(null);
+        }}
+        initialLocker={assignTargetLocker}
+        onSuccess={() => void loadData()}
+      />
+
+      <LockerDetailSheet
+        isOpen={isDetailSheetOpen}
+        onClose={() => {
+          setIsDetailSheetOpen(false);
+          setDetailLockerId(null);
+        }}
+        lockerId={detailLockerId}
+        onOpenAssign={handleOpenAssign}
+        onOpenRelease={handleOpenRelease}
+        onSetStatus={handleSetStatus}
+      />
+
+      <LockerReleaseModal
+        isOpen={isReleaseModalOpen}
+        lockerNumber={releaseTarget?.lockerNumber ?? ""}
+        onConfirm={handleConfirmRelease}
+        onCancel={() => {
+          setIsReleaseModalOpen(false);
+          setReleaseTarget(null);
+        }}
+        loading={releasing}
+      />
+
+      {/* Estilos CSS para breakpoints responsivos de tabla vs móvil */}
+      <style jsx global>{`
+        @media (min-width: 768px) {
+          .locker-desktop-only {
+            display: block !important;
+          }
+          .locker-mobile-only {
+            display: none !important;
+          }
+        }
+        @media (max-width: 767px) {
+          .locker-desktop-only {
+            display: none !important;
+          }
+          .locker-mobile-only {
+            display: block !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

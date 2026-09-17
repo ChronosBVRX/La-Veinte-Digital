@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { canAssignLocker, canAssignWorker, normalizeLockerNumber, sortWaitlist } from "@/features/representacion/lib/lockers";
+import {
+  canAssignLocker,
+  canAssignWorker,
+  normalizeLockerNumber,
+  sortWaitlist,
+  naturalCompare,
+  getLockerStatusLabel,
+  getLockerStatusBadge,
+} from "@/features/representacion/lib/lockers";
 
 describe("lockers", () => {
   it("normaliza números", () => {
@@ -34,5 +42,32 @@ describe("lockers", () => {
       { id: "a", requestedAt: "2026-09-01T00:00:00Z", priorityOverride: null },
     ]);
     expect(rows[0].id).toBe("b");
+  });
+
+  it("ordena casilleros en orden natural numérico", () => {
+    const rawNumbers = ["10", "1", "100", "2", "25", "3", "20", "1A", "1B"];
+    const sorted = [...rawNumbers].sort(naturalCompare);
+    expect(sorted).toEqual(["1", "1A", "1B", "2", "3", "10", "20", "25", "100"]);
+  });
+
+  it("mapea estados a etiquetas comprensibles en español sin tecnicismos en inglés", () => {
+    expect(getLockerStatusLabel("available")).toBe("Disponible");
+    expect(getLockerStatusLabel("available", { plural: true })).toBe("Disponibles");
+    expect(getLockerStatusLabel("assigned")).toBe("Asignado");
+    expect(getLockerStatusLabel("assigned", { plural: true })).toBe("Asignados");
+    expect(getLockerStatusLabel("pending")).toBe("Por revisar");
+    expect(getLockerStatusLabel("maintenance")).toBe("Mantenimiento");
+    expect(getLockerStatusLabel("blocked")).toBe("Bloqueado");
+    expect(getLockerStatusLabel("reserved")).toBe("Reservado");
+  });
+
+  it("genera badges accesibles para casilleros regulares y con incidencias", () => {
+    const availableBadge = getLockerStatusBadge("available");
+    expect(availableBadge.singular).toBe("Disponible");
+    expect(availableBadge.dotColor).toBe("#16a34a");
+
+    const pendingBadge = getLockerStatusBadge("available", true);
+    expect(pendingBadge.singular).toBe("Por revisar");
+    expect(pendingBadge.color).toBe("#c2410c");
   });
 });
