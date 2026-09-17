@@ -79,6 +79,7 @@ describe("API route policy", () => {
       "/api/union/lockers/import/rollback": "authenticated",
       "/api/union/lockers/import/history": "authenticated",
       "/api/union/lockers/import/errors": "authenticated",
+      "/api/union/lockers/pendientes": "authenticated",
     })
   })
 

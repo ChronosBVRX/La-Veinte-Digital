@@ -136,18 +136,6 @@ export function LockerImportWizard(): React.JSX.Element {
     return !isNotFound && !isAuto;
   });
 
-  // Conflictos que siguen bloqueando la confirmación
-  const unresolvedConflicts = rows.filter((r) => {
-    if (r.status !== "conflict") return false;
-    const res = resolutions[r.rowNumber];
-    if (!res || (res.action !== "skip" && res.action !== "resolve")) {
-      return true;
-    }
-    return false;
-  });
-
-  const hasBlockingConflicts = unresolvedConflicts.length > 0;
-
   function handleAutoResolve(): void {
     setResolutions((prev) => {
       const next = { ...prev };
@@ -280,9 +268,9 @@ export function LockerImportWizard(): React.JSX.Element {
             <Card padding="1.5rem">
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", textAlign: "center" }}>
                 <div style={{ fontSize: "2.5rem" }}>✅</div>
-                <h3 style={{ margin: 0, fontSize: "1.125rem" }}>¡Base de casilleros actualizada con éxito!</h3>
+                <h3 style={{ margin: 0, fontSize: "1.125rem" }}>¡Base de casilleros importada con éxito!</h3>
                 <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)" }}>
-                  La relación de casilleros y asignaciones fue conciliada de forma atómica y segura.
+                  Los casilleros e inventario fueron guardados de forma segura.
                 </p>
                 <div
                   style={{
@@ -295,17 +283,25 @@ export function LockerImportWizard(): React.JSX.Element {
                   }}
                 >
                   <span>
-                    Nuevas asignaciones de casillero: <strong>{confirmResult.newLockersCount ?? 0}</strong>
+                    Asignaciones vinculadas: <strong>{(confirmResult.newLockersCount ?? 0) + (confirmResult.lockerChangesCount ?? 0)}</strong>
                   </span>
+                  {confirmResult.pendingReviewCount ? (
+                    <span style={{ color: "#c2410c", fontWeight: 600 }}>
+                      Pendientes de revisión: <strong>{confirmResult.pendingReviewCount}</strong>
+                    </span>
+                  ) : null}
                   <span>
-                    Reasignaciones de casillero: <strong>{confirmResult.lockerChangesCount ?? 0}</strong>
-                  </span>
-                  <span>
-                    Datos laborales modificados: <strong>0 (operación aislada)</strong>
+                    Trabajadores modificados: <strong>0 (operación aislada)</strong>
                   </span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "center", gap: "0.5rem" }}>
-                  <Button variant="primary" size="sm" onClick={handleReset}>
+                <div style={{ display: "flex", justifyContent: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <Button variant="primary" size="sm" onClick={() => router.push("/representacion/lockers/pendientes")}>
+                    Ver pendientes de revisión
+                  </Button>
+                  <Button variant="secondary" size="sm" onClick={() => router.push("/representacion/lockers")}>
+                    Ir al panel de lockers
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={handleReset}>
                     Actualizar con otra base
                   </Button>
                 </div>
@@ -325,9 +321,9 @@ export function LockerImportWizard(): React.JSX.Element {
                   }}
                 >
                   <div>
-                    <h3 style={{ margin: 0, fontSize: "1rem" }}>Fase 1: Resumen de conciliación de casilleros</h3>
+                    <h3 style={{ margin: 0, fontSize: "1rem" }}>Resumen de importación de casilleros</h3>
                     <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)" }}>
-                      Revisa los casilleros y asignaciones detectados antes de guardar los cambios oficiales.
+                      Revisa los casilleros detectados. Los registros pendientes se conservarán para su revisión posterior.
                     </p>
                   </div>
                   <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
@@ -342,19 +338,7 @@ export function LockerImportWizard(): React.JSX.Element {
                         onClick={() => setIsAutoResolveModalOpen(true)}
                         disabled={confirming}
                       >
-                        Resolver automáticamente ({autoResolvableRows.length})
-                      </Button>
-                    ) : null}
-
-                    {workerNotFoundRows.length > 0 ? (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setIsSkipWorkerNotFoundModalOpen(true)}
-                        disabled={confirming}
-                        style={{ borderColor: "#ea580c", color: "#c2410c" }}
-                      >
-                        Omitir {workerNotFoundRows.length} no en padrón
+                        Corregir automáticamente ({autoResolvableRows.length})
                       </Button>
                     ) : null}
 
@@ -362,13 +346,15 @@ export function LockerImportWizard(): React.JSX.Element {
                       variant="primary"
                       size="sm"
                       onClick={() => setIsModalOpen(true)}
-                      disabled={confirming || hasBlockingConflicts}
+                      disabled={confirming}
                     >
-                      {hasBlockingConflicts
-                        ? `Resolver ${unresolvedConflicts.length} conflicto(s) pendientes`
-                        : "Confirmar actualización"}
+                      Importar base de lockers
                     </Button>
                   </div>
+                </div>
+
+                <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.5rem" }}>
+                  No necesitas resolver todo ahora. Podrás hacerlo después desde Lockers.
                 </div>
 
                 <ImportPreviewDashboard

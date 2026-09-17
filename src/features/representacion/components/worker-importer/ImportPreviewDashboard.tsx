@@ -16,18 +16,20 @@ export function ImportPreviewDashboard({
 }: ImportPreviewDashboardProps): React.JSX.Element {
   const isLocker = domain === "LOCKER";
 
+  const breakdown = summary.conflictBreakdown;
+  const workerNotFoundCount = breakdown?.WORKER_NOT_FOUND ?? (summary.missingMatricula ?? 0);
+  const autoResolvableCount = summary.autoResolvableCount ?? 0;
+  const realConflictsCount = summary.realConflictsCount ?? 0;
+  const readyAssignmentsCount = (summary.newCount ?? 0) + (summary.lockerChanges ?? summary.updatedCount ?? 0);
+
   const cards = isLocker
     ? [
-        { label: "Filas detectadas", value: summary.totalRows, color: "var(--fg)" },
-        { label: "Lockers detectados", value: summary.lockersDetected ?? 0, color: "#0891b2" },
-        { label: "Lockers nuevos", value: summary.newLockers ?? 0, color: "#059669" },
-        { label: "Nuevas asignaciones", value: summary.newCount ?? 0, color: "#16a34a" },
-        { label: "Cambios asignación", value: summary.lockerChanges ?? summary.updatedCount ?? 0, color: "#2563eb" },
+        { label: "Lockers detectados", value: summary.lockersDetected ?? summary.totalRows, color: "#0891b2" },
+        { label: "Asignaciones listas", value: readyAssignmentsCount, color: "#16a34a" },
+        { label: "Personas por vincular", value: workerNotFoundCount, color: "#ea580c" },
+        { label: "Necesitan revisión", value: realConflictsCount, color: "#9333ea" },
         { label: "Sin cambios", value: summary.unchangedCount ?? 0, color: "var(--muted)" },
-        { label: "Lockers duplicados", value: summary.duplicateLockers ?? 0, color: "#b91c1c" },
-        { label: "No en padrón", value: summary.missingMatricula ?? summary.invalidCount ?? 0, color: "#ea580c" },
-        { label: "Conflictos", value: summary.conflicts ?? summary.conflictsCount ?? 0, color: "#9333ea" },
-        { label: "Filas ignoradas", value: summary.ignoredRows ?? 0, color: "var(--muted)" },
+        { label: "Filas del archivo", value: summary.totalRows, color: "var(--fg)" },
       ]
     : [
         { label: "Filas detectadas", value: summary.totalRows, color: "var(--fg)" },
@@ -41,13 +43,48 @@ export function ImportPreviewDashboard({
         { label: "Filas ignoradas", value: summary.ignoredRows ?? 0, color: "var(--muted)" },
       ];
 
-  const breakdown = summary.conflictBreakdown;
-  const workerNotFoundCount = breakdown?.WORKER_NOT_FOUND ?? (summary.missingMatricula ?? 0);
-  const autoResolvableCount = summary.autoResolvableCount ?? 0;
-  const realConflictsCount = summary.realConflictsCount ?? 0;
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+      {isLocker ? (
+        <div
+          style={{
+            padding: "0.875rem 1rem",
+            borderRadius: "0.5rem",
+            backgroundColor: "#f0fdf4",
+            border: "1px solid #bbf7d0",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.375rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span style={{ fontSize: "1.125rem" }}>✨</span>
+            <strong style={{ fontSize: "0.9375rem", color: "#166534" }}>Tu base está lista para importar</strong>
+          </div>
+          <p style={{ margin: 0, fontSize: "0.8125rem", color: "#166534" }}>
+            Encontramos <strong>{(summary.lockersDetected ?? summary.totalRows).toLocaleString("es-MX")}</strong> lockers.
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", margin: "0.125rem 0", fontSize: "0.8125rem" }}>
+            <span style={{ color: "#15803d", fontWeight: 600 }}>
+              ✓ {readyAssignmentsCount.toLocaleString("es-MX")} asignaciones están listas
+            </span>
+            {workerNotFoundCount > 0 ? (
+              <span style={{ color: "#c2410c", fontWeight: 600 }}>
+                ○ {workerNotFoundCount.toLocaleString("es-MX")} personas necesitan vincularse después
+              </span>
+            ) : null}
+            {realConflictsCount > 0 ? (
+              <span style={{ color: "#b91c1c", fontWeight: 600 }}>
+                ! {realConflictsCount.toLocaleString("es-MX")} registros necesitan revisión
+              </span>
+            ) : null}
+          </div>
+          <p style={{ margin: 0, fontSize: "0.75rem", color: "#15803d" }}>
+            Puedes importar la base ahora. Los registros pendientes se conservarán para que los representantes puedan revisarlos posteriormente.
+          </p>
+        </div>
+      ) : null}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
         <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
           Archivo analizado: <strong>{fileName}</strong>
