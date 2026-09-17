@@ -6,6 +6,7 @@ import { buildLicenseWordDocument } from "@/features/representacion/services/lic
 import { buildUnionLicenseDocumentData } from "@/features/representacion/services/license-document-dto";
 import { getActiveUnionDocumentTemplate, UnionTemplateError } from "@/features/representacion/services/union-document-template-repository";
 import { addCaseEvent } from "@/features/representacion/services/cases";
+import { markLicenseDocumentsGenerated } from "@/features/representacion/services/license-management";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,8 @@ export async function POST(req: Request): Promise<NextResponse> {
     });
 
     const buf = buildLicenseWordDocument(docData, template.buffer);
+
+    await markLicenseDocumentsGenerated(parsed.data.case_id);
 
     await addCaseEvent(
       parsed.data.case_id,
