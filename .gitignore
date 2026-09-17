@@ -98,5 +98,6 @@ __pycache__/
 .local-private/
 .tools-venv/
 *.xlsm
+!assets/templates/**
 !supabase/tests/**
 

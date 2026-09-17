@@ -1981,6 +1981,54 @@ export type Database = {
         Update: { delegation_id?: string; delegation_display_name?: string | null; center_name?: string | null; center_address?: string | null; default_recipient_name?: string | null; default_recipient_role?: string | null; general_secretary?: string | null; interior_secretary?: string | null; conflicts_secretary?: string | null; admission_secretary?: string | null; social_welfare_secretary?: string | null; default_signer_name?: string | null; default_signer_role?: string | null; institutional_motto?: string | null; active_templates?: Json; updated_by?: string | null; updated_at?: string }
         Relationships: []
       }
+      union_document_templates: {
+        Row: {
+          id: string
+          delegation_id: string
+          template_kind: string
+          version: string
+          storage_bucket: string
+          storage_path: string
+          mime_type: string
+          sha256: string
+          file_size: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          delegation_id: string
+          template_kind: string
+          version: string
+          storage_bucket?: string
+          storage_path: string
+          mime_type: string
+          sha256: string
+          file_size: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          delegation_id?: string
+          template_kind?: string
+          version?: string
+          storage_bucket?: string
+          storage_path?: string
+          mime_type?: string
+          sha256?: string
+          file_size?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       limited_profiles: {
