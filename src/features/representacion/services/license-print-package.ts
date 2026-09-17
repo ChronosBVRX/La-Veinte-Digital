@@ -227,16 +227,17 @@ export async function buildLicensePrintPackage(
   drawExcelTop(data.elaborationYear, 530, 117, 8, true);
 
   // 3. Tipo de Licencia Checkboxes (Row 9, 11)
+  // Perfectly centered inside boxes: H9 (x: 232), O9 (x: 395), H11 (x: 232), O11 (x: 395)
   if (data.license.withPay) {
-    drawExcelTop("X", 234, 147, 10, true); // Con sueldo
+    drawExcelTop("X", 232, 147, 10, true); // Con sueldo (H9)
   } else {
     const range = data.license.licenseRangeType;
     if (range === "r1_3") {
-      drawExcelTop("X", 400, 147, 10, true); // Sin sueldo 1 a 3
+      drawExcelTop("X", 395, 147, 10, true); // Sin sueldo 1 a 3 (O9)
     } else if (range === "r4_60") {
-      drawExcelTop("X", 234, 174, 10, true); // Sin sueldo 4 a 60
+      drawExcelTop("X", 232, 174, 10, true); // Sin sueldo 4 a 60 (H11)
     } else {
-      drawExcelTop("X", 400, 174, 10, true); // Sin sueldo 61 a 365
+      drawExcelTop("X", 395, 174, 10, true); // Sin sueldo 61 a 365 (O11)
     }
   }
 
@@ -272,11 +273,51 @@ export async function buildLicensePrintPackage(
     drawExcelTop(pE[0] ?? "", 541, 294, 8, true);
   }
 
-  // 7. Prórroga Checkbox (Row 24)
+  // 7. Prórroga Checkbox (Row 24) - Rectangles matching XLSM DrawingML shapes:
+  // SÍ box: [x: 103.87, y: 463.98, w: 18.1, h: 14.63]
+  // NO box: [x: 128.97, y: 463.31, w: 16.78, h: 13.965]
   if (data.license.isExtension) {
-    drawExcelTop("X", 76, 326, 10, true); // SÍ
+    // SÍ is selected (solid black)
+    excelPage.drawRectangle({
+      x: 103.87,
+      y: 463.98,
+      width: 18.1,
+      height: 14.63,
+      color: rgb(0, 0, 0),
+      borderColor: rgb(0, 0, 0),
+      borderWidth: 1,
+    });
+    // NO is unselected (solid white with black outline)
+    excelPage.drawRectangle({
+      x: 128.97,
+      y: 463.31,
+      width: 16.78,
+      height: 13.965,
+      color: rgb(1, 1, 1),
+      borderColor: rgb(0, 0, 0),
+      borderWidth: 1.33,
+    });
   } else {
-    drawExcelTop("X", 128, 326, 10, true); // NO
+    // SÍ is unselected (solid white with black outline)
+    excelPage.drawRectangle({
+      x: 103.87,
+      y: 463.98,
+      width: 18.1,
+      height: 14.63,
+      color: rgb(1, 1, 1),
+      borderColor: rgb(0, 0, 0),
+      borderWidth: 1.78,
+    });
+    // NO is selected (solid black)
+    excelPage.drawRectangle({
+      x: 128.97,
+      y: 463.31,
+      width: 16.78,
+      height: 13.965,
+      color: rgb(0, 0, 0),
+      borderColor: rgb(0, 0, 0),
+      borderWidth: 1,
+    });
   }
 
   // 8. Total de días (Row 24)

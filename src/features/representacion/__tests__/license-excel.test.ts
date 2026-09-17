@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import PizZip from "pizzip";
-import { buildLicenseExcelDocument, buildLicenseExcel, resolveSheetPathByName } from "../services/license-excel";
+import {
+  buildLicenseExcelDocument,
+  buildLicenseExcel,
+  resolveSheetPathByName,
+  LICENSE_TYPE_CELLS,
+  LICENSE_EXTENSION_SHAPES,
+} from "../services/license-excel";
+import { DOMParser, type Element as XmlElement } from "@xmldom/xmldom";
 import type { UnionLicenseDocumentData } from "../services/license-document-dto";
 
 describe("license-excel", () => {
@@ -109,20 +116,99 @@ describe("license-excel", () => {
     expect(licXml).not.toContain("#REF!");
   });
 
-  it("sets correct checkbox in sheet 'Licencia' for con goce and no prórroga", async () => {
+  function getCellInlineText(xml: string, cellRef: string): string | null {
+    const doc = new DOMParser().parseFromString(xml, "text/xml");
+    const cells = doc.getElementsByTagName("c");
+    for (let i = 0; i < cells.length; i++) {
+      const c = cells[i];
+      if (c.getAttribute("r") === cellRef) {
+        const t = c.getElementsByTagName("t")[0];
+        return t ? t.textContent : null;
+      }
+    }
+    return null;
+  }
+
+  function getShapeFillColor(drawingXml: string, shapeId: string): string | null {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(drawingXml, "text/xml");
+    const sps = doc.getElementsByTagName("xdr:sp");
+    for (let i = 0; i < sps.length; i++) {
+      const sp = sps[i];
+      const cNvPr = sp.getElementsByTagName("xdr:cNvPr")[0];
+      if (cNvPr?.getAttribute("id") === shapeId) {
+        const spPr = sp.getElementsByTagName("xdr:spPr")[0];
+        if (!spPr) return null;
+        for (let j = 0; j < spPr.childNodes.length; j++) {
+          const child = spPr.childNodes[j];
+          if (child.nodeName === "a:solidFill") {
+            const clr = (child as unknown as XmlElement).getElementsByTagName("a:srgbClr")[0];
+            return clr?.getAttribute("val") ?? null;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  it("sets correct checkbox in sheet 'Licencia' for con goce (H9) and no prórroga (Shape 4 black, Shape 5 white)", async () => {
     const buf = await buildLicenseExcelDocument(baseDto);
     const zip = new PizZip(buf);
     const licPath = resolveSheetPathByName(zip, "Licencia");
     const licXml = zip.file(licPath)?.asText() ?? "";
 
-    // H9 should have X for con goce
-    expect(licXml).toContain('r="H9"');
-    expect(licXml).toContain("<t>X</t>");
-    // D24 should have X for NO prórroga
-    expect(licXml).toContain('r="D24"');
+    // H9 must have 'X'
+    expect(getCellInlineText(licXml, LICENSE_TYPE_CELLS.withPay)).toBe("X");
+    // O9, H11, O11 must NOT have 'X'
+    expect(getCellInlineText(licXml, LICENSE_TYPE_CELLS.withoutPay1To3)).toBeNull();
+    expect(getCellInlineText(licXml, LICENSE_TYPE_CELLS.withoutPay4To60)).toBeNull();
+    expect(getCellInlineText(licXml, LICENSE_TYPE_CELLS.withoutPay61To365)).toBeNull();
+
+    // Critical: P9 and P11 must NEVER be written
+    expect(getCellInlineText(licXml, "P9")).toBeNull();
+    expect(getCellInlineText(licXml, "P11")).toBeNull();
+
+    // Critical: B24 and D24 must NEVER be written
+    expect(getCellInlineText(licXml, "B24")).toBeNull();
+    expect(getCellInlineText(licXml, "D24")).toBeNull();
+
+    // Prórroga: isExtension is false -> Shape 4 (NO) black, Shape 5 (SÍ) white
+    const drawingXml = zip.file(LICENSE_EXTENSION_SHAPES.yes.drawing)?.asText() ?? "";
+    expect(getShapeFillColor(drawingXml, LICENSE_EXTENSION_SHAPES.no.id)).toBe("000000");
+    expect(getShapeFillColor(drawingXml, LICENSE_EXTENSION_SHAPES.yes.id)).toBe("FFFFFF");
   });
 
-  it("sets correct checkboxes for sin goce 4 a 60 días and prórroga", async () => {
+  it("sets correct checkbox for sin goce 1 a 3 días in O9 (never P9)", async () => {
+    const sinGoce1To3Dto: UnionLicenseDocumentData = {
+      ...baseDto,
+      license: {
+        ...baseDto.license,
+        withPay: false,
+        payKindWord: "SIN",
+        licenseRangeType: "r1_3",
+        totalDays: 2,
+        isExtension: false,
+      },
+    };
+
+    const buf = await buildLicenseExcelDocument(sinGoce1To3Dto);
+    const zip = new PizZip(buf);
+    const licPath = resolveSheetPathByName(zip, "Licencia");
+    const licXml = zip.file(licPath)?.asText() ?? "";
+
+    // O9 must have 'X'
+    expect(getCellInlineText(licXml, LICENSE_TYPE_CELLS.withoutPay1To3)).toBe("X");
+    // Other 3 must be empty
+    expect(getCellInlineText(licXml, LICENSE_TYPE_CELLS.withPay)).toBeNull();
+    expect(getCellInlineText(licXml, LICENSE_TYPE_CELLS.withoutPay4To60)).toBeNull();
+    expect(getCellInlineText(licXml, LICENSE_TYPE_CELLS.withoutPay61To365)).toBeNull();
+
+    // P9 and P11 must NEVER have 'X'
+    expect(getCellInlineText(licXml, "P9")).toBeNull();
+    expect(getCellInlineText(licXml, "P11")).toBeNull();
+  });
+
+  it("sets correct checkboxes for sin goce 4 a 60 días (H11) and prórroga (Shape 5 black, Shape 4 white)", async () => {
     const sinGoceDto: UnionLicenseDocumentData = {
       ...baseDto,
       license: {
@@ -141,9 +227,87 @@ describe("license-excel", () => {
     const licXml = zip.file(licPath)?.asText() ?? "";
 
     // H11 should have X for 4 a 60 días
-    expect(licXml).toContain('r="H11"');
-    // B24 should have X for SÍ prórroga
-    expect(licXml).toContain('r="B24"');
+    expect(getCellInlineText(licXml, LICENSE_TYPE_CELLS.withoutPay4To60)).toBe("X");
+    expect(getCellInlineText(licXml, LICENSE_TYPE_CELLS.withPay)).toBeNull();
+    expect(getCellInlineText(licXml, LICENSE_TYPE_CELLS.withoutPay1To3)).toBeNull();
+    expect(getCellInlineText(licXml, LICENSE_TYPE_CELLS.withoutPay61To365)).toBeNull();
+
+    // P9, P11, B24, D24 must NOT be written
+    expect(getCellInlineText(licXml, "P9")).toBeNull();
+    expect(getCellInlineText(licXml, "P11")).toBeNull();
+    expect(getCellInlineText(licXml, "B24")).toBeNull();
+    expect(getCellInlineText(licXml, "D24")).toBeNull();
+
+    // Prórroga: isExtension is true -> Shape 5 (SÍ) black, Shape 4 (NO) white
+    const drawingXml = zip.file(LICENSE_EXTENSION_SHAPES.yes.drawing)?.asText() ?? "";
+    expect(getShapeFillColor(drawingXml, LICENSE_EXTENSION_SHAPES.yes.id)).toBe("000000");
+    expect(getShapeFillColor(drawingXml, LICENSE_EXTENSION_SHAPES.no.id)).toBe("FFFFFF");
+  });
+
+  it("sets correct checkbox for sin goce 61 a 365 días in O11 (never P11)", async () => {
+    const sinGoceLongDto: UnionLicenseDocumentData = {
+      ...baseDto,
+      license: {
+        ...baseDto.license,
+        withPay: false,
+        payKindWord: "SIN",
+        licenseRangeType: "r61_365",
+        totalDays: 180,
+        isExtension: false,
+      },
+    };
+
+    const buf = await buildLicenseExcelDocument(sinGoceLongDto);
+    const zip = new PizZip(buf);
+    const licPath = resolveSheetPathByName(zip, "Licencia");
+    const licXml = zip.file(licPath)?.asText() ?? "";
+
+    // O11 must have 'X'
+    expect(getCellInlineText(licXml, LICENSE_TYPE_CELLS.withoutPay61To365)).toBe("X");
+    expect(getCellInlineText(licXml, LICENSE_TYPE_CELLS.withPay)).toBeNull();
+    expect(getCellInlineText(licXml, LICENSE_TYPE_CELLS.withoutPay1To3)).toBeNull();
+    expect(getCellInlineText(licXml, LICENSE_TYPE_CELLS.withoutPay4To60)).toBeNull();
+
+    // P9 and P11 must be empty
+    expect(getCellInlineText(licXml, "P9")).toBeNull();
+    expect(getCellInlineText(licXml, "P11")).toBeNull();
+  });
+
+  it("ensures styles for H9, O9, H11, O11 have centered horizontal and vertical alignment", async () => {
+    const buf = await buildLicenseExcelDocument(baseDto);
+    const zip = new PizZip(buf);
+    const stylesXml = zip.file("xl/styles.xml")?.asText() ?? "";
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(stylesXml, "text/xml");
+    const cellXfs = doc.getElementsByTagName("cellXfs")[0];
+    const directXfs: Element[] = [];
+    for (let i = 0; i < cellXfs.childNodes.length; i++) {
+      const n = cellXfs.childNodes[i];
+      if (n.nodeType === 1) directXfs.push(n as unknown as Element);
+    }
+
+    // Styles 49 (H9), 50 (O9), 16 (H11), 17 (O11)
+    for (const idx of [49, 50, 16, 17]) {
+      const xf = directXfs[idx];
+      expect(xf).toBeDefined();
+      expect(xf.getAttribute("applyAlignment")).toBe("1");
+      const al = xf.getElementsByTagName("alignment")[0];
+      expect(al).toBeDefined();
+      expect(al.getAttribute("horizontal")).toBe("center");
+      expect(al.getAttribute("vertical")).toBe("center");
+    }
+  });
+
+  it("throws UNION_TEMPLATE_INVALID if drawing1.xml is missing required shapes", async () => {
+    // Read valid template and mutate drawing1.xml to strip shapes
+    const validBuf = await buildLicenseExcelDocument(baseDto);
+    const zip = new PizZip(validBuf);
+    zip.file("xl/drawings/drawing1.xml", `<?xml version="1.0" encoding="UTF-8"?><xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"/>`);
+    const mutatedBuf = zip.generate({ type: "nodebuffer" });
+
+    await expect(buildLicenseExcelDocument(baseDto, mutatedBuf)).rejects.toMatchObject({
+      code: "UNION_TEMPLATE_INVALID",
+    });
   });
 
   it("legacy wrapper buildLicenseExcel functions properly with V2 template", async () => {
