@@ -11,6 +11,7 @@ import type {
   ImportRollbackResult,
   RowIssue,
   RowStatus,
+  LockerConflictReasonCode,
 } from "./types";
 import { writeAuditLog } from "../audit";
 
@@ -181,17 +182,24 @@ export async function parseAndPreviewLockerImport(params: {
     }
   }
 
-  // Detectar duplicados en el archivo (mismo casillero reclamado por múltiples matrículas)
-  const lockerOccurrences = new Map<string, number[]>();
+  // Indexar ocurrencias en el archivo por casillero y por matrícula
+  const rowsByLocker = new Map<string, RawLockerRow[]>();
+  const rowsByMatricula = new Map<string, RawLockerRow[]>();
+
   for (const row of rawRows) {
     if (row.normalizedLocker && !row.isSemanticLocker) {
-      const list = lockerOccurrences.get(row.normalizedLocker) ?? [];
-      list.push(row.rowNumber);
-      lockerOccurrences.set(row.normalizedLocker, list);
+      const list = rowsByLocker.get(row.normalizedLocker) ?? [];
+      list.push(row);
+      rowsByLocker.set(row.normalizedLocker, list);
+    }
+    if (row.normalizedMatricula) {
+      const list = rowsByMatricula.get(row.normalizedMatricula) ?? [];
+      list.push(row);
+      rowsByMatricula.set(row.normalizedMatricula, list);
     }
   }
 
-  // 6. Analizar cada fila de lockers
+  // 6. Analizar cada fila de lockers con clasificación detallada
   interface LockerAnalyzedRow {
     rowNumber: number;
     matricula: string;
@@ -203,6 +211,9 @@ export async function parseAndPreviewLockerImport(params: {
     isSemantic: boolean;
     observations: string;
     status: RowStatus;
+    conflictReasonCode?: LockerConflictReasonCode;
+    autoResolvable?: boolean;
+    duplicateOfRow?: number;
     issues: RowIssue[];
     diff?: Record<string, unknown>;
     targetWorkerId: string | null;
@@ -218,6 +229,18 @@ export async function parseAndPreviewLockerImport(params: {
   let conflictsCount = 0;
   let ignoredRowsCount = 0;
 
+  const conflictBreakdown: Record<LockerConflictReasonCode, number> = {
+    WORKER_NOT_FOUND: 0,
+    DUPLICATE_LOCKER_SAME_WORKER: 0,
+    DUPLICATE_LOCKER_DIFFERENT_WORKERS: 0,
+    WORKER_MULTIPLE_LOCKERS: 0,
+    LOCKER_ASSIGNED_TO_OTHER_WORKER: 0,
+    DUPLICATE_IDENTICAL_ROW: 0,
+    INVALID_LOCKER: 0,
+    INVALID_EMPLOYEE_NUMBER: 0,
+    OTHER: 0,
+  };
+
   const seenDbLockerNumbers = new Set(dbLockers.map((l) => l.locker_number));
   let newPhysicalLockers = 0;
 
@@ -229,6 +252,9 @@ export async function parseAndPreviewLockerImport(params: {
     let category: string | undefined;
     let department: string | undefined;
     let currentLocker: string | undefined;
+    let conflictReasonCode: LockerConflictReasonCode | undefined;
+    let autoResolvable: boolean | undefined;
+    let duplicateOfRow: number | undefined;
 
     // Fila sin casillero ni semántico
     if (!r.normalizedLocker && !r.isSemanticLocker) {
@@ -241,6 +267,8 @@ export async function parseAndPreviewLockerImport(params: {
         isSemantic: false,
         observations: r.observations,
         status: "ignored",
+        conflictReasonCode: "INVALID_LOCKER",
+        autoResolvable: false,
         issues: [{ code: "NO_LOCKER_IN_ROW", message: "Fila sin número de casillero", severity: "warning" }],
         targetWorkerId: null,
       });
@@ -257,6 +285,8 @@ export async function parseAndPreviewLockerImport(params: {
         isSemantic: true,
         observations: r.observations,
         status: "ignored",
+        conflictReasonCode: "INVALID_LOCKER",
+        autoResolvable: false,
         issues: [{ code: "SEMANTIC_LOCKER", message: `Casillero semántico no físico: "${r.rawLocker}"`, severity: "warning" }],
         targetWorkerId: null,
       });
@@ -269,70 +299,139 @@ export async function parseAndPreviewLockerImport(params: {
       seenDbLockerNumbers.add(r.normalizedLocker);
     }
 
-    // Verificar existencia del trabajador en padrón (REGLA MANDATORIA)
-    const existingWorker = r.normalizedMatricula ? workerByEmpNumber.get(r.normalizedMatricula) : null;
-
-    if (!existingWorker) {
-      unknownWorkersCount++;
+    // Validación de matrícula
+    if (!r.normalizedMatricula) {
       conflictsCount++;
       status = "conflict";
+      conflictReasonCode = "INVALID_EMPLOYEE_NUMBER";
+      conflictBreakdown.INVALID_EMPLOYEE_NUMBER++;
+      autoResolvable = false;
       issues.push({
-        code: "WORKER_NOT_FOUND_IN_ROSTER",
-        message: "Trabajador no encontrado en el padrón",
+        code: "INVALID_EMPLOYEE_NUMBER",
+        message: "Fila con casillero pero sin matrícula de trabajador.",
         severity: "error",
       });
     } else {
-      targetWorkerId = existingWorker.id;
-      workerFullName = `${existingWorker.paternal_surname} ${existingWorker.maternal_surname ?? ""} ${existingWorker.first_name}`.trim();
-      category = existingWorker.category;
-      department = existingWorker.assignment;
+      // Verificar existencia del trabajador en padrón (REGLA MANDATORIA)
+      const existingWorker = workerByEmpNumber.get(r.normalizedMatricula);
 
-      const activeAsgn = activeAssignmentByWorkerId.get(existingWorker.id);
-      currentLocker = activeAsgn?.lockerNumber;
-
-      // Verificar casillero duplicado en el archivo
-      const rowsWithSameLocker = lockerOccurrences.get(r.normalizedLocker) ?? [];
-      if (rowsWithSameLocker.length > 1) {
-        duplicateLockersCount++;
+      if (!existingWorker) {
+        unknownWorkersCount++;
         conflictsCount++;
         status = "conflict";
+        conflictReasonCode = "WORKER_NOT_FOUND";
+        conflictBreakdown.WORKER_NOT_FOUND++;
+        autoResolvable = false;
         issues.push({
-          code: "DUPLICATE_LOCKER_IN_FILE",
-          message: `El casillero ${r.normalizedLocker} aparece ${rowsWithSameLocker.length} veces en el archivo (filas ${rowsWithSameLocker.join(", ")}).`,
+          code: "WORKER_NOT_FOUND",
+          message: "Trabajador no encontrado en el padrón",
           severity: "error",
         });
-      }
+      } else {
+        targetWorkerId = existingWorker.id;
+        workerFullName = `${existingWorker.paternal_surname} ${existingWorker.maternal_surname ?? ""} ${existingWorker.first_name}`.trim();
+        category = existingWorker.category;
+        department = existingWorker.assignment;
 
-      // Verificar si el casillero en BD está ocupado por OTRO trabajador
-      const dbLocker = lockerByNumber.get(r.normalizedLocker);
-      if (dbLocker) {
-        const lockerAsgn = activeAssignmentByLockerId.get(dbLocker.id);
-        if (lockerAsgn && lockerAsgn.workerId !== existingWorker.id) {
-          const otherWorker = dbWorkers.find((w) => w.id === lockerAsgn.workerId);
+        const activeAsgn = activeAssignmentByWorkerId.get(existingWorker.id);
+        currentLocker = activeAsgn?.lockerNumber;
+
+        const lockerRows = rowsByLocker.get(r.normalizedLocker) ?? [];
+        const matriculaRows = rowsByMatricula.get(r.normalizedMatricula) ?? [];
+
+        const distinctMatriculasForLocker = new Set(lockerRows.map((lr) => lr.normalizedMatricula));
+        const distinctLockersForMatricula = new Set(matriculaRows.map((mr) => mr.normalizedLocker));
+
+        // Prioridad 1: Múltiples trabajadores reclamando el mismo casillero en el archivo
+        if (distinctMatriculasForLocker.size > 1) {
           conflictsCount++;
+          duplicateLockersCount++;
           status = "conflict";
+          conflictReasonCode = "DUPLICATE_LOCKER_DIFFERENT_WORKERS";
+          conflictBreakdown.DUPLICATE_LOCKER_DIFFERENT_WORKERS++;
+          autoResolvable = false;
           issues.push({
-            code: "LOCKER_OCCUPIED_BY_OTHER",
-            message: `El casillero ${r.normalizedLocker} actualmente está asignado a ${otherWorker ? `${otherWorker.paternal_surname} ${otherWorker.first_name} (${otherWorker.employee_number})` : "otro trabajador"}.`,
+            code: "DUPLICATE_LOCKER_DIFFERENT_WORKERS",
+            message: `El casillero ${r.normalizedLocker} es reclamado por diferentes trabajadores (filas ${lockerRows.map((lr) => lr.rowNumber).join(", ")}). Requiere decisión manual.`,
             severity: "error",
           });
         }
-      }
+        // Prioridad 2: Mismo trabajador asociado a diferentes casilleros en el archivo
+        else if (distinctLockersForMatricula.size > 1) {
+          conflictsCount++;
+          status = "conflict";
+          conflictReasonCode = "WORKER_MULTIPLE_LOCKERS";
+          conflictBreakdown.WORKER_MULTIPLE_LOCKERS++;
+          autoResolvable = false;
+          issues.push({
+            code: "WORKER_MULTIPLE_LOCKERS",
+            message: `El trabajador ${r.normalizedMatricula} aparece asociado a múltiples casilleros (${Array.from(distinctLockersForMatricula).join(", ")}). Requiere decisión manual.`,
+            severity: "error",
+          });
+        }
+        // Prioridad 3: Duplicados para el mismo trabajador y casillero
+        else if (matriculaRows.length > 1) {
+          const primaryRow = matriculaRows[0];
+          if (r.rowNumber !== primaryRow.rowNumber) {
+            // Fila duplicada secundaria: resoluble automáticamente como skip
+            conflictsCount++;
+            duplicateLockersCount++;
+            status = "conflict";
+            const isIdentical =
+              r.rawNombre === primaryRow.rawNombre &&
+              r.observations === primaryRow.observations;
+            conflictReasonCode = isIdentical ? "DUPLICATE_IDENTICAL_ROW" : "DUPLICATE_LOCKER_SAME_WORKER";
+            if (isIdentical) {
+              conflictBreakdown.DUPLICATE_IDENTICAL_ROW++;
+            } else {
+              conflictBreakdown.DUPLICATE_LOCKER_SAME_WORKER++;
+            }
+            autoResolvable = true;
+            duplicateOfRow = primaryRow.rowNumber;
+            issues.push({
+              code: conflictReasonCode,
+              message: `Fila duplicada para el mismo trabajador y casillero (duplicado de fila #${primaryRow.rowNumber}). Se resolverá como una sola asignación efectiva.`,
+              severity: "warning",
+            });
+          }
+        }
 
-      // Si no hubo conflictos bloqueantes, determinar acción de asignación
-      if (status !== "conflict") {
-        if (!currentLocker) {
-          // Nueva asignación
-          status = "new";
-          newLockerAssignments++;
-        } else if (currentLocker !== r.normalizedLocker) {
-          // Cambio de casillero
-          status = "updated";
-          lockerChanges++;
-        } else {
-          // Sin cambios
-          status = "unchanged";
-          unchangedLockers++;
+        // Prioridad 4: Casillero ocupado por OTRO trabajador en base de datos
+        if (!conflictReasonCode) {
+          const dbLocker = lockerByNumber.get(r.normalizedLocker);
+          if (dbLocker) {
+            const lockerAsgn = activeAssignmentByLockerId.get(dbLocker.id);
+            if (lockerAsgn && lockerAsgn.workerId !== existingWorker.id) {
+              const otherWorker = dbWorkers.find((w) => w.id === lockerAsgn.workerId);
+              conflictsCount++;
+              status = "conflict";
+              conflictReasonCode = "LOCKER_ASSIGNED_TO_OTHER_WORKER";
+              conflictBreakdown.LOCKER_ASSIGNED_TO_OTHER_WORKER++;
+              autoResolvable = false;
+              issues.push({
+                code: "LOCKER_ASSIGNED_TO_OTHER_WORKER",
+                message: `El casillero ${r.normalizedLocker} actualmente está asignado en sistema a ${otherWorker ? `${otherWorker.paternal_surname} ${otherWorker.first_name} (${otherWorker.employee_number})` : "otro trabajador"}. Requiere revisión.`,
+                severity: "error",
+              });
+            }
+          }
+        }
+
+        // Si no hubo conflictos bloqueantes, determinar acción de asignación
+        if (status !== "conflict") {
+          if (!currentLocker) {
+            // Nueva asignación
+            status = "new";
+            newLockerAssignments++;
+          } else if (currentLocker !== r.normalizedLocker) {
+            // Cambio de casillero
+            status = "updated";
+            lockerChanges++;
+          } else {
+            // Sin cambios (misma asignación existente)
+            status = "unchanged";
+            unchangedLockers++;
+          }
         }
       }
     }
@@ -348,8 +447,14 @@ export async function parseAndPreviewLockerImport(params: {
       isSemantic: false,
       observations: r.observations,
       status,
+      conflictReasonCode,
+      autoResolvable,
+      duplicateOfRow,
       issues,
       diff: {
+        conflictReasonCode,
+        autoResolvable,
+        duplicateOfRow,
         lockerChange: {
           currentLocker: currentLocker ?? null,
           excelLocker: r.normalizedLocker,
@@ -359,6 +464,17 @@ export async function parseAndPreviewLockerImport(params: {
       targetWorkerId,
     });
   }
+
+  const autoResolvableCount =
+    conflictBreakdown.DUPLICATE_IDENTICAL_ROW +
+    conflictBreakdown.DUPLICATE_LOCKER_SAME_WORKER;
+  const workerNotFoundCount = conflictBreakdown.WORKER_NOT_FOUND;
+  const realConflictsCount =
+    conflictBreakdown.DUPLICATE_LOCKER_DIFFERENT_WORKERS +
+    conflictBreakdown.WORKER_MULTIPLE_LOCKERS +
+    conflictBreakdown.LOCKER_ASSIGNED_TO_OTHER_WORKER +
+    conflictBreakdown.INVALID_EMPLOYEE_NUMBER +
+    conflictBreakdown.OTHER;
 
   const summary: ImportSummary = {
     totalRows: analyzedRows.length,
@@ -383,6 +499,10 @@ export async function parseAndPreviewLockerImport(params: {
     warningsCount: analyzedRows.filter((r) => r.status === "warning").length,
     invalidCount: unknownWorkersCount,
     conflictsCount,
+    conflictBreakdown,
+    autoResolvableCount,
+    workerNotFoundCount,
+    realConflictsCount,
   };
 
   // 7. Crear lote en union_worker_import_batches con format_version = "UNION_LOCKERS_V1"
@@ -412,6 +532,10 @@ export async function parseAndPreviewLockerImport(params: {
         lockerChanges,
         unchangedLockers,
         unknownWorkersCount,
+        conflictBreakdown,
+        autoResolvableCount,
+        workerNotFoundCount,
+        realConflictsCount,
       } as unknown as Json,
     })
     .select("id")
@@ -443,6 +567,7 @@ export async function parseAndPreviewLockerImport(params: {
         locker: a.lockerExcel,
         is_semantic_locker: a.isSemantic,
         raw_observations: a.observations,
+        conflict_reason_code: a.conflictReasonCode,
       } as unknown) as Json,
       row_status: a.status,
       action_taken: actionTaken,
@@ -476,6 +601,9 @@ export async function parseAndPreviewLockerImport(params: {
     lockerExcel: a.lockerExcel,
     observations: a.observations,
     status: a.status,
+    conflictReasonCode: a.conflictReasonCode,
+    autoResolvable: a.autoResolvable,
+    duplicateOfRow: a.duplicateOfRow,
     issues: a.issues,
     diff: a.diff as PreviewRow["diff"],
   }));

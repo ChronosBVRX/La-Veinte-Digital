@@ -23,6 +23,8 @@ export function LockerImportWizard(): React.JSX.Element {
   const [confirmResult, setConfirmResult] = useState<ImportConfirmResult | null>(null);
   const [resolutions, setResolutions] = useState<Record<number, Record<string, string>>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAutoResolveModalOpen, setIsAutoResolveModalOpen] = useState(false);
+  const [isSkipWorkerNotFoundModalOpen, setIsSkipWorkerNotFoundModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"import" | "history">("import");
 
   const uploadUrlEndpoint = "/api/union/lockers/import/upload-url";
@@ -36,6 +38,8 @@ export function LockerImportWizard(): React.JSX.Element {
     setPreviewResult(null);
     setConfirmResult(null);
     setResolutions({});
+    setIsAutoResolveModalOpen(false);
+    setIsSkipWorkerNotFoundModalOpen(false);
 
     try {
       const MAX_FILE_SIZE = 15 * 1024 * 1024;
@@ -98,7 +102,42 @@ export function LockerImportWizard(): React.JSX.Element {
     }));
   }, []);
 
-  const unresolvedConflicts = (previewResult?.rows ?? []).filter((r) => {
+  const rows = previewResult?.rows ?? [];
+
+  // Filas duplicadas del mismo trabajador/locker que pueden resolverse de forma segura
+  const autoResolvableRows = rows.filter(
+    (r) =>
+      (r.autoResolvable ||
+        r.conflictReasonCode === "DUPLICATE_IDENTICAL_ROW" ||
+        r.conflictReasonCode === "DUPLICATE_LOCKER_SAME_WORKER") &&
+      !resolutions[r.rowNumber]
+  );
+
+  // Filas con trabajador no encontrado en padrón pendientes de omisión
+  const workerNotFoundRows = rows.filter(
+    (r) =>
+      (r.conflictReasonCode === "WORKER_NOT_FOUND" ||
+        (r.status === "conflict" &&
+          r.issues.some((i) => i.code === "WORKER_NOT_FOUND" || i.code === "WORKER_NOT_FOUND_IN_ROSTER"))) &&
+      !resolutions[r.rowNumber]
+  );
+
+  // Conflictos reales que requieren decisión humana
+  const realHumanConflicts = rows.filter((r) => {
+    if (r.status !== "conflict") return false;
+    if (resolutions[r.rowNumber]) return false;
+    const isNotFound =
+      r.conflictReasonCode === "WORKER_NOT_FOUND" ||
+      r.issues.some((i) => i.code === "WORKER_NOT_FOUND" || i.code === "WORKER_NOT_FOUND_IN_ROSTER");
+    const isAuto =
+      r.autoResolvable ||
+      r.conflictReasonCode === "DUPLICATE_IDENTICAL_ROW" ||
+      r.conflictReasonCode === "DUPLICATE_LOCKER_SAME_WORKER";
+    return !isNotFound && !isAuto;
+  });
+
+  // Conflictos que siguen bloqueando la confirmación
+  const unresolvedConflicts = rows.filter((r) => {
     if (r.status !== "conflict") return false;
     const res = resolutions[r.rowNumber];
     if (!res || (res.action !== "skip" && res.action !== "resolve")) {
@@ -108,6 +147,37 @@ export function LockerImportWizard(): React.JSX.Element {
   });
 
   const hasBlockingConflicts = unresolvedConflicts.length > 0;
+
+  function handleAutoResolve(): void {
+    setResolutions((prev) => {
+      const next = { ...prev };
+      for (const r of autoResolvableRows) {
+        next[r.rowNumber] = {
+          action: "skip",
+          reason:
+            r.conflictReasonCode === "DUPLICATE_IDENTICAL_ROW"
+              ? "IGNORED_DUPLICATE"
+              : "IGNORED_DUPLICATE_SAME_WORKER",
+        };
+      }
+      return next;
+    });
+    setIsAutoResolveModalOpen(false);
+  }
+
+  function handleSkipWorkerNotFound(): void {
+    setResolutions((prev) => {
+      const next = { ...prev };
+      for (const r of workerNotFoundRows) {
+        next[r.rowNumber] = {
+          action: "skip",
+          reason: "SKIPPED_WORKER_NOT_FOUND",
+        };
+      }
+      return next;
+    });
+    setIsSkipWorkerNotFoundModalOpen(false);
+  }
 
   async function handleConfirmImport(): Promise<void> {
     if (!previewResult) return;
@@ -260,10 +330,34 @@ export function LockerImportWizard(): React.JSX.Element {
                       Revisa los casilleros y asignaciones detectados antes de guardar los cambios oficiales.
                     </p>
                   </div>
-                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
                     <Button variant="ghost" size="sm" onClick={handleReset} disabled={confirming}>
                       Descartar y volver
                     </Button>
+
+                    {autoResolvableRows.length > 0 ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setIsAutoResolveModalOpen(true)}
+                        disabled={confirming}
+                      >
+                        Resolver automáticamente ({autoResolvableRows.length})
+                      </Button>
+                    ) : null}
+
+                    {workerNotFoundRows.length > 0 ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setIsSkipWorkerNotFoundModalOpen(true)}
+                        disabled={confirming}
+                        style={{ borderColor: "#ea580c", color: "#c2410c" }}
+                      >
+                        Omitir {workerNotFoundRows.length} no en padrón
+                      </Button>
+                    ) : null}
+
                     <Button
                       variant="primary"
                       size="sm"
@@ -305,6 +399,168 @@ export function LockerImportWizard(): React.JSX.Element {
                 summary={previewResult.summary}
                 domain="LOCKER"
               />
+
+              {/* Modal de Resolución Automática */}
+              {isAutoResolveModalOpen ? (
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  style={{
+                    position: "fixed",
+                    inset: 0,
+                    backgroundColor: "rgba(0, 0, 0, 0.5)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    zIndex: 50,
+                    padding: "1rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      backgroundColor: "var(--card)",
+                      borderRadius: "0.5rem",
+                      padding: "1.5rem",
+                      maxWidth: "520px",
+                      width: "100%",
+                      border: "1px solid var(--border)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "1rem",
+                    }}
+                  >
+                    <h3 style={{ margin: 0, fontSize: "1.125rem" }}>Resolución automática segura</h3>
+                    <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)" }}>
+                      El sistema resolverá de forma determinista únicamente los casos seguros sin adivinar:
+                    </p>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.875rem" }}>
+                      <div
+                        style={{
+                          padding: "0.75rem",
+                          borderRadius: "0.375rem",
+                          backgroundColor: "#f0fdf4",
+                          border: "1px solid #bbf7d0",
+                          color: "#166534",
+                        }}
+                      >
+                        <strong>Podemos resolver de forma segura:</strong>
+                        <ul style={{ margin: "0.375rem 0 0", paddingLeft: "1.25rem" }}>
+                          <li>
+                            {autoResolvableRows.length} fila(s) duplicadas del mismo trabajador y casillero (se mantendrá una sola operación efectiva).
+                          </li>
+                        </ul>
+                      </div>
+
+                      {workerNotFoundRows.length > 0 || realHumanConflicts.length > 0 ? (
+                        <div
+                          style={{
+                            padding: "0.75rem",
+                            borderRadius: "0.375rem",
+                            backgroundColor: "#fff7ed",
+                            border: "1px solid #fed7aa",
+                            color: "#9a3412",
+                          }}
+                        >
+                          <strong>No se pueden resolver automáticamente:</strong>
+                          <ul style={{ margin: "0.375rem 0 0", paddingLeft: "1.25rem" }}>
+                            {workerNotFoundRows.length > 0 ? (
+                              <li>
+                                {workerNotFoundRows.length} trabajadores no encontrados en el padrón (requieren actualización del padrón u omisión temporal).
+                              </li>
+                            ) : null}
+                            {realHumanConflicts.length > 0 ? (
+                              <li>
+                                {realHumanConflicts.length} conflicto(s) que requieren tu decisión manual (ej. casillero reclamado por distintos trabajadores).
+                              </li>
+                            ) : null}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
+                      <Button variant="ghost" size="sm" onClick={() => setIsAutoResolveModalOpen(false)}>
+                        Cancelar
+                      </Button>
+                      <Button variant="primary" size="sm" onClick={handleAutoResolve}>
+                        Resolver {autoResolvableRows.length} automáticamente
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Modal de Omisión Masiva de Trabajadores No Encontrados */}
+              {isSkipWorkerNotFoundModalOpen ? (
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  style={{
+                    position: "fixed",
+                    inset: 0,
+                    backgroundColor: "rgba(0, 0, 0, 0.5)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    zIndex: 50,
+                    padding: "1rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      backgroundColor: "var(--card)",
+                      borderRadius: "0.5rem",
+                      padding: "1.5rem",
+                      maxWidth: "520px",
+                      width: "100%",
+                      border: "1px solid var(--border)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "1rem",
+                    }}
+                  >
+                    <h3 style={{ margin: 0, fontSize: "1.125rem" }}>
+                      Omitir temporalmente trabajadores no encontrados
+                    </h3>
+
+                    <div style={{ fontSize: "0.875rem", color: "var(--fg)", lineHeight: 1.5 }}>
+                      <p style={{ margin: "0 0 0.75rem" }}>
+                        <strong>{workerNotFoundRows.length} filas</strong> corresponden a matrículas que no existen actualmente en el padrón de trabajadores.
+                      </p>
+                      <p style={{ margin: "0 0 0.75rem", color: "var(--muted)" }}>
+                        Estas filas pueden omitirse sin modificar sus lockers. Después de actualizar el padrón de trabajadores podrás volver a importar este archivo para conciliarlas.
+                      </p>
+                      <div
+                        style={{
+                          padding: "0.625rem 0.75rem",
+                          borderRadius: "0.375rem",
+                          backgroundColor: "#eff6ff",
+                          border: "1px solid #bfdbfe",
+                          color: "#1e40af",
+                          fontSize: "0.8125rem",
+                        }}
+                      >
+                        🛡️ <strong>Garantía de seguridad:</strong> Omitir estas filas <strong>NO creará trabajadores</strong>, <strong>NO asignará lockers</strong>, <strong>NO eliminará lockers</strong> ni liberará asignaciones existentes. Es estrictamente un NO-OP.
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
+                      <Button variant="ghost" size="sm" onClick={() => setIsSkipWorkerNotFoundModalOpen(false)}>
+                        Cancelar
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={handleSkipWorkerNotFound}
+                        style={{ backgroundColor: "#d97706" }}
+                      >
+                        Omitir {workerNotFoundRows.length} temporalmente
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : (
             <Card padding="1.25rem">

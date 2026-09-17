@@ -156,9 +156,23 @@ export interface PreviousWorkerSnapshot {
   active_assignment_id: string | null;
 }
 
+export type LockerConflictReasonCode =
+  | "WORKER_NOT_FOUND"
+  | "DUPLICATE_LOCKER_SAME_WORKER"
+  | "DUPLICATE_LOCKER_DIFFERENT_WORKERS"
+  | "WORKER_MULTIPLE_LOCKERS"
+  | "LOCKER_ASSIGNED_TO_OTHER_WORKER"
+  | "DUPLICATE_IDENTICAL_ROW"
+  | "INVALID_LOCKER"
+  | "INVALID_EMPLOYEE_NUMBER"
+  | "OTHER";
+
 export interface RowDiff {
   changes: FieldDiff[];
   conflictReason?: string;
+  conflictReasonCode?: LockerConflictReasonCode;
+  autoResolvable?: boolean;
+  duplicateOfRow?: number;
   previous_snapshot?: PreviousWorkerSnapshot;
   lockerChange?: {
     currentLocker: string | null;
@@ -191,6 +205,11 @@ export interface ImportSummary {
   warningsCount?: number;
   invalidCount?: number;
   conflictsCount?: number;
+  // Desglose detallado y resolución automática de casilleros
+  conflictBreakdown?: Record<LockerConflictReasonCode, number>;
+  autoResolvableCount?: number;
+  workerNotFoundCount?: number;
+  realConflictsCount?: number;
 }
 
 export interface PreviewRow {
@@ -210,6 +229,9 @@ export interface PreviewRow {
   maskedCurp?: string;
   maskedNss?: string;
   status: RowStatus;
+  conflictReasonCode?: LockerConflictReasonCode;
+  autoResolvable?: boolean;
+  duplicateOfRow?: number;
   issues: RowIssue[];
   diff?: RowDiff;
   resolutions?: Record<string, string>;
