@@ -1,8 +1,8 @@
-// Excel de licencia 1A74-009-036 con ExcelJS (sin macros, .xlsx).
-// Conserva disposición institucional: encabezados, periodo, adeudos, firmas,
-// área de impresión A1:T58. Los valores provienen de UNA sola captura.
-
-import ExcelJS from "exceljs";
+import fs from "fs";
+import path from "path";
+import PizZip from "pizzip";
+import { DOMParser, XMLSerializer, type Document as XmlDocument } from "@xmldom/xmldom";
+import type { UnionLicenseDocumentData } from "./license-document-dto";
 
 export interface LicenseExcelWorker {
   paternalSurname: string;
@@ -40,97 +40,313 @@ export interface LicenseExcelInput {
   debtStatus: string;
 }
 
-function cell(ws: ExcelJS.Worksheet, addr: string, value: string | number, bold = false, size = 10): void {
-  const c = ws.getCell(addr);
-  c.value = value;
-  c.font = { name: "Arial", size, bold };
-  c.alignment = { vertical: "middle", wrapText: true };
+const LOCAL_FALLBACK_TEMPLATE_PATH = path.join(
+  process.cwd(),
+  "assets/templates/union/licencias/formato-licencia-1A74-009-036.xlsm",
+);
+
+function setCellText(doc: XmlDocument, cellRef: string, text: string): void {
+  const cells = doc.getElementsByTagName("c");
+  for (let i = 0; i < cells.length; i++) {
+    const c = cells[i];
+    if (c.getAttribute("r") === cellRef) {
+      c.setAttribute("t", "inlineStr");
+      while (c.firstChild) {
+        c.removeChild(c.firstChild);
+      }
+      const isElem = doc.createElement("is");
+      const tElem = doc.createElement("t");
+      tElem.textContent = text;
+      isElem.appendChild(tElem);
+      c.appendChild(isElem);
+      return;
+    }
+  }
+
+  // If cell element not found, search row and append
+  const rowMatch = cellRef.match(/^([A-Z]+)(\d+)$/);
+  if (rowMatch) {
+    const rowNum = rowMatch[2];
+    const rows = doc.getElementsByTagName("row");
+    for (let j = 0; j < rows.length; j++) {
+      const r = rows[j];
+      if (r.getAttribute("r") === rowNum) {
+        const cElem = doc.createElement("c");
+        cElem.setAttribute("r", cellRef);
+        cElem.setAttribute("t", "inlineStr");
+        const isElem = doc.createElement("is");
+        const tElem = doc.createElement("t");
+        tElem.textContent = text;
+        isElem.appendChild(tElem);
+        cElem.appendChild(isElem);
+        r.appendChild(cElem);
+        return;
+      }
+    }
+  }
 }
 
-export async function buildLicenseExcel(input: LicenseExcelInput): Promise<Buffer> {
-  const wb = new ExcelJS.Workbook();
-  wb.creator = "La Veinte Digital — Representación Sindical XXI";
-  wb.created = new Date();
-  const ws = wb.addWorksheet("Licencia", {
-    pageSetup: { orientation: "portrait", fitToPage: true, fitToWidth: 1, fitToHeight: 1 },
-  });
-  ws.pageSetup.printArea = "A1:T58";
-  ws.columns = Array.from({ length: 20 }, () => ({ width: 9 }));
-
-  cell(ws, "A1", `HORARIO: ${input.worker.schedule}`, true, 9);
-  cell(ws, "A2", `DESCANSOS: ${input.worker.restDays}`, true, 9);
-  cell(ws, "E3", "DIRECCIÓN DE ADMINISTRACIÓN", true, 11);
-  cell(ws, "Q3", "SOLICITUD DE LICENCIA", true, 11);
-  cell(ws, "E4", `OOAD: ${input.ooad || "MICHOACÁN"}`, false, 10);
-  cell(ws, "E6", `LUGAR: ${input.place}`, false, 10);
-  cell(ws, "M6", "FOLIO", true, 9);
-  ws.mergeCells("M7:N7");
-  cell(ws, "M7", input.folio, true, 10);
-  cell(ws, "Q6", "DÍA / MES / AÑO", true, 9);
-  ws.mergeCells("Q7:S7");
-  cell(ws, "Q7", `${input.elaborationDay} / ${input.elaborationMonth} / ${input.elaborationYear}`, false, 10);
-  cell(ws, "C8", "Responsable de los Servicios de Personal Presente", false, 10);
-  cell(ws, "A9", "Vo. Bo. JEFA DE SERVICIO", true, 8);
-  cell(ws, "I9", "LICENCIA CON SUELDO", true, 9);
-  cell(ws, "Q9", "LICENCIA SIN SUELDO DE 1 A 3 DÍAS", true, 8);
-  cell(ws, "I11", "LICENCIA SIN SUELDO DE 4 A 60 DÍAS", true, 8);
-  cell(ws, "Q11", "LICENCIA SIN SUELDO DE 61 A 365 DÍAS", true, 8);
-  cell(ws, "I12", input.withPay ? "[X]" : "[ ]", true, 12);
-  const range = input.rangeLabel.toLowerCase();
-  cell(ws, "Q12", range.includes("1 a 3") ? "[X]" : "[ ]", true, 12);
-  cell(ws, "I13", range.includes("4 a 60") ? "[X]" : "[ ]", true, 12);
-  cell(ws, "Q13", range.includes("61 a 365") ? "[X]" : "[ ]", true, 12);
-  cell(ws, "B14", "APELLIDO PATERNO", true, 8);
-  cell(ws, "F14", "APELLIDO MATERNO", true, 8);
-  cell(ws, "J14", "NOMBRE(S)", true, 8);
-  cell(ws, "Q14", "MATRÍCULA", true, 8);
-  cell(ws, "S14", "TURNO", true, 8);
-  cell(ws, "B15", input.worker.paternalSurname, false, 10);
-  cell(ws, "F15", input.worker.maternalSurname, false, 10);
-  cell(ws, "J15", input.worker.firstName, false, 10);
-  cell(ws, "Q15", input.worker.employeeNumber, false, 10);
-  cell(ws, "S15", input.worker.turn, false, 10);
-  cell(ws, "B16", "CATEGORÍA", true, 8);
-  cell(ws, "K16", "ADSCRIPCIÓN", true, 8);
-  cell(ws, "C17", input.worker.category, false, 10);
-  cell(ws, "K17", input.worker.assignment || "HOSPITAL GENERAL REGIONAL No. 1", false, 10);
-  cell(ws, "C18", "PERIODO QUE SOLICITA", true, 9);
-  cell(ws, "K18", "LICENCIAS ANTERIORES", true, 9);
-  cell(ws, "B19", "INICIO", true, 8);
-  cell(ws, "F19", "TÉRMINO", true, 8);
-  ws.mergeCells("B20:D20");
-  cell(ws, "B20", `DÍA ${input.startDay}  MES ${input.startMonth}  AÑO ${input.startYear}`, false, 10);
-  ws.mergeCells("F20:H20");
-  cell(ws, "F20", `DÍA ${input.endDay}  MES ${input.endMonth}  AÑO ${input.endYear}`, false, 10);
-  cell(ws, "B23", `Es prórroga: ${input.isExtension ? "SÍ" : "NO"}`, false, 10);
-  cell(ws, "F23", "TOTAL DE DÍAS", true, 9);
-  cell(ws, "F24", `${input.totalDays}`, true, 12);
-  cell(ws, "A26", `TEL. ${input.phone}`, false, 10);
-  cell(ws, "B27", "Motivo:", true, 9);
-  cell(ws, "F27", input.reason, false, 10);
-  cell(ws, "B28", "Comprobante de la solicitud:", true, 9);
-  cell(ws, "F28", input.proof, false, 10);
-  cell(ws, "B29", "CONTROL DE ADEUDOS", true, 9);
-  cell(ws, "B30", "LLÉNESE SI SE TRATASE DE LICENCIA CON GOCE DE SUELDO:", false, 8);
-  cell(ws, "B34", "ESTA LICENCIA SE AUTORIZA SI NO HAY ADEUDO EN LOS SIGUIENTES CONCEPTOS", false, 8);
-  cell(ws, "B35", "CONCEPTOS / CERTIFICADO DE NO ADEUDO (130, 133, 134, 136, 138–145, 148, 156, 160, 162, 166, 168, 169)", false, 8);
-  cell(ws, "B36", `Certificación: ${input.debtStatus}`, true, 9);
-  cell(ws, "B46", "Solicita", true, 9);
-  cell(ws, "H46", "Certificación de Adeudos", true, 9);
-  cell(ws, "O46", "Autorización", true, 9);
-  cell(ws, "B47", `C. ${input.worker.firstName} ${input.worker.paternalSurname} ${input.worker.maternalSurname}`, false, 9);
-  cell(ws, "B48", "Trabajadora/Trabajador — FIRMA (línea de firma, sin firma digital automática)", false, 8);
-  cell(ws, "H48", "Responsable de los Servicios de Personal — NOMBRE Y FIRMA", false, 8);
-  cell(ws, "O48", "Jefe de la Dependencia — NOMBRE Y FIRMA", false, 8);
-  cell(ws, "B50", "FUNCIÓN / OFICINA DE CONTROL DE FUERZA DE TRABAJO", false, 8);
-  cell(ws, "B52", "MATRÍCULA / MARCA DE BAJA / FECHA DE MOVIMIENTO / CLAVE DE PLANTILLA", false, 8);
-  cell(ws, "J52", "ACUSE DE RECIBIDO / RESPONSABLE DEL REPORTE / QNA. PROCESO", false, 8);
-  cell(ws, "Q58", "Clave: 1A74-009-036", false, 8);
-  cell(ws, "A58", `Folio interno ${input.folio} — Formato listo para revisión. No es autorización.`, false, 7);
-
-  for (let r = 1; r <= 58; r += 1) {
-    ws.getRow(r).height = r === 3 || r === 15 ? 22 : 15;
+function setCellNum(doc: XmlDocument, cellRef: string, num: string | number): void {
+  const cells = doc.getElementsByTagName("c");
+  for (let i = 0; i < cells.length; i++) {
+    const c = cells[i];
+    if (c.getAttribute("r") === cellRef) {
+      c.removeAttribute("t");
+      while (c.firstChild) {
+        c.removeChild(c.firstChild);
+      }
+      const vElem = doc.createElement("v");
+      vElem.textContent = String(num);
+      c.appendChild(vElem);
+      return;
+    }
   }
-  const buf = await wb.xlsx.writeBuffer();
-  return Buffer.from(buf);
+
+  const rowMatch = cellRef.match(/^([A-Z]+)(\d+)$/);
+  if (rowMatch) {
+    const rowNum = rowMatch[2];
+    const rows = doc.getElementsByTagName("row");
+    for (let j = 0; j < rows.length; j++) {
+      const r = rows[j];
+      if (r.getAttribute("r") === rowNum) {
+        const cElem = doc.createElement("c");
+        cElem.setAttribute("r", cellRef);
+        const vElem = doc.createElement("v");
+        vElem.textContent = String(num);
+        cElem.appendChild(vElem);
+        r.appendChild(cElem);
+        return;
+      }
+    }
+  }
+}
+
+function clearCell(doc: XmlDocument, cellRef: string): void {
+  const cells = doc.getElementsByTagName("c");
+  for (let i = 0; i < cells.length; i++) {
+    const c = cells[i];
+    if (c.getAttribute("r") === cellRef) {
+      c.removeAttribute("t");
+      while (c.firstChild) {
+        c.removeChild(c.firstChild);
+      }
+      return;
+    }
+  }
+}
+
+/**
+ * Builds the official institutional license Excel form 1A74-009-036 (.xlsm)
+ * by reading the master template buffer (from private storage or fallback),
+ * modifying Generador and Licencia sheets in-memory, and preserving 100% of shapes,
+ * drawings, formulas, and the VBA macro binary (xl/vbaProject.bin).
+ */
+export async function buildLicenseExcelDocument(
+  data: UnionLicenseDocumentData,
+  templateBuffer?: Buffer,
+): Promise<Buffer> {
+  let templateBuf = templateBuffer;
+  if (!templateBuf) {
+    if (fs.existsSync(LOCAL_FALLBACK_TEMPLATE_PATH)) {
+      templateBuf = fs.readFileSync(LOCAL_FALLBACK_TEMPLATE_PATH);
+    } else {
+      throw new Error(
+        `Plantilla Excel oficial no proporcionada y no encontrada en fallback: ${LOCAL_FALLBACK_TEMPLATE_PATH}`,
+      );
+    }
+  }
+
+  const zip = new PizZip(templateBuf);
+
+  const parser = new DOMParser();
+  const serializer = new XMLSerializer();
+
+  // 1. Update Sheet 1: Generador
+  const s1XmlStr = zip.file("xl/worksheets/sheet1.xml")?.asText();
+  if (!s1XmlStr) {
+    throw new Error("No se encontró xl/worksheets/sheet1.xml en la plantilla");
+  }
+  const doc1 = parser.parseFromString(s1XmlStr, "text/xml");
+
+  // Elaboration date & Folio
+  setCellNum(doc1, "E9", parseInt(data.elaborationDay, 10) || 1);
+  setCellNum(doc1, "F9", parseInt(data.elaborationMonth, 10) || 1);
+  setCellNum(doc1, "G9", parseInt(data.elaborationYear, 10) || 2026);
+  setCellText(doc1, "J12", data.folio);
+
+  // Worker Info
+  setCellText(doc1, "E11", data.worker.firstName);
+  setCellText(doc1, "F11", data.worker.paternalSurname);
+  setCellText(doc1, "G11", data.worker.maternalSurname);
+  setCellText(doc1, "E12", data.worker.category);
+  setCellText(doc1, "E13", data.worker.schedule);
+  setCellText(doc1, "E14", data.worker.turn);
+  setCellText(doc1, "E15", data.worker.employeeNumber);
+  setCellText(doc1, "E16", data.worker.restDays);
+  setCellText(doc1, "E17", data.license.reason);
+  setCellText(doc1, "E18", data.license.proof);
+  setCellText(doc1, "E19", data.worker.phone);
+  setCellText(doc1, "E20", data.license.withPay ? "Con goce" : "Sin goce");
+
+  // License Period & Total Days
+  setCellNum(doc1, "E23", parseInt(data.license.startDay, 10) || 1);
+  setCellNum(doc1, "F23", parseInt(data.license.startMonth, 10) || 1);
+  setCellNum(doc1, "G23", parseInt(data.license.startYear, 10) || 2026);
+  setCellNum(doc1, "I23", parseInt(data.license.endDay, 10) || 1);
+  setCellNum(doc1, "J23", parseInt(data.license.endMonth, 10) || 1);
+  setCellNum(doc1, "K23", parseInt(data.license.endYear, 10) || 2026);
+  setCellText(doc1, "E24", `${data.license.totalDays}  ${data.license.daysUnit}`);
+
+  // 2. Update Sheet 2: Licencia Checkboxes
+  const s2XmlStr = zip.file("xl/worksheets/sheet2.xml")?.asText();
+  if (!s2XmlStr) {
+    throw new Error("No se encontró xl/worksheets/sheet2.xml en la plantilla");
+  }
+  const doc2 = parser.parseFromString(s2XmlStr, "text/xml");
+
+  // Clear all checkboxes first
+  clearCell(doc2, "H9");
+  clearCell(doc2, "P9");
+  clearCell(doc2, "H11");
+  clearCell(doc2, "P11");
+  clearCell(doc2, "B24");
+  clearCell(doc2, "D24");
+
+  // License type checkbox
+  if (data.license.withPay) {
+    setCellText(doc2, "H9", "X"); // Licencia con sueldo
+  } else {
+    const range = data.license.licenseRangeType;
+    if (range === "r1_3") {
+      setCellText(doc2, "P9", "X"); // Licencia sin sueldo de 1 a 3 días
+    } else if (range === "r4_60") {
+      setCellText(doc2, "H11", "X"); // Licencia sin sueldo de 4 a 60 días
+    } else {
+      setCellText(doc2, "P11", "X"); // Licencia sin sueldo de 61 a 365 días
+    }
+  }
+
+  // Prórroga checkbox
+  if (data.license.isExtension) {
+    setCellText(doc2, "B24", "X"); // SÍ
+  } else {
+    setCellText(doc2, "D24", "X"); // NO
+  }
+
+  // If previous dates provided
+  if (data.license.previousStartDate) {
+    const prevS = data.license.previousStartDate.split("-");
+    setCellNum(doc2, "J21", parseInt(prevS[2] ?? "0", 10));
+    setCellNum(doc2, "M21", parseInt(prevS[1] ?? "0", 10));
+    setCellNum(doc2, "O21", parseInt(prevS[0] ?? "0", 10));
+  }
+  if (data.license.previousEndDate) {
+    const prevE = data.license.previousEndDate.split("-");
+    setCellNum(doc2, "Q21", parseInt(prevE[2] ?? "0", 10));
+    setCellNum(doc2, "R21", parseInt(prevE[1] ?? "0", 10));
+    setCellNum(doc2, "S21", parseInt(prevE[0] ?? "0", 10));
+  }
+
+  const newS1Str = serializer.serializeToString(doc1);
+  const newS2Str = serializer.serializeToString(doc2);
+
+  zip.file("xl/worksheets/sheet1.xml", newS1Str);
+  zip.file("xl/worksheets/sheet2.xml", newS2Str);
+
+  const outBuf = zip.generate({ type: "nodebuffer" });
+  return Buffer.from(outBuf);
+}
+
+/**
+ * Backward compatibility wrapper for legacy callers and tests.
+ */
+export async function buildLicenseExcel(input: LicenseExcelInput): Promise<Buffer> {
+  let rangeType: "with_pay" | "r1_3" | "r4_60" | "r61_365" = "with_pay";
+  if (!input.withPay) {
+    const rl = input.rangeLabel.toLowerCase();
+    if (rl.includes("1 a 3") || input.totalDays <= 3) {
+      rangeType = "r1_3";
+    } else if (rl.includes("4 a 60") || input.totalDays <= 60) {
+      rangeType = "r4_60";
+    } else {
+      rangeType = "r61_365";
+    }
+  }
+
+  const fullName = [input.worker.paternalSurname, input.worker.maternalSurname, input.worker.firstName]
+    .filter(Boolean)
+    .join(" ")
+    .toUpperCase();
+
+  const data: UnionLicenseDocumentData = {
+    caseId: "legacy-test",
+    folio: input.folio,
+    delegationId: "legacy",
+    delegationCode: "XXI",
+    delegationDisplayName: "Comité Delegacional XXI",
+    centerName: "HGR No. 1",
+    centerAddress: "La Goleta, Charo, Michoacán",
+    ooad: input.ooad || "MICHOACÁN",
+    place: input.place || "LA GOLETA, CHARO, MICHOACÁN",
+    elaborationDate: `${input.elaborationYear}-${input.elaborationMonth}-${input.elaborationDay}`,
+    elaborationDay: input.elaborationDay,
+    elaborationMonth: input.elaborationMonth,
+    elaborationMonthName: "SEPTIEMBRE",
+    elaborationYear: input.elaborationYear,
+    placeDateString: `Charo, Michoacán a ${input.elaborationDay} DE SEPTIEMBRE del ${input.elaborationYear}`,
+    worker: {
+      id: "legacy-worker",
+      employeeNumber: input.worker.employeeNumber,
+      firstName: input.worker.firstName,
+      paternalSurname: input.worker.paternalSurname,
+      maternalSurname: input.worker.maternalSurname,
+      fullName,
+      category: input.worker.category,
+      assignment: input.worker.assignment,
+      turn: input.worker.turn,
+      schedule: input.worker.schedule,
+      restDays: input.worker.restDays,
+      phone: input.phone,
+    },
+    license: {
+      withPay: input.withPay,
+      payKindWord: input.withPay ? "CON" : "SIN",
+      payKindLabel: input.withPay ? "CON GOCE" : "SIN GOCE",
+      licenseRangeType: rangeType,
+      licenseRangeLabel: input.rangeLabel,
+      startDate: `${input.startYear}-${input.startMonth}-${input.startDay}`,
+      startDay: input.startDay,
+      startMonth: input.startMonth,
+      startYear: input.startYear,
+      endDate: `${input.endYear}-${input.endMonth}-${input.endDay}`,
+      endDay: input.endDay,
+      endMonth: input.endMonth,
+      endYear: input.endYear,
+      periodLabelWord: `DEL ${input.startDay} AL ${input.endDay}`,
+      totalDays: input.totalDays,
+      daysUnit: input.totalDays === 1 ? "DÍA" : "DÍAS",
+      isExtension: input.isExtension,
+      reason: input.reason,
+      proof: input.proof,
+      debtStatus: input.debtStatus,
+    },
+    recipient: {
+      name: "C. L.A.E. SARAI MORALES GARNICA",
+      role: "Jefe de Personal H.G.R. No. 1",
+    },
+    signers: {
+      signerName: "LORENA GUADALUPE SOLORIO CHÁVEZ",
+      signerRole: "Secretario del Interior",
+      institutionalMotto: "Seguridad Social y Bienestar Económico de los Trabajadores",
+      committeeName: "Comité Delegacional XXI",
+      sidebarDelegation: "COMITÉ DELEGACIONAL XXI",
+      generalSecretary: "CUITLÁHUAC CERDA GUTIÉRREZ",
+      interiorSecretary: "LORENA GUADALUPE SOLORIO CHÁVEZ",
+      conflictsSecretary: "MAYRA ZENDEJAS RODRÍGUEZ",
+      admissionSecretary: "PATRICIA GONZÁLEZ MÉNDEZ",
+      socialWelfareSecretary: "GRACIELA CORTEZ CÁRDENAS",
+    },
+  };
+
+  return buildLicenseExcelDocument(data);
 }
