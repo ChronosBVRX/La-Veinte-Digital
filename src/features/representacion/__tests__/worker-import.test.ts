@@ -169,11 +169,55 @@ describe("Worker Importer - Excel Security", () => {
     expect(res.error).toContain("30 MB");
   });
 
-  it("defends against ZIP bomb: rejects total uncompressed exceeding MAX_TOTAL_UNCOMPRESSED_BYTES (50 MB)", () => {
-    const bomb = createMockZip({ entriesCount: 3, uncompressedSize: 20 * 1024 * 1024, compressedSize: 1000 * 1024 });
+  it("defends against ZIP bomb: rejects total uncompressed exceeding MAX_TOTAL_UNCOMPRESSED_BYTES (96 MB)", () => {
+    const bomb = createMockZip({ entriesCount: 5, uncompressedSize: 20 * 1024 * 1024, compressedSize: 1000 * 1024 });
     const res = validateExcelSecurity(bomb, "bomb.xlsx");
     expect(res.valid).toBe(false);
-    expect(res.error).toContain("50 MB");
+    expect(res.error).toContain("96 MB");
+  });
+
+  it("permits legitimate OpenXML worksheet of 33.35 MB (real workbook scenario)", () => {
+    const sheetZip = createMockZip({
+      fileName: "xl/worksheets/sheet1.xml",
+      uncompressedSize: Math.floor(33.35 * 1024 * 1024),
+      compressedSize: Math.floor(4.25 * 1024 * 1024),
+    });
+    const res = validateExcelSecurity(sheetZip, "real_sheet.xlsx");
+    expect(res.valid).toBe(true);
+  });
+
+  it("permits legitimate OpenXML worksheet of 60 MB", () => {
+    const sheetZip = createMockZip({
+      fileName: "xl/worksheets/sheet1.xml",
+      uncompressedSize: 60 * 1024 * 1024,
+      compressedSize: 2 * 1024 * 1024,
+    });
+    const res = validateExcelSecurity(sheetZip, "large_sheet.xlsx");
+    expect(res.valid).toBe(true);
+  });
+
+  it("rejects OpenXML worksheet exceeding 64 MB", () => {
+    const sheetZip = createMockZip({
+      fileName: "xl/worksheets/sheet1.xml",
+      uncompressedSize: 65 * 1024 * 1024,
+      compressedSize: 2 * 1024 * 1024,
+    });
+    const res = validateExcelSecurity(sheetZip, "huge_sheet.xlsx");
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain("excede el límite permitido");
+    expect(res.error).toContain("xl/worksheets/sheet1.xml");
+  });
+
+  it("rejects unknown/binary entry of 33 MB exceeding MAX_OTHER_ENTRY_BYTES (30 MB)", () => {
+    const binZip = createMockZip({
+      fileName: "custom_binary.bin",
+      uncompressedSize: 33 * 1024 * 1024,
+      compressedSize: 1024 * 1024,
+    });
+    const res = validateExcelSecurity(binZip, "custom.xlsx");
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain("excede el límite permitido");
+    expect(res.error).toContain("custom_binary.bin");
   });
 
   it("defends against ZIP bomb: rejects anomalous compression ratio > 100:1 for entries > 1 MB", () => {

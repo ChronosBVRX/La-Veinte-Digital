@@ -1,11 +1,42 @@
 import crypto from "node:crypto";
 import PizZip from "pizzip";
 
-export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB limit
+export const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB limit
 export const MAX_ZIP_ENTRIES = 100;
-export const MAX_TOTAL_UNCOMPRESSED_BYTES = 50 * 1024 * 1024; // 50 MB
-export const MAX_SINGLE_ENTRY_BYTES = 30 * 1024 * 1024; // 30 MB
+export const MAX_TOTAL_UNCOMPRESSED_BYTES = 96 * 1024 * 1024; // 96 MB
+export const MAX_EXCEL_XML_ENTRY_BYTES = 64 * 1024 * 1024; // 64 MB
+export const MAX_OTHER_ENTRY_BYTES = 30 * 1024 * 1024; // 30 MB
 export const MAX_COMPRESSION_RATIO = 100; // 100:1 for entries > 1 MB
+export const MAX_SINGLE_ENTRY_BYTES = MAX_EXCEL_XML_ENTRY_BYTES; // Compatibilidad hacia atrás
+
+const KNOWN_EXCEL_XML_PATTERNS: RegExp[] = [
+  /^\[content_types\]\.xml$/i,
+  /^_rels\/.*\.rels$/i,
+  /^docprops\/.*\.xml$/i,
+  /^customxml\/.*\.xml$/i,
+  /^xl\/workbook\.xml$/i,
+  /^xl\/sharedstrings\.xml$/i,
+  /^xl\/styles\.xml$/i,
+  /^xl\/calcchain\.xml$/i,
+  /^xl\/_rels\/.*\.rels$/i,
+  /^xl\/worksheets\/.*\.xml$/i,
+  /^xl\/worksheets\/_rels\/.*\.rels$/i,
+  /^xl\/chartsheets\/.*\.xml$/i,
+  /^xl\/chartsheets\/_rels\/.*\.rels$/i,
+  /^xl\/theme\/.*\.xml$/i,
+  /^xl\/tables\/.*\.xml$/i,
+  /^xl\/drawings\/.*\.xml$/i,
+  /^xl\/drawings\/_rels\/.*\.rels$/i,
+  /^xl\/charts\/.*\.xml$/i,
+  /^xl\/charts\/_rels\/.*\.rels$/i,
+  /^xl\/pivot(?:tables|cache)\/.*\.xml$/i,
+  /^xl\/pivot(?:tables|cache)\/_rels\/.*\.rels$/i,
+];
+
+export function isKnownExcelXmlEntry(entryName: string): boolean {
+  const normalized = entryName.replace(/\\/g, "/").trim().toLowerCase();
+  return KNOWN_EXCEL_XML_PATTERNS.some((pattern) => pattern.test(normalized));
+}
 
 export interface SecurityCheckResult {
   valid: boolean;
@@ -71,8 +102,9 @@ export function validateZipBomb(buffer: Buffer): { valid: boolean; error?: strin
     const commentLen = buffer.readUInt16LE(curr + 32);
 
     const entryNameEnd = curr + 46 + fileNameLen;
+    let entryName = "";
     if (entryNameEnd <= buffer.length) {
-      const entryName = buffer.toString("utf8", curr + 46, entryNameEnd);
+      entryName = buffer.toString("utf8", curr + 46, entryNameEnd);
       if (
         entryName.includes("..") ||
         entryName.startsWith("/") ||
@@ -85,10 +117,17 @@ export function validateZipBomb(buffer: Buffer): { valid: boolean; error?: strin
       }
     }
 
-    if (uncompressedSize > MAX_SINGLE_ENTRY_BYTES) {
+    const isKnownXml = isKnownExcelXmlEntry(entryName);
+    const maxEntryBytes = isKnownXml ? MAX_EXCEL_XML_ENTRY_BYTES : MAX_OTHER_ENTRY_BYTES;
+
+    if (uncompressedSize > maxEntryBytes) {
+      const uncompressedMb = (uncompressedSize / (1024 * 1024)).toFixed(1);
+      const compressedMb = (compressedSize / (1024 * 1024)).toFixed(1);
+      const ratio = (uncompressedSize / Math.max(1, compressedSize)).toFixed(1);
+      const limitMb = (maxEntryBytes / (1024 * 1024)).toFixed(0);
       return {
         valid: false,
-        error: `Una entrada interna supera el tamaño máximo permitido de 30 MB (${(uncompressedSize / (1024 * 1024)).toFixed(2)} MB). Rechazado por prevención de ZIP bomb.`,
+        error: `La entrada ${entryName || "interna"} excede el límite permitido de ${limitMb} MB. Descomprimido: ${uncompressedMb} MB · Comprimido: ${compressedMb} MB · Ratio: ${ratio}:1.`,
       };
     }
 
@@ -96,16 +135,18 @@ export function validateZipBomb(buffer: Buffer): { valid: boolean; error?: strin
     if (totalUncompressed > MAX_TOTAL_UNCOMPRESSED_BYTES) {
       return {
         valid: false,
-        error: `El tamaño descomprimido total supera el límite de seguridad de 50 MB (${(totalUncompressed / (1024 * 1024)).toFixed(2)} MB). Rechazado por prevención de ZIP bomb.`,
+        error: `El tamaño descomprimido total supera el límite de seguridad de 96 MB (${(totalUncompressed / (1024 * 1024)).toFixed(2)} MB). Rechazado por prevención de ZIP bomb.`,
       };
     }
 
     if (uncompressedSize > 1024 * 1024) {
       const ratio = uncompressedSize / Math.max(1, compressedSize);
       if (ratio > MAX_COMPRESSION_RATIO) {
+        const uncompressedMb = (uncompressedSize / (1024 * 1024)).toFixed(1);
+        const compressedMb = (compressedSize / (1024 * 1024)).toFixed(1);
         return {
           valid: false,
-          error: `Ratio de compresión anómalo detectado (${ratio.toFixed(1)}:1 > ${MAX_COMPRESSION_RATIO}:1). Rechazado por prevención de ZIP bomb.`,
+          error: `Ratio de compresión anómalo detectado en la entrada ${entryName || "interna"} (${ratio.toFixed(1)}:1 > ${MAX_COMPRESSION_RATIO}:1). Descomprimido: ${uncompressedMb} MB · Comprimido: ${compressedMb} MB. Rechazado por prevención de ZIP bomb.`,
         };
       }
     }
@@ -130,7 +171,7 @@ export function validateExcelSecurity(
   if (buffer.length > MAX_FILE_SIZE_BYTES) {
     return {
       valid: false,
-      error: `El archivo supera el tamaño máximo permitido de 10 MB (${(buffer.length / (1024 * 1024)).toFixed(2)} MB).`,
+      error: `El archivo supera el tamaño máximo permitido de 15 MB (${(buffer.length / (1024 * 1024)).toFixed(2)} MB).`,
       sha256,
     };
   }
