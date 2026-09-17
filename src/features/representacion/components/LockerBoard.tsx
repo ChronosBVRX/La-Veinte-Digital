@@ -118,7 +118,7 @@ export function LockerBoard(): React.JSX.Element {
             Buscar
           </Button>
           <Link
-            href="/representacion/administracion/actualizar-base"
+            href="/representacion/lockers/importar"
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -132,7 +132,7 @@ export function LockerBoard(): React.JSX.Element {
               textDecoration: "none",
             }}
           >
-            Importar base
+            Actualizar base de lockers
           </Link>
         </div>
         {error ? (

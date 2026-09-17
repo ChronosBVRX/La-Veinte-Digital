@@ -246,7 +246,7 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
         </Button>
 
         <Link
-          href="/representacion/administracion/actualizar-base"
+          href="/representacion/trabajadores/importar"
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -260,7 +260,7 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
             textDecoration: "none",
           }}
         >
-          Importar / actualizar base
+          Actualizar base de trabajadores
         </Link>
       </div>
 

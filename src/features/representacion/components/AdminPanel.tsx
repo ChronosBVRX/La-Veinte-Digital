@@ -95,13 +95,13 @@ export function AdminPanel(): React.JSX.Element {
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
           <div>
-            <h2 style={{ margin: "0 0 0.25rem", fontSize: "1rem" }}>Actualizar base sindical</h2>
+            <h2 style={{ margin: "0 0 0.25rem", fontSize: "1rem" }}>Actualizar trabajadores</h2>
             <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)" }}>
-              Carga y concilia de forma segura el padrón de trabajadores y casilleros desde el Excel administrativo más reciente.
+              Mantén sincronizado el padrón laboral institucional.
             </p>
           </div>
           <Link
-            href="/representacion/administracion/actualizar-base"
+            href="/representacion/trabajadores/importar"
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -115,7 +115,35 @@ export function AdminPanel(): React.JSX.Element {
               textDecoration: "none",
             }}
           >
-            📊 Actualizar base sindical
+            👥 Actualizar trabajadores
+          </Link>
+        </div>
+      </Card>
+      <Card>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+          <div>
+            <h2 style={{ margin: "0 0 0.25rem", fontSize: "1rem" }}>Actualizar lockers</h2>
+            <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)" }}>
+              Importa y concilia la relación de lockers y asignaciones activas.
+            </p>
+          </div>
+          <Link
+            href="/representacion/lockers/importar"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.375rem",
+              padding: "0.375rem 0.75rem",
+              borderRadius: "0.375rem",
+              backgroundColor: "var(--card)",
+              border: "1px solid var(--border)",
+              color: "var(--fg)",
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            🗄️ Actualizar lockers
           </Link>
         </div>
       </Card>

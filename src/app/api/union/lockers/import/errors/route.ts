@@ -16,7 +16,14 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   try {
     const url = new URL(req.url);
+    const batchId = url.searchParams.get("batch_id");
     let delegationId = url.searchParams.get("delegation_id");
+
+    if (!batchId) {
+      return noStore(
+        NextResponse.json({ error: "Falta el identificador del lote (batch_id)." }, { status: 400 })
+      );
+    }
 
     if (!delegationId) {
       const memberships = await getUnionMemberships();
@@ -33,33 +40,25 @@ export async function GET(req: Request): Promise<NextResponse> {
     await requireUnionAdmin(delegationId);
 
     const supabase = await createClient();
-    const domain = url.searchParams.get("domain");
-    let query = supabase
-      .from("union_worker_import_batches")
-      .select("*")
-      .eq("delegation_id", delegationId);
-
-    if (domain === "LOCKER") {
-      query = query.eq("format_version", "UNION_LOCKERS_V1");
-    } else {
-      // Historial de trabajadores contiene únicamente lotes de trabajadores
-      query = query.neq("format_version", "UNION_LOCKERS_V1");
-    }
-
-    const { data: batches, error } = await query
-      .order("created_at", { ascending: false })
-      .limit(30);
+    const { data: rows, error } = await supabase
+      .from("union_worker_import_rows")
+      .select("row_number, matricula, full_name, row_status, action_taken, issues, diff")
+      .eq("batch_id", batchId)
+      .in("row_status", ["invalid", "conflict", "warning"])
+      .order("row_number", { ascending: true })
+      .limit(100);
 
     if (error) {
       throw error;
     }
 
-    return noStore(NextResponse.json({ batches: batches ?? [] }));
+    return noStore(NextResponse.json({ errors: rows ?? [] }));
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Error al obtener historial de importaciones.";
-    const status = message.includes("union_admin") || message.includes("autenticado") || message.includes("acceso")
-      ? 403
-      : 500;
+    const message = err instanceof Error ? err.message : "Error al obtener errores de importación.";
+    const status =
+      message.includes("union_admin") || message.includes("autenticado") || message.includes("acceso")
+        ? 403
+        : 500;
     return noStore(NextResponse.json({ error: message }, { status }));
   }
 }

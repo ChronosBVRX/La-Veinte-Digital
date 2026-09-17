@@ -365,6 +365,10 @@ export function maskNss(nss: string): string {
   return `****-**-${nss.slice(-4)}`;
 }
 
+export function normalizeMatricula(raw: unknown): string {
+  return (raw ?? "").toString().trim().toUpperCase().replace(/\s+/g, "");
+}
+
 export function parseWorkerRow(
   raw: SiapRawRow,
   rowNumber: number
@@ -376,7 +380,7 @@ export function parseWorkerRow(
   const issues: RowIssue[] = [];
 
   // 1. Matrícula
-  const matricula = (raw.matricula_raw ?? "").toString().trim().toUpperCase().replace(/\s+/g, "");
+  const matricula = normalizeMatricula(raw.matricula_raw);
   if (!matricula) {
     issues.push({
       code: "MISSING_MATRICULA",

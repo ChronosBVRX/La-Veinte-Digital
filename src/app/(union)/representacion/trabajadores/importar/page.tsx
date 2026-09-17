@@ -5,7 +5,7 @@ import { WorkerImportWizard } from "@/features/representacion/components/worker-
 
 export const dynamic = "force-dynamic";
 
-export default async function ImportarTrabajadoresAdminPage(): Promise<React.JSX.Element> {
+export default async function ImportarTrabajadoresPage(): Promise<React.JSX.Element> {
   const memberships = await getUnionMemberships();
   const isAdmin = memberships.some((m) => m.role === "union_admin");
 
