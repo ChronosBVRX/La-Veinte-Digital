@@ -11,7 +11,11 @@ import { ImportConfirmationModal } from "./ImportConfirmationModal";
 import { ImportHistoryList } from "./ImportHistoryList";
 import type { ImportPreviewResult, ImportConfirmResult } from "../../services/worker-importer/types";
 
-export function WorkerImportWizard(): React.JSX.Element {
+export interface WorkerImportWizardProps {
+  format?: "MASTER" | "SIAP";
+}
+
+export function WorkerImportWizard({ format = "MASTER" }: WorkerImportWizardProps): React.JSX.Element {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -21,6 +25,16 @@ export function WorkerImportWizard(): React.JSX.Element {
   const [resolutions, setResolutions] = useState<Record<number, Record<string, string>>>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"import" | "history">("import");
+
+  const previewEndpoint =
+    format === "MASTER"
+      ? "/api/union/workers/import/master/preview"
+      : "/api/union/workers/import/preview";
+
+  const applyEndpoint =
+    format === "MASTER"
+      ? "/api/union/workers/import/master/apply"
+      : "/api/union/workers/import/confirm";
 
   async function handleFileSelected(file: File): Promise<void> {
     setLoading(true);
@@ -33,7 +47,7 @@ export function WorkerImportWizard(): React.JSX.Element {
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch("/api/union/import/preview", {
+      const res = await fetch(previewEndpoint, {
         method: "POST",
         body: formData,
       });
@@ -89,13 +103,20 @@ export function WorkerImportWizard(): React.JSX.Element {
     setError(null);
 
     try {
-      const res = await fetch("/api/union/import/apply", {
+      const payload =
+        format === "MASTER"
+          ? {
+              batch_id: previewResult.batchId,
+              resolutions,
+            }
+          : {
+              batch_id: previewResult.batchId,
+            };
+
+      const res = await fetch(applyEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          batch_id: previewResult.batchId,
-          resolutions,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = (await res.json()) as ImportConfirmResult & { error?: string };

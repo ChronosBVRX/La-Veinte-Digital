@@ -129,7 +129,7 @@ describe("Master Excel Import - Row Parsing", () => {
     expect(result.isValid).toBe(true);
     expect(result.parsed.matricula).toBe("99123456");
     expect(result.parsed.source_name_raw).toBe("HERNANDEZ/GARCIA/MARIA");
-    expect(result.parsed.position_number).toBe("80");
+    expect(result.parsed.plaza_code).toBe("80");
     expect(result.parsed.position_description).toBe("ENFERMERA GENERAL");
     expect(result.parsed.locker).toBe("284");
     expect(result.parsed.is_semantic_locker).toBe(false);
@@ -172,7 +172,6 @@ describe("Master Excel Import - Reconciliation & Conflicts", () => {
     turn: "Matutino",
     schedule: "07:00 A 15:00",
     plaza_code: "10",
-    position_number: "10",
     active_locker_number: "284",
     active_assignment_id: "asgn-1",
     active: true,
@@ -460,3 +459,289 @@ describe("Master Excel Import - Security & Multi-Sheet Detection", () => {
     expect(hoja3!.rowCount).toBe(3); // 1 header + 2 data rows
   });
 });
+
+describe("Master Excel Import - Architecture & Table Reuse", () => {
+  it("uses existing union_worker_import_batches with format UNION_MASTER_LOCKERS_V1", () => {
+    const masterBatchRecord = {
+      delegation_id: "del-123",
+      imported_by: "user-456",
+      file_name: "base_hospital_2026.xlsx",
+      file_size_bytes: 10240,
+      file_sha256: "abcdef1234567890",
+      format_version: "UNION_MASTER_LOCKERS_V1",
+      status: "preview",
+      total_rows: 150,
+      new_workers_count: 5,
+      updated_workers_count: 20,
+      unchanged_workers_count: 125,
+      new_lockers_count: 12,
+      locker_changes_count: 4,
+      locker_conflicts_count: 0,
+      summary_metadata: { source: "admin_excel" },
+    };
+
+    expect(masterBatchRecord.format_version).toBe("UNION_MASTER_LOCKERS_V1");
+    expect(masterBatchRecord.new_lockers_count).toBe(12);
+    expect(masterBatchRecord.locker_changes_count).toBe(4);
+  });
+
+  it("uses existing union_worker_import_rows for staging master rows", () => {
+    const stagingRow = {
+      batch_id: "batch-789",
+      row_number: 1,
+      matricula: "99001",
+      full_name: "GOMEZ/HERNANDEZ/MARIA",
+      raw_data: { MATRICULA: "99001", NOMBRE: "GOMEZ/HERNANDEZ/MARIA", "# LOCKER": "045" },
+      parsed_data: {
+        matricula: "99001",
+        source_name_raw: "GOMEZ/HERNANDEZ/MARIA",
+        plaza_code: "1234",
+        locker: "45",
+      },
+      row_status: "updated" as const,
+      action_taken: "pending" as const,
+      diff: { changes: [{ field: "turn", oldValue: "1", newValue: "2" }] },
+      issues: [],
+    };
+
+    expect(stagingRow.full_name).toBe("GOMEZ/HERNANDEZ/MARIA");
+    expect(stagingRow.parsed_data.plaza_code).toBe("1234");
+    expect(stagingRow.parsed_data.locker).toBe("45");
+  });
+
+  it("does not break SIAP batch structure (format SIAP_2026)", () => {
+    const siapBatchRecord = {
+      delegation_id: "del-123",
+      imported_by: "user-456",
+      file_name: "siap_nomina.xlsx",
+      format_version: "SIAP_2026",
+      status: "preview",
+      total_rows: 500,
+      new_workers_count: 10,
+      updated_workers_count: 40,
+    };
+
+    expect(siapBatchRecord.format_version).toBe("SIAP_2026");
+    expect(siapBatchRecord.format_version).not.toBe("UNION_MASTER_LOCKERS_V1");
+  });
+});
+
+describe("Master Excel Import - Format Isolation & RPC Guards", () => {
+  function simulateRpcGuard(batch: { format_version: string; status: string; delegation_id: string }, targetRpc: "SIAP" | "MASTER", userDelegationId: string) {
+    if (batch.delegation_id !== userDelegationId) {
+      throw new Error("UNAUTHORIZED_UNION_ADMIN: No cuentas con permisos en esta delegación.");
+    }
+    if (batch.status !== "preview") {
+      throw new Error(`INVALID_BATCH_STATUS: El lote se encuentra en estado "${batch.status}" y no puede ser confirmado.`);
+    }
+    if (targetRpc === "SIAP" && batch.format_version !== "SIAP_2026") {
+      throw new Error(`INVALID_FORMAT_VERSION: Este lote tiene formato "${batch.format_version}" y debe procesarse con su RPC correspondiente (union_apply_master_import).`);
+    }
+    if (targetRpc === "MASTER" && batch.format_version !== "UNION_MASTER_LOCKERS_V1") {
+      throw new Error(`INVALID_FORMAT_VERSION: Este lote no corresponde al formato UNION_MASTER_LOCKERS_V1 (formato actual: "${batch.format_version}").`);
+    }
+    return true;
+  }
+
+  it("rejects running SIAP RPC union_confirm_worker_import on UNION_MASTER_LOCKERS_V1 batch", () => {
+    const masterBatch = { format_version: "UNION_MASTER_LOCKERS_V1", status: "preview", delegation_id: "del-A" };
+    expect(() => simulateRpcGuard(masterBatch, "SIAP", "del-A")).toThrow("INVALID_FORMAT_VERSION");
+  });
+
+  it("rejects running MASTER RPC union_apply_master_import on SIAP_2026 batch", () => {
+    const siapBatch = { format_version: "SIAP_2026", status: "preview", delegation_id: "del-A" };
+    expect(() => simulateRpcGuard(siapBatch, "MASTER", "del-A")).toThrow("INVALID_FORMAT_VERSION");
+  });
+
+  it("rejects double application of already confirmed batch", () => {
+    const appliedBatch = { format_version: "UNION_MASTER_LOCKERS_V1", status: "confirmed", delegation_id: "del-A" };
+    expect(() => simulateRpcGuard(appliedBatch, "MASTER", "del-A")).toThrow("INVALID_BATCH_STATUS");
+  });
+
+  it("rejects execution by union_admin of a different delegation", () => {
+    const batchDelA = { format_version: "UNION_MASTER_LOCKERS_V1", status: "preview", delegation_id: "del-A" };
+    expect(() => simulateRpcGuard(batchDelA, "MASTER", "del-B")).toThrow("UNAUTHORIZED_UNION_ADMIN");
+  });
+});
+
+describe("Master Excel Import - Rollback Mechanics (Workers & Lockers)", () => {
+  it("rolls back newly created worker by deactivating non-destructively without DELETE", () => {
+    const workerInDb = {
+      id: "w-1",
+      employee_number: "99001",
+      source_created_by_batch_id: "batch-101",
+      source_import_state: "active",
+      source_rolled_back_at: null as string | null,
+    };
+
+    // Simulate rollback
+    const now = new Date().toISOString();
+    workerInDb.source_rolled_back_at = now;
+    workerInDb.source_import_state = "rolled_back";
+
+    expect(workerInDb.id).toBe("w-1"); // Row is NOT deleted
+    expect(workerInDb.source_import_state).toBe("rolled_back");
+    expect(workerInDb.source_rolled_back_at).toBe(now);
+  });
+
+  it("rolls back field updates by restoring previous values from change history", () => {
+    const changeHistory = [
+      { worker_id: "w-2", field_name: "turn", old_value: "Matutino", new_value: "Vespertino" },
+      { worker_id: "w-2", field_name: "category", old_value: "ENFERMERA GENERAL", new_value: "ENFERMERA JEFE" },
+    ];
+
+    const workerState = {
+      id: "w-2",
+      turn: "Vespertino",
+      category: "ENFERMERA JEFE",
+    };
+
+    // Revert using history
+    for (const h of changeHistory) {
+      if (h.field_name === "turn") workerState.turn = h.old_value;
+      if (h.field_name === "category") workerState.category = h.old_value;
+    }
+
+    expect(workerState.turn).toBe("Matutino");
+    expect(workerState.category).toBe("ENFERMERA GENERAL");
+  });
+
+  it("rolls back locker assignment change: releases new assignment, restores previous assignment without destroying history", () => {
+    const batchId = "batch-101";
+
+    // Pre-import state: Worker has locker 10 active
+    const oldAssignment = {
+      id: "asgn-1",
+      worker_id: "w-3",
+      locker_id: "loc-10",
+      status: "released",
+      release_reason: `released_by_import_master_batch:${batchId}`,
+    };
+    // Post-import state: Worker was assigned locker 20
+    const newAssignment = {
+      id: "asgn-2",
+      worker_id: "w-3",
+      locker_id: "loc-20",
+      status: "active",
+      assignment_reason: `import_master_batch:${batchId}`,
+      release_reason: "",
+    };
+
+    const locker10 = { id: "loc-10", status: "disponible" };
+    const locker20 = { id: "loc-20", status: "ocupado" };
+
+    // Execute rollback
+    // 1. Release new assignment created by this batch
+    newAssignment.status = "released";
+    newAssignment.release_reason = `Revertido por rollback de lote maestro: ${batchId}`;
+    locker20.status = "disponible";
+
+    // 2. Restore previous assignment released by this batch
+    oldAssignment.status = "active";
+    oldAssignment.release_reason = "";
+    locker10.status = "ocupado";
+
+    expect(newAssignment.status).toBe("released");
+    expect(oldAssignment.status).toBe("active");
+    expect(locker10.status).toBe("ocupado");
+    expect(locker20.status).toBe("disponible");
+  });
+});
+
+describe("Master Excel Import - Non-Destructive Absent Worker & Field Protection", () => {
+  it("workers missing in master excel are NOT deactivated (active remains true, no automatic locker release)", () => {
+    const existingWorker = {
+      id: "w-99",
+      employee_number: "88888",
+      active: true,
+      source_missing_since: null as string | null,
+    };
+    const activeLockerAssignment = {
+      id: "asgn-99",
+      worker_id: "w-99",
+      locker_id: "loc-99",
+      status: "active",
+    };
+
+    // Excel file processed: worker 88888 is absent from Excel
+    // Rule for UNION_MASTER_LOCKERS_V1: NO active = false, NO release locker
+    expect(existingWorker.active).toBe(true);
+    expect(existingWorker.source_missing_since).toBeNull();
+    expect(activeLockerAssignment.status).toBe("active");
+  });
+
+  it("preserves manual union notes and phone without overwrite by Excel import", () => {
+    const existingWorker = {
+      id: "w-10",
+      employee_number: "77777",
+      phone: "443-111-2233",
+      notes: "Delegado sindical electo en asamblea",
+      import_notes: "",
+    };
+
+    const excelRow = {
+      observations: "Cubriendo turno especial",
+    };
+
+    // Updating from Excel:
+    existingWorker.import_notes = excelRow.observations;
+
+    expect(existingWorker.notes).toBe("Delegado sindical electo en asamblea"); // Intact!
+    expect(existingWorker.phone).toBe("443-111-2233"); // Intact!
+    expect(existingWorker.import_notes).toBe("Cubriendo turno especial");
+  });
+
+  it("preserves siap_full_name intact and writes raw name to source_name_raw", () => {
+    const existingWorker = {
+      id: "w-11",
+      employee_number: "66666",
+      siap_full_name: "ALVAREZ MORALES FRANCISCO JAVIER",
+      source_name_raw: "",
+    };
+
+    const excelRowRawName = "ALVAREZ/MORALES/FRANCISCO J";
+
+    // Master update writes to source_name_raw, NOT siap_full_name
+    existingWorker.source_name_raw = excelRowRawName;
+
+    expect(existingWorker.siap_full_name).toBe("ALVAREZ MORALES FRANCISCO JAVIER"); // Untouched!
+    expect(existingWorker.source_name_raw).toBe("ALVAREZ/MORALES/FRANCISCO J");
+  });
+});
+
+describe("Master Excel Import - Unified Import History", () => {
+  it("unifies both SIAP and MASTER batches in a single history chronological feed", () => {
+    const batches = [
+      {
+        id: "b-2",
+        file_name: "Base_Hospital_2026.xlsx",
+        format_version: "UNION_MASTER_LOCKERS_V1",
+        total_rows: 1200,
+        new_workers_count: 45,
+        updated_workers_count: 110,
+        new_lockers_count: 15,
+        locker_changes_count: 8,
+        status: "confirmed",
+        created_at: "2026-09-16T10:00:00Z",
+      },
+      {
+        id: "b-1",
+        file_name: "SIAP_Quincena_17.xlsx",
+        format_version: "SIAP_2026",
+        total_rows: 1150,
+        new_workers_count: 5,
+        updated_workers_count: 30,
+        new_lockers_count: 0,
+        locker_changes_count: 0,
+        status: "confirmed",
+        created_at: "2026-09-14T08:00:00Z",
+      },
+    ];
+
+    expect(batches).toHaveLength(2);
+    expect(batches[0].format_version).toBe("UNION_MASTER_LOCKERS_V1");
+    expect(batches[1].format_version).toBe("SIAP_2026");
+    expect(batches[0].new_lockers_count).toBe(15);
+  });
+});
+

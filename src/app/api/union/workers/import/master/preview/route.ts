@@ -52,10 +52,9 @@ export async function POST(req: Request): Promise<NextResponse> {
     return noStore(NextResponse.json(preview));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Error al procesar el archivo.";
-    const status =
-      message.includes("union_admin") || message.includes("autenticado") || message.includes("acceso")
-        ? 403
-        : 400;
+    const status = message.includes("union_admin") || message.includes("autenticado") || message.includes("acceso")
+      ? 403
+      : 400;
     return noStore(NextResponse.json({ error: message }, { status }));
   }
 }

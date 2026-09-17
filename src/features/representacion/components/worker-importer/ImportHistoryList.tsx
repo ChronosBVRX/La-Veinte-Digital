@@ -8,12 +8,15 @@ interface ImportBatch {
   id: string;
   file_name: string;
   file_size_bytes: number;
+  format_version?: string;
   total_rows: number;
   new_workers_count: number;
   updated_workers_count: number;
   unchanged_workers_count: number;
   conflicts_count: number;
   missing_in_file_count: number;
+  new_lockers_count?: number;
+  locker_changes_count?: number;
   status: "preview" | "confirmed" | "rolled_back" | "failed";
   applied_at: string | null;
   rolled_back_at: string | null;
@@ -100,6 +103,7 @@ export function ImportHistoryList(): React.JSX.Element {
           <thead>
             <tr style={{ backgroundColor: "var(--accent)", borderBottom: "1px solid var(--border)", textAlign: "left" }}>
               <th style={{ padding: "0.5rem" }}>Fecha / Hora</th>
+              <th style={{ padding: "0.5rem" }}>Tipo</th>
               <th style={{ padding: "0.5rem" }}>Archivo</th>
               <th style={{ padding: "0.5rem" }}>Estado</th>
               <th style={{ padding: "0.5rem" }}>Total leídos</th>
@@ -111,10 +115,25 @@ export function ImportHistoryList(): React.JSX.Element {
           <tbody>
             {batches.map((b) => {
               const badge = getStatusLabel(b.status);
+              const isMaster = b.format_version === "UNION_MASTER_LOCKERS_V1";
               return (
                 <tr key={b.id} style={{ borderBottom: "1px solid var(--border)" }}>
                   <td style={{ padding: "0.5rem" }}>
                     {new Date(b.created_at).toLocaleString("es-MX")}
+                  </td>
+                  <td style={{ padding: "0.5rem" }}>
+                    <span
+                      style={{
+                        padding: "0.15rem 0.4rem",
+                        borderRadius: "0.2rem",
+                        backgroundColor: isMaster ? "#eff6ff" : "#f1f5f9",
+                        color: isMaster ? "#1d4ed8" : "#475569",
+                        fontWeight: 600,
+                        fontSize: "0.6875rem",
+                      }}
+                    >
+                      {isMaster ? "Base y lockers" : "SIAP"}
+                    </span>
                   </td>
                   <td style={{ padding: "0.5rem", fontWeight: 600 }}>{b.file_name}</td>
                   <td style={{ padding: "0.5rem" }}>
@@ -134,9 +153,19 @@ export function ImportHistoryList(): React.JSX.Element {
                   <td style={{ padding: "0.5rem" }}>{b.total_rows.toLocaleString("es-MX")}</td>
                   <td style={{ padding: "0.5rem", color: "#16a34a", fontWeight: 600 }}>
                     +{b.new_workers_count}
+                    {isMaster && (b.new_lockers_count ?? 0) > 0 && (
+                      <div style={{ fontSize: "0.6875rem", color: "#0d9488", fontWeight: 500 }}>
+                        +{b.new_lockers_count} lockers
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: "0.5rem", color: "var(--primary)", fontWeight: 600 }}>
                     {b.updated_workers_count}
+                    {isMaster && (b.locker_changes_count ?? 0) > 0 && (
+                      <div style={{ fontSize: "0.6875rem", color: "#6366f1", fontWeight: 500 }}>
+                        {b.locker_changes_count} camb. locker
+                      </div>
+                    )}
                   </td>
                   <td style={{ padding: "0.5rem" }}>
                     {b.status === "confirmed" ? (

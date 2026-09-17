@@ -370,19 +370,49 @@ export async function rollbackImportBatch(params: {
   const { batchId, delegationId } = params;
   const supabase = await createClient();
 
-  // Reversión no destructiva en PostgreSQL (cero DELETE FROM union_workers)
-  const { data, error } = await supabase.rpc("union_rollback_worker_import", {
-    p_batch_id: batchId,
-  });
+  // 1. Obtener formato del lote
+  const { data: batch, error: fetchError } = await supabase
+    .from("union_worker_import_batches")
+    .select("format_version")
+    .eq("id", batchId)
+    .single();
 
-  if (error) {
-    throw new Error(`Error al revertir la importación: ${error.message}`);
+  if (fetchError || !batch) {
+    throw new Error(`Lote no encontrado: ${fetchError?.message ?? batchId}`);
   }
 
-  const result = data as {
-    restored_fields_count: number;
-    deactivated_workers_count: number;
-  };
+  let restoredFieldsCount = 0;
+  let deactivatedWorkersCount = 0;
+
+  if (batch.format_version === "UNION_MASTER_LOCKERS_V1") {
+    const { data, error } = await supabase.rpc("union_rollback_master_import", {
+      p_batch_id: batchId,
+    });
+    if (error) {
+      throw new Error(`Error al revertir la importación maestra: ${error.message}`);
+    }
+    const res = (data as unknown) as {
+      deactivated_workers: number;
+      restored_fields: number;
+      reverted_assignments: number;
+      restored_assignments: number;
+    };
+    restoredFieldsCount = res.restored_fields ?? 0;
+    deactivatedWorkersCount = res.deactivated_workers ?? 0;
+  } else {
+    const { data, error } = await supabase.rpc("union_rollback_worker_import", {
+      p_batch_id: batchId,
+    });
+    if (error) {
+      throw new Error(`Error al revertir la importación SIAP: ${error.message}`);
+    }
+    const res = (data as unknown) as {
+      restored_fields_count: number;
+      deactivated_workers_count: number;
+    };
+    restoredFieldsCount = res.restored_fields_count ?? 0;
+    deactivatedWorkersCount = res.deactivated_workers_count ?? 0;
+  }
 
   await writeAuditLog({
     delegation_id: delegationId,
@@ -390,16 +420,17 @@ export async function rollbackImportBatch(params: {
     entity_id: batchId,
     action: "rollback_import_batch",
     metadata: {
-      restored_fields_count: result.restored_fields_count,
-      deactivated_workers_count: result.deactivated_workers_count,
+      format_version: batch.format_version,
+      restored_fields_count: restoredFieldsCount,
+      deactivated_workers_count: deactivatedWorkersCount,
     },
   });
 
   return {
     batchId,
     status: "rolled_back",
-    restoredFieldsCount: result.restored_fields_count,
-    deactivatedWorkersCount: result.deactivated_workers_count,
+    restoredFieldsCount,
+    deactivatedWorkersCount,
     deletedWorkersCount: 0,
   };
 }
@@ -549,7 +580,7 @@ export async function parseAndPreviewMasterImport(params: {
       .from("union_workers")
       .select(`
         id, employee_number, first_name, paternal_surname, maternal_surname,
-        category, assignment, turn, schedule, plaza_code, position_number,
+        category, assignment, turn, schedule, plaza_code,
         source_name_raw, active
       `)
       .eq("delegation_id", delegationId),
@@ -728,30 +759,35 @@ export async function parseAndPreviewMasterImport(params: {
     conflictsCount: conflicts,
   };
 
-  // 10. Crear lote en union_import_batches
+  // 10. Crear lote en union_worker_import_batches
   const { data: batch, error: batchError } = await supabase
-    .from("union_import_batches")
+    .from("union_worker_import_batches")
     .insert({
       delegation_id: delegationId,
-      uploaded_by: params.userId,
-      filename: fileName,
-      file_hash: security.sha256,
+      imported_by: params.userId,
+      file_name: fileName,
+      file_size_bytes: fileBuffer.length,
+      file_sha256: security.sha256,
+      format_version: "UNION_MASTER_LOCKERS_V1",
       status: "preview",
       total_rows: summary.totalRows,
-      new_workers: summary.newWorkers,
-      updated_workers: summary.updatedWorkers,
-      unchanged_workers: summary.unchangedWorkers,
-      conflicts: summary.conflicts,
-      invalid_rows: summary.missingMatricula,
-      new_lockers: summary.newLockers,
-      locker_changes: summary.lockerChanges,
-      metadata: {
+      new_workers_count: summary.newWorkers ?? 0,
+      updated_workers_count: summary.updatedWorkers ?? 0,
+      unchanged_workers_count: summary.unchangedWorkers ?? 0,
+      conflicts_count: summary.conflicts ?? 0,
+      invalid_rows_count: summary.missingMatricula ?? 0,
+      new_lockers_count: summary.newLockers ?? 0,
+      locker_changes_count: summary.lockerChanges ?? 0,
+      summary_metadata: {
         hasSupplementarySheet,
         supplementarySheetRows,
         duplicateMatriculas,
         duplicateLockers,
         missingInFileCount: missingWorkers.length,
-      },
+        unrepresentedWorkers: 0,
+        duplicatePlazas: 0,
+        detectedReentries: 0,
+      } as unknown as Json,
     })
     .select("id")
     .single();
@@ -762,41 +798,40 @@ export async function parseAndPreviewMasterImport(params: {
 
   const batchId = batch.id;
 
-  // 11. Insertar filas en union_import_rows
-  const stagingRows = analyzedRows.map((a) => {
-    const rowStatus: "new" | "update" | "unchanged" | "conflict" | "invalid" | "ignored" =
-      a.status === "updated"
-        ? "update"
-        : a.status === "warning"
-        ? "conflict"
-        : (a.status as "new" | "update" | "unchanged" | "conflict" | "invalid" | "ignored");
+  // 11. Insertar filas en union_worker_import_rows
+  const stagingRows = analyzedRows.map((a, idx) => {
+    const rawData = parsedRows[idx]?.raw ?? {};
+    const rowStatus = a.status;
+    const actionTaken: "pending" | "applied" | "skipped" | "conflict_hold" =
+      rowStatus === "conflict"
+        ? "conflict_hold"
+        : rowStatus === "ignored" || rowStatus === "invalid"
+        ? "skipped"
+        : "pending";
 
     return {
       batch_id: batchId,
       row_number: a.rowNumber,
-      matricula: a.parsed.matricula || "",
-      raw_name: a.parsed.source_name_raw || a.parsed.siap_full_name || "",
-      category: a.parsed.position_description || "",
-      turn: a.parsed.turn || "",
-      schedule: a.parsed.schedule_description || "",
-      position_number: a.parsed.position_number || "",
-      locker_number: a.parsed.locker || "",
+      matricula: a.parsed.matricula || `ROW_${a.rowNumber}`,
+      full_name: a.parsed.source_name_raw || a.parsed.siap_full_name || "",
+      raw_data: (rawData as unknown) as Json,
+      parsed_data: (a.parsed as unknown) as Json,
       row_status: rowStatus,
-      action_taken: (rowStatus === "conflict" ? "pending" : rowStatus === "ignored" ? "skipped" : "pending") as
-        | "pending"
-        | "applied"
-        | "skipped"
-        | "conflict_resolved",
-      diff: (a.diff ?? {}) as unknown as Json,
-      issues: a.issues as unknown as Json,
+      action_taken: actionTaken,
+      diff: ((a.diff ?? {}) as unknown) as Json,
+      issues: (a.issues as unknown) as Json,
+      target_worker_id: existingWorkersMap.get(a.parsed.matricula)?.id ?? null,
     };
   });
 
   for (let i = 0; i < stagingRows.length; i += CHUNK_SIZE) {
     const chunk = stagingRows.slice(i, i + CHUNK_SIZE);
-    const { error: chunkError } = await supabase.from("union_import_rows").insert(chunk);
+    const { error: chunkError } = await supabase.from("union_worker_import_rows").insert(chunk);
     if (chunkError) {
-      await supabase.from("union_import_batches").update({ status: "failed", notes: chunkError.message }).eq("id", batchId);
+      await supabase
+        .from("union_worker_import_batches")
+        .update({ status: "failed", notes: chunkError.message })
+        .eq("id", batchId);
       throw new Error(`Error al guardar filas de importación: ${chunkError.message}`);
     }
   }
@@ -810,10 +845,9 @@ export async function parseAndPreviewMasterImport(params: {
       fullName: a.parsed.source_name_raw || a.parsed.siap_full_name || "",
       category: a.parsed.position_description,
       department: a.parsed.department_description,
-      plaza: a.parsed.position_number || a.parsed.plaza_code,
+      plaza: a.parsed.plaza_code,
       turn: a.parsed.turn,
       schedule: a.parsed.schedule_description,
-      positionNumber: a.parsed.position_number,
       lockerCurrent: existing?.active_locker_number ?? undefined,
       lockerExcel: a.parsed.locker,
       observations: a.parsed.raw_observations,
@@ -826,10 +860,11 @@ export async function parseAndPreviewMasterImport(params: {
   // 13. Auditoría sanitizada
   await writeAuditLog({
     delegation_id: delegationId,
-    entity_type: "union_import_batches",
+    entity_type: "union_worker_import_batches",
     entity_id: batchId,
     action: "union_import_previewed",
     metadata: {
+      format_version: "UNION_MASTER_LOCKERS_V1",
       total_rows: summary.totalRows,
       new_workers: summary.newWorkers,
       updated_workers: summary.updatedWorkers,
@@ -880,10 +915,11 @@ export async function applyMasterImportBatch(params: {
 
   await writeAuditLog({
     delegation_id: delegationId,
-    entity_type: "union_import_batches",
+    entity_type: "union_worker_import_batches",
     entity_id: batchId,
     action: "union_import_applied",
     metadata: {
+      format_version: "UNION_MASTER_LOCKERS_V1",
       applied_workers: res.applied_workers,
       updated_workers: res.updated_workers,
       unchanged_workers: res.unchanged_workers,
@@ -904,34 +940,5 @@ export async function applyMasterImportBatch(params: {
     missingMarkedCount: 0,
     skippedConflicts: res.skipped_conflicts,
   };
-}
-
-export async function getMasterImportHistory(delegationId: string): Promise<Array<{
-  id: string;
-  filename: string;
-  file_hash: string;
-  created_at: string;
-  applied_at: string | null;
-  status: string;
-  total_rows: number;
-  new_workers: number;
-  updated_workers: number;
-  unchanged_workers: number;
-  conflicts: number;
-  new_lockers: number;
-  locker_changes: number;
-}>> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("union_import_batches")
-    .select("id, filename, file_hash, created_at, applied_at, status, total_rows, new_workers, updated_workers, unchanged_workers, conflicts, new_lockers, locker_changes")
-    .eq("delegation_id", delegationId)
-    .order("created_at", { ascending: false })
-    .limit(20);
-
-  if (error) {
-    return [];
-  }
-  return data ?? [];
 }
 

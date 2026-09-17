@@ -625,7 +625,6 @@ export function parseWorkerRow(
     termination_date,
     micro_group_code: (raw.micro_group_raw ?? "").toString().trim(),
     turn,
-    position_number: (raw.plaza_raw ?? "").toString().trim(),
     source_name_raw: rawFullName,
     locker: normalizeLockerNumber(raw.locker_raw).normalized,
     is_semantic_locker: normalizeLockerNumber(raw.locker_raw).isSemantic,

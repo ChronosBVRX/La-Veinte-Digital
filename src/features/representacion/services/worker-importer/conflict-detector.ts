@@ -39,7 +39,6 @@ export interface ExistingWorkerRecord {
   termination_code?: string | null;
   termination_date?: string | null;
   micro_group_code?: string | null;
-  position_number?: string | null;
   source_name_raw?: string | null;
   active_locker_number?: string | null;
   active_assignment_id?: string | null;
@@ -75,7 +74,7 @@ const COMPARABLE_FIELDS: Array<{
   { key: "department_description", label: "Adscripción / Depto", getOld: (w) => w.assignment },
   { key: "turn", label: "Turno", getOld: (w) => w.turn },
   { key: "schedule_description", label: "Horario", getOld: (w) => w.schedule },
-  { key: "plaza_code", label: "Plaza", getOld: (w) => w.plaza_code || w.position_number },
+  { key: "plaza_code", label: "Plaza", getOld: (w) => w.plaza_code },
   { key: "contract_type_code", label: "Tipo Contrato", getOld: (w) => w.contract_type_code },
   { key: "responsibility_area_code", label: "Área Responsabilidad", getOld: (w) => w.responsibility_area_code },
   { key: "plaza_type_code", label: "Tipo Plaza", getOld: (w) => w.plaza_type_code },

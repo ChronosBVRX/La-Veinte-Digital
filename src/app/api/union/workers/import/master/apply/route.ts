@@ -20,6 +20,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       delegation_id?: string;
       resolutions?: Record<string, unknown>;
     };
+
     const batchId = body.batch_id;
     let delegationId = body.delegation_id;
     const resolutions = body.resolutions ?? {};
@@ -33,7 +34,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     if (!delegationId) {
       const memberships = await getUnionMemberships();
       const adminMembership = memberships.find((m) => m.role === "union_admin");
-      delegationId = adminMembership?.delegation_id;
+      delegationId = adminMembership?.delegation_id ?? undefined;
     }
 
     if (!delegationId) {
@@ -54,10 +55,9 @@ export async function POST(req: Request): Promise<NextResponse> {
     return noStore(NextResponse.json(result));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Error al aplicar la importación.";
-    const status =
-      message.includes("union_admin") || message.includes("autenticado") || message.includes("acceso")
-        ? 403
-        : 400;
+    const status = message.includes("union_admin") || message.includes("autenticado") || message.includes("acceso")
+      ? 403
+      : 400;
     return noStore(NextResponse.json({ error: message }, { status }));
   }
 }

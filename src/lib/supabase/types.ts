@@ -1592,7 +1592,6 @@ export type Database = {
           termination_date: string | null;
           micro_group_code: string;
           siap_full_name: string;
-          position_number: string;
           source_name_raw: string;
           import_notes: string;
           occupation_limit_is_sentinel: boolean;
@@ -1653,7 +1652,6 @@ export type Database = {
           termination_date?: string | null;
           micro_group_code?: string;
           siap_full_name?: string;
-          position_number?: string;
           source_name_raw?: string;
           import_notes?: string;
           last_import_batch_id?: string | null;
@@ -1713,7 +1711,6 @@ export type Database = {
           termination_date?: string | null;
           micro_group_code?: string;
           siap_full_name?: string;
-          position_number?: string;
           source_name_raw?: string;
           import_notes?: string;
           last_import_batch_id?: string | null;
@@ -1753,6 +1750,10 @@ export type Database = {
           rolled_back_at: string | null;
           rolled_back_by: string | null;
           notes: string;
+          new_lockers_count: number;
+          locker_changes_count: number;
+          locker_conflicts_count: number;
+          summary_metadata: Json;
           created_at: string;
           updated_at: string;
         };
@@ -1779,6 +1780,10 @@ export type Database = {
           rolled_back_at?: string | null;
           rolled_back_by?: string | null;
           notes?: string;
+          new_lockers_count?: number;
+          locker_changes_count?: number;
+          locker_conflicts_count?: number;
+          summary_metadata?: Json;
           created_at?: string;
           updated_at?: string;
         };
@@ -1805,6 +1810,10 @@ export type Database = {
           rolled_back_at?: string | null;
           rolled_back_by?: string | null;
           notes?: string;
+          new_lockers_count?: number;
+          locker_changes_count?: number;
+          locker_conflicts_count?: number;
+          summary_metadata?: Json;
           created_at?: string;
           updated_at?: string;
         };
@@ -1819,7 +1828,7 @@ export type Database = {
           full_name: string;
           raw_data: Json;
           parsed_data: Json;
-          row_status: "new" | "updated" | "unchanged" | "warning" | "invalid" | "conflict";
+          row_status: "new" | "updated" | "unchanged" | "warning" | "invalid" | "conflict" | "ignored";
           action_taken: "pending" | "applied" | "skipped" | "conflict_hold";
           issues: Json;
           diff: Json;
@@ -1834,7 +1843,7 @@ export type Database = {
           full_name: string;
           raw_data?: Json;
           parsed_data?: Json;
-          row_status: "new" | "updated" | "unchanged" | "warning" | "invalid" | "conflict";
+          row_status: "new" | "updated" | "unchanged" | "warning" | "invalid" | "conflict" | "ignored";
           action_taken?: "pending" | "applied" | "skipped" | "conflict_hold";
           issues?: Json;
           diff?: Json;
@@ -1849,7 +1858,7 @@ export type Database = {
           full_name?: string;
           raw_data?: Json;
           parsed_data?: Json;
-          row_status?: "new" | "updated" | "unchanged" | "warning" | "invalid" | "conflict";
+          row_status?: "new" | "updated" | "unchanged" | "warning" | "invalid" | "conflict" | "ignored";
           action_taken?: "pending" | "applied" | "skipped" | "conflict_hold";
           issues?: Json;
           diff?: Json;
@@ -1890,132 +1899,6 @@ export type Database = {
           old_value?: string | null;
           new_value?: string | null;
           changed_by?: string;
-          created_at?: string;
-        };
-        Relationships: [];
-      };
-      union_import_batches: {
-        Row: {
-          id: string;
-          delegation_id: string;
-          filename: string;
-          file_hash: string;
-          uploaded_by: string;
-          created_at: string;
-          applied_at: string | null;
-          status: "preview" | "applied" | "failed" | "cancelled";
-          total_rows: number;
-          new_workers: number;
-          updated_workers: number;
-          unchanged_workers: number;
-          conflicts: number;
-          invalid_rows: number;
-          new_lockers: number;
-          locker_changes: number;
-          notes: string;
-          metadata: Json;
-        };
-        Insert: {
-          id?: string;
-          delegation_id: string;
-          filename: string;
-          file_hash: string;
-          uploaded_by: string;
-          created_at?: string;
-          applied_at?: string | null;
-          status?: "preview" | "applied" | "failed" | "cancelled";
-          total_rows?: number;
-          new_workers?: number;
-          updated_workers?: number;
-          unchanged_workers?: number;
-          conflicts?: number;
-          invalid_rows?: number;
-          new_lockers?: number;
-          locker_changes?: number;
-          notes?: string;
-          metadata?: Json;
-        };
-        Update: {
-          id?: string;
-          delegation_id?: string;
-          filename?: string;
-          file_hash?: string;
-          uploaded_by?: string;
-          created_at?: string;
-          applied_at?: string | null;
-          status?: "preview" | "applied" | "failed" | "cancelled";
-          total_rows?: number;
-          new_workers?: number;
-          updated_workers?: number;
-          unchanged_workers?: number;
-          conflicts?: number;
-          invalid_rows?: number;
-          new_lockers?: number;
-          locker_changes?: number;
-          notes?: string;
-          metadata?: Json;
-        };
-        Relationships: [];
-      };
-      union_import_rows: {
-        Row: {
-          id: string;
-          batch_id: string;
-          row_number: number;
-          matricula: string;
-          raw_name: string;
-          category: string;
-          turn: string;
-          schedule: string;
-          position_number: string;
-          locker_number: string;
-          row_status: "new" | "update" | "unchanged" | "conflict" | "invalid" | "ignored";
-          action_taken: "pending" | "applied" | "skipped" | "conflict_resolved";
-          worker_id: string | null;
-          locker_id: string | null;
-          diff: Json;
-          issues: Json;
-          resolutions: Json;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          batch_id: string;
-          row_number: number;
-          matricula?: string;
-          raw_name?: string;
-          category?: string;
-          turn?: string;
-          schedule?: string;
-          position_number?: string;
-          locker_number?: string;
-          row_status: "new" | "update" | "unchanged" | "conflict" | "invalid" | "ignored";
-          action_taken?: "pending" | "applied" | "skipped" | "conflict_resolved";
-          worker_id?: string | null;
-          locker_id?: string | null;
-          diff?: Json;
-          issues?: Json;
-          resolutions?: Json;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          batch_id?: string;
-          row_number?: number;
-          matricula?: string;
-          raw_name?: string;
-          category?: string;
-          turn?: string;
-          schedule?: string;
-          position_number?: string;
-          locker_number?: string;
-          row_status?: "new" | "update" | "unchanged" | "conflict" | "invalid" | "ignored";
-          action_taken?: "pending" | "applied" | "skipped" | "conflict_resolved";
-          worker_id?: string | null;
-          locker_id?: string | null;
-          diff?: Json;
-          issues?: Json;
-          resolutions?: Json;
           created_at?: string;
         };
         Relationships: [];
@@ -2265,6 +2148,12 @@ export type Database = {
         Args: {
           p_batch_id: string
           p_resolutions?: Json
+        }
+        Returns: Json
+      }
+      union_rollback_master_import: {
+        Args: {
+          p_batch_id: string
         }
         Returns: Json
       }

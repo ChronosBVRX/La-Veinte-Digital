@@ -27,7 +27,7 @@ export function ImportDiffTable({
   const filtered = rows.filter((r) => {
     // Categoría de filtro
     if (filter === "new" && r.status !== "new") return false;
-    if (filter === "update" && r.status !== "update" && r.status !== "updated") return false;
+    if (filter === "update" && r.status !== "updated") return false;
     if (filter === "conflict" && r.status !== "conflict") return false;
     if (filter === "invalid" && r.status !== "invalid") return false;
     if (filter === "unchanged" && r.status !== "unchanged") return false;
@@ -55,7 +55,6 @@ export function ImportDiffTable({
     switch (status) {
       case "new":
         return { label: "Nuevo", bg: "#dcfce7", fg: "#15803d" };
-      case "update":
       case "updated":
         return { label: "Actualizar", bg: "#dbeafe", fg: "#1d4ed8" };
       case "unchanged":

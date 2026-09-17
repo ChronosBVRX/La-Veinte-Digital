@@ -73,7 +73,6 @@ export interface ParsedWorkerRow {
   termination_date: string | null;
   micro_group_code: string;
   turn: string;
-  position_number?: string;
   source_name_raw?: string;
   locker?: string;
   is_semantic_locker?: boolean;
@@ -127,7 +126,6 @@ export interface RowIssue {
 
 export type RowStatus =
   | "new"
-  | "update"
   | "updated"
   | "unchanged"
   | "warning"
@@ -190,7 +188,6 @@ export interface PreviewRow {
   schedule?: string;
   lockerCurrent?: string;
   lockerExcel?: string;
-  positionNumber?: string;
   observations?: string;
   maskedRfc?: string;
   maskedCurp?: string;

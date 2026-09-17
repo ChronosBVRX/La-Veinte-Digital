@@ -1,108 +1,486 @@
 -- 20260917000000_union_master_import.sql
--- Migración aditiva: Actualizar base sindical (Conciliación Maestra Trabajadores + Lockers)
+-- Migración puramente aditiva: Actualizar base sindical (Conciliación Maestra Trabajadores + Lockers)
+-- Reutiliza las tablas existentes union_worker_import_batches y union_worker_import_rows.
+-- TABLAS NUEVAS: NINGUNA.
 -- No destructiva. No añade UNIQUE constraints a union_workers que puedan romper producción.
 
--- 1. Campos aditivos en public.union_workers
+-- 1. Limpieza preventiva de tablas paralelas si se crearon en fases preliminares
+drop table if exists public.union_import_rows cascade;
+drop table if exists public.union_import_batches cascade;
+
+-- 2. Columnas aditivas en public.union_workers
+-- NOTA: NO se añade 'position_number'. Se reutiliza 'plaza_code' para # PLAZA.
+-- 'source_name_raw' conserva el nombre crudo de la fuente administrativa sin alterar 'siap_full_name'.
+-- 'import_notes' conserva observaciones de la importación administrativa sin alterar 'notes' (notas manuales).
 alter table public.union_workers
-  add column if not exists position_number text not null default '',
   add column if not exists source_name_raw text not null default '',
   add column if not exists import_notes text not null default '';
 
-create index if not exists union_workers_pos_idx
-  on public.union_workers (delegation_id, position_number);
+-- Si 'position_number' existía de un intento previo, se retira de forma segura
+alter table public.union_workers
+  drop column if exists position_number;
 
--- 2. Tabla de lotes de importación maestra (union_import_batches)
-create table if not exists public.union_import_batches (
-  id uuid primary key default gen_random_uuid(),
-  delegation_id uuid not null references public.union_delegations (id) on delete cascade,
-  filename text not null,
-  file_hash text not null,
-  uploaded_by uuid not null references auth.users (id),
-  created_at timestamptz not null default now(),
-  applied_at timestamptz,
-  status text not null default 'preview' check (status in ('preview', 'applied', 'failed', 'cancelled')),
-  total_rows integer not null default 0,
-  new_workers integer not null default 0,
-  updated_workers integer not null default 0,
-  unchanged_workers integer not null default 0,
-  conflicts integer not null default 0,
-  invalid_rows integer not null default 0,
-  new_lockers integer not null default 0,
-  locker_changes integer not null default 0,
-  notes text not null default '',
-  metadata jsonb not null default '{}'::jsonb
-);
+create index if not exists union_workers_plaza_idx
+  on public.union_workers (delegation_id, plaza_code);
 
-create index if not exists union_import_batches_del_idx
-  on public.union_import_batches (delegation_id, created_at desc);
-create index if not exists union_import_batches_hash_idx
-  on public.union_import_batches (delegation_id, file_hash);
+-- 3. Columnas aditivas en public.union_worker_import_batches para soporte de casilleros y metadatos
+alter table public.union_worker_import_batches
+  add column if not exists new_lockers_count integer not null default 0,
+  add column if not exists locker_changes_count integer not null default 0,
+  add column if not exists locker_conflicts_count integer not null default 0,
+  add column if not exists summary_metadata jsonb not null default '{}'::jsonb;
 
--- 3. Tabla de filas de staging de importación maestra (union_import_rows)
-create table if not exists public.union_import_rows (
-  id uuid primary key default gen_random_uuid(),
-  batch_id uuid not null references public.union_import_batches (id) on delete cascade,
-  row_number integer not null,
-  matricula text not null default '',
-  raw_name text not null default '',
-  category text not null default '',
-  turn text not null default '',
-  schedule text not null default '',
-  position_number text not null default '',
-  locker_number text not null default '',
-  row_status text not null check (row_status in ('new', 'update', 'unchanged', 'conflict', 'invalid', 'ignored')),
-  action_taken text not null default 'pending' check (action_taken in ('pending', 'applied', 'skipped', 'conflict_resolved')),
-  worker_id uuid references public.union_workers (id) on delete set null,
-  locker_id uuid references public.union_lockers (id) on delete set null,
-  diff jsonb not null default '{}'::jsonb,
-  issues jsonb not null default '[]'::jsonb,
-  resolutions jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
-);
+-- 4. Extensión aditiva del check constraint de row_status en union_worker_import_rows para incluir 'ignored'
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'union_worker_import_rows_row_status_check'
+  ) then
+    alter table public.union_worker_import_rows
+      drop constraint union_worker_import_rows_row_status_check;
+  end if;
+  alter table public.union_worker_import_rows
+    add constraint union_worker_import_rows_row_status_check
+    check (row_status in ('new', 'updated', 'unchanged', 'warning', 'invalid', 'conflict', 'ignored'));
+end $$;
 
-create index if not exists union_import_rows_batch_idx
-  on public.union_import_rows (batch_id, row_number);
-create index if not exists union_import_rows_status_idx
-  on public.union_import_rows (batch_id, row_status);
+-- 5. Guardas en RPCs existentes para aislar formatos
+-- union_confirm_worker_import solo acepta lotes con formato 'SIAP_2026'
+create or replace function public.union_confirm_worker_import(p_batch_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_batch record;
+  v_row record;
+  v_existing record;
+  v_worker_id uuid;
+  v_applied_count integer := 0;
+  v_updated_count integer := 0;
+  v_unchanged_count integer := 0;
+  v_missing_marked integer := 0;
+  v_history_count integer := 0;
+  v_c jsonb;
+  v_now timestamptz := clock_timestamp();
+begin
+  -- 1. Obtener y bloquear el lote
+  select * into v_batch
+  from public.union_worker_import_batches
+  where id = p_batch_id
+  for update;
 
--- 4. RLS y Políticas de Seguridad
-alter table public.union_import_batches enable row level security;
-alter table public.union_import_rows enable row level security;
+  if not found then
+    raise exception 'BATCH_NOT_FOUND: Lote % no encontrado.', p_batch_id;
+  end if;
 
--- union_import_batches: union_rep y union_admin pueden leer; solo union_admin puede insertar/modificar
-drop policy if exists "union_import_batches_select" on public.union_import_batches;
-create policy "union_import_batches_select"
-  on public.union_import_batches for select to authenticated
-  using (public.union_is_member(delegation_id));
+  -- 2. Validar que el formato sea SIAP_2026
+  if v_batch.format_version <> 'SIAP_2026' then
+    raise exception 'INVALID_FORMAT_VERSION: Este lote tiene formato "%" y debe procesarse con su RPC correspondiente (union_apply_master_import).', v_batch.format_version;
+  end if;
 
-drop policy if exists "union_import_batches_admin_write" on public.union_import_batches;
-create policy "union_import_batches_admin_write"
-  on public.union_import_batches for all to authenticated
-  using (public.union_is_admin(delegation_id))
-  with check (public.union_is_admin(delegation_id));
+  -- 3. Validar que el usuario sea union_admin activo de la delegación
+  if not public.union_is_admin(v_batch.delegation_id) then
+    raise exception 'UNAUTHORIZED_UNION_ADMIN: No tienes permisos de administrador sindical en esta delegación.';
+  end if;
 
--- union_import_rows: visibilidad según delegación del lote
-drop policy if exists "union_import_rows_select" on public.union_import_rows;
-create policy "union_import_rows_select"
-  on public.union_import_rows for select to authenticated
-  using (exists (
-    select 1 from public.union_import_batches b
-    where b.id = batch_id and public.union_is_member(b.delegation_id)
-  ));
+  -- 4. Validar estado del lote
+  if v_batch.status <> 'preview' then
+    raise exception 'INVALID_BATCH_STATUS: El lote se encuentra en estado "%" y no puede ser confirmado.', v_batch.status;
+  end if;
 
-drop policy if exists "union_import_rows_admin_write" on public.union_import_rows;
-create policy "union_import_rows_admin_write"
-  on public.union_import_rows for all to authenticated
-  using (exists (
-    select 1 from public.union_import_batches b
-    where b.id = batch_id and public.union_is_admin(b.delegation_id)
-  ))
-  with check (exists (
-    select 1 from public.union_import_batches b
-    where b.id = batch_id and public.union_is_admin(b.delegation_id)
-  ));
+  -- 5. Iterar sobre las filas de staging
+  for v_row in
+    select *
+    from public.union_worker_import_rows
+    where batch_id = p_batch_id
+      and row_status in ('new', 'updated', 'unchanged', 'warning')
+      and action_taken = 'pending'
+    order by row_number asc
+  loop
+    select * into v_existing
+    from public.union_workers
+    where delegation_id = v_batch.delegation_id
+      and employee_number = v_row.matricula;
 
--- 5. RPC Transaccional Atómica para Aplicar la Importación Maestra
+    if not found then
+      -- INSERTAR NUEVO TRABAJADOR
+      insert into public.union_workers (
+        delegation_id,
+        employee_number,
+        siap_full_name,
+        first_name,
+        paternal_surname,
+        maternal_surname,
+        category,
+        assignment,
+        turn,
+        schedule,
+        rest_days,
+        active,
+        notes,
+        contract_type_code,
+        plaza_code,
+        responsibility_area_code,
+        occupation_start_date,
+        occupation_limit_date,
+        occupation_limit_is_sentinel,
+        occupation_mark_code,
+        plaza_type_code,
+        shift_code,
+        associated_concepts_mask,
+        associated_concepts,
+        position_code,
+        position_description,
+        department_code,
+        department_description,
+        schedule_code,
+        schedule_description,
+        seniority_raw,
+        seniority_years,
+        seniority_fortnights,
+        seniority_days,
+        rfc,
+        curp,
+        nss,
+        employment_start_date,
+        reemployment_date,
+        source_status_code,
+        termination_code,
+        termination_date,
+        micro_group_code,
+        source_created_by_batch_id,
+        last_import_batch_id,
+        source_last_seen_at,
+        source_missing_since,
+        source_rolled_back_at,
+        source_import_state,
+        created_by,
+        updated_by,
+        created_at,
+        updated_at
+      ) values (
+        v_batch.delegation_id,
+        v_row.matricula,
+        coalesce(v_row.parsed_data->>'siap_full_name', v_row.full_name),
+        coalesce(v_row.parsed_data->>'first_name', ''),
+        coalesce(v_row.parsed_data->>'paternal_surname', ''),
+        coalesce(v_row.parsed_data->>'maternal_surname', ''),
+        coalesce(v_row.parsed_data->>'position_description', ''),
+        coalesce(v_row.parsed_data->>'department_description', ''),
+        coalesce(v_row.parsed_data->>'turn', ''),
+        coalesce(v_row.parsed_data->>'schedule_description', ''),
+        '',
+        true,
+        '',
+        coalesce(v_row.parsed_data->>'contract_type_code', ''),
+        coalesce(v_row.parsed_data->>'plaza_code', ''),
+        coalesce(v_row.parsed_data->>'responsibility_area_code', ''),
+        (v_row.parsed_data->>'occupation_start_date')::date,
+        (v_row.parsed_data->>'occupation_limit_date')::date,
+        coalesce((v_row.parsed_data->>'occupation_limit_is_sentinel')::boolean, false),
+        coalesce(v_row.parsed_data->>'occupation_mark_code', ''),
+        coalesce(v_row.parsed_data->>'plaza_type_code', ''),
+        coalesce(v_row.parsed_data->>'shift_code', ''),
+        coalesce(v_row.parsed_data->>'associated_concepts_mask', '00000'),
+        coalesce(v_row.parsed_data->'associated_concepts', '[]'::jsonb),
+        coalesce(v_row.parsed_data->>'position_code', ''),
+        coalesce(v_row.parsed_data->>'position_description', ''),
+        coalesce(v_row.parsed_data->>'department_code', ''),
+        coalesce(v_row.parsed_data->>'department_description', ''),
+        coalesce(v_row.parsed_data->>'schedule_code', ''),
+        coalesce(v_row.parsed_data->>'schedule_description', ''),
+        coalesce(v_row.parsed_data->>'seniority_raw', ''),
+        (v_row.parsed_data->>'seniority_years')::integer,
+        (v_row.parsed_data->>'seniority_fortnights')::integer,
+        (v_row.parsed_data->>'seniority_days')::integer,
+        coalesce(v_row.parsed_data->>'rfc', ''),
+        coalesce(v_row.parsed_data->>'curp', ''),
+        coalesce(v_row.parsed_data->>'nss', ''),
+        (v_row.parsed_data->>'employment_start_date')::date,
+        (v_row.parsed_data->>'reemployment_date')::date,
+        coalesce(v_row.parsed_data->>'source_status_code', ''),
+        coalesce(v_row.parsed_data->>'termination_code', ''),
+        (v_row.parsed_data->>'termination_date')::date,
+        coalesce(v_row.parsed_data->>'micro_group_code', ''),
+        p_batch_id,
+        p_batch_id,
+        v_now,
+        null,
+        null,
+        'active',
+        auth.uid(),
+        auth.uid(),
+        v_now,
+        v_now
+      ) returning id into v_worker_id;
+
+      update public.union_worker_import_rows
+      set action_taken = 'applied', target_worker_id = v_worker_id
+      where id = v_row.id;
+
+      v_applied_count := v_applied_count + 1;
+    else
+      -- TRABAJADOR EXISTENTE
+      v_worker_id := v_existing.id;
+
+      if v_row.diff ? 'changes' and jsonb_array_length(v_row.diff->'changes') > 0 then
+        for v_c in select * from jsonb_array_elements(v_row.diff->'changes')
+        loop
+          insert into public.union_worker_change_history (
+            delegation_id,
+            batch_id,
+            worker_id,
+            field_name,
+            old_value,
+            new_value,
+            changed_by,
+            created_at
+          ) values (
+            v_batch.delegation_id,
+            p_batch_id,
+            v_worker_id,
+            v_c->>'field',
+            v_c->>'oldValue',
+            v_c->>'newValue',
+            auth.uid(),
+            v_now
+          );
+          v_history_count := v_history_count + 1;
+        end loop;
+
+        update public.union_workers set
+          siap_full_name = coalesce(v_row.parsed_data->>'siap_full_name', siap_full_name),
+          category = coalesce(v_row.parsed_data->>'position_description', category),
+          assignment = coalesce(v_row.parsed_data->>'department_description', assignment),
+          turn = coalesce(v_row.parsed_data->>'turn', turn),
+          schedule = coalesce(v_row.parsed_data->>'schedule_description', schedule),
+          contract_type_code = coalesce(v_row.parsed_data->>'contract_type_code', contract_type_code),
+          plaza_code = coalesce(v_row.parsed_data->>'plaza_code', plaza_code),
+          responsibility_area_code = coalesce(v_row.parsed_data->>'responsibility_area_code', responsibility_area_code),
+          occupation_start_date = coalesce((v_row.parsed_data->>'occupation_start_date')::date, occupation_start_date),
+          occupation_limit_date = coalesce((v_row.parsed_data->>'occupation_limit_date')::date, occupation_limit_date),
+          occupation_limit_is_sentinel = coalesce((v_row.parsed_data->>'occupation_limit_is_sentinel')::boolean, occupation_limit_is_sentinel),
+          occupation_mark_code = coalesce(v_row.parsed_data->>'occupation_mark_code', occupation_mark_code),
+          plaza_type_code = coalesce(v_row.parsed_data->>'plaza_type_code', plaza_type_code),
+          shift_code = coalesce(v_row.parsed_data->>'shift_code', shift_code),
+          associated_concepts_mask = coalesce(v_row.parsed_data->>'associated_concepts_mask', associated_concepts_mask),
+          associated_concepts = coalesce(v_row.parsed_data->'associated_concepts', associated_concepts),
+          position_code = coalesce(v_row.parsed_data->>'position_code', position_code),
+          position_description = coalesce(v_row.parsed_data->>'position_description', position_description),
+          department_code = coalesce(v_row.parsed_data->>'department_code', department_code),
+          department_description = coalesce(v_row.parsed_data->>'department_description', department_description),
+          schedule_code = coalesce(v_row.parsed_data->>'schedule_code', schedule_code),
+          schedule_description = coalesce(v_row.parsed_data->>'schedule_description', schedule_description),
+          seniority_raw = coalesce(v_row.parsed_data->>'seniority_raw', seniority_raw),
+          seniority_years = coalesce((v_row.parsed_data->>'seniority_years')::integer, seniority_years),
+          seniority_fortnights = coalesce((v_row.parsed_data->>'seniority_fortnights')::integer, seniority_fortnights),
+          seniority_days = coalesce((v_row.parsed_data->>'seniority_days')::integer, seniority_days),
+          rfc = coalesce(v_row.parsed_data->>'rfc', rfc),
+          curp = coalesce(v_row.parsed_data->>'curp', curp),
+          nss = coalesce(v_row.parsed_data->>'nss', nss),
+          employment_start_date = coalesce((v_row.parsed_data->>'employment_start_date')::date, employment_start_date),
+          reemployment_date = coalesce((v_row.parsed_data->>'reemployment_date')::date, reemployment_date),
+          source_status_code = coalesce(v_row.parsed_data->>'source_status_code', source_status_code),
+          termination_code = coalesce(v_row.parsed_data->>'termination_code', termination_code),
+          termination_date = coalesce((v_row.parsed_data->>'termination_date')::date, termination_date),
+          micro_group_code = coalesce(v_row.parsed_data->>'micro_group_code', micro_group_code),
+          last_import_batch_id = p_batch_id,
+          source_last_seen_at = v_now,
+          source_missing_since = null,
+          source_import_state = 'active',
+          updated_by = auth.uid(),
+          updated_at = v_now
+        where id = v_worker_id;
+
+        update public.union_worker_import_rows
+        set action_taken = 'applied', target_worker_id = v_worker_id
+        where id = v_row.id;
+
+        v_updated_count := v_updated_count + 1;
+      else
+        update public.union_workers set
+          last_import_batch_id = p_batch_id,
+          source_last_seen_at = v_now,
+          source_missing_since = null,
+          updated_at = v_now
+        where id = v_worker_id;
+
+        update public.union_worker_import_rows
+        set action_taken = 'skipped', target_worker_id = v_worker_id
+        where id = v_row.id;
+
+        v_unchanged_count := v_unchanged_count + 1;
+      end if;
+    end if;
+  end loop;
+
+  -- 6. Marcar trabajadores ausentes en SIAP (comportamiento protegido)
+  update public.union_workers
+  set
+    source_missing_since = coalesce(source_missing_since, v_now),
+    source_import_state = 'missing_in_source',
+    updated_at = v_now
+  where delegation_id = v_batch.delegation_id
+    and (source_last_seen_at is null or source_last_seen_at < v_now)
+    and (source_missing_since is null)
+    and active = true;
+  get diagnostics v_missing_marked = row_count;
+
+  -- 7. Actualizar estado del lote
+  update public.union_worker_import_batches
+  set
+    status = 'confirmed',
+    applied_at = v_now,
+    confirmed_at = v_now,
+    confirmed_by = auth.uid(),
+    updated_at = v_now
+  where id = p_batch_id;
+
+  return jsonb_build_object(
+    'batch_id', p_batch_id,
+    'status', 'confirmed',
+    'applied_count', v_applied_count,
+    'updated_count', v_updated_count,
+    'unchanged_count', v_unchanged_count,
+    'missing_marked_count', v_missing_marked,
+    'history_records_created', v_history_count
+  );
+end;
+$$;
+
+-- union_rollback_worker_import solo acepta lotes SIAP_2026
+create or replace function public.union_rollback_worker_import(p_batch_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_batch record;
+  v_history record;
+  v_deactivated_count integer := 0;
+  v_restored_fields_count integer := 0;
+  v_now timestamptz := clock_timestamp();
+  v_conflict_emp text;
+begin
+  select * into v_batch
+  from public.union_worker_import_batches
+  where id = p_batch_id
+  for update;
+
+  if not found then
+    raise exception 'BATCH_NOT_FOUND: Lote % no encontrado.', p_batch_id;
+  end if;
+
+  if v_batch.format_version <> 'SIAP_2026' then
+    raise exception 'INVALID_FORMAT_VERSION: Este lote tiene formato "%" y debe revertirse con union_rollback_master_import.', v_batch.format_version;
+  end if;
+
+  if not public.union_is_admin(v_batch.delegation_id) then
+    raise exception 'UNAUTHORIZED_UNION_ADMIN: No tienes permisos de administrador sindical en esta delegación.';
+  end if;
+
+  if v_batch.status <> 'confirmed' then
+    raise exception 'INVALID_BATCH_STATUS_FOR_ROLLBACK: Solo se pueden revertir lotes confirmados. Estado actual: "%".', v_batch.status;
+  end if;
+
+  -- Verificar si hubo modificaciones posteriores
+  select w.employee_number into v_conflict_emp
+  from public.union_workers w
+  where w.delegation_id = v_batch.delegation_id
+    and w.source_created_by_batch_id = p_batch_id
+    and w.last_import_batch_id <> p_batch_id
+  limit 1;
+
+  if v_conflict_emp is null then
+    select w.employee_number into v_conflict_emp
+    from public.union_worker_change_history h
+    join public.union_workers w on w.id = h.worker_id
+    where h.batch_id = p_batch_id
+      and (
+        w.last_import_batch_id <> p_batch_id
+        or exists (
+          select 1 from public.union_worker_change_history h_newer
+          where h_newer.worker_id = h.worker_id
+            and h_newer.created_at > h.created_at
+        )
+      )
+    limit 1;
+  end if;
+
+  if v_conflict_emp is not null then
+    raise exception 'ROLLBACK_CONFLICT_NEWER_CHANGES: El trabajador con matrícula % ha sido modificado posteriormente.', v_conflict_emp;
+  end if;
+
+  -- Reversión no destructiva de trabajadores creados por este lote
+  update public.union_workers
+  set
+    source_rolled_back_at = v_now,
+    source_import_state = 'rolled_back',
+    updated_by = auth.uid(),
+    updated_at = v_now
+  where delegation_id = v_batch.delegation_id
+    and source_created_by_batch_id = p_batch_id;
+  get diagnostics v_deactivated_count = row_count;
+
+  -- Restaurar campos de historial
+  for v_history in
+    select h.worker_id, h.field_name, h.old_value
+    from public.union_worker_change_history h
+    where h.batch_id = p_batch_id
+    order by h.created_at desc
+  loop
+    if v_history.field_name in (
+      'position_description', 'department_description', 'turn', 'schedule_description',
+      'plaza_code', 'contract_type_code', 'associated_concepts_mask', 'seniority_raw',
+      'responsibility_area_code', 'occupation_start_date', 'occupation_limit_date',
+      'occupation_mark_code', 'plaza_type_code', 'shift_code', 'position_code',
+      'department_code', 'schedule_code', 'rfc', 'curp', 'nss', 'employment_start_date',
+      'reemployment_date', 'source_status_code', 'termination_code', 'termination_date',
+      'micro_group_code', 'siap_full_name', 'category', 'assignment', 'schedule'
+    ) then
+      execute format(
+        'update public.union_workers set %I = $1, updated_by = $2, updated_at = $3 where id = $4',
+        v_history.field_name
+      ) using v_history.old_value, auth.uid(), v_now, v_history.worker_id;
+
+      if v_history.field_name = 'position_description' then
+        update public.union_workers set category = coalesce(v_history.old_value, '') where id = v_history.worker_id;
+      end if;
+      if v_history.field_name = 'department_description' then
+        update public.union_workers set assignment = coalesce(v_history.old_value, '') where id = v_history.worker_id;
+      end if;
+      if v_history.field_name = 'schedule_description' then
+        update public.union_workers set schedule = coalesce(v_history.old_value, '') where id = v_history.worker_id;
+      end if;
+
+      v_restored_fields_count := v_restored_fields_count + 1;
+    end if;
+  end loop;
+
+  -- Actualizar estado del lote
+  update public.union_worker_import_batches
+  set
+    status = 'rolled_back',
+    rolled_back_at = v_now,
+    rolled_back_by = auth.uid(),
+    updated_at = v_now
+  where id = p_batch_id;
+
+  return jsonb_build_object(
+    'batch_id', p_batch_id,
+    'status', 'rolled_back',
+    'restored_fields_count', v_restored_fields_count,
+    'deactivated_workers_count', v_deactivated_count
+  );
+end;
+$$;
+
+-- 6. RPC Transaccional Atómica para Aplicar la Importación Maestra (UNION_MASTER_LOCKERS_V1)
+-- Reutiliza union_worker_import_batches y union_worker_import_rows
 create or replace function public.union_apply_master_import(
   p_batch_id uuid,
   p_resolutions jsonb default '{}'::jsonb
@@ -115,7 +493,7 @@ as $$
 declare
   v_batch record;
   v_row record;
-  v_existing_worker record;
+  v_existing record;
   v_worker_id uuid;
   v_locker_id uuid;
   v_prev_locker_id uuid;
@@ -133,10 +511,11 @@ declare
   v_first_name text;
   v_paternal text;
   v_maternal text;
+  v_c jsonb;
 begin
   -- 1. Bloquear y verificar el lote
   select * into v_batch
-  from public.union_import_batches
+  from public.union_worker_import_batches
   where id = p_batch_id
   for update;
 
@@ -144,60 +523,58 @@ begin
     raise exception 'BATCH_NOT_FOUND: Lote % no encontrado.', p_batch_id;
   end if;
 
-  -- 2. Permiso estricto de union_admin
-  if not public.union_is_admin(v_batch.delegation_id) then
-    raise exception 'UNAUTHORIZED_UNION_ADMIN: Se requiere rol union_admin en esta delegación.';
+  -- 2. Validar que el formato sea UNION_MASTER_LOCKERS_V1
+  if v_batch.format_version <> 'UNION_MASTER_LOCKERS_V1' then
+    raise exception 'INVALID_FORMAT_VERSION: Este lote no corresponde al formato UNION_MASTER_LOCKERS_V1 (formato actual: "%").', v_batch.format_version;
   end if;
 
-  -- 3. Estado debe ser preview
+  -- 3. Validar estado
   if v_batch.status <> 'preview' then
-    raise exception 'INVALID_BATCH_STATUS: El lote se encuentra en estado "%" y no puede ser aplicado.', v_batch.status;
+    raise exception 'INVALID_BATCH_STATUS: El lote no se encuentra en estado preview (estado actual: "%").', v_batch.status;
   end if;
 
-  -- 4. Iterar sobre las filas de staging
+  -- 4. Validar permisos de union_admin sobre la delegación del lote
+  if not public.union_is_admin(v_batch.delegation_id) then
+    raise exception 'UNAUTHORIZED_UNION_ADMIN: No cuentas con permisos de union_admin en la delegación %.', v_batch.delegation_id;
+  end if;
+
+  -- 5. Iterar sobre las filas de staging de union_worker_import_rows
   for v_row in
     select *
-    from public.union_import_rows
+    from public.union_worker_import_rows
     where batch_id = p_batch_id
     order by row_number asc
   loop
-    -- Comprobar si hay resoluciones pasadas en p_resolutions o guardadas en la fila
-    v_resolution := coalesce(p_resolutions->(v_row.row_number::text), v_row.resolutions);
-    v_res_action := coalesce(v_resolution->>'action', 'default');
+    -- Comprobar si hay resolución manual del usuario
+    v_resolution := p_resolutions -> (v_row.row_number::text);
+    v_res_action := coalesce(v_resolution ->> 'action', '');
 
-    -- Manejo de filas inválidas o ignoradas
+    if v_row.row_status = 'conflict' and v_res_action = 'skip' then
+      update public.union_worker_import_rows
+      set action_taken = 'skipped'
+      where id = v_row.id;
+      v_skipped_conflicts := v_skipped_conflicts + 1;
+      continue;
+    end if;
+
     if v_row.row_status in ('invalid', 'ignored') then
-      update public.union_import_rows
+      update public.union_worker_import_rows
       set action_taken = 'skipped'
       where id = v_row.id;
       continue;
     end if;
 
-    -- Manejo de conflictos
-    if v_row.row_status = 'conflict' then
-      if v_res_action = 'skip' or v_res_action = 'omit' then
-        v_skipped_conflicts := v_skipped_conflicts + 1;
-        update public.union_import_rows
-        set action_taken = 'skipped', resolutions = v_resolution
-        where id = v_row.id;
-        continue;
-      elsif v_res_action <> 'resolve' then
-        raise exception 'UNRESOLVED_CONFLICT: La fila % presenta un conflicto no resuelto ni omitido.', v_row.row_number;
-      end if;
-    end if;
-
-    -- Conciliación del trabajador por delegation_id + employee_number
-    select * into v_existing_worker
+    -- Buscar trabajador existente en la delegación por matrícula
+    select * into v_existing
     from public.union_workers
     where delegation_id = v_batch.delegation_id
-      and employee_number = v_row.matricula
-    limit 1;
+      and employee_number = v_row.matricula;
 
     if not found then
-      -- Trabajador Nuevo
-      v_first_name := coalesce(v_row.diff->>'first_name', '');
-      v_paternal := coalesce(v_row.diff->>'paternal_surname', '');
-      v_maternal := coalesce(v_row.diff->>'maternal_surname', '');
+      -- INSERTAR NUEVO TRABAJADOR
+      v_paternal := coalesce(v_row.parsed_data->>'paternal_surname', '');
+      v_maternal := coalesce(v_row.parsed_data->>'maternal_surname', '');
+      v_first_name := coalesce(v_row.parsed_data->>'first_name', '');
 
       insert into public.union_workers (
         delegation_id,
@@ -207,12 +584,20 @@ begin
         maternal_surname,
         source_name_raw,
         category,
+        position_description,
         turn,
         schedule,
-        position_number,
+        schedule_description,
         plaza_code,
         import_notes,
         active,
+        notes,
+        source_created_by_batch_id,
+        last_import_batch_id,
+        source_last_seen_at,
+        source_missing_since,
+        source_rolled_back_at,
+        source_import_state,
         created_by,
         updated_by,
         created_at,
@@ -223,14 +608,22 @@ begin
         v_first_name,
         v_paternal,
         v_maternal,
-        v_row.raw_name,
-        v_row.category,
-        v_row.turn,
-        v_row.schedule,
-        v_row.position_number,
-        v_row.position_number,
-        coalesce(v_row.diff->>'import_notes', ''),
+        coalesce(v_row.parsed_data->>'source_name_raw', v_row.full_name),
+        coalesce(v_row.parsed_data->>'position_description', ''),
+        coalesce(v_row.parsed_data->>'position_description', ''),
+        coalesce(v_row.parsed_data->>'turn', ''),
+        coalesce(v_row.parsed_data->>'schedule_description', ''),
+        coalesce(v_row.parsed_data->>'schedule_description', ''),
+        coalesce(v_row.parsed_data->>'plaza_code', ''),
+        coalesce(v_row.parsed_data->>'raw_observations', ''),
         true,
+        '',
+        p_batch_id,
+        p_batch_id,
+        v_now,
+        null,
+        null,
+        'active',
         auth.uid(),
         auth.uid(),
         v_now,
@@ -239,58 +632,92 @@ begin
 
       v_applied_workers := v_applied_workers + 1;
     else
-      -- Trabajador Existente
-      v_worker_id := v_existing_worker.id;
+      -- TRABAJADOR EXISTENTE
+      v_worker_id := v_existing.id;
 
-      if v_row.row_status in ('update', 'conflict') then
-        -- Aplicar actualizaciones respetando resoluciones si existen
-        update public.union_workers
-        set
-          category = case when v_resolution->>'category' = 'keep' then category else coalesce(nullif(v_row.category, ''), category) end,
-          turn = case when v_resolution->>'turn' = 'keep' then turn else coalesce(nullif(v_row.turn, ''), turn) end,
-          schedule = case when v_resolution->>'schedule' = 'keep' then schedule else coalesce(nullif(v_row.schedule, ''), schedule) end,
-          position_number = case when v_resolution->>'position_number' = 'keep' then position_number else coalesce(nullif(v_row.position_number, ''), position_number) end,
-          plaza_code = case when v_resolution->>'position_number' = 'keep' then plaza_code else coalesce(nullif(v_row.position_number, ''), plaza_code) end,
-          source_name_raw = case when source_name_raw = '' then v_row.raw_name else source_name_raw end,
-          import_notes = coalesce(nullif(v_row.diff->>'import_notes', ''), import_notes),
+      -- Registrar cambios en union_worker_change_history si existen en diff
+      if v_row.diff ? 'changes' and jsonb_array_length(v_row.diff->'changes') > 0 then
+        for v_c in select * from jsonb_array_elements(v_row.diff->'changes')
+        loop
+          insert into public.union_worker_change_history (
+            delegation_id,
+            batch_id,
+            worker_id,
+            field_name,
+            old_value,
+            new_value,
+            changed_by,
+            created_at
+          ) values (
+            v_batch.delegation_id,
+            p_batch_id,
+            v_worker_id,
+            v_c->>'field',
+            v_c->>'oldValue',
+            v_c->>'newValue',
+            auth.uid(),
+            v_now
+          );
+        end loop;
+
+        -- Actualizar trabajador sin sobrescribir notas sindicales manuales
+        update public.union_workers set
+          category = coalesce(v_row.parsed_data->>'position_description', category),
+          position_description = coalesce(v_row.parsed_data->>'position_description', position_description),
+          turn = coalesce(v_row.parsed_data->>'turn', turn),
+          schedule = coalesce(v_row.parsed_data->>'schedule_description', schedule),
+          schedule_description = coalesce(v_row.parsed_data->>'schedule_description', schedule_description),
+          plaza_code = coalesce(v_row.parsed_data->>'plaza_code', plaza_code),
+          source_name_raw = coalesce(v_row.parsed_data->>'source_name_raw', source_name_raw),
+          import_notes = coalesce(v_row.parsed_data->>'raw_observations', import_notes),
+          active = true,
+          source_missing_since = null,
+          source_import_state = 'active',
+          last_import_batch_id = p_batch_id,
+          source_last_seen_at = v_now,
           updated_by = auth.uid(),
           updated_at = v_now
         where id = v_worker_id;
 
         v_updated_workers := v_updated_workers + 1;
       else
+        -- Sin cambios de campos de trabajador, solo marcar visto
+        update public.union_workers set
+          active = true,
+          source_missing_since = null,
+          source_import_state = 'active',
+          last_import_batch_id = p_batch_id,
+          source_last_seen_at = v_now,
+          updated_at = v_now
+        where id = v_worker_id;
+
         v_unchanged_workers := v_unchanged_workers + 1;
       end if;
     end if;
 
-    -- Conciliación de Casillero / Locker (si la fila tiene un número de casillero válido)
-    v_norm_locker := trim(v_row.locker_number);
-    if v_norm_locker <> '' and v_norm_locker !~ '^(S/N|DE PASO|VACIO|ABRIR|ABIERTO|JUBILADO)$' then
-      -- Asegurar existencia del casillero en union_lockers
-      select id into v_locker_id
-      from public.union_lockers
-      where delegation_id = v_batch.delegation_id
-        and locker_number = v_norm_locker;
+    -- CONCILIACIÓN DE LOCKERS
+    v_norm_locker := coalesce(v_row.parsed_data->>'locker', '');
 
-      if not found then
-        insert into public.union_lockers (
-          delegation_id,
-          locker_number,
-          status,
-          notes,
-          created_at,
-          updated_at
-        ) values (
-          v_batch.delegation_id,
-          v_norm_locker,
-          'available',
-          'Creado mediante importación maestra de base sindical',
-          v_now,
-          v_now
-        ) returning id into v_locker_id;
-      end if;
+    if v_norm_locker <> '' and coalesce((v_row.parsed_data->>'is_semantic_locker')::boolean, false) = false then
+      -- Asegurar existencia del casillero en la delegación
+      insert into public.union_lockers (
+        delegation_id,
+        locker_number,
+        zone,
+        status,
+        notes
+      ) values (
+        v_batch.delegation_id,
+        v_norm_locker,
+        'General',
+        'ocupado',
+        'Registrado por importación base sindical'
+      )
+      on conflict (delegation_id, locker_number) do update
+      set status = 'ocupado'
+      returning id into v_locker_id;
 
-      -- Verificar si el trabajador ya tiene asignación activa
+      -- Verificar si el trabajador ya tenía asignación activa
       select id, locker_id into v_active_assignment
       from public.union_locker_assignments
       where worker_id = v_worker_id
@@ -298,119 +725,274 @@ begin
       limit 1;
 
       if not found then
-        -- Nueva asignación para el trabajador
-        -- Si estaba ocupado por otro trabajador, se libera con motivo auditado
-        if exists (
-          select 1 from public.union_locker_assignments
-          where locker_id = v_locker_id and status = 'active'
-        ) then
-          update public.union_locker_assignments
-          set status = 'released',
-              released_at = v_now,
-              release_reason = 'Reasignación por importación maestra'
-          where locker_id = v_locker_id and status = 'active';
-        end if;
-
+        -- NUEVA ASIGNACIÓN
         insert into public.union_locker_assignments (
           locker_id,
           worker_id,
-          assigned_at,
           status,
           assignment_reason,
           created_by,
-          created_at
+          assigned_at
         ) values (
           v_locker_id,
           v_worker_id,
-          v_now,
           'active',
-          'Asignado en importación maestra de base sindical',
+          'import_master_batch:' || p_batch_id::text,
           auth.uid(),
           v_now
         );
-
-        update public.union_lockers
-        set status = 'assigned', updated_at = v_now
-        where id = v_locker_id;
-
         v_new_locker_assignments := v_new_locker_assignments + 1;
       elsif v_active_assignment.locker_id <> v_locker_id then
-        -- Cambio de locker (e.g. 284 -> 320)
+        -- CAMBIO DE CASILLERO: Liberar anterior y asignar nuevo
         v_prev_locker_id := v_active_assignment.locker_id;
 
-        -- 1. Cerrar asignación anterior
         update public.union_locker_assignments
-        set status = 'released',
-            released_at = v_now,
-            release_reason = 'Reasignación por actualización de base sindical'
+        set
+          status = 'released',
+          released_at = v_now,
+          release_reason = 'released_by_import_master_batch:' || p_batch_id::text
         where id = v_active_assignment.id;
 
-        -- 2. Liberar locker anterior si no tiene otras asignaciones activas
+        -- Dejar casillero anterior en disponible si no tiene otra asignación activa
         if not exists (
           select 1 from public.union_locker_assignments
           where locker_id = v_prev_locker_id and status = 'active'
         ) then
           update public.union_lockers
-          set status = 'available', updated_at = v_now
+          set status = 'disponible'
           where id = v_prev_locker_id;
         end if;
 
-        -- 3. Crear nueva asignación
+        -- Crear nueva asignación activa
         insert into public.union_locker_assignments (
           locker_id,
           worker_id,
-          assigned_at,
           status,
           assignment_reason,
           created_by,
-          created_at
+          assigned_at
         ) values (
           v_locker_id,
           v_worker_id,
-          v_now,
           'active',
-          'Cambio de locker por actualización de base sindical',
+          'import_master_batch:' || p_batch_id::text,
           auth.uid(),
           v_now
         );
-
-        -- 4. Marcar nuevo locker como assigned
-        update public.union_lockers
-        set status = 'assigned', updated_at = v_now
-        where id = v_locker_id;
-
         v_locker_changes := v_locker_changes + 1;
       end if;
     end if;
 
-    -- Actualizar staging row
-    update public.union_import_rows
-    set action_taken = case when v_row.row_status = 'conflict' then 'conflict_resolved' else 'applied' end,
-        worker_id = v_worker_id,
-        locker_id = v_locker_id,
-        resolutions = v_resolution
+    -- Marcar fila de staging como aplicada
+    update public.union_worker_import_rows
+    set action_taken = 'applied', target_worker_id = v_worker_id
     where id = v_row.id;
   end loop;
 
-  -- 5. Actualizar estado del lote a applied
-  update public.union_import_batches
-  set status = 'applied',
-      applied_at = v_now,
-      new_workers = v_applied_workers,
-      updated_workers = v_updated_workers,
-      unchanged_workers = v_unchanged_workers,
-      locker_changes = v_locker_changes
+  -- 6. Finalizar lote en union_worker_import_batches
+  -- NOTA IMPORTANTE: En Master Base los ausentes NO causan baja automática (active = false).
+  update public.union_worker_import_batches
+  set
+    status = 'confirmed',
+    applied_at = v_now,
+    confirmed_at = v_now,
+    confirmed_by = auth.uid(),
+    new_workers_count = v_applied_workers,
+    updated_workers_count = v_updated_workers,
+    unchanged_workers_count = v_unchanged_workers,
+    new_lockers_count = v_new_locker_assignments,
+    locker_changes_count = v_locker_changes,
+    updated_at = v_now
   where id = p_batch_id;
 
   return jsonb_build_object(
     'batch_id', p_batch_id,
-    'status', 'applied',
+    'status', 'confirmed',
     'applied_workers', v_applied_workers,
     'updated_workers', v_updated_workers,
     'unchanged_workers', v_unchanged_workers,
     'new_locker_assignments', v_new_locker_assignments,
     'locker_changes', v_locker_changes,
     'skipped_conflicts', v_skipped_conflicts
+  );
+end;
+$$;
+
+-- 7. RPC Transaccional Atómica para Rollback de Importación Maestra
+create or replace function public.union_rollback_master_import(p_batch_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_batch record;
+  v_history record;
+  v_assignment record;
+  v_deactivated_workers integer := 0;
+  v_restored_fields integer := 0;
+  v_reverted_assignments integer := 0;
+  v_restored_assignments integer := 0;
+  v_now timestamptz := clock_timestamp();
+  v_conflict_emp text;
+begin
+  -- 1. Obtener y bloquear el lote
+  select * into v_batch
+  from public.union_worker_import_batches
+  where id = p_batch_id
+  for update;
+
+  if not found then
+    raise exception 'BATCH_NOT_FOUND: Lote % no encontrado.', p_batch_id;
+  end if;
+
+  -- 2. Validar formato
+  if v_batch.format_version <> 'UNION_MASTER_LOCKERS_V1' then
+    raise exception 'INVALID_FORMAT_VERSION: Este lote no corresponde al formato UNION_MASTER_LOCKERS_V1 (formato actual: "%").', v_batch.format_version;
+  end if;
+
+  -- 3. Validar estado
+  if v_batch.status <> 'confirmed' then
+    raise exception 'INVALID_BATCH_STATUS_FOR_ROLLBACK: Solo se pueden revertir lotes confirmados. Estado actual: "%".', v_batch.status;
+  end if;
+
+  -- 4. Validar permisos de union_admin
+  if not public.union_is_admin(v_batch.delegation_id) then
+    raise exception 'UNAUTHORIZED_UNION_ADMIN: No cuentas con permisos de union_admin en la delegación %.', v_batch.delegation_id;
+  end if;
+
+  -- 5. Verificar modificaciones posteriores conflictivas
+  select w.employee_number into v_conflict_emp
+  from public.union_workers w
+  where w.delegation_id = v_batch.delegation_id
+    and w.source_created_by_batch_id = p_batch_id
+    and w.last_import_batch_id <> p_batch_id
+  limit 1;
+
+  if v_conflict_emp is null then
+    select w.employee_number into v_conflict_emp
+    from public.union_worker_change_history h
+    join public.union_workers w on w.id = h.worker_id
+    where h.batch_id = p_batch_id
+      and (
+        w.last_import_batch_id <> p_batch_id
+        or exists (
+          select 1 from public.union_worker_change_history h_newer
+          where h_newer.worker_id = h.worker_id
+            and h_newer.created_at > h.created_at
+        )
+      )
+  limit 1;
+  end if;
+
+  if v_conflict_emp is not null then
+    raise exception 'ROLLBACK_CONFLICT_NEWER_CHANGES: El trabajador con matrícula % ha sido modificado posteriormente.', v_conflict_emp;
+  end if;
+
+  -- 6. REVERSIÓN DE TRABAJADORES
+  -- A. Trabajadores creados exclusivamente por este lote: marcado no destructivo (NUNCA DELETE)
+  update public.union_workers
+  set
+    source_rolled_back_at = v_now,
+    source_import_state = 'rolled_back',
+    updated_by = auth.uid(),
+    updated_at = v_now
+  where delegation_id = v_batch.delegation_id
+    and source_created_by_batch_id = p_batch_id;
+  get diagnostics v_deactivated_workers = row_count;
+
+  -- B. Trabajadores actualizados por este lote: restaurar campos desde el historial
+  for v_history in
+    select h.worker_id, h.field_name, h.old_value
+    from public.union_worker_change_history h
+    where h.batch_id = p_batch_id
+    order by h.created_at desc
+  loop
+    if v_history.field_name in (
+      'category', 'position_description', 'turn', 'schedule', 'schedule_description',
+      'plaza_code', 'source_name_raw', 'import_notes'
+    ) then
+      execute format(
+        'update public.union_workers set %I = $1, updated_by = $2, updated_at = $3 where id = $4',
+        v_history.field_name
+      ) using v_history.old_value, auth.uid(), v_now, v_history.worker_id;
+
+      if v_history.field_name = 'position_description' then
+        update public.union_workers set category = coalesce(v_history.old_value, '') where id = v_history.worker_id;
+      end if;
+      if v_history.field_name = 'schedule_description' then
+        update public.union_workers set schedule = coalesce(v_history.old_value, '') where id = v_history.worker_id;
+      end if;
+
+      v_restored_fields := v_restored_fields + 1;
+    end if;
+  end loop;
+
+  -- 7. REVERSIÓN DE CASILLEROS (Operaciones históricas coherentes, sin borrar el pasado)
+  -- A. Revertir asignaciones creadas por este lote (marcarlas released)
+  for v_assignment in
+    select id, locker_id
+    from public.union_locker_assignments
+    where assignment_reason = 'import_master_batch:' || p_batch_id::text
+      and status = 'active'
+  loop
+    update public.union_locker_assignments
+    set
+      status = 'released',
+      released_at = v_now,
+      release_reason = 'Revertido por rollback de lote maestro: ' || p_batch_id::text
+    where id = v_assignment.id;
+
+    -- Si el locker ya no tiene asignación activa, poner en disponible
+    if not exists (
+      select 1 from public.union_locker_assignments
+      where locker_id = v_assignment.locker_id and status = 'active'
+    ) then
+      update public.union_lockers
+      set status = 'disponible'
+      where id = v_assignment.locker_id;
+    end if;
+
+    v_reverted_assignments := v_reverted_assignments + 1;
+  end loop;
+
+  -- B. Restaurar asignaciones que habían sido liberadas por este lote
+  for v_assignment in
+    select id, locker_id
+    from public.union_locker_assignments
+    where release_reason = 'released_by_import_master_batch:' || p_batch_id::text
+      and status = 'released'
+  loop
+    update public.union_locker_assignments
+    set
+      status = 'active',
+      released_at = null,
+      release_reason = ''
+    where id = v_assignment.id;
+
+    update public.union_lockers
+    set status = 'ocupado'
+    where id = v_assignment.locker_id;
+
+    v_restored_assignments := v_restored_assignments + 1;
+  end loop;
+
+  -- 8. Actualizar estado del lote
+  update public.union_worker_import_batches
+  set
+    status = 'rolled_back',
+    rolled_back_at = v_now,
+    rolled_back_by = auth.uid(),
+    updated_at = v_now
+  where id = p_batch_id;
+
+  return jsonb_build_object(
+    'batch_id', p_batch_id,
+    'status', 'rolled_back',
+    'deactivated_workers', v_deactivated_workers,
+    'restored_fields', v_restored_fields,
+    'reverted_assignments', v_reverted_assignments,
+    'restored_assignments', v_restored_assignments
   );
 end;
 $$;
