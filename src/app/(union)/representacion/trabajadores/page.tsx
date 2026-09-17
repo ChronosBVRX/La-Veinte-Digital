@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { getUnionMemberships } from "@/features/representacion/services/permissions";
-import { UnionPageHeader } from "@/features/representacion/components/UnionPageHeader";
 import { WorkersManager } from "@/features/representacion/components/WorkersManager";
 import {
   parseWorkerDirectoryQuery,
@@ -29,10 +28,6 @@ export default async function TrabajadoresPage({
 
   return (
     <div>
-      <UnionPageHeader
-        title="Trabajadores"
-        subtitle="Padrón por delegación. Busca, filtra por categoría, turno o adscripción y abre el expediente."
-      />
       <WorkersManager key={queryKey} initialQuery={initialQuery} />
     </div>
   );

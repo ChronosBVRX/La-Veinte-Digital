@@ -11,6 +11,7 @@ import {
 import {
   countUnionWorkers,
   getUnionWorkerFacets,
+  getUnionWorkerSummary,
   listUnionWorkers,
 } from "@/features/representacion/services/worker-directory";
 
@@ -51,7 +52,9 @@ export async function GET(req: Request): Promise<NextResponse> {
 
     const result = await listUnionWorkers(depId, query);
     const wantsFacets = url.searchParams.get("facets") === "1";
+    const wantsSummary = wantsFacets || url.searchParams.get("summary") === "1";
     const options = wantsFacets ? await getUnionWorkerFacets(depId) : null;
+    const summary = wantsSummary ? await getUnionWorkerSummary(depId, options?.categories.length ?? 0) : null;
     return noStore(
       NextResponse.json({
         workers: result.workers,
@@ -60,6 +63,7 @@ export async function GET(req: Request): Promise<NextResponse> {
         pageSize: result.pageSize,
         hasMore: result.hasMore,
         ...(options ? { options } : {}),
+        ...(summary ? { summary } : {}),
       }),
     );
   } catch (e) {

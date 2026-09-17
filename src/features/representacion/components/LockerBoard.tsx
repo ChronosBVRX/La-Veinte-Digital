@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Button } from "@/shared/components/ui/Button";
+import { RepresentationSectionHeader } from "./ui";
 import { LockerSummaryCards, type LockerSummaryCounts } from "./lockers/LockerSummaryCards";
 import { LockerToolbar } from "./lockers/LockerToolbar";
 import { LockerDesktopTable, type LockerItem } from "./lockers/LockerDesktopTable";
@@ -231,46 +232,10 @@ export function LockerBoard(): React.JSX.Element {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
       {/* 1. ENCABEZADO INSTITUCIONAL CON ACCIONES PRINCIPALES */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-          gap: "1rem",
-        }}
-      >
-        <div style={{ minWidth: "260px" }}>
-          <Link
-            href="/representacion"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              fontSize: "0.8125rem",
-              color: "var(--primary)",
-              textDecoration: "none",
-              fontWeight: 600,
-              marginBottom: "0.25rem",
-            }}
-          >
-            ← Representación Sindical
-          </Link>
-          <h1
-            style={{
-              margin: "0.125rem 0 0.25rem",
-              fontSize: "clamp(1.375rem, 4vw, 1.625rem)",
-              fontWeight: 800,
-              letterSpacing: "-0.02em",
-            }}
-          >
-            Lockers
-          </h1>
-          <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)", lineHeight: 1.4 }}>
-            Administra los casilleros de la delegación, sus asignaciones y pendientes.
-          </p>
-        </div>
-
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+      <RepresentationSectionHeader
+        title="Lockers"
+        subtitle="Administra los casilleros de la delegación, sus asignaciones y pendientes."
+        secondaryAction={
           <Link
             href="/representacion/lockers/importar"
             style={{
@@ -291,6 +256,8 @@ export function LockerBoard(): React.JSX.Element {
           >
             Actualizar base de lockers
           </Link>
+        }
+        primaryAction={
           <Button
             variant="primary"
             onClick={() => handleOpenAssign()}
@@ -298,8 +265,8 @@ export function LockerBoard(): React.JSX.Element {
           >
             + Asignar locker
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* 2. RESUMEN VISUAL CON 4 MÉTRICAS REALES Y TARJETA DE PENDIENTES */}
       <LockerSummaryCards
