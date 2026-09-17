@@ -65,6 +65,16 @@ describe("license-document-dto", () => {
       expect(result.fullName).toBe("RAMÍREZ CARLOS");
     });
 
+    it("parses SIAP slash-delimited format with & encoding for Ñ", () => {
+      const result = normalizeWorkerName({
+        siap_full_name: "BOLA&OS/VAZQUEZ/EDUARDO",
+      });
+      expect(result.paternalSurname).toBe("BOLAÑOS");
+      expect(result.maternalSurname).toBe("VAZQUEZ");
+      expect(result.firstName).toBe("EDUARDO");
+      expect(result.fullName).toBe("BOLAÑOS VAZQUEZ EDUARDO");
+    });
+
     it("returns empty strings when worker has no name data", () => {
       const result = normalizeWorkerName({});
       expect(result.firstName).toBe("");
