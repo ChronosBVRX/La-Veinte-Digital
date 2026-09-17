@@ -345,4 +345,206 @@ describe("Domain Separation: Worker Import vs Locker Import", () => {
     expect(analyzed[0].status).toBe("unchanged");
     expect(analyzed[0].diff).toBeUndefined();
   });
+
+  // --------------------------------------------------------------------------
+  // 16-22: Locker Auto Conflict Resolution & Safety Invariants
+  // --------------------------------------------------------------------------
+  describe("Locker Auto Conflict Resolution & Safety Invariants", () => {
+    it("auto resolve NEVER creates worker and NEVER updates worker (SQL verification)", () => {
+      const migrationLockerSql = fs.readFileSync(
+        path.join(rootDir, "supabase/migrations/20260918000000_union_separate_imports.sql"),
+        "utf8"
+      );
+
+      const lockerApplyMatch = migrationLockerSql.match(
+        /create or replace function public\.union_apply_locker_import[\s\S]*?end;\s*\$\$;/
+      );
+      expect(lockerApplyMatch).not.toBeNull();
+      const sql = lockerApplyMatch![0];
+
+      // Auto resolve or any locker resolution NEVER touches union_workers
+      expect(sql).not.toMatch(/insert\s+into\s+public\.union_workers/i);
+      expect(sql).not.toMatch(/update\s+public\.union_workers/i);
+      expect(sql).not.toMatch(/delete\s+from\s+public\.union_workers/i);
+    });
+
+    it("skip WORKER_NOT_FOUND produces 0 writes to union_workers, union_lockers, union_locker_assignments", () => {
+      const migrationLockerSql = fs.readFileSync(
+        path.join(rootDir, "supabase/migrations/20260918000000_union_separate_imports.sql"),
+        "utf8"
+      );
+
+      const lockerApplyMatch = migrationLockerSql.match(
+        /create or replace function public\.union_apply_locker_import[\s\S]*?end;\s*\$\$;/
+      );
+      expect(lockerApplyMatch).not.toBeNull();
+      const sql = lockerApplyMatch![0];
+
+      // Verify that when action is 'skip' or worker not found, it continues without any insert/update to lockers
+      expect(sql).toContain("if v_row.row_status = 'conflict' and v_res_action = 'skip' then");
+      expect(sql).toContain("if not found then");
+      expect(sql).toContain("v_skipped_conflicts := v_skipped_conflicts + 1;");
+      expect(sql).toContain("continue;");
+    });
+
+    it("classifies identical duplicate rows, same worker duplicate, different workers same locker, and multiple lockers correctly", async () => {
+      const { createClient } = await import("@/lib/supabase/server");
+
+      const mockSupabase = {
+        from: vi.fn((table: string) => {
+          if (table === "union_workers") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockResolvedValue({
+                  data: [
+                    {
+                      id: "w-1",
+                      employee_number: "1111111",
+                      first_name: "JUAN",
+                      paternal_surname: "PEREZ",
+                      maternal_surname: "LOPEZ",
+                      category: "ENFERMERA",
+                      assignment: "URGENCIAS",
+                    },
+                    {
+                      id: "w-2",
+                      employee_number: "2222222",
+                      first_name: "PEDRO",
+                      paternal_surname: "GARCIA",
+                      maternal_surname: "SANCHEZ",
+                      category: "MEDICO",
+                      assignment: "CONSULTA",
+                    },
+                    {
+                      id: "w-3",
+                      employee_number: "3333333",
+                      first_name: "ANA",
+                      paternal_surname: "MARTINEZ",
+                      maternal_surname: "DIAZ",
+                      category: "ADMINISTRATIVO",
+                      assignment: "ARCHIVO",
+                    },
+                  ],
+                  error: null,
+                }),
+              }),
+            };
+          }
+          if (table === "union_lockers") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockResolvedValue({
+                  data: [
+                    { id: "l-10", locker_number: "10", status: "disponible" },
+                    { id: "l-20", locker_number: "20", status: "disponible" },
+                    { id: "l-30", locker_number: "30", status: "ocupado" },
+                  ],
+                  error: null,
+                }),
+              }),
+            };
+          }
+          if (table === "union_locker_assignments") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockResolvedValue({
+                  data: [],
+                  error: null,
+                }),
+              }),
+            };
+          }
+          if (table === "union_worker_import_batches") {
+            return {
+              insert: vi.fn().mockReturnValue({
+                select: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: { id: "batch-test-classification" },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === "union_worker_import_rows") {
+            return {
+              insert: vi.fn().mockResolvedValue({ error: null }),
+            };
+          }
+          return { select: vi.fn() };
+        }),
+      };
+
+      vi.mocked(createClient).mockResolvedValue(mockSupabase as unknown as Awaited<ReturnType<typeof createClient>>);
+
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("Hoja1");
+      ws.addRow(["MATRICULA", "NOMBRE", "LOCKER", "OBSERVACIONES"]);
+      // Case A: Identical duplicate rows (Row 2 and Row 3: same worker 1111111, locker 10)
+      ws.addRow(["1111111", "PEREZ LOPEZ JUAN", "10", "Nota"]);
+      ws.addRow(["1111111", "PEREZ LOPEZ JUAN", "10", "Nota"]);
+
+      // Case B: Worker with multiple lockers in file (Row 4 and Row 5: worker 2222222 with locker 20 and 21)
+      ws.addRow(["2222222", "GARCIA SANCHEZ PEDRO", "20", ""]);
+      ws.addRow(["2222222", "GARCIA SANCHEZ PEDRO", "21", ""]);
+
+      // Case C: Two different workers claiming the same locker (Row 6 and Row 7: locker 50 claimed by 3333333 and 4444444)
+      ws.addRow(["3333333", "MARTINEZ DIAZ ANA", "50", ""]);
+      ws.addRow(["4444444", "DESCONOCIDO LUIS", "50", ""]);
+
+      // Case D: Unknown worker (Row 8: 9999999 not in roster)
+      ws.addRow(["9999999", "EXTRAÑO CARLOS", "60", ""]);
+
+      const buffer = Buffer.from(await wb.xlsx.writeBuffer());
+
+      const result = await parseAndPreviewLockerImport({
+        fileBuffer: buffer,
+        fileName: "lockers_complex_test.xlsx",
+        delegationId: "del-1",
+        userId: "user-1",
+      });
+
+      // 1. Identical duplicate: Row 2 is primary ('new'), Row 3 is duplicate ('conflict', autoResolvable: true)
+      const r2 = result.rows.find((r) => r.rowNumber === 2);
+      const r3 = result.rows.find((r) => r.rowNumber === 3);
+      expect(r2?.status).toBe("new");
+      expect(r3?.status).toBe("conflict");
+      expect(r3?.conflictReasonCode).toBe("DUPLICATE_IDENTICAL_ROW");
+      expect(r3?.autoResolvable).toBe(true);
+      expect(r3?.duplicateOfRow).toBe(2);
+
+      // 2. Worker with multiple lockers: Rows 4 and 5 are conflict, autoResolvable: false
+      const r4 = result.rows.find((r) => r.rowNumber === 4);
+      const r5 = result.rows.find((r) => r.rowNumber === 5);
+      expect(r4?.status).toBe("conflict");
+      expect(r4?.conflictReasonCode).toBe("WORKER_MULTIPLE_LOCKERS");
+      expect(r4?.autoResolvable).toBe(false);
+      expect(r5?.status).toBe("conflict");
+      expect(r5?.conflictReasonCode).toBe("WORKER_MULTIPLE_LOCKERS");
+      expect(r5?.autoResolvable).toBe(false);
+
+      // 3. Different workers claiming same locker: Row 6 and Row 7
+      const r6 = result.rows.find((r) => r.rowNumber === 6);
+      expect(r6?.status).toBe("conflict");
+      expect(r6?.conflictReasonCode).toBe("DUPLICATE_LOCKER_DIFFERENT_WORKERS");
+      expect(r6?.autoResolvable).toBe(false);
+
+      // 4. Worker not found in padrón: Row 8
+      const r8 = result.rows.find((r) => r.rowNumber === 8);
+      expect(r8?.status).toBe("conflict");
+      expect(r8?.conflictReasonCode).toBe("WORKER_NOT_FOUND");
+      expect(r8?.autoResolvable).toBe(false);
+
+      // 5. Verify breakdown counts in summary
+      const breakdown = result.summary.conflictBreakdown!;
+      expect(breakdown).toBeDefined();
+      expect(breakdown.DUPLICATE_IDENTICAL_ROW).toBe(1);
+      expect(breakdown.WORKER_MULTIPLE_LOCKERS).toBe(2);
+      expect(breakdown.DUPLICATE_LOCKER_DIFFERENT_WORKERS).toBe(1);
+      expect(breakdown.WORKER_NOT_FOUND).toBeGreaterThanOrEqual(1);
+
+      expect(result.summary.autoResolvableCount).toBe(1);
+      expect(result.summary.workerNotFoundCount).toBeGreaterThanOrEqual(1);
+    });
+  });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { PreviewRow, RowStatus } from "../../services/worker-importer/types";
+import type { PreviewRow } from "../../services/worker-importer/types";
 import { Input } from "@/shared/components/ui/Input";
 import { Button } from "@/shared/components/ui/Button";
 
@@ -13,7 +13,18 @@ export interface ImportDiffTableProps {
   domain?: "WORKER" | "LOCKER";
 }
 
-type FilterCategory = "all" | "new" | "update" | "conflict" | "invalid" | "lockers" | "unchanged";
+type FilterCategory =
+  | "all"
+  | "new"
+  | "update"
+  | "conflict"
+  | "invalid"
+  | "lockers"
+  | "unchanged"
+  | "no_padron"
+  | "duplicates"
+  | "real_conflicts"
+  | "skipped";
 
 export function ImportDiffTable({
   rows,
@@ -28,15 +39,29 @@ export function ImportDiffTable({
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
 
   const filtered = rows.filter((r) => {
-    // Categoría de filtro
-    if (filter === "new" && r.status !== "new") return false;
-    if (filter === "update" && r.status !== "updated") return false;
-    if (filter === "conflict" && r.status !== "conflict") return false;
-    if (filter === "invalid" && r.status !== "invalid") return false;
-    if (filter === "unchanged" && r.status !== "unchanged") return false;
-    if (filter === "lockers") {
-      const hasLocker = Boolean(r.lockerExcel || r.lockerCurrent || r.diff?.lockerChange);
-      if (!hasLocker) return false;
+    const isSkipped = resolutions[r.rowNumber]?.action === "skip" || r.status === "ignored";
+
+    // Categoría de filtro para casilleros
+    if (isLocker) {
+      if (filter === "new" && r.status !== "new") return false;
+      if (filter === "update" && r.status !== "updated") return false;
+      if (filter === "unchanged" && r.status !== "unchanged") return false;
+      if (filter === "no_padron" && r.conflictReasonCode !== "WORKER_NOT_FOUND" && r.status !== "invalid") return false;
+      if (filter === "duplicates" && !r.autoResolvable && r.conflictReasonCode !== "DUPLICATE_IDENTICAL_ROW" && r.conflictReasonCode !== "DUPLICATE_LOCKER_SAME_WORKER") return false;
+      if (filter === "real_conflicts" && (r.status !== "conflict" || r.conflictReasonCode === "WORKER_NOT_FOUND" || r.autoResolvable)) return false;
+      if (filter === "skipped" && !isSkipped) return false;
+      if (filter === "conflict" && r.status !== "conflict") return false;
+    } else {
+      // Categoría de filtro para trabajadores
+      if (filter === "new" && r.status !== "new") return false;
+      if (filter === "update" && r.status !== "updated") return false;
+      if (filter === "conflict" && r.status !== "conflict") return false;
+      if (filter === "invalid" && r.status !== "invalid") return false;
+      if (filter === "unchanged" && r.status !== "unchanged") return false;
+      if (filter === "lockers") {
+        const hasLocker = Boolean(r.lockerExcel || r.lockerCurrent || r.diff?.lockerChange);
+        if (!hasLocker) return false;
+      }
     }
 
     // Buscador
@@ -54,8 +79,37 @@ export function ImportDiffTable({
     return true;
   });
 
-  function getStatusBadge(status: RowStatus): { label: string; bg: string; fg: string } {
-    switch (status) {
+  function getStatusBadge(row: PreviewRow): { label: string; bg: string; fg: string } {
+    const rowRes = resolutions[row.rowNumber];
+    if (rowRes?.action === "skip") {
+      if (rowRes.reason === "SKIPPED_WORKER_NOT_FOUND") {
+        return { label: "Omitido (No en padrón)", bg: "#e5e7eb", fg: "#374151" };
+      }
+      if (rowRes.reason === "IGNORED_DUPLICATE") {
+        return { label: "Omitido (Duplicado)", bg: "#e5e7eb", fg: "#374151" };
+      }
+      return { label: "Omitido", bg: "#e5e7eb", fg: "#374151" };
+    }
+
+    if (isLocker) {
+      if (row.conflictReasonCode === "WORKER_NOT_FOUND") {
+        return { label: "No en padrón", bg: "#ffedd5", fg: "#c2410c" };
+      }
+      if (row.conflictReasonCode === "DUPLICATE_IDENTICAL_ROW" || row.conflictReasonCode === "DUPLICATE_LOCKER_SAME_WORKER") {
+        return { label: "Duplicado resoluble", bg: "#fef08a", fg: "#854d0e" };
+      }
+      if (row.conflictReasonCode === "DUPLICATE_LOCKER_DIFFERENT_WORKERS") {
+        return { label: "Locker reclamado por varios", bg: "#fee2e2", fg: "#b91c1c" };
+      }
+      if (row.conflictReasonCode === "WORKER_MULTIPLE_LOCKERS") {
+        return { label: "Varios lockers", bg: "#fee2e2", fg: "#b91c1c" };
+      }
+      if (row.conflictReasonCode === "LOCKER_ASSIGNED_TO_OTHER_WORKER") {
+        return { label: "Locker ocupado en BD", bg: "#fee2e2", fg: "#b91c1c" };
+      }
+    }
+
+    switch (row.status) {
       case "new":
         return { label: isLocker ? "Nueva asignación" : "Nuevo", bg: "#dcfce7", fg: "#15803d" };
       case "updated":
@@ -73,13 +127,25 @@ export function ImportDiffTable({
     }
   }
 
+  // Conteos para botones de filtro
+  const countNew = rows.filter((r) => r.status === "new").length;
+  const countUpdate = rows.filter((r) => r.status === "updated").length;
+  const countUnchanged = rows.filter((r) => r.status === "unchanged").length;
+  const countNoPadron = rows.filter((r) => r.conflictReasonCode === "WORKER_NOT_FOUND" || r.status === "invalid").length;
+  const countDuplicates = rows.filter((r) => r.autoResolvable || r.conflictReasonCode === "DUPLICATE_IDENTICAL_ROW" || r.conflictReasonCode === "DUPLICATE_LOCKER_SAME_WORKER").length;
+  const countRealConflicts = rows.filter((r) => r.status === "conflict" && r.conflictReasonCode !== "WORKER_NOT_FOUND" && !r.autoResolvable).length;
+  const countSkipped = rows.filter((r) => resolutions[r.rowNumber]?.action === "skip" || r.status === "ignored").length;
+
   const filterButtons = isLocker
     ? ([
         { id: "all", label: `Todos (${rows.length})` },
-        { id: "new", label: "Nuevas asignaciones" },
-        { id: "update", label: "Reasignaciones" },
-        { id: "conflict", label: "Conflictos" },
-        { id: "unchanged", label: "Sin cambios" },
+        { id: "new", label: `Nuevas asignaciones (${countNew})` },
+        { id: "update", label: `Reasignaciones (${countUpdate})` },
+        { id: "unchanged", label: `Sin cambios (${countUnchanged})` },
+        { id: "no_padron", label: `No en padrón (${countNoPadron})` },
+        { id: "duplicates", label: `Duplicados (${countDuplicates})` },
+        { id: "real_conflicts", label: `Conflictos reales (${countRealConflicts})` },
+        { id: "skipped", label: `Omitidos (${countSkipped})` },
       ] as const)
     : ([
         { id: "all", label: `Todos (${rows.length})` },
@@ -159,7 +225,7 @@ export function ImportDiffTable({
           </thead>
           <tbody>
             {filtered.slice(0, 150).map((r) => {
-              const badge = getStatusBadge(r.status);
+              const badge = getStatusBadge(r);
               const isExpanded = expandedRow === r.rowNumber;
               const hasDiff = isLocker
                 ? Boolean(r.diff?.lockerChange || r.status === "conflict")
@@ -256,7 +322,7 @@ export function ImportDiffTable({
       {/* VISTA MOBILE: Cards */}
       <div className="mobile-only" style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
         {filtered.slice(0, 100).map((r) => {
-          const badge = getStatusBadge(r.status);
+          const badge = getStatusBadge(r);
           const isExpanded = expandedRow === r.rowNumber;
           const rowRes = resolutions[r.rowNumber] || {};
           const isSkipped = rowRes.action === "skip";
