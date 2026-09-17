@@ -711,13 +711,11 @@ begin
       insert into public.union_lockers (
         delegation_id,
         locker_number,
-        zone,
         status,
         notes
       ) values (
         v_batch.delegation_id,
         v_norm_locker,
-        'General',
         'ocupado',
         'Registrado por importación base sindical'
       )

@@ -52,6 +52,20 @@ begin
     check (status in ('available', 'assigned', 'reserved', 'maintenance', 'blocked', 'disponible', 'ocupado'));
 end $$;
 
+-- Asegurar que union_worker_import_rows acepte 'pending_review'
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'union_worker_import_rows_action_taken_check'
+  ) then
+    alter table public.union_worker_import_rows drop constraint union_worker_import_rows_action_taken_check;
+  end if;
+  alter table public.union_worker_import_rows
+    add constraint union_worker_import_rows_action_taken_check
+    check (action_taken in ('pending', 'applied', 'skipped', 'conflict_hold', 'pending_review'));
+end $$;
+
 -- 2. Columna aditiva en public.union_worker_import_batches
 alter table public.union_worker_import_batches
   add column if not exists pending_review_count integer not null default 0;
