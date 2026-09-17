@@ -17,14 +17,11 @@ import { createClient } from "@/lib/supabase/server";
 describe("Real Workbook Test: Copia de Copia de Copia de LOKER 2025.xlsx", () => {
   const realFilePath = "D:/Copia de Copia de Copia de LOKER 2025.xlsx";
   const fileExists = fs.existsSync(realFilePath);
-  const buffer = fileExists ? fs.readFileSync(realFilePath) : Buffer.alloc(0);
-  const fileName = "Copia de Copia de Copia de LOKER 2025.xlsx";
+  const testReal = fileExists ? it : it.skip;
 
-  it("extracts and validates real workbook security metrics", () => {
-    if (!fileExists) {
-      console.log("Real workbook not found - skipping test");
-      return;
-    }
+  testReal("extracts and validates real workbook security metrics", () => {
+    const buffer = fs.readFileSync(realFilePath);
+    const fileName = "Copia de Copia de Copia de LOKER 2025.xlsx";
     console.log("=== 1. ARCHIVO REAL INFORMACIÓN ===");
     console.log("Compressed size:", buffer.length, "bytes (", (buffer.length / (1024 * 1024)).toFixed(2), "MB)");
 
@@ -68,7 +65,9 @@ describe("Real Workbook Test: Copia de Copia de Copia de LOKER 2025.xlsx", () =>
     expect(secResult.valid).toBe(true);
   });
 
-  it("parses real workbook into locker preview without errors", async () => {
+  testReal("parses real workbook into locker preview without errors", async () => {
+    const buffer = fs.readFileSync(realFilePath);
+    const fileName = "Copia de Copia de Copia de LOKER 2025.xlsx";
     const mockBatchId = "11111111-1111-1111-1111-111111111111";
     const mockSupabase = {
       from: (table: string) => {
