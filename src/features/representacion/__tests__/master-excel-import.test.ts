@@ -574,9 +574,9 @@ describe("Master Excel Import - Rollback Mechanics (Workers & Lockers)", () => {
     turn: string;
     schedule: string;
     schedule_description: string;
-    plaza_code: string;
-    source_name_raw: string;
-    import_notes: string;
+    plaza_code: string | null;
+    source_name_raw: string | null;
+    import_notes: string | null;
     active: boolean;
     source_created_by_batch_id?: string | null;
     last_import_batch_id?: string | null;
