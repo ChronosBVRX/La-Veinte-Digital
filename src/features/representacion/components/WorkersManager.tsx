@@ -131,12 +131,28 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
   }, [apiParams, refreshKey]);
 
   useEffect(() => {
-    if (searchDraft === query.q) return;
-    const timer = setTimeout(() => {
-      applyQuery({ ...query, q: searchDraft, page: 1 });
-    }, 350);
-    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync searchDraft if query.q changes externally
+    setSearchDraft(query.q);
+  }, [query.q]);
+
+  const applySearch = useCallback((targetText?: string) => {
+    const raw = targetText !== undefined ? targetText : searchDraft;
+    const nextQ = raw.trim();
+    applyQuery({
+      ...query,
+      q: nextQ,
+      page: 1,
+    });
   }, [searchDraft, query, applyQuery]);
+
+  const handleClearSearch = useCallback(() => {
+    setSearchDraft("");
+    applyQuery({
+      ...query,
+      q: "",
+      page: 1,
+    });
+  }, [query, applyQuery]);
 
   useEffect(() => {
     if (!filtersOpen) return;
@@ -160,7 +176,7 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
   const buildDetailHref = useCallback((workerId: string) => workerDetailHref(workerId, query), [query]);
 
   function openFilters(): void {
-    setDraft(query);
+    setDraft({ ...query, q: searchDraft });
     setDraftTotal(null);
     setFiltersOpen(true);
   }
@@ -172,8 +188,7 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
   }
 
   function applyDraft(): void {
-    setSearchDraft(draft.q);
-    applyQuery(draft);
+    applyQuery({ ...draft, q: searchDraft.trim(), page: 1 });
     setFiltersOpen(false);
   }
 
@@ -273,7 +288,10 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
             placeholder="Buscar por nombre, matrícula, categoría o adscripción…"
             value={searchDraft}
             onChange={setSearchDraft}
-            onSearchSubmit={(val) => applyQuery({ ...query, q: val, page: 1 })}
+            onSearchSubmit={() => applySearch()}
+            onClear={handleClearSearch}
+            showSearchButton={true}
+            searchButtonLabel="Buscar"
           />
         }
         filters={
@@ -318,7 +336,7 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
               {loading ? "Cargando…" : `${total} ${total === 1 ? "trabajador" : "trabajadores"}`}
             </span>
             {loading && workers.length > 0 ? (
-              <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Actualizando…</span>
+              <span style={{ fontSize: "0.75rem", color: "var(--primary)", fontWeight: 600 }}>Actualizando resultados…</span>
             ) : null}
           </>
         }
@@ -371,7 +389,13 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
           actionLabel={hasFilters ? "Limpiar filtros" : undefined}
         />
       ) : (
-        <>
+        <div
+          style={{
+            opacity: loading ? 0.65 : 1,
+            transition: "opacity 0.15s ease",
+            pointerEvents: loading ? "none" : "auto",
+          }}
+        >
           <div className="desktop-only">
             <WorkerTable workers={workers} buildHref={buildDetailHref} />
           </div>
@@ -380,7 +404,7 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
               <WorkerCard key={worker.id} worker={worker} href={buildDetailHref(worker.id)} />
             ))}
           </div>
-        </>
+        </div>
       )}
 
       {/* 5. PAGINACIÓN */}

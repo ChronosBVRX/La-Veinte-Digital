@@ -109,8 +109,32 @@ describe("Directorio de trabajadores · búsqueda", () => {
     expect(screen.getAllByText("2 trabajadores").length).toBeGreaterThan(0);
   });
 
-  it("busca al presionar Enter y sincroniza la URL", async () => {
+  it("escribir texto NO dispara fetch ni actualiza la URL y preserva el foco", async () => {
     renderDirectory();
+    await screen.findAllByText(DISPLAY_NAME);
+    const initialCallCount = listCalls().length;
+
+    const input = screen.getByLabelText("Buscar trabajador");
+    input.focus();
+    expect(document.activeElement).toBe(input);
+
+    fireEvent.change(input, { target: { value: "garcia dominguez" } });
+
+    // Esperar más tiempo que el antiguo debounce (350ms)
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // No se generaron llamadas fetch adicionales
+    expect(listCalls().length).toBe(initialCallCount);
+    // No se actualizó la URL
+    expect(replaceMock).not.toHaveBeenCalled();
+    // El texto permanece en el input y mantiene foco
+    expect((input as HTMLInputElement).value).toBe("garcia dominguez");
+  });
+
+  it("ejecuta búsqueda y actualiza la URL exactamente una vez al presionar Enter", async () => {
+    renderDirectory();
+    await screen.findAllByText(DISPLAY_NAME);
+
     const input = screen.getByLabelText("Buscar trabajador");
     fireEvent.change(input, { target: { value: "perez" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -121,17 +145,59 @@ describe("Directorio de trabajadores · búsqueda", () => {
     expect(replaceMock).toHaveBeenCalledWith("/representacion/trabajadores?q=perez", { scroll: false });
   });
 
-  it("aplica búsqueda con debounce al escribir", async () => {
+  it("ejecuta búsqueda y actualiza la URL al pulsar el botón Buscar", async () => {
     renderDirectory();
-    const input = screen.getByLabelText("Buscar trabajador");
-    fireEvent.change(input, { target: { value: "lopez" } });
+    await screen.findAllByText(DISPLAY_NAME);
 
-    await waitFor(
-      () => {
-        expect(lastListCall()?.searchParams.get("q")).toBe("lopez");
-      },
-      { timeout: 2000 },
-    );
+    const input = screen.getByLabelText("Buscar trabajador");
+    fireEvent.change(input, { target: { value: "dominguez" } });
+
+    const searchBtn = screen.getByRole("button", { name: "Buscar" });
+    fireEvent.click(searchBtn);
+
+    await waitFor(() => {
+      expect(lastListCall()?.searchParams.get("q")).toBe("dominguez");
+    });
+    expect(replaceMock).toHaveBeenCalledWith("/representacion/trabajadores?q=dominguez", { scroll: false });
+  });
+
+  it("reinicia la paginación a página 1 al buscar", async () => {
+    renderDirectory({ page: 3, q: "" });
+    await screen.findAllByText(DISPLAY_NAME);
+
+    const input = screen.getByLabelText("Buscar trabajador");
+    fireEvent.change(input, { target: { value: "martinez" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(lastListCall()?.searchParams.get("q")).toBe("martinez");
+      expect(lastListCall()?.searchParams.get("pagina")).toBe("1");
+    });
+  });
+
+  it("el botón de limpiar (X) limpia inmediatamente el texto y la búsqueda aplicada", async () => {
+    renderDirectory({ q: "inicial" });
+    await screen.findAllByText(DISPLAY_NAME);
+
+    const clearBtn = screen.getByLabelText("Limpiar búsqueda");
+    fireEvent.click(clearBtn);
+
+    await waitFor(() => {
+      expect(lastListCall()?.searchParams.get("q")).toBeNull();
+    });
+    const input = screen.getByLabelText("Buscar trabajador");
+    expect((input as HTMLInputElement).value).toBe("");
+  });
+
+  it("el texto en borrador se preserva al abrir filtros", async () => {
+    renderDirectory();
+    await screen.findAllByText(DISPLAY_NAME);
+
+    const input = screen.getByLabelText("Buscar trabajador");
+    fireEvent.change(input, { target: { value: "borrador pendiente" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Filtros/ }));
+    expect((input as HTMLInputElement).value).toBe("borrador pendiente");
   });
 });
 
