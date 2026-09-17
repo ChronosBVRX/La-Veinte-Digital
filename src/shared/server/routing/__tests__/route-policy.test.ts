@@ -69,9 +69,16 @@ describe("API route policy", () => {
       "/api/union/workers/import/master/preview": "authenticated",
       "/api/union/workers/import/master/apply": "authenticated",
       "/api/union/workers/import/master/upload-url": "authenticated",
+      "/api/union/workers/import/upload-url": "authenticated",
       "/api/union/workers/import/rollback": "authenticated",
       "/api/union/workers/imports": "authenticated",
       "/api/union/workers/import/errors": "authenticated",
+      "/api/union/lockers/import/upload-url": "authenticated",
+      "/api/union/lockers/import/preview": "authenticated",
+      "/api/union/lockers/import/apply": "authenticated",
+      "/api/union/lockers/import/rollback": "authenticated",
+      "/api/union/lockers/import/history": "authenticated",
+      "/api/union/lockers/import/errors": "authenticated",
     })
   })
 

@@ -23,16 +23,28 @@ interface ImportBatch {
   created_at: string;
 }
 
-export function ImportHistoryList(): React.JSX.Element {
+export interface ImportHistoryListProps {
+  domain?: "WORKER" | "LOCKER";
+}
+
+export function ImportHistoryList({ domain = "WORKER" }: ImportHistoryListProps): React.JSX.Element {
   const [batches, setBatches] = useState<ImportBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rollingBackId, setRollingBackId] = useState<string | null>(null);
   const [refreshIndex, setRefreshIndex] = useState(0);
 
+  const isLocker = domain === "LOCKER";
+  const fetchUrl = isLocker
+    ? "/api/union/lockers/import/history"
+    : "/api/union/workers/imports?domain=WORKER";
+  const rollbackUrl = isLocker
+    ? "/api/union/lockers/import/rollback"
+    : "/api/union/workers/import/rollback";
+
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/union/workers/imports", { cache: "no-store" })
+    fetch(fetchUrl, { cache: "no-store" })
       .then(async (res) => {
         const data = (await res.json()) as { batches?: ImportBatch[]; error?: string };
         if (!res.ok) throw new Error(data.error ?? "Error al cargar historial.");
@@ -48,16 +60,20 @@ export function ImportHistoryList(): React.JSX.Element {
     return () => {
       cancelled = true;
     };
-  }, [refreshIndex]);
+  }, [fetchUrl, refreshIndex]);
 
   async function handleRollback(batchId: string): Promise<void> {
-    if (!window.confirm("¿Seguro que deseas revertir esta importación? Los campos actualizados regresarán a su estado anterior y los trabajadores creados en este lote sin expedientes serán removidos.")) {
+    const confirmMessage = isLocker
+      ? "¿Seguro que deseas revertir esta importación de casilleros? Las asignaciones creadas se liberarán y los casilleros reasignados volverán a su asignación previa."
+      : "¿Seguro que deseas revertir esta importación de trabajadores? Los campos actualizados regresarán a su estado anterior y los trabajadores creados en este lote sin expedientes serán removidos.";
+
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
     setRollingBackId(batchId);
     try {
-      const res = await fetch("/api/union/workers/import/rollback", {
+      const res = await fetch(rollbackUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ batch_id: batchId }),
@@ -91,7 +107,9 @@ export function ImportHistoryList(): React.JSX.Element {
   if (batches.length === 0) {
     return (
       <p style={{ color: "var(--muted)", fontSize: "0.8125rem", margin: "1rem 0" }}>
-        Aún no se han realizado importaciones de plantillas Excel en esta delegación.
+        {isLocker
+          ? "Aún no se han realizado importaciones de casilleros en esta delegación."
+          : "Aún no se han realizado importaciones de trabajadores en esta delegación."}
       </p>
     );
   }
@@ -107,15 +125,23 @@ export function ImportHistoryList(): React.JSX.Element {
               <th style={{ padding: "0.5rem" }}>Archivo</th>
               <th style={{ padding: "0.5rem" }}>Estado</th>
               <th style={{ padding: "0.5rem" }}>Total leídos</th>
-              <th style={{ padding: "0.5rem" }}>Nuevos</th>
-              <th style={{ padding: "0.5rem" }}>Modificados</th>
+              {isLocker ? (
+                <>
+                  <th style={{ padding: "0.5rem" }}>Nuevas asignaciones</th>
+                  <th style={{ padding: "0.5rem" }}>Cambios asignación</th>
+                </>
+              ) : (
+                <>
+                  <th style={{ padding: "0.5rem" }}>Nuevos</th>
+                  <th style={{ padding: "0.5rem" }}>Modificados</th>
+                </>
+              )}
               <th style={{ padding: "0.5rem" }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {batches.map((b) => {
               const badge = getStatusLabel(b.status);
-              const isMaster = b.format_version === "UNION_MASTER_LOCKERS_V1";
               return (
                 <tr key={b.id} style={{ borderBottom: "1px solid var(--border)" }}>
                   <td style={{ padding: "0.5rem" }}>
@@ -126,13 +152,13 @@ export function ImportHistoryList(): React.JSX.Element {
                       style={{
                         padding: "0.15rem 0.4rem",
                         borderRadius: "0.2rem",
-                        backgroundColor: isMaster ? "#eff6ff" : "#f1f5f9",
-                        color: isMaster ? "#1d4ed8" : "#475569",
+                        backgroundColor: isLocker ? "#f0fdf4" : "#eff6ff",
+                        color: isLocker ? "#166534" : "#1d4ed8",
                         fontWeight: 600,
                         fontSize: "0.6875rem",
                       }}
                     >
-                      {isMaster ? "Base y lockers" : "SIAP"}
+                      {isLocker ? "Lockers" : "Trabajadores"}
                     </span>
                   </td>
                   <td style={{ padding: "0.5rem", fontWeight: 600 }}>{b.file_name}</td>
@@ -151,22 +177,25 @@ export function ImportHistoryList(): React.JSX.Element {
                     </span>
                   </td>
                   <td style={{ padding: "0.5rem" }}>{b.total_rows.toLocaleString("es-MX")}</td>
-                  <td style={{ padding: "0.5rem", color: "#16a34a", fontWeight: 600 }}>
-                    +{b.new_workers_count}
-                    {isMaster && (b.new_lockers_count ?? 0) > 0 && (
-                      <div style={{ fontSize: "0.6875rem", color: "#0d9488", fontWeight: 500 }}>
-                        +{b.new_lockers_count} lockers
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ padding: "0.5rem", color: "var(--primary)", fontWeight: 600 }}>
-                    {b.updated_workers_count}
-                    {isMaster && (b.locker_changes_count ?? 0) > 0 && (
-                      <div style={{ fontSize: "0.6875rem", color: "#6366f1", fontWeight: 500 }}>
-                        {b.locker_changes_count} camb. locker
-                      </div>
-                    )}
-                  </td>
+                  {isLocker ? (
+                    <>
+                      <td style={{ padding: "0.5rem", color: "#16a34a", fontWeight: 600 }}>
+                        +{b.new_lockers_count ?? 0}
+                      </td>
+                      <td style={{ padding: "0.5rem", color: "#2563eb", fontWeight: 600 }}>
+                        {b.locker_changes_count ?? 0}
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td style={{ padding: "0.5rem", color: "#16a34a", fontWeight: 600 }}>
+                        +{b.new_workers_count}
+                      </td>
+                      <td style={{ padding: "0.5rem", color: "var(--primary)", fontWeight: 600 }}>
+                        {b.updated_workers_count}
+                      </td>
+                    </>
+                  )}
                   <td style={{ padding: "0.5rem" }}>
                     {b.status === "confirmed" ? (
                       <Button

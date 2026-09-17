@@ -33,20 +33,11 @@ export async function GET(req: Request): Promise<NextResponse> {
     await requireUnionAdmin(delegationId);
 
     const supabase = await createClient();
-    const domain = url.searchParams.get("domain");
-    let query = supabase
+    const { data: batches, error } = await supabase
       .from("union_worker_import_batches")
       .select("*")
-      .eq("delegation_id", delegationId);
-
-    if (domain === "LOCKER") {
-      query = query.eq("format_version", "UNION_LOCKERS_V1");
-    } else {
-      // Historial de trabajadores contiene únicamente lotes de trabajadores
-      query = query.neq("format_version", "UNION_LOCKERS_V1");
-    }
-
-    const { data: batches, error } = await query
+      .eq("delegation_id", delegationId)
+      .eq("format_version", "UNION_LOCKERS_V1")
       .order("created_at", { ascending: false })
       .limit(30);
 
@@ -56,10 +47,11 @@ export async function GET(req: Request): Promise<NextResponse> {
 
     return noStore(NextResponse.json({ batches: batches ?? [] }));
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Error al obtener historial de importaciones.";
-    const status = message.includes("union_admin") || message.includes("autenticado") || message.includes("acceso")
-      ? 403
-      : 500;
+    const message = err instanceof Error ? err.message : "Error al obtener historial de importaciones de casilleros.";
+    const status =
+      message.includes("union_admin") || message.includes("autenticado") || message.includes("acceso")
+        ? 403
+        : 500;
     return noStore(NextResponse.json({ error: message }, { status }));
   }
 }

@@ -202,10 +202,12 @@ export function detectConflictsAndDiff(
 
     if (!existing) {
       let lockerDiff: RowDiff["lockerChange"] = undefined;
-      if (parsed.locker && !parsed.is_semantic_locker) {
-        lockerDiff = { currentLocker: null, excelLocker: parsed.locker, action: "new_assignment" };
-      } else if (parsed.is_semantic_locker) {
-        lockerDiff = { currentLocker: null, excelLocker: parsed.locker ?? null, action: "semantic_skip" };
+      if (existingLockersMap !== undefined) {
+        if (parsed.locker && !parsed.is_semantic_locker) {
+          lockerDiff = { currentLocker: null, excelLocker: parsed.locker, action: "new_assignment" };
+        } else if (parsed.is_semantic_locker) {
+          lockerDiff = { currentLocker: null, excelLocker: parsed.locker ?? null, action: "semantic_skip" };
+        }
       }
 
       analyzed.push({
@@ -310,29 +312,31 @@ export function detectConflictsAndDiff(
       active_assignment_id: existing.active_assignment_id || null,
     };
 
-    // Comprobación de cambio o asignación de casillero
+    // Comprobación de cambio o asignación de casillero (SOLO cuando se concilian casilleros)
     let lockerDiff: RowDiff["lockerChange"] = undefined;
-    const currentLocker = existing.active_locker_number || null;
-    const excelLocker = parsed.locker && !parsed.is_semantic_locker ? parsed.locker : null;
+    if (existingLockersMap !== undefined) {
+      const currentLocker = existing.active_locker_number || null;
+      const excelLocker = parsed.locker && !parsed.is_semantic_locker ? parsed.locker : null;
 
-    if (currentLocker && excelLocker && currentLocker !== excelLocker) {
-      changes.push({
-        field: "locker",
-        label: "Casillero / Locker",
-        oldValue: currentLocker,
-        newValue: excelLocker,
-      });
-      lockerDiff = { currentLocker, excelLocker, action: "change_assignment" };
-    } else if (!currentLocker && excelLocker) {
-      changes.push({
-        field: "locker",
-        label: "Casillero / Locker",
-        oldValue: null,
-        newValue: excelLocker,
-      });
-      lockerDiff = { currentLocker: null, excelLocker, action: "new_assignment" };
-    } else if (parsed.is_semantic_locker) {
-      lockerDiff = { currentLocker, excelLocker: parsed.locker ?? null, action: "semantic_skip" };
+      if (currentLocker && excelLocker && currentLocker !== excelLocker) {
+        changes.push({
+          field: "locker",
+          label: "Casillero / Locker",
+          oldValue: currentLocker,
+          newValue: excelLocker,
+        });
+        lockerDiff = { currentLocker, excelLocker, action: "change_assignment" };
+      } else if (!currentLocker && excelLocker) {
+        changes.push({
+          field: "locker",
+          label: "Casillero / Locker",
+          oldValue: null,
+          newValue: excelLocker,
+        });
+        lockerDiff = { currentLocker: null, excelLocker, action: "new_assignment" };
+      } else if (parsed.is_semantic_locker) {
+        lockerDiff = { currentLocker, excelLocker: parsed.locker ?? null, action: "semantic_skip" };
+      }
     }
 
     let status: RowStatus = "unchanged";

@@ -2,30 +2,43 @@
 
 import type { ImportSummary } from "../../services/worker-importer/types";
 
-interface ImportPreviewDashboardProps {
+export interface ImportPreviewDashboardProps {
   summary: ImportSummary;
   fileName: string;
+  domain?: "WORKER" | "LOCKER";
 }
 
 export function ImportPreviewDashboard({
   summary,
   fileName,
+  domain = "WORKER",
 }: ImportPreviewDashboardProps): React.JSX.Element {
-  const cards = [
-    { label: "Filas detectadas", value: summary.totalRows, color: "var(--fg)" },
-    { label: "Trabajadores válidos", value: summary.validWorkers ?? (summary.totalRows - (summary.missingMatricula ?? 0)), color: "#0284c7" },
-    { label: "Trabajadores nuevos", value: summary.newWorkers ?? summary.newCount ?? 0, color: "#16a34a" },
-    { label: "Con cambios", value: summary.updatedWorkers ?? summary.updatedCount ?? 0, color: "var(--primary)" },
-    { label: "Sin cambios", value: summary.unchangedWorkers ?? summary.unchangedCount ?? 0, color: "var(--muted)" },
-    { label: "Matrículas duplicadas", value: summary.duplicateMatriculas ?? 0, color: "#ea580c" },
-    { label: "Sin matrícula", value: summary.missingMatricula ?? summary.invalidCount ?? 0, color: "#dc2626" },
-    { label: "Lockers detectados", value: summary.lockersDetected ?? 0, color: "#0891b2" },
-    { label: "Lockers nuevos", value: summary.newLockers ?? 0, color: "#059669" },
-    { label: "Cambios asignación", value: summary.lockerChanges ?? 0, color: "#2563eb" },
-    { label: "Lockers duplicados", value: summary.duplicateLockers ?? 0, color: "#b91c1c" },
-    { label: "Conflictos", value: summary.conflicts ?? summary.conflictsCount ?? 0, color: "#9333ea" },
-    { label: "Filas ignoradas", value: summary.ignoredRows ?? 0, color: "var(--muted)" },
-  ];
+  const isLocker = domain === "LOCKER";
+
+  const cards = isLocker
+    ? [
+        { label: "Filas detectadas", value: summary.totalRows, color: "var(--fg)" },
+        { label: "Lockers detectados", value: summary.lockersDetected ?? 0, color: "#0891b2" },
+        { label: "Lockers nuevos", value: summary.newLockers ?? 0, color: "#059669" },
+        { label: "Nuevas asignaciones", value: summary.newCount ?? 0, color: "#16a34a" },
+        { label: "Cambios asignación", value: summary.lockerChanges ?? summary.updatedCount ?? 0, color: "#2563eb" },
+        { label: "Sin cambios", value: summary.unchangedCount ?? 0, color: "var(--muted)" },
+        { label: "Lockers duplicados", value: summary.duplicateLockers ?? 0, color: "#b91c1c" },
+        { label: "No en padrón", value: summary.missingMatricula ?? summary.invalidCount ?? 0, color: "#ea580c" },
+        { label: "Conflictos", value: summary.conflicts ?? summary.conflictsCount ?? 0, color: "#9333ea" },
+        { label: "Filas ignoradas", value: summary.ignoredRows ?? 0, color: "var(--muted)" },
+      ]
+    : [
+        { label: "Filas detectadas", value: summary.totalRows, color: "var(--fg)" },
+        { label: "Trabajadores válidos", value: summary.validWorkers ?? (summary.totalRows - (summary.missingMatricula ?? 0)), color: "#0284c7" },
+        { label: "Trabajadores nuevos", value: summary.newWorkers ?? summary.newCount ?? 0, color: "#16a34a" },
+        { label: "Con cambios", value: summary.updatedWorkers ?? summary.updatedCount ?? 0, color: "var(--primary)" },
+        { label: "Sin cambios", value: summary.unchangedWorkers ?? summary.unchangedCount ?? 0, color: "var(--muted)" },
+        { label: "Matrículas duplicadas", value: summary.duplicateMatriculas ?? 0, color: "#ea580c" },
+        { label: "Sin matrícula", value: summary.missingMatricula ?? summary.invalidCount ?? 0, color: "#dc2626" },
+        { label: "Conflictos", value: summary.conflicts ?? summary.conflictsCount ?? 0, color: "#9333ea" },
+        { label: "Filas ignoradas", value: summary.ignoredRows ?? 0, color: "var(--muted)" },
+      ];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -65,7 +78,7 @@ export function ImportPreviewDashboard({
         ))}
       </div>
 
-      {summary.hasSupplementarySheet ? (
+      {summary.hasSupplementarySheet && !isLocker ? (
         <div
           role="status"
           style={{
@@ -99,7 +112,7 @@ export function ImportPreviewDashboard({
         </div>
       ) : null}
 
-      {summary.missingInFileCount > 0 ? (
+      {!isLocker && summary.missingInFileCount > 0 ? (
         <div
           style={{
             padding: "0.75rem",
@@ -110,7 +123,7 @@ export function ImportPreviewDashboard({
             fontSize: "0.8125rem",
           }}
         >
-          ℹ️ <strong>{summary.missingInFileCount}</strong> trabajadores registrados previamente no figuran en esta nueva base. Sus expedientes y casilleros <strong>se conservan activos e intactos</strong>; no se han borrado ni inactivado automáticamente.
+          ℹ️ <strong>{summary.missingInFileCount}</strong> trabajadores registrados previamente no figuran en esta nueva base. Sus expedientes y datos <strong>se conservan activos e intactos</strong>; no se han borrado ni inactivado automáticamente.
         </div>
       ) : null}
     </div>

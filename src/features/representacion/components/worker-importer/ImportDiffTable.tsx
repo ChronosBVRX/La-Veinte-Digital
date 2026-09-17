@@ -5,11 +5,12 @@ import type { PreviewRow, RowStatus } from "../../services/worker-importer/types
 import { Input } from "@/shared/components/ui/Input";
 import { Button } from "@/shared/components/ui/Button";
 
-interface ImportDiffTableProps {
+export interface ImportDiffTableProps {
   rows: PreviewRow[];
   resolutions?: Record<number, Record<string, string>>;
   onResolveField?: (rowNumber: number, field: string, choice: "keep" | "excel") => void;
   onResolveAction?: (rowNumber: number, action: "resolve" | "skip") => void;
+  domain?: "WORKER" | "LOCKER";
 }
 
 type FilterCategory = "all" | "new" | "update" | "conflict" | "invalid" | "lockers" | "unchanged";
@@ -19,7 +20,9 @@ export function ImportDiffTable({
   resolutions = {},
   onResolveField,
   onResolveAction,
+  domain = "WORKER",
 }: ImportDiffTableProps): React.JSX.Element {
+  const isLocker = domain === "LOCKER";
   const [filter, setFilter] = useState<FilterCategory>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
@@ -36,7 +39,7 @@ export function ImportDiffTable({
       if (!hasLocker) return false;
     }
 
-    // Buscador por nombre, matrícula o locker
+    // Buscador
     if (searchTerm) {
       const q = searchTerm.toLowerCase().trim();
       const matchMat = r.matricula.toLowerCase().includes(q);
@@ -54,21 +57,38 @@ export function ImportDiffTable({
   function getStatusBadge(status: RowStatus): { label: string; bg: string; fg: string } {
     switch (status) {
       case "new":
-        return { label: "Nuevo", bg: "#dcfce7", fg: "#15803d" };
+        return { label: isLocker ? "Nueva asignación" : "Nuevo", bg: "#dcfce7", fg: "#15803d" };
       case "updated":
-        return { label: "Actualizar", bg: "#dbeafe", fg: "#1d4ed8" };
+        return { label: isLocker ? "Cambio locker" : "Actualizar", bg: "#dbeafe", fg: "#1d4ed8" };
       case "unchanged":
         return { label: "Sin cambios", bg: "#f1f5f9", fg: "#475569" };
       case "warning":
         return { label: "Revisar", bg: "#fef9c3", fg: "#a16207" };
       case "invalid":
-        return { label: "Inválido", bg: "#fee2e2", fg: "#b91c1c" };
+        return { label: isLocker ? "No en padrón" : "Inválido", bg: "#fee2e2", fg: "#b91c1c" };
       case "conflict":
         return { label: "Conflicto", bg: "#f3e8ff", fg: "#7e22ce" };
       case "ignored":
         return { label: "Ignorado", bg: "#f3f4f6", fg: "#6b7280" };
     }
   }
+
+  const filterButtons = isLocker
+    ? ([
+        { id: "all", label: `Todos (${rows.length})` },
+        { id: "new", label: "Nuevas asignaciones" },
+        { id: "update", label: "Reasignaciones" },
+        { id: "conflict", label: "Conflictos" },
+        { id: "unchanged", label: "Sin cambios" },
+      ] as const)
+    : ([
+        { id: "all", label: `Todos (${rows.length})` },
+        { id: "new", label: "Nuevos" },
+        { id: "update", label: "Actualizaciones" },
+        { id: "conflict", label: "Conflictos" },
+        { id: "invalid", label: "Inválidos" },
+        { id: "unchanged", label: "Sin cambios" },
+      ] as const);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -83,17 +103,7 @@ export function ImportDiffTable({
         }}
       >
         <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
-          {(
-            [
-              { id: "all", label: `Todos (${rows.length})` },
-              { id: "new", label: "Nuevos" },
-              { id: "update", label: "Actualizaciones" },
-              { id: "conflict", label: "Conflictos" },
-              { id: "lockers", label: "Lockers" },
-              { id: "invalid", label: "Inválidos" },
-              { id: "unchanged", label: "Sin cambios" },
-            ] as const
-          ).map((f) => (
+          {filterButtons.map((f) => (
             <button
               key={f.id}
               type="button"
@@ -116,7 +126,7 @@ export function ImportDiffTable({
 
         <div style={{ width: "240px" }}>
           <Input
-            placeholder="Buscar por nombre, matrícula o locker…"
+            placeholder={isLocker ? "Buscar por locker, matrícula o nombre…" : "Buscar por nombre, matrícula o categoría…"}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -130,12 +140,20 @@ export function ImportDiffTable({
             <tr style={{ backgroundColor: "var(--accent)", borderBottom: "1px solid var(--border)", textAlign: "left" }}>
               <th style={{ padding: "0.5rem 0.625rem" }}>Estado</th>
               <th style={{ padding: "0.5rem 0.625rem" }}>Matrícula</th>
-              <th style={{ padding: "0.5rem 0.625rem" }}>Trabajador</th>
-              <th style={{ padding: "0.5rem 0.625rem" }}>Categoría</th>
-              <th style={{ padding: "0.5rem 0.625rem" }}>Turno</th>
-              <th style={{ padding: "0.5rem 0.625rem" }}>Locker actual</th>
-              <th style={{ padding: "0.5rem 0.625rem" }}>Locker Excel</th>
-              <th style={{ padding: "0.5rem 0.625rem" }}>Cambios</th>
+              <th style={{ padding: "0.5rem 0.625rem" }}>{isLocker ? "Trabajador (padrón)" : "Trabajador"}</th>
+              {isLocker ? (
+                <>
+                  <th style={{ padding: "0.5rem 0.625rem" }}>Locker actual</th>
+                  <th style={{ padding: "0.5rem 0.625rem" }}>Locker Excel</th>
+                  <th style={{ padding: "0.5rem 0.625rem" }}>Observaciones</th>
+                </>
+              ) : (
+                <>
+                  <th style={{ padding: "0.5rem 0.625rem" }}>Categoría</th>
+                  <th style={{ padding: "0.5rem 0.625rem" }}>Turno</th>
+                  <th style={{ padding: "0.5rem 0.625rem" }}>Cambios</th>
+                </>
+              )}
               <th style={{ padding: "0.5rem 0.625rem", textAlign: "right" }}>Acción</th>
             </tr>
           </thead>
@@ -143,7 +161,9 @@ export function ImportDiffTable({
             {filtered.slice(0, 150).map((r) => {
               const badge = getStatusBadge(r.status);
               const isExpanded = expandedRow === r.rowNumber;
-              const hasDiff = (r.diff?.changes && r.diff.changes.length > 0) || r.diff?.lockerChange || r.diff?.conflictReason;
+              const hasDiff = isLocker
+                ? Boolean(r.diff?.lockerChange || r.status === "conflict")
+                : (r.diff?.changes && r.diff.changes.length > 0) || r.status === "conflict";
               const rowRes = resolutions[r.rowNumber] || {};
               const isSkipped = rowRes.action === "skip";
 
@@ -177,29 +197,35 @@ export function ImportDiffTable({
                   <td style={{ padding: "0.5rem 0.625rem", fontWeight: 500 }}>
                     {r.fullName || "-"}
                   </td>
-                  <td style={{ padding: "0.5rem 0.625rem" }}>{r.category || "-"}</td>
-                  <td style={{ padding: "0.5rem 0.625rem" }}>{r.turn || "-"}</td>
-                  <td style={{ padding: "0.5rem 0.625rem" }}>
-                    {r.lockerCurrent ? `Locker ${r.lockerCurrent}` : "-"}
-                  </td>
-                  <td style={{ padding: "0.5rem 0.625rem" }}>
-                    {r.lockerExcel ? (
-                      <span style={{ fontWeight: 600, color: r.lockerCurrent !== r.lockerExcel ? "var(--primary)" : undefined }}>
-                        {r.lockerExcel}
-                      </span>
-                    ) : "-"}
-                  </td>
-                  <td style={{ padding: "0.5rem 0.625rem" }}>
-                    {r.diff?.lockerChange?.action === "change_assignment" ? (
-                      <span style={{ color: "#2563eb", fontWeight: 600 }}>
-                        {r.diff.lockerChange.currentLocker} → {r.diff.lockerChange.excelLocker}
-                      </span>
-                    ) : r.diff?.changes && r.diff.changes.length > 0 ? (
-                      <span>{r.diff.changes.length} cambio(s)</span>
-                    ) : (
-                      <span style={{ color: "var(--muted)" }}>-</span>
-                    )}
-                  </td>
+                  {isLocker ? (
+                    <>
+                      <td style={{ padding: "0.5rem 0.625rem" }}>
+                        {r.lockerCurrent ? `Locker ${r.lockerCurrent}` : "-"}
+                      </td>
+                      <td style={{ padding: "0.5rem 0.625rem" }}>
+                        {r.lockerExcel ? (
+                          <span style={{ fontWeight: 600, color: r.lockerCurrent !== r.lockerExcel ? "var(--primary)" : undefined }}>
+                            {r.lockerExcel}
+                          </span>
+                        ) : "-"}
+                      </td>
+                      <td style={{ padding: "0.5rem 0.625rem", color: "var(--muted)" }}>
+                        {r.observations || "-"}
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td style={{ padding: "0.5rem 0.625rem" }}>{r.category || "-"}</td>
+                      <td style={{ padding: "0.5rem 0.625rem" }}>{r.turn || "-"}</td>
+                      <td style={{ padding: "0.5rem 0.625rem" }}>
+                        {r.diff?.changes && r.diff.changes.length > 0 ? (
+                          <span>{r.diff.changes.length} cambio(s)</span>
+                        ) : (
+                          <span style={{ color: "var(--muted)" }}>-</span>
+                        )}
+                      </td>
+                    </>
+                  )}
                   <td style={{ padding: "0.5rem 0.625rem", textAlign: "right" }}>
                     {hasDiff || r.status === "conflict" ? (
                       <button
@@ -271,16 +297,18 @@ export function ImportDiffTable({
               </div>
 
               <div style={{ fontSize: "0.75rem", color: "var(--fg)", display: "flex", flexDirection: "column", gap: "0.125rem" }}>
-                <span><strong>Categoría:</strong> {r.category || "-"}</span>
-                <span><strong>Turno:</strong> {r.turn || "-"}</span>
-                {r.diff?.lockerChange ? (
-                  <span>
-                    <strong>Locker:</strong>{" "}
-                    {r.diff.lockerChange.action === "change_assignment"
-                      ? `${r.diff.lockerChange.currentLocker} → ${r.diff.lockerChange.excelLocker}`
-                      : r.diff.lockerChange.excelLocker}
-                  </span>
-                ) : null}
+                {isLocker ? (
+                  <>
+                    <span><strong>Locker actual:</strong> {r.lockerCurrent ? `Locker ${r.lockerCurrent}` : "-"}</span>
+                    <span><strong>Locker Excel:</strong> {r.lockerExcel || "-"}</span>
+                    {r.observations ? <span><strong>Observaciones:</strong> {r.observations}</span> : null}
+                  </>
+                ) : (
+                  <>
+                    <span><strong>Categoría:</strong> {r.category || "-"}</span>
+                    <span><strong>Turno:</strong> {r.turn || "-"}</span>
+                  </>
+                )}
               </div>
 
               <div style={{ marginTop: "0.25rem", display: "flex", justifyContent: "flex-end" }}>
@@ -289,7 +317,7 @@ export function ImportDiffTable({
                   variant="secondary"
                   onClick={() => setExpandedRow(isExpanded ? null : r.rowNumber)}
                 >
-                  {isExpanded ? "Ocultar" : "Revisar cambios"}
+                  {isExpanded ? "Ocultar" : "Revisar"}
                 </Button>
               </div>
 
@@ -300,6 +328,7 @@ export function ImportDiffTable({
                     resolution={rowRes}
                     onResolveField={onResolveField}
                     onResolveAction={onResolveAction}
+                    domain={domain}
                   />
                 </div>
               ) : null}
@@ -308,7 +337,7 @@ export function ImportDiffTable({
         })}
       </div>
 
-      {/* Panel expandido para desktop si está abierto */}
+      {/* Panel expandido para desktop */}
       {expandedRow !== null ? (
         <div className="desktop-only">
           {(() => {
@@ -327,7 +356,7 @@ export function ImportDiffTable({
               >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
                   <h4 style={{ margin: 0, fontSize: "0.875rem" }}>
-                    Resolución y comparación para fila #{r.rowNumber} ({r.fullName})
+                    Resolución para fila #{r.rowNumber} ({r.fullName})
                   </h4>
                   <Button size="sm" variant="ghost" onClick={() => setExpandedRow(null)}>
                     Cerrar
@@ -338,6 +367,7 @@ export function ImportDiffTable({
                   resolution={rowRes}
                   onResolveField={onResolveField}
                   onResolveAction={onResolveAction}
+                  domain={domain}
                 />
               </div>
             );
@@ -353,6 +383,7 @@ interface ResolutionPanelProps {
   resolution: Record<string, string>;
   onResolveField?: (rowNumber: number, field: string, choice: "keep" | "excel") => void;
   onResolveAction?: (rowNumber: number, action: "resolve" | "skip") => void;
+  domain?: "WORKER" | "LOCKER";
 }
 
 function RowConflictResolutionPanel({
@@ -363,21 +394,27 @@ function RowConflictResolutionPanel({
 }: ResolutionPanelProps): React.JSX.Element {
   const isConflict = row.status === "conflict";
   const changes = row.diff?.changes ?? [];
+  const issues = row.issues ?? [];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.75rem" }}>
-      {row.diff?.conflictReason ? (
-        <div
-          role="alert"
-          style={{
-            padding: "0.5rem",
-            borderRadius: "0.25rem",
-            backgroundColor: "#fef2f2",
-            border: "1px solid #fca5a5",
-            color: "#991b1b",
-          }}
-        >
-          <strong>Motivo de conflicto:</strong> {row.diff.conflictReason}
+      {issues.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+          {issues.map((iss, idx) => (
+            <div
+              key={idx}
+              role={iss.severity === "error" ? "alert" : undefined}
+              style={{
+                padding: "0.5rem",
+                borderRadius: "0.25rem",
+                backgroundColor: iss.severity === "error" ? "#fef2f2" : "#fef9c3",
+                border: iss.severity === "error" ? "1px solid #fca5a5" : "1px solid #fde047",
+                color: iss.severity === "error" ? "#991b1b" : "#854d0e",
+              }}
+            >
+              <strong>{iss.code}:</strong> {iss.message}
+            </div>
+          ))}
         </div>
       ) : null}
 

@@ -386,7 +386,21 @@ export async function rollbackImportBatch(params: {
   let revertedAssignmentsCount = 0;
   let restoredAssignmentsCount = 0;
 
-  if (batch.format_version === "UNION_MASTER_LOCKERS_V1") {
+  if (batch.format_version === "UNION_LOCKERS_V1") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).rpc("union_rollback_locker_import", {
+      p_batch_id: batchId,
+    });
+    if (error) {
+      throw new Error(`Error al revertir la importación de casilleros: ${error.message}`);
+    }
+    const res = (data as unknown) as {
+      reverted_assignments: number;
+      restored_assignments: number;
+    };
+    revertedAssignmentsCount = res.reverted_assignments ?? 0;
+    restoredAssignmentsCount = res.restored_assignments ?? 0;
+  } else if (batch.format_version === "UNION_MASTER_LOCKERS_V1") {
     const { data, error } = await supabase.rpc("union_rollback_master_import", {
       p_batch_id: batchId,
     });
@@ -950,3 +964,8 @@ export async function applyMasterImportBatch(params: {
   };
 }
 
+export {
+  parseAndPreviewLockerImport,
+  applyLockerImportBatch,
+  rollbackLockerImportBatch,
+} from "./locker-importer";

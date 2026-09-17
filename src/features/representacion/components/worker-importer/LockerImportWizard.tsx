@@ -13,11 +13,7 @@ import { ImportHistoryList } from "./ImportHistoryList";
 import { secureUnionExcelUpload, readApiResponse } from "../../services/worker-importer/client-upload";
 import type { ImportPreviewResult, ImportConfirmResult } from "../../services/worker-importer/types";
 
-export interface WorkerImportWizardProps {
-  format?: "SIAP" | "MASTER";
-}
-
-export function WorkerImportWizard({ format = "SIAP" }: WorkerImportWizardProps): React.JSX.Element {
+export function LockerImportWizard(): React.JSX.Element {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState<string | null>(null);
@@ -29,20 +25,9 @@ export function WorkerImportWizard({ format = "SIAP" }: WorkerImportWizardProps)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"import" | "history">("import");
 
-  const uploadUrlEndpoint =
-    format === "MASTER"
-      ? "/api/union/workers/import/master/upload-url"
-      : "/api/union/workers/import/upload-url";
-
-  const previewEndpoint =
-    format === "MASTER"
-      ? "/api/union/workers/import/master/preview"
-      : "/api/union/workers/import/preview";
-
-  const applyEndpoint =
-    format === "MASTER"
-      ? "/api/union/workers/import/master/apply"
-      : "/api/union/workers/import/confirm";
+  const uploadUrlEndpoint = "/api/union/lockers/import/upload-url";
+  const previewEndpoint = "/api/union/lockers/import/preview";
+  const applyEndpoint = "/api/union/lockers/import/apply";
 
   async function handleFileSelected(file: File): Promise<void> {
     setLoading(true);
@@ -64,15 +49,15 @@ export function WorkerImportWizard({ format = "SIAP" }: WorkerImportWizardProps)
         throw new Error("Solo se admiten archivos en formato Excel estándar (.xlsx).");
       }
 
-      // 1 y 2: Subida segura a almacenamiento privado (sin exceder el payload de Vercel)
+      // 1 y 2: Carga directa firmada a Supabase Storage
       const uploadResult = await secureUnionExcelUpload({
         file,
         uploadUrlEndpoint,
         onStageChange: (stage) => setLoadingStage(stage),
       });
 
-      // 3. Solicitar análisis y previsualización de padrón de trabajadores
-      setLoadingStage("Analizando base de trabajadores y calculando diferencias...");
+      // 3. Solicitar análisis y previsualización de casilleros
+      setLoadingStage("Analizando casilleros y conciliando asignaciones...");
       const previewRes = await fetch(previewEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -147,7 +132,7 @@ export function WorkerImportWizard({ format = "SIAP" }: WorkerImportWizardProps)
       setIsModalOpen(false);
       router.refresh();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error al aplicar la actualización.");
+      setError(err instanceof Error ? err.message : "Error al aplicar la actualización de casilleros.");
     } finally {
       setConfirming(false);
     }
@@ -178,7 +163,7 @@ export function WorkerImportWizard({ format = "SIAP" }: WorkerImportWizardProps)
             cursor: "pointer",
           }}
         >
-          Actualizar base de trabajadores
+          Actualizar base de lockers
         </button>
         <button
           type="button"
@@ -194,14 +179,14 @@ export function WorkerImportWizard({ format = "SIAP" }: WorkerImportWizardProps)
             cursor: "pointer",
           }}
         >
-          Historial de actualización de trabajadores
+          Historial de actualización de lockers
         </button>
       </div>
 
       {activeTab === "history" ? (
         <Card padding="1rem">
-          <h3 style={{ margin: "0 0 0.75rem", fontSize: "0.9375rem" }}>Historial de bases de trabajadores</h3>
-          <ImportHistoryList domain="WORKER" />
+          <h3 style={{ margin: "0 0 0.75rem", fontSize: "0.9375rem" }}>Historial de bases de casilleros</h3>
+          <ImportHistoryList domain="LOCKER" />
         </Card>
       ) : (
         <>
@@ -225,9 +210,9 @@ export function WorkerImportWizard({ format = "SIAP" }: WorkerImportWizardProps)
             <Card padding="1.5rem">
               <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", textAlign: "center" }}>
                 <div style={{ fontSize: "2.5rem" }}>✅</div>
-                <h3 style={{ margin: 0, fontSize: "1.125rem" }}>¡Padrón de trabajadores actualizado con éxito!</h3>
+                <h3 style={{ margin: 0, fontSize: "1.125rem" }}>¡Base de casilleros actualizada con éxito!</h3>
                 <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)" }}>
-                  La información laboral del padrón fue conciliada de forma atómica y segura.
+                  La relación de casilleros y asignaciones fue conciliada de forma atómica y segura.
                 </p>
                 <div
                   style={{
@@ -240,16 +225,13 @@ export function WorkerImportWizard({ format = "SIAP" }: WorkerImportWizardProps)
                   }}
                 >
                   <span>
-                    Trabajadores nuevos: <strong>{confirmResult.appliedCount}</strong>
+                    Nuevas asignaciones de casillero: <strong>{confirmResult.newLockersCount ?? 0}</strong>
                   </span>
                   <span>
-                    Trabajadores actualizados: <strong>{confirmResult.updatedCount ?? 0}</strong>
+                    Reasignaciones de casillero: <strong>{confirmResult.lockerChangesCount ?? 0}</strong>
                   </span>
                   <span>
-                    Sin cambios: <strong>{confirmResult.unchangedCount}</strong>
-                  </span>
-                  <span>
-                    Casilleros modificados: <strong>0 (operación aislada)</strong>
+                    Datos laborales modificados: <strong>0 (operación aislada)</strong>
                   </span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "center", gap: "0.5rem" }}>
@@ -273,9 +255,9 @@ export function WorkerImportWizard({ format = "SIAP" }: WorkerImportWizardProps)
                   }}
                 >
                   <div>
-                    <h3 style={{ margin: 0, fontSize: "1rem" }}>Fase 1: Resumen de conciliación de trabajadores</h3>
+                    <h3 style={{ margin: 0, fontSize: "1rem" }}>Fase 1: Resumen de conciliación de casilleros</h3>
                     <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)" }}>
-                      Revisa los cambios laborales detectados antes de escribir en el padrón oficial.
+                      Revisa los casilleros y asignaciones detectados antes de guardar los cambios oficiales.
                     </p>
                   </div>
                   <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
@@ -298,20 +280,20 @@ export function WorkerImportWizard({ format = "SIAP" }: WorkerImportWizardProps)
                 <ImportPreviewDashboard
                   summary={previewResult.summary}
                   fileName={previewResult.fileName}
-                  domain="WORKER"
+                  domain="LOCKER"
                 />
               </Card>
 
               <Card padding="1rem">
                 <h3 style={{ margin: "0 0 0.75rem", fontSize: "0.9375rem" }}>
-                  Detalle fila por fila y discrepancias laborales
+                  Detalle fila por fila, casilleros y discrepancias
                 </h3>
                 <ImportDiffTable
                   rows={previewResult.rows}
                   resolutions={resolutions}
                   onResolveField={handleResolveField}
                   onResolveAction={handleResolveAction}
-                  domain="WORKER"
+                  domain="LOCKER"
                 />
               </Card>
 
@@ -321,18 +303,17 @@ export function WorkerImportWizard({ format = "SIAP" }: WorkerImportWizardProps)
                 onConfirm={handleConfirmImport}
                 isLoading={confirming}
                 summary={previewResult.summary}
-                domain="WORKER"
+                domain="LOCKER"
               />
             </div>
           ) : (
             <Card padding="1.25rem">
               <h3 style={{ margin: "0 0 0.5rem", fontSize: "1rem" }}>
-                Actualizar base de trabajadores (Excel .xlsx)
+                Actualizar base de lockers (Excel .xlsx)
               </h3>
               <p style={{ margin: "0 0 1rem", fontSize: "0.8125rem", color: "var(--muted)" }}>
-                Carga el archivo Excel con la base de trabajadores más reciente. El sistema analizará las filas,
-                identificará trabajadores nuevos o cambios de categoría, turno y plaza, mostrándote un desglose
-                completo para revisar cualquier diferencia antes de confirmar. Si el archivo contiene datos de casilleros, estos serán ignorados en esta sección.
+                Carga el archivo Excel con la relación de casilleros y asignaciones. El sistema conciliará las asignaciones
+                activas sin modificar datos laborales del padrón de trabajadores. Si una matrícula en el archivo no existe en el padrón, se marcará como conflicto para revisión.
               </p>
               {loading && loadingStage ? (
                 <div

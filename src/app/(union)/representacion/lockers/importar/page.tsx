@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import { getUnionMemberships } from "@/features/representacion/services/permissions";
 import { UnionPageHeader } from "@/features/representacion/components/UnionPageHeader";
-import { WorkerImportWizard } from "@/features/representacion/components/worker-importer/WorkerImportWizard";
+import { LockerImportWizard } from "@/features/representacion/components/worker-importer/LockerImportWizard";
 
 export const dynamic = "force-dynamic";
 
-export default async function ImportarTrabajadoresAdminPage(): Promise<React.JSX.Element> {
+export default async function ImportarLockersPage(): Promise<React.JSX.Element> {
   const memberships = await getUnionMemberships();
   const isAdmin = memberships.some((m) => m.role === "union_admin");
 
@@ -16,10 +16,10 @@ export default async function ImportarTrabajadoresAdminPage(): Promise<React.JSX
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
       <UnionPageHeader
-        title="Actualizar base de trabajadores"
-        subtitle="Conciliación segura y no destructiva del padrón laboral institucional. Exclusivo para union_admin."
+        title="Actualizar base de lockers"
+        subtitle="Conciliación segura del inventario de casilleros y asignaciones activas. Exclusivo para union_admin."
       />
-      <WorkerImportWizard format="SIAP" />
+      <LockerImportWizard />
     </div>
   );
 }
