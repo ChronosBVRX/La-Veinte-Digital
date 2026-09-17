@@ -1,6 +1,6 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getUnionMemberships } from "@/features/representacion/services/permissions";
-import { UnionPageHeader } from "@/features/representacion/components/UnionPageHeader";
 import { LockerBoard } from "@/features/representacion/components/LockerBoard";
 import { WaitlistPanel } from "@/features/representacion/components/WaitlistPanel";
 
@@ -11,9 +11,16 @@ export default async function LockersPage(): Promise<React.JSX.Element> {
   if (m.length === 0) redirect("/");
   return (
     <div>
-      <UnionPageHeader title="Lockers" subtitle="Asignación, liberación e historial. Liberar cierra la asignación, no borra historial." />
-      <LockerBoard />
-      <div style={{ marginTop: "0.75rem" }}>
+      <Suspense
+        fallback={
+          <div style={{ padding: "1.5rem", color: "var(--muted)", fontSize: "0.875rem" }}>
+            Cargando casilleros…
+          </div>
+        }
+      >
+        <LockerBoard />
+      </Suspense>
+      <div style={{ marginTop: "1.5rem" }}>
         <WaitlistPanel />
       </div>
     </div>
