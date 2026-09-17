@@ -24,6 +24,7 @@ export function LicenseWizard(): React.JSX.Element {
   const [busy, setBusy] = useState(false);
   const [downloadingExcel, setDownloadingExcel] = useState(false);
   const [downloadingWord, setDownloadingWord] = useState(false);
+  const [printingPackage, setPrintingPackage] = useState(false);
 
   const preview = (() => {
     try {
@@ -124,6 +125,40 @@ export function LicenseWizard(): React.JSX.Element {
     } finally {
       if (kind === "excel") setDownloadingExcel(false);
       else setDownloadingWord(false);
+    }
+  }
+
+  async function printPackage(): Promise<void> {
+    if (!caseId) return;
+    setError(null);
+    setPrintingPackage(true);
+
+    try {
+      const res = await fetch("/api/union/licenses/print-package", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ case_id: caseId }),
+      });
+
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? "No se pudo generar el paquete de impresión.");
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const newTab = window.open(url, "_blank", "noopener,noreferrer");
+      if (!newTab) {
+        // Si el bloqueador de ventanas emergentes impide abrir la pestaña, descargar directamente
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `expediente-licencia-${folio ?? ""}.pdf`;
+        a.click();
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al generar paquete de impresión.");
+    } finally {
+      setPrintingPackage(false);
     }
   }
 
@@ -232,28 +267,51 @@ export function LicenseWizard(): React.JSX.Element {
             Guardar expediente
           </Button>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
             <p role="status" style={{ color: "var(--success)", fontSize: "0.875rem", margin: 0, fontWeight: 500 }}>
-              Expediente {folio} guardado. Formato oficial listo para descarga y firma.
+              Expediente {folio} guardado. Documentos listos para impresión y descarga.
             </p>
-            <Button
-              onClick={() => void download("excel")}
-              variant="secondary"
-              loading={downloadingExcel}
-              disabled={downloadingWord}
-              fullWidth
-            >
-              Descargar Excel Oficial (1A74-009-036 .xlsm)
-            </Button>
-            <Button
-              onClick={() => void download("word")}
-              variant="secondary"
-              loading={downloadingWord}
-              disabled={downloadingExcel}
-              fullWidth
-            >
-              Descargar Oficio Word (Comité XXI .docx)
-            </Button>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Acción Principal
+              </div>
+              <Button
+                onClick={() => void printPackage()}
+                variant="primary"
+                loading={printingPackage}
+                disabled={downloadingExcel || downloadingWord}
+                fullWidth
+              >
+                {printingPackage ? "Preparando expediente..." : "🖨️ Imprimir ambos (Oficio + Solicitud en PDF)"}
+              </Button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.25rem" }}>
+              <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Descargas Individuales
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                <Button
+                  onClick={() => void download("word")}
+                  variant="secondary"
+                  loading={downloadingWord}
+                  disabled={downloadingExcel || printingPackage}
+                  fullWidth
+                >
+                  Descargar Oficio Word (.docx)
+                </Button>
+                <Button
+                  onClick={() => void download("excel")}
+                  variant="secondary"
+                  loading={downloadingExcel}
+                  disabled={downloadingWord || printingPackage}
+                  fullWidth
+                >
+                  Descargar Solicitud Excel (.xlsm)
+                </Button>
+              </div>
+            </div>
           </div>
         )}
       </Card>

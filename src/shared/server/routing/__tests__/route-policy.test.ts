@@ -59,6 +59,7 @@ describe("API route policy", () => {
       "/api/union/passages/pdf": "authenticated",
       "/api/union/licenses": "authenticated",
       "/api/union/licenses/excel": "authenticated",
+      "/api/union/licenses/print-package": "authenticated",
       "/api/union/licenses/word": "authenticated",
       "/api/union/dashboard": "authenticated",
       "/api/union/members": "authenticated",

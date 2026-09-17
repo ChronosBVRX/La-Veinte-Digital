@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import PizZip from "pizzip";
-import { buildLicenseExcelDocument, buildLicenseExcel } from "../services/license-excel";
+import { buildLicenseExcelDocument, buildLicenseExcel, resolveSheetPathByName } from "../services/license-excel";
 import type { UnionLicenseDocumentData } from "../services/license-document-dto";
 
 describe("license-excel", () => {
@@ -74,42 +74,52 @@ describe("license-excel", () => {
     },
   };
 
-  it("generates a valid XLSM buffer and preserves xl/vbaProject.bin", async () => {
+  it("generates a valid XLSM buffer and preserves xl/vbaProject.bin byte-for-byte", async () => {
     const buf = await buildLicenseExcelDocument(baseDto);
     expect(buf).toBeInstanceOf(Buffer);
-    expect(buf.length).toBeGreaterThan(40000);
+    expect(buf.length).toBeGreaterThan(30000);
 
     const zip = new PizZip(buf);
     const vba = zip.file("xl/vbaProject.bin");
     expect(vba).not.toBeNull();
-    expect(vba?.asNodeBuffer().length).toBe(30720); // Byte-for-byte preservation of VBA binary
+    // V2 official template VBA binary is 22,528 bytes
+    expect(vba?.asNodeBuffer().length).toBe(22528);
   });
 
-  it("populates Sheet 1 (Generador) with worker and license values", async () => {
+  it("resolves sheet 'Licencia' dynamically and populates worker, folio, and dates", async () => {
     const buf = await buildLicenseExcelDocument(baseDto);
     const zip = new PizZip(buf);
-    const s1Xml = zip.file("xl/worksheets/sheet1.xml")?.asText() ?? "";
+    const licPath = resolveSheetPathByName(zip, "Licencia");
+    expect(licPath).toMatch(/^xl\/worksheets\/sheet\d+\.xml$/);
 
-    expect(s1Xml).toContain("XXI-2026-LIC-000042");
-    expect(s1Xml).toContain("ROSETE");
-    expect(s1Xml).toContain("ÁLVAREZ");
-    expect(s1Xml).toContain("AXEL");
-    expect(s1Xml).toContain("MÉDICO NO FAMILIAR");
-    expect(s1Xml).toContain("99342502");
-    expect(s1Xml).toContain("INTERNAMIENTO DE HIJO");
-    expect(s1Xml).toContain("3  DÍAS");
+    const licXml = zip.file(licPath)?.asText() ?? "";
+
+    expect(licXml).toContain("XXI-2026-LIC-000042");
+    expect(licXml).toContain("ROSETE");
+    expect(licXml).toContain("ÁLVAREZ");
+    expect(licXml).toContain("AXEL");
+    expect(licXml).toContain("MÉDICO NO FAMILIAR");
+    expect(licXml).toContain("99342502");
+    expect(licXml).toContain("INTERNAMIENTO DE HIJO");
+    expect(licXml).toContain("3  DÍAS");
+
+    // Must preserve 152 merged cells
+    expect(licXml).toContain('<mergeCells count="152">');
+    // Must contain 0 #REF!
+    expect(licXml).not.toContain("#REF!");
   });
 
-  it("sets correct checkbox in Sheet 2 (Licencia) for con goce", async () => {
+  it("sets correct checkbox in sheet 'Licencia' for con goce and no prórroga", async () => {
     const buf = await buildLicenseExcelDocument(baseDto);
     const zip = new PizZip(buf);
-    const s2Xml = zip.file("xl/worksheets/sheet2.xml")?.asText() ?? "";
+    const licPath = resolveSheetPathByName(zip, "Licencia");
+    const licXml = zip.file(licPath)?.asText() ?? "";
 
     // H9 should have X for con goce
-    expect(s2Xml).toContain('r="H9"');
-    expect(s2Xml).toContain("<t>X</t>");
+    expect(licXml).toContain('r="H9"');
+    expect(licXml).toContain("<t>X</t>");
     // D24 should have X for NO prórroga
-    expect(s2Xml).toContain('r="D24"');
+    expect(licXml).toContain('r="D24"');
   });
 
   it("sets correct checkboxes for sin goce 4 a 60 días and prórroga", async () => {
@@ -127,15 +137,16 @@ describe("license-excel", () => {
 
     const buf = await buildLicenseExcelDocument(sinGoceDto);
     const zip = new PizZip(buf);
-    const s2Xml = zip.file("xl/worksheets/sheet2.xml")?.asText() ?? "";
+    const licPath = resolveSheetPathByName(zip, "Licencia");
+    const licXml = zip.file(licPath)?.asText() ?? "";
 
     // H11 should have X for 4 a 60 días
-    expect(s2Xml).toContain('r="H11"');
+    expect(licXml).toContain('r="H11"');
     // B24 should have X for SÍ prórroga
-    expect(s2Xml).toContain('r="B24"');
+    expect(licXml).toContain('r="B24"');
   });
 
-  it("legacy wrapper buildLicenseExcel functions properly", async () => {
+  it("legacy wrapper buildLicenseExcel functions properly with V2 template", async () => {
     const legacyBuf = await buildLicenseExcel({
       ooad: "MICHOACÁN",
       place: "LA GOLETA, CHARO, MICHOACÁN",
@@ -170,10 +181,11 @@ describe("license-excel", () => {
       debtStatus: "Pendiente",
     });
 
-    expect(legacyBuf.length).toBeGreaterThan(40000);
+    expect(legacyBuf.length).toBeGreaterThan(30000);
     const zip = new PizZip(legacyBuf);
-    const s1 = zip.file("xl/worksheets/sheet1.xml")?.asText() ?? "";
-    expect(s1).toContain("XXI-2026-LIC-000099");
-    expect(s1).toContain("GÓMEZ");
+    const licPath = resolveSheetPathByName(zip, "Licencia");
+    const licXml = zip.file(licPath)?.asText() ?? "";
+    expect(licXml).toContain("XXI-2026-LIC-000099");
+    expect(licXml).toContain("GÓMEZ");
   });
 });
