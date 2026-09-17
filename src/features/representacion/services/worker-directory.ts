@@ -218,6 +218,42 @@ export async function getUnionWorkerFacets(delegationId: string): Promise<Worker
   };
 }
 
+export interface WorkerSummaryCounts {
+  total: number;
+  active: number;
+  inactive: number;
+  categoriesCount: number;
+}
+
+export async function getUnionWorkerSummary(
+  delegationId: string,
+  categoriesCount = 0,
+): Promise<WorkerSummaryCounts> {
+  const supabase = await createClient();
+  const [totalRes, activeRes] = await Promise.all([
+    supabase
+      .from("union_workers")
+      .select("id", { count: "exact", head: true })
+      .eq("delegation_id", delegationId)
+      .or(ROLLED_BACK_FILTER),
+    supabase
+      .from("union_workers")
+      .select("id", { count: "exact", head: true })
+      .eq("delegation_id", delegationId)
+      .eq("active", true)
+      .or(ROLLED_BACK_FILTER),
+  ]);
+  const total = totalRes.count ?? 0;
+  const active = activeRes.count ?? 0;
+  const inactive = Math.max(0, total - active);
+  return {
+    total,
+    active,
+    inactive,
+    categoriesCount,
+  };
+}
+
 // ── Expediente del trabajador ──────────────────────────────────────────────
 
 export interface UnionExpedienteWorker {

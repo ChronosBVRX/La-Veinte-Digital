@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowsDownUp, Funnel, MagnifyingGlass, Plus, X } from "@phosphor-icons/react";
+import { ArrowsDownUp, Plus } from "@phosphor-icons/react";
 import { Button } from "@/shared/components/ui/Button";
-import { Input, Select } from "@/shared/components/ui/Input";
+import { Select } from "@/shared/components/ui/Input";
 import { Card } from "@/shared/components/ui/Card";
 import { BottomSheet } from "@/shared/components/ui/BottomSheet";
 import { useToast } from "@/shared/components/ui/Toast";
@@ -21,17 +21,33 @@ import {
   type WorkerDirectorySortId,
 } from "../lib/worker-directory-params";
 import type { WorkerDirectoryFacets, WorkerDirectoryRow } from "../services/worker-directory";
+import {
+  RepresentationSectionHeader,
+  RepresentationSummaryMetrics,
+  RepresentationMetricCard,
+  RepresentationToolbar,
+  RepresentationSearchInput,
+  RepresentationFilterButton,
+  RepresentationEmptyState,
+} from "./ui";
 import { WorkerActiveChips, WorkerFilterControls, WorkerSortList } from "./workers/WorkerFilters";
 import { WorkerCard } from "./workers/WorkerCard";
 import { WorkerCreateForm } from "./workers/WorkerCreateForm";
-import { WorkerEmptyState } from "./workers/WorkerEmptyState";
 import { WorkerPagination } from "./workers/WorkerPagination";
 import { WorkerTable } from "./workers/WorkerTable";
+
+interface DirectorySummary {
+  total: number;
+  active: number;
+  inactive: number;
+  categoriesCount: number;
+}
 
 interface DirectoryResponse {
   workers?: WorkerDirectoryRow[];
   total?: number;
   options?: WorkerDirectoryFacets;
+  summary?: DirectorySummary;
   error?: string;
 }
 
@@ -46,6 +62,7 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [options, setOptions] = useState<WorkerDirectoryFacets | null>(null);
+  const [summary, setSummary] = useState<DirectorySummary | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
@@ -71,7 +88,10 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
         const res = await fetch("/api/union/workers?facets=1", { cache: "no-store" });
         if (!res.ok) return;
         const json = (await res.json()) as DirectoryResponse;
-        if (active && json.options) setOptions(json.options);
+        if (active) {
+          if (json.options) setOptions(json.options);
+          if (json.summary) setSummary(json.summary);
+        }
       } catch {
         // Las opciones de filtro no bloquean el directorio.
       }
@@ -95,6 +115,7 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
         if (!active) return;
         setWorkers(json.workers ?? []);
         setTotal(typeof json.total === "number" ? json.total : 0);
+        if (json.summary) setSummary(json.summary);
       } catch {
         if (!active || controller.signal.aborted) return;
         setError(true);
@@ -166,106 +187,144 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
 
   const sortLabel = WORKER_DIRECTORY_SORTS.find((option) => option.id === query.sort)?.label ?? "Ordenar";
 
+  // Métricas calculadas o del backend
+  const displayTotal = summary?.total ?? (total > 0 ? total : workers.length);
+  const displayActive = summary?.active ?? workers.filter((w) => w.active).length;
+  const displayInactive = summary?.inactive ?? Math.max(0, displayTotal - displayActive);
+  const displayCategories = summary?.categoriesCount || (options?.categories.length ?? 0);
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
-        <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-          <Input
-            aria-label="Buscar trabajador"
+    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      {/* 1. ENCABEZADO UNIFICADO CON ACCIONES PRINCIPALES */}
+      <RepresentationSectionHeader
+        title="Trabajadores"
+        subtitle="Padrón de la Delegación XXI. Busca, filtra por categoría, turno o adscripción y abre el expediente."
+        secondaryAction={
+          <Link
+            href="/representacion/trabajadores/importar"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0.5rem 0.875rem",
+              borderRadius: "0.375rem",
+              border: "1px solid var(--border)",
+              backgroundColor: "var(--card)",
+              color: "var(--fg)",
+              fontSize: "0.8125rem",
+              fontWeight: 600,
+              textDecoration: "none",
+              minHeight: 38,
+              whiteSpace: "nowrap",
+            }}
+          >
+            Actualizar base de trabajadores
+          </Link>
+        }
+        primaryAction={
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setCreateOpen(true)}
+            leadingIcon={<Plus size={15} weight="bold" />}
+            style={{ minHeight: 38, whiteSpace: "nowrap" }}
+          >
+            Nuevo trabajador
+          </Button>
+        }
+      />
+
+      {/* 2. RESUMEN DE MÉTRICAS EN TIEMPO REAL */}
+      <RepresentationSummaryMetrics>
+        <RepresentationMetricCard
+          label="Total en padrón"
+          value={displayTotal}
+          icon="👥"
+          loading={loading && !summary && total === 0}
+        />
+        <RepresentationMetricCard
+          label="Activos"
+          value={displayActive}
+          icon="✓"
+          accentColor="#166534"
+          loading={loading && !summary && total === 0}
+        />
+        <RepresentationMetricCard
+          label="Inactivos"
+          value={displayInactive}
+          icon="⏸"
+          accentColor={displayInactive > 0 ? "var(--muted)" : undefined}
+          loading={loading && !summary && total === 0}
+        />
+        <RepresentationMetricCard
+          label="Categorías"
+          value={displayCategories}
+          icon="🏷️"
+          accentColor="#1e40af"
+          loading={loading && !summary && total === 0}
+        />
+      </RepresentationSummaryMetrics>
+
+      {/* 3. BARRA DE HERRAMIENTAS UNIFICADA */}
+      <RepresentationToolbar
+        search={
+          <RepresentationSearchInput
+            ariaLabel="Buscar trabajador"
             placeholder="Buscar por nombre, matrícula, categoría o adscripción…"
             value={searchDraft}
-            onChange={(e) => setSearchDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                applyQuery({ ...query, q: searchDraft, page: 1 });
-              }
-            }}
-            leadingIcon={<MagnifyingGlass size={16} />}
-            trailingElement={
-              searchDraft ? (
-                <button
-                  type="button"
-                  aria-label="Limpiar búsqueda"
-                  onClick={() => {
-                    setSearchDraft("");
-                    applyQuery({ ...query, q: "", page: 1 });
-                  }}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "var(--muted)",
-                    display: "flex",
-                    alignItems: "center",
-                    padding: 0,
-                  }}
-                >
-                  <X size={14} weight="bold" />
-                </button>
-              ) : undefined
-            }
+            onChange={setSearchDraft}
+            onSearchSubmit={(val) => applyQuery({ ...query, q: val, page: 1 })}
           />
-        </div>
+        }
+        filters={
+          <RepresentationFilterButton
+            activeCount={filterCount}
+            onClick={openFilters}
+          />
+        }
+        sort={
+          <>
+            <div className="desktop-only" style={{ width: 176 }}>
+              <Select
+                aria-label="Ordenar trabajadores"
+                value={query.sort}
+                onChange={(e) => applyQuery({ ...query, sort: e.target.value as WorkerDirectorySortId, page: 1 })}
+              >
+                {WORKER_DIRECTORY_SORTS.filter((option) => option.dataAvailable).map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="mobile-only">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setSortOpen(true)}
+                leadingIcon={<ArrowsDownUp size={15} />}
+                style={{ minHeight: 38, whiteSpace: "nowrap" }}
+              >
+                {query.sort === "nombre_asc" ? "Ordenar" : sortLabel}
+              </Button>
+            </div>
+          </>
+        }
+        hasActiveFilters={hasFilters}
+        activeChips={hasFilters ? <WorkerActiveChips query={query} onChange={applyQuery} /> : null}
+        resultsInfo={
+          <>
+            <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+              {loading ? "Cargando…" : `${total} ${total === 1 ? "trabajador" : "trabajadores"}`}
+            </span>
+            {loading && workers.length > 0 ? (
+              <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Actualizando…</span>
+            ) : null}
+          </>
+        }
+      />
 
-        <Button
-          variant={filterCount > 0 ? "primary" : "secondary"}
-          size="sm"
-          onClick={openFilters}
-          leadingIcon={<Funnel size={15} />}
-          fullWidth={false}
-        >
-          {filterCount > 0 ? `Filtros ${filterCount}` : "Filtros"}
-        </Button>
-
-        <div className="desktop-only" style={{ width: 176 }}>
-          <Select
-            aria-label="Ordenar trabajadores"
-            value={query.sort}
-            onChange={(e) => applyQuery({ ...query, sort: e.target.value as WorkerDirectorySortId, page: 1 })}
-          >
-            {WORKER_DIRECTORY_SORTS.filter((option) => option.dataAvailable).map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <Button
-          className="mobile-only"
-          variant="secondary"
-          size="sm"
-          onClick={() => setSortOpen(true)}
-          leadingIcon={<ArrowsDownUp size={15} />}
-        >
-          {query.sort === "nombre_asc" ? "Ordenar" : sortLabel}
-        </Button>
-
-        <Button size="sm" onClick={() => setCreateOpen(true)} leadingIcon={<Plus size={15} weight="bold" />}>
-          Nuevo trabajador
-        </Button>
-
-        <Link
-          href="/representacion/trabajadores/importar"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            padding: "0.375rem 0.625rem",
-            borderRadius: "0.375rem",
-            border: "1px solid var(--border)",
-            backgroundColor: "var(--card)",
-            color: "var(--fg)",
-            fontSize: "0.8125rem",
-            fontWeight: 600,
-            textDecoration: "none",
-          }}
-        >
-          Actualizar base de trabajadores
-        </Link>
-      </div>
-
-      {hasFilters ? <WorkerActiveChips query={query} onChange={applyQuery} /> : null}
-
+      {/* Panel colapsable de filtros en desktop */}
       <div className="desktop-only">
         <button
           type="button"
@@ -281,7 +340,7 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
             cursor: "pointer",
           }}
         >
-          {desktopFiltersOpen ? "Ocultar filtros" : "Mostrar filtros"}
+          {desktopFiltersOpen ? "Ocultar filtros avanzados" : "Mostrar filtros avanzados"}
         </button>
       </div>
       {desktopFiltersOpen ? (
@@ -290,19 +349,27 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
         </Card>
       ) : null}
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
-        <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-          {loading ? "Cargando…" : `${total} ${total === 1 ? "trabajador" : "trabajadores"}`}
-        </span>
-        {loading && workers.length > 0 ? (
-          <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Actualizando…</span>
-        ) : null}
-      </div>
-
+      {/* 4. ÁREA DE CONTENIDO */}
       {error ? (
-        <WorkerEmptyState variant="error" onRetry={() => setRefreshKey((key) => key + 1)} />
+        <RepresentationEmptyState
+          variant="error"
+          title="No se pudo cargar el directorio"
+          description="Ocurrió un error al cargar la información. Verifica tu conexión e intenta de nuevo."
+          onAction={() => setRefreshKey((key) => key + 1)}
+          actionLabel="Reintentar"
+        />
       ) : !loading && workers.length === 0 ? (
-        <WorkerEmptyState variant="empty" query={hasFilters ? query.q : undefined} onClear={clearAll} />
+        <RepresentationEmptyState
+          variant={hasFilters ? "filtered" : "empty"}
+          title={hasFilters ? "Sin resultados" : "Directorio vacío"}
+          description={
+            hasFilters
+              ? "No hay trabajadores que coincidan con la búsqueda o filtros aplicados."
+              : "Aún no se cuenta con trabajadores en el padrón de esta delegación."
+          }
+          onAction={hasFilters ? clearAll : undefined}
+          actionLabel={hasFilters ? "Limpiar filtros" : undefined}
+        />
       ) : (
         <>
           <div className="desktop-only">
@@ -316,6 +383,7 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
         </>
       )}
 
+      {/* 5. PAGINACIÓN */}
       <WorkerPagination
         page={query.page}
         pageSize={query.pageSize}
@@ -323,6 +391,7 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
         onPageChange={(page) => applyQuery({ ...query, page })}
       />
 
+      {/* 6. BOTTOM SHEETS MÓVILES */}
       <BottomSheet open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filtros" height="large">
         <WorkerFilterControls idPrefix="mobile" options={options} draft={draft} onChange={setDraft} />
         <div
