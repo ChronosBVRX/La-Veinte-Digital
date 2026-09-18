@@ -86,6 +86,18 @@ export function DashboardQuickSearch(): React.JSX.Element {
     };
   }, [query]);
 
+  const navigate = useCallback(
+    (targetUrl: string) => {
+      setIsOpen(false);
+      if (router) {
+        router.push(targetUrl);
+      } else if (typeof window !== "undefined") {
+        window.location.href = targetUrl;
+      }
+    },
+    [router],
+  );
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Escape") {
@@ -94,7 +106,6 @@ export function DashboardQuickSearch(): React.JSX.Element {
         e.preventDefault();
         const trimmed = query.trim();
         if (!trimmed) return;
-        setIsOpen(false);
 
         // Si parece un folio institucional (XXI-, LIC, PAS, etc.) navegar a expedientes
         const isLikelyFolio = /^(xxi|lic|pas|mat|lac|lok)/i.test(trimmed) || trimmed.includes("-");
@@ -102,14 +113,10 @@ export function DashboardQuickSearch(): React.JSX.Element {
           ? `/representacion/expedientes?folio=${encodeURIComponent(trimmed)}`
           : `/representacion/trabajadores?q=${encodeURIComponent(trimmed)}`;
 
-        if (router) {
-          router.push(targetUrl);
-        } else if (typeof window !== "undefined") {
-          window.location.href = targetUrl;
-        }
+        navigate(targetUrl);
       }
     },
-    [query, router],
+    [query, navigate],
   );
 
   const trimmedQuery = query.trim();
@@ -216,8 +223,7 @@ export function DashboardQuickSearch(): React.JSX.Element {
                 <button
                   type="button"
                   onClick={() => {
-                    setIsOpen(false);
-                    router.push(`/representacion/trabajadores?q=${encodeURIComponent(query)}`);
+                    navigate(`/representacion/trabajadores?q=${encodeURIComponent(query)}`);
                   }}
                   style={{
                     fontSize: "0.75rem",
@@ -259,8 +265,7 @@ export function DashboardQuickSearch(): React.JSX.Element {
                         key={w.id}
                         type="button"
                         onClick={() => {
-                          setIsOpen(false);
-                          router.push(`/representacion/trabajadores/${w.id}`);
+                          navigate(`/representacion/trabajadores/${w.id}`);
                         }}
                         style={{
                           display: "flex",
@@ -328,8 +333,7 @@ export function DashboardQuickSearch(): React.JSX.Element {
                         key={c.id}
                         type="button"
                         onClick={() => {
-                          setIsOpen(false);
-                          router.push(targetHref);
+                          navigate(targetHref);
                         }}
                         style={{
                           display: "flex",
