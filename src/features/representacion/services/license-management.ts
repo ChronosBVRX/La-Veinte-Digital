@@ -3,6 +3,7 @@ import type { Json, Database } from "@/lib/supabase/types";
 import { casePrefix } from "@/features/representacion/lib/folio";
 import { calculateLicense, type LicenseCalcResult } from "@/features/representacion/lib/licenses";
 import { writeAuditLog } from "@/features/representacion/services/audit";
+import { resolveUnionWorkerName, type UnionWorkerNameInput } from "./worker-name-resolver";
 
 export interface LicenseWorkerSnapshot {
   id: string;
@@ -10,6 +11,7 @@ export interface LicenseWorkerSnapshot {
   first_name: string;
   paternal_surname: string;
   maternal_surname: string | null;
+  siap_full_name?: string | null;
   category: string;
   assignment: string;
   turn: string;
@@ -134,7 +136,7 @@ export async function saveLicenseDraft(
   if (params.workerId) {
     const { data: wData } = await supabase
       .from("union_workers")
-      .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment, turn, schedule, rest_days, phone")
+      .select("id, employee_number, first_name, paternal_surname, maternal_surname, siap_full_name, category, assignment, turn, schedule, rest_days, phone")
       .eq("id", params.workerId)
       .single();
     if (wData) {
@@ -276,11 +278,12 @@ export async function completeLicenseCase(
   // Validar trabajador
   const { data: wData } = await supabase
     .from("union_workers")
-    .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment, turn, schedule, rest_days, phone")
+    .select("id, employee_number, first_name, paternal_surname, maternal_surname, siap_full_name, category, assignment, turn, schedule, rest_days, phone")
     .eq("id", params.workerId)
     .single();
   if (!wData) throw new Error("Trabajador no encontrado");
-  if (!wData.first_name?.trim() && !wData.paternal_surname?.trim()) {
+  const resolvedWorker = resolveUnionWorkerName(wData);
+  if (!resolvedWorker.validForLicense) {
     throw new Error("El trabajador no tiene nombre registrado en el sistema.");
   }
   if (!wData.employee_number?.trim()) {
@@ -429,7 +432,7 @@ export async function updateCompletedLicense(
   if (params.workerId && params.workerId !== existing.worker_id) {
     const { data: newWorker } = await supabase
       .from("union_workers")
-      .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment, turn, schedule, rest_days, phone")
+      .select("id, employee_number, first_name, paternal_surname, maternal_surname, siap_full_name, category, assignment, turn, schedule, rest_days, phone")
       .eq("id", params.workerId)
       .single();
     if (newWorker) {
@@ -515,7 +518,7 @@ export async function getLicenseCaseDetail(
   if (c.worker_id && c.worker_id !== "00000000-0000-0000-0000-000000000000") {
     const { data: wData } = await supabase
       .from("union_workers")
-      .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment, turn, schedule, rest_days, phone")
+      .select("id, employee_number, first_name, paternal_surname, maternal_surname, siap_full_name, category, assignment, turn, schedule, rest_days, phone")
       .eq("id", c.worker_id)
       .single();
     worker = (wData ?? (c.worker_snapshot as unknown as LicenseWorkerSnapshot)) || null;
@@ -704,11 +707,11 @@ export async function listLicenseCases(params: {
   const licenseMap = new Map((licenseDetails ?? []).map((l) => [l.case_id, l]));
 
   // Consultar trabajadores
-  let workerMap = new Map<string, { id: string; employee_number: string; first_name: string; paternal_surname: string; maternal_surname: string | null; category: string }>();
+  let workerMap = new Map<string, { id: string; employee_number: string; first_name: string; paternal_surname: string; maternal_surname: string | null; siap_full_name?: string | null; category: string }>();
   if (workerIds.length > 0) {
     const { data: workers } = await supabase
       .from("union_workers")
-      .select("id, employee_number, first_name, paternal_surname, maternal_surname, category")
+      .select("id, employee_number, first_name, paternal_surname, maternal_surname, siap_full_name, category")
       .in("id", workerIds);
     workerMap = new Map((workers ?? []).map((w) => [w.id, w]));
   }
@@ -721,14 +724,8 @@ export async function listLicenseCases(params: {
     let employeeNumber = "";
     let category = "";
     if (w) {
-      const parts = [
-        (w.paternal_surname ?? (w as Record<string, unknown>).paternalSurname),
-        (w.maternal_surname ?? (w as Record<string, unknown>).maternalSurname),
-        (w.first_name ?? (w as Record<string, unknown>).firstName),
-      ]
-        .filter(Boolean)
-        .join(" ");
-      fullName = parts || "Sin nombre registrado";
+      const resolved = resolveUnionWorkerName(w as UnionWorkerNameInput);
+      fullName = resolved.fullName || "Sin nombre registrado";
       employeeNumber = String(w.employee_number ?? (w as Record<string, unknown>).employeeNumber ?? "");
       category = String(w.category ?? "");
     }

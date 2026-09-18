@@ -241,6 +241,139 @@ describe("License Management Service", () => {
         current_step: 3,
       }));
     });
+
+    it("completa trámite exitosamente para trabajador con siap_full_name legacy (ej. 98173968) sin nombres estructurados", async () => {
+      const mockUpdateCase = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      });
+      const mockUpsertLicense = vi.fn().mockResolvedValue({ error: null });
+      const mockInsertEvent = vi.fn().mockResolvedValue({ error: null });
+
+      const mockSupabase = {
+        from: vi.fn((table: string) => {
+          if (table === "union_workers") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: {
+                      id: "worker-98173968",
+                      employee_number: "98173968",
+                      first_name: "",
+                      paternal_surname: "",
+                      maternal_surname: "",
+                      siap_full_name: "BOLA&OS/VAZQUEZ/EDUARDO",
+                      category: "TECNICO RADIOLOGO",
+                      assignment: "HGR 1",
+                      turn: "VESPERTINO",
+                      schedule: "14:00-21:30",
+                      rest_days: "SAB-DOM",
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === "union_cases") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: { id: "case-98173968", folio: "XXI-2026-LIC-000099", status: "draft", delegation_id: "del-xxi" },
+                    error: null,
+                  }),
+                }),
+              }),
+              update: mockUpdateCase,
+            };
+          }
+          if (table === "union_license_cases") {
+            return { upsert: mockUpsertLicense };
+          }
+          if (table === "union_case_events") {
+            return { insert: mockInsertEvent };
+          }
+          return {};
+        }),
+      };
+
+      vi.mocked(createClient).mockResolvedValue(mockSupabase as unknown as Awaited<ReturnType<typeof createClient>>);
+
+      const res = await completeLicenseCase({
+        caseId: "case-98173968",
+        userId: "user-1",
+        workerId: "worker-98173968",
+        withPay: false,
+        startDate: "2026-10-01",
+        endDate: "2026-10-03",
+        reason: "ASUNTOS PARTICULARES",
+      });
+
+      expect(res.status).toBe("completed");
+      expect(res.folio).toBe("XXI-2026-LIC-000099");
+      expect(mockUpdateCase).toHaveBeenCalledWith(expect.objectContaining({
+        status: "completed",
+        current_step: 3,
+        worker_snapshot: expect.objectContaining({
+          siap_full_name: "BOLA&OS/VAZQUEZ/EDUARDO",
+          employee_number: "98173968",
+        }),
+      }));
+    });
+
+    it("bloquea finalización si el trabajador carece de todo nombre registrado", async () => {
+      const mockSupabase = {
+        from: vi.fn((table: string) => {
+          if (table === "union_workers") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: {
+                      id: "worker-empty",
+                      employee_number: "111111",
+                      first_name: "",
+                      paternal_surname: "",
+                      maternal_surname: "",
+                      siap_full_name: "",
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === "union_cases") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: { id: "case-empty", folio: "XXI-2026-LIC-000002", status: "draft", delegation_id: "del-xxi" },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+          return {};
+        }),
+      };
+
+      vi.mocked(createClient).mockResolvedValue(mockSupabase as unknown as Awaited<ReturnType<typeof createClient>>);
+
+      await expect(
+        completeLicenseCase({
+          caseId: "case-empty",
+          userId: "user-1",
+          workerId: "worker-empty",
+          withPay: false,
+          startDate: "2026-10-01",
+          endDate: "2026-10-03",
+          reason: "ASUNTOS PARTICULARES",
+        }),
+      ).rejects.toThrow("El trabajador no tiene nombre registrado en el sistema.");
+    });
   });
 
   describe("updateCompletedLicense & Optimistic Concurrency", () => {

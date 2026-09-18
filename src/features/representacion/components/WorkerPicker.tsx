@@ -5,6 +5,10 @@ import Link from "next/link";
 import { Button } from "@/shared/components/ui/Button";
 import { Input } from "@/shared/components/ui/Input";
 import { Card } from "@/shared/components/ui/Card";
+import {
+  resolveUnionWorkerName,
+  type UnionWorkerNameInput,
+} from "../services/worker-name-resolver";
 
 export interface UnionWorkerOption {
   id: string;
@@ -20,14 +24,10 @@ export interface UnionWorkerOption {
   rest_days?: string;
 }
 
-export function getWorkerDisplayName(w: {
-  first_name?: string | null;
-  paternal_surname?: string | null;
-  maternal_surname?: string | null;
-  siap_full_name?: string | null;
-}): string {
-  const parts = [w.paternal_surname, w.maternal_surname, w.first_name].filter(Boolean).join(" ").trim();
-  return parts || w.siap_full_name || "Sin nombre";
+export function getWorkerDisplayName(w: UnionWorkerNameInput | null | undefined): string {
+  if (!w) return "Sin nombre";
+  const resolved = resolveUnionWorkerName(w);
+  return resolved.displayName || "Sin nombre";
 }
 
 export function WorkerPicker({

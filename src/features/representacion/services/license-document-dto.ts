@@ -112,6 +112,20 @@ export function splitIsoDate(iso: string): { d: string; m: string; y: string } {
   };
 }
 
+import {
+  resolveUnionWorkerName,
+  normalizeSiapText,
+  type UnionWorkerNameInput,
+  type ResolvedUnionWorkerName,
+} from "./worker-name-resolver";
+
+export {
+  resolveUnionWorkerName,
+  normalizeSiapText,
+  type UnionWorkerNameInput,
+  type ResolvedUnionWorkerName,
+};
+
 export function normalizeWorkerName(worker: {
   first_name?: string | null;
   paternal_surname?: string | null;
@@ -123,79 +137,12 @@ export function normalizeWorkerName(worker: {
   maternalSurname: string;
   fullName: string;
 } {
-  const fn = (worker.first_name ?? "").trim();
-  const ps = (worker.paternal_surname ?? "").trim();
-  const ms = (worker.maternal_surname ?? "").trim();
-  const siap = (worker.siap_full_name ?? "").trim();
-
-  // If structured fields exist
-  if (ps || fn) {
-    const parts = [ps, ms, fn].filter(Boolean);
-    const fullName = parts.join(" ").replace(/\s+/g, " ").toUpperCase();
-    return {
-      firstName: fn.toUpperCase(),
-      paternalSurname: ps.toUpperCase(),
-      maternalSurname: ms.toUpperCase(),
-      fullName,
-    };
-  }
-
-  // If only siap_full_name exists
-  if (siap) {
-    // SIAP encodes 'Ñ' as '&' (e.g. BOLA&OS -> BOLAÑOS)
-    const cleanSiap = siap.replace(/&/g, "Ñ");
-
-    // SIAP often uses slash-delimited format: PATERNO/MATERNO/NOMBRE(S)
-    if (cleanSiap.includes("/")) {
-      const parts = cleanSiap.split("/").map((p) => p.trim()).filter(Boolean);
-      const paternalSurname = parts[0] ?? "";
-      const maternalSurname = parts[1] ?? "";
-      const firstName = parts.slice(2).join(" ");
-      const fullName = [paternalSurname, maternalSurname, firstName].filter(Boolean).join(" ");
-      return {
-        firstName: firstName.toUpperCase(),
-        paternalSurname: paternalSurname.toUpperCase(),
-        maternalSurname: maternalSurname.toUpperCase(),
-        fullName: fullName.toUpperCase(),
-      };
-    }
-
-    const tokens = cleanSiap.split(/\s+/).filter(Boolean);
-    let paternalSurname = "";
-    let maternalSurname = "";
-    let firstName = "";
-
-    if (tokens.length === 1) {
-      firstName = tokens[0] ?? "";
-    } else if (tokens.length === 2) {
-      paternalSurname = tokens[0] ?? "";
-      firstName = tokens[1] ?? "";
-    } else if (tokens.length === 3) {
-      paternalSurname = tokens[0] ?? "";
-      maternalSurname = tokens[1] ?? "";
-      firstName = tokens[2] ?? "";
-    } else {
-      // 4 or more: Mexican standard often 2 surnames + rest first names
-      paternalSurname = tokens[0] ?? "";
-      maternalSurname = tokens[1] ?? "";
-      firstName = tokens.slice(2).join(" ");
-    }
-
-    const fullName = [paternalSurname, maternalSurname, firstName].filter(Boolean).join(" ");
-
-    return {
-      firstName: firstName.toUpperCase(),
-      paternalSurname: paternalSurname.toUpperCase(),
-      maternalSurname: maternalSurname.toUpperCase(),
-      fullName: fullName.toUpperCase() || cleanSiap.toUpperCase(),
-    };
-  }
-
+  const resolved = resolveUnionWorkerName(worker);
   return {
-    firstName: "",
-    paternalSurname: "",
-    maternalSurname: "",
-    fullName: "",
+    firstName: resolved.givenNames,
+    paternalSurname: resolved.paternalSurname,
+    maternalSurname: resolved.maternalSurname,
+    fullName: resolved.fullName,
   };
 }
 
