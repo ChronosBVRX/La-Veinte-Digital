@@ -22,6 +22,7 @@ export interface UnionWorkerOption {
   turn: string;
   schedule?: string;
   rest_days?: string;
+  phone?: string;
 }
 
 export function getWorkerDisplayName(w: UnionWorkerNameInput | null | undefined): string {

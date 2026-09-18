@@ -32,6 +32,7 @@ export interface WorkerDirectoryRow {
   turn: string;
   schedule: string | null;
   rest_days: string | null;
+  phone?: string | null;
   active: boolean;
   seniority_years: number | null;
   employment_start_date: string | null;
@@ -52,7 +53,7 @@ export interface WorkerDirectoryFacets {
 }
 
 const WORKER_LIST_COLUMNS =
-  "id, employee_number, first_name, paternal_surname, maternal_surname, siap_full_name, category, assignment, turn, schedule, rest_days, active, seniority_years, employment_start_date";
+  "id, employee_number, first_name, paternal_surname, maternal_surname, siap_full_name, category, assignment, turn, schedule, rest_days, phone, active, seniority_years, employment_start_date";
 
 const ROLLED_BACK_FILTER = "source_import_state.is.null,source_import_state.neq.rolled_back";
 
