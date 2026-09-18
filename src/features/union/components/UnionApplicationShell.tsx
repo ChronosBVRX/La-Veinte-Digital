@@ -45,7 +45,7 @@ export const UNION_NAV_GROUPS: UnionNavGroup[] = [
   {
     id: "panel",
     label: "Panel",
-    modules: [{ href: "/representacion", label: "Resumen", description: "Tablero general", icon: House }],
+    modules: [{ href: "/representacion", label: "Centro de control", description: "Tablero general", icon: House }],
   },
   {
     id: "personas",
