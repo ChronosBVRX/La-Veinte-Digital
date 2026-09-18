@@ -60,6 +60,26 @@ describe("proxy — suspensión y papelera", () => {
     expect(response.status).toBe(401)
   })
 
+  it.each([
+    "/api/admin/users/11111111-1111-4111-8111-111111111111",
+    "/api/admin/users/11111111-1111-4111-8111-111111111111/trash",
+    "/api/admin/users/11111111-1111-4111-8111-111111111111/role",
+    "/api/admin/users/11111111-1111-4111-8111-111111111111/sessions/revoke",
+  ])(
+    "clasifica la ruta admin dinámica %s como autenticada (401 sin sesión, nunca 404 del proxy)",
+    async (pathname) => {
+      mocks.createServerClient.mockReturnValue(clientMock({ user: null }))
+      const response = await proxy(request(pathname))
+      expect(response.status).toBe(401)
+    },
+  )
+
+  it("mantiene en 404 las formas administrativas no registradas", async () => {
+    const response = await proxy(request("/api/admin/users/11111111-1111-4111-8111-111111111111/unknown"))
+    expect(response.status).toBe(404)
+    expect(mocks.createServerClient).not.toHaveBeenCalled()
+  })
+
   it("redirige a /login sin sesión en páginas protegidas", async () => {
     mocks.createServerClient.mockReturnValue(clientMock({ user: null }))
     const response = await proxy(request("/profile"))
