@@ -26,6 +26,8 @@ const completeBodySchema = z.object({
   reason: z.string().min(1, "El motivo es indispensable"),
   proof_description: z.string().optional(),
   notes: z.string().optional(),
+  rest_days: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
 });
 
 export async function POST(req: Request): Promise<NextResponse> {
@@ -57,6 +59,8 @@ export async function POST(req: Request): Promise<NextResponse> {
       reason: data.reason,
       proofDescription: data.proof_description,
       notes: data.notes,
+      restDays: data.rest_days,
+      phone: data.phone,
     });
 
     return noStore(NextResponse.json(result));

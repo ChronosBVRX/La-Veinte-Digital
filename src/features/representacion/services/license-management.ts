@@ -36,6 +36,7 @@ export interface SaveLicenseDraftParams {
   reason?: string | null;
   proofDescription?: string | null;
   notes?: string | null;
+  restDays?: string | null;
   phone?: string | null;
 }
 
@@ -52,6 +53,8 @@ export interface CompleteLicenseCaseParams {
   reason: string;
   proofDescription?: string;
   notes?: string;
+  restDays?: string | null;
+  phone?: string | null;
 }
 
 export interface UpdateCompletedLicenseParams {
@@ -69,6 +72,8 @@ export interface UpdateCompletedLicenseParams {
   reason: string;
   proofDescription?: string;
   notes?: string;
+  restDays?: string | null;
+  phone?: string | null;
 }
 
 export interface LicenseCaseDetailResult {
@@ -97,6 +102,8 @@ export interface LicenseCaseDetailResult {
     reason: string;
     proofDescription: string;
     notes: string;
+    restDays?: string | null;
+    phone?: string | null;
   } | null;
   events: Array<{
     id: string;
@@ -242,6 +249,13 @@ export async function saveLicenseDraft(
     notes: (params.notes ?? "").trim(),
   };
 
+  if (params.restDays !== undefined) {
+    detailPayload.rest_days = params.restDays ? params.restDays.trim() : null;
+  }
+  if (params.phone !== undefined) {
+    detailPayload.phone = params.phone ? params.phone.trim() : null;
+  }
+
   const { error: detailError } = await supabase
     .from("union_license_cases")
     .upsert(detailPayload, { onConflict: "case_id" });
@@ -320,23 +334,31 @@ export async function completeLicenseCase(
   if (caseUpErr) throw new Error(`Error al actualizar estado a completado: ${caseUpErr.message}`);
 
   // Actualizar union_license_cases
+  const detailUpdate: Database["public"]["Tables"]["union_license_cases"]["Insert"] = {
+    case_id: params.caseId,
+    with_pay: params.withPay,
+    license_range_type: calc.rangeType,
+    start_date: params.startDate,
+    end_date: params.endDate,
+    total_days: calc.totalDays,
+    previous_license_start: params.previousStartDate || null,
+    previous_license_end: params.previousEndDate || null,
+    is_extension: Boolean(params.isExtension),
+    reason: params.reason.trim(),
+    proof_description: (params.proofDescription ?? "").trim(),
+    debt_control_required: params.withPay,
+    notes: (params.notes ?? "").trim(),
+  };
+  if (params.restDays !== undefined) {
+    detailUpdate.rest_days = params.restDays ? params.restDays.trim() : null;
+  }
+  if (params.phone !== undefined) {
+    detailUpdate.phone = params.phone ? params.phone.trim() : null;
+  }
+
   const { error: detailUpErr } = await supabase
     .from("union_license_cases")
-    .upsert({
-      case_id: params.caseId,
-      with_pay: params.withPay,
-      license_range_type: calc.rangeType,
-      start_date: params.startDate,
-      end_date: params.endDate,
-      total_days: calc.totalDays,
-      previous_license_start: params.previousStartDate || null,
-      previous_license_end: params.previousEndDate || null,
-      is_extension: Boolean(params.isExtension),
-      reason: params.reason.trim(),
-      proof_description: (params.proofDescription ?? "").trim(),
-      debt_control_required: params.withPay,
-      notes: (params.notes ?? "").trim(),
-    });
+    .upsert(detailUpdate);
   if (detailUpErr) throw new Error(`Error al guardar detalle: ${detailUpErr.message}`);
 
   await supabase.from("union_case_events").insert({
@@ -445,23 +467,31 @@ export async function updateCompletedLicense(
   if (caseUpErr) throw new Error(`Error al actualizar caso: ${caseUpErr.message}`);
 
   // Actualizar detalle
+  const detailUpdate: Database["public"]["Tables"]["union_license_cases"]["Insert"] = {
+    case_id: params.caseId,
+    with_pay: params.withPay,
+    license_range_type: calc.rangeType,
+    start_date: params.startDate,
+    end_date: params.endDate,
+    total_days: calc.totalDays,
+    previous_license_start: params.previousStartDate || null,
+    previous_license_end: params.previousEndDate || null,
+    is_extension: Boolean(params.isExtension),
+    reason: params.reason.trim(),
+    proof_description: (params.proofDescription ?? "").trim(),
+    debt_control_required: params.withPay,
+    notes: (params.notes ?? "").trim(),
+  };
+  if (params.restDays !== undefined) {
+    detailUpdate.rest_days = params.restDays ? params.restDays.trim() : null;
+  }
+  if (params.phone !== undefined) {
+    detailUpdate.phone = params.phone ? params.phone.trim() : null;
+  }
+
   const { error: detailUpErr } = await supabase
     .from("union_license_cases")
-    .upsert({
-      case_id: params.caseId,
-      with_pay: params.withPay,
-      license_range_type: calc.rangeType,
-      start_date: params.startDate,
-      end_date: params.endDate,
-      total_days: calc.totalDays,
-      previous_license_start: params.previousStartDate || null,
-      previous_license_end: params.previousEndDate || null,
-      is_extension: Boolean(params.isExtension),
-      reason: params.reason.trim(),
-      proof_description: (params.proofDescription ?? "").trim(),
-      debt_control_required: params.withPay,
-      notes: (params.notes ?? "").trim(),
-    });
+    .upsert(detailUpdate);
   if (detailUpErr) throw new Error(`Error al actualizar detalle: ${detailUpErr.message}`);
 
   await supabase.from("union_case_events").insert({
@@ -577,6 +607,8 @@ export async function getLicenseCaseDetail(
           reason: lData.reason ?? "",
           proofDescription: lData.proof_description ?? "",
           notes: lData.notes ?? "",
+          restDays: lData.rest_days ?? null,
+          phone: lData.phone ?? null,
         }
       : null,
     events: (events ?? []).map((e) => ({

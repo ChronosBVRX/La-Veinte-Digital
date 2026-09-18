@@ -31,6 +31,7 @@ const draftBodySchema = z.object({
   reason: z.string().optional().nullable(),
   proof_description: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  rest_days: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
   delegation_id: z.string().uuid().optional(),
 });
@@ -49,6 +50,8 @@ const patchBodySchema = z.object({
   reason: z.string().min(1, "Motivo requerido"),
   proof_description: z.string().optional(),
   notes: z.string().optional(),
+  rest_days: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
 });
 
 const deleteBodySchema = z.object({
@@ -137,6 +140,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       reason: data.reason,
       proofDescription: data.proof_description,
       notes: data.notes,
+      restDays: data.rest_days,
       phone: data.phone,
     });
 
@@ -179,6 +183,8 @@ export async function PATCH(req: Request): Promise<NextResponse> {
       reason: data.reason,
       proofDescription: data.proof_description,
       notes: data.notes,
+      restDays: data.rest_days,
+      phone: data.phone,
     });
 
     return noStore(NextResponse.json(result));

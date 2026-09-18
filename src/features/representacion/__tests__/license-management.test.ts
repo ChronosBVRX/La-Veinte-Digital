@@ -528,6 +528,227 @@ describe("License Management Service", () => {
     });
   });
 
+  describe("Manual rest_days and phone capture (Casos 1, 2, 3, 4)", () => {
+    it("Caso 1: guarda borrador con descansos y teléfono correctamente en union_license_cases", async () => {
+      const mockRpc = vi.fn().mockResolvedValue({ data: "XXI-2026-LIC-000020", error: null });
+      const mockInsertCase = vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: { id: "case-draft-1", folio: "XXI-2026-LIC-000020" },
+            error: null,
+          }),
+        }),
+      });
+      const mockUpsertLicense = vi.fn().mockResolvedValue({ error: null });
+      const mockInsertEvent = vi.fn().mockResolvedValue({ error: null });
+
+      const mockSupabase = {
+        rpc: mockRpc,
+        from: vi.fn((table: string) => {
+          if (table === "union_cases") return { insert: mockInsertCase };
+          if (table === "union_license_cases") return { upsert: mockUpsertLicense };
+          if (table === "union_case_events") return { insert: mockInsertEvent };
+          return {};
+        }),
+      };
+
+      vi.mocked(createClient).mockResolvedValue(mockSupabase as unknown as Awaited<ReturnType<typeof createClient>>);
+
+      const res = await saveLicenseDraft({
+        delegationId: "del-xxi",
+        delegationCode: "XXI",
+        userId: "user-1",
+        currentStep: 2,
+        withPay: false,
+        startDate: "2026-10-01",
+        endDate: "2026-10-03",
+        reason: "TRAMITE PERSONAL",
+        restDays: "SÁB - DOM",
+        phone: "443 123 4567",
+      });
+
+      expect(res.caseId).toBe("case-draft-1");
+      expect(mockUpsertLicense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rest_days: "SÁB - DOM",
+          phone: "443 123 4567",
+        }),
+        expect.anything(),
+      );
+    });
+
+    it("Caso 2: edición cambiando descansos de 'SÁB - DOM' a 'VIE - SÁB' incrementa revisión y conserva folio", async () => {
+      const mockInsertRevision = vi.fn().mockResolvedValue({ error: null });
+      const mockUpdateCase = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null }),
+      });
+      const mockUpsertLicense = vi.fn().mockResolvedValue({ error: null });
+      const mockInsertEvent = vi.fn().mockResolvedValue({ error: null });
+
+      const mockSupabase = {
+        from: vi.fn((table: string) => {
+          if (table === "union_cases") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: {
+                      id: "case-edit-1",
+                      folio: "XXI-2026-LIC-000001",
+                      status: "completed",
+                      revision_number: 1,
+                      document_revision: 1,
+                      worker_id: "w-1",
+                      worker_snapshot: { first_name: "MARIA" },
+                      delegation_id: "del-xxi",
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+              update: mockUpdateCase,
+            };
+          }
+          if (table === "union_license_cases") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: { with_pay: false, start_date: "2026-10-01", end_date: "2026-10-03", rest_days: "SÁB - DOM", phone: "4431234567" },
+                    error: null,
+                  }),
+                }),
+              }),
+              upsert: mockUpsertLicense,
+            };
+          }
+          if (table === "union_license_revisions") {
+            return { insert: mockInsertRevision };
+          }
+          if (table === "union_case_events") {
+            return { insert: mockInsertEvent };
+          }
+          return {};
+        }),
+      };
+
+      vi.mocked(createClient).mockResolvedValue(mockSupabase as unknown as Awaited<ReturnType<typeof createClient>>);
+
+      const res = await updateCompletedLicense({
+        caseId: "case-edit-1",
+        userId: "user-1",
+        expectedRevision: 1,
+        withPay: false,
+        startDate: "2026-10-01",
+        endDate: "2026-10-03",
+        reason: "CAMBIO DE DESCANSOS",
+        restDays: "VIE - SÁB",
+      });
+
+      expect(res.folio).toBe("XXI-2026-LIC-000001");
+      expect(res.revisionNumber).toBe(2);
+      expect(mockUpsertLicense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rest_days: "VIE - SÁB",
+        }),
+      );
+      // Snapshot anterior contiene rest_days original
+      expect(mockInsertRevision).toHaveBeenCalledWith(
+        expect.objectContaining({
+          snapshot: expect.objectContaining({
+            license: expect.objectContaining({
+              rest_days: "SÁB - DOM",
+            }),
+          }),
+        }),
+      );
+    });
+
+    it("Caso 3: teléfono con formato libre guardado como texto exacto ('044 443 123 4567')", async () => {
+      const mockUpsertLicense = vi.fn().mockResolvedValue({ error: null });
+      const mockSupabase = {
+        rpc: vi.fn().mockResolvedValue({ data: "XXI-2026-LIC-000030", error: null }),
+        from: vi.fn((table: string) => {
+          if (table === "union_cases") {
+            return {
+              insert: vi.fn().mockReturnValue({
+                select: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: { id: "case-phone-1", folio: "XXI-2026-LIC-000030" },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === "union_license_cases") return { upsert: mockUpsertLicense };
+          if (table === "union_case_events") return { insert: vi.fn().mockResolvedValue({ error: null }) };
+          return {};
+        }),
+      };
+
+      vi.mocked(createClient).mockResolvedValue(mockSupabase as unknown as Awaited<ReturnType<typeof createClient>>);
+
+      await saveLicenseDraft({
+        delegationId: "del-xxi",
+        delegationCode: "XXI",
+        userId: "user-1",
+        currentStep: 2,
+        withPay: false,
+        phone: "044 443 123 4567",
+      });
+
+      expect(mockUpsertLicense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          phone: "044 443 123 4567",
+        }),
+        expect.anything(),
+      );
+      const callArg = mockUpsertLicense.mock.calls[0][0];
+      expect(typeof callArg.phone).toBe("string");
+      expect(callArg.phone).toBe("044 443 123 4567");
+    });
+
+    it("Caso 4: teléfono que empieza con cero no pierde el cero al persistirse", async () => {
+      const mockUpsertLicense = vi.fn().mockResolvedValue({ error: null });
+      const mockSupabase = {
+        rpc: vi.fn().mockResolvedValue({ data: "XXI-2026-LIC-000031", error: null }),
+        from: vi.fn((table: string) => {
+          if (table === "union_cases") {
+            return {
+              insert: vi.fn().mockReturnValue({
+                select: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: { id: "case-zero-1", folio: "XXI-2026-LIC-000031" },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === "union_license_cases") return { upsert: mockUpsertLicense };
+          if (table === "union_case_events") return { insert: vi.fn().mockResolvedValue({ error: null }) };
+          return {};
+        }),
+      };
+
+      vi.mocked(createClient).mockResolvedValue(mockSupabase as unknown as Awaited<ReturnType<typeof createClient>>);
+
+      await saveLicenseDraft({
+        delegationId: "del-xxi",
+        delegationCode: "XXI",
+        userId: "user-1",
+        currentStep: 2,
+        withPay: false,
+        phone: "0123456789",
+      });
+
+      const callArg = mockUpsertLicense.mock.calls[0][0];
+      expect(callArg.phone).toBe("0123456789");
+      expect(callArg.phone.startsWith("0")).toBe(true);
+    });
+  });
+
   describe("softDeleteLicenseCase & restoreLicenseCase", () => {
     it("marca un expediente como deleted preservando status_before_delete", async () => {
       const mockUpdate = vi.fn().mockReturnValue({

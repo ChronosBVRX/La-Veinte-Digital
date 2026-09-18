@@ -31,6 +31,8 @@ export function LicenseWizard({
   const [reason, setReason] = useState("");
   const [proof, setProof] = useState("");
   const [notes, setNotes] = useState("");
+  const [restDays, setRestDays] = useState("");
+  const [phone, setPhone] = useState("");
   const [changeSummary, setChangeSummary] = useState("");
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -100,6 +102,7 @@ export function LicenseWizard({
             turn: String(rawWorker.turn ?? ""),
             schedule: typeof rawWorker.schedule === "string" ? rawWorker.schedule : undefined,
             rest_days: typeof rawWorker.rest_days === "string" ? rawWorker.rest_days : typeof rawWorker.restDays === "string" ? rawWorker.restDays : undefined,
+            phone: typeof rawWorker.phone === "string" ? rawWorker.phone : undefined,
           });
         }
 
@@ -113,6 +116,11 @@ export function LicenseWizard({
           setReason(c.license.reason ?? "");
           setProof(c.license.proofDescription ?? "");
           setNotes(c.license.notes ?? "");
+          setRestDays(c.license.restDays ?? c.worker?.rest_days ?? "");
+          setPhone(c.license.phone ?? c.worker?.phone ?? "");
+        } else if (c.worker) {
+          setRestDays(c.worker.rest_days ?? "");
+          setPhone(c.worker.phone ?? "");
         }
 
         // Si el caso está en draft, restaurar el paso guardado
@@ -145,7 +153,7 @@ export function LicenseWizard({
   useEffect(() => {
     if (isInitialLoad.current || loadingInitial) return;
     setIsDirty(true);
-  }, [worker, withPay, start, end, isExtension, prevStart, prevEnd, reason, proof, notes, loadingInitial]);
+  }, [worker, withPay, start, end, isExtension, prevStart, prevEnd, reason, proof, notes, restDays, phone, loadingInitial]);
 
   const preview = (() => {
     try {
@@ -183,6 +191,8 @@ export function LicenseWizard({
           reason: reason || null,
           proof_description: proof || null,
           notes: notes || null,
+          rest_days: restDays ? restDays.trim() : null,
+          phone: phone ? phone.trim() : null,
         }),
       });
 
@@ -285,6 +295,8 @@ export function LicenseWizard({
           reason: reason.trim(),
           proof_description: proof.trim(),
           notes: notes.trim(),
+          rest_days: restDays ? restDays.trim() : null,
+          phone: phone ? phone.trim() : null,
         }),
       });
 
@@ -343,6 +355,8 @@ export function LicenseWizard({
           reason: reason.trim(),
           proof_description: proof.trim(),
           notes: notes.trim(),
+          rest_days: restDays ? restDays.trim() : null,
+          phone: phone ? phone.trim() : null,
         }),
       });
 
@@ -651,7 +665,16 @@ export function LicenseWizard({
       {/* ========================================================================= */}
       {step === 1 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          <WorkerPicker selected={worker} onSelect={(w) => { setWorker(w); }} />
+          <WorkerPicker
+            selected={worker}
+            onSelect={(w) => {
+              setWorker(w);
+              if (w) {
+                if (!restDays && w.rest_days) setRestDays(w.rest_days);
+                if (!phone && w.phone) setPhone(w.phone);
+              }
+            }}
+          />
 
           <Card>
             <h2 style={{ margin: "0 0 0.5rem", fontSize: "1rem" }}>Tipo de remuneración</h2>
@@ -727,6 +750,27 @@ export function LicenseWizard({
             )}
           </Card>
 
+          <Card>
+            <h2 style={{ margin: "0 0 0.25rem", fontSize: "1rem" }}>Datos para la solicitud</h2>
+            <p style={{ margin: "0 0 0.75rem", fontSize: "0.8125rem", color: "var(--muted)" }}>
+              Campos para el formato institucional 1A74-009-036 (Excel).
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.5rem" }}>
+              <Input
+                label="Descansos"
+                value={restDays}
+                onChange={(e) => setRestDays(e.target.value)}
+                placeholder="Ej. SÁB - DOM, JUE - VIE…"
+              />
+              <Input
+                label="Teléfono de contacto"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Ej. 443 123 4567"
+              />
+            </div>
+          </Card>
+
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <Button variant="secondary" onClick={() => setStep(1)}>
               ← Paso anterior
@@ -786,6 +830,36 @@ export function LicenseWizard({
                   <strong>Prórroga:</strong> Sí (Licencia previa: {prevStart} al {prevEnd})
                 </div>
               )}
+              <div>
+                <strong>Descansos:</strong> {restDays?.trim() ? restDays.trim().toUpperCase() : <span style={{ color: "var(--muted)" }}>Sin capturar</span>} ·{" "}
+                <strong>Teléfono:</strong> {phone?.trim() ? phone.trim() : <span style={{ color: "var(--muted)" }}>Sin capturar</span>}
+              </div>
+            </div>
+          )}
+
+          {/* Alertas informativas no bloqueantes */}
+          {(!phone?.trim() || !restDays?.trim()) && (
+            <div
+              style={{
+                padding: "0.5rem 0.75rem",
+                backgroundColor: "#fffbeb",
+                border: "1px solid #fef3c7",
+                borderRadius: "6px",
+                color: "#b45309",
+                fontSize: "0.8125rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+                marginBottom: "0.75rem",
+              }}
+            >
+              <div style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                ⚠️ Avisos sobre datos complementarios (no bloqueante)
+              </div>
+              <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
+                {!phone?.trim() && <li>Falta teléfono: el formato Excel se generará sin número de contacto.</li>}
+                {!restDays?.trim() && <li>Faltan descansos: el formato Excel se generará sin días de descanso.</li>}
+              </ul>
             </div>
           )}
 

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { PDFDocument, rgb, StandardFonts, degrees } from "pdf-lib";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 import type { UnionLicenseDocumentData } from "./license-document-dto";
@@ -228,7 +228,7 @@ export async function buildLicensePrintPackage(
   // 1. Horario & Descansos (Row 1-2)
   drawExcelTop(data.worker.schedule, 505, 33, 6, false);
   if (data.worker.restDays?.trim()) {
-    drawExcelTop(data.worker.restDays.trim(), 505, 44, 5, false);
+    drawExcelTop(data.worker.restDays.trim().toUpperCase(), 505, 44, 5.5, false);
   }
 
   // 2. Folio & Fecha de elaboración (Row 7) - vertically centered
@@ -340,9 +340,27 @@ export async function buildLicensePrintPackage(
     true,
   );
 
-  // 9. Teléfono (Row 26)
+  // 9. Teléfono (Cell A26:A38 rotated 90°)
+  // Cover template residual in cell A26:A38
+  excelPage.drawRectangle({
+    x: 32,
+    y: 295,
+    width: 28,
+    height: 205,
+    color: rgb(1, 1, 1),
+  });
+
   if (data.worker.phone?.trim()) {
-    drawExcelTop(`TEL. ${data.worker.phone.trim()}`, 38, 495, 6, false);
+    const rawPhone = data.worker.phone.trim();
+    const phoneFormatted = rawPhone.toUpperCase().startsWith("TEL.") ? rawPhone : `TEL.  ${rawPhone}`;
+    excelPage.drawText(phoneFormatted, {
+      x: 48,
+      y: 298,
+      size: 7,
+      font: fontRegular,
+      color: rgb(0, 0, 0),
+      rotate: degrees(90),
+    });
   }
 
   // 10. Motivo y Comprobante (Rows 27, 28)

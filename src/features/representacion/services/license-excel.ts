@@ -49,6 +49,16 @@ const LEGACY_FALLBACK_TEMPLATE_PATH = path.join(
   "assets/templates/union/licencias/formato-licencia-1A74-009-036.xlsm",
 );
 
+export const LICENSE_TEMPLATE_CELLS = {
+  phone: "A26",
+  restDays: "S2",
+  schedule: "S1",
+  withPay: "H9",
+  withoutPay1To3: "O9",
+  withoutPay4To60: "H11",
+  withoutPay61To365: "O11",
+} as const;
+
 export const LICENSE_TYPE_CELLS = {
   withPay: "H9",
   withoutPay1To3: "O9",
@@ -289,6 +299,7 @@ export function ensureExcelCellAlignments(zip: PizZip, docLic: XmlDocument): voi
     S7: 12,
     S1: 47,
     S2: 47,
+    A26: 121,
     B15: 149,
     F15: 150,
     J15: 150,
@@ -357,6 +368,7 @@ export function ensureExcelCellAlignments(zip: PizZip, docLic: XmlDocument): voi
     if (
       cellRef === "S1" ||
       cellRef === "S2" ||
+      cellRef === "A26" ||
       cellRef === "C17" ||
       cellRef === "J17" ||
       cellRef === "B15" ||
@@ -610,11 +622,11 @@ export async function buildLicenseExcelDocument(
   setCellText(docLic, "J17", assignmentClean);
 
   // Schedule & Rest Days
-  setCellText(docLic, "S1", data.worker.schedule);
+  setCellText(docLic, LICENSE_TEMPLATE_CELLS.schedule, data.worker.schedule);
   if (data.worker.restDays && data.worker.restDays.trim()) {
-    setCellText(docLic, "S2", data.worker.restDays.trim());
+    setCellText(docLic, LICENSE_TEMPLATE_CELLS.restDays, data.worker.restDays.trim().toUpperCase());
   } else {
-    clearCell(docLic, "S2");
+    clearCell(docLic, LICENSE_TEMPLATE_CELLS.restDays);
   }
 
   // License Period
@@ -647,9 +659,11 @@ export async function buildLicenseExcelDocument(
 
   // Phone
   if (data.worker.phone && data.worker.phone.trim()) {
-    setCellText(docLic, "A26", `TEL. ${data.worker.phone.trim()}`);
+    const rawPhone = data.worker.phone.trim();
+    const phoneFormatted = rawPhone.toUpperCase().startsWith("TEL.") ? rawPhone : `TEL.  ${rawPhone}`;
+    setCellText(docLic, LICENSE_TEMPLATE_CELLS.phone, phoneFormatted);
   } else {
-    setCellText(docLic, "A26", "TEL. ");
+    clearCell(docLic, LICENSE_TEMPLATE_CELLS.phone);
   }
 
   // Reason & Proof

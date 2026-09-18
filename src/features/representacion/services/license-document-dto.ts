@@ -40,6 +40,8 @@ export interface UnionLicenseDetailData {
   debtStatus: string;
   previousStartDate?: string;
   previousEndDate?: string;
+  restDays?: string;
+  phone?: string;
 }
 
 export interface UnionLicenseRecipientData {
@@ -205,6 +207,8 @@ export async function buildUnionLicenseDocumentData(
     reason: string;
     proof_description: string;
     debt_certification_status: string;
+    rest_days?: string | null;
+    phone?: string | null;
   };
 
   // 4. Fetch settings & delegation
@@ -264,8 +268,8 @@ export async function buildUnionLicenseDocumentData(
   const assignment = (w.assignment || w.department_description || "HOSPITAL GENERAL REGIONAL No. 1").trim().toUpperCase();
   const schedule = (w.schedule || w.schedule_description || "").trim();
   const turn = (w.turn || "").trim().toUpperCase();
-  const restDays = (w.rest_days || "").trim().toUpperCase();
-  const phone = (w.phone || "").trim();
+  const restDays = (det.rest_days || w.rest_days || "").trim().toUpperCase();
+  const phone = (det.phone || w.phone || "").trim();
 
   const periodLabelWord = `DEL ${formatLongDateEs(det.start_date)} AL ${formatLongDateEs(det.end_date)}`;
   const placeDateString = `Charo, Michoacán a ${elabD} DE ${elabMName} del ${elabY}`;
@@ -337,6 +341,8 @@ export async function buildUnionLicenseDocumentData(
       reason: (det.reason || "—").trim().toUpperCase(),
       proof: (det.proof_description || "—").trim().toUpperCase(),
       debtStatus: det.debt_certification_status === "certified" ? "Certificado" : "Pendiente de certificación",
+      restDays,
+      phone,
     },
     recipient: {
       name: recipientName,

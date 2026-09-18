@@ -474,4 +474,99 @@ describe("license-excel", () => {
     const c17Align = c17Xf?.getElementsByTagName("alignment")[0];
     expect(c17Align?.getAttribute("vertical")).toBe("center");
   });
+
+  it("Caso 3 & 4: teléfono con formato libre ('044 443 123 4567') y con cero inicial ('0123456789') en celda A26", async () => {
+    const dtoWithCustomPhone: UnionLicenseDocumentData = {
+      ...baseDto,
+      worker: {
+        ...baseDto.worker,
+        restDays: "VIE - SÁB",
+        phone: "044 443 123 4567",
+      },
+    };
+
+    const buf = await buildLicenseExcelDocument(dtoWithCustomPhone);
+    const zip = new PizZip(buf);
+    const licPath = resolveSheetPathByName(zip, "Licencia");
+    const licXml = zip.file(licPath)?.asText() ?? "";
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(licXml, "text/xml");
+
+    const getCell = (ref: string) => {
+      const cells = doc.getElementsByTagName("c");
+      for (let i = 0; i < cells.length; i++) {
+        if (cells[i].getAttribute("r") === ref) return cells[i];
+      }
+      return null;
+    };
+
+    // Celda S2 tiene descansos en mayúsculas
+    expect(getCell("S2")?.textContent).toBe("VIE - SÁB");
+
+    // Celda A26 tiene teléfono exacto con prefijo TEL.
+    const a26Cell = getCell("A26");
+    expect(a26Cell?.textContent).toBe("TEL.  044 443 123 4567");
+    expect(a26Cell?.getAttribute("t")).toBe("inlineStr");
+
+    // Probar cero inicial directo
+    const dtoLeadingZero: UnionLicenseDocumentData = {
+      ...baseDto,
+      worker: {
+        ...baseDto.worker,
+        phone: "0123456789",
+      },
+    };
+    const buf2 = await buildLicenseExcelDocument(dtoLeadingZero);
+    const zip2 = new PizZip(buf2);
+    const doc2 = parser.parseFromString(zip2.file(licPath)?.asText() ?? "", "text/xml");
+    const cells2 = doc2.getElementsByTagName("c");
+    let a26Zero = null;
+    for (let i = 0; i < cells2.length; i++) {
+      if (cells2[i].getAttribute("r") === "A26") {
+        a26Zero = cells2[i];
+        break;
+      }
+    }
+    expect(a26Zero?.textContent).toBe("TEL.  0123456789");
+  });
+
+  it("Caso 5: si descansos y teléfono vienen vacíos, en el Excel las celdas quedan vacías (no 'undefined', no 'null', no 'TEL.')", async () => {
+    const dtoEmpty: UnionLicenseDocumentData = {
+      ...baseDto,
+      worker: {
+        ...baseDto.worker,
+        restDays: "",
+        phone: "",
+      },
+    };
+
+    const buf = await buildLicenseExcelDocument(dtoEmpty);
+    const zip = new PizZip(buf);
+    const licPath = resolveSheetPathByName(zip, "Licencia");
+    const licXml = zip.file(licPath)?.asText() ?? "";
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(licXml, "text/xml");
+
+    const getCell = (ref: string) => {
+      const cells = doc.getElementsByTagName("c");
+      for (let i = 0; i < cells.length; i++) {
+        if (cells[i].getAttribute("r") === ref) return cells[i];
+      }
+      return null;
+    };
+
+    // Celda S2 (Descansos) vacía
+    const s2Text = getCell("S2")?.textContent ?? "";
+    expect(s2Text.trim()).toBe("");
+    expect(s2Text).not.toContain("undefined");
+    expect(s2Text).not.toContain("null");
+    expect(s2Text).not.toContain("N/A");
+
+    // Celda A26 (Teléfono) vacía: no "TEL.", no "TEL. ", no "undefined", no "null"
+    const a26Text = getCell("A26")?.textContent ?? "";
+    expect(a26Text.trim()).toBe("");
+    expect(a26Text).not.toContain("TEL.");
+    expect(a26Text).not.toContain("undefined");
+    expect(a26Text).not.toContain("null");
+  });
 });
