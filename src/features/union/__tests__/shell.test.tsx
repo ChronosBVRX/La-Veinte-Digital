@@ -60,7 +60,7 @@ describe("UnionApplicationShell", () => {
     );
 
     const requiredModules = [
-      "Resumen",
+      "Centro de control",
       "Trabajadores",
       "Maternidad",
       "Lactancia",
