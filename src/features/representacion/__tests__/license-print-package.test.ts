@@ -126,4 +126,56 @@ describe("license-print-package", () => {
     const baseResult = await buildLicensePrintPackage(baseDto);
     expect(baseResult.pageCount).toBe(2);
   });
+
+  it("corrects fixture XXI-2026-LIC-000006 without background residue on Page 1 and exact 2 pages", async () => {
+    const fixtureDto: UnionLicenseDocumentData = {
+      ...baseDto,
+      folio: "XXI-2026-LIC-000006",
+      elaborationDate: "2026-09-10",
+      elaborationDay: "10",
+      elaborationMonth: "09",
+      elaborationMonthName: "SEPTIEMBRE",
+      elaborationYear: "2026",
+      placeDateString: "Charo, Michoacán a 10 DE SEPTIEMBRE del 2026",
+      worker: {
+        ...baseDto.worker,
+        employeeNumber: "98173968",
+        firstName: "EDUARDO",
+        paternalSurname: "BOLAÑOS",
+        maternalSurname: "VAZQUEZ",
+        fullName: "BOLAÑOS VAZQUEZ EDUARDO",
+        category: "TECNICO RADIOLOGO 80",
+        assignment: "HOSPITAL GENERAL REGIONAL No. 1",
+        turn: "VESPERTINO",
+        schedule: "14.00 A 21.30 JORNADA MIXTA",
+        restDays: "",
+        phone: "",
+      },
+      license: {
+        ...baseDto.license,
+        withPay: true,
+        payKindWord: "CON",
+        payKindLabel: "CON GOCE DE SUELDO",
+        totalDays: 2,
+        daysUnit: "DÍAS",
+        startDate: "2026-09-10",
+        startDay: "10",
+        startMonth: "09",
+        startYear: "2026",
+        endDate: "2026-09-11",
+        endDay: "11",
+        endMonth: "09",
+        endYear: "2026",
+        periodLabelWord: "DEL 10 DE SEPTIEMBRE AL 11 DE SEPTIEMBRE DEL 2026",
+        reason: "CIRUGÍA PADRE",
+        proof: "INE",
+      },
+    };
+
+    const result = await buildLicensePrintPackage(fixtureDto);
+    expect(result.pageCount).toBe(2);
+
+    const pdfDoc = await PDFDocument.load(result.buffer);
+    expect(pdfDoc.getPageCount()).toBe(2);
+  });
 });

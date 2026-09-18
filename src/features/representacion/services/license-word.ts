@@ -197,7 +197,68 @@ export function buildLicenseWordDocument(
     }
   }
 
+  // Universal scrub pass to eradicate any accidental template fragments
+  for (let i = 0; i < tList.length; i++) {
+    let val = tList[i].textContent ?? "";
+    if (val.includes("97173345")) {
+      val = val.replaceAll("97173345", data.worker.employeeNumber);
+    }
+    if (val.includes("LÓPEZ CASTRO") || val.includes("LOPEZ CASTRO")) {
+      val = val.replaceAll(/LÓPEZ CASTRO ESMERALDA|LOPEZ CASTRO ESMERALDA|LÓPEZ CASTRO|LOPEZ CASTRO/g, data.worker.fullName);
+    }
+    if (val.includes("ENFERMERA GENERAL")) {
+      val = val.replaceAll(/ENFERMERA GENERAL CLÍNICA|ENFERMERA GENERAL/g, data.worker.category);
+    }
+    if (val.includes("INTERNAMIENTO DE HIJO")) {
+      val = val.replaceAll("INTERNAMIENTO DE HIJO", data.license.reason);
+    }
+    if (val.includes("Delegación XIV") || val.includes("Delegacion XIV")) {
+      val = val.replaceAll(/Delegación XIV|Delegacion XIV/g, data.signers.committeeName);
+    }
+    if (val.includes("31 DE AGOSTO")) {
+      val = val.replaceAll(/DEL 31 DE AGOSTO AL 1 DE SEPTIEMBRE DEL 2026|DEL 31 DE AGOSTO AL 1 DE SEPTIEMBRE|31 DE AGOSTO/g, data.license.periodLabelWord);
+    }
+    tList[i].textContent = val;
+  }
+
   const updatedXml = serializer.serializeToString(xmlDoc);
+
+  // Invariant 1: Exactly ONE main oficio block (zero appends / zero duplication)
+  const oficioMatches = updatedXml.match(/Por medio de la presente/g) || [];
+  if (oficioMatches.length > 1) {
+    throw new Error(
+      `Error de integridad en Oficio Word: se detectaron ${oficioMatches.length} oficios en el documento. Se requiere exactamente 1.`,
+    );
+  }
+
+  // Invariant 2: Zero historical template residue (unless genuinely matching input data)
+  if (data.worker.employeeNumber !== "97173345" && updatedXml.includes("97173345")) {
+    throw new Error(
+      `Error de integridad en Oficio Word: el documento generado contiene el residuo histórico "97173345".`,
+    );
+  }
+  if (
+    data.worker.category !== "ENFERMERA GENERAL CLÍNICA" &&
+    updatedXml.includes("ENFERMERA GENERAL CLÍNICA")
+  ) {
+    throw new Error(
+      `Error de integridad en Oficio Word: el documento generado contiene el residuo histórico "ENFERMERA GENERAL CLÍNICA".`,
+    );
+  }
+  if (
+    data.license.reason !== "INTERNAMIENTO DE HIJO" &&
+    updatedXml.includes("INTERNAMIENTO DE HIJO")
+  ) {
+    throw new Error(
+      `Error de integridad en Oficio Word: el documento generado contiene el residuo histórico "INTERNAMIENTO DE HIJO".`,
+    );
+  }
+  if (updatedXml.includes("Delegación XIV") || updatedXml.includes("Delegacion XIV")) {
+    throw new Error(
+      `Error de integridad en Oficio Word: el documento generado contiene el residuo histórico "Delegación XIV".`,
+    );
+  }
+
   zip.file("word/document.xml", updatedXml, { compression: "STORE" });
 
   return zip.generate({ type: "nodebuffer" });

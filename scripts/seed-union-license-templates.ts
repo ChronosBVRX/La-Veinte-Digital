@@ -50,9 +50,9 @@ const TEMPLATES: TemplateSeedConfig[] = [
   },
   {
     kind: 'license_word_print',
-    version: '2026.09.17-v1',
+    version: '2026.09.18-v2',
     localPath: 'assets/templates/union/licencias/oficio-licencia-delegacion-xxi.pdf',
-    storagePath: 'templates/licencias/oficio/2026.09.17-v1/print-master.pdf',
+    storagePath: 'templates/licencias/oficio/2026.09.18-v2/print-master.pdf',
     mimeType: 'application/pdf',
     expectedMinSize: 100000,
   },
