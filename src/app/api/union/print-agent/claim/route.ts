@@ -27,7 +27,15 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     // Ejecutar reclamo atómico mediante RPC si está disponible o UPDATE condicional con row-locking
     let claimed = false;
-    let claimedJob: any = null;
+    let claimedJob: {
+      id?: string;
+      job_id?: string;
+      case_id?: string | null;
+      document_type?: string;
+      document_revision?: number;
+      copies?: number;
+      duplex?: boolean;
+    } | null = null;
 
     try {
       const { data: rpcRes, error: rpcErr } = await supabase.rpc("claim_print_job", {

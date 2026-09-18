@@ -41,7 +41,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const formatted = (stations || []).map((s: any) => ({
+    const formatted = (stations || []).map((s) => ({
       ...s,
       is_online: isStationOnline(s.last_seen_at),
     }));
