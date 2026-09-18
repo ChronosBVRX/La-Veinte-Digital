@@ -149,6 +149,11 @@ Activa → Enviar a papelera (motivo obligatorio) → retención 30 días → Re
 
 - La migración es **aditiva e idempotente** (`CREATE TABLE IF NOT EXISTS`, `CREATE OR REPLACE
   FUNCTION`, `DROP POLICY IF EXISTS`) y usa `BEGIN/COMMIT`.
+- **Endurecimiento adicional (`20260919050000_admin_user_status_least_privilege.sql`):** el
+  proyecto remoto conserva default privileges que otorgan DML a `anon` y `authenticated` en
+  tablas nuevas. RLS ya denegaba toda escritura (única política: SELECT de fila propia), pero
+  se revocan explícitamente esos privilegios: `anon` sin acceso, `authenticated` solo
+  `SELECT`, `service_role` DML completo. Rollback: `GRANT ALL ... TO anon, authenticated`.
 - **Rollback documentado:** las rutas, UI y proxy pueden desplegarse sin la migración
   (fail-open en lectura; las RPC responden `admin_backend_unavailable`). Para revertir la
   migración:
