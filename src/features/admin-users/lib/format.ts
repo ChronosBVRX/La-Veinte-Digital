@@ -45,6 +45,9 @@ export const ADMIN_ACTION_LABELS: Record<string, string> = {
 }
 
 const TOOL_LABELS: Record<string, string> = {
+  // api_usage_log guarda la ruta corta del contador de cuota ('consulta', 'simulador').
+  consulta: "Asistente IA",
+  simulador: "Simulador de audiencias",
   "/api/consulta": "Asistente IA",
   "/api/escritos/generar": "Generador de escritos",
   "/api/tarjeton/confirm": "Importación de tarjetón",

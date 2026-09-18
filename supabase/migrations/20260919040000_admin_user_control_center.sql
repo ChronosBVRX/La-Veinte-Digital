@@ -1032,6 +1032,7 @@ DECLARE
   v_revoked integer := 0;
   v_rows integer := 0;
   v_exists boolean;
+  v_refresh_user_type text;
 BEGIN
   PERFORM public.admin_assert_actor(p_actor, p_reason);
 
@@ -1041,7 +1042,20 @@ BEGIN
   END IF;
 
   IF to_regclass('auth.refresh_tokens') IS NOT NULL THEN
-    DELETE FROM auth.refresh_tokens WHERE user_id = p_target;
+    -- GoTrue histórico usa `user_id` como varchar(255) y las versiones nuevas
+    -- como uuid. Se compara con el tipo real para no romper el operador ni el
+    -- índice (instance_id, user_id).
+    SELECT data_type INTO v_refresh_user_type
+      FROM information_schema.columns
+     WHERE table_schema = 'auth'
+       AND table_name = 'refresh_tokens'
+       AND column_name = 'user_id';
+
+    IF v_refresh_user_type = 'uuid' THEN
+      EXECUTE 'DELETE FROM auth.refresh_tokens WHERE user_id = $1' USING p_target;
+    ELSE
+      EXECUTE 'DELETE FROM auth.refresh_tokens WHERE user_id = $1::text' USING p_target::text;
+    END IF;
     GET DIAGNOSTICS v_rows = ROW_COUNT;
     v_revoked := v_revoked + v_rows;
   END IF;

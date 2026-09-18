@@ -112,14 +112,23 @@ values ('00000000-0000-0000-0000-00000000c102');
 
 -- Datos operativos sintéticos (para métricas y actividad; sin contenido privado)
 insert into public.imported_payslips (user_id, source_hash, period_raw, extraction_method)
-values ('00000000-0000-0000-0000-00000000c101', 'hash-synth-1', '2026-08', 'text');
+values ('00000000-0000-0000-0000-00000000c101', 'hash-synth-1', '2026-08', 'native_text');
 
+-- api_usage_log.route solo admite 'consulta' | 'simulador' (constraint 005).
 insert into public.api_usage_log (user_id, route, usage_date, count)
-values ('00000000-0000-0000-0000-00000000c101', '/api/consulta', current_date, 3);
+values ('00000000-0000-0000-0000-00000000c101', 'consulta', current_date, 3);
 
-insert into public.transfer_sessions (owner_id) values ('00000000-0000-0000-0000-00000000c101');
-insert into public.transfer_files (session_id)
-select id from public.transfer_sessions where owner_id = '00000000-0000-0000-0000-00000000c101' limit 1;
+-- transfer_sessions exige token, owner_token y expires_at (migración transfer).
+insert into public.transfer_sessions (owner_id, token, owner_token, expires_at)
+values (
+  '00000000-0000-0000-0000-00000000c101',
+  'synth-token-admin-test',
+  'synth-owner-token-admin-test',
+  now() + interval '10 minutes'
+);
+insert into public.transfer_files (session_id, name, content_type, size_bytes, data)
+select id, 'synth-admin-test.pdf', 'application/pdf', 1024, 'c3ludGg='
+from public.transfer_sessions where owner_id = '00000000-0000-0000-0000-00000000c101' limit 1;
 
 -- ============================================================
 -- Test 1: un usuario normal NO puede listar usuarios (forbidden)
@@ -264,6 +273,13 @@ $$;
 -- ============================================================
 -- Test 5: último admin no puede degradarse (last_admin)
 -- ============================================================
+-- Contexto service_role real: sin claims de usuario (auth.uid() = NULL), tal
+-- como llega la service key a PostgREST. El trigger guard_profile_protected_fields
+-- solo permite cambiar profiles.role en ese contexto.
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+select set_config('request.jwt.claim.role', '', false);
+select set_config('request.jwt.claims', '{}', false);
 set role service_role;
 
 do $$
@@ -471,9 +487,13 @@ reset role;
 -- ============================================================
 -- Test 9: cierre de sesiones (revocación de refresh tokens y sesiones)
 -- ============================================================
-insert into auth.refresh_tokens (user_id) values ('00000000-0000-0000-0000-00000000c101');
-insert into auth.refresh_tokens (user_id) values ('00000000-0000-0000-0000-00000000c101');
-insert into auth.sessions (user_id) values ('00000000-0000-0000-0000-00000000c101');
+-- auth.refresh_tokens.token es único; auth.sessions.id no tiene default.
+insert into auth.refresh_tokens (token, user_id)
+values ('synth-admin-rt-1', '00000000-0000-0000-0000-00000000c101');
+insert into auth.refresh_tokens (token, user_id)
+values ('synth-admin-rt-2', '00000000-0000-0000-0000-00000000c101');
+insert into auth.sessions (id, user_id)
+values (gen_random_uuid(), '00000000-0000-0000-0000-00000000c101');
 
 set role service_role;
 
@@ -739,9 +759,95 @@ $$;
 reset role;
 
 -- ============================================================
+-- Test 16: roles de plataforma y roles sindicales son independientes
+--          (user ↔ admin no altera union_members; union_admin no es admin)
+-- ============================================================
+delete from public.union_delegations where code = 'SYNTH-ADMIN-TEST';
+insert into public.union_delegations (id, code, name)
+values ('00000000-0000-0000-0000-00000000d001', 'SYNTH-ADMIN-TEST', 'Delegación sintética admin');
+
+insert into public.union_members (user_id, delegation_id, role, active)
+values
+  ('00000000-0000-0000-0000-00000000c101', '00000000-0000-0000-0000-00000000d001', 'union_admin', true),
+  ('00000000-0000-0000-0000-00000000c102', '00000000-0000-0000-0000-00000000d001', 'union_rep', true);
+
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+select set_config('request.jwt.claim.role', '', false);
+select set_config('request.jwt.claims', '{}', false);
+set role service_role;
+
+do $$
+declare
+  v_member_role text;
+  v_member_active boolean;
+  v_role text;
+begin
+  -- Ascender a admin de plataforma a quien es union_admin.
+  perform public.admin_apply_user_role(
+    '00000000-0000-0000-0000-00000000c001',
+    '00000000-0000-0000-0000-00000000c101',
+    'admin',
+    'promocion de plataforma conservando rol sindical',
+    'req-synth-16'
+  );
+
+  select role into v_role from public.profiles where id = '00000000-0000-0000-0000-00000000c101';
+  if v_role <> 'admin' then
+    raise exception 'Test 16 FAILED: platform role not promoted (got %)', v_role;
+  end if;
+
+  select role, active into v_member_role, v_member_active
+    from public.union_members
+   where user_id = '00000000-0000-0000-0000-00000000c101'
+     and delegation_id = '00000000-0000-0000-0000-00000000d001';
+  if v_member_role <> 'union_admin' or v_member_active is not true then
+    raise exception 'Test 16 FAILED: union membership altered on promotion (role=%, active=%)',
+      v_member_role, v_member_active;
+  end if;
+
+  -- Degradar de vuelta a usuario de plataforma.
+  perform public.admin_apply_user_role(
+    '00000000-0000-0000-0000-00000000c001',
+    '00000000-0000-0000-0000-00000000c101',
+    'user',
+    'degradacion de plataforma conservando rol sindical',
+    'req-synth-17'
+  );
+
+  select role into v_role from public.profiles where id = '00000000-0000-0000-0000-00000000c101';
+  if v_role <> 'user' then
+    raise exception 'Test 16 FAILED: platform role not demoted (got %)', v_role;
+  end if;
+
+  select role, active into v_member_role, v_member_active
+    from public.union_members
+   where user_id = '00000000-0000-0000-0000-00000000c101'
+     and delegation_id = '00000000-0000-0000-0000-00000000d001';
+  if v_member_role <> 'union_admin' or v_member_active is not true then
+    raise exception 'Test 16 FAILED: union membership altered on demotion (role=%, active=%)',
+      v_member_role, v_member_active;
+  end if;
+
+  -- union_rep sigue siendo 'user' de plataforma: el rol sindical no escala.
+  select role into v_role from public.profiles where id = '00000000-0000-0000-0000-00000000c102';
+  if v_role <> 'user' then
+    raise exception 'Test 16 FAILED: union_rep obtained platform role %', v_role;
+  end if;
+end
+$$;
+
+reset role;
+
+-- ============================================================
 -- Cleanup
 -- ============================================================
 drop table if exists public.admin_purge_fk_probe;
+
+delete from public.union_members
+ where delegation_id = '00000000-0000-0000-0000-00000000d001';
+delete from public.union_delegations
+ where code = 'SYNTH-ADMIN-TEST';
 
 delete from public.admin_audit_log
  where entity_type = 'user'
