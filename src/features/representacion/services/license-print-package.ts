@@ -122,74 +122,83 @@ export async function buildLicensePrintPackage(
     });
   };
 
-  // Date
-  drawWordTop(data.placeDateString, 280, 160, 10, false);
+  // Date (right-aligned against right margin 570)
+  const dateStr = data.placeDateString;
+  const dateWidth = fontRegular.widthOfTextAtSize(dateStr, 9.5);
+  drawWordTop(dateStr, Math.max(195, 570 - dateWidth), 160, 9.5, false);
 
   // Recipient
-  drawWordTop(data.recipient.name, 195, 200, 10, true);
-  drawWordTop(data.recipient.role, 195, 214, 10, true);
-  drawWordTop("Presente.", 195, 228, 10, false);
+  drawWordTop(data.recipient.name, 195, 200, 9.5, true);
+  drawWordTop(data.recipient.role, 195, 214, 9.5, true);
+  drawWordTop("Presente.", 195, 228, 9.5, false);
 
-  // Body Paragraph
-  const bodyY = 260;
-  drawWordTop(
-    "Por medio de la presente y de la manera más atenta nos permitimos enviar",
-    195,
-    bodyY,
-    9.5,
-    false,
-  );
-  drawWordTop(
-    `a Usted solicitud de Licencia ${data.license.payKindWord} GOCE de sueldo por parte del trabajador:`,
-    195,
-    bodyY + 14,
-    9.5,
-    false,
-  );
+  // Main Continuous Paragraph with Dynamic Word-Wrap
+  const restText = data.worker.restDays?.trim()
+    ? ` Descansos ${data.worker.restDays.trim()}`
+    : "";
+  const mainParagraphText = `Por medio de la presente y de la manera más atenta nos permitimos enviar a Usted solicitud de Licencia ${data.license.payKindWord} GOCE de sueldo por parte del C. ${data.worker.fullName} Con matrícula ${data.worker.employeeNumber} categoría ${data.worker.category} Por motivo ${data.license.reason} El cual solicita la fecha ${data.license.periodLabelWord} Turno ${data.worker.turn}${restText} (${data.license.totalDays} ${data.license.daysUnit})`;
 
-  drawWordTop(`C. ${data.worker.fullName}`, 195, bodyY + 36, 10, true);
-  drawWordTop(`Matrícula: ${data.worker.employeeNumber}`, 195, bodyY + 52, 9.5, false);
-  drawWordTop(`Categoría: ${data.worker.category}`, 195, bodyY + 66, 9.5, false);
-  drawWordTop(`Adscripción: ${data.worker.assignment}`, 195, bodyY + 80, 9.5, false);
-  drawWordTop(`Turno: ${data.worker.turn}`, 195, bodyY + 94, 9.5, false);
-  drawWordTop(
-    `Horario: ${data.worker.schedule}    Descansos: ${data.worker.restDays}`,
-    195,
-    bodyY + 108,
-    9.5,
-    false,
-  );
+  const words = mainParagraphText.split(/\s+/).filter(Boolean);
+  const paragraphLines: string[] = [];
+  let currentLine = "";
+  const maxWidth = 375;
+  const bodyFontSize = 9.5;
 
-  drawWordTop(
-    `Por el periodo comprendido: ${data.license.periodLabelWord} (${data.license.totalDays} ${data.license.daysUnit})`,
-    195,
-    bodyY + 130,
-    9.5,
-    true,
-  );
-  drawWordTop(`Motivo: ${data.license.reason}`, 195, bodyY + 146, 9.5, false);
+  for (const word of words) {
+    const candidate = currentLine ? `${currentLine} ${word}` : word;
+    const w = fontRegular.widthOfTextAtSize(candidate, bodyFontSize);
+    if (w <= maxWidth) {
+      currentLine = candidate;
+    } else {
+      if (currentLine) paragraphLines.push(currentLine);
+      currentLine = word;
+    }
+  }
+  if (currentLine) paragraphLines.push(currentLine);
 
+  let currentY = 265;
+  const lineHeight = 16;
+  for (const pLine of paragraphLines) {
+    drawWordTop(pLine, 195, currentY, bodyFontSize, false);
+    currentY += lineHeight;
+  }
+
+  // Closing Paragraph
+  currentY += 12;
   drawWordTop(
     "Esperando respuesta y agradeciendo la atención a la presente le envío un cordial saludo.",
     195,
-    bodyY + 175,
-    9.5,
+    currentY,
+    bodyFontSize,
     false,
   );
 
-  // Institutional Motto & Signatures
-  drawWordTop(
-    `“${data.signers.institutionalMotto.replace(/^["“]|["”]$/g, "")}”`,
-    230,
-    485,
-    8.5,
-    true,
-  );
-  drawWordTop(data.signers.committeeName, 320, 500, 8.5, false);
+  // Institutional Motto & Signatures Centered in the Content Column
+  const contentCenterX = (195 + 570) / 2; // 382.5
 
-  drawWordTop("_______________________________________________", 270, 560, 9, false);
-  drawWordTop(data.signers.signerName, 285, 575, 9, true);
-  drawWordTop(data.signers.signerRole, 325, 588, 8.5, false);
+  const mottoClean = `“${data.signers.institutionalMotto.replace(/^["“]|["”]$/g, "")}”`;
+  const mottoW = fontBold.widthOfTextAtSize(mottoClean, 8.5);
+  drawWordTop(mottoClean, contentCenterX - mottoW / 2, 480, 8.5, true);
+
+  const committeeClean = data.signers.committeeName;
+  const commW = fontRegular.widthOfTextAtSize(committeeClean, 8.5);
+  drawWordTop(committeeClean, contentCenterX - commW / 2, 496, 8.5, false);
+
+  const sigLine = "_______________________________________________";
+  const lineW = fontRegular.widthOfTextAtSize(sigLine, 9);
+  drawWordTop(sigLine, contentCenterX - lineW / 2, 550, 9, false);
+
+  const signerNameClean = data.signers.signerName;
+  const signerW = fontBold.widthOfTextAtSize(signerNameClean, 9);
+  drawWordTop(signerNameClean, contentCenterX - signerW / 2, 566, 9, true);
+
+  const signerRoleClean = data.signers.signerRole;
+  const roleW = fontRegular.widthOfTextAtSize(signerRoleClean, 8.5);
+  drawWordTop(signerRoleClean, contentCenterX - roleW / 2, 580, 8.5, false);
+
+  const delegationClean = data.delegationCode || "XXI";
+  const delW = fontRegular.widthOfTextAtSize(delegationClean, 8.5);
+  drawWordTop(delegationClean, contentCenterX - delW / 2, 593, 8.5, false);
 
   // -------------------------------------------------------------
   // PAGE 2: SOLICITUD DE LICENCIA 1A74-009-036 (EXCEL MASTER V2)
@@ -218,13 +227,15 @@ export async function buildLicensePrintPackage(
 
   // 1. Horario & Descansos (Row 1-2)
   drawExcelTop(data.worker.schedule, 505, 33, 6, false);
-  drawExcelTop(data.worker.restDays, 505, 44, 5, false);
+  if (data.worker.restDays?.trim()) {
+    drawExcelTop(data.worker.restDays.trim(), 505, 44, 5, false);
+  }
 
-  // 2. Folio & Fecha de elaboración (Row 7)
-  drawExcelTop(data.folio, 330, 117, 8, true);
-  drawExcelTop(data.elaborationDay, 448, 117, 8, true);
-  drawExcelTop(data.elaborationMonth, 492, 117, 8, true);
-  drawExcelTop(data.elaborationYear, 530, 117, 8, true);
+  // 2. Folio & Fecha de elaboración (Row 7) - vertically centered
+  drawExcelTop(data.folio, 330, 122, 8, true);
+  drawExcelTop(data.elaborationDay, 448, 122, 8, true);
+  drawExcelTop(data.elaborationMonth, 492, 122, 8, true);
+  drawExcelTop(data.elaborationYear, 530, 122, 8, true);
 
   // 3. Tipo de Licencia Checkboxes (Row 9, 11)
   // Perfectly centered inside boxes: H9 (x: 232), O9 (x: 395), H11 (x: 232), O11 (x: 395)
@@ -241,36 +252,36 @@ export async function buildLicensePrintPackage(
     }
   }
 
-  // 4. Datos del trabajador (Row 15)
-  drawExcelTop(data.worker.paternalSurname, 70, 226, 8, true);
-  drawExcelTop(data.worker.maternalSurname, 180, 226, 8, true);
-  drawExcelTop(data.worker.firstName, 300, 226, 8, true);
-  drawExcelTop(data.worker.employeeNumber, 445, 226, 8, true);
-  drawExcelTop(data.worker.turn, 525, 226, 7, true);
+  // 4. Datos del trabajador (Row 15) - vertically centered
+  drawExcelTop(data.worker.paternalSurname, 70, 230, 7.5, true);
+  drawExcelTop(data.worker.maternalSurname, 180, 230, 7.5, true);
+  drawExcelTop(data.worker.firstName, 300, 230, 7.5, true);
+  drawExcelTop(data.worker.employeeNumber, 445, 230, 7.5, true);
+  drawExcelTop(data.worker.turn, 525, 230, 7, true);
 
-  // 5. Categoría (Row 17)
-  drawExcelTop(data.worker.category, 70, 248, 8, true);
+  // 5. Categoría (Row 17) - vertically centered
+  drawExcelTop(data.worker.category, 70, 252, 7.5, true);
 
-  // 6. Periodo que solicita (Row 21)
-  drawExcelTop(data.license.startDay, 77, 294, 8, true);
-  drawExcelTop(data.license.startMonth, 113, 294, 8, true);
-  drawExcelTop(data.license.startYear, 145, 294, 8, true);
-  drawExcelTop(data.license.endDay, 191, 294, 8, true);
-  drawExcelTop(data.license.endMonth, 231, 294, 8, true);
-  drawExcelTop(data.license.endYear, 262, 294, 8, true);
+  // 6. Periodo que solicita (Row 21) - vertically centered
+  drawExcelTop(data.license.startDay, 77, 298, 8, true);
+  drawExcelTop(data.license.startMonth, 113, 298, 8, true);
+  drawExcelTop(data.license.startYear, 145, 298, 8, true);
+  drawExcelTop(data.license.endDay, 191, 298, 8, true);
+  drawExcelTop(data.license.endMonth, 231, 298, 8, true);
+  drawExcelTop(data.license.endYear, 262, 298, 8, true);
 
   // Licencias anteriores si existen
   if (data.license.previousStartDate) {
     const pS = data.license.previousStartDate.split("-");
-    drawExcelTop(pS[2] ?? "", 302, 294, 8, true);
-    drawExcelTop(pS[1] ?? "", 350, 294, 8, true);
-    drawExcelTop(pS[0] ?? "", 399, 294, 8, true);
+    drawExcelTop(pS[2] ?? "", 302, 298, 8, true);
+    drawExcelTop(pS[1] ?? "", 350, 298, 8, true);
+    drawExcelTop(pS[0] ?? "", 399, 298, 8, true);
   }
   if (data.license.previousEndDate) {
     const pE = data.license.previousEndDate.split("-");
-    drawExcelTop(pE[2] ?? "", 446, 294, 8, true);
-    drawExcelTop(pE[1] ?? "", 490, 294, 8, true);
-    drawExcelTop(pE[0] ?? "", 541, 294, 8, true);
+    drawExcelTop(pE[2] ?? "", 446, 298, 8, true);
+    drawExcelTop(pE[1] ?? "", 490, 298, 8, true);
+    drawExcelTop(pE[0] ?? "", 541, 298, 8, true);
   }
 
   // 7. Prórroga Checkbox (Row 24) - Rectangles matching XLSM DrawingML shapes:
@@ -324,21 +335,28 @@ export async function buildLicensePrintPackage(
   drawExcelTop(
     `${data.license.totalDays}  ${data.license.daysUnit}`,
     210,
-    326,
+    328,
     8,
     true,
   );
 
   // 9. Teléfono (Row 26)
-  if (data.worker.phone) {
-    drawExcelTop(`TEL. ${data.worker.phone}`, 38, 495, 6, false);
+  if (data.worker.phone?.trim()) {
+    drawExcelTop(`TEL. ${data.worker.phone.trim()}`, 38, 495, 6, false);
   }
 
   // 10. Motivo y Comprobante (Rows 27, 28)
-  drawExcelTop(data.license.reason, 160, 349, 7, false);
-  drawExcelTop(data.license.proof, 160, 359, 7, false);
+  drawExcelTop(data.license.reason, 160, 351, 7, false);
+  drawExcelTop(data.license.proof, 160, 362, 7, false);
 
-  // 11. Nombre en área de firma (Row 47)
+  // 11. Nombre en área de firma (Row 47) - cover residual background C. cleanly
+  excelPage.drawRectangle({
+    x: 70,
+    y: excelHeight - 626,
+    width: 220,
+    height: 16,
+    color: rgb(1, 1, 1),
+  });
   drawExcelTop(`C. ${data.worker.fullName}`, 75, 617, 7, true);
 
   const finalPdfBytes = await outDoc.save();

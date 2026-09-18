@@ -352,4 +352,126 @@ describe("license-excel", () => {
     expect(licXml).toContain("XXI-2026-LIC-000099");
     expect(licXml).toContain("GÓMEZ");
   });
+
+  it("corrects fixture XXI-2026-LIC-000006 with vertical centering, clean empty descansos, and shrinkToFit", async () => {
+    const fixtureDto: UnionLicenseDocumentData = {
+      ...baseDto,
+      folio: "XXI-2026-LIC-000006",
+      elaborationDate: "2026-09-10",
+      elaborationDay: "10",
+      elaborationMonth: "09",
+      elaborationMonthName: "SEPTIEMBRE",
+      elaborationYear: "2026",
+      placeDateString: "Charo, Michoacán a 10 DE SEPTIEMBRE del 2026",
+      worker: {
+        ...baseDto.worker,
+        employeeNumber: "98173968",
+        firstName: "EDUARDO",
+        paternalSurname: "BOLAÑOS",
+        maternalSurname: "VAZQUEZ",
+        fullName: "BOLAÑOS VAZQUEZ EDUARDO",
+        category: "TECNICO RADIOLOGO 80",
+        assignment: "HOSPITAL GENERAL REGIONAL No. 1",
+        turn: "VESPERTINO",
+        schedule: "14.00 A 21.30 JORNADA MIXTA",
+        restDays: "",
+        phone: "",
+      },
+      license: {
+        ...baseDto.license,
+        withPay: true,
+        payKindWord: "CON",
+        payKindLabel: "CON GOCE DE SUELDO",
+        licenseRangeType: "with_pay",
+        totalDays: 2,
+        daysUnit: "DÍAS",
+        startDate: "2026-09-10",
+        startDay: "10",
+        startMonth: "09",
+        startYear: "2026",
+        endDate: "2026-09-11",
+        endDay: "11",
+        endMonth: "09",
+        endYear: "2026",
+        periodLabelWord: "DEL 10 DE SEPTIEMBRE AL 11 DE SEPTIEMBRE DEL 2026",
+        isExtension: false,
+        reason: "CIRUGÍA PADRE",
+        proof: "INE",
+      },
+    };
+
+    const buf = await buildLicenseExcelDocument(fixtureDto);
+    const zip = new PizZip(buf);
+    const licPath = resolveSheetPathByName(zip, "Licencia");
+    const licXml = zip.file(licPath)?.asText() ?? "";
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(licXml, "text/xml");
+
+    const getCell = (ref: string) => {
+      const cells = doc.getElementsByTagName("c");
+      for (let i = 0; i < cells.length; i++) {
+        if (cells[i].getAttribute("r") === ref) return cells[i];
+      }
+      return null;
+    };
+
+    // 1. Checkboxes
+    expect(getCell("H9")?.textContent).toBe("X");
+    expect(getCell("O9")?.textContent ?? "").not.toBe("X");
+    expect(getCell("H11")?.textContent ?? "").not.toBe("X");
+    expect(getCell("O11")?.textContent ?? "").not.toBe("X");
+
+    // 2. Worker fields
+    expect(getCell("B15")?.textContent).toBe("BOLAÑOS");
+    expect(getCell("F15")?.textContent).toBe("VAZQUEZ");
+    expect(getCell("J15")?.textContent).toBe("EDUARDO");
+    expect(getCell("Q15")?.textContent).toBe("98173968");
+    expect(getCell("S15")?.textContent).toBe("VESPERTINO");
+    expect(getCell("C17")?.textContent).toBe("TECNICO RADIOLOGO 80");
+    expect(getCell("J17")?.textContent).toBe("HOSPITAL GENERAL REGIONAL No. 1");
+    expect(getCell("S1")?.textContent).toBe("14.00 A 21.30 JORNADA MIXTA");
+
+    // 3. Descansos vacíos: celda limpia, sin "undefined", "-", ni residuo
+    const s2Cell = getCell("S2");
+    const s2Text = s2Cell?.textContent ?? "";
+    expect(s2Text).not.toContain("undefined");
+    expect(s2Text).not.toContain("null");
+    expect(s2Text.trim()).toBe("");
+
+    // 4. Fechas y firma
+    expect(getCell("F24")?.textContent).toContain("2  DÍAS");
+    expect(getCell("F27")?.textContent).toBe("CIRUGÍA PADRE");
+    expect(getCell("F28")?.textContent).toBe("INE");
+    expect(getCell("B47")?.textContent).toBe("C. BOLAÑOS VAZQUEZ EDUARDO");
+
+    // 5. Zero #REF!
+    expect(licXml).not.toContain("#REF!");
+
+    // 6. VBA macro binary preserved
+    const vba = zip.file("xl/vbaProject.bin");
+    expect(vba).not.toBeNull();
+    expect(vba?.asNodeBuffer().length).toBe(22528);
+
+    // 7. Verification of vertical centering in xl/styles.xml
+    const stylesXml = zip.file("xl/styles.xml")?.asText() ?? "";
+    const stylesDoc = parser.parseFromString(stylesXml, "text/xml");
+    const cellXfs = stylesDoc.getElementsByTagName("cellXfs")[0];
+    const xfs: XmlElement[] = [];
+    for (let i = 0; i < cellXfs.childNodes.length; i++) {
+      if (cellXfs.childNodes[i].nodeType === 1) xfs.push(cellXfs.childNodes[i] as unknown as XmlElement);
+    }
+
+    // Check that schedule S1 style has vertical=center and shrinkToFit=1
+    const s1StyleIdx = parseInt(getCell("S1")?.getAttribute("s") ?? "0", 10);
+    const s1Xf = xfs[s1StyleIdx];
+    const s1Align = s1Xf?.getElementsByTagName("alignment")[0];
+    expect(s1Align?.getAttribute("vertical")).toBe("center");
+    expect(s1Align?.getAttribute("shrinkToFit")).toBe("1");
+
+    // Check that category C17 style has vertical=center
+    const c17StyleIdx = parseInt(getCell("C17")?.getAttribute("s") ?? "0", 10);
+    const c17Xf = xfs[c17StyleIdx];
+    const c17Align = c17Xf?.getElementsByTagName("alignment")[0];
+    expect(c17Align?.getAttribute("vertical")).toBe("center");
+  });
 });

@@ -211,11 +211,13 @@ function clearCell(doc: XmlDocument, cellRef: string): void {
 }
 
 /**
- * Ensures style definitions for license type checkbox cells in xl/styles.xml
- * have center horizontal and vertical alignment, so the "X" renders perfectly
- * centered rather than hugging the left border.
+ * Ensures style definitions for dynamic cells in xl/styles.xml have:
+ * - Centered vertical alignment (vertical = center)
+ * - Centered horizontal alignment where appropriate (checkboxes, dates, signatures)
+ * - shrinkToFit="1" for long text fields (schedule, category, assignment, worker names)
+ * - wrapText="1" for multiline narrative fields (reason, proof)
  */
-function ensureCenteredCheckboxStyles(zip: PizZip, docLic: XmlDocument): void {
+export function ensureExcelCellAlignments(zip: PizZip, docLic: XmlDocument): void {
   const stylesXmlStr = zip.file("xl/styles.xml")?.asText();
   if (!stylesXmlStr) return;
 
@@ -233,57 +235,155 @@ function ensureCenteredCheckboxStyles(zip: PizZip, docLic: XmlDocument): void {
     }
   }
 
-  // Find style indices on the checkbox cells from docLic
-  const targetCells = [
+  const targetCells: readonly string[] = [
+    // Folio & Elaboration Date
+    "M7", "Q7", "R7", "S7",
+    // Checkboxes
     LICENSE_TYPE_CELLS.withPay,
     LICENSE_TYPE_CELLS.withoutPay1To3,
     LICENSE_TYPE_CELLS.withoutPay4To60,
     LICENSE_TYPE_CELLS.withoutPay61To365,
+    // Worker Info
+    "B15", "F15", "J15", "Q15", "S15",
+    // Category & Assignment
+    "C17", "J17",
+    // Schedule & Rest Days
+    "S1", "S2",
+    // License Period Dates
+    "B21", "D21", "E21", "F21", "H21", "I21", "J21", "M21", "O21", "Q21", "R21", "S21",
+    // Total Days
+    "F24",
+    // Phone
+    "A26",
+    // Reason & Proof
+    "F27", "F28",
+    // Worker Signature
+    "B47",
   ];
 
-  const styleIndices = new Set<number>();
+  // Map cell references to their style indices in docLic
   const cells = docLic.getElementsByTagName("c");
+  const cellToStyle = new Map<string, number>();
   for (let i = 0; i < cells.length; i++) {
     const c = cells[i];
     const r = c.getAttribute("r");
-    if (r && (targetCells as readonly string[]).includes(r)) {
+    if (r && targetCells.includes(r)) {
       const s = c.getAttribute("s");
       if (s) {
         const idx = parseInt(s, 10);
         if (!isNaN(idx)) {
-          styleIndices.add(idx);
+          cellToStyle.set(r, idx);
         }
       }
     }
   }
 
-  // Fallback defaults if not found in docLic: 49, 50, 16, 17
-  if (styleIndices.size === 0) {
-    styleIndices.add(49);
-    styleIndices.add(50);
-    styleIndices.add(16);
-    styleIndices.add(17);
+  // Fallback default style indices if cells were not present in docLic
+  const defaultStyles: Record<string, number> = {
+    H9: 49,
+    O9: 50,
+    H11: 16,
+    O11: 17,
+    Q7: 12,
+    R7: 12,
+    S7: 12,
+    S1: 47,
+    S2: 47,
+    B15: 149,
+    F15: 150,
+    J15: 150,
+    Q15: 149,
+    S15: 158,
+    C17: 150,
+    J17: 23,
+    B21: 176,
+    D21: 120,
+    F24: 128,
+    F27: 117,
+    F28: 114,
+    B47: 71,
+  };
+
+  for (const [cellRef, defaultIdx] of Object.entries(defaultStyles)) {
+    if (!cellToStyle.has(cellRef)) {
+      cellToStyle.set(cellRef, defaultIdx);
+    }
   }
 
   let modified = false;
-  for (const idx of styleIndices) {
-    const xf = directXfs[idx];
-    if (xf) {
-      xf.setAttribute("applyAlignment", "1");
-      let alignment = xf.getElementsByTagName("alignment")[0];
-      if (!alignment) {
-        alignment = stylesDoc.createElement("alignment");
-        xf.appendChild(alignment as unknown as XmlElement);
-      }
-      alignment.setAttribute("horizontal", "center");
-      alignment.setAttribute("vertical", "center");
-      modified = true;
+
+  for (const [cellRef, styleIdx] of cellToStyle.entries()) {
+    const xf = directXfs[styleIdx];
+    if (!xf) continue;
+
+    xf.setAttribute("applyAlignment", "1");
+    let alignment = xf.getElementsByTagName("alignment")[0] as unknown as XmlElement;
+    if (!alignment) {
+      alignment = stylesDoc.createElement("alignment") as unknown as XmlElement;
+      xf.appendChild(alignment as unknown as XmlElement);
     }
+
+    // Always center vertically across all populated dynamic cells
+    alignment.setAttribute("vertical", "center");
+
+    // Specific horizontal centering
+    if (
+      cellRef === "H9" ||
+      cellRef === "O9" ||
+      cellRef === "H11" ||
+      cellRef === "O11" ||
+      cellRef === "Q7" ||
+      cellRef === "R7" ||
+      cellRef === "S7" ||
+      cellRef === "B21" ||
+      cellRef === "D21" ||
+      cellRef === "E21" ||
+      cellRef === "F21" ||
+      cellRef === "H21" ||
+      cellRef === "I21" ||
+      cellRef === "J21" ||
+      cellRef === "M21" ||
+      cellRef === "O21" ||
+      cellRef === "Q21" ||
+      cellRef === "R21" ||
+      cellRef === "S21" ||
+      cellRef === "B47" ||
+      cellRef === "F24"
+    ) {
+      alignment.setAttribute("horizontal", "center");
+    }
+
+    // ShrinkToFit for long dynamic text cells
+    if (
+      cellRef === "S1" ||
+      cellRef === "S2" ||
+      cellRef === "C17" ||
+      cellRef === "J17" ||
+      cellRef === "B15" ||
+      cellRef === "F15" ||
+      cellRef === "J15"
+    ) {
+      alignment.setAttribute("shrinkToFit", "1");
+    }
+
+    // WrapText for multiline narrative fields
+    if (cellRef === "F27" || cellRef === "F28") {
+      alignment.setAttribute("wrapText", "1");
+    }
+
+    modified = true;
   }
 
   if (modified) {
     zip.file("xl/styles.xml", serializer.serializeToString(stylesDoc));
   }
+}
+
+/**
+ * Backward compatibility alias for existing callers/tests.
+ */
+export function ensureCenteredCheckboxStyles(zip: PizZip, docLic: XmlDocument): void {
+  ensureExcelCellAlignments(zip, docLic);
 }
 
 /**
@@ -443,7 +543,11 @@ export async function buildLicenseExcelDocument(
       setCellText(docGen, "E13", data.worker.schedule);
       setCellText(docGen, "E14", data.worker.turn);
       setCellText(docGen, "E15", data.worker.employeeNumber);
-      setCellText(docGen, "E16", data.worker.restDays);
+      if (data.worker.restDays && data.worker.restDays.trim()) {
+        setCellText(docGen, "E16", data.worker.restDays.trim());
+      } else {
+        clearCell(docGen, "E16");
+      }
       setCellText(docGen, "E17", data.license.reason);
       setCellText(docGen, "E18", data.license.proof);
       setCellText(docGen, "E19", data.worker.phone);
@@ -500,12 +604,18 @@ export async function buildLicenseExcelDocument(
   setCellText(docLic, "Q15", data.worker.employeeNumber);
   setCellText(docLic, "S15", data.worker.turn);
 
-  // Category
+  // Category & Assignment
   setCellText(docLic, "C17", data.worker.category);
+  const assignmentClean = (data.worker.assignment || "HOSPITAL GENERAL REGIONAL N° 1").trim();
+  setCellText(docLic, "J17", assignmentClean);
 
   // Schedule & Rest Days
   setCellText(docLic, "S1", data.worker.schedule);
-  setCellText(docLic, "S2", data.worker.restDays);
+  if (data.worker.restDays && data.worker.restDays.trim()) {
+    setCellText(docLic, "S2", data.worker.restDays.trim());
+  } else {
+    clearCell(docLic, "S2");
+  }
 
   // License Period
   setCellNum(docLic, "B21", parseInt(data.license.startDay, 10) || 1);
@@ -536,7 +646,11 @@ export async function buildLicenseExcelDocument(
   setCellText(docLic, "F24", `${data.license.totalDays}  ${data.license.daysUnit}`);
 
   // Phone
-  setCellText(docLic, "A26", data.worker.phone ? `TEL. ${data.worker.phone}` : "TEL. ");
+  if (data.worker.phone && data.worker.phone.trim()) {
+    setCellText(docLic, "A26", `TEL. ${data.worker.phone.trim()}`);
+  } else {
+    setCellText(docLic, "A26", "TEL. ");
+  }
 
   // Reason & Proof
   setCellText(docLic, "F27", data.license.reason);
@@ -555,8 +669,8 @@ export async function buildLicenseExcelDocument(
       .replace(/<v>#REF!<\/v>/g, "");
   }
 
-  // Ensure checkbox cells have centered horizontal & vertical alignment in xl/styles.xml
-  ensureCenteredCheckboxStyles(zip, docLic);
+  // Ensure all dynamic cells have centered vertical alignment and shrinkToFit in xl/styles.xml
+  ensureExcelCellAlignments(zip, docLic);
 
   zip.file(licenciaPath, serializedLic);
 

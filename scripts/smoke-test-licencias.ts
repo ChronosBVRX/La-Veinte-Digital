@@ -72,21 +72,31 @@ async function smokeTest() {
   // Validaciones Excel
   const excelZip = new PizZip(excelBuf);
   const vba = excelZip.file('xl/vbaProject.bin');
-  const s1Xml = excelZip.file('xl/worksheets/sheet1.xml')?.asText() ?? '';
-  const s2Xml = excelZip.file('xl/worksheets/sheet2.xml')?.asText() ?? '';
+  const licXml = excelZip.file('xl/worksheets/sheet1.xml')?.asText() ?? '';
 
-  const hasVba = vba !== null && vba.asNodeBuffer().length === 30720;
-  const hasFolioInS1 = s1Xml.includes(docData.folio);
-  const hasMatriculaInS1 = s1Xml.includes(docData.worker.employeeNumber);
-  const hasWithPayInS2 = s2Xml.includes('r="G8"');
+  const hasVba = vba !== null && vba.asNodeBuffer().length === 22528;
+  const hasFolioInLic = licXml.includes(docData.folio);
+  const hasMatriculaInLic = licXml.includes(docData.worker.employeeNumber);
+  const hasWorkerInLic = licXml.includes(docData.worker.paternalSurname);
 
   console.log(`   - Binario VBA (macros) preservado: ${hasVba} (tamaño: ${vba ? vba.asNodeBuffer().length : 0} bytes)`);
-  console.log('   - Folio en Sheet 1 (Generador):', hasFolioInS1);
-  console.log('   - Matrícula en Sheet 1 (Generador):', hasMatriculaInS1);
-  console.log('   - Celda G8 en Sheet 2 (Licencia):', hasWithPayInS2);
+  console.log('   - Folio en Sheet Licencia:', hasFolioInLic);
+  console.log('   - Matrícula en Sheet Licencia:', hasMatriculaInLic);
+  console.log('   - Trabajador en Sheet Licencia:', hasWorkerInLic);
 
-  if (!hasVba || !hasFolioInS1 || !hasMatriculaInS1) {
+  if (!hasVba || !hasFolioInLic || !hasMatriculaInLic || !hasWorkerInLic) {
     throw new Error('FALLO EN VALIDACIÓN EXCEL');
+  }
+
+  console.log('\n6. Generando paquete de impresión unificado (2 páginas: Word + Excel)...');
+  const { buildLicensePrintPackage } = await import('../src/features/representacion/services/license-print-package');
+  const printPkg = await buildLicensePrintPackage(docData, { supabase });
+  console.log(`   ✓ Paquete de impresión generado con éxito. Tamaño: ${printPkg.buffer.length} bytes, Páginas: ${printPkg.pageCount}`);
+  console.log(`   - Versión plantilla Word Print: ${printPkg.wordVersion}`);
+  console.log(`   - Versión plantilla Excel Print: ${printPkg.excelVersion}`);
+
+  if (printPkg.pageCount !== 2) {
+    throw new Error(`FALLO EN VALIDACIÓN PAQUETE DE IMPRESIÓN: se esperaban 2 páginas, se obtuvieron ${printPkg.pageCount}`);
   }
 
   console.log('\n=== SMOKE TEST DE PRODUCCIÓN FINALIZADO EXITOSAMENTE AL 100% ===');
@@ -96,3 +106,4 @@ smokeTest().catch((err) => {
   console.error('ERROR EN SMOKE TEST:', err);
   process.exit(1);
 });
+
