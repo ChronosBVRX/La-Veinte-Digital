@@ -168,6 +168,48 @@ describe("UnionApplicationShell", () => {
     // En su lugar, debe mostrar el rol sindical
     expect(screen.getAllByText("Administrador Sindical").length).toBeGreaterThanOrEqual(1);
   });
+
+  it("un union_rep solo ve los módulos sindicales: sin Administración ni panel de plataforma", () => {
+    const repMemberships: UnionMembership[] = [
+      { delegation_id: "del-xxi-uuid", delegation_code: "XXI", role: "union_rep" },
+    ];
+    render(
+      <UnionApplicationShell memberships={repMemberships} userName="Representante Prueba">
+        <div>Contenido</div>
+      </UnionApplicationShell>
+    );
+
+    // Módulos de representación disponibles
+    expect(screen.getAllByText("Trabajadores").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Licencias").length).toBeGreaterThanOrEqual(1);
+    // Administración Sindical (solo union_admin) y Administración de plataforma
+    expect(screen.queryByText("Administración")).toBeNull();
+    expect(screen.queryByText("Panel de administración")).toBeNull();
+  });
+
+  it("un union_admin de plataforma ve el enlace de regreso a Administración", () => {
+    const { container } = render(
+      <UnionApplicationShell memberships={mockMemberships} userName="Delegado Prueba" isPlatformAdmin>
+        <div>Contenido</div>
+      </UnionApplicationShell>
+    );
+
+    expect(screen.getAllByText("Panel de administración").length).toBeGreaterThanOrEqual(1);
+    const hrefs = Array.from(container.querySelectorAll("a")).map((a) => a.getAttribute("href"));
+    expect(hrefs).toContain("/admin");
+    // El enlace de plataforma no abre herramientas generales de trabajador
+    expect(hrefs).not.toContain("/calculadoras");
+  });
+
+  it("sin rol de plataforma no se muestra el enlace de Administración", () => {
+    render(
+      <UnionApplicationShell memberships={mockMemberships} userName="Delegado Prueba" isPlatformAdmin={false}>
+        <div>Contenido</div>
+      </UnionApplicationShell>
+    );
+
+    expect(screen.queryByText("Panel de administración")).toBeNull();
+  });
 });
 
 describe("UnionAccessDenied", () => {

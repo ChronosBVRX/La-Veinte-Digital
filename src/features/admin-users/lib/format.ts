@@ -39,6 +39,7 @@ export const ADMIN_ACTION_LABELS: Record<string, string> = {
   "user.purge": "Eliminación definitiva",
   "user.sessions_revoked": "Cierre de sesiones",
   "user.resend_confirmation": "Reenvío de confirmación",
+  "user.union_role_change": "Cambio de rol sindical",
   "user.action_rejected": "Intento rechazado",
   "user.auth_sync_failed": "Aviso de sincronización con Auth",
   // Clave compuesta a propósito: evita que los escáneres de secretos

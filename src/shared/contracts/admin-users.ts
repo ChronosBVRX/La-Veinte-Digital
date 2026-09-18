@@ -12,6 +12,9 @@ export type AccountStatus = "active" | "suspended" | "trashed"
 
 export type SuspensionKind = "temporary" | "indefinite"
 
+/** Roles sindicales (Representación). Ortogonales al rol de plataforma. */
+export type UnionRoleName = "union_rep" | "union_admin"
+
 export type AdminUserSortField = "created_at" | "last_sign_in_at" | "email" | "full_name"
 
 export type SortDirection = "asc" | "desc"
@@ -53,6 +56,7 @@ export const ADMIN_AUDIT_ACTIONS = [
   "user.sessions_revoked",
   "user.resend_confirmation",
   "user.password_recovery",
+  "user.union_role_change",
   "user.action_rejected",
   "user.auth_sync_failed",
 ] as const
@@ -128,6 +132,26 @@ export interface AdminUserActivityEvent {
   reason?: string | null
 }
 
+/** Membresía sindical del usuario (Representación). */
+export interface AdminUnionMembership {
+  id: string
+  delegationId: string
+  delegationCode: string
+  delegationName: string
+  role: UnionRoleName
+  active: boolean
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+/** Delegación sindical activa disponible para asignar. */
+export interface AdminUnionDelegation {
+  id: string
+  code: string
+  name: string
+  active: boolean
+}
+
 export interface AdminUserDetail {
   user: {
     id: string
@@ -144,6 +168,11 @@ export interface AdminUserDetail {
     providers: string[]
   }
   status: AdminUserStatusDetails
+  /** Información sindical: membresías del usuario y delegaciones activas. */
+  union: {
+    memberships: AdminUnionMembership[]
+    delegations: AdminUnionDelegation[]
+  }
   counts: {
     payslips: number
     remoteDocuments: number

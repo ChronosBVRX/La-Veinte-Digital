@@ -5,6 +5,7 @@ const ADMIN_USER_ROUTES = [
   "/api/admin/users",
   "/api/admin/users/[id]",
   "/api/admin/users/[id]/role",
+  "/api/admin/users/[id]/union-role",
   "/api/admin/users/[id]/suspend",
   "/api/admin/users/[id]/reactivate",
   "/api/admin/users/[id]/trash",
@@ -34,6 +35,7 @@ describe("route policy — Centro de Administración de Usuarios", () => {
     const expected: Array<[string, "authenticated-api"]> = [
       [`/api/admin/users/${SAMPLE_UUID}`, "authenticated-api"],
       [`/api/admin/users/${SAMPLE_UUID}/role`, "authenticated-api"],
+      [`/api/admin/users/${SAMPLE_UUID}/union-role`, "authenticated-api"],
       [`/api/admin/users/${SAMPLE_UUID}/suspend`, "authenticated-api"],
       [`/api/admin/users/${SAMPLE_UUID}/reactivate`, "authenticated-api"],
       [`/api/admin/users/${SAMPLE_UUID}/trash`, "authenticated-api"],

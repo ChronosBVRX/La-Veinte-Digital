@@ -22,6 +22,7 @@ import {
   mapRpcError,
   purgeUser,
   resendConfirmationEmail,
+  setUnionMembership,
   suspendUser,
   trashUser,
 } from "@/features/admin-users/services/admin-users-service"
@@ -118,6 +119,23 @@ describe("admin-users-service", () => {
                   providers: ["email"],
                 },
                 status: { accountStatus: "active", rawStatus: "active" },
+                union: {
+                  memberships: [
+                    {
+                      id: "m-1",
+                      delegationId: "00000000-0000-0000-0000-00000000d001",
+                      delegationCode: "XXI",
+                      delegationName: "Delegación XXI",
+                      role: "union_admin",
+                      active: true,
+                      createdAt: "2026-09-01T00:00:00.000Z",
+                      updatedAt: "2026-09-02T00:00:00.000Z",
+                    },
+                  ],
+                  delegations: [
+                    { id: "00000000-0000-0000-0000-00000000d001", code: "XXI", name: "Delegación XXI", active: true },
+                  ],
+                },
                 counts: { payslips: 2, remoteDocuments: 3, hasPayrollContext: true },
                 diagnostics: {
                   authentication: "OK",
@@ -153,6 +171,12 @@ describe("admin-users-service", () => {
     expect(serialized).not.toContain("fiscal_folio_hash")
     expect(detail?.user.providers).toEqual(["email"])
     expect(detail?.permanentDeleteEnabled).toBe(false)
+    expect(detail?.union.memberships[0]).toMatchObject({
+      delegationCode: "XXI",
+      role: "union_admin",
+      active: true,
+    })
+    expect(detail?.union.delegations[0]).toMatchObject({ code: "XXI", active: true })
   })
 
   it("parsea métricas reales", async () => {
@@ -256,6 +280,39 @@ describe("admin-users-service", () => {
       code: "last_admin",
       status: 409,
     })
+  })
+
+  it("gestiona el rol sindical por RPC de servicio y propaga rechazos", async () => {
+    const client = serviceClient({ rpc: () => ({ data: { active: true }, error: null }) })
+    mocks.serviceCreateClient.mockReturnValue(client)
+
+    const result = await setUnionMembership(
+      "admin-1",
+      "u-1",
+      "00000000-0000-0000-0000-00000000d001",
+      "union_admin",
+      true,
+      "alta de rol sindical",
+    )
+    expect(result.ok).toBe(true)
+    expect(result.message).toContain("Representación")
+    expect(client.rpc).toHaveBeenCalledWith(
+      "admin_set_union_membership",
+      expect.objectContaining({
+        p_actor: "admin-1",
+        p_target: "u-1",
+        p_role: "union_admin",
+        p_active: true,
+        p_reason: "alta de rol sindical",
+      }),
+    )
+
+    mocks.serviceCreateClient.mockReturnValue(
+      serviceClient({ rpc: () => ({ data: null, error: { message: "delegation_not_found" } }) }),
+    )
+    await expect(
+      setUnionMembership("admin-1", "u-1", "d-x", "union_rep", false, "retiro"),
+    ).rejects.toMatchObject({ code: "not_found", status: 404 })
   })
 
   it("suspende con baneo temporal calculado en horas", async () => {

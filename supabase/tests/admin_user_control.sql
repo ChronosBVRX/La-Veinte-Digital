@@ -840,6 +840,169 @@ $$;
 reset role;
 
 -- ============================================================
+-- Test 17: la ficha incluye información sindical (membresías y delegaciones)
+-- ============================================================
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000c001';
+set request.jwt.claim.role = 'authenticated';
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000c001","role":"authenticated"}';
+
+do $$
+declare
+  v_detail jsonb;
+  v_memberships jsonb;
+  v_delegations jsonb;
+begin
+  select public.admin_user_detail('00000000-0000-0000-0000-00000000c101') into v_detail;
+  if v_detail is null then
+    raise exception 'Test 17 FAILED: admin_user_detail returned null';
+  end if;
+
+  v_memberships := v_detail #> '{union,memberships}';
+  if jsonb_typeof(v_memberships) <> 'array' or jsonb_array_length(v_memberships) <> 1 then
+    raise exception 'Test 17 FAILED: memberships = % (expected 1)', v_memberships;
+  end if;
+  if v_memberships -> 0 ->> 'delegationCode' <> 'SYNTH-ADMIN-TEST'
+     or v_memberships -> 0 ->> 'role' <> 'union_admin'
+     or (v_memberships -> 0 ->> 'active')::boolean is not true then
+    raise exception 'Test 17 FAILED: unexpected membership %', v_memberships -> 0;
+  end if;
+
+  v_delegations := v_detail #> '{union,delegations}';
+  if jsonb_typeof(v_delegations) <> 'array' or not exists (
+    select 1 from jsonb_array_elements(v_delegations) d
+     where d ->> 'code' = 'SYNTH-ADMIN-TEST' and (d ->> 'active')::boolean
+  ) then
+    raise exception 'Test 17 FAILED: active delegation missing in %', v_delegations;
+  end if;
+end
+$$;
+
+reset role;
+
+-- ============================================================
+-- Test 18: alta/baja auditada de membresía sindical
+--          (solo platform admin vía service_role; authenticated no puede)
+-- ============================================================
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000c001';
+set request.jwt.claim.role = 'authenticated';
+set request.jwt.claims = '{"sub":"00000000-0000-0000-0000-00000000c001","role":"authenticated"}';
+
+do $$
+declare v_denied boolean := false;
+begin
+  begin
+    perform public.admin_set_union_membership(
+      '00000000-0000-0000-0000-00000000c001',
+      '00000000-0000-0000-0000-00000000c101',
+      '00000000-0000-0000-0000-00000000d001',
+      'union_rep',
+      true,
+      'intento no autorizado',
+      'req-synth-18'
+    );
+  exception when others then
+    v_denied := true;
+  end;
+  if not v_denied then
+    raise exception 'Test 18 FAILED: authenticated executed admin_set_union_membership';
+  end if;
+end
+$$;
+
+reset role;
+select set_config('request.jwt.claim.sub', '', false);
+select set_config('request.jwt.claim.role', '', false);
+select set_config('request.jwt.claims', '{}', false);
+set role service_role;
+
+do $$
+declare
+  v_result jsonb;
+  v_active boolean;
+  v_audit integer;
+  v_denied boolean := false;
+begin
+  -- Baja auditada de la membresía union_admin de c101.
+  select public.admin_set_union_membership(
+    '00000000-0000-0000-0000-00000000c001',
+    '00000000-0000-0000-0000-00000000c101',
+    '00000000-0000-0000-0000-00000000d001',
+    'union_admin',
+    false,
+    'retiro de rol sindical en prueba',
+    'req-synth-19'
+  ) into v_result;
+
+  if (v_result ->> 'active')::boolean is not false then
+    raise exception 'Test 18 FAILED: unexpected result %', v_result;
+  end if;
+
+  select active into v_active
+    from public.union_members
+   where user_id = '00000000-0000-0000-0000-00000000c101'
+     and delegation_id = '00000000-0000-0000-0000-00000000d001'
+     and role = 'union_admin';
+  if v_active is not false then
+    raise exception 'Test 18 FAILED: membership not deactivated';
+  end if;
+
+  select count(*) into v_audit
+    from public.admin_audit_log
+   where entity_type = 'user'
+     and entity_id = '00000000-0000-0000-0000-00000000c101'
+     and action = 'user.union_role_change';
+  if v_audit <> 1 then
+    raise exception 'Test 18 FAILED: union role audit rows = % (expected 1)', v_audit;
+  end if;
+
+  -- Reactivación (upsert sobre la misma membresía).
+  perform public.admin_set_union_membership(
+    '00000000-0000-0000-0000-00000000c001',
+    '00000000-0000-0000-0000-00000000c101',
+    '00000000-0000-0000-0000-00000000d001',
+    'union_admin',
+    true,
+    'reactivacion de rol sindical en prueba',
+    'req-synth-20'
+  );
+
+  select active into v_active
+    from public.union_members
+   where user_id = '00000000-0000-0000-0000-00000000c101'
+     and delegation_id = '00000000-0000-0000-0000-00000000d001'
+     and role = 'union_admin';
+  if v_active is not true then
+    raise exception 'Test 18 FAILED: membership not reactivated';
+  end if;
+
+  -- Delegación inexistente/inactiva.
+  begin
+    perform public.admin_set_union_membership(
+      '00000000-0000-0000-0000-00000000c001',
+      '00000000-0000-0000-0000-00000000c101',
+      '00000000-0000-0000-0000-0000000000ff',
+      'union_rep',
+      true,
+      'delegacion invalida',
+      'req-synth-21'
+    );
+  exception when others then
+    if sqlerrm <> 'delegation_not_found' then
+      raise;
+    end if;
+    v_denied := true;
+  end;
+  if not v_denied then
+    raise exception 'Test 18 FAILED: invalid delegation accepted';
+  end if;
+end
+$$;
+
+reset role;
+
+-- ============================================================
 -- Cleanup
 -- ============================================================
 drop table if exists public.admin_purge_fk_probe;

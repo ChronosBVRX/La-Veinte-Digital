@@ -103,6 +103,13 @@ export const purgeSchema = z.object({
   reason: z.string().trim().min(3).max(500),
 })
 
+export const unionRoleSchema = z.object({
+  delegationId: z.string().uuid(),
+  role: z.enum(["union_rep", "union_admin"]),
+  active: z.boolean(),
+  reason: z.string().trim().min(3).max(500),
+})
+
 const SORT_FIELDS: readonly AdminUserSortField[] = [
   "created_at",
   "last_sign_in_at",

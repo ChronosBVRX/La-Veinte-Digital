@@ -2213,6 +2213,18 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_set_union_membership: {
+        Args: {
+          p_actor: string
+          p_target: string
+          p_delegation_id: string
+          p_role: string
+          p_active: boolean
+          p_reason: string
+          p_request_id?: string
+        }
+        Returns: Json
+      }
       admin_suspend_user: {
         Args: {
           p_actor: string
