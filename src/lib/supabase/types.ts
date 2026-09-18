@@ -2087,6 +2087,121 @@ export type Database = {
         }
         Relationships: []
       }
+      // → hand-added pending `supabase gen types` after migration 20260919080000_union_print_infrastructure.sql
+      union_print_stations: {
+        Row: {
+          id: string
+          delegation_id: string
+          name: string
+          device_token_hash: string
+          printer_name: string
+          is_active: boolean
+          last_seen_at: string | null
+          agent_version: string | null
+          ip_address: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          delegation_id: string
+          name: string
+          device_token_hash: string
+          printer_name?: string
+          is_active?: boolean
+          last_seen_at?: string | null
+          agent_version?: string | null
+          ip_address?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          delegation_id?: string
+          name?: string
+          device_token_hash?: string
+          printer_name?: string
+          is_active?: boolean
+          last_seen_at?: string | null
+          agent_version?: string | null
+          ip_address?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      union_print_jobs: {
+        Row: {
+          id: string
+          delegation_id: string
+          station_id: string
+          case_id: string | null
+          document_type: string
+          document_revision: number
+          status: string
+          copies: number
+          duplex: boolean
+          document_storage_path: string | null
+          document_sha256: string | null
+          document_size_bytes: number | null
+          error_code: string | null
+          error_message: string | null
+          attempt_count: number
+          created_by: string | null
+          created_at: string
+          claimed_at: string | null
+          printing_at: string | null
+          printed_at: string | null
+          failed_at: string | null
+        }
+        Insert: {
+          id?: string
+          delegation_id: string
+          station_id: string
+          case_id?: string | null
+          document_type?: string
+          document_revision?: number
+          status?: string
+          copies?: number
+          duplex?: boolean
+          document_storage_path?: string | null
+          document_sha256?: string | null
+          document_size_bytes?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          attempt_count?: number
+          created_by?: string | null
+          created_at?: string
+          claimed_at?: string | null
+          printing_at?: string | null
+          printed_at?: string | null
+          failed_at?: string | null
+        }
+        Update: {
+          id?: string
+          delegation_id?: string
+          station_id?: string
+          case_id?: string | null
+          document_type?: string
+          document_revision?: number
+          status?: string
+          copies?: number
+          duplex?: boolean
+          document_storage_path?: string | null
+          document_sha256?: string | null
+          document_size_bytes?: number | null
+          error_code?: string | null
+          error_message?: string | null
+          attempt_count?: number
+          created_by?: string | null
+          created_at?: string
+          claimed_at?: string | null
+          printing_at?: string | null
+          printed_at?: string | null
+          failed_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       limited_profiles: {
@@ -2266,6 +2381,21 @@ export type Database = {
           id: string
           fcm_token: string
           attempts: number
+        }[]
+      }
+      claim_print_job: {
+        Args: {
+          p_job_id: string
+          p_station_id: string
+        }
+        Returns: {
+          claimed: boolean
+          job_id: string
+          case_id: string | null
+          document_type: string
+          document_revision: number
+          copies: number
+          duplex: boolean
         }[]
       }
       _insert_worker_event: {

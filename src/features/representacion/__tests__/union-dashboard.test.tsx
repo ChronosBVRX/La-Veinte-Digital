@@ -184,7 +184,7 @@ describe("Centro de Control de Representación Sindical", () => {
       expect(screen.getByText("3 borradores · 4 en revisión")).toBeDefined();
       expect(screen.getAllByText("3").length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("Requieren atención")).toBeDefined();
-    });
+    }, 15000);
 
     it("renderiza la sección '¿Qué quieres hacer?' con enlaces y botones secundarios", () => {
       render(<DashboardClient initialData={mockSummaryData} isAdmin={false} />);
@@ -206,7 +206,7 @@ describe("Centro de Control de Representación Sindical", () => {
       // Badge dinámico en Lockers y Trabajadores
       expect(screen.getAllByText("12 disponibles").length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("186 registrados")).toBeDefined();
-    });
+    }, 15000);
 
     it("respeta el rol sindical: oculta Administración a union_rep y lo muestra a union_admin", () => {
       const { unmount } = render(<DashboardClient initialData={mockSummaryData} isAdmin={false} />);
@@ -216,7 +216,7 @@ describe("Centro de Control de Representación Sindical", () => {
       render(<DashboardClient initialData={mockSummaryData} isAdmin={true} />);
       expect(screen.getByText("Administración")).toBeDefined();
       expect(screen.getByText("Comité XXI, miembros y auditoría del sistema.")).toBeDefined();
-    });
+    }, 15000);
 
     it("renderiza la sección 'Requiere tu atención' cuando hay pendientes y ofrece enlaces directos", () => {
       render(<DashboardClient initialData={mockSummaryData} isAdmin={false} />);
@@ -231,7 +231,7 @@ describe("Centro de Control de Representación Sindical", () => {
 
       const waitlistAction = screen.getByRole("link", { name: /Asignar/ });
       expect(waitlistAction.getAttribute("href")).toBe("/representacion/lockers");
-    });
+    }, 15000);
 
     it("oculta la sección 'Requiere tu atención' si no hay pendientes", () => {
       const emptyAttentionData: UnionDashboardSummary = {

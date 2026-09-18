@@ -11,6 +11,7 @@ import {
   Drop,
   Ticket,
   ShieldCheck,
+  Printer,
   Plus,
   ArrowRight,
   ArrowsClockwise,
@@ -155,6 +156,20 @@ export function DashboardClient({ initialData = null, isAdmin = false }: Dashboa
       desc: "Consulta expedientes y antecedentes de representación.",
       href: "/representacion/expedientes",
       icon: Folder,
+    },
+    {
+      id: "impresion",
+      title: "Impresión",
+      desc: "Cola de impresión automática y estación de oficina.",
+      href: "/representacion/impresion",
+      icon: Printer,
+      badge: metrics.print?.hasStation
+        ? metrics.print.isOnline
+          ? (metrics.print.queuedCount + metrics.print.printingCount) > 0
+            ? `${metrics.print.queuedCount} en cola`
+            : "● En línea"
+          : "⚠ Desconectada"
+        : undefined,
     },
     ...(isAdmin
       ? [

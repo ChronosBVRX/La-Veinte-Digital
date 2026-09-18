@@ -82,6 +82,8 @@ export interface UnionLicenseDocumentData {
   license: UnionLicenseDetailData;
   recipient: UnionLicenseRecipientData;
   signers: UnionLicenseSignersData;
+  revisionNumber?: number;
+  documentRevision?: number;
 }
 
 const MONTHS_ES = [
@@ -155,7 +157,7 @@ export async function buildUnionLicenseDocumentData(
   // 1. Fetch case header
   const { data: caseRow, error: caseErr } = await supabase
     .from("union_cases")
-    .select("id, delegation_id, folio, opened_at, worker_id")
+    .select("id, delegation_id, folio, opened_at, worker_id, document_revision, revision_number")
     .eq("id", caseId)
     .single();
 
@@ -169,6 +171,8 @@ export async function buildUnionLicenseDocumentData(
     folio: string;
     opened_at: string;
     worker_id: string;
+    document_revision?: number;
+    revision_number?: number;
   };
 
   // 2. Fetch worker
@@ -360,5 +364,7 @@ export async function buildUnionLicenseDocumentData(
       admissionSecretary,
       socialWelfareSecretary,
     },
+    revisionNumber: header.document_revision ?? header.revision_number ?? 1,
+    documentRevision: header.document_revision ?? header.revision_number ?? 1,
   };
 }

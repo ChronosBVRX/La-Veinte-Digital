@@ -54,6 +54,18 @@ export const API_ACCESS = {
   "/api/union/lockers/import/history": "authenticated",
   "/api/union/lockers/import/errors": "authenticated",
   "/api/union/lockers/pendientes": "authenticated",
+  // Impresión Automática en Oficina Sindical (Representantes y Admins)
+  "/api/union/print/jobs": "authenticated",
+  "/api/union/print/jobs/[id]/retry": "authenticated",
+  "/api/union/print/stations": "authenticated",
+  "/api/union/print/stations/status": "authenticated",
+  "/api/union/print/stations/[id]": "authenticated",
+  // La Veinte Print Agent (Estación local autenticada vía X-Station-Token en handler)
+  "/api/union/print-agent/heartbeat": "public",
+  "/api/union/print-agent/pending-jobs": "public",
+  "/api/union/print-agent/claim": "public",
+  "/api/union/print-agent/jobs/[id]/document": "public",
+  "/api/union/print-agent/jobs/[id]/status": "public",
   "/api/cron/agenda-reminders": "public",
   "/api/cron/push-campaigns": "public",
   "/api/announcements/bar": "public",
