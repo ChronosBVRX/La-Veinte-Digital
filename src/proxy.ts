@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import type { Database } from "@/lib/supabase/types"
 import { classifyRequestPath } from "@/shared/server/routing/route-policy"
+import { loadAccountAccessState, type AccountAccessState } from "@/shared/server/admin/account-access"
 
 type SupabaseResponseCookie = {
   name: string
@@ -97,7 +98,41 @@ export async function proxy(request: NextRequest) {
     )
   }
 
+  // Verificación central de suspensión / papelera. El estado vive en
+  // user_admin_status y se lee con la sesión del propio usuario (RLS de fila
+  // propia). Si la lectura falla, la disponibilidad no se rompe: el baneo de
+  // Supabase Auth y las RPC de escritura siguen siendo la capa fuerte.
+  const access = await loadAccountAccessState(supabase, user.id)
+
+  if (access?.blocked) {
+    return applySupabaseResponseState(
+      blockedResponse(request, routeClass, access),
+      responseCookies,
+      responseHeaders,
+    )
+  }
+
   return supabaseResponse
+}
+
+function blockedResponse(
+  request: NextRequest,
+  routeClass: ReturnType<typeof classifyRequestPath>,
+  access: AccountAccessState,
+): NextResponse {
+  if (routeClass === "authenticated-api") {
+    return NextResponse.json(
+      { error: access.message, code: access.code },
+      { status: 403, headers: { "Cache-Control": "no-store" } },
+    )
+  }
+
+  // Páginas y Server Actions (POST a la ruta de página) se dirigen al aviso
+  // público. En métodos no-GET se usa 303 para convertir a un GET seguro.
+  const url = request.nextUrl.clone()
+  url.pathname = "/cuenta-suspendida"
+  url.search = ""
+  return NextResponse.redirect(url, request.method === "GET" ? 307 : 303)
 }
 
 export const config = {

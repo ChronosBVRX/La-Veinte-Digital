@@ -2,6 +2,8 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { getAdminCapabilities } from "@/shared/server/admin/admin-capabilities"
 import { fetchAdminOperationalMetrics } from "@/features/announcements/services/admin-metrics-service"
+import { getAdminUserMetrics } from "@/features/admin-users/services/admin-users-service"
+import { AdminUserMetricsSection } from "@/features/admin-users/components/AdminUserMetricsSection"
 import { PageHeader } from "@/shared/components/app/PageHeader"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
@@ -42,6 +44,15 @@ export default async function AdminHomePage() {
   }
 
   const metrics = await fetchAdminOperationalMetrics()
+
+  // Indicadores reales del Centro de Usuarios. Si la lectura falla, la sección
+  // muestra guiones (nunca datos simulados) sin romper el resto del panel.
+  let userMetrics: Awaited<ReturnType<typeof getAdminUserMetrics>> | null = null
+  try {
+    userMetrics = await getAdminUserMetrics()
+  } catch {
+    userMetrics = null
+  }
 
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "1.5rem 1rem", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
@@ -160,6 +171,9 @@ export default async function AdminHomePage() {
           </div>
         </Card>
       </div>
+
+      {/* Centro de Administración de Usuarios: indicadores reales + accesos */}
+      <AdminUserMetricsSection metrics={userMetrics} />
 
       {/* Sección principal: Comunicación Editorial */}
       <div>

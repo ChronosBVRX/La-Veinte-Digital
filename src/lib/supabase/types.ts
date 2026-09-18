@@ -950,6 +950,58 @@ export type Database = {
         }
         Relationships: []
       }
+      // → hand-added pending `supabase gen types` after migration 20260919040000_admin_user_control_center.sql
+      user_admin_status: {
+        Row: {
+          auth_sync_at: string | null
+          auth_sync_error: string | null
+          created_at: string
+          purge_after: string | null
+          sessions_revoked_at: string | null
+          status: string
+          status_changed_at: string
+          status_changed_by: string | null
+          status_reason: string | null
+          suspension_ends_at: string | null
+          suspension_kind: string | null
+          trashed_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auth_sync_at?: string | null
+          auth_sync_error?: string | null
+          created_at?: string
+          purge_after?: string | null
+          sessions_revoked_at?: string | null
+          status?: string
+          status_changed_at?: string
+          status_changed_by?: string | null
+          status_reason?: string | null
+          suspension_ends_at?: string | null
+          suspension_kind?: string | null
+          trashed_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auth_sync_at?: string | null
+          auth_sync_error?: string | null
+          created_at?: string
+          purge_after?: string | null
+          sessions_revoked_at?: string | null
+          status?: string
+          status_changed_at?: string
+          status_changed_by?: string | null
+          status_reason?: string | null
+          suspension_ends_at?: string | null
+          suspension_kind?: string | null
+          trashed_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       vacation_calendar_roles: {
         Row: {
           calendar_id: string
@@ -2057,6 +2109,136 @@ export type Database = {
       }
     }
     Functions: {
+      // → hand-added pending `supabase gen types` after migration 20260919040000_admin_user_control_center.sql
+      admin_apply_user_role: {
+        Args: {
+          p_actor: string
+          p_target: string
+          p_new_role: string
+          p_reason: string
+          p_request_id?: string
+        }
+        Returns: Json
+      }
+      admin_list_audit_log: {
+        Args: {
+          p_action?: string
+          p_target?: string
+          p_actor?: string
+          p_from?: string
+          p_to?: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: {
+          id: string
+          action: string
+          entity_id: string | null
+          target_email: string | null
+          target_name: string | null
+          actor_id: string | null
+          actor_email: string | null
+          actor_name: string | null
+          reason: string | null
+          previous_value: string | null
+          new_value: string | null
+          request_id: string | null
+          created_at: string
+          total_count: number
+        }[]
+      }
+      admin_list_users: {
+        Args: {
+          p_search?: string
+          p_status?: string
+          p_role?: string
+          p_registered_from?: string
+          p_registered_to?: string
+          p_sort?: string
+          p_direction?: string
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: {
+          user_id: string
+          email: string | null
+          full_name: string | null
+          matricula: string | null
+          role: string
+          account_status: string
+          suspension_kind: string | null
+          suspension_ends_at: string | null
+          email_confirmed: boolean
+          registered_at: string
+          last_sign_in_at: string | null
+          providers: Json
+          profile_complete: boolean
+          total_count: number
+        }[]
+      }
+      admin_purge_user: {
+        Args: {
+          p_actor: string
+          p_target: string
+          p_confirm_email: string
+          p_reason: string
+          p_request_id?: string
+        }
+        Returns: Json
+      }
+      admin_reactivate_user: {
+        Args: {
+          p_actor: string
+          p_target: string
+          p_reason: string
+          p_request_id?: string
+        }
+        Returns: Json
+      }
+      admin_restore_user: {
+        Args: {
+          p_actor: string
+          p_target: string
+          p_reason: string
+          p_request_id?: string
+        }
+        Returns: Json
+      }
+      admin_revoke_user_sessions: {
+        Args: {
+          p_actor: string
+          p_target: string
+          p_reason: string
+          p_request_id?: string
+        }
+        Returns: Json
+      }
+      admin_suspend_user: {
+        Args: {
+          p_actor: string
+          p_target: string
+          p_kind: string
+          p_ends_at: string | null
+          p_reason: string
+          p_request_id?: string
+        }
+        Returns: Json
+      }
+      admin_trash_user: {
+        Args: {
+          p_actor: string
+          p_target: string
+          p_reason: string
+          p_request_id?: string
+        }
+        Returns: Json
+      }
+      admin_user_activity: {
+        Args: { p_target: string; p_limit?: number }
+        Returns: Json
+      }
+      admin_user_detail: { Args: { p_target: string }; Returns: Json }
+      admin_user_metrics: { Args: never; Returns: Json }
       archive_announcement_atomic: {
         Args: { p_announcement_id: string }
         Returns: undefined
