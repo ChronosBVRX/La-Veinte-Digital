@@ -3,7 +3,7 @@
  *
  * Tipos puros compartidos entre servidor y cliente: sin imports de
  * infraestructura. Reflejan el contrato de las RPC de la migración
- * 20260919000000_admin_user_control_center.sql y de las APIs /api/admin/*.
+ * 20260919040000_admin_user_control_center.sql y de las APIs /api/admin/*.
  */
 
 export type PlatformRole = "user" | "admin"

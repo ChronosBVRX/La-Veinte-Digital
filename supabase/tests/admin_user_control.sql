@@ -1,6 +1,6 @@
 -- Admin user control center SQL tests.
 -- Runs against the local database after `supabase db reset` (CI job `supabase-db`).
--- Requires migration 20260919000000_admin_user_control_center.sql already applied.
+-- Requires migration 20260919040000_admin_user_control_center.sql already applied.
 -- Any failure raises an exception and breaks CI.
 --
 -- Synthetic users use profile_security.sql conventions (UUID ...c0xx / ...c1xx).

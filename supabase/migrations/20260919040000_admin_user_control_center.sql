@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════
--- 20260919000000_admin_user_control_center.sql
+-- 20260919040000_admin_user_control_center.sql
 --
 -- Centro de Administración de Usuarios (aditivo, no destructivo).
 --

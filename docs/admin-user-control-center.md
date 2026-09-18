@@ -1,8 +1,8 @@
 # Centro de Administración de Usuarios — Integración y salvaguardas
 
-> **Rama:** `feat/admin-user-control-center`  
-> **Base:** `origin/main` @ `63a3a2cdccd74467da5c13280efde881136a9a12` (2026-09-17)  
-> **Migración:** `supabase/migrations/20260919000000_admin_user_control_center.sql` (NO aplicada a producción)  
+> **Rama original:** `feat/admin-user-control-center` (base `63a3a2cdccd74467da5c13280efde881136a9a12`)  
+> **Integración:** cherry-pick sobre `origin/main` @ `50f6bb1e8112e5bd08b7729b432550ae5597d948` (2026-09-17)  
+> **Migración:** `supabase/migrations/20260919040000_admin_user_control_center.sql` (NO aplicada a producción)  
 > **Alcance:** gestión administrativa de cuentas (búsqueda, rol de plataforma, suspensión,
 > papelera recuperable, cierre de sesiones, diagnóstico, bitácora). Sin cambios en
 > autenticación, tarjetones, documentos, navegación nativa ni fórmulas laborales.

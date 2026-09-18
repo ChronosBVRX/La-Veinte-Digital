@@ -950,7 +950,7 @@ export type Database = {
         }
         Relationships: []
       }
-      // → hand-added pending `supabase gen types` after migration 20260919000000_admin_user_control_center.sql
+      // → hand-added pending `supabase gen types` after migration 20260919040000_admin_user_control_center.sql
       user_admin_status: {
         Row: {
           auth_sync_at: string | null
@@ -2109,7 +2109,7 @@ export type Database = {
       }
     }
     Functions: {
-      // → hand-added pending `supabase gen types` after migration 20260919000000_admin_user_control_center.sql
+      // → hand-added pending `supabase gen types` after migration 20260919040000_admin_user_control_center.sql
       admin_apply_user_role: {
         Args: {
           p_actor: string
