@@ -9,6 +9,7 @@ import {
   formatCaseTypeLabel,
   formatCaseStatusLabel,
 } from "../lib/dashboard-format";
+import { isStationOnline } from "./print-jobs";
 
 export type { UnionDashboardSummary };
 export { formatRelativeTimeEs, formatCaseTypeLabel, formatCaseStatusLabel };
@@ -42,6 +43,8 @@ export async function getUnionDashboardSummary(delegationId: string): Promise<Un
     lockersRes,
     waitlistRes,
     lockerReviewRes,
+    stationRes,
+    printJobsRes,
   ] = await Promise.allSettled([
     // Workers total
     supabase
@@ -94,6 +97,24 @@ export async function getUnionDashboardSummary(delegationId: string): Promise<Un
       .select("id", { count: "exact", head: true })
       .eq("delegation_id", delegationId)
       .eq("status", "pending"),
+
+    // Print station
+    supabase
+      .from("union_print_stations")
+      .select("id, name, printer_name, is_active, last_seen_at")
+      .eq("delegation_id", delegationId)
+      .eq("is_active", true)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+
+    // Print jobs
+    supabase
+      .from("union_print_jobs")
+      .select("id, case_id, status, error_message, created_at")
+      .eq("delegation_id", delegationId)
+      .in("status", ["queued", "claimed", "printing", "failed"])
+      .order("created_at", { ascending: false }),
   ]);
 
   // Procesar Workers
@@ -144,6 +165,32 @@ export async function getUnionDashboardSummary(delegationId: string): Promise<Un
     lockerReviewRes.status === "fulfilled" && !lockerReviewRes.value.error
       ? lockerReviewRes.value.count ?? 0
       : 0;
+
+  // Procesar Estación e Impresión
+  const stationData =
+    stationRes.status === "fulfilled" && !stationRes.value.error
+      ? (stationRes.value.data as { name: string; printer_name: string; last_seen_at: string | null } | null)
+      : null;
+  const printJobsData =
+    printJobsRes.status === "fulfilled" && !printJobsRes.value.error && Array.isArray(printJobsRes.value.data)
+      ? (printJobsRes.value.data as { id: string; case_id: string | null; status: string; error_message: string | null; created_at: string }[])
+      : [];
+
+  const isStationAlive = stationData ? isStationOnline(stationData.last_seen_at) : false;
+  const queuedPrintJobs = printJobsData.filter((j) => j.status === "queued");
+  const inFlightPrintJobs = printJobsData.filter((j) => j.status === "claimed" || j.status === "printing");
+  const failedPrintJobs = printJobsData.filter((j) => j.status === "failed");
+
+  const printMetrics = {
+    hasStation: Boolean(stationData),
+    stationName: stationData?.name,
+    printerName: stationData?.printer_name,
+    isOnline: isStationAlive,
+    queuedCount: queuedPrintJobs.length,
+    printingCount: inFlightPrintJobs.length,
+    failedCount: failedPrintJobs.length,
+    error: stationRes.status === "rejected" || printJobsRes.status === "rejected",
+  };
 
   // Procesar casos recientes y estado de trámites
   type CaseRow = {
@@ -273,6 +320,32 @@ export async function getUnionDashboardSummary(delegationId: string): Promise<Un
     });
   }
 
+  // E) Trabajos de impresión fallidos
+  if (failedPrintJobs.length > 0) {
+    attentionItems.push({
+      id: "att-print-failed",
+      type: "print_failed",
+      title: `${failedPrintJobs.length} trabajo${failedPrintJobs.length > 1 ? "s" : ""} de impresión con error`,
+      subtitle: failedPrintJobs[0]?.error_message || "Revisa la cola de impresión de la oficina",
+      actionLabel: "Revisar",
+      actionHref: "/representacion/impresion",
+      urgency: "high",
+    });
+  }
+
+  // F) Estación desconectada con trabajos en cola
+  if (!isStationAlive && queuedPrintJobs.length > 0) {
+    attentionItems.push({
+      id: "att-print-offline",
+      type: "print_offline",
+      title: "Estación de impresión desconectada",
+      subtitle: `Hay ${queuedPrintJobs.length} documento${queuedPrintJobs.length > 1 ? "s" : ""} esperando en cola`,
+      actionLabel: "Ver cola",
+      actionHref: "/representacion/impresion",
+      urgency: "medium",
+    });
+  }
+
   // Ordenar y limitar a top 5 elementos accionables
   const topAttention = attentionItems.slice(0, 5);
 
@@ -320,6 +393,7 @@ export async function getUnionDashboardSummary(delegationId: string): Promise<Un
         error: casesError,
       },
       attentionCount: attentionItems.length,
+      print: printMetrics,
     },
     attentionItems: topAttention,
     recentActivity,

@@ -34,11 +34,21 @@ export interface UnionDashboardSummary {
       error?: boolean;
     };
     attentionCount: number;
+    print?: {
+      hasStation: boolean;
+      stationName?: string;
+      printerName?: string;
+      isOnline: boolean;
+      queuedCount: number;
+      printingCount: number;
+      failedCount: number;
+      error?: boolean;
+    };
   };
   attentionItems: Array<{
     id: string;
     caseId?: string;
-    type: "license_draft" | "case_under_review" | "locker_review" | "locker_waitlist";
+    type: "license_draft" | "case_under_review" | "locker_review" | "locker_waitlist" | "print_failed" | "print_offline";
     title: string;
     subtitle: string;
     actionLabel: string;

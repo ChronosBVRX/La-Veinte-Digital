@@ -7,6 +7,7 @@ import { Card } from "@/shared/components/ui/Card";
 import { WorkerPicker, type UnionWorkerOption } from "./WorkerPicker";
 import { calculateLicense } from "../lib/licenses";
 import { resolveUnionWorkerName } from "../services/worker-name-resolver";
+import { Printer } from "@phosphor-icons/react";
 
 export interface LicenseWizardProps {
   initialCaseId?: string | null;
@@ -53,6 +54,13 @@ export function LicenseWizard({
   const [downloadingExcel, setDownloadingExcel] = useState(false);
   const [downloadingWord, setDownloadingWord] = useState(false);
   const [printingPackage, setPrintingPackage] = useState(false);
+
+  // Estados de Impresión Automática en Oficina Sindical
+  const [autoPrintStatus, setAutoPrintStatus] = useState<"idle" | "preparing" | "queued" | "printing" | "printed" | "failed">("idle");
+  const [autoPrintStation, setAutoPrintStation] = useState<{ name: string; printer_name: string; is_online: boolean } | null>(null);
+  const [autoPrintError, setAutoPrintError] = useState<string | null>(null);
+  const [lastPrintedTime, setLastPrintedTime] = useState<string | null>(null);
+  const [showReprintConfirm, setShowReprintConfirm] = useState(false);
 
   // Detección de cambios sin guardar en modo edición
   const [isDirty, setIsDirty] = useState(false);
@@ -454,6 +462,91 @@ export function LicenseWizard({
       setError(err instanceof Error ? err.message : "Error al generar paquete de impresión.");
     } finally {
       setPrintingPackage(false);
+    }
+  }
+
+  // Cargar estado de la estación de oficina en Paso 3
+  useEffect(() => {
+    if (step !== 3 || !caseId) return;
+
+    let cancelled = false;
+    async function loadPrintStatus() {
+      try {
+        const res = await fetch("/api/union/print/stations/status", { cache: "no-store" });
+        if (!res.ok) return;
+        const j = await res.json();
+        if (!cancelled && j.success && j.station) {
+          setAutoPrintStation(j.station);
+        }
+      } catch {
+        // Silently continue
+      }
+    }
+    loadPrintStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [step, caseId]);
+
+  // Enviar a imprimir automáticamente sin diálogos
+  async function triggerAutoPrint(): Promise<void> {
+    if (!caseId) return;
+    setError(null);
+    setAutoPrintError(null);
+    setAutoPrintStatus("preparing");
+
+    try {
+      const res = await fetch("/api/union/print/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ case_id: caseId, copies: 1 }),
+      });
+
+      const j = await res.json();
+      if (!res.ok) {
+        throw new Error(j.error || "No se pudo enviar a la impresora.");
+      }
+
+      setAutoPrintStatus("queued");
+
+      const pollInterval = setInterval(async () => {
+        try {
+          const checkRes = await fetch(`/api/union/print/jobs?delegation_id=${j.job.delegation_id}`, { cache: "no-store" });
+          if (!checkRes.ok) return;
+          const checkData = await checkRes.json();
+          if (!checkData.success) return;
+
+          const isPrinted = (checkData.recent as Array<{ id: string }> | undefined)?.find((x) => x.id === j.job.id);
+          if (isPrinted) {
+            setAutoPrintStatus("printed");
+            setLastPrintedTime(new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }));
+            clearInterval(pollInterval);
+            return;
+          }
+
+          const isPrinting = (checkData.printing as Array<{ id: string }> | undefined)?.find((x) => x.id === j.job.id);
+          if (isPrinting) {
+            setAutoPrintStatus("printing");
+            return;
+          }
+
+          const isFailed = (checkData.failed as Array<{ id: string; error_message?: string }> | undefined)?.find((x) => x.id === j.job.id);
+          if (isFailed) {
+            setAutoPrintStatus("failed");
+            setAutoPrintError(isFailed.error_message || "La impresora no pudo completar el trabajo.");
+            clearInterval(pollInterval);
+            return;
+          }
+        } catch {
+          // Keep polling
+        }
+      }, 2500);
+
+      setTimeout(() => clearInterval(pollInterval), 90000);
+    } catch (err: unknown) {
+      setAutoPrintStatus("failed");
+      setAutoPrintError(err instanceof Error ? err.message : "Error al enviar a la impresora.");
     }
   }
 
@@ -896,41 +989,86 @@ export function LicenseWizard({
 
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                 <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Acción Principal
+                  Acción Principal de Oficina
                 </div>
                 <Button
-                  onClick={() => void printPackage()}
+                  onClick={() => {
+                    if (autoPrintStatus === "printed" || lastPrintedTime) {
+                      setShowReprintConfirm(true);
+                    } else {
+                      void triggerAutoPrint();
+                    }
+                  }}
                   variant="primary"
-                  loading={printingPackage}
-                  disabled={downloadingExcel || downloadingWord}
+                  loading={autoPrintStatus === "preparing" || autoPrintStatus === "queued" || autoPrintStatus === "printing"}
+                  disabled={downloadingExcel || downloadingWord || printingPackage}
                   fullWidth
                 >
-                  {printingPackage ? "Preparando expediente..." : "🖨️ Imprimir ambos (Oficio + Solicitud en PDF)"}
+                  <Printer size={18} weight="bold" />
+                  {autoPrintStatus === "preparing"
+                    ? "Preparando documentos..."
+                    : autoPrintStatus === "queued"
+                      ? "Enviado a impresora (En cola)..."
+                      : autoPrintStatus === "printing"
+                        ? "Imprimiendo en oficina..."
+                        : autoPrintStatus === "printed"
+                          ? "✓ Impreso correctamente (Reimprimir)"
+                          : autoPrintStatus === "failed"
+                            ? "Reintentar impresión automática"
+                            : "Mandar a imprimir"}
                 </Button>
+
+                {/* Subtítulo informativo */}
+                <div style={{ fontSize: "0.75rem", color: "var(--muted)", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 0.25rem" }}>
+                  <span>Oficio + Solicitud · Oficina Sindical</span>
+                  {autoPrintStation ? (
+                    <span style={{ color: autoPrintStation.is_online ? "#16a34a" : "#dc2626", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: autoPrintStation.is_online ? "#16a34a" : "#dc2626", display: "inline-block" }} />
+                      {autoPrintStation.is_online ? "Impresora disponible" : "Impresora desconectada"}
+                    </span>
+                  ) : (
+                    <span style={{ color: "var(--muted)" }}>Verificando estación...</span>
+                  )}
+                </div>
+
+                {autoPrintError && (
+                  <div style={{ fontSize: "0.8125rem", color: "#dc2626", backgroundColor: "rgba(220, 38, 38, 0.08)", padding: "0.5rem 0.75rem", borderRadius: "4px" }}>
+                    {autoPrintError}
+                  </div>
+                )}
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.25rem" }}>
                 <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Descargas Individuales
+                  Opciones Secundarias
                 </div>
+                <Button
+                  onClick={() => void printPackage()}
+                  variant="secondary"
+                  loading={printingPackage}
+                  disabled={downloadingExcel || downloadingWord || autoPrintStatus === "preparing"}
+                  fullWidth
+                >
+                  {printingPackage ? "Preparando visor..." : "👁️ Ver / Imprimir ambos"}
+                </Button>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
                   <Button
                     onClick={() => void download("word")}
-                    variant="secondary"
+                    variant="ghost"
                     loading={downloadingWord}
                     disabled={downloadingExcel || printingPackage}
                     fullWidth
                   >
-                    Descargar Oficio Word (.docx)
+                    📄 Oficio Word (.docx)
                   </Button>
                   <Button
                     onClick={() => void download("excel")}
-                    variant="secondary"
+                    variant="ghost"
                     loading={downloadingExcel}
                     disabled={downloadingWord || printingPackage}
                     fullWidth
                   >
-                    Descargar Solicitud Excel (.xlsm)
+                    📊 Formato Excel (.xlsm)
                   </Button>
                 </div>
               </div>
@@ -945,6 +1083,33 @@ export function LicenseWizard({
             </div>
           )}
         </Card>
+      )}
+
+      {/* Modal de confirmación para reimpresión */}
+      {showReprintConfirm && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "1rem" }}>
+          <div style={{ backgroundColor: "var(--card)", borderRadius: "var(--radius, 0.5rem)", maxWidth: "420px", width: "100%", padding: "1.25rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700 }}>Reimprimir Licencia</h3>
+            <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)", lineHeight: 1.5 }}>
+              Esta licencia ya fue enviada e impresa {lastPrintedTime ? `a las ${lastPrintedTime}` : "previamente"}. ¿Deseas enviar otra copia a la impresora de la oficina?
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+              <Button variant="ghost" size="sm" onClick={() => setShowReprintConfirm(false)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setShowReprintConfirm(false);
+                  void triggerAutoPrint();
+                }}
+              >
+                Reimprimir
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Modal global de confirmación de salida con cambios sin guardar */}

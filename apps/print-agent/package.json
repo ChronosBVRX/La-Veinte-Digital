@@ -1,0 +1,18 @@
+{
+  "name": "la-veinte-print-agent",
+  "version": "1.0.0",
+  "description": "Agente nativo de impresión automática y silenciosa para la oficina sindical de La Veinte Digital",
+  "main": "src/index.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "setup": "node src/cli.mjs",
+    "status": "node -e \"import('./src/security.mjs').then(s => console.log(s.readConfigSummary()))\"",
+    "test:printers": "node -e \"import('pdf-to-printer').then(p => p.getPrinters().then(printers => console.log('Impresoras instaladas en Windows:', printers)))\""
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "dotenv": "^16.4.7",
+    "pdf-to-printer": "^5.8.1"
+  }
+}

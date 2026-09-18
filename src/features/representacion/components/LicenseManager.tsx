@@ -85,6 +85,8 @@ export function LicenseManager(): React.JSX.Element {
 
   // Descargas e impresiones
   const [printingCaseId, setPrintingCaseId] = useState<string | null>(null);
+  const [autoPrintingCaseId, setAutoPrintingCaseId] = useState<string | null>(null);
+  const [autoPrintSuccessId, setAutoPrintSuccessId] = useState<string | null>(null);
   const [downloadingKind, setDownloadingKind] = useState<{ id: string; kind: "word" | "excel" } | null>(null);
 
   // Carga de datos del listado
@@ -264,6 +266,27 @@ export function LicenseManager(): React.JSX.Element {
       alert(err instanceof Error ? err.message : "Error al imprimir paquete");
     } finally {
       setPrintingCaseId(null);
+    }
+  }
+
+  // Mandar a imprimir a la oficina sindical de forma automática y silenciosa
+  async function handleAutoPrint(cId: string) {
+    setAutoPrintingCaseId(cId);
+    try {
+      const res = await fetch("/api/union/print/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ case_id: cId, copies: 1 }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "No se pudo enviar a la impresora.");
+      setAutoPrintSuccessId(cId);
+      setTimeout(() => setAutoPrintSuccessId(null), 4000);
+      await fetchList();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Error al enviar a impresora.");
+    } finally {
+      setAutoPrintingCaseId(null);
     }
   }
 
@@ -627,10 +650,20 @@ export function LicenseManager(): React.JSX.Element {
                         <Button
                           size="sm"
                           variant="primary"
+                          loading={autoPrintingCaseId === c.id}
+                          onClick={() => handleAutoPrint(c.id)}
+                          title="Mandar a la impresora de la oficina sindical sin diálogos"
+                        >
+                          {autoPrintSuccessId === c.id ? "✓ Enviado" : "🖨️ Mandar a imprimir"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           loading={printingCaseId === c.id}
                           onClick={() => handlePrintPackage(c.id, c.folio)}
+                          title="Ver ambos en el navegador"
                         >
-                          🖨️ Imprimir ambos
+                          👁️ Ver ambos
                         </Button>
 
                         {/* Menú de acciones secundarias */}
@@ -745,10 +778,18 @@ export function LicenseManager(): React.JSX.Element {
               <Button
                 variant="primary"
                 fullWidth
+                loading={autoPrintingCaseId === detailCase.id}
+                onClick={() => handleAutoPrint(detailCase.id)}
+              >
+                {autoPrintSuccessId === detailCase.id ? "✓ Enviado a impresora de oficina" : "🖨️ Mandar a imprimir (Oficina Sindical)"}
+              </Button>
+              <Button
+                variant="secondary"
+                fullWidth
                 loading={printingCaseId === detailCase.id}
                 onClick={() => handlePrintPackage(detailCase.id, detailCase.folio)}
               >
-                🖨️ Imprimir ambos (Oficio + Solicitud)
+                👁️ Ver e imprimir en navegador (Ambos)
               </Button>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
                 <Button
