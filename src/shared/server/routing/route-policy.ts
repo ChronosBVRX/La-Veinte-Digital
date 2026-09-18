@@ -124,10 +124,41 @@ export function isApiPath(pathname: string): boolean {
   return pathname === "/api" || pathname.startsWith("/api/")
 }
 
+// Rutas dinámicas del registro (p. ej. `/api/admin/users/[id]/trash`). Cada
+// placeholder `[param]` coincide con EXACTAMENTE un segmento (`[^/]+`); el
+// patrón queda ancorado al path completo, por lo que sigue prohibido el match
+// por prefijo y los segmentos extra caen en `unknown-api`. El valor del
+// segmento lo valida el propio route handler (UUID, etc.).
+const DYNAMIC_SEGMENT = /^\[[a-z_][a-z0-9_]*\]$/i
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+const API_ACCESS_PATTERNS: ReadonlyArray<{ regex: RegExp; level: ApiAccessLevel }> = Object.entries(
+  API_ACCESS,
+)
+  .filter(([route]) => route.includes("["))
+  .map(([route, level]) => ({
+    regex: new RegExp(
+      `^${route
+        .split("/")
+        .map((segment) => (DYNAMIC_SEGMENT.test(segment) ? "[^/]+" : escapeRegExp(segment)))
+        .join("/")}$`,
+    ),
+    level,
+  }))
+
 export function getApiAccessLevel(pathname: string): ApiAccessLevel | null {
-  return Object.prototype.hasOwnProperty.call(API_ACCESS, pathname)
-    ? API_ACCESS[pathname as keyof typeof API_ACCESS]
-    : null
+  if (Object.prototype.hasOwnProperty.call(API_ACCESS, pathname)) {
+    return API_ACCESS[pathname as keyof typeof API_ACCESS]
+  }
+
+  for (const { regex, level } of API_ACCESS_PATTERNS) {
+    if (regex.test(pathname)) return level
+  }
+
+  return null
 }
 
 export function classifyRequestPath(pathname: string): RequestRouteClass {
