@@ -20,6 +20,11 @@ import {
   type AdminUserActionKind,
   type AdminUserActionTarget,
 } from "@/features/admin-users/components/UserActionDialog"
+import {
+  UnionRoleDialog,
+  type UnionRoleAction,
+  type UnionRoleTarget,
+} from "@/features/admin-users/components/UnionRoleDialog"
 
 interface AdminUsersScreenProps {
   initialPage: AdminUserPage | null
@@ -45,6 +50,7 @@ export function AdminUsersScreen({ initialPage, initialError }: AdminUsersScreen
   const [searchInput, setSearchInput] = useState("")
   const [detailId, setDetailId] = useState<string | null>(null)
   const [actionDialog, setActionDialog] = useState<{ kind: AdminUserActionKind; target: AdminUserActionTarget } | null>(null)
+  const [unionDialog, setUnionDialog] = useState<{ target: UnionRoleTarget; action: UnionRoleAction } | null>(null)
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -395,6 +401,10 @@ export function AdminUsersScreen({ initialPage, initialError }: AdminUsersScreen
           setDetailId(null)
           setActionDialog({ kind, target })
         }}
+        onRequestUnionRole={(target, action) => {
+          setDetailId(null)
+          setUnionDialog({ target, action })
+        }}
         onCompleted={handleCompleted}
       />
 
@@ -404,6 +414,15 @@ export function AdminUsersScreen({ initialPage, initialError }: AdminUsersScreen
         action={actionDialog?.kind ?? null}
         target={actionDialog?.target ?? null}
         onClose={() => setActionDialog(null)}
+        onCompleted={handleCompleted}
+      />
+
+      <UnionRoleDialog
+        key={unionDialog ? `${unionDialog.action.kind}-${unionDialog.target.id}` : "sin-union"}
+        open={!!unionDialog}
+        target={unionDialog?.target ?? null}
+        action={unionDialog?.action ?? null}
+        onClose={() => setUnionDialog(null)}
         onCompleted={handleCompleted}
       />
     </div>

@@ -62,6 +62,7 @@ export const API_ACCESS = {
   "/api/admin/users": "authenticated",
   "/api/admin/users/[id]": "authenticated",
   "/api/admin/users/[id]/role": "authenticated",
+  "/api/admin/users/[id]/union-role": "authenticated",
   "/api/admin/users/[id]/suspend": "authenticated",
   "/api/admin/users/[id]/reactivate": "authenticated",
   "/api/admin/users/[id]/trash": "authenticated",

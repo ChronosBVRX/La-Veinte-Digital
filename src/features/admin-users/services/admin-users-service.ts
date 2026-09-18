@@ -8,6 +8,8 @@ import type {
   AdminAuditPage,
   AdminAuditQuery,
   AdminMutationResult,
+  AdminUnionDelegation,
+  AdminUnionMembership,
   AdminUserActivityEvent,
   AdminUserDetail,
   AdminUserListQuery,
@@ -16,6 +18,7 @@ import type {
   AdminUserSummary,
   PlatformRole,
   SortDirection,
+  UnionRoleName,
 } from "@/shared/contracts/admin-users"
 
 export class AdminUsersError extends Error {
@@ -71,6 +74,10 @@ const RPC_ERROR_MAP: Record<string, { code: AdminApiErrorCode; status: number; m
     message: "La eliminación definitiva está deshabilitada en el servidor (ADMIN_PERMANENT_DELETE_ENABLED).",
   },
   target_email_required: { code: "invalid_request", status: 400, message: "Falta el correo de confirmación." },
+  invalid_union_role: { code: "invalid_request", status: 400, message: "Rol sindical inválido." },
+  invalid_state: { code: "invalid_request", status: 400, message: "Estado de membresía inválido." },
+  delegation_not_found: { code: "not_found", status: 404, message: "La delegación sindical no existe o está inactiva." },
+  membership_not_found: { code: "not_found", status: 404, message: "La cuenta no tiene esa membresía sindical." },
 }
 
 export function mapRpcError(error: RpcLikeError | null | undefined): AdminUsersError {
@@ -263,10 +270,59 @@ function parseActivity(raw: Json | null): AdminUserActivityEvent[] {
   return events
 }
 
+function parseUnionMemberships(raw: Json | undefined): AdminUnionMembership[] {
+  if (!Array.isArray(raw)) return []
+
+  const memberships: AdminUnionMembership[] = []
+  for (const item of raw) {
+    const record = asRecord(item)
+    const id = asString(record.id)
+    const delegationId = asString(record.delegationId)
+    const role = asString(record.role)
+    if (!id || !delegationId) continue
+    if (role !== "union_rep" && role !== "union_admin") continue
+
+    memberships.push({
+      id,
+      delegationId,
+      delegationCode: asString(record.delegationCode) ?? "—",
+      delegationName: asString(record.delegationName) ?? "—",
+      role,
+      active: asBoolean(record.active),
+      createdAt: asString(record.createdAt),
+      updatedAt: asString(record.updatedAt),
+    })
+  }
+
+  return memberships
+}
+
+function parseUnionDelegations(raw: Json | undefined): AdminUnionDelegation[] {
+  if (!Array.isArray(raw)) return []
+
+  const delegations: AdminUnionDelegation[] = []
+  for (const item of raw) {
+    const record = asRecord(item)
+    const id = asString(record.id)
+    const code = asString(record.code)
+    if (!id || !code) continue
+
+    delegations.push({
+      id,
+      code,
+      name: asString(record.name) ?? code,
+      active: asBoolean(record.active),
+    })
+  }
+
+  return delegations
+}
+
 function parseDetail(raw: Json | null): Omit<AdminUserDetail, "activity" | "permanentDeleteEnabled"> {
   const root = asRecord(raw)
   const user = asRecord(root.user)
   const status = asRecord(root.status)
+  const union = asRecord(root.union)
   const counts = asRecord(root.counts)
   const diagnostics = asRecord(root.diagnostics)
   const flags = asRecord(root.flags)
@@ -303,6 +359,10 @@ function parseDetail(raw: Json | null): Omit<AdminUserDetail, "activity" | "perm
       sessionsRevokedAt: asString(status.sessionsRevokedAt),
       authSyncAt: asString(status.authSyncAt),
       authSyncError: asString(status.authSyncError),
+    },
+    union: {
+      memberships: parseUnionMemberships(union.memberships),
+      delegations: parseUnionDelegations(union.delegations),
     },
     counts: {
       payslips: asNumber(counts.payslips),
@@ -531,6 +591,41 @@ export async function changeUserRole(
 
   if (error) throw mapRpcError(error)
   return { ok: true }
+}
+
+/**
+ * Alta/baja auditada de una membresía sindical (Representación).
+ * No modifica el rol de plataforma: los sistemas son ortogonales y el acceso
+ * sindical depende de la membresía explícita (guardrail vigente).
+ */
+export async function setUnionMembership(
+  actorId: string,
+  targetId: string,
+  delegationId: string,
+  role: UnionRoleName,
+  active: boolean,
+  reason: string,
+): Promise<AdminMutationResult> {
+  const client = serviceRoleClient()
+
+  const { error } = await client.rpc("admin_set_union_membership", {
+    p_actor: actorId,
+    p_target: targetId,
+    p_delegation_id: delegationId,
+    p_role: role,
+    p_active: active,
+    p_reason: reason,
+    p_request_id: newRequestId(),
+  })
+
+  if (error) throw mapRpcError(error)
+
+  return {
+    ok: true,
+    message: active
+      ? "Rol sindical habilitado. El usuario ya puede acceder a Representación Sindical."
+      : "Rol sindical retirado. Si no conserva otra membresía activa, perderá el acceso a Representación.",
+  }
 }
 
 export async function suspendUser(

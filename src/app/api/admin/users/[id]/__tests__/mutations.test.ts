@@ -10,6 +10,7 @@ vi.mock("@/features/admin-users/services/admin-users-service", async (importOrig
     ...actual,
     getAdminUserDetail: vi.fn(),
     changeUserRole: vi.fn(),
+    setUnionMembership: vi.fn(),
     suspendUser: vi.fn(),
     reactivateUser: vi.fn(),
     trashUser: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock("@/features/admin-users/services/admin-users-service", async (importOrig
 
 import { GET as getDetail } from "../route"
 import { POST as postRole } from "../role/route"
+import { POST as postUnionRole } from "../union-role/route"
 import { POST as postSuspend } from "../suspend/route"
 import { POST as postTrash } from "../trash/route"
 import { POST as postPurge } from "../purge/route"
@@ -40,6 +42,7 @@ import {
   purgeUser,
   resendConfirmationEmail,
   revokeUserSessions,
+  setUnionMembership,
   startPasswordRecovery,
   suspendUser,
   trashUser,
@@ -196,6 +199,73 @@ describe("rutas de mutación /api/admin/users/[id]", () => {
     const response = await postRevokeSessions(jsonRequest({ reason: "incidente de seguridad" }), context())
     expect(response.status).toBe(200)
     expect(revokeUserSessions).toHaveBeenCalledWith("admin-1", TARGET, "incidente de seguridad")
+  })
+
+  it("rol sindical: valida delegación, rol y motivo antes de delegar", async () => {
+    const invalid = await postUnionRole(
+      jsonRequest({ delegationId: "no-uuid", role: "union_admin", active: true, reason: "alta" }),
+      context(),
+    )
+    expect(invalid.status).toBe(400)
+    expect(setUnionMembership).not.toHaveBeenCalled()
+
+    vi.mocked(setUnionMembership).mockResolvedValue({ ok: true, message: "habilitado" } as never)
+    const response = await postUnionRole(
+      jsonRequest({
+        delegationId: "22222222-2222-4222-8222-222222222222",
+        role: "union_admin",
+        active: true,
+        reason: "alta de rol sindical",
+      }),
+      context(),
+    )
+    expect(response.status).toBe(200)
+    expect(setUnionMembership).toHaveBeenCalledWith(
+      "admin-1",
+      TARGET,
+      "22222222-2222-4222-8222-222222222222",
+      "union_admin",
+      true,
+      "alta de rol sindical",
+    )
+  })
+
+  it("rol sindical: propaga delegación inexistente sin inventar el estado", async () => {
+    vi.mocked(setUnionMembership).mockRejectedValue(
+      new AdminUsersError("not_found", "La delegación sindical no existe o está inactiva.", 404),
+    )
+    const response = await postUnionRole(
+      jsonRequest({
+        delegationId: "33333333-3333-4333-8333-333333333333",
+        role: "union_rep",
+        active: true,
+        reason: "delegacion invalida",
+      }),
+      context(),
+    )
+    expect(response.status).toBe(404)
+    const body = await response.json()
+    expect(body.code).toBe("not_found")
+    expect(setUnionMembership).toHaveBeenCalledTimes(1)
+  })
+
+  it("rol sindical: exige privilegio de plataforma (403 sin rol admin)", async () => {
+    vi.mocked(requirePlatformAdmin).mockResolvedValue({
+      user: null,
+      response: new Response(JSON.stringify({ error: "No autorizado", code: "forbidden" }), { status: 403 }),
+    } as never)
+
+    const response = await postUnionRole(
+      jsonRequest({
+        delegationId: "22222222-2222-4222-8222-222222222222",
+        role: "union_rep",
+        active: true,
+        reason: "sin privilegio",
+      }),
+      context(),
+    )
+    expect(response.status).toBe(403)
+    expect(setUnionMembership).not.toHaveBeenCalled()
   })
 
   it("confirmación: solo disponible para administradores (403 sin privilegio)", async () => {

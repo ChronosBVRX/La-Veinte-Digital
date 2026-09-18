@@ -72,6 +72,23 @@ const DETAIL = {
     authSyncAt: null,
     authSyncError: null,
   },
+  union: {
+    memberships: [
+      {
+        id: "m-1",
+        delegationId: "00000000-0000-0000-0000-00000000d001",
+        delegationCode: "XXI",
+        delegationName: "Delegación XXI",
+        role: "union_admin",
+        active: true,
+        createdAt: "2026-09-01T00:00:00.000Z",
+        updatedAt: "2026-09-01T00:00:00.000Z",
+      },
+    ],
+    delegations: [
+      { id: "00000000-0000-0000-0000-00000000d001", code: "XXI", name: "Delegación XXI", active: true },
+    ],
+  },
   counts: { payslips: 1, remoteDocuments: 1, hasPayrollContext: true },
   diagnostics: {
     authentication: "OK",
@@ -185,6 +202,56 @@ describe("AdminUsersScreen", () => {
     })
     const body = JSON.parse(String(fetchMock.mock.calls.find((call) => String(call[0]).includes("/trash"))?.[1]?.body))
     expect(body).toEqual({ reason: "cuenta duplicada" })
+  })
+
+  it("muestra la sección sindical y permite asignar el rol con motivo", async () => {
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") return jsonResponse({ ok: true })
+      if (String(url).includes("/api/admin/users/u-1")) return jsonResponse(DETAIL)
+      return jsonResponse(USER_PAGE)
+    })
+
+    render(<AdminUsersScreen initialPage={USER_PAGE} initialError={false} />)
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Acciones para Worker Uno/i })[0])
+    fireEvent.click(screen.getByRole("menuitem", { name: "Ver ficha" }))
+
+    await waitFor(() => {
+      expect(screen.getByText("Representación Sindical")).toBeTruthy()
+    })
+    expect(screen.getByText(/Administrador Sindical/)).toBeTruthy()
+    expect(screen.getByText(/activo/)).toBeTruthy()
+    expect(screen.getByText(/no del rol de plataforma/i)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: /Asignar rol sindical/i }))
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Motivo/i)).toBeTruthy()
+    })
+
+    const submit = screen.getByRole("button", { name: "Habilitar acceso" }) as HTMLButtonElement
+    expect(submit.disabled).toBe(true)
+
+    fireEvent.change(screen.getByLabelText(/Motivo/i), { target: { value: "alta de rol sindical" } })
+    await waitFor(() => expect(submit.disabled).toBe(false))
+
+    fireEvent.click(submit)
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/admin/users/u-1/union-role",
+        expect.objectContaining({ method: "POST" }),
+      )
+    })
+    const body = JSON.parse(
+      String(fetchMock.mock.calls.find((call) => String(call[0]).includes("/union-role"))?.[1]?.body),
+    )
+    expect(body).toEqual({
+      delegationId: "00000000-0000-0000-0000-00000000d001",
+      role: "union_rep",
+      active: true,
+      reason: "alta de rol sindical",
+    })
   })
 
   it("bloquea la eliminación definitiva cuando el servidor la deshabilita", async () => {
