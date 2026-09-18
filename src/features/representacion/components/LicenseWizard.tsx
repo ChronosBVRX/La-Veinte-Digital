@@ -4,8 +4,9 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/shared/components/ui/Button";
 import { Input } from "@/shared/components/ui/Input";
 import { Card } from "@/shared/components/ui/Card";
-import { WorkerPicker, getWorkerDisplayName, type UnionWorkerOption } from "./WorkerPicker";
+import { WorkerPicker, type UnionWorkerOption } from "./WorkerPicker";
 import { calculateLicense } from "../lib/licenses";
+import { resolveUnionWorkerName } from "../services/worker-name-resolver";
 
 export interface LicenseWizardProps {
   initialCaseId?: string | null;
@@ -93,6 +94,7 @@ export function LicenseWizard({
             first_name: String(rawWorker.first_name ?? rawWorker.firstName ?? ""),
             paternal_surname: String(rawWorker.paternal_surname ?? rawWorker.paternalSurname ?? ""),
             maternal_surname: String(rawWorker.maternal_surname ?? rawWorker.maternalSurname ?? ""),
+            siap_full_name: typeof rawWorker.siap_full_name === "string" ? rawWorker.siap_full_name : typeof rawWorker.siapFullName === "string" ? rawWorker.siapFullName : undefined,
             category: String(rawWorker.category ?? ""),
             assignment: String(rawWorker.assignment ?? ""),
             turn: String(rawWorker.turn ?? ""),
@@ -153,8 +155,9 @@ export function LicenseWizard({
     }
   })();
 
-  const workerDisplayName = worker ? getWorkerDisplayName(worker) : "";
-  const isWorkerMissingName = worker ? !workerDisplayName || workerDisplayName === "Sin nombre" : false;
+  const resolvedWorker = worker ? resolveUnionWorkerName(worker) : null;
+  const workerDisplayName = resolvedWorker?.displayName || "";
+  const isWorkerMissingName = worker ? !resolvedWorker?.validForLicense : false;
   const isWorkerMissingMatricula = worker ? !worker.employee_number?.trim() : false;
 
   // Autoguardado del borrador progresivo
