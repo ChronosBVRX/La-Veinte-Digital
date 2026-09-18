@@ -57,7 +57,9 @@ helpers `union_is_member/admin/my_delegations`, RLS completa y bucket privado
 
 ## Integración con el shell
 
-- `src/app/(dashboard)/layout.tsx` calcula `canAccessUnion` (membresía o admin).
+- `src/app/(dashboard)/layout.tsx` calcula `canAccessUnion` (solo membresía activa; el rol de plataforma no habilita Representación).
 - `DashboardShell` → `DesktopSidebar` muestra "Representación Sindical" solo con acceso.
+- El shell sindical muestra "Panel de administración" únicamente si la cuenta
+  tiene además `profiles.role='admin'` (enlace de regreso, sin alterar permisos).
 - Home y demás módulos intactos (cero cambios en Tarjetón, Vacaciones,
   Calculadoras, Radio, TTS).

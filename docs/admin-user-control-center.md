@@ -91,7 +91,8 @@ cerrado. Cubierto por pruebas.
 |---|---|---|
 | GET | `/api/admin/users` | Listado paginado con búsqueda/filtros/orden |
 | GET | `/api/admin/users/[id]` | Ficha + actividad |
-| POST | `/api/admin/users/[id]/role` | Cambio de rol |
+| POST | `/api/admin/users/[id]/role` | Cambio de rol (plataforma) |
+| POST | `/api/admin/users/[id]/union-role` | Alta/baja auditada del rol sindical (`union_rep`/`union_admin`) |
 | POST | `/api/admin/users/[id]/suspend` | Suspensión temporal/indefinida |
 | POST | `/api/admin/users/[id]/reactivate` | Reactivación |
 | POST | `/api/admin/users/[id]/trash` | Envío a papelera (30 días) |
@@ -118,6 +119,20 @@ query, paginación acotada (1..100), errores JSON consistentes `{ error, code }`
   purga).
 - `/admin/usuarios/auditoria`: bitácora paginada con filtros por acción y fechas.
 - `/cuenta-suspendida`: aviso público, sin datos internos, con cierre de sesión.
+
+### Representación Sindical desde el Centro de Usuarios (migración `20260919060000`)
+
+- La ficha muestra las membresías sindicales del usuario y permite **asignar o retirar**
+  `union_rep` / `union_admin` por delegación, con motivo obligatorio y bitácora
+  (`user.union_role_change`).
+- **Guardrail intacto:** el rol de plataforma no habilita Representación por sí mismo; el
+  acceso se abre solo al crear la membresía explícita (RLS y helpers sindicales sin
+  bypass).
+- Un `union_rep` ve únicamente los módulos sindicales: "Administración Sindical" es
+  exclusiva de `union_admin` y las rutas de importación redirigen a
+  `/representacion/acceso-denegado`.
+- Una cuenta con `profiles.role='admin'` **y** membresía ve ambos mundos: el shell sindical
+  incluye el enlace "Panel de administración" (solo presentación; los permisos no cambian).
 
 ### Privacidad
 

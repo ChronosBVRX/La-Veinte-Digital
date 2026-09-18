@@ -11,6 +11,14 @@
 - BETA PRIVADA: `profiles.role='admin'` NO otorga acceso sindical; todo acceso
   depende exclusivamente de `union_members` (helpers SQL y capa de aplicación
   sin bypass global).
+- El Centro de Administración de Usuarios (`/admin/usuarios`, migración
+  `20260919060000`) puede otorgar o retirar membresías sindicales
+  (`union_rep`/`union_admin`) de forma auditada (`user.union_role_change`).
+  El acceso se abre solo al crear la membresía explícita: el rol de plataforma
+  sigue sin habilitar Representación por sí mismo.
+- El módulo "Administración" sindical es visible y accesible solo para
+  `union_admin`; un `union_rep` que intente entrar es redirigido a
+  `/representacion/acceso-denegado`.
 - Tablas detalle (maternidad/lactancia/pasajes/licencias/documentos/eventos)
   autorizan vía delegación del caso padre.
 - `union_folio_counters`: escritura autenticada (folio atómico vía RPC
