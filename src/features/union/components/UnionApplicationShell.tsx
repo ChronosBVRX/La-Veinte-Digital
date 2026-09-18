@@ -70,7 +70,7 @@ export const UNION_NAV_GROUPS: UnionNavGroup[] = [
     id: "gestion",
     label: "Gestión",
     modules: [
-      { href: "/representacion/administracion", label: "Administración", description: "Comité y auditoría", icon: ShieldCheck },
+      { href: "/representacion/administracion", label: "Administración", description: "Comité y auditoría", icon: ShieldCheck, adminOnly: true },
     ],
   },
 ];
@@ -88,6 +88,8 @@ const MOBILE_PRIMARY_MODULES: UnionNavModule[] = [
 export interface UnionApplicationShellProps {
   memberships: UnionMembership[];
   userName?: string | null;
+  /** true si la cuenta también tiene rol de plataforma `admin` (enlace de regreso a /admin). */
+  isPlatformAdmin?: boolean;
   children: ReactNode;
 }
 
@@ -95,7 +97,7 @@ function isModuleActive(pathname: string, href: string): boolean {
   return href === "/representacion" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function UnionApplicationShell({ memberships, userName, children }: UnionApplicationShellProps): React.JSX.Element {
+export function UnionApplicationShell({ memberships, userName, isPlatformAdmin = false, children }: UnionApplicationShellProps): React.JSX.Element {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -130,6 +132,12 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
     } satisfies UnionNavModule);
 
   const isAdmin = memberships.some((m) => m.role === "union_admin");
+  // Los módulos `adminOnly` (Administración Sindical) solo se muestran a
+  // union_admin; el representante ve exclusivamente los módulos sindicales.
+  const visibleNavGroups = UNION_NAV_GROUPS.map((group) => ({
+    ...group,
+    modules: group.modules.filter((mod) => !mod.adminOnly || isAdmin),
+  })).filter((group) => group.modules.length > 0);
   const delegationCode = memberships[0]?.delegation_code || "XXI";
   const displayIdentity =
     userName && typeof userName === "string" && !userName.includes("@") && userName.trim().length > 0
@@ -378,7 +386,7 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
           }}
         >
           <nav aria-label="Módulos sindicales" style={{ padding: "0.625rem 0.5rem", flex: 1 }}>
-            {UNION_NAV_GROUPS.map((group, index) => (
+            {visibleNavGroups.map((group, index) => (
               <div key={group.id} style={{ marginTop: index === 0 ? 0 : "0.75rem" }}>
                 <span
                   style={{
@@ -422,6 +430,20 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
             >
               Aviso de privacidad sindical
             </Link>
+            {isPlatformAdmin ? (
+              <Link
+                href="/admin"
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--primary, #2563eb)",
+                  textDecoration: "none",
+                  padding: "0.25rem 0",
+                  fontWeight: 600,
+                }}
+              >
+                Panel de administración
+              </Link>
+            ) : null}
           </div>
         </aside>
 
@@ -508,7 +530,7 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
           </div>
 
           <nav aria-label="Módulos sindicales móviles" style={{ padding: "0.625rem 0.5rem", flex: 1 }}>
-            {UNION_NAV_GROUPS.map((group, index) => (
+            {visibleNavGroups.map((group, index) => (
               <div key={group.id} style={{ marginTop: index === 0 ? 0 : "0.75rem" }}>
                 <span
                   style={{
@@ -560,6 +582,23 @@ export function UnionApplicationShell({ memberships, userName, children }: Union
             >
               Aviso de privacidad sindical
             </Link>
+            {isPlatformAdmin ? (
+              <Link
+                href="/admin"
+                onClick={closeDrawer}
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--primary, #2563eb)",
+                  textDecoration: "none",
+                  minHeight: 44,
+                  display: "flex",
+                  alignItems: "center",
+                  fontWeight: 600,
+                }}
+              >
+                Panel de administración
+              </Link>
+            ) : null}
             <SignOutButton onDone={closeDrawer} />
           </div>
         </div>

@@ -56,11 +56,21 @@ export default async function UnionLayout({ children }: { children: ReactNode })
     roleLabel,
   );
 
+  // 4. Si la cuenta también tiene rol de plataforma, se muestra el enlace de
+  // regreso al panel de administración (no altera el acceso sindical).
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  const isPlatformAdmin = profile?.role === "admin";
+
   return (
     <ToastProvider>
       <UnionApplicationShell
         memberships={memberships}
         userName={safeDisplayName}
+        isPlatformAdmin={isPlatformAdmin}
       >
         {children}
       </UnionApplicationShell>
