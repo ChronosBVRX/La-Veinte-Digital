@@ -1029,7 +1029,11 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
                       Generar Nuevo Código
                     </Button>
                   )}
-                  <Button variant="ghost" onClick={() => setShowEnrollModal(false)}>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setShowEnrollModal(false)}
+                    style={{ whiteSpace: "nowrap", flexShrink: 0 }}
+                  >
                     Cerrar
                   </Button>
                 </div>
