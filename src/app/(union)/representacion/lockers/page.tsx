@@ -1,8 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getUnionMemberships } from "@/features/representacion/services/permissions";
-import { LockerBoard } from "@/features/representacion/components/LockerBoard";
-import { WaitlistPanel } from "@/features/representacion/components/WaitlistPanel";
+import { LockerControlCenter } from "@/features/representacion/components/lockers/LockerControlCenter";
 
 export const dynamic = "force-dynamic";
 
@@ -14,15 +13,12 @@ export default async function LockersPage(): Promise<React.JSX.Element> {
       <Suspense
         fallback={
           <div style={{ padding: "1.5rem", color: "var(--muted)", fontSize: "0.875rem" }}>
-            Cargando casilleros…
+            Cargando centro de casilleros…
           </div>
         }
       >
-        <LockerBoard />
+        <LockerControlCenter />
       </Suspense>
-      <div style={{ marginTop: "1.5rem" }}>
-        <WaitlistPanel />
-      </div>
     </div>
   );
 }

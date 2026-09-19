@@ -31,6 +31,19 @@ const statusSchema = z.object({
   locker_id: z.string().uuid(),
   status: z.enum(["available", "assigned", "reserved", "maintenance", "blocked"]),
   notes: z.string().max(500).default(""),
+  condition: z.enum(["ok", "maintenance", "blocked"]).optional(),
+  maintenance_reason: z.string().max(500).optional(),
+  maintenance_notes: z.string().max(500).optional(),
+});
+
+const updateLocationSchema = z.object({
+  locker_id: z.string().uuid(),
+  zone_id: z.string().uuid().nullable().optional(),
+  bank_id: z.string().uuid().nullable().optional(),
+  row_position: z.number().int().min(1).nullable().optional(),
+  column_position: z.number().int().min(1).nullable().optional(),
+  position_label: z.string().max(50).nullable().optional(),
+  physical_code: z.string().max(50).nullable().optional(),
 });
 
 export async function GET(req: Request): Promise<NextResponse> {
@@ -49,7 +62,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     if (detailLockerId) {
       const { data: locker, error: lErr } = await supabase
         .from("union_lockers")
-        .select("id, locker_number, location, section, status, notes, updated_at, created_at, delegation_id")
+        .select("id, locker_number, location, section, status, condition, zone_id, bank_id, row_position, column_position, position_label, physical_code, notes, maintenance_reason, maintenance_notes, updated_at, created_at, delegation_id")
         .eq("id", detailLockerId)
         .eq("delegation_id", depId)
         .single();
@@ -119,10 +132,36 @@ export async function GET(req: Request): Promise<NextResponse> {
         worker: historyWorkerMap.get(h.worker_id) ?? null,
       }));
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let zoneData: any = null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let bankData: any = null;
+      const lockerWithZone = locker as { zone_id?: string | null; bank_id?: string | null };
+      if (lockerWithZone.zone_id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: z } = await (supabase as any)
+          .from("union_locker_zones")
+          .select("id, name, building, floor")
+          .eq("id", lockerWithZone.zone_id)
+          .maybeSingle();
+        zoneData = z;
+      }
+      if (lockerWithZone.bank_id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: b } = await (supabase as any)
+          .from("union_locker_banks")
+          .select("id, name, rows, columns, orientation")
+          .eq("id", lockerWithZone.bank_id)
+          .maybeSingle();
+        bankData = b;
+      }
+
       return noStore(
         NextResponse.json({
           locker: {
             ...locker,
+            zone: zoneData,
+            bank: bankData,
             active_assignment: activeAsg ? { ...activeAsg, union_workers: activeWorker } : null,
             pending_review_item: pendingItem ?? null,
           },
@@ -371,6 +410,25 @@ export async function POST(req: Request): Promise<NextResponse> {
     if (action === "assign") {
       const parsed = assignSchema.safeParse(body);
       if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos" }, { status: 400 }));
+
+      // Intentar primero con la RPC atómica union_assign_locker
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rpcResult, error: rpcError } = await (supabase as any).rpc("union_assign_locker", {
+        p_locker_id: parsed.data.locker_id,
+        p_worker_id: parsed.data.worker_id,
+        p_assignment_reason: parsed.data.assignment_reason ?? "",
+        p_admin_override: parsed.data.admin_override ?? false,
+        p_admin_override_reason: parsed.data.admin_override_reason ?? "",
+        p_created_by: auth.user.id,
+      });
+
+      if (!rpcError && rpcResult) {
+        if (!rpcResult.success) {
+          return noStore(NextResponse.json({ error: rpcResult.error || "No se pudo asignar" }, { status: 409 }));
+        }
+        return noStore(NextResponse.json({ id: rpcResult.assignment_id }));
+      }
+
       const { data: locker } = await supabase.from("union_lockers").select("id, delegation_id, status").eq("id", parsed.data.locker_id).single();
       if (!locker || (locker as { delegation_id: string }).delegation_id !== depId) {
         return noStore(NextResponse.json({ error: "Locker no encontrado en esta delegación" }, { status: 404 }));
@@ -428,6 +486,22 @@ export async function POST(req: Request): Promise<NextResponse> {
     if (action === "release") {
       const parsed = releaseSchema.safeParse(body);
       if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos" }, { status: 400 }));
+
+      // Intentar primero con la RPC atómica union_release_locker
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rpcResult, error: rpcError } = await (supabase as any).rpc("union_release_locker", {
+        p_assignment_id: parsed.data.assignment_id,
+        p_release_reason: parsed.data.release_reason,
+        p_released_by: auth.user.id,
+      });
+
+      if (!rpcError && rpcResult) {
+        if (!rpcResult.success) {
+          return noStore(NextResponse.json({ error: rpcResult.error || "No se pudo liberar" }, { status: 400 }));
+        }
+        return noStore(NextResponse.json({ ok: true }));
+      }
+
       const { data: asg } = await supabase
         .from("union_locker_assignments")
         .select("id, locker_id, status")
@@ -446,8 +520,38 @@ export async function POST(req: Request): Promise<NextResponse> {
     if (action === "status") {
       const parsed = statusSchema.safeParse(body);
       if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos" }, { status: 400 }));
-      await supabase.from("union_lockers").update({ status: parsed.data.status, notes: parsed.data.notes }).eq("id", parsed.data.locker_id);
-      await writeAuditLog({ delegation_id: depId, entity_type: "union_locker", entity_id: parsed.data.locker_id, action: "locker.status", metadata: { status: parsed.data.status } });
+      const updateData: Record<string, unknown> = {
+        status: parsed.data.status,
+        notes: parsed.data.notes,
+        updated_at: new Date().toISOString(),
+      };
+      if (parsed.data.condition !== undefined) updateData.condition = parsed.data.condition;
+      if (parsed.data.maintenance_reason !== undefined) updateData.maintenance_reason = parsed.data.maintenance_reason;
+      if (parsed.data.maintenance_notes !== undefined) updateData.maintenance_notes = parsed.data.maintenance_notes;
+      if (parsed.data.condition === "maintenance" || parsed.data.status === "maintenance") {
+        updateData.maintenance_date = new Date().toISOString();
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("union_lockers").update(updateData).eq("id", parsed.data.locker_id);
+      await writeAuditLog({ delegation_id: depId, entity_type: "union_locker", entity_id: parsed.data.locker_id, action: "locker.status", metadata: updateData });
+      return noStore(NextResponse.json({ ok: true }));
+    }
+
+    if (action === "location") {
+      const parsed = updateLocationSchema.safeParse(body);
+      if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos" }, { status: 400 }));
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (parsed.data.zone_id !== undefined) updates.zone_id = parsed.data.zone_id;
+      if (parsed.data.bank_id !== undefined) updates.bank_id = parsed.data.bank_id;
+      if (parsed.data.row_position !== undefined) updates.row_position = parsed.data.row_position;
+      if (parsed.data.column_position !== undefined) updates.column_position = parsed.data.column_position;
+      if (parsed.data.position_label !== undefined) updates.position_label = parsed.data.position_label;
+      if (parsed.data.physical_code !== undefined) updates.physical_code = parsed.data.physical_code;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("union_lockers").update(updates).eq("id", parsed.data.locker_id);
+      await writeAuditLog({ delegation_id: depId, entity_type: "union_locker", entity_id: parsed.data.locker_id, action: "locker.location_changed", metadata: updates });
       return noStore(NextResponse.json({ ok: true }));
     }
 
