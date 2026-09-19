@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>La Veinte Print · Oficina Sindical</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header Institucional -->
+    <header class="app-header">
+      <div class="header-logo-area">
+        <div class="header-icon">🖨️</div>
+        <div>
+          <h1 class="header-title">La Veinte Print</h1>
+          <p class="header-subtitle">Oficina Sindical · Sección XX IMSS</p>
+        </div>
+      </div>
+      <div id="connection-badge" class="badge badge-offline">○ Desconectado</div>
+    </header>
+
+    <!-- Pantalla 1: Vinculación con Código de 6 Dígitos -->
+    <main id="view-enroll" class="view">
+      <div class="card">
+        <h2 class="card-title">Vinculación de Estación</h2>
+        <p class="card-desc">
+          Introduce el código de 6 dígitos que aparece en el portal web en
+          <strong>Representación &gt; Cola de Impresión</strong>:
+        </p>
+
+        <div class="code-inputs-group">
+          <input type="text" id="code-1" class="code-digit" maxlength="1" inputmode="numeric" autofocus autocomplete="off">
+          <input type="text" id="code-2" class="code-digit" maxlength="1" inputmode="numeric" autocomplete="off">
+          <input type="text" id="code-3" class="code-digit" maxlength="1" inputmode="numeric" autocomplete="off">
+          <span class="code-sep">-</span>
+          <input type="text" id="code-4" class="code-digit" maxlength="1" inputmode="numeric" autocomplete="off">
+          <input type="text" id="code-5" class="code-digit" maxlength="1" inputmode="numeric" autocomplete="off">
+          <input type="text" id="code-6" class="code-digit" maxlength="1" inputmode="numeric" autocomplete="off">
+        </div>
+
+        <div id="enroll-error" class="alert-error" style="display: none;"></div>
+
+        <button id="btn-enroll" class="btn btn-primary btn-full">
+          Vincular Estación de Oficina
+        </button>
+
+        <div class="advanced-section">
+          <button id="btn-toggle-advanced" class="link-btn" type="button">⚙ Opciones avanzadas de servidor</button>
+          <div id="advanced-fields" style="display: none; margin-top: 0.75rem;">
+            <label class="field-label" for="input-server-url">URL del Servidor:</label>
+            <input type="url" id="input-server-url" class="text-input" value="https://la20.com.mx">
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Pantalla 2: Selección de Impresora y Prueba de Impresión -->
+    <main id="view-setup-printer" class="view" style="display: none;">
+      <div class="card">
+        <div class="success-banner">
+          <div class="success-icon">✓</div>
+          <div>
+            <h3 class="success-title">¡Estación vinculada con éxito!</h3>
+            <p id="setup-station-name" class="success-sub">Oficina Sindical Delegación XXI</p>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 1.25rem;">
+          <label class="field-label" for="select-printer">Impresora de Windows para documentos oficiales:</label>
+          <select id="select-printer" class="text-input">
+            <option value="">(Cargando impresoras instaladas...)</option>
+          </select>
+          <p class="field-help">
+            Todos los paquetes de licencias se imprimirán de forma silenciosa y automática en este dispositivo.
+          </p>
+        </div>
+
+        <div id="test-print-msg" class="alert-info" style="display: none;"></div>
+
+        <div class="btn-group" style="margin-top: 1.25rem;">
+          <button id="btn-test-print-setup" class="btn btn-secondary btn-full">
+            📄 Imprimir página de prueba
+          </button>
+          <button id="btn-finish-setup" class="btn btn-primary btn-full">
+            Finalizar configuración
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Pantalla 3: Panel de Estado Activo -->
+    <main id="view-dashboard" class="view" style="display: none;">
+      <div class="card">
+        <div class="status-summary">
+          <div class="status-indicator">
+            <div id="status-dot" class="dot dot-online"></div>
+            <div>
+              <div id="dash-status-text" class="status-main-text">Estación en línea y operativa</div>
+              <div id="dash-last-seen" class="status-sub-text">Comunicación activa con La Veinte Digital</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="station-info-box">
+          <div class="info-row">
+            <span class="info-label">Estación:</span>
+            <strong id="dash-station-name" class="info-value">Oficina Sindical</strong>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Impresora configurada:</span>
+            <span id="dash-printer-name" class="info-value">HP LaserJet Pro</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Inicio con Windows:</span>
+            <span class="info-value" style="color: var(--success);">Activado (Automático)</span>
+          </div>
+        </div>
+
+        <div id="recent-job-box" class="recent-job-box" style="display: none;">
+          <div class="job-status-title">Último trabajo procesado:</div>
+          <div id="recent-job-text" class="job-status-desc"></div>
+        </div>
+
+        <div class="btn-group" style="margin-top: 1.25rem;">
+          <button id="btn-dash-test-print" class="btn btn-secondary btn-full">
+            📄 Imprimir página de prueba
+          </button>
+          <button id="btn-dash-minimize" class="btn btn-primary btn-full">
+            Minimizar a la barra de tareas
+          </button>
+        </div>
+
+        <div class="footer-actions">
+          <button id="btn-dash-diagnostics" class="link-btn">Copiar diagnóstico</button>
+          <button id="btn-dash-disconnect" class="link-btn link-danger">Desvincular estación</button>
+        </div>
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <span>La Veinte Print Agent v1.0.0</span>
+      <span>Cifrado DPAPI Nativo</span>
+    </footer>
+  </div>
+
+  <script type="module" src="renderer.mjs"></script>
+</body>
+</html>

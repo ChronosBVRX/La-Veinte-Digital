@@ -2202,6 +2202,42 @@ export type Database = {
         }
         Relationships: []
       }
+      union_print_enrollment_codes: {
+        Row: {
+          id: string
+          delegation_id: string
+          code_hash: string
+          station_name: string
+          printer_name: string
+          expires_at: string
+          used_at: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          delegation_id: string
+          code_hash: string
+          station_name?: string
+          printer_name?: string
+          expires_at?: string
+          used_at?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          delegation_id?: string
+          code_hash?: string
+          station_name?: string
+          printer_name?: string
+          expires_at?: string
+          used_at?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       limited_profiles: {

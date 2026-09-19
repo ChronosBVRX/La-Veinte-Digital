@@ -11,10 +11,17 @@ import {
   ArrowLeft,
   Gear,
   Copy,
+  DownloadSimple,
+  Key,
+  Desktop,
+  CaretDown,
+  CaretUp,
+  Info,
 } from "@phosphor-icons/react";
 import { Card } from "@/shared/components/ui/Card";
 import { Button } from "@/shared/components/ui/Button";
 import { Input } from "@/shared/components/ui/Input";
+import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner";
 import { createClient } from "@/lib/supabase/client";
 import { formatRelativeTimeEs } from "../lib/dashboard-format";
 
@@ -63,7 +70,20 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
   const [loading, setLoading] = useState(true);
   const [retryingJobId, setRetryingJobId] = useState<string | null>(null);
 
-  // Modal de administración de estación
+  // Detección de Windows y Guía de instalación
+  const [isWindows] = useState(() => (typeof navigator !== "undefined" ? /Win/i.test(navigator.userAgent) : true));
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
+
+  // Modal de vinculación por código de 6 dígitos
+  const [showEnrollModal, setShowEnrollModal] = useState(false);
+  const [enrollCode, setEnrollCode] = useState<{ code: string; formatted: string; expires_at: string } | null>(null);
+  const [enrollRemainingSec, setEnrollRemainingSec] = useState<number>(0);
+  const [enrollLoading, setEnrollLoading] = useState(false);
+  const [enrollError, setEnrollError] = useState<string | null>(null);
+  const [stationJustConnected, setStationJustConnected] = useState(false);
+  const [copiedEnrollCode, setCopiedEnrollCode] = useState(false);
+
+  // Modal de administración manual de estación (modo avanzado para admins)
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [stationNameInput, setStationNameInput] = useState("");
   const [printerNameInput, setPrinterNameInput] = useState("");
@@ -125,6 +145,7 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
         },
         () => {
           fetchQueue();
+          setStationJustConnected(true);
         },
       )
       .subscribe();
@@ -134,6 +155,61 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
       supabase.removeChannel(channel);
     };
   }, [delegationId, fetchQueue]);
+
+  // Temporizador regresivo para el código de vinculación de 6 dígitos
+  useEffect(() => {
+    if (enrollRemainingSec <= 0) return;
+    const timer = setInterval(() => {
+      setEnrollRemainingSec((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [enrollRemainingSec]);
+
+  function formatRemaining(sec: number): string {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  }
+
+  async function handleOpenEnrollModal() {
+    setShowEnrollModal(true);
+    setEnrollLoading(true);
+    setEnrollError(null);
+    setStationJustConnected(false);
+    setCopiedEnrollCode(false);
+
+    try {
+      const res = await fetch("/api/union/print/enrollment/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          delegation_id: delegationId,
+          station_name: station?.name || "Oficina Sindical Delegación XXI",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "No se pudo generar el código de vinculación.");
+      }
+      setEnrollCode({
+        code: data.code,
+        formatted: data.formatted,
+        expires_at: data.expires_at,
+      });
+      const diffSec = Math.max(0, Math.floor((new Date(data.expires_at).getTime() - Date.now()) / 1000));
+      setEnrollRemainingSec(diffSec);
+    } catch (err: unknown) {
+      setEnrollError(err instanceof Error ? err.message : "Error al generar código.");
+    } finally {
+      setEnrollLoading(false);
+    }
+  }
+
+  function copyEnrollCode(code: string) {
+    navigator.clipboard.writeText(code);
+    setCopiedEnrollCode(true);
+    setTimeout(() => setCopiedEnrollCode(false), 2500);
+  }
 
   async function handleRetry(jobId: string) {
     if (retryingJobId) return;
@@ -330,7 +406,129 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
         </div>
       </Card>
 
-      {/* 2. TABLERO DE TRABAJOS EN 2 COLUMNAS */}
+      {/* 2. TARJETA DE INSTALACIÓN Y VINCULACIÓN EN 1 CLIC (WINDOWS) */}
+      <Card
+        padding="1.25rem 1.5rem"
+        style={{
+          border: "1px solid rgba(37, 99, 235, 0.2)",
+          background: "linear-gradient(180deg, #ffffff 0%, rgba(37, 99, 235, 0.02) 100%)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1.25rem" }}>
+          <div style={{ maxWidth: "620px" }}>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.375rem",
+                padding: "0.2rem 0.6rem",
+                borderRadius: "999px",
+                backgroundColor: "rgba(37, 99, 235, 0.08)",
+                color: "var(--primary)",
+                fontSize: "0.75rem",
+                fontWeight: 700,
+                marginBottom: "0.5rem",
+              }}
+            >
+              <Desktop size={14} weight="bold" /> INSTALADOR WINDOWS EN 1 CLIC · CERO CONSOLAS
+            </div>
+            <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.375rem 0", color: "var(--fg)" }}>
+              La Veinte Print para Windows
+            </h2>
+            <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)", lineHeight: 1.45 }}>
+              Agente oficial de impresión para la PC física de la oficina sindical. Se ejecuta silenciosamente en segundo plano junto al reloj, inicia automáticamente con Windows y manda las impresiones a la impresora sin mostrar ventanas de comandos.
+            </p>
+            {!isWindows && (
+              <div style={{ marginTop: "0.625rem", fontSize: "0.75rem", color: "var(--muted)", display: "flex", alignItems: "center", gap: "0.375rem" }}>
+                <Info size={14} /> Estás visitando desde un dispositivo no-Windows. Descarga el instalador directamente en la PC con Windows de la oficina.
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "flex-start" }}>
+            <div style={{ display: "flex", gap: "0.625rem", flexWrap: "wrap" }}>
+              <a
+                href="/api/downloads/print-agent/windows"
+                download="LaVeintePrint-Setup.exe"
+                style={{ textDecoration: "none" }}
+              >
+                <Button variant="primary" size="md">
+                  <DownloadSimple size={18} weight="bold" /> Descargar instalador .exe
+                </Button>
+              </a>
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={handleOpenEnrollModal}
+              >
+                <Key size={18} weight="bold" /> Vincular con código (6 dígitos)
+              </Button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowInstallGuide(!showInstallGuide)}
+              style={{
+                background: "none",
+                border: "none",
+                padding: "0.25rem 0",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                color: "var(--primary)",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.25rem",
+              }}
+            >
+              {showInstallGuide ? <CaretUp size={12} /> : <CaretDown size={12} />}
+              {showInstallGuide ? "Ocultar guía de instalación" : "Ver guía rápida en 3 pasos"}
+            </button>
+          </div>
+        </div>
+
+        {/* Guía en 3 pasos desplegable */}
+        {showInstallGuide && (
+          <div
+            style={{
+              marginTop: "1.25rem",
+              paddingTop: "1.25rem",
+              borderTop: "1px solid var(--border)",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: "1rem",
+            }}
+          >
+            <div style={{ padding: "0.75rem", borderRadius: "var(--radius, 0.375rem)", backgroundColor: "var(--accent)" }}>
+              <div style={{ fontWeight: 700, fontSize: "0.8125rem", color: "var(--primary)", marginBottom: "0.25rem" }}>
+                1. Descarga el archivo
+              </div>
+              <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.4 }}>
+                Descarga <strong>LaVeintePrint-Setup.exe</strong> y ejecútalo con doble clic. Se instala en 5 segundos sin pedir contraseñas de administrador.
+              </p>
+            </div>
+
+            <div style={{ padding: "0.75rem", borderRadius: "var(--radius, 0.375rem)", backgroundColor: "var(--accent)" }}>
+              <div style={{ fontWeight: 700, fontSize: "0.8125rem", color: "var(--primary)", marginBottom: "0.25rem" }}>
+                2. Introduce el código
+              </div>
+              <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.4 }}>
+                Pulsa <strong>Vincular con código</strong> en esta página y escribe los 6 números que verás en pantalla dentro del asistente.
+              </p>
+            </div>
+
+            <div style={{ padding: "0.75rem", borderRadius: "var(--radius, 0.375rem)", backgroundColor: "var(--accent)" }}>
+              <div style={{ fontWeight: 700, fontSize: "0.8125rem", color: "var(--primary)", marginBottom: "0.25rem" }}>
+                3. ¡Listo para imprimir!
+              </div>
+              <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.4 }}>
+                Confirma la impresora física de la oficina. El programa queda activo en la barra de tareas junto al reloj y prenderá solo con Windows.
+              </p>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* 3. TABLERO DE TRABAJOS EN 2 COLUMNAS */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1.25rem" }}>
         {/* COLUMNA 1: ACTIVIDAD EN VIVO (EN COLA + IMPRIMIENDO) */}
         <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
@@ -661,6 +859,178 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
                   )}
                   <Button variant="ghost" onClick={() => setShowAdminModal(false)}>
                     Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 4. MODAL DE VINCULACIÓN POR CÓDIGO DE 6 DÍGITOS */}
+      {showEnrollModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "1rem",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "var(--card)",
+              borderRadius: "var(--radius, 0.75rem)",
+              maxWidth: "460px",
+              width: "100%",
+              padding: "1.75rem",
+              boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1.25rem",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: 0, color: "var(--fg)" }}>
+                Vincular Estación de Impresión
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowEnrollModal(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.25rem", color: "var(--muted)" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {stationJustConnected ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: "0.875rem", padding: "1rem 0" }}>
+                <div
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: "50%",
+                    backgroundColor: "rgba(22, 163, 74, 0.1)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#16a34a",
+                  }}
+                >
+                  <CheckCircle size={36} weight="fill" />
+                </div>
+                <h3 style={{ fontSize: "1.125rem", fontWeight: 700, margin: 0, color: "var(--fg)" }}>
+                  ¡Estación Vinculada con Éxito!
+                </h3>
+                <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0, lineHeight: 1.45 }}>
+                  La computadora física de la oficina sindical ya está en línea y configurada. Cuando envíes una licencia a imprimir, saldrá de inmediato por la impresora.
+                </p>
+                <Button
+                  variant="primary"
+                  onClick={() => setShowEnrollModal(false)}
+                  fullWidth
+                  style={{ marginTop: "0.5rem" }}
+                >
+                  Entendido, volver a la cola
+                </Button>
+              </div>
+            ) : enrollLoading ? (
+              <div style={{ padding: "2rem", display: "flex", justifyContent: "center" }}>
+                <LoadingSpinner text="Generando código seguro de vinculación…" />
+              </div>
+            ) : enrollError ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <div style={{ padding: "0.75rem", backgroundColor: "rgba(220, 38, 38, 0.1)", color: "#dc2626", borderRadius: "4px", fontSize: "0.8125rem" }}>
+                  {enrollError}
+                </div>
+                <Button variant="secondary" onClick={handleOpenEnrollModal} fullWidth>
+                  Reintentar generación
+                </Button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", textAlign: "center" }}>
+                <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0, lineHeight: 1.45 }}>
+                  Abre el instalador <strong>La Veinte Print</strong> en la PC de la oficina e introduce el siguiente código de 6 dígitos:
+                </p>
+
+                <div
+                  style={{
+                    padding: "1.25rem 1rem",
+                    borderRadius: "var(--radius, 0.5rem)",
+                    backgroundColor: "rgba(37, 99, 235, 0.05)",
+                    border: "2px dashed rgba(37, 99, 235, 0.4)",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "2.5rem",
+                      fontWeight: 800,
+                      fontFamily: "monospace",
+                      letterSpacing: "0.2em",
+                      color: "var(--primary)",
+                    }}
+                  >
+                    {enrollCode?.formatted || "--- ---"}
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.8125rem", color: "var(--muted)" }}>
+                  {enrollRemainingSec > 0 ? (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
+                      <Clock size={14} /> Válido por: <strong>{formatRemaining(enrollRemainingSec)}</strong>
+                    </span>
+                  ) : (
+                    <span style={{ color: "#dc2626", fontWeight: 600 }}>
+                      Código expirado
+                    </span>
+                  )}
+                  <span>Un solo uso</span>
+                </div>
+
+                <div
+                  style={{
+                    padding: "0.625rem",
+                    borderRadius: "4px",
+                    backgroundColor: "var(--accent)",
+                    fontSize: "0.75rem",
+                    color: "var(--muted)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "0.375rem",
+                  }}
+                >
+                  <ArrowsClockwise size={14} className="animate-spin" />
+                  Esperando conexión desde la computadora de la oficina…
+                </div>
+
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  {enrollRemainingSec > 0 ? (
+                    <Button
+                      variant="secondary"
+                      onClick={() => copyEnrollCode(enrollCode?.code || "")}
+                      fullWidth
+                    >
+                      <Copy size={16} /> {copiedEnrollCode ? "¡Copiado!" : "Copiar Código"}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="primary"
+                      onClick={handleOpenEnrollModal}
+                      fullWidth
+                    >
+                      Generar Nuevo Código
+                    </Button>
+                  )}
+                  <Button variant="ghost" onClick={() => setShowEnrollModal(false)}>
+                    Cerrar
                   </Button>
                 </div>
               </div>
