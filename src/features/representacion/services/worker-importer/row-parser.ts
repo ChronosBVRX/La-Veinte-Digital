@@ -236,10 +236,10 @@ export function normalizeLockerNumber(val: unknown): {
     return { normalized: "", isPhysical: false, isSemantic: false, raw: "" };
   }
 
-  // Limpiar comillas, backticks, símbolos numerales y espacios accidentales
+  // Limpiar comillas, backticks, símbolos numerales y prefijos comunes (ej. L-, LOCKER, NO., #)
   const cleaned = raw
     .replace(/^[`'"\s#]+|[`'"\s]+$/g, "")
-    .replace(/^(?:no\.?)\s*/i, "")
+    .replace(/^(?:locker|lock|no\.?|l)[-\s]*/i, "")
     .trim();
   const upper = cleaned.toUpperCase().replace(/\s+/g, " ");
 
