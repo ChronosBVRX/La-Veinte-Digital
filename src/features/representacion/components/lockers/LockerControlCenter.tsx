@@ -32,7 +32,7 @@ import { LockerPendingReviewList } from "../LockerPendingReviewList";
 import { WaitlistPanel } from "../WaitlistPanel";
 
 // Dominio y Contratos
-import type { LockerZone, LockerBank, LockerMapItem, LockerMapResponse } from "@/features/representacion/lib/lockers";
+import type { LockerZone, LockerBank, LockerMapItem, LockerMapResponse, LockerMapSummary } from "@/features/representacion/lib/lockers";
 
 export interface LockerControlCenterProps {
   isAdmin?: boolean;
@@ -66,6 +66,7 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
   const [zones, setZones] = useState<LockerZone[]>([]);
   const [banks, setBanks] = useState<LockerBank[]>([]);
   const [mapLockers, setMapLockers] = useState<LockerMapItem[]>([]);
+  const [mapSummary, setMapSummary] = useState<LockerMapSummary | null>(null);
   const [unlocatedCount, setUnlocatedCount] = useState<number>(0);
   const [pendingReviewCount, setPendingReviewCount] = useState<number>(0);
   const [waitlistCount, setWaitlistCount] = useState<number>(0);
@@ -174,6 +175,9 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
       setZones(data.zones ?? []);
       setBanks(data.banks ?? []);
       setMapLockers(data.lockers ?? []);
+      if (data.summary) {
+        setMapSummary(data.summary);
+      }
       setUnlocatedCount(data.summary?.unlocated ?? data.counts?.unlocated ?? 0);
       setPendingReviewCount(data.summary?.pendingReview ?? data.counts?.pending_review ?? 0);
       if (data.summary?.waitlist !== undefined) {
@@ -250,13 +254,26 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
     }
   }, [initialLockerParam]);
 
-  // Métricas para la barra superior
+  // Métricas canónicas para la barra superior (usando data.summary de la fuente de verdad)
   const metricsData: LockerMetricsData = useMemo(() => {
+    if (mapSummary) {
+      return {
+        total: mapSummary.total,
+        assigned: mapSummary.assigned,
+        available: mapSummary.available,
+        attention: mapSummary.affectedLockers ?? mapSummary.attention,
+        maintenance: mapSummary.maintenance,
+        unlocated: mapSummary.unlocated,
+        waitlistCount: mapSummary.waitlist ?? waitlistCount,
+        affectedLockers: mapSummary.affectedLockers,
+        issueCount: mapSummary.issueCount ?? mapSummary.integrityIssues,
+      };
+    }
     const total = mapLockers.length;
-    const assigned = mapLockers.filter((l) => l.effective_state.kind === "assigned").length;
-    const available = mapLockers.filter((l) => l.effective_state.kind === "available").length;
-    const maintenance = mapLockers.filter((l) => l.condition === "damaged" || l.condition === "maintenance").length;
-    const attention = integrityIssuesCount + pendingReviewCount;
+    const assigned = mapLockers.filter((l) => l.effective_state.isAssigned || l.effective_state.kind === "assigned").length;
+    const available = mapLockers.filter((l) => l.effective_state.isAvailable).length;
+    const maintenance = mapLockers.filter((l) => l.condition === "maintenance" || (l.condition as string) === "damaged").length;
+    const attention = integrityIssuesCount;
 
     return {
       total,
@@ -266,8 +283,10 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
       maintenance,
       unlocated: unlocatedCount,
       waitlistCount,
+      affectedLockers: attention,
+      issueCount: attention,
     };
-  }, [mapLockers, integrityIssuesCount, pendingReviewCount, unlocatedCount, waitlistCount]);
+  }, [mapSummary, mapLockers, integrityIssuesCount, unlocatedCount, waitlistCount]);
 
   // Manejo de cambio de vista
   function handleViewChange(newView: LockerViewMode): void {
@@ -291,14 +310,20 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
       return;
     }
 
-    const trimmed = query.trim().toLowerCase();
-    const cleanNum = trimmed.replace(/^#/, "");
+    const cleanNum = query.replace(/^#/, "").trim();
+    const normalize = (str: string): string => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const normQ = normalize(cleanNum);
 
     // Buscar coincidencia en mapa
     const found = mapLockers.find((l) => {
-      if (l.locker_number.toLowerCase() === cleanNum) return true;
-      if (l.occupant_name && l.occupant_name.toLowerCase().includes(trimmed)) return true;
-      if (l.occupant_employee_number && l.occupant_employee_number.toLowerCase().includes(trimmed)) return true;
+      if (normalize(l.locker_number).includes(normQ)) return true;
+      if (l.physical_code && normalize(l.physical_code).includes(normQ)) return true;
+      if (l.occupant_name && normalize(l.occupant_name).includes(normQ)) return true;
+      if (l.occupant_employee_number && normalize(l.occupant_employee_number).includes(normQ)) return true;
+      if (l.active_assignment?.worker_name && normalize(l.active_assignment.worker_name).includes(normQ)) return true;
+      if (l.active_assignment?.employee_number && normalize(l.active_assignment.employee_number).includes(normQ)) return true;
+      if (l.pending_review?.source_worker_name && normalize(l.pending_review.source_worker_name).includes(normQ)) return true;
+      if (l.pending_review?.source_employee_number && normalize(l.pending_review.source_employee_number).includes(normQ)) return true;
       return false;
     });
 

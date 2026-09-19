@@ -76,14 +76,20 @@ export async function GET(req: Request): Promise<NextResponse> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const allLockers = (rawAllLockers ?? []) as any[];
 
-    // 4. Asignaciones activas
+    // 4. Asignaciones activas filtradas a los casilleros de esta delegación
+    const allLockerIds = new Set(allLockers.map((l) => l.id));
+    const lockerNumberToId = new Map<string, string>();
+    for (const l of allLockers) {
+      lockerNumberToId.set(l.locker_number, l.id);
+    }
+
     const { data: rawAssignments } = await supabase
       .from("union_locker_assignments")
       .select("id, locker_id, worker_id, assigned_at, status")
       .eq("status", "active");
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const assignments = (rawAssignments ?? []) as any[];
+    const assignments = ((rawAssignments ?? []) as any[]).filter((a) => allLockerIds.has(a.locker_id));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const asgByLockerId = new Map<string, any>();
     const workerIds = new Set<string>();
@@ -107,7 +113,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       }
     }
 
-    // 5. Pendientes de revisión (incidencias)
+    // 5. Pendientes de revisión (incidencias de conciliación/importación)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: rawPending } = await (supabase as any)
       .from("union_locker_review_items")
@@ -119,8 +125,19 @@ export async function GET(req: Request): Promise<NextResponse> {
     const pendingItems = (rawPending ?? []) as any[];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pendingByLockerNumber = new Map<string, any>();
+    const affectedLockerIds = new Set<string>();
+    let issueCount = 0;
+
     for (const p of pendingItems) {
-      pendingByLockerNumber.set(p.locker_number, p);
+      issueCount++;
+      if (p.locker_id && allLockerIds.has(p.locker_id)) {
+        affectedLockerIds.add(p.locker_id);
+      } else if (p.locker_number && lockerNumberToId.has(p.locker_number)) {
+        affectedLockerIds.add(lockerNumberToId.get(p.locker_number)!);
+      }
+      if (p.locker_number && !pendingByLockerNumber.has(p.locker_number)) {
+        pendingByLockerNumber.set(p.locker_number, p);
+      }
     }
 
     // 6. Lista de espera activa
@@ -138,11 +155,13 @@ export async function GET(req: Request): Promise<NextResponse> {
 
     let globalAssigned = 0;
     let globalAvailable = 0;
-    let globalAttention = 0;
     let globalMaintenance = 0;
     let globalUnlocated = 0;
 
     const mapItems: LockerMapItem[] = [];
+    const normalize = (str: string): string => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const cleanQ = q.replace(/^#/, "").trim();
+    const normQ = normalize(cleanQ);
 
     for (const l of allLockers) {
       const asg = asgByLockerId.get(l.id) || null;
@@ -151,18 +170,32 @@ export async function GET(req: Request): Promise<NextResponse> {
       const effectiveState = getLockerEffectiveState(l, asg, pending);
 
       if (effectiveState.isAvailable) globalAvailable++;
-      else if (effectiveState.kind === "assigned") globalAssigned++;
+      else if (effectiveState.isAssigned || effectiveState.kind === "assigned") globalAssigned++;
 
-      if (effectiveState.hasAttention) globalAttention++;
-      if (effectiveState.kind === "maintenance") globalMaintenance++;
+      if (effectiveState.kind === "maintenance" || l.condition === "maintenance" || l.condition === "damaged") {
+        globalMaintenance++;
+        affectedLockerIds.add(l.id);
+        issueCount++;
+      }
+      if (effectiveState.kind === "blocked" || l.condition === "blocked") {
+        affectedLockerIds.add(l.id);
+        issueCount++;
+      }
+      if (effectiveState.kind === "inconsistent") {
+        affectedLockerIds.add(l.id);
+        issueCount++;
+      }
+
       if (!l.zone_id || !l.bank_id) globalUnlocated++;
+
+      const isAffected = affectedLockerIds.has(l.id);
 
       if (l.zone_id && zoneCounts.has(l.zone_id)) {
         const zc = zoneCounts.get(l.zone_id)!;
         zc.total++;
         if (effectiveState.isAvailable) zc.available++;
-        if (effectiveState.kind === "assigned") zc.assigned++;
-        if (effectiveState.hasAttention) zc.attention++;
+        if (effectiveState.isAssigned || effectiveState.kind === "assigned") zc.assigned++;
+        if (isAffected) zc.attention++;
       }
 
       // Filtrar para el payload visual del mapa
@@ -179,21 +212,19 @@ export async function GET(req: Request): Promise<NextResponse> {
       }
 
       if (onlyIssues && includeInMap) {
-        includeInMap = effectiveState.hasAttention || effectiveState.hasDiscrepancy || !l.zone_id || !l.bank_id;
+        includeInMap = isAffected || effectiveState.hasAttention || effectiveState.hasDiscrepancy;
       }
 
       if (q && includeInMap) {
-        const numMatch = l.locker_number.toLowerCase().includes(q);
-        const codeMatch = (l.physical_code || "").toLowerCase().includes(q);
-        const empMatch = worker ? (worker.employee_number || "").toLowerCase().includes(q) : false;
+        const numMatch = normalize(l.locker_number).includes(normQ);
+        const codeMatch = normalize(l.physical_code || "").includes(normQ);
+        const empMatch = worker ? normalize(worker.employee_number || "").includes(normQ) : false;
         const nameMatch = worker
-          ? `${worker.first_name || ""} ${worker.paternal_surname || ""} ${worker.maternal_surname || ""}`
-              .toLowerCase()
-              .includes(q)
+          ? normalize(`${worker.first_name || ""} ${worker.paternal_surname || ""} ${worker.maternal_surname || ""}`).includes(normQ)
           : false;
         const pendingNameMatch = pending
-          ? (pending.source_worker_name || "").toLowerCase().includes(q) ||
-            (pending.source_employee_number || "").toLowerCase().includes(q)
+          ? normalize(pending.source_worker_name || "").includes(normQ) ||
+            normalize(pending.source_employee_number || "").includes(normQ)
           : false;
 
         includeInMap = numMatch || codeMatch || empMatch || nameMatch || pendingNameMatch;
@@ -260,20 +291,24 @@ export async function GET(req: Request): Promise<NextResponse> {
       attention_lockers: zoneCounts.get(z.id)?.attention ?? 0,
     }));
 
+    const affectedLockers = affectedLockerIds.size;
+
     const summary: LockerMapSummary = {
       total: allLockers.length,
       assigned: globalAssigned,
       available: globalAvailable,
-      attention: globalAttention,
+      attention: affectedLockers,
       maintenance: globalMaintenance,
       unlocated: globalUnlocated,
       pendingReview: pendingItems.length,
       waitlist: waitlistCount ?? 0,
-      integrityIssues: globalAttention,
+      affectedLockers,
+      issueCount,
+      integrityIssues: affectedLockers,
       // Aliases para compatibilidad hacia atrás
       waitlistCount: waitlistCount ?? 0,
       pending_review: pendingItems.length,
-      integrity_issues_count: globalAttention,
+      integrity_issues_count: affectedLockers,
     };
 
     const counts = {
@@ -291,7 +326,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       lockers: mapItems,
       summary,
       counts,
-      integrity_issues_count: globalAttention,
+      integrity_issues_count: affectedLockers,
     };
 
     return noStore(NextResponse.json(payload));
