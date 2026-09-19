@@ -4,6 +4,11 @@
   "description": "Agente nativo de impresión automática y silenciosa para la oficina sindical de La Veinte Digital",
   "main": "src/electron-main.mjs",
   "type": "module",
+  "author": "La Veinte Digital",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ChronosBVRX/La-Veinte-Digital.git"
+  },
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
@@ -29,6 +34,13 @@
     "appId": "mx.com.la20.printagent",
     "productName": "La Veinte Print",
     "copyright": "Copyright © 2026 La Veinte Digital",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ChronosBVRX",
+        "repo": "La-Veinte-Digital"
+      }
+    ],
     "directories": {
       "output": "dist"
     },
