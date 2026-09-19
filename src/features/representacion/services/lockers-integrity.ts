@@ -48,18 +48,33 @@ export async function getLockerIntegrityIssues(delegationId: string): Promise<Lo
     maintenance_reason: string | null;
   }>;
 
-  // 2. Obtener asignaciones activas
+  if (lockers.length === 0) {
+    return {
+      totalIssues: 0,
+      criticalCount: 0,
+      warningCount: 0,
+      configCount: 0,
+      infoCount: 0,
+      unlocatedLockersCount: 0,
+      pendingReviewCount: 0,
+      issues: [],
+    };
+  }
+
+  const lockerIdSet = new Set(lockers.map((l) => l.id));
+
+  // 2. Obtener asignaciones activas estrictamente para esta delegación
   const { data: rawAssignments } = await supabase
     .from("union_locker_assignments")
     .select("id, locker_id, worker_id, status")
     .eq("status", "active");
 
-  const assignments = (rawAssignments ?? []) as Array<{
+  const assignments = ((rawAssignments ?? []) as Array<{
     id: string;
     locker_id: string;
     worker_id: string;
     status: string;
-  }>;
+  }>).filter((a) => lockerIdSet.has(a.locker_id));
 
   const activeByLockerId = new Map<string, Array<{ id: string; worker_id: string }>>();
   const activeByWorkerId = new Map<string, Array<{ id: string; locker_id: string }>>();
@@ -143,18 +158,8 @@ export async function getLockerIntegrityIssues(delegationId: string): Promise<Lo
     // Configuración: Sin ubicación física (zona o bloque)
     if (!locker.zone_id || !locker.bank_id) {
       unlocatedCount++;
-      // Solo agregamos una muestra o agregamos todas
-      issues.push({
-        id: `cfg-unlocated-${locker.id}`,
-        lockerId: locker.id,
-        lockerNumber: locker.locker_number,
-        severity: "config",
-        title: `Locker #${locker.locker_number} · Falta ubicarlo físicamente`,
-        whatHappens: "El casillero existe en el inventario, pero todavía no sabemos en qué zona y bloque se encuentra.",
-        whyItMatters: "No aparecerá en el mapa físico ni se podrá localizar durante un recorrido en la delegación.",
-        whatToDo: "Asignar zona y bloque desde la herramienta de configuración.",
-        actionType: "locate",
-      });
+      // No saturamos la lista de conflictos operativos con 1,199 items idénticos;
+      // se contabiliza en unlocatedLockersCount para la métrica de configuración.
     } else if (locker.row_position === null || locker.column_position === null) {
       issues.push({
         id: `cfg-pos-${locker.id}`,
@@ -195,7 +200,7 @@ export async function getLockerIntegrityIssues(delegationId: string): Promise<Lo
         severity: "warning",
         title: `Trabajador con ${workerAsgs.length} casilleros activos asignados`,
         whatHappens: `El trabajador tiene asignados simultáneamente ${workerAsgs.length} casilleros activos en la delegación.`,
-        whyItMatters: "La norma sindical estipula un casillero individual por trabajador adscrito, salvo autorización explícita.",
+        whyItMatters: "La regla operativa del sistema permite un casillero activo por trabajador, salvo autorización administrativa justificada.",
         whatToDo: "Revisar si un casillero previo debió ser liberado tras cambio de turno o vestidor.",
         actionType: "view_worker",
         metadata: { workerId },

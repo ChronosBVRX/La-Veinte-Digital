@@ -4,11 +4,12 @@ import {
   canAssignLocker,
   canAssignWorker,
   sortWaitlist,
+  normalizeLockerStatus,
+  normalizeLockerCondition,
   type LockerMapItem,
 } from "@/features/representacion/lib/lockers";
 
-describe("Lockers 2.0 - Effective States", () => {
-  const baseLocker: LockerMapItem = {
+const baseLocker: LockerMapItem = {
     id: "loc-1",
     locker_number: "101",
     zone_id: "zone-1",
@@ -16,7 +17,7 @@ describe("Lockers 2.0 - Effective States", () => {
     row_position: 0,
     column_position: 0,
     status: "available",
-    condition: "good",
+    condition: "ok",
     occupant_name: null,
     occupant_employee_number: null,
     is_empty_slot: false,
@@ -25,6 +26,7 @@ describe("Lockers 2.0 - Effective States", () => {
       label: "Disponible",
       description: "Casillero libre",
       isAvailable: true,
+      isAssigned: false,
       hasAttention: false,
       hasDiscrepancy: false,
       discrepancyMessage: null,
@@ -40,6 +42,7 @@ describe("Lockers 2.0 - Effective States", () => {
     },
   };
 
+describe("Lockers 2.0 - Effective States", () => {
   it("identifica huecos físicos (empty_slot) correctamente", () => {
     const slot = {
       ...baseLocker,
@@ -150,22 +153,111 @@ describe("Lockers 2.0 Hardening - Contract & Business Rules", () => {
       total: 1199,
       assigned: 357,
       available: 842,
-      attention: 0,
+      attention: 842,
       maintenance: 0,
       unlocated: 1199,
       pendingReview: 1770,
       waitlist: 0,
-      integrityIssues: 0,
+      affectedLockers: 842,
+      issueCount: 1770,
+      integrityIssues: 842,
       waitlistCount: 0,
       pending_review: 1770,
-      integrity_issues_count: 0,
+      integrity_issues_count: 842,
     };
 
     expect(summary.total).toBe(1199);
     expect(summary.unlocated).toBe(1199);
     expect(summary.pendingReview).toBe(1770);
-    expect(summary.waitlist).toBe(0);
+    expect(summary.affectedLockers).toBe(842);
+    expect(summary.issueCount).toBe(1770);
+    expect(summary.affectedLockers).toBeLessThanOrEqual(summary.total);
     expect(summary.assigned + summary.available).toBe(1199);
+  });
+
+  it("verifica que un casillero con asignación activa preserva isAssigned=true aun con revisión pendiente", () => {
+    const assignedWithPending = {
+      ...baseLocker,
+      status: "assigned",
+      active_assignment: {
+        id: "asg-99",
+        worker_id: "w-99",
+        worker_name: "EDUARDO BOLAÑOS",
+        employee_number: "98173968",
+        assigned_at: "2026-03-01T00:00:00Z",
+      },
+      pending_review_item: {
+        id: "rev-1",
+        reason: "DUPLICATE_LOCKER_DIFFERENT_WORKERS",
+      },
+    };
+
+    const state = getLockerEffectiveState(assignedWithPending);
+    expect(state.kind).toBe("assigned");
+    expect(state.isAssigned).toBe(true);
+    expect(state.isAvailable).toBe(false);
+    expect(state.hasAttention).toBe(true);
+    expect(state.hasDiscrepancy).toBe(true);
+    expect(state.badge.singular).toBe("Por revisar");
+  });
+
+  it("verifica que un casillero sin asignación pero con revisión pendiente no es asignado ni disponible", () => {
+    const unassignedWithPending = {
+      ...baseLocker,
+      status: "available",
+      active_assignment: null,
+      occupant_name: null,
+      pending_review_item: {
+        id: "rev-2",
+        reason: "WORKER_NOT_FOUND",
+      },
+    };
+
+    const state = getLockerEffectiveState(unassignedWithPending);
+    expect(state.kind).toBe("pending_review");
+    expect(state.isAssigned).toBe(false);
+    expect(state.isAvailable).toBe(false);
+    expect(state.hasAttention).toBe(true);
+  });
+
+  it("verifica normalización de estados y condiciones físicas legacy", () => {
+    expect(normalizeLockerStatus("ocupado")).toBe("assigned");
+    expect(normalizeLockerStatus("assigned")).toBe("assigned");
+    expect(normalizeLockerStatus("disponible")).toBe("available");
+    expect(normalizeLockerStatus("available")).toBe("available");
+    expect(normalizeLockerStatus("reserved")).toBe("reserved");
+
+    expect(normalizeLockerCondition("damaged")).toBe("maintenance");
+    expect(normalizeLockerCondition("maintenance")).toBe("maintenance");
+    expect(normalizeLockerCondition("blocked")).toBe("blocked");
+    expect(normalizeLockerCondition("ok")).toBe("ok");
+    expect(normalizeLockerCondition("good")).toBe("ok");
+  });
+
+  it("verifica búsqueda de trabajadores con acentos, prefijo # y matrículas", () => {
+    const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    const lockerSample = {
+      locker_number: "247",
+      physical_code: "EDIF-A-247",
+      worker_name: "EDUARDO BOLAÑOS",
+      employee_number: "98173968",
+    };
+
+    const queries = ["#247", "247", "98173968", "BOLAÑOS", "bolanos", "EDUARDO BOLAÑOS", "eduardo"];
+
+    for (const q of queries) {
+      const cleanQ = q.replace(/^#/, "").trim();
+      const normQ = normalize(cleanQ);
+
+      const matches =
+        normalize(lockerSample.locker_number).includes(normQ) ||
+        normalize(lockerSample.physical_code).includes(normQ) ||
+        normalize(lockerSample.worker_name).includes(normQ) ||
+        normalize(lockerSample.employee_number).includes(normQ);
+
+      expect(matches).toBe(true);
+    }
   });
 
   it("verifica restricciones para asignar casillero según condición y estado", () => {

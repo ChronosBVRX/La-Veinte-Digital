@@ -1,8 +1,25 @@
 // Lockers — Cl. 67/68 como fundamento general (sin criterio jurídico de reparto).
 // Orden operativo por defecto: fecha de solicitud ascendente + priority_override.
 
-export type LockerStatus = "available" | "assigned" | "reserved" | "maintenance" | "blocked";
-export type LockerCondition = "ok" | "good" | "damaged" | "maintenance" | "reserved" | "blocked";
+// Estado de asignación formalizado: available, assigned, reserved
+export type LockerStatus = "available" | "assigned" | "reserved";
+
+// Condición física formalizada: ok, maintenance, blocked
+export type LockerCondition = "ok" | "maintenance" | "blocked";
+
+export function normalizeLockerStatus(raw: string | null | undefined): LockerStatus {
+  const s = String(raw || "").trim().toLowerCase();
+  if (s === "assigned" || s === "ocupado") return "assigned";
+  if (s === "reserved") return "reserved";
+  return "available";
+}
+
+export function normalizeLockerCondition(raw: string | null | undefined): LockerCondition {
+  const c = String(raw || "").trim().toLowerCase();
+  if (c === "maintenance" || c === "damaged") return "maintenance";
+  if (c === "blocked") return "blocked";
+  return "ok";
+}
 
 export interface LockerAssignmentRecord {
   id: string;
@@ -90,6 +107,7 @@ export interface LockerEffectiveState {
   label: string;
   description: string;
   isAvailable: boolean;
+  isAssigned: boolean;
   hasAttention: boolean;
   hasDiscrepancy: boolean;
   discrepancyMessage: string | null;
@@ -227,6 +245,7 @@ export function getLockerEffectiveState(
       label: "Espacio Vacío",
       description: "Espacio vacío en la estructura del mueble.",
       isAvailable: false,
+      isAssigned: false,
       hasAttention: false,
       hasDiscrepancy: false,
       discrepancyMessage: null,
@@ -251,6 +270,7 @@ export function getLockerEffectiveState(
       label: "Inconsistencia",
       description: "El casillero figura como disponible, pero existe una asignación activa en el sistema.",
       isAvailable: false,
+      isAssigned: true,
       hasAttention: true,
       hasDiscrepancy: true,
       discrepancyMessage: "Locker disponible con trabajador asignado. Requiere corrección.",
@@ -265,6 +285,7 @@ export function getLockerEffectiveState(
       label: "Inconsistencia",
       description: "El casillero figura como asignado pero no existe ningún trabajador activo vinculado.",
       isAvailable: false,
+      isAssigned: false,
       hasAttention: true,
       hasDiscrepancy: true,
       discrepancyMessage: "Locker asignado pero sin asignación activa en sistema.",
@@ -279,6 +300,7 @@ export function getLockerEffectiveState(
       label: "Dañado",
       description: "Casillero con daño físico o cerradura forzada.",
       isAvailable: false,
+      isAssigned: hasAsg,
       hasAttention: true,
       hasDiscrepancy: false,
       discrepancyMessage: null,
@@ -293,6 +315,7 @@ export function getLockerEffectiveState(
       label: "Mantenimiento",
       description: "Casillero con falla física reportada (chapa, puerta o llave).",
       isAvailable: false,
+      isAssigned: hasAsg,
       hasAttention: true,
       hasDiscrepancy: false,
       discrepancyMessage: null,
@@ -307,6 +330,7 @@ export function getLockerEffectiveState(
       label: "Bloqueado",
       description: "Casillero bloqueado temporalmente por administración.",
       isAvailable: false,
+      isAssigned: hasAsg,
       hasAttention: true,
       hasDiscrepancy: false,
       discrepancyMessage: null,
@@ -314,27 +338,14 @@ export function getLockerEffectiveState(
     };
   }
 
-  // 6. Pendiente de revisión por importación
-  if (hasPending) {
-    return {
-      kind: "pending_review",
-      label: "Por Revisar",
-      description: "Existe un registro pendiente de conciliación derivado de la importación de padrón.",
-      isAvailable: !hasAsg,
-      hasAttention: true,
-      hasDiscrepancy: true,
-      discrepancyMessage: "Discrepancia en importación pendiente de resolver.",
-      badge: LOCKER_STATUS_CONFIG.pending,
-    };
-  }
-
-  // 7. Reservado
+  // 6. Reservado
   if (status === "reserved" || condition === "reserved") {
     return {
       kind: "reserved",
       label: "Reservado",
       description: "Casillero reservado para trámite o asignación posterior.",
       isAvailable: false,
+      isAssigned: false,
       hasAttention: false,
       hasDiscrepancy: false,
       discrepancyMessage: null,
@@ -342,22 +353,40 @@ export function getLockerEffectiveState(
     };
   }
 
-  // 8. Asignado regular
+  // 7. Asignado regular (o con revisión pendiente de importación)
   if (status === "assigned" || status === "ocupado" || hasAsg) {
     const asgObj = typeof asg === "object" && asg !== null ? (asg as { worker_name?: string; employee_number?: string }) : null;
     return {
       kind: "assigned",
       label: "Asignado",
-      description: "Asignado y en uso regular por un trabajador.",
+      description: hasPending
+        ? "Asignado y en uso, con registros pendientes de revisión en importación."
+        : "Asignado y en uso regular por un trabajador.",
       isAvailable: false,
-      hasAttention: false,
-      hasDiscrepancy: false,
-      discrepancyMessage: null,
+      isAssigned: true,
+      hasAttention: hasPending,
+      hasDiscrepancy: hasPending,
+      discrepancyMessage: hasPending ? "Discrepancia en importación pendiente de resolver." : null,
       occupantSummary: asgObj ? {
         name: asgObj.worker_name || locker.occupant_name || "",
         employeeNumber: asgObj.employee_number || locker.occupant_employee_number || "",
       } : undefined,
-      badge: LOCKER_STATUS_CONFIG.assigned,
+      badge: hasPending ? LOCKER_STATUS_CONFIG.pending : LOCKER_STATUS_CONFIG.assigned,
+    };
+  }
+
+  // 8. Pendiente de revisión por importación (sin asignación activa)
+  if (hasPending) {
+    return {
+      kind: "pending_review",
+      label: "Por Revisar",
+      description: "Existe un registro pendiente de conciliación derivado de la importación de padrón.",
+      isAvailable: false,
+      isAssigned: false,
+      hasAttention: true,
+      hasDiscrepancy: true,
+      discrepancyMessage: "Discrepancia en importación pendiente de resolver.",
+      badge: LOCKER_STATUS_CONFIG.pending,
     };
   }
 
@@ -367,6 +396,7 @@ export function getLockerEffectiveState(
     label: "Disponible",
     description: "Casillero libre listo para asignarse a un trabajador.",
     isAvailable: true,
+    isAssigned: false,
     hasAttention: false,
     hasDiscrepancy: false,
     discrepancyMessage: null,
@@ -398,13 +428,14 @@ export function getLockerStatusBadge(status: string, hasPending?: boolean): Lock
 }
 
 export function canAssignLocker(
-  lockerStatus: LockerStatus,
+  lockerStatus: LockerStatus | string,
   hasActiveAssignment: boolean,
+  lockerCondition?: LockerCondition | string
 ): { ok: boolean; reason: string } {
   if (hasActiveAssignment) return { ok: false, reason: "El locker ya tiene una asignación activa." };
+  if (lockerCondition === "maintenance" || lockerStatus === "maintenance") return { ok: false, reason: "El locker está en mantenimiento." };
+  if (lockerCondition === "blocked" || lockerStatus === "blocked") return { ok: false, reason: "El locker está bloqueado." };
   if (lockerStatus === "available" || lockerStatus === "reserved") return { ok: true, reason: "" };
-  if (lockerStatus === "maintenance") return { ok: false, reason: "El locker está en mantenimiento." };
-  if (lockerStatus === "blocked") return { ok: false, reason: "El locker está bloqueado." };
   return { ok: false, reason: "El locker está asignado." };
 }
 
@@ -442,6 +473,8 @@ export interface LockerMapSummary {
   unlocated: number;
   pendingReview: number;
   waitlist: number;
+  affectedLockers: number;
+  issueCount: number;
   integrityIssues: number;
   // Aliases de compatibilidad
   waitlistCount?: number;

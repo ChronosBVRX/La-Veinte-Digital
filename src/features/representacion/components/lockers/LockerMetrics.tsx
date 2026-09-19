@@ -10,6 +10,8 @@ export interface LockerMetricsData {
   maintenance: number;
   unlocated: number;
   waitlistCount: number;
+  affectedLockers?: number;
+  issueCount?: number;
 }
 
 interface LockerMetricsProps {
@@ -28,7 +30,7 @@ export function LockerMetrics({
       id: "all",
       label: "Total de Casilleros",
       value: metrics.total,
-      subtext: `${metrics.unlocated > 0 ? `${metrics.unlocated} sin ubicar en mapa` : "Inventario completo"}`,
+      subtext: metrics.unlocated > 0 ? `${metrics.unlocated} sin ubicar en mapa` : "Inventario completo",
       bg: "var(--card)",
       border: "var(--border)",
       color: "var(--fg)",
@@ -58,7 +60,11 @@ export function LockerMetrics({
       id: "attention",
       label: "Requieren Atención",
       value: metrics.attention,
-      subtext: metrics.attention > 0 ? "Incidencias o sin ubicar" : "Inventario al día",
+      subtext: metrics.issueCount && metrics.issueCount !== metrics.attention
+        ? `${metrics.issueCount} situaciones detectadas`
+        : metrics.attention > 0
+          ? `${metrics.attention} casilleros con incidencia`
+          : "Inventario al día",
       bg: metrics.attention > 0 ? "#fff7ed" : "var(--card)",
       border: metrics.attention > 0 ? "#fed7aa" : "var(--border)",
       color: metrics.attention > 0 ? "#c2410c" : "var(--muted)",

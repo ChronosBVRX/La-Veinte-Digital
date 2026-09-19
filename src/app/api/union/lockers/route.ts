@@ -36,6 +36,24 @@ const statusSchema = z.object({
   maintenance_notes: z.string().max(500).optional(),
 });
 
+const conditionSchema = z.object({
+  locker_id: z.string().uuid(),
+  condition: z.enum(["ok", "maintenance", "blocked"]),
+  maintenance_reason: z.string().max(500).optional().default(""),
+  maintenance_notes: z.string().max(500).optional().default(""),
+});
+
+const reserveSchema = z.object({
+  locker_id: z.string().uuid(),
+  worker_id: z.string().uuid().nullable().optional(),
+  notes: z.string().max(500).optional().default(""),
+});
+
+const cancelReserveSchema = z.object({
+  locker_id: z.string().uuid(),
+  reason: z.string().max(500).optional().default(""),
+});
+
 const updateLocationSchema = z.object({
   locker_id: z.string().uuid(),
   zone_id: z.string().uuid().nullable().optional(),
@@ -208,7 +226,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     // Obtener todos los casilleros de la delegación
     const { data: rawLockers, error } = await supabase
       .from("union_lockers")
-      .select("id, locker_number, location, section, status, notes, updated_at, created_at")
+      .select("id, locker_number, location, section, status, condition, notes, maintenance_reason, maintenance_notes, updated_at, created_at")
       .eq("delegation_id", depId);
     if (error) throw error;
 
@@ -272,11 +290,11 @@ export async function GET(req: Request): Promise<NextResponse> {
     let blockedCount = 0;
 
     for (const l of allLockers) {
-      if (l.status === "available") availableCount++;
-      else if (l.status === "assigned") assignedCount++;
+      if (l.condition === "maintenance" || l.status === "maintenance" || l.condition === "damaged") maintenanceCount++;
+      else if (l.condition === "blocked" || l.status === "blocked") blockedCount++;
       else if (l.status === "reserved") reservedCount++;
-      else if (l.status === "maintenance") maintenanceCount++;
-      else if (l.status === "blocked") blockedCount++;
+      else if (activeByLocker.has(l.id) || l.status === "assigned" || l.status === "ocupado") assignedCount++;
+      else availableCount++;
     }
 
     const counts = {
@@ -461,6 +479,27 @@ export async function POST(req: Request): Promise<NextResponse> {
     if (action === "status") {
       const parsed = statusSchema.safeParse(body);
       if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos" }, { status: 400 }));
+
+      // Verificar si hay asignación activa antes de permitir cambio manual de status
+      const { data: existingAsg } = await supabase
+        .from("union_locker_assignments")
+        .select("id")
+        .eq("locker_id", parsed.data.locker_id)
+        .eq("status", "active")
+        .maybeSingle();
+
+      if (parsed.data.status === "assigned" && !existingAsg) {
+        return noStore(NextResponse.json({
+          error: "No se puede marcar el casillero como 'Asignado' manualmente sin una asignación activa. Utilice la acción de asignar trabajador."
+        }, { status: 400 }));
+      }
+
+      if (parsed.data.status === "available" && existingAsg) {
+        return noStore(NextResponse.json({
+          error: "No se puede marcar el casillero como 'Disponible' porque tiene una asignación activa. Libere primero la asignación del trabajador."
+        }, { status: 400 }));
+      }
+
       const updateData: Record<string, unknown> = {
         status: parsed.data.status,
         notes: parsed.data.notes,
@@ -476,6 +515,75 @@ export async function POST(req: Request): Promise<NextResponse> {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any).from("union_lockers").update(updateData).eq("id", parsed.data.locker_id);
       await writeAuditLog({ delegation_id: depId, entity_type: "union_locker", entity_id: parsed.data.locker_id, action: "locker.status", metadata: updateData });
+      return noStore(NextResponse.json({ ok: true }));
+    }
+
+    if (action === "condition") {
+      const parsed = conditionSchema.safeParse(body);
+      if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos", issues: parsed.error.issues }, { status: 400 }));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rpcResult, error: rpcError } = await (supabase as any).rpc("union_set_locker_condition", {
+        p_locker_id: parsed.data.locker_id,
+        p_condition: parsed.data.condition,
+        p_reason: parsed.data.maintenance_reason || "",
+        p_notes: parsed.data.maintenance_notes || "",
+        p_updated_by: auth.user.id,
+      });
+
+      if (rpcError) {
+        return noStore(NextResponse.json({ error: rpcError.message || "Error al actualizar condición física" }, { status: 400 }));
+      }
+
+      if (!rpcResult || !rpcResult.success) {
+        return noStore(NextResponse.json({ error: rpcResult?.error || "No se pudo actualizar condición" }, { status: 400 }));
+      }
+
+      return noStore(NextResponse.json({ ok: true }));
+    }
+
+    if (action === "reserve") {
+      const parsed = reserveSchema.safeParse(body);
+      if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos", issues: parsed.error.issues }, { status: 400 }));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rpcResult, error: rpcError } = await (supabase as any).rpc("union_reserve_locker", {
+        p_locker_id: parsed.data.locker_id,
+        p_worker_id: parsed.data.worker_id || null,
+        p_notes: parsed.data.notes || "",
+        p_reserved_by: auth.user.id,
+      });
+
+      if (rpcError) {
+        return noStore(NextResponse.json({ error: rpcError.message || "Error al reservar casillero" }, { status: 400 }));
+      }
+
+      if (!rpcResult || !rpcResult.success) {
+        return noStore(NextResponse.json({ error: rpcResult?.error || "No se pudo reservar el casillero" }, { status: 400 }));
+      }
+
+      return noStore(NextResponse.json({ ok: true }));
+    }
+
+    if (action === "cancel_reservation") {
+      const parsed = cancelReserveSchema.safeParse(body);
+      if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos", issues: parsed.error.issues }, { status: 400 }));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rpcResult, error: rpcError } = await (supabase as any).rpc("union_cancel_locker_reservation", {
+        p_locker_id: parsed.data.locker_id,
+        p_reason: parsed.data.reason || "",
+        p_cancelled_by: auth.user.id,
+      });
+
+      if (rpcError) {
+        return noStore(NextResponse.json({ error: rpcError.message || "Error al cancelar reserva" }, { status: 400 }));
+      }
+
+      if (!rpcResult || !rpcResult.success) {
+        return noStore(NextResponse.json({ error: rpcResult?.error || "No se pudo cancelar reserva" }, { status: 400 }));
+      }
+
       return noStore(NextResponse.json({ ok: true }));
     }
 
