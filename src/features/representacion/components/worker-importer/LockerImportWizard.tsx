@@ -282,17 +282,24 @@ export function LockerImportWizard(): React.JSX.Element {
                     fontSize: "0.875rem",
                   }}
                 >
+                  {(confirmResult.lockersInventoriedCount ?? 0) > 0 && (
+                    <span>
+                      Lockers físicos inventariados: <strong>{confirmResult.lockersInventoriedCount}</strong>
+                    </span>
+                  )}
                   <span>
                     Asignaciones vinculadas: <strong>{(confirmResult.newLockersCount ?? 0) + (confirmResult.lockerChangesCount ?? 0)}</strong>
                   </span>
+                  {(confirmResult.workersCreatedCount ?? 0) > 0 && (
+                    <span>
+                      Trabajadores dados de alta: <strong>{confirmResult.workersCreatedCount}</strong>
+                    </span>
+                  )}
                   {confirmResult.pendingReviewCount ? (
                     <span style={{ color: "#c2410c", fontWeight: 600 }}>
                       Pendientes de revisión: <strong>{confirmResult.pendingReviewCount}</strong>
                     </span>
                   ) : null}
-                  <span>
-                    Trabajadores modificados: <strong>0 (operación aislada)</strong>
-                  </span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "center", gap: "0.5rem", flexWrap: "wrap" }}>
                   <Button variant="primary" size="sm" onClick={() => router.push("/representacion/lockers/pendientes")}>
@@ -554,8 +561,7 @@ export function LockerImportWizard(): React.JSX.Element {
                 Actualizar base de lockers (Excel .xlsx)
               </h3>
               <p style={{ margin: "0 0 1rem", fontSize: "0.8125rem", color: "var(--muted)" }}>
-                Carga el archivo Excel con la relación de casilleros y asignaciones. El sistema conciliará las asignaciones
-                activas sin modificar datos laborales del padrón de trabajadores. Si una matrícula en el archivo no existe en el padrón, se marcará como conflicto para revisión.
+                Carga el archivo Excel con la relación de casilleros y asignaciones (Hoja1). El sistema inventariará todos los casilleros físicos, dará de alta trabajadores no registrados previamente con origen Excel (sin tocar datos SIAP si ya existen), resolverá antecedentes históricos y enviará únicamente las ambigüedades reales a revisión.
               </p>
               {loading && loadingStage ? (
                 <div

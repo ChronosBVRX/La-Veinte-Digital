@@ -158,13 +158,20 @@ export interface PreviousWorkerSnapshot {
 
 export type LockerConflictReasonCode =
   | "WORKER_NOT_FOUND"
+  | "WORKER_NOT_FOUND_CREATED_FROM_SOURCE"
   | "DUPLICATE_LOCKER_SAME_WORKER"
   | "DUPLICATE_LOCKER_DIFFERENT_WORKERS"
   | "WORKER_MULTIPLE_LOCKERS"
   | "LOCKER_ASSIGNED_TO_OTHER_WORKER"
   | "DUPLICATE_IDENTICAL_ROW"
   | "INVALID_LOCKER"
+  | "ROW_WITHOUT_LOCKER"
   | "INVALID_EMPLOYEE_NUMBER"
+  | "SEMANTIC_LOCKER"
+  | "LOCKER_WITHOUT_WORKER"
+  | "HISTORICAL_SUPERSEDED"
+  | "AMBIGUOUS_HISTORY"
+  | "DUPLICATE_PHYSICAL_NUMBER"
   | "OTHER";
 
 export interface RowDiff {
@@ -210,6 +217,18 @@ export interface ImportSummary {
   autoResolvableCount?: number;
   workerNotFoundCount?: number;
   realConflictsCount?: number;
+  // Métricas de reconciliación matemática V2 (Hoja1)
+  physicalLockersDetected?: number;
+  uniquePhysicalLockers?: number;
+  lockersExisting?: number;
+  workersMatchedInRoster?: number;
+  newWorkersFromExcel?: number;
+  safeAssignmentsCount?: number;
+  lockersWithoutWorkerCount?: number;
+  historicalSupersededCount?: number;
+  semanticLockersCount?: number;
+  rowsWithoutLockerCount?: number;
+  totalRowsAccounted?: number;
 }
 
 export interface PreviewRow {
@@ -266,6 +285,8 @@ export interface ImportConfirmResult {
   missingMarkedCount: number;
   historyRecordsCreated?: number;
   skippedConflicts?: number;
+  workersCreatedCount?: number;
+  lockersInventoriedCount?: number;
 }
 
 export interface ImportRollbackResult {

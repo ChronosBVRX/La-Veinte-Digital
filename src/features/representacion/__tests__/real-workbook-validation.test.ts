@@ -106,7 +106,7 @@ describe("Real Workbook Test: Copia de Copia de Copia de LOKER 2025.xlsx", () =>
             }),
           };
         }
-        if (table === "union_worker_import_rows") {
+        if (table === "union_worker_import_rows" || table === "union_locker_import_source_rows") {
           return {
             insert: () => Promise.resolve({ error: null }),
           };
@@ -130,10 +130,12 @@ describe("Real Workbook Test: Copia de Copia de Copia de LOKER 2025.xlsx", () =>
     console.log("Locker Preview: PASS");
     console.log("Total rows in file:", preview.summary.totalRows);
     console.log("Lockers detected:", preview.summary.lockersDetected);
-    console.log("New physical lockers:", preview.summary.newLockers);
-    console.log("Conflicts:", preview.summary.conflicts);
-    console.log("Ignored rows:", preview.summary.ignoredRows);
-    console.log("Sample preview row:", preview.rows[0]);
+    console.log("Unique physical lockers:", preview.summary.uniquePhysicalLockers);
+    console.log("Safe direct assignments:", preview.summary.safeAssignmentsCount);
+    console.log("Lockers without worker:", preview.summary.lockersWithoutWorkerCount);
+    console.log("Historical superseded:", preview.summary.historicalSupersededCount);
+    console.log("Real conflicts:", preview.summary.realConflictsCount);
+    console.log("Mathematical account:", preview.summary.totalRowsAccounted);
 
     expect(preview.batchId).toBe(mockBatchId);
     expect(preview.summary.totalRows).toBeGreaterThan(0);
