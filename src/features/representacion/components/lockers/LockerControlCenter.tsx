@@ -32,9 +32,13 @@ import { LockerPendingReviewList } from "../LockerPendingReviewList";
 import { WaitlistPanel } from "../WaitlistPanel";
 
 // Dominio y Contratos
-import type { LockerZone, LockerBank, LockerMapItem } from "@/features/representacion/lib/lockers";
+import type { LockerZone, LockerBank, LockerMapItem, LockerMapResponse } from "@/features/representacion/lib/lockers";
 
-export function LockerControlCenter(): React.JSX.Element {
+export interface LockerControlCenterProps {
+  isAdmin?: boolean;
+}
+
+export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProps): React.JSX.Element {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -163,30 +167,19 @@ export function LockerControlCenter(): React.JSX.Element {
     setMapError(null);
     try {
       const res = await fetch(`/api/union/lockers/map?zone_id=all`, { cache: "no-store" });
-      const data = (await res.json()) as {
-        zones?: LockerZone[];
-        banks?: LockerBank[];
-        lockers?: LockerMapItem[];
-        counts?: {
-          total: number;
-          assigned: number;
-          available: number;
-          maintenance: number;
-          unlocated: number;
-          pending_review: number;
-        };
-        integrity_issues_count?: number;
-        error?: string;
-      };
+      const data = (await res.json()) as LockerMapResponse;
 
       if (!res.ok) throw new Error(data.error || "No se pudo cargar el mapa de casilleros");
 
       setZones(data.zones ?? []);
       setBanks(data.banks ?? []);
       setMapLockers(data.lockers ?? []);
-      setUnlocatedCount(data.counts?.unlocated ?? 0);
-      setPendingReviewCount(data.counts?.pending_review ?? 0);
-      setIntegrityIssuesCount(data.integrity_issues_count ?? 0);
+      setUnlocatedCount(data.summary?.unlocated ?? data.counts?.unlocated ?? 0);
+      setPendingReviewCount(data.summary?.pendingReview ?? data.counts?.pending_review ?? 0);
+      if (data.summary?.waitlist !== undefined) {
+        setWaitlistCount(data.summary.waitlist);
+      }
+      setIntegrityIssuesCount(data.summary?.integrityIssues ?? data.integrity_issues_count ?? 0);
     } catch (err: unknown) {
       setMapError(err instanceof Error ? err.message : "Error al cargar casilleros");
     } finally {
@@ -594,8 +587,10 @@ export function LockerControlCenter(): React.JSX.Element {
             unlocatedCount={unlocatedCount}
             totalLockersCount={mapLockers.length}
             onSelectZone={handleZoneSelect}
-            isAdmin={true}
-            onConfigureZones={() => setIsZoneManagerOpen(true)}
+            isAdmin={isAdmin}
+            onConfigureZones={() => {
+              if (isAdmin) setIsZoneManagerOpen(true);
+            }}
           />
 
           {loadingMap ? (
@@ -630,11 +625,15 @@ export function LockerControlCenter(): React.JSX.Element {
               onLockerClick={handleLockerClick}
               onLockerHover={handleLockerHover}
               onLockerLeave={handleLockerLeave}
-              isAdmin={true}
-              onConfigureMap={() => setIsZoneManagerOpen(true)}
+              isAdmin={isAdmin}
+              onConfigureMap={() => {
+                if (isAdmin) setIsZoneManagerOpen(true);
+              }}
               onEditBank={(bank) => {
-                setBankToEdit(bank);
-                setIsBankEditorOpen(true);
+                if (isAdmin) {
+                  setBankToEdit(bank);
+                  setIsBankEditorOpen(true);
+                }
               }}
             />
           )}
@@ -875,7 +874,7 @@ export function LockerControlCenter(): React.JSX.Element {
         onOpenMove={handleOpenMove}
         onOpenSwap={handleOpenSwap}
         onSetStatus={handleSetStatus}
-        isAdmin={true}
+        isAdmin={isAdmin}
       />
 
       {/* Modal de Asignación */}
@@ -918,33 +917,37 @@ export function LockerControlCenter(): React.JSX.Element {
         }}
       />
 
-      {/* Modal de Permuta de Casilleros */}
-      <LockerSwapFlow
-        isOpen={isSwapOpen}
-        onClose={() => {
-          setIsSwapOpen(false);
-          setSwapSourceLocker(null);
-        }}
-        sourceLocker={swapSourceLocker}
-        onSuccess={() => {
-          void loadMapData();
-          void loadTableData();
-        }}
-      />
+      {/* Modal de Permuta de Casilleros (Admin) */}
+      {isAdmin && (
+        <LockerSwapFlow
+          isOpen={isSwapOpen}
+          onClose={() => {
+            setIsSwapOpen(false);
+            setSwapSourceLocker(null);
+          }}
+          sourceLocker={swapSourceLocker}
+          onSuccess={() => {
+            void loadMapData();
+            void loadTableData();
+          }}
+        />
+      )}
 
-      {/* Modal de Configuración de Zonas y Muebles */}
-      <LockerZoneManager
-        isOpen={isZoneManagerOpen}
-        onClose={() => setIsZoneManagerOpen(false)}
-        zones={zones}
-        banks={banks}
-        onSuccess={() => {
-          void loadMapData();
-        }}
-      />
+      {/* Modal de Configuración de Zonas y Muebles (Admin) */}
+      {isAdmin && (
+        <LockerZoneManager
+          isOpen={isZoneManagerOpen}
+          onClose={() => setIsZoneManagerOpen(false)}
+          zones={zones}
+          banks={banks}
+          onSuccess={() => {
+            void loadMapData();
+          }}
+        />
+      )}
 
-      {/* Modal Editor de Mueble Específico */}
-      {isBankEditorOpen && (
+      {/* Modal Editor de Mueble Específico (Admin) */}
+      {isAdmin && isBankEditorOpen && (
         <LockerBankEditor
           isOpen={isBankEditorOpen}
           onClose={() => {

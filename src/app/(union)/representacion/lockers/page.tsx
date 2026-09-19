@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function LockersPage(): Promise<React.JSX.Element> {
   const m = await getUnionMemberships();
   if (m.length === 0) redirect("/");
+  const isAdmin = m.some((membership) => membership.role === "union_admin" || (membership.role as string) === "admin");
   return (
     <div>
       <Suspense
@@ -17,7 +18,7 @@ export default async function LockersPage(): Promise<React.JSX.Element> {
           </div>
         }
       >
-        <LockerControlCenter />
+        <LockerControlCenter isAdmin={isAdmin} />
       </Suspense>
     </div>
   );

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/shared/server/auth/require-user";
-import { requireUnionMembership } from "@/features/representacion/services/permissions";
+import { requireUnionMembership, requireUnionAdmin } from "@/features/representacion/services/permissions";
 import { writeAuditLog } from "@/features/representacion/services/audit";
 import { normalizeLockerNumber, naturalCompare } from "@/features/representacion/lib/lockers";
 import { lockerCreateSchema } from "@/features/representacion/lib/validation";
@@ -411,7 +411,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       const parsed = assignSchema.safeParse(body);
       if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos" }, { status: 400 }));
 
-      // Intentar primero con la RPC atómica union_assign_locker
+      // Ejecutar asignación atómica vía RPC transaccional
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: rpcResult, error: rpcError } = await (supabase as any).rpc("union_assign_locker", {
         p_locker_id: parsed.data.locker_id,
@@ -422,72 +422,23 @@ export async function POST(req: Request): Promise<NextResponse> {
         p_created_by: auth.user.id,
       });
 
-      if (!rpcError && rpcResult) {
-        if (!rpcResult.success) {
-          return noStore(NextResponse.json({ error: rpcResult.error || "No se pudo asignar" }, { status: 409 }));
-        }
-        return noStore(NextResponse.json({ id: rpcResult.assignment_id }));
+      if (rpcError) {
+        const isForbidden = rpcError.message?.includes("No autorizado") || rpcError.message?.includes("No autenticado") || rpcError.message?.includes("administrador");
+        return noStore(NextResponse.json({ error: rpcError.message || "Error al asignar casillero" }, { status: isForbidden ? 403 : 400 }));
       }
 
-      const { data: locker } = await supabase.from("union_lockers").select("id, delegation_id, status").eq("id", parsed.data.locker_id).single();
-      if (!locker || (locker as { delegation_id: string }).delegation_id !== depId) {
-        return noStore(NextResponse.json({ error: "Locker no encontrado en esta delegación" }, { status: 404 }));
+      if (!rpcResult || !rpcResult.success) {
+        return noStore(NextResponse.json({ error: rpcResult?.error || "No se pudo asignar el casillero" }, { status: 409 }));
       }
-      if ((locker as { status: string }).status === "maintenance" || (locker as { status: string }).status === "blocked") {
-        return noStore(NextResponse.json({ error: "El locker no está disponible" }, { status: 409 }));
-      }
-      const { data: existingLocker } = await supabase
-        .from("union_locker_assignments")
-        .select("id")
-        .eq("locker_id", parsed.data.locker_id)
-        .eq("status", "active")
-        .limit(1);
-      if (existingLocker && existingLocker.length > 0) {
-        return noStore(NextResponse.json({ error: "El locker ya tiene una asignación activa" }, { status: 409 }));
-      }
-      if (!parsed.data.admin_override) {
-        const { data: existingWorker } = await supabase
-          .from("union_locker_assignments")
-          .select("id")
-          .eq("worker_id", parsed.data.worker_id)
-          .eq("status", "active")
-          .limit(1);
-        if (existingWorker && existingWorker.length > 0) {
-          return noStore(NextResponse.json({ error: "El trabajador ya tiene un locker activo" }, { status: 409 }));
-        }
-      } else if (!parsed.data.admin_override_reason.trim()) {
-        return noStore(NextResponse.json({ error: "El override administrativo requiere motivo auditado" }, { status: 400 }));
-      }
-      const { data: created, error } = await supabase
-        .from("union_locker_assignments")
-        .insert({
-          locker_id: parsed.data.locker_id,
-          worker_id: parsed.data.worker_id,
-          status: "active",
-          assignment_reason: parsed.data.assignment_reason ?? "",
-          admin_override: parsed.data.admin_override,
-          admin_override_reason: parsed.data.admin_override_reason ?? "",
-          created_by: auth.user.id,
-        })
-        .select("id")
-        .single();
-      if (error) return noStore(NextResponse.json({ error: "No se pudo asignar (conflicto de unicidad)" }, { status: 409 }));
-      await supabase.from("union_lockers").update({ status: "assigned" }).eq("id", parsed.data.locker_id);
-      await writeAuditLog({
-        delegation_id: depId,
-        entity_type: "union_locker_assignment",
-        entity_id: String((created as { id: string }).id),
-        action: "locker.assigned",
-        metadata: { admin_override: parsed.data.admin_override },
-      });
-      return noStore(NextResponse.json({ id: (created as { id: string }).id }));
+
+      return noStore(NextResponse.json({ id: rpcResult.assignment_id }));
     }
 
     if (action === "release") {
       const parsed = releaseSchema.safeParse(body);
       if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos" }, { status: 400 }));
 
-      // Intentar primero con la RPC atómica union_release_locker
+      // Ejecutar liberación atómica vía RPC transaccional
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: rpcResult, error: rpcError } = await (supabase as any).rpc("union_release_locker", {
         p_assignment_id: parsed.data.assignment_id,
@@ -495,25 +446,15 @@ export async function POST(req: Request): Promise<NextResponse> {
         p_released_by: auth.user.id,
       });
 
-      if (!rpcError && rpcResult) {
-        if (!rpcResult.success) {
-          return noStore(NextResponse.json({ error: rpcResult.error || "No se pudo liberar" }, { status: 400 }));
-        }
-        return noStore(NextResponse.json({ ok: true }));
+      if (rpcError) {
+        const isForbidden = rpcError.message?.includes("No autorizado") || rpcError.message?.includes("No autenticado");
+        return noStore(NextResponse.json({ error: rpcError.message || "Error al liberar casillero" }, { status: isForbidden ? 403 : 400 }));
       }
 
-      const { data: asg } = await supabase
-        .from("union_locker_assignments")
-        .select("id, locker_id, status")
-        .eq("id", parsed.data.assignment_id)
-        .single();
-      if (!asg) return noStore(NextResponse.json({ error: "Asignación no encontrada" }, { status: 404 }));
-      await supabase
-        .from("union_locker_assignments")
-        .update({ status: "released", released_at: new Date().toISOString(), release_reason: parsed.data.release_reason })
-        .eq("id", parsed.data.assignment_id);
-      await supabase.from("union_lockers").update({ status: "available" }).eq("id", (asg as { locker_id: string }).locker_id);
-      await writeAuditLog({ delegation_id: depId, entity_type: "union_locker_assignment", entity_id: parsed.data.assignment_id, action: "locker.released", metadata: {} });
+      if (!rpcResult || !rpcResult.success) {
+        return noStore(NextResponse.json({ error: rpcResult?.error || "No se pudo liberar el casillero" }, { status: 400 }));
+      }
+
       return noStore(NextResponse.json({ ok: true }));
     }
 
@@ -539,6 +480,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     if (action === "location") {
+      await requireUnionAdmin(depId);
       const parsed = updateLocationSchema.safeParse(body);
       if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos" }, { status: 400 }));
       const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -556,7 +498,9 @@ export async function POST(req: Request): Promise<NextResponse> {
     }
 
     return noStore(NextResponse.json({ error: "Acción no soportada" }, { status: 400 }));
-  } catch {
-    return noStore(NextResponse.json({ error: "No se pudo procesar lockers" }, { status: 500 }));
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "No se pudo procesar lockers";
+    const status = msg.includes("union_admin") || msg.includes("Sin acceso") || msg.includes("No autorizado") ? 403 : 500;
+    return noStore(NextResponse.json({ error: msg }, { status }));
   }
 }

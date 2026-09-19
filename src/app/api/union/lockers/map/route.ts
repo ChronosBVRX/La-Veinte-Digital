@@ -10,6 +10,8 @@ import {
   type LockerBank,
   type LockerStatus,
   type LockerCondition,
+  type LockerMapResponse,
+  type LockerMapSummary,
 } from "@/features/representacion/lib/lockers";
 
 export const dynamic = "force-dynamic";
@@ -126,7 +128,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       .from("union_locker_waitlist")
       .select("id", { count: "exact", head: true })
       .eq("delegation_id", depId)
-      .eq("status", "active");
+      .eq("status", "waiting");
 
     // 7. Calcular métricas por zona y globales
     const zoneCounts = new Map<string, { total: number; assigned: number; available: number; attention: number }>();
@@ -258,22 +260,41 @@ export async function GET(req: Request): Promise<NextResponse> {
       attention_lockers: zoneCounts.get(z.id)?.attention ?? 0,
     }));
 
-    return noStore(
-      NextResponse.json({
-        zones: enrichedZones,
-        banks,
-        lockers: mapItems,
-        summary: {
-          total: allLockers.length,
-          assigned: globalAssigned,
-          available: globalAvailable,
-          attention: globalAttention,
-          maintenance: globalMaintenance,
-          unlocated: globalUnlocated,
-          waitlistCount: waitlistCount ?? 0,
-        },
-      })
-    );
+    const summary: LockerMapSummary = {
+      total: allLockers.length,
+      assigned: globalAssigned,
+      available: globalAvailable,
+      attention: globalAttention,
+      maintenance: globalMaintenance,
+      unlocated: globalUnlocated,
+      pendingReview: pendingItems.length,
+      waitlist: waitlistCount ?? 0,
+      integrityIssues: globalAttention,
+      // Aliases para compatibilidad hacia atrás
+      waitlistCount: waitlistCount ?? 0,
+      pending_review: pendingItems.length,
+      integrity_issues_count: globalAttention,
+    };
+
+    const counts = {
+      total: allLockers.length,
+      assigned: globalAssigned,
+      available: globalAvailable,
+      maintenance: globalMaintenance,
+      unlocated: globalUnlocated,
+      pending_review: pendingItems.length,
+    };
+
+    const payload: LockerMapResponse = {
+      zones: enrichedZones,
+      banks,
+      lockers: mapItems,
+      summary,
+      counts,
+      integrity_issues_count: globalAttention,
+    };
+
+    return noStore(NextResponse.json(payload));
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Error al cargar mapa de casilleros";
     return noStore(NextResponse.json({ error: msg }, { status: 500 }));

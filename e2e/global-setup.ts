@@ -2,6 +2,7 @@ import { test as setup, expect } from "@playwright/test"
 import path from "path"
 import fs from "fs"
 import { createClient } from "@supabase/supabase-js"
+import { createServerClient } from "@supabase/ssr"
 
 const AUTH_FILE = path.join(__dirname, ".auth", "user.json")
 
@@ -10,6 +11,7 @@ setup("autenticar usuario E2E", async ({ page }) => {
   const password = process.env.E2E_USER_PASSWORD
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!email || !password) {
     throw new Error(
@@ -29,7 +31,7 @@ setup("autenticar usuario E2E", async ({ page }) => {
 
   // Con CAPTCHA obligatorio en Supabase, el login por formulario no puede
   // resolverse headless. Si hay service_role, se emite un magic link de admin
-  // (exento de CAPTCHA) y se visita: la sesión queda en las cookies.
+  // y se canjea token_hash directamente para obtener cookies sin colisión de redirects.
   if (supabaseUrl && serviceRoleKey) {
     const admin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -40,21 +42,67 @@ setup("autenticar usuario E2E", async ({ page }) => {
       email,
       options: { redirectTo: `${baseUrl}/callback` },
     })
-    if (error || !data.properties.action_link) {
-      throw new Error(`No se pudo generar el magic link E2E: ${error?.message ?? "sin action_link"}`)
+    if (error || !data.properties.hashed_token) {
+      throw new Error(`No se pudo generar el magic link E2E: ${error?.message ?? "sin hashed_token"}`)
     }
-    await page.goto(data.properties.action_link)
-    await expect(
-      page,
-      "Debe redirigir al dashboard tras login E2E con magic link"
-    ).toHaveURL("/", { timeout: 15_000 })
-    await expect(
-      page.getByRole("heading", { level: 1 }),
-      "Debe mostrar el heading principal del dashboard"
-    ).toBeVisible({ timeout: 10_000 })
-    await page.context().storageState({ path: AUTH_FILE })
-    console.log("Auth setup completado para:", email.replace(/[^@]/g, "*"))
-    return
+
+    if (anonKey) {
+      let capturedCookies: { name: string; value: string; options?: Record<string, unknown> }[] = []
+      const ssr = createServerClient(supabaseUrl, anonKey, {
+        cookies: {
+          getAll() {
+            return []
+          },
+          setAll(c) {
+            capturedCookies = c
+          },
+        },
+      })
+
+      const { error: verifyErr } = await ssr.auth.verifyOtp({
+        token_hash: data.properties.hashed_token,
+        type: "magiclink",
+      })
+
+      if (!verifyErr && capturedCookies.length > 0) {
+        const u = new URL(baseUrl)
+        const hostname = u.hostname
+        const cookiesToAdd = capturedCookies.map((c) => ({
+          name: c.name,
+          value: c.value,
+          domain: hostname,
+          path: "/",
+          httpOnly: (c.options?.httpOnly as boolean) ?? true,
+          secure: (c.options?.secure as boolean) ?? false,
+          sameSite: ((c.options?.sameSite as string) === "none" ? "None" : "Lax") as "Lax" | "Strict" | "None",
+        }))
+
+        await page.context().addCookies(cookiesToAdd)
+        await page.goto(baseUrl)
+        await expect(
+          page.getByRole("heading", { level: 1 }),
+          "Debe mostrar el heading principal del dashboard"
+        ).toBeVisible({ timeout: 15_000 })
+        await page.context().storageState({ path: AUTH_FILE })
+        console.log("Auth setup completado (vía verifyOtp direct) para:", email.replace(/[^@]/g, "*"))
+        return
+      }
+    }
+
+    if (data.properties.action_link) {
+      await page.goto(data.properties.action_link)
+      await expect(
+        page,
+        "Debe redirigir al dashboard tras login E2E con magic link"
+      ).toHaveURL("/", { timeout: 15_000 })
+      await expect(
+        page.getByRole("heading", { level: 1 }),
+        "Debe mostrar el heading principal del dashboard"
+      ).toBeVisible({ timeout: 10_000 })
+      await page.context().storageState({ path: AUTH_FILE })
+      console.log("Auth setup completado para:", email.replace(/[^@]/g, "*"))
+      return
+    }
   }
 
   await page.goto("/login")

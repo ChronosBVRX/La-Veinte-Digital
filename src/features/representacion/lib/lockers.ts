@@ -432,3 +432,36 @@ export function sortWaitlist(entries: WaitlistEntry[]): WaitlistEntry[] {
     return a.requestedAt.localeCompare(b.requestedAt);
   });
 }
+
+export interface LockerMapSummary {
+  total: number;
+  assigned: number;
+  available: number;
+  attention: number;
+  maintenance: number;
+  unlocated: number;
+  pendingReview: number;
+  waitlist: number;
+  integrityIssues: number;
+  // Aliases de compatibilidad
+  waitlistCount?: number;
+  pending_review?: number;
+  integrity_issues_count?: number;
+}
+
+export interface LockerMapResponse {
+  zones: LockerZone[];
+  banks: LockerBank[];
+  lockers: LockerMapItem[];
+  summary: LockerMapSummary;
+  counts?: {
+    total: number;
+    assigned: number;
+    available: number;
+    maintenance: number;
+    unlocated: number;
+    pending_review: number;
+  };
+  integrity_issues_count?: number;
+  error?: string;
+}
