@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
 
   const wavs: string[] = []
   let resolvedBlocks = 0
-  const tmpCache = path.join(process.cwd(), "data", "tts", "cache")
+  const tmpCache = path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "tts", "cache")
   fs.mkdirSync(tmpCache, { recursive: true })
 
   try {
