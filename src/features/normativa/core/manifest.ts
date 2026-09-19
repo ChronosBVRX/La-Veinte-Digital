@@ -51,7 +51,7 @@ export function categoryDir(category: string): string {
 }
 
 export function normativaRoot(repoRoot: string): string {
-  return path.join(repoRoot, "data", "normativa");
+  return path.join(/*turbopackIgnore: true*/ repoRoot, "data", "normativa");
 }
 
 export function ensureDirs(root: string): string[] {

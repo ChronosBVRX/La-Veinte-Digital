@@ -11,7 +11,7 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 function benchmarkSummary(repoRoot: string): Record<string, unknown> | null {
-  const p = path.join(repoRoot, "data", "tts", "benchmark", "benchmark-report.json")
+  const p = path.join(/*turbopackIgnore: true*/ repoRoot, "data", "tts", "benchmark", "benchmark-report.json")
   if (!fs.existsSync(p)) return null
   try {
     return JSON.parse(fs.readFileSync(p, "utf8")) as Record<string, unknown>
@@ -21,14 +21,14 @@ function benchmarkSummary(repoRoot: string): Record<string, unknown> | null {
 }
 
 function engineFor(repo: string): QwenEngine {
-  return new QwenEngine(repo, "", path.join(repo, "data", "tts"))
+  return new QwenEngine(repo, "", path.join(/*turbopackIgnore: true*/ repo, "data", "tts"))
 }
 
 export async function GET() {
   const auth = await requireUser()
   if (auth.response) return auth.response
 
-  const repo = process.cwd()
+  const repo = /*turbopackIgnore: true*/ process.cwd()
   const hw = await detectHardware()
   const config = configForProfile(hw, (process.env.TTS_PRESET as TtsPreset) ?? "BALANCED")
 
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     return privateJsonError(400, "Cuerpo JSON inválido", crypto.randomUUID(), "bad_request")
   }
 
-  const engine = engineFor(process.cwd())
+  const engine = engineFor(/*turbopackIgnore: true*/ process.cwd())
 
   if (body.action === "start" || body.action === "restart") {
     await engine.start()

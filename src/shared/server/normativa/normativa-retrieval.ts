@@ -76,7 +76,7 @@ export async function retrieveNormativaSources(
 ): Promise<RetrievedNormativaSource[]> {
   let db: DatabaseSync | null = null
   try {
-    const catalogPath = customDbPath || path.resolve(process.cwd(), "data", "normativa", "catalog.sqlite")
+    const catalogPath = customDbPath || path.resolve(/*turbopackIgnore: true*/ process.cwd(), "data", "normativa", "catalog.sqlite")
     if (!fs.existsSync(catalogPath)) {
       return []
     }

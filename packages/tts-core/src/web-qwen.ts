@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { spawn } from "node:child_process";
 import { qwenEnv } from "./qwen-env";
 
-const REPO = path.resolve(process.cwd());
+const REPO = path.resolve(/*turbopackIgnore: true*/ process.cwd());
 export const RENDER_PY = qwenEnv(REPO).renderPy;
 export const QWEN_PYTHON = qwenEnv(REPO).python;
 const TIMEOUT_MS = 300_000;
