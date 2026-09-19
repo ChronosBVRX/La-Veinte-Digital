@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { CaretDown } from "@phosphor-icons/react";
 import { getWorkerDisplayName } from "../WorkerPicker";
 import type { UnionExpedienteCase, UnionWorkerExpediente } from "../../services/worker-directory";
@@ -368,14 +369,48 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
         <Section title="Lockers" count={lockers.length + waitlist.length}>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             {lockers.map((locker) => (
-              <div key={locker.id} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "0.5rem 0.75rem", fontSize: "0.8125rem" }}>
-                <strong>Locker {locker.locker_number}</strong>
-                {locker.section ? ` · Sección ${locker.section}` : ""}
-                {locker.location ? ` · ${locker.location}` : ""}
-                <div style={{ color: "var(--muted)", fontSize: "0.75rem", marginTop: "0.125rem" }}>
-                  {LOCKER_ASSIGNMENT_STATUS_LABEL[locker.status] ?? locker.status} · Asignado {formatDate(locker.assigned_at)}
-                  {locker.released_at ? ` · Liberado ${formatDate(locker.released_at)}` : ""}
+              <div
+                key={locker.id}
+                style={{
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius)",
+                  padding: "0.625rem 0.75rem",
+                  fontSize: "0.8125rem",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div>
+                  <strong>Locker {locker.locker_number}</strong>
+                  {locker.section ? ` · Sección ${locker.section}` : ""}
+                  {locker.location ? ` · ${locker.location}` : ""}
+                  <div style={{ color: "var(--muted)", fontSize: "0.75rem", marginTop: "0.125rem" }}>
+                    {LOCKER_ASSIGNMENT_STATUS_LABEL[locker.status] ?? locker.status} · Asignado {formatDate(locker.assigned_at)}
+                    {locker.released_at ? ` · Liberado ${formatDate(locker.released_at)}` : ""}
+                  </div>
                 </div>
+
+                <Link
+                  href={`/representacion/lockers?locker=${locker.locker_id || locker.id}&q=${locker.locker_number}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                    padding: "0.25rem 0.5rem",
+                    borderRadius: "0.25rem",
+                    border: "1px solid var(--border)",
+                    backgroundColor: "var(--accent)",
+                    color: "var(--primary)",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    textDecoration: "none",
+                  }}
+                >
+                  🗺 Ver en mapa
+                </Link>
               </div>
             ))}
             {waitlist.map((entry) => (

@@ -323,6 +323,7 @@ export interface UnionWorkerExpediente {
   cases: UnionExpedienteCase[];
   lockers: Array<{
     id: string;
+    locker_id?: string;
     locker_number: string;
     location: string | null;
     section: string | null;
@@ -485,6 +486,7 @@ export async function getUnionWorkerExpediente(
         if (!locker) return null;
         return {
           id: assignment.id,
+          locker_id: assignment.locker_id,
           locker_number: locker.locker_number,
           location: locker.location,
           section: locker.section,
