@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   getLockerEffectiveState,
+  canAssignLocker,
+  canAssignWorker,
+  sortWaitlist,
   type LockerMapItem,
 } from "@/features/representacion/lib/lockers";
 
@@ -140,3 +143,68 @@ describe("Lockers 2.0 - Effective States", () => {
     expect(state.badge.dotColor).toBe("#16a34a");
   });
 });
+
+describe("Lockers 2.0 Hardening - Contract & Business Rules", () => {
+  it("valida la estructura y tipado de LockerMapResponse y LockerMapSummary", () => {
+    const summary = {
+      total: 1199,
+      assigned: 357,
+      available: 842,
+      attention: 0,
+      maintenance: 0,
+      unlocated: 1199,
+      pendingReview: 1770,
+      waitlist: 0,
+      integrityIssues: 0,
+      waitlistCount: 0,
+      pending_review: 1770,
+      integrity_issues_count: 0,
+    };
+
+    expect(summary.total).toBe(1199);
+    expect(summary.unlocated).toBe(1199);
+    expect(summary.pendingReview).toBe(1770);
+    expect(summary.waitlist).toBe(0);
+    expect(summary.assigned + summary.available).toBe(1199);
+  });
+
+  it("verifica restricciones para asignar casillero según condición y estado", () => {
+    // Locker disponible
+    expect(canAssignLocker("available", false).ok).toBe(true);
+
+    // Locker ya asignado
+    expect(canAssignLocker("assigned", false).ok).toBe(false);
+
+    // Locker con asignación activa detectada
+    expect(canAssignLocker("available", true).ok).toBe(false);
+
+    // Locker en mantenimiento o bloqueado
+    expect(canAssignLocker("maintenance", false).ok).toBe(false);
+    expect(canAssignLocker("blocked", false).ok).toBe(false);
+  });
+
+  it("verifica restricciones para asignar trabajador según casillero previo y override admin", () => {
+    // Trabajador sin casillero previo
+    expect(canAssignWorker(false, false).ok).toBe(true);
+
+    // Trabajador con casillero previo sin override
+    expect(canAssignWorker(true, false).ok).toBe(false);
+
+    // Trabajador con casillero previo con override autorizado
+    expect(canAssignWorker(true, true).ok).toBe(true);
+  });
+
+  it("ordena lista de espera según prioridad y fecha ascendente (FIFO)", () => {
+    const entries = [
+      { id: "1", requestedAt: "2026-03-01T10:00:00Z", priorityOverride: null },
+      { id: "2", requestedAt: "2026-01-15T10:00:00Z", priorityOverride: null },
+      { id: "3", requestedAt: "2026-02-01T10:00:00Z", priorityOverride: 1 }, // Mayor prioridad (1 < null)
+    ];
+
+    const sorted = sortWaitlist(entries);
+    expect(sorted[0].id).toBe("3"); // prioridad 1
+    expect(sorted[1].id).toBe("2"); // enero (más antiguo)
+    expect(sorted[2].id).toBe("1"); // marzo
+  });
+});
+

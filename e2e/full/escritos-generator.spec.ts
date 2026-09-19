@@ -159,7 +159,7 @@ test.describe("Generador de Escritos V2 (Recorridos IA y Manual)", () => {
     // 9. Probar Imprimir (abre SendPrintModal del sistema de documentos)
     await page.getByRole("button", { name: /Imprimir/i }).first().click()
     await expect(page.getByText(/Enviar a imprimir/i)).toBeVisible()
-    await page.getByRole("button", { name: "Cerrar" }).click()
+    await page.getByRole("button", { name: "Cerrar", exact: true }).click()
 
     // 10. Probar Compartir
     await page.getByRole("button", { name: /Compartir/i }).first().click()
