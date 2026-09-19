@@ -209,6 +209,8 @@ export const SEMANTIC_LOCKER_KEYWORDS = new Set([
   "JUBILADO",
   "BAJA",
   "PENDIENTE",
+  "MONSERRAT",
+  "PERSONAL",
 ]);
 
 export function isSemanticLocker(val: unknown): boolean {
@@ -222,29 +224,76 @@ export function isSemanticLocker(val: unknown): boolean {
 
 export function normalizeLockerNumber(val: unknown): {
   normalized: string;
+  isPhysical: boolean;
   isSemantic: boolean;
   raw: string;
 } {
   if (val === null || val === undefined) {
-    return { normalized: "", isSemantic: false, raw: "" };
+    return { normalized: "", isPhysical: false, isSemantic: false, raw: "" };
   }
   const raw = String(val).trim();
   if (!raw) {
-    return { normalized: "", isSemantic: false, raw: "" };
+    return { normalized: "", isPhysical: false, isSemantic: false, raw: "" };
   }
-  const upper = raw.toUpperCase().replace(/\s+/g, " ");
+
+  // Limpiar comillas, backticks, símbolos numerales y prefijos comunes (ej. L-, LOCKER, NO., #)
+  const cleaned = raw
+    .replace(/^[`'"\s#]+|[`'"\s]+$/g, "")
+    .replace(/^(?:locker|lock|no\.?|l)[-\s]*/i, "")
+    .trim();
+  const upper = cleaned.toUpperCase().replace(/\s+/g, " ");
+
   if (isSemanticLocker(upper)) {
-    return { normalized: upper, isSemantic: true, raw };
+    return { normalized: upper, isPhysical: false, isSemantic: true, raw };
   }
-  const digits = raw.replace(/[^0-9]/g, "");
-  if (digits) {
+
+  // Detectar identificador físico de casillero:
+  // Preserva enteros (ej. "200", "427", "686") y sufijos (ej. "200-B", "427-B")
+  const match = cleaned.match(/^(\d+)(?:\s*[-–—/]?\s*([A-Za-z0-9]+))?$/);
+  if (match) {
+    const base = String(parseInt(match[1], 10));
+    const suffix = match[2] ? `-${match[2].toUpperCase()}` : "";
+    return { normalized: `${base}${suffix}`, isPhysical: true, isSemantic: false, raw };
+  }
+
+  return { normalized: upper, isPhysical: false, isSemantic: true, raw };
+}
+
+export function extractSourceUpdateYear(colValue: unknown): number | null {
+  if (!colValue) return null;
+  const str = String(colValue).trim();
+  const m = str.match(/\b(202[0-9])\b/);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+export function splitWorkerNameReversible(rawName: string): {
+  first_name: string;
+  paternal_surname: string;
+  maternal_surname: string;
+  source_name_raw: string;
+} {
+  const trimmed = (rawName ?? "").trim();
+  if (!trimmed) {
+    return { first_name: "", paternal_surname: "", maternal_surname: "", source_name_raw: "" };
+  }
+
+  if (trimmed.includes("/")) {
+    const parts = trimmed
+      .split("/")
+      .map((p) => p.trim().toUpperCase().replace(/\s+/g, " "));
     return {
-      normalized: String(parseInt(digits, 10)),
-      isSemantic: false,
-      raw,
+      paternal_surname: parts[0] || "",
+      maternal_surname: parts[1] || "",
+      first_name: parts.slice(2).join(" ") || "",
+      source_name_raw: trimmed,
     };
   }
-  return { normalized: upper, isSemantic: true, raw };
+
+  const splitRes = splitFullName(trimmed);
+  return {
+    ...splitRes,
+    source_name_raw: trimmed,
+  };
 }
 
 export function splitFullName(fullName: string): {

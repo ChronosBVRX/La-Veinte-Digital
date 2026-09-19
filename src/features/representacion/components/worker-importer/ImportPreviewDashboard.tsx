@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import type { ImportSummary } from "../../services/worker-importer/types";
 
 export interface ImportPreviewDashboardProps {
@@ -17,31 +16,37 @@ export function ImportPreviewDashboard({
   const isLocker = domain === "LOCKER";
 
   const breakdown = summary.conflictBreakdown;
-  const workerNotFoundCount = breakdown?.WORKER_NOT_FOUND ?? (summary.missingMatricula ?? 0);
-  const autoResolvableCount = summary.autoResolvableCount ?? 0;
-  const realConflictsCount = summary.realConflictsCount ?? 0;
-  const readyAssignmentsCount = (summary.newCount ?? 0) + (summary.lockerChanges ?? summary.updatedCount ?? 0);
+  const realConflictsCount = summary.realConflictsCount ?? (summary.conflicts ?? summary.conflictsCount ?? 0);
+  const readyAssignmentsCount =
+    summary.safeAssignmentsCount ??
+    (summary.newCount ?? 0) + (summary.lockerChanges ?? summary.updatedCount ?? 0) + (summary.unchangedCount ?? 0);
 
-  const cards = isLocker
-    ? [
-        { label: "Lockers detectados", value: summary.lockersDetected ?? summary.totalRows, color: "#0891b2" },
-        { label: "Asignaciones listas", value: readyAssignmentsCount, color: "#16a34a" },
-        { label: "Personas por vincular", value: workerNotFoundCount, color: "#ea580c" },
-        { label: "Necesitan revisión", value: realConflictsCount, color: "#9333ea" },
-        { label: "Sin cambios", value: summary.unchangedCount ?? 0, color: "var(--muted)" },
-        { label: "Filas del archivo", value: summary.totalRows, color: "var(--fg)" },
-      ]
-    : [
-        { label: "Filas detectadas", value: summary.totalRows, color: "var(--fg)" },
-        { label: "Trabajadores válidos", value: summary.validWorkers ?? (summary.totalRows - (summary.missingMatricula ?? 0)), color: "#0284c7" },
-        { label: "Trabajadores nuevos", value: summary.newWorkers ?? summary.newCount ?? 0, color: "#16a34a" },
-        { label: "Con cambios", value: summary.updatedWorkers ?? summary.updatedCount ?? 0, color: "var(--primary)" },
-        { label: "Sin cambios", value: summary.unchangedWorkers ?? summary.unchangedCount ?? 0, color: "var(--muted)" },
-        { label: "Matrículas duplicadas", value: summary.duplicateMatriculas ?? 0, color: "#ea580c" },
-        { label: "Sin matrícula", value: summary.missingMatricula ?? summary.invalidCount ?? 0, color: "#dc2626" },
-        { label: "Conflictos", value: summary.conflicts ?? summary.conflictsCount ?? 0, color: "#9333ea" },
-        { label: "Filas ignoradas", value: summary.ignoredRows ?? 0, color: "var(--muted)" },
-      ];
+  const lockerCards = [
+    { label: "Filas Hoja1", value: summary.totalRows, color: "var(--fg)" },
+    { label: "Lockers físicos", value: summary.uniquePhysicalLockers ?? summary.lockersDetected ?? summary.totalRows, color: "#0891b2" },
+    { label: "Asignaciones listas", value: readyAssignmentsCount, color: "#16a34a" },
+    { label: "Trabajadores en padrón", value: summary.workersMatchedInRoster ?? 0, color: "#0284c7" },
+    { label: "Nuevos trabajadores (Excel)", value: summary.newWorkersFromExcel ?? summary.newWorkers ?? 0, color: "#16a34a" },
+    { label: "Lockers sin trabajador", value: summary.lockersWithoutWorkerCount ?? 0, color: "#64748b" },
+    { label: "Históricos superados", value: summary.historicalSupersededCount ?? 0, color: "#8b5cf6" },
+    { label: "Conflictos reales", value: realConflictsCount, color: "#dc2626" },
+    { label: "Casilleros semánticos", value: summary.semanticLockersCount ?? 0, color: "#64748b" },
+    { label: "Filas sin locker", value: summary.rowsWithoutLockerCount ?? 0, color: "#64748b" },
+  ];
+
+  const workerCards = [
+    { label: "Filas detectadas", value: summary.totalRows, color: "var(--fg)" },
+    { label: "Trabajadores válidos", value: summary.validWorkers ?? (summary.totalRows - (summary.missingMatricula ?? 0)), color: "#0284c7" },
+    { label: "Trabajadores nuevos", value: summary.newWorkers ?? summary.newCount ?? 0, color: "#16a34a" },
+    { label: "Con cambios", value: summary.updatedWorkers ?? summary.updatedCount ?? 0, color: "var(--primary)" },
+    { label: "Sin cambios", value: summary.unchangedWorkers ?? summary.unchangedCount ?? 0, color: "var(--muted)" },
+    { label: "Matrículas duplicadas", value: summary.duplicateMatriculas ?? 0, color: "#ea580c" },
+    { label: "Sin matrícula", value: summary.missingMatricula ?? summary.invalidCount ?? 0, color: "#dc2626" },
+    { label: "Conflictos", value: summary.conflicts ?? summary.conflictsCount ?? 0, color: "#9333ea" },
+    { label: "Filas ignoradas", value: summary.ignoredRows ?? 0, color: "var(--muted)" },
+  ];
+
+  const cards = isLocker ? lockerCards : workerCards;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -54,40 +59,71 @@ export function ImportPreviewDashboard({
             border: "1px solid #bbf7d0",
             display: "flex",
             flexDirection: "column",
-            gap: "0.375rem",
+            gap: "0.5rem",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span style={{ fontSize: "1.125rem" }}>✨</span>
-            <strong style={{ fontSize: "0.9375rem", color: "#166534" }}>Tu base está lista para importar</strong>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span style={{ fontSize: "1.125rem" }}>✨</span>
+              <strong style={{ fontSize: "0.9375rem", color: "#166534" }}>
+                Hoja1 analizada con reconciliación exacta
+              </strong>
+            </div>
+            <span
+              style={{
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                padding: "0.25rem 0.625rem",
+                borderRadius: "9999px",
+                backgroundColor: "#dcfce7",
+                color: "#166534",
+                border: "1px solid #86efac",
+              }}
+            >
+              100% de filas explicadas ({summary.totalRows} = {summary.totalRowsAccounted ?? summary.totalRows})
+            </span>
           </div>
+
           <p style={{ margin: 0, fontSize: "0.8125rem", color: "#166534" }}>
-            Encontramos <strong>{(summary.lockersDetected ?? summary.totalRows).toLocaleString("es-MX")}</strong> lockers.
+            Encontramos <strong>{(summary.uniquePhysicalLockers ?? summary.lockersDetected ?? summary.totalRows).toLocaleString("es-MX")}</strong> casilleros físicos en <strong>Hoja1</strong>.
           </p>
+
           <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", margin: "0.125rem 0", fontSize: "0.8125rem" }}>
             <span style={{ color: "#15803d", fontWeight: 600 }}>
-              ✓ {readyAssignmentsCount.toLocaleString("es-MX")} asignaciones están listas
+              ✓ {readyAssignmentsCount.toLocaleString("es-MX")} asignaciones listas para aplicarse
             </span>
-            {workerNotFoundCount > 0 ? (
-              <span style={{ color: "#c2410c", fontWeight: 600 }}>
-                ○ {workerNotFoundCount.toLocaleString("es-MX")} personas necesitan vincularse después
+            {(summary.workersMatchedInRoster ?? 0) > 0 ? (
+              <span style={{ color: "#0369a1", fontWeight: 600 }}>
+                • {(summary.workersMatchedInRoster ?? 0).toLocaleString("es-MX")} trabajadores ya en padrón (datos SIAP protegidos)
+              </span>
+            ) : null}
+            {(summary.newWorkersFromExcel ?? 0) > 0 ? (
+              <span style={{ color: "#15803d", fontWeight: 600 }}>
+                + {(summary.newWorkersFromExcel ?? 0).toLocaleString("es-MX")} trabajadores se crearán desde esta base
+              </span>
+            ) : null}
+            {(summary.lockersWithoutWorkerCount ?? 0) > 0 ? (
+              <span style={{ color: "#475569", fontWeight: 600 }}>
+                ○ {(summary.lockersWithoutWorkerCount ?? 0).toLocaleString("es-MX")} lockers sin trabajador (quedarán disponibles)
+              </span>
+            ) : null}
+            {(summary.historicalSupersededCount ?? 0) > 0 ? (
+              <span style={{ color: "#7c3aed", fontWeight: 600 }}>
+                ⏱️ {(summary.historicalSupersededCount ?? 0).toLocaleString("es-MX")} registros históricos superados
               </span>
             ) : null}
             {realConflictsCount > 0 ? (
               <span style={{ color: "#b91c1c", fontWeight: 600 }}>
-                ! {realConflictsCount.toLocaleString("es-MX")} registros necesitan revisión
+                ! {realConflictsCount.toLocaleString("es-MX")} casos requieren revisión
               </span>
             ) : null}
           </div>
-          <p style={{ margin: 0, fontSize: "0.75rem", color: "#15803d" }}>
-            Puedes importar la base ahora. Los registros pendientes se conservarán para que los representantes puedan revisarlos posteriormente.
-          </p>
         </div>
       ) : null}
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
         <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-          Archivo analizado: <strong>{fileName}</strong>
+          Archivo analizado: <strong>{fileName}</strong> (Fuente exclusiva: <strong>Hoja1</strong>)
         </span>
       </div>
 
@@ -121,60 +157,17 @@ export function ImportPreviewDashboard({
         ))}
       </div>
 
-      {/* Banner de recomendación si hay matrículas no encontradas en el padrón */}
-      {isLocker && workerNotFoundCount > 0 ? (
-        <div
-          role="status"
-          style={{
-            padding: "0.875rem 1rem",
-            borderRadius: "0.5rem",
-            backgroundColor: "#fffbeb",
-            border: "1px solid #fde68a",
-            color: "#92400e",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: "0.75rem",
-            fontSize: "0.875rem",
-          }}
-        >
-          <div>
-            <strong>⚠️ {workerNotFoundCount.toLocaleString("es-MX")} matrículas no existen en el padrón actual.</strong>
-            <div style={{ fontSize: "0.8125rem", marginTop: "0.25rem", color: "#b45309" }}>
-              Te recomendamos actualizar primero la base de trabajadores. Después vuelve a analizar este archivo de lockers.
-            </div>
-          </div>
-          <Link
-            href="/representacion/trabajadores/importar"
-            style={{
-              display: "inline-block",
-              padding: "0.375rem 0.75rem",
-              backgroundColor: "#d97706",
-              color: "#ffffff",
-              borderRadius: "0.375rem",
-              fontWeight: 600,
-              fontSize: "0.75rem",
-              textDecoration: "none",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Ir a actualizar trabajadores
-          </Link>
-        </div>
-      ) : null}
-
       {/* Desglose estructurado de incidencias para lockers */}
-      {isLocker && (summary.conflicts ?? summary.conflictsCount ?? 0) > 0 ? (
+      {isLocker && realConflictsCount > 0 ? (
         <div
           role="region"
           aria-label="Desglose de incidencias"
           style={{
             padding: "0.875rem 1rem",
             borderRadius: "0.5rem",
-            backgroundColor: "#faf5ff",
-            border: "1px solid #d8b4fe",
-            color: "#581c87",
+            backgroundColor: "#fef2f2",
+            border: "1px solid #fecaca",
+            color: "#991b1b",
             display: "flex",
             flexDirection: "column",
             gap: "0.5rem",
@@ -183,7 +176,7 @@ export function ImportPreviewDashboard({
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
             <strong>
-              ⚠️ {(summary.conflicts ?? summary.conflictsCount ?? 0).toLocaleString("es-MX")} incidencias detectadas
+              ⚠️ {realConflictsCount.toLocaleString("es-MX")} conflictos requieren decisión humana en la bandeja
             </strong>
           </div>
 
@@ -195,69 +188,45 @@ export function ImportPreviewDashboard({
               marginTop: "0.25rem",
             }}
           >
-            <div
-              style={{
-                padding: "0.5rem 0.75rem",
-                borderRadius: "0.375rem",
-                backgroundColor: "#f0fdf4",
-                border: "1px solid #bbf7d0",
-                color: "#166534",
-              }}
-            >
-              ✓ <strong>{autoResolvableCount.toLocaleString("es-MX")}</strong> pueden resolverse automáticamente
-              {breakdown?.DUPLICATE_IDENTICAL_ROW ? (
-                <div style={{ fontSize: "0.6875rem", color: "#15803d", marginTop: "0.125rem" }}>
-                  • {breakdown.DUPLICATE_IDENTICAL_ROW} filas duplicadas idénticas
-                </div>
-              ) : null}
-              {breakdown?.DUPLICATE_LOCKER_SAME_WORKER ? (
-                <div style={{ fontSize: "0.6875rem", color: "#15803d", marginTop: "0.125rem" }}>
-                  • {breakdown.DUPLICATE_LOCKER_SAME_WORKER} duplicados del mismo trabajador
-                </div>
-              ) : null}
-            </div>
-
-            <div
-              style={{
-                padding: "0.5rem 0.75rem",
-                borderRadius: "0.375rem",
-                backgroundColor: "#fff7ed",
-                border: "1px solid #fed7aa",
-                color: "#9a3412",
-              }}
-            >
-              ○ <strong>{workerNotFoundCount.toLocaleString("es-MX")}</strong> pueden omitirse temporalmente
-              <div style={{ fontSize: "0.6875rem", color: "#c2410c", marginTop: "0.125rem" }}>
-                Trabajadores no encontrados en padrón
+            {breakdown?.DUPLICATE_LOCKER_DIFFERENT_WORKERS ? (
+              <div
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: "0.375rem",
+                  backgroundColor: "#ffffff",
+                  border: "1px solid #fecaca",
+                  color: "#991b1b",
+                }}
+              >
+                • <strong>{breakdown.DUPLICATE_LOCKER_DIFFERENT_WORKERS}</strong> casillero(s) reclamados por dos o más trabajadores sin temporalidad concluyente.
               </div>
-            </div>
-
-            <div
-              style={{
-                padding: "0.5rem 0.75rem",
-                borderRadius: "0.375rem",
-                backgroundColor: "#fef2f2",
-                border: "1px solid #fecaca",
-                color: "#991b1b",
-              }}
-            >
-              ! <strong>{realConflictsCount.toLocaleString("es-MX")}</strong> requieren tu decisión manual
-              {breakdown?.DUPLICATE_LOCKER_DIFFERENT_WORKERS ? (
-                <div style={{ fontSize: "0.6875rem", color: "#b91c1c", marginTop: "0.125rem" }}>
-                  • {breakdown.DUPLICATE_LOCKER_DIFFERENT_WORKERS} locker reclamado por dos o más trabajadores
-                </div>
-              ) : null}
-              {breakdown?.WORKER_MULTIPLE_LOCKERS ? (
-                <div style={{ fontSize: "0.6875rem", color: "#b91c1c", marginTop: "0.125rem" }}>
-                  • {breakdown.WORKER_MULTIPLE_LOCKERS} trabajador con dos o más lockers
-                </div>
-              ) : null}
-              {breakdown?.LOCKER_ASSIGNED_TO_OTHER_WORKER ? (
-                <div style={{ fontSize: "0.6875rem", color: "#b91c1c", marginTop: "0.125rem" }}>
-                  • {breakdown.LOCKER_ASSIGNED_TO_OTHER_WORKER} locker asignado a otro en sistema
-                </div>
-              ) : null}
-            </div>
+            ) : null}
+            {breakdown?.WORKER_MULTIPLE_LOCKERS ? (
+              <div
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: "0.375rem",
+                  backgroundColor: "#ffffff",
+                  border: "1px solid #fecaca",
+                  color: "#991b1b",
+                }}
+              >
+                • <strong>{breakdown.WORKER_MULTIPLE_LOCKERS}</strong> trabajador(es) con múltiples casilleros sin evidencia de cuál es el más reciente.
+              </div>
+            ) : null}
+            {breakdown?.LOCKER_ASSIGNED_TO_OTHER_WORKER ? (
+              <div
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: "0.375rem",
+                  backgroundColor: "#ffffff",
+                  border: "1px solid #fecaca",
+                  color: "#991b1b",
+                }}
+              >
+                • <strong>{breakdown.LOCKER_ASSIGNED_TO_OTHER_WORKER}</strong> casillero(s) ya asignados a otra persona en el sistema.
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -275,39 +244,7 @@ export function ImportPreviewDashboard({
           }}
         >
           <strong>⚠️ Conflictos detectados:</strong> Hay{" "}
-          <strong>{summary.conflicts ?? summary.conflictsCount}</strong> conflicto(s) que requieren revisión o resolución antes de aplicar los cambios. Los conflictos no resueltos pueden ser omitidos voluntariamente.
-        </div>
-      ) : null}
-
-      {summary.hasSupplementarySheet && !isLocker ? (
-        <div
-          role="status"
-          style={{
-            padding: "0.75rem",
-            borderRadius: "0.375rem",
-            backgroundColor: "#eff6ff",
-            border: "1px solid #bfdbfe",
-            color: "#1e40af",
-            fontSize: "0.8125rem",
-          }}
-        >
-          📄 <strong>Hoja complementaria encontrada (Hoja3):</strong> Se detectaron aproximadamente{" "}
-          <strong>{summary.supplementarySheetRows}</strong> registros adicionales. En esta versión no se sobreescribirá la información de Hoja1.
-        </div>
-      ) : null}
-
-      {!isLocker && summary.missingInFileCount > 0 ? (
-        <div
-          style={{
-            padding: "0.75rem",
-            borderRadius: "0.375rem",
-            backgroundColor: "#fff7ed",
-            border: "1px solid #fdba74",
-            color: "#9a3412",
-            fontSize: "0.8125rem",
-          }}
-        >
-          ℹ️ <strong>{summary.missingInFileCount}</strong> trabajadores registrados previamente no figuran en esta nueva base. Sus expedientes y datos <strong>se conservan activos e intactos</strong>; no se han borrado ni inactivado automáticamente.
+          <strong>{summary.conflicts ?? summary.conflictsCount}</strong> conflicto(s) que requieren revisión o resolución antes de aplicar los cambios.
         </div>
       ) : null}
     </div>

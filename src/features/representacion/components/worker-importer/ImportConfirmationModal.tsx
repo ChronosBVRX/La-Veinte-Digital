@@ -107,22 +107,57 @@ export function ImportConfirmationModal({
           {isLocker ? (
             <>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Lockers inventariados:</span>
-                <strong style={{ color: "#0891b2" }}>{(summary.lockersDetected ?? summary.totalRows).toLocaleString("es-MX")}</strong>
+                <span>Lockers físicos a inventariar:</span>
+                <strong style={{ color: "#0891b2" }}>
+                  {(summary.uniquePhysicalLockers ?? summary.lockersDetected ?? summary.totalRows).toLocaleString("es-MX")}
+                </strong>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Asignaciones identificadas:</span>
-                <strong style={{ color: "#16a34a" }}>{(newLockers + lockerChanges).toLocaleString("es-MX")}</strong>
+                <span>Asignaciones directas a aplicar:</span>
+                <strong style={{ color: "#16a34a" }}>
+                  {(summary.safeAssignmentsCount ?? (newLockers + lockerChanges)).toLocaleString("es-MX")}
+                </strong>
               </div>
+              {(summary.newWorkersFromExcel ?? 0) > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Trabajadores nuevos a registrar (origen Excel):</span>
+                  <strong style={{ color: "var(--primary)" }}>
+                    {(summary.newWorkersFromExcel ?? 0).toLocaleString("es-MX")}
+                  </strong>
+                </div>
+              )}
+              {(summary.workersMatchedInRoster ?? 0) > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Trabajadores en padrón (datos SIAP protegidos):</span>
+                  <strong style={{ color: "var(--muted)" }}>
+                    {(summary.workersMatchedInRoster ?? 0).toLocaleString("es-MX")}
+                  </strong>
+                </div>
+              )}
+              {(summary.historicalSupersededCount ?? 0) > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Antecedentes históricos resueltos:</span>
+                  <strong style={{ color: "#64748b" }}>
+                    {(summary.historicalSupersededCount ?? 0).toLocaleString("es-MX")}
+                  </strong>
+                </div>
+              )}
+              {(summary.lockersWithoutWorkerCount ?? 0) > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Casilleros sin trabajador:</span>
+                  <strong style={{ color: "#64748b" }}>
+                    {(summary.lockersWithoutWorkerCount ?? 0).toLocaleString("es-MX")}
+                  </strong>
+                </div>
+              )}
               <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed var(--border)", paddingTop: "0.375rem" }}>
-                <span>Registros pendientes de revisión:</span>
+                <span>Casos ambiguos para revisión:</span>
                 <strong style={{ color: "#c2410c" }}>
-                  {((summary.conflictBreakdown?.WORKER_NOT_FOUND ?? summary.missingMatricula ?? 0) +
-                    (summary.realConflictsCount ?? summary.conflicts ?? 0)).toLocaleString("es-MX")}
+                  {(summary.realConflictsCount ?? summary.conflicts ?? 0).toLocaleString("es-MX")}
                 </strong>
               </div>
               <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem", lineHeight: 1.4 }}>
-                Ningún trabajador será creado o modificado desde esta importación. Podrás corregir los pendientes después desde Lockers.
+                Los trabajadores nuevos se registrarán con origen &apos;locker_excel&apos; sin sobreescribir datos si ya existían en SIAP. Los casos ambiguos se guardarán en la bandeja de pendientes.
               </div>
             </>
           ) : (

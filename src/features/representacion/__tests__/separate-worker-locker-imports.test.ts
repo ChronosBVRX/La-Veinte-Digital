@@ -159,7 +159,7 @@ describe("Domain Separation: Worker Import vs Locker Import", () => {
             }),
           };
         }
-        if (table === "union_worker_import_rows") {
+        if (table === "union_worker_import_rows" || table === "union_locker_import_source_rows") {
           return {
             insert: vi.fn().mockResolvedValue({ error: null }),
           };
@@ -186,7 +186,6 @@ describe("Domain Separation: Worker Import vs Locker Import", () => {
       userId: "user-1",
     });
 
-    expect(result.summary.newWorkers).toBe(0);
     expect(result.summary.updatedWorkers).toBe(0);
 
     // Row 1 (known worker): Valid assignment
@@ -195,11 +194,12 @@ describe("Domain Separation: Worker Import vs Locker Import", () => {
     expect(row1?.status).toBe("new");
     expect(row1?.lockerExcel).toBe("10");
 
-    // Row 2 (unknown worker): MUST be conflict and NOT created
+    // Row 2 (unknown worker in V2): Created from Excel source (source = 'locker_excel') and assigned locker
     const row2 = result.rows.find((r) => r.matricula === "9999999");
     expect(row2).toBeDefined();
-    expect(row2?.status).toBe("conflict");
-    expect(row2?.issues.some((i) => i.message === "Trabajador no encontrado en el padrón")).toBe(true);
+    expect(row2?.status).toBe("new");
+    expect(row2?.conflictReasonCode).toBe("WORKER_NOT_FOUND_CREATED_FROM_SOURCE");
+    expect(result.summary.newWorkersFromExcel).toBe(1);
   });
 
   // --------------------------------------------------------------------------
@@ -466,7 +466,7 @@ describe("Domain Separation: Worker Import vs Locker Import", () => {
               }),
             };
           }
-          if (table === "union_worker_import_rows") {
+          if (table === "union_worker_import_rows" || table === "union_locker_import_source_rows") {
             return {
               insert: vi.fn().mockResolvedValue({ error: null }),
             };
@@ -529,22 +529,21 @@ describe("Domain Separation: Worker Import vs Locker Import", () => {
       expect(r6?.conflictReasonCode).toBe("DUPLICATE_LOCKER_DIFFERENT_WORKERS");
       expect(r6?.autoResolvable).toBe(false);
 
-      // 4. Worker not found in padrón: Row 8
+      // 4. Worker not found in padrón: Row 8 is created from source in V2
       const r8 = result.rows.find((r) => r.rowNumber === 8);
-      expect(r8?.status).toBe("conflict");
-      expect(r8?.conflictReasonCode).toBe("WORKER_NOT_FOUND");
-      expect(r8?.autoResolvable).toBe(false);
+      expect(r8?.status).toBe("new");
+      expect(r8?.conflictReasonCode).toBe("WORKER_NOT_FOUND_CREATED_FROM_SOURCE");
 
       // 5. Verify breakdown counts in summary
       const breakdown = result.summary.conflictBreakdown!;
       expect(breakdown).toBeDefined();
       expect(breakdown.DUPLICATE_IDENTICAL_ROW).toBe(1);
       expect(breakdown.WORKER_MULTIPLE_LOCKERS).toBe(2);
-      expect(breakdown.DUPLICATE_LOCKER_DIFFERENT_WORKERS).toBe(1);
-      expect(breakdown.WORKER_NOT_FOUND).toBeGreaterThanOrEqual(1);
+      expect(breakdown.DUPLICATE_LOCKER_DIFFERENT_WORKERS).toBe(2);
+      expect(breakdown.WORKER_NOT_FOUND_CREATED_FROM_SOURCE).toBe(1);
 
-      expect(result.summary.autoResolvableCount).toBe(1);
-      expect(result.summary.workerNotFoundCount).toBeGreaterThanOrEqual(1);
+      expect(result.summary.autoResolvableCount).toBe(2); // duplicate identical + worker created from source
+      expect(result.summary.newWorkersFromExcel).toBe(1);
     });
   });
 

@@ -69,7 +69,7 @@ BEGIN
     'UNION_LOCKERS_V1', 3, 0, 0, 0, 0, 0, 2, 0, 'preview', 'Lote de prueba de contrato', '{}'::jsonb
   );
 
-  -- Fila 1: Asignación segura (Trabajador 11223344 existe, casillero 101 nuevo)
+  -- Fila 1: Asignación segura a trabajador existente SIAP (Trabajador 11223344, casillero 101 nuevo)
   INSERT INTO public.union_worker_import_rows (
     batch_id, row_number, matricula, full_name, raw_data, parsed_data, row_status, action_taken
   ) VALUES (
@@ -78,16 +78,16 @@ BEGIN
     'new', 'pending'
   );
 
-  -- Fila 2: Trabajador no encontrado en padrón (Matrícula 99887766 no existe, casillero 102 nuevo)
+  -- Fila 2: Trabajador no registrado previamente (V2: Matrícula 99887766 se da de alta desde Excel con casillero 102)
   INSERT INTO public.union_worker_import_rows (
     batch_id, row_number, matricula, full_name, raw_data, parsed_data, row_status, action_taken
   ) VALUES (
     v_batch_id, 2, '99887766', 'RODRIGUEZ/MARIA', '{}'::jsonb,
-    jsonb_build_object('locker', '102', 'nombre', 'RODRIGUEZ/MARIA', 'conflict_reason_code', 'WORKER_NOT_FOUND', 'is_semantic_locker', false),
-    'conflict', 'pending'
+    jsonb_build_object('locker', '102', 'nombre', 'RODRIGUEZ/MARIA', 'conflict_reason_code', 'WORKER_NOT_FOUND_CREATED_FROM_SOURCE', 'is_semantic_locker', false),
+    'new', 'pending'
   );
 
-  -- Fila 3: Conflicto ambiguo (Casillero 103 con conflicto LOCKER_MULTIPLE_WORKERS)
+  -- Fila 3: Conflicto ambiguo (Casillero 103 con conflicto LOCKER_MULTIPLE_WORKERS sin resolución)
   INSERT INTO public.union_worker_import_rows (
     batch_id, row_number, matricula, full_name, raw_data, parsed_data, row_status, action_taken
   ) VALUES (
@@ -109,44 +109,36 @@ BEGIN
     RAISE EXCEPTION 'TEST FAILED: Los casilleros físicos 101, 102 y 103 debieron crearse en inventario.';
   END IF;
 
-  -- B) Estatus de casilleros: 101 assigned, 102 y 103 available
+  -- B) Estatus de casilleros: 101 y 102 assigned, 103 available
   IF (SELECT status FROM public.union_lockers WHERE id = v_locker_101_id) <> 'assigned' THEN
     RAISE EXCEPTION 'TEST FAILED: Casillero 101 debió quedar como assigned';
   END IF;
-  IF (SELECT status FROM public.union_lockers WHERE id = v_locker_102_id) <> 'available' THEN
-    RAISE EXCEPTION 'TEST FAILED: Casillero 102 debió quedar como available';
+  IF (SELECT status FROM public.union_lockers WHERE id = v_locker_102_id) <> 'assigned' THEN
+    RAISE EXCEPTION 'TEST FAILED: Casillero 102 debió quedar como assigned (V2 alta de trabajador)';
   END IF;
   IF (SELECT status FROM public.union_lockers WHERE id = v_locker_103_id) <> 'available' THEN
-    RAISE EXCEPTION 'TEST FAILED: Casillero 103 debió quedar como available';
+    RAISE EXCEPTION 'TEST FAILED: Casillero 103 debió quedar como available (conflicto ambiguo)';
   END IF;
 
-  -- C) Asignación segura única: Solo casillero 101 asignado a Juan Perez
+  -- C) Asignaciones seguras: Casillero 101 asignado a Juan Perez y 102 a Maria Rodriguez
   SELECT count(*) INTO v_active_count
   FROM public.union_locker_assignments
-  WHERE worker_id = v_worker_id AND status = 'active';
+  WHERE delegation_id = v_delegation_id AND status = 'active';
 
-  IF v_active_count <> 1 THEN
-    RAISE EXCEPTION 'TEST FAILED: Debe haber exactamente 1 asignación activa, obtenidas %', v_active_count;
+  IF v_active_count <> 2 THEN
+    RAISE EXCEPTION 'TEST FAILED: Se esperaban 2 asignaciones activas, obtenidas %', v_active_count;
   END IF;
 
-  -- D) Pendientes de revisión: 2 registros creados (1 WORKER_NOT_FOUND, 1 LOCKER_MULTIPLE_WORKERS)
+  -- D) Pendientes de revisión: 1 registro creado para el conflicto ambiguo (Fila 3)
   SELECT count(*) INTO v_pending_count
   FROM public.union_locker_review_items
   WHERE source_batch_id = v_batch_id AND status = 'pending';
 
-  IF v_pending_count <> 2 THEN
-    RAISE EXCEPTION 'TEST FAILED: Se esperaban 2 pendientes de revisión en union_locker_review_items, obtenidos %', v_pending_count;
+  IF v_pending_count <> 1 THEN
+    RAISE EXCEPTION 'TEST FAILED: Se esperaba 1 pendiente de revisión en union_locker_review_items, obtenidos %', v_pending_count;
   END IF;
 
-  -- E) INVARIANTE SUPREMO: union_workers 100% INTACTO
-  SELECT count(*) INTO v_worker_count_after
-  FROM public.union_workers
-  WHERE delegation_id = v_delegation_id;
-
-  IF v_worker_count_after <> v_worker_count_before THEN
-    RAISE EXCEPTION 'INVARIANT VIOLATION: Se crearon trabajadores indebidamente. Inicial: %, Final: %', v_worker_count_before, v_worker_count_after;
-  END IF;
-
+  -- E) INVARIANTE: Trabajador existente SIAP 100% INTACTO
   SELECT * INTO v_worker_record
   FROM public.union_workers
   WHERE id = v_worker_id;
@@ -155,18 +147,32 @@ BEGIN
     RAISE EXCEPTION 'INVARIANT VIOLATION: Se mutaron campos de trabajadores preexistentes.';
   END IF;
 
+  -- F) V2: Trabajador nuevo creado desde Excel con origen 'locker_excel'
+  IF NOT EXISTS (
+    SELECT 1 FROM public.union_workers
+    WHERE delegation_id = v_delegation_id
+      AND employee_number = '99887766'
+      AND source = 'locker_excel'
+      AND active = true
+  ) THEN
+    RAISE EXCEPTION 'TEST FAILED: Trabajador 99887766 debió darse de alta con source = locker_excel';
+  END IF;
+
   -- 5. EJECUTAR RPC: union_rollback_locker_import
   v_rollback_res := public.union_rollback_locker_import(v_batch_id);
 
   -- 6. VERIFICACIONES DE ROLLBACK
-  -- Asignación revertida a released
-  IF EXISTS (SELECT 1 FROM public.union_locker_assignments WHERE locker_id = v_locker_101_id AND status = 'active') THEN
-    RAISE EXCEPTION 'ROLLBACK FAILED: La asignación activa del casillero 101 debió liberarse.';
+  -- Asignaciones revertidas a released
+  IF EXISTS (SELECT 1 FROM public.union_locker_assignments WHERE locker_id IN (v_locker_101_id, v_locker_102_id) AND status = 'active') THEN
+    RAISE EXCEPTION 'ROLLBACK FAILED: Las asignaciones activas debieron liberarse tras rollback.';
   END IF;
 
-  -- Casillero 101 restaurado a available
+  -- Casilleros restaurados a available
   IF (SELECT status FROM public.union_lockers WHERE id = v_locker_101_id) <> 'available' THEN
     RAISE EXCEPTION 'ROLLBACK FAILED: Casillero 101 debió quedar available tras rollback.';
+  END IF;
+  IF (SELECT status FROM public.union_lockers WHERE id = v_locker_102_id) <> 'available' THEN
+    RAISE EXCEPTION 'ROLLBACK FAILED: Casillero 102 debió quedar available tras rollback.';
   END IF;
 
   -- Pendientes marcados como cancelled_by_rollback
@@ -174,17 +180,28 @@ BEGIN
   FROM public.union_locker_review_items
   WHERE source_batch_id = v_batch_id AND status = 'cancelled_by_rollback';
 
-  IF v_cancelled_count <> 2 THEN
-    RAISE EXCEPTION 'ROLLBACK FAILED: Se esperaban 2 registros cancelled_by_rollback, obtenidos %', v_cancelled_count;
+  IF v_cancelled_count <> 1 THEN
+    RAISE EXCEPTION 'ROLLBACK FAILED: Se esperaba 1 registro cancelled_by_rollback, obtenidos %', v_cancelled_count;
   END IF;
 
-  -- Trabajadores siguen 100% intactos
-  SELECT count(*) INTO v_worker_count_after
-  FROM public.union_workers
-  WHERE delegation_id = v_delegation_id;
+  -- V2: Trabajador creado desde Excel es desactivado lógicamente (active = false, status_detail = rolled_back), NUNCA DELETED
+  IF NOT EXISTS (
+    SELECT 1 FROM public.union_workers
+    WHERE delegation_id = v_delegation_id
+      AND employee_number = '99887766'
+      AND active = false
+      AND status_detail = 'rolled_back'
+  ) THEN
+    RAISE EXCEPTION 'ROLLBACK FAILED: Trabajador creado desde Excel debió ser desactivado lógicamente.';
+  END IF;
 
-  IF v_worker_count_after <> v_worker_count_before THEN
-    RAISE EXCEPTION 'INVARIANT VIOLATION: El conteo de trabajadores cambió tras rollback.';
+  -- Trabajador SIAP sigue activo e intacto
+  SELECT * INTO v_worker_record
+  FROM public.union_workers
+  WHERE id = v_worker_id;
+
+  IF v_worker_record.active IS NOT TRUE OR v_worker_record.notes <> 'Notas originales intactas' THEN
+    RAISE EXCEPTION 'INVARIANT VIOLATION: Trabajador SIAP fue alterado tras rollback.';
   END IF;
 
   -- Limpieza de prueba
@@ -193,7 +210,7 @@ BEGIN
   DELETE FROM public.union_worker_import_rows WHERE batch_id = v_batch_id;
   DELETE FROM public.union_worker_import_batches WHERE id = v_batch_id;
   DELETE FROM public.union_lockers WHERE id IN (v_locker_101_id, v_locker_102_id, v_locker_103_id);
-  DELETE FROM public.union_workers WHERE id = v_worker_id;
+  DELETE FROM public.union_workers WHERE delegation_id = v_delegation_id;
   DELETE FROM public.union_members WHERE delegation_id = v_delegation_id;
   DELETE FROM public.union_delegations WHERE id = v_delegation_id;
   DELETE FROM auth.users WHERE id = v_user_id;
