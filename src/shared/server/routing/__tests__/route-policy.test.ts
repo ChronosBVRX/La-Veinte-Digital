@@ -98,17 +98,20 @@ describe("API route policy", () => {
       "/api/admin/users/[id]/password-recovery": "authenticated",
       "/api/admin/users/[id]/purge": "authenticated",
       "/api/admin/audit-log": "authenticated",
-      // Impresión automática sindical (migración 20260919080000)
+      // Impresión automática sindical (migración 20260919080000 y 20260919090000)
       "/api/union/print/jobs": "authenticated",
       "/api/union/print/jobs/[id]/retry": "authenticated",
       "/api/union/print/stations": "authenticated",
       "/api/union/print/stations/[id]": "authenticated",
       "/api/union/print/stations/status": "authenticated",
+      "/api/union/print/enrollment/generate": "authenticated",
+      "/api/union/print-agent/enroll": "public",
       "/api/union/print-agent/heartbeat": "public",
       "/api/union/print-agent/pending-jobs": "public",
       "/api/union/print-agent/claim": "public",
       "/api/union/print-agent/jobs/[id]/document": "public",
       "/api/union/print-agent/jobs/[id]/status": "public",
+      "/api/downloads/print-agent/windows": "public",
     })
   })
 

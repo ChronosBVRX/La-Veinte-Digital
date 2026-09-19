@@ -2,17 +2,76 @@
   "name": "la-veinte-print-agent",
   "version": "1.0.0",
   "description": "Agente nativo de impresión automática y silenciosa para la oficina sindical de La Veinte Digital",
-  "main": "src/index.mjs",
+  "main": "src/electron-main.mjs",
   "type": "module",
+  "author": "La Veinte Digital",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ChronosBVRX/La-Veinte-Digital.git"
+  },
   "scripts": {
-    "start": "node src/index.mjs",
-    "setup": "node src/cli.mjs",
+    "start": "electron .",
+    "dev": "electron .",
+    "cli": "node src/index.mjs",
+    "cli:setup": "node src/cli.mjs",
     "status": "node -e \"import('./src/security.mjs').then(s => console.log(s.readConfigSummary()))\"",
-    "test:printers": "node -e \"import('pdf-to-printer').then(p => p.getPrinters().then(printers => console.log('Impresoras instaladas en Windows:', printers)))\""
+    "test:printers": "node -e \"import('pdf-to-printer').then(p => p.getPrinters().then(printers => console.log('Impresoras instaladas en Windows:', printers)))\"",
+    "pack": "electron-builder --dir",
+    "build:win": "electron-builder --win"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
     "dotenv": "^16.4.7",
+    "electron-updater": "^6.3.9",
+    "pdf-lib": "^1.17.1",
     "pdf-to-printer": "^5.8.1"
+  },
+  "devDependencies": {
+    "electron": "^34.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "mx.com.la20.printagent",
+    "productName": "La Veinte Print",
+    "copyright": "Copyright © 2026 La Veinte Digital",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ChronosBVRX",
+        "repo": "La-Veinte-Digital"
+      }
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/pdf-to-printer/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "La Veinte Print"
+    }
   }
 }

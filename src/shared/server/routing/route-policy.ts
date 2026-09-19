@@ -60,12 +60,16 @@ export const API_ACCESS = {
   "/api/union/print/stations": "authenticated",
   "/api/union/print/stations/status": "authenticated",
   "/api/union/print/stations/[id]": "authenticated",
+  "/api/union/print/enrollment/generate": "authenticated",
   // La Veinte Print Agent (Estación local autenticada vía X-Station-Token en handler)
+  "/api/union/print-agent/enroll": "public",
   "/api/union/print-agent/heartbeat": "public",
   "/api/union/print-agent/pending-jobs": "public",
   "/api/union/print-agent/claim": "public",
   "/api/union/print-agent/jobs/[id]/document": "public",
   "/api/union/print-agent/jobs/[id]/status": "public",
+  // Descarga del agente para Windows
+  "/api/downloads/print-agent/windows": "public",
   "/api/cron/agenda-reminders": "public",
   "/api/cron/push-campaigns": "public",
   "/api/announcements/bar": "public",

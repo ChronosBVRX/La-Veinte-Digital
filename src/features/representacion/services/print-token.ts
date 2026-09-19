@@ -24,6 +24,37 @@ export function generateStationToken(): { rawToken: string; tokenHash: string } 
 }
 
 /**
+ * Normaliza un código de vinculación de 6 dígitos removiendo espacios y guiones.
+ */
+export function normalizeEnrollmentCode(code: string): string {
+  return code.replace(/[\s-]+/g, "").trim();
+}
+
+/**
+ * Calcula el hash SHA-256 de un código de vinculación normalizado de 6 dígitos.
+ */
+export function hashEnrollmentCode(code: string): string {
+  const normalized = normalizeEnrollmentCode(code);
+  return crypto.createHash("sha256").update(normalized).digest("hex");
+}
+
+/**
+ * Genera un código de vinculación corto de 6 dígitos numéricos aleatorios (ej. 482 731).
+ * Válido por 10 minutos para emparejar la PC sin copiar tokens largos.
+ */
+export function generateEnrollmentCode(): {
+  rawCode: string;
+  formattedCode: string;
+  codeHash: string;
+} {
+  const num = crypto.randomInt(100000, 1000000);
+  const rawCode = num.toString();
+  const formattedCode = `${rawCode.slice(0, 3)} ${rawCode.slice(3, 6)}`;
+  const codeHash = hashEnrollmentCode(rawCode);
+  return { rawCode, formattedCode, codeHash };
+}
+
+/**
  * Calcula el hash SHA-256 en formato hexadecimal de un token.
  */
 export function hashStationToken(token: string): string {
