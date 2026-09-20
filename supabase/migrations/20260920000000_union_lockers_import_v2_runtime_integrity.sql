@@ -260,13 +260,14 @@ begin
     -- GESTIÓN DE TRABAJADOR: Buscar existente o crear desde fuente
     -- ========================================================
     v_worker_id := null;
+    v_existing_worker := null;
     select * into v_existing_worker
     from public.union_workers
     where delegation_id = v_batch.delegation_id
       and employee_number = v_norm_mat
     for update;
 
-    if v_existing_worker is not null then
+    if v_existing_worker.id is not null then
       -- TRABAJADOR EXISTENTE: Conservar 100% sus datos SIAP (Precedencia sagrada)
       v_worker_id := v_existing_worker.id;
     else
@@ -518,6 +519,7 @@ begin
     -- APLICACIÓN DE LA ASIGNACIÓN (Invariantes de Lockers 2.0)
     -- ========================================================
     -- 1. Verificar si el casillero ya está asignado activamente
+    v_active_locker_asgn := null;
     select * into v_active_locker_asgn
     from public.union_locker_assignments
     where locker_id = v_locker_id
@@ -525,7 +527,7 @@ begin
     for update;
 
     -- 2. Verificar si el casillero está asignado a OTRA persona
-    if v_active_locker_asgn is not null and v_active_locker_asgn.worker_id <> v_worker_id then
+    if v_active_locker_asgn.id is not null and v_active_locker_asgn.worker_id <> v_worker_id then
       -- 'resolve' NO autoriza expulsar a otro ocupante. Requiere 'override' explícito con justificación.
       if v_res_action <> 'override' then
         insert into public.union_locker_review_items (
@@ -585,6 +587,7 @@ begin
     end if;
 
     -- 3. Verificar si el trabajador ya tiene un casillero asignado activamente
+    v_active_worker_asgn := null;
     select * into v_active_worker_asgn
     from public.union_locker_assignments
     where worker_id = v_worker_id
@@ -592,12 +595,12 @@ begin
     for update;
 
     -- Caso 1: Ya está asignado a este mismo casillero
-    if v_active_worker_asgn is not null and v_active_worker_asgn.locker_id = v_locker_id then
+    if v_active_worker_asgn.id is not null and v_active_worker_asgn.locker_id = v_locker_id then
       v_unchanged_assignments := v_unchanged_assignments + 1;
       v_new_assignment_id := v_active_worker_asgn.id;
 
     -- Caso 2: El trabajador tenía otro casillero previamente (cambio de casillero A -> B)
-    elsif v_active_worker_asgn is not null and v_active_worker_asgn.locker_id <> v_locker_id then
+    elsif v_active_worker_asgn.id is not null and v_active_worker_asgn.locker_id <> v_locker_id then
       -- Liberar asignación previa del trabajador con procedencia estructurada
       update public.union_locker_assignments
       set
