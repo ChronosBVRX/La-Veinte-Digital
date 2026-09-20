@@ -89,6 +89,7 @@ declare
   v_stale_asgn record;
   v_new_assignment_id uuid;
   v_prev_snapshot_batch_id uuid;
+  v_confirmed_asgn_ids uuid[] := '{}';
 
   -- Contadores exactos
   v_new_lockers_inventoried integer := 0;
@@ -504,7 +505,15 @@ begin
       continue;
     end if;
 
-    if v_conflict_code in ('DUPLICATE_LOCKER_DIFFERENT_WORKERS', 'WORKER_MULTIPLE_LOCKERS') and v_res_action <> 'resolve' and v_res_action <> 'override' then
+    -- Si tiene conflicto intrínseco o ambiguo no resuelto: enviar a review items
+    if v_conflict_code in (
+      'DUPLICATE_LOCKER_DIFFERENT_WORKERS',
+      'WORKER_MULTIPLE_LOCKERS',
+      'LOCKER_ASSIGNED_TO_OTHER_WORKER',
+      'AMBIGUOUS_HISTORY',
+      'REAL_CONFLICT',
+      'CONFLICT_WITH_MANUAL_CHANGE'
+    ) and v_res_action <> 'resolve' and v_res_action <> 'override' then
       insert into public.union_locker_review_items (
         delegation_id, locker_id, locker_number, source_batch_id, source_row_number,
         source_employee_number, source_worker_name, source_notes, reason, status, metadata
@@ -512,9 +521,20 @@ begin
         v_batch.delegation_id, v_locker_id, v_norm_locker, p_batch_id, v_row.row_number,
         v_norm_mat, coalesce(v_source_row.worker_name_raw, v_row.full_name),
         coalesce(v_source_row.observations_raw, ''), v_conflict_code, 'pending',
-        jsonb_build_object('excel_row_number', v_row.row_number, 'conflict_code', v_conflict_code)
+        jsonb_build_object(
+          'excel_row_number', v_row.row_number,
+          'raw_nombre', coalesce(v_source_row.worker_name_raw, v_row.full_name),
+          'raw_matricula', v_norm_mat,
+          'raw_locker', v_norm_locker,
+          'conflict_code', v_conflict_code
+        )
       );
       update public.union_worker_import_rows set action_taken = 'conflict_hold' where id = v_row.id;
+      if v_source_row.id is not null then
+        update public.union_locker_import_source_rows
+        set matched_worker_id = v_worker_id, matched_locker_id = v_locker_id, resolution_state = 'pending_review', updated_at = clock_timestamp()
+        where id = v_source_row.id;
+      end if;
       v_pending_reviews := v_pending_reviews + 1;
       continue;
     end if;
@@ -529,16 +549,16 @@ begin
 
     -- CASO A: Asignación idéntica ya activa (mismo trabajador en mismo casillero)
     if v_active_locker_asgn.id is not null and v_active_locker_asgn.worker_id = v_worker_id then
-      -- Adoptar procedencia al lote vigente
+      -- Asegurar procedencia pero sin alterar source_batch_id original para no romper rollbacks
       update public.union_locker_assignments
       set
-        source = 'locker_excel',
-        source_batch_id = p_batch_id,
+        source = coalesce(source, 'locker_excel'),
         source_row_id = coalesce(v_source_row.id, source_row_id)
       where id = v_active_locker_asgn.id;
 
       v_unchanged_assignments := v_unchanged_assignments + 1;
       v_new_assignment_id := v_active_locker_asgn.id;
+      v_confirmed_asgn_ids := array_append(v_confirmed_asgn_ids, v_new_assignment_id);
 
     -- CASO B: Casillero ocupado por OTRA persona
     elsif v_active_locker_asgn.id is not null and v_active_locker_asgn.worker_id <> v_worker_id then
@@ -550,22 +570,60 @@ begin
       ) and not coalesce(v_active_locker_asgn.admin_override, false);
 
       if v_is_imported_asgn or v_res_action = 'override' then
-        -- SUSTITUIR ASIGNACIÓN ANTERIOR IMPORTADA
+        if not v_is_imported_asgn and v_res_action = 'override' and v_override_reason = '' then
+          raise exception 'OVERRIDE_REQUIRES_REASON: Se requiere justificación para override del casillero % (ocupado por otro trabajador).', v_norm_locker;
+        end if;
+
+        -- SUSTITUIR ASIGNACIÓN ANTERIOR DEL CASILLERO
         update public.union_locker_assignments
         set
           status = 'released',
           released_at = v_now,
           released_by_source_batch_id = p_batch_id,
-          release_reason = 'Sustituido por nuevo snapshot de lockers (Lote ' || p_batch_id::text || ')'
+          release_reason = case
+            when v_is_imported_asgn then 'Sustituido por nuevo snapshot de lockers (Lote ' || p_batch_id::text || ')'
+            else 'Override por importación Hoja1 (Lote ' || p_batch_id::text || '): ' || v_override_reason
+          end
         where id = v_active_locker_asgn.id;
+
+        -- Si el nuevo trabajador ya tenía otro casillero activo previamente (cambio de casillero A -> B), liberarlo
+        select * into v_active_worker_asgn
+        from public.union_locker_assignments
+        where worker_id = v_worker_id and status = 'active' and locker_id <> v_locker_id
+        for update;
+
+        if v_active_worker_asgn.id is not null then
+          update public.union_locker_assignments
+          set
+            status = 'released',
+            released_at = v_now,
+            released_by_source_batch_id = p_batch_id,
+            release_reason = 'Reasignación a casillero ' || v_norm_locker || ' por snapshot Hoja1 (Lote ' || p_batch_id::text || ')'
+          where id = v_active_worker_asgn.id;
+
+          if not exists (
+            select 1 from public.union_locker_assignments
+            where locker_id = v_active_worker_asgn.locker_id and status = 'active' and id <> v_active_worker_asgn.id
+          ) then
+            update public.union_lockers set status = 'available', updated_at = v_now where id = v_active_worker_asgn.locker_id;
+          end if;
+
+          v_locker_changes := v_locker_changes + 1;
+        else
+          v_new_locker_assignments := v_new_locker_assignments + 1;
+        end if;
 
         -- Crear asignación para el nuevo trabajador de Hoja1
         insert into public.union_locker_assignments (
-          locker_id, worker_id, assigned_at, assignment_reason, status, source, source_batch_id, source_row_id
+          locker_id, worker_id, assigned_at, assignment_reason, status, source, source_batch_id, source_row_id, admin_override
         ) values (
-          v_locker_id, v_worker_id, v_now, 'Asignación confirmada por snapshot Hoja1', 'active', 'locker_excel', p_batch_id, v_source_row.id
+          v_locker_id, v_worker_id, v_now,
+          case when v_res_action = 'override' then 'Asignación confirmada por override Hoja1: ' || v_override_reason else 'Asignación confirmada por snapshot Hoja1' end,
+          'active', 'locker_excel', p_batch_id, v_source_row.id,
+          case when v_res_action = 'override' then true else false end
         ) returning id into v_new_assignment_id;
 
+        v_confirmed_asgn_ids := array_append(v_confirmed_asgn_ids, v_new_assignment_id);
         update public.union_lockers set status = 'assigned', updated_at = v_now where id = v_locker_id;
         v_replaced_previous := v_replaced_previous + 1;
       else
@@ -580,6 +638,11 @@ begin
           jsonb_build_object('existing_assignment_id', v_active_locker_asgn.id, 'existing_worker_id', v_active_locker_asgn.worker_id)
         );
         update public.union_worker_import_rows set action_taken = 'conflict_hold' where id = v_row.id;
+        if v_source_row.id is not null then
+          update public.union_locker_import_source_rows
+          set matched_worker_id = v_worker_id, matched_locker_id = v_locker_id, resolution_state = 'pending_review', updated_at = clock_timestamp()
+          where id = v_source_row.id;
+        end if;
         v_manual_conflicts := v_manual_conflicts + 1;
         v_pending_reviews := v_pending_reviews + 1;
         continue;
@@ -620,6 +683,7 @@ begin
         v_locker_id, v_worker_id, v_now, 'Asignación confirmada por snapshot Hoja1', 'active', 'locker_excel', p_batch_id, v_source_row.id
       ) returning id into v_new_assignment_id;
 
+      v_confirmed_asgn_ids := array_append(v_confirmed_asgn_ids, v_new_assignment_id);
       update public.union_lockers set status = 'assigned', updated_at = v_now where id = v_locker_id;
     end if;
 
@@ -647,7 +711,7 @@ begin
     join public.union_lockers l on l.id = a.locker_id
     where l.delegation_id = v_batch.delegation_id
       and a.status = 'active'
-      and (a.source_batch_id is null or a.source_batch_id <> p_batch_id)
+      and not (a.id = any(v_confirmed_asgn_ids))
       and (
         a.source = 'locker_excel'
         or a.source_batch_id is not null
