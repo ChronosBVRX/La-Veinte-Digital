@@ -682,7 +682,7 @@ export async function parseAndPreviewLockerImport(params: {
     .select("id, confirmed_at, created_at")
     .eq("delegation_id", delegationId)
     .eq("file_sha256", security.sha256)
-    .in("status", ["confirmed", "applied"])
+    .in("status", ["confirmed"])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
