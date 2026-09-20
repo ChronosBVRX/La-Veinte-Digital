@@ -19,11 +19,13 @@ export async function POST(req: Request): Promise<NextResponse> {
       batch_id?: string;
       delegation_id?: string;
       resolutions?: Record<string, unknown>;
+      options?: { allowReimport?: boolean };
     };
 
     const batchId = body.batch_id;
     let delegationId = body.delegation_id;
     const resolutions = body.resolutions ?? {};
+    const options = body.options ?? {};
 
     if (!batchId) {
       return noStore(
@@ -50,6 +52,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       delegationId,
       userId: auth.user.id,
       resolutions,
+      options,
     });
 
     return noStore(NextResponse.json(result));

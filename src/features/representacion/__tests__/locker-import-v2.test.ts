@@ -72,6 +72,19 @@ describe("Locker Import V2 (Hoja1 Architecture & Invariants)", () => {
         }
         if (table === "union_worker_import_batches") {
           return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  in: vi.fn().mockReturnValue({
+                    order: vi.fn().mockReturnValue({
+                      limit: vi.fn().mockReturnValue({
+                        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+                      }),
+                    }),
+                  }),
+                }),
+              }),
+            }),
             insert: vi.fn().mockReturnValue({
               select: vi.fn().mockReturnValue({
                 single: vi.fn().mockResolvedValue({

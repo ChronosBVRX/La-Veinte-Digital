@@ -676,6 +676,17 @@ export async function parseAndPreviewLockerImport(params: {
     totalRowsAccounted,
   };
 
+  // 8b. Verificar si este mismo archivo ya fue importado y confirmado previamente para la misma delegación
+  const { data: existingConfirmed } = await supabase
+    .from("union_worker_import_batches")
+    .select("id, confirmed_at, created_at")
+    .eq("delegation_id", delegationId)
+    .eq("file_sha256", security.sha256)
+    .in("status", ["confirmed"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   // 9. Crear lote en union_worker_import_batches con format_version = "UNION_LOCKERS_V2"
   const { data: batch, error: batchError } = await supabase
     .from("union_worker_import_batches")
@@ -693,7 +704,7 @@ export async function parseAndPreviewLockerImport(params: {
       unchanged_workers_count: 0,
       conflicts_count: realConflictsCount,
       invalid_rows_count: 0,
-      new_lockers_count: newLockerAssignments,
+      new_lockers_count: newPhysicalLockers,
       locker_changes_count: lockerChanges,
       summary_metadata: {
         domain: "LOCKER_V2_HOJA1",
@@ -871,6 +882,8 @@ export async function parseAndPreviewLockerImport(params: {
     summary,
     rows: previewRows,
     missingWorkers: [],
+    alreadyConfirmedAt: existingConfirmed ? (existingConfirmed.confirmed_at || existingConfirmed.created_at) : null,
+    alreadyConfirmedBatchId: existingConfirmed?.id ?? null,
   };
 }
 
@@ -879,14 +892,16 @@ export async function applyLockerImportBatch(params: {
   delegationId: string;
   userId: string;
   resolutions?: Record<string, unknown>;
+  options?: { allowReimport?: boolean };
 }): Promise<ImportConfirmResult> {
-  const { batchId, delegationId, resolutions = {} } = params;
+  const { batchId, delegationId, resolutions = {}, options = {} } = params;
   const supabase = await createClient();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any).rpc("union_apply_locker_import", {
     p_batch_id: batchId,
     p_resolutions: resolutions as Json,
+    p_options: options as Json,
   });
 
   if (error) {
@@ -922,11 +937,12 @@ export async function applyLockerImportBatch(params: {
 
   return {
     batchId,
-    status: "applied",
+    status: "confirmed",
     appliedCount: res.new_workers_created ?? 0,
     updatedCount: res.locker_changes ?? 0,
     unchangedCount: res.unchanged_assignments ?? 0,
-    newLockersCount: res.new_locker_assignments ?? 0,
+    newLockersCount: res.new_lockers_inventoried ?? 0,
+    newLockerAssignments: res.new_locker_assignments ?? 0,
     lockerChangesCount: res.locker_changes ?? 0,
     pendingReviewCount: res.pending_review_count ?? 0,
     missingMarkedCount: 0,

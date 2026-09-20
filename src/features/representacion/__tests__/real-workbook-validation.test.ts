@@ -96,6 +96,19 @@ describe("Real Workbook Test: Copia de Copia de Copia de LOKER 2025.xlsx", () =>
         }
         if (table === "union_worker_import_batches") {
           return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  in: () => ({
+                    order: () => ({
+                      limit: () => ({
+                        maybeSingle: () => Promise.resolve({ data: null, error: null }),
+                      }),
+                    }),
+                  }),
+                }),
+              }),
+            }),
             insert: () => ({
               select: () => ({
                 single: () => Promise.resolve({ data: { id: mockBatchId }, error: null }),
