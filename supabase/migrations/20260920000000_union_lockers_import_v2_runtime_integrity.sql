@@ -827,7 +827,7 @@ begin
       set
         status = 'active',
         released_at = null,
-        release_reason = null,
+        release_reason = '',
         released_by_source_batch_id = null
       where id = v_asgn.id;
 
