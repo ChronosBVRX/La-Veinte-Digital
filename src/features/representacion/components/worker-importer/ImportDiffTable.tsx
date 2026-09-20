@@ -24,6 +24,8 @@ type FilterCategory =
   | "no_padron"
   | "duplicates"
   | "real_conflicts"
+  | "replaces"
+  | "clears"
   | "skipped";
 
 export function ImportDiffTable({
@@ -49,6 +51,8 @@ export function ImportDiffTable({
       if (filter === "no_padron" && r.conflictReasonCode !== "WORKER_NOT_FOUND" && r.status !== "invalid") return false;
       if (filter === "duplicates" && !r.autoResolvable && r.conflictReasonCode !== "DUPLICATE_IDENTICAL_ROW" && r.conflictReasonCode !== "DUPLICATE_LOCKER_SAME_WORKER") return false;
       if (filter === "real_conflicts" && (r.status !== "conflict" || r.conflictReasonCode === "WORKER_NOT_FOUND" || r.autoResolvable)) return false;
+      if (filter === "replaces" && r.conflictReasonCode !== "REPLACE_PREVIOUS_IMPORT_ASSIGNMENT") return false;
+      if (filter === "clears" && r.conflictReasonCode !== "CLEAR_PREVIOUS_IMPORT_ASSIGNMENT") return false;
       if (filter === "skipped" && !isSkipped) return false;
       if (filter === "conflict" && r.status !== "conflict") return false;
     } else {
@@ -92,6 +96,15 @@ export function ImportDiffTable({
     }
 
     if (isLocker) {
+      if (row.conflictReasonCode === "REPLACE_PREVIOUS_IMPORT_ASSIGNMENT") {
+        return { label: "Sustituye previa", bg: "#e0f2fe", fg: "#0369a1" };
+      }
+      if (row.conflictReasonCode === "CLEAR_PREVIOUS_IMPORT_ASSIGNMENT") {
+        return { label: "Libera casillero", bg: "#f1f5f9", fg: "#475569" };
+      }
+      if (row.conflictReasonCode === "CONFLICT_WITH_MANUAL_CHANGE") {
+        return { label: "Manual protegido", bg: "#fee2e2", fg: "#b91c1c" };
+      }
       if (row.conflictReasonCode === "WORKER_NOT_FOUND") {
         return { label: "No en padrón", bg: "#ffedd5", fg: "#c2410c" };
       }
@@ -134,27 +147,31 @@ export function ImportDiffTable({
   const countNoPadron = rows.filter((r) => r.conflictReasonCode === "WORKER_NOT_FOUND" || r.status === "invalid").length;
   const countDuplicates = rows.filter((r) => r.autoResolvable || r.conflictReasonCode === "DUPLICATE_IDENTICAL_ROW" || r.conflictReasonCode === "DUPLICATE_LOCKER_SAME_WORKER").length;
   const countRealConflicts = rows.filter((r) => r.status === "conflict" && r.conflictReasonCode !== "WORKER_NOT_FOUND" && !r.autoResolvable).length;
+  const countReplaces = rows.filter((r) => r.conflictReasonCode === "REPLACE_PREVIOUS_IMPORT_ASSIGNMENT").length;
+  const countClears = rows.filter((r) => r.conflictReasonCode === "CLEAR_PREVIOUS_IMPORT_ASSIGNMENT").length;
   const countSkipped = rows.filter((r) => resolutions[r.rowNumber]?.action === "skip" || r.status === "ignored").length;
 
-  const filterButtons = isLocker
-    ? ([
+  const filterButtons: Array<{ id: FilterCategory; label: string }> = isLocker
+    ? [
         { id: "all", label: `Todos (${rows.length})` },
         { id: "new", label: `Nuevas asignaciones (${countNew})` },
         { id: "update", label: `Reasignaciones (${countUpdate})` },
+        ...(countReplaces > 0 ? [{ id: "replaces" as const, label: `Sustituye previa (${countReplaces})` }] : []),
+        ...(countClears > 0 ? [{ id: "clears" as const, label: `Libera casillero (${countClears})` }] : []),
         { id: "unchanged", label: `Sin cambios (${countUnchanged})` },
         { id: "no_padron", label: `No en padrón (${countNoPadron})` },
         { id: "duplicates", label: `Duplicados (${countDuplicates})` },
         { id: "real_conflicts", label: `Conflictos reales (${countRealConflicts})` },
         { id: "skipped", label: `Omitidos (${countSkipped})` },
-      ] as const)
-    : ([
+      ]
+    : [
         { id: "all", label: `Todos (${rows.length})` },
         { id: "new", label: "Nuevos" },
         { id: "update", label: "Actualizaciones" },
         { id: "conflict", label: "Conflictos" },
         { id: "invalid", label: "Inválidos" },
         { id: "unchanged", label: "Sin cambios" },
-      ] as const);
+      ];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>

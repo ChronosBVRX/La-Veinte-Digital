@@ -1806,6 +1806,8 @@ export type Database = {
           locker_changes_count: number;
           locker_conflicts_count: number;
           summary_metadata: Json;
+          supersedes_batch_id: string | null;
+          is_latest_snapshot: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -1836,6 +1838,8 @@ export type Database = {
           locker_changes_count?: number;
           locker_conflicts_count?: number;
           summary_metadata?: Json;
+          supersedes_batch_id?: string | null;
+          is_latest_snapshot?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -1866,6 +1870,8 @@ export type Database = {
           locker_changes_count?: number;
           locker_conflicts_count?: number;
           summary_metadata?: Json;
+          supersedes_batch_id?: string | null;
+          is_latest_snapshot?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -1998,9 +2004,9 @@ export type Database = {
         Relationships: []
       }
       union_lockers: {
-        Row: { id: string; delegation_id: string; locker_number: string; location: string | null; section: string | null; status: string; notes: string | null; created_at: string; updated_at: string; zone_id: string | null; bank_id: string | null; row_position: number | null; column_position: number | null; position_label: string | null; sort_order: number | null; physical_code: string | null; condition: string; maintenance_reason: string | null; maintenance_notes: string | null; maintenance_date: string | null; reserved_for_worker_id: string | null; reservation_reason: string | null; reserved_until: string | null }
-        Insert: { id?: string; delegation_id: string; locker_number: string; location?: string | null; section?: string | null; status?: string; notes?: string | null; created_at?: string; updated_at?: string; zone_id?: string | null; bank_id?: string | null; row_position?: number | null; column_position?: number | null; position_label?: string | null; sort_order?: number | null; physical_code?: string | null; condition?: string; maintenance_reason?: string | null; maintenance_notes?: string | null; maintenance_date?: string | null; reserved_for_worker_id?: string | null; reservation_reason?: string | null; reserved_until?: string | null }
-        Update: { id?: string; delegation_id?: string; locker_number?: string; location?: string | null; section?: string | null; status?: string; notes?: string | null; created_at?: string; updated_at?: string; zone_id?: string | null; bank_id?: string | null; row_position?: number | null; column_position?: number | null; position_label?: string | null; sort_order?: number | null; physical_code?: string | null; condition?: string; maintenance_reason?: string | null; maintenance_notes?: string | null; maintenance_date?: string | null; reserved_for_worker_id?: string | null; reservation_reason?: string | null; reserved_until?: string | null }
+        Row: { id: string; delegation_id: string; locker_number: string; location: string | null; section: string | null; status: string; notes: string | null; created_at: string; updated_at: string; zone_id: string | null; bank_id: string | null; row_position: number | null; column_position: number | null; position_label: string | null; sort_order: number | null; physical_code: string | null; condition: string; maintenance_reason: string | null; maintenance_notes: string | null; maintenance_date: string | null; reserved_for_worker_id: string | null; reservation_reason: string | null; reserved_until: string | null; last_seen_batch_id: string | null; last_seen_at: string | null }
+        Insert: { id?: string; delegation_id: string; locker_number: string; location?: string | null; section?: string | null; status?: string; notes?: string | null; created_at?: string; updated_at?: string; zone_id?: string | null; bank_id?: string | null; row_position?: number | null; column_position?: number | null; position_label?: string | null; sort_order?: number | null; physical_code?: string | null; condition?: string; maintenance_reason?: string | null; maintenance_notes?: string | null; maintenance_date?: string | null; reserved_for_worker_id?: string | null; reservation_reason?: string | null; reserved_until?: string | null; last_seen_batch_id?: string | null; last_seen_at?: string | null }
+        Update: { id?: string; delegation_id?: string; locker_number?: string; location?: string | null; section?: string | null; status?: string; notes?: string | null; created_at?: string; updated_at?: string; zone_id?: string | null; bank_id?: string | null; row_position?: number | null; column_position?: number | null; position_label?: string | null; sort_order?: number | null; physical_code?: string | null; condition?: string; maintenance_reason?: string | null; maintenance_notes?: string | null; maintenance_date?: string | null; reserved_for_worker_id?: string | null; reservation_reason?: string | null; reserved_until?: string | null; last_seen_batch_id?: string | null; last_seen_at?: string | null }
         Relationships: []
       }
       union_locker_zones: {
@@ -2028,9 +2034,9 @@ export type Database = {
         Relationships: []
       }
       union_locker_assignments: {
-        Row: { id: string; locker_id: string; worker_id: string; assigned_at: string; released_at: string | null; status: string; assignment_reason: string | null; release_reason: string | null; resguardo_status: string | null; admin_override: boolean; admin_override_reason: string | null; created_by: string | null; created_at: string }
-        Insert: { id?: string; locker_id: string; worker_id: string; assigned_at?: string; released_at?: string | null; status?: string; assignment_reason?: string | null; release_reason?: string | null; resguardo_status?: string | null; admin_override?: boolean; admin_override_reason?: string | null; created_by?: string | null; created_at?: string }
-        Update: { id?: string; locker_id?: string; worker_id?: string; assigned_at?: string; released_at?: string | null; status?: string; assignment_reason?: string | null; release_reason?: string | null; resguardo_status?: string | null; admin_override?: boolean; admin_override_reason?: string | null; created_by?: string | null; created_at?: string }
+        Row: { id: string; locker_id: string; worker_id: string; assigned_at: string; released_at: string | null; status: string; assignment_reason: string | null; release_reason: string | null; resguardo_status: string | null; admin_override: boolean; admin_override_reason: string | null; source: string | null; source_batch_id: string | null; source_row_id: string | null; released_by_source_batch_id: string | null; created_by: string | null; created_at: string }
+        Insert: { id?: string; locker_id: string; worker_id: string; assigned_at?: string; released_at?: string | null; status?: string; assignment_reason?: string | null; release_reason?: string | null; resguardo_status?: string | null; admin_override?: boolean; admin_override_reason?: string | null; source?: string | null; source_batch_id?: string | null; source_row_id?: string | null; released_by_source_batch_id?: string | null; created_by?: string | null; created_at?: string }
+        Update: { id?: string; locker_id?: string; worker_id?: string; assigned_at?: string; released_at?: string | null; status?: string; assignment_reason?: string | null; release_reason?: string | null; resguardo_status?: string | null; admin_override?: boolean; admin_override_reason?: string | null; source?: string | null; source_batch_id?: string | null; source_row_id?: string | null; released_by_source_batch_id?: string | null; created_by?: string | null; created_at?: string }
         Relationships: []
       }
       union_locker_waitlist: {

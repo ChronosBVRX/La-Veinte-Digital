@@ -29,8 +29,13 @@ export function ImportPreviewDashboard({
     { label: "Filas Hoja1", value: summary.totalRows, color: "var(--fg)" },
     { label: "Lockers físicos", value: summary.uniquePhysicalLockers ?? summary.lockersDetected ?? summary.totalRows, color: "#0891b2" },
     { label: "Asignaciones listas", value: readyAssignmentsCount, color: "#16a34a" },
+    { label: "Sustituyen previas", value: summary.replacedPreviousCount ?? 0, color: "#0284c7" },
+    { label: "Liberan vacíos", value: summary.clearedPreviousCount ?? 0, color: "#64748b" },
+    { label: "Ausentes a liberar", value: summary.stalePreviousCount ?? 0, color: "#ea580c" },
+    { label: "Manuales protegidas", value: summary.manualProtectedCount ?? 0, color: "#059669" },
+    { label: "Total activas final", value: summary.expectedActiveAssignmentsAfterImport ?? readyAssignmentsCount, color: "#15803d" },
     { label: "Trabajadores en padrón", value: summary.workersMatchedInRoster ?? 0, color: "#0284c7" },
-    { label: "Nuevos trabajadores (Excel)", value: summary.newWorkersFromExcel ?? summary.newWorkers ?? 0, color: "#16a34a" },
+    { label: "Nuevos (Excel)", value: summary.newWorkersFromExcel ?? summary.newWorkers ?? 0, color: "#16a34a" },
     { label: "Lockers sin trabajador", value: summary.lockersWithoutWorkerCount ?? 0, color: "#64748b" },
     { label: "Históricos superados", value: summary.historicalSupersededCount ?? 0, color: "#8b5cf6" },
     { label: "Conflictos reales", value: realConflictsCount, color: "#dc2626" },
@@ -124,6 +129,26 @@ export function ImportPreviewDashboard({
             <span style={{ color: "#15803d", fontWeight: 600 }}>
               ✓ {readyAssignmentsCount.toLocaleString("es-MX")} asignaciones listas para aplicarse
             </span>
+            {(summary.replacedPreviousCount ?? 0) > 0 ? (
+              <span style={{ color: "#0284c7", fontWeight: 600 }}>
+                ↻ {(summary.replacedPreviousCount ?? 0).toLocaleString("es-MX")} sustituyen importaciones previas
+              </span>
+            ) : null}
+            {(summary.clearedPreviousCount ?? 0) > 0 ? (
+              <span style={{ color: "#475569", fontWeight: 600 }}>
+                🗑️ {(summary.clearedPreviousCount ?? 0).toLocaleString("es-MX")} liberarán casilleros vacíos
+              </span>
+            ) : null}
+            {(summary.stalePreviousCount ?? 0) > 0 ? (
+              <span style={{ color: "#ea580c", fontWeight: 600 }}>
+                ⚠️ {(summary.stalePreviousCount ?? 0).toLocaleString("es-MX")} asignaciones anteriores ausentes se liberarán
+              </span>
+            ) : null}
+            {(summary.manualProtectedCount ?? 0) > 0 ? (
+              <span style={{ color: "#059669", fontWeight: 600 }}>
+                🛡️ {(summary.manualProtectedCount ?? 0).toLocaleString("es-MX")} asignaciones manuales protegidas
+              </span>
+            ) : null}
             {(summary.workersMatchedInRoster ?? 0) > 0 ? (
               <span style={{ color: "#0369a1", fontWeight: 600 }}>
                 • {(summary.workersMatchedInRoster ?? 0).toLocaleString("es-MX")} trabajadores ya en padrón (datos SIAP protegidos)
@@ -257,6 +282,19 @@ export function ImportPreviewDashboard({
                 }}
               >
                 • <strong>{breakdown.LOCKER_ASSIGNED_TO_OTHER_WORKER}</strong> casillero(s) ya asignados a otra persona en el sistema.
+              </div>
+            ) : null}
+            {breakdown?.CONFLICT_WITH_MANUAL_CHANGE ? (
+              <div
+                style={{
+                  padding: "0.5rem 0.75rem",
+                  borderRadius: "0.375rem",
+                  backgroundColor: "#ffffff",
+                  border: "1px solid #fecaca",
+                  color: "#991b1b",
+                }}
+              >
+                • <strong>{breakdown.CONFLICT_WITH_MANUAL_CHANGE}</strong> casillero(s) con asignación manual previa protegida (no se sobreescriben automáticamente).
               </div>
             ) : null}
           </div>
