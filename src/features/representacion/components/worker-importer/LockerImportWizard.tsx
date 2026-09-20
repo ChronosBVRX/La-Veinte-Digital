@@ -176,6 +176,9 @@ export function LockerImportWizard(): React.JSX.Element {
       const payload = {
         batch_id: previewResult.batchId,
         resolutions,
+        options: {
+          allowReimport: Boolean(previewResult.alreadyConfirmedAt),
+        },
       };
 
       const res = await fetch(applyEndpoint, {
@@ -368,6 +371,8 @@ export function LockerImportWizard(): React.JSX.Element {
                   summary={previewResult.summary}
                   fileName={previewResult.fileName}
                   domain="LOCKER"
+                  alreadyConfirmedAt={previewResult.alreadyConfirmedAt}
+                  alreadyConfirmedBatchId={previewResult.alreadyConfirmedBatchId}
                 />
               </Card>
 

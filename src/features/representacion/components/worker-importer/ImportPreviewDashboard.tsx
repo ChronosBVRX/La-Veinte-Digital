@@ -6,12 +6,16 @@ export interface ImportPreviewDashboardProps {
   summary: ImportSummary;
   fileName: string;
   domain?: "WORKER" | "LOCKER";
+  alreadyConfirmedAt?: string | null;
+  alreadyConfirmedBatchId?: string | null;
 }
 
 export function ImportPreviewDashboard({
   summary,
   fileName,
   domain = "WORKER",
+  alreadyConfirmedAt,
+  alreadyConfirmedBatchId,
 }: ImportPreviewDashboardProps): React.JSX.Element {
   const isLocker = domain === "LOCKER";
 
@@ -50,6 +54,34 @@ export function ImportPreviewDashboard({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+      {alreadyConfirmedAt ? (
+        <div
+          style={{
+            padding: "0.875rem 1rem",
+            borderRadius: "0.5rem",
+            backgroundColor: "#fffbeb",
+            border: "1px solid #fef3c7",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+          }}
+        >
+          <span style={{ fontSize: "1.25rem" }}>⚠️</span>
+          <div style={{ fontSize: "0.875rem", color: "#92400e" }}>
+            <strong>Esta base ya fue importada previamente</strong> el{" "}
+            {new Date(alreadyConfirmedAt).toLocaleDateString("es-MX", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+            {alreadyConfirmedBatchId ? ` (Lote: ${alreadyConfirmedBatchId.slice(0, 8)})` : ""}.
+            Si confirmas esta operación, se re-conciliarán las asignaciones y se actualizarán los registros existentes.
+          </div>
+        </div>
+      ) : null}
+
       {isLocker ? (
         <div
           style={{

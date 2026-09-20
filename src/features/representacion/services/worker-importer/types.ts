@@ -271,6 +271,8 @@ export interface ImportPreviewResult {
     department: string;
     locker?: string;
   }>;
+  alreadyConfirmedAt?: string | null;
+  alreadyConfirmedBatchId?: string | null;
 }
 
 export interface ImportConfirmResult {
@@ -280,6 +282,7 @@ export interface ImportConfirmResult {
   updatedCount?: number;
   unchangedCount: number;
   newLockersCount?: number;
+  newLockerAssignments?: number;
   lockerChangesCount?: number;
   pendingReviewCount?: number;
   missingMarkedCount: number;
