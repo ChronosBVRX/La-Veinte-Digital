@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/shared/server/auth/require-user";
 import { requireUnionMembership } from "@/features/representacion/services/permissions";
+import { fetchAllSupabaseRows, chunkArray } from "@/shared/lib/supabase-pagination";
+import { getCanonicalLockerSummary } from "@/features/representacion/services/lockers-summary";
 import {
   getLockerEffectiveState,
   naturalCompare,
@@ -67,29 +69,63 @@ export async function GET(req: Request): Promise<NextResponse> {
     const { data: rawBanks } = await banksQuery;
     const banks = (rawBanks ?? []) as LockerBank[];
 
-    // 3. Cargar todos los casilleros de la delegación para estadísticas globales
-    const { data: rawAllLockers } = await supabase
-      .from("union_lockers")
-      .select("id, locker_number, status, condition, zone_id, bank_id, row_position, column_position, position_label, sort_order, physical_code, notes, maintenance_reason, maintenance_notes")
-      .eq("delegation_id", depId);
+    // 3. Resumen canónico de métricas globales (PostgreSQL RPC agregada o exact counts)
+    const canonicalSummary = await getCanonicalLockerSummary(supabase, depId);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const allLockers = (rawAllLockers ?? []) as any[];
+    // 4. Cargar todos los casilleros de la delegación paginados con fetchAllSupabaseRows
+    const allLockers = await fetchAllSupabaseRows<{
+      id: string;
+      locker_number: string;
+      location?: string | null;
+      section?: string | null;
+      status: string;
+      condition: string;
+      zone_id: string | null;
+      bank_id: string | null;
+      row_position: number | null;
+      column_position: number | null;
+      position_label: string | null;
+      sort_order: number | null;
+      physical_code: string | null;
+      notes: string | null;
+      maintenance_reason: string | null;
+      maintenance_notes: string | null;
+    }>(
+      ({ from, to }) =>
+        supabase
+          .from("union_lockers")
+          .select(
+            "id, locker_number, location, section, status, condition, zone_id, bank_id, row_position, column_position, position_label, sort_order, physical_code, notes, maintenance_reason, maintenance_notes",
+          )
+          .eq("delegation_id", depId)
+          .range(from, to),
+      { pageSize: 500 },
+    );
 
-    // 4. Asignaciones activas filtradas a los casilleros de esta delegación
+    // 5. Asignaciones activas acotadas a la delegación desde SQL y paginadas
     const allLockerIds = new Set(allLockers.map((l) => l.id));
     const lockerNumberToId = new Map<string, string>();
     for (const l of allLockers) {
       lockerNumberToId.set(l.locker_number, l.id);
     }
 
-    const { data: rawAssignments } = await supabase
-      .from("union_locker_assignments")
-      .select("id, locker_id, worker_id, assigned_at, status")
-      .eq("status", "active");
+    const assignments = await fetchAllSupabaseRows<{
+      id: string;
+      locker_id: string;
+      worker_id: string;
+      assigned_at: string;
+      status: string;
+    }>(
+      ({ from, to }) =>
+        supabase
+          .from("union_locker_assignments")
+          .select("id, locker_id, worker_id, assigned_at, status, union_lockers!inner(delegation_id)")
+          .eq("status", "active")
+          .eq("union_lockers.delegation_id", depId)
+          .range(from, to),
+      { pageSize: 500 },
+    );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const assignments = ((rawAssignments ?? []) as any[]).filter((a) => allLockerIds.has(a.locker_id));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const asgByLockerId = new Map<string, any>();
     const workerIds = new Set<string>();
@@ -99,30 +135,45 @@ export async function GET(req: Request): Promise<NextResponse> {
       if (a.worker_id) workerIds.add(a.worker_id);
     }
 
+    // 6. Cargar trabajadores asociados en lotes seguros (chunking) para evitar URLs excesivas
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let workersMap = new Map<string, any>();
+    const workersMap = new Map<string, any>();
     if (workerIds.size > 0) {
-      const { data: rawWorkers } = await supabase
-        .from("union_workers")
-        .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment, turn")
-        .in("id", Array.from(workerIds));
+      const workerIdChunks = chunkArray(Array.from(workerIds), 200);
+      for (const chunk of workerIdChunks) {
+        const { data: rawWorkers } = await supabase
+          .from("union_workers")
+          .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment, turn")
+          .in("id", chunk);
 
-      if (rawWorkers) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        workersMap = new Map(rawWorkers.map((w: any) => [w.id, w]));
+        if (rawWorkers) {
+          for (const w of rawWorkers) {
+            workersMap.set(w.id, w);
+          }
+        }
       }
     }
 
-    // 5. Pendientes de revisión (incidencias de conciliación/importación)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: rawPending } = await (supabase as any)
-      .from("union_locker_review_items")
-      .select("id, locker_id, locker_number, reason, source_employee_number, source_worker_name")
-      .eq("delegation_id", depId)
-      .eq("status", "pending");
+    // 7. Pendientes de revisión (incidencias de conciliación/importación) paginados
+    const pendingItems = await fetchAllSupabaseRows<{
+      id: string;
+      locker_id: string | null;
+      locker_number: string;
+      reason: string;
+      source_employee_number: string | null;
+      source_worker_name: string | null;
+    }>(
+      ({ from, to }) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("union_locker_review_items")
+          .select("id, locker_id, locker_number, reason, source_employee_number, source_worker_name")
+          .eq("delegation_id", depId)
+          .eq("status", "pending")
+          .range(from, to),
+      { pageSize: 500 },
+    );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pendingItems = (rawPending ?? []) as any[];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pendingByLockerNumber = new Map<string, any>();
     const affectedLockerIds = new Set<string>();
@@ -140,23 +191,11 @@ export async function GET(req: Request): Promise<NextResponse> {
       }
     }
 
-    // 6. Lista de espera activa
-    const { count: waitlistCount } = await supabase
-      .from("union_locker_waitlist")
-      .select("id", { count: "exact", head: true })
-      .eq("delegation_id", depId)
-      .eq("status", "waiting");
-
-    // 7. Calcular métricas por zona y globales
+    // 7. Calcular métricas por zona y mapa
     const zoneCounts = new Map<string, { total: number; assigned: number; available: number; attention: number }>();
     for (const z of zones) {
       zoneCounts.set(z.id, { total: 0, assigned: 0, available: 0, attention: 0 });
     }
-
-    let globalAssigned = 0;
-    let globalAvailable = 0;
-    let globalMaintenance = 0;
-    let globalUnlocated = 0;
 
     const mapItems: LockerMapItem[] = [];
     const normalize = (str: string): string => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -169,11 +208,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       const pending = pendingByLockerNumber.get(l.locker_number) || null;
       const effectiveState = getLockerEffectiveState(l, asg, pending);
 
-      if (effectiveState.isAvailable) globalAvailable++;
-      else if (effectiveState.isAssigned || effectiveState.kind === "assigned") globalAssigned++;
-
       if (effectiveState.kind === "maintenance" || l.condition === "maintenance" || l.condition === "damaged") {
-        globalMaintenance++;
         affectedLockerIds.add(l.id);
         issueCount++;
       }
@@ -185,8 +220,6 @@ export async function GET(req: Request): Promise<NextResponse> {
         affectedLockerIds.add(l.id);
         issueCount++;
       }
-
-      if (!l.zone_id || !l.bank_id) globalUnlocated++;
 
       const isAffected = affectedLockerIds.has(l.id);
 
@@ -291,33 +324,34 @@ export async function GET(req: Request): Promise<NextResponse> {
       attention_lockers: zoneCounts.get(z.id)?.attention ?? 0,
     }));
 
-    const affectedLockers = affectedLockerIds.size;
+    const affectedLockers = Math.max(canonicalSummary.affectedLockers, affectedLockerIds.size);
+    const finalIssueCount = Math.max(canonicalSummary.issueCount, issueCount);
 
     const summary: LockerMapSummary = {
-      total: allLockers.length,
-      assigned: globalAssigned,
-      available: globalAvailable,
+      total: canonicalSummary.total,
+      assigned: canonicalSummary.assigned,
+      available: canonicalSummary.available,
       attention: affectedLockers,
-      maintenance: globalMaintenance,
-      unlocated: globalUnlocated,
-      pendingReview: pendingItems.length,
-      waitlist: waitlistCount ?? 0,
+      maintenance: canonicalSummary.maintenance,
+      unlocated: canonicalSummary.unlocated,
+      pendingReview: canonicalSummary.pendingReview,
+      waitlist: canonicalSummary.waitlist,
       affectedLockers,
-      issueCount,
+      issueCount: finalIssueCount,
       integrityIssues: affectedLockers,
       // Aliases para compatibilidad hacia atrás
-      waitlistCount: waitlistCount ?? 0,
-      pending_review: pendingItems.length,
+      waitlistCount: canonicalSummary.waitlist,
+      pending_review: canonicalSummary.pendingReview,
       integrity_issues_count: affectedLockers,
     };
 
     const counts = {
-      total: allLockers.length,
-      assigned: globalAssigned,
-      available: globalAvailable,
-      maintenance: globalMaintenance,
-      unlocated: globalUnlocated,
-      pending_review: pendingItems.length,
+      total: canonicalSummary.total,
+      assigned: canonicalSummary.assigned,
+      available: canonicalSummary.available,
+      maintenance: canonicalSummary.maintenance,
+      unlocated: canonicalSummary.unlocated,
+      pending_review: canonicalSummary.pendingReview,
     };
 
     const payload: LockerMapResponse = {

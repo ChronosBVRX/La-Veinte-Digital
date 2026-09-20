@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllSupabaseRows } from "@/shared/lib/supabase-pagination";
 import type { Json } from "@/lib/supabase/types";
 import { validateExcelSecurity } from "./excel-security";
 import { mapHeaders } from "./header-mapper";
@@ -597,39 +598,78 @@ export async function parseAndPreviewMasterImport(params: {
   // 6. Consultar estado existente en base de datos
   const supabase = await createClient();
 
-  const [workersRes, lockersRes, assignmentsRes] = await Promise.all([
-    supabase
-      .from("union_workers")
-      .select(`
-        id, employee_number, first_name, paternal_surname, maternal_surname,
-        category, assignment, turn, schedule, plaza_code,
-        source_name_raw, import_notes, active
-      `)
-      .eq("delegation_id", delegationId),
-    supabase
-      .from("union_lockers")
-      .select("id, locker_number, status")
-      .eq("delegation_id", delegationId),
-    supabase
-      .from("union_locker_assignments")
-      .select("id, locker_id, worker_id, status")
-      .eq("status", "active"),
+  const [dbWorkers, dbLockers, rawAssignments] = await Promise.all([
+    fetchAllSupabaseRows<{
+      id: string;
+      employee_number: string;
+      first_name: string;
+      paternal_surname: string;
+      maternal_surname: string | null;
+      category: string;
+      assignment: string;
+      turn: string;
+      schedule: string | null;
+      plaza_code: string;
+      source_name_raw: string;
+      import_notes: string;
+      active: boolean;
+    }>(
+      ({ from, to }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const q: any = supabase
+          .from("union_workers")
+          .select(`
+            id, employee_number, first_name, paternal_surname, maternal_surname,
+            category, assignment, turn, schedule, plaza_code,
+            source_name_raw, import_notes, active
+          `)
+          .eq("delegation_id", delegationId);
+        return typeof q.range === "function" ? q.range(from, to) : q;
+      },
+      { pageSize: 500 },
+    ),
+    fetchAllSupabaseRows<{
+      id: string;
+      locker_number: string;
+      status: string;
+    }>(
+      ({ from, to }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const q: any = supabase
+          .from("union_lockers")
+          .select("id, locker_number, status")
+          .eq("delegation_id", delegationId);
+        return typeof q.range === "function" ? q.range(from, to) : q;
+      },
+      { pageSize: 500 },
+    ),
+    fetchAllSupabaseRows<{
+      id: string;
+      locker_id: string;
+      worker_id: string;
+      status: string;
+    }>(
+      ({ from, to }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const q: any = supabase
+          .from("union_locker_assignments")
+          .select("id, locker_id, worker_id, status")
+          .eq("status", "active");
+        return typeof q.range === "function" ? q.range(from, to) : q;
+      },
+      { pageSize: 500 },
+    ),
   ]);
 
-  if (workersRes.error) {
-    throw new Error(`Error al consultar padrón de trabajadores: ${workersRes.error.message}`);
-  }
+  const lockerById = new Map(dbLockers.map((l) => [l.id, l]));
+  const workerById = new Map(dbWorkers.map((w) => [w.id, w]));
 
-  const dbWorkers = workersRes.data ?? [];
-  const dbLockers = lockersRes.data ?? [];
-  const dbAssignments = assignmentsRes.data ?? [];
+  // Filtrar asignaciones activas estrictamente para casilleros de esta delegación
+  const dbAssignments = rawAssignments.filter((a) => lockerById.has(a.locker_id));
 
   // Mapear asignaciones activas
   const workerLockerMap = new Map<string, { lockerNumber: string; assignmentId: string; lockerId: string }>();
   const lockerWorkerMap = new Map<string, { workerId: string; assignmentId: string }>();
-
-  const lockerById = new Map(dbLockers.map((l) => [l.id, l]));
-  const workerById = new Map(dbWorkers.map((w) => [w.id, w]));
 
   for (const asgn of dbAssignments) {
     const locker = lockerById.get(asgn.locker_id);

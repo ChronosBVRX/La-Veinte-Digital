@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/shared/server/auth/require-user";
 import { requireUnionMembership } from "@/features/representacion/services/permissions";
 import { naturalCompare } from "@/features/representacion/lib/lockers";
+import { fetchAllSupabaseRows, chunkArray } from "@/shared/lib/supabase-pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -24,14 +25,17 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   const supabase = await createClient();
 
-  // 1. Lockers con datos físicos
-  const { data: rawLockers } = await supabase
-    .from("union_lockers")
-    .select("id, locker_number, status, condition, location, section, row_position, column_position, position_label, notes, maintenance_reason, zone_id, bank_id")
-    .eq("delegation_id", depId);
-
+  // 1. Lockers con datos físicos (paginado server-side para asegurar exportación de la totalidad)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const lockers = (rawLockers ?? []) as any[];
+  const lockers = await fetchAllSupabaseRows<any>(
+    ({ from, to }) =>
+      supabase
+        .from("union_lockers")
+        .select("id, locker_number, status, condition, location, section, row_position, column_position, position_label, notes, maintenance_reason, zone_id, bank_id")
+        .eq("delegation_id", depId)
+        .range(from, to),
+    { pageSize: 500 },
+  );
 
   // 2. Zonas y Bloques
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -51,14 +55,19 @@ export async function GET(req: Request): Promise<NextResponse> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bankMap = new Map<string, string>((rawBanks ?? []).map((b: any) => [String(b.id), String(b.name)]));
 
-  // 3. Asignaciones activas y trabajadores
-  const { data: rawAssignments } = await supabase
-    .from("union_locker_assignments")
-    .select("id, locker_id, worker_id, assigned_at")
-    .eq("status", "active");
-
+  // 3. Asignaciones activas acotadas a la delegación desde SQL y paginadas
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const assignments = (rawAssignments ?? []) as any[];
+  const assignments = await fetchAllSupabaseRows<any>(
+    ({ from, to }) =>
+      supabase
+        .from("union_locker_assignments")
+        .select("id, locker_id, worker_id, assigned_at, union_lockers!inner(delegation_id)")
+        .eq("status", "active")
+        .eq("union_lockers.delegation_id", depId)
+        .range(from, to),
+    { pageSize: 500 },
+  );
+
   const asgMap = new Map<string, { worker_id: string; assigned_at: string }>();
   const workerIds = new Set<string>();
 
@@ -68,27 +77,39 @@ export async function GET(req: Request): Promise<NextResponse> {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let workerMap = new Map<string, any>();
+  const workerMap = new Map<string, any>();
   if (workerIds.size > 0) {
-    const { data: rawWorkers } = await supabase
-      .from("union_workers")
-      .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment, turn")
-      .in("id", Array.from(workerIds));
+    const workerChunks = chunkArray(Array.from(workerIds), 200);
+    for (const chunk of workerChunks) {
+      const { data: rawWorkers } = await supabase
+        .from("union_workers")
+        .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment, turn")
+        .in("id", chunk);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    workerMap = new Map((rawWorkers ?? []).map((w: any) => [w.id, w]));
+      if (rawWorkers) {
+        for (const w of rawWorkers) {
+          workerMap.set(w.id, w);
+        }
+      }
+    }
   }
 
-  // 4. Pendientes de revisión
+  // 4. Pendientes de revisión paginados
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: rawPending } = await (supabase as any)
-    .from("union_locker_review_items")
-    .select("locker_number, reason, source_employee_number, source_worker_name")
-    .eq("delegation_id", depId)
-    .eq("status", "pending");
+  const rawPending = await fetchAllSupabaseRows<any>(
+    ({ from, to }) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("union_locker_review_items")
+        .select("locker_number, reason, source_employee_number, source_worker_name")
+        .eq("delegation_id", depId)
+        .eq("status", "pending")
+        .range(from, to),
+    { pageSize: 500 },
+  );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pendingMap = new Map((rawPending ?? []).map((p: any) => [p.locker_number, p]));
+  const pendingMap = new Map(rawPending.map((p: any) => [p.locker_number, p]));
 
   // Ordenar naturalmente
   lockers.sort((a, b) => naturalCompare(a.locker_number, b.locker_number));

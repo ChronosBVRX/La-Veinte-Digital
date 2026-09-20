@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/shared/server/auth/require-user";
 import { requireUnionMembership, requireUnionAdmin } from "@/features/representacion/services/permissions";
 import { writeAuditLog } from "@/features/representacion/services/audit";
+import { fetchAllSupabaseRows, chunkArray } from "@/shared/lib/supabase-pagination";
 import { z } from "zod";
 import type { LockerReviewItem } from "@/features/representacion/services/worker-importer/types";
 
@@ -54,18 +55,19 @@ export async function GET(req: Request): Promise<NextResponse> {
     const supabase = await createClient();
     const filter = url.searchParams.get("filter") ?? "all";
 
-    // 1. Obtener todos los pendientes activos para la delegación
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: allPending, error: pendingErr } = await (supabase as any)
-      .from("union_locker_review_items")
-      .select("*")
-      .eq("delegation_id", depId)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false });
-
-    if (pendingErr) throw pendingErr;
-
-    const items: LockerReviewItem[] = (allPending as LockerReviewItem[]) ?? [];
+    // 1. Obtener todos los pendientes activos para la delegación paginados con fetchAllSupabaseRows
+    const items = await fetchAllSupabaseRows<LockerReviewItem>(
+      ({ from, to }) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("union_locker_review_items")
+          .select("*")
+          .eq("delegation_id", depId)
+          .eq("status", "pending")
+          .order("created_at", { ascending: false })
+          .range(from, to),
+      { pageSize: 500 },
+    );
 
     // 2. Calcular desglose de conteos
     let workerNotFoundCount = 0;
@@ -90,9 +92,13 @@ export async function GET(req: Request): Promise<NextResponse> {
 
     // 3. Inteligencia de reconciliación progresiva:
     // Cotejar pendientes WORKER_NOT_FOUND contra union_workers actual
-    const missingMatriculas = items
-      .filter((i) => i.reason === "WORKER_NOT_FOUND" && Boolean(i.source_employee_number))
-      .map((i) => i.source_employee_number as string);
+    const missingMatriculas = [
+      ...new Set(
+        items
+          .filter((i) => i.reason === "WORKER_NOT_FOUND" && Boolean(i.source_employee_number))
+          .map((i) => i.source_employee_number as string),
+      ),
+    ];
 
     const matches: Array<{
       reviewItemId: string;
@@ -103,13 +109,6 @@ export async function GET(req: Request): Promise<NextResponse> {
     }> = [];
 
     if (missingMatriculas.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: foundWorkers } = await (supabase as any)
-        .from("union_workers")
-        .select("id, employee_number, first_name, paternal_surname, maternal_surname")
-        .eq("delegation_id", depId)
-        .in("employee_number", missingMatriculas);
-
       interface WorkerRowSimple {
         id: string;
         employee_number: string;
@@ -118,7 +117,22 @@ export async function GET(req: Request): Promise<NextResponse> {
         maternal_surname: string | null;
       }
 
-      const foundList = (foundWorkers as WorkerRowSimple[]) ?? [];
+      const foundList: WorkerRowSimple[] = [];
+      const matriculaChunks = chunkArray(missingMatriculas, 200);
+
+      for (const chunk of matriculaChunks) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: chunkWorkers } = await (supabase as any)
+          .from("union_workers")
+          .select("id, employee_number, first_name, paternal_surname, maternal_surname")
+          .eq("delegation_id", depId)
+          .in("employee_number", chunk);
+
+        if (chunkWorkers) {
+          foundList.push(...(chunkWorkers as WorkerRowSimple[]));
+        }
+      }
+
       if (foundList.length > 0) {
         const workerMap = new Map(foundList.map((w) => [w.employee_number, w]));
         for (const it of items) {
