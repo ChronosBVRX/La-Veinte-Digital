@@ -32,7 +32,8 @@ ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
 
 -- 2. Simular sesión autenticada
 SET ROLE authenticated;
-SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000c001', true);
+SELECT set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-00000000c001', false);
+SELECT set_config('request.jwt.claims', '{"sub": "00000000-0000-0000-0000-00000000c001", "role": "authenticated"}', false);
 
 -- 3. Test 1: Inserción exitosa de payload maximal con porVencer y dueDate
 DO $$
@@ -386,6 +387,8 @@ $$;
 
 -- 8. Cleanup
 RESET ROLE;
+SELECT set_config('request.jwt.claim.sub', '', false);
+SELECT set_config('request.jwt.claims', '{}', false);
 DELETE FROM public.imported_payslip_observations WHERE payslip_id IN (
   SELECT id FROM public.imported_payslips WHERE user_id = '00000000-0000-0000-0000-00000000c001'
 );
