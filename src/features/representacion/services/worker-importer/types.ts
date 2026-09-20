@@ -163,6 +163,10 @@ export type LockerConflictReasonCode =
   | "DUPLICATE_LOCKER_DIFFERENT_WORKERS"
   | "WORKER_MULTIPLE_LOCKERS"
   | "LOCKER_ASSIGNED_TO_OTHER_WORKER"
+  | "REPLACE_PREVIOUS_IMPORT_ASSIGNMENT"
+  | "CLEAR_PREVIOUS_IMPORT_ASSIGNMENT"
+  | "STALE_PREVIOUS_IMPORT_ASSIGNMENT"
+  | "CONFLICT_WITH_MANUAL_CHANGE"
   | "DUPLICATE_IDENTICAL_ROW"
   | "INVALID_LOCKER"
   | "ROW_WITHOUT_LOCKER"
@@ -184,7 +188,14 @@ export interface RowDiff {
   lockerChange?: {
     currentLocker: string | null;
     excelLocker: string | null;
-    action: "none" | "new_assignment" | "change_assignment" | "conflict" | "semantic_skip";
+    action:
+      | "none"
+      | "new_assignment"
+      | "change_assignment"
+      | "conflict"
+      | "semantic_skip"
+      | "replace_previous"
+      | "clear_previous";
   };
 }
 
@@ -217,7 +228,7 @@ export interface ImportSummary {
   autoResolvableCount?: number;
   workerNotFoundCount?: number;
   realConflictsCount?: number;
-  // Métricas de reconciliación matemática V2 (Hoja1)
+  // Métricas de reconciliación matemática V2/V3 (Authoritative Snapshot)
   physicalLockersDetected?: number;
   uniquePhysicalLockers?: number;
   lockersExisting?: number;
@@ -229,6 +240,12 @@ export interface ImportSummary {
   semanticLockersCount?: number;
   rowsWithoutLockerCount?: number;
   totalRowsAccounted?: number;
+  desiredAssignmentsCount?: number;
+  replacedPreviousCount?: number;
+  clearedPreviousCount?: number;
+  stalePreviousCount?: number;
+  manualProtectedCount?: number;
+  expectedActiveAssignmentsAfterImport?: number;
 }
 
 export interface PreviewRow {
@@ -284,6 +301,11 @@ export interface ImportConfirmResult {
   newLockersCount?: number;
   newLockerAssignments?: number;
   lockerChangesCount?: number;
+  releasedAssignmentsCount?: number;
+  replacedPreviousCount?: number;
+  clearedPreviousCount?: number;
+  stalePreviousCount?: number;
+  totalActiveAssignmentsAfterImport?: number;
   pendingReviewCount?: number;
   missingMarkedCount: number;
   historyRecordsCreated?: number;

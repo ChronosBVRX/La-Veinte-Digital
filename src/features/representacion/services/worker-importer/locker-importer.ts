@@ -218,7 +218,7 @@ export async function parseAndPreviewLockerImport(params: {
       .eq("delegation_id", delegationId),
     supabase
       .from("union_locker_assignments")
-      .select("id, locker_id, worker_id, status")
+      .select("id, locker_id, worker_id, status, source, source_batch_id, assignment_reason, admin_override, assigned_at")
       .eq("status", "active"),
   ]);
 
@@ -228,31 +228,59 @@ export async function parseAndPreviewLockerImport(params: {
 
   const dbWorkers = workersRes.data ?? [];
   const dbLockers = lockersRes.data ?? [];
-  const dbAssignments = assignmentsRes.data ?? [];
+  const lockerById = new Map(dbLockers.map((l) => [l.id, l]));
+  const lockerByNumber = new Map(dbLockers.map((l) => [l.locker_number, l]));
+
+  // Filtrar asignaciones activas estrictamente para casilleros de esta delegación
+  const dbAssignments = (assignmentsRes.data ?? []).filter((a) => lockerById.has(a.locker_id));
 
   const workerByEmpNumber = new Map<string, (typeof dbWorkers)[0]>();
   for (const w of dbWorkers) {
     workerByEmpNumber.set(w.employee_number, w);
   }
 
-  const lockerById = new Map(dbLockers.map((l) => [l.id, l]));
-  const lockerByNumber = new Map(dbLockers.map((l) => [l.locker_number, l]));
+  function isImportedAssignment(asgn: {
+    source?: string | null;
+    source_batch_id?: string | null;
+    assignment_reason?: string | null;
+    admin_override?: boolean | null;
+  }): boolean {
+    if (asgn.admin_override) return false;
+    if (asgn.source === "locker_excel") return true;
+    if (asgn.source_batch_id) return true;
+    if (asgn.assignment_reason && asgn.assignment_reason.startsWith("import_locker_batch:")) return true;
+    if (asgn.assignment_reason && asgn.assignment_reason.startsWith("import_master_batch:")) return true;
+    return false;
+  }
 
-  const activeAssignmentByWorkerId = new Map<string, { id: string; lockerId: string; lockerNumber: string }>();
-  const activeAssignmentByLockerId = new Map<string, { id: string; workerId: string }>();
+  interface ActiveAssignmentMeta {
+    id: string;
+    lockerId: string;
+    lockerNumber: string;
+    workerId: string;
+    isPreviousImport: boolean;
+    isManual: boolean;
+    adminOverride: boolean;
+  }
+
+  const activeAssignmentByWorkerId = new Map<string, ActiveAssignmentMeta>();
+  const activeAssignmentByLockerId = new Map<string, ActiveAssignmentMeta>();
 
   for (const asgn of dbAssignments) {
     const locker = lockerById.get(asgn.locker_id);
     if (locker) {
-      activeAssignmentByWorkerId.set(asgn.worker_id, {
+      const isImported = isImportedAssignment(asgn);
+      const meta: ActiveAssignmentMeta = {
         id: asgn.id,
         lockerId: locker.id,
         lockerNumber: locker.locker_number,
-      });
-      activeAssignmentByLockerId.set(locker.id, {
-        id: asgn.id,
         workerId: asgn.worker_id,
-      });
+        isPreviousImport: isImported,
+        isManual: !isImported,
+        adminOverride: Boolean(asgn.admin_override),
+      };
+      activeAssignmentByWorkerId.set(asgn.worker_id, meta);
+      activeAssignmentByLockerId.set(locker.id, meta);
     }
   }
 
@@ -317,6 +345,10 @@ export async function parseAndPreviewLockerImport(params: {
     DUPLICATE_LOCKER_DIFFERENT_WORKERS: 0,
     WORKER_MULTIPLE_LOCKERS: 0,
     LOCKER_ASSIGNED_TO_OTHER_WORKER: 0,
+    REPLACE_PREVIOUS_IMPORT_ASSIGNMENT: 0,
+    CLEAR_PREVIOUS_IMPORT_ASSIGNMENT: 0,
+    STALE_PREVIOUS_IMPORT_ASSIGNMENT: 0,
+    CONFLICT_WITH_MANUAL_CHANGE: 0,
     DUPLICATE_IDENTICAL_ROW: 0,
     INVALID_LOCKER: 0,
     ROW_WITHOUT_LOCKER: 0,
@@ -341,6 +373,9 @@ export async function parseAndPreviewLockerImport(params: {
   let semanticLockersCount = 0;
   let rowsWithoutLockerCount = 0;
   let duplicateRowsCount = 0;
+  let replacedPreviousCount = 0;
+  let clearedPreviousCount = 0;
+  let manualProtectedCount = 0;
 
   for (const r of rawRows) {
     const issues: RowIssue[] = [];
@@ -388,17 +423,54 @@ export async function parseAndPreviewLockerImport(params: {
     // Caso 3: Casillero físico válido pero sin matrícula (LOCKER_WITHOUT_WORKER)
     else if (r.isPhysicalLocker && !r.normalizedMatricula) {
       const dbLocker = lockerByNumber.get(r.normalizedLocker);
-      status = dbLocker ? "unchanged" : "new";
-      classification = "LOCKER_WITHOUT_WORKER";
-      conflictReasonCode = "LOCKER_WITHOUT_WORKER";
-      conflictBreakdown.LOCKER_WITHOUT_WORKER++;
-      autoResolvable = true;
-      lockersWithoutWorkerCount++;
-      issues.push({
-        code: "LOCKER_WITHOUT_WORKER",
-        message: "Casillero físico sin trabajador asociado. Quedará disponible en inventario.",
-        severity: "warning",
-      });
+      const lockerAsgn = dbLocker ? activeAssignmentByLockerId.get(dbLocker.id) : undefined;
+
+      if (lockerAsgn) {
+        const otherWorker = dbWorkers.find((w) => w.id === lockerAsgn.workerId);
+        const otherWorkerDesc = otherWorker
+          ? `${otherWorker.paternal_surname} ${otherWorker.first_name} (${otherWorker.employee_number})`
+          : "un trabajador";
+
+        if (lockerAsgn.isPreviousImport) {
+          status = "updated";
+          classification = "CLEAR_PREVIOUS_IMPORT_ASSIGNMENT";
+          conflictReasonCode = "CLEAR_PREVIOUS_IMPORT_ASSIGNMENT";
+          conflictBreakdown.CLEAR_PREVIOUS_IMPORT_ASSIGNMENT++;
+          autoResolvable = true;
+          clearedPreviousCount++;
+          lockersWithoutWorkerCount++;
+          issues.push({
+            code: "CLEAR_PREVIOUS_IMPORT_ASSIGNMENT",
+            message: `El casillero ${r.normalizedLocker} aparece vacío en Hoja1 pero tenía asignación previa de importación a ${otherWorkerDesc}. Se liberará para quedar disponible.`,
+            severity: "warning",
+          });
+        } else {
+          status = "conflict";
+          classification = "REAL_CONFLICT";
+          conflictReasonCode = "CONFLICT_WITH_MANUAL_CHANGE";
+          conflictBreakdown.CONFLICT_WITH_MANUAL_CHANGE++;
+          autoResolvable = false;
+          manualProtectedCount++;
+          lockersWithoutWorkerCount++;
+          issues.push({
+            code: "CONFLICT_WITH_MANUAL_CHANGE",
+            message: `El casillero ${r.normalizedLocker} aparece vacío pero tiene una asignación manual activa en sistema para ${otherWorkerDesc}. Los cambios manuales están protegidos.`,
+            severity: "error",
+          });
+        }
+      } else {
+        status = dbLocker ? "unchanged" : "new";
+        classification = "LOCKER_WITHOUT_WORKER";
+        conflictReasonCode = "LOCKER_WITHOUT_WORKER";
+        conflictBreakdown.LOCKER_WITHOUT_WORKER++;
+        autoResolvable = true;
+        lockersWithoutWorkerCount++;
+        issues.push({
+          code: "LOCKER_WITHOUT_WORKER",
+          message: "Casillero físico sin trabajador asociado. Quedará disponible en inventario.",
+          severity: "warning",
+        });
+      }
     }
     // Caso 4: Casillero físico con matrícula válida
     else {
@@ -510,16 +582,52 @@ export async function parseAndPreviewLockerImport(params: {
             const existingWorker = workerByEmpNumber.get(r.normalizedMatricula);
             if (lockerAsgn && (!existingWorker || lockerAsgn.workerId !== existingWorker.id)) {
               const otherWorker = dbWorkers.find((w) => w.id === lockerAsgn.workerId);
-              status = "conflict";
-              classification = "REAL_CONFLICT";
-              conflictReasonCode = "LOCKER_ASSIGNED_TO_OTHER_WORKER";
-              conflictBreakdown.LOCKER_ASSIGNED_TO_OTHER_WORKER++;
-              autoResolvable = false;
-              issues.push({
-                code: "LOCKER_ASSIGNED_TO_OTHER_WORKER",
-                message: `El casillero ${r.normalizedLocker} está asignado en sistema a ${otherWorker ? `${otherWorker.paternal_surname} ${otherWorker.first_name} (${otherWorker.employee_number})` : "otro trabajador"}. Requiere autorización o resolución.`,
-                severity: "error",
-              });
+              const otherWorkerDesc = otherWorker
+                ? `${otherWorker.paternal_surname} ${otherWorker.first_name} (${otherWorker.employee_number})`
+                : "otro trabajador";
+
+              if (lockerAsgn.isPreviousImport) {
+                // Authoritative Snapshot: sustituye la asignación anterior importada
+                status = "updated";
+                classification = "ASSIGNMENT_REPLACED_PREVIOUS";
+                conflictReasonCode = "REPLACE_PREVIOUS_IMPORT_ASSIGNMENT";
+                conflictBreakdown.REPLACE_PREVIOUS_IMPORT_ASSIGNMENT++;
+                autoResolvable = true;
+                replacedPreviousCount++;
+                lockerChanges++;
+
+                if (existingWorker) {
+                  workersMatchedInRoster++;
+                  targetWorkerId = existingWorker.id;
+                  workerFullName = `${existingWorker.paternal_surname} ${existingWorker.maternal_surname ?? ""} ${existingWorker.first_name}`.trim();
+                  category = existingWorker.category;
+                  department = existingWorker.assignment;
+                  const activeAsgn = activeAssignmentByWorkerId.get(existingWorker.id);
+                  currentLocker = activeAsgn?.lockerNumber;
+                } else {
+                  newWorkersFromExcel++;
+                  targetWorkerId = null;
+                }
+
+                issues.push({
+                  code: "REPLACE_PREVIOUS_IMPORT_ASSIGNMENT",
+                  message: `El casillero ${r.normalizedLocker} estaba asignado previamente por importación a ${otherWorkerDesc}. El nuevo snapshot lo asignará a ${workerFullName}.`,
+                  severity: "warning",
+                });
+              } else {
+                // Asignación manual previa: conflicto real protegido
+                status = "conflict";
+                classification = "REAL_CONFLICT";
+                conflictReasonCode = "CONFLICT_WITH_MANUAL_CHANGE";
+                conflictBreakdown.CONFLICT_WITH_MANUAL_CHANGE++;
+                autoResolvable = false;
+                manualProtectedCount++;
+                issues.push({
+                  code: "CONFLICT_WITH_MANUAL_CHANGE",
+                  message: `El casillero ${r.normalizedLocker} tiene una asignación manual activa en el sistema para ${otherWorkerDesc}. Los cambios manuales están protegidos.`,
+                  severity: "error",
+                });
+              }
             }
           }
         }
@@ -615,12 +723,15 @@ export async function parseAndPreviewLockerImport(params: {
     conflictBreakdown.DUPLICATE_LOCKER_DIFFERENT_WORKERS +
     conflictBreakdown.WORKER_MULTIPLE_LOCKERS +
     conflictBreakdown.LOCKER_ASSIGNED_TO_OTHER_WORKER +
+    conflictBreakdown.CONFLICT_WITH_MANUAL_CHANGE +
     conflictBreakdown.OTHER;
 
   const autoResolvableCount =
     conflictBreakdown.DUPLICATE_IDENTICAL_ROW +
     conflictBreakdown.HISTORICAL_SUPERSEDED +
     conflictBreakdown.WORKER_NOT_FOUND_CREATED_FROM_SOURCE +
+    conflictBreakdown.REPLACE_PREVIOUS_IMPORT_ASSIGNMENT +
+    conflictBreakdown.CLEAR_PREVIOUS_IMPORT_ASSIGNMENT +
     lockersWithoutWorkerCount;
 
   const totalRowsAccounted =
@@ -634,6 +745,32 @@ export async function parseAndPreviewLockerImport(params: {
 
   const existingLockersCount = Array.from(uniquePhysicalLockers).filter((l) => lockerByNumber.has(l)).length;
   const newPhysicalLockers = uniquePhysicalLockers.size - existingLockersCount;
+
+  // Rastrear casilleros que recibirán asignación activa o se liberarán en este lote
+  const assignedLockerNumbersInBatch = new Set<string>();
+  const clearedLockerNumbersInBatch = new Set<string>();
+
+  for (const row of analyzedRows) {
+    if (row.lockerExcel && (row.classification === "ASSIGNMENT_NEW" || row.classification === "ASSIGNMENT_UPDATED" || row.classification === "ASSIGNMENT_UNCHANGED" || row.classification === "ASSIGNMENT_REPLACED_PREVIOUS")) {
+      assignedLockerNumbersInBatch.add(row.lockerExcel);
+    }
+    if (row.lockerExcel && row.conflictReasonCode === "CLEAR_PREVIOUS_IMPORT_ASSIGNMENT") {
+      clearedLockerNumbersInBatch.add(row.lockerExcel);
+    }
+  }
+
+  // Identificar asignaciones de importaciones previas que quedan obsoletas (stale: ausentes en Hoja1)
+  let stalePreviousCount = 0;
+  for (const asgn of dbAssignments) {
+    if (asgn && isImportedAssignment(asgn)) {
+      const locker = lockerById.get(asgn.locker_id);
+      if (locker && !assignedLockerNumbersInBatch.has(locker.locker_number) && !clearedLockerNumbersInBatch.has(locker.locker_number)) {
+        stalePreviousCount++;
+      }
+    }
+  }
+
+  const expectedActiveAssignmentsAfterImport = safeAssignmentsCount + manualProtectedCount;
 
   const summary: ImportSummary = {
     totalRows: analyzedRows.length,
@@ -662,7 +799,7 @@ export async function parseAndPreviewLockerImport(params: {
     autoResolvableCount,
     workerNotFoundCount: newWorkersFromExcel,
     realConflictsCount,
-    // V2 Hoja1 Métricas Explícitas
+    // V2/V3 Hoja1 Métricas Explícitas
     physicalLockersDetected: rawRows.filter((r) => r.isPhysicalLocker).length,
     uniquePhysicalLockers: uniquePhysicalLockers.size,
     lockersExisting: existingLockersCount,
@@ -674,6 +811,12 @@ export async function parseAndPreviewLockerImport(params: {
     semanticLockersCount,
     rowsWithoutLockerCount,
     totalRowsAccounted,
+    desiredAssignmentsCount: safeAssignmentsCount,
+    replacedPreviousCount,
+    clearedPreviousCount,
+    stalePreviousCount,
+    manualProtectedCount,
+    expectedActiveAssignmentsAfterImport,
   };
 
   // 8b. Verificar si este mismo archivo ya fue importado y confirmado previamente para la misma delegación
@@ -724,6 +867,11 @@ export async function parseAndPreviewLockerImport(params: {
         semanticLockersCount,
         rowsWithoutLockerCount,
         totalRowsAccounted,
+        replacedPreviousCount,
+        clearedPreviousCount,
+        stalePreviousCount,
+        manualProtectedCount,
+        expectedActiveAssignmentsAfterImport,
       } as unknown as Json,
     })
     .select("id")
@@ -897,11 +1045,15 @@ export async function applyLockerImportBatch(params: {
   const { batchId, delegationId, resolutions = {}, options = {} } = params;
   const supabase = await createClient();
 
+  const rpcOptions = {
+    allow_reimport: Boolean(options.allowReimport),
+  };
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any).rpc("union_apply_locker_import", {
     p_batch_id: batchId,
     p_resolutions: resolutions as Json,
-    p_options: options as Json,
+    p_options: rpcOptions as Json,
   });
 
   if (error) {
@@ -914,6 +1066,10 @@ export async function applyLockerImportBatch(params: {
     unchanged_assignments?: number;
     new_workers_created?: number;
     new_lockers_inventoried?: number;
+    replaced_previous_assignments?: number;
+    cleared_previous_assignments?: number;
+    stale_previous_released?: number;
+    total_active_assignments?: number;
     skipped_conflicts?: number;
     pending_review_count?: number;
   };
@@ -930,6 +1086,10 @@ export async function applyLockerImportBatch(params: {
       unchanged_assignments: res.unchanged_assignments ?? 0,
       new_workers_created: res.new_workers_created ?? 0,
       new_lockers_inventoried: res.new_lockers_inventoried ?? 0,
+      replaced_previous_assignments: res.replaced_previous_assignments ?? 0,
+      cleared_previous_assignments: res.cleared_previous_assignments ?? 0,
+      stale_previous_released: res.stale_previous_released ?? 0,
+      total_active_assignments: res.total_active_assignments ?? 0,
       skipped_conflicts: res.skipped_conflicts ?? 0,
       pending_review_count: res.pending_review_count ?? 0,
     },
@@ -944,6 +1104,14 @@ export async function applyLockerImportBatch(params: {
     newLockersCount: res.new_lockers_inventoried ?? 0,
     newLockerAssignments: res.new_locker_assignments ?? 0,
     lockerChangesCount: res.locker_changes ?? 0,
+    replacedPreviousCount: res.replaced_previous_assignments ?? 0,
+    clearedPreviousCount: res.cleared_previous_assignments ?? 0,
+    stalePreviousCount: res.stale_previous_released ?? 0,
+    releasedAssignmentsCount:
+      (res.replaced_previous_assignments ?? 0) +
+      (res.cleared_previous_assignments ?? 0) +
+      (res.stale_previous_released ?? 0),
+    totalActiveAssignmentsAfterImport: res.total_active_assignments ?? 0,
     pendingReviewCount: res.pending_review_count ?? 0,
     missingMarkedCount: 0,
     skippedConflicts: res.skipped_conflicts ?? 0,

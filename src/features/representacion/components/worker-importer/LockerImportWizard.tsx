@@ -291,8 +291,23 @@ export function LockerImportWizard(): React.JSX.Element {
                     </span>
                   )}
                   <span>
-                    Asignaciones vinculadas: <strong>{(confirmResult.newLockersCount ?? 0) + (confirmResult.lockerChangesCount ?? 0)}</strong>
+                    Nuevas asignaciones: <strong>{confirmResult.newLockerAssignments ?? 0}</strong>
                   </span>
+                  {(confirmResult.lockerChangesCount ?? 0) > 0 && (
+                    <span>
+                      Reasignaciones: <strong>{confirmResult.lockerChangesCount}</strong>
+                    </span>
+                  )}
+                  {(confirmResult.releasedAssignmentsCount ?? 0) > 0 && (
+                    <span style={{ color: "#0284c7" }}>
+                      Asignaciones previas liberadas: <strong>{confirmResult.releasedAssignmentsCount}</strong>
+                    </span>
+                  )}
+                  {confirmResult.totalActiveAssignmentsAfterImport !== undefined && (
+                    <span style={{ color: "#16a34a", fontWeight: 600 }}>
+                      Total asignaciones activas: <strong>{confirmResult.totalActiveAssignmentsAfterImport}</strong>
+                    </span>
+                  )}
                   {(confirmResult.workersCreatedCount ?? 0) > 0 && (
                     <span>
                       Trabajadores dados de alta: <strong>{confirmResult.workersCreatedCount}</strong>
