@@ -5,6 +5,8 @@ import { requireUnionMembership, requireUnionAdmin } from "@/features/representa
 import { writeAuditLog } from "@/features/representacion/services/audit";
 import { normalizeLockerNumber, naturalCompare } from "@/features/representacion/lib/lockers";
 import { lockerCreateSchema } from "@/features/representacion/lib/validation";
+import { fetchAllSupabaseRows, chunkArray } from "@/shared/lib/supabase-pagination";
+import { getCanonicalLockerSummary } from "@/features/representacion/services/lockers-summary";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -223,39 +225,51 @@ export async function GET(req: Request): Promise<NextResponse> {
     const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
     const sort = url.searchParams.get("sort") ?? "number_asc";
 
-    // Obtener todos los casilleros de la delegación
-    const { data: rawLockers, error } = await supabase
-      .from("union_lockers")
-      .select("id, locker_number, location, section, status, condition, notes, maintenance_reason, maintenance_notes, updated_at, created_at")
-      .eq("delegation_id", depId);
-    if (error) throw error;
+    // Obtener resumen canónico de la delegación
+    const canonicalSummary = await getCanonicalLockerSummary(supabase, depId);
+
+    // Obtener todos los casilleros de la delegación con paginación server-side
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allLockers: any[] = await fetchAllSupabaseRows<any>(
+      ({ from, to }) =>
+        supabase
+          .from("union_lockers")
+          .select("id, locker_number, location, section, status, condition, notes, maintenance_reason, maintenance_notes, updated_at, created_at")
+          .eq("delegation_id", depId)
+          .range(from, to),
+      { pageSize: 500 },
+    );
+
+    // Obtener asignaciones activas de los casilleros de esta delegación con paginación y join SQL
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const assignmentRows: any[] = await fetchAllSupabaseRows<any>(
+      ({ from, to }) =>
+        supabase
+          .from("union_locker_assignments")
+          .select("id, locker_id, worker_id, assigned_at, status, union_lockers!inner(delegation_id)")
+          .eq("status", "active")
+          .eq("union_lockers.delegation_id", depId)
+          .range(from, to),
+      { pageSize: 500 },
+    );
+
+    const workerIds = [...new Set(assignmentRows.map((a) => a.worker_id).filter(Boolean))];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const allLockers: any[] = rawLockers ?? [];
-
-    // Obtener asignaciones activas de los casilleros de esta delegación
-    const lockerIds = allLockers.map((l) => l.id);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let assignmentRows: any[] = [];
-    if (lockerIds.length > 0) {
-      const { data: assignments } = await supabase
-        .from("union_locker_assignments")
-        .select("id, locker_id, worker_id, assigned_at, status")
-        .in("locker_id", lockerIds)
-        .eq("status", "active");
-      assignmentRows = assignments ?? [];
-    }
-    const workerIds = [...new Set(assignmentRows.map((a) => a.worker_id))];
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let workerById = new Map<string, any>();
+    const workerById = new Map<string, any>();
     if (workerIds.length > 0) {
-      const { data: workers } = await supabase
-        .from("union_workers")
-        .select("id, first_name, paternal_surname, maternal_surname, employee_number, category, turn")
-        .in("id", workerIds);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      workerById = new Map((workers ?? []).map((w: any) => [w.id, w]));
+      const workerChunks = chunkArray(workerIds, 200);
+      for (const chunk of workerChunks) {
+        const { data: workers } = await supabase
+          .from("union_workers")
+          .select("id, first_name, paternal_surname, maternal_surname, employee_number, category, turn")
+          .in("id", chunk);
+        if (workers) {
+          for (const w of workers) {
+            workerById.set(w.id, w);
+          }
+        }
+      }
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -264,16 +278,20 @@ export async function GET(req: Request): Promise<NextResponse> {
       activeByLocker.set(a.locker_id, { ...a, union_workers: workerById.get(a.worker_id) ?? null });
     }
 
-    // Obtener elementos pendientes activos de revisión para esta delegación
+    // Obtener elementos pendientes activos de revisión para esta delegación con paginación
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: rawPending } = await (supabase as any)
-      .from("union_locker_review_items")
-      .select("id, locker_id, locker_number, source_employee_number, source_worker_name, reason, reason_details, status")
-      .eq("delegation_id", depId)
-      .eq("status", "pending");
+    const pendingItems: any[] = await fetchAllSupabaseRows<any>(
+      ({ from, to }) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("union_locker_review_items")
+          .select("id, locker_id, locker_number, source_employee_number, source_worker_name, reason, reason_details, status")
+          .eq("delegation_id", depId)
+          .eq("status", "pending")
+          .range(from, to),
+      { pageSize: 500 },
+    );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pendingItems: any[] = rawPending ?? [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pendingByLockerNumber = new Map<string, any>();
     for (const p of pendingItems) {
@@ -282,29 +300,14 @@ export async function GET(req: Request): Promise<NextResponse> {
       }
     }
 
-    // Calcular conteos reales sobre la totalidad de casilleros de la delegación
-    let availableCount = 0;
-    let assignedCount = 0;
-    let reservedCount = 0;
-    let maintenanceCount = 0;
-    let blockedCount = 0;
-
-    for (const l of allLockers) {
-      if (l.condition === "maintenance" || l.status === "maintenance" || l.condition === "damaged") maintenanceCount++;
-      else if (l.condition === "blocked" || l.status === "blocked") blockedCount++;
-      else if (l.status === "reserved") reservedCount++;
-      else if (activeByLocker.has(l.id) || l.status === "assigned" || l.status === "ocupado") assignedCount++;
-      else availableCount++;
-    }
-
     const counts = {
-      total: allLockers.length,
-      available: availableCount,
-      assigned: assignedCount,
-      reserved: reservedCount,
-      maintenance: maintenanceCount,
-      blocked: blockedCount,
-      pending: pendingItems.length,
+      total: canonicalSummary.total,
+      available: canonicalSummary.available,
+      assigned: canonicalSummary.assigned,
+      reserved: canonicalSummary.reserved,
+      maintenance: canonicalSummary.maintenance,
+      blocked: canonicalSummary.blocked,
+      pending: canonicalSummary.pendingReview,
     };
 
     // Construir filas unificadas con asignación activa y pendiente de revisión

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { fetchAllSupabaseRows } from "@/shared/lib/supabase-pagination";
 
 export type LockerIssueSeverity = "critical" | "warning" | "config" | "info";
 
@@ -30,13 +31,8 @@ export async function getLockerIntegrityIssues(delegationId: string): Promise<Lo
   const supabase = await createClient();
   const issues: LockerIntegrityIssue[] = [];
 
-  // 1. Obtener todos los casilleros de la delegación
-  const { data: rawLockers } = await supabase
-    .from("union_lockers")
-    .select("id, locker_number, status, condition, zone_id, bank_id, row_position, column_position, maintenance_reason")
-    .eq("delegation_id", delegationId);
-
-  const lockers = (rawLockers ?? []) as Array<{
+  // 1. Obtener todos los casilleros de la delegación paginados con fetchAllSupabaseRows
+  const lockers = await fetchAllSupabaseRows<{
     id: string;
     locker_number: string;
     status: string;
@@ -46,7 +42,17 @@ export async function getLockerIntegrityIssues(delegationId: string): Promise<Lo
     row_position: number | null;
     column_position: number | null;
     maintenance_reason: string | null;
-  }>;
+  }>(
+    ({ from, to }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const q: any = supabase
+        .from("union_lockers")
+        .select("id, locker_number, status, condition, zone_id, bank_id, row_position, column_position, maintenance_reason")
+        .eq("delegation_id", delegationId);
+      return typeof q.range === "function" ? q.range(from, to) : q;
+    },
+    { pageSize: 500 },
+  );
 
   if (lockers.length === 0) {
     return {
@@ -63,18 +69,25 @@ export async function getLockerIntegrityIssues(delegationId: string): Promise<Lo
 
   const lockerIdSet = new Set(lockers.map((l) => l.id));
 
-  // 2. Obtener asignaciones activas estrictamente para esta delegación
-  const { data: rawAssignments } = await supabase
-    .from("union_locker_assignments")
-    .select("id, locker_id, worker_id, status")
-    .eq("status", "active");
-
-  const assignments = ((rawAssignments ?? []) as Array<{
+  // 2. Obtener asignaciones activas estrictamente para esta delegación paginadas desde SQL
+  const rawAssignments = await fetchAllSupabaseRows<{
     id: string;
     locker_id: string;
     worker_id: string;
     status: string;
-  }>).filter((a) => lockerIdSet.has(a.locker_id));
+  }>(
+    ({ from, to }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const q: any = supabase
+        .from("union_locker_assignments")
+        .select("id, locker_id, worker_id, status")
+        .eq("status", "active");
+      return typeof q.range === "function" ? q.range(from, to) : q;
+    },
+    { pageSize: 500 },
+  );
+
+  const assignments = rawAssignments.filter((a) => lockerIdSet.has(a.locker_id));
 
   const activeByLockerId = new Map<string, Array<{ id: string; worker_id: string }>>();
   const activeByWorkerId = new Map<string, Array<{ id: string; locker_id: string }>>();
@@ -87,22 +100,26 @@ export async function getLockerIntegrityIssues(delegationId: string): Promise<Lo
     activeByWorkerId.get(asg.worker_id)!.push(asg);
   }
 
-  // 3. Obtener pendientes de revisión (union_locker_review_items)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: rawPending } = await (supabase as any)
-    .from("union_locker_review_items")
-    .select("id, locker_id, locker_number, reason, source_employee_number, source_worker_name")
-    .eq("delegation_id", delegationId)
-    .eq("status", "pending");
-
-  const pendingItems = (rawPending ?? []) as Array<{
+  // 3. Obtener pendientes de revisión paginados (union_locker_review_items)
+  const pendingItems = await fetchAllSupabaseRows<{
     id: string;
     locker_id: string | null;
     locker_number: string;
     reason: string;
     source_employee_number: string | null;
     source_worker_name: string | null;
-  }>;
+  }>(
+    ({ from, to }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const q: any = (supabase as any)
+        .from("union_locker_review_items")
+        .select("id, locker_id, locker_number, reason, source_employee_number, source_worker_name")
+        .eq("delegation_id", delegationId)
+        .eq("status", "pending");
+      return typeof q.range === "function" ? q.range(from, to) : q;
+    },
+    { pageSize: 500 },
+  );
 
   let unlocatedCount = 0;
 

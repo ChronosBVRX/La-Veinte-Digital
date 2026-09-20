@@ -10,6 +10,7 @@ import {
   formatCaseStatusLabel,
 } from "../lib/dashboard-format";
 import { isStationOnline } from "./print-jobs";
+import { getCanonicalLockerSummary } from "./lockers-summary";
 
 export type { UnionDashboardSummary };
 export { formatRelativeTimeEs, formatCaseTypeLabel, formatCaseStatusLabel };
@@ -77,11 +78,8 @@ export async function getUnionDashboardSummary(delegationId: string): Promise<Un
       .order("opened_at", { ascending: false })
       .limit(20),
 
-    // Lockers
-    supabase
-      .from("union_lockers")
-      .select("status")
-      .eq("delegation_id", delegationId),
+    // Lockers Summary canónico
+    getCanonicalLockerSummary(supabase, delegationId),
 
     // Waitlist
     supabase
@@ -140,31 +138,33 @@ export async function getUnionDashboardSummary(delegationId: string): Promise<Un
     Boolean(casesTotalRes.status === "fulfilled" && casesTotalRes.value.error);
 
   // Procesar Lockers
-  const lockersError =
-    lockersRes.status === "rejected" ||
-    Boolean(lockersRes.status === "fulfilled" && lockersRes.value.error);
+  const lockersError = lockersRes.status === "rejected";
   let lockersTotal: number | null = null;
   let lockersAssigned: number | null = null;
   let lockersAvailable: number | null = null;
   let lockersOccupancy: number | null = null;
 
-  if (lockersRes.status === "fulfilled" && !lockersRes.value.error && Array.isArray(lockersRes.value.data)) {
-    const lRows = lockersRes.value.data as Array<{ status: string }>;
-    lockersTotal = lRows.length;
-    lockersAssigned = lRows.filter((l) => l.status === "assigned").length;
-    lockersAvailable = lRows.filter((l) => l.status === "available").length;
+  if (lockersRes.status === "fulfilled" && lockersRes.value) {
+    const lSummary = lockersRes.value;
+    lockersTotal = lSummary.total;
+    lockersAssigned = lSummary.assigned;
+    lockersAvailable = lSummary.available;
     lockersOccupancy = lockersTotal > 0 ? Math.round((lockersAssigned / lockersTotal) * 100) : 0;
   }
 
   const waitlistCount =
     waitlistRes.status === "fulfilled" && !waitlistRes.value.error
       ? waitlistRes.value.count ?? 0
-      : 0;
+      : lockersRes.status === "fulfilled" && lockersRes.value
+        ? lockersRes.value.waitlist
+        : 0;
 
   const lockerReviewCount =
     lockerReviewRes.status === "fulfilled" && !lockerReviewRes.value.error
       ? lockerReviewRes.value.count ?? 0
-      : 0;
+      : lockersRes.status === "fulfilled" && lockersRes.value
+        ? lockersRes.value.pendingReview
+        : 0;
 
   // Procesar Estación e Impresión
   const stationData =
