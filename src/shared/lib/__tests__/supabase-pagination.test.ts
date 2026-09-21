@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fetchAllSupabaseRows, chunkArray } from "../supabase-pagination";
+import { fetchAllSupabaseRows, chunkArray, toSupabaseError } from "../supabase-pagination";
 
 describe("fetchAllSupabaseRows", () => {
   it("retrieves all rows across multiple pages when total > pageSize", async () => {
@@ -69,12 +69,63 @@ describe("fetchAllSupabaseRows", () => {
     expect(result).toEqual([]);
   });
 
-  it("propagates database errors immediately", async () => {
+  it("propagates database errors immediately as serialized Error", async () => {
     await expect(
       fetchAllSupabaseRows(
-        async () => ({ data: null, error: new Error("PostgREST network error") }),
+        async () => ({
+          data: null,
+          error: {
+            code: "42703",
+            message: "column union_workers.adscripcion does not exist",
+            details: "No such column in relation",
+            hint: "Check column name",
+          },
+        }),
       ),
-    ).rejects.toThrow("PostgREST network error");
+    ).rejects.toThrow("[42703] column union_workers.adscripcion does not exist · No such column in relation · Check column name");
+  });
+});
+
+describe("toSupabaseError", () => {
+  it("returns the exact Error if already an Error instance", () => {
+    const err = new Error("Generic failure");
+    expect(toSupabaseError(err)).toBe(err);
+  });
+
+  it("serializes PostgREST error object into readable string without [object Object]", () => {
+    const postgrestErr = {
+      code: "42703",
+      message: "column union_workers.adscripcion does not exist",
+      details: "Detail message",
+      hint: "Hint message",
+    };
+
+    const err = toSupabaseError(postgrestErr);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.message).toBe(
+      "[42703] column union_workers.adscripcion does not exist · Detail message · Hint message",
+    );
+    expect(err.message).not.toContain("[object Object]");
+  });
+
+  it("handles PostgREST error with only message and code", () => {
+    const postgrestErr = {
+      code: "PGRST116",
+      message: "JSON object requested, multiple (or no) rows returned",
+    };
+
+    const err = toSupabaseError(postgrestErr);
+    expect(err.message).toBe("[PGRST116] JSON object requested, multiple (or no) rows returned");
+  });
+
+  it("handles unknown string or primitive input gracefully", () => {
+    const err = toSupabaseError("Network disconnected");
+    expect(err.message).toBe("Network disconnected");
+  });
+
+  it("handles empty object without crashing or outputting [object Object]", () => {
+    const err = toSupabaseError({});
+    expect(err.message).toBe("Error desconocido de Supabase/PostgREST");
   });
 });
 

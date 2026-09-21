@@ -47,6 +47,7 @@ export interface ReconciliationTargetWorker {
   turn?: string | null;
   plaza?: string | null;
   schedule?: string | null;
+  assignment?: string | null;
   adscripcion?: string | null;
 }
 

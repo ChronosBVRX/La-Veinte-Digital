@@ -9,6 +9,7 @@ import { adviseReconciliationCase } from "./locker-reconciliation-advisor";
 import type { LockerReviewItem } from "./worker-importer/types";
 
 export interface SourceRowData {
+  batch_id?: string | null;
   row_number: number;
   matricula_raw: string | null;
   matricula_normalized: string | null;
@@ -50,6 +51,8 @@ export interface WorkerData {
   paternal_surname: string;
   maternal_surname: string | null;
   category?: string | null;
+  turn?: string | null;
+  assignment?: string | null;
   adscripcion?: string | null;
 }
 
@@ -160,13 +163,19 @@ export function buildReconciliationCases(params: BuildCasesParams): BuildCasesRe
     }
   }
 
-  // Filas del archivo por locker_number y por matrícula
+  // Filas del archivo por locker_number, por matrícula y por clave compuesta (batch_id:row_number)
   const sourceRowsByLocker = new Map<string, SourceRowData[]>();
   const sourceRowsByEmpNo = new Map<string, SourceRowData[]>();
+  const sourceRowsByBatchAndRow = new Map<string, SourceRowData>();
   const sourceRowsByRowNumber = new Map<number, SourceRowData>();
 
   for (const sr of sourceRows) {
-    if (sr.row_number) sourceRowsByRowNumber.set(sr.row_number, sr);
+    if (sr.row_number) {
+      sourceRowsByRowNumber.set(sr.row_number, sr);
+      if (sr.batch_id) {
+        sourceRowsByBatchAndRow.set(`${sr.batch_id}:${sr.row_number}`, sr);
+      }
+    }
     if (sr.locker_normalized) {
       const arr = sourceRowsByLocker.get(sr.locker_normalized) || [];
       arr.push(sr);
@@ -178,6 +187,15 @@ export function buildReconciliationCases(params: BuildCasesParams): BuildCasesRe
       sourceRowsByEmpNo.set(sr.matricula_normalized, arr);
     }
   }
+
+  const getSourceRow = (batchId?: string | null, rowNum?: number | null): SourceRowData | null => {
+    if (!rowNum) return null;
+    if (batchId) {
+      const byBatch = sourceRowsByBatchAndRow.get(`${batchId}:${rowNum}`);
+      if (byBatch) return byBatch;
+    }
+    return sourceRowsByRowNumber.get(rowNum) || null;
+  };
 
   // Conteos de filas individuales
   const itemCounts = {
@@ -203,23 +221,25 @@ export function buildReconciliationCases(params: BuildCasesParams): BuildCasesRe
     }
   }
 
-  // 1. Agrupación en casos
+  // 1. Agrupación en casos con contexto de lote para evitar mezclar evidencias de snapshots distintos
   const casesMap = new Map<string, {
     caseId: string;
     type: ReconciliationCaseType;
     items: LockerReviewItem[];
     empNo?: string;
     lockerNumber?: string;
+    batchId?: string;
   }>();
 
   for (const it of items) {
     let groupKey: string;
     let caseType: ReconciliationCaseType;
+    const batchPrefix = it.source_batch_id ? `batch_${it.source_batch_id}_` : "";
 
     if (it.reason === "WORKER_MULTIPLE_LOCKERS") {
       caseType = "WORKER_MULTIPLE_LOCKERS";
       const empNo = it.source_employee_number || it.source_worker_name || it.id;
-      groupKey = `worker_${empNo}`;
+      groupKey = `${batchPrefix}worker_${empNo}`;
       const existing = casesMap.get(groupKey);
       if (existing) {
         existing.items.push(it);
@@ -229,6 +249,7 @@ export function buildReconciliationCases(params: BuildCasesParams): BuildCasesRe
           type: caseType,
           items: [it],
           empNo: it.source_employee_number ?? undefined,
+          batchId: it.source_batch_id ?? undefined,
         });
       }
     } else if (
@@ -238,7 +259,7 @@ export function buildReconciliationCases(params: BuildCasesParams): BuildCasesRe
     ) {
       caseType = "LOCKER_MULTIPLE_WORKERS";
       const lockerNum = it.locker_number;
-      groupKey = `locker_${lockerNum}`;
+      groupKey = `${batchPrefix}locker_${lockerNum}`;
       const existing = casesMap.get(groupKey);
       if (existing) {
         existing.items.push(it);
@@ -248,29 +269,36 @@ export function buildReconciliationCases(params: BuildCasesParams): BuildCasesRe
           type: caseType,
           items: [it],
           lockerNumber: lockerNum,
+          batchId: it.source_batch_id ?? undefined,
         });
       }
     } else if (it.reason === "WORKER_NOT_FOUND") {
       caseType = "WORKER_NOT_FOUND";
-      // Agrupar si misma matrícula y mismo casillero
       const empNo = it.source_employee_number || "sin_mat";
-      groupKey = `notfound_${empNo}_${it.locker_number}_${it.id}`;
-      casesMap.set(groupKey, {
-        caseId: groupKey,
-        type: caseType,
-        items: [it],
-        empNo: it.source_employee_number ?? undefined,
-        lockerNumber: it.locker_number,
-      });
+      groupKey = `${batchPrefix}notfound_${empNo}_${it.locker_number}`;
+      const existing = casesMap.get(groupKey);
+      if (existing) {
+        existing.items.push(it);
+      } else {
+        casesMap.set(groupKey, {
+          caseId: groupKey,
+          type: caseType,
+          items: [it],
+          empNo: it.source_employee_number ?? undefined,
+          lockerNumber: it.locker_number,
+          batchId: it.source_batch_id ?? undefined,
+        });
+      }
     } else {
       caseType = "OTHER";
-      groupKey = `other_${it.id}`;
+      groupKey = `${batchPrefix}other_${it.locker_number}_${it.id}`;
       casesMap.set(groupKey, {
         caseId: groupKey,
         type: caseType,
         items: [it],
         lockerNumber: it.locker_number,
         empNo: it.source_employee_number ?? undefined,
+        batchId: it.source_batch_id ?? undefined,
       });
     }
   }
@@ -289,9 +317,13 @@ export function buildReconciliationCases(params: BuildCasesParams): BuildCasesRe
       const first = groupItems[0];
       const workerEmpNo = empNo || first.source_employee_number || "";
       const workerRecord = workerByEmpNo.get(workerEmpNo);
-      const workerName = workerRecord
+      const wFullName = workerRecord
         ? `${workerRecord.paternal_surname} ${workerRecord.maternal_surname ?? ""} ${workerRecord.first_name}`.trim()
-        : first.source_worker_name || "Trabajador no especificado";
+        : "";
+      const workerName =
+        wFullName ||
+        first.source_worker_name ||
+        (workerEmpNo ? `Matrícula ${workerEmpNo}` : "Trabajador no especificado");
 
       const activeAsg = workerRecord ? activeAsgByWorkerId.get(workerRecord.id) : undefined;
       const activeLocker = activeAsg ? lockerById.get(activeAsg.locker_id) : undefined;
@@ -307,7 +339,7 @@ export function buildReconciliationCases(params: BuildCasesParams): BuildCasesRe
       // Desde los review items del grupo
       for (const it of groupItems) {
         if (it.locker_number) {
-          const sr = it.source_row_number ? sourceRowsByRowNumber.get(it.source_row_number) : null;
+          const sr = getSourceRow(it.source_batch_id, it.source_row_number);
           const obs = sr?.observations_raw || it.source_notes || null;
           const yr = extractUpdateYear(obs, sr?.supplementary_data);
           candidateLockersMap.set(it.locker_number, {
@@ -323,6 +355,7 @@ export function buildReconciliationCases(params: BuildCasesParams): BuildCasesRe
       if (workerEmpNo) {
         const matchingSourceRows = sourceRowsByEmpNo.get(workerEmpNo) || [];
         for (const sr of matchingSourceRows) {
+          if (sr.batch_id && group.batchId && sr.batch_id !== group.batchId) continue;
           if (sr.locker_normalized && !candidateLockersMap.has(sr.locker_normalized)) {
             const yr = extractUpdateYear(sr.observations_raw, sr.supplementary_data);
             candidateLockersMap.set(sr.locker_normalized, {
@@ -355,9 +388,10 @@ export function buildReconciliationCases(params: BuildCasesParams): BuildCasesRe
           asgSource = lActiveAsg?.source === "manual" ? "manual" : "import";
         } else if (lActiveAsg) {
           const otherW = workerById.get(lActiveAsg.worker_id);
-          otherWorkerName = otherW
+          const otherWName = otherW
             ? `${otherW.paternal_surname} ${otherW.first_name}`.trim()
-            : "otro trabajador";
+            : "";
+          otherWorkerName = otherWName || (otherW?.employee_number ? `Matrícula ${otherW.employee_number}` : "otro trabajador");
           currentStatus = `Asignado actualmente a ${otherWorkerName}`;
           hasConflict = true;
           hasOtherWorker = true;
@@ -416,7 +450,9 @@ export function buildReconciliationCases(params: BuildCasesParams): BuildCasesRe
           currentLockerNumber: activeLocker?.locker_number ?? null,
           currentLockerStatus: activeLocker ? "assigned" : "available",
           category: workerRecord?.category,
-          adscripcion: workerRecord?.adscripcion,
+          turn: workerRecord?.turn,
+          assignment: workerRecord?.assignment || workerRecord?.adscripcion || null,
+          adscripcion: workerRecord?.assignment || workerRecord?.adscripcion || null,
         },
         candidates,
         currentDatabaseState: {
@@ -457,7 +493,7 @@ export function buildReconciliationCases(params: BuildCasesParams): BuildCasesRe
 
       for (const it of groupItems) {
         const emp = it.source_employee_number || it.source_worker_name || it.id;
-        const sr = it.source_row_number ? sourceRowsByRowNumber.get(it.source_row_number) : null;
+        const sr = getSourceRow(it.source_batch_id, it.source_row_number);
         const obs = sr?.observations_raw || it.source_notes || null;
         const yr = extractUpdateYear(obs, sr?.supplementary_data);
 
@@ -473,6 +509,7 @@ export function buildReconciliationCases(params: BuildCasesParams): BuildCasesRe
       // También desde sourceRows por casillero
       const matchingSourceRows = sourceRowsByLocker.get(lockerNum) || [];
       for (const sr of matchingSourceRows) {
+        if (sr.batch_id && group.batchId && sr.batch_id !== group.batchId) continue;
         const emp = sr.matricula_normalized || sr.worker_name_raw || "";
         if (emp && !candidateWorkersMap.has(emp)) {
           const yr = extractUpdateYear(sr.observations_raw, sr.supplementary_data);
@@ -507,9 +544,13 @@ export function buildReconciliationCases(params: BuildCasesParams): BuildCasesRe
           hasOtherLocker = true;
         }
 
-        const fullName = wRecord
+        const wFullName = wRecord
           ? `${wRecord.paternal_surname} ${wRecord.maternal_surname ?? ""} ${wRecord.first_name}`.trim()
-          : cand.workerName;
+          : "";
+        const fullName =
+          wFullName ||
+          cand.workerName ||
+          (cand.employeeNumber ? `Matrícula ${cand.employeeNumber}` : "Trabajador no especificado");
 
         candidates.push({
           candidateId: wRecord?.id || cand.employeeNumber || cand.workerName,
@@ -590,7 +631,7 @@ export function buildReconciliationCases(params: BuildCasesParams): BuildCasesRe
       const it = groupItems[0];
       const emp = it.source_employee_number;
       const rawName = it.source_worker_name || "Sin nombre";
-      const sr = it.source_row_number ? sourceRowsByRowNumber.get(it.source_row_number) : null;
+      const sr = getSourceRow(it.source_batch_id, it.source_row_number);
       const lRecord = it.locker_number ? lockerByNumber.get(it.locker_number) : undefined;
       const lActiveAsg = lRecord ? activeAsgByLockerId.get(lRecord.id) : undefined;
 
@@ -638,10 +679,12 @@ export function buildReconciliationCases(params: BuildCasesParams): BuildCasesRe
         worker: {
           employeeNumber: emp || "",
           name: rawName,
-          category: sr?.category_raw,
-          turn: sr?.turn_raw,
-          plaza: sr?.plaza_raw,
-          schedule: sr?.schedule_raw,
+          category: sr?.category_raw || exactWorker?.category || null,
+          turn: sr?.turn_raw || null,
+          plaza: sr?.plaza_raw || null,
+          schedule: sr?.schedule_raw || null,
+          assignment: exactWorker?.assignment || exactWorker?.adscripcion || null,
+          adscripcion: exactWorker?.assignment || exactWorker?.adscripcion || null,
         },
         locker: {
           id: lRecord?.id,

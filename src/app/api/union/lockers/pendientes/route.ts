@@ -101,19 +101,27 @@ export async function GET(req: Request): Promise<NextResponse> {
       { pageSize: 500 }
     );
 
-    // 2. Cargar datos del archivo Hoja1 para enriquecer con evidencia temporal y notas
-    const sourceRows = await fetchAllSupabaseRows<SourceRowData>(
-      ({ from, to }) =>
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase as any)
-          .from("union_locker_import_source_rows")
-          .select(
-            "row_number, matricula_raw, matricula_normalized, worker_name_raw, plaza_raw, turn_raw, category_raw, schedule_raw, locker_raw, locker_normalized, observations_raw, supplementary_data"
-          )
-          .eq("delegation_id", depId)
-          .range(from, to),
-      { pageSize: 1000 }
+    // 2. Cargar datos del archivo Hoja1 únicamente para los lotes con items pendientes
+    const relevantBatchIds = Array.from(
+      new Set(items.map((i) => i.source_batch_id).filter((b): b is string => Boolean(b)))
     );
+
+    let sourceRows: SourceRowData[] = [];
+    if (relevantBatchIds.length > 0) {
+      sourceRows = await fetchAllSupabaseRows<SourceRowData>(
+        ({ from, to }) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("union_locker_import_source_rows")
+            .select(
+              "batch_id, row_number, matricula_raw, matricula_normalized, worker_name_raw, plaza_raw, turn_raw, category_raw, schedule_raw, locker_raw, locker_normalized, observations_raw, supplementary_data"
+            )
+            .eq("delegation_id", depId)
+            .in("batch_id", relevantBatchIds)
+            .range(from, to),
+        { pageSize: 1000 }
+      );
+    }
 
     // 3. Cargar inventario de casilleros físicos
     const lockers = await fetchAllSupabaseRows<LockerData>(
@@ -127,17 +135,31 @@ export async function GET(req: Request): Promise<NextResponse> {
       { pageSize: 1000 }
     );
 
-    // 4. Cargar padrón de trabajadores
-    const workers = await fetchAllSupabaseRows<WorkerData>(
+    // 4. Cargar padrón de trabajadores con columna real 'assignment'
+    const rawWorkers = await fetchAllSupabaseRows<{
+      id: string;
+      employee_number: string;
+      first_name: string;
+      paternal_surname: string;
+      maternal_surname: string | null;
+      category?: string | null;
+      assignment?: string | null;
+    }>(
       ({ from, to }) =>
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (supabase as any)
           .from("union_workers")
-          .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, adscripcion")
+          .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment")
           .eq("delegation_id", depId)
           .range(from, to),
       { pageSize: 1000 }
     );
+
+    const workers: WorkerData[] = rawWorkers.map((w) => ({
+      ...w,
+      assignment: w.assignment ?? null,
+      adscripcion: w.assignment ?? null,
+    }));
 
     // 5. Cargar asignaciones activas de los casilleros de esta delegación
     const assignments = await fetchAllSupabaseRows<AssignmentData>(
