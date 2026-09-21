@@ -10,7 +10,15 @@ export default async function PasajesPage(): Promise<React.JSX.Element> {
   if (m.length === 0) redirect("/");
   return (
     <div>
-      <UnionPageHeader title="Pasajes 026 / 027" subtitle="Prepara y valida el trámite (Cl. 103). El sistema no dictamina ni autoriza." />
+      <UnionPageHeader
+        title="Pasajes 026 / 027"
+        subtitle="Prepara la solicitud con los datos del trabajador y genera el formato oficial."
+      />
+      <div style={{ marginTop: "-0.5rem", marginBottom: "1.25rem" }}>
+        <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--muted)", fontStyle: "italic" }}>
+          El sistema prepara el documento; el dictamen corresponde a la Comisión/Subcomisión.
+        </p>
+      </div>
       <PassageWizard />
     </div>
   );
