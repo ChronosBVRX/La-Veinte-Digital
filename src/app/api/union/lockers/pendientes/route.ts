@@ -2,10 +2,16 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/shared/server/auth/require-user";
 import { requireUnionMembership, requireUnionAdmin } from "@/features/representacion/services/permissions";
-import { writeAuditLog } from "@/features/representacion/services/audit";
-import { fetchAllSupabaseRows, chunkArray } from "@/shared/lib/supabase-pagination";
+import { fetchAllSupabaseRows } from "@/shared/lib/supabase-pagination";
 import { z } from "zod";
 import type { LockerReviewItem } from "@/features/representacion/services/worker-importer/types";
+import {
+  buildReconciliationCases,
+  type SourceRowData,
+  type LockerData,
+  type WorkerData,
+  type AssignmentData,
+} from "@/features/representacion/services/locker-reconciliation-cases";
 
 export const dynamic = "force-dynamic";
 
@@ -16,23 +22,45 @@ function noStore(res: NextResponse): NextResponse {
 
 const resolveItemSchema = z.discriminatedUnion("action", [
   z.object({
+    action: z.literal("resolve_case"),
+    caseType: z.enum(["WORKER_MULTIPLE_LOCKERS", "LOCKER_MULTIPLE_WORKERS", "WORKER_NOT_FOUND", "OTHER"]),
+    subAction: z.enum(["select_locker_for_worker", "select_worker_for_locker", "link_worker_to_locker", "ignore"]),
+    reviewItemIds: z.array(z.string().min(1)).min(1),
+    selectedLockerId: z.string().min(1).optional(),
+    selectedWorkerId: z.string().min(1).optional(),
+    selectedLockerNumber: z.string().optional(),
+    selectedEmployeeNumber: z.string().optional(),
+    notes: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal("batch_resolve_safe_matches"),
+    matches: z.array(
+      z.object({
+        reviewItemId: z.string().min(1),
+        workerId: z.string().min(1),
+        lockerId: z.string().min(1),
+      })
+    ),
+  }),
+  // Compatibilidad hacia atrás con endpoints anteriores
+  z.object({
     action: z.literal("link_worker"),
-    reviewItemId: z.string().uuid(),
-    workerId: z.string().uuid(),
+    reviewItemId: z.string().min(1),
+    workerId: z.string().min(1),
   }),
   z.object({
     action: z.literal("select_worker_for_locker"),
-    reviewItemId: z.string().uuid(),
+    reviewItemId: z.string().min(1),
     selectedEmployeeNumber: z.string().min(1),
   }),
   z.object({
     action: z.literal("select_locker_for_worker"),
-    reviewItemId: z.string().uuid(),
+    reviewItemId: z.string().min(1),
     selectedLockerNumber: z.string().min(1),
   }),
   z.object({
     action: z.literal("ignore"),
-    reviewItemId: z.string().uuid(),
+    reviewItemId: z.string().min(1),
   }),
   z.object({
     action: z.literal("batch_link_matches"),
@@ -54,8 +82,12 @@ export async function GET(req: Request): Promise<NextResponse> {
 
     const supabase = await createClient();
     const filter = url.searchParams.get("filter") ?? "all";
+    const search = url.searchParams.get("search") ?? "";
+    const sort = url.searchParams.get("sort") ?? "easy";
+    const page = parseInt(url.searchParams.get("page") ?? "1", 10) || 1;
+    const pageSize = parseInt(url.searchParams.get("pageSize") ?? "25", 10) || 25;
 
-    // 1. Obtener todos los pendientes activos para la delegación paginados con fetchAllSupabaseRows
+    // 1. Cargar items de revisión pendientes de la delegación
     const items = await fetchAllSupabaseRows<LockerReviewItem>(
       ({ from, to }) =>
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,133 +98,129 @@ export async function GET(req: Request): Promise<NextResponse> {
           .eq("status", "pending")
           .order("created_at", { ascending: false })
           .range(from, to),
-      { pageSize: 500 },
+      { pageSize: 500 }
     );
 
-    // 2. Calcular desglose de conteos
-    let workerNotFoundCount = 0;
-    let multipleWorkersCount = 0;
-    let multipleLockersCount = 0;
-    let otherCount = 0;
-
-    for (const item of items) {
-      if (item.reason === "WORKER_NOT_FOUND") {
-        workerNotFoundCount++;
-      } else if (
-        item.reason === "LOCKER_MULTIPLE_WORKERS" ||
-        item.reason === "DUPLICATE_LOCKER_DIFFERENT_WORKERS"
-      ) {
-        multipleWorkersCount++;
-      } else if (item.reason === "WORKER_MULTIPLE_LOCKERS") {
-        multipleLockersCount++;
-      } else {
-        otherCount++;
-      }
-    }
-
-    // 3. Inteligencia de reconciliación progresiva:
-    // Cotejar pendientes WORKER_NOT_FOUND contra union_workers actual
-    const missingMatriculas = [
-      ...new Set(
-        items
-          .filter((i) => i.reason === "WORKER_NOT_FOUND" && Boolean(i.source_employee_number))
-          .map((i) => i.source_employee_number as string),
-      ),
-    ];
-
-    const matches: Array<{
-      reviewItemId: string;
-      lockerNumber: string;
-      employeeNumber: string;
-      workerId: string;
-      workerName: string;
-    }> = [];
-
-    if (missingMatriculas.length > 0) {
-      interface WorkerRowSimple {
-        id: string;
-        employee_number: string;
-        first_name: string;
-        paternal_surname: string;
-        maternal_surname: string | null;
-      }
-
-      const foundList: WorkerRowSimple[] = [];
-      const matriculaChunks = chunkArray(missingMatriculas, 200);
-
-      for (const chunk of matriculaChunks) {
+    // 2. Cargar datos del archivo Hoja1 para enriquecer con evidencia temporal y notas
+    const sourceRows = await fetchAllSupabaseRows<SourceRowData>(
+      ({ from, to }) =>
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: chunkWorkers } = await (supabase as any)
-          .from("union_workers")
-          .select("id, employee_number, first_name, paternal_surname, maternal_surname")
+        (supabase as any)
+          .from("union_locker_import_source_rows")
+          .select(
+            "row_number, matricula_raw, matricula_normalized, worker_name_raw, plaza_raw, turn_raw, category_raw, schedule_raw, locker_raw, locker_normalized, observations_raw, supplementary_data"
+          )
           .eq("delegation_id", depId)
-          .in("employee_number", chunk);
+          .range(from, to),
+      { pageSize: 1000 }
+    );
 
-        if (chunkWorkers) {
-          foundList.push(...(chunkWorkers as WorkerRowSimple[]));
-        }
-      }
+    // 3. Cargar inventario de casilleros físicos
+    const lockers = await fetchAllSupabaseRows<LockerData>(
+      ({ from, to }) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("union_lockers")
+          .select("id, locker_number, status, condition, zone_id, bank_id, notes")
+          .eq("delegation_id", depId)
+          .range(from, to),
+      { pageSize: 1000 }
+    );
 
-      if (foundList.length > 0) {
-        const workerMap = new Map(foundList.map((w) => [w.employee_number, w]));
-        for (const it of items) {
-          if (it.reason === "WORKER_NOT_FOUND" && it.source_employee_number) {
-            const w = workerMap.get(it.source_employee_number);
-            if (w) {
-              const fullName = `${w.paternal_surname} ${w.maternal_surname ?? ""} ${w.first_name}`.trim();
-              matches.push({
-                reviewItemId: it.id,
-                lockerNumber: it.locker_number,
-                employeeNumber: it.source_employee_number,
-                workerId: w.id,
-                workerName: fullName,
-              });
-            }
-          }
-        }
-      }
-    }
+    // 4. Cargar padrón de trabajadores
+    const workers = await fetchAllSupabaseRows<WorkerData>(
+      ({ from, to }) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("union_workers")
+          .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, adscripcion")
+          .eq("delegation_id", depId)
+          .range(from, to),
+      { pageSize: 1000 }
+    );
 
-    // 4. Filtrar según la pestaña seleccionada
-    let filteredItems = items;
+    // 5. Cargar asignaciones activas de los casilleros de esta delegación
+    const assignments = await fetchAllSupabaseRows<AssignmentData>(
+      ({ from, to }) =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("union_locker_assignments")
+          .select("id, locker_id, worker_id, status, source, assigned_at, admin_override, union_lockers!inner(delegation_id)")
+          .eq("union_lockers.delegation_id", depId)
+          .range(from, to),
+      { pageSize: 1000 }
+    );
+
+    // 6. Filtrar items por pestaña antes de agrupar si no es "all"
+    let targetItems = items;
     if (filter === "worker_not_found") {
-      filteredItems = items.filter((i) => i.reason === "WORKER_NOT_FOUND");
+      targetItems = items.filter((i) => i.reason === "WORKER_NOT_FOUND");
     } else if (filter === "locker_multiple_workers") {
-      filteredItems = items.filter(
+      targetItems = items.filter(
         (i) =>
           i.reason === "LOCKER_MULTIPLE_WORKERS" ||
-          i.reason === "DUPLICATE_LOCKER_DIFFERENT_WORKERS"
+          i.reason === "DUPLICATE_LOCKER_DIFFERENT_WORKERS" ||
+          i.reason === "LOCKER_ASSIGNED_TO_OTHER_WORKER"
       );
     } else if (filter === "worker_multiple_lockers") {
-      filteredItems = items.filter((i) => i.reason === "WORKER_MULTIPLE_LOCKERS");
+      targetItems = items.filter((i) => i.reason === "WORKER_MULTIPLE_LOCKERS");
     } else if (filter === "other") {
-      filteredItems = items.filter(
+      targetItems = items.filter(
         (i) =>
           i.reason !== "WORKER_NOT_FOUND" &&
           i.reason !== "LOCKER_MULTIPLE_WORKERS" &&
           i.reason !== "DUPLICATE_LOCKER_DIFFERENT_WORKERS" &&
+          i.reason !== "LOCKER_ASSIGNED_TO_OTHER_WORKER" &&
           i.reason !== "WORKER_MULTIPLE_LOCKERS"
       );
     }
 
+    // 7. Construir casos de conciliación enriquecidos
+    const result = buildReconciliationCases({
+      items: targetItems,
+      sourceRows,
+      lockers,
+      workers,
+      assignments,
+      search,
+      sort,
+      page,
+      pageSize,
+    });
+
     return noStore(
       NextResponse.json({
-        items: filteredItems,
+        cases: result.cases,
+        totalCases: result.totalCases,
+        totalReviewItems: items.length,
+        caseCounts: result.caseCounts,
+        itemCounts: result.itemCounts,
+        safeMatchesSummary: result.safeMatchesSummary,
+        page,
+        pageSize,
+        // Compatibilidad hacia atrás para vistas que aún esperen items crudos
+        items: targetItems,
         counts: {
           total: items.length,
-          workerNotFound: workerNotFoundCount,
-          multipleWorkers: multipleWorkersCount,
-          multipleLockers: multipleLockersCount,
-          other: otherCount,
+          workerNotFound: result.itemCounts.workerNotFound,
+          multipleWorkers: result.itemCounts.multipleWorkers,
+          multipleLockers: result.itemCounts.multipleLockers,
+          other: result.itemCounts.other,
         },
-        newMatchesCount: matches.length,
-        matches,
+        newMatchesCount: result.safeMatchesSummary.totalFound,
+        matches: result.safeMatchesSummary.safeMatches.map((m) => ({
+          reviewItemId: m.reviewItemId,
+          lockerNumber: m.lockerNumber,
+          employeeNumber: m.employeeNumber,
+          workerId: m.workerId,
+          workerName: m.workerName,
+        })),
       })
     );
   } catch (err: unknown) {
     return noStore(
       NextResponse.json(
-        { error: err instanceof Error ? err.message : "Error al cargar pendientes de lockers" },
+        { error: err instanceof Error ? err.message : "Error al cargar casos de conciliación de casilleros" },
         { status: 500 }
       )
     );
@@ -223,442 +251,190 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     await requireUnionAdmin(depId);
     const supabase = await createClient();
-    const now = new Date().toISOString();
-
     const body = parsed.data;
 
-    // A) VINCULAR TRABAJADOR MANUALMENTE
+    // A) RESOLUCIÓN ATÓMICA DE UN CASO COMPLETO
+    if (body.action === "resolve_case") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rpcRes, error: rpcErr } = await (supabase as any).rpc(
+        "union_resolve_locker_review_case",
+        {
+          p_delegation_id: depId,
+          p_case_type: body.caseType,
+          p_action: body.subAction,
+          p_review_item_ids: body.reviewItemIds,
+          p_selected_locker_id: body.selectedLockerId || null,
+          p_selected_worker_id: body.selectedWorkerId || null,
+          p_selected_locker_number: body.selectedLockerNumber || null,
+          p_selected_employee_number: body.selectedEmployeeNumber || null,
+          p_notes: body.notes || null,
+          p_user_id: auth.user.id,
+        }
+      );
+
+      if (rpcErr) {
+        return noStore(NextResponse.json({ error: rpcErr.message }, { status: 500 }));
+      }
+
+      return noStore(NextResponse.json({ ok: true, result: rpcRes }));
+    }
+
+    // B) RESOLUCIÓN SEGURA DE COINCIDENCIAS EN LOTE
+    if (body.action === "batch_resolve_safe_matches") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: batchRes, error: batchErr } = await (supabase as any).rpc(
+        "union_batch_resolve_safe_matches",
+        {
+          p_delegation_id: depId,
+          p_matches: body.matches,
+          p_user_id: auth.user.id,
+        }
+      );
+
+      if (batchErr) {
+        return noStore(NextResponse.json({ error: batchErr.message }, { status: 500 }));
+      }
+
+      return noStore(NextResponse.json({ ok: true, ...batchRes }));
+    }
+
+    // C) COMPATIBILIDAD: VINCULAR TRABAJADOR MANUALMENTE
     if (body.action === "link_worker") {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: rawItem, error: itemErr } = await (supabase as any)
-        .from("union_locker_review_items")
-        .select("*")
-        .eq("id", body.reviewItemId)
-        .eq("delegation_id", depId)
-        .eq("status", "pending")
-        .single();
+      const { data: rpcRes, error: rpcErr } = await (supabase as any).rpc(
+        "union_resolve_locker_review_case",
+        {
+          p_delegation_id: depId,
+          p_case_type: "WORKER_NOT_FOUND",
+          p_action: "link_worker_to_locker",
+          p_review_item_ids: [body.reviewItemId],
+          p_selected_worker_id: body.workerId,
+          p_user_id: auth.user.id,
+        }
+      );
 
-      const item = rawItem as LockerReviewItem | null;
-      if (itemErr || !item) {
-        return noStore(NextResponse.json({ error: "Registro pendiente no encontrado" }, { status: 404 }));
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: worker, error: workerErr } = await (supabase as any)
-        .from("union_workers")
-        .select("id, employee_number, first_name, paternal_surname, maternal_surname")
-        .eq("id", body.workerId)
-        .eq("delegation_id", depId)
-        .single();
-
-      if (workerErr || !worker) {
-        return noStore(NextResponse.json({ error: "Trabajador no encontrado en la delegación" }, { status: 404 }));
-      }
-
-      // Asegurar casillero
-      let lockerId = item.locker_id;
-      if (!lockerId) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: locker } = await (supabase as any)
-          .from("union_lockers")
-          .select("id")
-          .eq("delegation_id", depId)
-          .eq("locker_number", item.locker_number)
-          .single();
-        lockerId = locker?.id;
-      }
-
-      if (!lockerId) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: newLocker, error: newLockerErr } = await (supabase as any)
-          .from("union_lockers")
-          .insert({
-            delegation_id: depId,
-            locker_number: item.locker_number,
-            status: "assigned",
-            notes: "Registrado al resolver pendiente",
-          })
-          .select("id")
-          .single();
-
-        if (newLockerErr || !newLocker) throw newLockerErr ?? new Error("No se pudo registrar casillero");
-        lockerId = newLocker.id;
-      }
-
-      if (!lockerId) {
-        throw new Error("No se pudo determinar el identificador del casillero");
-      }
-
-      // Crear asignación activa
-      await supabase.from("union_locker_assignments").insert({
-        locker_id: lockerId,
-        worker_id: worker.id,
-        status: "active",
-        assignment_reason: `resolved_review_item:${item.id}`,
-        created_by: auth.user.id,
-        assigned_at: now,
-      });
-
-      // Actualizar estado del casillero
-      await supabase
-        .from("union_lockers")
-        .update({ status: "assigned", updated_at: now })
-        .eq("id", lockerId);
-
-      const workerFullName = `${worker.paternal_surname} ${worker.maternal_surname ?? ""} ${worker.first_name}`.trim();
-
-      // Resolver pendiente
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from("union_locker_review_items")
-        .update({
-          status: "resolved",
-          resolved_by: auth.user.id,
-          resolved_at: now,
-          resolution: {
-            action: "link_worker",
-            worker_id: worker.id,
-            worker_name: workerFullName,
-            employee_number: worker.employee_number,
-          },
-          updated_at: now,
-        })
-        .eq("id", item.id);
-
-      await writeAuditLog({
-        delegation_id: depId,
-        entity_type: "union_locker_review_items",
-        entity_id: item.id,
-        action: "resolve_locker_review_item",
-        metadata: {
-          action: "link_worker",
-          locker_number: item.locker_number,
-          worker_id: worker.id,
-          employee_number: worker.employee_number,
-        },
-      });
-
-      return noStore(NextResponse.json({ ok: true, resolvedId: item.id }));
+      if (rpcErr) return noStore(NextResponse.json({ error: rpcErr.message }, { status: 500 }));
+      return noStore(NextResponse.json({ ok: true, resolvedId: body.reviewItemId, result: rpcRes }));
     }
 
-    // B) SELECCIONAR TRABAJADOR CUANDO UN LOCKER FUE RECLAMADO POR VARIOS
+    // D) COMPATIBILIDAD: SELECCIONAR TRABAJADOR PARA CASILLERO
     if (body.action === "select_worker_for_locker") {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: rawItem, error: itemErr } = await (supabase as any)
-        .from("union_locker_review_items")
-        .select("*")
-        .eq("id", body.reviewItemId)
-        .eq("delegation_id", depId)
-        .eq("status", "pending")
-        .single();
+      const { data: rpcRes, error: rpcErr } = await (supabase as any).rpc(
+        "union_resolve_locker_review_case",
+        {
+          p_delegation_id: depId,
+          p_case_type: "LOCKER_MULTIPLE_WORKERS",
+          p_action: "select_worker_for_locker",
+          p_review_item_ids: [body.reviewItemId],
+          p_selected_employee_number: body.selectedEmployeeNumber,
+          p_user_id: auth.user.id,
+        }
+      );
 
-      const item = rawItem as LockerReviewItem | null;
-      if (itemErr || !item) {
-        return noStore(NextResponse.json({ error: "Registro pendiente no encontrado" }, { status: 404 }));
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: worker, error: workerErr } = await (supabase as any)
-        .from("union_workers")
-        .select("id, employee_number, first_name, paternal_surname, maternal_surname")
-        .eq("employee_number", body.selectedEmployeeNumber)
-        .eq("delegation_id", depId)
-        .single();
-
-      if (workerErr || !worker) {
-        return noStore(
-          NextResponse.json(
-            { error: `Trabajador con matrícula ${body.selectedEmployeeNumber} no encontrado en el padrón` },
-            { status: 404 }
-          )
-        );
-      }
-
-      let lockerId = item.locker_id;
-      if (!lockerId) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: l } = await (supabase as any)
-          .from("union_lockers")
-          .select("id")
-          .eq("delegation_id", depId)
-          .eq("locker_number", item.locker_number)
-          .single();
-        lockerId = l?.id;
-      }
-
-      if (lockerId) {
-        await supabase.from("union_locker_assignments").insert({
-          locker_id: lockerId,
-          worker_id: worker.id,
-          status: "active",
-          assignment_reason: `resolved_review_item:${item.id}`,
-          created_by: auth.user.id,
-          assigned_at: now,
-        });
-
-        await supabase
-          .from("union_lockers")
-          .update({ status: "assigned", updated_at: now })
-          .eq("id", lockerId);
-      }
-
-      const workerFullName = `${worker.paternal_surname} ${worker.maternal_surname ?? ""} ${worker.first_name}`.trim();
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from("union_locker_review_items")
-        .update({
-          status: "resolved",
-          resolved_by: auth.user.id,
-          resolved_at: now,
-          resolution: {
-            action: "select_worker_for_locker",
-            worker_id: worker.id,
-            worker_name: workerFullName,
-            selected_employee_number: body.selectedEmployeeNumber,
-          },
-          updated_at: now,
-        })
-        .eq("id", item.id);
-
-      // Resolver cualquier otro pendiente idéntico para este mismo casillero en el mismo lote
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from("union_locker_review_items")
-        .update({
-          status: "resolved",
-          resolved_by: auth.user.id,
-          resolved_at: now,
-          resolution: {
-            action: "co_resolved_by_selection",
-            selected_employee_number: body.selectedEmployeeNumber,
-          },
-          updated_at: now,
-        })
-        .eq("delegation_id", depId)
-        .eq("source_batch_id", item.source_batch_id)
-        .eq("locker_number", item.locker_number)
-        .eq("status", "pending");
-
-      return noStore(NextResponse.json({ ok: true, resolvedId: item.id }));
+      if (rpcErr) return noStore(NextResponse.json({ error: rpcErr.message }, { status: 500 }));
+      return noStore(NextResponse.json({ ok: true, resolvedId: body.reviewItemId, result: rpcRes }));
     }
 
-    // C) SELECCIONAR CASILLERO CUANDO UNA PERSONA APARECE CON MÚLTIPLES
+    // E) COMPATIBILIDAD: SELECCIONAR CASILLERO PARA TRABAJADOR
     if (body.action === "select_locker_for_worker") {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: rawItem, error: itemErr } = await (supabase as any)
-        .from("union_locker_review_items")
-        .select("*")
-        .eq("id", body.reviewItemId)
-        .eq("delegation_id", depId)
-        .eq("status", "pending")
-        .single();
+      const { data: rpcRes, error: rpcErr } = await (supabase as any).rpc(
+        "union_resolve_locker_review_case",
+        {
+          p_delegation_id: depId,
+          p_case_type: "WORKER_MULTIPLE_LOCKERS",
+          p_action: "select_locker_for_worker",
+          p_review_item_ids: [body.reviewItemId],
+          p_selected_locker_number: body.selectedLockerNumber,
+          p_user_id: auth.user.id,
+        }
+      );
 
-      const item = rawItem as LockerReviewItem | null;
-      if (itemErr || !item) {
-        return noStore(NextResponse.json({ error: "Registro pendiente no encontrado" }, { status: 404 }));
-      }
-
-      const empNumber = item.source_employee_number;
-      if (!empNumber) {
-        return noStore(NextResponse.json({ error: "El registro no cuenta con matrícula" }, { status: 400 }));
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: worker } = await (supabase as any)
-        .from("union_workers")
-        .select("id, employee_number, first_name, paternal_surname, maternal_surname")
-        .eq("employee_number", empNumber)
-        .eq("delegation_id", depId)
-        .single();
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: locker } = await (supabase as any)
-        .from("union_lockers")
-        .select("id")
-        .eq("delegation_id", depId)
-        .eq("locker_number", body.selectedLockerNumber)
-        .single();
-
-      if (worker && locker) {
-        await supabase.from("union_locker_assignments").insert({
-          locker_id: locker.id,
-          worker_id: worker.id,
-          status: "active",
-          assignment_reason: `resolved_review_item:${item.id}`,
-          created_by: auth.user.id,
-          assigned_at: now,
-        });
-
-        await supabase
-          .from("union_lockers")
-          .update({ status: "assigned", updated_at: now })
-          .eq("id", locker.id);
-      }
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from("union_locker_review_items")
-        .update({
-          status: "resolved",
-          resolved_by: auth.user.id,
-          resolved_at: now,
-          resolution: {
-            action: "select_locker_for_worker",
-            selected_locker_number: body.selectedLockerNumber,
-          },
-          updated_at: now,
-        })
-        .eq("id", item.id);
-
-      // Resolver otros pendientes del mismo trabajador en ese lote
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from("union_locker_review_items")
-        .update({
-          status: "resolved",
-          resolved_by: auth.user.id,
-          resolved_at: now,
-          resolution: {
-            action: "co_resolved_by_locker_selection",
-            selected_locker_number: body.selectedLockerNumber,
-          },
-          updated_at: now,
-        })
-        .eq("delegation_id", depId)
-        .eq("source_batch_id", item.source_batch_id)
-        .eq("source_employee_number", empNumber)
-        .eq("status", "pending");
-
-      return noStore(NextResponse.json({ ok: true, resolvedId: item.id }));
+      if (rpcErr) return noStore(NextResponse.json({ error: rpcErr.message }, { status: 500 }));
+      return noStore(NextResponse.json({ ok: true, resolvedId: body.reviewItemId, result: rpcRes }));
     }
 
-    // D) DEJAR PENDIENTE / IGNORAR
+    // F) COMPATIBILIDAD: IGNORAR ITEM
     if (body.action === "ignore") {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from("union_locker_review_items")
-        .update({
-          status: "ignored",
-          resolved_by: auth.user.id,
-          resolved_at: now,
-          resolution: { action: "ignored_by_user" },
-          updated_at: now,
-        })
-        .eq("id", body.reviewItemId)
-        .eq("delegation_id", depId);
+      const { data: rpcRes, error: rpcErr } = await (supabase as any).rpc(
+        "union_resolve_locker_review_case",
+        {
+          p_delegation_id: depId,
+          p_case_type: "OTHER",
+          p_action: "ignore",
+          p_review_item_ids: [body.reviewItemId],
+          p_user_id: auth.user.id,
+        }
+      );
 
-      return noStore(NextResponse.json({ ok: true, resolvedId: body.reviewItemId }));
+      if (rpcErr) return noStore(NextResponse.json({ error: rpcErr.message }, { status: 500 }));
+      return noStore(NextResponse.json({ ok: true, resolvedId: body.reviewItemId, result: rpcRes }));
     }
 
-    // E) VINCULAR COINCIDENCIAS EN LOTE (RE-CHECK CON TRABAJADORES)
+    // G) COMPATIBILIDAD: BATCH LINK MATCHES
     if (body.action === "batch_link_matches") {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: rawPendingItems } = await (supabase as any)
+      const { data: rawItems } = await (supabase as any)
         .from("union_locker_review_items")
-        .select("*")
+        .select("id, locker_number, source_employee_number")
         .eq("delegation_id", depId)
         .eq("status", "pending")
         .eq("reason", "WORKER_NOT_FOUND");
 
-      const pendingItems = (rawPendingItems as LockerReviewItem[]) ?? [];
-      let linkedCount = 0;
+      const pendingItems = (rawItems as LockerReviewItem[]) ?? [];
+      const matriculas = pendingItems.map((i) => i.source_employee_number).filter(Boolean) as string[];
 
-      if (pendingItems && pendingItems.length > 0) {
-        const matriculas = pendingItems
-          .map((i) => i.source_employee_number)
-          .filter(Boolean) as string[];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: workers } = await (supabase as any)
+        .from("union_workers")
+        .select("id, employee_number")
+        .eq("delegation_id", depId)
+        .in("employee_number", matriculas);
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: workers } = await (supabase as any)
-          .from("union_workers")
-          .select("id, employee_number, first_name, paternal_surname, maternal_surname")
-          .eq("delegation_id", depId)
-          .in("employee_number", matriculas);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: lockers } = await (supabase as any)
+        .from("union_lockers")
+        .select("id, locker_number")
+        .eq("delegation_id", depId);
 
-        interface WorkerSimple {
-          id: string;
-          employee_number: string;
-          first_name: string;
-          paternal_surname: string;
-          maternal_surname: string | null;
-        }
+      const workerMap = new Map((workers as Array<{ id: string; employee_number: string }>)?.map((w) => [w.employee_number, w.id]));
+      const lockerMap = new Map((lockers as Array<{ id: string; locker_number: string }>)?.map((l) => [l.locker_number, l.id]));
 
-        const workerMap = new Map((workers as WorkerSimple[] | null)?.map((w) => [w.employee_number, w]) ?? []);
-
-        for (const item of pendingItems) {
-          if (!item.source_employee_number) continue;
-          const w = workerMap.get(item.source_employee_number);
-          if (!w) continue;
-
-          // Asegurar casillero
-          let lockerId = item.locker_id;
-          if (!lockerId) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const { data: l } = await (supabase as any)
-              .from("union_lockers")
-              .select("id")
-              .eq("delegation_id", depId)
-              .eq("locker_number", item.locker_number)
-              .single();
-            lockerId = l?.id;
-          }
-
-          if (lockerId) {
-            await supabase.from("union_locker_assignments").insert({
-              locker_id: lockerId,
-              worker_id: w.id,
-              status: "active",
-              assignment_reason: `batch_matched_review_item:${item.id}`,
-              created_by: auth.user.id,
-              assigned_at: now,
-            });
-
-            await supabase
-              .from("union_lockers")
-              .update({ status: "assigned", updated_at: now })
-              .eq("id", lockerId);
-          }
-
-          const workerFullName = `${w.paternal_surname} ${w.maternal_surname ?? ""} ${w.first_name}`.trim();
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any)
-            .from("union_locker_review_items")
-            .update({
-              status: "resolved",
-              resolved_by: auth.user.id,
-              resolved_at: now,
-              resolution: {
-                action: "batch_matched",
-                worker_id: w.id,
-                worker_name: workerFullName,
-                employee_number: w.employee_number,
-              },
-              updated_at: now,
-            })
-            .eq("id", item.id);
-
-          linkedCount++;
+      const safeMatchesList: Array<{ reviewItemId: string; workerId: string; lockerId: string }> = [];
+      for (const it of pendingItems) {
+        if (!it.source_employee_number) continue;
+        const wId = workerMap.get(it.source_employee_number);
+        const lId = lockerMap.get(it.locker_number);
+        if (wId && lId) {
+          safeMatchesList.push({
+            reviewItemId: it.id,
+            workerId: wId,
+            lockerId: lId,
+          });
         }
       }
 
-      await writeAuditLog({
-        delegation_id: depId,
-        entity_type: "union_locker_review_items",
-        entity_id: depId,
-        action: "batch_link_locker_review_matches",
-        metadata: { delegation_id: depId, linkedCount },
-      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: batchRes, error: batchErr } = await (supabase as any).rpc(
+        "union_batch_resolve_safe_matches",
+        {
+          p_delegation_id: depId,
+          p_matches: safeMatchesList,
+          p_user_id: auth.user.id,
+        }
+      );
 
-      return noStore(NextResponse.json({ ok: true, linkedCount }));
+      if (batchErr) return noStore(NextResponse.json({ error: batchErr.message }, { status: 500 }));
+      return noStore(NextResponse.json({ ok: true, linkedCount: batchRes?.linkedCount ?? 0 }));
     }
 
     return noStore(NextResponse.json({ error: "Acción no reconocida" }, { status: 400 }));
   } catch (err: unknown) {
     return noStore(
       NextResponse.json(
-        { error: err instanceof Error ? err.message : "Error al procesar resolución de pendiente" },
+        { error: err instanceof Error ? err.message : "Error al procesar resolución de caso" },
         { status: 500 }
       )
     );
