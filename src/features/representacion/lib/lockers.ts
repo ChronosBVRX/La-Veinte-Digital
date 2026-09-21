@@ -119,9 +119,20 @@ export interface LockerEffectiveState {
 }
 
 export function normalizeLockerNumber(raw: string): string {
-  const digits = raw.replace(/[^0-9]/g, "");
-  if (!digits) return raw.trim().toUpperCase();
-  return String(parseInt(digits, 10));
+  if (!raw) return "";
+  const cleaned = String(raw)
+    .replace(/^[`'"\s#]+|[`'"\s]+$/g, "")
+    .replace(/^(?:locker|lock|no\.?|l)[-\s]*/i, "")
+    .trim();
+  const upper = cleaned.toUpperCase().replace(/\s+/g, " ");
+
+  const match = cleaned.match(/^(\d+)(?:\s*[-–—/]?\s*([A-Za-z0-9]+))?$/);
+  if (match) {
+    const base = String(parseInt(match[1], 10));
+    const suffix = match[2] ? `-${match[2].toUpperCase()}` : "";
+    return `${base}${suffix}`;
+  }
+  return upper;
 }
 
 /** Comparación alfanumérica en orden natural (1, 2, ... 9, 10, ... 100). */

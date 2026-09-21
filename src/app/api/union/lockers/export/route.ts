@@ -31,7 +31,7 @@ export async function GET(req: Request): Promise<NextResponse> {
     ({ from, to }) =>
       supabase
         .from("union_lockers")
-        .select("id, locker_number, status, condition, location, section, row_position, column_position, position_label, notes, maintenance_reason, zone_id, bank_id")
+        .select("id, locker_number, physical_code, status, condition, location, section, row_position, column_position, position_label, notes, maintenance_reason, zone_id, bank_id, source, created_at, updated_at, archived_at")
         .eq("delegation_id", depId)
         .range(from, to),
     { pageSize: 500 },
@@ -116,19 +116,26 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   const headers = [
     "Casillero",
-    "Zona",
-    "Bloque",
-    "Fila",
-    "Columna",
-    "Estado",
+    "Código Físico",
+    "Estado Inventario",
+    "Estado Ocupación",
     "Condición Física",
     "Trabajador Asignado",
     "Matrícula",
     "Categoría",
     "Turno",
+    "Zona",
+    "Bloque / Mueble",
+    "Fila",
+    "Columna",
+    "Posición",
+    "Fuente",
+    "Fecha Alta",
+    "Última Actualización",
+    "Fecha Retiro / Archivo",
     "Fecha Asignación",
     "Incidencia Pendiente",
-    "Notas",
+    "Observaciones",
   ];
 
   const rows = lockers.map((l) => {
@@ -141,33 +148,46 @@ export async function GET(req: Request): Promise<NextResponse> {
       ? `${worker.first_name || ""} ${worker.paternal_surname || ""} ${worker.maternal_surname || ""}`.trim()
       : "";
 
-    let statusDisplay = l.status === "available" ? "Disponible" : l.status === "assigned" ? "Asignado" : l.status;
-    if (l.status === "available" && asg) statusDisplay = "Inconsistencia (Disponible c/ Asignación)";
-    if (l.status === "assigned" && !asg) statusDisplay = "Inconsistencia (Asignado s/ Trabajador)";
+    const inventoryState = l.archived_at ? "Archivado" : "Activo";
+
+    let occupancyDisplay = l.status === "available" ? "Disponible" : l.status === "assigned" ? "Asignado" : l.status === "reserved" ? "Reservado" : l.status;
+    if (l.status === "available" && asg) occupancyDisplay = "Inconsistencia (Disponible c/ Asignación)";
+    if (l.status === "assigned" && !asg) occupancyDisplay = "Inconsistencia (Asignado s/ Trabajador)";
 
     const conditionDisplay =
       l.condition === "maintenance"
         ? `Mantenimiento (${l.maintenance_reason || "Sin motivo"})`
         : l.condition === "blocked"
           ? "Bloqueado"
-          : "Operativo (OK)";
+          : "OK";
 
     const pendingDisplay = pending
       ? `${pending.reason} (${pending.source_worker_name || "S/N"} - Mat. ${pending.source_employee_number || "S/N"})`
       : "";
 
+    const positionLabel = l.position_label ?? (l.row_position && l.column_position ? `Fila ${l.row_position} / Columna ${l.column_position}` : "");
+
+    const sourceDisplay = l.source === "locker_excel" ? "Excel" : l.source === "manual" ? "Manual" : (l.source ?? "Legacy");
+
     return [
       escapeCsv(l.locker_number),
-      escapeCsv(l.zone_id ? (zoneMap.get(l.zone_id) ?? "Zona no encontrada") : "Sin ubicar"),
-      escapeCsv(l.bank_id ? (bankMap.get(l.bank_id) ?? "Bloque no encontrado") : "Sin bloque"),
-      escapeCsv(l.row_position ?? ""),
-      escapeCsv(l.column_position ?? ""),
-      escapeCsv(statusDisplay),
+      escapeCsv(l.physical_code ?? ""),
+      escapeCsv(inventoryState),
+      escapeCsv(occupancyDisplay),
       escapeCsv(conditionDisplay),
       escapeCsv(workerName),
       escapeCsv(worker?.employee_number ?? ""),
       escapeCsv(worker?.category ?? ""),
       escapeCsv(worker?.turn ?? ""),
+      escapeCsv(l.zone_id ? (zoneMap.get(l.zone_id) ?? "Zona no encontrada") : "Sin ubicar"),
+      escapeCsv(l.bank_id ? (bankMap.get(l.bank_id) ?? "Bloque no encontrado") : "Sin bloque"),
+      escapeCsv(l.row_position ?? ""),
+      escapeCsv(l.column_position ?? ""),
+      escapeCsv(positionLabel),
+      escapeCsv(sourceDisplay),
+      escapeCsv(l.created_at ? new Date(l.created_at).toLocaleDateString("es-MX") : ""),
+      escapeCsv(l.updated_at ? new Date(l.updated_at).toLocaleDateString("es-MX") : ""),
+      escapeCsv(l.archived_at ? new Date(l.archived_at).toLocaleDateString("es-MX") : ""),
       escapeCsv(asg?.assigned_at ? new Date(asg.assigned_at).toLocaleDateString("es-MX") : ""),
       escapeCsv(pendingDisplay),
       escapeCsv(l.notes ?? ""),

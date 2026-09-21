@@ -3,6 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface CanonicalLockerSummary {
   total: number;
+  active_inventory?: number;
+  archived?: number;
   assigned: number;
   available: number;
   maintenance: number;
@@ -30,6 +32,8 @@ export async function getCanonicalLockerSummary(
     if (!error && data && typeof data === "object") {
       return {
         total: Number(data.total ?? 0),
+        active_inventory: Number(data.active_inventory ?? data.total ?? 0),
+        archived: Number(data.archived ?? 0),
         assigned: Number(data.assigned ?? 0),
         available: Number(data.available ?? 0),
         maintenance: Number(data.maintenance ?? 0),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Card } from "@/shared/components/ui/Card";
 import { Button } from "@/shared/components/ui/Button";
 import type {
@@ -95,6 +96,28 @@ export function ReconciliationCaseCard({
               {caseData.worker?.turn ? ` · Turno: ${caseData.worker.turn}` : ""}
             </div>
           </div>
+
+          {caseData.locker?.lockerNumber ? (
+            <Link
+              href={`/representacion/lockers?view=table&q=${encodeURIComponent(caseData.locker.lockerNumber)}`}
+              target="_blank"
+              style={{
+                fontSize: "0.75rem",
+                color: "var(--primary)",
+                fontWeight: 600,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.25rem",
+                padding: "0.25rem 0.5rem",
+                borderRadius: "0.25rem",
+                border: "1px solid var(--border)",
+                backgroundColor: "var(--card)",
+              }}
+            >
+              📋 Ver ficha de locker
+            </Link>
+          ) : null}
         </div>
 
         {/* Candidatos / Alternativas */}
@@ -188,6 +211,26 @@ export function ReconciliationCaseCard({
                           >
                             🛡 Manual
                           </span>
+                        ) : null}
+
+                        {isWorkerMultipleLockers && cand.candidateId ? (
+                          <Link
+                            href={`/representacion/lockers?view=table&q=${encodeURIComponent(cand.candidateId)}`}
+                            target="_blank"
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              fontSize: "0.6875rem",
+                              color: "var(--primary)",
+                              fontWeight: 600,
+                              textDecoration: "none",
+                              padding: "0.1rem 0.35rem",
+                              borderRadius: "0.25rem",
+                              border: "1px solid var(--border)",
+                              backgroundColor: "var(--card)",
+                            }}
+                          >
+                            📋 Ver ficha
+                          </Link>
                         ) : null}
                       </div>
 

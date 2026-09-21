@@ -23,7 +23,7 @@ export function LockerViewSwitcher({
     badgeColor?: string;
   }> = [
     { id: "map", label: "Mapa Físico", icon: "🗺" },
-    { id: "table", label: "Lista Administrativa", icon: "📋" },
+    { id: "table", label: "Inventario", icon: "📋" },
     {
       id: "pending",
       label: "Pendientes",

@@ -3,8 +3,15 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/shared/server/auth/require-user";
 import { requireUnionMembership, requireUnionAdmin } from "@/features/representacion/services/permissions";
 import { writeAuditLog } from "@/features/representacion/services/audit";
-import { normalizeLockerNumber, naturalCompare } from "@/features/representacion/lib/lockers";
-import { lockerCreateSchema } from "@/features/representacion/lib/validation";
+import { naturalCompare } from "@/features/representacion/lib/lockers";
+import {
+  lockerCreateSchema,
+  lockerUpdateSchema,
+  lockerArchiveSchema,
+  lockerRestoreSchema,
+  lockerDeleteUnusedSchema,
+  lockerBulkActionSchema,
+} from "@/features/representacion/lib/validation";
 import { fetchAllSupabaseRows, chunkArray } from "@/shared/lib/supabase-pagination";
 import { getCanonicalLockerSummary } from "@/features/representacion/services/lockers-summary";
 import { z } from "zod";
@@ -80,12 +87,15 @@ export async function GET(req: Request): Promise<NextResponse> {
     // 1. Consulta de detalle de un solo casillero e historial reciente
     const detailLockerId = url.searchParams.get("locker_id");
     if (detailLockerId) {
-      const { data: locker, error: lErr } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rawLocker, error: lErr } = await (supabase as any)
         .from("union_lockers")
-        .select("id, locker_number, location, section, status, condition, zone_id, bank_id, row_position, column_position, position_label, physical_code, notes, maintenance_reason, maintenance_notes, updated_at, created_at, delegation_id")
+        .select("id, locker_number, location, section, status, condition, zone_id, bank_id, row_position, column_position, position_label, physical_code, notes, maintenance_reason, maintenance_notes, updated_at, created_at, delegation_id, source, source_batch_id, last_seen_batch_id, last_seen_at, archived_at, archived_by, archive_reason, archive_source, reserved_for_worker_id, reservation_reason, reserved_until")
         .eq("id", detailLockerId)
         .eq("delegation_id", depId)
         .single();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const locker = rawLocker as Record<string, any> | null;
       if (lErr || !locker) {
         return noStore(NextResponse.json({ error: "Locker no encontrado" }, { status: 404 }));
       }
@@ -117,12 +127,23 @@ export async function GET(req: Request): Promise<NextResponse> {
         activeWorker = w;
       }
 
+      let reservedWorker = null;
+      const lockerData = locker as { reserved_for_worker_id?: string | null; locker_number: string };
+      if (lockerData.reserved_for_worker_id) {
+        const { data: rw } = await supabase
+          .from("union_workers")
+          .select("id, employee_number, first_name, paternal_surname, maternal_surname")
+          .eq("id", lockerData.reserved_for_worker_id)
+          .maybeSingle();
+        reservedWorker = rw;
+      }
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: pendingItem } = await (supabase as any)
+      const { data: pendingItem, count: pendingCount } = await (supabase as any)
         .from("union_locker_review_items")
-        .select("id, locker_number, source_employee_number, source_worker_name, reason, reason_details, status, created_at")
+        .select("id, locker_number, source_employee_number, source_worker_name, reason, reason_details, status, created_at", { count: "exact" })
         .eq("delegation_id", depId)
-        .eq("locker_number", (locker as { locker_number: string }).locker_number)
+        .eq("locker_number", lockerData.locker_number)
         .eq("status", "pending")
         .limit(1)
         .maybeSingle();
@@ -183,7 +204,9 @@ export async function GET(req: Request): Promise<NextResponse> {
             zone: zoneData,
             bank: bankData,
             active_assignment: activeAsg ? { ...activeAsg, union_workers: activeWorker } : null,
+            reserved_worker: reservedWorker,
             pending_review_item: pendingItem ?? null,
+            pending_review_items_count: pendingCount ?? (pendingItem ? 1 : 0),
           },
           history: formattedHistory,
         }),
@@ -222,7 +245,13 @@ export async function GET(req: Request): Promise<NextResponse> {
     const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10) || 1);
     const pageSize = Math.min(100, Math.max(1, parseInt(url.searchParams.get("pageSize") ?? "25", 10) || 25));
     const status = url.searchParams.get("status") ?? "all";
-    const q = (url.searchParams.get("q") ?? "").trim().toLowerCase();
+    const inventory = url.searchParams.get("inventory") ?? "active"; // active | archived | all
+    const condition = url.searchParams.get("condition") ?? "all"; // all | ok | maintenance | blocked
+    const location = url.searchParams.get("location") ?? "all"; // all | located | unlocated
+    const zoneFilter = url.searchParams.get("zone") ?? "all";
+    const bankFilter = url.searchParams.get("bank") ?? "all";
+    const sourceFilter = url.searchParams.get("source") ?? "all";
+    const q = (url.searchParams.get("q") ?? "").trim();
     const sort = url.searchParams.get("sort") ?? "number_asc";
 
     // Obtener resumen canónico de la delegación
@@ -234,11 +263,29 @@ export async function GET(req: Request): Promise<NextResponse> {
       ({ from, to }) =>
         supabase
           .from("union_lockers")
-          .select("id, locker_number, location, section, status, condition, notes, maintenance_reason, maintenance_notes, updated_at, created_at")
+          .select("id, locker_number, physical_code, location, section, status, condition, notes, maintenance_reason, maintenance_notes, updated_at, created_at, zone_id, bank_id, row_position, column_position, position_label, source, archived_at, archived_by, archive_reason, archive_source")
           .eq("delegation_id", depId)
           .range(from, to),
       { pageSize: 500 },
     );
+
+    // Obtener zonas y bloques para enriquecer la ubicación física
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: rawZones } = await (supabase as any)
+      .from("union_locker_zones")
+      .select("id, name, building, floor")
+      .eq("delegation_id", depId);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: rawBanks } = await (supabase as any)
+      .from("union_locker_banks")
+      .select("id, name, rows, columns, orientation")
+      .eq("delegation_id", depId);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const zoneMap = new Map((rawZones ?? []).map((z: any) => [z.id, z]));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bankMap = new Map((rawBanks ?? []).map((b: any) => [b.id, b]));
 
     // Obtener asignaciones activas de los casilleros de esta delegación con paginación y join SQL
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -301,12 +348,15 @@ export async function GET(req: Request): Promise<NextResponse> {
     }
 
     const counts = {
-      total: canonicalSummary.total,
+      total: canonicalSummary.active_inventory ?? canonicalSummary.total,
+      activeInventory: canonicalSummary.active_inventory ?? canonicalSummary.total,
+      archived: canonicalSummary.archived ?? 0,
       available: canonicalSummary.available,
       assigned: canonicalSummary.assigned,
       reserved: canonicalSummary.reserved,
       maintenance: canonicalSummary.maintenance,
       blocked: canonicalSummary.blocked,
+      unlocated: canonicalSummary.unlocated,
       pending: canonicalSummary.pendingReview,
     };
 
@@ -316,42 +366,97 @@ export async function GET(req: Request): Promise<NextResponse> {
       const pendingItem = pendingByLockerNumber.get(l.locker_number) ?? null;
       return {
         ...l,
+        zone: l.zone_id ? (zoneMap.get(l.zone_id) ?? null) : null,
+        bank: l.bank_id ? (bankMap.get(l.bank_id) ?? null) : null,
         active_assignment: activeAsg,
         pending_review_item: pendingItem,
       };
     });
 
-    // Filtrar por estado
+    // 1. Filtrar por inventario (activo / archivado / todos)
     let filtered = enriched;
+    if (inventory === "active") {
+      filtered = filtered.filter((l) => !l.archived_at);
+    } else if (inventory === "archived") {
+      filtered = filtered.filter((l) => Boolean(l.archived_at));
+    }
+
+    // 2. Filtrar por ocupación (status)
     if (status === "pending") {
       filtered = filtered.filter((l) => Boolean(l.pending_review_item));
     } else if (status !== "all") {
       filtered = filtered.filter((l) => l.status === status);
     }
 
-    // Filtrar por texto de búsqueda q (número de locker, matrícula o nombre de trabajador)
+    // 3. Filtrar por condición física
+    if (condition !== "all") {
+      filtered = filtered.filter((l) => l.condition === condition);
+    }
+
+    // 4. Filtrar por ubicación (ubicado / sin ubicar)
+    if (location === "located") {
+      filtered = filtered.filter((l) => Boolean(l.zone_id) && Boolean(l.bank_id));
+    } else if (location === "unlocated") {
+      filtered = filtered.filter((l) => !l.zone_id || !l.bank_id);
+    }
+
+    // 5. Filtrar por zona específica
+    if (zoneFilter !== "all") {
+      filtered = filtered.filter((l) => l.zone_id === zoneFilter);
+    }
+
+    // 6. Filtrar por mueble/bloque específico
+    if (bankFilter !== "all") {
+      filtered = filtered.filter((l) => l.bank_id === bankFilter);
+    }
+
+    // 7. Filtrar por fuente de origen
+    if (sourceFilter !== "all") {
+      filtered = filtered.filter((l) => l.source === sourceFilter);
+    }
+
+    // 8. Búsqueda tolerante a acentos y mayúsculas
     if (q) {
+      const normalizeText = (t: string) =>
+        t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const qNorm = normalizeText(q.replace(/^#/, ""));
       filtered = filtered.filter((l) => {
-        if (l.locker_number && l.locker_number.toLowerCase().includes(q)) return true;
+        if (l.locker_number && normalizeText(l.locker_number).includes(qNorm)) return true;
+        if (l.physical_code && normalizeText(l.physical_code).includes(qNorm)) return true;
+        if (l.zone?.name && normalizeText(l.zone.name).includes(qNorm)) return true;
+        if (l.bank?.name && normalizeText(l.bank.name).includes(qNorm)) return true;
         const w = l.active_assignment?.union_workers;
         if (w) {
-          if (w.employee_number && w.employee_number.toLowerCase().includes(q)) return true;
-          const fullName = `${w.paternal_surname ?? ""} ${w.maternal_surname ?? ""} ${w.first_name ?? ""}`.toLowerCase();
-          if (fullName.includes(q)) return true;
+          if (w.employee_number && normalizeText(w.employee_number).includes(qNorm)) return true;
+          const fullName = `${w.paternal_surname ?? ""} ${w.maternal_surname ?? ""} ${w.first_name ?? ""}`;
+          if (normalizeText(fullName).includes(qNorm)) return true;
         }
         const p = l.pending_review_item;
         if (p) {
-          if (p.source_employee_number && p.source_employee_number.toLowerCase().includes(q)) return true;
-          if (p.source_worker_name && p.source_worker_name.toLowerCase().includes(q)) return true;
+          if (p.source_employee_number && normalizeText(p.source_employee_number).includes(qNorm)) return true;
+          if (p.source_worker_name && normalizeText(p.source_worker_name).includes(qNorm)) return true;
         }
         return false;
       });
     }
 
-    // Ordenamiento (por defecto número natural ascendente)
+    // Ordenamiento
     filtered.sort((a, b) => {
       if (sort === "number_desc") {
         return naturalCompare(b.locker_number ?? "", a.locker_number ?? "");
+      }
+      if (sort === "code_asc") {
+        const codeA = a.physical_code ?? "ZZZZZZ";
+        const codeB = b.physical_code ?? "ZZZZZZ";
+        return codeA.localeCompare(codeB, "es", { sensitivity: "base" }) || naturalCompare(a.locker_number ?? "", b.locker_number ?? "");
+      }
+      if (sort === "updated_desc") {
+        return new Date(b.updated_at ?? 0).getTime() - new Date(a.updated_at ?? 0).getTime();
+      }
+      if (sort === "zone_asc") {
+        const zA = a.zone?.name ?? "ZZZZZZ";
+        const zB = b.zone?.name ?? "ZZZZZZ";
+        return zA.localeCompare(zB, "es", { sensitivity: "base" }) || naturalCompare(a.locker_number ?? "", b.locker_number ?? "");
       }
       if (sort === "worker_asc") {
         const nameA = a.active_assignment?.union_workers
@@ -409,23 +514,117 @@ export async function POST(req: Request): Promise<NextResponse> {
     const supabase = await createClient();
 
     if (action === "create") {
+      await requireUnionAdmin(depId);
       const parsed = lockerCreateSchema.safeParse(body);
       if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos", issues: parsed.error.issues }, { status: 400 }));
-      const { data, error } = await supabase
-        .from("union_lockers")
-        .insert({
-          delegation_id: depId,
-          locker_number: normalizeLockerNumber(parsed.data.locker_number),
-          location: parsed.data.location ?? "",
-          section: parsed.data.section ?? "",
-          status: "available",
-          notes: parsed.data.notes ?? "",
-        })
-        .select("id")
-        .single();
-      if (error) return noStore(NextResponse.json({ error: "Número de locker duplicado o inválido" }, { status: 409 }));
-      await writeAuditLog({ delegation_id: depId, entity_type: "union_locker", entity_id: String((data as { id: string }).id), action: "locker.created", metadata: {} });
-      return noStore(NextResponse.json({ id: (data as { id: string }).id }));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rpcRes, error: rpcErr } = await (supabase as any).rpc("union_create_locker", {
+        p_delegation_id: depId,
+        p_locker_number: parsed.data.locker_number,
+        p_physical_code: parsed.data.physical_code ?? null,
+        p_zone_id: parsed.data.zone_id ?? null,
+        p_bank_id: parsed.data.bank_id ?? null,
+        p_row_position: parsed.data.row_position ?? null,
+        p_column_position: parsed.data.column_position ?? null,
+        p_position_label: parsed.data.position_label ?? null,
+        p_condition: parsed.data.condition ?? "ok",
+        p_notes: parsed.data.notes ?? "",
+        p_user_id: auth.user.id,
+      });
+
+      if (rpcErr) return noStore(NextResponse.json({ error: rpcErr.message }, { status: 409 }));
+      return noStore(NextResponse.json({ id: rpcRes.id, locker_number: rpcRes.locker_number, ok: true }));
+    }
+
+    if (action === "update") {
+      await requireUnionAdmin(depId);
+      const parsed = lockerUpdateSchema.safeParse(body);
+      if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos", issues: parsed.error.issues }, { status: 400 }));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rpcRes, error: rpcErr } = await (supabase as any).rpc("union_update_locker", {
+        p_locker_id: parsed.data.locker_id,
+        p_new_locker_number: parsed.data.locker_number,
+        p_physical_code: parsed.data.physical_code ?? null,
+        p_zone_id: parsed.data.zone_id ?? null,
+        p_bank_id: parsed.data.bank_id ?? null,
+        p_row_position: parsed.data.row_position ?? null,
+        p_column_position: parsed.data.column_position ?? null,
+        p_position_label: parsed.data.position_label ?? null,
+        p_condition: parsed.data.condition ?? null,
+        p_notes: parsed.data.notes ?? null,
+        p_renumber_reason: parsed.data.renumber_reason ?? "",
+        p_user_id: auth.user.id,
+      });
+
+      if (rpcErr) return noStore(NextResponse.json({ error: rpcErr.message }, { status: 400 }));
+      return noStore(NextResponse.json({ ok: true, result: rpcRes }));
+    }
+
+    if (action === "archive") {
+      await requireUnionAdmin(depId);
+      const parsed = lockerArchiveSchema.safeParse(body);
+      if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos", issues: parsed.error.issues }, { status: 400 }));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rpcRes, error: rpcErr } = await (supabase as any).rpc("union_archive_locker", {
+        p_locker_id: parsed.data.locker_id,
+        p_reason: parsed.data.reason,
+        p_user_id: auth.user.id,
+      });
+
+      if (rpcErr) return noStore(NextResponse.json({ error: rpcErr.message }, { status: 400 }));
+      return noStore(NextResponse.json({ ok: true, result: rpcRes }));
+    }
+
+    if (action === "restore") {
+      await requireUnionAdmin(depId);
+      const parsed = lockerRestoreSchema.safeParse(body);
+      if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos", issues: parsed.error.issues }, { status: 400 }));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rpcRes, error: rpcErr } = await (supabase as any).rpc("union_restore_locker", {
+        p_locker_id: parsed.data.locker_id,
+        p_user_id: auth.user.id,
+      });
+
+      if (rpcErr) return noStore(NextResponse.json({ error: rpcErr.message }, { status: 400 }));
+      return noStore(NextResponse.json({ ok: true, result: rpcRes }));
+    }
+
+    if (action === "delete_unused") {
+      await requireUnionAdmin(depId);
+      const parsed = lockerDeleteUnusedSchema.safeParse(body);
+      if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos", issues: parsed.error.issues }, { status: 400 }));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rpcRes, error: rpcErr } = await (supabase as any).rpc("union_delete_unused_locker", {
+        p_locker_id: parsed.data.locker_id,
+        p_confirm_number: parsed.data.confirm_number,
+        p_user_id: auth.user.id,
+      });
+
+      if (rpcErr) return noStore(NextResponse.json({ error: rpcErr.message }, { status: 400 }));
+      return noStore(NextResponse.json({ ok: true, result: rpcRes }));
+    }
+
+    if (action === "bulk_update") {
+      await requireUnionAdmin(depId);
+      const parsed = lockerBulkActionSchema.safeParse(body);
+      if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos", issues: parsed.error.issues }, { status: 400 }));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rpcRes, error: rpcErr } = await (supabase as any).rpc("union_bulk_update_lockers", {
+        p_delegation_id: depId,
+        p_locker_ids: parsed.data.locker_ids,
+        p_action: parsed.data.action,
+        p_params: parsed.data.params,
+        p_user_id: auth.user.id,
+      });
+
+      if (rpcErr) return noStore(NextResponse.json({ error: rpcErr.message }, { status: 400 }));
+      return noStore(NextResponse.json({ ok: true, result: rpcRes }));
     }
 
     if (action === "assign") {

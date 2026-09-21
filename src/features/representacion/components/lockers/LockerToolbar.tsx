@@ -2,12 +2,26 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/shared/components/ui/Button";
+import type { LockerZone, LockerBank } from "@/features/representacion/lib/lockers";
 
 export function LockerToolbar({
   searchQuery,
   onSearchChange,
   statusFilter,
   onStatusChange,
+  inventoryFilter = "active",
+  onInventoryChange,
+  conditionFilter = "all",
+  onConditionChange,
+  locationFilter = "all",
+  onLocationChange,
+  zoneFilter = "all",
+  onZoneChange,
+  bankFilter: _bankFilter,
+  onBankChange: _onBankChange,
+  zones = [],
+  banks: _banks,
+  onOpenCreateModal,
   sortOrder,
   onSortChange,
   pageSize,
@@ -20,6 +34,19 @@ export function LockerToolbar({
   onSearchChange: (q: string) => void;
   statusFilter: string;
   onStatusChange: (status: string) => void;
+  inventoryFilter?: string;
+  onInventoryChange?: (inv: string) => void;
+  conditionFilter?: string;
+  onConditionChange?: (cond: string) => void;
+  locationFilter?: string;
+  onLocationChange?: (loc: string) => void;
+  zoneFilter?: string;
+  onZoneChange?: (zone: string) => void;
+  bankFilter?: string;
+  onBankChange?: (bank: string) => void;
+  zones?: LockerZone[];
+  banks?: LockerBank[];
+  onOpenCreateModal?: () => void;
   sortOrder: string;
   onSortChange: (sort: string) => void;
   pageSize: number;
@@ -46,28 +73,41 @@ export function LockerToolbar({
     return () => clearTimeout(timer);
   }, [localQ, searchQuery, onSearchChange]);
 
+  const selectStyle: React.CSSProperties = {
+    minHeight: 40,
+    padding: "0.5rem 1.75rem 0.5rem 0.75rem",
+    borderRadius: "0.375rem",
+    border: "1px solid var(--border)",
+    backgroundColor: "var(--bg)",
+    color: "var(--fg)",
+    fontSize: "0.8125rem",
+    fontWeight: 500,
+    cursor: "pointer",
+  };
+
   return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: "0.625rem",
+        gap: "0.75rem",
         backgroundColor: "var(--card)",
         border: "1px solid var(--border)",
         borderRadius: "var(--radius)",
-        padding: "0.75rem 1rem",
+        padding: "0.875rem 1rem",
       }}
     >
+      {/* Fila 1: Buscador + Botón Agregar Locker */}
       <div
         style={{
           display: "flex",
-          gap: "0.5rem",
+          gap: "0.75rem",
           alignItems: "center",
           flexWrap: "wrap",
         }}
       >
         {/* Buscador unificado con debounce */}
-        <div style={{ flex: "1 1 260px", minWidth: "200px", position: "relative" }}>
+        <div style={{ flex: "1 1 280px", minWidth: "220px", position: "relative" }}>
           <span
             style={{
               position: "absolute",
@@ -134,95 +174,131 @@ export function LockerToolbar({
           ) : null}
         </div>
 
-        {/* Filtro de Estado 100% en español */}
-        <div style={{ flex: "0 1 auto" }}>
-          <label htmlFor="locker-status-filter" style={{ display: "none" }}>
-            Filtrar por estado
-          </label>
-          <select
-            id="locker-status-filter"
-            aria-label="Filtrar por estado"
-            value={statusFilter}
-            onChange={(e) => onStatusChange(e.target.value)}
-            style={{
-              minHeight: 40,
-              padding: "0.5rem 2rem 0.5rem 0.75rem",
-              borderRadius: "0.375rem",
-              border: "1px solid var(--border)",
-              backgroundColor: "var(--bg)",
-              color: "var(--fg)",
-              fontSize: "0.8125rem",
-              fontWeight: 500,
-              cursor: "pointer",
-            }}
+        {/* Botón Primario + Agregar Locker */}
+        {onOpenCreateModal ? (
+          <Button
+            variant="primary"
+            onClick={onOpenCreateModal}
+            style={{ minHeight: 40, whiteSpace: "nowrap" }}
           >
-            <option value="all">Estado: Todos</option>
-            <option value="available">Disponibles</option>
-            <option value="assigned">Asignados</option>
-            <option value="pending">Por revisar</option>
-            <option value="maintenance">En mantenimiento</option>
-            <option value="reserved">Reservados</option>
-            <option value="blocked">Bloqueados</option>
-          </select>
-        </div>
+            + Agregar locker
+          </Button>
+        ) : null}
+      </div>
 
-        {/* Selector de Orden Natural */}
-        <div style={{ flex: "0 1 auto" }}>
-          <label htmlFor="locker-sort-order" style={{ display: "none" }}>
-            Ordenar casilleros
-          </label>
+      {/* Fila 2: Multifiltros combinados de Inventario */}
+      <div
+        style={{
+          display: "flex",
+          gap: "0.5rem",
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        {/* Filtro Inventario: Activos / Archivados / Todos */}
+        {onInventoryChange ? (
           <select
-            id="locker-sort-order"
-            aria-label="Ordenar por"
-            value={sortOrder}
-            onChange={(e) => onSortChange(e.target.value)}
-            style={{
-              minHeight: 40,
-              padding: "0.5rem 2rem 0.5rem 0.75rem",
-              borderRadius: "0.375rem",
-              border: "1px solid var(--border)",
-              backgroundColor: "var(--bg)",
-              color: "var(--fg)",
-              fontSize: "0.8125rem",
-              fontWeight: 500,
-              cursor: "pointer",
-            }}
+            aria-label="Filtrar por estado en inventario"
+            value={inventoryFilter}
+            onChange={(e) => onInventoryChange(e.target.value)}
+            style={selectStyle}
           >
-            <option value="number_asc">Número ↑ (1, 2, 3…)</option>
-            <option value="number_desc">Número ↓ (100, 99…)</option>
-            <option value="worker_asc">Trabajador (A–Z)</option>
-            <option value="status">Estado</option>
+            <option value="active">Inventario: Activos</option>
+            <option value="archived">Inventario: Archivados</option>
+            <option value="all">Inventario: Todos</option>
           </select>
-        </div>
+        ) : null}
+
+        {/* Filtro de Estado de Ocupación */}
+        <select
+          id="locker-status-filter"
+          aria-label="Filtrar por estado"
+          value={statusFilter}
+          onChange={(e) => onStatusChange(e.target.value)}
+          style={selectStyle}
+        >
+          <option value="all">Estado: Todos</option>
+          <option value="available">Disponibles</option>
+          <option value="assigned">Asignados</option>
+          <option value="reserved">Reservados</option>
+          <option value="pending">Por revisar</option>
+          <option value="maintenance">En mantenimiento</option>
+          <option value="blocked">Bloqueados</option>
+        </select>
+
+        {/* Filtro Condición Física */}
+        {onConditionChange ? (
+          <select
+            aria-label="Filtrar por condición física"
+            value={conditionFilter}
+            onChange={(e) => onConditionChange(e.target.value)}
+            style={selectStyle}
+          >
+            <option value="all">Condición: Todas</option>
+            <option value="ok">Buen estado (OK)</option>
+            <option value="maintenance">Mantenimiento</option>
+            <option value="blocked">Bloqueado / Clausurado</option>
+          </select>
+        ) : null}
+
+        {/* Filtro Ubicación Física */}
+        {onLocationChange ? (
+          <select
+            aria-label="Filtrar por ubicación"
+            value={locationFilter}
+            onChange={(e) => onLocationChange(e.target.value)}
+            style={selectStyle}
+          >
+            <option value="all">Ubicación: Todas</option>
+            <option value="located">Ubicados en mapa</option>
+            <option value="unlocated">Sin ubicar</option>
+          </select>
+        ) : null}
+
+        {/* Filtro de Zona específica */}
+        {onZoneChange && zones.length > 0 ? (
+          <select
+            aria-label="Filtrar por zona"
+            value={zoneFilter}
+            onChange={(e) => onZoneChange(e.target.value)}
+            style={selectStyle}
+          >
+            <option value="all">Zona: Todas</option>
+            {zones.map((z) => (
+              <option key={z.id} value={z.id}>
+                {z.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
+
+        {/* Selector de Orden */}
+        <select
+          aria-label="Ordenar por"
+          value={sortOrder}
+          onChange={(e) => onSortChange(e.target.value)}
+          style={selectStyle}
+        >
+          <option value="number_asc">Número ↑ (1, 2, 3…)</option>
+          <option value="number_desc">Número ↓ (100, 99…)</option>
+          <option value="worker_asc">Trabajador (A–Z)</option>
+          <option value="status">Estado</option>
+          <option value="condition">Condición física</option>
+        </select>
 
         {/* Tamaño de página */}
-        <div style={{ flex: "0 1 auto" }}>
-          <label htmlFor="locker-page-size" style={{ display: "none" }}>
-            Elementos por página
-          </label>
-          <select
-            id="locker-page-size"
-            aria-label="Registros por página"
-            value={pageSize}
-            onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            style={{
-              minHeight: 40,
-              padding: "0.5rem 1.75rem 0.5rem 0.625rem",
-              borderRadius: "0.375rem",
-              border: "1px solid var(--border)",
-              backgroundColor: "var(--bg)",
-              color: "var(--fg)",
-              fontSize: "0.8125rem",
-              fontWeight: 500,
-              cursor: "pointer",
-            }}
-          >
-            <option value={25}>25 por pág.</option>
-            <option value={50}>50 por pág.</option>
-          </select>
-        </div>
+        <select
+          aria-label="Registros por página"
+          value={pageSize}
+          onChange={(e) => onPageSizeChange(Number(e.target.value))}
+          style={selectStyle}
+        >
+          <option value={25}>25 por pág.</option>
+          <option value={50}>50 por pág.</option>
+          <option value={100}>100 por pág.</option>
+        </select>
 
-        {/* Botón de limpiar filtros si hay búsqueda o filtro activo */}
+        {/* Botón de limpiar filtros */}
         {hasActiveFilters ? (
           <Button
             size="sm"
