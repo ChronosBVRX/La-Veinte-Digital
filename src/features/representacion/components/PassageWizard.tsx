@@ -88,11 +88,11 @@ export function PassageWizard(): React.JSX.Element {
           : { kind: "passage_027", worker_id: worker.id, ooad, request_date: requestDate, control_number: control, discontinuous_schedule: disc, worker_address: wAddr, assignment_address: aAddr, phone, observations: obs };
       const res = await fetch("/api/union/cases", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const j = (await res.json()) as { id?: string; folio?: string; error?: string };
-      if (!res.ok) throw new Error(j.error ?? "Error");
+      if (!res.ok) throw new Error(j.error ?? "Error al preparar el trámite");
       setCaseId(j.id ?? null);
-      setOk(`Expediente ${j.folio ?? ""} preparado. Formato listo para revisión. Pendiente de dictamen.`);
-    } catch {
-      setError("No se pudo preparar el trámite.");
+      setOk(`Solicitud preparada correctamente. Expediente ${j.folio ?? ""} listo.`);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "No se pudo preparar el trámite.");
     } finally {
       setBusy(false);
     }
@@ -101,18 +101,28 @@ export function PassageWizard(): React.JSX.Element {
   async function downloadPdf(): Promise<void> {
     if (!caseId) return;
     setBusy(true);
+    setError(null);
     try {
       const res = await fetch("/api/union/passages/pdf", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ case_id: caseId }) });
-      if (!res.ok) throw new Error("Error");
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error || "No se pudo generar el PDF.");
+      }
       const blob = await res.blob();
+      const contentDisposition = res.headers.get("Content-Disposition");
+      let filename = `pasaje-${concept}-${worker?.employee_number || "solicitud"}.pdf`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (match && match[1]) filename = match[1];
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `pasaje-0${concept}.pdf`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
-    } catch {
-      setError("No se pudo generar el PDF.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "No se pudo generar el PDF.");
     } finally {
       setBusy(false);
     }
@@ -195,8 +205,8 @@ export function PassageWizard(): React.JSX.Element {
             Preparar formato
           </Button>
           {caseId ? (
-            <Button variant="secondary" onClick={() => void downloadPdf()}>
-              Descargar PDF
+            <Button variant="secondary" onClick={() => void downloadPdf()} loading={busy}>
+              {concept === "026" ? "Descargar formato 026" : "Descargar formato 027"}
             </Button>
           ) : null}
         </div>

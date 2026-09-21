@@ -3,6 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/shared/server/auth/require-user";
 import { requireUnionMembership } from "@/features/representacion/services/permissions";
 import { buildPassage026Pdf, buildPassage027Pdf } from "@/features/representacion/services/passage-pdf";
+import {
+  getActiveUnionDocumentTemplate,
+  UnionTemplateError,
+  type UnionDocumentTemplateKind,
+} from "@/features/representacion/services/union-document-template-repository";
 import { addCaseEvent } from "@/features/representacion/services/cases";
 import { z } from "zod";
 
@@ -66,26 +71,40 @@ export async function POST(req: Request): Promise<NextResponse> {
     const wr: WorkerRow = Array.isArray(worker) ? worker[0] : (worker as WorkerRow);
     const dt = splitISO(d.request_date);
     const control = d.control_number || "pendiente";
+
+    // 1. Recuperar la plantilla oficial activa desde Supabase Storage
+    const templateKind: UnionDocumentTemplateKind =
+      d.concept === "026" ? "passage_026" : "passage_027";
+
+    const template = await getActiveUnionDocumentTemplate({
+      delegationId: typed.delegation_id,
+      templateKind,
+      supabase,
+    });
+
     let pdf: Uint8Array;
     if (d.concept === "026") {
-      pdf = await buildPassage026Pdf({
-        ooad: d.ooad,
-        day: dt.day,
-        month: dt.month,
-        year: dt.year,
-        controlNumber: control,
-        worker: {
-          paternalSurname: wr.paternal_surname ?? "",
-          maternalSurname: wr.maternal_surname ?? "",
-          firstName: wr.first_name ?? "",
-          employeeNumber: wr.employee_number ?? "",
-          category: wr.category ?? "",
-          assignment: wr.assignment ?? "",
+      pdf = await buildPassage026Pdf(
+        {
+          ooad: d.ooad,
+          day: dt.day,
+          month: dt.month,
+          year: dt.year,
+          controlNumber: control,
+          worker: {
+            paternalSurname: wr.paternal_surname ?? "",
+            maternalSurname: wr.maternal_surname ?? "",
+            firstName: wr.first_name ?? "",
+            employeeNumber: wr.employee_number ?? "",
+            category: wr.category ?? "",
+            assignment: wr.assignment ?? "",
+          },
+          extramuralFunctions: d.extramural_functions,
+          transferPeriod: d.transfer_period,
+          folioLabel: typed.folio,
         },
-        extramuralFunctions: d.extramural_functions,
-        transferPeriod: d.transfer_period,
-        folioLabel: typed.folio,
-      });
+        template.buffer,
+      );
     } else {
       const addr = (a: Record<string, string>) => ({
         street: a.street ?? a.street ?? "",
@@ -94,38 +113,54 @@ export async function POST(req: Request): Promise<NextResponse> {
         municipality: a.municipality ?? "",
         state: a.state ?? "",
       });
-      pdf = await buildPassage027Pdf({
-        ooad: d.ooad,
-        day: dt.day,
-        month: dt.month,
-        year: dt.year,
-        controlNumber: control,
-        worker: {
-          paternalSurname: wr.paternal_surname ?? "",
-          maternalSurname: wr.maternal_surname ?? "",
-          firstName: wr.first_name ?? "",
-          employeeNumber: wr.employee_number ?? "",
-          category: wr.category ?? "",
-          assignment: wr.assignment ?? "",
+      pdf = await buildPassage027Pdf(
+        {
+          ooad: d.ooad,
+          day: dt.day,
+          month: dt.month,
+          year: dt.year,
+          controlNumber: control,
+          worker: {
+            paternalSurname: wr.paternal_surname ?? "",
+            maternalSurname: wr.maternal_surname ?? "",
+            firstName: wr.first_name ?? "",
+            employeeNumber: wr.employee_number ?? "",
+            category: wr.category ?? "",
+            assignment: wr.assignment ?? "",
+          },
+          discontinuousSchedule: d.discontinuous_schedule || "—",
+          workerAddress: addr(d.worker_address ?? {}),
+          assignmentAddress: addr(d.assignment_address ?? {}),
+          phone: d.phone ?? "",
+          folioLabel: typed.folio,
         },
-        discontinuousSchedule: d.discontinuous_schedule || "—",
-        workerAddress: addr(d.worker_address ?? {}),
-        assignmentAddress: addr(d.assignment_address ?? {}),
-        phone: d.phone ?? "",
-        folioLabel: typed.folio,
-      });
+        template.buffer,
+      );
     }
-    await addCaseEvent(parsed.data.case_id, "document", "PDF de pasaje generado", `Concepto 0${d.concept}. Formato listo para revisión.`);
+    await addCaseEvent(parsed.data.case_id, "document", "PDF de pasaje generado", `Concepto 0${d.concept}. Formato oficial completado listo para revisión.`);
     const buf = Buffer.from(pdf);
     return new NextResponse(new Uint8Array(buf), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="pasaje-0${d.concept}-${typed.folio}.pdf"`,
+        "Content-Disposition": `attachment; filename="pasaje-${d.concept}-${typed.folio}.pdf"`,
         "Cache-Control": "private, no-store",
       },
     });
-  } catch {
-    return NextResponse.json({ error: "No se pudo generar el PDF" }, { status: 500 });
+  } catch (err: unknown) {
+    if (err instanceof UnionTemplateError) {
+      if (err.code === "UNION_TEMPLATE_NOT_FOUND") {
+        return NextResponse.json(
+          { error: "No se encontró la plantilla oficial activa de este formato. Contacta al administrador sindical." },
+          { status: 404 },
+        );
+      }
+      return NextResponse.json(
+        { error: "Error de integridad o descarga de la plantilla oficial. Contacta al administrador sindical." },
+        { status: 500 },
+      );
+    }
+    const msg = err instanceof Error ? err.message : "No se pudo generar el PDF";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
