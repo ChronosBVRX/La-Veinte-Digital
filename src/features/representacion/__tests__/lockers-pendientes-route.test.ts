@@ -70,6 +70,7 @@ describe("API /api/union/lockers/pendientes (Reconciliation Cases & Transactiona
     const createChainable = (data: any[]) => ({
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
       range: vi.fn().mockResolvedValue({ data, error: null }),
     });
@@ -105,6 +106,132 @@ describe("API /api/union/lockers/pendientes (Reconciliation Cases & Transactiona
     expect(json.cases[0].type).toBe("WORKER_MULTIPLE_LOCKERS");
     expect(json.cases[0].candidates).toHaveLength(2);
     expect(json.cases[0].recommendation?.recommendedCandidateLabel).toBe("Casillero 625");
+  });
+
+  it("GET: consulta union_workers utilizando la columna 'assignment' y excluye 'adscripcion'", async () => {
+    const workerSelectSpy = vi.fn().mockReturnThis();
+
+    const mockSupabase: any = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === "union_locker_review_items") {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        if (table === "union_workers") {
+          return {
+            select: workerSelectSpy,
+            eq: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: "w-1",
+                  employee_number: "12345",
+                  first_name: "Juan",
+                  paternal_surname: "Pérez",
+                  maternal_surname: null,
+                  assignment: "Urgencias",
+                },
+              ],
+              error: null,
+            }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          in: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          range: vi.fn().mockResolvedValue({ data: [], error: null }),
+        };
+      }),
+    };
+
+    vi.mocked(createClient).mockResolvedValue(mockSupabase);
+
+    const req = new Request(`https://la20.com.mx/api/union/lockers/pendientes?delegation_id=${mockDelegationId}`);
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    expect(workerSelectSpy).toHaveBeenCalled();
+    const selectArg = workerSelectSpy.mock.calls[0][0] as string;
+    expect(selectArg).toContain("assignment");
+    expect(selectArg).not.toContain("adscripcion");
+  });
+
+  it("GET: filtra union_locker_review_items con status = 'pending' para excluir ítems superseded", async () => {
+    const reviewItemsEqSpy = vi.fn().mockReturnThis();
+
+    const mockSupabase: any = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === "union_locker_review_items") {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: reviewItemsEqSpy,
+            order: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          in: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          range: vi.fn().mockResolvedValue({ data: [], error: null }),
+        };
+      }),
+    };
+
+    vi.mocked(createClient).mockResolvedValue(mockSupabase);
+
+    const req = new Request(`https://la20.com.mx/api/union/lockers/pendientes?delegation_id=${mockDelegationId}`);
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    expect(reviewItemsEqSpy).toHaveBeenCalledWith("status", "pending");
+  });
+
+  it("GET: serializa errores PostgREST sin emitir [object Object] ante fallos de consulta", async () => {
+    const mockSupabase: any = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === "union_workers") {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            range: vi.fn().mockResolvedValue({
+              data: null,
+              error: {
+                code: "42703",
+                message: "column union_workers.adscripcion does not exist",
+                details: "No such column in relation union_workers",
+                hint: "Perhaps you meant assignment",
+              },
+            }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          in: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          range: vi.fn().mockResolvedValue({ data: [], error: null }),
+        };
+      }),
+    };
+
+    vi.mocked(createClient).mockResolvedValue(mockSupabase);
+
+    const req = new Request(`https://la20.com.mx/api/union/lockers/pendientes?delegation_id=${mockDelegationId}`);
+    const res = await GET(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(json.error).toBeDefined();
+    expect(json.error).not.toContain("[object Object]");
+    expect(json.error).toContain("[42703] column union_workers.adscripcion does not exist");
   });
 
   it("POST: resolve_case invoca RPC union_resolve_locker_review_case atómicamente", async () => {

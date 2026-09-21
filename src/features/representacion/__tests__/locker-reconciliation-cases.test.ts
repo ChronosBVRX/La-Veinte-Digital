@@ -364,4 +364,106 @@ describe("Locker Reconciliation Cases (Agrupador y Contexto Enriquecido)", () =>
     expect(summary.blockedOrMaintenance).toBe(1);
     expect(summary.alreadyHasLocker).toBe(1);
   });
+
+  it("TEST 6: aísla sourceRows de distintos lotes con el mismo row_number mediante clave compuesta batchId:rowNumber", () => {
+    const mockItems: LockerReviewItem[] = [
+      {
+        id: "item-b1",
+        delegation_id: "del-1",
+        locker_id: "l-101",
+        locker_number: "101",
+        source_batch_id: "batch-aaa",
+        source_row_number: 10,
+        source_employee_number: "11111111",
+        source_worker_name: "Trabajador Lote A",
+        source_notes: null,
+        reason: "WORKER_MULTIPLE_LOCKERS",
+        status: "pending",
+        created_at: "2026-09-01T00:00:00Z",
+        updated_at: "2026-09-01T00:00:00Z",
+      },
+      {
+        id: "item-b1-2",
+        delegation_id: "del-1",
+        locker_id: "l-102",
+        locker_number: "102",
+        source_batch_id: "batch-aaa",
+        source_row_number: 20,
+        source_employee_number: "11111111",
+        source_worker_name: "Trabajador Lote A",
+        source_notes: null,
+        reason: "WORKER_MULTIPLE_LOCKERS",
+        status: "pending",
+        created_at: "2026-09-01T00:00:00Z",
+        updated_at: "2026-09-01T00:00:00Z",
+      },
+    ];
+
+    const mockSourceRows = [
+      {
+        batch_id: "batch-aaa",
+        row_number: 10,
+        matricula_raw: "11111111",
+        matricula_normalized: "11111111",
+        worker_name_raw: "Trabajador Lote A",
+        plaza_raw: null,
+        turn_raw: "Matutino",
+        category_raw: "Enfermera General",
+        schedule_raw: null,
+        locker_raw: "101",
+        locker_normalized: "101",
+        observations_raw: "Observación Lote A 2024",
+        supplementary_data: null,
+      },
+      {
+        // Mismo row_number: 10 pero de otro lote!
+        batch_id: "batch-bbb",
+        row_number: 10,
+        matricula_raw: "99999999",
+        matricula_normalized: "99999999",
+        worker_name_raw: "Trabajador Inexistente B",
+        plaza_raw: null,
+        turn_raw: null,
+        category_raw: null,
+        schedule_raw: null,
+        locker_raw: "999",
+        locker_normalized: "999",
+        observations_raw: "Observación Lote B QUE NO DEBE APARECER 2025",
+        supplementary_data: null,
+      },
+    ];
+
+    const result = buildReconciliationCases({
+      items: mockItems,
+      sourceRows: mockSourceRows,
+      lockers: [
+        { id: "l-101", locker_number: "101", status: "assigned", condition: "ok", zone_id: null, bank_id: null, notes: null },
+        { id: "l-102", locker_number: "102", status: "available", condition: "ok", zone_id: null, bank_id: null, notes: null },
+      ],
+      workers: [
+        {
+          id: "w-1",
+          employee_number: "11111111",
+          first_name: "Trabajador",
+          paternal_surname: "Lote A",
+          maternal_surname: null,
+          category: "Enfermera General",
+          turn: "Matutino",
+          assignment: "Urgencias Adultos",
+        },
+      ],
+      assignments: [],
+    });
+
+    expect(result.totalCases).toBe(1);
+    const c = result.cases[0];
+    expect(c.worker?.assignment).toBe("Urgencias Adultos");
+    expect(c.worker?.adscripcion).toBe("Urgencias Adultos");
+
+    const cand101 = c.candidates.find((cand) => cand.candidateId === "l-101");
+    expect(cand101).toBeDefined();
+    // Debe contener las observaciones del batch-aaa, NO del batch-bbb
+    expect(cand101?.observations).toBe("Observación Lote A 2024");
+    expect(cand101?.updateYear).toBe(2024);
+  });
 });

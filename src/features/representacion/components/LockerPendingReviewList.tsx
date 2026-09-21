@@ -296,7 +296,9 @@ export function LockerPendingReviewList(): React.JSX.Element {
                 border: "1px solid var(--border)",
               }}
             >
-              {totalCases} casos por resolver · {totalReviewItems} registros implicados
+              {loading || error
+                ? "— casos por resolver · — registros implicados"
+                : `${totalCases} casos por resolver · ${totalReviewItems} registros implicados`}
             </span>
           </div>
           <p style={{ margin: "0.25rem 0 0", fontSize: "0.875rem", color: "var(--muted)" }}>
@@ -360,9 +362,23 @@ export function LockerPendingReviewList(): React.JSX.Element {
             border: "1px solid #fca5a5",
             color: "#991b1b",
             fontSize: "0.8125rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "0.75rem",
           }}
         >
-          <strong>Error:</strong> {error}
+          <div>
+            <strong>Error al cargar conciliación:</strong> {error}
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => void loadData()}
+          >
+            Reintentar
+          </Button>
         </div>
       ) : null}
 
@@ -388,36 +404,36 @@ export function LockerPendingReviewList(): React.JSX.Element {
           variant={activeTab === "all" ? "primary" : "secondary"}
           onClick={() => handleTabChange("all")}
         >
-          Todos ({caseCounts.total})
+          Todos ({loading || error ? "—" : caseCounts.total})
         </Button>
         <Button
           size="sm"
           variant={activeTab === "worker_not_found" ? "primary" : "secondary"}
           onClick={() => handleTabChange("worker_not_found")}
         >
-          Personas no encontradas ({caseCounts.workerNotFound})
+          Personas no encontradas ({loading || error ? "—" : caseCounts.workerNotFound})
         </Button>
         <Button
           size="sm"
           variant={activeTab === "locker_multiple_workers" ? "primary" : "secondary"}
           onClick={() => handleTabChange("locker_multiple_workers")}
         >
-          Lockers con más de una persona ({caseCounts.multipleWorkers})
+          Lockers con más de una persona ({loading || error ? "—" : caseCounts.multipleWorkers})
         </Button>
         <Button
           size="sm"
           variant={activeTab === "worker_multiple_lockers" ? "primary" : "secondary"}
           onClick={() => handleTabChange("worker_multiple_lockers")}
         >
-          Personas con más de un locker ({caseCounts.multipleLockers})
+          Personas con más de un locker ({loading || error ? "—" : caseCounts.multipleLockers})
         </Button>
-        {caseCounts.other > 0 ? (
+        {caseCounts.other > 0 || loading || error ? (
           <Button
             size="sm"
             variant={activeTab === "other" ? "primary" : "secondary"}
             onClick={() => handleTabChange("other")}
           >
-            Otros ({caseCounts.other})
+            Otros ({loading || error ? "—" : caseCounts.other})
           </Button>
         ) : null}
       </div>
@@ -460,6 +476,25 @@ export function LockerPendingReviewList(): React.JSX.Element {
         <div style={{ padding: "3rem 1rem", textAlign: "center" }}>
           <LoadingSpinner text="Analizando y agrupando casos de conciliación..." />
         </div>
+      ) : error ? (
+        <Card padding="2.5rem">
+          <div style={{ textAlign: "center", color: "var(--muted)" }}>
+            <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>⚠️</div>
+            <h3 style={{ margin: 0, fontSize: "1.125rem", color: "var(--fg)" }}>
+              No se pudieron cargar los casos pendientes
+            </h3>
+            <p style={{ margin: "0.5rem 0 1.25rem", fontSize: "0.875rem", color: "#b91c1c" }}>
+              {error}
+            </p>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => void loadData()}
+            >
+              Reintentar
+            </Button>
+          </div>
+        </Card>
       ) : cases.length === 0 ? (
         <Card padding="2.5rem">
           <div style={{ textAlign: "center", color: "var(--muted)" }}>

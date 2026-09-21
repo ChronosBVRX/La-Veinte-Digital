@@ -94,6 +94,9 @@ export function ReconciliationCaseCard({
               {caseData.subtitle}
               {caseData.worker?.category ? ` · ${caseData.worker.category}` : ""}
               {caseData.worker?.turn ? ` · Turno: ${caseData.worker.turn}` : ""}
+              {caseData.worker?.assignment || caseData.worker?.adscripcion
+                ? ` · Adscripción: ${caseData.worker.assignment || caseData.worker.adscripcion}`
+                : ""}
             </div>
           </div>
 
