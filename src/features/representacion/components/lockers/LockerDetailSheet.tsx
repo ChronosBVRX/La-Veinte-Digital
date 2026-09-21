@@ -23,7 +23,7 @@ interface AssignmentHistoryRecord {
 }
 
 interface EnrichedLockerItem extends LockerItem {
-  condition?: string;
+  condition?: string | null;
   maintenance_reason?: string | null;
   maintenance_notes?: string | null;
   zone_id?: string | null;
@@ -32,8 +32,23 @@ interface EnrichedLockerItem extends LockerItem {
   column_position?: number | null;
   position_label?: string | null;
   physical_code?: string | null;
-  zone?: { id: string; name: string; building?: string; floor?: string } | null;
-  bank?: { id: string; name: string; rows?: number; columns?: number } | null;
+  source?: string | null;
+  archived_at?: string | null;
+  archived_by?: string | null;
+  archive_reason?: string | null;
+  archive_source?: string | null;
+  reserved_for_worker_id?: string | null;
+  reservation_reason?: string | null;
+  reserved_until?: string | null;
+  reserved_worker?: {
+    id: string;
+    employee_number: string;
+    first_name: string;
+    paternal_surname: string;
+    maternal_surname?: string | null;
+  } | null;
+  zone?: { id: string; name: string; building?: string | null; floor?: string | null } | null;
+  bank?: { id: string; name: string; rows?: number; columns?: number; orientation?: string } | null;
   active_assignment?: {
     id: string;
     worker_id: string;
@@ -52,6 +67,7 @@ interface EnrichedLockerItem extends LockerItem {
       turn?: string | null;
     } | null;
   } | null;
+  pending_review_items_count?: number;
 }
 
 export function LockerDetailSheet({
@@ -62,8 +78,11 @@ export function LockerDetailSheet({
   onOpenRelease,
   onOpenMove,
   onOpenSwap,
-  onSetStatus,
-  isAdmin,
+  onOpenEdit,
+  onOpenArchive,
+  onOpenHardDelete,
+  onSetStatus: _onSetStatus,
+  isAdmin = false,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -72,6 +91,9 @@ export function LockerDetailSheet({
   onOpenRelease: (assignmentId: string, lockerNumber: string) => void;
   onOpenMove?: (locker: LockerItem) => void;
   onOpenSwap?: (locker: LockerItem) => void;
+  onOpenEdit?: (locker: LockerItem) => void;
+  onOpenArchive?: (locker: LockerItem) => void;
+  onOpenHardDelete?: (locker: LockerItem) => void;
   onSetStatus: (lockerId: string, status: string, options?: { condition?: string; maintenance_reason?: string }) => void;
   isAdmin?: boolean;
 }): React.JSX.Element | null {
@@ -142,7 +164,17 @@ export function LockerDetailSheet({
   const pending = locker?.pending_review_item;
   const isAvailable = locker?.status === "available" || locker?.status === "disponible";
   const isAssigned = locker?.status === "assigned" || locker?.status === "ocupado";
-  const isMaintenance = locker?.condition === "maintenance" || locker?.status === "maintenance";
+  const isArchived = Boolean(locker?.archived_at);
+
+  const cond = locker?.condition || "ok";
+  const condColor =
+    cond === "maintenance"
+      ? { bg: "#fef3c7", fg: "#92400e", label: "Mantenimiento / Dañado" }
+      : cond === "blocked"
+      ? { bg: "#fee2e2", fg: "#991b1b", label: "Bloqueado / Clausurado" }
+      : { bg: "#f0fdf4", fg: "#166534", label: "Buen estado (OK)" };
+
+  const pendingCount = locker?.pending_review_items_count ?? (pending ? 1 : 0);
 
   return (
     <div
@@ -165,7 +197,7 @@ export function LockerDetailSheet({
         style={{
           position: "relative",
           width: "100%",
-          maxWidth: "480px",
+          maxWidth: "500px",
           height: "100%",
           backgroundColor: "var(--card)",
           boxShadow: "-8px 0 24px rgba(0, 0, 0, 0.15)",
@@ -187,26 +219,26 @@ export function LockerDetailSheet({
         >
           <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", flexWrap: "wrap" }}>
             <h2 id="detail-sheet-title" style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800 }}>
-              {locker ? `Locker ${locker.locker_number}` : "Detalle del casillero"}
+              {locker ? `Locker ${locker.locker_number}` : "Ficha física de casillero"}
             </h2>
             {locker ? (
               <LockerStatusBadge status={locker.status} hasPending={Boolean(pending)} />
             ) : null}
-            {isMaintenance && (
+            {isArchived ? (
               <span
                 style={{
                   fontSize: "0.6875rem",
-                  backgroundColor: "#fffbeb",
-                  color: "#b45309",
-                  border: "1px solid #fde68a",
-                  padding: "0.1rem 0.4rem",
+                  backgroundColor: "#f1f5f9",
+                  color: "#64748b",
+                  border: "1px solid #cbd5e1",
+                  padding: "0.1rem 0.45rem",
                   borderRadius: "9999px",
-                  fontWeight: 600,
+                  fontWeight: 700,
                 }}
               >
-                🛠 Dañado / Mantenimiento
+                Archivado
               </span>
-            )}
+            ) : null}
           </div>
           <button
             type="button"
@@ -239,66 +271,172 @@ export function LockerDetailSheet({
             </p>
           ) : locker ? (
             <>
-              {/* Ubicación Física (Zona y Bloque) */}
-              <div
-                style={{
-                  backgroundColor: "var(--accent)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius)",
-                  padding: "0.875rem 1rem",
-                  fontSize: "0.8125rem",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.35rem" }}>
-                  <span style={{ color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", fontSize: "0.7rem" }}>
-                    Ubicación Física
-                  </span>
-                  {locker.zone && (
-                    <span style={{ fontSize: "0.7rem", color: "var(--primary)", fontWeight: 600 }}>
-                      En mapa digital
-                    </span>
-                  )}
+              {/* Banner de Archivado (si aplica) */}
+              {isArchived ? (
+                <div
+                  style={{
+                    backgroundColor: "#f8fafc",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "var(--radius)",
+                    padding: "0.875rem 1rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.25rem",
+                  }}
+                >
+                  <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#475569", textTransform: "uppercase" }}>
+                    📦 Casillero Retirado del Inventario Activo
+                  </div>
+                  <div style={{ fontSize: "0.8125rem", color: "#64748b" }}>
+                    Archivado el {formatDate(locker.archived_at)}. Motivo: <em>«{locker.archive_reason || "Sin motivo especificado"}»</em>
+                  </div>
                 </div>
-                <div style={{ fontWeight: 700, color: "var(--fg)", fontSize: "0.95rem" }}>
-                  {locker.zone?.name || "Sin ubicar"}
-                </div>
-                <div style={{ color: "var(--muted)", fontSize: "0.75rem", marginTop: "0.2rem" }}>
-                  {locker.bank?.name ? `Bloque / Mueble: ${locker.bank.name}` : "Sin bloque asignado"}
-                  {locker.row_position && locker.column_position
-                    ? ` · Fila ${locker.row_position}, Columna ${locker.column_position}`
-                    : ""}
-                </div>
-              </div>
+              ) : null}
 
-              {/* Incidencia de Importación Pendiente */}
-              {pending && (
+              {/* Banner de Conciliación (Integración Bidireccional) */}
+              {pendingCount > 0 ? (
                 <div
                   style={{
                     backgroundColor: "#fff7ed",
                     border: "1px solid #fed7aa",
                     borderRadius: "var(--radius)",
                     padding: "1rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.5rem",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "#c2410c", fontWeight: 700, fontSize: "0.8125rem" }}>
-                    <span>⚠</span>
-                    <span>Incidencia de Importación Pendiente</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "#c2410c", fontWeight: 700, fontSize: "0.875rem" }}>
+                    <span>⚠️</span>
+                    <span>Participa en {pendingCount} {pendingCount === 1 ? "incidencia" : "incidencias"} de conciliación</span>
                   </div>
-                  <p style={{ fontSize: "0.75rem", color: "#9a3412", margin: "0.35rem 0 0.75rem" }}>
-                    En el archivo oficial figura asignado a{" "}
-                    <strong>{pending.source_worker_name || "Trabajador"}</strong> (Mat.{" "}
-                    {pending.source_employee_number || "S/N"}), pero no se pudo vincular automáticamente ({pending.reason}).
+                  <p style={{ fontSize: "0.8125rem", color: "#9a3412", margin: 0, lineHeight: 1.4 }}>
+                    {pending?.source_worker_name
+                      ? `En el archivo figura relacionado con ${pending.source_worker_name} (Mat. ${pending.source_employee_number || "S/N"}).`
+                      : "Este casillero tiene discrepancias entre el padrón y el archivo de importación."}
                   </p>
-                  <Link
-                    href={`/representacion/lockers/pendientes?q=${encodeURIComponent(locker.locker_number)}`}
-                    style={{ textDecoration: "none" }}
-                  >
-                    <Button variant="secondary" size="sm">
-                      Resolver incidencia de este casillero
-                    </Button>
-                  </Link>
+                  <div>
+                    <Link
+                      href={`/representacion/lockers?view=pending&q=${encodeURIComponent(locker.locker_number)}`}
+                      style={{ textDecoration: "none" }}
+                    >
+                      <Button variant="secondary" size="sm">
+                        Resolver en Asistente de Conciliación →
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
-              )}
+              ) : null}
+
+              {/* Ficha de Identificación Física y Ubicación */}
+              <div
+                style={{
+                  backgroundColor: "var(--accent)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius)",
+                  padding: "1rem",
+                  fontSize: "0.8125rem",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.5rem",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ color: "var(--muted)", fontWeight: 700, textTransform: "uppercase", fontSize: "0.7rem" }}>
+                    Identificación Física y Ubicación
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.6875rem",
+                      fontWeight: 700,
+                      padding: "0.15rem 0.45rem",
+                      borderRadius: "999px",
+                      backgroundColor: condColor.bg,
+                      color: condColor.fg,
+                    }}
+                  >
+                    {condColor.label}
+                  </span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginTop: "0.25rem" }}>
+                  <div>
+                    <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>Código / Placa:</span>
+                    <div style={{ fontWeight: 700, color: "var(--fg)", fontFamily: "monospace" }}>
+                      {locker.physical_code || "Sin código de placa"}
+                    </div>
+                  </div>
+                  <div>
+                    <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>Zona:</span>
+                    <div style={{ fontWeight: 700, color: "var(--fg)" }}>
+                      {locker.zone?.name || locker.location || "Sin ubicar"}
+                    </div>
+                  </div>
+                  <div>
+                    <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>Mueble / Banco:</span>
+                    <div style={{ fontWeight: 600, color: "var(--fg)" }}>
+                      {locker.bank?.name || "Sin mueble"}
+                    </div>
+                  </div>
+                  <div>
+                    <span style={{ color: "var(--muted)", fontSize: "0.75rem" }}>Posición en mueble:</span>
+                    <div style={{ fontWeight: 600, color: "var(--fg)" }}>
+                      {locker.position_label
+                        ? locker.position_label
+                        : locker.row_position
+                        ? `Fila ${locker.row_position}, Col. ${locker.column_position ?? "-"}`
+                        : "No especificada"}
+                    </div>
+                  </div>
+                </div>
+
+                {locker.maintenance_reason ? (
+                  <div style={{ marginTop: "0.25rem", color: "#92400e", fontSize: "0.75rem", backgroundColor: "#fffbeb", padding: "0.35rem 0.6rem", borderRadius: "0.25rem" }}>
+                    <strong>Nota condición:</strong> {locker.maintenance_reason}
+                  </div>
+                ) : null}
+
+                {locker.notes ? (
+                  <div style={{ marginTop: "0.25rem", color: "var(--muted)", fontSize: "0.75rem" }}>
+                    <strong>Observaciones:</strong> {locker.notes}
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Reserva Activa (si aplica) */}
+              {locker.reserved_for_worker_id ? (
+                <div
+                  style={{
+                    backgroundColor: "#f5f3ff",
+                    border: "1px solid #ddd6fe",
+                    borderRadius: "var(--radius)",
+                    padding: "0.875rem 1rem",
+                    fontSize: "0.8125rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.25rem",
+                  }}
+                >
+                  <div style={{ color: "#6b21a8", fontWeight: 700, fontSize: "0.75rem", textTransform: "uppercase" }}>
+                    ⏳ Casillero Reservado
+                  </div>
+                  <div style={{ fontWeight: 600, color: "var(--fg)" }}>
+                    {locker.reserved_worker
+                      ? `${locker.reserved_worker.first_name} ${locker.reserved_worker.paternal_surname} (Mat. ${locker.reserved_worker.employee_number})`
+                      : "Trabajador reservado"}
+                  </div>
+                  {locker.reservation_reason ? (
+                    <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                      Motivo: {locker.reservation_reason}
+                    </div>
+                  ) : null}
+                  {locker.reserved_until ? (
+                    <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                      Válida hasta: {formatDate(locker.reserved_until)}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               {/* Información del trabajador asignado */}
               <div
@@ -357,22 +495,30 @@ export function LockerDetailSheet({
                 )}
               </div>
 
-              {/* Acciones Rápidas */}
+              {/* Acciones de Gestión Física y Operativa */}
               <div
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: "0.5rem",
-                  padding: "0.875rem",
+                  gap: "0.75rem",
+                  padding: "1rem",
                   backgroundColor: "var(--accent)",
                   borderRadius: "var(--radius)",
                 }}
               >
                 <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>
-                  Acciones Operativas
+                  Acciones de Inventario Físico
                 </span>
 
                 <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  {/* Editar ficha / Renumerar */}
+                  {onOpenEdit ? (
+                    <Button variant="secondary" size="sm" onClick={() => onOpenEdit(locker)}>
+                      ✏️ Editar datos / Renumerar
+                    </Button>
+                  ) : null}
+
+                  {/* Asignación y liberación */}
                   {isAvailable && (
                     <Button variant="primary" size="sm" onClick={() => onOpenAssign(locker)}>
                       Asignar a trabajador
@@ -382,20 +528,12 @@ export function LockerDetailSheet({
                   {isAssigned && locker.active_assignment && (
                     <>
                       {onOpenMove && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => onOpenMove(locker)}
-                        >
+                        <Button variant="secondary" size="sm" onClick={() => onOpenMove(locker)}>
                           Cambiar de casillero
                         </Button>
                       )}
                       {isAdmin && onOpenSwap && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => onOpenSwap(locker)}
-                        >
+                        <Button variant="secondary" size="sm" onClick={() => onOpenSwap(locker)}>
                           Intercambiar (Swap)
                         </Button>
                       )}
@@ -410,24 +548,29 @@ export function LockerDetailSheet({
                     </>
                   )}
 
-                  {/* Estado físico de mantenimiento */}
-                  {isMaintenance ? (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => onSetStatus(locker.id, isAssigned ? "assigned" : "available", { condition: "ok" })}
-                    >
-                      ✓ Marcar en servicio (Reparado)
-                    </Button>
-                  ) : (
+                  {/* Archivar / Reactivar */}
+                  {onOpenArchive ? (
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => onSetStatus(locker.id, locker.status, { condition: "maintenance", maintenance_reason: "Puerta o chapa averiada" })}
+                      onClick={() => onOpenArchive(locker)}
+                      style={{ color: isArchived ? "#16a34a" : "#ea580c" }}
                     >
-                      🛠 Reportar daño / mantenimiento
+                      {isArchived ? "♻️ Reactivar casillero" : "📦 Retirar / Archivar"}
                     </Button>
-                  )}
+                  ) : null}
+
+                  {/* Eliminar definitivamente (solo admin) */}
+                  {isAdmin && onOpenHardDelete ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onOpenHardDelete(locker)}
+                      style={{ color: "#dc2626", fontWeight: 600 }}
+                    >
+                      🗑 Eliminar definitivamente
+                    </Button>
+                  ) : null}
                 </div>
               </div>
 

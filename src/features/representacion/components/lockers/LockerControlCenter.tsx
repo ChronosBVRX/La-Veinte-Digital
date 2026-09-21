@@ -28,6 +28,11 @@ import { LockerAuditMode } from "./LockerAuditMode";
 import { LockerToolbar } from "./LockerToolbar";
 import { LockerDesktopTable, type LockerItem } from "./LockerDesktopTable";
 import { LockerMobileList } from "./LockerMobileList";
+import { LockerCreateModal } from "./LockerCreateModal";
+import { LockerEditModal } from "./LockerEditModal";
+import { LockerArchiveModal } from "./LockerArchiveModal";
+import { LockerHardDeleteModal } from "./LockerHardDeleteModal";
+import { LockerBulkToolbar } from "./LockerBulkToolbar";
 import { LockerPendingReviewList } from "../LockerPendingReviewList";
 import { WaitlistPanel } from "../WaitlistPanel";
 
@@ -45,11 +50,15 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
   const [, startTransition] = useTransition();
 
   // 1. Sincronización de Estado con URL
-  const initialView = (searchParams.get("view") as LockerViewMode) || "map";
+  const viewParam = searchParams.get("view");
+  const initialView = (viewParam === "inventory" ? "table" : (viewParam as LockerViewMode)) || "map";
   const initialZone = searchParams.get("zone") || "all";
   const initialLockerParam = searchParams.get("locker") || null;
   const initialQ = searchParams.get("q") || "";
   const initialStatus = searchParams.get("status") || "all";
+  const initialInventory = searchParams.get("inventory") || "active";
+  const initialCondition = searchParams.get("condition") || "all";
+  const initialLocation = searchParams.get("location") || "all";
   const initialSort = searchParams.get("sort") || "number_asc";
   const initialPage = parseInt(searchParams.get("page") ?? "1", 10) || 1;
   const initialPageSize = parseInt(searchParams.get("pageSize") ?? "25", 10) || 25;
@@ -58,9 +67,23 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
   const [selectedZoneId, setSelectedZoneId] = useState<string>(initialZone);
   const [searchQuery, setSearchQuery] = useState<string>(initialQ);
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
+  const [inventoryFilter, setInventoryFilter] = useState<string>(initialInventory);
+  const [conditionFilter, setConditionFilter] = useState<string>(initialCondition);
+  const [locationFilter, setLocationFilter] = useState<string>(initialLocation);
   const [sortOrder, setSortOrder] = useState<string>(initialSort);
   const [page, setPage] = useState<number>(initialPage);
   const [pageSize, setPageSize] = useState<number>(initialPageSize);
+  const [selectedLockerIds, setSelectedLockerIds] = useState<string[]>([]);
+
+  // Estados de modales de gestión física de inventario
+  const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
+  const [lockerToEdit, setLockerToEdit] = useState<LockerItem | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState<boolean>(false);
+  const [lockerToArchive, setLockerToArchive] = useState<LockerItem | null>(null);
+  const [isArchiveOpen, setIsArchiveOpen] = useState<boolean>(false);
+  const [lockerToDelete, setLockerToDelete] = useState<LockerItem | null>(null);
+  const [isHardDeleteOpen, setIsHardDeleteOpen] = useState<boolean>(false);
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   // 2. Datos del Mapa Físico
   const [zones, setZones] = useState<LockerZone[]>([]);
@@ -116,6 +139,9 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
       locker?: string | null;
       q?: string;
       status?: string;
+      inventory?: string;
+      condition?: string;
+      location?: string;
       sort?: string;
       page?: number;
       pageSize?: number;
@@ -141,6 +167,18 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
       if (newParams.status !== undefined) {
         if (newParams.status !== "all") params.set("status", newParams.status);
         else params.delete("status");
+      }
+      if (newParams.inventory !== undefined) {
+        if (newParams.inventory !== "active") params.set("inventory", newParams.inventory);
+        else params.delete("inventory");
+      }
+      if (newParams.condition !== undefined) {
+        if (newParams.condition !== "all") params.set("condition", newParams.condition);
+        else params.delete("condition");
+      }
+      if (newParams.location !== undefined) {
+        if (newParams.location !== "all") params.set("location", newParams.location);
+        else params.delete("location");
       }
       if (newParams.sort !== undefined) {
         if (newParams.sort !== "number_asc") params.set("sort", newParams.sort);
@@ -204,13 +242,17 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
     }
   }, []);
 
-  // 8. Carga de datos de la Tabla Administrativa
+  // 8. Carga de datos del Inventario Físico / Tabla
   const loadTableData = useCallback(async (): Promise<void> => {
     if (currentView !== "table") return;
     setLoadingTable(true);
     try {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
+      if (inventoryFilter !== "all") params.set("inventory", inventoryFilter);
+      if (conditionFilter !== "all") params.set("condition", conditionFilter);
+      if (locationFilter !== "all") params.set("location", locationFilter);
+      if (selectedZoneId !== "all") params.set("zone", selectedZoneId);
       if (searchQuery.trim()) params.set("q", searchQuery.trim());
       if (sortOrder) params.set("sort", sortOrder);
       params.set("page", String(page));
@@ -231,7 +273,7 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
     } finally {
       setLoadingTable(false);
     }
-  }, [currentView, statusFilter, searchQuery, sortOrder, page, pageSize]);
+  }, [currentView, statusFilter, inventoryFilter, conditionFilter, locationFilter, selectedZoneId, searchQuery, sortOrder, page, pageSize]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetches on mount
@@ -684,6 +726,33 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
               setPage(1);
               updateUrlParams({ status: st, page: 1 });
             }}
+            inventoryFilter={inventoryFilter}
+            onInventoryChange={(inv) => {
+              setInventoryFilter(inv);
+              setPage(1);
+              updateUrlParams({ inventory: inv, page: 1 });
+            }}
+            conditionFilter={conditionFilter}
+            onConditionChange={(cond) => {
+              setConditionFilter(cond);
+              setPage(1);
+              updateUrlParams({ condition: cond, page: 1 });
+            }}
+            locationFilter={locationFilter}
+            onLocationChange={(loc) => {
+              setLocationFilter(loc);
+              setPage(1);
+              updateUrlParams({ location: loc, page: 1 });
+            }}
+            zoneFilter={selectedZoneId}
+            onZoneChange={(z) => {
+              setSelectedZoneId(z);
+              setPage(1);
+              updateUrlParams({ zone: z, page: 1 });
+            }}
+            zones={zones}
+            banks={banks}
+            onOpenCreateModal={() => setIsCreateOpen(true)}
             sortOrder={sortOrder}
             onSortChange={(s) => {
               setSortOrder(s);
@@ -698,17 +767,38 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
             onResetFilters={() => {
               setSearchQuery("");
               setStatusFilter("all");
+              setInventoryFilter("active");
+              setConditionFilter("all");
+              setLocationFilter("all");
+              setSelectedZoneId("all");
               setSortOrder("number_asc");
               setPage(1);
-              updateUrlParams({ q: "", status: "all", sort: "number_asc", page: 1 });
+              updateUrlParams({
+                q: "",
+                status: "all",
+                inventory: "active",
+                condition: "all",
+                location: "all",
+                zone: "all",
+                sort: "number_asc",
+                page: 1,
+              });
             }}
-            hasActiveFilters={Boolean(searchQuery.trim()) || statusFilter !== "all" || sortOrder !== "number_asc"}
+            hasActiveFilters={
+              Boolean(searchQuery.trim()) ||
+              statusFilter !== "all" ||
+              inventoryFilter !== "active" ||
+              conditionFilter !== "all" ||
+              locationFilter !== "all" ||
+              selectedZoneId !== "all" ||
+              sortOrder !== "number_asc"
+            }
             loading={loadingTable}
           />
 
           {loadingTable ? (
             <div style={{ padding: "3rem 1rem", textAlign: "center" }}>
-              <LoadingSpinner text="Cargando lista de casilleros..." />
+              <LoadingSpinner text="Cargando inventario de casilleros..." />
             </div>
           ) : tableLockers.length === 0 ? (
             <Card padding="2.5rem 1.5rem" style={{ textAlign: "center" }}>
@@ -717,7 +807,7 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
                 No encontramos casilleros con el filtro seleccionado
               </h3>
               <p style={{ margin: "0 0 1rem", fontSize: "0.875rem", color: "var(--muted)" }}>
-                Prueba con otro término de búsqueda o limpia los filtros para ver la base completa.
+                Prueba con otro término de búsqueda o limpia los filtros para ver el inventario completo.
               </p>
             </Card>
           ) : (
@@ -732,7 +822,31 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
                   }}
                   onOpenAssign={handleOpenAssignFromLocker}
                   onOpenRelease={handleOpenRelease}
+                  onOpenEdit={(locker) => {
+                    setLockerToEdit(locker);
+                    setIsEditOpen(true);
+                  }}
+                  onOpenArchive={(locker) => {
+                    setLockerToArchive(locker);
+                    setIsArchiveOpen(true);
+                  }}
+                  onOpenHardDelete={(locker) => {
+                    setLockerToDelete(locker);
+                    setIsHardDeleteOpen(true);
+                  }}
                   onSetStatus={handleSetStatus}
+                  selectedIds={selectedLockerIds}
+                  onToggleSelect={(id) => {
+                    setSelectedLockerIds((prev) =>
+                      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+                    );
+                  }}
+                  onToggleSelectAll={() => {
+                    setSelectedLockerIds((prev) =>
+                      prev.length === tableLockers.length ? [] : tableLockers.map((l) => l.id)
+                    );
+                  }}
+                  isAdmin={isAdmin}
                   loading={loadingTable}
                 />
               </div>
@@ -747,6 +861,14 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
                   }}
                   onOpenAssign={handleOpenAssignFromLocker}
                   onOpenRelease={handleOpenRelease}
+                  onOpenEdit={(locker) => {
+                    setLockerToEdit(locker);
+                    setIsEditOpen(true);
+                  }}
+                  onOpenArchive={(locker) => {
+                    setLockerToArchive(locker);
+                    setIsArchiveOpen(true);
+                  }}
                   loading={loadingTable}
                 />
               </div>
@@ -898,6 +1020,18 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
         onOpenRelease={handleOpenRelease}
         onOpenMove={handleOpenMove}
         onOpenSwap={handleOpenSwap}
+        onOpenEdit={(locker) => {
+          setLockerToEdit(locker);
+          setIsEditOpen(true);
+        }}
+        onOpenArchive={(locker) => {
+          setLockerToArchive(locker);
+          setIsArchiveOpen(true);
+        }}
+        onOpenHardDelete={(locker) => {
+          setLockerToDelete(locker);
+          setIsHardDeleteOpen(true);
+        }}
         onSetStatus={handleSetStatus}
         isAdmin={isAdmin}
       />
@@ -988,6 +1122,122 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
           }}
         />
       )}
+      {/* Barra de Acciones Masivas */}
+      <LockerBulkToolbar
+        selectedIds={selectedLockerIds}
+        onClearSelection={() => setSelectedLockerIds([])}
+        onSuccess={(msg) => {
+          setFeedbackMessage(msg);
+          void loadTableData();
+          void loadMapData();
+        }}
+        zones={zones}
+        banks={banks}
+      />
+
+      {/* Modal Crear Locker Físico */}
+      <LockerCreateModal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        onSuccess={(createdNumber) => {
+          setFeedbackMessage(`Casillero ${createdNumber} creado con éxito.`);
+          void loadTableData();
+          void loadMapData();
+        }}
+        zones={zones}
+        banks={banks}
+      />
+
+      {/* Modal Editar / Renumerar Locker Físico */}
+      <LockerEditModal
+        isOpen={isEditOpen}
+        onClose={() => {
+          setIsEditOpen(false);
+          setLockerToEdit(null);
+        }}
+        onSuccess={(updatedNumber) => {
+          setFeedbackMessage(`Casillero ${updatedNumber} actualizado con éxito.`);
+          void loadTableData();
+          void loadMapData();
+        }}
+        locker={lockerToEdit}
+        zones={zones}
+        banks={banks}
+      />
+
+      {/* Modal Archivar / Reactivar Locker */}
+      <LockerArchiveModal
+        isOpen={isArchiveOpen}
+        onClose={() => {
+          setIsArchiveOpen(false);
+          setLockerToArchive(null);
+        }}
+        onSuccess={(lockerNumber, isRestored) => {
+          setFeedbackMessage(
+            isRestored
+              ? `Casillero ${lockerNumber} reactivado en el inventario.`
+              : `Casillero ${lockerNumber} retirado del inventario.`
+          );
+          void loadTableData();
+          void loadMapData();
+        }}
+        locker={lockerToArchive}
+      />
+
+      {/* Modal Eliminación Definitiva (Admin Excepcional) */}
+      {isAdmin && (
+        <LockerHardDeleteModal
+          isOpen={isHardDeleteOpen}
+          onClose={() => {
+            setIsHardDeleteOpen(false);
+            setLockerToDelete(null);
+          }}
+          onSuccess={(deletedNumber) => {
+            setFeedbackMessage(`Registro de casillero ${deletedNumber} eliminado definitivamente.`);
+            void loadTableData();
+            void loadMapData();
+          }}
+          locker={lockerToDelete}
+        />
+      )}
+
+      {/* Toast de Feedback */}
+      {feedbackMessage ? (
+        <div
+          style={{
+            position: "fixed",
+            bottom: selectedLockerIds.length > 0 ? "6rem" : "1.5rem",
+            right: "1.5rem",
+            zIndex: 95,
+            backgroundColor: "#0f172a",
+            color: "#ffffff",
+            padding: "0.75rem 1.25rem",
+            borderRadius: "0.5rem",
+            fontSize: "0.875rem",
+            fontWeight: 500,
+            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.2)",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+          }}
+        >
+          <span>✓ {feedbackMessage}</span>
+          <button
+            type="button"
+            onClick={() => setFeedbackMessage(null)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#94a3b8",
+              cursor: "pointer",
+              fontSize: "1rem",
+              lineHeight: 1,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      ) : null}
 
       {/* CSS para breakpoints de tabla vs móvil */}
       <style jsx global>{`
