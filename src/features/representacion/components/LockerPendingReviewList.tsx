@@ -6,98 +6,199 @@ import { Card } from "@/shared/components/ui/Card";
 import { Button } from "@/shared/components/ui/Button";
 import { Input } from "@/shared/components/ui/Input";
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner";
-import { WorkerPicker, type UnionWorkerOption, getWorkerDisplayName } from "./WorkerPicker";
-import type { LockerReviewItem } from "../services/worker-importer/types";
+import { WorkerPicker, getWorkerDisplayName, type UnionWorkerOption } from "./WorkerPicker";
+import type {
+  ReconciliationCase,
+  ReconciliationCandidate,
+  SafeMatchesSummary,
+} from "../services/worker-importer/reconciliation-types";
+import { ReconciliationCaseCard } from "./lockers/ReconciliationCaseCard";
+import { SafeMatchesBanner } from "./lockers/SafeMatchesBanner";
+import { ReconciliationConsequenceModal } from "./lockers/ReconciliationConsequenceModal";
 
 type FilterTab = "all" | "worker_not_found" | "locker_multiple_workers" | "worker_multiple_lockers" | "other";
 
 interface PendingApiResponse {
-  items?: LockerReviewItem[];
-  counts?: {
+  cases?: ReconciliationCase[];
+  totalCases?: number;
+  totalReviewItems?: number;
+  caseCounts?: {
     total: number;
     workerNotFound: number;
     multipleWorkers: number;
     multipleLockers: number;
     other: number;
   };
-  newMatchesCount?: number;
-  matches?: Array<{
-    reviewItemId: string;
-    lockerNumber: string;
-    employeeNumber: string;
-    workerId: string;
-    workerName: string;
-  }>;
+  itemCounts?: {
+    total: number;
+    workerNotFound: number;
+    multipleWorkers: number;
+    multipleLockers: number;
+    other: number;
+  };
+  safeMatchesSummary?: SafeMatchesSummary;
+  page?: number;
+  pageSize?: number;
   error?: string;
 }
 
 export function LockerPendingReviewList(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
-  const [items, setItems] = useState<LockerReviewItem[]>([]);
-  const [counts, setCounts] = useState({
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [sortOrder, setSortOrder] = useState<string>("easy");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const pageSize = 25;
+
+  const [cases, setCases] = useState<ReconciliationCase[]>([]);
+  const [totalCases, setTotalCases] = useState<number>(0);
+  const [totalReviewItems, setTotalReviewItems] = useState<number>(0);
+  const [caseCounts, setCaseCounts] = useState({
     total: 0,
     workerNotFound: 0,
     multipleWorkers: 0,
     multipleLockers: 0,
     other: 0,
   });
-  const [newMatchesCount, setNewMatchesCount] = useState(0);
+  const [safeMatchesSummary, setSafeMatchesSummary] = useState<SafeMatchesSummary>({
+    totalFound: 0,
+    safeMatches: [],
+    requiresLockerReview: 0,
+    clashesWithManual: 0,
+    blockedOrMaintenance: 0,
+    alreadyHasLocker: 0,
+  });
+
   const [loading, setLoading] = useState(true);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [batchLinking, setBatchLinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Estado del modal de vinculación manual de trabajador
-  const [resolvingItem, setResolvingItem] = useState<LockerReviewItem | null>(null);
-  const [selectedWorker, setSelectedWorker] = useState<UnionWorkerOption | null>(null);
+  // Estado del modal de consecuencias
+  const [confirmingCase, setConfirmingCase] = useState<{
+    caseData: ReconciliationCase;
+    candidate: ReconciliationCandidate;
+  } | null>(null);
 
-  // Estados locales para selección en incidencias de opción múltiple
-  const [selectedCandidates, setSelectedCandidates] = useState<Record<string, string>>({});
+  // Estado del modal de vinculación manual de trabajador
+  const [manualSearchCase, setManualSearchCase] = useState<ReconciliationCase | null>(null);
+  const [selectedWorker, setSelectedWorker] = useState<UnionWorkerOption | null>(null);
 
   const loadData = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/union/lockers/pendientes?filter=${activeTab}`, { cache: "no-store" });
+      const q = encodeURIComponent(searchQuery.trim());
+      const res = await fetch(
+        `/api/union/lockers/pendientes?filter=${activeTab}&search=${q}&sort=${sortOrder}&page=${currentPage}&pageSize=${pageSize}`,
+        { cache: "no-store" }
+      );
       const data = (await res.json()) as PendingApiResponse;
-      if (!res.ok) throw new Error(data.error ?? "Error al cargar la lista de pendientes");
+      if (!res.ok) throw new Error(data.error ?? "Error al cargar el asistente de conciliación");
 
-      setItems(data.items ?? []);
-      if (data.counts) setCounts(data.counts);
-      setNewMatchesCount(data.newMatchesCount ?? 0);
+      setCases(data.cases ?? []);
+      setTotalCases(data.totalCases ?? 0);
+      setTotalReviewItems(data.totalReviewItems ?? 0);
+      if (data.caseCounts) setCaseCounts(data.caseCounts);
+      if (data.safeMatchesSummary) setSafeMatchesSummary(data.safeMatchesSummary);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error al consultar los registros pendientes.");
+      setError(err instanceof Error ? err.message : "Error al consultar los registros de conciliación.");
     } finally {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [activeTab, searchQuery, sortOrder, currentPage, pageSize]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch on mount
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch on change
     void loadData();
   }, [loadData]);
 
-  // Acción: Vincular trabajador seleccionado manualmente
-  async function handleConfirmLinkWorker(): Promise<void> {
-    if (!resolvingItem || !selectedWorker) return;
-    setSubmittingId(resolvingItem.id);
+  // Al cambiar filtros o búsqueda, volver a la página 1
+  function handleTabChange(tab: FilterTab): void {
+    setActiveTab(tab);
+    setCurrentPage(1);
+  }
+
+  function handleSearchChange(val: string): void {
+    setSearchQuery(val);
+    setCurrentPage(1);
+  }
+
+  function handleSortChange(val: string): void {
+    setSortOrder(val);
+    setCurrentPage(1);
+  }
+
+  // Confirmar y aplicar resolución atómica vía RPC
+  async function handleExecuteResolution(): Promise<void> {
+    if (!confirmingCase) return;
+    const { caseData, candidate } = confirmingCase;
+    setSubmittingId(caseData.caseId);
     setError(null);
+
+    let subAction: "select_locker_for_worker" | "select_worker_for_locker" | "link_worker_to_locker" = "select_locker_for_worker";
+    if (caseData.type === "LOCKER_MULTIPLE_WORKERS") {
+      subAction = "select_worker_for_locker";
+    } else if (caseData.type === "WORKER_NOT_FOUND") {
+      subAction = "link_worker_to_locker";
+    }
+
     try {
       const res = await fetch("/api/union/lockers/pendientes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "link_worker",
-          reviewItemId: resolvingItem.id,
-          workerId: selectedWorker.id,
+          action: "resolve_case",
+          caseType: caseData.type,
+          subAction,
+          reviewItemIds: caseData.reviewItemIds,
+          selectedLockerId: caseData.type === "WORKER_MULTIPLE_LOCKERS" ? candidate.candidateId : caseData.locker?.id,
+          selectedWorkerId: caseData.type === "LOCKER_MULTIPLE_WORKERS" || caseData.type === "WORKER_NOT_FOUND" ? candidate.candidateId : caseData.worker?.id,
+          selectedLockerNumber: caseData.type === "WORKER_MULTIPLE_LOCKERS" ? candidate.label.replace(/^Casillero\s*/i, "") : caseData.locker?.lockerNumber,
+          selectedEmployeeNumber: caseData.type === "LOCKER_MULTIPLE_WORKERS" ? (candidate.sublabel.match(/\d+/)?.[0] ?? undefined) : caseData.worker?.employeeNumber,
+          notes: `Conciliado en Asistente: opción ${candidate.label}`,
         }),
       });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "No se pudo guardar la decisión de conciliación");
+
+      setSuccessMessage(`✓ Caso resuelto correctamente: ${candidate.label} aplicado exitosamente.`);
+      setConfirmingCase(null);
+      void loadData();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error al aplicar la conciliación.");
+    } finally {
+      setSubmittingId(null);
+    }
+  }
+
+  // Vincular trabajador manual desde el picker
+  async function handleConfirmManualWorker(): Promise<void> {
+    if (!manualSearchCase || !selectedWorker) return;
+    setSubmittingId(manualSearchCase.caseId);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/union/lockers/pendientes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "resolve_case",
+          caseType: "WORKER_NOT_FOUND",
+          subAction: "link_worker_to_locker",
+          reviewItemIds: manualSearchCase.reviewItemIds,
+          selectedWorkerId: selectedWorker.id,
+          selectedLockerNumber: manualSearchCase.locker?.lockerNumber,
+          notes: `Vinculado manualmente a ${getWorkerDisplayName(selectedWorker)} (Matrícula: ${selectedWorker.employee_number})`,
+        }),
+      });
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error al vincular trabajador");
 
-      setSuccessMessage(`✓ Asignación guardada: Casillero ${resolvingItem.locker_number} vinculado correctamente.`);
-      setResolvingItem(null);
+      setSuccessMessage(`✓ Trabajador vinculado: Casillero ${manualSearchCase.locker?.lockerNumber} asignado.`);
+      setManualSearchCase(null);
       setSelectedWorker(null);
       void loadData();
     } catch (err: unknown) {
@@ -107,71 +208,23 @@ export function LockerPendingReviewList(): React.JSX.Element {
     }
   }
 
-  // Acción: Seleccionar persona para locker duplicado
-  async function handleSelectWorkerForLocker(item: LockerReviewItem, employeeNumber: string): Promise<void> {
-    if (!employeeNumber) return;
-    setSubmittingId(item.id);
-    setError(null);
+  // Dejar pendiente (ignorar)
+  async function handleIgnoreCase(c: ReconciliationCase): Promise<void> {
+    setSubmittingId(c.caseId);
     try {
       const res = await fetch("/api/union/lockers/pendientes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "select_worker_for_locker",
-          reviewItemId: item.id,
-          selectedEmployeeNumber: employeeNumber,
+          action: "resolve_case",
+          caseType: c.type,
+          subAction: "ignore",
+          reviewItemIds: c.reviewItemIds,
+          notes: "Omitido por el administrador",
         }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Error al asignar casillero");
-
-      setSuccessMessage(`✓ Casillero ${item.locker_number} asignado exitosamente.`);
-      void loadData();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar la decisión.");
-    } finally {
-      setSubmittingId(null);
-    }
-  }
-
-  // Acción: Seleccionar casillero para persona con múltiples casilleros
-  async function handleSelectLockerForWorker(item: LockerReviewItem, lockerNumber: string): Promise<void> {
-    if (!lockerNumber) return;
-    setSubmittingId(item.id);
-    setError(null);
-    try {
-      const res = await fetch("/api/union/lockers/pendientes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "select_locker_for_worker",
-          reviewItemId: item.id,
-          selectedLockerNumber: lockerNumber,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Error al guardar casillero");
-
-      setSuccessMessage(`✓ Casillero ${lockerNumber} asignado exitosamente.`);
-      void loadData();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar la decisión.");
-    } finally {
-      setSubmittingId(null);
-    }
-  }
-
-  // Acción: Dejar pendiente / ignorar
-  async function handleIgnoreItem(item: LockerReviewItem): Promise<void> {
-    setSubmittingId(item.id);
-    try {
-      const res = await fetch("/api/union/lockers/pendientes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "ignore", reviewItemId: item.id }),
       });
       if (res.ok) {
-        setSuccessMessage(`✓ Registro omitido de la lista de pendientes.`);
+        setSuccessMessage(`✓ Caso omitido de la lista de pendientes.`);
         void loadData();
       }
     } finally {
@@ -179,44 +232,75 @@ export function LockerPendingReviewList(): React.JSX.Element {
     }
   }
 
-  // Acción: Vincular todas las coincidencias nuevas detectadas
-  async function handleBatchLink(): Promise<void> {
+  // Aplicar coincidencias seguras en lote vía RPC
+  async function handleApplySafeMatches(): Promise<void> {
+    if (safeMatchesSummary.safeMatches.length === 0) return;
     setBatchLinking(true);
     setError(null);
+
     try {
       const res = await fetch("/api/union/lockers/pendientes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "batch_link_matches" }),
+        body: JSON.stringify({
+          action: "batch_resolve_safe_matches",
+          matches: safeMatchesSummary.safeMatches.map((m) => ({
+            reviewItemId: m.reviewItemId,
+            workerId: m.workerId,
+            lockerId: m.lockerId,
+          })),
+        }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Error al vincular coincidencias");
 
-      setSuccessMessage(`✓ Se vincularon automáticamente ${data.linkedCount} personas con sus casilleros.`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error al aplicar coincidencias seguras");
+
+      setSuccessMessage(
+        `✓ Se aplicaron exitosamente ${data.linkedCount} coincidencias seguras sin conflictos.`
+      );
       void loadData();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error al vincular coincidencias.");
+      setError(err instanceof Error ? err.message : "Error al aplicar el lote seguro.");
     } finally {
       setBatchLinking(false);
     }
   }
 
+  const totalPages = Math.ceil(totalCases / pageSize) || 1;
+  const startItemNumber = totalCases === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endItemNumber = Math.min(currentPage * pageSize, totalCases);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      {/* Navegación y Encabezado Humano */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+      {/* Navegación y Encabezado */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem" }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <Link
-              href="/representacion/lockers"
-              style={{ fontSize: "0.8125rem", color: "var(--primary)", textDecoration: "none", fontWeight: 600 }}
+          <Link
+            href="/representacion/lockers"
+            style={{ fontSize: "0.8125rem", color: "var(--primary)", textDecoration: "none", fontWeight: 600 }}
+          >
+            ← Volver a lockers
+          </Link>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.25rem", flexWrap: "wrap" }}>
+            <h2 style={{ margin: 0, fontSize: "1.375rem", fontWeight: 700, color: "var(--fg)" }}>
+              Asistente de Conciliación
+            </h2>
+            <span
+              style={{
+                fontSize: "0.75rem",
+                fontWeight: 700,
+                padding: "0.25rem 0.625rem",
+                borderRadius: "999px",
+                backgroundColor: "var(--accent)",
+                color: "var(--fg)",
+                border: "1px solid var(--border)",
+              }}
             >
-              ← Volver a lockers
-            </Link>
+              {totalCases} casos por resolver · {totalReviewItems} registros implicados
+            </span>
           </div>
-          <h2 style={{ margin: "0.25rem 0 0", fontSize: "1.25rem", fontWeight: 700 }}>Información por revisar</h2>
           <p style={{ margin: "0.25rem 0 0", fontSize: "0.875rem", color: "var(--muted)" }}>
-            Aquí encontrarás datos que no pudimos relacionar automáticamente. Puedes corregirlos poco a poco.
+            Resuelve discrepancias del archivo de casilleros apoyado en evidencia temporal, estado actual en base y recomendaciones deterministas.
           </p>
         </div>
 
@@ -239,7 +323,7 @@ export function LockerPendingReviewList(): React.JSX.Element {
         </Link>
       </div>
 
-      {/* Mensajes de Éxito o Error */}
+      {/* Mensajes de Estado */}
       {successMessage ? (
         <div
           role="status"
@@ -282,40 +366,12 @@ export function LockerPendingReviewList(): React.JSX.Element {
         </div>
       ) : null}
 
-      {/* Banner de Sincronización Inteligente con Trabajadores */}
-      {newMatchesCount > 0 ? (
-        <Card padding="1rem">
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: "0.75rem",
-            }}
-          >
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontSize: "1.25rem" }}>🎉</span>
-                <strong style={{ fontSize: "0.9375rem", color: "#15803d" }}>
-                  Encontramos {newMatchesCount} {newMatchesCount === 1 ? "coincidencia nueva" : "coincidencias nuevas"}
-                </strong>
-              </div>
-              <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--muted)" }}>
-                Hay personas del archivo de lockers que ahora ya existen en la base de trabajadores. Podemos vincularlas automáticamente.
-              </p>
-            </div>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => void handleBatchLink()}
-              loading={batchLinking}
-            >
-              Revisar y vincular ({newMatchesCount})
-            </Button>
-          </div>
-        </Card>
-      ) : null}
+      {/* Banner de Coincidencias Seguras en Lote */}
+      <SafeMatchesBanner
+        summary={safeMatchesSummary}
+        onApplySafeMatches={() => void handleApplySafeMatches()}
+        isLoading={batchLinking}
+      />
 
       {/* Pestañas de Filtro Humanas */}
       <div
@@ -330,54 +386,87 @@ export function LockerPendingReviewList(): React.JSX.Element {
         <Button
           size="sm"
           variant={activeTab === "all" ? "primary" : "secondary"}
-          onClick={() => setActiveTab("all")}
+          onClick={() => handleTabChange("all")}
         >
-          Todos ({counts.total})
+          Todos ({caseCounts.total})
         </Button>
         <Button
           size="sm"
           variant={activeTab === "worker_not_found" ? "primary" : "secondary"}
-          onClick={() => setActiveTab("worker_not_found")}
+          onClick={() => handleTabChange("worker_not_found")}
         >
-          Personas no encontradas ({counts.workerNotFound})
+          Personas no encontradas ({caseCounts.workerNotFound})
         </Button>
         <Button
           size="sm"
           variant={activeTab === "locker_multiple_workers" ? "primary" : "secondary"}
-          onClick={() => setActiveTab("locker_multiple_workers")}
+          onClick={() => handleTabChange("locker_multiple_workers")}
         >
-          Lockers con más de una persona ({counts.multipleWorkers})
+          Lockers con más de una persona ({caseCounts.multipleWorkers})
         </Button>
         <Button
           size="sm"
           variant={activeTab === "worker_multiple_lockers" ? "primary" : "secondary"}
-          onClick={() => setActiveTab("worker_multiple_lockers")}
+          onClick={() => handleTabChange("worker_multiple_lockers")}
         >
-          Personas con más de un locker ({counts.multipleLockers})
+          Personas con más de un locker ({caseCounts.multipleLockers})
         </Button>
-        {counts.other > 0 ? (
+        {caseCounts.other > 0 ? (
           <Button
             size="sm"
             variant={activeTab === "other" ? "primary" : "secondary"}
-            onClick={() => setActiveTab("other")}
+            onClick={() => handleTabChange("other")}
           >
-            Otros ({counts.other})
+            Otros ({caseCounts.other})
           </Button>
         ) : null}
       </div>
 
-      {/* Lista de Tarjetas de Pendientes */}
+      {/* Barra de Búsqueda y Ordenamiento */}
+      <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: "240px" }}>
+          <Input
+            placeholder="Buscar por casillero (ej. 547), matrícula o nombre…"
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+          />
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <label style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600 }}>Ordenar:</label>
+          <select
+            value={sortOrder}
+            onChange={(e) => handleSortChange(e.target.value)}
+            style={{
+              padding: "0.45rem 0.75rem",
+              borderRadius: "0.375rem",
+              border: "1px solid var(--border)",
+              backgroundColor: "var(--card)",
+              color: "var(--fg)",
+              fontSize: "0.8125rem",
+            }}
+          >
+            <option value="easy">Más fáciles (Alta recomendación)</option>
+            <option value="rec_med">Recomendación media</option>
+            <option value="rec_none">Sin recomendación (manual)</option>
+            <option value="locker_asc">Número de casillero</option>
+            <option value="name">Nombre alfabético</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Lista de Casos de Conciliación */}
       {loading ? (
         <div style={{ padding: "3rem 1rem", textAlign: "center" }}>
-          <LoadingSpinner text="Cargando registros pendientes..." />
+          <LoadingSpinner text="Analizando y agrupando casos de conciliación..." />
         </div>
-      ) : items.length === 0 ? (
-        <Card padding="2rem">
+      ) : cases.length === 0 ? (
+        <Card padding="2.5rem">
           <div style={{ textAlign: "center", color: "var(--muted)" }}>
             <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>✓</div>
             <h3 style={{ margin: 0, fontSize: "1.125rem", color: "var(--fg)" }}>¡Todo revisado!</h3>
-            <p style={{ margin: "0.25rem 0 1rem", fontSize: "0.875rem" }}>
-              No hay registros pendientes de revisión en esta categoría.
+            <p style={{ margin: "0.25rem 0 1.25rem", fontSize: "0.875rem" }}>
+              No hay casos pendientes que coincidan con los filtros y búsqueda seleccionados.
             </p>
             <Link
               href="/representacion/lockers"
@@ -392,246 +481,154 @@ export function LockerPendingReviewList(): React.JSX.Element {
                 textDecoration: "none",
               }}
             >
-              Ir a lockers
+              Ir al panel de lockers
             </Link>
           </div>
         </Card>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {items.map((item) => {
-            const isWorkerNotFound = item.reason === "WORKER_NOT_FOUND";
-            const isMultipleWorkers =
-              item.reason === "LOCKER_MULTIPLE_WORKERS" ||
-              item.reason === "DUPLICATE_LOCKER_DIFFERENT_WORKERS";
-            const isMultipleLockers = item.reason === "WORKER_MULTIPLE_LOCKERS";
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {cases.map((c) => (
+            <ReconciliationCaseCard
+              key={c.caseId}
+              caseData={c}
+              onSelectOption={(caseData, candidate) => {
+                setConfirmingCase({ caseData, candidate });
+              }}
+              onManualSearchWorker={(caseData) => {
+                setManualSearchCase(caseData);
+                setSelectedWorker(null);
+              }}
+              onIgnoreCase={(caseData) => void handleIgnoreCase(caseData)}
+              isSubmitting={submittingId === c.caseId}
+            />
+          ))}
 
-            return (
-              <Card key={item.id} padding="1rem">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem" }}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", maxWidth: "600px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                      <strong style={{ fontSize: "1.0625rem" }}>Locker {item.locker_number}</strong>
-                      <span
-                        style={{
-                          fontSize: "0.6875rem",
-                          fontWeight: 600,
-                          padding: "0.15rem 0.5rem",
-                          borderRadius: "999px",
-                          backgroundColor: isWorkerNotFound ? "#ffedd5" : "#f3e8ff",
-                          color: isWorkerNotFound ? "#9a3412" : "#6b21a8",
-                        }}
-                      >
-                        {isWorkerNotFound
-                          ? "Persona no encontrada"
-                          : isMultipleWorkers
-                          ? "Locker con más de una persona"
-                          : isMultipleLockers
-                          ? "Persona con más de un locker"
-                          : "Pendiente de revisión"}
-                      </span>
-                    </div>
+          {/* Barra de Paginación */}
+          {totalPages > 1 ? (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "0.75rem 0",
+                borderTop: "1px solid var(--border)",
+                flexWrap: "wrap",
+                gap: "0.5rem",
+              }}
+            >
+              <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+                Mostrando casos {startItemNumber} a {endItemNumber} de {totalCases}
+              </span>
 
-                    {isWorkerNotFound ? (
-                      <div>
-                        <div style={{ fontSize: "0.875rem", color: "var(--fg)" }}>
-                          En el archivo aparece: <strong>{item.source_worker_name || "Sin nombre registrado"}</strong>
-                          {item.source_employee_number ? ` · Matrícula ${item.source_employee_number}` : ""}
-                        </div>
-                        <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--muted)" }}>
-                          Todavía no existe en la base de trabajadores. Puedes buscarla manualmente o vincularla cuando su información esté disponible.
-                        </p>
-                      </div>
-                    ) : isMultipleWorkers ? (
-                      <div>
-                        <p style={{ margin: "0 0 0.5rem", fontSize: "0.8125rem", color: "var(--muted)" }}>
-                          Este casillero aparece asignado a más de una persona en el archivo. ¿Quién lo tiene actualmente?
-                        </p>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-                          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8125rem", cursor: "pointer" }}>
-                            <input
-                              type="radio"
-                              name={`worker_select_${item.id}`}
-                              value={item.source_employee_number ?? ""}
-                              checked={selectedCandidates[item.id] === item.source_employee_number}
-                              onChange={(e) => setSelectedCandidates((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                            />
-                            <span>{item.source_worker_name} — {item.source_employee_number}</span>
-                          </label>
-                        </div>
-                      </div>
-                    ) : isMultipleLockers ? (
-                      <div>
-                        <div style={{ fontSize: "0.875rem", color: "var(--fg)" }}>
-                          Trabajador: <strong>{item.source_worker_name}</strong> · Matrícula {item.source_employee_number}
-                        </div>
-                        <p style={{ margin: "0.25rem 0 0.5rem", fontSize: "0.8125rem", color: "var(--muted)" }}>
-                          Esta persona aparece con más de un casillero en el archivo. Selecciona el correcto:
-                        </p>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                          <Input
-                            placeholder="Número de casillero correcto…"
-                            value={selectedCandidates[item.id] ?? item.locker_number}
-                            onChange={(e) => setSelectedCandidates((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                            style={{ maxWidth: "200px" }}
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <div style={{ fontSize: "0.875rem" }}>
-                          Registro: <strong>{item.source_worker_name}</strong> · Matrícula {item.source_employee_number}
-                        </div>
-                        <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--muted)" }}>
-                          {item.source_notes || "Requiere confirmación de asignación."}
-                        </p>
-                      </div>
-                    )}
-                  </div>
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1 || loading}
+                >
+                  ← Anterior
+                </Button>
 
-                  {/* Acciones de la Tarjeta */}
-                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-                    {isWorkerNotFound ? (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          onClick={() => {
-                            setResolvingItem(item);
-                            setSelectedWorker(null);
-                          }}
-                          disabled={submittingId === item.id}
-                        >
-                          Buscar trabajador
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => void handleIgnoreItem(item)}
-                          disabled={submittingId === item.id}
-                        >
-                          Dejar pendiente
-                        </Button>
-                      </>
-                    ) : isMultipleWorkers ? (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={() => void handleSelectWorkerForLocker(item, selectedCandidates[item.id] ?? item.source_employee_number ?? "")}
-                        loading={submittingId === item.id}
-                        disabled={!selectedCandidates[item.id] && !item.source_employee_number}
-                      >
-                        Guardar
-                      </Button>
-                    ) : isMultipleLockers ? (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={() => void handleSelectLockerForWorker(item, selectedCandidates[item.id] ?? item.locker_number)}
-                        loading={submittingId === item.id}
-                        disabled={!selectedCandidates[item.id] && !item.locker_number}
-                      >
-                        Guardar
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          setResolvingItem(item);
-                          setSelectedWorker(null);
-                        }}
-                      >
-                        Vincular
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
+                <span style={{ fontSize: "0.8125rem", color: "var(--fg)", fontWeight: 600 }}>
+                  Página {currentPage} de {totalPages}
+                </span>
+
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages || loading}
+                >
+                  Siguiente →
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
 
-      {/* Modal Interactivo: Buscar y Vincular Trabajador */}
-      {resolvingItem ? (
+      {/* Modal de Consecuencias */}
+      {confirmingCase ? (
+        <ReconciliationConsequenceModal
+          isOpen={Boolean(confirmingCase)}
+          onClose={() => setConfirmingCase(null)}
+          onConfirm={() => void handleExecuteResolution()}
+          title={confirmingCase.caseData.title}
+          selectedOptionLabel={confirmingCase.candidate.label}
+          consequences={confirmingCase.caseData.consequences}
+          isSubmitting={submittingId === confirmingCase.caseData.caseId}
+        />
+      ) : null}
+
+      {/* Modal de Búsqueda Manual de Trabajador */}
+      {manualSearchCase ? (
         <div
           role="dialog"
           aria-modal="true"
           style={{
             position: "fixed",
             inset: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            backgroundColor: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(2px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 1000,
+            zIndex: 9999,
             padding: "1rem",
           }}
         >
-          <div
-            style={{
-              backgroundColor: "var(--card)",
-              borderRadius: "0.5rem",
-              padding: "1.5rem",
-              maxWidth: "500px",
-              width: "100%",
-              display: "flex",
-              flexDirection: "column",
-              gap: "1rem",
-              boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1)",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700 }}>
-                Vincular Casillero {resolvingItem.locker_number}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setResolvingItem(null)}
-                style={{ background: "none", border: "none", fontSize: "1.25rem", cursor: "pointer", color: "var(--muted)" }}
-              >
-                ✕
-              </button>
-            </div>
+          <div style={{ maxWidth: "540px", width: "100%" }}>
+            <Card padding="1.5rem">
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700 }}>
+                      Buscar trabajador en el padrón
+                    </h3>
+                    <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--muted)" }}>
+                      Vincular Casillero {manualSearchCase.locker?.lockerNumber} con un trabajador del padrón sindical.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setManualSearchCase(null)}
+                    style={{ background: "none", border: "none", fontSize: "1.25rem", color: "var(--muted)", cursor: "pointer" }}
+                  >
+                    ✕
+                  </button>
+                </div>
 
-            <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)" }}>
-              El archivo indica: <strong>{resolvingItem.source_worker_name}</strong>
-              {resolvingItem.source_employee_number ? ` (Matrícula: ${resolvingItem.source_employee_number})` : ""}.
-              Busca y selecciona a la persona en el padrón de trabajadores:
-            </p>
+                <div style={{ padding: "0.75rem", backgroundColor: "var(--accent)", borderRadius: "0.375rem" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Datos en el archivo:</div>
+                  <strong style={{ fontSize: "0.875rem" }}>{manualSearchCase.title}</strong>
+                  <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{manualSearchCase.subtitle}</div>
+                </div>
 
-            <WorkerPicker selected={selectedWorker} onSelect={setSelectedWorker} />
+                <div>
+                  <WorkerPicker
+                    selected={selectedWorker}
+                    onSelect={setSelectedWorker}
+                    label="Seleccionar trabajador sindical"
+                  />
+                </div>
 
-            {selectedWorker ? (
-              <div
-                style={{
-                  padding: "0.75rem",
-                  borderRadius: "0.375rem",
-                  backgroundColor: "#eff6ff",
-                  border: "1px solid #bfdbfe",
-                  color: "#1e40af",
-                  fontSize: "0.8125rem",
-                }}
-              >
-                <strong>Vas a asignar:</strong>
-                <div>Locker {resolvingItem.locker_number} a {getWorkerDisplayName(selectedWorker)} (Mat. {selectedWorker.employee_number})</div>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
+                  <Button variant="secondary" size="sm" onClick={() => setManualSearchCase(null)}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => void handleConfirmManualWorker()}
+                    disabled={!selectedWorker}
+                    loading={submittingId === manualSearchCase.caseId}
+                  >
+                    Vincular y asignar
+                  </Button>
+                </div>
               </div>
-            ) : null}
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
-              <Button variant="ghost" size="sm" onClick={() => setResolvingItem(null)}>
-                Cancelar
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => void handleConfirmLinkWorker()}
-                loading={submittingId === resolvingItem.id}
-                disabled={!selectedWorker}
-              >
-                Confirmar
-              </Button>
-            </div>
+            </Card>
           </div>
         </div>
       ) : null}

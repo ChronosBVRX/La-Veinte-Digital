@@ -337,10 +337,10 @@ export interface LockerReviewItem {
   source_notes: string | null;
   reason: string;
   status: "pending" | "resolved" | "ignored" | "cancelled_by_rollback";
-  resolved_by: string | null;
-  resolved_at: string | null;
-  resolution: Record<string, unknown> | null;
-  metadata: Record<string, unknown>;
+  resolved_by?: string | null;
+  resolved_at?: string | null;
+  resolution?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
