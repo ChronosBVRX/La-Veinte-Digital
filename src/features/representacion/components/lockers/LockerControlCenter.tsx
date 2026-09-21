@@ -102,6 +102,7 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
   const [totalPages, setTotalPages] = useState<number>(1);
   const [totalFiltered, setTotalFiltered] = useState<number>(0);
   const [loadingTable, setLoadingTable] = useState<boolean>(false);
+  const [tableError, setTableError] = useState<string | null>(null);
 
   // 4. Interacciones del Mapa: Tooltips y Destaques
   const [hoveredLocker, setHoveredLocker] = useState<LockerMapItem | null>(null);
@@ -246,6 +247,7 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
   const loadTableData = useCallback(async (): Promise<void> => {
     if (currentView !== "table") return;
     setLoadingTable(true);
+    setTableError(null);
     try {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
@@ -262,6 +264,7 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
       const j = (await res.json()) as {
         lockers?: LockerItem[];
         pagination?: { total: number; page: number; pageSize: number; totalPages: number };
+        error?: string;
       };
       if (res.ok) {
         setTableLockers(j.lockers ?? []);
@@ -269,7 +272,12 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
           setTotalPages(j.pagination.totalPages);
           setTotalFiltered(j.pagination.total);
         }
+        setTableError(null);
+      } else {
+        setTableError(j.error || "No pudimos cargar el inventario de casilleros");
       }
+    } catch {
+      setTableError("Error de conexión al cargar el inventario de casilleros");
     } finally {
       setLoadingTable(false);
     }
@@ -799,6 +807,33 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
           {loadingTable ? (
             <div style={{ padding: "3rem 1rem", textAlign: "center" }}>
               <LoadingSpinner text="Cargando inventario de casilleros..." />
+            </div>
+          ) : tableError ? (
+            <div
+              style={{
+                padding: "1.25rem",
+                borderRadius: "0.5rem",
+                backgroundColor: "#fef2f2",
+                color: "#b91c1c",
+                border: "1px solid #fecaca",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "1rem",
+                margin: "1rem 0",
+              }}
+            >
+              <div>
+                <p style={{ fontWeight: 600, margin: 0, fontSize: "0.875rem" }}>
+                  No pudimos cargar el inventario
+                </p>
+                <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", opacity: 0.9 }}>
+                  {tableError}
+                </p>
+              </div>
+              <Button variant="secondary" size="sm" onClick={() => void loadTableData()}>
+                Reintentar
+              </Button>
             </div>
           ) : tableLockers.length === 0 ? (
             <Card padding="2.5rem 1.5rem" style={{ textAlign: "center" }}>

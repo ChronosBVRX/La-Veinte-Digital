@@ -39,11 +39,15 @@ export function toSupabaseError(error: unknown): Error {
       typeof e.hint === "string" && e.hint.trim() ? e.hint.trim() : null,
     ].filter(Boolean);
 
-    return new Error(
+    const errObj = new Error(
       parts.length
         ? parts.join(" · ")
         : "Error desconocido de Supabase/PostgREST"
     );
+    if (e.code !== undefined && e.code !== null) {
+      Object.assign(errObj, { code: String(e.code) });
+    }
+    return errObj;
   }
 
   return new Error(String(error));

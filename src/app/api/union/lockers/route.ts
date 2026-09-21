@@ -141,7 +141,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: pendingItem, count: pendingCount } = await (supabase as any)
         .from("union_locker_review_items")
-        .select("id, locker_number, source_employee_number, source_worker_name, reason, reason_details, status, created_at", { count: "exact" })
+        .select("id, locker_number, source_employee_number, source_worker_name, reason, source_notes, status, created_at", { count: "exact" })
         .eq("delegation_id", depId)
         .eq("locker_number", lockerData.locker_number)
         .eq("status", "pending")
@@ -332,7 +332,7 @@ export async function GET(req: Request): Promise<NextResponse> {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (supabase as any)
           .from("union_locker_review_items")
-          .select("id, locker_id, locker_number, source_employee_number, source_worker_name, reason, reason_details, status")
+          .select("id, locker_id, locker_number, source_employee_number, source_worker_name, reason, source_notes, status")
           .eq("delegation_id", depId)
           .eq("status", "pending")
           .range(from, to),
@@ -497,8 +497,29 @@ export async function GET(req: Request): Promise<NextResponse> {
         counts,
       }),
     );
-  } catch {
-    return noStore(NextResponse.json({ error: "No se pudo consultar lockers" }, { status: 500 }));
+  } catch (err: unknown) {
+    const errorDetails = err && typeof err === "object" ? (err as Record<string, unknown>) : null;
+    let code = typeof errorDetails?.code === "string" ? errorDetails.code : undefined;
+    if (!code && err instanceof Error) {
+      const match = err.message.match(/\[([A-Z0-9_-]+)\]/);
+      if (match) code = match[1];
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[/api/union/lockers] Error loading lockers inventory:", {
+      code,
+      message,
+      details: typeof errorDetails?.details === "string" ? errorDetails.details : undefined,
+      hint: typeof errorDetails?.hint === "string" ? errorDetails.hint : undefined,
+    });
+    return noStore(
+      NextResponse.json(
+        {
+          error: "No se pudo cargar el inventario de casilleros.",
+          ...(code ? { errorCode: code } : {}),
+        },
+        { status: 500 },
+      ),
+    );
   }
 }
 
