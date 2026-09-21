@@ -3,20 +3,18 @@
 Todas se generan en runtime Vercel con dependencias Node puras (sin Office,
 sin LibreOffice, sin Python, sin binarios, sin rutas D:\ en producción).
 
-## Pasajes (pdf-lib)
+## Pasajes (Plantillas Oficiales PDF + Overlay Declarativo)
 
-- `services/passage-pdf.ts` recrea fielmente el formato institucional en carta.
-- 026 (1 pág.): OOAD, fecha, control ("pendiente" si no existe), datos del
-  trabajador, funciones extramuros, periodo de traslado, firmas (líneas, sin
-  firmas digitales), dictamen en blanco con leyenda "Pendiente de dictamen de
-  la Subcomisión Mixta de Pasajes", reportes de inclusión/retroactivo, folio
-  interno.
-- 027 `1A32-009-010` (2 págs.): como 026 + horario discontinuo Sí/No,
-  domicilio del trabajador y de adscripción (calle/colonia/CP/municipio/estado),
-  teléfono, apercibimiento 15 días; pág. 2 = aviso de privacidad institucional
-  (responsable IMSS, datos, fundamento 7.1.2.3/103/1A32-A03-008, ARCO, 26/03/2025).
-- Verificación visual: PDFs renderizados desde los originales (scan 026 +
-  texto 027) y reproducidos en layout.
+- `services/passage-pdf.ts` rellena los formatos oficiales utilizando **plantillas PDF maestras originales** recuperadas de Supabase Storage (`union-private`), versionadas en `union_document_templates` y verificadas mediante hash criptográfico SHA-256 antes de cada generación.
+- **Formato 026 (1 pág.):** Basado en el escaneo oficial de la oficina sindical (`D:\Formato concepto 026-1.pdf`), normalizado a tamaño Carta (612 x 792 pt) preservando el 100% del documento escaneado (tablas, tipografía de origen, logotipos institucionales IMSS/SNTSS y marca de escaneo original). Campos superpuestos: OOAD, fecha (día, mes, año), número de control, datos del trabajador (apellidos, nombre, matrícula, categoría, adscripción), funciones extramuros y periodo de traslado.
+- **Formato 027 `1A32-009-010` (2 págs.):** Basado en el documento oficial vectorial (`D:\Formato concepto 027 aviso priv.pdf`), conservando sus 2 páginas íntegras:
+  - **Página 1:** Solicitud formal con OOAD, fecha, número de control, datos del trabajador, horario discontinuo (casillas Sí / No con marca "X" en negrita), domicilios particulares y de adscripción con desglose institucional (calle, colonia, CP, municipio, estado) y teléfono.
+  - **Página 2:** Aviso de Privacidad oficial completo del IMSS (fundamento normativo 7.1.2.3 / Cláusula 103 / 1A32-A03-008, derechos ARCO, fecha 26 de marzo 2025) **preservado intacto**, insertando únicamente el nombre mecanografiado del trabajador centrado sobre la línea de firma y dejando libre el espacio superior para la firma autógrafa.
+- **Seguridad e Integridad:**
+  - Si una delegación no cuenta con una plantilla oficial activa o si el hash del binario almacenado no coincide con el registro criptográfico, el sistema falla controladamente (`404 / 500`) sin generar documentos apócrifos ni degradar silenciosamente.
+  - No se generan firmas digitales simuladas ni leyendas artificiales ("Pendiente de dictamen").
+  - El folio del expediente (ej. `XXI-2026-PAS-000123`) se incluye en el nombre del archivo descargado (`pasaje-026-<folio>.pdf`, `pasaje-027-<folio>.pdf`), no sobre las celdas del formulario.
+  - Se eliminó la reconstrucción visual manual (`PDFDocument.create`, dibujo de líneas y rectángulos por coordenadas estáticas).
 
 ## Licencia Excel (ExcelJS, .xlsx sin macros)
 
