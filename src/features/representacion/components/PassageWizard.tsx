@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { UnionWorkerOption } from "./WorkerPicker";
 import { validatePassage026, validatePassage027 } from "../lib/passages";
+import { resolveUnionWorkerName } from "@/features/representacion/services/worker-name-resolver";
 
 import styles from "./passages/PassageWizard.module.css";
 import {
@@ -99,14 +100,16 @@ export function PassageWizard(): React.JSX.Element {
       missing.push("Trabajador solicitante");
     }
 
+    const resolvedWorkerName = resolveUnionWorkerName(worker);
+
     if (concept === "026") {
       const rawMissing = validatePassage026({
         ooad,
         requestDate,
         controlNumber: control,
-        paternalSurname: worker?.paternal_surname ?? "",
-        maternalSurname: worker?.maternal_surname ?? "",
-        firstName: worker?.first_name ?? "",
+        paternalSurname: resolvedWorkerName.paternalSurname,
+        maternalSurname: resolvedWorkerName.maternalSurname,
+        firstName: resolvedWorkerName.givenNames,
         employeeNumber: worker?.employee_number ?? "",
         category: worker?.category ?? "",
         assignment: worker?.assignment ?? "",
@@ -133,9 +136,9 @@ export function PassageWizard(): React.JSX.Element {
         ooad,
         requestDate,
         controlNumber: control,
-        paternalSurname: worker?.paternal_surname ?? "",
-        maternalSurname: worker?.maternal_surname ?? "",
-        firstName: worker?.first_name ?? "",
+        paternalSurname: resolvedWorkerName.paternalSurname,
+        maternalSurname: resolvedWorkerName.maternalSurname,
+        firstName: resolvedWorkerName.givenNames,
         employeeNumber: worker?.employee_number ?? "",
         category: worker?.category ?? "",
         assignment: worker?.assignment ?? "",

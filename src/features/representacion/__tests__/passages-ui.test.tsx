@@ -25,6 +25,18 @@ const SAMPLE_WORKER: UnionWorkerOption = {
   turn: "Vespertino",
 };
 
+const SIAP_ONLY_WORKER: UnionWorkerOption = {
+  id: "w-siap-001",
+  employee_number: "98173968",
+  first_name: "",
+  paternal_surname: "",
+  maternal_surname: "",
+  siap_full_name: "BOLA&OS/VAZQUEZ/EDUARDO",
+  category: "TÉCNICO RADIÓLOGO",
+  assignment: "HGR No. 1",
+  turn: "VESPERTINO",
+};
+
 describe("PassageConceptSelector UI", () => {
   it("renderiza las dos opciones con semántica accesible y selecciona la activa", () => {
     const onChange = vi.fn();
@@ -229,5 +241,143 @@ describe("PassageWizard UI Workflow & Interactions", () => {
     expect(screen.queryByRole("button", { name: /descargar formato.*027/i })).toBeNull();
     // 3. Vuelve a aparecer el botón de preparar
     expect(screen.getAllByRole("button", { name: /preparar solicitud/i })[0]).toBeDefined();
+  });
+
+  it("permite preparar Pasajes con trabajador cuyo nombre proviene de SIAP", async () => {
+    // 1. Mock de búsqueda devuelve SIAP_ONLY_WORKER
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ workers: [SIAP_ONLY_WORKER] }),
+    });
+
+    render(<PassageWizard />);
+
+    // 2. Buscar por matrícula
+    fireEvent.change(screen.getByPlaceholderText(/matrícula, nombre o apellido/i), {
+      target: { value: "98173968" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /buscar trabajador/i }));
+
+    // 3. Seleccionar trabajador y 4. Comprobar que UI muestra el nombre canónico resuelto
+    await waitFor(() => {
+      expect(screen.getByText(/BOLAÑOS VAZQUEZ EDUARDO/i)).toBeDefined();
+    });
+    const workerOption = screen.getByRole("button", { name: /BOLAÑOS VAZQUEZ/i });
+    fireEvent.click(workerOption);
+
+    // Debe mostrar la tarjeta con el nombre canónico
+    expect(screen.getByText(/trabajador seleccionado/i)).toBeDefined();
+    expect(screen.getAllByText(/BOLAÑOS VAZQUEZ EDUARDO/i).length).toBeGreaterThanOrEqual(1);
+
+    // 5. Llenar todos los datos obligatorios 027
+    const yesBtn = screen.getByRole("radio", { name: /^sí$/i });
+    fireEvent.click(yesBtn);
+
+    const allStreetInputs = screen.getAllByLabelText(/calle y número/i);
+    const allColoniaInputs = screen.getAllByLabelText(/colonia/i);
+    const allCpInputs = screen.getAllByLabelText(/c\.p\./i);
+    const allMunInputs = screen.getAllByLabelText(/municipio o delegación/i);
+    const allEdoInputs = screen.getAllByLabelText(/^estado$/i);
+
+    fireEvent.change(allStreetInputs[0], { target: { value: "Calle 10" } });
+    fireEvent.change(allColoniaInputs[0], { target: { value: "Centro" } });
+    fireEvent.change(allCpInputs[0], { target: { value: "58000" } });
+    fireEvent.change(allMunInputs[0], { target: { value: "Morelia" } });
+    fireEvent.change(allEdoInputs[0], { target: { value: "Michoacán" } });
+    fireEvent.change(screen.getByPlaceholderText(/ej\. 4431234567/i), { target: { value: "4431234567" } });
+
+    // Copiar municipio y estado a adscripción
+    const copyBtn = screen.getByRole("button", { name: /mismo municipio y estado/i });
+    fireEvent.click(copyBtn);
+
+    fireEvent.change(allStreetInputs[1], { target: { value: "Calle Adscripcion" } });
+    fireEvent.change(allColoniaInputs[1], { target: { value: "Col Adscripcion" } });
+    fireEvent.change(allCpInputs[1], { target: { value: "58020" } });
+
+    // Mock para POST /api/union/cases
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "case-siap-027", folio: "XXI-2026-PAS-000027" }),
+    });
+
+    // 6. Pulsar Preparar solicitud
+    const prepareBtn = screen.getAllByRole("button", { name: /preparar solicitud/i })[0];
+    fireEvent.click(prepareBtn);
+
+    // 7. Comprobar que NO aparece "Apellido paterno" ni "Nombre(s)" como faltantes
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.queryByText(/^apellido paterno$/i)).toBeNull();
+      expect(screen.queryByText(/^nombre\(s\)$/i)).toBeNull();
+      expect(screen.getAllByText(/XXI-2026-PAS-000027/i).length).toBeGreaterThanOrEqual(1);
+    });
+
+    // 8. Comprobar POST /api/union/cases ejecutado con worker_id
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "/api/union/cases",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"worker_id":"w-siap-001"'),
+      }),
+    );
+  });
+
+  it("permite preparar Pasajes 026 con trabajador cuyo nombre proviene de SIAP", async () => {
+    // 1. Mock de búsqueda devuelve SIAP_ONLY_WORKER
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ workers: [SIAP_ONLY_WORKER] }),
+    });
+
+    render(<PassageWizard />);
+
+    // 2. Buscar por matrícula
+    fireEvent.change(screen.getByPlaceholderText(/matrícula, nombre o apellido/i), {
+      target: { value: "98173968" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /buscar trabajador/i }));
+
+    // 3. Seleccionar trabajador
+    await waitFor(() => screen.getByRole("button", { name: /BOLAÑOS VAZQUEZ/i }));
+    fireEvent.click(screen.getByRole("button", { name: /BOLAÑOS VAZQUEZ/i }));
+
+    // 4. Cambiar a concepto 026
+    const radio026 = screen.getByRole("radio", { name: /concepto 026/i });
+    fireEvent.click(radio026);
+
+    // 5. Llenar funciones extramuros y periodo de traslado
+    fireEvent.change(screen.getByLabelText(/funciones extramuros en el desempeño/i), {
+      target: { value: "Funciones extramuros en diversas clínicas rurales" },
+    });
+    fireEvent.change(screen.getByLabelText(/periodo de traslado/i), {
+      target: { value: "Enero 2026" },
+    });
+
+    // Mock para POST /api/union/cases
+    (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "case-siap-026", folio: "XXI-2026-PAS-000026" }),
+    });
+
+    // 6. Pulsar Preparar solicitud
+    const prepareBtn = screen.getAllByRole("button", { name: /preparar solicitud/i })[0];
+    fireEvent.click(prepareBtn);
+
+    // 7. Comprobar que NO aparece error de faltantes de nombre y se genera el folio
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.queryByText(/^apellido paterno$/i)).toBeNull();
+      expect(screen.queryByText(/^nombre\(s\)$/i)).toBeNull();
+      expect(screen.getAllByText(/XXI-2026-PAS-000026/i).length).toBeGreaterThanOrEqual(1);
+    });
+
+    // 8. Comprobar llamada correcta con kind passage_026
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "/api/union/cases",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"kind":"passage_026"'),
+      }),
+    );
   });
 });
