@@ -5,10 +5,9 @@ const ADMIN_AUTH = path.join(__dirname, ".auth", "union-admin.json");
 const REGULAR_AUTH = path.join(__dirname, ".auth", "regular-user.json");
 
 const UNION_MODULES_LIST = [
-  { label: "Resumen", href: "/representacion" },
+  { label: "Centro de control", href: "/representacion" },
   { label: "Trabajadores", href: "/representacion/trabajadores" },
-  { label: "Maternidad", href: "/representacion/maternidad" },
-  { label: "Lactancia", href: "/representacion/lactancia" },
+  { label: "Maternidad y Lactancia", href: "/representacion/maternidad-lactancia" },
   { label: "Lockers", href: "/representacion/lockers" },
   { label: "Pasajes", href: "/representacion/pasajes" },
   { label: "Licencias", href: "/representacion/licencias" },
@@ -223,3 +222,69 @@ test.describe("4. union_admin autenticado — móvil (viewport 390x844)", () => 
     await expect(drawer.getByRole("button", { name: "Cerrar sesión" })).toBeVisible();
   });
 });
+
+// ==============================================================================
+// 5. MATERNIDAD Y LACTANCIA — PORTADA, HERRAMIENTAS Y CONTINUIDAD
+// ==============================================================================
+test.describe("5. Maternidad y Lactancia — portada, herramientas y continuidad", () => {
+  test.use({ storageState: ADMIN_AUTH });
+
+  test("carga la portada /representacion/maternidad-lactancia y muestra las dos tarjetas principales", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/representacion/maternidad-lactancia");
+
+    await expect(page).toHaveURL("/representacion/maternidad-lactancia");
+    await expect(page.getByRole("heading", { name: "Maternidad y Lactancia", level: 1 })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("90 días")).toBeVisible();
+    await expect(page.getByText("365 días")).toBeVisible();
+
+    // Enlaces a herramientas individuales
+    const btnMaternidad = page.getByRole("link", { name: /abrir maternidad/i });
+    await expect(btnMaternidad).toBeVisible();
+
+    const btnLactancia = page.getByRole("link", { name: /abrir lactancia/i });
+    await expect(btnLactancia).toBeVisible();
+
+    // Navega a Maternidad
+    await btnMaternidad.click();
+    await expect(page).toHaveURL("/representacion/maternidad");
+    await expect(page.getByRole("heading", { name: "Maternidad", level: 1 })).toBeVisible();
+
+    // Regresa y navega a Lactancia
+    await page.goto("/representacion/maternidad-lactancia");
+    await page.getByRole("link", { name: /abrir lactancia/i }).click();
+    await expect(page).toHaveURL("/representacion/lactancia");
+    await expect(page.getByRole("heading", { name: "Lactancia", level: 1 })).toBeVisible();
+  });
+
+  test("navegación contextual entre Maternidad y Lactancia", async ({ page }) => {
+    await page.goto("/representacion/maternidad");
+    const navContext = page.getByRole("navigation", { name: "Navegación contextual de Maternidad y Lactancia" });
+    await expect(navContext).toBeVisible();
+
+    // Enlace de regreso a la portada
+    const hubLink = navContext.getByRole("link", { name: /portada maternidad y lactancia/i });
+    await expect(hubLink).toBeVisible();
+
+    // Pestaña Lactancia activa el cambio de herramienta
+    const lactTab = navContext.getByRole("tab", { name: /lactancia/i });
+    await lactTab.click();
+    await expect(page).toHaveURL("/representacion/lactancia");
+  });
+
+  test("móvil: sin overflow horizontal en 390x844 en portada y herramientas", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (const url of [
+      "/representacion/maternidad-lactancia",
+      "/representacion/maternidad",
+      "/representacion/lactancia",
+    ]) {
+      await page.goto(url);
+      const isOverflowing = await page.evaluate(() => {
+        return document.documentElement.scrollWidth > window.innerWidth;
+      });
+      expect(isOverflowing).toBe(false);
+    }
+  });
+});
+

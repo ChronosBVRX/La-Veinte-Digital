@@ -52,7 +52,7 @@ describe("UnionApplicationShell", () => {
     expect(screen.getByText("Contenido hijo")).toBeDefined();
   });
 
-  it("renderiza los nueve módulos sindicales requeridos", () => {
+  it("renderiza los módulos sindicales requeridos incluyendo Maternidad y Lactancia", () => {
     render(
       <UnionApplicationShell memberships={mockMemberships} userName="Delegado Prueba">
         <div>Contenido</div>
@@ -62,8 +62,7 @@ describe("UnionApplicationShell", () => {
     const requiredModules = [
       "Centro de control",
       "Trabajadores",
-      "Maternidad",
-      "Lactancia",
+      "Maternidad y Lactancia",
       "Lockers",
       "Pasajes",
       "Licencias",
