@@ -7,7 +7,6 @@ import {
   House,
   Users,
   Baby,
-  Drop,
   Lockers,
   Ticket,
   FileText,
@@ -59,8 +58,12 @@ export const UNION_NAV_GROUPS: UnionNavGroup[] = [
     id: "prestaciones",
     label: "Prestaciones y trámites",
     modules: [
-      { href: "/representacion/maternidad", label: "Maternidad", description: "Cálculo 90 días", icon: Baby },
-      { href: "/representacion/lactancia", label: "Lactancia", description: "365 días y modalidades", icon: Drop },
+      {
+        href: "/representacion/maternidad-lactancia",
+        label: "Maternidad y Lactancia",
+        description: "Incapacidad y lactancia (Cl. 77)",
+        icon: Baby,
+      },
       { href: "/representacion/licencias", label: "Licencias", description: "Solicitud y oficio", icon: FileText },
       { href: "/representacion/pasajes", label: "Pasajes", description: "Formatos 026 / 027", icon: Ticket },
       { href: "/representacion/lockers", label: "Lockers", description: "Asignaciones y espera", icon: Lockers },
@@ -94,6 +97,18 @@ export interface UnionApplicationShellProps {
 }
 
 function isModuleActive(pathname: string, href: string): boolean {
+  if (href === "/representacion/maternidad-lactancia") {
+    if (
+      pathname === "/representacion/maternidad-lactancia" ||
+      pathname.startsWith("/representacion/maternidad-lactancia/") ||
+      pathname === "/representacion/maternidad" ||
+      pathname.startsWith("/representacion/maternidad/") ||
+      pathname === "/representacion/lactancia" ||
+      pathname.startsWith("/representacion/lactancia/")
+    ) {
+      return true;
+    }
+  }
   return href === "/representacion" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
