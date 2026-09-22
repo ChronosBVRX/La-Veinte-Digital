@@ -4,8 +4,6 @@ import { useState, useEffect, useMemo, useRef, type CSSProperties } from "react"
 import Link from "next/link"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
-import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
-import { createClient } from "@/lib/supabase/client"
 import { useLiveWorkerContext } from "@/shared/hooks/useLiveWorkerContext"
 import { prefillVacationSimulator } from "../domain/prefill"
 import { formatMexicanDate } from "@/features/tarjeton/lib/imss-date-parser"
@@ -20,10 +18,10 @@ import {
 } from "../domain/option-guidance"
 import { getRequiredPeriodCount, buildVacationPlan, type PlanSelectionStep } from "../domain/annual-plan"
 import { getCompatibleInclusionMarks, applyInclusionMark } from "../domain/continuity"
-import { getPublishedCalendar, getAllCalendars } from "../services/calendar-service"
+import { VACATION_CALENDAR_2027 } from "../data/calendar-2027"
+import { getVacationRoleEndDate } from "../domain/calendar-roles"
 import type { WorkerContext } from "@/shared/server/worker-context-builder"
 import type {
-  AnnualVacationCalendar,
   VacationPlanInput,
   VacationRole,
   VacationEntitlement,
@@ -143,41 +141,13 @@ const BADGE: CSSProperties = {
   overflowWrap: "anywhere",
 }
 
-// Roles de respaldo estructural si el servidor aún no tiene publicado el calendario oficial 2027
-const STRUCTURAL_ROLES_2027: VacationRole[] = [
-  { id: "str-1", roleNumber: 1, startDate: "2027-01-16", endDate: "2027-01-31", roleGroup: "A", label: "Rol #1 (16 a 31 Ene)", enabled: true },
-  { id: "str-2", roleNumber: 2, startDate: "2027-02-01", endDate: "2027-02-15", roleGroup: "B", label: "Rol #2 (01 a 15 Feb)", enabled: true },
-  { id: "str-3", roleNumber: 3, startDate: "2027-02-16", endDate: "2027-02-28", roleGroup: "A", label: "Rol #3 (16 a 28 Feb)", enabled: true },
-  { id: "str-4", roleNumber: 4, startDate: "2027-03-01", endDate: "2027-03-15", roleGroup: "B", label: "Rol #4 (01 a 15 Mar)", enabled: true },
-  { id: "str-5", roleNumber: 5, startDate: "2027-03-16", endDate: "2027-03-31", roleGroup: "A", label: "Rol #5 (16 a 31 Mar)", enabled: true },
-  { id: "str-6", roleNumber: 6, startDate: "2027-04-01", endDate: "2027-04-15", roleGroup: "B", label: "Rol #6 (01 a 15 Abr)", enabled: true },
-  { id: "str-7", roleNumber: 7, startDate: "2027-04-16", endDate: "2027-04-30", roleGroup: "A", label: "Rol #7 (16 a 30 Abr)", enabled: true },
-  { id: "str-8", roleNumber: 8, startDate: "2027-05-01", endDate: "2027-05-15", roleGroup: "B", label: "Rol #8 (01 a 15 May)", enabled: true },
-  { id: "str-9", roleNumber: 9, startDate: "2027-05-16", endDate: "2027-05-31", roleGroup: "A", label: "Rol #9 (16 a 31 May)", enabled: true },
-  { id: "str-10", roleNumber: 10, startDate: "2027-06-01", endDate: "2027-06-15", roleGroup: "B", label: "Rol #10 (01 a 15 Jun)", enabled: true },
-  { id: "str-11", roleNumber: 11, startDate: "2027-06-16", endDate: "2027-06-30", roleGroup: "A", label: "Rol #11 (16 a 30 Jun)", enabled: true },
-  { id: "str-12", roleNumber: 12, startDate: "2027-07-01", endDate: "2027-07-15", roleGroup: "B", label: "Rol #12 (01 a 15 Jul)", enabled: true },
-  { id: "str-13", roleNumber: 13, startDate: "2027-07-16", endDate: "2027-07-31", roleGroup: "A", label: "Rol #13 (16 a 31 Jul)", enabled: true },
-  { id: "str-14", roleNumber: 14, startDate: "2027-08-01", endDate: "2027-08-15", roleGroup: "B", label: "Rol #14 (01 a 15 Ago)", enabled: true },
-  { id: "str-15", roleNumber: 15, startDate: "2027-08-16", endDate: "2027-08-31", roleGroup: "A", label: "Rol #15 (16 a 31 Ago)", enabled: true },
-  { id: "str-16", roleNumber: 16, startDate: "2027-09-01", endDate: "2027-09-15", roleGroup: "B", label: "Rol #16 (01 a 15 Sep)", enabled: true },
-  { id: "str-17", roleNumber: 17, startDate: "2027-09-16", endDate: "2027-09-30", roleGroup: "A", label: "Rol #17 (16 a 30 Sep)", enabled: true },
-  { id: "str-18", roleNumber: 18, startDate: "2027-10-01", endDate: "2027-10-15", roleGroup: "B", label: "Rol #18 (01 a 15 Oct)", enabled: true },
-  { id: "str-19", roleNumber: 19, startDate: "2027-10-16", endDate: "2027-10-31", roleGroup: "A", label: "Rol #19 (16 a 31 Oct)", enabled: true },
-  { id: "str-20", roleNumber: 20, startDate: "2027-11-01", endDate: "2027-11-15", roleGroup: "B", label: "Rol #20 (01 a 15 Nov)", enabled: true },
-  { id: "str-21", roleNumber: 21, startDate: "2027-11-16", endDate: "2027-11-30", roleGroup: "A", label: "Rol #21 (16 a 30 Nov)", enabled: true },
-  { id: "str-22", roleNumber: 22, startDate: "2027-12-01", endDate: "2027-12-15", roleGroup: "B", label: "Rol #22 (01 a 15 Dic)", enabled: true },
-  { id: "str-23", roleNumber: 23, startDate: "2027-12-16", endDate: "2027-12-31", roleGroup: "A", label: "Rol #23 (16 a 31 Dic)", enabled: true },
-]
-
 export function VacationWizard({ initialContext }: { initialContext?: WorkerContext | null }) {
   const liveContext = useLiveWorkerContext(initialContext)
   const [step, setStep] = useState<WizardStep>("welcome")
   const [priority, setPriority] = useState<VacationPriority>("COMPARE_ALL")
   const [activePeriodIdx, setActivePeriodIdx] = useState<number>(1)
   const [selections, setSelections] = useState<Record<number, PlanSelectionStep>>({})
-  const [calendar, setCalendar] = useState<AnnualVacationCalendar | null>(null)
-  const [loadingCalendar, setLoadingCalendar] = useState<boolean>(true)
+  const calendar = VACATION_CALENDAR_2027
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false)
 
   // Huella única del trabajador/tarjetón para detectar cambios de identidad o periodo
@@ -214,55 +184,6 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
     }
     prevFingerprintRef.current = contextFingerprint
   }, [contextFingerprint])
-
-  const supabase = createClient()
-
-  // Carga del calendario oficial o borrador
-  useEffect(() => {
-    let active = true
-    getPublishedCalendar(supabase, 2027)
-      .then(async (pub) => {
-        if (!active) return
-        if (pub && pub.roles.length > 0) {
-          setCalendar(pub)
-        } else {
-          const all = await getAllCalendars(supabase)
-          const draft2027 = all.find((c) => c.year === 2027)
-          if (draft2027 && draft2027.roles.length > 0) {
-            setCalendar(draft2027)
-          } else {
-            setCalendar({
-              id: "cal-2027-provisional",
-              year: 2027,
-              version: "1.0.0-provisional",
-              sourceName: "Calendario Anual 2027 (Estructura Base Provisional)",
-              status: "DRAFT",
-              roles: STRUCTURAL_ROLES_2027,
-            })
-          }
-        }
-      })
-      .catch((err) => {
-        console.error("Error al cargar calendario 2027:", err)
-        if (active) {
-          setCalendar({
-            id: "cal-2027-provisional",
-            year: 2027,
-            version: "1.0.0-provisional",
-            sourceName: "Calendario Anual 2027 (Estructura Base Provisional)",
-            status: "DRAFT",
-            roles: STRUCTURAL_ROLES_2027,
-          })
-        }
-      })
-      .finally(() => {
-        if (active) setLoadingCalendar(false)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [supabase])
 
   // Prefill desde el tarjetón / contexto
   const prefilled = useMemo(() => {
@@ -377,13 +298,18 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
   if (calendar?.roles) {
     for (const r of calendar.roles) {
+      const roleEndDate = getVacationRoleEndDate(r, activePeriod?.units)
+      if (r.endDateByDays && activePeriod?.units !== undefined && !roleEndDate) {
+        blockedRolesCount++
+        continue
+      }
       const evalResult = evaluateVacationRoleEligibility({
         regime: activePeriod?.kind === "V20" ? "EXTRAORDINARIO_V20" : regime,
         entitlementKind: activePeriod?.kind === "V20" ? "V20" : "ORDINARY",
         dueDate: activeDueDate,
         dueDateConfidence: activeDueDateConfidence,
         roleStartDate: r.startDate,
-        roleEndDate: r.endDate,
+        roleEndDate,
         isFirstEverVacationPeriod: effectiveSeniorityYears < 1 && activePeriodIdx === 1,
         contractType: prefilled.profile?.contractType,
         contractEndDate: prefilled.profile?.contractEndDate,
@@ -452,7 +378,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
         marks: [2, 3],
       },
     ]
-  }, [planInput, regime, calendar?.roles])
+  }, [planInput, regime])
 
   function applyComparisonOption(optMarks: number[]) {
     setSelections((prev) => ({
@@ -1188,9 +1114,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
             </div>
           )}
 
-          {loadingCalendar ? (
-            <LoadingSpinner text="Cargando roles del calendario..." />
-          ) : !calendar || calendar.roles.length === 0 ? (
+          {calendar.roles.length === 0 ? (
             <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>No hay roles disponibles en este momento.</p>
           ) : (
             <div
@@ -1204,9 +1128,11 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
               }}
             >
               {calendar.roles.map((r) => {
+                const roleEndDate = getVacationRoleEndDate(r, activePeriodUnits)
+                const isMissingOfficialDuration = Boolean(r.endDateByDays && !roleEndDate)
                 const isSelected = selectedRole?.id === r.id || selectedRole?.roleNumber === r.roleNumber
                 const ev = roleEvaluations.get(r.id || r.roleNumber)
-                const isBlocked = ev?.status === "BLOCKED" || ev?.evaluation?.dateEligibility === "NOT_ELIGIBLE"
+                const isBlocked = isMissingOfficialDuration || ev?.status === "BLOCKED" || ev?.evaluation?.dateEligibility === "NOT_ELIGIBLE"
                 const isEligible = ev?.evaluation?.dateEligibility === "ELIGIBLE"
                 const isPreliminary = ev?.evaluation?.calendarCertainty === "PRELIMINARY"
                 const isUnknown = ev?.evaluation?.dateEligibility === "UNKNOWN"
@@ -1217,7 +1143,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                     key={r.id || r.roleNumber}
                     onClick={() => {
                       if (!isBlocked && canSelect) {
-                        handleSelectRole(activePeriodIdx, r)
+                        handleSelectRole(activePeriodIdx, { ...r, endDate: roleEndDate })
                       }
                     }}
                     style={{
@@ -1246,9 +1172,9 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.3rem", marginBottom: "0.3rem" }}>
                       <div
                         style={{ fontWeight: 700, fontSize: "0.9rem", color: isBlocked ? "#991b1b" : "var(--fg)" }}
-                        title={r.roleGroup ? "Este grupo identifica el rol dentro del calendario. No es una marca ni cambia por sí mismo lo que vas a cobrar." : undefined}
+                        title={r.observation ? "La observación A/B pertenece a la tabla oficial y no es una marca de continuidad o inclusión." : r.roleGroup ? "Este grupo identifica el rol dentro del calendario. No es una marca ni cambia por sí mismo lo que vas a cobrar." : undefined}
                       >
-                        Rol #{r.roleNumber} {r.roleGroup ? `(Grupo de calendario ${r.roleGroup})` : ""}
+                        Rol #{r.roleNumber} {r.observation ? `(Observación ${r.observation})` : r.roleGroup ? `(Grupo de calendario ${r.roleGroup})` : ""}
                       </div>
                       {isBlocked ? (
                         <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#fee2e2", color: "#991b1b", fontWeight: 700 }}>
@@ -1275,21 +1201,25 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
                     <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.2rem" }}>
                       Inicio: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(r.startDate)}</strong>
-                      {r.endDate && (
-                        <> • Término: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(r.endDate)}</strong></>
+                      {roleEndDate ? (
+                        <> • Término para {activePeriodUnits} días: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(roleEndDate)}</strong></>
+                      ) : (
+                        <> • <strong style={{ color: "#991b1b" }}>Este rol no contempla oficialmente {activePeriodUnits} días</strong></>
                       )}
                     </div>
 
                     {/* Por qué sí o por qué no */}
-                    {ev && (
+                    {(ev || isMissingOfficialDuration) && (
                       <div style={{ fontSize: "0.78rem", color: isBlocked ? "#991b1b" : "var(--fg)", marginTop: "0.4rem", lineHeight: 1.4 }}>
-                        {isBlocked
-                          ? ev.workerMessage
-                          : isPreliminary
-                            ? "Compatible con tus fechas."
-                            : isUnknown
-                              ? "Falta tu fecha de vencimiento para validar oficialmente este rol."
-                              : ev.workerMessage}
+                        {isMissingOfficialDuration
+                          ? `Este rol no contempla oficialmente ${activePeriodUnits} días en la tabla 2027.`
+                          : isBlocked
+                            ? ev?.workerMessage
+                            : isPreliminary
+                              ? "Compatible con tus fechas."
+                              : isUnknown
+                                ? "Falta tu fecha de vencimiento para validar oficialmente este rol."
+                                : ev?.workerMessage}
                       </div>
                     )}
 

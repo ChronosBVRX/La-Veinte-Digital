@@ -8,7 +8,7 @@ import type {
 import { calculateCompletedYears, getCctAnnualDays, getEstatutoAnnualDays, getUnitsForInclusion } from "./entitlement"
 import { applyInclusionMark } from "./continuity"
 import { calculateVacationPayment, calculateAnnualTotals } from "./payment-estimate"
-import { hasDateOverlap } from "./calendar-roles"
+import { getVacationRoleEndDate, hasDateOverlap } from "./calendar-roles"
 import { evaluateVacationRoleEligibility } from "./role-eligibility"
 
 /**
@@ -116,8 +116,19 @@ export function buildVacationPlan(
 
     // 3. Validación de rol y fecha con el motor unificado de elegibilidad
     const selectedRole = sel.role
+    const resolvedRoleEndDate = selectedRole
+      ? getVacationRoleEndDate(selectedRole, units)
+      : undefined
+    const effectiveSelectedRole = selectedRole
+      ? { ...selectedRole, endDate: resolvedRoleEndDate }
+      : undefined
     let roleEligibilityResult = undefined
     if (selectedRole) {
+      if (selectedRole.endDateByDays && units !== undefined && !resolvedRoleEndDate) {
+        allowed = false
+        reasons.push(`El Rol ${selectedRole.roleNumber} no contempla oficialmente ${units} días en la tabla 2027.`)
+      }
+
       if (!selectedRole.enabled) {
         allowed = false
         reasons.push("El rol seleccionado está deshabilitado en el calendario.")
@@ -130,7 +141,7 @@ export function buildVacationPlan(
           dueDate: dueDate || null,
           dueDateConfidence,
           roleStartDate: selectedRole.startDate,
-          roleEndDate: selectedRole.endDate,
+          roleEndDate: resolvedRoleEndDate,
           isFirstEverVacationPeriod: completedYears < 1 && idx === 1,
           contractType: workerProfile?.contractType,
           contractEndDate: workerProfile?.contractEndDate,
@@ -152,10 +163,10 @@ export function buildVacationPlan(
     }
 
     // 4. Detección de empalmes con periodos ya procesados
-    if (selectedRole?.startDate) {
+    if (effectiveSelectedRole?.startDate && resolvedRoleEndDate) {
       const currentRange = {
-        startDate: selectedRole.startDate,
-        endDate: selectedRole.endDate || selectedRole.startDate,
+        startDate: effectiveSelectedRole.startDate,
+        endDate: resolvedRoleEndDate,
       }
       for (let prevIdx = 0; prevIdx < periods.length; prevIdx++) {
         const prevP = periods[prevIdx]
@@ -194,10 +205,10 @@ export function buildVacationPlan(
       entitlementId: entitlement?.id,
       dueDate,
       dueDateConfidence,
-      selectedRole,
+      selectedRole: effectiveSelectedRole,
       selectedMark,
-      startDate: selectedRole?.startDate || sel.startDate,
-      endDate: selectedRole?.endDate || sel.endDate,
+      startDate: effectiveSelectedRole?.startDate || sel.startDate,
+      endDate: resolvedRoleEndDate || sel.endDate,
       units,
       continuityBefore,
       continuityAfter,

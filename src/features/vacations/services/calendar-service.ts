@@ -1,7 +1,10 @@
 import type { AnnualVacationCalendar } from "../domain/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { VACATION_CALENDAR_2027 } from "../data/calendar-2027";
 
 export async function getPublishedCalendar(supabase: SupabaseClient, year: number): Promise<AnnualVacationCalendar | null> {
+  if (year === 2027) return VACATION_CALENDAR_2027;
+
   const { data } = await supabase
     .from("vacation_calendars")
     .select("*, roles:vacation_calendar_roles(*)")
@@ -40,9 +43,9 @@ export async function getAllCalendars(supabase: SupabaseClient): Promise<AnnualV
     .order("year", { ascending: false })
     .order("version", { ascending: false });
 
-  if (!data) return [];
-
-  return data.map((d) => ({
+  const databaseCalendars = (data || [])
+    .filter((d) => d.year !== 2027)
+    .map((d) => ({
     id: d.id as string,
     year: d.year as number,
     version: d.version as string,
@@ -60,12 +63,18 @@ export async function getAllCalendars(supabase: SupabaseClient): Promise<AnnualV
       enabled: r.enabled as boolean,
     })),
   }));
+
+  return [VACATION_CALENDAR_2027, ...databaseCalendars];
 }
 
 export async function createCalendar(
   supabase: SupabaseClient,
   calendar: Omit<AnnualVacationCalendar, "id">
 ): Promise<AnnualVacationCalendar | { error: string }> {
+  if (calendar.year === 2027) {
+    return { error: "El calendario 2027 es autoritativo y no admite versiones alternativas." };
+  }
+
   const { data, error } = await supabase.from("vacation_calendars").insert({
     year: calendar.year,
     version: calendar.version,

@@ -152,7 +152,9 @@ function CalendarManager() {
   }
 
   async function handlePublish(cal: import("../domain/types").AnnualVacationCalendar) {
-    const missingEndDates = cal.roles.filter((r) => r.enabled && !r.endDate)
+    const missingEndDates = cal.roles.filter(
+      (r) => r.enabled && !r.endDate && Object.keys(r.endDateByDays ?? {}).length === 0
+    )
     if (missingEndDates.length > 0) {
       setMessage({
         text: `No se puede publicar el calendario: ${missingEndDates.length} rol(es) no tienen fecha de término (end_date).`,
@@ -181,7 +183,7 @@ function CalendarManager() {
   return (
     <div>
       <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "var(--radius)", padding: "0.75rem 1rem", fontSize: "0.85rem", color: "#92400e", marginBottom: "1rem" }}>
-        <strong>⚠️ Política de Integridad Normativa:</strong> No cargar ni publicar la tabla 2026 como si fuera el calendario oficial 2027. Los roles 2027 deben ser emitidos por la Comisión Mixta oficial antes de su publicación.
+        <strong>Política de integridad normativa:</strong> El calendario oficial 2027 ya está incorporado como fuente autoritativa. No se permite importar, sustituir ni recalcular sus fechas; la importación administrativa permanece disponible para otros años.
       </div>
 
       {message && (
@@ -303,7 +305,9 @@ function CalendarManager() {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             {calendars.map((c) => {
-              const missingEndDates = c.roles.filter((r) => r.enabled && !r.endDate)
+              const missingEndDates = c.roles.filter(
+                (r) => r.enabled && !r.endDate && Object.keys(r.endDateByDays ?? {}).length === 0
+              )
               const hasRoles = c.roles.length > 0
               const canPublish = c.status !== "PUBLISHED" && hasRoles && missingEndDates.length === 0
 
@@ -370,7 +374,13 @@ function CalendarManager() {
                               Rol #{r.roleNumber} {r.roleGroup ? `(Grupo ${r.roleGroup})` : ""}
                             </div>
                             <div>Inicio: {r.startDate}</div>
-                            <div>Término: {r.endDate || <span style={{ color: "#b91c1c" }}>Sin término</span>}</div>
+                            {r.endDateByDays ? (
+                              <div>
+                                Términos oficiales: {Object.keys(r.endDateByDays).join(", ")} días
+                              </div>
+                            ) : (
+                              <div>Término: {r.endDate || <span style={{ color: "#b91c1c" }}>Sin término</span>}</div>
+                            )}
                           </div>
                         ))}
                       </div>

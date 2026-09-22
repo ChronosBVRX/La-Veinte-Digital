@@ -1,8 +1,23 @@
-import type { VacationRole } from "./types"
+import type { VacationCalendarDayCount, VacationRole } from "./types"
 
 export interface RoleValidationResult {
   valid: boolean
   errors: string[]
+}
+
+/**
+ * Devuelve la fecha oficial de término para la cantidad de días indicada.
+ * Si existe una matriz por días, nunca cae silenciosamente al endDate fijo.
+ */
+export function getVacationRoleEndDate(
+  role: VacationRole,
+  days: number | undefined
+): string | undefined {
+  if (role.endDateByDays) {
+    if (days === undefined || !Number.isInteger(days)) return undefined
+    return role.endDateByDays[days as VacationCalendarDayCount]
+  }
+  return role.endDate
 }
 
 /**
@@ -21,8 +36,21 @@ export function validateCalendarRole(role: VacationRole): RoleValidationResult {
   }
 
   if (role.enabled) {
-    if (!role.endDate) {
-      errors.push(`El rol #${role.roleNumber} está habilitado pero no tiene fecha de término (endDate).`)
+    const matrixEntries = Object.entries(role.endDateByDays ?? {})
+    if (matrixEntries.length > 0) {
+      for (const [rawDays, endDate] of matrixEntries) {
+        const days = Number(rawDays)
+        if (!Number.isInteger(days) || days < 7 || days > 20) {
+          errors.push(`El rol #${role.roleNumber} contiene una cantidad de días no válida: ${rawDays}.`)
+        }
+        if (!dateRegex.test(endDate)) {
+          errors.push(`La fecha de término "${endDate}" no tiene el formato ISO YYYY-MM-DD.`)
+        } else if (role.startDate && endDate < role.startDate) {
+          errors.push(`La fecha de término (${endDate}) no puede ser anterior a la de inicio (${role.startDate}).`)
+        }
+      }
+    } else if (!role.endDate) {
+      errors.push(`El rol #${role.roleNumber} está habilitado pero no tiene fecha de término ni matriz endDateByDays.`)
     } else if (!dateRegex.test(role.endDate)) {
       errors.push(`La fecha de término "${role.endDate}" no tiene el formato ISO YYYY-MM-DD.`)
     } else if (role.startDate && role.endDate < role.startDate) {
@@ -69,7 +97,7 @@ export function validateCalendarRoleList(roles: VacationRole[]): {
       errors.push(...rVal.errors)
     }
 
-    if (r.enabled && !r.endDate) {
+    if (r.enabled && !r.endDate && Object.keys(r.endDateByDays ?? {}).length === 0) {
       missingEndDates++
     }
 

@@ -19,6 +19,14 @@ export function parseCalendarImport(
   const errors: string[] = []
   const warnings: string[] = []
 
+  if (targetYear === 2027) {
+    return {
+      calendar: null,
+      errors: ["El calendario 2027 ya está incorporado como fuente oficial autoritativa y no admite importaciones alternativas."],
+      warnings: [],
+    }
+  }
+
   const trimmed = rawContent.trim()
   if (!trimmed) {
     return {

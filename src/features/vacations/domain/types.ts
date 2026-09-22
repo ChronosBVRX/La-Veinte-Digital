@@ -159,6 +159,10 @@ export interface RuleTrace {
   explanation: string;
 }
 
+export type VacationCalendarDayCount =
+  | 7 | 8 | 9 | 10 | 11 | 12 | 13
+  | 14 | 15 | 16 | 17 | 18 | 19 | 20;
+
 export interface AnnualVacationCalendar {
   id: string;
   year: number;
@@ -167,6 +171,7 @@ export interface AnnualVacationCalendar {
   sourceName: string;
   sourceDate?: string;
   publishedAt?: string;
+  authoritative?: boolean;
   roles: VacationRole[];
 }
 
@@ -174,7 +179,15 @@ export interface VacationRole {
   id: string;
   roleNumber: number;
   startDate: string;
+  /**
+   * Fecha fija usada por calendarios históricos. El calendario oficial 2027
+   * usa endDateByDays porque la fecha de término depende de los días a disfrutar.
+   */
   endDate?: string;
+  endDateByDays?: Partial<Record<VacationCalendarDayCount, string>>;
+  /** Observación literal A/B de la tabla oficial; no es una marca vacacional. */
+  observation?: "A" | "B";
+  /** Compatibilidad con calendarios históricos importados. */
   roleGroup?: "A" | "B" | "GENERAL";
   label?: string;
   enabled: boolean;
