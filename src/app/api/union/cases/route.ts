@@ -30,7 +30,7 @@ const statusBody = z.object({ case_id: z.string().uuid(), status: caseStatusSche
 async function workerSnapshot(supabase: Awaited<ReturnType<typeof createClient>>, workerId: string) {
   const { data } = await supabase
     .from("union_workers")
-    .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment, turn, schedule, rest_days")
+    .select("id, employee_number, first_name, paternal_surname, maternal_surname, siap_full_name, category, assignment, turn, schedule, rest_days")
     .eq("id", workerId)
     .single();
   if (!data) throw new Error("Trabajador no encontrado");

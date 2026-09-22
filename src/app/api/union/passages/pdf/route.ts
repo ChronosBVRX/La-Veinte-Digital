@@ -9,6 +9,7 @@ import {
   type UnionDocumentTemplateKind,
 } from "@/features/representacion/services/union-document-template-repository";
 import { addCaseEvent } from "@/features/representacion/services/cases";
+import { resolveUnionWorkerName } from "@/features/representacion/services/worker-name-resolver";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -30,9 +31,10 @@ type PassageRow = {
 };
 
 type WorkerRow = {
-  first_name: string;
-  paternal_surname: string;
-  maternal_surname: string;
+  first_name: string | null;
+  paternal_surname: string | null;
+  maternal_surname: string | null;
+  siap_full_name: string | null;
   employee_number: string;
   category: string;
   assignment: string;
@@ -57,18 +59,48 @@ export async function POST(req: Request): Promise<NextResponse> {
       .eq("id", parsed.data.case_id)
       .single();
     if (!c) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
-    const typed = c as { delegation_id: string; folio: string; case_type: string };
+    const typed = c as {
+      delegation_id: string;
+      folio: string;
+      case_type: string;
+      worker_snapshot?: Record<string, unknown> | null;
+    };
     await requireUnionMembership(typed.delegation_id);
     const { data: detail } = await supabase.from("union_passage_cases").select("*").eq("case_id", parsed.data.case_id).single();
     if (!detail) return NextResponse.json({ error: "Sin detalle de pasaje" }, { status: 404 });
     const d = detail as PassageRow;
     const { data: w } = await supabase
       .from("union_cases")
-      .select("union_workers(first_name, paternal_surname, maternal_surname, employee_number, category, assignment)")
+      .select("union_workers(first_name, paternal_surname, maternal_surname, siap_full_name, employee_number, category, assignment)")
       .eq("id", parsed.data.case_id)
       .single();
     const worker = (((w as unknown as { union_workers: WorkerRow | WorkerRow[] } | null)?.union_workers ?? {}) as WorkerRow | WorkerRow[]);
     const wr: WorkerRow = Array.isArray(worker) ? worker[0] : (worker as WorkerRow);
+
+    // Compatibilidad: preferencia snapshot con nombre resoluble -> fallback union_worker actual
+    const snap = (typed.worker_snapshot ?? null) as Record<string, unknown> | null;
+    const snapResolved = snap
+      ? resolveUnionWorkerName({
+          first_name: (snap.first_name as string | null) ?? null,
+          paternal_surname: (snap.paternal_surname as string | null) ?? null,
+          maternal_surname: (snap.maternal_surname as string | null) ?? null,
+          siap_full_name: (snap.siap_full_name as string | null) ?? null,
+        })
+      : null;
+
+    const wrResolved = resolveUnionWorkerName(wr);
+    const resolvedName =
+      snapResolved && snapResolved.paternalSurname && snapResolved.givenNames
+        ? snapResolved
+        : wrResolved;
+
+    const employeeNumber =
+      wr?.employee_number || (typeof snap?.employee_number === "string" ? snap.employee_number : "");
+    const category =
+      wr?.category || (typeof snap?.category === "string" ? snap.category : "");
+    const assignment =
+      wr?.assignment || (typeof snap?.assignment === "string" ? snap.assignment : "");
+
     const dt = splitISO(d.request_date);
     const control = d.control_number || "pendiente";
 
@@ -92,12 +124,12 @@ export async function POST(req: Request): Promise<NextResponse> {
           year: dt.year,
           controlNumber: control,
           worker: {
-            paternalSurname: wr.paternal_surname ?? "",
-            maternalSurname: wr.maternal_surname ?? "",
-            firstName: wr.first_name ?? "",
-            employeeNumber: wr.employee_number ?? "",
-            category: wr.category ?? "",
-            assignment: wr.assignment ?? "",
+            paternalSurname: resolvedName.paternalSurname,
+            maternalSurname: resolvedName.maternalSurname,
+            firstName: resolvedName.givenNames,
+            employeeNumber,
+            category,
+            assignment,
           },
           extramuralFunctions: d.extramural_functions,
           transferPeriod: d.transfer_period,
@@ -121,12 +153,12 @@ export async function POST(req: Request): Promise<NextResponse> {
           year: dt.year,
           controlNumber: control,
           worker: {
-            paternalSurname: wr.paternal_surname ?? "",
-            maternalSurname: wr.maternal_surname ?? "",
-            firstName: wr.first_name ?? "",
-            employeeNumber: wr.employee_number ?? "",
-            category: wr.category ?? "",
-            assignment: wr.assignment ?? "",
+            paternalSurname: resolvedName.paternalSurname,
+            maternalSurname: resolvedName.maternalSurname,
+            firstName: resolvedName.givenNames,
+            employeeNumber,
+            category,
+            assignment,
           },
           discontinuousSchedule: d.discontinuous_schedule || "—",
           workerAddress: addr(d.worker_address ?? {}),
