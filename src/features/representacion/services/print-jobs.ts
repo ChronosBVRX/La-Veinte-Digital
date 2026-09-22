@@ -4,8 +4,11 @@
 
 import crypto from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
-import { buildUnionLicenseDocumentData } from "./license-document-dto";
-import { buildLicensePrintPackage } from "./license-print-package";
+import { requireUnionMembership } from "./permissions";
+import {
+  resolvePrintableDocumentTypeForCase,
+  getPrintableDocumentDefinition,
+} from "./print-document-registry";
 import { addCaseEvent } from "./cases";
 
 export type PrintJobStatus = "queued" | "claimed" | "printing" | "printed" | "failed" | "cancelled";
@@ -87,44 +90,101 @@ export async function getActiveStationForDelegation(delegationId: string): Promi
 }
 
 /**
- * Crea un trabajo de impresión para un expediente de licencia.
- * Genera el paquete en memoria con la revisión actual, calcula su SHA-256 y lo encola.
+ * Crea un trabajo de impresión para cualquier trámite sindical con documento oficial imprimible
+ * (Licencias, Pasaje 026, Pasaje 027).
+ *
+ * Flujo estricto de inmutabilidad:
+ * 1. Consulta union_cases y deriva autoritativamente el document_type.
+ * 2. Valida membresía sindical para la delegación del caso.
+ * 3. Resuelve la estación de impresión activa de la delegación.
+ * 4. Genera el PDF final inmutable mediante el builder del registro central.
+ * 5. Pre-genera el UUID del job y calcula SHA-256 + tamaño exacto.
+ * 6. Almacena los bytes en el bucket privado union-private (print-jobs/{delegationId}/{caseId}/{jobId}.pdf).
+ * 7. Inserta el registro en union_print_jobs con status 'queued'.
+ * 8. Si la inserción falla, ejecuta limpieza best-effort del PDF en Storage.
+ * 9. Registra el evento de auditoría en el expediente.
  */
-export async function createLicensePrintJob(params: {
+export async function createUnionPrintJob(params: {
   caseId: string;
   userId: string;
   copies?: number;
+  duplex?: boolean;
 }): Promise<{ job: PrintJobRecord; station: PrintStationRecord; documentBuffer: Buffer }> {
   const supabase = await createClient();
 
-  // 1. Obtener datos completos del expediente y su revisión actual
-  const docData = await buildUnionLicenseDocumentData(supabase, params.caseId);
+  // 1. Obtener expediente de la base de datos
+  const { data: caseRow, error: caseErr } = await supabase
+    .from("union_cases")
+    .select("id, delegation_id, folio, case_type")
+    .eq("id", params.caseId)
+    .single();
 
-  // 2. Localizar estación de impresión activa para la delegación
-  const station = await getActiveStationForDelegation(docData.delegationId);
+  if (caseErr || !caseRow) {
+    throw new Error(`Expediente no encontrado (ID: ${params.caseId})`);
+  }
+
+  const c = caseRow as {
+    id: string;
+    delegation_id: string;
+    folio: string;
+    case_type: string;
+  };
+
+  // 2. Validar membresía sindical en la delegación
+  await requireUnionMembership(c.delegation_id);
+
+  // 3. Derivar tipo documental y obtener definición desde el registro central
+  const docType = resolvePrintableDocumentTypeForCase(c.case_type);
+  const docDef = getPrintableDocumentDefinition(docType);
+  if (!docDef) {
+    throw new Error(`Definición no encontrada para el tipo documental: ${docType}`);
+  }
+
+  // 4. Localizar estación de impresión activa para la delegación
+  const station = await getActiveStationForDelegation(c.delegation_id);
   if (!station) {
     throw new Error("No hay ninguna estación de impresión configurada o activa para esta oficina sindical.");
   }
 
-  // 3. Generar el PDF final inmutable (Página 1 Oficio + Página 2 Solicitud)
-  const printPackage = await buildLicensePrintPackage(docData, { supabase });
-  const sha256 = crypto.createHash("sha256").update(printPackage.buffer).digest("hex");
-  const sizeBytes = printPackage.buffer.length;
+  // 5. Generar el PDF final inmutable
+  const docResult = await docDef.buildDocument({ supabase, caseId: params.caseId });
+  const pdfBuffer = docResult.buffer;
+  const sha256 = crypto.createHash("sha256").update(pdfBuffer).digest("hex");
+  const sizeBytes = pdfBuffer.length;
 
-  const copies = params.copies && params.copies > 0 ? params.copies : 1;
+  const copies = params.copies && params.copies > 0 ? params.copies : docDef.defaultCopies;
+  const duplex = typeof params.duplex === "boolean" ? params.duplex : docDef.defaultDuplex;
 
-  // 4. Insertar el trabajo en la cola (status: queued)
-  const { data: job, error } = await supabase
+  // 6. Pre-generar UUID del trabajo y ruta inmutable en storage privado
+  const jobId = crypto.randomUUID();
+  const storagePath = `print-jobs/${c.delegation_id}/${params.caseId}/${jobId}.pdf`;
+
+  // 7. Almacenar exactamente estos bytes en el bucket privado union-private
+  const { error: uploadErr } = await supabase.storage
+    .from("union-private")
+    .upload(storagePath, pdfBuffer, {
+      contentType: "application/pdf",
+      upsert: false,
+    });
+
+  if (uploadErr) {
+    throw new Error(`Error al almacenar el documento para impresión: ${uploadErr.message}`);
+  }
+
+  // 8. Insertar el trabajo en la cola (status: queued) apuntando al archivo en Storage
+  const { data: job, error: insertErr } = await supabase
     .from("union_print_jobs")
     .insert({
-      delegation_id: docData.delegationId,
+      id: jobId,
+      delegation_id: c.delegation_id,
       station_id: station.id,
       case_id: params.caseId,
-      document_type: "license_package",
-      document_revision: docData.revisionNumber,
+      document_type: docType,
+      document_revision: docResult.documentRevision,
       status: "queued",
       copies,
-      duplex: false,
+      duplex,
+      document_storage_path: storagePath,
       document_sha256: sha256,
       document_size_bytes: sizeBytes,
       created_by: params.userId,
@@ -132,23 +192,37 @@ export async function createLicensePrintJob(params: {
     .select("*")
     .single();
 
-  if (error || !job) {
-    throw new Error(`Error al registrar el trabajo en la cola de impresión: ${error?.message || "sin respuesta"}`);
+  if (insertErr || !job) {
+    // Limpieza best-effort del archivo huérfano en Storage
+    await supabase.storage.from("union-private").remove([storagePath]).catch(() => {});
+    throw new Error(`Error al registrar el trabajo en la cola de impresión: ${insertErr?.message || "sin respuesta"}`);
   }
 
-  // 5. Registrar evento de auditoría en el expediente (sin datos clínicos sensibles)
+  // 9. Registrar evento de auditoría en el expediente (sin datos clínicos sensibles)
   await addCaseEvent(
     params.caseId,
     "document",
     "Trabajo de impresión enviado a oficina",
-    `Expediente ${docData.folio} (Rev. ${docData.revisionNumber}) enviado a la estación "${station.name}". Impresora: ${station.printer_name || "Predeterminada"}. Copias: ${copies}.`,
+    `${docDef.label} ${docResult.folio} (Rev. ${docResult.documentRevision}) enviado a la estación "${station.name}". Impresora: ${station.printer_name || "Predeterminada"}. Copias: ${copies}.`,
   );
 
   return {
     job: job as PrintJobRecord,
     station,
-    documentBuffer: printPackage.buffer,
+    documentBuffer: pdfBuffer,
   };
+}
+
+/**
+ * Wrapper de retrocompatibilidad estricta para crear trabajos de impresión de licencias.
+ */
+export async function createLicensePrintJob(params: {
+  caseId: string;
+  userId: string;
+  copies?: number;
+  duplex?: boolean;
+}): Promise<{ job: PrintJobRecord; station: PrintStationRecord; documentBuffer: Buffer }> {
+  return await createUnionPrintJob(params);
 }
 
 /**

@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/shared/components/ui/Button";
-import { DownloadSimple, FileText, CheckCircle, Clock } from "@phosphor-icons/react";
+import { DownloadSimple, FileText, CheckCircle, Clock, Printer } from "@phosphor-icons/react";
 import type { UnionWorkerOption } from "../WorkerPicker";
 import { getWorkerDisplayName } from "../WorkerPicker";
 import styles from "./PassageWizard.module.css";
@@ -15,8 +15,10 @@ export interface PassageSummarySidebarProps {
   isDirty: boolean;
   busy: boolean;
   downloading: boolean;
+  printing?: boolean;
   onPrepare: () => void;
   onDownload: () => void;
+  onPrint?: () => void;
 }
 
 export function PassageSummarySidebar({
@@ -28,10 +30,13 @@ export function PassageSummarySidebar({
   isDirty,
   busy,
   downloading,
+  printing = false,
   onPrepare,
   onDownload,
+  onPrint,
 }: PassageSummarySidebarProps): React.JSX.Element {
   const isReadyToDownload = Boolean(caseId && !isDirty);
+  const isAnyActionBusy = busy || downloading || printing;
 
   return (
     <aside className={styles.summaryPanel} aria-labelledby="summary-panel-title">
@@ -103,24 +108,40 @@ export function PassageSummarySidebar({
         ) : null}
       </div>
 
-      <div style={{ marginTop: "0.5rem" }}>
+      <div style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
         {isReadyToDownload ? (
-          <Button
-            style={{ width: "100%", minHeight: 44 }}
-            onClick={onDownload}
-            loading={downloading}
-            disabled={busy}
-            aria-label={`Descargar formato oficial ${concept}`}
-          >
-            <DownloadSimple size={18} weight="bold" style={{ marginRight: "0.35rem" }} />
-            {concept === "026" ? "Descargar 026" : "Descargar 027"}
-          </Button>
+          <>
+            {onPrint ? (
+              <Button
+                style={{ width: "100%", minHeight: 44 }}
+                variant="primary"
+                onClick={onPrint}
+                loading={printing}
+                disabled={isAnyActionBusy}
+                aria-label={`Mandar a imprimir pasaje ${concept}`}
+              >
+                <Printer size={18} weight="bold" style={{ marginRight: "0.35rem" }} />
+                Mandar a imprimir
+              </Button>
+            ) : null}
+            <Button
+              style={{ width: "100%", minHeight: 44 }}
+              variant="secondary"
+              onClick={onDownload}
+              loading={downloading}
+              disabled={isAnyActionBusy}
+              aria-label={`Descargar formato oficial ${concept}`}
+            >
+              <DownloadSimple size={18} weight="bold" style={{ marginRight: "0.35rem" }} />
+              {concept === "026" ? "Descargar 026" : "Descargar 027"}
+            </Button>
+          </>
         ) : (
           <Button
             style={{ width: "100%", minHeight: 44 }}
             onClick={onPrepare}
             loading={busy}
-            disabled={downloading}
+            disabled={isAnyActionBusy}
             aria-label="Preparar solicitud de pasaje"
           >
             <FileText size={18} weight="bold" style={{ marginRight: "0.35rem" }} />

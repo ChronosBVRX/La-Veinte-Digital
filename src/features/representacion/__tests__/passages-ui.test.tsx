@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { PassageWizard } from "../components/PassageWizard";
 import { PassageConceptSelector } from "../components/passages/PassageConceptSelector";
+import { PassageActions } from "../components/passages/PassageActions";
 import type { UnionWorkerOption } from "../components/WorkerPicker";
 
 vi.mock("next/link", () => ({
@@ -379,5 +380,113 @@ describe("PassageWizard UI Workflow & Interactions", () => {
         body: expect.stringContaining('"kind":"passage_026"'),
       }),
     );
+  });
+
+  describe("Acciones de Impresión en Pasajes (PassageActions UI)", () => {
+    it("sin caseId no muestra botón de imprimir, solo preparar", () => {
+      const onPrepare = vi.fn();
+      const onDownload = vi.fn();
+      const onPrint = vi.fn();
+
+      render(
+        <PassageActions
+          concept="026"
+          caseId={null}
+          folio={null}
+          isDirty={false}
+          busy={false}
+          downloading={false}
+          printing={false}
+          onPrepare={onPrepare}
+          onDownload={onDownload}
+          onPrint={onPrint}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: /preparar solicitud/i })).toBeDefined();
+      expect(screen.queryByRole("button", { name: /mandar a imprimir/i })).toBeNull();
+      expect(screen.queryByRole("button", { name: /descargar formato/i })).toBeNull();
+    });
+
+    it("con expediente preparado (!isDirty y con caseId) ofrece Mandar a imprimir y Descargar", () => {
+      const onPrepare = vi.fn();
+      const onDownload = vi.fn();
+      const onPrint = vi.fn();
+
+      render(
+        <PassageActions
+          concept="026"
+          caseId="case-123"
+          folio="XXI-2026-PAS-000123"
+          isDirty={false}
+          busy={false}
+          downloading={false}
+          printing={false}
+          onPrepare={onPrepare}
+          onDownload={onDownload}
+          onPrint={onPrint}
+        />,
+      );
+
+      const printBtn = screen.getByRole("button", { name: /mandar a imprimir pasaje 026/i });
+      const downloadBtn = screen.getByRole("button", { name: /descargar formato oficial 026/i });
+
+      expect(printBtn).toBeDefined();
+      expect(downloadBtn).toBeDefined();
+      expect(screen.queryByRole("button", { name: /preparar solicitud/i })).toBeNull();
+
+      fireEvent.click(printBtn);
+      expect(onPrint).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(downloadBtn);
+      expect(onDownload).toHaveBeenCalledTimes(1);
+    });
+
+    it("con isDirty desactiva Mandar a imprimir y vuelve a exigir Preparar solicitud", () => {
+      const onPrepare = vi.fn();
+      const onDownload = vi.fn();
+      const onPrint = vi.fn();
+
+      render(
+        <PassageActions
+          concept="027"
+          caseId="case-123"
+          folio="XXI-2026-PAS-000123"
+          isDirty={true}
+          busy={false}
+          downloading={false}
+          printing={false}
+          onPrepare={onPrepare}
+          onDownload={onDownload}
+          onPrint={onPrint}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: /preparar solicitud/i })).toBeDefined();
+      expect(screen.queryByRole("button", { name: /mandar a imprimir/i })).toBeNull();
+      expect(screen.queryByRole("button", { name: /descargar formato/i })).toBeNull();
+      expect(screen.getByText(/cambios detectados/i)).toBeDefined();
+    });
+
+    it("muestra banner de confirmación cuando printSuccessMessage está presente", () => {
+      render(
+        <PassageActions
+          concept="026"
+          caseId="case-123"
+          folio="XXI-2026-PAS-000123"
+          isDirty={false}
+          busy={false}
+          downloading={false}
+          printing={false}
+          printSuccessMessage="✓ Pasaje 026 enviado a la impresora de la oficina"
+          onPrepare={vi.fn()}
+          onDownload={vi.fn()}
+          onPrint={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByText(/✓ Pasaje 026 enviado a la impresora de la oficina/i)).toBeDefined();
+      expect(screen.getByText(/enviado a impresora/i)).toBeDefined();
+    });
   });
 });

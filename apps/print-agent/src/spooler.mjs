@@ -44,6 +44,7 @@ export async function printPdfSilently(pdfBuffer, options = {}) {
       paperSize: "Letter",
       copies,
       silent: true,
+      ...(options.duplex ? { side: "duplex" } : {}),
     };
 
     console.log(`[SPOOLER] Enviando trabajo a impresora: "${printer || "Predeterminada"}" (${copies} copia/s, Carta)...`);
