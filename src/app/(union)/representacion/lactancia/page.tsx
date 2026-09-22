@@ -10,7 +10,12 @@ export default async function LactanciaPage(): Promise<React.JSX.Element> {
   if (m.length === 0) redirect("/");
   return (
     <div>
-      <UnionPageHeader title="Lactancia" subtitle="365 días desde la reanudación (Cl. 77). Modalidad sujeta a acuerdo cuando aplique." />
+      <UnionPageHeader
+        title="Lactancia"
+        subtitle="365 días desde la reanudación (Cl. 77). Modalidad sujeta a acuerdo cuando aplique."
+        backHref="/representacion/maternidad-lactancia"
+        backLabel="← Maternidad y Lactancia"
+      />
       <LactationTool />
     </div>
   );

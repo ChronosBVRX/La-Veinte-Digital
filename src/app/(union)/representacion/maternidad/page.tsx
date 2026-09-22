@@ -10,7 +10,12 @@ export default async function MaternidadPage(): Promise<React.JSX.Element> {
   if (m.length === 0) redirect("/");
   return (
     <div>
-      <UnionPageHeader title="Maternidad" subtitle="90 días naturales desde la incapacidad (Cl. 77). Cálculo administrativo orientativo." />
+      <UnionPageHeader
+        title="Maternidad"
+        subtitle="90 días naturales desde la incapacidad (Cl. 77). Cálculo administrativo orientativo."
+        backHref="/representacion/maternidad-lactancia"
+        backLabel="← Maternidad y Lactancia"
+      />
       <MaternityTool />
     </div>
   );
