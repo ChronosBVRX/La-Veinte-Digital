@@ -121,31 +121,25 @@ describe("VacationWizard (Asesor y Planificador Anual)", () => {
     expect(screen.queryByText(/APPLY_INCLUSION_MARK/)).toBeNull()
   })
 
-  it("Paso 4: Calendario preliminar (DRAFT) muestra aviso único superior y badges 'Compatible · calendario preliminar'", async () => {
+  it("Paso 4: Usa el calendario oficial 2027 y muestra términos según los días del periodo", async () => {
     render(<VacationWizard initialContext={mockContext} />)
     fireEvent.click(screen.getByText(/Comenzar simulación/i))
     fireEvent.click(screen.getByText(/Continuar a prioridades/i))
     fireEvent.click(screen.getByText(/Continuar a programación/i))
 
-    // Aviso único superior
-    expect(await screen.findByText(/Calendario preliminar 2027:/i)).toBeDefined()
-    expect(screen.getAllByText(/confirma el rol cuando se publique el calendario oficial/i).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/Calendario preliminar 2027:/i)).toBeNull()
+    expect(screen.getAllByText(/Observación A/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Término para 10 días:/i).length).toBeGreaterThan(0)
 
-    // Grupo de calendario en lugar de Grupo A a secas
-    expect(screen.getAllByText(/Grupo de calendario A/i).length).toBeGreaterThan(0)
+    const availableBadges = screen.getAllByText(/Disponible ✓/i)
+    expect(availableBadges.length).toBeGreaterThan(0)
 
-    // Roles compatibles con fechas en calendario preliminar
-    const preliminaryBadges = screen.getAllByText(/Compatible · calendario preliminar/i)
-    expect(preliminaryBadges.length).toBeGreaterThan(0)
-
-    // Seleccionar rol compatible
-    const firstCompatibleCard = preliminaryBadges[0].closest("div[style*='cursor: pointer']")
-    if (firstCompatibleCard) {
-      fireEvent.click(firstCompatibleCard)
-      expect(await screen.findByText(/Seleccionado para simular/i)).toBeDefined()
+    const firstAvailableCard = availableBadges[0].closest("div[style*='cursor: pointer']")
+    if (firstAvailableCard) {
+      fireEvent.click(firstAvailableCard)
+      expect(await screen.findByText(/Elegido ✓/i)).toBeDefined()
     }
 
-    // No aparecen códigos técnicos en la interfaz de trabajador
     expect(screen.queryByText(/CALENDAR_DRAFT/)).toBeNull()
     expect(screen.queryByText(/MISSING_DUE_DATE/)).toBeNull()
     expect(screen.queryByText(/ROLE_ALLOWED/)).toBeNull()
