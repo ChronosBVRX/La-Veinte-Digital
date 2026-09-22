@@ -24,6 +24,7 @@ import { Input } from "@/shared/components/ui/Input";
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner";
 import { createClient } from "@/lib/supabase/client";
 import { formatRelativeTimeEs } from "../lib/dashboard-format";
+import { getPrintableDocumentLabel } from "../lib/print-document-types";
 
 interface PrintJob {
   id: string;
@@ -565,6 +566,9 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
                     }}
                   >
                     <div>
+                      <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.025em", marginBottom: "0.125rem" }}>
+                        {getPrintableDocumentLabel(j.document_type)}
+                      </div>
                       <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--primary)" }}>
                         {j.case_folio || "Expediente"} (Rev. {j.document_revision})
                       </div>
@@ -610,6 +614,9 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
                     }}
                   >
                     <div>
+                      <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.025em", marginBottom: "0.125rem" }}>
+                        {getPrintableDocumentLabel(j.document_type)}
+                      </div>
                       <div style={{ fontSize: "0.875rem", fontWeight: 600 }}>
                         <span style={{ color: "var(--muted)", marginRight: "0.375rem" }}>#{idx + 1}</span>
                         {j.case_folio || "Expediente"} (Rev. {j.document_revision})
@@ -664,6 +671,9 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
                     }}
                   >
                     <div>
+                      <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.025em", marginBottom: "0.125rem" }}>
+                        {getPrintableDocumentLabel(j.document_type)}
+                      </div>
                       <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--fg)" }}>
                         {j.case_folio || "Expediente"}
                       </div>
@@ -715,6 +725,9 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
                     }}
                   >
                     <div>
+                      <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--primary)", textTransform: "uppercase", letterSpacing: "0.025em", marginBottom: "0.125rem" }}>
+                        {getPrintableDocumentLabel(j.document_type)}
+                      </div>
                       <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--fg)" }}>
                         {j.case_folio || "Expediente"} (Rev. {j.document_revision})
                       </div>

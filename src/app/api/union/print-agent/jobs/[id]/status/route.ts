@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { authenticatePrintStation } from "@/features/representacion/services/print-token";
 import { addCaseEvent } from "@/features/representacion/services/cases";
+import { getPrintableDocumentLabel } from "@/features/representacion/services/print-document-registry";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +13,32 @@ const statusSchema = z.object({
   error_code: z.string().max(50).optional(),
   error_message: z.string().max(300).optional(),
 });
+
+function getPrintedEventTitle(documentType: string): string {
+  switch (documentType) {
+    case "license_package":
+      return "Licencia impresa en oficina";
+    case "passage_026":
+      return "Pasaje 026 impreso en oficina";
+    case "passage_027":
+      return "Pasaje 027 impreso en oficina";
+    default:
+      return `${getPrintableDocumentLabel(documentType)} impreso en oficina`;
+  }
+}
+
+function getFailedEventTitle(documentType: string): string {
+  switch (documentType) {
+    case "license_package":
+      return "Fallo de impresión de Licencia";
+    case "passage_026":
+      return "Fallo de impresión de Pasaje 026";
+    case "passage_027":
+      return "Fallo de impresión de Pasaje 027";
+    default:
+      return `Fallo de impresión de ${getPrintableDocumentLabel(documentType)}`;
+  }
+}
 
 export async function POST(
   req: Request,
@@ -31,7 +58,7 @@ export async function POST(
 
     const { data: job, error: jobErr } = await supabase
       .from("union_print_jobs")
-      .select("id, station_id, case_id, status")
+      .select("id, station_id, case_id, document_type, document_revision, status")
       .eq("id", jobId)
       .single();
 
@@ -76,20 +103,20 @@ export async function POST(
       return NextResponse.json({ error: updateErr?.message || "Error al actualizar estado." }, { status: 500 });
     }
 
-    // Registrar evento en el historial del expediente
+    // Registrar evento de auditoría en el historial del expediente (generalizado por tipo documental)
     if (job.case_id) {
       if (parsed.data.status === "printed") {
         await addCaseEvent(
           job.case_id,
           "document",
-          "Licencia impresa en oficina",
+          getPrintedEventTitle(job.document_type),
           `Expediente impreso exitosamente en la estación "${station.name}" (${station.printer_name || "Impresora predeterminada"}).`,
         );
       } else if (parsed.data.status === "failed") {
         await addCaseEvent(
           job.case_id,
           "document",
-          "Fallo de impresión en oficina",
+          getFailedEventTitle(job.document_type),
           `Error en estación "${station.name}": ${parsed.data.error_message || "Sin detalle"}.`,
         );
       }
@@ -100,7 +127,7 @@ export async function POST(
       job: updated,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Error al actualizar estado del trabajo.";
+    const message = err instanceof Error ? err.message : "Error al actualizar el estado del trabajo.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

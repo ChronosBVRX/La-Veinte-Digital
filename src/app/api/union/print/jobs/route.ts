@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/shared/server/auth/require-user";
 import { requireUnionMembership } from "@/features/representacion/services/permissions";
-import { createLicensePrintJob, getPrintQueueSummary } from "@/features/representacion/services/print-jobs";
+import { createUnionPrintJob, getPrintQueueSummary } from "@/features/representacion/services/print-jobs";
+import { getPrintableDocumentLabel } from "@/features/representacion/services/print-document-registry";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ export const runtime = "nodejs";
 const createJobSchema = z.object({
   case_id: z.string().uuid(),
   copies: z.number().int().min(1).max(5).optional().default(1),
+  duplex: z.boolean().optional(),
 });
 
 export async function POST(req: Request): Promise<NextResponse> {
@@ -23,15 +25,22 @@ export async function POST(req: Request): Promise<NextResponse> {
       return NextResponse.json({ error: "case_id inválido o cantidad de copias fuera de rango." }, { status: 400 });
     }
 
-    const { job, station } = await createLicensePrintJob({
+    const { job, station } = await createUnionPrintJob({
       caseId: parsed.data.case_id,
       userId: auth.user.id,
       copies: parsed.data.copies,
+      duplex: parsed.data.duplex,
     });
+
+    const docLabel = getPrintableDocumentLabel(job.document_type);
 
     return NextResponse.json({
       success: true,
       job,
+      document: {
+        type: job.document_type,
+        label: docLabel,
+      },
       station: {
         id: station.id,
         name: station.name,
@@ -40,7 +49,12 @@ export async function POST(req: Request): Promise<NextResponse> {
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Error al crear el trabajo de impresión.";
-    const status = message.includes("No hay ninguna estación") ? 422 : 500;
+    let status = 500;
+    if (message.includes("No hay ninguna estación") || message.includes("no cuenta con un documento PDF")) {
+      status = 422;
+    } else if (message.includes("no encontrado")) {
+      status = 404;
+    }
     return NextResponse.json({ error: message }, { status });
   }
 }

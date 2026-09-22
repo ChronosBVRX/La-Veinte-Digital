@@ -54,12 +54,15 @@ export function PassageWizard(): React.JSX.Element {
   const [isDirty, setIsDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [printSuccessMessage, setPrintSuccessMessage] = useState<string | null>(null);
 
   // Invalida el snapshot anterior si el usuario edita algún dato
   function markDirty(): void {
     if (caseId) {
       setCaseId(null);
       setIsDirty(true);
+      setPrintSuccessMessage(null);
     }
   }
 
@@ -92,6 +95,7 @@ export function PassageWizard(): React.JSX.Element {
   async function prepare(): Promise<void> {
     setCustomError(null);
     setMissingFields([]);
+    setPrintSuccessMessage(null);
     const errors: Record<string, boolean> = {};
     const missing: string[] = [];
 
@@ -283,6 +287,39 @@ export function PassageWizard(): React.JSX.Element {
     }
   }
 
+  async function printPassage(): Promise<void> {
+    if (!caseId || isDirty) return;
+    setPrinting(true);
+    setCustomError(null);
+    setPrintSuccessMessage(null);
+    try {
+      const res = await fetch("/api/union/print/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ case_id: caseId, copies: 1 }),
+      });
+
+      const j = (await res.json().catch(() => ({}))) as {
+        success?: boolean;
+        error?: string;
+      };
+
+      if (!res.ok || !j.success) {
+        throw new Error(j.error || "No se pudo enviar el documento a la cola de impresión.");
+      }
+
+      const msg =
+        concept === "026"
+          ? "✓ Pasaje 026 enviado a la impresora de la oficina"
+          : "✓ Pasaje 027 enviado a la impresora de la oficina";
+      setPrintSuccessMessage(msg);
+    } catch (err: unknown) {
+      setCustomError(err instanceof Error ? err.message : "No se pudo enviar a la impresora.");
+    } finally {
+      setPrinting(false);
+    }
+  }
+
   return (
     <div className={styles.container}>
       <div className={styles.layout}>
@@ -292,14 +329,14 @@ export function PassageWizard(): React.JSX.Element {
           <PassageConceptSelector
             concept={concept}
             onChange={handleConceptChange}
-            disabled={busy || downloading}
+            disabled={busy || downloading || printing}
           />
 
           {/* 2. Sección del Trabajador Solicitante */}
           <PassageWorkerSection
             selected={worker}
             onSelect={handleWorkerChange}
-            disabled={busy || downloading}
+            disabled={busy || downloading || printing}
             hasError={Boolean(fieldErrors.worker)}
           />
 
@@ -320,7 +357,7 @@ export function PassageWizard(): React.JSX.Element {
               markDirty();
               setControl(v);
             }}
-            disabled={busy || downloading}
+            disabled={busy || downloading || printing}
           />
 
           {/* 4. Detalles Específicos según Concepto */}
@@ -336,7 +373,7 @@ export function PassageWizard(): React.JSX.Element {
                 markDirty();
                 setTransfer(v);
               }}
-              disabled={busy || downloading}
+              disabled={busy || downloading || printing}
               fieldErrors={fieldErrors}
             />
           ) : (
@@ -355,7 +392,7 @@ export function PassageWizard(): React.JSX.Element {
                 markDirty();
                 setPhone(v);
               }}
-              disabled={busy || downloading}
+              disabled={busy || downloading || printing}
               fieldErrors={fieldErrors}
             />
           )}
@@ -367,7 +404,7 @@ export function PassageWizard(): React.JSX.Element {
               markDirty();
               setObs(v);
             }}
-            disabled={busy || downloading}
+            disabled={busy || downloading || printing}
           />
 
           {/* 6. Banner de Validación y Errores */}
@@ -376,7 +413,7 @@ export function PassageWizard(): React.JSX.Element {
             customError={customError}
           />
 
-          {/* 7. Acciones Principales (CTA Preparar / Descargar y Banners) */}
+          {/* 7. Acciones Principales (CTA Preparar / Descargar / Imprimir y Banners) */}
           <PassageActions
             concept={concept}
             caseId={caseId}
@@ -384,8 +421,11 @@ export function PassageWizard(): React.JSX.Element {
             isDirty={isDirty}
             busy={busy}
             downloading={downloading}
+            printing={printing}
+            printSuccessMessage={printSuccessMessage}
             onPrepare={() => void prepare()}
             onDownload={() => void downloadPdf()}
+            onPrint={() => void printPassage()}
           />
         </div>
 
@@ -399,8 +439,10 @@ export function PassageWizard(): React.JSX.Element {
           isDirty={isDirty}
           busy={busy}
           downloading={downloading}
+          printing={printing}
           onPrepare={() => void prepare()}
           onDownload={() => void downloadPdf()}
+          onPrint={() => void printPassage()}
         />
       </div>
     </div>
