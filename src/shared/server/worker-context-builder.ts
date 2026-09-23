@@ -16,6 +16,7 @@ import type { VacationEntitlement } from "@/features/vacations/domain/types"
 import { addCivilMonths } from "@/features/vacations/domain/role-eligibility"
 
 export interface WorkerContextMeta {
+  userId?: string | null
   activePayslipId: string | null
   activePayslipPeriod: string | null
   activeEmployeeNumber: string | null
@@ -24,6 +25,7 @@ export interface WorkerContextMeta {
 }
 
 export interface WorkerContext {
+  userId?: string | null
   meta?: WorkerContextMeta | null
   profile: {
     fullName: string | null
@@ -117,6 +119,31 @@ export interface PayslipLineRow {
  *
  * HISTORIA: el RPC `confirm_imported_payslip` solo persiste un subconjunto
  * histórico (050/023/063) en `payroll_contexts.recurring_concepts`; hidratar
+ * el simulador con ese subconjunto hacía que la portada sumara una sola
+ * percepción en lugar del total comprobado. Esta función usa la
+ * verdad de terreno (`imported_payslip_lines`) y preserva entradas previas
+ * para códigos ausentes en el tarjetón más reciente.
+ */
+export function parseJsonArraySafe(value: unknown): unknown[] {
+  if (value === null || value === undefined) return []
+  if (Array.isArray(value)) return value
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+/**
+ * Reconstruye la lista COMPLETA de recurrentes desde las líneas confirmadas
+ * del último tarjetón real.
+ *
+ * HISTORIA: el RPC `confirm_imported_payslip` solo persiste un subconjunto
+ * histórico (050/023/063) en `payroll_contexts.recurring_concepts`; hidratar
  * el simulador con ese subconjunto hacía que la portada sumara $200 (una sola
  * percepción) en lugar del total comprobado ($14,256.87). Esta función usa la
  * verdad de terreno (`imported_payslip_lines`) y preserva entradas previas
@@ -126,12 +153,14 @@ export function buildRecurringConceptsFromPayslipLines(
   lines: PayslipLineRow[],
   periodRaw: string | null,
   existing: unknown[],
+  payslipId?: string | null,
 ): RecurringConceptEvidence[] {
-  // Normalizar entradas existentes válidas (defensa ante JSONB legacy).
+  // Normalizar entradas existentes válidas (defensa ante JSONB legacy: arrays, strings, objetos).
+  const safeExisting = parseJsonArraySafe(existing)
   const merged = new Map<string, RecurringConceptEvidence>()
-  for (const raw of existing) {
+  for (const raw of safeExisting) {
     if (!raw || typeof raw !== "object") continue
-    const e = raw as Partial<RecurringConceptEvidence>
+    const e = raw as Partial<RecurringConceptEvidence> & { payslipId?: unknown }
     if (typeof e.conceptCode !== "string" || !e.conceptCode) continue
     merged.set(e.conceptCode, {
       conceptCode: e.conceptCode,
@@ -143,27 +172,39 @@ export function buildRecurringConceptsFromPayslipLines(
       confirmed: e.confirmed === true,
       occurrenceType: (e.occurrenceType ?? "unknown") as ConceptOccurrenceType,
       eligibilityPersistence: (e.eligibilityPersistence ?? "until_changed") as EligibilityPersistence,
+      payslipId: typeof e.payslipId === "string" ? e.payslipId : undefined,
     })
   }
 
   // Las líneas del tarjetón real son la fuente más fresca: ganan por código.
+  // Permite importes confirmados >= 0 (p. ej. Concepto 011 explícito en 0).
+  // Si existen múltiples líneas del mismo concepto en el mismo tarjetón (p. ej. dos líneas 008 de sustitución),
+  // se acumulan los importes para reflejar la percepción total de dicha cobertura.
+  const processedFromCurrentLines = new Set<string>()
   for (const line of lines) {
     if (line.kind !== "earning") continue
     if (!line.confirmed_by_user) continue
-    if (!(line.amount > 0)) continue
+    if (typeof line.amount !== "number" || !Number.isFinite(line.amount) || line.amount < 0) continue
     const code = line.concept_code
     const occurrenceType = classifyOccurrence(code)
     const prev = merged.get(code)
+    const alreadyProcessedInCurrent = processedFromCurrentLines.has(code)
+    const accumulatedAmount = alreadyProcessedInCurrent && typeof prev?.lastAmount === "number"
+      ? Math.round((prev.lastAmount + line.amount) * 100) / 100
+      : line.amount
+
+    processedFromCurrentLines.add(code)
     merged.set(code, {
       conceptCode: code,
       appearsNormally: occurrenceType === "recurring" || occurrenceType === "variable",
-      lastAmount: line.amount,
+      lastAmount: accumulatedAmount,
       source: "last_payslip",
       firstSeenAt: prev?.firstSeenAt ?? periodRaw ?? undefined,
       lastSeenAt: periodRaw ?? prev?.lastSeenAt,
       confirmed: true,
       occurrenceType,
       eligibilityPersistence: classifyPersistence(code),
+      payslipId: (payslipId ?? prev?.payslipId) || undefined,
     })
   }
 
@@ -342,6 +383,7 @@ export function resolveCurrentRadiologicalExposure(
  */
 export function buildWorkerContextPayroll(
   latest: {
+    id?: string
     period_raw: string | null
     payroll_totals: Record<string, number> | null
     employee_number?: string | null
@@ -368,8 +410,9 @@ export function buildWorkerContextPayroll(
       payslipLines,
       latest?.period_raw ?? null,
       ctxRecurring,
+      latest?.id,
     ),
-    payrollFacts: ctxFacts,
+    payrollFacts: parseJsonArraySafe(ctxFacts),
   }
 }
 
@@ -389,6 +432,7 @@ export function parseJsonIfString<T>(value: unknown): T | null {
 }
 
 export interface BuildWorkerContextParams {
+  userId?: string | null
   profileRow?: {
     full_name?: string | null
     matricula?: string | null
@@ -508,13 +552,14 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
   const payroll = buildWorkerContextPayroll(
     latest
       ? {
+          id: latest.id,
           period_raw: latest.period_raw ?? null,
           payroll_totals: payrollTotals,
           employee_number: payrollEmployeeNumber,
         }
       : null,
-    (ctx?.recurring_concepts as unknown[]) ?? [],
-    (ctx?.payroll_facts as unknown[]) ?? [],
+    parseJsonArraySafe(ctx?.recurring_concepts),
+    parseJsonArraySafe(ctx?.payroll_facts),
     payslipLines,
   )
 
@@ -659,8 +704,17 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
       }
     : null
 
+  const resolvedUserId = params.userId ?? params.meta?.userId ?? null
+  const meta = params.meta
+    ? {
+        ...params.meta,
+        userId: params.meta.userId ?? resolvedUserId,
+      }
+    : null
+
   return {
-    meta: params.meta ?? null,
+    userId: resolvedUserId,
+    meta,
     profile,
     employment,
     payroll,

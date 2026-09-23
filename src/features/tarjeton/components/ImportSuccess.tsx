@@ -16,11 +16,13 @@ interface ImportSuccessProps {
 export function ImportSuccess({ parsed, response, onStartOver }: ImportSuccessProps) {
   const [pinned, setPinned] = useState(false)
   const [isPinning, setIsPinning] = useState(false)
+  const [pinError, setPinError] = useState<string | null>(null)
 
   const periodLabel = parsed.document.periodRaw || "periodo no detectado"
 
   const handleUseInTools = async () => {
     setIsPinning(true)
+    setPinError(null)
     try {
       const res = await fetch("/api/tarjeton/select", {
         method: "POST",
@@ -31,10 +33,20 @@ export function ImportSuccess({ parsed, response, onStartOver }: ImportSuccessPr
         setPinned(true)
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("nomina_payslip_updated"))
+          try {
+            const bc = new BroadcastChannel("la20-worker-context")
+            bc.postMessage({ type: "nomina_payslip_updated" })
+            bc.close()
+          } catch {
+            // noop si no está disponible
+          }
         }
+      } else {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null
+        setPinError(body?.error || "No se pudo fijar el tarjetón como activo.")
       }
     } catch {
-      /* noop */
+      setPinError("Error de conexión al fijar el tarjetón.")
     } finally {
       setIsPinning(false)
     }
@@ -64,6 +76,11 @@ export function ImportSuccess({ parsed, response, onStartOver }: ImportSuccessPr
           </div>
         )}
       </Card>
+      {pinError && (
+        <div role="alert" style={{ color: "#dc2626", fontSize: "0.8125rem", textAlign: "center", background: "#fef2f2", padding: "0.5rem", borderRadius: "0.375rem" }}>
+          {pinError}
+        </div>
+      )}
       <div style={{ display: "flex", justifyContent: "center", gap: "0.75rem", flexWrap: "wrap" }}>
         {!pinned && (
           <Button variant="secondary" onClick={handleUseInTools} loading={isPinning}>

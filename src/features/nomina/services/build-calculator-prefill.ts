@@ -181,7 +181,13 @@ export async function buildCalculatorPrefill(args: BuildCalculatorPrefillArgs): 
   if (contextAllowed) {
     try {
       const resolved = await resolveActivePayslip(supabase, userId, { activeMatricula })
-      const latestPayslip = resolved.payslip
+      if (resolved.error) {
+        if (isDev) {
+          console.warn("[calculator-prefill] Error al resolver tarjetón activo (código):", resolved.error.code || "unknown")
+        }
+        warnings.push("No se pudo consultar tu tarjetón activo para precargar los días laborados. Puedes ingresarlos manualmente.")
+      }
+      const latestPayslip = resolved.error ? null : resolved.payslip
       const totals = latestPayslip?.payroll_totals
       const days = isObject(totals) ? asNumber(totals.daysWorkedInYear) : undefined
       if (days !== undefined && days > 0) {
@@ -195,6 +201,7 @@ export async function buildCalculatorPrefill(args: BuildCalculatorPrefillArgs): 
       if (isDev) {
         console.warn("[calculator-prefill] imported_payslips no disponible:", err instanceof Error ? err.message : err)
       }
+      warnings.push("No se pudo consultar tu tarjetón activo para precargar los días laborados por un problema de conexión.")
     }
   }
 

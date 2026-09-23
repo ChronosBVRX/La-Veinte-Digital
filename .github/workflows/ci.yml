@@ -45,17 +45,62 @@ jobs:
   supabase-db:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v4
+
+      - name: Configure Docker concurrency and pre-pull images
+        run: |
+          if [ -f /etc/docker/daemon.json ]; then
+            sudo jq '. + {"max-concurrent-downloads": 1}' /etc/docker/daemon.json > /tmp/daemon.json && sudo mv /tmp/daemon.json /etc/docker/daemon.json
+          else
+            echo '{"max-concurrent-downloads": 1}' | sudo tee /etc/docker/daemon.json
+          fi
+          sudo systemctl restart docker
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          images=(
+            "ghcr.io/supabase/postgres:17.6.1.167"
+            "ghcr.io/supabase/gotrue:v2.196.0"
+            "ghcr.io/supabase/kong:2.8.1"
+            "ghcr.io/supabase/postgres-meta:v0.99.0"
+            "ghcr.io/supabase/postgrest:v16.2"
+            "ghcr.io/supabase/storage-api:v1.72.1"
+            "ghcr.io/supabase/realtime:v2.130.0"
+            "ghcr.io/supabase/vector:0.53.0-alpine"
+            "ghcr.io/supabase/mailpit:v1.30.2"
+          )
+          for img in "${images[@]}"; do
+            for attempt in 1 2 3 4 5; do
+              echo "Pulling $img (attempt $attempt)..."
+              if docker pull "$img"; then
+                break
+              fi
+              echo "Failed to pull $img, sleeping $((attempt * 3))s before retry..."
+              sleep $((attempt * 3))
+            done
+          done
 
       - uses: supabase/setup-cli@v1
         with:
           version: latest
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify migrations build a working database from scratch
         run: |
           supabase init --force
-          supabase start
+          for attempt in 1 2 3; do
+            echo "Attempt $attempt: starting Supabase stack..."
+            if supabase start -x studio,logflare,edge-runtime,realtime,storage,storage-api,imgproxy,vector; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Failed to start Supabase stack after 3 attempts"
+              exit 1
+            fi
+            sleep 10
+          done
           supabase db reset
 
       - name: Check every table has RLS enabled

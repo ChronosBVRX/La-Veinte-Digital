@@ -223,6 +223,7 @@ export type ConfirmTarjetonErrorCode =
   | "template_not_detected"
   | "consent_required"
   | "persistence_failed"
+  | "profile_init_failed"
   | "internal"
 
 export interface ConfirmTarjetonError {

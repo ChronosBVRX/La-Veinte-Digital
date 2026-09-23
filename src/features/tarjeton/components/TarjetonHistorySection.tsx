@@ -23,7 +23,7 @@ interface TarjetonHistorySectionProps {
   imports: PreviousImport[]
   activePayslipId?: string | null
   latestPayslipId?: string | null
-  selectionMode?: "AUTO_LATEST" | "PINNED"
+  selectionMode?: "AUTO_LATEST" | "PINNED" | "UNKNOWN"
   latestConcepts?: Array<{ code: string; description: string; amount: number; kind: "earning" | "deduction" }>
   onUploadNew?: () => void
   uploadHref?: string
@@ -43,7 +43,7 @@ export function TarjetonHistorySection({
   const [activeId, setActiveId] = useState<string | null>(
     initialActiveId ?? (initial[0]?.id ?? null)
   )
-  const [selectionMode, setSelectionMode] = useState<"AUTO_LATEST" | "PINNED">(initialSelectionMode)
+  const [selectionMode, setSelectionMode] = useState<"AUTO_LATEST" | "PINNED" | "UNKNOWN">(initialSelectionMode)
 
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -51,6 +51,10 @@ export function TarjetonHistorySection({
   const [activatingPeriod, setActivatingPeriod] = useState<string | null>(null)
   const [isActivating, setIsActivating] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
+  const [actionNotice, setActionNotice] = useState<{
+    type: "warning" | "info" | "error"
+    text: string
+  } | null>(null)
 
   const handleConfirmDelete = useCallback(async () => {
     if (!deletingId) return
@@ -64,14 +68,31 @@ export function TarjetonHistorySection({
       const response = await res.json()
       if (res.ok && response.ok) {
         setImports((prev) => prev.filter((i) => i.id !== deletingId))
+        const isUnknownMode = response.selectionMode === "UNKNOWN" || response.activePayslipUpdated === false
         if (activeId === deletingId) {
-          setActiveId(response.activePayslipId ?? null)
-          setSelectionMode(response.selectionMode ?? "AUTO_LATEST")
+          if (isUnknownMode) {
+            setActiveId(null)
+            setSelectionMode("UNKNOWN")
+          } else {
+            setActiveId(response.activePayslipId ?? null)
+            setSelectionMode(response.selectionMode ?? "AUTO_LATEST")
+          }
+        }
+
+        if (isUnknownMode) {
+          setActionNotice({
+            type: "warning",
+            text:
+              response.warning ||
+              "El tarjetón fue eliminado, pero no se pudo determinar el tarjetón activo automáticamente. Puedes seleccionar uno de la lista.",
+          })
+        } else {
+          setActionNotice(null)
         }
 
         const detail = {
-          activePayslipId: response.activePayslipId,
-          selectionMode: response.selectionMode,
+          activePayslipId: isUnknownMode ? null : (response.activePayslipId ?? null),
+          selectionMode: isUnknownMode ? "UNKNOWN" : (response.selectionMode ?? "AUTO_LATEST"),
           contextRevision: response.contextRevision,
         }
 
@@ -86,9 +107,17 @@ export function TarjetonHistorySection({
           }
         }
         router.refresh()
+      } else {
+        setActionNotice({
+          type: "error",
+          text: response.message || response.error || "No se pudo eliminar el tarjetón. Inténtalo de nuevo.",
+        })
       }
     } catch {
-      /* noop */
+      setActionNotice({
+        type: "error",
+        text: "Error de red al intentar eliminar el tarjetón.",
+      })
     } finally {
       setIsDeleting(false)
       setDeletingId(null)
@@ -111,6 +140,7 @@ export function TarjetonHistorySection({
         }
         setActiveId(response.activePayslipId)
         setSelectionMode(response.selectionMode)
+        setActionNotice(null)
 
         const detail = {
           activePayslipId: response.activePayslipId,
@@ -152,6 +182,7 @@ export function TarjetonHistorySection({
       if (res.ok && response.ok) {
         setActiveId(response.activePayslipId)
         setSelectionMode(response.selectionMode)
+        setActionNotice(null)
 
         const detail = {
           activePayslipId: response.activePayslipId,
@@ -179,9 +210,53 @@ export function TarjetonHistorySection({
     }
   }, [router])
 
+  const renderActionNotice = () => {
+    if (!actionNotice) return null
+    const isWarning = actionNotice.type === "warning"
+    const isError = actionNotice.type === "error"
+    return (
+      <div
+        role={isError ? "alert" : "status"}
+        data-testid="tarjeton-action-notice"
+        style={{
+          padding: "0.75rem 1rem",
+          borderRadius: "var(--radius)",
+          backgroundColor: isError ? "#fef2f2" : isWarning ? "#fffbeb" : "#eff6ff",
+          border: `1px solid ${isError ? "#fee2e2" : isWarning ? "#fef3c7" : "#dbeafe"}`,
+          color: isError ? "#991b1b" : isWarning ? "#92400e" : "#1e40af",
+          fontSize: "var(--text-sm)",
+          lineHeight: 1.4,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "0.5rem",
+        }}
+      >
+        <span>{actionNotice.text}</span>
+        <button
+          type="button"
+          onClick={() => setActionNotice(null)}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: "inherit",
+            padding: "0.25rem",
+            fontSize: "1rem",
+            lineHeight: 1,
+          }}
+          aria-label="Cerrar aviso"
+        >
+          ×
+        </button>
+      </div>
+    )
+  }
+
   if (imports.length === 0) {
     return (
-      <div style={{ marginTop: "1rem" }}>
+      <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+        {renderActionNotice()}
         <Card padding="1.5rem" style={{ textAlign: "center", background: "var(--accent)" }}>
           <p style={{ fontSize: "var(--text-md)", fontWeight: 600, margin: "0 0 0.5rem" }}>
             No tienes tarjetones importados
@@ -214,6 +289,7 @@ export function TarjetonHistorySection({
 
   return (
     <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+      {renderActionNotice()}
       {/* Botón para volver al más reciente si está fijado uno anterior */}
       {isPinnedOlder && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--accent)", padding: "0.75rem 1rem", borderRadius: "var(--radius)", flexWrap: "wrap", gap: "0.5rem" }}>

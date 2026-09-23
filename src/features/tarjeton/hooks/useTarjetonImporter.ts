@@ -264,6 +264,42 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null, use
       return
     }
 
+    if (!result.data || !result.data.id) {
+      setState((s) => ({
+        ...s,
+        step: "review",
+        error: {
+          code: "persistence_failed",
+          message: "No se pudo confirmar la persistencia del tarjetón en el servidor.",
+        },
+      }))
+      return
+    }
+
+    const concepts: PayslipConcept[] = []
+    for (const e of safeParsed.payroll.earnings) {
+      concepts.push({
+        code: e.code || null,
+        description: e.description,
+        amount: e.amount,
+        kind: "perception",
+      })
+    }
+    for (const d of safeParsed.payroll.deductions) {
+      concepts.push({
+        code: d.code || null,
+        description: d.description,
+        amount: Math.abs(d.amount),
+        kind: "deduction",
+      })
+    }
+
+    const pTotal = safeParsed.payroll.totalEarnings ?? concepts.filter((c) => c.kind === "perception").reduce((s, c) => s + c.amount, 0)
+    const dTotal = safeParsed.payroll.totalDeductions ?? concepts.filter((c) => c.kind === "deduction").reduce((s, c) => s + c.amount, 0)
+    const net = safeParsed.payroll.netPay ?? (pTotal - dTotal)
+    const pRank = calculatePeriodRank(safeParsed.document.year || 0, safeParsed.document.month || 0, safeParsed.document.half || 1)
+
+    // Sincronización de caché local (no bloqueante si falla localStorage)
     try {
       syncConfirmedPayslip(result.data, request, userId)
       if (file) {
@@ -274,29 +310,6 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null, use
           void saveTarjetonPdfBlob(userId, result.data.id, file, file.name)
         }
       }
-
-      const concepts: PayslipConcept[] = []
-      for (const e of safeParsed.payroll.earnings) {
-        concepts.push({
-          code: e.code || null,
-          description: e.description,
-          amount: e.amount,
-          kind: "perception",
-        })
-      }
-      for (const d of safeParsed.payroll.deductions) {
-        concepts.push({
-          code: d.code || null,
-          description: d.description,
-          amount: Math.abs(d.amount),
-          kind: "deduction",
-        })
-      }
-
-      const pTotal = safeParsed.payroll.totalEarnings ?? concepts.filter((c) => c.kind === "perception").reduce((s, c) => s + c.amount, 0)
-      const dTotal = safeParsed.payroll.totalDeductions ?? concepts.filter((c) => c.kind === "deduction").reduce((s, c) => s + c.amount, 0)
-      const net = safeParsed.payroll.netPay ?? (pTotal - dTotal)
-      const pRank = calculatePeriodRank(safeParsed.document.year || 0, safeParsed.document.month || 0, safeParsed.document.half || 1)
 
       savePayslipAnalysis(userId, {
         documentId: result.data.id,
@@ -312,8 +325,13 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null, use
         analyzedAt: new Date().toISOString(),
         errorCode: null,
       })
+    } catch (err) {
+      console.warn("[tarjeton] sincronización local en caché falló (no bloqueante):", err)
+    }
 
-      if (typeof window !== "undefined") {
+    // Siempre emitir eventos de actualización y sincronización entre pestañas
+    if (typeof window !== "undefined") {
+      try {
         window.dispatchEvent(new CustomEvent("nomina_payslip_updated"))
         window.dispatchEvent(
           new CustomEvent("tarjeton_analysis_completed", {
@@ -328,9 +346,17 @@ export function useTarjetonImporter(profile: TarjetonProfileSnapshot | null, use
             },
           })
         )
+      } catch (evtErr) {
+        console.warn("[tarjeton] dispatchEvent falló:", evtErr)
       }
-    } catch (err) {
-      console.warn("[tarjeton] sincronización local falló:", err)
+
+      try {
+        const bc = new BroadcastChannel("la20-worker-context")
+        bc.postMessage({ type: "nomina_payslip_updated" })
+        bc.close()
+      } catch {
+        // BroadcastChannel no disponible o no soportado en este entorno
+      }
     }
 
     setState((s) => ({ ...s, step: "done", confirmResponse: result.data, error: undefined }))

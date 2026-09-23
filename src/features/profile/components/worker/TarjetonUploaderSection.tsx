@@ -20,23 +20,84 @@ interface TarjetonUploaderSectionProps {
  */
 export function TarjetonUploaderSection({ profileSnapshot, userId }: TarjetonUploaderSectionProps) {
   const [syncError, setSyncError] = useState<string | null>(null)
+  const [lastMeta, setLastMeta] = useState<TarjetonImportSuccessMeta | null>(null)
+  const [retryingSync, setRetryingSync] = useState(false)
   const router = useRouter()
 
   const handleSuccess = useCallback(async (_meta: TarjetonImportSuccessMeta) => {
     setSyncError(null)
-    const result = await completePayslipOnboardingAction(_meta)
-    if (!result.ok) {
-      setSyncError("Tus datos se guardaron, pero no pudimos actualizar el estado de tu perfil laboral. Inténtalo de nuevo subiendo otro tarjetón.")
-      return
+    try {
+      const result = await completePayslipOnboardingAction(_meta)
+      if (!result.ok) {
+        setLastMeta(_meta)
+        setSyncError("Tu tarjetón se guardó correctamente, pero hubo un detalle al actualizar el estado general de tu perfil laboral.")
+      }
+    } catch {
+      setLastMeta(_meta)
+      setSyncError("Tu tarjetón se guardó correctamente, pero ocurrió un problema de red al actualizar tu perfil laboral.")
+    } finally {
+      router.refresh()
     }
-    router.refresh()
   }, [router])
+
+  const handleRetrySync = async () => {
+    if (!lastMeta) return
+    setRetryingSync(true)
+    try {
+      const result = await completePayslipOnboardingAction(lastMeta)
+      if (result.ok) {
+        setSyncError(null)
+        setLastMeta(null)
+      } else {
+        setSyncError("No se pudo actualizar el estado del perfil: " + result.message)
+      }
+    } catch {
+      setSyncError("Error de conexión al actualizar el perfil laboral.")
+    } finally {
+      setRetryingSync(false)
+      router.refresh()
+    }
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
       {syncError && (
-        <div role="alert" style={{ color: "#dc2626", fontSize: "0.875rem", background: "#fef2f2", padding: "0.5rem", borderRadius: "0.375rem" }}>
-          {syncError}
+        <div
+          role="alert"
+          style={{
+            color: "#92400e",
+            fontSize: "0.875rem",
+            background: "#fef3c7",
+            border: "1px solid #fde68a",
+            padding: "0.75rem",
+            borderRadius: "0.375rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "0.5rem",
+          }}
+        >
+          <span>{syncError}</span>
+          {lastMeta && (
+            <button
+              onClick={handleRetrySync}
+              disabled={retryingSync}
+              style={{
+                background: "#f59e0b",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "0.25rem",
+                padding: "0.25rem 0.5rem",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                cursor: retryingSync ? "not-allowed" : "pointer",
+                whiteSpace: "nowrap",
+                opacity: retryingSync ? 0.7 : 1,
+              }}
+            >
+              {retryingSync ? "Reintentando…" : "Reintentar"}
+            </button>
+          )}
         </div>
       )}
       <TarjetonImporterWrapper profile={profileSnapshot} userId={userId} onSuccess={handleSuccess} />

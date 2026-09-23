@@ -61,6 +61,15 @@ export function registerConsoleWatcher(
     // Facebook iframe resources blocked in CI (location is chrome-error://)
     if (msg.location().url.includes("chrome-error://")) return
 
+    // Facebook Page Plugin logging endpoint 404 in CI (external third-party telemetry)
+    const loc = msg.location().url || ""
+    if (
+      loc.includes("facebook.com/platform/plugin/page/logging") &&
+      msg.text().includes("404")
+    ) {
+      return
+    }
+
     if (ALLOWED_CONSOLE_PATTERNS.some((p) => msg.text().match(p))) return
 
     errors.push({

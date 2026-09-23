@@ -48,7 +48,10 @@ export async function getWorkerActiveDiagnostics(
   const radiologicalSource = vacProfileRes.data?.radiological_exposure_source || null
 
   const resolved = await resolveActivePayslip(supabase, userId, { activeMatricula: profileMatricula })
-  const activePayslip = resolved.payslip
+  if (resolved.error) {
+    console.error("[active-worker-diagnostics] Error al resolver tarjetón activo (código):", resolved.error.code || "unknown")
+  }
+  const activePayslip = resolved.error ? null : resolved.payslip
   const activeEmployee = profileMatricula || activeContextRes.data?.employee_number || activePayslip?.employee_number || null
 
   const payslipEmpNum = activePayslip?.employee_number?.trim() || null

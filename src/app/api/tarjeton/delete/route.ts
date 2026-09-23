@@ -59,9 +59,24 @@ export async function POST(request: NextRequest) {
   }
 
   const resolved = await resolveActivePayslip(supabase, auth.user.id)
+  if (resolved.error) {
+    console.warn("[tarjeton/delete] Advertencia al resolver tarjetón activo post-borrado (código):", resolved.error.code || "unknown")
+    return NextResponse.json({
+      ok: true,
+      deleted: true,
+      activePayslipUpdated: false,
+      warning: "El tarjetón se eliminó correctamente, pero ocurrió un problema al consultar el tarjetón activo actualizado.",
+      warningCode: resolved.error.code || "active_payslip_resolution_failed",
+      activePayslipId: null,
+      selectionMode: "UNKNOWN",
+      contextRevision: null,
+    })
+  }
 
   return NextResponse.json({
     ok: true,
+    deleted: true,
+    activePayslipUpdated: true,
     activePayslipId: resolved.activePayslipId,
     selectionMode: resolved.selectionMode,
     contextRevision: resolved.contextRevision,

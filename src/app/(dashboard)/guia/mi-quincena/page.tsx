@@ -8,8 +8,15 @@ export default async function MiQuincenaPageRoute({ searchParams }: { searchPara
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const serverPayslip = await fetchLatestServerPayslip(user.id)
+  const serverResult = await fetchLatestServerPayslip(user.id)
   const { vista } = await searchParams
 
-  return <MiQuincenaPage serverPayslip={serverPayslip} userId={user.id} initialTab={vista} />
+  return (
+    <MiQuincenaPage
+      serverPayslip={serverResult.payslip}
+      serverError={serverResult.error?.message}
+      userId={user.id}
+      initialTab={vista}
+    />
+  )
 }

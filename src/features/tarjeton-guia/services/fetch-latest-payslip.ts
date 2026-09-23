@@ -18,20 +18,37 @@ export interface LatestPayslipResult {
   server: GuidePayslip | null
 }
 
-export async function fetchLatestServerPayslip(userId: string): Promise<GuidePayslip | null> {
+export interface ServerPayslipQueryResult {
+  payslip: GuidePayslip | null
+  error?: { message: string; code?: string } | null
+}
+
+export async function fetchLatestServerPayslip(userId: string): Promise<ServerPayslipQueryResult> {
   const supabase = await createClient()
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileErr } = await supabase
     .from("profiles")
     .select("matricula")
     .eq("id", userId)
     .maybeSingle()
 
+  if (profileErr) {
+    console.error("[fetch-latest-payslip] Error al consultar perfil (código):", profileErr.code || "unknown")
+    return {
+      payslip: null,
+      error: { message: "Error al consultar perfil del trabajador", code: profileErr.code },
+    }
+  }
+
   const activeMatricula = profile?.matricula?.trim() || null
 
   const resolved = await resolveActivePayslip(supabase, userId, { activeMatricula })
+  if (resolved.error) {
+    console.error("[fetch-latest-payslip] Error al resolver tarjetón activo (código):", resolved.error.code || "unknown")
+    return { payslip: null, error: resolved.error }
+  }
   const latest = resolved.payslip
-  if (!latest) return null
+  if (!latest) return { payslip: null, error: null }
 
   const [linesRes, obsRes] = await Promise.all([
     supabase
@@ -48,16 +65,27 @@ export async function fetchLatestServerPayslip(userId: string): Promise<GuidePay
       .limit(80),
   ])
 
-  return dbRowToGuidePayslip(
-    latest as unknown as Record<string, unknown>,
-    (linesRes.data ?? []).map((l) => ({
-      kind: l.kind,
-      code: l.concept_code,
-      description: l.description,
-      amount: l.amount,
-      confidence: l.confidence,
-      confirmedByUser: l.confirmed_by_user,
-    })),
-    (obsRes.data ?? []).map((o) => ({ ...o }))
-  )
+  if (linesRes.error) {
+    console.error("[fetch-latest-payslip] Error al consultar líneas (código):", linesRes.error.code || "unknown")
+    return {
+      payslip: null,
+      error: { message: "Error al consultar líneas del tarjetón", code: linesRes.error.code },
+    }
+  }
+
+  return {
+    payslip: dbRowToGuidePayslip(
+      latest as unknown as Record<string, unknown>,
+      (linesRes.data ?? []).map((l) => ({
+        kind: l.kind,
+        code: l.concept_code,
+        description: l.description,
+        amount: l.amount,
+        confidence: l.confidence,
+        confirmedByUser: l.confirmed_by_user,
+      })),
+      (obsRes.data ?? []).map((o) => ({ ...o })),
+    ),
+    error: null,
+  }
 }
