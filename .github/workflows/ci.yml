@@ -91,7 +91,7 @@ jobs:
           supabase init --force
           for attempt in 1 2 3; do
             echo "Attempt $attempt: starting Supabase stack..."
-            if supabase start -x studio,logflare,edge-runtime,realtime,storage-api,imgproxy; then
+            if supabase start -x studio,logflare,edge-runtime,realtime,storage,storage-api,imgproxy,vector; then
               break
             fi
             if [ "$attempt" -eq 3 ]; then
