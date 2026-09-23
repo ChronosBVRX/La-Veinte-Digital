@@ -13,6 +13,7 @@ export interface ResolvedActivePayslip {
   latestPeriodRaw: string | null
   activeMatricula: string | null
   contextRevision: string | null
+  error?: { message: string; code?: string } | null
 }
 
 export interface ResolveActivePayslipOptions {
@@ -40,23 +41,33 @@ export async function resolveActivePayslip(
   options?: ResolveActivePayslipOptions
 ): Promise<ResolvedActivePayslip> {
   let activeMatricula = options?.activeMatricula?.trim() || null
+  let resolutionError: { message: string; code?: string } | null = null
 
   // Si no se proveyó la matrícula activa, obtenerla del perfil
   if (!activeMatricula) {
-    const { data: profile } = await supabase
+    const { data: profile, error: profileErr } = await supabase
       .from("profiles")
       .select("matricula")
       .eq("id", userId)
       .maybeSingle()
+    if (profileErr) {
+      resolutionError = { message: "Error al consultar perfil del trabajador", code: profileErr.code }
+      console.error("[active-payslip] Error al consultar perfil (código):", profileErr.code || "unknown")
+    }
     activeMatricula = profile?.matricula?.trim() || null
   }
 
   // 1. Consultar worker_active_context
-  const { data: activeContext } = await supabase
+  const { data: activeContext, error: actCtxErr } = await supabase
     .from("worker_active_context")
     .select("employee_number, active_payslip_id, selection_mode, updated_at")
     .eq("user_id", userId)
     .maybeSingle()
+
+  if (actCtxErr && !resolutionError) {
+    resolutionError = { message: "Error al consultar worker_active_context", code: actCtxErr.code }
+    console.error("[active-payslip] Error al consultar worker_active_context (código):", actCtxErr.code || "unknown")
+  }
 
   const selectionMode = (activeContext?.selection_mode === "PINNED" ? "PINNED" : "AUTO_LATEST") as "AUTO_LATEST" | "PINNED"
   const pinnedPayslipId = activeContext?.active_payslip_id || null
@@ -71,12 +82,17 @@ export async function resolveActivePayslip(
     latestQuery = latestQuery.eq("employee_number", activeMatricula)
   }
 
-  const { data: latestRows } = await latestQuery
+  const { data: latestRows, error: latestError } = await latestQuery
     .order("period_year", { ascending: false, nullsFirst: false })
     .order("period_month", { ascending: false, nullsFirst: false })
     .order("period_half", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(1)
+
+  if (latestError) {
+    resolutionError = { message: "Error al consultar tarjetones en base de datos", code: latestError.code }
+    console.error("[active-payslip] Error al consultar latestQuery (código):", latestError.code || "unknown")
+  }
 
   const latestPayslip = latestRows?.[0] ?? null
   const latestPayslipId = latestPayslip?.id ?? null
@@ -91,7 +107,25 @@ export async function resolveActivePayslip(
       .eq("user_id", userId)
       .maybeSingle()
 
-    if (!pinnedErr && pinnedRow) {
+    if (pinnedErr) {
+      resolutionError = { message: "Error al consultar tarjetón fijado", code: pinnedErr.code }
+      console.error("[active-payslip] Error al consultar pinnedRow (código):", pinnedErr.code || "unknown")
+      // Si fue error de base de datos / red (no 404/not found), no desanclar automáticamente:
+      return {
+        payslip: null,
+        selectionMode: "PINNED",
+        isPinned: true,
+        isLatest: false,
+        activePayslipId: pinnedPayslipId,
+        latestPayslipId,
+        latestPeriodRaw,
+        activeMatricula,
+        contextRevision: activeContext?.updated_at || null,
+        error: resolutionError,
+      }
+    }
+
+    if (pinnedRow) {
       const pinnedEmpNum = pinnedRow.employee_number?.trim() || null
 
       // Validar coherencia con la matrícula activa
@@ -107,12 +141,13 @@ export async function resolveActivePayslip(
           latestPeriodRaw,
           activeMatricula,
           contextRevision: activeContext?.updated_at || pinnedRow.created_at || null,
+          error: resolutionError,
         }
       }
     }
 
     // El tarjetón PINNED fue eliminado o tiene discrepancia de matrícula -> fallback seguro
-    // y normalizar context
+    // y normalizar context solo si se confirmó la ausencia (sin error de red)
     void supabase
       .from("worker_active_context")
       .update({ selection_mode: "AUTO_LATEST", active_payslip_id: null, updated_at: new Date().toISOString() })
@@ -130,5 +165,6 @@ export async function resolveActivePayslip(
     latestPeriodRaw,
     activeMatricula,
     contextRevision: activeContext?.updated_at || latestPayslip?.created_at || null,
+    error: resolutionError,
   }
 }

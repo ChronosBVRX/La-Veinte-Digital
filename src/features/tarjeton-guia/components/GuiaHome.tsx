@@ -30,6 +30,7 @@ export interface GuiaHomeServerData {
   totalDeductions?: number
   earningsCount?: number
   deductionsCount?: number
+  serverError?: string
 }
 
 export function GuiaHome({ data, userId }: { data: GuiaHomeServerData; userId: string }) {
@@ -185,6 +186,26 @@ export function GuiaHome({ data, userId }: { data: GuiaHomeServerData; userId: s
         title="Guía de mi Tarjetón"
         description="Aprende a leer cada concepto, verificar tus descuentos y proteger tu salario quincenal."
       />
+
+      {data.serverError && (
+        <div
+          role="alert"
+          style={{
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: "var(--radius-md)",
+            padding: "0.75rem 0.875rem",
+            marginTop: "1rem",
+            fontSize: "0.8125rem",
+            color: "#991b1b",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+          }}
+        >
+          <span>⚠️ {data.serverError}</span>
+        </div>
+      )}
 
       {/* Quincena Hero */}
       <Card padding="1.25rem" style={{ marginTop: "1rem" }}>

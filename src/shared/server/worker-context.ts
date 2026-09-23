@@ -1,6 +1,6 @@
-"use server"
-
 import { createClient } from "@/lib/supabase/server"
+import type { SupabaseClient, User } from "@supabase/supabase-js"
+import type { Database } from "@/lib/supabase/types"
 import { resolveActivePayslip } from "./active-payslip"
 import {
   buildWorkerContext,
@@ -10,11 +10,32 @@ import {
 
 export type { WorkerContext } from "./worker-context-builder"
 
-export async function getWorkerContext(): Promise<WorkerContext> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export class WorkerContextQueryError extends Error {
+  readonly code: string
+  readonly requestId?: string
+  constructor(message: string, code = "worker_context_query_failed", requestId?: string) {
+    super(message)
+    this.name = "WorkerContextQueryError"
+    this.code = code
+    this.requestId = requestId
+  }
+}
+
+export async function getWorkerContext(
+  existingUser?: User | null,
+  existingSupabase?: SupabaseClient<Database> | null,
+  requestId?: string,
+): Promise<WorkerContext> {
+  const supabase = existingSupabase ?? (await createClient())
+  let user = existingUser ?? null
+  if (!user) {
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    user = authUser
+  }
+
   if (!user) {
     return {
+      userId: null,
       meta: null,
       profile: null,
       employment: null,
@@ -24,12 +45,19 @@ export async function getWorkerContext(): Promise<WorkerContext> {
     }
   }
 
+  const reqId = requestId || "req"
+
   // 1. Obtener perfil para conocer la matrícula activa
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("full_name, matricula, categoria, antiguedad, adscripcion")
     .eq("id", user.id)
     .maybeSingle()
+
+  if (profileError && profileError.code !== "PGRST116") {
+    console.error(`[worker-context][${reqId}] Error en profiles (código):`, profileError.code || "unknown")
+    throw new WorkerContextQueryError("Error al consultar perfil del trabajador", "profile_query_failed", reqId)
+  }
 
   const activeMatricula = profile?.matricula?.trim() || null
 
@@ -48,7 +76,20 @@ export async function getWorkerContext(): Promise<WorkerContext> {
       .maybeSingle(),
   ])
 
-  let ctx = ctxRes.data
+  if (activePayslipResult.error) {
+    console.error(`[worker-context][${reqId}] Error en activePayslip (código):`, activePayslipResult.error.code || "unknown")
+    throw new WorkerContextQueryError("Error al resolver tarjetón activo", "active_payslip_query_failed", reqId)
+  }
+
+  if (ctxRes.error && ctxRes.error.code !== "PGRST116") {
+    console.warn(`[worker-context][${reqId}] Advertencia en payroll_contexts (código):`, ctxRes.error.code || "unknown")
+  }
+
+  if (vacProfileRes.error && vacProfileRes.error.code !== "PGRST116") {
+    console.warn(`[worker-context][${reqId}] Advertencia en vacation_profile_data (código):`, vacProfileRes.error.code || "unknown")
+  }
+
+  let ctx = ctxRes.data ?? null
   let latest = activePayslipResult.payslip
   let vacProfile = vacProfileRes.data ?? null
 
@@ -62,7 +103,7 @@ export async function getWorkerContext(): Promise<WorkerContext> {
 
     if (latest && latestEmpNum && latestEmpNum !== activeMatricula) {
       if (process.env.NODE_ENV !== "production" || process.env.VITEST) {
-        console.warn(`[worker-context] WORKER_CONTEXT_IDENTITY_MISMATCH: latest payslip (${latestEmpNum}) !== profile (${activeMatricula})`)
+        console.warn(`[worker-context][${reqId}] WORKER_CONTEXT_IDENTITY_MISMATCH: latest_payslip_mismatch`)
       }
       latest = null
     }
@@ -70,7 +111,7 @@ export async function getWorkerContext(): Promise<WorkerContext> {
     const ctxMatricula = (ctx?.matricula as string | undefined)?.trim() || null
     if (ctx && ctxMatricula && ctxMatricula !== activeMatricula) {
       if (process.env.NODE_ENV !== "production" || process.env.VITEST) {
-        console.warn(`[worker-context] WORKER_CONTEXT_IDENTITY_MISMATCH: payroll_contexts (${ctxMatricula}) !== profile (${activeMatricula})`)
+        console.warn(`[worker-context][${reqId}] WORKER_CONTEXT_IDENTITY_MISMATCH: payroll_contexts_mismatch`)
       }
       ctx = null
     }
@@ -78,7 +119,7 @@ export async function getWorkerContext(): Promise<WorkerContext> {
     const vacEmpNum = (vacProfile?.employee_number as string | undefined)?.trim() || null
     if (vacProfile && vacEmpNum && vacEmpNum !== activeMatricula) {
       if (process.env.NODE_ENV !== "production" || process.env.VITEST) {
-        console.warn(`[worker-context] WORKER_CONTEXT_IDENTITY_MISMATCH: vacation_profile_data (${vacEmpNum}) !== profile (${activeMatricula})`)
+        console.warn(`[worker-context][${reqId}] WORKER_CONTEXT_IDENTITY_MISMATCH: vacation_profile_data_mismatch`)
       }
       vacProfile = null
     }
@@ -92,13 +133,19 @@ export async function getWorkerContext(): Promise<WorkerContext> {
       .select("concept_code, description, amount, kind, confirmed_by_user")
       .eq("payslip_id", latest.id)
       .order("line_index")
-    if (!linesRes.error && Array.isArray(linesRes.data)) {
+    if (linesRes.error) {
+      console.error(`[worker-context][${reqId}] Error en imported_payslip_lines (código):`, linesRes.error.code || "unknown")
+      throw new WorkerContextQueryError("Error al consultar líneas del tarjetón", "payslip_lines_query_failed", reqId)
+    }
+    if (Array.isArray(linesRes.data)) {
       payslipLines = linesRes.data as PayslipLineRow[]
     }
   }
 
   return buildWorkerContext({
+    userId: user.id,
     meta: {
+      userId: user.id,
       activePayslipId: activePayslipResult.activePayslipId,
       activePayslipPeriod: latest?.period_raw ?? activePayslipResult.latestPeriodRaw ?? null,
       activeEmployeeNumber: activeMatricula || activePayslipResult.activeMatricula,

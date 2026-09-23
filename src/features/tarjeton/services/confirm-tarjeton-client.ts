@@ -36,11 +36,28 @@ export async function confirmTarjetonClient(request: ConfirmTarjetonRequest): Pr
     }
   }
 
-  let error: { code: ConfirmTarjetonErrorCode; message: string } | null = null
+  let error: { code: ConfirmTarjetonErrorCode; message: string; requestId?: string } | null = null
   try {
-    const body = (await response.json()) as { code?: ConfirmTarjetonErrorCode; message?: string }
-    if (body.code && body.message) {
-      error = { code: body.code, message: body.message }
+    const body = (await response.json()) as {
+      code?: ConfirmTarjetonErrorCode
+      message?: string
+      error?: string
+      requestId?: string
+    }
+    const message =
+      typeof body.message === "string" && body.message.trim().length > 0
+        ? body.message
+        : typeof body.error === "string" && body.error.trim().length > 0
+          ? body.error
+          : null
+
+    const code = (body.code ?? (response.status === 401 ? "unauthorized" : "internal")) as ConfirmTarjetonErrorCode
+    if (message) {
+      error = {
+        code,
+        message,
+        ...(body.requestId ? { requestId: body.requestId } : {}),
+      }
     }
   } catch {
     // Cuerpo no JSON: se usa el código del status.

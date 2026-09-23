@@ -19,7 +19,17 @@ import type { GuidePayslip } from "@/features/tarjeton-guia/lib/types"
 import { syncLatestSavedPayslip } from "@/features/tarjeton/services/sync-latest-payslip"
 import { analyzeAndPersistPayslip } from "@/features/tarjeton/services/analyze-and-persist-payslip"
 
-export function MiQuincenaPage({ serverPayslip, userId, initialTab }: { serverPayslip: GuidePayslip | null; userId: string; initialTab?: string }) {
+export function MiQuincenaPage({
+  serverPayslip,
+  serverError,
+  userId,
+  initialTab,
+}: {
+  serverPayslip: GuidePayslip | null
+  serverError?: string | null
+  userId: string
+  initialTab?: string
+}) {
   const { payslip, previous } = useLatestPayslip(serverPayslip, userId)
   const [stepIndex, setStepIndex] = useState(0)
   const [autoAnalyzing, setAutoAnalyzing] = useState(false)
@@ -58,10 +68,23 @@ export function MiQuincenaPage({ serverPayslip, userId, initialTab }: { serverPa
         />
         <Card padding="clamp(1rem, 3vw, 1.5rem)" style={{ textAlign: "center", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
           <Receipt size={32} color="var(--muted)" style={{ margin: "0 auto 0.75rem" }} />
-          <p style={{ fontSize: "0.9375rem", fontWeight: 700, margin: "0 0 0.25rem", wordBreak: "break-word" }}>Todavía no tenemos tu tarjetón</p>
-          <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0 auto 1rem", lineHeight: 1.5, maxWidth: "30rem", wordBreak: "break-word" }}>
-            Para explicarte tu pago necesitamos tu tarjetón actual. También puedes empezar con la guía desde cero mientras tanto.
-          </p>
+          {serverError ? (
+            <div role="alert" style={{ marginBottom: "1rem" }}>
+              <p style={{ fontSize: "0.9375rem", fontWeight: 700, margin: "0 0 0.25rem", color: "#991b1b", wordBreak: "break-word" }}>
+                No pudimos consultar tu tarjetón
+              </p>
+              <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0 auto", lineHeight: 1.5, maxWidth: "30rem", wordBreak: "break-word" }}>
+                Hubo un inconveniente al conectar con el servidor para consultar tu información. Puedes intentar recargar la página o volver a intentarlo más tarde.
+              </p>
+            </div>
+          ) : (
+            <>
+              <p style={{ fontSize: "0.9375rem", fontWeight: 700, margin: "0 0 0.25rem", wordBreak: "break-word" }}>Todavía no tenemos tu tarjetón</p>
+              <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0 auto 1rem", lineHeight: 1.5, maxWidth: "30rem", wordBreak: "break-word" }}>
+                Para explicarte tu pago necesitamos tu tarjetón actual. También puedes empezar con la guía desde cero mientras tanto.
+              </p>
+            </>
+          )}
           <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center", flexWrap: "wrap", width: "100%" }}>
             <ActionLink href="/profile/mi-informacion-laboral">Obtener mi tarjetón</ActionLink>
             <ActionLink href="/guia/aprender" variant="secondary">Aprende desde cero</ActionLink>

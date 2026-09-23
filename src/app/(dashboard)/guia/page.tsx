@@ -17,16 +17,22 @@ export default async function GuiaPage() {
   const activeMatricula = profile?.matricula?.trim() || null
 
   const resolved = await resolveActivePayslip(supabase, user.id, { activeMatricula })
-  const latest = resolved.payslip
+  if (resolved.error) {
+    console.error("[guia-page] Error al resolver tarjetón activo (código):", resolved.error.code || "unknown")
+  }
+  const latest = resolved.error ? null : resolved.payslip
   const totals = (latest?.payroll_totals ?? {}) as Record<string, unknown> | null
 
   let counts = { earningsCount: 0, deductionsCount: 0 }
   if (latest) {
-    const { data: lines } = await supabase
+    const { data: lines, error: linesErr } = await supabase
       .from("imported_payslip_lines")
       .select("kind")
       .eq("payslip_id", latest.id)
       .limit(80)
+    if (linesErr) {
+      console.error("[guia-page] Error al consultar líneas del tarjetón (código):", linesErr.code || "unknown")
+    }
     const kinds = (lines ?? []).map((l) => l.kind)
     counts = {
       earningsCount: kinds.filter((k) => k !== "deduction").length,

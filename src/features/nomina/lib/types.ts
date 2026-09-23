@@ -111,6 +111,8 @@ export interface RecurringConceptEvidence {
   occurrenceType: ConceptOccurrenceType
   /** Hasta cuándo se asume que el trabajador mantiene la elegibilidad. */
   eligibilityPersistence: EligibilityPersistence
+  /** ID del tarjetón de procedencia cuando está disponible. */
+  payslipId?: string
 }
 
 export interface ResolvedProfileCategory {

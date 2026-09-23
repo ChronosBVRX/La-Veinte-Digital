@@ -164,6 +164,23 @@ function ImportTarjetonModalContent({ open, file, profile, userId, onClose }: Im
           </Card>
         )}
 
+        {step === "review" && state.error && (
+          <div role="alert" style={{
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: "0.5rem",
+            padding: "0.75rem 1rem",
+            color: "#991b1b",
+            fontSize: "0.875rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+          }}>
+            <Badge variant="error">{state.error.code}</Badge>
+            <span>{state.error.message}</span>
+          </div>
+        )}
+
         {step === "reading" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem", padding: "0.5rem 0" }}>
             <ProgressBar progress={state.progress} label={state.usedOcr ? "Reconociendo texto (OCR)…" : "Leyendo tarjetón…"} />

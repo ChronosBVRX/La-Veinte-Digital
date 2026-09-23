@@ -106,6 +106,10 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
     activeMatricula: snapshot.matricula,
   })
 
+  if (resolved.error) {
+    console.error("[worker-profile-page] Error al resolver tarjetón activo (código):", resolved.error.code || "unknown")
+  }
+
   // Consultar historial de tarjetones para este usuario
   const payslipsRes = await supabase
     .from("imported_payslips")
@@ -116,6 +120,11 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
     .order("period_half", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(20)
+
+  if (payslipsRes.error) {
+    console.error("[worker-profile-page] Error al consultar imported_payslips (código):", payslipsRes.error.code || "unknown")
+  }
+  const payslipsQueryError = Boolean(payslipsRes.error) || Boolean(resolved.error)
 
   const previousImports: PreviousImport[] = (payslipsRes.data ?? []).map((p) => {
     const empData = (p.employee_data ?? {}) as Record<string, unknown>
@@ -131,22 +140,26 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
     }
   })
 
-  // Obtener conceptos del tarjetón activo
+  // Obtener conceptos del tarjetón activo solo si no hubo error
   let latestConcepts: Array<{ code: string; description: string; amount: number; kind: "earning" | "deduction" }> = []
-  if (resolved.activePayslipId) {
-    const { data: lines } = await supabase
+  if (resolved.activePayslipId && !resolved.error) {
+    const { data: lines, error: linesError } = await supabase
       .from("imported_payslip_lines")
       .select("concept_code, description, amount, kind")
       .eq("payslip_id", resolved.activePayslipId)
       .order("line_index", { ascending: true })
       .limit(20)
 
-    latestConcepts = (lines ?? []).map((l) => ({
-      code: l.concept_code,
-      description: l.description,
-      amount: l.amount,
-      kind: l.kind === "deduction" ? ("deduction" as const) : ("earning" as const),
-    }))
+    if (linesError) {
+      console.error("[worker-profile-page] Error al consultar líneas del tarjetón activo (código):", linesError.code || "unknown")
+    } else {
+      latestConcepts = (lines ?? []).map((l) => ({
+        code: l.concept_code,
+        description: l.description,
+        amount: l.amount,
+        kind: l.kind === "deduction" ? ("deduction" as const) : ("earning" as const),
+      }))
+    }
   }
 
   return (
@@ -162,6 +175,22 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
         profileSnapshot={snapshot}
         userId={user.id}
       />
+
+      {payslipsQueryError && (
+        <div
+          role="alert"
+          style={{
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: "0.375rem",
+            padding: "0.875rem 1rem",
+            color: "#991b1b",
+            fontSize: "0.875rem",
+          }}
+        >
+          No pudimos consultar tu historial de tarjetones en este momento. Intenta recargar la página.
+        </div>
+      )}
 
       {/* Historial de tarjetones con control de tarjetón activo */}
       {previousImports.length > 0 && (
