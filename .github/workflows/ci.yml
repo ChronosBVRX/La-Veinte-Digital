@@ -48,11 +48,10 @@ jobs:
     permissions:
       contents: read
       packages: read
+    env:
+      SUPABASE_INTERNAL_IMAGE_REGISTRY: "public.ecr.aws"
     steps:
       - uses: actions/checkout@v4
-
-      - name: Authenticate Docker to GitHub Container Registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - uses: supabase/setup-cli@v1
         with:
@@ -61,7 +60,17 @@ jobs:
       - name: Verify migrations build a working database from scratch
         run: |
           supabase init --force
-          supabase start -x studio,logflare,edge-runtime
+          for attempt in 1 2 3; do
+            echo "Attempt $attempt: starting Supabase stack..."
+            if supabase start -x studio,logflare,edge-runtime,realtime,storage-api,imgproxy; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Failed to start Supabase stack after 3 attempts"
+              exit 1
+            fi
+            sleep 10
+          done
           supabase db reset
 
       - name: Check every table has RLS enabled
