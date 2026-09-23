@@ -43,6 +43,9 @@ vi.mock("@/shared/components/app/CalendarioLaboral", () => ({ CalendarioLaboral:
 vi.mock("@/shared/components/app/AgendaCardWrapper", () => ({ AgendaCardWrapper: () => null }))
 vi.mock("@/features/copy-service/components/CopyServiceHeroCard", () => ({ CopyServiceHeroCard: () => null }))
 vi.mock("@/features/salary-estimate/components/SalaryIncreaseCard", () => ({ SalaryIncreaseCard: () => null }))
+vi.mock("@/features/vacations/components/Vacation2027AnnouncementCard", () => ({
+  Vacation2027AnnouncementCard: () => <div data-testid="vacation-2027-announcement" />,
+}))
 
 import DashboardPage from "@/app/(dashboard)/page"
 
@@ -245,6 +248,17 @@ describe("DashboardPage — carga inicial", () => {
 
     expect(eqFilters(queriesFor(records, "imported_payslips")[0])).toEqual([["user_id", "user-A"]])
     expectAllOnboarding({ tarjeton: "false", categoria: "false", antiguedad: "false" })
+  })
+
+  it("integra el anuncio de roles vacacionales 2027 una sola vez", async () => {
+    installSupabaseMock({
+      profiles: [profilePresent],
+      imported_payslips: [{ data: null, error: null, count: 0, status: 200 }],
+    })
+
+    render(await DashboardPage())
+
+    expect(screen.getAllByTestId("vacation-2027-announcement")).toHaveLength(1)
   })
 })
 

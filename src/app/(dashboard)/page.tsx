@@ -8,6 +8,7 @@ import { CalendarioLaboral } from "@/shared/components/app/CalendarioLaboral"
 import { AgendaCardWrapper } from "@/shared/components/app/AgendaCardWrapper"
 import { CopyServiceHeroCard } from "@/features/copy-service/components/CopyServiceHeroCard"
 import { SalaryIncreaseCard } from "@/features/salary-estimate/components/SalaryIncreaseCard"
+import { Vacation2027AnnouncementCard } from "@/features/vacations/components/Vacation2027AnnouncementCard"
 import {
   describeSupabaseError,
   resolveDashboardProfile,
@@ -107,6 +108,8 @@ export default async function DashboardPage() {
       <CopyServiceHeroCard />
 
       <SalaryIncreaseCard />
+
+      <Vacation2027AnnouncementCard />
 
       <div className="mobile-only">
         <OnboardingCard
