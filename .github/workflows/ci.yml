@@ -45,8 +45,14 @@ jobs:
   supabase-db:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v4
+
+      - name: Authenticate Docker to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - uses: supabase/setup-cli@v1
         with:
@@ -55,7 +61,7 @@ jobs:
       - name: Verify migrations build a working database from scratch
         run: |
           supabase init --force
-          supabase start
+          supabase start -x studio,logflare,edge-runtime
           supabase db reset
 
       - name: Check every table has RLS enabled
