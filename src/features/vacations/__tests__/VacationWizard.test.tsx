@@ -173,5 +173,146 @@ describe("VacationWizard (Asesor y Planificador Anual)", () => {
     const missingDateBadges = await screen.findAllByText(/Falta tu fecha de vencimiento/i)
     expect(missingDateBadges.length).toBeGreaterThan(0)
   })
+
+  it("Paso 5: Trabajador con continuidad 1 no puede elegir la opción 4->9 en el comparador", async () => {
+    const contextContinuity1: WorkerContext = {
+      ...mockContext,
+      vacations: {
+        ...mockContext.vacations!,
+        continuityMark: 1,
+      },
+    }
+
+    render(<VacationWizard initialContext={contextContinuity1} />)
+    fireEvent.click(screen.getByText(/Comenzar simulación/i))
+    fireEvent.click(screen.getByText(/Continuar a prioridades/i))
+    fireEvent.click(screen.getByText(/Continuar a programación/i))
+
+    // Ir a comparativa
+    fireEvent.click(screen.getByText(/Comparar opciones/i))
+    expect(screen.getByText("Comparativa de Opciones")).toBeDefined()
+
+    // La opción 4->9 debe estar en el acordeón de modalidades no compatibles
+    expect(screen.getByText(/Otras modalidades que existen, pero ahora no son compatibles/i)).toBeDefined()
+    expect(screen.getByText(/Recibir la ayuda completa ahora \(Marca 4 → Marca 9\)/i)).toBeDefined()
+    const lockedBadges = screen.getAllByText(/No disponible ✕/i)
+    expect(lockedBadges.length).toBeGreaterThan(0)
+
+    // Solo debe haber UN botón "Elegir esta opción" (para la opción disponible 1->1, NO para 4->9)
+    const selectButtons = screen.getAllByRole("button", { name: /Elegir esta opción/i })
+    expect(selectButtons).toHaveLength(1)
+  })
+
+  it("Paso 6: Un plan incompleto o inválido muestra aviso defensivo, oculta cifra hero y bloquea Guardar simulación", async () => {
+    render(<VacationWizard initialContext={mockContext} />)
+    fireEvent.click(screen.getByText(/Comenzar simulación/i))
+    fireEvent.click(screen.getByText(/Continuar a prioridades/i))
+    fireEvent.click(screen.getByText(/Continuar a programación/i))
+
+    // Sin seleccionar rol ni marca, ir directo al resumen vía comparador o navegación
+    // Si vamos al comparador y volvemos o avanzamos al resumen:
+    fireEvent.click(screen.getByText(/Comparar opciones/i))
+    fireEvent.click(screen.getByText(/Ver resumen del plan/i))
+
+    expect(screen.getByText(/⚠️ Este plan todavía no es válido/i)).toBeDefined()
+    expect(screen.getByText(/Importe no disponible por inconsistencias en el plan/i)).toBeDefined()
+    expect(screen.getByText(/⚠️ Pendiente de corrección/i)).toBeDefined()
+
+    // El botón Guardar simulación debe estar deshabilitado
+    const saveButton = screen.getByRole("button", { name: /Guardar simulación/i })
+    expect(saveButton).toBeDefined()
+    expect((saveButton as HTMLButtonElement).disabled).toBe(true)
+
+    // Debe mostrar botones para corregir los periodos con error
+    expect(screen.getByText(/Corregir Periodo 1 →/i)).toBeDefined()
+  })
+
+  it("Paso 6: Muestra compatibilidad con datos actuales y aviso de autorización institucional", async () => {
+    const fullyConfirmedContext: WorkerContext = {
+      ...mockContext,
+      vacations: {
+        ...mockContext.vacations!,
+        entitlements: [
+          { id: "1", kind: "ORDINARY", periodNumber: 1, dueDate: "2026-10-14", confirmed: true, sourcePayslipPeriod: "2026-16" },
+          { id: "2", kind: "ORDINARY", periodNumber: 2, dueDate: "2026-10-14", confirmed: true, sourcePayslipPeriod: "2026-16" },
+        ],
+      },
+    }
+
+    render(<VacationWizard initialContext={fullyConfirmedContext} />)
+    fireEvent.click(screen.getByText(/Comenzar simulación/i))
+    fireEvent.click(screen.getByText(/Continuar a prioridades/i))
+    fireEvent.click(screen.getByText(/Continuar a programación/i))
+
+    // Configurar periodo 1
+    const availableBadgesP1 = screen.getAllByText(/Disponible ✓/i)
+    const cardP1 = availableBadgesP1[0].closest("div[style*='cursor: pointer']")
+    if (cardP1) fireEvent.click(cardP1)
+    fireEvent.click(screen.getByText(/Elegir Marca 4/i))
+
+    // Avanzar a periodo 2
+    fireEvent.click(screen.getByText(/Siguiente periodo →/i))
+
+    // Configurar periodo 2: rol no empalmado y marca
+    const availableBadgesP2 = screen.getAllByText(/Disponible ✓/i)
+    const cardP2 = availableBadgesP2[availableBadgesP2.length - 1].closest("div[style*='cursor: pointer']")
+    if (cardP2) fireEvent.click(cardP2)
+
+    const markCardP2 = screen.getByText(/Marca 9: Ayuda diferida/i).closest("div[style*='cursor: pointer']")
+    if (markCardP2) fireEvent.click(markCardP2)
+
+    // Avanzar a resumen
+    fireEvent.click(screen.getByText(/Ver resumen del plan →/i))
+
+    // Debe mostrar compatibilidad, NUNCA 'confirmada por el IMSS'
+    expect(screen.getByText(/🟢 Plan compatible con tus datos actuales/i)).toBeDefined()
+    expect(screen.getByText(/La programación definitiva está sujeta a validación y autorización institucional correspondiente/i)).toBeDefined()
+    expect(screen.queryByText(/confirmado por el IMSS/i)).toBeNull()
+
+    // Guardar simulación
+    const saveButton = screen.getByRole("button", { name: /Guardar simulación/i })
+    expect((saveButton as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(saveButton)
+    expect(screen.getByText(/Simulación compatible guardada con éxito en tu cuenta/i)).toBeDefined()
+  })
+
+  it("Paso 6: Muestra simulación pendiente de confirmación cuando faltan datos por validar", async () => {
+    // mockContext tiene el segundo periodo con confirmed: false
+    render(<VacationWizard initialContext={mockContext} />)
+    fireEvent.click(screen.getByText(/Comenzar simulación/i))
+    fireEvent.click(screen.getByText(/Continuar a prioridades/i))
+    fireEvent.click(screen.getByText(/Continuar a programación/i))
+
+    // Configurar periodo 1
+    const availableBadgesP1 = screen.getAllByText(/Disponible ✓/i)
+    const cardP1 = availableBadgesP1[0].closest("div[style*='cursor: pointer']")
+    if (cardP1) fireEvent.click(cardP1)
+    fireEvent.click(screen.getByText(/Elegir Marca 4/i))
+
+    // Avanzar a periodo 2
+    fireEvent.click(screen.getByText(/Siguiente periodo →/i))
+
+    // Configurar periodo 2: seleccionar rol no empalmado aunque requiera revisión
+    const roleCardP2 = screen.getByText(/Rol #15\b/i).closest("div[style*='cursor: pointer']")
+    if (roleCardP2) fireEvent.click(roleCardP2)
+
+    const markCardP2 = screen.getByText(/Marca 9: Ayuda diferida/i).closest("div[style*='cursor: pointer']")
+    if (markCardP2) fireEvent.click(markCardP2)
+
+    // Avanzar a resumen
+    fireEvent.click(screen.getByText(/Ver resumen del plan →/i))
+
+    // Debe mostrar pendiente de confirmación con advertencia institucional
+    expect(screen.getByText(/🟡 Simulación posible, pendiente de confirmación/i)).toBeDefined()
+    expect(screen.getByText(/La programación definitiva está sujeta a validación y autorización institucional correspondiente/i)).toBeDefined()
+    expect(screen.queryByText(/confirmado por el IMSS/i)).toBeNull()
+
+    // Guardar como pendiente
+    const saveButton = screen.getByRole("button", { name: /Guardar simulación/i })
+    expect((saveButton as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(saveButton)
+    expect(screen.getByText(/Simulación guardada en tu cuenta como simulación pendiente de confirmación oficial/i)).toBeDefined()
+  })
 })
+
 

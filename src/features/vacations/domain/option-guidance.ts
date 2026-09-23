@@ -264,7 +264,7 @@ export function getMarkGuidance(
       return {
         mark: 4,
         title: "Marca 4: Ayuda completa en este periodo",
-        plainSummary: "Esta marca paga toda la ayuda en este periodo. Es la opción que más dinero adicional te da en este momento.",
+        plainSummary: "Esta marca paga toda la ayuda en este periodo: cuando esta modalidad está disponible, concentra el 100 % de la ayuda cultural 048 en este periodo, además de la prima vacacional correspondiente.",
         economicDetail: "Cobras la prima de estos días más el 100% de la ayuda cultural y recreativa.",
         nextStepDetail: "En el segundo periodo deberás anotar marca 9 (solo prima, pues la ayuda ya se cobró).",
         secondaryTechnical: "Prima vacacional (concepto 029) + 100% Ayuda cultural y recreativa (concepto 048).",
@@ -482,4 +482,167 @@ export function getNextStepFromContinuity(
   }
   return `En el siguiente periodo podrás usar: ${allowed.map((m) => `Marca ${m}`).join(" o ")}`
 }
+
+export interface PriorityFeedback {
+  matched: boolean
+  message?: string
+  suggestedMark?: number
+}
+
+/**
+ * Proporciona retroalimentación empática al trabajador cuando su prioridad seleccionada
+ * no es viable con su estado de continuidad actual. No altera las reglas normativas.
+ */
+export function getPriorityFeedback(
+  priority: VacationPriority,
+  currentContinuity: number,
+  regime: VacationRegime,
+  allowedMarks: number[]
+): PriorityFeedback {
+  if (priority === "COMPARE_ALL") {
+    return { matched: true }
+  }
+
+  if (regime === "SEMESTRAL") {
+    if (priority === "MORE_NOW") {
+      if (allowedMarks.includes(4)) {
+        return {
+          matched: true,
+          suggestedMark: 4,
+          message: "Tu preferencia es recibir más dinero en este periodo: las opciones que concentran la ayuda cultural están disponibles (Marca 4).",
+        }
+      }
+      if (allowedMarks.includes(0)) {
+        return {
+          matched: true,
+          suggestedMark: 0,
+          message: "Tu preferencia es recibir más dinero en este periodo: la opción de periodo regular está disponible.",
+        }
+      }
+      if (currentContinuity === 1) {
+        return {
+          matched: false,
+          suggestedMark: 1,
+          message:
+            "Entiendo que prefieres recibir más dinero en este periodo. Tu continuidad actual con Marca 1 no permite iniciar la modalidad de Marca 4. La opción compatible para continuar correctamente es Marca 1.",
+        }
+      }
+      if (currentContinuity === 3) {
+        return {
+          matched: false,
+          suggestedMark: 3,
+          message:
+            "Entiendo que prefieres recibir más dinero en este periodo. La modalidad que concentra la ayuda cultural no puede iniciarse porque tu ciclo ya tiene iniciado el descanso con Marca 2. Debes concluir con Marca 3.",
+        }
+      }
+      if (currentContinuity === 4) {
+        return {
+          matched: false,
+          suggestedMark: 9,
+          message:
+            "Entiendo que prefieres recibir más dinero en este periodo. Ya cobraste la ayuda cultural completa con Marca 4 en tu periodo anterior; para este periodo corresponde cerrar con Marca 9.",
+        }
+      }
+      if (currentContinuity === 9) {
+        return {
+          matched: true,
+          suggestedMark: 4,
+          message:
+            "Tu preferencia es recibir más dinero: en el periodo anterior dejaste la ayuda cultural pendiente; la opción compatible para cobrarla ahora es Marca 4.",
+        }
+      }
+      return {
+        matched: false,
+        message: `Entiendo que prefieres recibir más dinero en este periodo. Esta modalidad no puede iniciarse con tu continuidad actual (${currentContinuity}).`,
+      }
+    }
+
+    if (priority === "SPLIT_PAY") {
+      if (allowedMarks.includes(1)) {
+        return {
+          matched: true,
+          suggestedMark: 1,
+          message: "Tu preferencia es repartir el pago: la Marca 1 está disponible para este periodo.",
+        }
+      }
+      return {
+        matched: false,
+        message:
+          `Entiendo que prefieres repartir el pago. La modalidad de pago repartido (Marca 1) no puede iniciarse con tu continuidad actual (${currentContinuity}).`,
+      }
+    }
+
+    if (priority === "MORE_REST") {
+      if (allowedMarks.includes(2)) {
+        return {
+          matched: true,
+          suggestedMark: 2,
+          message: "Tu preferencia es conservar más descanso: las opciones de descanso completo están disponibles (Marca 2).",
+        }
+      }
+      if (allowedMarks.includes(3)) {
+        return {
+          matched: true,
+          suggestedMark: 3,
+          message: "Tu preferencia es conservar más descanso: corresponde concluir tu descanso con Marca 3.",
+        }
+      }
+      return {
+        matched: false,
+        suggestedMark: allowedMarks[0],
+        message:
+          `Entiendo que prefieres conservar más días de descanso. Esta modalidad no puede iniciarse con tu continuidad actual (${currentContinuity}).`,
+      }
+    }
+  }
+
+  if (regime === "CUATRIMESTRAL") {
+    if (priority === "MORE_NOW") {
+      if (allowedMarks.includes(0)) {
+        return {
+          matched: true,
+          suggestedMark: 0,
+          message: "Tu preferencia es cobrar la ayuda completa: la Marca 0 regular con prima y ayuda 048 está disponible.",
+        }
+      }
+      if (currentContinuity === 4 || currentContinuity === 9) {
+        return {
+          matched: false,
+          suggestedMark: 5,
+          message:
+            "Entiendo que prefieres recibir más dinero en este periodo. Ya iniciaste la modalidad fraccionada con Marca 2; debes continuar con Marca 5 (sin ayuda 048).",
+        }
+      }
+    }
+    if (priority === "MORE_REST") {
+      if (allowedMarks.includes(2)) {
+        return {
+          matched: true,
+          suggestedMark: 2,
+          message: "Tu preferencia es mayor descanso: la modalidad fraccionada está disponible (Marca 2).",
+        }
+      }
+      if (allowedMarks.includes(5)) {
+        return {
+          matched: true,
+          suggestedMark: 5,
+          message: "Tu preferencia es mayor descanso: continúas con la modalidad fraccionada (Marca 5).",
+        }
+      }
+      if (currentContinuity === 1 || currentContinuity === 2) {
+        return {
+          matched: false,
+          suggestedMark: 0,
+          message:
+            "Entiendo que prefieres mayor descanso. Tu ciclo ya fue iniciado con Marca 0; no puedes cambiar a la modalidad fraccionada y debes continuar con Marca 0.",
+        }
+      }
+    }
+  }
+
+  return { matched: true }
+}
+
+export { evaluateVacationAlternatives } from "./alternative-evaluator"
+
 

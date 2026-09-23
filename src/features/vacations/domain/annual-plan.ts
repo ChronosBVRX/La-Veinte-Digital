@@ -227,6 +227,13 @@ export function buildVacationPlan(
   }
 
   const completed = periods.every((p) => p.selectedRole && p.selectedMark !== undefined && p.allowed)
+  const isValidPlan = completed && periods.length === requiredPeriodCount && periods.every((p) => p.allowed)
+  const hasReviewItems = periods.some(
+    (p) =>
+      p.eligibility?.status === "REQUIRES_REVIEW" ||
+      p.dueDateConfidence !== "CONFIRMED" ||
+      (calendar && calendar.status === "DRAFT")
+  )
 
   return {
     requiredPeriodCount,
@@ -236,5 +243,7 @@ export function buildVacationPlan(
     totalGrossVacationExtra: totals.totalGrossVacationExtra,
     completed,
     warnings,
+    isValidPlan,
+    hasReviewItems,
   }
 }

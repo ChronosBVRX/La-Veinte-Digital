@@ -360,4 +360,34 @@ export interface VacationPlanResult {
   totalGrossVacationExtra: number | null;
   completed: boolean;
   warnings: string[];
+  isValidPlan?: boolean;
+  hasReviewItems?: boolean;
 }
+
+export type VacationAlternativeStatus =
+  | "AVAILABLE"
+  | "REQUIRES_REVIEW"
+  | "INCOMPATIBLE";
+
+export interface VacationAlternativeEvaluation {
+  id: string;
+  status: VacationAlternativeStatus;
+  selectable: boolean;
+  title: string;
+  summary: string;
+  marks: number[];
+  reason?: string;
+  nextRequiredMark?: number;
+  plan?: VacationPlanResult;
+  p1Gross?: number | null;
+  p2Gross?: number | null;
+  p3Gross?: number | null;
+  totalGross?: number | null;
+  totalPremium029?: number | null;
+  totalCulturalHelp048?: number | null;
+  restDaysTotal?: number;
+  consequenceNextPeriod?: string;
+  badgeLabel?: string;
+  isInformationalExample?: boolean;
+}
+
