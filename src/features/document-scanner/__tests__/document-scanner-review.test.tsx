@@ -80,4 +80,50 @@ describe("DocumentScannerReview (INE)", () => {
     rerender(<DocumentScannerReview {...baseProps([page("a"), page("b")])} saveToDocuments={false} />)
     expect(screen.getByText(/no se guardará en el dispositivo/i)).toBeDefined()
   })
+
+  it("en INE sólo muestra el filtro Original para no degradar la identificación", () => {
+    render(<DocumentScannerReview {...baseProps([page("a"), page("b")])} />)
+    expect(screen.getAllByRole("button", { name: "Original" }).length).toBe(2)
+    expect(screen.queryByRole("button", { name: "Documento" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Grises" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Blanco y negro" })).toBeNull()
+  })
 })
+
+describe("DocumentScannerReview (Documento)", () => {
+  it("en modo documento muestra los 4 filtros con etiquetas correctas", () => {
+    const props = { ...baseProps([page("a")]), mode: "document" as const }
+    render(<DocumentScannerReview {...props} />)
+    expect(screen.getByRole("button", { name: "Original" })).toBeDefined()
+    expect(screen.getByRole("button", { name: "Documento" })).toBeDefined()
+    expect(screen.getByRole("button", { name: "Grises" })).toBeDefined()
+    expect(screen.getByRole("button", { name: "Blanco y negro" })).toBeDefined()
+  })
+
+  it("tocar la miniatura abre la vista previa ampliada y permite cambiar filtros", () => {
+    const props = { ...baseProps([page("a")]), mode: "document" as const }
+    render(<DocumentScannerReview {...props} />)
+
+    // Al inicio no hay modal
+    expect(screen.queryByRole("dialog", { name: "Vista previa ampliada" })).toBeNull()
+
+    // Tocar la miniatura
+    const thumb = screen.getByRole("button", { name: /Ver Página 1 en grande/i })
+    fireEvent.click(thumb)
+
+    // El modal de vista previa ampliada se abre
+    const dialog = screen.getByRole("dialog", { name: "Vista previa ampliada" })
+    expect(dialog).toBeDefined()
+
+    // En el modal se pueden cambiar los filtros directamente en grande
+    const docFilterBtn = dialog.querySelector("button[name='Documento']") || screen.getAllByRole("button", { name: "Documento" })[1]
+    fireEvent.click(docFilterBtn)
+    expect(props.onChangeFilter).toHaveBeenCalledWith("a", "enhanced")
+
+    // Cerrar el modal con el botón X
+    const closeBtn = screen.getByRole("button", { name: "Cerrar vista previa ampliada" })
+    fireEvent.click(closeBtn)
+    expect(screen.queryByRole("dialog", { name: "Vista previa ampliada" })).toBeNull()
+  })
+})
+
