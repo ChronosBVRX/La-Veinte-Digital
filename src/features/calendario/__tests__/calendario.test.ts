@@ -54,4 +54,18 @@ describe("calendario institucional", () => {
     expect(mayo10.some((e) => e.type === "descanso_cct")).toBe(true)
     expect(mayo10.find((e) => e.type === "descanso_cct")?.label).toContain("Día de las Madres")
   })
+
+  it("las fechas de pago de 'otros' (BBVA y demás bancos) son exactamente un día después de Santander o Scotiabank", () => {
+    const meses = CALENDARIOS[2026]
+    expect(meses).toBeDefined()
+    for (const mes of meses!) {
+      const santander = mes.events.santander ?? []
+      const otros = mes.events.otros ?? []
+      expect(otros.length).toBe(santander.length)
+      for (let i = 0; i < santander.length; i++) {
+        expect(otros[i]).toBe(santander[i] + 1)
+      }
+    }
+  })
 })
+
