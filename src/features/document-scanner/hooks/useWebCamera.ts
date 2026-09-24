@@ -14,6 +14,10 @@ import { useCallback, useEffect, useRef, useState } from "react"
 
 export type WebCameraStatus = "idle" | "requesting" | "ready" | "denied" | "error"
 
+export type CameraCaptureResult =
+  | { ok: true; blob: Blob; width: number; height: number }
+  | { ok: false; error: string }
+
 export interface UseWebCameraResult {
   status: WebCameraStatus
   error: string | null
@@ -22,7 +26,48 @@ export interface UseWebCameraResult {
   attachVideo: (element: HTMLVideoElement | null) => void
   start: () => Promise<boolean>
   stop: () => void
-  capture: () => Promise<Blob | null>
+  capture: () => Promise<CameraCaptureResult>
+}
+
+function waitForVideoReady(video: HTMLVideoElement, timeoutMs = 4000): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) {
+      resolve(true)
+      return
+    }
+
+    let resolved = false
+    const check = () => {
+      if (resolved) return
+      if (video.videoWidth > 0 && video.videoHeight > 0 && video.readyState >= 2) {
+        cleanup()
+        resolved = true
+        resolve(true)
+      }
+    }
+
+    const timer = setTimeout(() => {
+      cleanup()
+      if (!resolved) {
+        resolved = true
+        resolve(video.videoWidth > 0 && video.videoHeight > 0)
+      }
+    }, timeoutMs)
+
+    const interval = setInterval(check, 80)
+
+    const cleanup = () => {
+      clearTimeout(timer)
+      clearInterval(interval)
+      video.removeEventListener("loadedmetadata", check)
+      video.removeEventListener("canplay", check)
+      video.removeEventListener("playing", check)
+    }
+
+    video.addEventListener("loadedmetadata", check)
+    video.addEventListener("canplay", check)
+    video.addEventListener("playing", check)
+  })
 }
 
 export function useWebCamera(): UseWebCameraResult {
@@ -37,7 +82,14 @@ export function useWebCamera(): UseWebCameraResult {
     if (element && streamRef.current) {
       element.srcObject = streamRef.current
       element.setAttribute("playsinline", "true")
-      void element.play().catch(() => {})
+      element
+        .play()
+        .then(() => {
+          void waitForVideoReady(element, 3000).then((ready) => {
+            if (ready) setStatus("ready")
+          })
+        })
+        .catch(() => {})
     }
   }, [])
 
@@ -124,6 +176,7 @@ export function useWebCamera(): UseWebCameraResult {
         } catch {
           // Algunos WebViews requieren interacción previa; el usuario puede reintentar.
         }
+        await waitForVideoReady(video, 3000)
       }
       setStatus("ready")
       return true
@@ -140,18 +193,75 @@ export function useWebCamera(): UseWebCameraResult {
     }
   }, [requestNativePermission])
 
-  const capture = useCallback(async (): Promise<Blob | null> => {
+  const capture = useCallback(async (): Promise<CameraCaptureResult> => {
     const video = videoElementRef.current
-    if (!video || !video.videoWidth || !video.videoHeight) return null
-    const canvas = document.createElement("canvas")
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
+    if (!video) {
+      return {
+        ok: false,
+        error: "No pudimos obtener la foto. Mantén la cámara abierta e inténtalo nuevamente.",
+      }
+    }
+
+    // Si aún no existen dimensiones o el frame no está decodificado, esperar brevemente y reintentar
+    if (!video.videoWidth || !video.videoHeight || video.readyState < 2) {
+      const becameReady = await waitForVideoReady(video, 800)
+      if (!becameReady || !video.videoWidth || !video.videoHeight) {
+        return {
+          ok: false,
+          error: "No pudimos obtener la foto. Mantén la cámara abierta e inténtalo nuevamente.",
+        }
+      }
+    }
+
+    let canvas: HTMLCanvasElement
+    try {
+      canvas = document.createElement("canvas")
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+    } catch {
+      return {
+        ok: false,
+        error: "No pudimos obtener la foto. Mantén la cámara abierta e inténtalo nuevamente.",
+      }
+    }
+
     const ctx = canvas.getContext("2d")
-    if (!ctx) return null
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-    return new Promise<Blob | null>((resolve) => {
-      canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.92)
+    if (!ctx) {
+      return {
+        ok: false,
+        error: "No pudimos inicializar el procesador de imagen en este dispositivo.",
+      }
+    }
+
+    try {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    } catch {
+      return {
+        ok: false,
+        error: "No pudimos obtener la foto. Mantén la cámara abierta e inténtalo nuevamente.",
+      }
+    }
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      const timeout = setTimeout(() => resolve(null), 3000)
+      canvas.toBlob(
+        (b) => {
+          clearTimeout(timeout)
+          resolve(b)
+        },
+        "image/jpeg",
+        0.92
+      )
     })
+
+    if (!blob) {
+      return {
+        ok: false,
+        error: "No pudimos obtener la foto. Mantén la cámara abierta e inténtalo nuevamente.",
+      }
+    }
+
+    return { ok: true, blob, width: canvas.width, height: canvas.height }
   }, [])
 
   return { status, error, permanentlyDenied, attachVideo, start, stop, capture }

@@ -1,16 +1,19 @@
 "use client"
 
 /**
- * Editor manual de las cuatro esquinas del documento.
+ * Editor interactivo de las cuatro esquinas del documento.
  *
- * Es obligatorio en el flujo web: la detección automática puede fallar y el
- * usuario debe poder ajustar el recorte con el dedo o el ratón.
+ * Ajustado a pantalla completa móvil (100dvh): el lienzo escala dentro del workspace
+ * sin desbordar el viewport y manteniendo la barra de acciones ("Aplicar recorte")
+ * siempre visible e interactiva.
+ *
+ * Mantiene alineación matemática 1:1 entre coordenadas de raster, visuales, SVG y handles.
  *
  * La Veinte Digital
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { ArrowsClockwise, Check, MagicWand } from "@phosphor-icons/react"
+import { ArrowsClockwise, Check, MagicWand, WarningCircle } from "@phosphor-icons/react"
 import { Button } from "@/shared/components/ui/Button"
 import { orderCorners } from "../lib/geometry"
 import { canRetryOpenCv } from "../lib/opencv-loader"
@@ -26,7 +29,7 @@ export interface ScanCornerEditorProps {
   onRedetect: () => void
 }
 
-const HANDLE_SIZE = 26
+const HANDLE_SIZE = 28
 
 export function ScanCornerEditor({
   analysis,
@@ -78,7 +81,7 @@ export function ScanCornerEditor({
       try {
         ;(event.target as HTMLElement).setPointerCapture(event.pointerId)
       } catch {
-        // ignore
+        // Ignorar fallos de captura de puntero en navegadores antiguos
       }
     },
     []
@@ -104,103 +107,229 @@ export function ScanCornerEditor({
     try {
       ;(event.target as HTMLElement).releasePointerCapture(event.pointerId)
     } catch {
-      // ignore
+      // Ignorar fallos de liberación de puntero
     }
   }, [])
 
   const orderedCorners = useMemo(() => orderCorners(corners), [corners])
   const polygonPoints = orderedCorners.map((corner) => `${corner.x},${corner.y}`).join(" ")
 
+  const isLowConfidenceOrFallback =
+    !detected || !detected.confidence || detected.confidence < 0.45
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%" }}>
-      <div>
-        <h2 style={{ fontSize: "1.0625rem", fontWeight: 700, margin: 0, color: "var(--fg)" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        width: "100%",
+        height: "100%",
+        minHeight: 0,
+        boxSizing: "border-box",
+      }}
+    >
+      {/* Título contextual compacto */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.25rem",
+          padding: "0.25rem 0.25rem 0.375rem",
+          flexShrink: 0,
+        }}
+      >
+        <h2
+          style={{
+            fontSize: "0.9375rem",
+            fontWeight: 700,
+            margin: 0,
+            color: "var(--fg)",
+          }}
+        >
           Ajusta las esquinas
         </h2>
-        <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0.25rem 0 0", lineHeight: 1.45 }}>
-          Arrastra los puntos para enmarcar solo el documento. Si la detección automática falló, también puedes
-          reencuadrar por completo.
+        <p
+          style={{
+            fontSize: "0.75rem",
+            color: "var(--muted)",
+            margin: 0,
+            lineHeight: 1.35,
+          }}
+        >
+          Arrastra los 4 puntos azules para encuadrar los bordes del documento.
         </p>
       </div>
 
+      {/* Espacio visual central: El lienzo escala dentro de él sin forzar scroll */}
       <div
         style={{
           position: "relative",
+          flex: 1,
+          minHeight: 0,
           width: "100%",
-          borderRadius: "0.875rem",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
           overflow: "hidden",
-          background: "#0f172a",
-          border: "1px solid var(--border)",
-          touchAction: "none",
+          padding: "0.25rem 0",
         }}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
       >
-        <canvas
-          ref={canvasRef}
-          style={{ display: "block", width: "100%", height: "auto", touchAction: "none" }}
-        />
-        <svg
-          viewBox={`0 0 ${analysis.raster.width} ${analysis.raster.height}`}
-          preserveAspectRatio="none"
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
-        >
-          <polygon
-            points={polygonPoints}
-            fill="rgba(37, 99, 235, 0.18)"
-            stroke="#38bdf8"
-            strokeWidth={Math.max(2, analysis.raster.width * 0.004)}
-          />
-        </svg>
-
-        {corners.map((corner, index) => (
-          <button
-            key={index}
-            type="button"
-            aria-label={`Esquina ${index + 1}`}
-            onPointerDown={handlePointerDown(index)}
+        {/* Mensaje amable no fatal si la detección automática requirió asistencia */}
+        {isLowConfidenceOrFallback && (
+          <div
             style={{
-              position: "absolute",
-              left: `${(corner.x / analysis.raster.width) * 100}%`,
-              top: `${(corner.y / analysis.raster.height) * 100}%`,
-              width: HANDLE_SIZE,
-              height: HANDLE_SIZE,
-              marginLeft: -HANDLE_SIZE / 2,
-              marginTop: -HANDLE_SIZE / 2,
-              borderRadius: "50%",
-              border: "3px solid #ffffff",
-              background: "#2563eb",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.45)",
-              cursor: "grab",
-              padding: 0,
+              fontSize: "0.75rem",
+              background: "rgba(15, 23, 42, 0.85)",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+              color: "#e2e8f0",
+              padding: "0.25rem 0.75rem",
+              borderRadius: "999px",
+              marginBottom: "0.375rem",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.375rem",
+              zIndex: 10,
+              flexShrink: 0,
+            }}
+          >
+            <WarningCircle size={14} color="#f59e0b" weight="fill" />
+            <span>No detectamos bien los bordes. Ajusta las esquinas con los puntos.</span>
+          </div>
+        )}
+
+        {/* Contenedor exacto del documento: Mantiene la relación de aspecto del raster */}
+        <div
+          style={{
+            position: "relative",
+            maxWidth: "100%",
+            maxHeight: "100%",
+            aspectRatio: `${analysis.raster.width} / ${analysis.raster.height}`,
+            borderRadius: "0.75rem",
+            overflow: "hidden",
+            background: "#0f172a",
+            border: "1px solid var(--border)",
+            touchAction: "none",
+            boxShadow: "0 4px 16px rgba(0, 0, 0, 0.3)",
+          }}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          <canvas
+            ref={canvasRef}
+            style={{
+              display: "block",
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
               touchAction: "none",
             }}
           />
-        ))}
+
+          <svg
+            viewBox={`0 0 ${analysis.raster.width} ${analysis.raster.height}`}
+            preserveAspectRatio="none"
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+            }}
+          >
+            <polygon
+              points={polygonPoints}
+              fill="rgba(37, 99, 235, 0.2)"
+              stroke="#38bdf8"
+              strokeWidth={Math.max(2, analysis.raster.width * 0.005)}
+            />
+          </svg>
+
+          {corners.map((corner, index) => (
+            <button
+              key={index}
+              type="button"
+              aria-label={`Esquina ${index + 1}`}
+              onPointerDown={handlePointerDown(index)}
+              style={{
+                position: "absolute",
+                left: `${(corner.x / analysis.raster.width) * 100}%`,
+                top: `${(corner.y / analysis.raster.height) * 100}%`,
+                width: HANDLE_SIZE,
+                height: HANDLE_SIZE,
+                marginLeft: -HANDLE_SIZE / 2,
+                marginTop: -HANDLE_SIZE / 2,
+                borderRadius: "50%",
+                border: "3px solid #ffffff",
+                background: "#2563eb",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.5)",
+                cursor: "grab",
+                padding: 0,
+                touchAction: "none",
+                zIndex: 20,
+              }}
+            />
+          ))}
+        </div>
       </div>
 
-      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-        <Button variant="secondary" size="sm" onClick={onRedetect} disabled={busy}>
-          <MagicWand size={16} />
-          {canRetryOpenCv() ? "Reintentar detección automática" : "Reintentar automático"}
+      {/* Controles secundarios compactos (Reintentar automático / Reiniciar) */}
+      <div
+        style={{
+          display: "flex",
+          gap: "0.5rem",
+          justifyContent: "center",
+          alignItems: "center",
+          padding: "0.375rem 0",
+          flexShrink: 0,
+        }}
+      >
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onRedetect}
+          disabled={busy}
+          style={{ fontSize: "0.75rem", padding: "0.25rem 0.625rem" }}
+        >
+          <MagicWand size={15} />
+          {canRetryOpenCv() ? "Reintentar automático" : "Automático"}
         </Button>
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setCorners(defaultCorners(analysis, detected))}
           disabled={busy}
+          style={{ fontSize: "0.75rem", padding: "0.25rem 0.625rem" }}
         >
-          <ArrowsClockwise size={16} />
+          <ArrowsClockwise size={15} />
           Reiniciar
         </Button>
       </div>
 
-      <div style={{ display: "flex", gap: "0.625rem", justifyContent: "space-between", flexWrap: "wrap" }}>
+      {/* Barra de acción inferior permanente (Siempre visible) */}
+      <div
+        style={{
+          display: "flex",
+          gap: "0.75rem",
+          justifyContent: "space-between",
+          alignItems: "center",
+          width: "100%",
+          padding: "0.625rem 0 0",
+          borderTop: "1px solid var(--border)",
+          flexShrink: 0,
+          boxSizing: "border-box",
+        }}
+      >
         <Button variant="secondary" size="md" onClick={onCancel} disabled={busy}>
           Cancelar
         </Button>
-        <Button variant="primary" size="md" loading={busy} onClick={() => onConfirm(orderedCorners)}>
+        <Button
+          variant="primary"
+          size="md"
+          loading={busy}
+          onClick={() => onConfirm(orderedCorners)}
+        >
           <Check size={18} />
           Aplicar recorte
         </Button>

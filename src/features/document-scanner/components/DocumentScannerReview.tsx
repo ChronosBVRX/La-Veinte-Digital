@@ -312,7 +312,22 @@ export function DocumentScannerReview({
         </p>
       )}
 
-      <div style={{ display: "flex", gap: "0.625rem", justifyContent: "space-between", flexWrap: "wrap" }}>
+      <div
+        style={{
+          position: "sticky",
+          bottom: 0,
+          background: "var(--card)",
+          borderTop: "1px solid var(--border)",
+          padding: "0.75rem 0 max(0.5rem, env(safe-area-inset-bottom, 0px))",
+          marginTop: "auto",
+          zIndex: 10,
+          display: "flex",
+          gap: "0.625rem",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          boxShadow: "0 -4px 12px rgba(0, 0, 0, 0.05)",
+        }}
+      >
         <Button variant="secondary" size="md" onClick={onCancel} disabled={busy}>
           Cancelar
         </Button>

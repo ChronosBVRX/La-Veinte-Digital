@@ -84,6 +84,7 @@ export function DocumentScannerFlow({
   const [pendingPhoto, setPendingPhoto] = useState<Blob | null>(null)
   const [retakePageId, setRetakePageId] = useState<string | null>(null)
   const [ineStage, setIneStage] = useState<"front" | "back">("front")
+  const [processingPhase, setProcessingPhase] = useState<"idle" | "capturing" | "processing" | "detecting">("idle")
 
   const webScannerRef = useRef<WebDocumentScanner | null>(null)
   const startedRef = useRef(false)
@@ -103,6 +104,7 @@ export function DocumentScannerFlow({
     setPendingPhoto(null)
     setRetakePageId(null)
     setIneStage("front")
+    setProcessingPhase("idle")
     startedRef.current = false
     onClose()
   }, [onClose, reset])
@@ -170,11 +172,18 @@ export function DocumentScannerFlow({
       setBusy(true)
       setError(null)
       setScannerError(null)
+      setProcessingPhase("processing")
       try {
         const webScanner = webScannerRef.current ?? new WebDocumentScanner()
         webScannerRef.current = webScanner
         const createdAnalysis = await webScanner.createAnalysis(blob)
-        const found = await webScanner.detectCorners(createdAnalysis.raster)
+        setProcessingPhase("detecting")
+        let found: DetectedQuad | null = null
+        try {
+          found = await webScanner.detectCorners(createdAnalysis.raster)
+        } catch {
+          found = null
+        }
         setAnalysis(createdAnalysis)
         setDetected(found)
         setPendingPhoto(blob)
@@ -187,6 +196,7 @@ export function DocumentScannerFlow({
         )
       } finally {
         setBusy(false)
+        setProcessingPhase("idle")
       }
     },
     [setScannerError]
@@ -386,12 +396,39 @@ export function DocumentScannerFlow({
 
   const showSpinner = step === "preparing" && !error
 
+  const headerTitle = isIne
+    ? step === "review"
+      ? "INE · Revisión"
+      : ineStage === "front"
+        ? "INE · Frente 1 de 2"
+        : "INE · Reverso 2 de 2"
+    : step === "review"
+      ? pages.length === 1
+        ? "Documento · 1 página"
+        : `Documento · ${pages.length} páginas`
+      : `Documento · Página ${pages.length + 1}`
+
+  const headerSubtitle = isIne
+    ? step === "review"
+      ? "Revisa ambas caras de tu credencial"
+      : ineStage === "front"
+        ? "Apoya la credencial en una superficie plana"
+        : "Gira la credencial para capturar el reverso"
+    : step === "review"
+      ? intent === "print"
+        ? "Listo para enviar a la impresora"
+        : "Listo para guardar en tus documentos"
+      : step === "corners"
+        ? "Ajusta las esquinas si es necesario"
+        : "Centra el documento en la pantalla"
+
   return (
     <FullscreenPortal open={open} onClose={closeFlow} ariaLabel="Digitalizar documento">
       <div
         style={{
           width: "100%",
-          height: "100%",
+          height: "100dvh",
+          maxHeight: "100dvh",
           background: "var(--bg)",
           color: "var(--fg)",
           display: "flex",
@@ -405,19 +442,37 @@ export function DocumentScannerFlow({
             alignItems: "center",
             justifyContent: "space-between",
             gap: "0.75rem",
-            padding: "max(0.75rem, env(safe-area-inset-top, 0px)) 1rem 0.75rem",
+            padding: "max(0.5rem, env(safe-area-inset-top, 0px)) 1rem 0.5rem",
             borderBottom: "1px solid var(--border)",
             background: "var(--card)",
+            flexShrink: 0,
           }}
         >
-          <div style={{ minWidth: 0 }}>
-            <h1 style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}>
-              {isIne ? "Escanear INE" : intent === "print" ? "Escanear para imprimir" : "Digitalizar documento"}
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h1
+              style={{
+                fontSize: "0.9375rem",
+                fontWeight: 700,
+                margin: 0,
+                color: "var(--fg)",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {headerTitle}
             </h1>
-            <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-              {intent === "print"
-                ? "Se enviará por QR; por defecto no se guarda en el dispositivo."
-                : "El documento nunca sale de tu dispositivo."}
+            <span
+              style={{
+                fontSize: "0.75rem",
+                color: "var(--muted)",
+                display: "block",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {headerSubtitle}
             </span>
           </div>
           <button
@@ -428,8 +483,8 @@ export function DocumentScannerFlow({
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              width: 34,
-              height: 34,
+              width: 32,
+              height: 32,
               borderRadius: "50%",
               border: "1px solid var(--border)",
               background: "var(--accent)",
@@ -446,12 +501,15 @@ export function DocumentScannerFlow({
         <main
           style={{
             flex: 1,
+            minHeight: 0,
             width: "100%",
-            maxWidth: "560px",
+            maxWidth: "600px",
             margin: "0 auto",
-            padding: "1rem 1rem max(1.25rem, env(safe-area-inset-bottom, 0px))",
+            padding: "0.5rem 0.75rem max(0.5rem, env(safe-area-inset-bottom, 0px))",
             boxSizing: "border-box",
-            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            overflowY: step === "review" ? "auto" : "hidden",
           }}
         >
           {showSpinner && (
@@ -476,6 +534,7 @@ export function DocumentScannerFlow({
               }
               busy={busy}
               error={error}
+              processingPhase={processingPhase}
               onCapture={(blob) => void handlePhotoCaptured(blob)}
               onCancel={closeFlow}
             />
