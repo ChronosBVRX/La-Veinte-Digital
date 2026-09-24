@@ -35,6 +35,7 @@ export interface Announcement {
   status: AnnouncementStatus
   show_in_inbox: boolean
   show_in_bar: boolean
+  show_in_home_hero: boolean
   publish_at: string | null
   expires_at: string | null
   revision: number
@@ -59,6 +60,7 @@ export interface AnnouncementInput {
   destination_path?: string | null
   show_in_inbox: boolean
   show_in_bar: boolean
+  show_in_home_hero?: boolean
   publish_at?: string | null
   expires_at?: string | null
   source_document?: string | null

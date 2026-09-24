@@ -46,6 +46,7 @@ export async function saveAnnouncementAction(
   const destination_path = formData.get("destination_path") ? String(formData.get("destination_path")).trim() : null
   const show_in_inbox = formData.get("show_in_inbox") === "on" || formData.get("show_in_inbox") === "true"
   const show_in_bar = formData.get("show_in_bar") === "on" || formData.get("show_in_bar") === "true"
+  const show_in_home_hero = formData.get("show_in_home_hero") === "on" || formData.get("show_in_home_hero") === "true"
   const publish_at = formData.get("publish_at") ? String(formData.get("publish_at")) : null
   const expires_at = formData.get("expires_at") ? String(formData.get("expires_at")) : null
 
@@ -58,6 +59,7 @@ export async function saveAnnouncementAction(
     destination_path,
     show_in_inbox,
     show_in_bar,
+    show_in_home_hero,
     publish_at,
     expires_at,
     source_document: formData.get("source_document") ? String(formData.get("source_document")) : null,

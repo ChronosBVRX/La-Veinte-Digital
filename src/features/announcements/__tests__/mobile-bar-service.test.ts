@@ -22,6 +22,7 @@ describe("mobile-bar-service", () => {
     status: "PUBLISHED",
     show_in_inbox: true,
     show_in_bar: true,
+    show_in_home_hero: false,
     publish_at: null,
     expires_at: null,
     revision: 1,

@@ -82,6 +82,7 @@ export const API_ACCESS = {
   "/api/cron/agenda-reminders": "public",
   "/api/cron/push-campaigns": "public",
   "/api/announcements/bar": "public",
+  "/api/announcements/hero": "public",
   // Centro de Administración de Usuarios (solo platform admin, validado en el
   // servidor dentro de cada ruta y de nuevo en las RPC).
   "/api/admin/users": "authenticated",

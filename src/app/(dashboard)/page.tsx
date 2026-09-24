@@ -6,9 +6,7 @@ import { HomeQuickActions } from "@/shared/components/app/HomeQuickActions"
 import { DesktopQuickPills } from "@/shared/components/app/DesktopQuickPills"
 import { CalendarioLaboral } from "@/shared/components/app/CalendarioLaboral"
 import { AgendaCardWrapper } from "@/shared/components/app/AgendaCardWrapper"
-import { CopyServiceHeroCard } from "@/features/copy-service/components/CopyServiceHeroCard"
-import { SalaryIncreaseCard } from "@/features/salary-estimate/components/SalaryIncreaseCard"
-import { Vacation2027AnnouncementCard } from "@/features/vacations/components/Vacation2027AnnouncementCard"
+import { HomeHighlightsCarousel } from "@/features/dashboard/components/HomeHighlightsCarousel"
 import {
   describeSupabaseError,
   resolveDashboardProfile,
@@ -105,11 +103,7 @@ export default async function DashboardPage() {
         userId={user.id}
       />
 
-      <CopyServiceHeroCard />
-
-      <SalaryIncreaseCard />
-
-      <Vacation2027AnnouncementCard />
+      <HomeHighlightsCarousel />
 
       <div className="mobile-only">
         <OnboardingCard
