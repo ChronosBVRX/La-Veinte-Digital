@@ -7,8 +7,10 @@
 -- 2. Actualiza la restricción `chk_announcement_surface` para incluir
 --    la nueva superficie sin romper compatibilidad existente.
 -- 3. Crea índice para consultas eficientes de destacados activos.
--- 4. Otorga permisos explícitos (GRANT) y actualiza políticas RLS
---    para permitir lectura de avisos publicados en el carrusel de Inicio.
+-- 4. Establece política RLS de mínimo privilegio para trabajadores
+--    autenticados que consulten avisos vigentes del hero.
+--    (No otorga acceso directo a `anon`; las lecturas públicas se
+--     resuelven server-side a través de /api/announcements/hero).
 -- ═══════════════════════════════════════════════════════════════════
 
 BEGIN;
@@ -29,9 +31,11 @@ ALTER TABLE public.announcements
 CREATE INDEX IF NOT EXISTS announcements_home_hero_idx
   ON public.announcements(show_in_home_hero, status);
 
--- 4. Política de lectura pública/autenticada para destacados publicados del Inicio
--- Permite que tanto trabajadores autenticados como clientes anónimos (si acceden vía API)
--- lean los avisos que estén formalmente publicados con fecha vigente y marcados para el hero.
+-- 4. Política RLS estricta para lectura autenticada de destacados vigentes
+-- Permite que los trabajadores autenticados lean exclusivamente los avisos
+-- formalmente publicados con fecha vigente y marcados para el hero.
+-- `anon` queda excluido de la consulta directa por base de datos; la entrega
+-- pública se efectúa exclusivamente vía endpoint server-side protegido.
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -41,7 +45,7 @@ BEGIN
   ) THEN
     CREATE POLICY "announcements_read_published_hero"
       ON public.announcements FOR SELECT
-      TO authenticated, anon
+      TO authenticated
       USING (
         status = 'PUBLISHED'
         AND show_in_home_hero = true
@@ -50,8 +54,5 @@ BEGIN
       );
   END IF;
 END $$;
-
--- 5. Privilegios explícitos de acceso (GRANTs requeridos)
-GRANT SELECT ON public.announcements TO authenticated, anon;
 
 COMMIT;

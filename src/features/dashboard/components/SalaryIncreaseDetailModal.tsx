@@ -108,10 +108,10 @@ export function SalaryIncreaseDetailModal({
                   color: "var(--primary, #2563eb)",
                 }}
               >
-                {isSubstitute ? "Actualización Salarial · Sustitución" : "Actualización Salarial"}
+                {isSubstitute ? "Tu aumento estimado (Sustitución)" : "Tu aumento estimado"}
               </span>
               <h3 id="salary-detail-title" style={{ fontSize: "1.25rem", fontWeight: 800, margin: "0.15rem 0 0", color: "var(--fg, #0f172a)" }}>
-                Detalle del Aumento Estimado
+                Detalle del aumento estimado
               </h3>
             </div>
           </div>

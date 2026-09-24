@@ -85,6 +85,42 @@ describe("home-hero-service — isAnnouncementEligibleForHero", () => {
     })
     expect(isAnnouncementEligibleForHero(item)).toBe(true)
   })
+
+  it("rechaza avisos cuyo destination_path apunte a funciones ya presentes en HomeQuickActions", () => {
+    const excludedPaths = [
+      "/bitacora",
+      "/bitacora/compromiso-1",
+      "/documentos-personales",
+      "/documentos-personales?seccion=checadas",
+      "/escritos",
+      "/escritos/nuevo",
+      "/asistente",
+      "/asistente?q=derechos",
+      "/profile/mi-informacion-laboral",
+      "/tarjeton",
+    ]
+
+    for (const path of excludedPaths) {
+      const item = makeTestAnnouncement({ destination_path: path })
+      expect(isAnnouncementEligibleForHero(item)).toBe(false)
+    }
+  })
+
+  it("acepta avisos cuyo destination_path apunte a rutas legítimas fuera de HomeQuickActions", () => {
+    const allowedPaths = [
+      "/copias",
+      "/vacaciones",
+      "/calculadoras",
+      "/calculadoras/aguinaldo",
+      "/guia",
+      "/avisos/comunicado-oficial",
+    ]
+
+    for (const path of allowedPaths) {
+      const item = makeTestAnnouncement({ destination_path: path })
+      expect(isAnnouncementEligibleForHero(item)).toBe(true)
+    }
+  })
 })
 
 describe("home-hero-service — fetchPublishedHeroAnnouncements", () => {

@@ -1,5 +1,6 @@
 import type { Announcement } from "@/shared/contracts/announcements"
 import { requiresNormativaReview } from "./mobile-bar-service"
+import { isExcludedByQuickActions } from "@/features/dashboard/lib/highlight-exclusion-policy"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import type { Database } from "@/lib/supabase/types"
 
@@ -22,6 +23,17 @@ export function isAnnouncementEligibleForHero(
 
   // Bloquear si requiere revisión editorial normativa pendiente
   if (requiresNormativaReview(item)) return false
+
+  // Bloquear si duplica alguna de las 6 funciones de HomeQuickActions por ID, título o destination_path
+  if (
+    isExcludedByQuickActions({
+      id: item.id,
+      title: item.title,
+      href: item.destination_path ?? undefined,
+    })
+  ) {
+    return false
+  }
 
   return true
 }

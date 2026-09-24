@@ -93,7 +93,7 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
     let salaryCtaText = "Ver detalle"
     let salaryCtaHref: string | undefined = undefined
     let salaryCtaAction: (() => void) | undefined = () => setDetailModalOpen(true)
-    const salaryBadge = "ACTUALIZACIÓN SALARIAL"
+    let salaryBadge = "TU AUMENTO ESTIMADO"
 
     if (workerStatus === "loading") {
       salaryDescription = "Estamos revisando tu tarjetón más reciente."
@@ -129,12 +129,13 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
       salaryCtaAction = undefined
     } else if (salaryResult.calculationStatus === "ok") {
       const formatted = formatCurrency(salaryResult.estimatedFortnightlyIncrease)
-      salaryTitle = salaryResult.salaryType === "substitute"
-        ? `+${formatted} por quincena (Sustitución)`
-        : `+${formatted} por quincena`
+      salaryBadge = salaryResult.salaryType === "substitute"
+        ? "TU AUMENTO ESTIMADO (SUSTITUCIÓN)"
+        : "TU AUMENTO ESTIMADO"
+      salaryTitle = `+${formatted} por quincena`
       salaryDescription = salaryResult.salaryType === "substitute"
-        ? "Estimación sobre sueldo sustituto (008) y ayuda de renta (011)."
-        : "Tu aumento estimado con base en tu tarjetón activo."
+        ? "Estimación preliminar sobre tu percepción por sustitución (concepto 008) y ayuda de renta (concepto 011)."
+        : "Estimación preliminar sobre tu sueldo tabular (concepto 002) y ayuda de renta (concepto 011)."
     }
 
     list.push({
@@ -175,8 +176,8 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
       type: "system",
       priority: HIGHLIGHT_PRIORITIES.COPY_SERVICE,
       eyebrow: "SERVICIO SINDICAL",
-      title: "¿Necesitas sacar una copia?",
-      description: "Toma una foto o carga tu documento y envíalo a imprimir en la oficina sindical.",
+      title: "Sacar copias",
+      description: "Escanea un documento con tu celular y envíalo a imprimir en la oficina sindical.",
       ctaText: "Sacar una copia",
       ctaHref: "/copias",
       icon: CopySimple,
@@ -195,8 +196,8 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
       type: "system",
       priority: HIGHLIGHT_PRIORITIES.TRANSFER_DOCUMENTS,
       eyebrow: "HERRAMIENTA",
-      title: "Pasa documentos entre dispositivos",
-      description: "Transfiere archivos desde tu teléfono o computadora utilizando el flujo QR ya existente.",
+      title: "Transferir documentos",
+      description: "Envía o recibe documentos entre dispositivos para imprimirlos.",
       ctaText: "Transferir documentos",
       ctaAction: () => setTransferModalOpen(true),
       icon: ArrowsLeftRight,
@@ -205,20 +206,27 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
       testId: "highlight-transfer-docs",
     })
 
-    // E. Calculadoras Concretas (System Highlight)
+    // E. Calculadoras Laborales (System Highlight)
     list.push({
-      id: "calculator-aguinaldo-highlight",
+      id: "calculators-highlight",
       type: "system",
       priority: HIGHLIGHT_PRIORITIES.CALCULATOR,
-      eyebrow: "CALCULADORA",
-      title: "Calcula tu aguinaldo",
-      description: "Estima el importe de tu aguinaldo según tu antigüedad y conceptos vigentes.",
-      ctaText: "Calcular aguinaldo",
-      ctaHref: "/calculadoras/aguinaldo",
+      eyebrow: "CALCULADORAS LABORALES",
+      title: "Calcula tus prestaciones",
+      description: "Estima tu aguinaldo, tiempo extra, préstamos, Segunda de Julio (anual y proporcional) o anticipo de sueldo por Cláusula 97.",
+      ctaText: "Ver calculadoras",
+      ctaHref: "/calculadoras",
       icon: Calculator,
+      pills: [
+        { label: "Aguinaldo" },
+        { label: "Tiempo extra" },
+        { label: "Préstamos" },
+        { label: "Segunda de Julio" },
+        { label: "Cláusula 97" },
+      ],
       gradient: "linear-gradient(135deg, #78350f 0%, #b45309 100%)",
       enabled: true,
-      testId: "highlight-calculator-aguinaldo",
+      testId: "highlight-calculators",
     })
 
     // F. Guía de mi Tarjetón (System Highlight)
@@ -227,8 +235,8 @@ export function HomeHighlightsCarousel({ initialAnnouncements = [] }: HomeHighli
       type: "system",
       priority: HIGHLIGHT_PRIORITIES.GUIA_TARJETON,
       eyebrow: "HERRAMIENTA",
-      title: "¿No sabes qué significa un concepto de tu tarjetón?",
-      description: "Explora conceptos, deducciones y explicaciones detalladas de tu recibo IMSS.",
+      title: "¿Tienes dudas sobre tu tarjetón?",
+      description: "Consulta explicaciones sobre percepciones y deducciones de tu recibo IMSS.",
       ctaText: "Entender mi tarjetón",
       ctaHref: "/guia",
       icon: BookOpen,

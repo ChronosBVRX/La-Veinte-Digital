@@ -80,10 +80,24 @@ export const EXCLUDED_HOME_QUICK_ACTIONS: readonly ExcludedQuickActionRule[] = [
 ] as const
 
 /**
+ * Normaliza una ruta o URL para comparación de prefijos o rutas exactas.
+ */
+export function normalizeRoutePath(rawPath?: string | null): string {
+  if (!rawPath) return ""
+  const trimmed = rawPath.trim()
+  if (!trimmed) return ""
+  // Extraer el pathname ignorando query params o hashes
+  const cleanPath = trimmed.split("?")[0].split("#")[0].trim()
+  // Normalizar barras al inicio y fin
+  const withLeadingSlash = cleanPath.startsWith("/") ? cleanPath : `/${cleanPath}`
+  return withLeadingSlash.replace(/\/+$/, "") || "/"
+}
+
+/**
  * Validador funcional: comprueba si un slide (interno o dinámico) intenta promocionar
  * una función ya visible en HomeQuickActions.
  *
- * El cálculo de aumento salarial ("Tu aumento estimado") está expresamente permitido como Slide A
+ * El cálculo de aumento salarial ("salary-increase-highlight") está expresamente permitido como Slide A
  * y tiene su propia lógica e identidad diferenciada de "Mi tarjetón: consulta tus recibos".
  */
 export function isExcludedByQuickActions(slide: {
@@ -92,6 +106,13 @@ export function isExcludedByQuickActions(slide: {
   href?: string
 }): boolean {
   if (!slide) return false
+
+  // Excepción protegida: el slide de aumento salarial provisional ("salary-increase-highlight")
+  // está expresamente permitido en el carrusel como Slide A aunque enlace a /profile/mi-informacion-laboral
+  // cuando el usuario aún no tiene tarjetón guardado.
+  if (slide.id === "salary-increase-highlight") {
+    return false
+  }
 
   // 1. Verificación directa por ID reservado
   if (slide.id && HOME_QUICK_ACTION_IDS.has(slide.id as HomeQuickActionId)) {
@@ -108,6 +129,21 @@ export function isExcludedByQuickActions(slide: {
         )
       ) {
         return true
+      }
+    }
+  }
+
+  // 3. Verificación exhaustiva por ruta o destino (destination_path / href)
+  // Excluye si la ruta coincide exactamente o es un subpath de cualquiera de las 6 acciones rápidas
+  const path = normalizeRoutePath(slide.href)
+  if (path) {
+    for (const rule of EXCLUDED_HOME_QUICK_ACTIONS) {
+      for (const excludedRoute of rule.routes) {
+        const normExcluded = normalizeRoutePath(excludedRoute)
+        if (normExcluded === "/") continue
+        if (path === normExcluded || path.startsWith(`${normExcluded}/`)) {
+          return true
+        }
       }
     }
   }

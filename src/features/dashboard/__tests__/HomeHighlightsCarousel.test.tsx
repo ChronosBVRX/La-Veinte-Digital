@@ -108,7 +108,7 @@ describe("HomeHighlightsCarousel", () => {
     render(<HomeHighlightsCarousel />)
     const salarySlide = screen.getByTestId("highlight-salary-increase")
     expect(salarySlide).toBeDefined()
-    expect(screen.getByText("ACTUALIZACIÓN SALARIAL")).toBeDefined()
+    expect(screen.getByText("TU AUMENTO ESTIMADO")).toBeDefined()
     expect(screen.getByText(/por quincena/i)).toBeDefined()
     expect(screen.getByRole("button", { name: /Ver detalle/i })).toBeDefined()
   })
@@ -137,7 +137,7 @@ describe("HomeHighlightsCarousel", () => {
 
   it("4. copias aparece como slide con sus etiquetas", () => {
     render(<HomeHighlightsCarousel />)
-    const tab = screen.getByRole("tab", { name: /¿Necesitas sacar una copia\?/i })
+    const tab = screen.getByRole("tab", { name: /Sacar copias/i })
     fireEvent.click(tab)
 
     expect(screen.getByTestId("highlight-copy-service")).toBeDefined()
@@ -150,7 +150,7 @@ describe("HomeHighlightsCarousel", () => {
 
   it("5. transferir documentos aparece como slide e invoca el modal QR", () => {
     render(<HomeHighlightsCarousel />)
-    const tab = screen.getByRole("tab", { name: /Pasa documentos entre dispositivos/i })
+    const tab = screen.getByRole("tab", { name: /Transferir documentos/i })
     fireEvent.click(tab)
 
     expect(screen.getByTestId("highlight-transfer-docs")).toBeDefined()
@@ -161,19 +161,24 @@ describe("HomeHighlightsCarousel", () => {
     expect(screen.getByText("Modal de Transferencia QR")).toBeDefined()
   })
 
-  it("6. calculadoras concretas aparecen como slide con enlace a su ruta específica", () => {
+  it("6. calculadoras concretas aparecen como slide con enlace a /calculadoras y herramientas reales", () => {
     render(<HomeHighlightsCarousel />)
-    const tab = screen.getByRole("tab", { name: /Calcula tu aguinaldo/i })
+    const tab = screen.getByRole("tab", { name: /Calcula tus prestaciones/i })
     fireEvent.click(tab)
 
-    expect(screen.getByTestId("highlight-calculator-aguinaldo")).toBeDefined()
-    const cta = screen.getByRole("link", { name: /Calcular aguinaldo/i })
-    expect(cta.getAttribute("href")).toBe("/calculadoras/aguinaldo")
+    expect(screen.getByTestId("highlight-calculators")).toBeDefined()
+    expect(screen.getByText("Aguinaldo")).toBeDefined()
+    expect(screen.getByText("Tiempo extra")).toBeDefined()
+    expect(screen.getByText("Préstamos")).toBeDefined()
+    expect(screen.getByText("Segunda de Julio")).toBeDefined()
+    expect(screen.getByText("Cláusula 97")).toBeDefined()
+    const cta = screen.getByRole("link", { name: /Ver calculadoras/i })
+    expect(cta.getAttribute("href")).toBe("/calculadoras")
   })
 
   it("7. guía del tarjetón aparece como slide con enlace a /guia", () => {
     render(<HomeHighlightsCarousel />)
-    const tab = screen.getByRole("tab", { name: /¿No sabes qué significa un concepto de tu tarjetón\?/i })
+    const tab = screen.getByRole("tab", { name: /¿Tienes dudas sobre tu tarjetón\?/i })
     fireEvent.click(tab)
 
     expect(screen.getByTestId("highlight-guia-tarjeton")).toBeDefined()
@@ -181,7 +186,7 @@ describe("HomeHighlightsCarousel", () => {
     expect(cta.getAttribute("href")).toBe("/guia")
   })
 
-  it("8. regla de exclusión funcional: las 6 funciones de HomeQuickActions NO se duplican", () => {
+  it("8. regla de exclusión funcional: las 6 funciones de HomeQuickActions NO se duplican por ID, título ni ruta", () => {
     expect(HOME_QUICK_ACTION_IDS.has("agenda")).toBe(true)
     expect(HOME_QUICK_ACTION_IDS.has("tarjeton")).toBe(true)
     expect(HOME_QUICK_ACTION_IDS.has("checadas")).toBe(true)
@@ -189,20 +194,32 @@ describe("HomeHighlightsCarousel", () => {
     expect(HOME_QUICK_ACTION_IDS.has("escritos")).toBe(true)
     expect(HOME_QUICK_ACTION_IDS.has("derechos")).toBe(true)
 
-    // Comprobar política con casos duplicados
+    // Comprobar política con casos duplicados por título o id
     expect(isExcludedByQuickActions({ id: "agenda", title: "Mi agenda" })).toBe(true)
     expect(isExcludedByQuickActions({ title: "Hacer un escrito" })).toBe(true)
     expect(isExcludedByQuickActions({ title: "Mis derechos" })).toBe(true)
     expect(isExcludedByQuickActions({ title: "Mis documentos" })).toBe(true)
     expect(isExcludedByQuickActions({ title: "Mis checadas" })).toBe(true)
 
+    // Comprobar política con casos duplicados por ruta (destination_path / href)
+    expect(isExcludedByQuickActions({ href: "/bitacora" })).toBe(true)
+    expect(isExcludedByQuickActions({ href: "/bitacora/compromiso-1" })).toBe(true)
+    expect(isExcludedByQuickActions({ href: "/documentos-personales" })).toBe(true)
+    expect(isExcludedByQuickActions({ href: "/documentos-personales?tab=checadas" })).toBe(true)
+    expect(isExcludedByQuickActions({ href: "/escritos" })).toBe(true)
+    expect(isExcludedByQuickActions({ href: "/escritos/nuevo" })).toBe(true)
+    expect(isExcludedByQuickActions({ href: "/asistente" })).toBe(true)
+    expect(isExcludedByQuickActions({ href: "/asistente?q=derechos" })).toBe(true)
+    expect(isExcludedByQuickActions({ href: "/profile/mi-informacion-laboral" })).toBe(true)
+    expect(isExcludedByQuickActions({ href: "/tarjeton" })).toBe(true)
+
     // Casos legítimos del carrusel NO deben ser excluidos
-    expect(isExcludedByQuickActions({ id: "salary-increase-highlight", title: "Tu aumento estimado" })).toBe(false)
-    expect(isExcludedByQuickActions({ id: "vacation-2027-highlight", title: "Ya están disponibles los roles vacacionales 2027" })).toBe(false)
-    expect(isExcludedByQuickActions({ id: "copy-service-highlight", title: "¿Necesitas sacar una copia?" })).toBe(false)
-    expect(isExcludedByQuickActions({ id: "transfer-docs-highlight", title: "Pasa documentos entre dispositivos" })).toBe(false)
-    expect(isExcludedByQuickActions({ id: "calculator-aguinaldo-highlight", title: "Calcula tu aguinaldo" })).toBe(false)
-    expect(isExcludedByQuickActions({ id: "guia-tarjeton-highlight", title: "¿No sabes qué significa un concepto de tu tarjetón?" })).toBe(false)
+    expect(isExcludedByQuickActions({ id: "salary-increase-highlight", title: "Tu aumento estimado", href: "/profile/mi-informacion-laboral" })).toBe(false)
+    expect(isExcludedByQuickActions({ id: "vacation-2027-highlight", title: "Ya están disponibles los roles vacacionales 2027", href: "/vacaciones" })).toBe(false)
+    expect(isExcludedByQuickActions({ id: "copy-service-highlight", title: "Sacar copias", href: "/copias" })).toBe(false)
+    expect(isExcludedByQuickActions({ id: "transfer-docs-highlight", title: "Transferir documentos" })).toBe(false)
+    expect(isExcludedByQuickActions({ id: "calculators-highlight", title: "Calcula tus prestaciones", href: "/calculadoras" })).toBe(false)
+    expect(isExcludedByQuickActions({ id: "guia-tarjeton-highlight", title: "¿Tienes dudas sobre tu tarjetón?", href: "/guia" })).toBe(false)
   })
 
   it("9. respeta prioridades canónicas (aumento > vacaciones > copias > transferir > calculadoras > guía)", () => {
@@ -213,7 +230,7 @@ describe("HomeHighlightsCarousel", () => {
     // El segundo tab debe ser vacaciones 2027
     expect(tabs[1].getAttribute("aria-label")).toContain("roles vacacionales 2027")
     // El tercer tab debe ser copias
-    expect(tabs[2].getAttribute("aria-label")).toContain("sacar una copia")
+    expect(tabs[2].getAttribute("aria-label")).toContain("copias")
   })
 
   it("10. integra anuncios remotos de administración cuando se reciben", async () => {
