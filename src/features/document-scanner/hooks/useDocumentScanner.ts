@@ -242,6 +242,7 @@ export function useDocumentScanner(): UseDocumentScannerResult {
 
         const payloads = (raw.pages ?? []).filter(isScannedPagePayload)
         const created: ScanPage[] = []
+        const initialFilter: ScanFilter = mode === "document" ? "enhanced" : "original"
         for (const payload of payloads) {
           const original = base64ToBlob(payload.base64, payload.mimeType || "image/jpeg")
           let normalized: { blob: Blob; width: number; height: number }
@@ -250,16 +251,25 @@ export function useDocumentScanner(): UseDocumentScannerResult {
           } catch {
             normalized = { blob: original, width: payload.width, height: payload.height }
           }
+          const sourceBlob = normalized.blob
+          let initialRendered = normalized
+          if (initialFilter !== "original") {
+            try {
+              initialRendered = await renderPageBlob(sourceBlob, initialFilter, 0)
+            } catch {
+              initialRendered = normalized
+            }
+          }
           created.push({
             id: createPageId(),
-            blob: normalized.blob,
-            previewUrl: URL.createObjectURL(normalized.blob),
-            width: normalized.width,
-            height: normalized.height,
-            filter: "original",
+            blob: initialRendered.blob,
+            previewUrl: URL.createObjectURL(initialRendered.blob),
+            width: initialRendered.width,
+            height: initialRendered.height,
+            filter: initialFilter,
             rotation: 0,
             engine: "mlkit",
-            sourceBlob: normalized.blob,
+            sourceBlob,
           })
         }
 

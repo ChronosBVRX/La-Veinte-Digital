@@ -7,6 +7,7 @@
  * La Veinte Digital
  */
 
+import { useState } from "react"
 import {
   ArrowDown,
   ArrowUp,
@@ -14,8 +15,10 @@ import {
   Camera,
   Check,
   Info,
+  MagnifyingGlassPlus,
   Plus,
   Trash,
+  X,
 } from "@phosphor-icons/react"
 import { Button } from "@/shared/components/ui/Button"
 import { SCAN_FILTERS, type ScanFilter, type ScanMode } from "@/shared/contracts/document-scan"
@@ -42,7 +45,7 @@ export interface DocumentScannerReviewProps {
 
 const FILTER_LABELS: Record<ScanFilter, string> = {
   original: "Original",
-  enhanced: "Color mejorado",
+  enhanced: "Documento",
   grayscale: "Grises",
   bw: "Blanco y negro",
 }
@@ -65,8 +68,14 @@ export function DocumentScannerReview({
   onCancel,
   onConfirm,
 }: DocumentScannerReviewProps) {
+  const [zoomedPageId, setZoomedPageId] = useState<string | null>(null)
   const isIne = mode !== "document"
   const canConfirm = isIne ? pages.length >= 2 : pages.length >= 1
+  const visibleFilters: readonly ScanFilter[] = isIne
+    ? (["original"] as const)
+    : SCAN_FILTERS
+
+  const zoomedPage = pages.find((p) => p.id === zoomedPageId)
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%" }}>
@@ -77,7 +86,7 @@ export function DocumentScannerReview({
         <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0.25rem 0 0", lineHeight: 1.45 }}>
           {isIne
             ? "Se guardarán ambas caras centradas en una sola hoja tamaño carta."
-            : `${pages.length} ${pages.length === 1 ? "página" : "páginas"} · Puedes reordenarlas, rotarlas o volver a tomarlas.`}
+            : `${pages.length} ${pages.length === 1 ? "página" : "páginas"} · Toca cualquier miniatura para verla en grande.`}
         </p>
       </div>
 
@@ -98,15 +107,27 @@ export function DocumentScannerReview({
             }}
           >
             <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setZoomedPageId(page.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  setZoomedPageId(page.id)
+                }
+              }}
+              title="Toca para ver en grande"
+              aria-label={`Ver ${pageLabel} en grande`}
               style={{
-                width: 84,
-                height: 112,
+                width: 96,
+                height: 128,
                 flexShrink: 0,
                 borderRadius: "0.5rem",
                 overflow: "hidden",
                 background: "var(--accent)",
                 border: "1px solid var(--border)",
                 position: "relative",
+                cursor: "pointer",
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- previsualización local de un blob */}
@@ -120,6 +141,23 @@ export function DocumentScannerReview({
                   transform: `rotate(${page.rotation}deg)`,
                 }}
               />
+              <div
+                style={{
+                  position: "absolute",
+                  right: 4,
+                  bottom: 4,
+                  background: "rgba(0, 0, 0, 0.65)",
+                  color: "#ffffff",
+                  borderRadius: "0.25rem",
+                  padding: "2px 4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  pointerEvents: "none",
+                }}
+              >
+                <MagnifyingGlassPlus size={14} />
+              </div>
             </div>
 
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
@@ -133,7 +171,7 @@ export function DocumentScannerReview({
               </div>
 
               <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap" }}>
-                {SCAN_FILTERS.map((filter) => (
+                {visibleFilters.map((filter) => (
                   <button
                     key={filter}
                     type="button"
@@ -215,8 +253,7 @@ export function DocumentScannerReview({
         >
           <Info size={18} weight="duotone" style={{ flexShrink: 0, marginTop: 2 }} />
           <span>
-            No se leen ni extraen datos del INE (nombre, CURP, clave de elector, QR). Solo se compone la imagen en
-            una hoja tamaño carta.
+            El INE se conserva en color original sin filtros agresivos para proteger la fotografía, tramas y sellos de seguridad oficiales. No se leen ni extraen datos personales (sin OCR). Se compone en una sola hoja tamaño carta.
           </span>
         </div>
       )}
@@ -284,6 +321,152 @@ export function DocumentScannerReview({
           {intent === "print" ? "Enviar a imprimir" : saveToDocuments ? "Guardar PDF" : "Enviar a imprimir"}
         </Button>
       </div>
+
+      {zoomedPage && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Vista previa ampliada"
+          onClick={() => setZoomedPageId(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.78)",
+            zIndex: 1000,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--card)",
+              color: "var(--fg)",
+              borderRadius: "0.875rem",
+              border: "1px solid var(--border)",
+              maxWidth: "min(540px, 94vw)",
+              maxHeight: "90vh",
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.4)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "0.75rem 1rem",
+                borderBottom: "1px solid var(--border)",
+                gap: "0.5rem",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <strong style={{ fontSize: "0.9375rem" }}>
+                  {isIne
+                    ? pages.findIndex((p) => p.id === zoomedPage.id) === 0
+                      ? "Frente"
+                      : "Reverso"
+                    : `Página ${pages.findIndex((p) => p.id === zoomedPage.id) + 1}`}
+                </strong>
+                <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                  {zoomedPage.width}×{zoomedPage.height}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setZoomedPageId(null)}
+                aria-label="Cerrar vista previa ampliada"
+                style={{
+                  border: "1px solid var(--border)",
+                  background: "var(--accent)",
+                  color: "var(--fg)",
+                  borderRadius: "50%",
+                  width: 32,
+                  height: 32,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                <X size={18} weight="bold" />
+              </button>
+            </div>
+
+            <div
+              style={{
+                flex: 1,
+                minHeight: 220,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "1rem",
+                background: "var(--bg)",
+                overflow: "auto",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- previsualización local de un blob */}
+              <img
+                src={zoomedPage.previewUrl}
+                alt="Vista previa ampliada"
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "58vh",
+                  objectFit: "contain",
+                  borderRadius: "0.375rem",
+                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.2)",
+                  transform: `rotate(${zoomedPage.rotation}deg)`,
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                padding: "0.75rem 1rem",
+                borderTop: "1px solid var(--border)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.5rem",
+                flexWrap: "wrap",
+                background: "var(--card)",
+              }}
+            >
+              <span style={{ fontSize: "0.75rem", color: "var(--muted)", marginRight: "0.25rem" }}>
+                Filtro:
+              </span>
+              {visibleFilters.map((filter) => (
+                <button
+                  key={filter}
+                  type="button"
+                  onClick={() => onChangeFilter(zoomedPage.id, filter)}
+                  disabled={busy}
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    padding: "0.3rem 0.65rem",
+                    borderRadius: "999px",
+                    border: `1px solid ${zoomedPage.filter === filter ? "var(--primary)" : "var(--border)"}`,
+                    background: zoomedPage.filter === filter ? "var(--primary)" : "var(--accent)",
+                    color: zoomedPage.filter === filter ? "var(--primary-fg)" : "var(--fg)",
+                    cursor: busy ? "wait" : "pointer",
+                  }}
+                >
+                  {FILTER_LABELS[filter]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

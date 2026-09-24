@@ -106,7 +106,7 @@ export function defaultScanOptions(mode: ScanMode = "document"): ScanOptions {
     mode,
     allowGallery: true,
     pageLimit: mode === "document" ? SCAN_DEFAULT_PAGE_LIMIT : 1,
-    filter: "enhanced",
+    filter: mode === "document" ? "enhanced" : "original",
   }
 }
 
