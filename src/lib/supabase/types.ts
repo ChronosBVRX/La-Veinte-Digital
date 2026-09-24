@@ -81,6 +81,7 @@ export type Database = {
           reviewed_by: string | null
           revision: number
           show_in_bar: boolean
+          show_in_home_hero: boolean
           show_in_inbox: boolean
           source_document: string | null
           source_page: string | null
@@ -106,6 +107,7 @@ export type Database = {
           reviewed_by?: string | null
           revision?: number
           show_in_bar?: boolean
+          show_in_home_hero?: boolean
           show_in_inbox?: boolean
           source_document?: string | null
           source_page?: string | null
@@ -131,6 +133,7 @@ export type Database = {
           reviewed_by?: string | null
           revision?: number
           show_in_bar?: boolean
+          show_in_home_hero?: boolean
           show_in_inbox?: boolean
           source_document?: string | null
           source_page?: string | null

@@ -49,9 +49,10 @@ export function validateAnnouncementInput(input: unknown): ValidationResult<Anno
 
   const show_in_inbox = Boolean(data.show_in_inbox ?? true)
   const show_in_bar = Boolean(data.show_in_bar ?? false)
+  const show_in_home_hero = Boolean(data.show_in_home_hero ?? false)
 
-  if (!show_in_inbox && !show_in_bar) {
-    errors.push("Debes seleccionar al menos una superficie visible (Bandeja o Barra informativa).")
+  if (!show_in_inbox && !show_in_bar && !show_in_home_hero) {
+    errors.push("Debes seleccionar al menos una superficie visible (Bandeja, Barra informativa o Destacado del Inicio).")
   }
 
   let push_summary: string | null = null
@@ -127,6 +128,7 @@ export function validateAnnouncementInput(input: unknown): ValidationResult<Anno
       destination_path,
       show_in_inbox,
       show_in_bar,
+      show_in_home_hero,
       publish_at,
       expires_at,
       source_document: data.source_document ? String(data.source_document).trim() : null,

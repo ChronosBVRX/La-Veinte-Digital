@@ -54,6 +54,7 @@ export function AnnouncementForm({ initialData }: AnnouncementFormProps) {
   const [barText, setBarText] = useState(initialData?.bar_text ?? "")
   const [showInInbox, setShowInInbox] = useState(initialData?.show_in_inbox ?? true)
   const [showInBar, setShowInBar] = useState(initialData?.show_in_bar ?? false)
+  const [showInHomeHero, setShowInHomeHero] = useState(initialData?.show_in_home_hero ?? false)
   const [destinationPreset, setDestinationPreset] = useState(() => {
     if (!initialData?.destination_path) return "/avisos"
     const match = PREDEFINED_DESTINATIONS.find((d) => d.value === initialData.destination_path)
@@ -248,6 +249,25 @@ export function AnnouncementForm({ initialData }: AnnouncementFormProps) {
                 </span>
                 <span style={{ color: "var(--muted)", fontSize: "0.8125rem" }}>
                   Rotará como píldora en la barra compacta de la aplicación en dispositivos móviles.
+                </span>
+              </div>
+            </label>
+
+            <label style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", cursor: isReadOnly ? "default" : "pointer" }}>
+              <input
+                type="checkbox"
+                name="show_in_home_hero"
+                checked={showInHomeHero}
+                onChange={(e) => setShowInHomeHero(e.target.checked)}
+                disabled={isReadOnly}
+                style={{ width: "18px", height: "18px", marginTop: "0.15rem" }}
+              />
+              <div>
+                <span style={{ fontWeight: 600, fontSize: "0.9375rem", display: "block" }}>
+                  Mostrar como destacado del Inicio
+                </span>
+                <span style={{ color: "var(--muted)", fontSize: "0.8125rem" }}>
+                  Aparecerá como banner destacado en el carrusel superior del panel de Inicio.
                 </span>
               </div>
             </label>
@@ -538,6 +558,64 @@ export function AnnouncementForm({ initialData }: AnnouncementFormProps) {
                 <div style={{ display: "flex", alignItems: "center", color: "var(--primary)", fontSize: "0.8125rem", fontWeight: 600 }}>
                   <span>Leer aviso completo</span>
                   <CaretRight size={14} weight="bold" style={{ marginLeft: "0.25rem" }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Simulación Destacado del Inicio (Home Hero Carousel) */}
+            <div>
+              <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: "0.5rem" }}>
+                En Destacado del Inicio (Home Hero Carousel)
+              </span>
+              <div
+                style={{
+                  background: "linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)",
+                  borderRadius: "1rem",
+                  padding: "1.1rem 1.25rem",
+                  color: "#ffffff",
+                  boxShadow: "0 6px 20px rgba(37, 99, 235, 0.28)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.5rem",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span
+                    style={{
+                      fontSize: "0.6875rem",
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      color: "#bfdbfe",
+                    }}
+                  >
+                    {kind === "tool" ? "NUEVA HERRAMIENTA" : kind === "tip" ? "CONSEJO" : "NUEVO COMUNICADO"}
+                  </span>
+                </div>
+                <h4 style={{ fontSize: "1rem", fontWeight: 800, margin: 0, color: "#ffffff", lineHeight: 1.3 }}>
+                  {title || "Título del aviso"}
+                </h4>
+                <p style={{ fontSize: "0.8125rem", color: "#e0e7ff", margin: 0, lineHeight: 1.45 }}>
+                  {barText || pushSummary || body.slice(0, 140) || "Descripción breve del destacado..."}
+                </p>
+                <div style={{ marginTop: "0.5rem" }}>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.375rem",
+                      padding: "0.4rem 0.85rem",
+                      borderRadius: "9999px",
+                      background: "rgba(255, 255, 255, 0.2)",
+                      border: "1px solid rgba(255, 255, 255, 0.35)",
+                      color: "#ffffff",
+                      fontSize: "0.8125rem",
+                      fontWeight: 700,
+                    }}
+                  >
+                    <span>{finalDestination && finalDestination !== "/avisos" ? "Conócela" : "Ver detalle"}</span>
+                    <CaretRight size={13} weight="bold" />
+                  </span>
                 </div>
               </div>
             </div>

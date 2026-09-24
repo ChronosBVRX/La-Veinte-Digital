@@ -22,6 +22,13 @@ test.describe("Servicio Sacar copias (/copias)", () => {
     await page.waitForLoadState("domcontentloaded")
     await assertPageLoaded(page)
 
+    // Si el acceso a copias está en el carrusel de destacados, cambiamos al slide correspondiente
+    const copiasTab = page.getByRole("tab", { name: /Sacar copias/i })
+    await copiasTab.waitFor({ state: "visible", timeout: 10_000 }).catch(() => {})
+    if (await copiasTab.isVisible()) {
+      await copiasTab.click()
+    }
+
     const copiasLink = page.getByRole("link", { name: /Sacar una copia/i })
     await expect(copiasLink).toBeVisible({ timeout: 10_000 })
     expect(await copiasLink.getAttribute("href")).toBe("/copias")

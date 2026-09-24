@@ -41,6 +41,9 @@ vi.mock("@/shared/components/app/HomeQuickActions", () => ({ HomeQuickActions: (
 vi.mock("@/shared/components/app/DesktopQuickPills", () => ({ DesktopQuickPills: () => null }))
 vi.mock("@/shared/components/app/CalendarioLaboral", () => ({ CalendarioLaboral: () => null }))
 vi.mock("@/shared/components/app/AgendaCardWrapper", () => ({ AgendaCardWrapper: () => null }))
+vi.mock("@/features/dashboard/components/HomeHighlightsCarousel", () => ({
+  HomeHighlightsCarousel: () => <div data-testid="home-highlights-carousel" />,
+}))
 vi.mock("@/features/copy-service/components/CopyServiceHeroCard", () => ({ CopyServiceHeroCard: () => null }))
 vi.mock("@/features/salary-estimate/components/SalaryIncreaseCard", () => ({ SalaryIncreaseCard: () => null }))
 vi.mock("@/features/vacations/components/Vacation2027AnnouncementCard", () => ({
@@ -250,7 +253,7 @@ describe("DashboardPage — carga inicial", () => {
     expectAllOnboarding({ tarjeton: "false", categoria: "false", antiguedad: "false" })
   })
 
-  it("integra el anuncio de roles vacacionales 2027 una sola vez", async () => {
+  it("integra el carrusel de destacados del Inicio una sola vez", async () => {
     installSupabaseMock({
       profiles: [profilePresent],
       imported_payslips: [{ data: null, error: null, count: 0, status: 200 }],
@@ -258,7 +261,7 @@ describe("DashboardPage — carga inicial", () => {
 
     render(await DashboardPage())
 
-    expect(screen.getAllByTestId("vacation-2027-announcement")).toHaveLength(1)
+    expect(screen.getAllByTestId("home-highlights-carousel")).toHaveLength(1)
   })
 })
 
