@@ -12,7 +12,7 @@ import {
   Trash,
   UserCircle,
 } from "@phosphor-icons/react"
-import { Modal } from "@/shared/components/ui/Modal"
+import { ResponsiveDialog } from "@/shared/components/ui/ResponsiveDialog"
 import { Button } from "@/shared/components/ui/Button"
 import { Card } from "@/shared/components/ui/Card"
 import { Alert } from "@/shared/components/ui/Alert"
@@ -142,7 +142,7 @@ export function UserDetailModal({ open, userId, onClose, onRequestAction, onRequ
   const isSuspended = detail?.status.rawStatus === "suspended"
 
   return (
-    <Modal
+    <ResponsiveDialog
       open={open}
       onClose={onClose}
       title="Ficha administrativa"
@@ -432,6 +432,6 @@ export function UserDetailModal({ open, userId, onClose, onRequestAction, onRequ
           </Card>
         </div>
       )}
-    </Modal>
+    </ResponsiveDialog>
   )
 }

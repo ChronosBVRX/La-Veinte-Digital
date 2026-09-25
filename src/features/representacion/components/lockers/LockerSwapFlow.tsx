@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/shared/components/ui/Button";
 import { Input } from "@/shared/components/ui/Input";
+import { ResponsiveDialog } from "@/shared/components/ui";
 import type { LockerMapItem } from "@/features/representacion/lib/lockers";
 
 interface LockerSwapFlowProps {
@@ -53,7 +54,7 @@ export function LockerSwapFlow({
       });
   }, [isOpen, sourceLocker]);
 
-  if (!isOpen || !sourceLocker) return null;
+  if (!sourceLocker) return null;
 
   const asgA = sourceLocker.active_assignment;
   const targetLocker = assignedLockers.find((l) => l.id === selectedTargetId);
@@ -91,50 +92,14 @@ export function LockerSwapFlow({
   }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "rgba(15, 23, 42, 0.5)",
-        backdropFilter: "blur(2px)",
-        padding: "1rem",
-      }}
-      role="dialog"
-      aria-modal="true"
+    <ResponsiveDialog
+      open={isOpen}
+      onClose={onClose}
+      title="Intercambiar Casilleros (Swap)"
+      description="Operación administrativa atómica entre dos trabajadores activos."
+      size="md"
     >
-      <div
-        style={{
-          backgroundColor: "var(--card)",
-          borderRadius: "0.75rem",
-          maxWidth: "500px",
-          width: "100%",
-          padding: "1.5rem",
-          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "var(--fg)" }}>
-              Intercambiar Casilleros (Swap)
-            </h3>
-            <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-              Operación administrativa atómica entre dos trabajadores activos.
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{ background: "none", border: "none", fontSize: "1.2rem", cursor: "pointer", color: "var(--muted)" }}
-          >
-            ✕
-          </button>
-        </div>
-
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         {/* Diagrama visual de intercambio */}
         <div
           style={{
@@ -145,7 +110,6 @@ export function LockerSwapFlow({
             backgroundColor: "var(--accent)",
             padding: "0.875rem",
             borderRadius: "0.5rem",
-            marginBottom: "1.25rem",
             border: "1px solid var(--border)",
           }}
         >
@@ -173,7 +137,7 @@ export function LockerSwapFlow({
         </div>
 
         {/* Selección del Casillero B */}
-        <div style={{ marginBottom: "1rem" }}>
+        <div>
           <label style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)", marginBottom: "0.35rem" }}>
             Selecciona el segundo casillero con el que se intercambiará:
           </label>
@@ -206,7 +170,7 @@ export function LockerSwapFlow({
         </div>
 
         {/* Motivo */}
-        <div style={{ marginBottom: "1.25rem" }}>
+        <div>
           <label style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)", marginBottom: "0.35rem" }}>
             Motivo del intercambio:
           </label>
@@ -218,12 +182,12 @@ export function LockerSwapFlow({
         </div>
 
         {error && (
-          <div style={{ color: "#dc2626", fontSize: "0.8125rem", marginBottom: "1rem" }} role="alert">
+          <div style={{ color: "#dc2626", fontSize: "0.8125rem" }} role="alert">
             {error}
           </div>
         )}
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "0.5rem" }}>
           <Button variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
             Cancelar
           </Button>
@@ -238,6 +202,6 @@ export function LockerSwapFlow({
           </Button>
         </div>
       </div>
-    </div>
+    </ResponsiveDialog>
   );
 }

@@ -6,6 +6,7 @@ import { Card } from "@/shared/components/ui/Card";
 import { Button } from "@/shared/components/ui/Button";
 import { Input } from "@/shared/components/ui/Input";
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner";
+import { ResponsiveDialog } from "@/shared/components/ui";
 import { WorkerPicker, getWorkerDisplayName, type UnionWorkerOption } from "./WorkerPicker";
 import type {
   ReconciliationCase,
@@ -597,76 +598,46 @@ export function LockerPendingReviewList(): React.JSX.Element {
       ) : null}
 
       {/* Modal de Búsqueda Manual de Trabajador */}
-      {manualSearchCase ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(2px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-            padding: "1rem",
-          }}
-        >
-          <div style={{ maxWidth: "540px", width: "100%" }}>
-            <Card padding="1.5rem">
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700 }}>
-                      Buscar trabajador en el padrón
-                    </h3>
-                    <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--muted)" }}>
-                      Vincular Casillero {manualSearchCase.locker?.lockerNumber} con un trabajador del padrón sindical.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setManualSearchCase(null)}
-                    style={{ background: "none", border: "none", fontSize: "1.25rem", color: "var(--muted)", cursor: "pointer" }}
-                  >
-                    ✕
-                  </button>
-                </div>
+      <ResponsiveDialog
+        open={Boolean(manualSearchCase)}
+        onClose={() => setManualSearchCase(null)}
+        title="Buscar trabajador en el padrón"
+        description={manualSearchCase ? `Vincular Casillero ${manualSearchCase.locker?.lockerNumber} con un trabajador del padrón sindical.` : undefined}
+        size="md"
+      >
+        {manualSearchCase ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+            <div style={{ padding: "0.75rem", backgroundColor: "var(--accent)", borderRadius: "0.375rem" }}>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Datos en el archivo:</div>
+              <strong style={{ fontSize: "0.875rem" }}>{manualSearchCase.title}</strong>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{manualSearchCase.subtitle}</div>
+            </div>
 
-                <div style={{ padding: "0.75rem", backgroundColor: "var(--accent)", borderRadius: "0.375rem" }}>
-                  <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>Datos en el archivo:</div>
-                  <strong style={{ fontSize: "0.875rem" }}>{manualSearchCase.title}</strong>
-                  <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>{manualSearchCase.subtitle}</div>
-                </div>
+            <div>
+              <WorkerPicker
+                selected={selectedWorker}
+                onSelect={setSelectedWorker}
+                label="Seleccionar trabajador sindical"
+              />
+            </div>
 
-                <div>
-                  <WorkerPicker
-                    selected={selectedWorker}
-                    onSelect={setSelectedWorker}
-                    label="Seleccionar trabajador sindical"
-                  />
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
-                  <Button variant="secondary" size="sm" onClick={() => setManualSearchCase(null)}>
-                    Cancelar
-                  </Button>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => void handleConfirmManualWorker()}
-                    disabled={!selectedWorker}
-                    loading={submittingId === manualSearchCase.caseId}
-                  >
-                    Vincular y asignar
-                  </Button>
-                </div>
-              </div>
-            </Card>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
+              <Button variant="secondary" size="sm" onClick={() => setManualSearchCase(null)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => void handleConfirmManualWorker()}
+                disabled={!selectedWorker}
+                loading={submittingId === manualSearchCase.caseId}
+              >
+                Vincular y asignar
+              </Button>
+            </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </ResponsiveDialog>
     </div>
   );
 }

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
 import { X } from "@phosphor-icons/react";
 import { useBackLayer } from "@/shared/navigation/useBackLayer";
+import { Z_INDEX } from "@/shared/constants/z-index";
 
 export interface RepresentationSheetProps {
   open: boolean;
@@ -45,17 +47,19 @@ export function RepresentationSheet({
 
   if (!open) return null;
 
-  return (
+  const content = (
     <div
       role="presentation"
       style={{
         position: "fixed",
         inset: 0,
         backgroundColor: "rgba(0, 0, 0, 0.45)",
-        zIndex: 100,
+        zIndex: Z_INDEX.dialog,
         display: "flex",
         justifyContent: "flex-end",
         backdropFilter: "blur(2px)",
+        paddingTop: "env(safe-area-inset-top, 0px)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -160,4 +164,9 @@ export function RepresentationSheet({
       `}</style>
     </div>
   );
+
+  if (typeof document !== "undefined" && document.body) {
+    return createPortal(content, document.body);
+  }
+  return content;
 }

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Button } from "@/shared/components/ui/Button";
+import { Z_INDEX } from "@/shared/constants/z-index";
 import { LockerStatusBadge } from "./LockerStatusBadge";
 import type { LockerItem } from "./LockerDesktopTable";
 
@@ -146,6 +148,7 @@ export function LockerDetailSheet({
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
+  if (typeof document === "undefined") return null;
 
   function formatDate(iso?: string | null): string {
     if (!iso) return "—";
@@ -176,12 +179,12 @@ export function LockerDetailSheet({
 
   const pendingCount = locker?.pending_review_items_count ?? (pending ? 1 : 0);
 
-  return (
+  return createPortal(
     <div
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 90,
+        zIndex: Z_INDEX.dialog,
         display: "flex",
         justifyContent: "flex-end",
         backgroundColor: "rgba(15, 23, 42, 0.4)",
@@ -618,6 +621,7 @@ export function LockerDetailSheet({
           ) : null}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { Warning } from "@phosphor-icons/react"
-import { Modal } from "./Modal"
+import { ResponsiveDialog } from "./ResponsiveDialog"
 import { Button } from "./Button"
 
 interface ConfirmDialogProps {
@@ -28,7 +28,7 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   return (
-    <Modal
+    <ResponsiveDialog
       open={open}
       onClose={onCancel}
       title={

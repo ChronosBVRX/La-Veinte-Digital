@@ -4,6 +4,7 @@ import { useEffect, useId, useRef } from "react"
 import { createPortal } from "react-dom"
 import { X } from "@phosphor-icons/react"
 import { useBackLayer } from "@/shared/navigation/useBackLayer"
+import { Z_INDEX } from "@/shared/constants/z-index"
 import type { CSSProperties, ReactNode } from "react"
 
 interface ModalProps {
@@ -130,7 +131,7 @@ export function Modal({
         style={{
           position: "fixed",
           inset: 0,
-          zIndex: 1000,
+          zIndex: Z_INDEX.dialog,
           background: "rgba(0,0,0,0.45)",
           display: "grid",
           placeItems: "center",

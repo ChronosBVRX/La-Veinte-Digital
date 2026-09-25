@@ -1,16 +1,23 @@
 "use client"
 
 import { useEffect, useId, useRef } from "react"
+import { createPortal } from "react-dom"
 import { X } from "@phosphor-icons/react"
 import { useBackLayer } from "@/shared/navigation/useBackLayer"
+import { Z_INDEX } from "@/shared/constants/z-index"
 import type { CSSProperties, ReactNode } from "react"
 
-interface BottomSheetProps {
+export interface BottomSheetProps {
   open: boolean
   onClose: () => void
   title?: ReactNode
+  description?: string
   children?: ReactNode
+  footer?: ReactNode
   height?: "auto" | "medium" | "large"
+  closeOnOverlay?: boolean
+  style?: CSSProperties
+  maxWidth?: number | string
 }
 
 const heightMap: Record<string, CSSProperties["maxHeight"]> = {
@@ -26,10 +33,16 @@ export function BottomSheet({
   open,
   onClose,
   title,
+  description,
   children,
+  footer,
   height = "auto",
+  closeOnOverlay = true,
+  style,
+  maxWidth = 600,
 }: BottomSheetProps) {
   const titleId = useId()
+  const descId = useId()
   const overlayRef = useRef<HTMLDivElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
@@ -101,18 +114,21 @@ export function BottomSheet({
   if (!open) return null
 
   const overlayClick = (e: React.MouseEvent) => {
-    if (e.target === overlayRef.current) onClose()
+    if (e.target === overlayRef.current && closeOnOverlay) onClose()
   }
 
-  return (
+  const content = (
     <div
       ref={overlayRef}
       onClick={overlayClick}
+      className="ui-bottomsheet-overlay"
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 1000,
-        background: "rgba(0,0,0,0.4)",
+        zIndex: Z_INDEX.dialog,
+        background: "rgba(0,0,0,0.45)",
+        backdropFilter: "blur(2px)",
+        WebkitBackdropFilter: "blur(2px)",
         display: "flex",
         alignItems: "flex-end",
         justifyContent: "center",
@@ -123,13 +139,14 @@ export function BottomSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
+        aria-describedby={description ? descId : undefined}
         className="animate-slide-up"
         style={{
           background: "var(--card)",
           borderRadius: "var(--radius-lg) var(--radius-lg) 0 0",
           boxShadow: "var(--shadow-lg)",
           width: "100%",
-          maxWidth: 600,
+          maxWidth,
           maxHeight:
             height === "auto"
               ? "calc(var(--visual-viewport-height, 100dvh) - 1rem)"
@@ -137,42 +154,50 @@ export function BottomSheet({
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          paddingBottom: "env(safe-area-inset-bottom)",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          ...style,
         }}
       >
+        {/* Handle visual superior de arrastre */}
         <div
           style={{
             display: "flex",
             justifyContent: "center",
-            paddingTop: "0.5rem",
+            paddingTop: "0.625rem",
             paddingBottom: "0.25rem",
             flexShrink: 0,
+            cursor: "grab",
           }}
         >
           <div
             style={{
-              width: 36,
+              width: 40,
               height: 4,
-              borderRadius: 2,
-              background: "var(--border)",
+              borderRadius: 9999,
+              background: "var(--border, #cbd5e1)",
             }}
           />
         </div>
+
+        {/* Cabecera accesible con título y botón de cierre */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             padding: "0.5rem 1.25rem 0.75rem",
+            borderBottom: "1px solid var(--border)",
             flexShrink: 0,
           }}
         >
           <h2
             id={title ? titleId : undefined}
             style={{
-              fontSize: "1rem",
+              fontSize: "1.0625rem",
               fontWeight: 700,
               margin: 0,
+              overflowWrap: "anywhere",
+              minWidth: 0,
             }}
           >
             {title ?? ""}
@@ -198,12 +223,58 @@ export function BottomSheet({
             <X size={16} />
           </button>
         </div>
+
+        {description && (
+          <p
+            id={descId}
+            style={{
+              margin: 0,
+              padding: "0.625rem 1.25rem 0",
+              fontSize: "var(--text-sm)",
+              color: "var(--muted)",
+              flexShrink: 0,
+            }}
+          >
+            {description}
+          </p>
+        )}
+
         {children && (
-          <div style={{ padding: "0 1.25rem 1.25rem", flex: 1, minHeight: 0, overflowY: "auto" } as React.CSSProperties}>
+          <div
+            style={{
+              padding: "1rem 1.25rem",
+              flex: 1,
+              minHeight: 0,
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
+            } as React.CSSProperties}
+          >
             {children}
+          </div>
+        )}
+
+        {footer && (
+          <div
+            style={{
+              padding: "0.75rem 1.25rem",
+              borderTop: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "0.5rem",
+              flexShrink: 0,
+              background: "var(--card)",
+            }}
+          >
+            {footer}
           </div>
         )}
       </div>
     </div>
   )
+
+  // Portal a body garantiza fixed = viewport real, evitando contenerización por transforms
+  if (typeof document !== "undefined" && document.body) {
+    return createPortal(content, document.body)
+  }
+  return content
 }

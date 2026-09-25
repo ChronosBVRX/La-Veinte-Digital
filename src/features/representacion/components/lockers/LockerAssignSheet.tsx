@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/shared/components/ui/Button";
 import { Input } from "@/shared/components/ui/Input";
+import { Z_INDEX } from "@/shared/constants/z-index";
 import { WorkerPicker, type UnionWorkerOption, getWorkerDisplayName } from "../WorkerPicker";
 import type { LockerItem } from "./LockerDesktopTable";
 
@@ -166,17 +168,18 @@ export function LockerAssignSheet({
   }
 
   if (!isOpen) return null;
+  if (typeof document === "undefined") return null;
 
   const isLockerAvailable = resolvedLocker && resolvedLocker.status === "available" && !resolvedLocker.active_assignment;
   const isDuplicateLocker = workerExistingLocker?.hasActiveLocker;
   const canSubmit = isLockerAvailable && worker && (!isDuplicateLocker || Boolean(dualAssignmentReason.trim()));
 
-  return (
+  return createPortal(
     <div
       style={{
         position: "fixed",
         inset: 0,
-        zIndex: 90,
+        zIndex: Z_INDEX.dialog,
         display: "flex",
         justifyContent: "flex-end",
         backgroundColor: "rgba(15, 23, 42, 0.4)",
@@ -416,6 +419,7 @@ export function LockerAssignSheet({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

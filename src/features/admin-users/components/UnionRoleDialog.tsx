@@ -1,7 +1,7 @@
 "use client"
 
 import { useId, useState } from "react"
-import { Modal } from "@/shared/components/ui/Modal"
+import { ResponsiveDialog } from "@/shared/components/ui/ResponsiveDialog"
 import { Button } from "@/shared/components/ui/Button"
 import { Select, Textarea } from "@/shared/components/ui/Input"
 import { Alert } from "@/shared/components/ui/Alert"
@@ -98,7 +98,7 @@ export function UnionRoleDialog({ open, target, action, onClose, onCompleted }: 
   }
 
   return (
-    <Modal
+    <ResponsiveDialog
       open={open}
       onClose={onClose}
       title={isGrant ? "Asignar rol sindical" : "Retirar rol sindical"}
@@ -178,6 +178,6 @@ export function UnionRoleDialog({ open, target, action, onClose, onCompleted }: 
           required
         />
       </form>
-    </Modal>
+    </ResponsiveDialog>
   )
 }

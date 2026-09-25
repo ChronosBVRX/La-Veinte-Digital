@@ -6,6 +6,7 @@ import Link from "next/link"
 import { Button } from "@/shared/components/ui/Button"
 import { Card } from "@/shared/components/ui/Card"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
+import { ResponsiveDialog } from "@/shared/components/ui"
 import {
   createEmptyEscritoDraftV2,
   type EscritoDraftV2,
@@ -359,53 +360,34 @@ export function EscritosGenerator() {
   return (
     <div style={{ maxWidth: "840px", width: "100%", minWidth: 0, margin: "0 auto", padding: "clamp(0.75rem, 2.5vw, 1.5rem) 0", boxSizing: "border-box", overflowX: "hidden" }}>
       {/* Modal de confirmación de cambios sin guardar */}
-      {pendingNavigationAction && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(15, 23, 42, 0.6)",
-            backdropFilter: "blur(4px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-            padding: "1rem",
-            boxSizing: "border-box",
-          }}
-        >
-          <Card padding="1.5rem" style={{ maxWidth: "420px", width: "100%", minWidth: 0, background: "var(--card)", boxSizing: "border-box" }}>
-            <h3 style={{ margin: "0 0 0.5rem", fontSize: "1.125rem", fontWeight: 700, color: "var(--fg)" }}>
-              ⚠️ Cambios sin guardar
-            </h3>
-            <p style={{ margin: "0 0 1.25rem", fontSize: "0.875rem", color: "var(--muted)" }}>
-              Tienes cambios en el borrador actual que no han sido guardados. ¿Deseas descartarlos y continuar?
-            </p>
-            <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: "0.5rem", width: "100%", boxSizing: "border-box" }}>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setPendingNavigationAction(null)}
-              >
-                Permanecer en el escrito
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  const action = pendingNavigationAction
-                  setPendingNavigationAction(null)
-                  action()
-                }}
-              >
-                Descartar y continuar
-              </Button>
-            </div>
-          </Card>
+      <ResponsiveDialog
+        open={Boolean(pendingNavigationAction)}
+        onClose={() => setPendingNavigationAction(null)}
+        title="⚠️ Cambios sin guardar"
+        description="Tienes cambios en el borrador actual que no han sido guardados. ¿Deseas descartarlos y continuar?"
+        size="sm"
+      >
+        <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: "0.5rem", width: "100%", boxSizing: "border-box", marginTop: "1rem" }}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setPendingNavigationAction(null)}
+          >
+            Permanecer en el escrito
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              const action = pendingNavigationAction
+              setPendingNavigationAction(null)
+              action?.()
+            }}
+          >
+            Descartar y continuar
+          </Button>
         </div>
-      )}
+      </ResponsiveDialog>
 
       {/* Toast de Guardado */}
       {saveToast && (

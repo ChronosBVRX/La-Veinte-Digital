@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { Modal } from "@/shared/components/ui/Modal"
+import { ResponsiveDialog } from "@/shared/components/ui/ResponsiveDialog"
 import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
 import type { DestinoCargoNombre } from "@/shared/contracts/escrito-draft"
@@ -75,7 +75,13 @@ export function DestinatarioSelectorModal({
   ]
 
   return (
-    <Modal open={isOpen} onClose={onClose} title="Seleccionar Destinatario del Escrito">
+    <ResponsiveDialog
+      open={isOpen}
+      onClose={onClose}
+      title="Seleccionar Destinatario del Escrito"
+      size="md"
+      sheetHeight="large"
+    >
       <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem", maxHeight: "75vh", width: "100%", maxWidth: "100%", boxSizing: "border-box", overflowX: "hidden" }}>
         {/* Toggle Directorio Oficial vs Destinatario Manual */}
         <div
@@ -281,6 +287,6 @@ export function DestinatarioSelectorModal({
           </div>
         )}
       </div>
-    </Modal>
+    </ResponsiveDialog>
   )
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import { useId, useState } from "react"
-import { Modal } from "@/shared/components/ui/Modal"
+import { ResponsiveDialog } from "@/shared/components/ui/ResponsiveDialog"
 import { Button } from "@/shared/components/ui/Button"
 import { Input, Select, Textarea } from "@/shared/components/ui/Input"
 import { Checkbox } from "@/shared/components/ui/Checkbox"
@@ -186,7 +186,7 @@ export function UserActionDialog({ open, action, target, onClose, onCompleted }:
   }
 
   return (
-    <Modal
+    <ResponsiveDialog
       open={open}
       onClose={onClose}
       title={copy.title}
@@ -299,6 +299,6 @@ export function UserActionDialog({ open, action, target, onClose, onCompleted }:
           required
         />
       </form>
-    </Modal>
+    </ResponsiveDialog>
   )
 }

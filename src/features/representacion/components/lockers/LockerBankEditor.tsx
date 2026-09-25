@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { Button } from "@/shared/components/ui/Button";
 import { Input } from "@/shared/components/ui/Input";
+import { ResponsiveDialog } from "@/shared/components/ui";
 import type { LockerBank, LockerZone } from "@/features/representacion/lib/lockers";
 
 interface LockerBankEditorProps {
@@ -138,51 +139,14 @@ export function LockerBankEditor({
   }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 110,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "rgba(15, 23, 42, 0.5)",
-        backdropFilter: "blur(2px)",
-        padding: "1rem",
-      }}
-      role="dialog"
-      aria-modal="true"
+    <ResponsiveDialog
+      open={isOpen}
+      onClose={onClose}
+      title={bankToEdit ? `Editar Bloque: ${bankToEdit.name}` : `Nuevo Bloque en ${zone.name}`}
+      description="Define la cuadrícula física (filas × columnas) y asigna casilleros."
+      size="lg"
+      sheetHeight="large"
     >
-      <div
-        style={{
-          backgroundColor: "var(--card)",
-          borderRadius: "0.75rem",
-          maxWidth: "600px",
-          width: "100%",
-          maxHeight: "90vh",
-          overflowY: "auto",
-          padding: "1.5rem",
-          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "var(--fg)" }}>
-              {bankToEdit ? `Editar Bloque: ${bankToEdit.name}` : `Nuevo Bloque en ${zone.name}`}
-            </h3>
-            <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-              Define la cuadrícula física (filas × columnas) y asigna casilleros.
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{ background: "none", border: "none", fontSize: "1.2rem", cursor: "pointer", color: "var(--muted)" }}
-          >
-            ✕
-          </button>
-        </div>
 
         {/* Datos Básicos */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1rem" }}>
@@ -403,7 +367,6 @@ export function LockerBankEditor({
             {bankToEdit ? "Guardar cambios" : "Crear bloque físico"}
           </Button>
         </div>
-      </div>
-    </div>
+    </ResponsiveDialog>
   );
 }
