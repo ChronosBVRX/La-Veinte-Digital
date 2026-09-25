@@ -1,7 +1,10 @@
 "use client"
 
-import { useRef, useState, useEffect } from "react"
+import { useRef, useState, useEffect, useCallback, useSyncExternalStore } from "react"
 import { Button } from "@/shared/components/ui/Button"
+import { Modal } from "@/shared/components/ui/Modal"
+import { FullscreenPortal } from "@/shared/components/ui/FullscreenPortal"
+import { ArrowLeft, X } from "@phosphor-icons/react"
 import { useBackLayer } from "@/shared/navigation/useBackLayer"
 import { dataUrlToBlob, saveBlobResource, deleteBlobResource } from "../services/escritos-indexeddb"
 
@@ -14,6 +17,29 @@ interface SignaturePadModalProps {
   onSave: (firmaRef: string, previewUrl: string) => void
 }
 
+const emptySubscribe = () => () => {}
+
+function useIsMobile(query = "(max-width: 768px)"): boolean {
+  const subscribe = useCallback(
+    (callback: () => void) => {
+      if (typeof window === "undefined" || !window.matchMedia) return emptySubscribe()
+      const mql = window.matchMedia(query)
+      mql.addEventListener("change", callback)
+      return () => mql.removeEventListener("change", callback)
+    },
+    [query]
+  )
+
+  const getSnapshot = () => {
+    if (typeof window === "undefined" || !window.matchMedia) return false
+    return window.matchMedia(query).matches
+  }
+
+  const getServerSnapshot = () => false
+
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+}
+
 export function SignaturePadModal({
   userId,
   escritoId,
@@ -22,15 +48,15 @@ export function SignaturePadModal({
   onClose,
   onSave,
 }: SignaturePadModalProps) {
+  const isMobile = useIsMobile()
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [isDrawing, setIsDrawing] = useState(false)
   const [strokeWidth, setStrokeWidth] = useState(2.5)
   const [hasContent, setHasContent] = useState(false)
   const [history, setHistory] = useState<ImageData[]>([])
   const [isSaving, setIsSaving] = useState(false)
-  const modalRef = useRef<HTMLDivElement | null>(null)
 
-  // Capa transitoria canónica: Atrás cierra el pad (mismo onClose que Escape).
+  // Capa transitoria canónica: Atrás cierra el pad en Android/móvil
   useBackLayer(isOpen, onClose, "signature-pad")
 
   useEffect(() => {
@@ -41,10 +67,14 @@ export function SignaturePadModal({
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    // Ajustar resolución del canvas para pantallas retina / móviles
     const ratio = window.devicePixelRatio || 1
-    const width = Math.max(240, Math.min(window.innerWidth - 72, 480))
-    const height = Math.min(200, Math.max(160, Math.round(width * 0.5)))
+    // En móvil pantalla completa ofrecemos un canvas mucho más amplio para trazos cómodos con dedo/stylus
+    const width = isMobile
+      ? Math.max(280, Math.min(window.innerWidth - 32, 600))
+      : Math.max(280, Math.min(window.innerWidth - 72, 540))
+    const height = isMobile
+      ? Math.min(320, Math.max(200, Math.round(window.innerHeight * 0.38)))
+      : 220
 
     canvas.width = width * ratio
     canvas.height = height * ratio
@@ -61,17 +91,7 @@ export function SignaturePadModal({
 
     setHasContent(false)
     setHistory([])
-
-    // Focus inicial
-    modalRef.current?.focus()
-
-    // Manejador Escape
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
-    }
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isOpen, onClose])
+  }, [isOpen, isMobile])
 
   if (!isOpen) return null
 
@@ -100,62 +120,45 @@ export function SignaturePadModal({
     const ctx = canvas.getContext("2d")
     if (!ctx) return
     const snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height)
-    setHistory((prev) => [...prev.slice(-15), snapshot])
+    setHistory((prev) => [...prev.slice(-10), snapshot])
   }
 
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    saveHistorySnapshot()
+    setIsDrawing(true)
+    const { x, y } = getCoordinates(e)
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext("2d")
     if (!ctx) return
-
-    saveHistorySnapshot()
-    setIsDrawing(true)
-    setHasContent(true)
-
-    const coords = getCoordinates(e)
-    ctx.lineWidth = strokeWidth
     ctx.beginPath()
-    ctx.moveTo(coords.x, coords.y)
+    ctx.lineWidth = strokeWidth
+    ctx.moveTo(x, y)
   }
 
   const draw = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isDrawing) return
+    e.preventDefault()
+    const { x, y } = getCoordinates(e)
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext("2d")
     if (!ctx) return
-
-    const coords = getCoordinates(e)
-    ctx.lineWidth = strokeWidth
-    ctx.lineTo(coords.x, coords.y)
+    ctx.lineTo(x, y)
     ctx.stroke()
+    setHasContent(true)
   }
 
-  const stopDrawing = () => {
+  const stopDrawing = (e?: React.MouseEvent | React.TouchEvent) => {
     if (!isDrawing) return
+    if (e && e.cancelable) e.preventDefault()
     setIsDrawing(false)
-  }
-
-  const clearCanvas = () => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext("2d")
     if (!ctx) return
-
-    const ratio = window.devicePixelRatio || 1
-
-    ctx.setTransform(1, 0, 0, 1, 0, 0)
-    ctx.fillStyle = "#ffffff"
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
-
-    ctx.lineCap = "round"
-    ctx.lineJoin = "round"
-    ctx.strokeStyle = "#0f172a"
-
-    setHasContent(false)
-    setHistory([])
+    ctx.closePath()
   }
 
   const undoLastStroke = () => {
@@ -163,17 +166,26 @@ export function SignaturePadModal({
     if (!canvas || history.length === 0) return
     const ctx = canvas.getContext("2d")
     if (!ctx) return
-
-    const newHistory = [...history]
-    const last = newHistory.pop()
-    setHistory(newHistory)
-
-    if (last) {
-      ctx.putImageData(last, 0, 0)
-      if (newHistory.length === 0) {
-        setHasContent(false)
-      }
+    const lastSnapshot = history[history.length - 1]
+    ctx.putImageData(lastSnapshot, 0, 0)
+    setHistory((prev) => prev.slice(0, -1))
+    if (history.length <= 1) {
+      setHasContent(false)
     }
+  }
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+    saveHistorySnapshot()
+    const ratio = window.devicePixelRatio || 1
+    const width = canvas.width / ratio
+    const height = canvas.height / ratio
+    ctx.fillStyle = "#ffffff"
+    ctx.fillRect(0, 0, width, height)
+    setHasContent(false)
   }
 
   const handleSave = async () => {
@@ -205,136 +217,222 @@ export function SignaturePadModal({
     }
   }
 
-  return (
+  const signatureControls = (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="signature-title"
-      ref={modalRef}
-      tabIndex={-1}
       style={{
-        position: "fixed",
-        inset: 0,
-        backgroundColor: "rgba(15, 23, 42, 0.65)",
-        backdropFilter: "blur(4px)",
         display: "flex",
+        justifyContent: "space-between",
         alignItems: "center",
+        flexWrap: "wrap",
+        gap: "0.5rem",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+        <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>Grosor:</span>
+        {[1.5, 2.5, 4].map((width) => (
+          <button
+            key={width}
+            type="button"
+            onClick={() => setStrokeWidth(width)}
+            style={{
+              padding: "0.25rem 0.5rem",
+              fontSize: "0.75rem",
+              borderRadius: "0.375rem",
+              border: strokeWidth === width ? "2px solid var(--primary)" : "1px solid var(--border)",
+              background: strokeWidth === width ? "var(--accent)" : "transparent",
+              color: "var(--fg)",
+              cursor: "pointer",
+            }}
+          >
+            {width === 1.5 ? "Fino" : width === 2.5 ? "Normal" : "Grueso"}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: "0.375rem" }}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={undoLastStroke}
+          disabled={history.length === 0}
+        >
+          ↩ Deshacer
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={clearCanvas}
+          disabled={!hasContent}
+        >
+          🗑 Limpiar
+        </Button>
+      </div>
+    </div>
+  )
+
+  const canvasNode = (
+    <div
+      style={{
+        border: "2px dashed var(--border)",
+        borderRadius: "0.75rem",
+        overflow: "hidden",
+        background: "#ffffff",
+        touchAction: "none",
+        display: "flex",
         justifyContent: "center",
-        zIndex: 9999,
-        padding: "0.75rem",
+        alignItems: "center",
+        width: "100%",
         boxSizing: "border-box",
       }}
     >
-      <div
+      <canvas
+        ref={canvasRef}
+        onMouseDown={startDrawing}
+        onMouseMove={draw}
+        onMouseUp={stopDrawing}
+        onMouseLeave={stopDrawing}
+        onTouchStart={startDrawing}
+        onTouchMove={draw}
+        onTouchEnd={stopDrawing}
         style={{
-          background: "var(--card)",
-          borderRadius: "1rem",
-          padding: "clamp(0.875rem, 3vw, 1.5rem)",
-          maxWidth: "500px",
-          width: "100%",
-          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
-          border: "1px solid var(--border)",
-          boxSizing: "border-box",
+          cursor: "crosshair",
+          display: "block",
+          touchAction: "none",
+          maxWidth: "100%",
         }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-          <div>
-            <h3 id="signature-title" style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700, color: "var(--fg)" }}>
-              ✍️ Firma Digitalizada
-            </h3>
-            <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--muted)" }}>
-              Dibuja tu firma con tu dedo o puntero para insertarla en el oficio.
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Cerrar modal de firma"
-            style={{
-              background: "none",
-              border: "none",
-              fontSize: "1.25rem",
-              cursor: "pointer",
-              color: "var(--muted)",
-              padding: "0.25rem",
-            }}
-          >
-            ✕
-          </button>
-        </div>
+      />
+    </div>
+  )
 
-        {/* Lienzo */}
+  // En móvil: pantalla completa para máxima comodidad al firmar con el dedo o stylus
+  if (isMobile) {
+    return (
+      <FullscreenPortal open={isOpen} onClose={onClose} ariaLabel="Firma Digitalizada">
         <div
           style={{
-            border: "2px dashed var(--border)",
-            borderRadius: "0.75rem",
-            overflow: "hidden",
-            background: "#ffffff",
-            touchAction: "none",
             display: "flex",
-            justifyContent: "center",
-            marginBottom: "1rem",
-            width: "100%",
+            flexDirection: "column",
+            height: "100%",
+            background: "var(--bg)",
             boxSizing: "border-box",
+            paddingTop: "env(safe-area-inset-top, 0px)",
+            paddingBottom: "env(safe-area-inset-bottom, 0px)",
           }}
         >
-          <canvas
-            ref={canvasRef}
-            onMouseDown={startDrawing}
-            onMouseMove={draw}
-            onMouseUp={stopDrawing}
-            onMouseLeave={stopDrawing}
-            onTouchStart={startDrawing}
-            onTouchMove={draw}
-            onTouchEnd={stopDrawing}
-            style={{ cursor: "crosshair", display: "block", touchAction: "none", maxWidth: "100%" }}
-          />
-        </div>
-
-        {/* Controles de trazo y acciones */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "1.25rem" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
-            <span style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>Grosor:</span>
-            {[1.5, 2.5, 4].map((width) => (
+          {/* Header móvil */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "0.875rem 1rem",
+              background: "var(--card)",
+              borderBottom: "1px solid var(--border)",
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <button
-                key={width}
                 type="button"
-                onClick={() => setStrokeWidth(width)}
+                onClick={onClose}
+                aria-label="Volver"
                 style={{
-                  padding: "0.25rem 0.5rem",
-                  fontSize: "0.75rem",
-                  borderRadius: "0.375rem",
-                  border: strokeWidth === width ? "2px solid var(--primary)" : "1px solid var(--border)",
-                  background: strokeWidth === width ? "var(--accent)" : "transparent",
-                  color: "var(--fg)",
+                  background: "transparent",
+                  border: "none",
                   cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "0.25rem",
+                  color: "var(--fg)",
                 }}
               >
-                {width === 1.5 ? "Fino" : width === 2.5 ? "Normal" : "Grueso"}
+                <ArrowLeft size={20} weight="bold" />
               </button>
-            ))}
+              <div>
+                <h2 style={{ fontSize: "1rem", fontWeight: 700, margin: 0, color: "var(--fg)" }}>
+                  ✍️ Firma Digitalizada
+                </h2>
+                <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)" }}>
+                  Dibuja tu firma con tu dedo o puntero
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Cerrar"
+              style={{
+                background: "var(--accent)",
+                border: "none",
+                borderRadius: "50%",
+                width: 32,
+                height: 32,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                color: "var(--muted)",
+              }}
+            >
+              <X size={16} />
+            </button>
           </div>
 
-          <div style={{ display: "flex", gap: "0.375rem" }}>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={undoLastStroke}
-              disabled={history.length === 0}
-            >
-              ↩ Deshacer
+          {/* Cuerpo móvil con canvas expandido */}
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              gap: "1rem",
+              padding: "1rem",
+              overflowY: "auto",
+              boxSizing: "border-box",
+            }}
+          >
+            {canvasNode}
+            {signatureControls}
+          </div>
+
+          {/* Footer móvil sticky */}
+          <div
+            style={{
+              padding: "0.875rem 1rem",
+              background: "var(--card)",
+              borderTop: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "0.5rem",
+              flexShrink: 0,
+            }}
+          >
+            <Button variant="secondary" onClick={onClose} disabled={isSaving}>
+              Cancelar
             </Button>
             <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearCanvas}
-              disabled={!hasContent}
+              variant="primary"
+              onClick={handleSave}
+              disabled={!hasContent || isSaving}
+              loading={isSaving}
             >
-              🗑 Limpiar
+              Guardar Firma
             </Button>
           </div>
         </div>
+      </FullscreenPortal>
+    )
+  }
 
-        <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: "0.5rem" }}>
+  // En desktop: diálogo centrado amplio
+  return (
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title="✍️ Firma Digitalizada"
+      description="Dibuja tu firma con tu puntero o stylus para insertarla en el oficio."
+      size="md"
+      footer={
+        <>
           <Button variant="secondary" onClick={onClose} disabled={isSaving}>
             Cancelar
           </Button>
@@ -346,8 +444,13 @@ export function SignaturePadModal({
           >
             Guardar Firma
           </Button>
-        </div>
+        </>
+      }
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        {canvasNode}
+        {signatureControls}
       </div>
-    </div>
+    </Modal>
   )
 }

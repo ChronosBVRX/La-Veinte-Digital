@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/shared/components/ui/Button";
 import { Input } from "@/shared/components/ui/Input";
+import { ResponsiveDialog } from "@/shared/components/ui";
 import { LockerBankEditor } from "./LockerBankEditor";
 import type { LockerZone, LockerBank } from "@/features/representacion/lib/lockers";
 
@@ -100,51 +101,15 @@ export function LockerZoneManager({
   const currentZoneBanks = selectedZone ? banks.filter((b) => b.zone_id === selectedZone.id) : [];
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "rgba(15, 23, 42, 0.5)",
-        backdropFilter: "blur(2px)",
-        padding: "1rem",
-      }}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div
-        style={{
-          backgroundColor: "var(--card)",
-          borderRadius: "0.75rem",
-          maxWidth: "720px",
-          width: "100%",
-          maxHeight: "88vh",
-          overflowY: "auto",
-          padding: "1.5rem",
-          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
-          border: "1px solid var(--border)",
-        }}
+    <>
+      <ResponsiveDialog
+        open={isOpen}
+        onClose={onClose}
+        title="Configurar Zonas y Bloques Físicos"
+        description="Administración del mapa digital de casilleros de la oficina y hospital."
+        size="lg"
+        sheetHeight="large"
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
-          <div>
-            <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 800, color: "var(--fg)" }}>
-              Configurar Zonas y Bloques Físicos
-            </h3>
-            <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
-              Administración del mapa digital de casilleros de la oficina y hospital.
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{ background: "none", border: "none", fontSize: "1.2rem", cursor: "pointer", color: "var(--muted)" }}
-          >
-            ✕
-          </button>
-        </div>
 
         {/* Formulario para Crear Zona */}
         {isCreatingZone ? (
@@ -345,7 +310,7 @@ export function LockerZoneManager({
             Cerrar
           </Button>
         </div>
-      </div>
+      </ResponsiveDialog>
 
       {/* Editor de Bloque */}
       {isBankEditorOpen && selectedZone && (
@@ -357,6 +322,6 @@ export function LockerZoneManager({
           onSuccess={onSuccess}
         />
       )}
-    </div>
+    </>
   );
 }

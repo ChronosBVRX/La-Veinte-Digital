@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/shared/components/ui/Button";
 import { Input } from "@/shared/components/ui/Input";
+import { ResponsiveDialog } from "@/shared/components/ui";
 
 export interface LockerDeleteTarget {
   id: string;
@@ -36,17 +37,7 @@ export function LockerHardDeleteModal({
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent): void {
-      if (e.key === "Escape" && isOpen && !loading) {
-        onClose();
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, loading, onClose]);
-
-  if (!isOpen || !locker) return null;
+  if (!locker) return null;
 
   const isConfirmed = confirmInput.trim().toUpperCase() === locker.locker_number.trim().toUpperCase();
 
@@ -82,60 +73,29 @@ export function LockerHardDeleteModal({
   }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 105,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1rem",
-        backgroundColor: "rgba(15, 23, 42, 0.6)",
-        backdropFilter: "blur(3px)",
-      }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="hard-delete-modal-title"
+    <ResponsiveDialog
+      open={isOpen}
+      onClose={onClose}
+      title={`Eliminar definitivamente ${locker.locker_number}`}
+      description="Esta operación destruye físicamente el registro en la base de datos. Solo se permite si el casillero nunca ha tenido historial ni actividad registrada."
+      size="sm"
     >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "460px",
-          backgroundColor: "var(--card)",
-          borderRadius: "var(--radius)",
-          border: "2px solid #ef4444",
-          boxShadow: "0 25px 50px -12px rgba(220, 38, 38, 0.25)",
-          padding: "1.5rem",
-          display: "flex",
-          flexDirection: "column",
-          gap: "1.25rem",
-        }}
-      >
-        <div>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              padding: "0.25rem 0.625rem",
-              borderRadius: "999px",
-              backgroundColor: "#fee2e2",
-              color: "#991b1b",
-              fontSize: "0.75rem",
-              fontWeight: 700,
-              marginBottom: "0.5rem",
-            }}
-          >
-            ⚠️ ACCIÓN ADMINISTRATIVA EXCEPCIONAL
-          </div>
-          <h2 id="hard-delete-modal-title" style={{ margin: "0 0 0.25rem", fontSize: "1.25rem", fontWeight: 700, color: "#b91c1c" }}>
-            Eliminar definitivamente {locker.locker_number}
-          </h2>
-          <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--muted)", lineHeight: 1.4 }}>
-            Esta operación destruye físicamente el registro en la base de datos.
-            <strong> Solo se permite si el casillero nunca ha tenido historial ni actividad registrada.</strong>
-          </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <div
+          style={{
+            alignSelf: "flex-start",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            padding: "0.25rem 0.625rem",
+            borderRadius: "999px",
+            backgroundColor: "#fee2e2",
+            color: "#991b1b",
+            fontSize: "0.75rem",
+            fontWeight: 700,
+          }}
+        >
+          ⚠️ ACCIÓN ADMINISTRATIVA EXCEPCIONAL
         </div>
 
         {error ? (
@@ -182,7 +142,7 @@ export function LockerHardDeleteModal({
           />
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
           <Button variant="secondary" onClick={onClose} disabled={loading}>
             Cancelar
           </Button>
@@ -197,6 +157,6 @@ export function LockerHardDeleteModal({
           </Button>
         </div>
       </div>
-    </div>
+    </ResponsiveDialog>
   );
 }

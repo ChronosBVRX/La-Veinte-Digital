@@ -1,6 +1,6 @@
 "use client"
 
-import { Modal } from "@/shared/components/ui/Modal"
+import { ResponsiveDialog } from "@/shared/components/ui/ResponsiveDialog"
 import { Tabs } from "@/shared/components/ui/Tabs"
 import { ReceivePanel } from "@/features/transferir/components/ReceivePanel"
 import { SendPanel } from "@/features/transferir/components/SendPanel"
@@ -15,12 +15,13 @@ export function TransferDocumentsModal({
   onClose,
 }: TransferDocumentsModalProps) {
   return (
-    <Modal
+    <ResponsiveDialog
       open={open}
       onClose={onClose}
       title="Transferir documentos"
       description="Envía o recibe documentos entre dispositivos para imprimirlos."
       size="md"
+      sheetHeight="large"
     >
       <Tabs
         tabs={[
@@ -31,6 +32,6 @@ export function TransferDocumentsModal({
       >
         {(active) => (active === "recibir" ? <ReceivePanel /> : <SendPanel />)}
       </Tabs>
-    </Modal>
+    </ResponsiveDialog>
   )
 }

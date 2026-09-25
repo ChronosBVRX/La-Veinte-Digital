@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/shared/components/ui/Button";
 import { Input } from "@/shared/components/ui/Input";
+import { ResponsiveDialog } from "@/shared/components/ui/ResponsiveDialog";
 
 export interface LockerArchiveTarget {
   id: string;
@@ -41,16 +42,6 @@ export function LockerArchiveModal({
       setLoading(false);
     }
   }, [isOpen]);
-
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent): void {
-      if (e.key === "Escape" && isOpen && !loading) {
-        onClose();
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, loading, onClose]);
 
   if (!isOpen || !locker) return null;
 
@@ -100,49 +91,43 @@ export function LockerArchiveModal({
   }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1rem",
-        backgroundColor: "rgba(15, 23, 42, 0.5)",
-        backdropFilter: "blur(2px)",
-      }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="archive-modal-title"
+    <ResponsiveDialog
+      open={isOpen}
+      onClose={onClose}
+      title={
+        isArchived
+          ? `Reactivar casillero ${locker.locker_number}`
+          : `Retirar / Archivar casillero ${locker.locker_number}`
+      }
+      description={
+        isArchived
+          ? "El casillero volverá al inventario activo como disponible para asignación."
+          : "Retira el casillero del inventario activo sin borrar su historial ni sus asignaciones pasadas."
+      }
+      size="sm"
+      closeOnOverlay={!loading}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>
+            Cancelar
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleConfirm}
+            loading={loading}
+            disabled={loading || (!isArchived && (!canArchive || !reason.trim()))}
+            style={
+              isArchived
+                ? { backgroundColor: "#16a34a", borderColor: "#16a34a" }
+                : { backgroundColor: "#ea580c", borderColor: "#ea580c" }
+            }
+          >
+            {isArchived ? "Reactivar casillero" : "Archivar casillero"}
+          </Button>
+        </>
+      }
     >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "460px",
-          backgroundColor: "var(--card)",
-          borderRadius: "var(--radius)",
-          border: "1px solid var(--border)",
-          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
-          padding: "1.5rem",
-          display: "flex",
-          flexDirection: "column",
-          gap: "1.25rem",
-        }}
-      >
-        <div>
-          <h2 id="archive-modal-title" style={{ margin: "0 0 0.25rem", fontSize: "1.25rem", fontWeight: 700 }}>
-            {isArchived
-              ? `Reactivar casillero ${locker.locker_number}`
-              : `Retirar / Archivar casillero ${locker.locker_number}`}
-          </h2>
-          <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--muted)", lineHeight: 1.4 }}>
-            {isArchived
-              ? "El casillero volverá al inventario activo como disponible para asignación."
-              : "Retira el casillero del inventario activo sin borrar su historial ni sus asignaciones pasadas."}
-          </p>
-        </div>
-
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         {error ? (
           <div
             style={{
@@ -183,38 +168,17 @@ export function LockerArchiveModal({
         ) : null}
 
         {!isArchived ? (
-          <div>
-            <Input
-              label="Motivo del retiro *"
-              placeholder="ej. Mueble desmantelado, casillero inservible, remodelación…"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              disabled={loading || !canArchive}
-              required
-              autoFocus
-            />
-          </div>
+          <Input
+            label="Motivo del retiro *"
+            placeholder="ej. Mueble desmantelado, casillero inservible, remodelación…"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            disabled={loading || !canArchive}
+            required
+            autoFocus
+          />
         ) : null}
-
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
-          <Button variant="secondary" onClick={onClose} disabled={loading}>
-            Cancelar
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleConfirm}
-            loading={loading}
-            disabled={loading || (!isArchived && (!canArchive || !reason.trim()))}
-            style={
-              isArchived
-                ? { backgroundColor: "#16a34a", borderColor: "#16a34a" }
-                : { backgroundColor: "#ea580c", borderColor: "#ea580c" }
-            }
-          >
-            {isArchived ? "Reactivar casillero" : "Archivar casillero"}
-          </Button>
-        </div>
       </div>
-    </div>
+    </ResponsiveDialog>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/shared/components/ui/Button";
+import { ResponsiveDialog } from "@/shared/components/ui";
 import type { ImportSummary } from "../../services/worker-importer/types";
 
 export interface ImportConfirmationModalProps {
@@ -23,8 +24,6 @@ export function ImportConfirmationModal({
 }: ImportConfirmationModalProps): React.JSX.Element | null {
   const [doubleConfirmed, setDoubleConfirmed] = useState(false);
 
-  if (!isOpen) return null;
-
   const isLocker = domain === "LOCKER";
   const newWorkers = summary.newWorkers ?? summary.newCount ?? 0;
   const updatedWorkers = summary.updatedWorkers ?? summary.updatedCount ?? 0;
@@ -33,65 +32,18 @@ export function ImportConfirmationModal({
   const lockerChanges = summary.lockerChanges ?? summary.updatedCount ?? 0;
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-        padding: "1rem",
-      }}
+    <ResponsiveDialog
+      open={isOpen}
+      onClose={onClose}
+      title={isLocker ? "Importar base de lockers" : "Confirmar actualización de base de trabajadores"}
+      description={
+        isLocker
+          ? "Por favor revisa el balance antes de guardar tu base:"
+          : "Por favor revisa el balance de operaciones antes de escribir los cambios en el padrón laboral:"
+      }
+      size="md"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="modal-title"
-        style={{
-          backgroundColor: "var(--card)",
-          borderRadius: "0.5rem",
-          maxWidth: "500px",
-          width: "100%",
-          padding: "1.5rem",
-          display: "flex",
-          flexDirection: "column",
-          gap: "1rem",
-          boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h3 id="modal-title" style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700 }}>
-            {isLocker
-              ? "Importar base de lockers"
-              : "Confirmar actualización de base de trabajadores"}
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={isLoading}
-            style={{
-              background: "none",
-              border: "none",
-              fontSize: "1.25rem",
-              cursor: "pointer",
-              color: "var(--muted)",
-            }}
-          >
-            ✕
-          </button>
-        </div>
-
-        <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)" }}>
-          {isLocker
-            ? "Por favor revisa el balance antes de guardar tu base:"
-            : "Por favor revisa el balance de operaciones antes de escribir los cambios en el padrón laboral:"}
-        </p>
-
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         <div
           style={{
             backgroundColor: "var(--accent)",
@@ -217,6 +169,6 @@ export function ImportConfirmationModal({
           </Button>
         </div>
       </div>
-    </div>
+    </ResponsiveDialog>
   );
 }

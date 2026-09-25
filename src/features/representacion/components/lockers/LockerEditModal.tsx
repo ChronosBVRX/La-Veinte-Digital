@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/shared/components/ui/Button";
 import { Input, Select, Textarea } from "@/shared/components/ui/Input";
+import { ResponsiveDialog } from "@/shared/components/ui";
 import type { LockerZone, LockerBank } from "@/features/representacion/lib/lockers";
 
 export interface LockerEditableData {
@@ -70,17 +71,7 @@ export function LockerEditModal({
     }
   }, [isOpen, locker]);
 
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent): void {
-      if (e.key === "Escape" && isOpen && !loading) {
-        onClose();
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, loading, onClose]);
-
-  if (!isOpen || !locker) return null;
+  if (!locker) return null;
 
   const isRenumbering = lockerNumber.trim().toUpperCase() !== locker.locker_number.trim().toUpperCase();
 
@@ -143,223 +134,190 @@ export function LockerEditModal({
     : banks;
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1rem",
-        backgroundColor: "rgba(15, 23, 42, 0.5)",
-        backdropFilter: "blur(2px)",
-      }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="edit-locker-modal-title"
+    <ResponsiveDialog
+      open={isOpen}
+      onClose={onClose}
+      title={`Editar casillero ${locker.locker_number}`}
+      description="Modifica la ubicación física, muebles, condición o renumera conservando el historial."
+      size="md"
+      sheetHeight="large"
     >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "520px",
-          maxHeight: "90vh",
-          overflowY: "auto",
-          backgroundColor: "var(--card)",
-          borderRadius: "var(--radius)",
-          border: "1px solid var(--border)",
-          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
-          padding: "1.5rem",
-          display: "flex",
-          flexDirection: "column",
-          gap: "1.25rem",
-        }}
-      >
-        <div>
-          <h2 id="edit-locker-modal-title" style={{ margin: "0 0 0.25rem", fontSize: "1.25rem", fontWeight: 700 }}>
-            Editar casillero {locker.locker_number}
-          </h2>
-          <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--muted)", lineHeight: 1.4 }}>
-            Modifica la ubicación física, muebles, condición o renumera conservando el historial.
-          </p>
+      {error ? (
+        <div
+          style={{
+            padding: "0.75rem 1rem",
+            borderRadius: "0.375rem",
+            backgroundColor: "#fef2f2",
+            border: "1px solid #fecaca",
+            color: "#991b1b",
+            fontSize: "0.8125rem",
+            fontWeight: 500,
+            marginBottom: "1rem",
+          }}
+        >
+          {error}
+        </div>
+      ) : null}
+
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        {/* Identificación y Renumeración */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+          <Input
+            label="Número de Locker *"
+            value={lockerNumber}
+            onChange={(e) => setLockerNumber(e.target.value)}
+            disabled={loading}
+            required
+          />
+          <Input
+            label="Código físico / placa"
+            placeholder="ej. C-247"
+            value={physicalCode}
+            onChange={(e) => setPhysicalCode(e.target.value)}
+            disabled={loading}
+          />
         </div>
 
-        {error ? (
+        {/* Aviso y Motivo de Renumeración */}
+        {isRenumbering ? (
           <div
             style={{
-              padding: "0.75rem 1rem",
+              backgroundColor: "#fffbeb",
+              border: "1px solid #fde68a",
               borderRadius: "0.375rem",
-              backgroundColor: "#fef2f2",
-              border: "1px solid #fecaca",
-              color: "#991b1b",
-              fontSize: "0.8125rem",
-              fontWeight: 500,
+              padding: "0.75rem 1rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.5rem",
             }}
           >
-            {error}
-          </div>
-        ) : null}
-
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {/* Identificación y Renumeración */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+            <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#92400e" }}>
+              ⚠️ RENUMERACIÓN DETECTADA: {locker.locker_number} → {lockerNumber.trim().toUpperCase()}
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "#b45309", lineHeight: 1.4 }}>
+              Se conservará el ID único, todas las asignaciones pasadas y el historial. Debe registrar la justificación para auditoría:
+            </div>
             <Input
-              label="Número de Locker *"
-              value={lockerNumber}
-              onChange={(e) => setLockerNumber(e.target.value)}
+              label="Motivo de renumeración *"
+              placeholder="ej. Corrección física de placa, rotulación nueva…"
+              value={renumberReason}
+              onChange={(e) => setRenumberReason(e.target.value)}
               disabled={loading}
               required
             />
-            <Input
-              label="Código físico / placa"
-              placeholder="ej. C-247"
-              value={physicalCode}
-              onChange={(e) => setPhysicalCode(e.target.value)}
-              disabled={loading}
-            />
           </div>
+        ) : null}
 
-          {/* Aviso y Motivo de Renumeración */}
-          {isRenumbering ? (
-            <div
-              style={{
-                backgroundColor: "#fffbeb",
-                border: "1px solid #fde68a",
-                borderRadius: "0.375rem",
-                padding: "0.75rem 1rem",
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.5rem",
-              }}
-            >
-              <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#92400e" }}>
-                ⚠️ RENUMERACIÓN DETECTADA: {locker.locker_number} → {lockerNumber.trim().toUpperCase()}
-              </div>
-              <div style={{ fontSize: "0.75rem", color: "#b45309", lineHeight: 1.4 }}>
-                Se conservará el ID único, todas las asignaciones pasadas y el historial. Debe registrar la justificación para auditoría:
-              </div>
-              <Input
-                label="Motivo de renumeración *"
-                placeholder="ej. Corrección física de placa, rotulación nueva…"
-                value={renumberReason}
-                onChange={(e) => setRenumberReason(e.target.value)}
-                disabled={loading}
-                required
-              />
-            </div>
-          ) : null}
+        {/* Ubicación Física */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+          <Select
+            label="Zona"
+            value={zoneId}
+            onChange={(e) => {
+              setZoneId((e.target as HTMLSelectElement).value);
+              setBankId("");
+            }}
+            disabled={loading}
+          >
+            <option value="">Sin zona asignada</option>
+            {zones.map((z) => (
+              <option key={z.id} value={z.id}>
+                {z.name} {z.floor ? `(Piso ${z.floor})` : ""}
+              </option>
+            ))}
+          </Select>
 
-          {/* Ubicación Física */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-            <Select
-              label="Zona"
-              value={zoneId}
-              onChange={(e) => {
-                setZoneId((e.target as HTMLSelectElement).value);
-                setBankId("");
-              }}
-              disabled={loading}
-            >
-              <option value="">Sin zona asignada</option>
-              {zones.map((z) => (
-                <option key={z.id} value={z.id}>
-                  {z.name} {z.floor ? `(Piso ${z.floor})` : ""}
-                </option>
-              ))}
-            </Select>
+          <Select
+            label="Mueble / Banco"
+            value={bankId}
+            onChange={(e) => setBankId((e.target as HTMLSelectElement).value)}
+            disabled={loading}
+          >
+            <option value="">Sin mueble asignado</option>
+            {filteredBanks.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </Select>
+        </div>
 
-            <Select
-              label="Mueble / Banco"
-              value={bankId}
-              onChange={(e) => setBankId((e.target as HTMLSelectElement).value)}
-              disabled={loading}
-            >
-              <option value="">Sin mueble asignado</option>
-              {filteredBanks.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          {/* Coordenadas en Mueble */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.5fr", gap: "0.75rem" }}>
-            <Input
-              type="number"
-              min="1"
-              max="50"
-              label="Fila"
-              value={rowPosition}
-              onChange={(e) => setRowPosition(e.target.value)}
-              disabled={loading}
-            />
-            <Input
-              type="number"
-              min="1"
-              max="50"
-              label="Columna"
-              value={colPosition}
-              onChange={(e) => setColPosition(e.target.value)}
-              disabled={loading}
-            />
-            <Input
-              label="Etiqueta posición"
-              placeholder="ej. Fila 2, Col 3"
-              value={positionLabel}
-              onChange={(e) => setPositionLabel(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-
-          {/* Condición Física */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            <Select
-              label="Condición física"
-              value={condition}
-              onChange={(e) => setCondition((e.target as HTMLSelectElement).value as "ok" | "maintenance" | "blocked")}
-              disabled={loading}
-            >
-              <option value="ok">Buen estado (OK)</option>
-              <option value="maintenance">Requiere mantenimiento / Dañado</option>
-              <option value="blocked">Bloqueado / Clausurado</option>
-            </Select>
-
-            {condition !== "ok" ? (
-              <Input
-                label="Motivo de condición física"
-                placeholder="ej. Candado roto, bisagra vencida…"
-                value={maintenanceReason}
-                onChange={(e) => setMaintenanceReason(e.target.value)}
-                disabled={loading}
-              />
-            ) : null}
-          </div>
-
-          {/* Observaciones */}
-          <Textarea
-            label="Notas / Observaciones del casillero"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+        {/* Coordenadas en Mueble */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.5fr", gap: "0.75rem" }}>
+          <Input
+            type="number"
+            min="1"
+            max="50"
+            label="Fila"
+            value={rowPosition}
+            onChange={(e) => setRowPosition(e.target.value)}
             disabled={loading}
           />
+          <Input
+            type="number"
+            min="1"
+            max="50"
+            label="Columna"
+            value={colPosition}
+            onChange={(e) => setColPosition(e.target.value)}
+            disabled={loading}
+          />
+          <Input
+            label="Etiqueta posición"
+            placeholder="ej. Fila 2, Col 3"
+            value={positionLabel}
+            onChange={(e) => setPositionLabel(e.target.value)}
+            disabled={loading}
+          />
+        </div>
 
-          {/* Botones de acción */}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
-            <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>
-              Cancelar
-            </Button>
-            <Button
-              variant="primary"
-              type="submit"
-              loading={loading}
-              disabled={loading || !lockerNumber.trim() || (isRenumbering && !renumberReason.trim())}
-            >
-              Guardar cambios
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
+        {/* Condición Física */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          <Select
+            label="Condición física"
+            value={condition}
+            onChange={(e) => setCondition((e.target as HTMLSelectElement).value as "ok" | "maintenance" | "blocked")}
+            disabled={loading}
+          >
+            <option value="ok">Buen estado (OK)</option>
+            <option value="maintenance">Requiere mantenimiento / Dañado</option>
+            <option value="blocked">Bloqueado / Clausurado</option>
+          </Select>
+
+          {condition !== "ok" ? (
+            <Input
+              label="Motivo de condición física"
+              placeholder="ej. Candado roto, bisagra vencida…"
+              value={maintenanceReason}
+              onChange={(e) => setMaintenanceReason(e.target.value)}
+              disabled={loading}
+            />
+          ) : null}
+        </div>
+
+        {/* Observaciones */}
+        <Textarea
+          label="Notas / Observaciones del casillero"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          disabled={loading}
+        />
+
+        {/* Botones de acción */}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
+          <Button variant="secondary" type="button" onClick={onClose} disabled={loading}>
+            Cancelar
+          </Button>
+          <Button
+            variant="primary"
+            type="submit"
+            loading={loading}
+            disabled={loading || !lockerNumber.trim() || (isRenumbering && !renumberReason.trim())}
+          >
+            Guardar cambios
+          </Button>
+        </div>
+      </form>
+    </ResponsiveDialog>
   );
 }

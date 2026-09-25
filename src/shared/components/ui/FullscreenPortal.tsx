@@ -4,6 +4,7 @@ import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react"
 import { createPortal } from "react-dom"
 import { useBackLayer } from "@/shared/navigation/useBackLayer"
 import { backNavigationCoordinator } from "@/shared/navigation/back-navigation-coordinator"
+import { Z_INDEX } from "@/shared/constants/z-index"
 
 export interface FullscreenPortalProps {
   open: boolean
@@ -34,7 +35,7 @@ export function FullscreenPortal({
   onClose,
   children,
   ariaLabel,
-  zIndex = 99999,
+  zIndex = Z_INDEX.fullscreen,
   className,
   style,
 }: FullscreenPortalProps) {

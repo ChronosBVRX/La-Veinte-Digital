@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/shared/components/ui/Card";
 import { Button } from "@/shared/components/ui/Button";
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner";
+import { ResponsiveDialog } from "@/shared/components/ui";
 import { ImportDropzone } from "./ImportDropzone";
 import { ImportPreviewDashboard } from "./ImportPreviewDashboard";
 import { ImportDiffTable } from "./ImportDiffTable";
@@ -414,166 +415,114 @@ export function LockerImportWizard(): React.JSX.Element {
               />
 
               {/* Modal de Resolución Automática */}
-              {isAutoResolveModalOpen ? (
-                <div
-                  role="dialog"
-                  aria-modal="true"
-                  style={{
-                    position: "fixed",
-                    inset: 0,
-                    backgroundColor: "rgba(0, 0, 0, 0.5)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    zIndex: 50,
-                    padding: "1rem",
-                  }}
-                >
-                  <div
-                    style={{
-                      backgroundColor: "var(--card)",
-                      borderRadius: "0.5rem",
-                      padding: "1.5rem",
-                      maxWidth: "520px",
-                      width: "100%",
-                      border: "1px solid var(--border)",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "1rem",
-                    }}
-                  >
-                    <h3 style={{ margin: 0, fontSize: "1.125rem" }}>Resolución automática segura</h3>
-                    <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--muted)" }}>
-                      El sistema resolverá de forma determinista únicamente los casos seguros sin adivinar:
-                    </p>
+              <ResponsiveDialog
+                open={isAutoResolveModalOpen}
+                onClose={() => setIsAutoResolveModalOpen(false)}
+                title="Resolución automática segura"
+                description="El sistema resolverá de forma determinista únicamente los casos seguros sin adivinar:"
+                size="md"
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.875rem" }}>
+                    <div
+                      style={{
+                        padding: "0.75rem",
+                        borderRadius: "0.375rem",
+                        backgroundColor: "#f0fdf4",
+                        border: "1px solid #bbf7d0",
+                        color: "#166534",
+                      }}
+                    >
+                      <strong>Podemos resolver de forma segura:</strong>
+                      <ul style={{ margin: "0.375rem 0 0", paddingLeft: "1.25rem" }}>
+                        <li>
+                          {autoResolvableRows.length} fila(s) duplicadas del mismo trabajador y casillero (se mantendrá una sola operación efectiva).
+                        </li>
+                      </ul>
+                    </div>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.875rem" }}>
+                    {workerNotFoundRows.length > 0 || realHumanConflicts.length > 0 ? (
                       <div
                         style={{
                           padding: "0.75rem",
                           borderRadius: "0.375rem",
-                          backgroundColor: "#f0fdf4",
-                          border: "1px solid #bbf7d0",
-                          color: "#166534",
+                          backgroundColor: "#fff7ed",
+                          border: "1px solid #fed7aa",
+                          color: "#9a3412",
                         }}
                       >
-                        <strong>Podemos resolver de forma segura:</strong>
+                        <strong>No se pueden resolver automáticamente:</strong>
                         <ul style={{ margin: "0.375rem 0 0", paddingLeft: "1.25rem" }}>
-                          <li>
-                            {autoResolvableRows.length} fila(s) duplicadas del mismo trabajador y casillero (se mantendrá una sola operación efectiva).
-                          </li>
+                          {workerNotFoundRows.length > 0 ? (
+                            <li>
+                              {workerNotFoundRows.length} trabajadores no encontrados en el padrón (requieren actualización del padrón u omisión temporal).
+                            </li>
+                          ) : null}
+                          {realHumanConflicts.length > 0 ? (
+                            <li>
+                              {realHumanConflicts.length} conflicto(s) que requieren tu decisión manual (ej. casillero reclamado por distintos trabajadores).
+                            </li>
+                          ) : null}
                         </ul>
                       </div>
+                    ) : null}
+                  </div>
 
-                      {workerNotFoundRows.length > 0 || realHumanConflicts.length > 0 ? (
-                        <div
-                          style={{
-                            padding: "0.75rem",
-                            borderRadius: "0.375rem",
-                            backgroundColor: "#fff7ed",
-                            border: "1px solid #fed7aa",
-                            color: "#9a3412",
-                          }}
-                        >
-                          <strong>No se pueden resolver automáticamente:</strong>
-                          <ul style={{ margin: "0.375rem 0 0", paddingLeft: "1.25rem" }}>
-                            {workerNotFoundRows.length > 0 ? (
-                              <li>
-                                {workerNotFoundRows.length} trabajadores no encontrados en el padrón (requieren actualización del padrón u omisión temporal).
-                              </li>
-                            ) : null}
-                            {realHumanConflicts.length > 0 ? (
-                              <li>
-                                {realHumanConflicts.length} conflicto(s) que requieren tu decisión manual (ej. casillero reclamado por distintos trabajadores).
-                              </li>
-                            ) : null}
-                          </ul>
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
-                      <Button variant="ghost" size="sm" onClick={() => setIsAutoResolveModalOpen(false)}>
-                        Cancelar
-                      </Button>
-                      <Button variant="primary" size="sm" onClick={handleAutoResolve}>
-                        Resolver {autoResolvableRows.length} automáticamente
-                      </Button>
-                    </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
+                    <Button variant="ghost" size="sm" onClick={() => setIsAutoResolveModalOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button variant="primary" size="sm" onClick={handleAutoResolve}>
+                      Resolver {autoResolvableRows.length} automáticamente
+                    </Button>
                   </div>
                 </div>
-              ) : null}
+              </ResponsiveDialog>
 
               {/* Modal de Omisión Masiva de Trabajadores No Encontrados */}
-              {isSkipWorkerNotFoundModalOpen ? (
-                <div
-                  role="dialog"
-                  aria-modal="true"
-                  style={{
-                    position: "fixed",
-                    inset: 0,
-                    backgroundColor: "rgba(0, 0, 0, 0.5)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    zIndex: 50,
-                    padding: "1rem",
-                  }}
-                >
-                  <div
-                    style={{
-                      backgroundColor: "var(--card)",
-                      borderRadius: "0.5rem",
-                      padding: "1.5rem",
-                      maxWidth: "520px",
-                      width: "100%",
-                      border: "1px solid var(--border)",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "1rem",
-                    }}
-                  >
-                    <h3 style={{ margin: 0, fontSize: "1.125rem" }}>
-                      Omitir temporalmente trabajadores no encontrados
-                    </h3>
-
-                    <div style={{ fontSize: "0.875rem", color: "var(--fg)", lineHeight: 1.5 }}>
-                      <p style={{ margin: "0 0 0.75rem" }}>
-                        <strong>{workerNotFoundRows.length} filas</strong> corresponden a matrículas que no existen actualmente en el padrón de trabajadores.
-                      </p>
-                      <p style={{ margin: "0 0 0.75rem", color: "var(--muted)" }}>
-                        Estas filas pueden omitirse sin modificar sus lockers. Después de actualizar el padrón de trabajadores podrás volver a importar este archivo para conciliarlas.
-                      </p>
-                      <div
-                        style={{
-                          padding: "0.625rem 0.75rem",
-                          borderRadius: "0.375rem",
-                          backgroundColor: "#eff6ff",
-                          border: "1px solid #bfdbfe",
-                          color: "#1e40af",
-                          fontSize: "0.8125rem",
-                        }}
-                      >
-                        🛡️ <strong>Garantía de seguridad:</strong> Omitir estas filas <strong>NO creará trabajadores</strong>, <strong>NO asignará lockers</strong>, <strong>NO eliminará lockers</strong> ni liberará asignaciones existentes. Es estrictamente un NO-OP.
-                      </div>
-                    </div>
-
-                    <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
-                      <Button variant="ghost" size="sm" onClick={() => setIsSkipWorkerNotFoundModalOpen(false)}>
-                        Cancelar
-                      </Button>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={handleSkipWorkerNotFound}
-                        style={{ backgroundColor: "#d97706" }}
-                      >
-                        Omitir {workerNotFoundRows.length} temporalmente
-                      </Button>
+              <ResponsiveDialog
+                open={isSkipWorkerNotFoundModalOpen}
+                onClose={() => setIsSkipWorkerNotFoundModalOpen(false)}
+                title="Omitir temporalmente trabajadores no encontrados"
+                size="md"
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <div style={{ fontSize: "0.875rem", color: "var(--fg)", lineHeight: 1.5 }}>
+                    <p style={{ margin: "0 0 0.75rem" }}>
+                      <strong>{workerNotFoundRows.length} filas</strong> corresponden a matrículas que no existen actualmente en el padrón de trabajadores.
+                    </p>
+                    <p style={{ margin: "0 0 0.75rem", color: "var(--muted)" }}>
+                      Estas filas pueden omitirse sin modificar sus lockers. Después de actualizar el padrón de trabajadores podrás volver a importar este archivo para conciliarlas.
+                    </p>
+                    <div
+                      style={{
+                        padding: "0.625rem 0.75rem",
+                        borderRadius: "0.375rem",
+                        backgroundColor: "#eff6ff",
+                        border: "1px solid #bfdbfe",
+                        color: "#1e40af",
+                        fontSize: "0.8125rem",
+                      }}
+                    >
+                      🛡️ <strong>Garantía de seguridad:</strong> Omitir estas filas <strong>NO creará trabajadores</strong>, <strong>NO asignará lockers</strong>, <strong>NO eliminará lockers</strong> ni liberará asignaciones existentes. Es estrictamente un NO-OP.
                     </div>
                   </div>
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.5rem" }}>
+                    <Button variant="ghost" size="sm" onClick={() => setIsSkipWorkerNotFoundModalOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleSkipWorkerNotFound}
+                      style={{ backgroundColor: "#d97706" }}
+                    >
+                      Omitir {workerNotFoundRows.length} temporalmente
+                    </Button>
+                  </div>
                 </div>
-              ) : null}
+              </ResponsiveDialog>
             </div>
           ) : (
             <Card padding="1.25rem">

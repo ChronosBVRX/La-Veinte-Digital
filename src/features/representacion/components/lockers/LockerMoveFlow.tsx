@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/shared/components/ui/Button";
 import { Input } from "@/shared/components/ui/Input";
+import { ResponsiveDialog } from "@/shared/components/ui";
 import type { LockerMapItem } from "@/features/representacion/lib/lockers";
 
 interface LockerMoveFlowProps {
@@ -38,32 +39,47 @@ export function LockerMoveFlow({
     fetch(`/api/union/lockers/map?zone_id=all`, { cache: "no-store" })
       .then((r) => r.json())
       .then((data: { lockers?: LockerMapItem[]; zones?: Array<{ id: string; name: string }> }) => {
-        const zonesMap = new Map((data.zones ?? []).map((z) => [z.id, z.name]));
-        const free = (data.lockers ?? [])
-          .filter((l) => l.effective_state.isAvailable && l.id !== sourceLocker.id)
-          .map((l) => ({
-            id: l.id,
-            locker_number: l.locker_number,
-            zone_name: l.zone_id ? zonesMap.get(l.zone_id) : "Sin ubicar",
-          }));
-        setAvailableLockers(free);
+        const list = (data.lockers || [])
+          .filter((l) => l.status === "available" && l.id !== sourceLocker.id)
+          .map((l) => {
+            const z = (data.zones || []).find((zone) => zone.id === l.zone_id);
+            return {
+              id: l.id,
+              locker_number: l.locker_number,
+              zone_name: z ? z.name : "Sin zona",
+            };
+          })
+          .sort((a, b) => a.locker_number.localeCompare(b.locker_number, undefined, { numeric: true }));
+
+        setAvailableLockers(list);
       })
-      .catch(() => {
-        setError("No se pudieron cargar los casilleros disponibles.");
+      .catch((err) => {
+        console.error("Error al cargar casilleros libres:", err);
       })
       .finally(() => {
         setLoadingList(false);
       });
   }, [isOpen, sourceLocker]);
 
-  if (!isOpen || !sourceLocker) return null;
+  if (!sourceLocker) return null;
 
   const asg = sourceLocker.active_assignment;
 
   async function handleMove(): Promise<void> {
-    const targetId = selectedTargetId || availableLockers.find((l) => l.locker_number.trim() === targetNumber.trim())?.id;
-    if (!targetId) {
-      setError("Selecciona o escribe un número de casillero destino disponible.");
+    if (!sourceLocker) return;
+
+    let finalTargetId = selectedTargetId;
+    if (!finalTargetId && targetNumber.trim()) {
+      const match = availableLockers.find(
+        (l) => l.locker_number.trim().toLowerCase() === targetNumber.trim().toLowerCase()
+      );
+      if (match) {
+        finalTargetId = match.id;
+      }
+    }
+
+    if (!finalTargetId) {
+      setError("Debes seleccionar un casillero destino disponible.");
       return;
     }
 
@@ -71,12 +87,13 @@ export function LockerMoveFlow({
     setError(null);
 
     try {
-      const res = await fetch("/api/union/lockers/move", {
+      const res = await fetch("/api/union/lockers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          from_locker_id: sourceLocker?.id,
-          to_locker_id: targetId,
+          action: "move",
+          source_locker_id: sourceLocker.id,
+          target_locker_id: finalTargetId,
           move_reason: reason.trim() || "Reubicación",
         }),
       });
@@ -94,45 +111,13 @@ export function LockerMoveFlow({
   }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 100,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "rgba(15, 23, 42, 0.5)",
-        backdropFilter: "blur(2px)",
-        padding: "1rem",
-      }}
-      role="dialog"
-      aria-modal="true"
+    <ResponsiveDialog
+      open={isOpen}
+      onClose={onClose}
+      title="Cambiar de Casillero"
+      size="sm"
     >
-      <div
-        style={{
-          backgroundColor: "var(--card)",
-          borderRadius: "0.75rem",
-          maxWidth: "480px",
-          width: "100%",
-          padding: "1.5rem",
-          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)",
-          border: "1px solid var(--border)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-          <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "var(--fg)" }}>
-            Cambiar de Casillero
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{ background: "none", border: "none", fontSize: "1.2rem", cursor: "pointer", color: "var(--muted)" }}
-          >
-            ✕
-          </button>
-        </div>
-
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         {/* Resumen del trabajador */}
         <div
           style={{
@@ -140,7 +125,6 @@ export function LockerMoveFlow({
             border: "1px solid #bfdbfe",
             borderRadius: "0.5rem",
             padding: "0.875rem",
-            marginBottom: "1.25rem",
           }}
         >
           <div style={{ fontSize: "0.75rem", color: "#1e40af", fontWeight: 600 }}>
@@ -155,7 +139,7 @@ export function LockerMoveFlow({
         </div>
 
         {/* Casillero Destino */}
-        <div style={{ marginBottom: "1rem" }}>
+        <div>
           <label style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)", marginBottom: "0.35rem" }}>
             Casillero destino disponible:
           </label>
@@ -188,7 +172,7 @@ export function LockerMoveFlow({
         </div>
 
         {/* Motivo */}
-        <div style={{ marginBottom: "1.25rem" }}>
+        <div>
           <label style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)", marginBottom: "0.35rem" }}>
             Motivo del cambio:
           </label>
@@ -200,12 +184,12 @@ export function LockerMoveFlow({
         </div>
 
         {error && (
-          <div style={{ color: "#dc2626", fontSize: "0.8125rem", marginBottom: "1rem" }} role="alert">
+          <div style={{ color: "#dc2626", fontSize: "0.8125rem" }} role="alert">
             {error}
           </div>
         )}
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "0.5rem" }}>
           <Button variant="ghost" size="sm" onClick={onClose} disabled={submitting}>
             Cancelar
           </Button>
@@ -220,6 +204,6 @@ export function LockerMoveFlow({
           </Button>
         </div>
       </div>
-    </div>
+    </ResponsiveDialog>
   );
 }
