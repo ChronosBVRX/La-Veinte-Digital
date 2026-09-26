@@ -125,10 +125,16 @@ BEGIN
     RAISE EXCEPTION 'CASO 2 FAILED: Batch status debió ser confirmed, pero tiene: %', v_batch_status;
   END IF;
 
-  -- VERIFICACIÓN CASO 3: Worker nuevo creado con source = 'locker_excel' e intacto
-  SELECT count(*) INTO v_count FROM public.union_workers WHERE delegation_id = v_delegation_id AND employee_number = '99887766' AND source = 'locker_excel';
-  IF v_count <> 1 THEN
-    RAISE EXCEPTION 'CASO 3 FAILED: Worker 99887766 debió crearse exactamente una vez desde locker_excel';
+  -- VERIFICACIÓN CASO 3: Lockers NUNCA inserta trabajadores sintéticos en union_workers;
+  -- en su lugar genera un review item LOCKER_ONLY_PERSON.
+  SELECT count(*) INTO v_count FROM public.union_workers WHERE delegation_id = v_delegation_id AND employee_number = '99887766';
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'CASO 3 FAILED: Lockers no debe crear trabajadores sintéticos en union_workers (obtenido: %)', v_count;
+  END IF;
+
+  SELECT count(*) INTO v_count FROM public.union_locker_review_items WHERE source_batch_id = v_batch_1_id AND reason = 'LOCKER_ONLY_PERSON' AND status = 'pending';
+  IF v_count < 1 THEN
+    RAISE EXCEPTION 'CASO 3 FAILED: Persona desconocida debió enviarse a union_locker_review_items con LOCKER_ONLY_PERSON';
   END IF;
 
   -- VERIFICACIÓN CASO 4: Locker sin worker inventariado como available
@@ -169,10 +175,10 @@ BEGIN
     RAISE EXCEPTION 'CASO 6 FAILED: Batch debió quedar como rolled_back, obtenido: %', v_batch_status;
   END IF;
 
-  -- Worker nuevo inactivado lógicamente
-  SELECT active INTO v_err_caught FROM public.union_workers WHERE delegation_id = v_delegation_id AND employee_number = '99887766';
-  IF v_err_caught IS NOT FALSE THEN
-    RAISE EXCEPTION 'CASO 6 FAILED: Worker creado desde Excel debió ser desactivado lógicamente tras rollback';
+  -- Lockers no creó worker sintético, por lo que union_workers permanece sin contaminar tras rollback
+  SELECT count(*) INTO v_count FROM public.union_workers WHERE delegation_id = v_delegation_id AND employee_number = '99887766';
+  IF v_count <> 0 THEN
+    RAISE EXCEPTION 'CASO 6 FAILED: union_workers no debe contener trabajadores sintéticos de lockers';
   END IF;
 
   -- =========================================================================
