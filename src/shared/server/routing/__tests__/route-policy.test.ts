@@ -94,6 +94,7 @@ describe("API route policy", () => {
       "/api/union/lockers/audits": "authenticated",
       "/api/union/lockers/audits/[id]": "authenticated",
       "/api/union/lockers/export": "authenticated",
+      "/api/union/lockers/renewal": "authenticated",
       // Centro de Administración de Usuarios (migración 20260919040000)
       "/api/admin/users": "authenticated",
       "/api/admin/users/[id]": "authenticated",
