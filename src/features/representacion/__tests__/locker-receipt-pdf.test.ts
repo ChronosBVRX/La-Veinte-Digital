@@ -77,4 +77,36 @@ describe("LockerReceiptPdf Service", () => {
     expect(buffer).toBeInstanceOf(Buffer);
     expect(buffer.length).toBeGreaterThan(1000);
   });
+
+  it("genera correctamente un comprobante oficial de lista de espera", () => {
+    const waitlistInput: LockerReceiptPdfInput = {
+      folio: "XXI-2026-LOK-000099",
+      dateFormatted: "26 de septiembre de 2026, 14:00 hrs",
+      worker: {
+        name: "EDUARDO BOLAÑOS VAZQUEZ",
+        employeeNumber: "98173968",
+        category: "TECNICO RADIOLOGO 80",
+        assignment: "COORDINACION CLINICA",
+        turn: "VESPERTINO",
+        phone: "4433667106",
+      },
+      locker: {
+        lockerNumber: "LISTA DE ESPERA",
+        zoneName: "Vestidor General Hombres",
+        bankName: "Por asignar según turno/área",
+        condition: "ok",
+        movementType: "lista_espera",
+        observations: "Solicita casillero en vestidor de médicos PB",
+      },
+    };
+
+    const doc = buildLockerReceiptPdf(waitlistInput);
+    expect(doc).toBeDefined();
+    expect(doc.getNumberOfPages()).toBe(1);
+
+    const buffer = buildLockerReceiptBuffer(waitlistInput);
+    expect(buffer).toBeInstanceOf(Buffer);
+    expect(buffer.length).toBeGreaterThan(1000);
+    expect(buffer.subarray(0, 4).toString("ascii")).toBe("%PDF");
+  });
 });

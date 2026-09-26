@@ -34,10 +34,19 @@ export function LockerRenewalWizard({
   const [loadingWorkerLocker, setLoadingWorkerLocker] = useState(false);
 
   // Parámetros de la Actualización
-  const [movementType, setMovementType] = useState<"actualizacion_2026" | "asignacion_nueva" | "cambio" | "baja">("actualizacion_2026");
+  const [movementType, setMovementType] = useState<"actualizacion_2026" | "asignacion_nueva" | "cambio" | "baja" | "lista_espera">("actualizacion_2026");
   const [condition, setCondition] = useState<"ok" | "maintenance" | "damaged" | "blocked">("ok");
   const [physicalCode, setPhysicalCode] = useState("");
   const [observations, setObservations] = useState("");
+
+  // Casilleros Disponibles para Asignación Inmediata
+  const [availableLockers, setAvailableLockers] = useState<LockerItem[]>([]);
+  const [loadingAvailable, setLoadingAvailable] = useState(false);
+  const [availableFilterZone, setAvailableFilterZone] = useState("all");
+  const [availableZones, setAvailableZones] = useState<Array<{ id: string; name: string }>>([]);
+  const [isWaitlistMode, setIsWaitlistMode] = useState(false);
+  const [assignSearchQuery, setAssignSearchQuery] = useState("");
+  const [manualAssignError, setManualAssignError] = useState<string | null>(null);
 
   // Estado de Envío / Guardado
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -56,6 +65,29 @@ export function LockerRenewalWizard({
   const [autoPrintStatus, setAutoPrintStatus] = useState<"idle" | "preparing" | "queued" | "printing" | "printed" | "failed">("idle");
   const [autoPrintError, setAutoPrintError] = useState<string | null>(null);
   const [lastPrintedTime, setLastPrintedTime] = useState<string | null>(null);
+
+  // Cargar casilleros disponibles y zonas para asignación
+  async function loadAvailableLockers(): Promise<void> {
+    setLoadingAvailable(true);
+    try {
+      const [resLockers, resZones] = await Promise.all([
+        fetch("/api/union/lockers?status=available&pageSize=100", { cache: "no-store" }),
+        fetch("/api/union/lockers/zones", { cache: "no-store" }),
+      ]);
+      if (resLockers.ok) {
+        const data = await resLockers.json();
+        setAvailableLockers(data.lockers || []);
+      }
+      if (resZones.ok) {
+        const zData = await resZones.json();
+        setAvailableZones(zData.zones || []);
+      }
+    } catch {
+      // Silenciar error en background fetch
+    } finally {
+      setLoadingAvailable(false);
+    }
+  }
 
   // Cargar casillero inicial si viene por query param
   useEffect(() => {
@@ -111,6 +143,8 @@ export function LockerRenewalWizard({
         } else {
           setSelectedLocker(null);
           setMovementType("asignacion_nueva");
+          setIsWaitlistMode(false);
+          void loadAvailableLockers();
         }
       })
       .catch(() => {})
@@ -158,10 +192,15 @@ export function LockerRenewalWizard({
     }
   }
 
-  // Enviar y Registrar Actualización 2026
+  // Enviar y Registrar Trámite 2026
   async function handleSubmitRenewal(): Promise<void> {
-    if (!selectedWorker || !selectedLocker) {
-      setSubmitError("Debes seleccionar tanto al trabajador como al casillero.");
+    if (!selectedWorker) {
+      setSubmitError("Debes seleccionar un trabajador.");
+      return;
+    }
+
+    if (movementType !== "lista_espera" && !selectedLocker) {
+      setSubmitError("Debes seleccionar un casillero o registrar en lista de espera si no hay disponibles.");
       return;
     }
 
@@ -174,7 +213,7 @@ export function LockerRenewalWizard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           worker_id: selectedWorker.id,
-          locker_id: selectedLocker.id,
+          locker_id: selectedLocker?.id || null,
           phone: phone.trim(),
           movement_type: movementType,
           condition,
@@ -185,7 +224,7 @@ export function LockerRenewalWizard({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "No se pudo completar la actualización.");
+        throw new Error(data.error || "No se pudo completar el trámite.");
       }
 
       const caseInfo = {
@@ -198,7 +237,7 @@ export function LockerRenewalWizard({
 
       setCreatedCase(caseInfo);
     } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : "Error al registrar actualización.");
+      setSubmitError(err instanceof Error ? err.message : "Error al registrar trámite.");
     } finally {
       setIsSubmitting(false);
     }
@@ -267,7 +306,8 @@ export function LockerRenewalWizard({
 
   // Generar e imprimir directamente desde el navegador (con soporte de descarga)
   function handleDirectBrowserPrint(): void {
-    if (!createdCase || !selectedWorker || !selectedLocker) return;
+    if (!createdCase || !selectedWorker) return;
+    if (movementType !== "lista_espera" && !selectedLocker) return;
 
     try {
       const dateFormatted = new Intl.DateTimeFormat("es-MX", {
@@ -289,9 +329,9 @@ export function LockerRenewalWizard({
         },
         locker: {
           lockerNumber: createdCase.lockerNumber,
-          zoneName: selectedLocker.zone?.name || "Área General",
-          bankName: selectedLocker.bank?.name || "Mueble",
-          physicalCode: physicalCode.trim() || selectedLocker.physical_code || undefined,
+          zoneName: selectedLocker?.zone?.name || (movementType === "lista_espera" ? "Por asignar según turno/área" : "Área General"),
+          bankName: selectedLocker?.bank?.name || (movementType === "lista_espera" ? "Sujeto a disponibilidad física" : "Mueble"),
+          physicalCode: physicalCode.trim() || selectedLocker?.physical_code || undefined,
           condition,
           movementType,
           observations: observations.trim() || undefined,
@@ -324,7 +364,8 @@ export function LockerRenewalWizard({
 
   // Descargar archivo PDF
   function handleDownloadPdf(): void {
-    if (!createdCase || !selectedWorker || !selectedLocker) return;
+    if (!createdCase || !selectedWorker) return;
+    if (movementType !== "lista_espera" && !selectedLocker) return;
 
     try {
       const dateFormatted = new Intl.DateTimeFormat("es-MX", {
@@ -346,16 +387,17 @@ export function LockerRenewalWizard({
         },
         locker: {
           lockerNumber: createdCase.lockerNumber,
-          zoneName: selectedLocker.zone?.name || "Área General",
-          bankName: selectedLocker.bank?.name || "Mueble",
-          physicalCode: physicalCode.trim() || selectedLocker.physical_code || undefined,
+          zoneName: selectedLocker?.zone?.name || (movementType === "lista_espera" ? "Por asignar según turno/área" : "Área General"),
+          bankName: selectedLocker?.bank?.name || (movementType === "lista_espera" ? "Sujeto a disponibilidad física" : "Mueble"),
+          physicalCode: physicalCode.trim() || selectedLocker?.physical_code || undefined,
           condition,
           movementType,
           observations: observations.trim() || undefined,
         },
       });
 
-      doc.save(`recibo-casillero-${createdCase.folio}.pdf`);
+      const prefix = movementType === "lista_espera" ? "comprobante-espera" : "recibo-casillero";
+      doc.save(`${prefix}-${createdCase.folio}.pdf`);
     } catch (err) {
       alert("Error al descargar: " + (err instanceof Error ? err.message : String(err)));
     }
@@ -377,8 +419,17 @@ export function LockerRenewalWizard({
       setAutoPrintStatus("idle");
       setAutoPrintError(null);
       setLastPrintedTime(null);
+      setIsWaitlistMode(false);
+      setAssignSearchQuery("");
+      setManualAssignError(null);
+      setAvailableFilterZone("all");
     });
   }
+
+  const filteredAvailableLockers = availableLockers.filter((l) => {
+    if (availableFilterZone !== "all" && l.zone_id !== availableFilterZone) return false;
+    return true;
+  });
 
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "1.5rem" }}>
@@ -441,10 +492,14 @@ export function LockerRenewalWizard({
               ✓
             </div>
             <h2 style={{ fontSize: "1.375rem", fontWeight: 700, color: "#166534", margin: "0 0 0.5rem 0" }}>
-              ¡Actualización Registrada Exitosamente!
+              {createdCase.lockerNumber === "LISTA DE ESPERA"
+                ? "¡Registro en Lista de Espera 2026 Exitoso!"
+                : "¡Actualización Registrada Exitosamente!"}
             </h2>
             <p style={{ color: "#15803d", fontSize: "0.9375rem", margin: 0 }}>
-              Se ha generado el expediente con folio oficial y el resguardo 2026 ha quedado activo en el sistema.
+              {createdCase.lockerNumber === "LISTA DE ESPERA"
+                ? "Se ha generado el expediente sindical y el trabajador ha quedado registrado en el padrón de espera con folio oficial."
+                : "Se ha generado el expediente con folio oficial y el resguardo 2026 ha quedado activo en el sistema."}
             </p>
 
             <div
@@ -459,13 +514,18 @@ export function LockerRenewalWizard({
               }}
             >
               <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase" }}>
-                Folio Oficial de Resguardo
+                {createdCase.lockerNumber === "LISTA DE ESPERA" ? "Folio Oficial de Espera" : "Folio Oficial de Resguardo"}
               </div>
               <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "#dc2626", letterSpacing: "0.5px" }}>
                 {createdCase.folio}
               </div>
               <div style={{ fontSize: "0.8125rem", color: "var(--fg)", marginTop: "0.25rem" }}>
-                <strong>{createdCase.workerName}</strong> — Casillero <strong>No. {createdCase.lockerNumber}</strong>
+                <strong>{createdCase.workerName}</strong> —{" "}
+                {createdCase.lockerNumber === "LISTA DE ESPERA" ? (
+                  <span style={{ color: "#b45309", fontWeight: 700 }}>EN LISTA DE ESPERA (ASIGNACIÓN PENDIENTE)</span>
+                ) : (
+                  <>Casillero <strong>No. {createdCase.lockerNumber}</strong></>
+                )}
               </div>
             </div>
           </div>
@@ -481,10 +541,10 @@ export function LockerRenewalWizard({
             }}
           >
             <h3 style={{ fontSize: "1rem", fontWeight: 600, color: "var(--fg)", marginTop: 0, marginBottom: "0.75rem" }}>
-              Emitir e Imprimir Recibo Duplicado (Tanto Trabajador / Tanto Sindicato)
+              Emitir e Imprimir {createdCase.lockerNumber === "LISTA DE ESPERA" ? "Comprobante de Espera" : "Recibo de Resguardo"} (Tanto Trabajador / Tanto Sindicato)
             </h3>
             <p style={{ fontSize: "0.8125rem", color: "var(--muted)", marginBottom: "1rem" }}>
-              El recibo incluye el logotipo oficial SNTSS, código QR de validación y ambos tantos en una sola hoja tamaño carta.
+              El recibo incluye el logotipo oficial SNTSS, código institucional y ambos tantos en una sola hoja tamaño carta.
             </p>
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "center" }}>
@@ -692,19 +752,79 @@ export function LockerRenewalWizard({
                     padding: "1rem",
                   }}
                 >
-                  <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#16a34a", textTransform: "uppercase", marginBottom: "0.5rem" }}>
-                    Datos del Casillero
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                    <div style={{ fontSize: "0.75rem", fontWeight: 700, color: isWaitlistMode ? "#b45309" : "#16a34a", textTransform: "uppercase" }}>
+                      {isWaitlistMode ? "📋 Solicitud de Casillero" : "Datos del Casillero"}
+                    </div>
+                    {/* Botón para alternar a lista de espera cuando no hay casillero o se desea esperar */}
+                    {!selectedLocker && !isWaitlistMode && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsWaitlistMode(true);
+                          setMovementType("lista_espera");
+                        }}
+                        style={{
+                          background: "#fef3c7",
+                          border: "1px solid #fde68a",
+                          color: "#92400e",
+                          borderRadius: "0.375rem",
+                          padding: "0.25rem 0.5rem",
+                          fontSize: "0.75rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        📋 Poner en Lista de Espera
+                      </button>
+                    )}
+                    {isWaitlistMode && availableLockers.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsWaitlistMode(false);
+                          setMovementType("asignacion_nueva");
+                        }}
+                        style={{
+                          background: "#dcfce7",
+                          border: "1px solid #bbf7d0",
+                          color: "#166534",
+                          borderRadius: "0.375rem",
+                          padding: "0.25rem 0.5rem",
+                          fontSize: "0.75rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        ← Ver Disponibles ({availableLockers.length})
+                      </button>
+                    )}
                   </div>
+
                   {selectedLocker ? (
                     <div>
-                      <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "#166534" }}>
-                        Casillero No. {selectedLocker.locker_number}
-                      </div>
-                      <div style={{ fontSize: "0.8125rem", color: "var(--muted)", marginTop: "0.25rem" }}>
-                        Zona / Vestidor: <strong>{selectedLocker.zone?.name || "Área General"}</strong>
-                      </div>
-                      <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-                        Mueble / Batería: <strong>{selectedLocker.bank?.name || "Sin bloque"}</strong>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div>
+                          <div style={{ fontSize: "1.25rem", fontWeight: 800, color: "#166534" }}>
+                            Casillero No. {selectedLocker.locker_number}
+                          </div>
+                          <div style={{ fontSize: "0.8125rem", color: "var(--muted)", marginTop: "0.25rem" }}>
+                            Zona / Vestidor: <strong>{selectedLocker.zone?.name || "Área General"}</strong>
+                          </div>
+                          <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+                            Mueble / Batería: <strong>{selectedLocker.bank?.name || "Sin bloque"}</strong>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setSelectedLocker(null);
+                            void loadAvailableLockers();
+                          }}
+                        >
+                          Cambiar
+                        </Button>
                       </div>
 
                       <div style={{ marginTop: "0.75rem" }}>
@@ -740,9 +860,176 @@ export function LockerRenewalWizard({
                         />
                       </div>
                     </div>
+                  ) : isWaitlistMode ? (
+                    /* MODO LISTA DE ESPERA */
+                    <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fef3c7", borderRadius: "var(--radius)", padding: "0.875rem" }}>
+                      <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "#92400e", marginBottom: "0.375rem" }}>
+                        Registro en Padrón de Espera 2026
+                      </div>
+                      <p style={{ fontSize: "0.8125rem", color: "#78350f", margin: "0 0 0.5rem 0", lineHeight: "1.4" }}>
+                        El trabajador quedará registrado formalmente con folio institucional para asignación preferente conforme a las Cláusulas 67 y 68 del CCT IMSS-SNTSS.
+                      </p>
+                      <div style={{ fontSize: "0.75rem", color: "#b45309" }}>
+                        ✓ Se emitirá un comprobante oficial duplicado (Tanto Trabajador / Tanto Sindicato).
+                      </div>
+                    </div>
                   ) : (
-                    <div style={{ fontSize: "0.875rem", color: "var(--muted)", fontStyle: "italic" }}>
-                      El trabajador no tiene casillero activo asignado. Busca y selecciona un casillero para asignárselo.
+                    /* SELECTOR DE CASILLERO DISPONIBLE */
+                    <div>
+                      <div style={{ fontSize: "0.8125rem", color: "var(--muted)", marginBottom: "0.625rem" }}>
+                        El trabajador no tiene casillero activo asignado. Selecciona un casillero disponible:
+                      </div>
+
+                      {loadingAvailable ? (
+                        <div style={{ fontSize: "0.8125rem", color: "var(--muted)", padding: "0.5rem 0" }}>
+                          Consultando casilleros libres…
+                        </div>
+                      ) : availableLockers.length > 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                          {/* Insignia de Disponibilidad */}
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+                            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#16a34a" }}>
+                              🟢 {availableLockers.length} casillero{availableLockers.length > 1 ? "s" : ""} disponible{availableLockers.length > 1 ? "s" : ""}
+                            </span>
+                            {availableZones.length > 0 && (
+                              <select
+                                value={availableFilterZone}
+                                onChange={(e) => setAvailableFilterZone(e.target.value)}
+                                style={{
+                                  padding: "0.25rem 0.5rem",
+                                  borderRadius: "var(--radius)",
+                                  border: "1px solid var(--border)",
+                                  backgroundColor: "var(--card)",
+                                  color: "var(--fg)",
+                                  fontSize: "0.75rem",
+                                }}
+                              >
+                                <option value="all">Todas las zonas ({availableLockers.length})</option>
+                                {availableZones.map((z) => {
+                                  const count = availableLockers.filter((l) => l.zone_id === z.id).length;
+                                  return (
+                                    <option key={z.id} value={z.id}>
+                                      {z.name} ({count})
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            )}
+                          </div>
+
+                          {/* Menú Desplegable de Casilleros Disponibles */}
+                          <div>
+                            <select
+                              onChange={(e) => {
+                                const chosen = availableLockers.find((l) => l.id === e.target.value);
+                                if (chosen) {
+                                  setSelectedLocker(chosen);
+                                  setCondition((chosen.condition as "ok" | "maintenance" | "damaged" | "blocked") || "ok");
+                                  setPhysicalCode(chosen.physical_code || "");
+                                  setMovementType("asignacion_nueva");
+                                }
+                              }}
+                              defaultValue=""
+                              style={{
+                                width: "100%",
+                                padding: "0.5rem",
+                                borderRadius: "var(--radius)",
+                                border: "1px solid var(--border)",
+                                backgroundColor: "var(--card)",
+                                color: "var(--fg)",
+                                fontSize: "0.8125rem",
+                                fontWeight: 500,
+                              }}
+                            >
+                              <option value="" disabled>-- Seleccionar casillero libre ({filteredAvailableLockers.length}) --</option>
+                              {filteredAvailableLockers.map((l) => (
+                                <option key={l.id} value={l.id}>
+                                  No. {l.locker_number} — {l.zone?.name || "Zona general"} ({l.bank?.name || "Mueble"})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Búsqueda Directa por Número */}
+                          <div style={{ display: "flex", gap: "0.375rem", alignItems: "center" }}>
+                            <input
+                              type="text"
+                              placeholder="O escribe el No. de casillero libre…"
+                              value={assignSearchQuery}
+                              onChange={(e) => {
+                                setAssignSearchQuery(e.target.value);
+                                setManualAssignError(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  const trimmed = assignSearchQuery.trim().toLowerCase();
+                                  const matched = availableLockers.find((l) => l.locker_number.toLowerCase() === trimmed);
+                                  if (matched) {
+                                    setSelectedLocker(matched);
+                                    setCondition((matched.condition as "ok" | "maintenance" | "damaged" | "blocked") || "ok");
+                                    setPhysicalCode(matched.physical_code || "");
+                                    setMovementType("asignacion_nueva");
+                                    setManualAssignError(null);
+                                  } else {
+                                    setManualAssignError(`El casillero "${assignSearchQuery}" no figura como disponible.`);
+                                  }
+                                }
+                              }}
+                              style={{
+                                flex: 1,
+                                padding: "0.375rem 0.5rem",
+                                borderRadius: "var(--radius)",
+                                border: "1px solid var(--border)",
+                                backgroundColor: "var(--card)",
+                                color: "var(--fg)",
+                                fontSize: "0.75rem",
+                              }}
+                            />
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => {
+                                const trimmed = assignSearchQuery.trim().toLowerCase();
+                                const matched = availableLockers.find((l) => l.locker_number.toLowerCase() === trimmed);
+                                if (matched) {
+                                  setSelectedLocker(matched);
+                                  setCondition((matched.condition as "ok" | "maintenance" | "damaged" | "blocked") || "ok");
+                                  setPhysicalCode(matched.physical_code || "");
+                                  setMovementType("asignacion_nueva");
+                                  setManualAssignError(null);
+                                } else {
+                                  setManualAssignError(`El casillero "${assignSearchQuery}" no figura como disponible.`);
+                                }
+                              }}
+                            >
+                              Asignar
+                            </Button>
+                          </div>
+                          {manualAssignError && (
+                            <div style={{ fontSize: "0.75rem", color: "#dc2626" }}>{manualAssignError}</div>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ backgroundColor: "#fef2f2", border: "1px solid #fee2e2", borderRadius: "var(--radius)", padding: "0.75rem" }}>
+                          <div style={{ fontSize: "0.8125rem", color: "#991b1b", fontWeight: 600, marginBottom: "0.25rem" }}>
+                            🔴 No hay casilleros disponibles actualmente
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "#7f1d1d", marginBottom: "0.5rem" }}>
+                            Todos los casilleros se encuentran ocupados o en mantenimiento. Puedes registrar formalmente al trabajador en lista de espera.
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={() => {
+                              setIsWaitlistMode(true);
+                              setMovementType("lista_espera");
+                            }}
+                          >
+                            📋 Registrar en Lista de Espera
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -756,7 +1043,16 @@ export function LockerRenewalWizard({
                   </label>
                   <select
                     value={movementType}
-                    onChange={(e) => setMovementType(e.target.value as "actualizacion_2026" | "asignacion_nueva" | "cambio" | "baja")}
+                    onChange={(e) => {
+                      const val = e.target.value as "actualizacion_2026" | "asignacion_nueva" | "cambio" | "baja" | "lista_espera";
+                      setMovementType(val);
+                      if (val === "lista_espera") {
+                        setIsWaitlistMode(true);
+                        setSelectedLocker(null);
+                      } else {
+                        setIsWaitlistMode(false);
+                      }
+                    }}
                     style={{
                       width: "100%",
                       padding: "0.5rem",
@@ -771,15 +1067,20 @@ export function LockerRenewalWizard({
                     <option value="asignacion_nueva">Asignación Nueva 2026</option>
                     <option value="cambio">Cambio / Reubicación de Casillero</option>
                     <option value="baja">Liberación / Entrega de Casillero</option>
+                    <option value="lista_espera">📋 Registro en Lista de Espera 2026</option>
                   </select>
                 </div>
 
                 <div>
                   <Input
-                    label="Observaciones o Notas del Resguardo:"
+                    label={movementType === "lista_espera" ? "Preferencia o Notas de Espera:" : "Observaciones o Notas del Resguardo:"}
                     value={observations}
                     onChange={(e) => setObservations(e.target.value)}
-                    placeholder="Ej. Entrega llave física / Llave de repuesto en oficina"
+                    placeholder={
+                      movementType === "lista_espera"
+                        ? "Ej. Solicita vestidor médicos PB, turno vespertino"
+                        : "Ej. Entrega llave física / Llave de repuesto en oficina"
+                    }
                   />
                 </div>
               </div>
@@ -806,9 +1107,13 @@ export function LockerRenewalWizard({
                   variant="primary"
                   size="md"
                   onClick={handleSubmitRenewal}
-                  disabled={isSubmitting || !selectedWorker || !selectedLocker}
+                  disabled={isSubmitting || !selectedWorker || (movementType !== "lista_espera" && !selectedLocker)}
                 >
-                  {isSubmitting ? "Registrando actualización…" : "✓ Confirmar Actualización y Emitir Recibo 2026"}
+                  {isSubmitting
+                    ? "Procesando trámite…"
+                    : movementType === "lista_espera"
+                      ? "📋 Registrar en Lista de Espera y Emitir Recibo"
+                      : "✓ Confirmar Actualización y Emitir Recibo 2026"}
                 </Button>
               </div>
             </Card>
