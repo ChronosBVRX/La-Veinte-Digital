@@ -63,6 +63,7 @@ export const API_ACCESS = {
   "/api/union/lockers/audits": "authenticated",
   "/api/union/lockers/audits/[id]": "authenticated",
   "/api/union/lockers/export": "authenticated",
+  "/api/union/lockers/renewal": "authenticated",
   // Impresión Automática en Oficina Sindical (Representantes y Admins)
   "/api/union/print/jobs": "authenticated",
   "/api/union/print/jobs/[id]/retry": "authenticated",

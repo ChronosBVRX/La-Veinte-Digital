@@ -4,12 +4,14 @@
 export type UnionPrintableDocumentType =
   | "license_package"
   | "passage_026"
-  | "passage_027";
+  | "passage_027"
+  | "locker_receipt";
 
 export const PRINTABLE_DOCUMENT_LABELS: Record<UnionPrintableDocumentType, string> = {
   license_package: "Licencia",
   passage_026: "Pasaje 026",
   passage_027: "Pasaje 027",
+  locker_receipt: "Recibo de Casillero 2026",
 };
 
 /**
@@ -27,3 +29,4 @@ export function getPrintableDocumentLabel(documentType: string | null | undefine
 export function isPrintableCaseType(caseType: string): boolean {
   return caseType === "license" || caseType === "passage_026" || caseType === "passage_027";
 }
+

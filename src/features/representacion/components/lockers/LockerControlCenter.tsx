@@ -552,6 +552,26 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
               Actualizar base
             </Link>
 
+            <Link
+              href="/representacion/lockers/actualizacion-2026"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.375rem",
+                padding: "0.45rem 0.875rem",
+                borderRadius: "0.375rem",
+                backgroundColor: "#166534",
+                color: "#ffffff",
+                fontSize: "0.8125rem",
+                fontWeight: 600,
+                textDecoration: "none",
+                minHeight: 38,
+                boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+              }}
+            >
+              🏷️ Actualización 2026
+            </Link>
+
             <Button
               variant="secondary"
               onClick={() => setIsZoneManagerOpen(true)}
