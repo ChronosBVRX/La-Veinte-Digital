@@ -220,15 +220,17 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
     setIsCheckingDownload(true);
     try {
       const res = await fetch("/api/downloads/print-agent/windows?check=true");
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.available || !data?.download_url) {
         setDownloadError(
           data?.error ||
             "No fue posible descargar La Veinte Print en este momento. El instalador todavía no está disponible."
         );
         return;
       }
-      window.location.href = "/api/downloads/print-agent/windows";
+
+      window.location.href = data.download_url;
     } catch {
       setDownloadError(
         "No fue posible descargar La Veinte Print en este momento. El instalador todavía no está disponible."

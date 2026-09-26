@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   resolvePrintAgentDownloadUrl,
@@ -223,6 +225,17 @@ describe("Print Agent Windows Release & Download", () => {
       expect(json.asset).toBe("LaVeintePrint-Setup.exe");
 
       fetchSpy.mockRestore();
+    });
+  });
+
+  describe("Sincronización de versión del Print Agent", () => {
+    it("DEFAULT_PRINT_AGENT_VERSION debe coincidir estrictamente con apps/print-agent/package.json version", () => {
+      const packageJsonPath = path.resolve(process.cwd(), "apps/print-agent/package.json");
+      const raw = fs.readFileSync(packageJsonPath, "utf8");
+      const pkg = JSON.parse(raw);
+
+      expect(DEFAULT_PRINT_AGENT_VERSION).toBe(pkg.version);
+      expect(DEFAULT_PRINT_AGENT_RELEASE_TAG).toBe(`print-agent-v${pkg.version}`);
     });
   });
 });

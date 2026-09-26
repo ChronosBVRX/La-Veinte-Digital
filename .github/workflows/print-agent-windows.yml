@@ -37,13 +37,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build Windows NSIS Package
         run: npm run build:win -- --publish never
@@ -53,9 +53,9 @@ jobs:
       - name: Verify Installer Exists
         shell: pwsh
         run: |
-          $installerPath = "apps/print-agent/dist/LaVeintePrint-Setup.exe"
+          $installerPath = "dist/LaVeintePrint-Setup.exe"
           if (-not (Test-Path $installerPath)) {
-            Write-Error "El instalador esperado '$installerPath' no fue encontrado."
+            Write-Error "El instalador esperado '$installerPath' no fue encontrado en apps/print-agent."
             exit 1
           }
           $item = Get-Item $installerPath
@@ -78,7 +78,7 @@ jobs:
           } elseif ("${{ inputs.tag_name }}".Trim() -ne "") {
             $tag = "${{ inputs.tag_name }}".Trim()
           } else {
-            $pkg = Get-Content apps/print-agent/package.json -Raw | ConvertFrom-Json
+            $pkg = Get-Content package.json -Raw | ConvertFrom-Json
             $tag = "print-agent-v$($pkg.version)"
           }
           Write-Host "Tag de release determinado: $tag"
