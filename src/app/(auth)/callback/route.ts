@@ -42,6 +42,48 @@ export async function GET(request: Request) {
     const supabase = await createClient()
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
+      if (destination === "/") {
+        try {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user) {
+            await supabase.rpc("ensure_profile_exists")
+
+            const metaMatricula = typeof user.user_metadata?.matricula === "string" ? user.user_metadata.matricula.trim() : null
+            const metaAdscripcion = typeof user.user_metadata?.adscripcion === "string" ? user.user_metadata.adscripcion.trim() : null
+            if (metaMatricula || metaAdscripcion) {
+              await supabase
+                .from("profiles")
+                .update({
+                  ...(metaMatricula ? { matricula: metaMatricula } : {}),
+                  ...(metaAdscripcion ? { adscripcion: metaAdscripcion } : {}),
+                })
+                .eq("id", user.id)
+            }
+
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("matricula, adscripcion")
+              .eq("id", user.id)
+              .maybeSingle()
+
+            const { data: prefs } = await supabase
+              .from("worker_preferences")
+              .select("onboarding_state")
+              .eq("user_id", user.id)
+              .maybeSingle()
+
+            const isConfiguredOrBasic = prefs?.onboarding_state === "configured" || prefs?.onboarding_state === "basic"
+            const hasWorkerData = Boolean(profile?.matricula?.trim())
+
+            if (!isConfiguredOrBasic && !hasWorkerData) {
+              return NextResponse.redirect(`${origin}/profile/mi-informacion-laboral?onboarding=true`)
+            }
+          }
+        } catch (e) {
+          console.error("[callback] Error checking onboarding state:", e)
+        }
+      }
+
       return NextResponse.redirect(`${origin}${destination}`)
     }
     if (error.message?.toLowerCase().includes("verify")) {
