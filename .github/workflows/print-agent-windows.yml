@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'print-agent-v*'
+    branches:
+      - main
     paths:
       - 'apps/print-agent/**'
       - '.github/workflows/print-agent-windows.yml'
@@ -18,6 +20,10 @@ on:
         required: false
         type: boolean
         default: false
+      tag_name:
+        description: 'Tag del release (opcional, ej. print-agent-v1.0.0; por defecto usa package.json)'
+        required: false
+        type: string
 
 jobs:
   build:
@@ -31,31 +37,61 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build Windows NSIS Package
         run: npm run build:win -- --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify Installer Exists
+        shell: pwsh
+        run: |
+          $installerPath = "dist/LaVeintePrint-Setup.exe"
+          if (-not (Test-Path $installerPath)) {
+            Write-Error "El instalador esperado '$installerPath' no fue encontrado en apps/print-agent."
+            exit 1
+          }
+          $item = Get-Item $installerPath
+          Write-Host "Instalador verificado exitosamente: $($item.FullName) ($($item.Length) bytes)"
+
       - name: Upload Installer Artifact
         uses: actions/upload-artifact@v4
         with:
           name: LaVeintePrint-Setup
-          path: apps/print-agent/dist/*.exe
+          path: apps/print-agent/dist/LaVeintePrint-Setup.exe
           if-no-files-found: error
+
+      - name: Determine Release Tag
+        id: release_info
+        if: startsWith(github.ref, 'refs/tags/print-agent-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release == true)
+        shell: pwsh
+        run: |
+          if ("${{ github.ref }}".StartsWith("refs/tags/print-agent-v")) {
+            $tag = "${{ github.ref_name }}"
+          } elseif ("${{ inputs.tag_name }}".Trim() -ne "") {
+            $tag = "${{ inputs.tag_name }}".Trim()
+          } else {
+            $pkg = Get-Content package.json -Raw | ConvertFrom-Json
+            $tag = "print-agent-v$($pkg.version)"
+          }
+          Write-Host "Tag de release determinado: $tag"
+          "tag=$tag" >> $env:GITHUB_OUTPUT
 
       - name: Publish Release Asset (Tag or Manual)
         if: startsWith(github.ref, 'refs/tags/print-agent-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_release == true)
         uses: softprops/action-gh-release@v2
         with:
-          files: apps/print-agent/dist/*.exe
+          tag_name: ${{ steps.release_info.outputs.tag }}
+          name: La Veinte Print ${{ steps.release_info.outputs.tag }}
+          files: apps/print-agent/dist/LaVeintePrint-Setup.exe
           generate_release_notes: true
+          make_latest: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -34,6 +34,7 @@
     "appId": "mx.com.la20.printagent",
     "productName": "La Veinte Print",
     "copyright": "Copyright © 2026 La Veinte Digital",
+    "artifactName": "LaVeintePrint-Setup.${ext}",
     "publish": [
       {
         "provider": "github",

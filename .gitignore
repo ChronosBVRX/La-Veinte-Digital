@@ -4,6 +4,7 @@
 node_modules/
 apps/print-agent/.config.enc
 apps/print-agent/*.log
+apps/print-agent/dist/
 /.pnp
 .pnp.*
 .yarn/*
