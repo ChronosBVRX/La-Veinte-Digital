@@ -24,6 +24,22 @@ export function WorkerCard({ worker, href }: { worker: WorkerDirectoryRow; href:
           <div style={{ fontSize: "0.8125rem", color: "var(--muted)", marginTop: "0.125rem", overflowWrap: "anywhere" }}>
             {worker.category || "Sin categoría"}
           </div>
+          {worker.source_import_state === "missing_in_source" ? (
+            <span
+              style={{
+                display: "inline-block",
+                marginTop: "0.25rem",
+                fontSize: "0.6875rem",
+                fontWeight: 700,
+                backgroundColor: "#fef3c7",
+                color: "#92400e",
+                padding: "0.125rem 0.375rem",
+                borderRadius: "0.25rem",
+              }}
+            >
+              No en SIAP vigente
+            </span>
+          ) : null}
         </div>
         <RepresentationStatusBadge status={worker.active ? "activo" : "inactivo"} size="sm" />
       </div>

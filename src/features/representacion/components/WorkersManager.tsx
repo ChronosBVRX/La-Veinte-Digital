@@ -40,6 +40,7 @@ interface DirectorySummary {
   total: number;
   active: number;
   inactive: number;
+  historical?: number;
   categoriesCount: number;
 }
 
@@ -70,6 +71,16 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
   const [draft, setDraft] = useState<WorkerDirectoryQuery>(initialQuery);
   const [draftTotal, setDraftTotal] = useState<number | null>(null);
   const [desktopFiltersOpen, setDesktopFiltersOpen] = useState(false);
+
+  const initialQueryKey = useMemo(() => workerDirectoryHref(initialQuery), [initialQuery]);
+  const [prevQueryKey, setPrevQueryKey] = useState(initialQueryKey);
+
+  if (initialQueryKey !== prevQueryKey) {
+    setPrevQueryKey(initialQueryKey);
+    setQuery(initialQuery);
+    setSearchDraft(initialQuery.q);
+    setDraft(initialQuery);
+  }
 
   const applyQuery = useCallback(
     (next: WorkerDirectoryQuery) => {
@@ -205,7 +216,8 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
   // Métricas calculadas o del backend
   const displayTotal = summary?.total ?? (total > 0 ? total : workers.length);
   const displayActive = summary?.active ?? workers.filter((w) => w.active).length;
-  const displayInactive = summary?.inactive ?? Math.max(0, displayTotal - displayActive);
+  const displayHistorical = summary?.historical ?? 0;
+  const displayInactive = summary?.inactive ?? Math.max(0, displayTotal - displayActive - displayHistorical);
   const displayCategories = summary?.categoriesCount || (options?.categories.length ?? 0);
 
   return (
@@ -252,16 +264,17 @@ export function WorkersManager({ initialQuery }: { initialQuery: WorkerDirectory
       {/* 2. RESUMEN DE MÉTRICAS EN TIEMPO REAL */}
       <RepresentationSummaryMetrics>
         <RepresentationMetricCard
-          label="Total en padrón"
-          value={displayTotal}
-          icon="👥"
-          loading={loading && !summary && total === 0}
-        />
-        <RepresentationMetricCard
-          label="Activos"
+          label="Padrón vigente"
           value={displayActive}
           icon="✓"
           accentColor="#166534"
+          loading={loading && !summary && total === 0}
+        />
+        <RepresentationMetricCard
+          label="No vigentes / Histórico"
+          value={displayHistorical}
+          icon="⚠️"
+          accentColor="#b45309"
           loading={loading && !summary && total === 0}
         />
         <RepresentationMetricCard

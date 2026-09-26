@@ -1,10 +1,7 @@
 import { redirect } from "next/navigation";
 import { getUnionMemberships } from "@/features/representacion/services/permissions";
 import { WorkersManager } from "@/features/representacion/components/WorkersManager";
-import {
-  parseWorkerDirectoryQuery,
-  workerDirectoryToSearchParams,
-} from "@/features/representacion/lib/worker-directory-params";
+import { parseWorkerDirectoryQuery } from "@/features/representacion/lib/worker-directory-params";
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +21,13 @@ export default async function TrabajadoresPage({
     }
   }
   const initialQuery = parseWorkerDirectoryQuery(params);
-  const queryKey = workerDirectoryToSearchParams(initialQuery).toString();
+  if (!params.has("estado")) {
+    initialQuery.status = "vigentes";
+  }
 
   return (
     <div>
-      <WorkersManager key={queryKey} initialQuery={initialQuery} />
+      <WorkersManager initialQuery={initialQuery} />
     </div>
   );
 }

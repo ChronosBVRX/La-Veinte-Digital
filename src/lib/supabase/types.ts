@@ -1656,6 +1656,9 @@ export type Database = {
           source_missing_since: string | null;
           source_rolled_back_at: string | null;
           source_import_state: string;
+          source: string;
+          source_batch_id: string | null;
+          status_detail: string;
           created_by: string | null;
           updated_by: string | null;
           created_at: string;
@@ -1715,6 +1718,9 @@ export type Database = {
           source_missing_since?: string | null;
           source_rolled_back_at?: string | null;
           source_import_state?: string;
+          source?: string;
+          source_batch_id?: string | null;
+          status_detail?: string;
           created_by?: string | null;
           updated_by?: string | null;
           created_at?: string;
@@ -1774,6 +1780,9 @@ export type Database = {
           source_missing_since?: string | null;
           source_rolled_back_at?: string | null;
           source_import_state?: string;
+          source?: string;
+          source_batch_id?: string | null;
+          status_detail?: string;
           created_by?: string | null;
           updated_by?: string | null;
           created_at?: string;

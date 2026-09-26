@@ -38,6 +38,8 @@ export interface LockerItem {
       paternal_surname: string;
       maternal_surname?: string | null;
       employee_number: string;
+      source?: string | null;
+      source_import_state?: string | null;
     } | null;
   } | null;
   pending_review_item?: LockerReviewItem | null;
@@ -310,7 +312,25 @@ export function LockerDesktopTable({
                 <td style={{ padding: "0.75rem 1rem", verticalAlign: "middle" }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
                     {worker ? (
-                      <span style={{ fontWeight: 600, color: "var(--fg)" }}>{workerName}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 600, color: "var(--fg)" }}>{workerName}</span>
+                        {worker.source_import_state === "missing_in_source" ? (
+                          <span
+                            style={{
+                              fontSize: "0.625rem",
+                              fontWeight: 700,
+                              padding: "0.1rem 0.35rem",
+                              borderRadius: "0.25rem",
+                              backgroundColor: "#fef3c7",
+                              color: "#92400e",
+                              border: "1px solid #fde68a",
+                            }}
+                            title="El trabajador asignado no figura en el padrón SIAP vigente"
+                          >
+                            ⚠️ No en SIAP
+                          </span>
+                        ) : null}
+                      </div>
                     ) : pending ? (
                       <span style={{ color: "#9a3412", fontSize: "0.8125rem" }}>
                         ⚠️ {workerName}

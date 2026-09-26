@@ -134,7 +134,24 @@ export function LockerMobileList({
             <div style={{ margin: "0.375rem 0 0.625rem", fontSize: "0.8125rem" }}>
               {worker ? (
                 <div>
-                  <div style={{ fontWeight: 600, color: "var(--fg)" }}>{workerName}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 600, color: "var(--fg)" }}>{workerName}</span>
+                    {worker.source_import_state === "missing_in_source" ? (
+                      <span
+                        style={{
+                          fontSize: "0.625rem",
+                          fontWeight: 700,
+                          padding: "0.1rem 0.35rem",
+                          borderRadius: "0.25rem",
+                          backgroundColor: "#fef3c7",
+                          color: "#92400e",
+                          border: "1px solid #fde68a",
+                        }}
+                      >
+                        ⚠️ No en SIAP
+                      </span>
+                    ) : null}
+                  </div>
                   <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
                     Matrícula {employeeNum}
                   </div>
