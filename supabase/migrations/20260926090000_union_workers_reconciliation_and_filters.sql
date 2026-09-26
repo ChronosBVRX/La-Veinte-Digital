@@ -14,6 +14,8 @@
 create table if not exists public.backup_union_workers_20260926 as
 select * from public.union_workers;
 
+alter table public.backup_union_workers_20260926 enable row level security;
+
 -- 2. CORREGIR SOURCE DE TRABAJADORES SIAP
 update public.union_workers
 set

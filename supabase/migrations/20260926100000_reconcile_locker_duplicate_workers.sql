@@ -1,5 +1,6 @@
 
 -- 1. Asegurar protección del respaldo preventivo
+alter table if exists public.backup_union_workers_20260926 enable row level security;
 revoke all on table public.backup_union_workers_20260926 from anon, authenticated;
 
 -- 2. Tabla temporal de mapeo para los 72 duplicados confirmados
