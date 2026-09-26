@@ -40,6 +40,23 @@ export function WorkerTable({
         <tr key={w.id} className="union-worker-row">
           <td style={{ ...representationTableCellStyle, fontWeight: 600, maxWidth: 240 }}>
             <span style={{ overflowWrap: "anywhere" }}>{getWorkerDisplayName(w)}</span>
+            {w.source_import_state === "missing_in_source" ? (
+              <span
+                style={{
+                  display: "inline-block",
+                  marginLeft: "0.375rem",
+                  fontSize: "0.6875rem",
+                  fontWeight: 700,
+                  backgroundColor: "#fef3c7",
+                  color: "#92400e",
+                  padding: "0.125rem 0.375rem",
+                  borderRadius: "0.25rem",
+                  verticalAlign: "middle",
+                }}
+              >
+                No en SIAP
+              </span>
+            ) : null}
           </td>
           <td style={{ ...representationTableCellStyle, maxWidth: 200 }}>{w.category || "—"}</td>
           <td style={representationTableCellStyle}>{w.turn || "—"}</td>

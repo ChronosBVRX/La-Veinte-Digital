@@ -67,6 +67,8 @@ interface EnrichedLockerItem extends LockerItem {
       category?: string | null;
       assignment?: string | null;
       turn?: string | null;
+      source?: string | null;
+      source_import_state?: string | null;
     } | null;
   } | null;
   pending_review_items_count?: number;
@@ -461,6 +463,27 @@ export function LockerDetailSheet({
                     <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "var(--fg)" }}>
                       {worker.first_name} {worker.paternal_surname} {worker.maternal_surname ?? ""}
                     </div>
+                    {worker.source_import_state === "missing_in_source" ? (
+                      <div
+                        style={{
+                          backgroundColor: "#fef3c7",
+                          border: "1px solid #fde68a",
+                          color: "#92400e",
+                          padding: "0.5rem 0.75rem",
+                          borderRadius: "0.375rem",
+                          fontSize: "0.75rem",
+                          fontWeight: 600,
+                          marginTop: "0.375rem",
+                          marginBottom: "0.375rem",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.375rem",
+                        }}
+                      >
+                        <span>⚠️</span>
+                        <span>ATENCIÓN: Este trabajador ya no figura en el padrón SIAP vigente o proviene de un registro no cotejado.</span>
+                      </div>
+                    ) : null}
                     <div style={{ fontSize: "0.8125rem", color: "var(--muted)", marginTop: "0.2rem" }}>
                       Matrícula: <strong style={{ color: "var(--fg)" }}>{worker.employee_number}</strong>
                     </div>

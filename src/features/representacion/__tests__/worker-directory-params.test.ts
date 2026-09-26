@@ -126,6 +126,16 @@ describe("directorio sindical · parámetros de URL", () => {
     expect(parseWorkerDirectoryReturnHref("%%%")).toBe("/representacion/trabajadores");
   });
 
+  it("soporta estados vigentes y no_vigentes para filtrado institucional", () => {
+    const vigentes = parseWorkerDirectoryQuery(new URLSearchParams("estado=vigentes"));
+    expect(vigentes.status).toBe("vigentes");
+    expect(workerDirectoryToSearchParams(vigentes).get("estado")).toBe("vigentes");
+
+    const noVigentes = parseWorkerDirectoryQuery(new URLSearchParams("estado=no_vigentes"));
+    expect(noVigentes.status).toBe("no_vigentes");
+    expect(workerDirectoryToSearchParams(noVigentes).get("estado")).toBe("no_vigentes");
+  });
+
   it("roundtrip: URL -> query -> URL es estable", () => {
     const first = parseWorkerDirectoryQuery(
       new URLSearchParams("q=juan&categoria=A,B&turno=V&adscripcion=R&estado=activos&orden=matricula_asc&pagina=5"),

@@ -14,7 +14,7 @@ export type WorkerDirectorySortId =
   | "categoria_asc"
   | "matricula_asc";
 
-export type WorkerDirectoryStatus = "todos" | "activos" | "inactivos";
+export type WorkerDirectoryStatus = "vigentes" | "no_vigentes" | "activos" | "inactivos" | "todos";
 
 export interface WorkerDirectorySortOption {
   id: WorkerDirectorySortId;
@@ -34,9 +34,10 @@ export const WORKER_DIRECTORY_SORTS: readonly WorkerDirectorySortOption[] = [
 export const WORKER_DIRECTORY_DEFAULT_SORT: WorkerDirectorySortId = "nombre_asc";
 
 export const WORKER_DIRECTORY_STATUS_OPTIONS: readonly { id: WorkerDirectoryStatus; label: string }[] = [
-  { id: "todos", label: "Todos" },
-  { id: "activos", label: "Activos" },
+  { id: "vigentes", label: "Padrón vigente" },
+  { id: "no_vigentes", label: "No vigentes / Histórico" },
   { id: "inactivos", label: "Inactivos" },
+  { id: "todos", label: "Todos" },
 ] as const;
 
 export interface WorkerDirectoryQuery {
@@ -95,7 +96,7 @@ export function isWorkerDirectorySortId(value: string): value is WorkerDirectory
 }
 
 export function isWorkerDirectoryStatus(value: string): value is WorkerDirectoryStatus {
-  return WORKER_DIRECTORY_STATUS_OPTIONS.some((s) => s.id === value);
+  return value === "activos" || WORKER_DIRECTORY_STATUS_OPTIONS.some((s) => s.id === value);
 }
 
 export function parseWorkerDirectoryQuery(params: URLSearchParams): WorkerDirectoryQuery {
@@ -104,12 +105,16 @@ export function parseWorkerDirectoryQuery(params: URLSearchParams): WorkerDirect
   const rawPage = Number.parseInt(params.get("pagina") ?? "", 10);
   const rawPageSize = Number.parseInt(params.get("limite") ?? "", 10);
 
+  let status: WorkerDirectoryStatus = "todos";
+  if (rawStatus === "activos") status = "activos";
+  else if (isWorkerDirectoryStatus(rawStatus)) status = rawStatus;
+
   return {
     q: (params.get("q") ?? "").trim().slice(0, MAX_QUERY_LENGTH),
     categories: readList(params, "categoria"),
     turns: readList(params, "turno"),
     assignments: readList(params, "adscripcion"),
-    status: isWorkerDirectoryStatus(rawStatus) ? rawStatus : "todos",
+    status,
     sort: isWorkerDirectorySortId(rawSort) ? rawSort : WORKER_DIRECTORY_DEFAULT_SORT,
     page: Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1,
     pageSize:

@@ -121,7 +121,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       if (activeAsg?.worker_id) {
         const { data: w } = await supabase
           .from("union_workers")
-          .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment, turn")
+          .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment, turn, source, source_import_state")
           .eq("id", activeAsg.worker_id)
           .maybeSingle();
         activeWorker = w;
@@ -132,7 +132,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       if (lockerData.reserved_for_worker_id) {
         const { data: rw } = await supabase
           .from("union_workers")
-          .select("id, employee_number, first_name, paternal_surname, maternal_surname")
+          .select("id, employee_number, first_name, paternal_surname, maternal_surname, source, source_import_state")
           .eq("id", lockerData.reserved_for_worker_id)
           .maybeSingle();
         reservedWorker = rw;
@@ -161,7 +161,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       if (historyWorkerIds.length > 0) {
         const { data: hw } = await supabase
           .from("union_workers")
-          .select("id, employee_number, first_name, paternal_surname, maternal_surname")
+          .select("id, employee_number, first_name, paternal_surname, maternal_surname, source, source_import_state")
           .in("id", historyWorkerIds);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         historyWorkerMap = new Map((hw ?? []).map((w: any) => [w.id, w]));
@@ -309,7 +309,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       for (const chunk of workerChunks) {
         const { data: workers } = await supabase
           .from("union_workers")
-          .select("id, first_name, paternal_surname, maternal_surname, employee_number, category, turn")
+          .select("id, first_name, paternal_surname, maternal_surname, employee_number, category, turn, source, source_import_state")
           .in("id", chunk);
         if (workers) {
           for (const w of workers) {

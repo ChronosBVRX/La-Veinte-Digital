@@ -697,7 +697,6 @@ export async function parseAndPreviewLockerImport(params: {
               unchangedLockers++;
             }
           } else {
-            // Trabajador nuevo creado desde fuente Locker Excel
             newWorkersFromExcel++;
             status = "new";
             classification = "ASSIGNMENT_NEW";
@@ -707,7 +706,7 @@ export async function parseAndPreviewLockerImport(params: {
             newLockerAssignments++;
             issues.push({
               code: "WORKER_NOT_FOUND_CREATED_FROM_SOURCE",
-              message: "Trabajador no registrado en padrón. Se dará de alta automáticamente con procedencia Locker Excel.",
+              message: "Trabajador no registrado en padrón. Se registrará en casilleros sin crear trabajador sintético en padrón laboral.",
               severity: "warning",
             });
           }

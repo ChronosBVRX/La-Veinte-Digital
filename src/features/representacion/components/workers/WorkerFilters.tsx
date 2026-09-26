@@ -6,6 +6,7 @@ import { Checkbox } from "@/shared/components/ui/Checkbox";
 import { Radio } from "@/shared/components/ui/Radio";
 import { Button } from "@/shared/components/ui/Button";
 import {
+  EMPTY_WORKER_DIRECTORY_QUERY,
   WORKER_DIRECTORY_SORTS,
   WORKER_DIRECTORY_STATUS_OPTIONS,
   activeWorkerFilterCount,
@@ -263,7 +264,7 @@ export function WorkerActiveChips({
       <Button
         size="sm"
         variant="ghost"
-        onClick={() => onChange({ ...query, q: "", categories: [], turns: [], assignments: [], status: "todos", page: 1 })}
+        onClick={() => onChange({ ...EMPTY_WORKER_DIRECTORY_QUERY, pageSize: query.pageSize })}
       >
         Limpiar todos
       </Button>

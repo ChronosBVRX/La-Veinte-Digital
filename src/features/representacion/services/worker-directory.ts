@@ -36,6 +36,8 @@ export interface WorkerDirectoryRow {
   active: boolean;
   seniority_years: number | null;
   employment_start_date: string | null;
+  source?: string | null;
+  source_import_state?: string | null;
 }
 
 export interface WorkerDirectoryResult {
@@ -53,9 +55,9 @@ export interface WorkerDirectoryFacets {
 }
 
 const WORKER_LIST_COLUMNS =
-  "id, employee_number, first_name, paternal_surname, maternal_surname, siap_full_name, category, assignment, turn, schedule, rest_days, phone, active, seniority_years, employment_start_date";
+  "id, employee_number, first_name, paternal_surname, maternal_surname, siap_full_name, category, assignment, turn, schedule, rest_days, phone, active, seniority_years, employment_start_date, source, source_import_state";
 
-const ROLLED_BACK_FILTER = "source_import_state.is.null,source_import_state.neq.rolled_back";
+const ROLLED_BACK_FILTER = "rolled_back";
 
 interface FilterValues {
   q: string;
@@ -77,13 +79,26 @@ function valuesOf(filters: UnionWorkerFilters): FilterValues {
 
 function searchFilter(q: string): string | null {
   if (!q) return null;
-  const like = `%${q}%`;
+  const clean = sanitizeWorkerSearchTerm(q);
+  if (!clean) return null;
+  const tokens = clean.split(/\s+/).filter(Boolean);
+  const likeFull = `%${clean}%`;
+
+  if (tokens.length <= 1) {
+    return [
+      `employee_number.ilike.${likeFull}`,
+      `first_name.ilike.${likeFull}`,
+      `paternal_surname.ilike.${likeFull}`,
+      `maternal_surname.ilike.${likeFull}`,
+      `siap_full_name.ilike.${likeFull}`,
+    ].join(",");
+  }
+
+  // Tokenized search for inverted SIAP names ("APELLIDO/APELLIDO/NOMBRE")
+  const tokensAnd = `and(${tokens.map((t) => `siap_full_name.ilike.%${t}%`).join(",")})`;
   return [
-    `employee_number.ilike.${like}`,
-    `first_name.ilike.${like}`,
-    `paternal_surname.ilike.${like}`,
-    `maternal_surname.ilike.${like}`,
-    `siap_full_name.ilike.${like}`,
+    `employee_number.ilike.${likeFull}`,
+    tokensAnd,
   ].join(",");
 }
 
@@ -108,11 +123,36 @@ export async function listUnionWorkers(
     .from("union_workers")
     .select(WORKER_LIST_COLUMNS, { count: "exact" })
     .eq("delegation_id", delegationId)
-    .or(ROLLED_BACK_FILTER);
-  if (values.status === "activos") builder = builder.eq("active", true);
-  if (values.status === "inactivos") builder = builder.eq("active", false);
+    .neq("source_import_state", ROLLED_BACK_FILTER);
+
+  if (values.status === "vigentes" || values.status === "activos") {
+    builder = builder.eq("source_import_state", "active").eq("active", true);
+  } else if (values.status === "no_vigentes") {
+    builder = builder.eq("source_import_state", "missing_in_source");
+  } else if (values.status === "inactivos") {
+    builder = builder.eq("active", false);
+  }
+
   if (values.categories.length > 0) builder = builder.in("category", values.categories);
-  if (values.turns.length > 0) builder = builder.in("turn", values.turns);
+
+  if (values.turns.length > 0) {
+    const turnToCode: Record<string, string> = {
+      "matutino": "1",
+      "vespertino": "2",
+      "nocturno": "3",
+      "móvil": "4",
+      "movil": "4",
+      "jornada acumulada": "5",
+    };
+    const expandedTurns = new Set<string>();
+    for (const t of values.turns) {
+      expandedTurns.add(t);
+      const code = turnToCode[t.toLowerCase().trim()];
+      if (code) expandedTurns.add(code);
+    }
+    builder = builder.in("turn", [...expandedTurns]);
+  }
+
   if (values.assignments.length > 0) builder = builder.in("assignment", values.assignments);
   const search = searchFilter(values.q);
   if (search) builder = builder.or(search);
@@ -170,11 +210,36 @@ export async function countUnionWorkers(delegationId: string, filters: UnionWork
     .from("union_workers")
     .select("id", { count: "exact", head: true })
     .eq("delegation_id", delegationId)
-    .or(ROLLED_BACK_FILTER);
-  if (values.status === "activos") builder = builder.eq("active", true);
-  if (values.status === "inactivos") builder = builder.eq("active", false);
+    .neq("source_import_state", ROLLED_BACK_FILTER);
+
+  if (values.status === "vigentes" || values.status === "activos") {
+    builder = builder.eq("source_import_state", "active").eq("active", true);
+  } else if (values.status === "no_vigentes") {
+    builder = builder.eq("source_import_state", "missing_in_source");
+  } else if (values.status === "inactivos") {
+    builder = builder.eq("active", false);
+  }
+
   if (values.categories.length > 0) builder = builder.in("category", values.categories);
-  if (values.turns.length > 0) builder = builder.in("turn", values.turns);
+
+  if (values.turns.length > 0) {
+    const turnToCode: Record<string, string> = {
+      "matutino": "1",
+      "vespertino": "2",
+      "nocturno": "3",
+      "móvil": "4",
+      "movil": "4",
+      "jornada acumulada": "5",
+    };
+    const expandedTurns = new Set<string>();
+    for (const t of values.turns) {
+      expandedTurns.add(t);
+      const code = turnToCode[t.toLowerCase().trim()];
+      if (code) expandedTurns.add(code);
+    }
+    builder = builder.in("turn", [...expandedTurns]);
+  }
+
   if (values.assignments.length > 0) builder = builder.in("assignment", values.assignments);
   const search = searchFilter(values.q);
   if (search) builder = builder.or(search);
@@ -198,7 +263,7 @@ export async function getUnionWorkerFacets(delegationId: string): Promise<Worker
       .from("union_workers")
       .select("category, assignment, turn")
       .eq("delegation_id", delegationId)
-      .or(ROLLED_BACK_FILTER)
+      .neq("source_import_state", ROLLED_BACK_FILTER)
       .order("category", { ascending: true })
       .range(from, from + batchSize - 1);
     if (error) throw error;
@@ -206,7 +271,16 @@ export async function getUnionWorkerFacets(delegationId: string): Promise<Worker
     for (const row of rows) {
       if (row.category) categories.add(row.category.trim());
       if (row.assignment) assignments.add(row.assignment.trim());
-      if (row.turn) turns.add(row.turn.trim());
+      if (row.turn) {
+        const t = row.turn.trim();
+        // Normalizar etiquetas para presentación limpia
+        if (t === "1") turns.add("Matutino");
+        else if (t === "2") turns.add("Vespertino");
+        else if (t === "3") turns.add("Nocturno");
+        else if (t === "4") turns.add("Móvil");
+        else if (t === "5") turns.add("Jornada acumulada");
+        else if (t !== "." && t !== "") turns.add(t);
+      }
     }
     if (rows.length < batchSize) break;
   }
@@ -223,6 +297,7 @@ export interface WorkerSummaryCounts {
   total: number;
   active: number;
   inactive: number;
+  historical: number;
   categoriesCount: number;
 }
 
@@ -231,26 +306,33 @@ export async function getUnionWorkerSummary(
   categoriesCount = 0,
 ): Promise<WorkerSummaryCounts> {
   const supabase = await createClient();
-  const [totalRes, activeRes] = await Promise.all([
+  const [totalRes, activeRes, histRes] = await Promise.all([
     supabase
       .from("union_workers")
       .select("id", { count: "exact", head: true })
       .eq("delegation_id", delegationId)
-      .or(ROLLED_BACK_FILTER),
+      .neq("source_import_state", ROLLED_BACK_FILTER),
     supabase
       .from("union_workers")
       .select("id", { count: "exact", head: true })
       .eq("delegation_id", delegationId)
-      .eq("active", true)
-      .or(ROLLED_BACK_FILTER),
+      .eq("source_import_state", "active")
+      .eq("active", true),
+    supabase
+      .from("union_workers")
+      .select("id", { count: "exact", head: true })
+      .eq("delegation_id", delegationId)
+      .eq("source_import_state", "missing_in_source"),
   ]);
   const total = totalRes.count ?? 0;
   const active = activeRes.count ?? 0;
-  const inactive = Math.max(0, total - active);
+  const historical = histRes.count ?? 0;
+  const inactive = Math.max(0, total - active - historical);
   return {
     total,
     active,
     inactive,
+    historical,
     categoriesCount,
   };
 }
