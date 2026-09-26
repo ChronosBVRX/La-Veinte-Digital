@@ -553,6 +553,18 @@ export function LockerDetailSheet({
 
                   {isAssigned && locker.active_assignment && (
                     <>
+                      <Link
+                        href={`/representacion/lockers/actualizacion-2026?locker_id=${locker.id}`}
+                        style={{ textDecoration: "none" }}
+                      >
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          style={{ backgroundColor: "#166534", borderColor: "#15803d" }}
+                        >
+                          🏷️ Actualizar Resguardo 2026
+                        </Button>
+                      </Link>
                       {onOpenMove && (
                         <Button variant="secondary" size="sm" onClick={() => onOpenMove(locker)}>
                           Cambiar de casillero
