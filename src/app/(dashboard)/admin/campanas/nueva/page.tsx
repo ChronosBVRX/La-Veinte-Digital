@@ -26,10 +26,11 @@ export default async function NuevaCampanaPage({ searchParams }: PageProps) {
   }
 
   const { announcement_id } = await searchParams
-  let announcement = null
-  if (announcement_id) {
-    announcement = await getAnnouncementById(announcement_id)
+  if (!announcement_id) {
+    redirect("/admin/push")
   }
+
+  const announcement = await getAnnouncementById(announcement_id)
 
   // Obtener estimación de dispositivos elegibles en servidor
   const supabase = serviceClient()

@@ -1,51 +1,64 @@
-import { createClient } from "@/lib/supabase/server"
+import Link from "next/link"
+import { redirect } from "next/navigation"
+import { getAdminCapabilities } from "@/shared/server/admin/admin-capabilities"
 import { PageHeader } from "@/shared/components/app/PageHeader"
-import { EnviarNotificacionForm } from "@/features/push/components/EnviarNotificacionForm"
+import { Button } from "@/shared/components/ui/Button"
+import { SimplePushAlertForm } from "@/features/push/components/SimplePushAlertForm"
+import { ArrowLeft } from "@phosphor-icons/react/dist/ssr"
+import { createClient as createServiceRoleClient } from "@supabase/supabase-js"
 
-function allowedEmails(): string[] {
-  return (process.env.PUSH_ADMIN_ALLOWED_EMAILS ?? "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean)
+function serviceClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) return null
+  return createServiceRoleClient(url, key)
 }
 
 export default async function AdminPushPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const email = user?.email ?? ""
-  const allowed = allowedEmails()
+  const { user, capabilities } = await getAdminCapabilities()
 
-  const isAdmin = allowed.length > 0 && allowed.includes(email.toLowerCase())
+  if (!user || (!capabilities.isAdmin && !capabilities.canAccessLegacyPush)) {
+    redirect("/admin")
+  }
+
+  const email = user.email ?? ""
   const configured = !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON
 
+  // Obtener dispositivos activos para mostrar cifra real
+  let totalActiveDevices = 0
+  const supabase = serviceClient()
+  if (supabase) {
+    const { count } = await supabase
+      .from("push_devices")
+      .select("*", { count: "exact", head: true })
+      .eq("notifications_enabled", true)
+    totalActiveDevices = count ?? 0
+  }
+
   return (
-    <div style={{ maxWidth: "600px", margin: "0 auto", padding: "1.5rem 1rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+    <div style={{ maxWidth: "680px", margin: "0 auto", padding: "1.5rem 1rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      <div>
+        <Link href="/admin" style={{ textDecoration: "none" }}>
+          <Button variant="ghost" size="sm">
+            <ArrowLeft size={16} weight="bold" style={{ marginRight: "0.375rem" }} />
+            Volver al Panel de Administración
+          </Button>
+        </Link>
+      </div>
+
       <PageHeader
-        eyebrow="Administración"
-        title="Enviar notificación"
-        description="Envía una notificación push a los dispositivos de La Veinte Digital."
+        eyebrow="Administración de Alertas"
+        title="Enviar Alerta Push a Teléfonos"
+        description="Escribe el mensaje, elige el tipo y envía la alerta instantánea a los teléfonos de los agremiados."
       />
 
-      {!isAdmin ? (
-        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "0.5rem", padding: "1.25rem" }}>
-          <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: 0 }}>
-            No tienes permisos para enviar notificaciones. Configura <code>PUSH_ADMIN_ALLOWED_EMAILS</code> en el
-            entorno para habilitar esta sección.
-          </p>
+      {!configured && (
+        <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.5rem", padding: "1rem", color: "#991b1b", fontSize: "0.875rem" }}>
+          Firebase FCM no está configurado (falta <code>FIREBASE_SERVICE_ACCOUNT_JSON</code> en el entorno). Las notificaciones no podrán entregarse hasta agregar las credenciales de Firebase Admin.
         </div>
-      ) : (
-        <>
-          {!configured && (
-            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.5rem", padding: "1rem", color: "#991b1b", fontSize: "0.875rem" }}>
-              Firebase Admin no está configurado. Define <code>FIREBASE_SERVICE_ACCOUNT_JSON</code> en el entorno
-              para poder enviar.
-            </div>
-          )}
-          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: "0.5rem", padding: "1.25rem" }}>
-            <EnviarNotificacionForm email={email} />
-          </div>
-        </>
       )}
+
+      <SimplePushAlertForm userEmail={email} totalDevices={totalActiveDevices} />
     </div>
   )
 }

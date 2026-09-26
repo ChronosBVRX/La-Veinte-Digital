@@ -1,19 +1,21 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { getAdminCapabilities } from "@/shared/server/admin/admin-capabilities"
 import { sendBroadcast, sendToUsers, sendToUser, sanitizeDestination, type PushPayload, type PushType } from "@/features/push/services/push-admin"
+import { revalidatePath } from "next/cache"
 
 const VALID_TYPES: PushType[] = ["GENERAL", "IMPORTANT_ALERT", "AGENDA", "DOCUMENT", "UPDATE"]
 
-function allowedEmails(): string[] {
-  return (process.env.PUSH_ADMIN_ALLOWED_EMAILS ?? "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean)
+export const DEFAULT_PUSH_TITLES: Record<PushType, string> = {
+  GENERAL: "Aviso General",
+  IMPORTANT_ALERT: "Alerta Importante",
+  AGENDA: "Convocatoria y Agenda",
+  DOCUMENT: "Documento IMSS",
+  UPDATE: "Actualización del Sistema",
 }
 
 export interface EnviarNotificacionInput {
-  title: string
+  title?: string
   message: string
   category: PushType
   destination?: string
@@ -22,30 +24,28 @@ export interface EnviarNotificacionInput {
 }
 
 export async function enviarNotificacion(input: EnviarNotificacionInput) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const email = user?.email ?? ""
-  const allowed = allowedEmails()
+  const { user, capabilities } = await getAdminCapabilities()
 
-  // El backend comprueba permisos: ocultar el botón en el frontend NO es seguridad.
-  if (allowed.length === 0) {
-    return { ok: false as const, error: "PUSH_ADMIN_NOT_CONFIGURED", sent: 0, failed: 0, invalidTokens: 0 }
-  }
-  if (!email || !allowed.includes(email.toLowerCase())) {
-    return { ok: false as const, error: "No autorizado", sent: 0, failed: 0, invalidTokens: 0 }
+  // El usuario debe tener rol admin formal o estar en la lista autorizada de correos
+  if (!user || (!capabilities.isAdmin && !capabilities.canAccessLegacyPush)) {
+    return { ok: false as const, error: "No autorizado para enviar notificaciones", sent: 0, failed: 0, invalidTokens: 0 }
   }
 
-  const title = (input.title ?? "").trim()
-  const message = (input.message ?? "").trim()
-  if (!title || !message) {
-    return { ok: false as const, error: "Título y mensaje son obligatorios", sent: 0, failed: 0, invalidTokens: 0 }
-  }
-  if (!VALID_TYPES.includes(input.category)) {
+  const category = input.category ?? "GENERAL"
+  if (!VALID_TYPES.includes(category)) {
     return { ok: false as const, error: "Categoría inválida", sent: 0, failed: 0, invalidTokens: 0 }
   }
 
+  const message = (input.message ?? "").trim()
+  if (!message) {
+    return { ok: false as const, error: "El mensaje es obligatorio", sent: 0, failed: 0, invalidTokens: 0 }
+  }
+
+  const rawTitle = (input.title ?? "").trim()
+  const title = rawTitle || DEFAULT_PUSH_TITLES[category] || "Aviso de La Veinte Digital"
+
   const payload: PushPayload = {
-    type: input.category,
+    type: category,
     title: title.slice(0, 200),
     body: message.slice(0, 500),
     destination: sanitizeDestination(input.destination),
@@ -58,6 +58,10 @@ export async function enviarNotificacion(input: EnviarNotificacionInput) {
       : userIds.length === 1
         ? await sendToUser(userIds[0], payload)
         : await sendToUsers(userIds, payload)
+
+    revalidatePath("/admin")
+    revalidatePath("/admin/push")
+
     return { ok: true as const, sent: r.sent, failed: r.failed, invalidTokens: r.invalidTokens }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown"
@@ -65,3 +69,4 @@ export async function enviarNotificacion(input: EnviarNotificacionInput) {
     return { ok: false as const, error: msg, sent: 0, failed: 0, invalidTokens: 0 }
   }
 }
+
