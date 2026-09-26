@@ -50,6 +50,8 @@ function formatMovementLabel(raw: string): string {
       return "Cambio de Casillero 2026";
     case "baja":
       return "Liberación / Baja de Casillero";
+    case "lista_espera":
+      return "Registro en Lista de Espera 2026";
     default:
       return raw || "Actualización 2026";
   }
@@ -58,7 +60,8 @@ function formatMovementLabel(raw: string): string {
 /**
  * Traduce la condición física del mueble a etiqueta formal.
  */
-function formatConditionLabel(condition: string): string {
+function formatConditionLabel(condition: string, isWaitlist = false): string {
+  if (isWaitlist) return "Solicitud Registrada en Espera";
   switch (condition?.toLowerCase()) {
     case "ok":
       return "Buen Estado / Operativo";
@@ -213,29 +216,30 @@ function drawVoucher(
   doc.setTextColor(15, 23, 42);
   doc.text(input.worker.phone || "Registrado en padrón", leftX + 46, ty);
 
-  // --- Tarjeta Derecha: Casillero ---
+  // --- Tarjeta Derecha: Casillero / Espera ---
+  const isWaitlist = input.locker.movementType === "lista_espera" || (input.locker.lockerNumber || "").toUpperCase().includes("ESPERA");
   const rightX = leftX + colWidth + 10;
   doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(187, 247, 208); // verde suave
+  doc.setDrawColor(isWaitlist ? 253 : 187, isWaitlist ? 224 : 247, isWaitlist ? 71 : 208); // amarillo suave si es espera, verde si es asignado
   doc.roundedRect(rightX, cardsY, colWidth, 90, 2, 2, "FD");
 
   // Barra de título Casillero
-  doc.setFillColor(240, 253, 244); // verde muy claro
+  doc.setFillColor(isWaitlist ? 254 : 240, isWaitlist ? 240 : 253, isWaitlist ? 138 : 244);
   doc.roundedRect(rightX, cardsY, colWidth, 14, 2, 2, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(6.5);
-  doc.setTextColor(22, 101, 52);
-  doc.text("DATOS DEL CASILLERO ASIGNADO", rightX + 8, cardsY + 9.5);
+  doc.setTextColor(isWaitlist ? 133 : 22, isWaitlist ? 77 : 101, isWaitlist ? 14 : 52);
+  doc.text(isWaitlist ? "DATOS DE LA SOLICITUD DE CASILLERO" : "DATOS DEL CASILLERO ASIGNADO", rightX + 8, cardsY + 9.5);
 
   // Filas Casillero
   let ly = cardsY + 23;
   doc.setFont("helvetica", "bold");
   doc.setTextColor(71, 85, 105);
-  doc.text("Casillero:", rightX + 8, ly);
+  doc.text(isWaitlist ? "Estado:" : "Casillero:", rightX + 8, ly);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(22, 101, 52);
-  doc.text(`No. ${input.locker.lockerNumber}`, rightX + 46, ly);
+  doc.setFontSize(isWaitlist ? 8 : 9);
+  doc.setTextColor(isWaitlist ? 180 : 22, isWaitlist ? 83 : 101, isWaitlist ? 9 : 52);
+  doc.text(isWaitlist ? "EN LISTA DE ESPERA" : `No. ${input.locker.lockerNumber}`, rightX + (isWaitlist ? 36 : 46), ly);
 
   ly += 13;
   doc.setFontSize(6.5);
@@ -244,7 +248,7 @@ function drawVoucher(
   doc.text("Zona / Vestidor:", rightX + 8, ly);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(15, 23, 42);
-  doc.text((input.locker.zoneName || "Vestidor General").slice(0, 32), rightX + 70, ly);
+  doc.text((input.locker.zoneName || (isWaitlist ? "Por asignar según turno/área" : "Vestidor General")).slice(0, 32), rightX + 70, ly);
 
   ly += 13;
   doc.setFont("helvetica", "bold");
@@ -252,7 +256,7 @@ function drawVoucher(
   doc.text("Mueble / Batería:", rightX + 8, ly);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(15, 23, 42);
-  doc.text((input.locker.bankName || "Batería estándar").slice(0, 32), rightX + 72, ly);
+  doc.text((input.locker.bankName || (isWaitlist ? "Sujeto a disponibilidad física" : "Batería estándar")).slice(0, 32), rightX + 72, ly);
 
   ly += 13;
   doc.setFont("helvetica", "bold");
@@ -268,7 +272,7 @@ function drawVoucher(
   doc.text("Condición:", rightX + 8, ly);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(15, 23, 42);
-  doc.text(formatConditionLabel(input.locker.condition), rightX + 48, ly);
+  doc.text(formatConditionLabel(input.locker.condition, isWaitlist), rightX + 48, ly);
 
   // 5. Términos y Fundamento CCT (Cláusulas 67 y 68)
   const termsY = cardsY + 95;
@@ -280,20 +284,36 @@ function drawVoucher(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(6);
   doc.setTextColor(15, 23, 42);
-  doc.text("FUNDAMENTO LABORAL Y TÉRMINOS DE RESGUARDO (CLÁUSULAS 67 Y 68 DEL CCT VIGENTE IMSS-SNTSS)", leftX + 6, termsY + 8);
+  doc.text(
+    isWaitlist
+      ? "FUNDAMENTO LABORAL Y CONSTANCIA DE LISTA DE ESPERA (CLÁUSULAS 67 Y 68 DEL CCT VIGENTE IMSS-SNTSS)"
+      : "FUNDAMENTO LABORAL Y TÉRMINOS DE RESGUARDO (CLÁUSULAS 67 Y 68 DEL CCT VIGENTE IMSS-SNTSS)",
+    leftX + 6,
+    termsY + 8,
+  );
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(5);
   doc.setTextColor(51, 65, 85);
-  const termsP1 = "1. El casillero asignado es para uso estrictamente individual, laboral e intransferible. Queda prohibido su traspaso o intercambio no autorizado.";
-  const termsP2 = "2. El trabajador agremiado es responsable de mantener el mueble en óptimas condiciones de orden y aseo, así como de la guarda de su llave o candado.";
-  const termsP3 = "3. Queda prohibido almacenar alimentos perecederos, dinero en efectivo no justificado, sustancias inflamables o artículos contrarios a la normativa.";
-  const termsP4 = "4. Al causar baja, cambio de adscripción, jubilación o término de contrato, el trabajador deberá devolver el casillero limpio y vacío a la representación sindical.";
-
-  doc.text(termsP1, leftX + 6, termsY + 16);
-  doc.text(termsP2, leftX + 6, termsY + 23);
-  doc.text(termsP3, leftX + 6, termsY + 30);
-  doc.text(termsP4, leftX + 6, termsY + 37);
+  if (isWaitlist) {
+    const w1 = "1. Se hace constar formalmente la solicitud de casillero del trabajador agremiado ante la Delegación Sindical XXI.";
+    const w2 = "2. La asignación física se realizará en estricto orden de prelación conforme a las Cláusulas 67 y 68 del CCT IMSS-SNTSS.";
+    const w3 = "3. La representación sindical notificará oportunamente al agremiado en cuanto se libere o habilite un casillero correspondiente.";
+    const w4 = "4. Conserve este comprobante como constancia oficial de su registro y prioridad en el padrón de lista de espera sindical.";
+    doc.text(w1, leftX + 6, termsY + 16);
+    doc.text(w2, leftX + 6, termsY + 23);
+    doc.text(w3, leftX + 6, termsY + 30);
+    doc.text(w4, leftX + 6, termsY + 37);
+  } else {
+    const termsP1 = "1. El casillero asignado es para uso estrictamente individual, laboral e intransferible. Queda prohibido su traspaso o intercambio no autorizado.";
+    const termsP2 = "2. El trabajador agremiado es responsable de mantener el mueble en óptimas condiciones de orden y aseo, así como de la guarda de su llave o candado.";
+    const termsP3 = "3. Queda prohibido almacenar alimentos perecederos, dinero en efectivo no justificado, sustancias inflamables o artículos contrarios a la normativa.";
+    const termsP4 = "4. Al causar baja, cambio de adscripción, jubilación o término de contrato, el trabajador deberá devolver el casillero limpio y vacío a la representación sindical.";
+    doc.text(termsP1, leftX + 6, termsY + 16);
+    doc.text(termsP2, leftX + 6, termsY + 23);
+    doc.text(termsP3, leftX + 6, termsY + 30);
+    doc.text(termsP4, leftX + 6, termsY + 37);
+  }
 
   // 6. Espacios para Firmas
   const signY = termsY + 49;
@@ -308,12 +328,16 @@ function drawVoucher(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(6.5);
   doc.setTextColor(15, 23, 42);
-  doc.text("FIRMA DEL TRABAJADOR AGREMIADO", workerSignX + 25, signY + 28);
+  doc.text(isWaitlist ? "FIRMA DEL TRABAJADOR SOLICITANTE" : "FIRMA DEL TRABAJADOR AGREMIADO", workerSignX + (isWaitlist ? 20 : 25), signY + 28);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(5.5);
   doc.setTextColor(100, 116, 139);
-  doc.text("Recibí de conformidad y acepto los términos de resguardo", workerSignX + 16, signY + 34);
+  doc.text(
+    isWaitlist ? "Constancia de registro en lista de espera sindical" : "Recibí de conformidad y acepto los términos de resguardo",
+    workerSignX + 16,
+    signY + 34,
+  );
 
   // Línea Firma Representación Sindical
   doc.line(unionSignX, signY + 22, unionSignX + signColWidth, signY + 22);
@@ -326,7 +350,7 @@ function drawVoucher(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(5.5);
   doc.setTextColor(100, 116, 139);
-  doc.text("Sello oficial y firma de validación", unionSignX + 46, signY + 34);
+  doc.text(isWaitlist ? "Sello y acuse de registro en lista de espera" : "Sello oficial y firma de validación", unionSignX + 40, signY + 34);
 
   // 7. Pie de Página discreto con hash de verificación
   doc.setFont("helvetica", "normal");

@@ -16,8 +16,8 @@ function noStore(res: NextResponse): NextResponse {
 const renewalSchema = z.object({
   delegation_id: z.string().uuid().optional(),
   worker_id: z.string().uuid(),
-  locker_id: z.string().uuid(),
-  movement_type: z.enum(["actualizacion_2026", "asignacion_nueva", "cambio", "baja"]).default("actualizacion_2026"),
+  locker_id: z.string().uuid().optional().nullable(),
+  movement_type: z.enum(["actualizacion_2026", "asignacion_nueva", "cambio", "baja", "lista_espera"]).default("actualizacion_2026"),
   phone: z.string().max(50).optional(),
   condition: z.enum(["ok", "maintenance", "damaged", "blocked"]).default("ok"),
   observations: z.string().max(1000).optional().default(""),
@@ -67,6 +67,113 @@ export async function POST(req: Request): Promise<NextResponse> {
         .from("union_workers")
         .update({ phone: parsed.data.phone.trim(), updated_at: new Date().toISOString() })
         .eq("id", worker.id);
+    }
+
+    const fullName =
+      typeof worker.siap_full_name === "string" && worker.siap_full_name
+        ? worker.siap_full_name
+        : `${worker.first_name || ""} ${worker.paternal_surname || ""} ${worker.maternal_surname || ""}`.trim();
+
+    // =========================================================================
+    // CASO ESPECIAL: REGISTRO EN LISTA DE ESPERA (Sin casillero asignado aún)
+    // =========================================================================
+    if (parsed.data.movement_type === "lista_espera") {
+      // 1. Insertar en tabla formal union_locker_waitlist
+      const { data: waitlistEntry, error: waitlistErr } = await supabase
+        .from("union_locker_waitlist")
+        .insert({
+          delegation_id: depId,
+          worker_id: worker.id,
+          notes: parsed.data.observations || "Registro ventanilla Programa 2026",
+          status: "waiting",
+          created_by: auth.user.id,
+        })
+        .select("id")
+        .single();
+
+      if (waitlistErr) {
+        return noStore(NextResponse.json({ error: "Error al registrar en lista de espera: " + waitlistErr.message }, { status: 500 }));
+      }
+
+      // 2. Crear Expediente Oficial con Folio Atómico LOK
+      const createdCase = await createUnionCase({
+        delegation_id: depId,
+        delegation_code: depCode,
+        worker_id: worker.id,
+        worker_snapshot: {
+          ...worker,
+          full_name: fullName,
+          phone: parsed.data.phone || worker.phone,
+          locker_number: "LISTA DE ESPERA",
+          zone_name: "Pendiente de Asignación",
+          bank_name: "Por asignar según turno/área",
+          movement_type: "lista_espera",
+          condition: "ok",
+          observations: parsed.data.observations,
+        },
+        case_type: "locker",
+      });
+
+      // 3. Registrar en union_locker_cases (locker_id es null para lista_espera)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from("union_locker_cases").insert({
+        case_id: createdCase.id,
+        delegation_id: depId,
+        locker_id: null,
+        assignment_id: null,
+        movement_type: "lista_espera",
+        locker_number: "LISTA DE ESPERA",
+        zone_name: "Pendiente de Asignación",
+        bank_name: "Por asignar según turno/área",
+        physical_code: null,
+        condition: "ok",
+        worker_phone: parsed.data.phone || worker.phone || "",
+        worker_turn: worker.turn || "",
+        worker_assignment: worker.assignment || "",
+        worker_category: worker.category || "",
+        observations: parsed.data.observations || "Registro en lista de espera",
+      });
+
+      // 4. Registrar Evento de Caso
+      await addCaseEvent(
+        createdCase.id,
+        "waitlist_registered",
+        "Registro en Lista de Espera 2026",
+        `Trabajador registrado en lista de espera sindical con folio ${createdCase.folio}. Turno pendiente de asignación física.`,
+      );
+
+      // 5. Auditoría
+      await writeAuditLog({
+        delegation_id: depId,
+        entity_type: "union_waitlist",
+        entity_id: waitlistEntry.id,
+        action: "waitlist.registered_2026",
+        metadata: {
+          folio: createdCase.folio,
+          case_id: createdCase.id,
+          worker_id: worker.id,
+          notes: parsed.data.observations,
+        },
+      });
+
+      return noStore(
+        NextResponse.json({
+          success: true,
+          case_id: createdCase.id,
+          folio: createdCase.folio,
+          locker_number: "LISTA DE ESPERA",
+          worker_name: fullName,
+          delegation_id: depId,
+          is_waitlist: true,
+        }),
+      );
+    }
+
+    // =========================================================================
+    // FLUJO CON CASILLERO FÍSICO ASIGNADO O ACTUALIZADO
+    // =========================================================================
+    if (!parsed.data.locker_id) {
+      return noStore(NextResponse.json({ error: "Debes seleccionar un casillero para este trámite." }, { status: 400 }));
     }
 
     // 2. Obtener datos del casillero
@@ -162,6 +269,13 @@ export async function POST(req: Request): Promise<NextResponse> {
           .update({ resguardo_status: "actualizado_2026" })
           .eq("id", assignmentId);
       }
+
+      // Si el trabajador estaba en lista de espera, actualizar su estado a 'assigned'
+      await supabase
+        .from("union_locker_waitlist")
+        .update({ status: "assigned", updated_at: new Date().toISOString() })
+        .eq("worker_id", worker.id)
+        .eq("status", "waiting");
     }
 
     // Actualizar condición y código físico del casillero si cambió
@@ -176,11 +290,6 @@ export async function POST(req: Request): Promise<NextResponse> {
       .eq("id", locker.id);
 
     // 4. Crear Expediente Oficial con Folio Atómico LOK
-    const fullName =
-      typeof worker.siap_full_name === "string" && worker.siap_full_name
-        ? worker.siap_full_name
-        : `${worker.first_name || ""} ${worker.paternal_surname || ""} ${worker.maternal_surname || ""}`.trim();
-
     const createdCase = await createUnionCase({
       delegation_id: depId,
       delegation_code: depCode,
