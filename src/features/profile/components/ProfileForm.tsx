@@ -12,6 +12,8 @@ interface Profile {
   id: string
   full_name: string | null
   phone: string | null
+  matricula?: string | null
+  adscripcion?: string | null
 }
 
 interface Props {
@@ -28,6 +30,8 @@ export function ProfileForm({ profile }: Props) {
       const supabase = createClient()
       const fullName = String(formData.get("full_name") ?? "").trim()
       const phone = String(formData.get("phone") ?? "").trim()
+      const matricula = String(formData.get("matricula") ?? "").trim().toUpperCase().replace(/\s+/g, "")
+      const adscripcion = String(formData.get("adscripcion") ?? "").trim()
 
       if (!fullName) return { error: "El nombre completo es obligatorio" }
       if (phone && !PHONE_RE.test(phone)) {
@@ -46,7 +50,12 @@ export function ProfileForm({ profile }: Props) {
       }
       const userId = userData.user.id
 
-      const editableUpdates: EditableProfileFields = { full_name: fullName, phone }
+      const editableUpdates: EditableProfileFields = {
+        full_name: fullName,
+        phone: phone || null,
+        matricula: matricula || null,
+        adscripcion: adscripcion || null,
+      }
       const { error } = await supabase.from("profiles").update(editableUpdates).eq("id", userId)
       if (error) {
         console.error("[ProfileForm] update:", error.message)
@@ -72,6 +81,10 @@ export function ProfileForm({ profile }: Props) {
           </p>
         )}
         <Input label="Nombre completo" name="full_name" defaultValue={profile?.full_name ?? ""} required />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.75rem" }}>
+          <Input label="Matrícula IMSS" name="matricula" defaultValue={profile?.matricula ?? ""} placeholder="Ej. 12345678" maxLength={32} />
+          <Input label="Adscripción" name="adscripcion" defaultValue={profile?.adscripcion ?? ""} placeholder="Ej. HGZ 32, UMF 1" maxLength={200} />
+        </div>
         <Input label="Teléfono" name="phone" defaultValue={profile?.phone ?? ""} type="tel" />
         <Button type="submit" loading={pending} style={{ alignSelf: "flex-start" }}>
           {pending ? "Guardando..." : "Guardar cambios"}

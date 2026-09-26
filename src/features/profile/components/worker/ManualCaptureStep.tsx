@@ -12,13 +12,47 @@ function addField(draft: WorkerProfileDraft, field: WorkerFieldName): WorkerProf
 
 export function ManualCaptureStep({ draft, onChange, onContinue, onBack }: Props) {
   const field = (f: string) => FIELD_REQUIREMENTS.find((r) => r.field === f)
+  const canContinue = Boolean(
+    draft.identity.matricula?.trim() ||
+    draft.identity.adscripcion?.trim() ||
+    draft.identity.categoria?.trim() ||
+    draft.situation.effectiveSeniorityDate
+  )
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-      <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: 0 }}>Datos básicos</h2>
+      <div>
+        <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: 0 }}>Datos mínimos del trabajador</h2>
+        <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>
+          Ingresa tus datos laborales. Podrás actualizarlos o complementarlos en el futuro en cualquier momento.
+        </p>
+      </div>
+
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         <div>
-          <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.25rem" }}>Categoría</label>
+          <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.25rem" }}>Matrícula IMSS</label>
+          <Input
+            value={draft.identity.matricula ?? ""}
+            onChange={(e) => onChange(addField({ ...draft, identity: { ...draft.identity, matricula: e.target.value || null } }, "matricula"))}
+            placeholder="Ej: 12345678"
+            maxLength={32}
+          />
+          <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>{field("matricula")?.whyMessage ?? "Identifica tus registros y recibos de nómina."}</p>
+        </div>
+
+        <div>
+          <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.25rem" }}>Adscripción</label>
+          <Input
+            value={draft.identity.adscripcion ?? ""}
+            onChange={(e) => onChange(addField({ ...draft, identity: { ...draft.identity, adscripcion: e.target.value || null } }, "adscripcion"))}
+            placeholder="Ej: HGZ 32, UMF 1, etc."
+            maxLength={200}
+          />
+          <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>{field("adscripcion")?.whyMessage ?? "Unidad médica u hospital donde laboras."}</p>
+        </div>
+
+        <div>
+          <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.25rem" }}>Categoría (opcional)</label>
           <Input
             value={draft.identity.categoria ?? ""}
             onChange={(e) => onChange(addField({ ...draft, identity: { ...draft.identity, categoria: e.target.value || null } }, "categoria"))}
@@ -26,8 +60,9 @@ export function ManualCaptureStep({ draft, onChange, onContinue, onBack }: Props
           />
           <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>{field("categoria")?.whyMessage}</p>
         </div>
+
         <div>
-          <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.25rem" }}>Antigüedad (fecha de ingreso al IMSS)</label>
+          <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.25rem" }}>Antigüedad (fecha de ingreso al IMSS, opcional)</label>
           <Input
             type="date"
             value={draft.situation.effectiveSeniorityDate ?? ""}
@@ -35,6 +70,7 @@ export function ManualCaptureStep({ draft, onChange, onContinue, onBack }: Props
           />
           <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>{field("effectiveSeniorityDate")?.whyMessage}</p>
         </div>
+
         <fieldset style={{ border: "none", padding: 0 }}>
           <legend style={{ fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.25rem" }}>Jornada (horas al día)</legend>
           <div style={{ display: "flex", gap: "0.75rem" }}>
@@ -52,26 +88,11 @@ export function ManualCaptureStep({ draft, onChange, onContinue, onBack }: Props
           </div>
           <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: "0.25rem 0 0" }}>{field("workdayHours")?.whyMessage}</p>
         </fieldset>
-        <div>
-          <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.25rem" }}>Adscripción (opcional)</label>
-          <Input
-            value={draft.identity.adscripcion ?? ""}
-            onChange={(e) => onChange(addField({ ...draft, identity: { ...draft.identity, adscripcion: e.target.value || null } }, "adscripcion"))}
-            placeholder="Ej: HGZ 32"
-          />
-        </div>
-        <div>
-          <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.25rem" }}>Matrícula (opcional)</label>
-          <Input
-            value={draft.identity.matricula ?? ""}
-            onChange={(e) => onChange(addField({ ...draft, identity: { ...draft.identity, matricula: e.target.value || null } }, "matricula"))}
-            placeholder="Ej: 12345678"
-          />
-        </div>
       </div>
+
       <div style={{ display: "flex", gap: "0.75rem", justifyContent: "space-between" }}>
         <Button variant="secondary" onClick={onBack}>←</Button>
-        <Button onClick={onContinue} disabled={!draft.identity.categoria?.trim()}>Continuar</Button>
+        <Button onClick={onContinue} disabled={!canContinue}>Continuar</Button>
       </div>
     </div>
   )

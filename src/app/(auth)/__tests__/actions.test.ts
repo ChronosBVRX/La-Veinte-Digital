@@ -110,6 +110,26 @@ describe("signUpAction", () => {
     })
   })
 
+  it("envía matricula y adscripcion en user_metadata cuando se proporcionan", async () => {
+    mocks.signUp.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null })
+
+    const fd = formData({ matricula: " 99123456 ", adscripcion: " HGZ 32 " })
+    await signUpAction(undefined, fd)
+
+    expect(mocks.signUp).toHaveBeenCalledWith({
+      email: "user@test.local",
+      password: "secret123",
+      options: {
+        data: {
+          full_name: "Test User",
+          matricula: "99123456",
+          adscripcion: "HGZ 32",
+        },
+        emailRedirectTo: "http://localhost:3000/callback",
+      },
+    })
+  })
+
   it("devuelve aviso de confirmación en lugar de redirigir", async () => {
     mocks.signUp.mockResolvedValue({ data: { user: { id: "user-1" } }, error: null })
 

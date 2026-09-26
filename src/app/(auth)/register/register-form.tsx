@@ -2,7 +2,7 @@
 
 import { useActionState } from "react"
 import Link from "next/link"
-import { Mail, Lock, UserPlus, AlertCircle, User, CheckCircle } from "lucide-react"
+import { Mail, Lock, UserPlus, AlertCircle, User, CheckCircle, BadgeCheck, Building2 } from "lucide-react"
 import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
 import { signUpAction } from "../actions"
@@ -81,6 +81,40 @@ export function RegisterForm() {
         required
         icon={<User size={16} />}
       />
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.75rem" }}>
+        <Input
+          id="matricula"
+          name="matricula"
+          label="Matrícula IMSS"
+          type="text"
+          placeholder="Ej. 12345678"
+          maxLength={32}
+          icon={<BadgeCheck size={16} />}
+        />
+
+        <Input
+          id="adscripcion"
+          name="adscripcion"
+          label="Adscripción"
+          type="text"
+          placeholder="Ej. HGZ 32, UMF 1"
+          maxLength={200}
+          icon={<Building2 size={16} />}
+        />
+      </div>
+
+      <div style={{
+        background: "rgba(37,99,235,0.04)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-sm)",
+        padding: "0.625rem 0.875rem",
+        fontSize: "0.8125rem",
+        color: "var(--muted)",
+        lineHeight: 1.4,
+      }}>
+        💡 <strong>Datos mínimos del trabajador</strong>: Solicitamos tu nombre, matrícula y adscripción para personalizar tus cálculos sindicales. Si lo consideras más prudente, podrás subir tu tarjetón IMSS al entrar para rellenar tu cuenta de forma automática. Podrás actualizar esta información en cualquier momento.
+      </div>
 
       <Input
         id="email"

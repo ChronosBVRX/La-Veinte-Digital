@@ -65,6 +65,10 @@ export async function signUpAction(
   const email = formData.get("email") as string
   const password = formData.get("password") as string
   const fullName = formData.get("full_name") as string
+  const rawMatricula = (formData.get("matricula") as string)?.trim().toUpperCase().replace(/\s+/g, "")
+  const matricula = rawMatricula ? rawMatricula.slice(0, 32) : undefined
+  const rawAdscripcion = (formData.get("adscripcion") as string)?.trim()
+  const adscripcion = rawAdscripcion ? rawAdscripcion.slice(0, 200) : undefined
   const origin = await getRequestOrigin()
   const captchaToken = getCaptchaToken(formData)
 
@@ -72,7 +76,11 @@ export async function signUpAction(
     email,
     password,
     options: {
-      data: { full_name: fullName },
+      data: {
+        full_name: fullName,
+        ...(matricula ? { matricula } : {}),
+        ...(adscripcion ? { adscripcion } : {}),
+      },
       emailRedirectTo: `${origin}/callback`,
       ...(captchaToken ? { captchaToken } : {}),
     },
