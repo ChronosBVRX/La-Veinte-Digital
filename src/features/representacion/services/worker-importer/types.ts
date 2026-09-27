@@ -49,6 +49,7 @@ export interface ParsedWorkerRow {
   associated_concepts: AssociatedConcept[];
   position_code: string;
   position_description: string;
+  category?: string;
   department_code: string;
   department_description: string;
   schedule_code: string;

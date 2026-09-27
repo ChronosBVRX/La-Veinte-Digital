@@ -16,7 +16,7 @@
 > 
 > **OBJETIVO PERMANENTE: CERO REGRESIONES NO AUTORIZADAS.**
 >
-> **Snapshot verificado:** `docs/BASELINE_ESTABLE.md` (tag `v2026.09.06-stable`, `main` `3bd9506058578df558bd8c4494e1df703b815be1`, 2026-09-06; gates en verde, solo documentación, Android intacto). Este snapshot extiende el baseline `d90ab2bb` sin sustituirlo.
+> **Snapshot verificado:** `docs/BASELINE_ESTABLE.md` (tag `v2026.09.27-stable`, 2026-09-27; normalización de categorías en padrón sindical y fix de expedientes, gates en verde, Android intacto). Este snapshot extiende los baselines previos sin sustituirlos.
 
 ---
 

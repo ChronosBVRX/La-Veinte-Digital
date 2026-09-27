@@ -11,6 +11,7 @@ import {
   type WorkerDirectorySortId,
   type WorkerDirectoryStatus,
 } from "../lib/worker-directory-params";
+import { canonicalizeCategoryName, getCategoryQueryVariants } from "../lib/category-normalizer";
 
 export interface UnionWorkerFilters {
   q: string;
@@ -133,7 +134,10 @@ export async function listUnionWorkers(
     builder = builder.eq("active", false);
   }
 
-  if (values.categories.length > 0) builder = builder.in("category", values.categories);
+  if (values.categories.length > 0) {
+    const expandedCategories = getCategoryQueryVariants(values.categories);
+    builder = builder.in("category", expandedCategories);
+  }
 
   if (values.turns.length > 0) {
     const turnToCode: Record<string, string> = {
@@ -195,7 +199,10 @@ export async function listUnionWorkers(
 
   const total = count ?? 0;
   return {
-    workers: (data ?? []) as unknown as WorkerDirectoryRow[],
+    workers: ((data ?? []) as unknown as WorkerDirectoryRow[]).map((w) => ({
+      ...w,
+      category: canonicalizeCategoryName(w.category),
+    })),
     total,
     page,
     pageSize,
@@ -220,7 +227,10 @@ export async function countUnionWorkers(delegationId: string, filters: UnionWork
     builder = builder.eq("active", false);
   }
 
-  if (values.categories.length > 0) builder = builder.in("category", values.categories);
+  if (values.categories.length > 0) {
+    const expandedCategories = getCategoryQueryVariants(values.categories);
+    builder = builder.in("category", expandedCategories);
+  }
 
   if (values.turns.length > 0) {
     const turnToCode: Record<string, string> = {
@@ -269,7 +279,10 @@ export async function getUnionWorkerFacets(delegationId: string): Promise<Worker
     if (error) throw error;
     const rows = (data ?? []) as Array<{ category: string | null; assignment: string | null; turn: string | null }>;
     for (const row of rows) {
-      if (row.category) categories.add(row.category.trim());
+      if (row.category) {
+        const canonical = canonicalizeCategoryName(row.category);
+        if (canonical) categories.add(canonical);
+      }
       if (row.assignment) assignments.add(row.assignment.trim());
       if (row.turn) {
         const t = row.turn.trim();
@@ -430,7 +443,7 @@ export async function getUnionWorkerExpediente(
     .select(WORKER_DETAIL_COLUMNS)
     .eq("delegation_id", delegationId)
     .eq("id", workerId)
-    .or(ROLLED_BACK_FILTER)
+    .neq("source_import_state", ROLLED_BACK_FILTER)
     .maybeSingle();
   if (workerError) throw workerError;
   if (!worker) return null;
@@ -545,7 +558,10 @@ export async function getUnionWorkerExpediente(
   if (auditError) throw auditError;
 
   return {
-    worker: worker as unknown as UnionExpedienteWorker,
+    worker: {
+      ...(worker as unknown as UnionExpedienteWorker),
+      category: canonicalizeCategoryName(worker.category),
+    },
     cases: cases.map((c) => ({
       ...c,
       maternity: maternityByCase.get(c.id) ?? null,
