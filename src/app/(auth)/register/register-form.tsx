@@ -141,7 +141,7 @@ export function RegisterForm() {
         {pending ? "Creando cuenta..." : <><UserPlus size={16} /> Crear cuenta</>}
       </Button>
 
-      <TurnstileWidget siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} />
+      <TurnstileWidget siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} resetKey={state} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>

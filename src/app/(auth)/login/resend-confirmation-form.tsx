@@ -5,6 +5,7 @@ import { EnvelopeSimple, PaperPlaneTilt, WarningCircle } from "@phosphor-icons/r
 import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
 import { resendConfirmationAction } from "../actions"
+import { TurnstileWidget } from "../turnstile-widget"
 
 const RESEND_COOLDOWN_SECONDS = 60
 
@@ -76,6 +77,7 @@ export function ResendConfirmationForm({
             ? `Reenviar en ${cooldown}s`
             : <><PaperPlaneTilt size={18} weight="bold" /> Reenviar confirmación</>}
       </Button>
+      <TurnstileWidget siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} resetKey={state} />
     </form>
   )
 }

@@ -87,6 +87,32 @@ describe("signInAction", () => {
     const result = await signInAction(undefined, formData())
     expect(result).toEqual({ error: "Verificación de seguridad fallida. Recarga la página e inténtalo de nuevo." })
   })
+
+  it("distingue correo no confirmado y devuelve unconfirmedEmail para permitir reenvío", async () => {
+    mocks.signInWithPassword.mockResolvedValue({
+      data: { user: null },
+      error: new Error("Email not confirmed"),
+    })
+
+    const result = await signInAction(undefined, formData({ email: "  pendiente@test.local  " }))
+    expect(result).toEqual({
+      error: "Tu correo aún no ha sido confirmado. Revisa tu bandeja de entrada o spam, o reenvía la confirmación abajo.",
+      unconfirmedEmail: "pendiente@test.local",
+    })
+  })
+
+  it("mapea 429 / over_request_rate_limit en inicio de sesión sin disfrazarlo de credenciales incorrectas", async () => {
+    mocks.signInWithPassword.mockResolvedValue({
+      data: { user: null },
+      error: Object.assign(new Error("Request rate limit reached"), {
+        status: 429,
+        code: "over_request_rate_limit",
+      }),
+    })
+
+    const result = await signInAction(undefined, formData())
+    expect(result).toEqual({ error: "Demasiados intentos. Espera 60 segundos antes de reintentarlo." })
+  })
 })
 
 describe("signUpAction", () => {
@@ -179,6 +205,20 @@ describe("signUpAction", () => {
     const result = await signUpAction(undefined, formData())
     expect(result).toEqual({ error: "No se pudo crear la cuenta. Intenta con otro correo." })
     expect(mocks.from).not.toHaveBeenCalled()
+  })
+
+  it("distingue cuando el correo ya está registrado", async () => {
+    mocks.signUp.mockResolvedValue({ data: { user: null }, error: new Error("User already registered") })
+
+    const result = await signUpAction(undefined, formData())
+    expect(result).toEqual({ error: "Este correo ya está registrado. Inicia sesión o recupera tu contraseña." })
+  })
+
+  it("distingue error de captcha en registro", async () => {
+    mocks.signUp.mockResolvedValue({ data: { user: null }, error: new Error("captcha verification process failed") })
+
+    const result = await signUpAction(undefined, formData())
+    expect(result).toEqual({ error: "Verificación de seguridad fallida. Recarga la página e inténtalo de nuevo." })
   })
 })
 

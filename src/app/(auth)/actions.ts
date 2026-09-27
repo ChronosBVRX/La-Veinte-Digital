@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
-type AuthState = { error?: string } | undefined
+type AuthState = { error?: string; unconfirmedEmail?: string } | undefined
 
 type AuthResultState =
   | { error: string; success?: undefined; message?: undefined }
@@ -19,9 +19,14 @@ async function getRequestOrigin(): Promise<string> {
   return `${proto}://${host}`
 }
 
-function mapEmailRateLimit(error: { message?: string; status?: number }): string | null {
+function mapEmailRateLimit(error: { message?: string; status?: number; code?: string }): string | null {
   const message = error.message ?? ""
-  if (error.status === 429 || /rate limit|too many|over_email_send_rate_limit/i.test(message)) {
+  const code = error.code ?? ""
+  if (
+    error.status === 429 ||
+    /rate limit|too many|over_email_send_rate_limit|over_request_rate_limit/i.test(message) ||
+    /rate_limit|over_email_send_rate_limit|over_request_rate_limit/i.test(code)
+  ) {
     return "Demasiados intentos. Espera 60 segundos antes de reintentarlo."
   }
   return null
@@ -32,7 +37,7 @@ function getCaptchaToken(formData: FormData): string | undefined {
   return token ? token : undefined
 }
 
-export async function signInAction(_prev: AuthState, formData: FormData) {
+export async function signInAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const supabase = await createClient()
   const email = formData.get("email") as string
   const password = formData.get("password") as string
@@ -44,11 +49,23 @@ export async function signInAction(_prev: AuthState, formData: FormData) {
     options: { ...(captchaToken ? { captchaToken } : {}) },
   })
   if (error) {
-    if (/captcha/i.test(error.message ?? "")) {
+    const message = error.message ?? ""
+    const code = (error as { code?: string }).code ?? ""
+    if (/captcha/i.test(message)) {
       return { error: "Verificación de seguridad fallida. Recarga la página e inténtalo de nuevo." }
     }
-    if (/banned/i.test(error.message ?? "")) {
+    if (/banned/i.test(message)) {
       return { error: "Tu cuenta está suspendida. Si crees que es un error, contacta a soporte." }
+    }
+    if (/email not confirmed/i.test(message) || code === "email_not_confirmed") {
+      return {
+        error: "Tu correo aún no ha sido confirmado. Revisa tu bandeja de entrada o spam, o reenvía la confirmación abajo.",
+        unconfirmedEmail: email?.trim(),
+      }
+    }
+    const rateLimitError = mapEmailRateLimit(error)
+    if (rateLimitError) {
+      return { error: rateLimitError }
     }
     return { error: "Credenciales incorrectas. Verifica tu correo y contraseña." }
   }
@@ -86,6 +103,13 @@ export async function signUpAction(
     },
   })
   if (error) {
+    const message = error.message ?? ""
+    if (/captcha/i.test(message)) {
+      return { error: "Verificación de seguridad fallida. Recarga la página e inténtalo de nuevo." }
+    }
+    if (/user already registered|already been registered/i.test(message)) {
+      return { error: "Este correo ya está registrado. Inicia sesión o recupera tu contraseña." }
+    }
     return { error: mapEmailRateLimit(error) ?? "No se pudo crear la cuenta. Intenta con otro correo." }
   }
 
@@ -115,6 +139,9 @@ export async function resetPasswordRequestAction(
   })
 
   if (error) {
+    if (/captcha/i.test(error.message ?? "")) {
+      return { error: "Verificación de seguridad fallida. Recarga la página e inténtalo de nuevo." }
+    }
     return { error: mapEmailRateLimit(error) ?? "No pudimos enviar el enlace. Verifica que el correo sea correcto." }
   }
 
@@ -173,6 +200,9 @@ export async function resendConfirmationAction(
   })
 
   if (error) {
+    if (/captcha/i.test(error.message ?? "")) {
+      return { error: "Verificación de seguridad fallida. Recarga la página e inténtalo de nuevo." }
+    }
     return { error: mapEmailRateLimit(error) ?? "No pudimos reenviar el correo. Verifica que el correo sea correcto." }
   }
 
