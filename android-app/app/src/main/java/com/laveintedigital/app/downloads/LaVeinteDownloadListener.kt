@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -202,6 +203,10 @@ class LaVeinteDownloadListener(
             },
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
+        val largeIcon = runCatching {
+            BitmapFactory.decodeResource(context.resources, R.drawable.brand_logo)
+        }.getOrNull()
+
         val builder = NotificationCompat.Builder(context, com.laveintedigital.app.push.LaVeinteNotificationManager.CHANNEL_DOWNLOADS)
             .setSmallIcon(R.drawable.ic_notification_laveinte)
             .setColor(android.graphics.Color.parseColor("#2563EB"))
@@ -211,6 +216,9 @@ class LaVeinteDownloadListener(
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
+            .apply {
+                if (largeIcon != null) setLargeIcon(largeIcon)
+            }
         nm.notify(NOTIFICATION_ID, builder.build())
     }
 
@@ -393,7 +401,14 @@ class LaVeinteDownloadListener(
                 openIntent,
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
-            val builder = NotificationCompat.Builder(context, com.laveintedigital.app.push.LaVeinteNotificationManager.CHANNEL_DOWNLOADS)
+            val largeIcon = runCatching {
+                BitmapFactory.decodeResource(context.resources, R.drawable.brand_logo)
+            }.getOrNull()
+
+            val builder = NotificationCompat.Builder(
+                context,
+                com.laveintedigital.app.push.LaVeinteNotificationManager.CHANNEL_DOWNLOADS_COMPLETED,
+            )
                 .setSmallIcon(R.drawable.ic_notification_laveinte)
                 .setColor(android.graphics.Color.parseColor("#2563EB"))
                 .setContentTitle(filename)
@@ -402,6 +417,9 @@ class LaVeinteDownloadListener(
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setContentIntent(pendingIntent)
                 .setAutoCancel(true)
+                .apply {
+                    if (largeIcon != null) setLargeIcon(largeIcon)
+                }
             nm.notify(filename.hashCode(), builder.build())
         }
     }

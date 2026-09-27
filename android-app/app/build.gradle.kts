@@ -23,8 +23,8 @@ android {
         applicationId = "com.laveintedigital.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 208
-        versionName = "1.1.8"
+        versionCode = 209
+        versionName = "1.1.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -50,7 +50,19 @@ android {
 
     signingConfigs {
         create("release") {
-            if (keystoreBase64Env != null && keystorePasswordEnv != null && releaseKeyAliasEnv != null && releaseKeyPasswordEnv != null) {
+            val keystorePropFile = File(rootDir, "keystore.properties")
+            val localKeyFile = File(rootDir, "keystore/laveinte-upload-key.jks")
+            val desktopKeyFile = File(System.getProperty("user.home"), "Desktop/laveinte-upload-key.jks")
+
+            if (keystorePropFile.exists()) {
+                val props = Properties()
+                keystorePropFile.inputStream().use { props.load(it) }
+                val targetStore = File(props.getProperty("storeFile"))
+                storeFile = if (targetStore.exists()) targetStore else if (localKeyFile.exists()) localKeyFile else desktopKeyFile
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+            } else if (keystoreBase64Env != null && keystorePasswordEnv != null && releaseKeyAliasEnv != null && releaseKeyPasswordEnv != null) {
                 val keystoreDir = File(rootDir, "build/keystore")
                 keystoreDir.mkdirs()
                 val keystoreFile = File(keystoreDir, "laveinte-release.jks")
@@ -77,13 +89,19 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            if (keystoreBase64Env != null && keystorePasswordEnv != null && releaseKeyAliasEnv != null && releaseKeyPasswordEnv != null) {
-                signingConfig = signingConfigs.getByName("release")
+            val releaseSigning = signingConfigs.getByName("release")
+            if (releaseSigning.storeFile != null && releaseSigning.storeFile!!.exists()) {
+                signingConfig = releaseSigning
             }
         }
         create("releaseDebug") {
             initWith(buildTypes.getByName("release"))
-            signingConfig = signingConfigs.getByName("debug")
+            val releaseSigning = signingConfigs.getByName("release")
+            if (releaseSigning.storeFile != null && releaseSigning.storeFile!!.exists()) {
+                signingConfig = releaseSigning
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
 

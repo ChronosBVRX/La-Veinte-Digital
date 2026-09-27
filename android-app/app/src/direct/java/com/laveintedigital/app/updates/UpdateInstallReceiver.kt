@@ -103,12 +103,20 @@ class UpdateInstallReceiver : BroadcastReceiver() {
             }
         } else null
 
+        val largeIcon = runCatching {
+            android.graphics.BitmapFactory.decodeResource(context.resources, R.drawable.brand_logo)
+        }.getOrNull()
+
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_notification_laveinte)
+            .setColor(android.graphics.Color.parseColor("#2563EB"))
             .setContentTitle(title)
             .setContentText(text)
             .setAutoCancel(true)
             .setContentIntent(pending)
+            .apply {
+                if (largeIcon != null) setLargeIcon(largeIcon)
+            }
             .build()
 
         context.getSystemService(NotificationManager::class.java)?.notify(8801, notification)

@@ -58,10 +58,13 @@ next-env.d.ts
 /test-results/
 /e2e/.auth/
 
-# Android keystores (never commit)
+# Android keystores and local release bundles (never commit)
 *.jks
 *.keystore
 *.b64
+keystore.properties
+*.aab
+/release-artifacts/
 
 
 # normativa y TTS runtime local
