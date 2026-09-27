@@ -169,6 +169,25 @@ fun InternalWebScreen(
         }
     }
 
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        android.util.Log.i("DOWNLOAD_FLOW", "notification_permission_result=$granted")
+    }
+    val checkNotificationPermission = remember(activity) {
+        {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                if (ContextCompat.checkSelfPermission(
+                        activity,
+                        Manifest.permission.POST_NOTIFICATIONS,
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
+        }
+    }
+
     val internalOrigin = remember(initialUrl) { laveinteOrigin(initialUrl) }
 
     // Document Scanner (ML Kit): captura nativa de documentos e INE.
@@ -736,7 +755,7 @@ fun InternalWebScreen(
                         },
                     )
                     webChromeClient = chromeClient
-                    attachDownloadListener(ctx)
+                    attachDownloadListener(ctx, onRequestNotificationPermission = checkNotificationPermission)
                     // Inject the native bridge at DOCUMENT START so it exists before Next.js hydrates,
                     // removing the bridge-missing race in the QR scanner. Falls back to onPageFinished.
                     LaVeinteBridgeInjector.installAtDocumentStart(wv)
