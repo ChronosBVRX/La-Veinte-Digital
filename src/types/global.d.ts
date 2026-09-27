@@ -25,6 +25,7 @@ declare global {
     openBiometrics?(): void
     hasImssCredentials(portalId: string): boolean
     checkForUpdate(): void
+    openSavedDocuments?(): void
     requestCameraPermission(): Promise<{ granted: boolean; permanentlyDenied?: boolean }>
     requestNotificationsPermission(): void
     listNativeDocuments(): Promise<NativeDocumentMeta[]>

@@ -1371,6 +1371,25 @@ export const guideConcepts: GuideConcept[] = [
     ]
   },
   {
+    "code": "023",
+    "name": "COMPENSACIÓN POR ASISTENCIA Y PUNTUALIDAD",
+    "kind": "perception",
+    "catalog": {
+      "listed": true,
+      "detail": []
+    },
+    "status": "reference-only",
+    "requiresCurrentValidation": true,
+    "searchTerms": [
+      "023",
+      "compensación por asistencia y puntualidad",
+      "clausula 86 bis",
+      "cláusula 86 bis",
+      "premio asistencia puntualidad",
+      "antigüedad puntualidad"
+    ]
+  },
+  {
     "code": "024",
     "name": "COMPENSACIÓN",
     "kind": "perception",

@@ -130,7 +130,12 @@ export function ConceptFichaPage({ code }: { code: string }) {
               {level === "officially_verified" ? "Ver fundamento" : "Ver fuentes de referencia"}
             </summary>
             <div style={{ marginTop: "0.75rem" }}>
-              <VerificationCard state={d?.verification ?? "pending_verification"} level={level} sources={d?.sources} />
+              <VerificationCard
+                state={d?.verification ?? "pending_verification"}
+                level={level}
+                sources={d?.sources}
+                conceptCode={entry.code}
+              />
             </div>
           </details>
         )}

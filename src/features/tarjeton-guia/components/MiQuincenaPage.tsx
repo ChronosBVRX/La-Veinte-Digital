@@ -406,11 +406,10 @@ function navButtonStyle(disabled: boolean): CSSProperties {
 }
 
 function ReviewTab({ items, comparison }: { items: ReviewItem[]; comparison: ReturnType<typeof compareQuincenas> | null }) {
-  const byState = (s: string) => items.filter((i) => i.state === s)
-  const flagged = byState("review")
-  const ok = byState("ok")
-  const info = byState("info")
-  const notEval = byState("not-evaluable")
+  const flagged = items.filter((i) => i.state === "review")
+  const ok = items.filter((i) => i.state === "normal" || (i.state as string) === "ok")
+  const info = items.filter((i) => i.state === "info")
+  const notEval = items.filter((i) => i.state === "no-evaluable" || (i.state as string) === "not-evaluable")
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>

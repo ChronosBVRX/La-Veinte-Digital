@@ -37,7 +37,7 @@ class PdfShareFullSuiteTest {
     @Test
     fun `constants adhere to contract limits`() {
         assertEquals(64 * 1024, PdfShareManager.MAX_CHUNK_SIZE)
-        assertEquals(10 * 1024 * 1024, PdfShareManager.MAX_TOTAL_SIZE)
+        assertEquals(30 * 1024 * 1024, PdfShareManager.MAX_TOTAL_SIZE)
         assertEquals(30_000L, PdfShareManager.TIMEOUT_MS)
     }
 

@@ -61,6 +61,7 @@ private enum class OfflineFilter(val label: String) {
     TARJETONES("Tarjetones"),
     CHECADAS("Checadas"),
     ESCRITOS("Escritos"),
+    NORMATIVA("Normativa"),
 }
 
 /**
@@ -130,6 +131,8 @@ fun OfflineDocumentsScreen(
                     OfflineDetection.bucketFor(d.source) == OfflineDetection.DocBucket.CHECADAS
                 OfflineFilter.ESCRITOS ->
                     OfflineDetection.bucketFor(d.source) == OfflineDetection.DocBucket.ESCRITO
+                OfflineFilter.NORMATIVA ->
+                    OfflineDetection.bucketFor(d.source) == OfflineDetection.DocBucket.NORMATIVA
             }
         }
     }
@@ -347,6 +350,7 @@ private fun viewerTitle(doc: PayslipDocument): String = when (
 ) {
     OfflineDetection.DocBucket.CHECADAS -> "Checadas"
     OfflineDetection.DocBucket.ESCRITO -> "Escrito"
+    OfflineDetection.DocBucket.NORMATIVA -> if (doc.displayName.contains("Estatuto", ignoreCase = true)) "Estatutos SNTSS" else "Contrato Colectivo"
     else -> "Tarjetón"
 }
 

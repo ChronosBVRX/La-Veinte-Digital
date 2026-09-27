@@ -34,11 +34,12 @@ object OfflineDetection {
         errorCode in CONNECTIVITY_ERRORS
 
     /** Buckets de la pantalla offline a partir del `source` de Room. */
-    enum class DocBucket { TARJETON, CHECADAS, ESCRITO, OTRO }
+    enum class DocBucket { TARJETON, CHECADAS, ESCRITO, NORMATIVA, OTRO }
 
     fun bucketFor(source: String): DocBucket = when {
         source.contains("BIOMETRIC") -> DocBucket.CHECADAS
         source == "ESCRITO" -> DocBucket.ESCRITO
+        source == "NORMATIVA" -> DocBucket.NORMATIVA
         source == "TU_PERFIL" || source == "TARJETON_DIGITAL" -> DocBucket.TARJETON
         else -> DocBucket.OTRO
     }
@@ -47,6 +48,7 @@ object OfflineDetection {
         DocBucket.TARJETON -> "Tarjetón"
         DocBucket.CHECADAS -> "Checadas"
         DocBucket.ESCRITO -> "Escrito"
+        DocBucket.NORMATIVA -> "Normativa"
         DocBucket.OTRO -> "Documento"
     }
 }
