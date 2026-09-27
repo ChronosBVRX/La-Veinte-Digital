@@ -8,6 +8,8 @@ import {
 import { searchGuide } from "../lib/search"
 import { guideConcepts } from "@/data/guia-tarjeton/concepts"
 import { getSourceById } from "@/data/guia-tarjeton/sources"
+import { fieldDetails } from "../data/field-details"
+import { renderLocation } from "../components/FieldFichaPage"
 
 describe("ficha del concepto 104 (CRÉDITO HIPOTECARIO FOVI)", () => {
   const d = conceptDetails["104"]
@@ -120,3 +122,23 @@ describe("registro de fuentes", () => {
     }
   })
 })
+
+describe("ubicación de campos en tarjetón", () => {
+  it("el campo 57 tiene whyItMatters y where delimitados de forma independiente", () => {
+    const f57 = fieldDetails["57"]
+    expect(f57).toBeDefined()
+    expect(f57.whyItMatters).toContain("SMI actúa como base")
+    expect(f57.where).toBe("Receptor — Datos del trabajador.")
+    expect(f57.whyItMatters).not.toContain("Receptor")
+  })
+
+  it("renderLocation genera la estructura esperada para secciones con y sin sub-bloque", () => {
+    const conBloque = renderLocation("Receptor — Datos del trabajador.")
+    expect(conBloque).toBeDefined()
+    const sinBloque = renderLocation("Percepciones.")
+    expect(sinBloque).toBeDefined()
+    const fallback = renderLocation(undefined, "Receptor")
+    expect(fallback).toBeDefined()
+  })
+})
+
