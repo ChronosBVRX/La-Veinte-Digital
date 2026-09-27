@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { CaretRight, GraduationCap, ArrowRight } from "@phosphor-icons/react"
 import { PageHeader } from "@/shared/components/app/PageHeader"
 import { Card } from "@/shared/components/ui/Card"
@@ -14,11 +15,12 @@ export function AprenderPage() {
   const { progress, hydrated } = useGuideProgress()
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto" }}>
+    <div style={{ maxWidth: 800, margin: "0 auto" }}>
       <PageHeader
         eyebrow="Guía de mi Tarjetón"
         title="Aprende desde cero"
         description="Rutas cortas, con micro-lecciones de 30 a 90 segundos, para entender tu tarjetón sin marearte con tecnicismos."
+        backHref="/guia"
       />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -30,19 +32,37 @@ export function AprenderPage() {
             ? path.lessons.find((l) => !progress.completed.includes(l.id)) ?? path.lessons[0]
             : path.lessons[0]
           return (
-            <Card key={path.id} padding="1.25rem 1.5rem">
-              <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
-                <span style={{ fontSize: "1.5rem", lineHeight: 1 }}>{path.emoji}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
+            <Card
+              key={path.id}
+              padding="1.25rem 1.5rem"
+              style={{
+                background: "linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%)",
+                borderColor: "#ddd6fe",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "0.875rem", flexWrap: "wrap" }}>
+                <Image
+                  src="/brand/guia/tile-aprender.jpg"
+                  alt={path.title}
+                  width={56}
+                  height={56}
+                  style={{
+                    borderRadius: 12,
+                    objectFit: "cover",
+                    border: "1px solid #ddd6fe",
+                    flexShrink: 0,
+                  }}
+                />
+                <div style={{ flex: 1, minWidth: "200px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                    <h2 style={{ fontSize: "1rem", fontWeight: 700, margin: 0 }}>{path.title}</h2>
+                    <h2 style={{ fontSize: "1.0625rem", fontWeight: 800, margin: 0 }}>{path.title}</h2>
                     <Badge variant="info">{total} lecciones</Badge>
                   </div>
                   <p style={{ fontSize: "0.8125rem", color: "var(--muted)", lineHeight: 1.5, margin: "0.25rem 0 0.75rem" }}>
                     {path.description}
                   </p>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.875rem" }}>
-                    <div style={{ flex: 1, height: 6, borderRadius: 9999, background: "var(--border)", overflow: "hidden" }}>
+                    <div style={{ flex: 1, height: 8, borderRadius: 9999, background: "#e2e8f0", overflow: "hidden" }}>
                       <div
                         style={{
                           height: "100%",
@@ -53,7 +73,7 @@ export function AprenderPage() {
                         }}
                       />
                     </div>
-                    <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600, flexShrink: 0 }}>
+                    <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 700, flexShrink: 0 }}>
                       {hydrated ? `${done.completed}/${done.total}` : "…"}
                       {done.done && hydrated ? " ✓" : ""}
                     </span>
@@ -64,9 +84,12 @@ export function AprenderPage() {
                       display: "inline-flex",
                       alignItems: "center",
                       gap: "0.375rem",
-                      fontSize: "0.875rem",
-                      fontWeight: 600,
-                      color: "var(--primary)",
+                      padding: "0.45rem 0.875rem",
+                      borderRadius: "var(--radius-sm)",
+                      background: "var(--primary)",
+                      fontSize: "0.8125rem",
+                      fontWeight: 700,
+                      color: "#ffffff",
                       textDecoration: "none",
                     }}
                   >
@@ -79,8 +102,8 @@ export function AprenderPage() {
         })}
       </div>
 
-      <h2 style={{ fontSize: "1.0625rem", fontWeight: 700, margin: "2rem 0 0.75rem" }}>Preguntas cortas</h2>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <h2 style={{ fontSize: "1.0625rem", fontWeight: 800, margin: "2rem 0 0.75rem" }}>Preguntas cortas</h2>
+      <div className="aprender-quick-grid">
         {guideQuickLessons.map((item) => {
           const href =
             item.ref.startsWith("lesson:")
@@ -94,16 +117,31 @@ export function AprenderPage() {
                 display: "flex",
                 alignItems: "center",
                 gap: "0.625rem",
-                padding: "0.75rem",
+                padding: "0.75rem 0.875rem",
                 borderRadius: "var(--radius-md)",
                 background: "var(--card)",
                 border: "1px solid var(--border)",
+                borderLeft: "3px solid var(--primary)",
                 textDecoration: "none",
                 transition: "border-color var(--transition)",
               }}
             >
-              <span style={{ fontSize: "1.125rem", lineHeight: 1 }}>{item.emoji}</span>
-              <span style={{ flex: 1, fontSize: "0.875rem", fontWeight: 600, color: "var(--fg)" }}>{item.title}</span>
+              <span
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  background: "var(--accent)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "1.125rem",
+                  flexShrink: 0,
+                }}
+              >
+                {item.emoji}
+              </span>
+              <span style={{ flex: 1, fontSize: "0.875rem", fontWeight: 700, color: "var(--fg)" }}>{item.title}</span>
               <CaretRight size={14} color="var(--muted)" />
             </Link>
           )
@@ -125,6 +163,19 @@ export function AprenderPage() {
           <GraduationCap size={18} /> Volver a la guía
         </Link>
       </div>
+
+      <style>{`
+        .aprender-quick-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 0.5rem;
+        }
+        @media (min-width: 680px) {
+          .aprender-quick-grid {
+            grid-template-columns: 1fr 1fr;
+          }
+        }
+      `}</style>
     </div>
   )
 }

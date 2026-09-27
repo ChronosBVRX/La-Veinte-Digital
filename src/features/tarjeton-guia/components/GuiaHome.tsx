@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import {
-  Sparkle,
   ArrowRight,
   Lightbulb,
   CaretRight,
@@ -173,18 +173,46 @@ export function GuiaHome({ data, userId }: { data: GuiaHomeServerData; userId: s
 
   const tip = guideTips[tipIndex]
   const gridItems = [
-    { href: "/guia/conceptos", emoji: "🔎", title: "Buscar concepto", description: "¿Qué significa 032, 033, 108…?" },
-    { href: "/guia/tarjeton", emoji: "🧾", title: "Conoce tu tarjetón", description: "Aprende para qué sirve cada sección." },
-    { href: "/guia/conceptos?tab=deducciones", emoji: "💰", title: "Pagos y descuentos", description: "Descubre de dónde viene cada cantidad." },
-    { href: "/guia/aprender", emoji: "🎓", title: "Aprende desde cero", description: "Una guía sencilla paso a paso." },
+    {
+      href: "/guia/conceptos",
+      image: "/brand/guia/tile-buscar.jpg",
+      badge: "Claves 001–199",
+      accent: "#2563eb",
+      title: "Buscar concepto",
+      description: "¿Qué significa 032, 033, 154, 190…?",
+    },
+    {
+      href: "/guia/tarjeton",
+      image: "/brand/guia/tile-anatomia.jpg",
+      badge: "Mapa 77 campos",
+      accent: "#1b5e20",
+      title: "Conoce tu tarjetón",
+      description: "Explora cada columna y sección del recibo.",
+    },
+    {
+      href: "/guia/conceptos?tab=deducciones",
+      image: "/brand/guia/tile-pagos.jpg",
+      badge: "+ Pagos / − Descuentos",
+      accent: "#047857",
+      title: "Pagos y descuentos",
+      description: "Distingue lo que suma de lo que te retienen.",
+    },
+    {
+      href: "/guia/aprender",
+      image: "/brand/guia/tile-aprender.jpg",
+      badge: "8 micro-lecciones",
+      accent: "#6d28d9",
+      title: "Aprende desde cero",
+      description: "Una guía sencilla paso a paso y a tu ritmo.",
+    },
   ]
 
   return (
-    <div style={{ maxWidth: 880, margin: "0 auto" }}>
+    <div style={{ maxWidth: 920, margin: "0 auto" }}>
       <PageHeader
         eyebrow="Guía"
         title="Guía de mi Tarjetón"
-        description="Aprende a leer cada concepto, verificar tus descuentos y proteger tu salario quincenal."
+        description="Aprende a leer cada concepto, ubicar las columnas de tu recibo y verificar tus descuentos quincenales."
       />
 
       {data.serverError && (
@@ -208,47 +236,77 @@ export function GuiaHome({ data, userId }: { data: GuiaHomeServerData; userId: s
       )}
 
       {/* Quincena Hero */}
-      <Card padding="1.25rem" style={{ marginTop: "1rem" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
-          <span
+      <Card
+        padding="1.25rem"
+        style={{
+          marginTop: "1rem",
+          background: "linear-gradient(135deg, #f0fdf4 0%, #ffffff 60%, #eff6ff 100%)",
+          borderColor: "#bbf7d0",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "0.875rem" }}>
+          <Image
+            src="/brand/guia/hero-emblem.jpg"
+            alt="Guía de mi Tarjetón IMSS"
+            width={64}
+            height={64}
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 38,
-              height: 38,
-              borderRadius: "var(--radius-md)",
-              background: "var(--accent)",
+              borderRadius: 14,
+              objectFit: "cover",
+              border: "1.5px solid #86efac",
+              boxShadow: "0 4px 12px rgba(27, 94, 32, 0.12)",
               flexShrink: 0,
             }}
-          >
-            <Sparkle size={22} weight="duotone" color="var(--primary)" />
-          </span>
+          />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.25rem" }}>
+            <span
+              style={{
+                display: "inline-block",
+                fontSize: "0.6875rem",
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+                color: "#1b5e20",
+                background: "#dcfce7",
+                padding: "0.125rem 0.5rem",
+                borderRadius: 9999,
+                marginBottom: "0.25rem",
+              }}
+            >
+              {hasPayslip ? "Recibo sincronizado" : "Análisis interactivo"}
+            </span>
+            <h2 style={{ fontSize: "1.1875rem", fontWeight: 800, margin: "0 0 0.2rem", color: "var(--fg)" }}>
               {hasPayslip ? "Tu quincena, explicada" : "✨ Entiende tu última quincena"}
             </h2>
-            <p style={{ fontSize: "0.875rem", color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
-              {hasPayslip
-                ? "Te explicamos cada pago y descuento utilizando tu tarjetón."
-                : "Te explicamos cada pago y descuento utilizando tu tarjetón."}
+            <p style={{ fontSize: "0.84375rem", color: "var(--muted)", margin: 0, lineHeight: 1.45 }}>
+              Te explicamos cada pago (+), descuento (−) y observación utilizando tu tarjetón.
             </p>
           </div>
         </div>
 
         {hasPayslip ? (
           <div style={{ marginTop: "1rem" }}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, 1fr)",
-                gap: "0.5rem",
-              }}
-            >
-              <SummaryStat label="Periodo" value={stats.periodRaw ?? data.periodRaw ?? "—"} />
-              <SummaryStat label="Líquido" value={stats.netPay != null ? formatMoney(stats.netPay) : "—"} />
-              <SummaryStat label="Percepciones" value={String(stats.earningsCount ?? 0)} />
-              <SummaryStat label="Deducciones" value={String(stats.deductionsCount ?? 0)} />
+            <div className="guia-hero-stats-grid">
+              <SummaryStat
+                label="Periodo (Campo 40)"
+                value={stats.periodRaw ?? data.periodRaw ?? "—"}
+                tone="neutral"
+              />
+              <SummaryStat
+                label="Líquido Neto (Campo 70)"
+                value={stats.netPay != null ? formatMoney(stats.netPay) : "—"}
+                tone="net"
+              />
+              <SummaryStat
+                label="+ Percepciones"
+                value={`${stats.earningsCount ?? 0} conceptos`}
+                tone="perception"
+              />
+              <SummaryStat
+                label="− Deducciones"
+                value={`${stats.deductionsCount ?? 0} conceptos`}
+                tone="deduction"
+              />
             </div>
 
             {autoAnalyzing && (
@@ -350,8 +408,8 @@ export function GuiaHome({ data, userId }: { data: GuiaHomeServerData; userId: s
         )}
       </Card>
 
-      {/* Grid 2×2 */}
-      <h2 className="guia-section-title">¿Qué quieres entender hoy?</h2>
+      {/* Grid 2×2 / 4×1 con ilustraciones */}
+      <h2 className="guia-section-title" style={{ marginTop: "1.75rem" }}>¿Qué quieres entender hoy?</h2>
       <div className="guia-grid">
         {gridItems.map((item) => (
           <Link
@@ -361,20 +419,59 @@ export function GuiaHome({ data, userId }: { data: GuiaHomeServerData; userId: s
             style={{
               background: "var(--card)",
               border: "1px solid var(--border)",
+              borderTop: `3px solid ${item.accent}`,
               borderRadius: "var(--radius-lg)",
               padding: "1rem",
               textDecoration: "none",
               display: "flex",
               flexDirection: "column",
               gap: "0.5rem",
-              minHeight: "9.5rem",
+              minHeight: "11rem",
               transition: "transform var(--transition), box-shadow var(--transition), border-color var(--transition)",
             }}
           >
-            <span style={{ fontSize: "1.5rem", lineHeight: 1 }}>{item.emoji}</span>
-            <span style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)" }}>{item.title}</span>
-            <span style={{ fontSize: "0.8125rem", color: "var(--muted)", lineHeight: 1.45 }}>{item.description}</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", color: "var(--primary)", fontSize: "0.8125rem", fontWeight: 600, marginTop: "auto" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+              <Image
+                src={item.image}
+                alt={item.title}
+                width={48}
+                height={48}
+                style={{
+                  borderRadius: 10,
+                  objectFit: "cover",
+                  border: "1px solid var(--border)",
+                }}
+              />
+              <span
+                style={{
+                  fontSize: "0.6875rem",
+                  fontWeight: 700,
+                  padding: "0.15rem 0.45rem",
+                  borderRadius: 9999,
+                  background: `color-mix(in srgb, ${item.accent} 10%, #ffffff)`,
+                  color: item.accent,
+                }}
+              >
+                {item.badge}
+              </span>
+            </div>
+            <span style={{ fontSize: "0.9375rem", fontWeight: 800, color: "var(--fg)", marginTop: "0.25rem" }}>
+              {item.title}
+            </span>
+            <span style={{ fontSize: "0.8125rem", color: "var(--muted)", lineHeight: 1.45 }}>
+              {item.description}
+            </span>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.25rem",
+                color: item.accent,
+                fontSize: "0.8125rem",
+                fontWeight: 700,
+                marginTop: "auto",
+              }}
+            >
               Explorar <ArrowRight size={12} />
             </span>
           </Link>
@@ -383,7 +480,7 @@ export function GuiaHome({ data, userId }: { data: GuiaHomeServerData; userId: s
 
       {/* Aprende algo en 1 minuto */}
       <h2 className="guia-section-title" style={{ marginTop: "2rem" }}>Aprende algo en 1 minuto</h2>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <div className="guia-quick-lessons-grid">
         {guideQuickLessons.map((item) => {
           const href =
             item.ref.startsWith("lesson:")
@@ -397,16 +494,31 @@ export function GuiaHome({ data, userId }: { data: GuiaHomeServerData; userId: s
                 display: "flex",
                 alignItems: "center",
                 gap: "0.625rem",
-                padding: "0.75rem",
+                padding: "0.75rem 0.875rem",
                 borderRadius: "var(--radius-md)",
                 background: "var(--card)",
                 border: "1px solid var(--border)",
+                borderLeft: "3px solid var(--primary)",
                 textDecoration: "none",
                 transition: "border-color var(--transition)",
               }}
             >
-              <span style={{ fontSize: "1.125rem", lineHeight: 1 }}>{item.emoji}</span>
-              <span style={{ flex: 1, fontSize: "0.875rem", fontWeight: 600, color: "var(--fg)" }}>{item.title}</span>
+              <span
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  background: "var(--accent)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "1.125rem",
+                  flexShrink: 0,
+                }}
+              >
+                {item.emoji}
+              </span>
+              <span style={{ flex: 1, fontSize: "0.84375rem", fontWeight: 700, color: "var(--fg)" }}>{item.title}</span>
               <CaretRight size={14} color="var(--muted)" />
             </Link>
           )
@@ -414,12 +526,21 @@ export function GuiaHome({ data, userId }: { data: GuiaHomeServerData; userId: s
       </div>
 
       {/* ¿Sabías que? */}
-      <Card padding="1rem 1.25rem" style={{ marginTop: "2rem" }}>
+      <Card
+        padding="1rem 1.25rem"
+        style={{
+          marginTop: "1.75rem",
+          background: "#fffbeb",
+          borderColor: "#fde68a",
+        }}
+      >
         <div style={{ display: "flex", alignItems: "flex-start", gap: "0.625rem" }}>
-          <Lightbulb size={22} weight="fill" color="var(--warning)" style={{ flexShrink: 0, marginTop: 2 }} />
+          <Lightbulb size={22} weight="fill" color="#d97706" style={{ flexShrink: 0, marginTop: 2 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: "0.875rem", margin: "0 0 0.25rem" }}>¿Sabías que?</div>
-            <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0, lineHeight: 1.55 }}>{tip.text}</p>
+            <div style={{ fontWeight: 800, fontSize: "0.875rem", margin: "0 0 0.25rem", color: "#92400e" }}>
+              ¿Sabías que?
+            </div>
+            <p style={{ fontSize: "0.8125rem", color: "#78350f", margin: 0, lineHeight: 1.55 }}>{tip.text}</p>
             {tip.href && (
               <Link
                 href={tip.href}
@@ -429,8 +550,8 @@ export function GuiaHome({ data, userId }: { data: GuiaHomeServerData; userId: s
                   gap: "0.25rem",
                   marginTop: "0.5rem",
                   fontSize: "0.8125rem",
-                  fontWeight: 600,
-                  color: "var(--primary)",
+                  fontWeight: 700,
+                  color: "#b45309",
                   textDecoration: "none",
                 }}
               >
@@ -444,17 +565,37 @@ export function GuiaHome({ data, userId }: { data: GuiaHomeServerData; userId: s
       <style>{`
         .guia-section-title {
           font-size: 1.0625rem;
-          font-weight: 700;
+          font-weight: 800;
           margin: 0 0 0.75rem;
+        }
+        .guia-hero-stats-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.5rem;
+        }
+        @media (min-width: 680px) {
+          .guia-hero-stats-grid {
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+          }
         }
         .guia-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 0.75rem;
         }
-        @media (min-width: 720px) {
+        @media (min-width: 760px) {
           .guia-grid {
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+          }
+        }
+        .guia-quick-lessons-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 0.5rem;
+        }
+        @media (min-width: 680px) {
+          .guia-quick-lessons-grid {
+            grid-template-columns: 1fr 1fr;
           }
         }
         .guia-grid-card:hover {
@@ -467,19 +608,51 @@ export function GuiaHome({ data, userId }: { data: GuiaHomeServerData; userId: s
   )
 }
 
-function SummaryStat({ label, value }: { label: string; value: string }) {
+function SummaryStat({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string
+  value: string
+  tone?: "neutral" | "net" | "perception" | "deduction"
+}) {
+  const palette = {
+    neutral: { bg: "#ffffff", border: "1px solid var(--border)", labelColor: "var(--muted)", valColor: "var(--fg)" },
+    net: { bg: "#1b5e20", border: "1px solid #14532d", labelColor: "#bbf7d0", valColor: "#ffffff" },
+    perception: { bg: "#ecfdf5", border: "1px solid #a7f3d0", labelColor: "#047857", valColor: "#065f46" },
+    deduction: { bg: "#fff1f2", border: "1px solid #fecdd3", labelColor: "#be123c", valColor: "#881337" },
+  }[tone]
+
   return (
     <div
       style={{
         padding: "0.625rem 0.75rem",
         borderRadius: "var(--radius-sm)",
-        background: "var(--accent)",
+        background: palette.bg,
+        border: palette.border,
       }}
     >
-      <div style={{ fontSize: "0.6875rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 600 }}>
+      <div
+        style={{
+          fontSize: "0.6875rem",
+          color: palette.labelColor,
+          textTransform: "uppercase",
+          letterSpacing: "0.04em",
+          fontWeight: 700,
+        }}
+      >
         {label}
       </div>
-      <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", marginTop: "0.125rem", overflowWrap: "anywhere" }}>
+      <div
+        style={{
+          fontSize: "0.9375rem",
+          fontWeight: 800,
+          color: palette.valColor,
+          marginTop: "0.125rem",
+          overflowWrap: "anywhere",
+        }}
+      >
         {value}
       </div>
     </div>

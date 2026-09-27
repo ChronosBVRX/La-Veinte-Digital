@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { CaretRight, CaretDown, Calculator, Question } from "@phosphor-icons/react"
+import { CaretRight, CaretDown, Calculator, Question, PlusCircle, MinusCircle } from "@phosphor-icons/react"
 import type { CSSProperties, ReactNode } from "react"
 import { PageHeader } from "@/shared/components/app/PageHeader"
 import { Card } from "@/shared/components/ui/Card"
@@ -12,6 +12,11 @@ import { normalizeCode } from "@/features/tarjeton-guia/lib/normalize"
 import type { GuideDetailContent } from "@/features/tarjeton-guia/data/concept-details"
 import type { GuideVerificationLevel, VerificationState } from "@/features/tarjeton-guia/lib/types"
 import { VerificationCard } from "@/features/tarjeton-guia/components/VerificationCard"
+import { TarjetonMiniMap } from "./TarjetonAnatomyDiagram"
+
+const CONCEPTS_WITH_OBSERVACIONES = new Set([
+  "032", "033", "104", "106", "130", "133", "136", "150", "154", "160", "166", "170", "189", "190", "192", "365", "390", "392",
+])
 
 function levelFromVerification(v: VerificationState | undefined): GuideVerificationLevel {
   switch (v) {
@@ -43,27 +48,68 @@ export function ConceptFichaPage({ code }: { code: string }) {
     )
   }
 
-  const kind = entry.kind === "perception" ? "Percepción" : "Deducción"
+  const isPerception = entry.kind === "perception"
+  const kind = isPerception ? "Percepción" : "Deducción"
+  const accentColor = isPerception ? "#047857" : "#be123c"
+  const softBg = isPerception ? "#ecfdf5" : "#fff1f2"
+  const borderAccent = isPerception ? "#a7f3d0" : "#fecdd3"
   const d = entry.details
   const relations = getRelationsForConcept(entry.code)
   const level: GuideVerificationLevel = d?.level ?? levelFromVerification(d?.verification)
   const hasSources = !!d?.sources?.length
   const showLegacyNote = !!d?.legacyNotes || level === "historically_identified" || !d?.directSource
+  const hasObservacionesLink = CONCEPTS_WITH_OBSERVACIONES.has(entry.code)
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto" }}>
+    <div style={{ maxWidth: 760, margin: "0 auto" }}>
       <PageHeader
         eyebrow="Guía de conceptos"
         title={`${entry.code} · ${displayName(entry.name)}`}
         backHref="/guia/conceptos"
       />
 
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap" }}>
-        <Badge variant={kind === "Percepción" ? "info" : "warning"}>{kind}</Badge>
-        {d?.descriptor && <Badge variant="neutral">{d.descriptor}</Badge>}
+      {/* Franja de identidad visual del concepto (+ Percepción vs − Deducción) */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "0.75rem",
+          flexWrap: "wrap",
+          padding: "0.75rem 1rem",
+          borderRadius: "var(--radius-md)",
+          background: softBg,
+          border: `1.5px solid ${borderAccent}`,
+          marginBottom: "1rem",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", flexWrap: "wrap" }}>
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.3rem",
+              padding: "0.25rem 0.65rem",
+              borderRadius: 6,
+              background: accentColor,
+              color: "#ffffff",
+              fontFamily: "monospace",
+              fontWeight: 800,
+              fontSize: "0.875rem",
+            }}
+          >
+            {isPerception ? <PlusCircle size={16} weight="fill" /> : <MinusCircle size={16} weight="fill" />}
+            {isPerception ? `+${entry.code}` : `−${entry.code}`}
+          </span>
+          <Badge variant={isPerception ? "info" : "warning"}>{kind}</Badge>
+          {d?.descriptor && <Badge variant="neutral">{d.descriptor}</Badge>}
+        </div>
+        <span style={{ fontSize: "0.75rem", fontWeight: 700, color: accentColor }}>
+          {isPerception ? "Suma a tus percepciones (Col. Izquierda)" : "Se descuenta en deducciones (Col. Derecha)"}
+        </span>
       </div>
 
-      <Card padding="1.5rem" style={{ marginBottom: "1rem" }}>
+      <Card padding="1.5rem" style={{ marginBottom: "1rem", borderLeft: `4px solid ${accentColor}` }}>
         <Section title="En pocas palabras" divider={false}>
           <p style={para()}>
             {d?.simple ??
@@ -94,7 +140,7 @@ export function ConceptFichaPage({ code }: { code: string }) {
                   key={a}
                   style={{ display: "flex", gap: "0.5rem", alignItems: "baseline", fontSize: "0.8125rem", color: "var(--muted)", lineHeight: 1.5 }}
                 >
-                  <span style={{ color: "var(--primary)", flexShrink: 0 }}>·</span>
+                  <span style={{ color: accentColor, fontWeight: 800, flexShrink: 0 }}>·</span>
                   <span>{a}</span>
                 </div>
               ))}
@@ -141,6 +187,38 @@ export function ConceptFichaPage({ code }: { code: string }) {
         )}
       </Card>
 
+      {/* Mini-Localizador visual en el tarjetón */}
+      <Card padding="1.25rem 1.5rem" style={{ marginBottom: "1rem" }}>
+        <h3 style={{ fontSize: "0.9375rem", fontWeight: 700, margin: "0 0 0.375rem" }}>
+          ¿Dónde ubicar el concepto {entry.code} en tu tarjetón?
+        </h3>
+        <p style={para({ marginBottom: "0.75rem" })}>
+          {isPerception ? (
+            <>
+              Búscalo en la tabla central de <strong>Percepciones (mitad izquierda, campos 60–64)</strong>.
+            </>
+          ) : (
+            <>
+              Búscalo en la tabla central de <strong>Deducciones (mitad derecha, campos 65–69)</strong>.
+            </>
+          )}{" "}
+          {hasObservacionesLink && (
+            <>
+              Además, este código suele desglosar información clave abajo en la tabla de <strong>Observaciones (campos 71–77)</strong>, como vencimiento, unidades, cargo inicial o saldo pendiente.
+            </>
+          )}
+        </p>
+        <TarjetonMiniMap
+          activeSection="percepciones-deducciones"
+          highlightTarget={{
+            section: "percepciones-deducciones",
+            subZone: isPerception ? "percepciones" : "deducciones",
+            badgeLabel: `${isPerception ? "+" : "−"}${entry.code} · ${kind}`,
+          }}
+          compact
+        />
+      </Card>
+
       {relations.length > 0 && <Relations relations={relations} />}
 
       <div style={{ display: "flex", gap: "0.5rem", marginTop: "1.25rem", flexWrap: "wrap" }}>
@@ -185,7 +263,7 @@ function legacyNoteFor(d: GuideDetailContent | null, level: GuideVerificationLev
 function Relations({ relations }: { relations: ReturnType<typeof getRelationsForConcept> }) {
   return (
     <Card padding="1rem 1.25rem" style={{ marginTop: "1rem" }}>
-      <div style={{ fontWeight: 600, fontSize: "0.9375rem", margin: "0 0 0.625rem" }}>Esto se relaciona con…</div>
+      <div style={{ fontWeight: 700, fontSize: "0.9375rem", margin: "0 0 0.625rem" }}>Esto se relaciona con…</div>
       <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
         {relations.map((r) => {
           const href = resolveRefHref(r.ref)
@@ -203,6 +281,7 @@ function Relations({ relations }: { relations: ReturnType<typeof getRelationsFor
                 padding: "0.625rem 0.75rem",
                 borderRadius: "var(--radius-sm)",
                 background: "var(--accent)",
+                border: "1px solid var(--border)",
                 textDecoration: "none",
               }}
             >

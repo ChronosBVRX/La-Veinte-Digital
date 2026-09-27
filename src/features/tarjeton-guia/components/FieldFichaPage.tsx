@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import type { CSSProperties, ReactNode } from "react"
-import { CaretRight, Question } from "@phosphor-icons/react"
+import { CaretRight, Question, MapPin } from "@phosphor-icons/react"
 import { PageHeader } from "@/shared/components/app/PageHeader"
 import { Card } from "@/shared/components/ui/Card"
 import { Badge } from "@/shared/components/ui/Badge"
@@ -12,6 +12,7 @@ import { fieldDetails } from "@/features/tarjeton-guia/data/field-details"
 import { VerificationCard } from "@/features/tarjeton-guia/components/VerificationCard"
 import { GUIDE_FIELD_CONTENT_BY_ID, GUIDE_SECTION_FIELD_RANGES } from "@/data/guia-tarjeton/guide-fields-content"
 import { guideSections } from "@/data/guia-tarjeton/sections"
+import { TarjetonMiniMap, getFieldVisualLocation } from "./TarjetonAnatomyDiagram"
 
 export function FieldFichaPage({ id }: { id: string | number }) {
   const field = getGuideField(id)
@@ -36,17 +37,34 @@ export function FieldFichaPage({ id }: { id: string | number }) {
   const section = guideSections.find((s) => s.id === sectionId)
   const relations = getFieldRelations(field.id)
   const hasEnough = !!curated?.simple || !!kp?.easy
+  const visualLoc = getFieldVisualLocation(field.id)
 
   return (
-    <div style={{ maxWidth: 720, margin: "0 auto" }}>
+    <div style={{ maxWidth: 760, margin: "0 auto" }}>
       <PageHeader
         eyebrow="Guía de campos"
         title={`${field.id} · ${titleCase(field.name)}`}
         backHref="/guia/tarjeton"
       />
 
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap" }}>
-        <Badge variant="info">Campo del tarjetón</Badge>
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap", alignItems: "center" }}>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.3rem",
+            padding: "0.2rem 0.6rem",
+            borderRadius: 9999,
+            background: `color-mix(in srgb, ${visualLoc.accentColor} 12%, #ffffff)`,
+            border: `1px solid color-mix(in srgb, ${visualLoc.accentColor} 30%, transparent)`,
+            color: visualLoc.accentColor,
+            fontSize: "0.75rem",
+            fontWeight: 800,
+          }}
+        >
+          <MapPin size={13} weight="fill" /> {visualLoc.columnTitle}
+        </span>
+        <Badge variant="info">Campo #{field.id}</Badge>
         <Badge variant="work">{section?.name ?? "Sección del recibo"}</Badge>
       </div>
 
@@ -56,23 +74,33 @@ export function FieldFichaPage({ id }: { id: string | number }) {
 
       {hasEnough ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          <Card padding="1.25rem 1.5rem">
+          <Card padding="1.25rem 1.5rem" style={{ borderLeft: `4px solid ${visualLoc.accentColor}` }}>
             <SectionTitle>¿Qué es?</SectionTitle>
             <p style={para()}>{curated?.simple ?? kp?.easy}</p>
           </Card>
 
           {(curated?.whyItMatters || kp?.whenToCheck) && (
-            <Card padding="1.25rem 1.5rem">
+            <Card padding="1.25rem 1.5rem" style={{ borderLeft: "4px solid var(--primary)" }}>
               <SectionTitle>¿Para qué me sirve?</SectionTitle>
               <p style={para()}>{curated?.whyItMatters ?? kp?.whenToCheck}</p>
             </Card>
           )}
 
           <Card padding="1.25rem 1.5rem">
-            <SectionTitle>¿Dónde aparece?</SectionTitle>
-            <p style={para()}>
-              {renderLocation(curated?.where, section?.name)}
+            <SectionTitle>¿Dónde aparece en tu tarjetón?</SectionTitle>
+            <p style={para({ marginBottom: "0.875rem" })}>
+              {renderLocation(curated?.where, section?.name)}{" "}
+              <span style={{ color: "var(--muted)" }}>({visualLoc.columnTitle})</span>
             </p>
+            <TarjetonMiniMap
+              activeSection={visualLoc.section}
+              highlightTarget={{
+                section: visualLoc.section,
+                subZone: visualLoc.subZone,
+                badgeLabel: visualLoc.badgeLabel,
+              }}
+              compact
+            />
           </Card>
         </div>
       ) : (
@@ -86,11 +114,12 @@ export function FieldFichaPage({ id }: { id: string | number }) {
 
       {relations.length > 0 && (
         <Card padding="1rem 1.25rem" style={{ marginTop: "1rem" }}>
-          <div style={{ fontWeight: 600, fontSize: "0.9375rem", margin: "0 0 0.625rem" }}>Esto se relaciona con…</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <div style={{ fontWeight: 700, fontSize: "0.9375rem", margin: "0 0 0.625rem" }}>Esto se relaciona con…</div>
+          <div className="field-ficha-relations-grid">
             {relations.map((r) => {
               const href = resolveRefHref(r.ref)
               if (!href) return null
+              const isConcept = r.ref.startsWith("concept:")
               return (
                 <Link
                   key={r.ref}
@@ -102,7 +131,8 @@ export function FieldFichaPage({ id }: { id: string | number }) {
                     gap: "0.5rem",
                     padding: "0.625rem 0.75rem",
                     borderRadius: "var(--radius-sm)",
-                    background: "var(--accent)",
+                    background: isConcept ? "#f0fdf4" : "var(--accent)",
+                    border: isConcept ? "1px solid #bbf7d0" : "1px solid var(--border)",
                     textDecoration: "none",
                   }}
                 >
@@ -119,6 +149,19 @@ export function FieldFichaPage({ id }: { id: string | number }) {
         <ActionLink href="/guia/tarjeton" variant="secondary" size="md">Ver todo el tarjetón</ActionLink>
         <ActionLink href="/guia/conceptos" variant="ghost" size="md">Explorar conceptos</ActionLink>
       </div>
+
+      <style>{`
+        .field-ficha-relations-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 0.5rem;
+        }
+        @media (min-width: 640px) {
+          .field-ficha-relations-grid {
+            grid-template-columns: 1fr 1fr;
+          }
+        }
+      `}</style>
     </div>
   )
 }

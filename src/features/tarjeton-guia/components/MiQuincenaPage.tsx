@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import type { CSSProperties } from "react"
 import Link from "next/link"
-import { CaretLeft, CaretRight, Receipt, ShieldCheck, ArrowsClockwise, ArrowRight } from "@phosphor-icons/react"
+import Image from "next/image"
+import { CaretLeft, CaretRight, ShieldCheck, ArrowsClockwise, ArrowRight } from "@phosphor-icons/react"
 import { PageHeader } from "@/shared/components/app/PageHeader"
 import { PageContainer } from "@/shared/components/layout/PageContainer"
 import { Card } from "@/shared/components/ui/Card"
@@ -66,8 +67,31 @@ export function MiQuincenaPage({
           title="Mi quincena explicada"
           description="Explicamos cada pago y descuento de tu tarjetón, paso a paso y en un lenguaje sencillo."
         />
-        <Card padding="clamp(1rem, 3vw, 1.5rem)" style={{ textAlign: "center", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
-          <Receipt size={32} color="var(--muted)" style={{ margin: "0 auto 0.75rem" }} />
+        <Card
+          padding="clamp(1rem, 3vw, 1.5rem)"
+          style={{
+            textAlign: "center",
+            width: "100%",
+            maxWidth: "100%",
+            minWidth: 0,
+            boxSizing: "border-box",
+            background: "linear-gradient(135deg, #f0fdf4 0%, #ffffff 70%)",
+            borderColor: "#bbf7d0",
+          }}
+        >
+          <Image
+            src="/brand/guia/hero-emblem.jpg"
+            alt="Mi quincena explicada"
+            width={72}
+            height={72}
+            style={{
+              borderRadius: 16,
+              objectFit: "cover",
+              border: "1.5px solid #86efac",
+              margin: "0 auto 0.75rem",
+              display: "block",
+            }}
+          />
           {serverError ? (
             <div role="alert" style={{ marginBottom: "1rem" }}>
               <p style={{ fontSize: "0.9375rem", fontWeight: 700, margin: "0 0 0.25rem", color: "#991b1b", wordBreak: "break-word" }}>
@@ -248,7 +272,19 @@ function ExplainTab({
       )}
 
       {/* Paso */}
-      <Card padding="clamp(0.875rem, 3vw, 1.25rem)" variant="highlighted" style={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
+      <Card
+        padding="clamp(0.875rem, 3vw, 1.25rem)"
+        variant="highlighted"
+        style={{
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          boxSizing: "border-box",
+          borderLeft: step.line
+            ? `4px solid ${step.line.kind === "deduction" ? "#e11d48" : "#059669"}`
+            : "4px solid #1b5e20",
+        }}
+      >
         <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", width: "100%", minWidth: 0 }}>
           <span style={{ fontSize: "1.75rem", lineHeight: 1, flexShrink: 0 }}>{step.emoji}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -263,7 +299,8 @@ function ExplainTab({
                   marginTop: "0.75rem",
                   padding: "0.625rem 0.75rem",
                   borderRadius: "var(--radius-sm)",
-                  background: "var(--accent)",
+                  background: step.line.kind === "deduction" ? "#fff1f2" : "#ecfdf5",
+                  border: `1px solid ${step.line.kind === "deduction" ? "#fecdd3" : "#a7f3d0"}`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
@@ -274,8 +311,23 @@ function ExplainTab({
                   boxSizing: "border-box",
                 }}
               >
-                <span style={{ fontSize: "0.78125rem", color: "var(--muted)" }}>Importe</span>
-                <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--fg)" }}>
+                <span
+                  style={{
+                    fontSize: "0.78125rem",
+                    fontWeight: 700,
+                    color: step.line.kind === "deduction" ? "#be123c" : "#047857",
+                  }}
+                >
+                  {step.line.kind === "deduction" ? `− Descuento (${step.line.code})` : `+ Percepción (${step.line.code})`}
+                </span>
+                <span
+                  style={{
+                    fontSize: "0.9375rem",
+                    fontWeight: 800,
+                    fontFamily: "monospace",
+                    color: step.line.kind === "deduction" ? "#881337" : "#065f46",
+                  }}
+                >
                   {formatMoney(Math.abs(step.line.amount))}
                 </span>
               </div>
@@ -287,13 +339,14 @@ function ExplainTab({
                   padding: "0.625rem 0.75rem",
                   borderRadius: "var(--radius-sm)",
                   background: "#fffbeb",
+                  border: "1px solid #fde68a",
                   fontSize: "0.78125rem",
-                  color: "var(--warning)",
+                  color: "#92400e",
                   lineHeight: 1.5,
                   wordBreak: "break-word",
                 }}
               >
-                En Observaciones: {step.observationText}
+                <strong>En Observaciones (Campos 71–77):</strong> {step.observationText}
               </p>
             )}
             {step.cta && (
@@ -320,10 +373,10 @@ function ExplainTab({
             minWidth: 0,
             boxSizing: "border-box",
           }}>
-            <SummaryStat label="Percepciones" value={summary.totalEarnings != null ? formatMoney(summary.totalEarnings) : "—"} />
-            <SummaryStat label="Deducciones" value={summary.totalDeductions != null ? formatMoney(summary.totalDeductions) : "—"} />
-            <SummaryStat label="Neto / Líquido" value={summary.netPay != null ? formatMoney(summary.netPay) : "—"} />
-            <SummaryStat label="Conceptos detectados" value={`${summary.perceptions} perc. · ${summary.deductions} ded.`} />
+            <SummaryStat label="+ Percepciones" value={summary.totalEarnings != null ? formatMoney(summary.totalEarnings) : "—"} tone="perception" />
+            <SummaryStat label="− Deducciones" value={summary.totalDeductions != null ? formatMoney(summary.totalDeductions) : "—"} tone="deduction" />
+            <SummaryStat label="Neto / Líquido" value={summary.netPay != null ? formatMoney(summary.netPay) : "—"} tone="net" />
+            <SummaryStat label="Conceptos detectados" value={`${summary.perceptions} perc. · ${summary.deductions} ded.`} tone="neutral" />
           </div>
         </Card>
       )}
@@ -363,21 +416,37 @@ function ExplainTab({
   )
 }
 
-function SummaryStat({ label, value }: { label: string; value: string }) {
+function SummaryStat({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string
+  value: string
+  tone?: "neutral" | "perception" | "deduction" | "net"
+}) {
+  const palette = {
+    neutral: { bg: "var(--accent)", border: "1px solid var(--border)", labelColor: "var(--muted)", valColor: "var(--fg)" },
+    perception: { bg: "#ecfdf5", border: "1px solid #a7f3d0", labelColor: "#047857", valColor: "#065f46" },
+    deduction: { bg: "#fff1f2", border: "1px solid #fecdd3", labelColor: "#be123c", valColor: "#881337" },
+    net: { bg: "#1b5e20", border: "1px solid #14532d", labelColor: "#bbf7d0", valColor: "#ffffff" },
+  }[tone]
+
   return (
     <div
       style={{
         padding: "0.625rem 0.75rem",
         borderRadius: "var(--radius-sm)",
-        background: "var(--accent)",
+        background: palette.bg,
+        border: palette.border,
         minWidth: 0,
         boxSizing: "border-box",
       }}
     >
-      <div style={{ fontSize: "0.6875rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 600, wordBreak: "break-word" }}>
+      <div style={{ fontSize: "0.6875rem", color: palette.labelColor, textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 700, wordBreak: "break-word" }}>
         {label}
       </div>
-      <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--fg)", marginTop: "0.125rem", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+      <div style={{ fontSize: "0.875rem", fontWeight: 800, color: palette.valColor, marginTop: "0.125rem", wordBreak: "break-word", overflowWrap: "anywhere" }}>
         {value}
       </div>
     </div>
