@@ -4,6 +4,7 @@ import type {
   RowIssue,
   AssociatedConcept,
 } from "./types";
+import { canonicalizeCategoryName } from "../../lib/category-normalizer";
 
 // Catálogo de Conceptos Asociados (C A) según procedimiento de actualización de plazas SIAP
 // (Bitmask de 5 posiciones)
@@ -654,6 +655,7 @@ export function parseWorkerRow(
     associated_concepts,
     position_code,
     position_description,
+    category: canonicalizeCategoryName(position_description, position_code),
     department_code,
     department_description,
     schedule_code,

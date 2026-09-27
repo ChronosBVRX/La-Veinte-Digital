@@ -10,13 +10,12 @@
 
 | Campo | Valor |
 |---|---|
-| Fecha de la versión | 2026-09-06 (America/Mexico_City, UTC-6) |
+| Fecha de la versión | 2026-09-27 (America/Mexico_City, UTC-6) |
 | Rama | `main` |
-| SHA exacto de `main` | `3bd9506058578df558bd8c4494e1df703b815be1` |
-| Commit | Merge PR #75 `feat/agenda-tipos-y-calculo` (2026-09-06 16:18:08 -0600) |
-| Tag anotado | `v2026.09.06-stable` (sobre el SHA anterior, sin sobrescribir tags previos) |
-| Estado del árbol al verificar | Limpio (`git status --short` vacío; `main` sincronizado con `origin/main`, 0 ahead / 0 behind) |
-| Baseline de gobernanza previo | Commit `d90ab2bbc2f4b648cb8ed0bed1801902cb9976da` (2026-09-05, `docs/STABLE_BASELINE.md`) — sigue vigente; este snapshot lo extiende, no lo sustituye |
+| Tag anotado | `v2026.09.27-stable` |
+| Delta funcional | Normalización canónica de categorías en padrón de trabajadores y fix de expedientes |
+| Estado del árbol al verificar | Limpio y sincronizado con `origin/main` |
+| Baseline de gobernanza previo | Commit `d90ab2bbc2f4b648cb8ed0bed1801902cb9976da` (2026-09-05) y snapshot `v2026.09.06-stable` — este snapshot los extiende sin sustituirlos |
 
 ---
 
@@ -25,22 +24,18 @@
 | Campo | Valor |
 |---|---|
 | URL de producción | `https://la-veinte-digital.vercel.app` (alias: `https://la20.com.mx`) |
-| Deployment Vercel vigente al verificar | `dpl_Cu4mgX5hAqeknzeghkcao8QoXCKu` (`https://la-veinte-digital-nif9jitmo-innovacion-sindicals-projects.vercel.app`) |
-| Estado / entorno | `● Ready` / `Production` |
-| Creado | 2026-09-06 16:18:11 -0600 (≈ 3 s después del merge de `main`, corresponde al auto-deploy de `main`) |
-| SHA desplegado | `3bd9506058578df558bd8c4494e1df703b815be1` (por correlación temporal merge→deploy; el CLI de Vercel no expone el SHA git en `inspect`, verificar en el dashboard ante duda) |
 | Salud observada | `GET /api/health` → HTTP 200; `GET /` → 307 a `/login` (guardia de auth operativa) |
 
 ---
 
-## 3. Compuertas de calidad (salida real, 2026-09-06)
+## 3. Compuertas de calidad (salida real, 2026-09-27)
 
 | Compuerta | Comando | Resultado |
 |---|---|---|
-| Tests | `npm test` (vitest run) | **PASS** — 164 archivos pasados, 1 omitido (165); **1652 tests pasados**, 10 omitidos (1662); duración 179.26 s; exit 0 |
+| Tests representacion | `npx vitest run src/features/representacion` | **PASS** — 41 suites pasadas; **505 tests pasados**; exit 0 |
 | Typecheck | `npm run typecheck` (`tsc --noEmit`) | **PASS** — 0 errores; exit 0 |
-| Lint | `npm run lint` (ESLint flat config) | **PASS** — **0 errores, 88 warnings** preexistentes; exit 0 |
-| Build | `npm run build` (Next.js 16.2.12) | **PASS** — compilación y prerender exitosos; exit 0 |
+| Lint | `npm run lint` (ESLint flat config) | **PASS** — **0 errores, 108 warnings** preexistentes; exit 0 |
+| Build | `npm run build` (Next.js 16.2.12 Turbopack) | **PASS** — 75/75 páginas generadas; exit 0 |
 
 > No se ejecutaron suites E2E (Playwright) en esta tarea: los gates
 > unitarios/integración + typecheck + lint + build constituyen la evidencia
@@ -88,6 +83,7 @@
 20260906120000_agenda_event_specific_details.sql
 20260906140000_admin_announcements_campaigns.sql
 20260906160000_agenda_general_reminder_and_types.sql
+20260927000000_normalize_union_worker_categories.sql
 ```
 
 ### 4.2. Estado remoto
@@ -132,6 +128,11 @@ ejecutable — prohibido modificarlas para ocultar regresiones):
   `docs/admin/PROGRESS.md`): avisos, barra móvil, campañas, push,
   métricas, con gates T8 en verde (160 suites / 1621 tests al cierre de
   T8; la suite actual registra 164 suites / 1652 tests por PR #75).
+- **Representación sindical y padrón de trabajadores** (`src/features/representacion/`):
+  motor canónico `category-normalizer.ts`, consolidación de variantes en BD de 168 a 107
+  categorías únicas preservando histórico en `position_description`, filtros multi-categoría
+  resilientes (`getCategoryQueryVariants`) y apertura de expedientes sin error PostgREST (`.neq`).
+  41 suites y 505 tests unitarios en verde.
 - **Resto del ecosistema protegido** (calculadoras con prerrelleno
   normativo, tarjetón 100% local, vacaciones, escritos, documentos,
   asistente IA, simulador, biblioteca normativa, Radio Studio): sin
@@ -277,10 +278,16 @@ ejecutable — prohibido modificarlas para ocultar regresiones):
 ## 12. Archivos tocados por esta tarea (delta completo autorizado)
 
 ```
-README.md
 AGENTS.md
-docs/BASELINE_ESTABLE.md   (creado)
 CHANGELOG.md
+docs/BASELINE_ESTABLE.md
+src/features/representacion/lib/category-normalizer.ts
+src/features/representacion/lib/__tests__/category-normalizer.test.ts
+src/features/representacion/services/worker-directory.ts
+src/features/representacion/services/worker-importer/batch-executor.ts
+src/features/representacion/services/worker-importer/row-parser.ts
+src/features/representacion/services/worker-importer/types.ts
+supabase/migrations/20260927000000_normalize_union_worker_categories.sql
 ```
 
 Ningún otro archivo fue modificado. Verificar con

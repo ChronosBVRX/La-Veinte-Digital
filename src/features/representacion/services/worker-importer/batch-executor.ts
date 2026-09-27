@@ -10,6 +10,7 @@ import {
   maskCurp,
   maskNss,
 } from "./row-parser";
+import { canonicalizeCategoryName } from "../../lib/category-normalizer";
 import {
   detectConflictsAndDiff,
   type ExistingWorkerRecord,
@@ -294,7 +295,7 @@ export async function parseAndPreviewBatch(params: {
     rowNumber: a.rowNumber,
     matricula: a.parsed.matricula,
     fullName: a.parsed.siap_full_name || `${a.parsed.paternal_surname} ${a.parsed.maternal_surname} ${a.parsed.first_name}`.trim(),
-    category: a.parsed.position_description,
+    category: a.parsed.category || canonicalizeCategoryName(a.parsed.position_description, a.parsed.position_code),
     department: a.parsed.department_description,
     plaza: a.parsed.plaza_code,
     maskedRfc: maskRfc(a.parsed.rfc),
@@ -905,7 +906,7 @@ export async function parseAndPreviewMasterImport(params: {
       rowNumber: a.rowNumber,
       matricula: a.parsed.matricula,
       fullName: a.parsed.source_name_raw || a.parsed.siap_full_name || "",
-      category: a.parsed.position_description,
+      category: a.parsed.category || canonicalizeCategoryName(a.parsed.position_description, a.parsed.position_code),
       department: a.parsed.department_description,
       plaza: a.parsed.plaza_code,
       turn: a.parsed.turn,

@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.009] - 2026-09-27 — Snapshot estable v2026.09.27-stable: Normalización canónica de categorías y corrección de expedientes
+
+### Added
+- Motor canónico de normalización de categorías (`category-normalizer.ts`) en representación sindical:
+  - Limpieza de sufijos de jornada (`80`, `65`, etc.), horarios incrustados y abreviaciones.
+  - Asignación de nombres canónicos CCT y detección de anomalías (`JUAN DE DIOS` a `PENDIENTE DE REVISION`).
+  - Mapeo bidireccional y expansión de variantes para filtros de consulta (`getCategoryQueryVariants`).
+- Suite de pruebas unitarias exhaustiva (`category-normalizer.test.ts`, 18 tests).
+- Migración SQL `20260927000000_normalize_union_worker_categories.sql` aplicada a Supabase:
+  - Preservación histórica de la categoría original en `position_description` para los 2,572 trabajadores.
+  - Reducción y consolidación de 168 variantes a 107 categorías únicas en `union_workers`.
+- Integración en flujos de importación por lotes y maestro (`batch-executor.ts`, `row-parser.ts`, `types.ts`).
+
+### Fixed
+- Corrección del error HTTP 400 de PostgREST al abrir expedientes individuales en `worker-directory.ts`:
+  - Se sustituyó la cláusula inválida `.or(ROLLED_BACK_FILTER)` por `.neq("source_import_state", ROLLED_BACK_FILTER)`.
+  - Normalización defensiva al vuelo en `listUnionWorkers`, `getUnionWorkerFacets` y `getUnionWorkerExpediente`.
+
+### Governance & Verification
+- Tag anotado: `v2026.09.27-stable`.
+- Compuertas en verde:
+  - `npm run typecheck`: 0 errores.
+  - `npm run lint`: 0 errores, 108 warnings preexistentes.
+  - `vitest run src/features/representacion`: 41 suites, 505 tests pasados (100%).
+  - `npm run build`: 75/75 páginas generadas con éxito.
+- Android e iOS 100% intactos. Cero drive-by refactoring.
+
 ## [Unreleased] — Eliminación quirúrgica del Simulador de Nómina
 
 ### Removed
