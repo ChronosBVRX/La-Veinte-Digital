@@ -20,6 +20,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 object BiometricPreferences {
 
     private val KEY_ENABLED = booleanPreferencesKey("biometric_enabled")
+    private val KEY_DISMISSED = booleanPreferencesKey("biometric_enrollment_dismissed")
 
     // Legacy keys (pre-v1.0.97, decorative ciphertext) — only used to detect an old enrollment.
     private val KEY_LEGACY_CIPHERTEXT = stringLegacyKey("biometric_ciphertext")
@@ -29,7 +30,19 @@ object BiometricPreferences {
         context.dataStore.data.map { it[KEY_ENABLED] ?: false }
 
     suspend fun setEnabled(context: Context, enabled: Boolean) {
-        context.dataStore.edit { it[KEY_ENABLED] = enabled }
+        context.dataStore.edit {
+            it[KEY_ENABLED] = enabled
+            if (enabled) {
+                it[KEY_DISMISSED] = false
+            }
+        }
+    }
+
+    fun isDismissed(context: Context): Flow<Boolean> =
+        context.dataStore.data.map { it[KEY_DISMISSED] ?: false }
+
+    suspend fun setDismissed(context: Context, dismissed: Boolean) {
+        context.dataStore.edit { it[KEY_DISMISSED] = dismissed }
     }
 
     suspend fun clearLegacyEnrollment(context: Context) {

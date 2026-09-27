@@ -2,6 +2,7 @@ package com.laveintedigital.app.security
 
 import android.util.Log
 import androidx.biometric.BiometricPrompt
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -18,13 +19,17 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -56,6 +61,7 @@ fun BiometricUnlockScreen(
     modifier: Modifier = Modifier,
 ) {
     val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
     com.laveintedigital.app.ui.theme.StatusBarAppearance(lightIcons = false)
 
     val canAuth = remember {
@@ -159,13 +165,63 @@ fun BiometricUnlockScreen(
                     Spacer(Modifier.size(8.dp))
                     Text("Desbloquear", fontWeight = FontWeight.SemiBold)
                 }
+
+                Spacer(Modifier.height(12.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        AppLockManager.unlock()
+                        onUnlocked()
+                    },
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color.White,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Continuar sin biometría", fontWeight = FontWeight.Normal)
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            BiometricPreferences.setEnabled(ctx, false)
+                        }
+                        AppLockManager.unlock()
+                        onUnlocked()
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = Color.White.copy(alpha = 0.8f),
+                    ),
+                ) {
+                    Text("Desactivar bloqueo al abrir la app", fontSize = 13.sp)
+                }
             } else {
                 Text(
                     text = "No hay huella, rostro ni bloqueo seguro disponible.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.6f),
+                    color = Color.White.copy(alpha = 0.8f),
                     textAlign = TextAlign.Center,
                 )
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = {
+                        scope.launch {
+                            BiometricPreferences.setEnabled(ctx, false)
+                        }
+                        AppLockManager.unlock()
+                        onUnlocked()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White,
+                        contentColor = BrandNavy,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Continuar a la app", fontWeight = FontWeight.SemiBold)
+                }
             }
         }
     }
