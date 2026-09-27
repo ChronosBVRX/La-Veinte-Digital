@@ -15,6 +15,7 @@ declare global {
           "error-callback"?: () => void
         },
       ) => string
+      reset?: (widgetId?: string) => void
       remove?: (widgetId: string) => void
     }
   }
@@ -48,20 +49,27 @@ function loadTurnstileScript(): Promise<void> {
  *   el flujo sigue funcionando sin CAPTCHA hasta que se configure.
  * - `appearance: "interaction-only"` no altera el diseño salvo desafío real.
  * - El token se entrega por input oculto `captcha_token` al server action.
+ * - Cuando `resetKey` cambia tras un intento fallido, renueva el token de un solo uso.
  */
-export function TurnstileWidget({ siteKey }: { siteKey?: string }) {
+export function TurnstileWidget({
+  siteKey,
+  resetKey,
+}: {
+  siteKey?: string
+  resetKey?: unknown
+}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const widgetIdRef = useRef<string | undefined>(undefined)
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     if (!siteKey || !containerRef.current) return
-    let widgetId: string | undefined
     let cancelled = false
     loadTurnstileScript()
       .then(() => {
         if (cancelled || !containerRef.current || !window.turnstile) return
-        widgetId = window.turnstile.render(containerRef.current, {
+        widgetIdRef.current = window.turnstile.render(containerRef.current, {
           sitekey: siteKey,
           appearance: "interaction-only",
           callback: (token: string) => {
@@ -80,6 +88,8 @@ export function TurnstileWidget({ siteKey }: { siteKey?: string }) {
       })
     return () => {
       cancelled = true
+      const widgetId = widgetIdRef.current
+      widgetIdRef.current = undefined
       if (widgetId && window.turnstile?.remove) {
         try {
           window.turnstile.remove(widgetId)
@@ -89,6 +99,20 @@ export function TurnstileWidget({ siteKey }: { siteKey?: string }) {
       }
     }
   }, [siteKey])
+
+  useEffect(() => {
+    if (resetKey === undefined) return
+    if (inputRef.current) {
+      inputRef.current.value = ""
+    }
+    if (widgetIdRef.current && window.turnstile?.reset) {
+      try {
+        window.turnstile.reset(widgetIdRef.current)
+      } catch {
+        // Ignorar si el widget aún no está listo.
+      }
+    }
+  }, [resetKey])
 
   if (!siteKey || failed) return null
 

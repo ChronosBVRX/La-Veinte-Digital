@@ -7,6 +7,7 @@ import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
 import { signInAction } from "../actions"
 import { TurnstileWidget } from "../turnstile-widget"
+import { ResendConfirmationForm } from "./resend-confirmation-form"
 import { isFacebookLoginEnabled } from "@/shared/lib/auth-providers"
 import { signInWithOAuth } from "@/lib/services/auth-client"
 import { useAppEnvironment } from "@/shared/hooks/useAppEnvironment"
@@ -16,6 +17,7 @@ export function LoginForm() {
   const { environment, platform, resolved } = useAppEnvironment()
   const shouldShowAndroidDownload = resolved && environment === "web" && platform === "android"
   return (
+    <>
     <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
       {state?.error && (
         <div style={{
@@ -68,7 +70,7 @@ export function LoginForm() {
         {pending ? "Entrando..." : <><SignIn size={18} weight="bold" /> Iniciar sesión</>}
       </Button>
 
-      <TurnstileWidget siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} />
+      <TurnstileWidget siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} resetKey={state} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
@@ -128,5 +130,14 @@ export function LoginForm() {
       )}
 
     </form>
+    {state?.unconfirmedEmail && (
+      <div style={{ marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid var(--border)" }}>
+        <p style={{ fontSize: "var(--text-sm)", fontWeight: 600, margin: "0 0 0.75rem" }}>
+          Reenviar correo de confirmación
+        </p>
+        <ResendConfirmationForm email={state.unconfirmedEmail} />
+      </div>
+    )}
+    </>
   )
 }

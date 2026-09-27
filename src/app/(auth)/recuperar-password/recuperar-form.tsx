@@ -92,7 +92,7 @@ export function RecuperarPasswordForm() {
         {pending ? "Enviando enlace..." : <><PaperPlaneTilt size={18} weight="bold" /> Enviar enlace de recuperación</>}
       </Button>
 
-      <TurnstileWidget siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} />
+      <TurnstileWidget siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} resetKey={state} />
 
       <div style={{ textAlign: "center", marginTop: "0.25rem" }}>
         <Link

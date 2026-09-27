@@ -1,18 +1,19 @@
 {
   "channel": "stable",
-  "versionCode": 206,
-  "versionName": "1.1.6",
+  "versionCode": 209,
+  "versionName": "1.1.9",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-09-07T04:12:00Z",
+  "publishedAt": "2026-09-27T19:37:22.333Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "55313b80b2a56701acd37078486da9520207b35b13237aa824531b2ce729a7ef",
-    "size": 24653293
+    "sha256": "2e95b5ae0e864d82673785894af2dc4d48d5f8cd8531615a5f8229d60edbca57",
+    "size": 25001068
   },
   "releaseNotes": [
-    "Modo offline nativo: visualización y consulta de documentos personales, tarjetones, checadas y escritos sin conexión",
-    "Respaldo y sincronización automática de escritos en almacenamiento local seguro",
-    "Cumplimiento y compatibilidad completa con políticas actualizadas y fuentes oficiales"
+    "Nuevo ícono de notificación con el monograma oficial de La Veinte Digital y soporte de Large Icon a color.",
+    "Tono de notificación personalizado armónico, cálido y elegante para avisos, documentos y descargas completadas.",
+    "Descargas en segundo plano con notificación silenciosa de progreso y alerta sonora al finalizar.",
+    "Optimización de estabilidad y compatibilidad con Android 14 y 15."
   ]
 }

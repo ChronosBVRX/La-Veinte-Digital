@@ -4,9 +4,14 @@ import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.media.AudioAttributes
+import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -22,11 +27,12 @@ import com.laveintedigital.app.MainActivity
  */
 object LaVeinteNotificationManager {
 
-    const val CHANNEL_AVISOS = "la_veinte_avisos"
-    const val CHANNEL_AGENDA = "la_veinte_agenda"
-    const val CHANNEL_DOCUMENTOS = "la_veinte_documentos"
-    const val CHANNEL_ACTUALIZACIONES = "la_veinte_actualizaciones"
+    const val CHANNEL_AVISOS = "la_veinte_avisos_v2"
+    const val CHANNEL_AGENDA = "la_veinte_agenda_v2"
+    const val CHANNEL_DOCUMENTOS = "la_veinte_documentos_v2"
+    const val CHANNEL_ACTUALIZACIONES = "la_veinte_actualizaciones_v2"
     const val CHANNEL_DOWNLOADS = "la_veinte_downloads"
+    const val CHANNEL_DOWNLOADS_COMPLETED = "la_veinte_downloads_completed_v2"
 
     private const val NOTIFICATION_PREFIX = "lvd_"
 
@@ -34,21 +40,35 @@ object LaVeinteNotificationManager {
     fun createChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+
+        val soundUri = Uri.parse("${ContentResolver.SCHEME_ANDROID_RESOURCE}://${context.packageName}/raw/lvd_notification")
+        val audioAttributes = AudioAttributes.Builder()
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .build()
+
         val channels = listOf(
             NotificationChannel(CHANNEL_AVISOS, "Avisos importantes", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "Avisos importantes de La Veinte Digital"
+                setSound(soundUri, audioAttributes)
             },
             NotificationChannel(CHANNEL_AGENDA, "Mi Agenda", NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = "Recordatorios de tu agenda laboral"
+                setSound(soundUri, audioAttributes)
             },
             NotificationChannel(CHANNEL_DOCUMENTOS, "Documentos IMSS", NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = "Tarjetones, checadas y documentos disponibles"
+                setSound(soundUri, audioAttributes)
             },
             NotificationChannel(CHANNEL_ACTUALIZACIONES, "Actualizaciones", NotificationManager.IMPORTANCE_LOW).apply {
                 description = "Novedades y actualizaciones de la app"
             },
-            NotificationChannel(CHANNEL_DOWNLOADS, "Descargas", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "Progreso y resultado de descargas"
+            NotificationChannel(CHANNEL_DOWNLOADS, "Descargas en curso", NotificationManager.IMPORTANCE_LOW).apply {
+                description = "Progreso de descargas en segundo plano"
+            },
+            NotificationChannel(CHANNEL_DOWNLOADS_COMPLETED, "Descargas completadas", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "Avisos al completar la descarga de documentos"
+                setSound(soundUri, audioAttributes)
             },
         )
         channels.forEach { nm.createNotificationChannel(it) }
@@ -98,13 +118,21 @@ object LaVeinteNotificationManager {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
+        val largeIcon = runCatching {
+            BitmapFactory.decodeResource(context.resources, com.laveintedigital.app.R.drawable.brand_logo)
+        }.getOrNull()
+
         val builder = NotificationCompat.Builder(context, channel ?: channelFor(type))
             .setSmallIcon(com.laveintedigital.app.R.drawable.ic_notification_laveinte)
+            .setColor(Color.parseColor("#2563EB"))
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setAutoCancel(true)
             .setContentIntent(pending)
+            .apply {
+                if (largeIcon != null) setLargeIcon(largeIcon)
+            }
 
         try {
             nm.notify(NOTIFICATION_PREFIX, id, builder.build())

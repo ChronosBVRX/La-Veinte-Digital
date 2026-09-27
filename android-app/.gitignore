@@ -10,6 +10,7 @@
 
 # Local configuration
 local.properties
+keystore.properties
 
 # Keystore files
 *.jks
