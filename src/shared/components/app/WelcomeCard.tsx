@@ -113,7 +113,8 @@ export function WelcomeCard({ fullName, greeting, dateLabel, userId }: WelcomeCa
   const hasCalendar = Boolean(yearData)
 
   const santander = hasCalendar ? getNextPaymentDay(year, monthIndex, day, ["santander"]) : null
-  const otros = hasCalendar ? getNextPaymentDay(year, monthIndex, day, ["otros", "cheque"]) : null
+  const otros = hasCalendar ? getNextPaymentDay(year, monthIndex, day, ["otros"]) : null
+  const cheque = hasCalendar ? getNextPaymentDay(year, monthIndex, day, ["cheque"]) : null
   const interactiveOpen = hasCalendar ? isInteractivoOpen(year, monthIndex, day) : false
   const nextNonInteractive = interactiveOpen
     ? getNextNonInteractiveDay(year, monthIndex, day)
@@ -137,6 +138,12 @@ export function WelcomeCard({ fullName, greeting, dateLabel, userId }: WelcomeCa
     : null
   const otrosLabel = otros
     ? otros.date.toLocaleDateString("es-MX", { day: "numeric", month: "long" })
+    : ""
+  const chequeDaysLeft = cheque
+    ? Math.ceil((cheque.date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    : null
+  const chequeLabel = cheque
+    ? cheque.date.toLocaleDateString("es-MX", { day: "numeric", month: "long" })
     : ""
 
   const shift = nominaProfile?.shift
@@ -219,7 +226,7 @@ export function WelcomeCard({ fullName, greeting, dateLabel, userId }: WelcomeCa
       </p>
 
       <Block icon={<Wallet size={18} weight="duotone" />} label="Próximo pago">
-        {santander && santanderDaysLeft !== null && santanderDaysLeft === 0 ? (
+        {santander && santanderDaysLeft !== null && santanderDaysLeft <= 0 ? (
           <Line>
             Hoy paga Santander o Scotiabank&nbsp;
             <span style={dateChip}>cae el {santanderLabel}</span>.
@@ -236,26 +243,41 @@ export function WelcomeCard({ fullName, greeting, dateLabel, userId }: WelcomeCa
             <span style={dateChip}>cae el {santanderLabel}</span>.
           </Line>
         ) : null}
-        {otros && otrosDaysLeft !== null && otrosDaysLeft === 0 ? (
+        {otros && otrosDaysLeft !== null && otrosDaysLeft <= 0 ? (
           <Line>
-            {santanderDaysLeft === 0 ? "y h" : "H"}oy pagan Banamex, Banorte, BBVA o con
-            cheque&nbsp;
+            Hoy pagan BBVA, Banamex, Banorte y demás bancos&nbsp;
             <span style={dateChip}>cae el {otrosLabel}</span>.
           </Line>
         ) : otros && otrosDaysLeft !== null && otrosDaysLeft === 1 ? (
           <Line>
-            {santanderDaysLeft === 0 ? "y m" : "M"}añana pagan Banamex, Banorte, BBVA o con
-            cheque&nbsp;
+            Mañana pagan BBVA, Banamex, Banorte y demás bancos&nbsp;
             <span style={dateChip}>cae el {otrosLabel}</span>.
           </Line>
         ) : otros && otrosDaysLeft !== null ? (
           <Line>
             Faltan <strong style={strong}>{para(otrosDaysLeft)}</strong>{" "}para el pago de{" "}
-            Banamex, Banorte, BBVA o con cheque&nbsp;
+            BBVA, Banamex, Banorte y demás bancos&nbsp;
             <span style={dateChip}>cae el {otrosLabel}</span>.
           </Line>
         ) : null}
-        {!santander && !otros && <Line>Sin información de pagos por ahora.</Line>}
+        {cheque && chequeDaysLeft !== null && chequeDaysLeft <= 0 ? (
+          <Line>
+            Hoy se paga con cheque&nbsp;
+            <span style={dateChip}>cae el {chequeLabel}</span>.
+          </Line>
+        ) : cheque && chequeDaysLeft !== null && chequeDaysLeft === 1 ? (
+          <Line>
+            Mañana se paga con cheque&nbsp;
+            <span style={dateChip}>cae el {chequeLabel}</span>.
+          </Line>
+        ) : cheque && chequeDaysLeft !== null ? (
+          <Line>
+            Faltan <strong style={strong}>{para(chequeDaysLeft)}</strong>{" "}para el pago con
+            cheque&nbsp;
+            <span style={dateChip}>cae el {chequeLabel}</span>.
+          </Line>
+        ) : null}
+        {!santander && !otros && !cheque && <Line>Sin información de pagos por ahora.</Line>}
       </Block>
 
       <Block icon={<CalendarDots size={18} weight="duotone" />} label="Periodo interactivo">
