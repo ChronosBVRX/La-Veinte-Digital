@@ -31,8 +31,9 @@ export function TodaySummary({ userId }: { userId: string }) {
   const day = now.getDate()
 
   const santander = getNextPaymentDay(year, monthIndex, day, ["santander"])
-  const otros = getNextPaymentDay(year, monthIndex, day, ["otros", "cheque"])
-  const nearest = [santander, otros].filter(Boolean).sort((a, b) => a!.date.getTime() - b!.date.getTime())[0] ?? null
+  const otros = getNextPaymentDay(year, monthIndex, day, ["otros"])
+  const cheque = getNextPaymentDay(year, monthIndex, day, ["cheque"])
+  const nearest = [santander, otros, cheque].filter(Boolean).sort((a, b) => a!.date.getTime() - b!.date.getTime())[0] ?? null
   const diffDays = nearest
     ? Math.ceil((nearest.date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
     : null
