@@ -57,7 +57,7 @@ export interface NativeSaveSuccessResponse {
 export type NativeSaveResult = NativeSaveSuccessResponse | PdfShareErrorResponse
 
 const CHUNK_SIZE = 64 * 1024 // 64 KB bytes binarios por fragmento
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+const MAX_FILE_SIZE = 30 * 1024 * 1024 // 30 MB
 
 /**
  * Convierte un ArrayBuffer o Uint8Array a string Base64 de forma eficiente.

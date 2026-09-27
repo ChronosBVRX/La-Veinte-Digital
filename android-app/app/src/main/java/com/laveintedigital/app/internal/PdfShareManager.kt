@@ -25,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap
 object PdfShareManager {
     private const val TAG = "PdfShareManager"
     const val MAX_CHUNK_SIZE = 64 * 1024 // 64 KB
-    const val MAX_TOTAL_SIZE = 10 * 1024 * 1024 // 10 MB
+    const val MAX_TOTAL_SIZE = 30 * 1024 * 1024 // 30 MB
     const val TIMEOUT_MS = 30_000L // 30 seconds
     private const val SHARE_AUTHORITY_SUFFIX = ".fileprovider"
     private val TRANSFER_ID_REGEX = Regex("^[A-Za-z0-9_-]{1,64}$")

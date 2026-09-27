@@ -24,7 +24,7 @@ import java.io.File
 object NativeDocuments {
 
     private const val TAG = "NativeDocuments"
-    private const val MAX_B64_DOC = 10 * 1024 * 1024
+    private const val MAX_B64_DOC = 30 * 1024 * 1024
 
     /** Fuente Room para copias nativas de escritos generados en la web. */
     const val SOURCE_ESCRITO = "ESCRITO"
@@ -32,9 +32,11 @@ object NativeDocuments {
     const val SOURCE_DOCUMENT_SCAN = "DOCUMENT_SCAN"
     /** Fuente Room para INE (frente + reverso en una hoja). */
     const val SOURCE_INE_SCAN = "INE_SCAN"
+    /** Fuente Room para documentos normativos (CCT, Estatutos). */
+    const val SOURCE_NORMATIVA = "NORMATIVA"
 
     /** Fuentes externas aceptadas por [saveExternalPdf] (allowlist explícita). */
-    val EXTERNAL_SOURCES = setOf(SOURCE_ESCRITO, SOURCE_DOCUMENT_SCAN, SOURCE_INE_SCAN)
+    val EXTERNAL_SOURCES = setOf(SOURCE_ESCRITO, SOURCE_DOCUMENT_SCAN, SOURCE_INE_SCAN, SOURCE_NORMATIVA)
 
     /** Valida la fuente antes de persistir; evita clasificar por nombre de archivo. */
     fun sanitizeExternalSource(raw: String?): String =
@@ -44,6 +46,7 @@ object NativeDocuments {
     fun directoryNameFor(source: String): String = when (source) {
         SOURCE_DOCUMENT_SCAN -> "documentos"
         SOURCE_INE_SCAN -> "identificaciones"
+        SOURCE_NORMATIVA -> "normativa"
         else -> "escritos"
     }
 

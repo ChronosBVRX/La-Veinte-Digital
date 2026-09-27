@@ -23,6 +23,7 @@ class LaVeinteBridge(
     private val onOpenBiometrics: () -> Unit = {},
     private val onHasImssCredentials: (String) -> Boolean = { false },
     private val onCheckForUpdate: () -> Unit = {},
+    private val onOpenSavedDocuments: () -> Unit = {},
 ) {
     @JavascriptInterface
     fun appPlatform(): String = "android"
@@ -97,6 +98,11 @@ class LaVeinteBridge(
     @JavascriptInterface
     fun checkForUpdate() {
         runCatching { onCheckForUpdate() }
+    }
+
+    @JavascriptInterface
+    fun openSavedDocuments() {
+        runCatching { onOpenSavedDocuments() }
     }
 
     companion object {

@@ -271,6 +271,7 @@ fun InternalWebScreen(
     DisposableEffect(Unit) {
         BridgeHandler.onOpenOfficialPayslips = { onOpenOfficialPayslips() }
         BridgeHandler.onOpenBiometrics = { onOpenBiometrics() }
+        BridgeHandler.onOpenSavedDocuments = { onOpenSavedDocuments() }
         BridgeHandler.onCheckForUpdate = { UpdateTrigger.request() }
         BridgeHandler.onRequestNotificationsPermission = {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -390,6 +391,7 @@ fun InternalWebScreen(
         onDispose {
             BridgeHandler.onOpenOfficialPayslips = null
             BridgeHandler.onOpenBiometrics = null
+            BridgeHandler.onOpenSavedDocuments = null
             BridgeHandler.onCheckForUpdate = null
             BridgeHandler.onAuthenticated = null
             BridgeHandler.onLoggedOut = null

@@ -63,6 +63,7 @@ object LaVeinteBridgeInjector {
     openOfficialPayslips: function() { window.location.href = 'laveinte://bridge/openOfficialPayslips'; },
     openBiometrics: function() { window.location.href = 'laveinte://bridge/openBiometrics'; },
     checkForUpdate: function() { window.location.href = 'laveinte://bridge/checkForUpdate'; },
+    openSavedDocuments: function() { window.location.href = 'laveinte://bridge/openSavedDocuments'; },
     hasImssCredentials: function(portalId) {
       window.location.href = 'laveinte://bridge/hasImssCredentials?portalId=' + portalId;
       return false;
@@ -173,6 +174,7 @@ fun handleBridgeUrl(url: String, webView: WebView?): Boolean {
     when (path) {
         "/openOfficialPayslips" -> BridgeHandler.onOpenOfficialPayslips?.invoke()
         "/openBiometrics" -> BridgeHandler.onOpenBiometrics?.invoke()
+        "/openSavedDocuments" -> BridgeHandler.onOpenSavedDocuments?.invoke()
         "/checkForUpdate" -> BridgeHandler.onCheckForUpdate?.invoke()
         "/onAuthenticated" -> BridgeHandler.onAuthenticated?.invoke()
         "/onLoggedOut" -> BridgeHandler.onLoggedOut?.invoke()
@@ -245,6 +247,7 @@ fun handleBridgeUrl(url: String, webView: WebView?): Boolean {
 object BridgeHandler {
     var onOpenOfficialPayslips: (() -> Unit)? = null
     var onOpenBiometrics: (() -> Unit)? = null
+    var onOpenSavedDocuments: (() -> Unit)? = null
     var onCheckForUpdate: (() -> Unit)? = null
     var onAuthenticated: (() -> Unit)? = null
     var onLoggedOut: (() -> Unit)? = null

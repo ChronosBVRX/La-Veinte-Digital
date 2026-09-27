@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Contenido educativo curado para los campos principales del tarjetón.
  *
  * Los campos sin entrada curada se muestran con el estado "información
@@ -111,16 +111,26 @@ export const fieldDetails: Record<string, GuideFieldDetail> = {
     sources: ["proc-1a74-003-030"], verification: "partially_verified",
   },
   "15": {
-    simple: "Es la clave que explica por qué ocupas tu plaza: definitiva, interina, temporal, entre otras.",
-    whyItMatters: "Si ocupas una plaza de forma no definitiva, conviene conocer tu situación y sus efectos.",
+    simple: "Es la marca de ocupación de plaza que especifica tu grado de titularidad (00 Definitiva, 01 Titular a Confianza, 02 Base Interina, 03 Temporal/Sustituto, 07 Becado, 20/21 Estatuto A, 90/98 Promoción Escalafonaria).",
+    whyItMatters: "Define tus derechos contractuales: la clave 00 garantiza devengo incondicional de fondos y primas; la 02 abre derecho a nivelación salarial (010); la 03 indica suplencia temporal y enlaza con el Campo 16.",
     where: "Receptor — Datos del trabajador.",
-    sources: ["proc-1a74-003-030"], verification: "partially_verified",
+    related: [
+      { ref: "field:16", label: "Matrícula titular", why: "Identifica al titular sustituido cuando la clave es 03" },
+      { ref: "concept:010", label: "Nivelación plaza superior", why: "Se genera en promociones interinas (clave 02)" },
+    ],
+    sources: ["proc-1a74-003-030", "cct-2025-2027"],
+    verification: "verified",
   },
   "16": {
-    simple: "Es la matrícula del trabajador titular de la plaza que estás cubriendo interinamente.",
-    whyItMatters: "Solo aparece cuando sustituyes a otra persona en una plaza no definitiva.",
+    simple: "Es la matrícula del trabajador titular de la plaza que estás sustituyendo temporalmente (activo bajo marca de ocupación 03).",
+    whyItMatters: "Permite auditar la cadena de suplencias en el SIAP, garantizando que no existan cobros duplicados ni desajustes en la plaza presupuestal.",
     where: "Receptor — Datos del trabajador.",
-    sources: ["proc-1a74-003-030"], verification: "partially_verified",
+    related: [
+      { ref: "field:15", label: "Marca de ocupación", why: "Se activa con la clave 03 (Temporal / Sustituto)" },
+      { ref: "field:14", label: "Plaza presupuestal" },
+    ],
+    sources: ["proc-1a74-003-030"],
+    verification: "verified",
   },
   "17": {
     simple: "Es la fecha en que termina tu contrato, beca o residencia.",
@@ -193,6 +203,29 @@ export const fieldDetails: Record<string, GuideFieldDetail> = {
     where: "Receptor — Incidencias.",
     sources: [], verification: "pending_verification",
   },
+  "28": {
+    simple: "Son las notas de mérito acumuladas por desempeño sobresaliente registradas en tu expediente.",
+    whyItMatters: "Bajo el RIT, cada nota de mérito otorga +1 día adicional en tu pago de aguinaldo anual; al acumular 10 notas, se compensa con 1 nota adicional libre.",
+    where: "Receptor — Incidencias y reconocimientos.",
+    related: [
+      { ref: "field:29", label: "Notas de demérito", why: "Restan días al cálculo del aguinaldo" },
+      { ref: "concept:049", label: "Aguinaldo", why: "Ecuación: Días Base + Campo 28 - Campo 29" },
+    ],
+    sources: ["rit-arts-86-93", "cct-2025-2027"],
+    verification: "verified",
+  },
+  "29": {
+    simple: "Son las notas de demérito derivadas de actas administrativas o sanciones disciplinarias.",
+    whyItMatters: "Restan días proporcionales al aguinaldo anual conforme a la ecuación: Días Base + Campo 28 - Campo 29; también frenan promociones escalafonarias.",
+    where: "Receptor — Incidencias y sanciones.",
+    related: [
+      { ref: "concept:179", label: "Notas de demérito", why: "Concepto de deducción asociado" },
+      { ref: "field:28", label: "Notas de mérito" },
+      { ref: "concept:049", label: "Aguinaldo" },
+    ],
+    sources: ["rit-arts-86-93", "cct-2025-2027"],
+    verification: "verified",
+  },
   "30": {
     simple: "Es la quincena en la que ocurrió la incidencia que afecta el pago.",
     whyItMatters: "Un concepto puede generarse por una incidencia de una quincena anterior. Por eso, aunque tu pago sea de esta quincena, la incidencia puede ser de la anterior.",
@@ -206,6 +239,27 @@ export const fieldDetails: Record<string, GuideFieldDetail> = {
     where: "Receptor — Datos del trabajador.",
     related: [{ ref: "concept:043", label: "Vale a cuenta de aguinaldo" }],
     sources: [], verification: "pending_verification",
+  },
+  "32": {
+    simple: "Registra los días en que prestaste servicios en comisión oficial fuera de tu centro de trabajo habitual.",
+    whyItMatters: "Criterio de auditoría esencial: los días de comisión institucional son considerados equivalentes a días laborados y NO cancelan los estímulos 032 ni 033.",
+    where: "Receptor — Incidencias.",
+    related: [
+      { ref: "concept:032", label: "Estímulo por asistencia", why: "Las comisiones protegen este estímulo" },
+      { ref: "concept:033", label: "Estímulo por puntualidad" },
+    ],
+    sources: ["rit-arts-86-93", "cct-2025-2027"],
+    verification: "verified",
+  },
+  "40": {
+    simple: "Es el periodo de pago (quincena y año) que ampara la dispersión de fondos del tarjetón.",
+    whyItMatters: "El SIAP opera con asincronía quincenal: mientras que el Campo 40 marca la quincena de pago fiscal (ej. Qna 05), los relojes checadores procesan incidencias con desfase retrospectivo (de la Qna 03).",
+    where: "Receptor — Datos del trabajador.",
+    related: [
+      { ref: "field:30", label: "Quincena de incidencia", why: "Muestra el periodo real donde ocurrieron las faltas o retardos" },
+    ],
+    sources: ["proc-6b11-003-008", "rit-arts-86-93"],
+    verification: "verified",
   },
   "41": {
     simple: "Es la forma en que recibes tu pago: depósito bancario, cheque u otro medio.",
@@ -305,15 +359,16 @@ export const fieldDetails: Record<string, GuideFieldDetail> = {
     sources: ["proc-1a14-003-010"], verification: "partially_verified",
   },
   "57": {
-    simple: "Es tu sueldo mensual integrado: el sueldo ordinario más todas las prestaciones que se suman para calcular ciertos pagos.",
-    whyItMatters: "Es la base de cálculo de prestaciones como la prima vacacional, la prima dominical y el tiempo extraordinario.",
+    simple: "Es el Sueldo Mensual Integrado (SMI): construcción aritmética interna conformada por el Sueldo Tabular (002) más percepciones fijas y continuas (011, 014/023, 015/016, 057).",
+    whyItMatters: "Es diferente al SBC reportado al Seguro Social; el SMI actúa como base para topes crediticios internos (ej. hasta 35 meses de SMI para crédito hipotecario ESMI) e indemnizaciones contractuales.",
     where: "Receptor — Datos del trabajador.",
     related: [
-      { ref: "concept:029", label: "Prima vacacional", why: "Se calcula sobre el sueldo integrado" },
-      { ref: "concept:037", label: "Tiempo extraordinario" },
-      { ref: "concept:048", label: "Actividades culturales y recreativas" },
+      { ref: "concept:002", label: "Sueldo base", why: "Componente principal del SMI" },
+      { ref: "concept:011", label: "Ayuda de renta", why: "Se integra de forma continua" },
+      { ref: "concept:130", label: "Crédito hipotecario E.S.M.I.", why: "Topado con base en este sueldo" },
     ],
-    sources: [], verification: "pending_verification",
+    sources: ["cct-2025-2027", "proc-1a72-003-005"],
+    verification: "verified",
   },
   "58": {
     simple: "Es la fecha en que ingresaste al Instituto.",

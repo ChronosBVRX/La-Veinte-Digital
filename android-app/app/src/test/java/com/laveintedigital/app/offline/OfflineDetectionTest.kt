@@ -41,6 +41,7 @@ class OfflineDetectionTest {
         assertEquals(OfflineDetection.DocBucket.TARJETON, OfflineDetection.bucketFor("TARJETON_DIGITAL"))
         assertEquals(OfflineDetection.DocBucket.CHECADAS, OfflineDetection.bucketFor("TU_PERFIL_BIOMETRIC"))
         assertEquals(OfflineDetection.DocBucket.ESCRITO, OfflineDetection.bucketFor("ESCRITO"))
+        assertEquals(OfflineDetection.DocBucket.NORMATIVA, OfflineDetection.bucketFor("NORMATIVA"))
         assertEquals(OfflineDetection.DocBucket.OTRO, OfflineDetection.bucketFor("UNKNOWN_X"))
     }
 

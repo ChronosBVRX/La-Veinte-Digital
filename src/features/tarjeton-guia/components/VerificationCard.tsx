@@ -1,9 +1,11 @@
 "use client"
 
+import { useState, type ReactNode } from "react"
 import { CheckCircle, WarningCircle, HourglassMedium, ArrowUpRight, BookOpen, MagnifyingGlass } from "@phosphor-icons/react"
-import type { ReactNode } from "react"
 import type { OfficialSource, VerificationState, GuideVerificationLevel } from "@/features/tarjeton-guia/lib/types"
 import { getSourceById } from "@/data/guia-tarjeton/sources"
+import { findNormativaByConceptCode } from "@/shared/lib/normativa-lookup"
+import { NormativeReferenceModal, type NormativeReferenceTarget } from "@/shared/components/normativa/NormativeReferenceModal"
 
 const VERIFICATION_META: Record<VerificationState, { icon: ReactNode; color: string; bg: string; title: string; text: string }> = {
   verified: {
@@ -66,12 +68,17 @@ export function VerificationCard({
   state,
   sources,
   level,
+  conceptCode,
 }: {
   state: VerificationState
   sources?: string[]
   level?: GuideVerificationLevel
+  conceptCode?: string
 }) {
+  const [modalTarget, setModalTarget] = useState<NormativeReferenceTarget | null>(null)
   const view: CardView = level ? LEVEL_META[level] : VERIFICATION_META[state]
+  const directClause = conceptCode ? findNormativaByConceptCode(conceptCode) : undefined
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
       <div
@@ -86,9 +93,34 @@ export function VerificationCard({
         }}
       >
         <div style={{ color: view.color, marginTop: 2, flexShrink: 0 }}>{view.icon}</div>
-        <div>
+        <div style={{ flex: 1 }}>
           <p style={{ fontSize: "0.8125rem", fontWeight: 700, color: view.color, margin: 0 }}>{view.title}</p>
           <p style={{ fontSize: "0.75rem", color: "var(--fg)", margin: "0.25rem 0 0", lineHeight: 1.55 }}>{view.text}</p>
+          {directClause && (
+            <div style={{ marginTop: "0.5rem" }}>
+              <button
+                type="button"
+                onClick={() => setModalTarget({ clause: directClause.numero })}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.375rem",
+                  background: "var(--card)",
+                  border: "1px solid var(--border)",
+                  color: "var(--primary)",
+                  borderRadius: "var(--radius-sm)",
+                  padding: "0.35rem 0.65rem",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                }}
+              >
+                <BookOpen size={14} weight="bold" />
+                <span>Consultar Cláusula {directClause.numero} ({directClause.titulo})</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
       {!!sources?.length && (
@@ -96,15 +128,30 @@ export function VerificationCard({
           {sources.map((sid) => {
             const src = getSourceById(sid)
             if (!src) return null
-            return <SourceCard key={sid} src={src} />
+            return <SourceCard key={sid} src={src} onOpenModal={(t) => setModalTarget(t)} />
           })}
         </div>
       )}
+
+      <NormativeReferenceModal
+        isOpen={modalTarget !== null}
+        onClose={() => setModalTarget(null)}
+        target={modalTarget}
+      />
     </div>
   )
 }
 
-function SourceCard({ src }: { src: OfficialSource }) {
+function SourceCard({
+  src,
+  onOpenModal,
+}: {
+  src: OfficialSource
+  onOpenModal?: (target: NormativeReferenceTarget) => void
+}) {
+  const isCct = src.type === "CCT" || src.id.includes("cct")
+  const isEstatutos = (src.type as string) === "ESTATUTOS" || src.id.includes("estatutos")
+
   return (
     <div style={{ padding: "0.625rem 0.75rem", borderRadius: "var(--radius-sm)", background: "var(--accent)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", flexWrap: "wrap" }}>
@@ -114,16 +161,39 @@ function SourceCard({ src }: { src: OfficialSource }) {
         {src.validity && <span style={{ fontSize: "0.6875rem", color: "var(--muted)" }}>· {src.validity}</span>}
       </div>
       <p style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)", margin: "0.25rem 0 0", lineHeight: 1.45 }}>{src.title}</p>
-      {src.officialUrl && (
-        <a
-          href={src.officialUrl}
-          target="_blank"
-          rel="noreferrer noopener"
-          style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", fontSize: "0.75rem", fontWeight: 600, color: "var(--primary)", marginTop: "0.25rem", textDecoration: "none" }}
-        >
-          Ver fuente oficial <ArrowUpRight size={13} weight="bold" />
-        </a>
-      )}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginTop: "0.375rem" }}>
+        {(isCct || isEstatutos) && onOpenModal && (
+          <button
+            type="button"
+            onClick={() => onOpenModal(isCct ? { clause: "1" } : { article: "1" })}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.25rem",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              color: "var(--primary)",
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+            }}
+          >
+            <BookOpen size={13} weight="bold" />
+            {isCct ? "Explorar Cláusulas CCT" : "Explorar Estatutos"}
+          </button>
+        )}
+        {src.officialUrl && (
+          <a
+            href={src.officialUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", fontSize: "0.75rem", fontWeight: 600, color: "var(--muted)", textDecoration: "none" }}
+          >
+            Ver enlace externo <ArrowUpRight size={13} weight="bold" />
+          </a>
+        )}
+      </div>
     </div>
   )
 }

@@ -18,6 +18,21 @@ export function buildReviewChecklist(payslip: GuidePayslip): ReviewItem[] {
   const items: ReviewItem[] = []
 
   for (const rule of guideReviewRules) {
+    if (rule.evaluate) {
+      const custom = rule.evaluate(payslip)
+      if (custom) {
+        items.push({
+          rule,
+          state: custom.state,
+          message: custom.message,
+          caveat: custom.caveat ?? rule.caveat,
+          helpHref: rule.helpHref,
+          helpLabel: rule.helpLabel,
+        })
+      }
+      continue
+    }
+
     const occurrence = rule.when ? rule.when(payslip) : "unknown"
     const state = occurrence === "absent" ? rule.absentState : occurrence === "present" ? rule.presentState : "no-evaluable"
     const message = occurrence === "absent" ? rule.absentMessage : occurrence === "present" ? rule.presentMessage : "No podemos evaluar este concepto en esta quincena."
