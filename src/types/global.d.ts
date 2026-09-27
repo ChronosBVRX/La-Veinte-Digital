@@ -50,6 +50,7 @@ declare global {
       pages?: Array<{ base64: string; mimeType: string; width: number; height: number }>
     }>
     shareNativeDocument?(localPath: string, title?: string): void
+    saveBlobToDownloads?(base64Data: string, filename?: string, mimeType?: string): boolean
     sendPdfShareMessage?(msg: string | Record<string, unknown>): boolean
     openAppSettings(): void
   }

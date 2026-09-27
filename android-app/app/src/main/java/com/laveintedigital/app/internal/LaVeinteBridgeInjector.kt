@@ -50,6 +50,16 @@ object LaVeinteBridgeInjector {
     var cb = __pending[reqId];
     if (cb) { delete __pending[reqId]; cb(payload); }
   };
+  // Retener blobs durante 30s para que descargas asíncronas desde WebView no se queden sin datos
+  if (window.URL && typeof window.URL.revokeObjectURL === 'function' && !window.URL.__lvdPatched) {
+    window.URL.__lvdPatched = true;
+    var _origRevoke = window.URL.revokeObjectURL;
+    window.URL.revokeObjectURL = function(url) {
+      setTimeout(function() {
+        try { _origRevoke.call(window.URL, url); } catch(e) {}
+      }, 30000);
+    };
+  }
   window.LaVeinteApp = {
     __isInjected: true,
     appPlatform: function() { return 'android'; },
@@ -59,6 +69,13 @@ object LaVeinteBridgeInjector {
     isNativeApp: function() { return true; },
     hasBiometrics: function() { return false; },
     isBiometricsEnabled: function() { return false; },
+    saveBlobToDownloads: function(base64Data, filename, mimeType) {
+      if (window.LaVeinteBlobReceiver && typeof window.LaVeinteBlobReceiver.onBlobData === 'function') {
+        window.LaVeinteBlobReceiver.onBlobData(base64Data, filename || 'documento', mimeType || 'application/octet-stream');
+        return true;
+      }
+      return false;
+    },
     openExternal: function(url) { window.location.href = 'laveinte://bridge/openExternal?url=' + encodeURIComponent(url); },
     openOfficialPayslips: function() { window.location.href = 'laveinte://bridge/openOfficialPayslips'; },
     openBiometrics: function() { window.location.href = 'laveinte://bridge/openBiometrics'; },

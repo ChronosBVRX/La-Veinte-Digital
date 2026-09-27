@@ -109,6 +109,7 @@ fun InternalWebScreen(
     // Enrollment state: show invitation dialog after web reports authenticated
     var showEnrollmentInvite by remember { mutableStateOf(false) }
     val enrollmentDone by BiometricPreferences.isEnabled(context).collectAsState(false)
+    val enrollmentDismissed by BiometricPreferences.isDismissed(context).collectAsState(false)
 
     // Feedback nativo de navegación post-splash (paquete internal/navigation).
     // Solo observa: jamás consume Back ni toca el flujo canónico del PR #66.
@@ -164,6 +165,25 @@ fun InternalWebScreen(
                         // Launch always on main thread; result is delivered via the launcher above.
                         cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                     }
+                }
+            }
+        }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        android.util.Log.i("DOWNLOAD_FLOW", "notification_permission_result=$granted")
+    }
+    val checkNotificationPermission = remember(activity) {
+        {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                if (ContextCompat.checkSelfPermission(
+                        activity,
+                        Manifest.permission.POST_NOTIFICATIONS,
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
             }
         }
@@ -374,7 +394,7 @@ fun InternalWebScreen(
         BridgeHandler.onScanDocument = scanDocumentResolver
 
         BridgeHandler.onAuthenticated = {
-            if (!enrollmentDone && LaveinteBiometricManager.canAuthenticate(context)) {
+            if (!enrollmentDone && !enrollmentDismissed && LaveinteBiometricManager.canAuthenticate(context)) {
                 showEnrollmentInvite = true
             }
         }
@@ -384,6 +404,7 @@ fun InternalWebScreen(
             scope.launch {
                 BiometricPreferences.clearLegacyEnrollment(context)
                 BiometricPreferences.setEnabled(context, false)
+                BiometricPreferences.setDismissed(context, false)
             }
             // El propietario de sesión se limpia (sus documentos NO se borran).
             runCatching { com.laveintedigital.app.offline.NativeSessionOwner.clear(context) }
@@ -673,7 +694,10 @@ fun InternalWebScreen(
             }
 
             androidx.compose.material3.AlertDialog(
-                onDismissRequest = { showEnrollmentInvite = false },
+                onDismissRequest = {
+                    showEnrollmentInvite = false
+                    scope.launch { BiometricPreferences.setDismissed(context, true) }
+                },
                 title = { Text("Protege La Veinte Digital") },
                 text = {
                     Text(
@@ -695,7 +719,10 @@ fun InternalWebScreen(
                 },
                 dismissButton = {
                     androidx.compose.material3.TextButton(
-                        onClick = { showEnrollmentInvite = false }
+                        onClick = {
+                            showEnrollmentInvite = false
+                            scope.launch { BiometricPreferences.setDismissed(context, true) }
+                        }
                     ) { Text("Ahora no") }
                 },
             )
@@ -736,7 +763,7 @@ fun InternalWebScreen(
                         },
                     )
                     webChromeClient = chromeClient
-                    attachDownloadListener(ctx)
+                    attachDownloadListener(ctx, onRequestNotificationPermission = checkNotificationPermission)
                     // Inject the native bridge at DOCUMENT START so it exists before Next.js hydrates,
                     // removing the bridge-missing race in the QR scanner. Falls back to onPageFinished.
                     LaVeinteBridgeInjector.installAtDocumentStart(wv)
