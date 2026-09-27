@@ -61,22 +61,17 @@ export function FieldFichaPage({ id }: { id: string | number }) {
             <p style={para()}>{curated?.simple ?? kp?.easy}</p>
           </Card>
 
-          {(curated?.whyItMatters || kp?.whenToCheck || curated?.where) && (
+          {(curated?.whyItMatters || kp?.whenToCheck) && (
             <Card padding="1.25rem 1.5rem">
               <SectionTitle>¿Para qué me sirve?</SectionTitle>
-              {(curated?.whyItMatters || kp?.whenToCheck) && (
-                <p style={para()}>{curated?.whyItMatters ?? kp?.whenToCheck}</p>
-              )}
-              {curated?.where && (
-                <p style={para()}>{curated.where}</p>
-              )}
+              <p style={para()}>{curated?.whyItMatters ?? kp?.whenToCheck}</p>
             </Card>
           )}
 
           <Card padding="1.25rem 1.5rem">
             <SectionTitle>¿Dónde aparece?</SectionTitle>
             <p style={para()}>
-              En la sección <strong>{section?.name ?? "del recibo"}</strong> de tu tarjetón.
+              {renderLocation(curated?.where, section?.name)}
             </p>
           </Card>
         </div>
@@ -154,6 +149,33 @@ function getFieldRelations(id: number): Array<{ ref: string; label: string }> {
     if (label && !out.some((o) => o.ref === full)) out.push({ ref: full, label })
   }
   return out
+}
+
+export function renderLocation(whereText?: string, fallbackSectionName?: string): ReactNode {
+  if (whereText) {
+    const clean = whereText.replace(/\.+$/, "").trim()
+    if (/[\u2014\u2013-]/.test(clean)) {
+      const [sec, sub] = clean.split(/[\u2014\u2013-]/, 2).map((s) => s.trim())
+      if (sec && sub) {
+        return (
+          <>
+            En la sección <strong>{sec}</strong> (bloque <strong>{sub}</strong>) de tu tarjetón.
+          </>
+        )
+      }
+    }
+    return (
+      <>
+        En la sección <strong>{clean}</strong> de tu tarjetón.
+      </>
+    )
+  }
+
+  return (
+    <>
+      En la sección <strong>{fallbackSectionName ?? "del recibo"}</strong> de tu tarjetón.
+    </>
+  )
 }
 
 function SectionTitle({ children }: { children: ReactNode }) {
