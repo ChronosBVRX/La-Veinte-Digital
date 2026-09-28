@@ -61,7 +61,9 @@ export function TurnstileWidget({
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const widgetIdRef = useRef<string | undefined>(undefined)
-  const [failed, setFailed] = useState(false)
+  const [token, setToken] = useState("")
+  const [status, setStatus] = useState<"verifying" | "verified" | "error">("verifying")
+  const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
     if (!siteKey || !containerRef.current) return
@@ -69,22 +71,52 @@ export function TurnstileWidget({
     loadTurnstileScript()
       .then(() => {
         if (cancelled || !containerRef.current || !window.turnstile) return
+        if (widgetIdRef.current && window.turnstile.remove) {
+          try {
+            window.turnstile.remove(widgetIdRef.current)
+          } catch {
+            // Ignorar limpieza previa
+          }
+          widgetIdRef.current = undefined
+        }
         widgetIdRef.current = window.turnstile.render(containerRef.current, {
           sitekey: siteKey,
-          appearance: "interaction-only",
-          callback: (token: string) => {
-            if (inputRef.current) inputRef.current.value = token
+          appearance: "always",
+          callback: (newToken: string) => {
+            if (inputRef.current) inputRef.current.value = newToken
+            if (!cancelled) {
+              setToken(newToken)
+              setStatus("verified")
+            }
           },
           "expired-callback": () => {
             if (inputRef.current) inputRef.current.value = ""
+            if (!cancelled) {
+              setToken("")
+              setStatus("verifying")
+            }
+            if (widgetIdRef.current && window.turnstile?.reset) {
+              try {
+                window.turnstile.reset(widgetIdRef.current)
+              } catch {
+                // Ignorar si no está listo
+              }
+            }
           },
           "error-callback": () => {
-            if (!cancelled) setFailed(true)
+            if (inputRef.current) inputRef.current.value = ""
+            if (!cancelled) {
+              setToken("")
+              setStatus("error")
+            }
           },
         })
       })
       .catch(() => {
-        if (!cancelled) setFailed(true)
+        if (!cancelled) {
+          setToken("")
+          setStatus("error")
+        }
       })
     return () => {
       cancelled = true
@@ -98,13 +130,16 @@ export function TurnstileWidget({
         }
       }
     }
-  }, [siteKey])
+  }, [siteKey, retryCount])
 
   useEffect(() => {
     if (resetKey === undefined) return
     if (inputRef.current) {
       inputRef.current.value = ""
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza estado visual y limpia token tras un intento fallido
+    setToken("")
+    setStatus("verifying")
     if (widgetIdRef.current && window.turnstile?.reset) {
       try {
         window.turnstile.reset(widgetIdRef.current)
@@ -114,12 +149,79 @@ export function TurnstileWidget({
     }
   }, [resetKey])
 
-  if (!siteKey || failed) return null
+  if (!siteKey) return null
+
+  const handleRetry = () => {
+    if (inputRef.current) inputRef.current.value = ""
+    scriptPromise = null
+    setToken("")
+    setStatus("verifying")
+    setRetryCount((c) => c + 1)
+  }
 
   return (
-    <>
-      <div ref={containerRef} style={{ minWidth: 0, maxWidth: "100%" }} />
-      <input ref={inputRef} type="hidden" name="captcha_token" defaultValue="" />
-    </>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", minWidth: 0, maxWidth: "100%" }}>
+      <div
+        ref={containerRef}
+        style={{
+          minWidth: 0,
+          maxWidth: "100%",
+          display: status === "error" ? "none" : "flex",
+          justifyContent: "center",
+        }}
+      />
+      <input ref={inputRef} type="hidden" name="captcha_token" value={token} readOnly />
+
+      {status === "verifying" && (
+        <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)", textAlign: "center" }}>
+          Verificando conexión segura con Cloudflare…
+        </p>
+      )}
+
+      {status === "verified" && (
+        <p style={{ margin: 0, fontSize: "0.75rem", color: "#15803d", textAlign: "center", fontWeight: 500 }}>
+          ✓ Verificación de seguridad lista
+        </p>
+      )}
+
+      {status === "error" && (
+        <div
+          role="alert"
+          style={{
+            background: "#fffbeb",
+            border: "1px solid #fde68a",
+            borderRadius: "var(--radius-sm)",
+            padding: "0.625rem 0.75rem",
+            fontSize: "0.75rem",
+            color: "#92400e",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.5rem",
+            lineHeight: 1.4,
+          }}
+        >
+          <span>
+            No se pudo cargar la verificación de seguridad de Cloudflare. Si usas bloqueador de anuncios o tu red es inestable, reintenta antes de continuar.
+          </span>
+          <button
+            type="button"
+            onClick={handleRetry}
+            style={{
+              alignSelf: "flex-start",
+              background: "#ffffff",
+              border: "1px solid #d97706",
+              color: "#92400e",
+              borderRadius: "var(--radius-sm)",
+              padding: "0.25rem 0.625rem",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Reintentar verificación
+          </button>
+        </div>
+      )}
+    </div>
   )
 }

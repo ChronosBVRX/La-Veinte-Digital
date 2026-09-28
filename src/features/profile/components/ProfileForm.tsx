@@ -14,6 +14,8 @@ interface Profile {
   phone: string | null
   matricula?: string | null
   adscripcion?: string | null
+  categoria?: string | null
+  antiguedad?: string | null
 }
 
 interface Props {
@@ -32,6 +34,8 @@ export function ProfileForm({ profile }: Props) {
       const phone = String(formData.get("phone") ?? "").trim()
       const matricula = String(formData.get("matricula") ?? "").trim().toUpperCase().replace(/\s+/g, "")
       const adscripcion = String(formData.get("adscripcion") ?? "").trim()
+      const categoria = String(formData.get("categoria") ?? "").trim()
+      const antiguedad = String(formData.get("antiguedad") ?? "").trim()
 
       if (!fullName) return { error: "El nombre completo es obligatorio" }
       if (phone && !PHONE_RE.test(phone)) {
@@ -55,6 +59,8 @@ export function ProfileForm({ profile }: Props) {
         phone: phone || null,
         matricula: matricula || null,
         adscripcion: adscripcion || null,
+        categoria: categoria || null,
+        antiguedad: antiguedad || null,
       }
       const { error } = await supabase.from("profiles").update(editableUpdates).eq("id", userId)
       if (error) {
@@ -84,6 +90,10 @@ export function ProfileForm({ profile }: Props) {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.75rem" }}>
           <Input label="Matrícula IMSS" name="matricula" defaultValue={profile?.matricula ?? ""} placeholder="Ej. 12345678" maxLength={32} />
           <Input label="Adscripción" name="adscripcion" defaultValue={profile?.adscripcion ?? ""} placeholder="Ej. HGZ 32, UMF 1" maxLength={200} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.75rem" }}>
+          <Input label="Categoría sindical" name="categoria" defaultValue={profile?.categoria ?? ""} placeholder="Ej. ENFERMERA GENERAL 80" maxLength={200} />
+          <Input label="Antigüedad" name="antiguedad" defaultValue={profile?.antiguedad ?? ""} placeholder="Ej. 5 años o 2021-03-16" maxLength={100} />
         </div>
         <Input label="Teléfono" name="phone" defaultValue={profile?.phone ?? ""} type="tel" />
         <Button type="submit" loading={pending} style={{ alignSelf: "flex-start" }}>

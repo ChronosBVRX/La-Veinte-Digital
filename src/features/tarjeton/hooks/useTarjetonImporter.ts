@@ -29,6 +29,7 @@ import { calculatePeriodRank } from "@/features/tarjeton/services/saved-payslip-
 export interface TarjetonProfileSnapshot {
   fullName?: string | null
   matricula?: string | null
+  adscripcion?: string | null
   categoria?: string | null
   antiguedad?: string | null
 }

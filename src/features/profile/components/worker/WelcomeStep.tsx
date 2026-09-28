@@ -1,21 +1,61 @@
 "use client"
 import { Button } from "@/shared/components/ui/Button"
 
-export function WelcomeStep({ onStart, onSkipBasic, loading }: { onStart: () => void; onSkipBasic: () => void; loading: boolean }) {
+interface WelcomeStepProps {
+  onStart: () => void
+  onChoosePayslip?: () => void
+  onSkipBasic: () => void
+  loading: boolean
+  isInitialOnboarding?: boolean
+}
+
+export function WelcomeStep({ onStart, onChoosePayslip, onSkipBasic, loading, isInitialOnboarding }: WelcomeStepProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", alignItems: "center", textAlign: "center" }}>
+      {isInitialOnboarding && (
+        <div
+          role="status"
+          style={{
+            width: "100%",
+            maxWidth: "480px",
+            background: "#f0fdf4",
+            border: "1px solid #bbf7d0",
+            color: "#166534",
+            padding: "0.75rem 1rem",
+            borderRadius: "var(--radius)",
+            fontSize: "0.875rem",
+            lineHeight: 1.45,
+          }}
+        >
+          <strong>✅ ¡Registro e inicio de sesión exitoso!</strong> Tu cuenta ya está activa. Puedes configurar tus datos laborales ahora o ir directo al inicio.
+        </div>
+      )}
       <div style={{ fontSize: "2.5rem" }}>👋</div>
       <h2 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0 }}>¡Tu cuenta está lista!</h2>
-      <p style={{ color: "var(--muted)", fontSize: "0.9375rem", margin: 0, lineHeight: 1.5 }}>
-        Vamos a configurar tu perfil laboral. Puedes ingresar tus datos mínimos (matrícula y adscripción) o, si lo consideras prudente, subir tu tarjetón IMSS para rellenar tu cuenta de forma automática. Podrás actualizar estos datos en el futuro.
+      <p style={{ color: "var(--muted)", fontSize: "0.9375rem", margin: 0, lineHeight: 1.5, maxWidth: "520px" }}>
+        Elige cómo quieres preparar tu perfil laboral para personalizar tus calculadoras, vacaciones y herramientas:
       </p>
-      <p style={{ color: "var(--muted)", fontSize: "0.8125rem", margin: 0 }}>Tardarás menos de 2 minutos.</p>
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", maxWidth: "320px" }}>
-        <Button onClick={onStart} style={{ width: "100%", justifyContent: "center" }}>Comenzar</Button>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", maxWidth: "400px" }}>
+        {onChoosePayslip && (
+          <Button onClick={onChoosePayslip} disabled={loading} style={{ width: "100%", justifyContent: "center" }}>
+            Subir mi tarjetón IMSS (Recomendado)
+          </Button>
+        )}
+        <Button
+          variant={onChoosePayslip ? "secondary" : "primary"}
+          onClick={onStart}
+          disabled={loading}
+          style={{ width: "100%", justifyContent: "center" }}
+        >
+          Capturar datos manualmente
+        </Button>
         <Button variant="ghost" onClick={onSkipBasic} loading={loading} style={{ width: "100%", justifyContent: "center" }}>
-          Omitir por ahora (Modo básico)
+          {loading ? "Redirigiendo al inicio..." : "Omitir por ahora (Modo básico)"}
         </Button>
       </div>
+      <p style={{ color: "var(--muted)", fontSize: "0.8125rem", margin: 0 }}>
+        Tardarás menos de 2 minutos y podrás cambiarlo cuando quieras.
+      </p>
     </div>
   )
 }

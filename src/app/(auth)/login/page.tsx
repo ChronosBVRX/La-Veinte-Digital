@@ -15,6 +15,12 @@ export default async function LoginPage({
 
   const params = await searchParams
   const showResend = params?.error === "email_not_confirmed"
+  const oauthErrorMessage =
+    params?.error && params.error !== "email_not_confirmed"
+      ? params.error === "auth_failed"
+        ? "No se pudo completar el acceso con Google. Inténtalo de nuevo o inicia sesión con tu correo."
+        : "El inicio de sesión con Google fue cancelado o no pudo completarse. Inténtalo de nuevo."
+      : null
 
   return (
     <div style={{ minHeight: "100dvh", display: "grid", placeItems: "center", padding: "1rem" }}>
@@ -44,6 +50,23 @@ export default async function LoginPage({
           borderRadius: "var(--radius-lg)", padding: "1.5rem",
           boxShadow: "var(--shadow-md)",
         }}>
+          {oauthErrorMessage && (
+            <div
+              role="alert"
+              style={{
+                marginBottom: "1rem",
+                color: "var(--error)",
+                fontSize: "0.875rem",
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                padding: "0.75rem 1rem",
+                borderRadius: "var(--radius-sm)",
+                lineHeight: 1.4,
+              }}
+            >
+              {oauthErrorMessage}
+            </div>
+          )}
           <LoginTabs />
           {showResend && (
             <div style={{ marginTop: "1.25rem", paddingTop: "1.25rem", borderTop: "1px solid var(--border)" }}>

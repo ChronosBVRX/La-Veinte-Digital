@@ -11,7 +11,7 @@ import { resolveActivePayslip } from "@/shared/server/active-payslip"
 import type { WorkerProfile, ProfileQuality, FieldRequirement, WorkerDataEvent, WorkerProfileMode } from "@/shared/domain/worker"
 
 interface PageProps {
-  searchParams: Promise<{ returnTo?: string }>
+  searchParams: Promise<{ returnTo?: string; onboarding?: string }>
 }
 
 export default async function WorkerProfilePage({ searchParams }: PageProps) {
@@ -41,6 +41,7 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
   const returnTo = typeof rawReturnTo === "string" && isSafeInternalReturnPath(rawReturnTo)
     ? rawReturnTo
     : undefined
+  const isInitialOnboarding = resolvedSearchParams?.onboarding === "true"
 
   let state: "unconfigured" | "basic" | "configured" = "unconfigured"
   let mode: WorkerProfileMode | null = null
@@ -91,12 +92,13 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
   // Snapshot del perfil para detección de diferencias durante la importación.
   const profileRes = await supabase
     .from("profiles")
-    .select("full_name, matricula, categoria, antiguedad")
+    .select("full_name, matricula, adscripcion, categoria, antiguedad")
     .eq("id", user.id)
     .single()
   const snapshot = {
     fullName: profileRes.data?.full_name ?? null,
     matricula: profileRes.data?.matricula ?? null,
+    adscripcion: profileRes.data?.adscripcion ?? null,
     categoria: profileRes.data?.categoria ?? null,
     antiguedad: profileRes.data?.antiguedad ?? null,
   }
@@ -172,6 +174,7 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
         requirements={requirements}
         events={events}
         returnTo={returnTo}
+        isInitialOnboarding={isInitialOnboarding}
         profileSnapshot={snapshot}
         userId={user.id}
       />

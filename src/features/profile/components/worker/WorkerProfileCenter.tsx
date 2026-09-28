@@ -16,7 +16,26 @@ import { changeWorkerProfileModeAction } from "@/features/profile/actions/worker
 
 const OnboardingWizard = dynamic(
   () => import("./OnboardingWizard").then((m) => m.OnboardingWizard),
-  { ssr: false }
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        role="status"
+        style={{
+          background: "#f0fdf4",
+          border: "1px solid #bbf7d0",
+          color: "#166534",
+          padding: "1rem 1.25rem",
+          borderRadius: "var(--radius)",
+          fontSize: "0.9375rem",
+          textAlign: "center",
+          lineHeight: 1.5,
+        }}
+      >
+        <strong>✅ ¡Autenticación exitosa!</strong> Preparando tu cuenta…
+      </div>
+    ),
+  }
 )
 
 export type WorkerState = "unconfigured" | "basic" | "configured"
@@ -29,19 +48,52 @@ interface WorkerProfileCenterProps {
   requirements: readonly FieldRequirement[]
   events: WorkerDataEvent[]
   returnTo?: string
+  isInitialOnboarding?: boolean
   profileSnapshot?: TarjetonProfileSnapshot | null
   userId: string
 }
 
-export function WorkerProfileCenter({ state, mode, profile, quality, requirements, events, returnTo, profileSnapshot, userId }: WorkerProfileCenterProps) {
-  const [viewState, setViewState] = useState<WorkerState>(state)
-  const [viewMode, setViewMode] = useState<WorkerProfileMode | null>(mode ?? null)
+export function WorkerProfileCenter({
+  state,
+  mode,
+  profile,
+  quality,
+  requirements,
+  events,
+  returnTo,
+  isInitialOnboarding,
+  profileSnapshot,
+  userId,
+}: WorkerProfileCenterProps) {
+  const serverMode = mode ?? null
+  const [override, setOverride] = useState<{
+    forServerState: WorkerState
+    forServerMode: WorkerProfileMode | null
+    viewState: WorkerState
+    viewMode: WorkerProfileMode | null
+  } | null>(null)
   const [showChangeDialog, setShowChangeDialog] = useState(false)
   const router = useRouter()
 
-  const handleComplete = () => {
-    setViewState("basic")
-    setViewMode(null)
+  const isOverrideActive =
+    override !== null &&
+    override.forServerState === state &&
+    override.forServerMode === serverMode
+
+  const viewState = isOverrideActive ? override.viewState : state
+  const viewMode = isOverrideActive ? override.viewMode : serverMode
+
+  const setClientView = (nextState: WorkerState, nextMode: WorkerProfileMode | null) => {
+    setOverride({
+      forServerState: state,
+      forServerMode: serverMode,
+      viewState: nextState,
+      viewMode: nextMode,
+    })
+  }
+
+  const handleComplete = (nextState: WorkerState = "basic", nextMode: WorkerProfileMode | null = null) => {
+    setClientView(nextState, nextMode)
     router.refresh()
   }
 
@@ -49,6 +101,7 @@ export function WorkerProfileCenter({ state, mode, profile, quality, requirement
     return (
       <OnboardingWizard
         returnTo={returnTo}
+        isInitialOnboarding={isInitialOnboarding}
         profileSnapshot={profileSnapshot}
         userId={userId}
         onComplete={handleComplete}
@@ -57,7 +110,7 @@ export function WorkerProfileCenter({ state, mode, profile, quality, requirement
   }
 
   if (viewState === "basic") {
-    return <BasicModeCard onConfigure={() => setViewState("unconfigured")} />
+    return <BasicModeCard onConfigure={() => setClientView("unconfigured", null)} />
   }
 
   // configured
@@ -111,7 +164,7 @@ export function WorkerProfileCenter({ state, mode, profile, quality, requirement
         >
           Cambiar método ({viewMode === "manual" ? "Manual → Tarjetón" : "Tarjetón → Manual"})
         </button>
-        <DeleteWorkerDataSection onDeleted={() => { setViewState("basic"); setViewMode(null) }} />
+        <DeleteWorkerDataSection onDeleted={() => { setClientView("basic", null) }} />
         <div style={{ borderTop: "1px solid var(--border)", paddingTop: "0.75rem", marginTop: "0.5rem" }}>
           <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0 }}>
             Eliminar mi cuenta es una acción independiente que no está disponible en esta versión.
@@ -124,7 +177,7 @@ export function WorkerProfileCenter({ state, mode, profile, quality, requirement
           current={viewMode ?? "manual"}
           onConfirm={async (newMode) => {
             const result = await changeWorkerProfileModeAction(newMode)
-            if (result.ok) { setViewMode(newMode); setShowChangeDialog(false) }
+            if (result.ok) { setClientView("configured", newMode); setShowChangeDialog(false) }
             return result
           }}
           onCancel={() => setShowChangeDialog(false)}

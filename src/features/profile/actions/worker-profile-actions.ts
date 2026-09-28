@@ -23,6 +23,7 @@ export async function chooseBasicModeAction(): Promise<ActionResult> {
     const svc = new WorkerProfileService()
     await svc.chooseBasicMode()
     revalidatePath("/profile/mi-informacion-laboral")
+    revalidatePath("/")
     return { ok: true }
   } catch (err) {
     return handleError(err)
@@ -35,6 +36,8 @@ export async function confirmManualProfileAction(input: ConfirmedWorkerProfileUp
     svc.validateConfirmedUpdate(input)
     await svc.confirmManualProfile(input)
     revalidatePath("/profile/mi-informacion-laboral")
+    revalidatePath("/profile")
+    revalidatePath("/")
     return { ok: true }
   } catch (err) {
     return handleError(err)

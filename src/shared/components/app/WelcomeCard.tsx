@@ -55,6 +55,7 @@ const para = (days: number | null): string | null => {
 export function WelcomeCard({ fullName, greeting, dateLabel, userId }: WelcomeCardProps) {
   const firstName = fullName?.split(" ")[0] ?? ""
   const [nominaProfile, setNominaProfile] = useState<NominaProfileLight | null>(null)
+  const [oauthSuccessProvider, setOauthSuccessProvider] = useState<string | null>(null)
   const [nextCommitmentState, setNextCommitmentState] = useState<{
     loaded: boolean
     result: NextCommitmentResult | null
@@ -62,11 +63,20 @@ export function WelcomeCard({ fullName, greeting, dateLabel, userId }: WelcomeCa
 
   useEffect(() => {
     if (typeof window === "undefined") return
+    try {
+      const pending = window.sessionStorage.getItem("lvd_oauth_pending")
+      if (pending) {
+        window.sessionStorage.removeItem("lvd_oauth_pending")
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setOauthSuccessProvider(pending)
+      }
+    } catch {
+      // ignore
+    }
     const raw = localStorage.getItem(scopedStorageKey("nomina_profile", userId))
     if (!raw) return
     try {
       const parsed = JSON.parse(raw)
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNominaProfile({ shift: parsed.shift, workdayHours: parsed.workdayHours })
     } catch {
       // ignore
@@ -170,6 +180,23 @@ export function WelcomeCard({ fullName, greeting, dateLabel, userId }: WelcomeCa
         boxShadow: "0 6px 20px rgba(2,6,23,0.28)",
       }}
     >
+      {oauthSuccessProvider && (
+        <div
+          role="status"
+          style={{
+            marginBottom: "0.875rem",
+            background: "rgba(34, 197, 94, 0.16)",
+            border: "1px solid rgba(74, 222, 128, 0.35)",
+            color: "#bbf7d0",
+            padding: "0.625rem 0.875rem",
+            borderRadius: "var(--radius-sm)",
+            fontSize: "var(--text-xs)",
+            lineHeight: 1.45,
+          }}
+        >
+          <strong>✅ ¡Inicio de sesión con {oauthSuccessProvider === "google" ? "Google" : "tu cuenta"} exitoso!</strong> Ya estás dentro de tu cuenta.
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", marginBottom: "0.25rem" }}>
         <span
           style={{

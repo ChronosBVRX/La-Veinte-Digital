@@ -90,8 +90,11 @@ export function ImportSuccess({ parsed, response, onStartOver }: ImportSuccessPr
         <Button variant="ghost" onClick={onStartOver}>
           Subir otro tarjetón
         </Button>
+        <Link href="/" style={{ textDecoration: "none" }}>
+          <Button>Ir al inicio</Button>
+        </Link>
         <Link href="/calculadoras" style={{ textDecoration: "none" }}>
-          <Button>Ir a calculadoras</Button>
+          <Button variant="secondary">Ir a calculadoras</Button>
         </Link>
         <Link href="/profile/mi-informacion-laboral" style={{ textDecoration: "none" }}>
           <Button variant="outline">Mi información laboral</Button>

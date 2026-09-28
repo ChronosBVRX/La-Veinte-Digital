@@ -1,4 +1,6 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi, beforeEach } from "vitest"
+import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 
 const mocks = vi.hoisted(() => ({
   confirmPayslipProfile: vi.fn(async () => undefined),
@@ -8,6 +10,19 @@ const mocks = vi.hoisted(() => ({
   grantConsent: vi.fn(async () => undefined),
   deleteWorkerData: vi.fn(async () => undefined),
   revalidatePath: vi.fn(),
+  routerPush: vi.fn(),
+  routerRefresh: vi.fn(),
+}))
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: mocks.routerPush,
+    refresh: mocks.routerRefresh,
+  }),
+}))
+
+vi.mock("@/features/tarjeton/components/TarjetonImporterWrapper", () => ({
+  TarjetonImporterWrapper: () => <div data-testid="tarjeton-importer-wrapper" />,
 }))
 
 vi.mock("@/shared/server/worker-profile", () => ({
@@ -35,6 +50,7 @@ import {
   completePayslipOnboardingAction,
 } from "@/features/profile/actions/worker-profile-actions"
 import { WorkerProfileUnauthorizedError } from "@/shared/server/worker-profile/errors"
+import { OnboardingWizard } from "../OnboardingWizard"
 
 describe("completePayslipOnboardingAction — cierre unificado del flujo tarjetón", () => {
   beforeEach(() => {
@@ -111,3 +127,64 @@ describe("completePayslipOnboardingAction — cierre unificado del flujo tarjet�
     }
   })
 })
+
+describe("OnboardingWizard — flujo directo y consentimiento manual", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("muestra las 3 opciones claras desde el paso inicial sin pasos redundantes", () => {
+    render(<OnboardingWizard userId="u1" onComplete={vi.fn()} />)
+    expect(screen.getByText("¡Tu cuenta está lista!")).toBeTruthy()
+    expect(screen.getByRole("button", { name: /Subir mi tarjetón IMSS/i })).toBeTruthy()
+    expect(screen.getByRole("button", { name: /Capturar datos manualmente/i })).toBeTruthy()
+    expect(screen.getByRole("button", { name: /Omitir por ahora/i })).toBeTruthy()
+  })
+
+  it("prerrellena captura manual con profileSnapshot y otorga consentimiento use_worker_data al confirmar", async () => {
+    const onComplete = vi.fn()
+    render(
+      <OnboardingWizard
+        userId="u1"
+        profileSnapshot={{ matricula: "99123456", adscripcion: "HGZ 32", categoria: "ENFERMERA GENERAL 80" }}
+        onComplete={onComplete}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Capturar datos manualmente/i }))
+
+    const matriculaInput = screen.getByPlaceholderText("Ej: 12345678") as HTMLInputElement
+    expect(matriculaInput.value).toBe("99123456")
+
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }))
+
+    const checkbox = screen.getByRole("checkbox")
+    fireEvent.click(checkbox)
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }))
+
+    expect(screen.getByText("¿Confirmas estos datos?")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar y guardar" }))
+
+    await waitFor(() => {
+      expect(mocks.grantConsent).toHaveBeenCalledWith("use_worker_data", "2026-08-v1")
+      expect(mocks.confirmManualProfile).toHaveBeenCalledTimes(1)
+    })
+
+    expect(screen.getByText("¡Perfil configurado!")).toBeTruthy()
+  })
+
+  it("redirige al inicio al omitir en modo básico durante el onboarding inicial", async () => {
+    const onComplete = vi.fn()
+    render(<OnboardingWizard userId="u1" isInitialOnboarding onComplete={onComplete} />)
+
+    expect(screen.getByText(/¡Registro e inicio de sesión exitoso!/i)).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: /Omitir por ahora/i }))
+
+    await waitFor(() => {
+      expect(mocks.chooseBasicMode).toHaveBeenCalledTimes(1)
+      expect(onComplete).toHaveBeenCalledWith("basic", null)
+      expect(mocks.routerPush).toHaveBeenCalledWith("/")
+    })
+  })
+})
+

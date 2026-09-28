@@ -1,10 +1,9 @@
 "use client"
 
 import { useState, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/shared/components/ui/Button"
 import { WelcomeStep } from "./WelcomeStep"
-import { ModeChoiceStep } from "./ModeChoiceStep"
-import { MethodChoiceStep } from "./MethodChoiceStep"
 import { ManualCaptureStep } from "./ManualCaptureStep"
 import { ConsentStep } from "./ConsentStep"
 import { ConfirmStep } from "./ConfirmStep"
@@ -13,35 +12,73 @@ import {
   chooseBasicModeAction,
   confirmManualProfileAction,
   completePayslipOnboardingAction,
+  grantWorkerConsentAction,
 } from "@/features/profile/actions/worker-profile-actions"
 import { TarjetonImporterWrapper } from "@/features/tarjeton/components/TarjetonImporterWrapper"
 import type { TarjetonImportSuccessMeta } from "@/shared/contracts/tarjeton-import"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
-import type { ConfirmedWorkerProfileUpdate, WorkerProfileDraft } from "@/shared/domain/worker"
+import type { ConfirmedWorkerProfileUpdate, WorkerFieldName, WorkerProfileDraft, WorkerProfileMode } from "@/shared/domain/worker"
 
 interface OnboardingWizardProps {
   returnTo?: string
+  isInitialOnboarding?: boolean
   profileSnapshot?: TarjetonProfileSnapshot | null
   userId: string
-  onComplete: () => void
+  onComplete: (nextState?: "basic" | "configured", nextMode?: WorkerProfileMode | null) => void
 }
 
-export function OnboardingWizard({ returnTo, profileSnapshot, userId, onComplete }: OnboardingWizardProps) {
+function buildInitialDraft(snapshot?: TarjetonProfileSnapshot | null): WorkerProfileDraft {
+  const confirmedFields: WorkerFieldName[] = []
+  const identity: WorkerProfileDraft["identity"] = {}
+  const situation: WorkerProfileDraft["situation"] = {}
+
+  if (snapshot?.matricula?.trim()) {
+    identity.matricula = snapshot.matricula.trim()
+    confirmedFields.push("matricula")
+  }
+  if (snapshot?.adscripcion?.trim()) {
+    identity.adscripcion = snapshot.adscripcion.trim()
+    confirmedFields.push("adscripcion")
+  }
+  if (snapshot?.categoria?.trim()) {
+    identity.categoria = snapshot.categoria.trim()
+    confirmedFields.push("categoria")
+  }
+  if (snapshot?.antiguedad && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(snapshot.antiguedad.trim())) {
+    situation.effectiveSeniorityDate = snapshot.antiguedad.trim()
+    confirmedFields.push("effectiveSeniorityDate")
+  }
+
+  return { mode: "manual", identity, situation, confirmedFields }
+}
+
+export function OnboardingWizard({
+  returnTo,
+  isInitialOnboarding,
+  profileSnapshot,
+  userId,
+  onComplete,
+}: OnboardingWizardProps) {
+  const router = useRouter()
   const [step, setStep] = useState(1)
-  const [chosenMode, setChosenMode] = useState<"basic" | "configured" | null>(null)
   const [chosenMethod, setChosenMethod] = useState<"manual" | "payslip" | null>(null)
-  const [draft, setDraft] = useState<WorkerProfileDraft>({ mode: "manual", identity: {}, situation: {}, confirmedFields: [] })
+  const [draft, setDraft] = useState<WorkerProfileDraft>(() => buildInitialDraft(profileSnapshot))
   const [consentAccepted, setConsentAccepted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  // El tarjetón usa el importador canónico: menos pasos (sin revisión doble
-  // ni consentimiento separado; la revisión y autorización ocurren dentro
-  // del propio importador antes de confirmar en el servidor).
-  const totalSteps = chosenMethod === "payslip" ? 5 : 7
+  const totalSteps = chosenMethod === "payslip" ? 3 : 5
 
   const goNext = useCallback(() => setStep((s) => s + 1), [])
-  const goBack = useCallback(() => setStep((s) => Math.max(1, s - 1)), [])
+  const goBack = useCallback(() => {
+    setStep((s) => {
+      if (s <= 2) {
+        setChosenMethod(null)
+        return 1
+      }
+      return s - 1
+    })
+  }, [])
 
   const handlePayslipSuccess = useCallback(async (meta: TarjetonImportSuccessMeta) => {
     setLoading(true)
@@ -55,21 +92,43 @@ export function OnboardingWizard({ returnTo, profileSnapshot, userId, onComplete
     }
   }, [goNext])
 
+  const handleChoosePayslip = useCallback(() => {
+    if (typeof document !== "undefined") {
+      const uploaderSection = document.getElementById("subir-tarjeton")
+      if (uploaderSection) {
+        uploaderSection.scrollIntoView({ behavior: "smooth", block: "start" })
+        return
+      }
+    }
+    setChosenMethod("payslip")
+    setStep(2)
+  }, [])
+
+  const handleStartManual = useCallback(() => {
+    setChosenMethod("manual")
+    setDraft((prev) => ({ ...prev, mode: "manual" }))
+    setStep(2)
+  }, [])
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-      {/* Barra de progreso */}
-      <div style={{ display: "flex", gap: "0.25rem", alignItems: "center", marginBottom: "0.25rem" }}>
-        {Array.from({ length: totalSteps }, (_, i) => i + 1).map((s) => (
-          <div key={s} style={{
-            flex: 1, height: "4px", borderRadius: "2px",
-            background: s <= step ? "var(--primary)" : "var(--border)",
-            transition: "background 0.3s",
-          }} />
-        ))}
-      </div>
-      <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
-        Paso {step} de {totalSteps}
-      </p>
+      {/* Barra de progreso visible una vez elegido un flujo */}
+      {step > 1 && (
+        <div>
+          <div style={{ display: "flex", gap: "0.25rem", alignItems: "center", marginBottom: "0.25rem" }}>
+            {Array.from({ length: totalSteps }, (_, i) => i + 1).map((s) => (
+              <div key={s} style={{
+                flex: 1, height: "4px", borderRadius: "2px",
+                background: s <= step ? "var(--primary)" : "var(--border)",
+                transition: "background 0.3s",
+              }} />
+            ))}
+          </div>
+          <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0 }}>
+            Paso {step} de {totalSteps}
+          </p>
+        </div>
+      )}
 
       {error && (
         <div role="alert" style={{ color: "#dc2626", fontSize: "0.875rem", background: "#fef2f2", padding: "0.5rem", borderRadius: "0.375rem" }}>
@@ -77,17 +136,27 @@ export function OnboardingWizard({ returnTo, profileSnapshot, userId, onComplete
         </div>
       )}
 
-      {/* Paso 1 — Bienvenida */}
+      {/* Paso 1 — Bienvenida y elección directa */}
       {step === 1 && (
         <WelcomeStep
-          onStart={() => goNext()}
+          isInitialOnboarding={isInitialOnboarding}
+          onChoosePayslip={handleChoosePayslip}
+          onStart={handleStartManual}
           onSkipBasic={async () => {
             setLoading(true)
             setError(null)
             try {
               const result = await chooseBasicModeAction()
-              if (result.ok) onComplete()
-              else setError(result.message)
+              if (result.ok) {
+                onComplete("basic", null)
+                if (returnTo) {
+                  router.push(returnTo)
+                } else if (isInitialOnboarding) {
+                  router.push("/")
+                }
+              } else {
+                setError(result.message)
+              }
             } finally {
               setLoading(false)
             }
@@ -96,41 +165,8 @@ export function OnboardingWizard({ returnTo, profileSnapshot, userId, onComplete
         />
       )}
 
-      {/* Paso 2 — Modo */}
-      {step === 2 && (
-        <ModeChoiceStep
-          selected={chosenMode}
-          onSelect={(mode) => setChosenMode(mode)}
-          onContinue={() => {
-            if (!chosenMode) return
-            if (chosenMode === "basic") {
-              chooseBasicModeAction().then((r) => { if (r.ok) onComplete(); else setError(r.message) })
-              return
-            }
-            goNext()
-          }}
-          onBack={goBack}
-        />
-      )}
-
-      {/* Paso 3 — Método */}
-      {step === 3 && (
-        <MethodChoiceStep
-          selected={chosenMethod}
-          onSelect={(method) => setChosenMethod(method)}
-          onContinue={() => {
-            if (!chosenMethod) return
-            if (chosenMethod === "manual") {
-              setDraft((prev) => ({ ...prev, mode: "manual" }))
-            }
-            goNext()
-          }}
-          onBack={goBack}
-        />
-      )}
-
-      {/* Paso 4a — Captura manual */}
-      {step === 4 && chosenMethod === "manual" && (
+      {/* Paso 2a — Captura manual */}
+      {step === 2 && chosenMethod === "manual" && (
         <ManualCaptureStep
           draft={draft}
           onChange={setDraft}
@@ -139,8 +175,8 @@ export function OnboardingWizard({ returnTo, profileSnapshot, userId, onComplete
         />
       )}
 
-      {/* Paso 4b — Importador canónico de tarjetón (revisión y autorización incluidas) */}
-      {step === 4 && chosenMethod === "payslip" && (
+      {/* Paso 2b — Importador canónico de tarjetón (fallback si no existe #subir-tarjeton en DOM) */}
+      {step === 2 && chosenMethod === "payslip" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           <Button variant="ghost" size="sm" onClick={goBack} style={{ alignSelf: "flex-start" }}>
             ← Elegir otro método
@@ -157,8 +193,8 @@ export function OnboardingWizard({ returnTo, profileSnapshot, userId, onComplete
         </div>
       )}
 
-      {/* Paso 5 — Consentimiento (solo manual) */}
-      {step === 5 && chosenMethod === "manual" && (
+      {/* Paso 3 — Consentimiento (solo manual) */}
+      {step === 3 && chosenMethod === "manual" && (
         <ConsentStep
           accepted={consentAccepted}
           onAccept={setConsentAccepted}
@@ -167,8 +203,8 @@ export function OnboardingWizard({ returnTo, profileSnapshot, userId, onComplete
         />
       )}
 
-      {/* Paso 6 — Confirmación (solo manual) */}
-      {step === 6 && chosenMethod === "manual" && (
+      {/* Paso 4 — Confirmación (solo manual) */}
+      {step === 4 && chosenMethod === "manual" && (
         <ConfirmStep
           draft={draft}
           method="manual"
@@ -176,6 +212,12 @@ export function OnboardingWizard({ returnTo, profileSnapshot, userId, onComplete
             setLoading(true)
             setError(null)
             try {
+              const consentVersion = "2026-08-v1"
+              const consentRes = await grantWorkerConsentAction("use_worker_data", consentVersion)
+              if (!consentRes.ok) {
+                setError(consentRes.message)
+                return
+              }
               const update: ConfirmedWorkerProfileUpdate = {
                 mode: "manual",
                 sourceOfRequest: "manual",
@@ -184,7 +226,7 @@ export function OnboardingWizard({ returnTo, profileSnapshot, userId, onComplete
                 sources: Object.fromEntries(
                   draft.confirmedFields.map((f) => [f, "manual"])
                 ) as ConfirmedWorkerProfileUpdate["sources"],
-                consentRef: { purpose: "use_worker_data", version: "2026-08-v1" },
+                consentRef: { purpose: "use_worker_data", version: consentVersion },
               }
               const result = await confirmManualProfileAction(update)
               if (result.ok) goNext()
@@ -199,13 +241,14 @@ export function OnboardingWizard({ returnTo, profileSnapshot, userId, onComplete
       )}
 
       {/* Último paso — Resumen */}
-      {((step === 5 && chosenMethod === "payslip") || (step === 7 && chosenMethod === "manual")) && (
+      {((step === 3 && chosenMethod === "payslip") || (step === 5 && chosenMethod === "manual")) && (
         <SummaryStep
           returnTo={returnTo}
-          onComplete={onComplete}
+          onComplete={() => onComplete("configured", chosenMethod ?? "manual")}
         />
       )}
     </div>
   )
 }
+
 
