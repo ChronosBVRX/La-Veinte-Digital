@@ -10,6 +10,7 @@ import { guideConcepts } from "@/data/guia-tarjeton/concepts"
 import { getSourceById } from "@/data/guia-tarjeton/sources"
 import { fieldDetails } from "../data/field-details"
 import { renderLocation } from "../components/FieldFichaPage"
+import { getFieldVisualLocation, RECEPTOR_COLUMNS } from "../components/TarjetonAnatomyDiagram"
 
 describe("ficha del concepto 104 (CRÉDITO HIPOTECARIO FOVI)", () => {
   const d = conceptDetails["104"]
@@ -140,5 +141,22 @@ describe("ubicación de campos en tarjetón", () => {
     const fallback = renderLocation(undefined, "Receptor")
     expect(fallback).toBeDefined()
   })
+
+  it("mapea los 77 campos a su columna o región visual correcta del tarjetón", () => {
+    expect(RECEPTOR_COLUMNS).toHaveLength(3)
+    const allReceptorIds = RECEPTOR_COLUMNS.flatMap((c) => c.fieldIds)
+    expect(allReceptorIds).toHaveLength(59)
+    expect(getFieldVisualLocation(1).subZone).toBe("col1")
+    expect(getFieldVisualLocation(19).subZone).toBe("col1")
+    expect(getFieldVisualLocation(20).subZone).toBe("col2")
+    expect(getFieldVisualLocation(39).subZone).toBe("col2")
+    expect(getFieldVisualLocation(40).subZone).toBe("col3")
+    expect(getFieldVisualLocation(59).subZone).toBe("col3")
+    expect(getFieldVisualLocation(61).subZone).toBe("percepciones")
+    expect(getFieldVisualLocation(66).subZone).toBe("deducciones")
+    expect(getFieldVisualLocation(70).subZone).toBe("liquido")
+    expect(getFieldVisualLocation(73).section).toBe("observaciones")
+  })
 })
+
 
