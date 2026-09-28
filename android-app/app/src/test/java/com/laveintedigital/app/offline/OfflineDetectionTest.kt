@@ -55,4 +55,70 @@ class OfflineDetectionTest {
         assertFalse(NativeSessionOwner.isValidOwnerId("../escape"))
         assertFalse(NativeSessionOwner.isValidOwnerId("a".repeat(129)))
     }
+
+    @Test
+    fun `chromium net error descriptions trigger offline mode`() {
+        assertTrue(
+            OfflineDetection.isMainFrameConnectivityError(
+                0,
+                "net::ERR_INTERNET_DISCONNECTED",
+            ),
+        )
+        assertTrue(
+            OfflineDetection.isMainFrameConnectivityError(
+                0,
+                "net::ERR_NAME_NOT_RESOLVED",
+            ),
+        )
+        assertTrue(
+            OfflineDetection.isMainFrameConnectivityError(
+                0,
+                "net::ERR_CONNECTION_TIMED_OUT",
+            ),
+        )
+        assertFalse(
+            OfflineDetection.isMainFrameConnectivityError(
+                -11,
+                "net::ERR_CERT_AUTHORITY_INVALID",
+            ),
+        )
+    }
+
+    @Test
+    fun `internal error urls are detected`() {
+        assertTrue(OfflineDetection.isInternalErrorUrl(null))
+        assertTrue(OfflineDetection.isInternalErrorUrl(""))
+        assertTrue(OfflineDetection.isInternalErrorUrl("chrome-error://chromewebdata/"))
+        assertTrue(OfflineDetection.isInternalErrorUrl("about:blank"))
+        assertFalse(OfflineDetection.isInternalErrorUrl("https://la-veinte-digital.vercel.app/"))
+    }
+
+    @Test
+    fun `navigation tracker prevents onPageFinished from clearing offline after main frame error`() {
+        val tracker = OfflineNavigationTracker()
+        val url = "https://la-veinte-digital.vercel.app/"
+
+        // 1. Cold start without internet: onPageStarted -> onReceivedError -> onPageFinished
+        tracker.onPageStarted(url)
+        assertFalse(tracker.hasOfflineError)
+
+        tracker.onMainFrameConnectivityError()
+        assertTrue(tracker.hasOfflineError)
+
+        // Chromium fires onPageFinished right after onReceivedError with either the failing URL
+        // or chrome-error://chromewebdata/. Neither may commit online state.
+        assertFalse(tracker.shouldCommitOnlineOnPageFinished(url, isInternalHost = true))
+        assertFalse(
+            tracker.shouldCommitOnlineOnPageFinished(
+                "chrome-error://chromewebdata/",
+                isInternalHost = false,
+            ),
+        )
+        assertTrue(tracker.hasOfflineError)
+
+        // 2. Subsequent retry when internet is restored: onPageStarted resets error for real URL
+        tracker.onPageStarted(url)
+        assertFalse(tracker.hasOfflineError)
+        assertTrue(tracker.shouldCommitOnlineOnPageFinished(url, isInternalHost = true))
+    }
 }

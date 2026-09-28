@@ -226,11 +226,23 @@ fun OfflineDocumentsScreen(
             }
 
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                Text(
-                    "Estás sin conexión.",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        if (backOnline == true) "Modo consulta local" else "Estás sin conexión.",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (backOnline != true) {
+                        TextButton(onClick = onReturnOnline) {
+                            Text("Reintentar conexión", fontSize = 13.sp)
+                        }
+                    }
+                }
                 val syncLabel = remember(snapshot) {
                     snapshot?.syncedAtMs?.takeIf { it > 0L }?.let { ms ->
                         val fmt = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale("es", "MX"))

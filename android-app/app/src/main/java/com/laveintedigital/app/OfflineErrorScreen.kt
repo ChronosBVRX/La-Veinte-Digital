@@ -40,7 +40,7 @@ import com.laveintedigital.app.ui.theme.BrandNavy
 @Composable
 fun OfflineErrorScreen(
     title: String = "Sin conexión a Internet",
-    message: String = "Algunas funciones de La Veinte Digital necesitan conexión.\nTus documentos guardados siguen disponibles.",
+    message: String = "Puedes seguir consultando tus documentos guardados (Tarjetones, Checadas y Escritos), Mi Quincena, Mi Agenda y las Calculadoras en el Modo Sin Conexión.",
     onRetry: () -> Unit,
     onOpenSavedDocuments: (() -> Unit)? = null,
     isBackOnline: Boolean = false,
@@ -75,7 +75,7 @@ fun OfflineErrorScreen(
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.65f),
+                color = Color.White.copy(alpha = 0.78f),
                 textAlign = TextAlign.Center,
             )
             if (isBackOnline) {
@@ -100,7 +100,7 @@ fun OfflineErrorScreen(
                     ),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Ver mis documentos", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    Text("Abrir modo sin conexión (Mis documentos)", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                 }
                 Spacer(Modifier.height(12.dp))
                 OutlinedButton(
@@ -108,7 +108,7 @@ fun OfflineErrorScreen(
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Intentar de nuevo", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    Text("Reintentar conexión", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                 }
             } else {
                 Button(
