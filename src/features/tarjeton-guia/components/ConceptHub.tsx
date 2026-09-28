@@ -330,7 +330,7 @@ function CatalogList({ tab }: { tab: "percepciones" | "deducciones" }) {
 
   return (
     <div className="guia-catalog-list" style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
-      {list.slice(0, 60).map((c) => {
+      {list.map((c) => {
         const curated = conceptDetails[c.code]
         return (
           <Link

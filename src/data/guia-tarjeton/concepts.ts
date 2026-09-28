@@ -1318,6 +1318,54 @@ export const guideConcepts: GuideConcept[] = [
     ]
   },
   {
+    "code": "017",
+    "name": "MÉDICO FAMILIAR",
+    "kind": "perception",
+    "catalog": {
+      "listed": true,
+      "detail": []
+    },
+    "status": "reference-only",
+    "requiresCurrentValidation": false,
+    "searchTerms": [
+      "017",
+      "médico familiar",
+      "sobresueldo médico familiar"
+    ]
+  },
+  {
+    "code": "018",
+    "name": "RAMA MÉDICA",
+    "kind": "perception",
+    "catalog": {
+      "listed": true,
+      "detail": []
+    },
+    "status": "reference-only",
+    "requiresCurrentValidation": false,
+    "searchTerms": [
+      "018",
+      "rama médica",
+      "sobresueldo rama médica"
+    ]
+  },
+  {
+    "code": "019",
+    "name": "MÉDICOS NO FAMILIARES",
+    "kind": "perception",
+    "catalog": {
+      "listed": true,
+      "detail": []
+    },
+    "status": "reference-only",
+    "requiresCurrentValidation": false,
+    "searchTerms": [
+      "019",
+      "médicos no familiares",
+      "sobresueldo médicos especialistas"
+    ]
+  },
+  {
     "code": "020",
     "name": "AYUDA DE RENTA CL. 63 BIS INC. A",
     "kind": "perception",
@@ -1935,6 +1983,22 @@ export const guideConcepts: GuideConcept[] = [
     ]
   },
   {
+    "code": "061",
+    "name": "INFECTOCONTAGIOSIDAD MÉDICA",
+    "kind": "perception",
+    "catalog": {
+      "listed": true,
+      "detail": []
+    },
+    "status": "reference-only",
+    "requiresCurrentValidation": false,
+    "searchTerms": [
+      "061",
+      "infectocontagiosidad médica",
+      "infectocontagiosidad"
+    ]
+  },
+  {
     "code": "062",
     "name": "AYUDA PARA LIBROS A MÉDICOS",
     "kind": "perception",
@@ -2056,6 +2120,22 @@ export const guideConcepts: GuideConcept[] = [
     "searchTerms": [
       "072",
       "ayuda para libros no médicos"
+    ]
+  },
+  {
+    "code": "073",
+    "name": "BONIFICACIÓN DE SEGURO DE ENFERMERÍA",
+    "kind": "perception",
+    "catalog": {
+      "listed": true,
+      "detail": []
+    },
+    "status": "reference-only",
+    "requiresCurrentValidation": false,
+    "searchTerms": [
+      "073",
+      "bonificación de seguro de enfermería",
+      "seguro de enfermería"
     ]
   },
   {
