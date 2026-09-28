@@ -4,7 +4,13 @@ import { useState, useTransition } from "react";
 import { Button } from "@/shared/components/ui/Button";
 import { Card } from "@/shared/components/ui/Card";
 import { WorkerPicker, type UnionWorkerOption, getWorkerDisplayName } from "../WorkerPicker";
-import type { LockerZone, LockerBank, LockerMapItem } from "../../lib/lockers";
+import {
+  getLockerZoneDisplayName,
+  groupLockerZones,
+  type LockerZone,
+  type LockerBank,
+  type LockerMapItem,
+} from "../../lib/lockers";
 
 interface LockerAuditModeProps {
   zones: LockerZone[];
@@ -55,15 +61,26 @@ export function LockerAuditMode({
   const [auditSaveError, setAuditSaveError] = useState<string | null>(null);
 
   // Filter banks by zone
+  const groupedZones = groupLockerZones(zones);
   const availableBanks = selectedZoneId
-    ? banks.filter((b) => b.zone_id === selectedZoneId)
+    ? selectedZoneId === "group:women"
+      ? banks.filter((b) => groupedZones.women.some((z) => z.id === b.zone_id))
+      : selectedZoneId === "group:men"
+        ? banks.filter((b) => groupedZones.men.some((z) => z.id === b.zone_id))
+        : banks.filter((b) => b.zone_id === selectedZoneId)
     : banks;
 
   async function handleStartAudit(): Promise<void> {
     setAuditSaveError(null);
     let filtered = [...lockers];
 
-    if (selectedZoneId) {
+    if (selectedZoneId === "group:women") {
+      const womenIds = new Set(groupedZones.women.map((z) => z.id));
+      filtered = filtered.filter((l) => Boolean(l.zone_id && womenIds.has(l.zone_id)));
+    } else if (selectedZoneId === "group:men") {
+      const menIds = new Set(groupedZones.men.map((z) => z.id));
+      filtered = filtered.filter((l) => Boolean(l.zone_id && menIds.has(l.zone_id)));
+    } else if (selectedZoneId) {
       filtered = filtered.filter((l) => l.zone_id === selectedZoneId);
     }
     if (selectedBankId) {
@@ -90,7 +107,7 @@ export function LockerAuditMode({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          zone_id: selectedZoneId || null,
+          zone_id: selectedZoneId && !selectedZoneId.startsWith("group:") ? selectedZoneId : null,
           bank_id: selectedBankId || null,
           notes: auditNotes,
         }),
@@ -253,14 +270,67 @@ export function LockerAuditMode({
                 }}
               >
                 <option value="">Todas las zonas ({lockers.length} casilleros)</option>
-                {zones.map((z) => {
-                  const countInZone = lockers.filter((l) => l.zone_id === z.id).length;
+                {(() => {
+                  const hasGenderGroups = groupedZones.women.length > 0 && groupedZones.men.length > 0;
+                  if (!hasGenderGroups) {
+                    return zones.map((z) => {
+                      const countInZone = lockers.filter((l) => l.zone_id === z.id).length;
+                      return (
+                        <option key={z.id} value={z.id}>
+                          {z.name} ({countInZone} casilleros)
+                        </option>
+                      );
+                    });
+                  }
+                  const womenZoneIds = new Set(groupedZones.women.map((z) => z.id));
+                  const menZoneIds = new Set(groupedZones.men.map((z) => z.id));
+                  const womenTotal = lockers.filter((l) => Boolean(l.zone_id && womenZoneIds.has(l.zone_id))).length;
+                  const menTotal = lockers.filter((l) => Boolean(l.zone_id && menZoneIds.has(l.zone_id))).length;
                   return (
-                    <option key={z.id} value={z.id}>
-                      {z.name} ({countInZone} casilleros)
-                    </option>
+                    <>
+                      <optgroup label="Sección completa">
+                        <option value="group:women">👩 Todos los Vestidores Mujeres ({womenTotal} casilleros)</option>
+                        <option value="group:men">👨 Todos los Vestidores Hombres ({menTotal} casilleros)</option>
+                      </optgroup>
+                      {groupedZones.women.length > 0 && (
+                        <optgroup label="👩 Vestidores Mujeres (zona por zona)">
+                          {groupedZones.women.map((z) => {
+                            const countInZone = lockers.filter((l) => l.zone_id === z.id).length;
+                            return (
+                              <option key={z.id} value={z.id}>
+                                {getLockerZoneDisplayName(z.name)} ({countInZone} casilleros)
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      )}
+                      {groupedZones.men.length > 0 && (
+                        <optgroup label="👨 Vestidores Hombres (zona por zona)">
+                          {groupedZones.men.map((z) => {
+                            const countInZone = lockers.filter((l) => l.zone_id === z.id).length;
+                            return (
+                              <option key={z.id} value={z.id}>
+                                {getLockerZoneDisplayName(z.name)} ({countInZone} casilleros)
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      )}
+                      {groupedZones.general.length > 0 && (
+                        <optgroup label="🏢 Otras zonas">
+                          {groupedZones.general.map((z) => {
+                            const countInZone = lockers.filter((l) => l.zone_id === z.id).length;
+                            return (
+                              <option key={z.id} value={z.id}>
+                                {z.name} ({countInZone} casilleros)
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      )}
+                    </>
                   );
-                })}
+                })()}
               </select>
             </div>
 
