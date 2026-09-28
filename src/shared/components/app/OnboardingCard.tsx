@@ -248,6 +248,23 @@ export function OnboardingCard({ hasAntiguedad, hasTarjeton, hasCategoria }: Onb
         {active.actionLabel}
         <CaretRight size={16} weight="bold" />
       </Link>
+
+      {active.key !== "tarjeton" && hasTarjeton === false && (
+        <Link
+          href="/profile/mi-informacion-laboral#subir-tarjeton"
+          style={{
+            display: "block",
+            marginTop: "0.625rem",
+            textAlign: "center",
+            fontSize: "var(--text-xs)",
+            fontWeight: 600,
+            color: "var(--brand-blue)",
+            textDecoration: "none",
+          }}
+        >
+          ¿Tienes tu recibo en PDF? Sube tu tarjetón y rellena todo en un paso →
+        </Link>
+      )}
     </section>
   )
 }

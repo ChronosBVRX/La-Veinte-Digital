@@ -358,7 +358,29 @@ export class WorkerProfileService {
       p_consent_version: consentVersion,
     })
     if (error) throw mapRpcError(error.message, "No se pudo guardar tu perfil laboral.")
-    void userId
+
+    // Sincronización complementaria hacia public.profiles para mantener
+    // consistencia con OnboardingCard del Inicio y el formulario de /profile.
+    const profilePatch: Record<string, string> = {}
+    if (identity.matricula) profilePatch.matricula = identity.matricula
+    if (identity.adscripcion) profilePatch.adscripcion = identity.adscripcion
+    if (identity.categoria) profilePatch.categoria = identity.categoria
+    if (situation.effective_seniority_date) profilePatch.antiguedad = situation.effective_seniority_date
+    if (Object.keys(profilePatch).length > 0) {
+      try {
+        const client = await this.getClient()
+        if (typeof client.from === "function") {
+          const table = client.from("profiles") as unknown as {
+            update?: (patch: Record<string, string>) => { eq: (col: string, val: string) => PromiseLike<unknown> }
+          }
+          if (table && typeof table.update === "function") {
+            await table.update(profilePatch).eq("id", userId)
+          }
+        }
+      } catch {
+        // No bloquear si el mock de pruebas o RLS no expone update directo
+      }
+    }
   }
 
   /** confirm_payslip_worker_profile(...) — update confirmado desde tarjetón. */

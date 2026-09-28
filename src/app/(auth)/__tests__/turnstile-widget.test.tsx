@@ -81,4 +81,34 @@ describe("TurnstileWidget", () => {
     expect(input.value).toBe("")
     expect(resetMock).toHaveBeenCalledWith("widget-reset-1")
   })
+
+  it("muestra aviso claro y botón de reintento cuando falla la carga de Cloudflare en vez de ocultarse", async () => {
+    type RenderOpts = {
+      sitekey: string
+      appearance?: string
+      "error-callback"?: () => void
+    }
+    let captured: RenderOpts | undefined
+    ;(window as unknown as Record<string, unknown>).turnstile = {
+      render: vi.fn((_el: unknown, opts: RenderOpts) => {
+        captured = opts
+        return "widget-err-1"
+      }),
+      remove: vi.fn(),
+    }
+
+    render(<TurnstileWidget siteKey="test-site-key" />)
+
+    await waitFor(() => {
+      expect(captured?.sitekey).toBe("test-site-key")
+      expect(captured?.appearance).toBe("always")
+    })
+
+    await act(async () => {
+      captured?.["error-callback"]?.()
+    })
+
+    expect(screen.getByRole("alert")).toBeTruthy()
+    expect(screen.getByRole("button", { name: /reintentar verificación/i })).toBeTruthy()
+  })
 })
