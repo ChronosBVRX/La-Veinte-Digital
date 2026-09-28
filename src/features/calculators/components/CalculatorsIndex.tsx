@@ -1,7 +1,10 @@
 "use client"
 
+import { useEffect } from "react"
 import Link from "next/link"
 import { CalendarDots, CurrencyDollar, Clock, FileText, Calculator, UploadSimple, ArrowRight } from "@phosphor-icons/react"
+import { todayForQueryParam } from "@/shared/lib/dates"
+import { fetchCalculatorPrefill } from "../services/calculator-prefill-client"
 import { CalculatorCard } from "./CalculatorCard"
 import { SourceAttribution } from "@/shared/components/ui/SourceAttribution"
 
@@ -40,6 +43,25 @@ const calculators = [
 ]
 
 export function CalculatorsIndex({ hasTarjeton = false }: { hasTarjeton?: boolean }) {
+  useEffect(() => {
+    if (!hasTarjeton || typeof window === "undefined") return
+    const warmPrefills = () => {
+      const targetDate = todayForQueryParam()
+      void fetchCalculatorPrefill("aguinaldo", targetDate)
+      void fetchCalculatorPrefill("segunda-julio", targetDate)
+      void fetchCalculatorPrefill("tiempo-extra", targetDate)
+    }
+    const win = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number
+    }
+    if (typeof win.requestIdleCallback === "function") {
+      win.requestIdleCallback(warmPrefills, { timeout: 1500 })
+    } else {
+      const timer = setTimeout(warmPrefills, 250)
+      return () => clearTimeout(timer)
+    }
+  }, [hasTarjeton])
+
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto", paddingBottom: "2rem" }}>
       <div style={{ marginBottom: "1.25rem" }}>

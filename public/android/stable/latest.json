@@ -1,19 +1,19 @@
 {
   "channel": "stable",
-  "versionCode": 209,
-  "versionName": "1.1.9",
+  "versionCode": 210,
+  "versionName": "1.2.0",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-09-27T19:37:22.333Z",
+  "publishedAt": "2026-09-28T01:45:00.000Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "2e95b5ae0e864d82673785894af2dc4d48d5f8cd8531615a5f8229d60edbca57",
-    "size": 25001068
+    "sha256": "deca5661772309d919d241ff047a687a658ffd096b8afad327faa2c11f3f5b49",
+    "size": 25082988
   },
   "releaseNotes": [
-    "Nuevo ícono de notificación con el monograma oficial de La Veinte Digital y soporte de Large Icon a color.",
-    "Tono de notificación personalizado armónico, cálido y elegante para avisos, documentos y descargas completadas.",
-    "Descargas en segundo plano con notificación silenciosa de progreso y alerta sonora al finalizar.",
-    "Optimización de estabilidad y compatibilidad con Android 14 y 15."
+    "Nuevo centro sin conexión (Modo Offline ampliado): además de tus documentos PDF, ahora puedes consultar Mi Quincena y Perfil, Mi Agenda y Calculadoras y Guía sin Internet.",
+    "Calculadoras rápidas sin conexión para Fondo de Ahorro (2ª de Julio con Concepto 002 + 011), Aguinaldo y Tiempo Extra, además de buscador de conceptos del tarjetón IMSS.",
+    "Arranque más ágil y caché nativa inteligente de recursos estáticos con garantía de versión siempre actualizada al instante.",
+    "Sincronización automática y segura de tu resumen laboral al actualizar tu tarjetón o agenda."
   ]
 }

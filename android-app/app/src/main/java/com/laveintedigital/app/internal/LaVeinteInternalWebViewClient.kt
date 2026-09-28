@@ -70,6 +70,14 @@ class LaVeinteInternalWebViewClient(
         return false
     }
 
+    override fun shouldInterceptRequest(
+        view: WebView?,
+        request: WebResourceRequest?,
+    ): android.webkit.WebResourceResponse? {
+        return WebStaticAssetCache.interceptIfImmutable(view?.context, request)
+            ?: super.shouldInterceptRequest(view, request)
+    }
+
     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
         onPageLoadStateChanged(true)
         onUrlChanged(url)

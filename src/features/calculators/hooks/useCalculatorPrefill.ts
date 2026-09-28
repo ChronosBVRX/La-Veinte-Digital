@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { CalculatorId, CalculatorPrefillResponse } from "@/shared/contracts/calculator-prefill"
-import { fetchCalculatorPrefill } from "../services/calculator-prefill-client"
+import { clearCalculatorPrefillCache, fetchCalculatorPrefill } from "../services/calculator-prefill-client"
 
 /**
  * Hook de consumo del prerrelleno.
@@ -46,6 +46,7 @@ export function useCalculatorPrefill(
   useEffect(() => {
     if (typeof window === "undefined") return
     const handleUpdate = () => {
+      clearCalculatorPrefillCache()
       setLoading(true)
       setError(null)
       setAttempt((a) => a + 1)
@@ -57,6 +58,7 @@ export function useCalculatorPrefill(
   }, [])
 
   const reload = useCallback(() => {
+    clearCalculatorPrefillCache()
     setLoading(true)
     setError(null)
     setAttempt((a) => a + 1)
