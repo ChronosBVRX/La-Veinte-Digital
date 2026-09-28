@@ -70,17 +70,18 @@ describe("deducciones clave verificadas", () => {
   }
 })
 
-describe("ficha conocida sin explicación (fallback C)", () => {
-  it("un concepto identificado sin ficha no cuenta como explicado", () => {
-    // "024" (COMPENSACIÓN) está en el catálogo pero no tiene ficha curada.
+describe("cobertura completa del catálogo y fallback C", () => {
+  it("el concepto 024 ahora cuenta con ficha verificada y códigos sin ficha caen en fallback C", () => {
     const entry = getGuideConceptWithDetails("024")
     expect(entry).toBeTruthy()
-    expect(entry?.details).toBeNull()
-    expect(detailLevelFor("024")).toBe("pending_identification")
+    expect(entry?.details).not.toBeNull()
+    expect(detailLevelFor("024")).toBe("officially_verified")
+    expect(detailLevelFor("999")).toBe("pending_identification")
   })
 
-  it("pendiente de identificación se mantiene bajo umbral", () => {
+  it("pendiente de identificación se mantiene bajo umbral (0% sin ficha)", () => {
     const pct = pendingIdentificationPercentage()
+    expect(pct).toBe(0)
     expect(pct).toBeLessThan(55)
   })
 })

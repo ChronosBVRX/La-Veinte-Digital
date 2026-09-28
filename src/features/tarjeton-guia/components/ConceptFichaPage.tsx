@@ -117,6 +117,12 @@ export function ConceptFichaPage({ code }: { code: string }) {
           </p>
         </Section>
 
+        {d?.whyItMatters && (
+          <Section title="¿Cómo se calcula y por qué importa?">
+            <p style={para()}>{d.whyItMatters}</p>
+          </Section>
+        )}
+
         <Section title="¿Por qué aparece?">
           <p style={para()}>
             {d?.whyItAppears ??
@@ -125,6 +131,12 @@ export function ConceptFichaPage({ code }: { code: string }) {
                 ? "Puede corresponder a una prestación o condición laboral asociada al trabajador."
                 : "Puede corresponder a un financiamiento, convenio u obligación asociado al trabajador.")}
           </p>
+          {d?.whyItAppears && d?.whenItAppears && (
+            <p style={para({ marginTop: "0.375rem", color: "var(--muted)", fontSize: "0.8125rem" })}>
+              <strong style={{ color: "var(--fg)" }}>Cuándo aparece: </strong>
+              {d.whenItAppears}
+            </p>
+          )}
         </Section>
 
         <Section title="¿Qué conviene revisar?">
@@ -158,7 +170,7 @@ export function ConceptFichaPage({ code }: { code: string }) {
         )}
 
         {hasSources && (
-          <details style={{ marginTop: "1rem" }}>
+          <details open style={{ marginTop: "1rem" }}>
             <summary
               style={{
                 listStyle: "none",
