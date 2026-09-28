@@ -31,6 +31,9 @@ import {
   naturalCompare,
   getLockerStatusLabel,
   getLockerStatusBadge,
+  getLockerEffectiveState,
+  type LockerZone,
+  type LockerMapItem,
 } from "@/features/representacion/lib/lockers";
 import { LockerSummaryCards } from "../components/lockers/LockerSummaryCards";
 import { LockerToolbar } from "../components/lockers/LockerToolbar";
@@ -439,44 +442,67 @@ describe("Rediseño UX/UI de Lockers", () => {
   });
 
   describe("9. Navegación intuitiva de 2 niveles por género y zona por zona", () => {
-    const sampleZones = [
-      { id: "zw-1", name: "Vestidores Mujeres - Terapias Baños", sort_order: 1 },
-      { id: "zw-2", name: "Vestidores Mujeres - Terapias Pasillo", sort_order: 2 },
-      { id: "zm-1", name: "Vestidores Hombres - Terapias Baños (Hombres)", sort_order: 9 },
-      { id: "zm-2", name: "Vestidores Hombres - Pasillo Largo (Hombres)", sort_order: 10 },
+    const baseZone: LockerZone = {
+      id: "z-base",
+      delegation_id: "del-1",
+      name: "Zona Base",
+      description: "",
+      building: "Principal",
+      floor: "PB",
+      sort_order: 1,
+      active: true,
+    };
+
+    const sampleZones: LockerZone[] = [
+      { ...baseZone, id: "zw-1", name: "Vestidores Mujeres - Terapias Baños", sort_order: 1 },
+      { ...baseZone, id: "zw-2", name: "Vestidores Mujeres - Terapias Pasillo", sort_order: 2 },
+      { ...baseZone, id: "zm-1", name: "Vestidores Hombres - Terapias Baños (Hombres)", sort_order: 9 },
+      { ...baseZone, id: "zm-2", name: "Vestidores Hombres - Pasillo Largo (Hombres)", sort_order: 10 },
     ];
 
-    const sampleLockers = [
+    const baseMapLocker = {
+      id: "loc-w1",
+      locker_number: "1001",
+      zone_id: "zw-1",
+      bank_id: null,
+      row_position: 1,
+      column_position: 1,
+      status: "available",
+      condition: "ok" as const,
+    };
+
+    const sampleLockers: LockerMapItem[] = [
       {
-        id: "loc-w1",
-        locker_number: "1001",
-        zone_id: "zw-1",
-        bank_id: null,
-        row_position: 1,
-        column_position: 1,
-        status: "available",
-        condition: "ok" as const,
+        ...baseMapLocker,
+        effective_state: getLockerEffectiveState(baseMapLocker as LockerMapItem),
       },
       {
+        ...baseMapLocker,
         id: "loc-w2",
         locker_number: "1002",
         zone_id: "zw-2",
-        bank_id: null,
-        row_position: 1,
-        column_position: 1,
         status: "assigned",
-        condition: "ok" as const,
         occupant_name: "Ana Gómez",
+        effective_state: getLockerEffectiveState({
+          ...baseMapLocker,
+          id: "loc-w2",
+          locker_number: "1002",
+          zone_id: "zw-2",
+          status: "assigned",
+          occupant_name: "Ana Gómez",
+        } as LockerMapItem),
       },
       {
+        ...baseMapLocker,
         id: "loc-m1",
         locker_number: "1201",
         zone_id: "zm-1",
-        bank_id: null,
-        row_position: 1,
-        column_position: 1,
-        status: "available",
-        condition: "ok" as const,
+        effective_state: getLockerEffectiveState({
+          ...baseMapLocker,
+          id: "loc-m1",
+          locker_number: "1201",
+          zone_id: "zm-1",
+        } as LockerMapItem),
       },
     ];
 
@@ -517,7 +543,7 @@ describe("Rediseño UX/UI de Lockers", () => {
           banks={[]}
           lockers={sampleLockers}
           selectedZoneId="all"
-          onSelectLocker={vi.fn()}
+          onLockerClick={vi.fn()}
           onSelectZone={onSelectZone}
         />
       );

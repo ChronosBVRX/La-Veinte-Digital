@@ -330,11 +330,22 @@ describe("Lockers 2.0 Hardening - Contract & Business Rules", () => {
       "Enfrente de Checadores"
     );
 
+    const baseZone: LockerZone = {
+      id: "z-base",
+      delegation_id: "del-1",
+      name: "Zona Base",
+      description: "",
+      building: "Principal",
+      floor: "PB",
+      sort_order: 1,
+      active: true,
+    };
+
     const mockZones: LockerZone[] = [
-      { id: "z-m1", name: "Vestidores Hombres - Terapias Baños (Hombres)", sort_order: 9 },
-      { id: "z-w2", name: "Vestidores Mujeres - Terapias Pasillo", sort_order: 2 },
-      { id: "z-w1", name: "Vestidores Mujeres - Terapias Baños", sort_order: 1 },
-      { id: "z-m2", name: "Vestidores Hombres - Pasillo Largo (Hombres)", sort_order: 10 },
+      { ...baseZone, id: "z-m1", name: "Vestidores Hombres - Terapias Baños (Hombres)", sort_order: 9 },
+      { ...baseZone, id: "z-w2", name: "Vestidores Mujeres - Terapias Pasillo", sort_order: 2 },
+      { ...baseZone, id: "z-w1", name: "Vestidores Mujeres - Terapias Baños", sort_order: 1 },
+      { ...baseZone, id: "z-m2", name: "Vestidores Hombres - Pasillo Largo (Hombres)", sort_order: 10 },
     ];
 
     const grouped = groupLockerZones(mockZones);
