@@ -423,6 +423,8 @@ export async function GET(req: Request): Promise<NextResponse> {
       filtered = filtered.filter((l) => {
         if (l.locker_number && normalizeText(l.locker_number).includes(qNorm)) return true;
         if (l.physical_code && normalizeText(l.physical_code).includes(qNorm)) return true;
+        if (l.notes && normalizeText(l.notes).includes(qNorm)) return true;
+        if (l.position_label && normalizeText(l.position_label).includes(qNorm)) return true;
         if (l.zone?.name && normalizeText(l.zone.name).includes(qNorm)) return true;
         if (l.bank?.name && normalizeText(l.bank.name).includes(qNorm)) return true;
         const w = l.active_assignment?.union_workers;

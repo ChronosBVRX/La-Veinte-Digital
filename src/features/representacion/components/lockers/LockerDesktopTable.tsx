@@ -360,6 +360,41 @@ export function LockerDesktopTable({
                         {positionText ? positionText : ""}
                       </span>
                     ) : null}
+                    {locker.notes && locker.notes.includes("[REVISAR MAPEO]") ? (
+                      <span
+                        style={{
+                          marginTop: "0.15rem",
+                          fontSize: "0.6875rem",
+                          fontWeight: 600,
+                          color: "#b45309",
+                          backgroundColor: "#fffbeb",
+                          border: "1px solid #fde68a",
+                          borderRadius: "0.25rem",
+                          padding: "0.1rem 0.35rem",
+                          width: "fit-content",
+                        }}
+                        title={locker.notes}
+                      >
+                        ⚠️ Revisar mapeo
+                      </span>
+                    ) : locker.notes && locker.notes.includes("[ALTA POR RECORRIDO]") ? (
+                      <span
+                        style={{
+                          marginTop: "0.15rem",
+                          fontSize: "0.6875rem",
+                          fontWeight: 600,
+                          color: "#1d4ed8",
+                          backgroundColor: "#eff6ff",
+                          border: "1px solid #bfdbfe",
+                          borderRadius: "0.25rem",
+                          padding: "0.1rem 0.35rem",
+                          width: "fit-content",
+                        }}
+                        title={locker.notes}
+                      >
+                        📍 Alta por recorrido
+                      </span>
+                    ) : null}
                   </div>
                 </td>
 

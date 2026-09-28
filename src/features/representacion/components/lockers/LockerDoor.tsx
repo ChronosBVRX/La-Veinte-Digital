@@ -90,17 +90,28 @@ export const LockerDoor = memo(function LockerDoor({
           {locker.locker_number}
         </span>
 
-        {/* Pequeño punto/muesca de cerradura */}
-        <div
-          style={{
-            width: "8px",
-            height: "8px",
-            borderRadius: "50%",
-            backgroundColor: badge.dotColor,
-            boxShadow: "inset 0 1px 2px rgba(0,0,0,0.2)",
-          }}
-          title={eff.label}
-        />
+        {/* Pequeño punto/muesca de cerradura + indicador de nota de mapeo */}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+          {locker.notes && locker.notes.includes("[REVISAR MAPEO]") ? (
+            <span
+              style={{ fontSize: "0.7rem", lineHeight: 1 }}
+              title={locker.notes}
+              aria-label="Nota de mapeo por revisar"
+            >
+              📌
+            </span>
+          ) : null}
+          <div
+            style={{
+              width: "8px",
+              height: "8px",
+              borderRadius: "50%",
+              backgroundColor: badge.dotColor,
+              boxShadow: "inset 0 1px 2px rgba(0,0,0,0.2)",
+            }}
+            title={eff.label}
+          />
+        </div>
       </div>
 
       {/* Cuerpo central: ocupante o estado disponible */}

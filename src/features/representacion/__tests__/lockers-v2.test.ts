@@ -258,6 +258,20 @@ describe("Lockers 2.0 Hardening - Contract & Business Rules", () => {
 
       expect(matches).toBe(true);
     }
+
+    const mappedLockerWithNote = {
+      locker_number: "1079",
+      notes: "⚠️ [REVISAR MAPEO] En el Excel de Terapias Baños se capturó 10079.",
+      position_label: "Recorrido #14 (F2:C5)",
+    };
+
+    for (const q of ["REVISAR MAPEO", "revisar", "10079", "Recorrido #14"]) {
+      const normQ = normalize(q.replace(/^#/, "").trim());
+      const matchesNoteOrPos =
+        normalize(mappedLockerWithNote.notes).includes(normQ) ||
+        normalize(mappedLockerWithNote.position_label).includes(normQ);
+      expect(matchesNoteOrPos).toBe(true);
+    }
   });
 
   it("verifica restricciones para asignar casillero según condición y estado", () => {
