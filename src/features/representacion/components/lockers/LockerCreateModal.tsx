@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import { Button } from "@/shared/components/ui/Button";
 import { Input, Select, Textarea } from "@/shared/components/ui/Input";
 import { ResponsiveDialog } from "@/shared/components/ui/ResponsiveDialog";
-import type { LockerZone, LockerBank } from "@/features/representacion/lib/lockers";
+import {
+  getLockerZoneDisplayName,
+  groupLockerZones,
+  type LockerZone,
+  type LockerBank,
+} from "@/features/representacion/lib/lockers";
 
 interface LockerCreateModalProps {
   isOpen: boolean;
@@ -165,11 +170,48 @@ export function LockerCreateModal({
             disabled={loading}
           >
             <option value="">(Sin asignar)</option>
-            {zones.map((z) => (
-              <option key={z.id} value={z.id}>
-                {z.name}
-              </option>
-            ))}
+            {(() => {
+              const grouped = groupLockerZones(zones);
+              const hasGenderGroups = grouped.women.length > 0 && grouped.men.length > 0;
+              if (!hasGenderGroups) {
+                return zones.map((z) => (
+                  <option key={z.id} value={z.id}>
+                    {z.name}
+                  </option>
+                ));
+              }
+              return (
+                <>
+                  {grouped.women.length > 0 && (
+                    <optgroup label="👩 Vestidores Mujeres">
+                      {grouped.women.map((z) => (
+                        <option key={z.id} value={z.id}>
+                          {getLockerZoneDisplayName(z.name)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {grouped.men.length > 0 && (
+                    <optgroup label="👨 Vestidores Hombres">
+                      {grouped.men.map((z) => (
+                        <option key={z.id} value={z.id}>
+                          {getLockerZoneDisplayName(z.name)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {grouped.general.length > 0 && (
+                    <optgroup label="🏢 Otras zonas">
+                      {grouped.general.map((z) => (
+                        <option key={z.id} value={z.id}>
+                          {z.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </>
+              );
+            })()}
           </Select>
 
           <Select

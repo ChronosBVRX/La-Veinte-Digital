@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUser } from "@/shared/server/auth/require-user";
 import { requireUnionMembership, requireUnionAdmin } from "@/features/representacion/services/permissions";
 import { writeAuditLog } from "@/features/representacion/services/audit";
-import { naturalCompare } from "@/features/representacion/lib/lockers";
+import { naturalCompare, getLockerZoneGroup } from "@/features/representacion/lib/lockers";
 import {
   lockerCreateSchema,
   lockerUpdateSchema,
@@ -400,8 +400,14 @@ export async function GET(req: Request): Promise<NextResponse> {
       filtered = filtered.filter((l) => !l.zone_id || !l.bank_id);
     }
 
-    // 5. Filtrar por zona específica
-    if (zoneFilter !== "all") {
+    // 5. Filtrar por zona específica o grupo de sección (Mujeres / Hombres / Sin ubicar)
+    if (zoneFilter === "unlocated") {
+      filtered = filtered.filter((l) => !l.zone_id || !l.bank_id);
+    } else if (zoneFilter === "group:women") {
+      filtered = filtered.filter((l) => l.zone?.name && getLockerZoneGroup(l.zone.name) === "women");
+    } else if (zoneFilter === "group:men") {
+      filtered = filtered.filter((l) => l.zone?.name && getLockerZoneGroup(l.zone.name) === "men");
+    } else if (zoneFilter !== "all" && zoneFilter !== "all_zones") {
       filtered = filtered.filter((l) => l.zone_id === zoneFilter);
     }
 

@@ -254,7 +254,7 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
       if (inventoryFilter !== "all") params.set("inventory", inventoryFilter);
       if (conditionFilter !== "all") params.set("condition", conditionFilter);
       if (locationFilter !== "all") params.set("location", locationFilter);
-      if (selectedZoneId !== "all") params.set("zone", selectedZoneId);
+      if (selectedZoneId !== "all" && selectedZoneId !== "all_zones") params.set("zone", selectedZoneId);
       if (searchQuery.trim()) params.set("q", searchQuery.trim());
       if (sortOrder) params.set("sort", sortOrder);
       params.set("page", String(page));
@@ -368,6 +368,8 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
     const found = mapLockers.find((l) => {
       if (normalize(l.locker_number).includes(normQ)) return true;
       if (l.physical_code && normalize(l.physical_code).includes(normQ)) return true;
+      if (l.notes && normalize(l.notes).includes(normQ)) return true;
+      if (l.position_label && normalize(l.position_label).includes(normQ)) return true;
       if (l.occupant_name && normalize(l.occupant_name).includes(normQ)) return true;
       if (l.occupant_employee_number && normalize(l.occupant_employee_number).includes(normQ)) return true;
       if (l.active_assignment?.worker_name && normalize(l.active_assignment.worker_name).includes(normQ)) return true;
@@ -720,6 +722,7 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
               onLockerClick={handleLockerClick}
               onLockerHover={handleLockerHover}
               onLockerLeave={handleLockerLeave}
+              onSelectZone={handleZoneSelect}
               isAdmin={isAdmin}
               onConfigureMap={() => {
                 if (isAdmin) setIsZoneManagerOpen(true);
@@ -772,7 +775,7 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
               setPage(1);
               updateUrlParams({ location: loc, page: 1 });
             }}
-            zoneFilter={selectedZoneId}
+            zoneFilter={selectedZoneId === "all_zones" ? "all" : selectedZoneId}
             onZoneChange={(z) => {
               setSelectedZoneId(z);
               setPage(1);
@@ -818,7 +821,7 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
               inventoryFilter !== "active" ||
               conditionFilter !== "all" ||
               locationFilter !== "all" ||
-              selectedZoneId !== "all" ||
+              (selectedZoneId !== "all" && selectedZoneId !== "all_zones") ||
               sortOrder !== "number_asc"
             }
             loading={loadingTable}

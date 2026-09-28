@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import type { LockerMapItem } from "@/features/representacion/lib/lockers";
+import { getLockerEffectiveState, type LockerMapItem } from "@/features/representacion/lib/lockers";
 
 interface LockerDoorProps {
   locker: LockerMapItem;
@@ -18,7 +18,7 @@ export const LockerDoor = memo(function LockerDoor({
   onMouseEnter,
   onMouseLeave,
 }: LockerDoorProps): React.JSX.Element {
-  const eff = locker.effective_state;
+  const eff = locker.effective_state ?? getLockerEffectiveState(locker);
   const badge = eff.badge;
   const asg = locker.active_assignment;
   const workerName = asg?.worker_name || "";

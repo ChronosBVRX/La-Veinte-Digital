@@ -6,7 +6,11 @@ import {
   sortWaitlist,
   normalizeLockerStatus,
   normalizeLockerCondition,
+  getLockerZoneGroup,
+  getLockerZoneDisplayName,
+  groupLockerZones,
   type LockerMapItem,
+  type LockerZone,
 } from "@/features/representacion/lib/lockers";
 
 const baseLocker: LockerMapItem = {
@@ -312,5 +316,32 @@ describe("Lockers 2.0 Hardening - Contract & Business Rules", () => {
     expect(sorted[1].id).toBe("2"); // enero (más antiguo)
     expect(sorted[2].id).toBe("1"); // marzo
   });
+
+  it("clasifica y limpia nombres de zonas por Vestidores Mujeres y Hombres", () => {
+    expect(getLockerZoneGroup("Vestidores Mujeres - Terapias Baños")).toBe("women");
+    expect(getLockerZoneGroup("Vestidores Hombres - Pasillo Baños Regaderas")).toBe("men");
+    expect(getLockerZoneGroup("Sótano General")).toBe("general");
+
+    expect(getLockerZoneDisplayName("Vestidores Mujeres - Terapias Baños")).toBe("Terapias Baños");
+    expect(getLockerZoneDisplayName("Vestidores Hombres - Al Lado de Checadores (Hombres)")).toBe(
+      "Al Lado de Checadores"
+    );
+    expect(getLockerZoneDisplayName("Vestidores Mujeres - Enfrente de Checadores (Mujeres)")).toBe(
+      "Enfrente de Checadores"
+    );
+
+    const mockZones: LockerZone[] = [
+      { id: "z-m1", name: "Vestidores Hombres - Terapias Baños (Hombres)", sort_order: 9 },
+      { id: "z-w2", name: "Vestidores Mujeres - Terapias Pasillo", sort_order: 2 },
+      { id: "z-w1", name: "Vestidores Mujeres - Terapias Baños", sort_order: 1 },
+      { id: "z-m2", name: "Vestidores Hombres - Pasillo Largo (Hombres)", sort_order: 10 },
+    ];
+
+    const grouped = groupLockerZones(mockZones);
+    expect(grouped.women.map((z) => z.id)).toEqual(["z-w1", "z-w2"]);
+    expect(grouped.men.map((z) => z.id)).toEqual(["z-m1", "z-m2"]);
+    expect(grouped.general).toHaveLength(0);
+  });
 });
+
 

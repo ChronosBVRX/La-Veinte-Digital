@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/shared/components/ui/Button";
-import type { LockerZone, LockerBank } from "@/features/representacion/lib/lockers";
+import {
+  getLockerZoneDisplayName,
+  groupLockerZones,
+  type LockerZone,
+  type LockerBank,
+} from "@/features/representacion/lib/lockers";
 
 export function LockerToolbar({
   searchQuery,
@@ -255,22 +260,68 @@ export function LockerToolbar({
           </select>
         ) : null}
 
-        {/* Filtro de Zona específica */}
-        {onZoneChange && zones.length > 0 ? (
-          <select
-            aria-label="Filtrar por zona"
-            value={zoneFilter}
-            onChange={(e) => onZoneChange(e.target.value)}
-            style={selectStyle}
-          >
-            <option value="all">Zona: Todas</option>
-            {zones.map((z) => (
-              <option key={z.id} value={z.id}>
-                {z.name}
-              </option>
-            ))}
-          </select>
-        ) : null}
+        {/* Filtro de Zona específica (agrupado por Mujeres / Hombres) */}
+        {onZoneChange && zones.length > 0 ? (() => {
+          const grouped = groupLockerZones(zones);
+          return (
+            <select
+              aria-label="Filtrar por zona"
+              value={zoneFilter}
+              onChange={(e) => onZoneChange(e.target.value)}
+              style={selectStyle}
+            >
+              <option value="all">Zona: Todas</option>
+              {grouped.hasGenderSplit && (
+                <optgroup label="Sección rápida">
+                  {grouped.women.length > 0 && (
+                    <option value="group:women">👩 Todas las zonas de Mujeres ({grouped.women.length})</option>
+                  )}
+                  {grouped.men.length > 0 && (
+                    <option value="group:men">👨 Todas las zonas de Hombres ({grouped.men.length})</option>
+                  )}
+                  <option value="unlocated">⚠ Sin ubicar en mapa</option>
+                </optgroup>
+              )}
+              {grouped.hasGenderSplit ? (
+                <>
+                  {grouped.women.length > 0 && (
+                    <optgroup label="👩 Vestidores Mujeres">
+                      {grouped.women.map((z) => (
+                        <option key={z.id} value={z.id}>
+                          {getLockerZoneDisplayName(z.name)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {grouped.men.length > 0 && (
+                    <optgroup label="👨 Vestidores Hombres">
+                      {grouped.men.map((z) => (
+                        <option key={z.id} value={z.id}>
+                          {getLockerZoneDisplayName(z.name)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {grouped.general.length > 0 && (
+                    <optgroup label="🏢 Otras Zonas">
+                      {grouped.general.map((z) => (
+                        <option key={z.id} value={z.id}>
+                          {z.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </>
+              ) : (
+                zones.map((z) => (
+                  <option key={z.id} value={z.id}>
+                    {z.name}
+                  </option>
+                ))
+              )}
+            </select>
+          );
+        })() : null}
 
         {/* Selector de Orden */}
         <select

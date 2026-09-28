@@ -44,6 +44,58 @@ export interface LockerZone {
   attention_lockers?: number;
 }
 
+export type LockerZoneGenderGroup = "women" | "men" | "general";
+
+/** Determina si una zona pertenece a vestidores de Mujeres, Hombres o General. */
+export function getLockerZoneGroup(zoneName: string | null | undefined): LockerZoneGenderGroup {
+  const norm = String(zoneName || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (norm.includes("mujer") || norm.includes("femenin")) return "women";
+  if (norm.includes("hombre") || norm.includes("varon") || norm.includes("masculin")) return "men";
+  return "general";
+}
+
+/** Devuelve el nombre limpio de la zona sin prefijos ni sufijos redundantes de género. */
+export function getLockerZoneDisplayName(zoneName: string | null | undefined): string {
+  const raw = String(zoneName || "").trim();
+  return (
+    raw
+      .replace(/^(?:vestidores?\s+(?:de\s+)?)?(?:mujeres|hombres|femenino|masculino|varones)\s*[-–:]\s*/i, "")
+      .replace(/\s*\((?:mujeres|hombres|femenino|masculino|varones)\)\s*$/i, "")
+      .replace(/\s+(?:mujeres|hombres)\s*$/i, "")
+      .trim() || raw
+  );
+}
+
+/** Agrupa las zonas físicamente en Mujeres, Hombres y General respetando su sort_order. */
+export function groupLockerZones(zones: LockerZone[]): {
+  women: LockerZone[];
+  men: LockerZone[];
+  general: LockerZone[];
+  hasGenderSplit: boolean;
+} {
+  const sorted = [...zones].sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999));
+  const women: LockerZone[] = [];
+  const men: LockerZone[] = [];
+  const general: LockerZone[] = [];
+
+  for (const z of sorted) {
+    const g = getLockerZoneGroup(z.name);
+    if (g === "women") women.push(z);
+    else if (g === "men") men.push(z);
+    else general.push(z);
+  }
+
+  return {
+    women,
+    men,
+    general,
+    hasGenderSplit: women.length > 0 || men.length > 0,
+  };
+}
+
 export interface LockerBank {
   id: string;
   delegation_id: string;

@@ -40,6 +40,8 @@ import { LockerAssignSheet } from "../components/lockers/LockerAssignSheet";
 import { LockerDetailSheet } from "../components/lockers/LockerDetailSheet";
 import { LockerReleaseModal } from "../components/lockers/LockerReleaseModal";
 import { LockerStatusBadge } from "../components/lockers/LockerStatusBadge";
+import { LockerZoneNavigator } from "../components/lockers/LockerZoneNavigator";
+import { LockerZoneMap } from "../components/lockers/LockerZoneMap";
 
 const MOCK_LOCKERS: LockerItem[] = [
   {
@@ -435,4 +437,96 @@ describe("Rediseño UX/UI de Lockers", () => {
       expect(onConfirm).toHaveBeenCalledWith("Cambio de servicio");
     });
   });
+
+  describe("9. Navegación intuitiva de 2 niveles por género y zona por zona", () => {
+    const sampleZones = [
+      { id: "zw-1", name: "Vestidores Mujeres - Terapias Baños", sort_order: 1 },
+      { id: "zw-2", name: "Vestidores Mujeres - Terapias Pasillo", sort_order: 2 },
+      { id: "zm-1", name: "Vestidores Hombres - Terapias Baños (Hombres)", sort_order: 9 },
+      { id: "zm-2", name: "Vestidores Hombres - Pasillo Largo (Hombres)", sort_order: 10 },
+    ];
+
+    const sampleLockers = [
+      {
+        id: "loc-w1",
+        locker_number: "1001",
+        zone_id: "zw-1",
+        bank_id: null,
+        row_position: 1,
+        column_position: 1,
+        status: "available",
+        condition: "ok" as const,
+      },
+      {
+        id: "loc-w2",
+        locker_number: "1002",
+        zone_id: "zw-2",
+        bank_id: null,
+        row_position: 1,
+        column_position: 1,
+        status: "assigned",
+        condition: "ok" as const,
+        occupant_name: "Ana Gómez",
+      },
+      {
+        id: "loc-m1",
+        locker_number: "1201",
+        zone_id: "zm-1",
+        bank_id: null,
+        row_position: 1,
+        column_position: 1,
+        status: "available",
+        condition: "ok" as const,
+      },
+    ];
+
+    it("separa Vestidores Mujeres y Vestidores Hombres en nivel 1 y permite recorrer zona por zona en nivel 2", () => {
+      const onSelectZone = vi.fn();
+      render(
+        <LockerZoneNavigator
+          zones={sampleZones}
+          selectedZoneId="all"
+          unlocatedCount={0}
+          totalLockersCount={3}
+          onSelectZone={onSelectZone}
+        />
+      );
+
+      expect(screen.getByText("Vestidores Mujeres")).toBeDefined();
+      expect(screen.getByText("Vestidores Hombres")).toBeDefined();
+
+      // Por defecto muestra las zonas de Mujeres con nombre corto limpio
+      expect(screen.getAllByText("Terapias Baños").length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText("Terapias Pasillo")).toBeDefined();
+
+      // Botón Siguiente zona avanza de zw-1 a zw-2
+      const nextBtn = screen.getByRole("button", { name: /Siguiente zona/i });
+      fireEvent.click(nextBtn);
+      expect(onSelectZone).toHaveBeenCalledWith("zw-2");
+
+      // Clic en sección Vestidores Hombres selecciona la primera zona de hombres (zm-1)
+      fireEvent.click(screen.getByText("Vestidores Hombres"));
+      expect(onSelectZone).toHaveBeenCalledWith("zm-1");
+    });
+
+    it("muestra una sola zona a la vez por defecto en el mapa (evitando saturar con todas las zonas)", () => {
+      const onSelectZone = vi.fn();
+      render(
+        <LockerZoneMap
+          zones={sampleZones}
+          banks={[]}
+          lockers={sampleLockers}
+          selectedZoneId="all"
+          onSelectLocker={vi.fn()}
+          onSelectZone={onSelectZone}
+        />
+      );
+
+      // Solo se monta el locker 1001 de la primera zona (zw-1), no el 1002 (zw-2) ni el 1201 (zm-1)
+      expect(screen.getByText("1001")).toBeDefined();
+      expect(screen.queryByText("1002")).toBeNull();
+      expect(screen.queryByText("1201")).toBeNull();
+    });
+  });
 });
+
