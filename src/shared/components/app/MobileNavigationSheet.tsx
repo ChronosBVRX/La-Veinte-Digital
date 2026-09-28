@@ -382,7 +382,7 @@ export function MobileNavigationSheet({ openKey, onClose, onNavigate }: MobileNa
                       <div>
                         <div style={{ fontWeight: 600 }}>Tarjetones oficiales IMSS</div>
                         <div style={{ fontSize: "var(--text-xs)", color: "var(--muted)" }}>
-                          Consultar y descargar desde portal oficial
+                          Elige entre Tu Perfil IMSS o Tarjetón Digital
                         </div>
                       </div>
                     </button>

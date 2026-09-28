@@ -324,6 +324,8 @@ fun TuPerfilBiometricScreen(
                         TuPerfilLoginErrorDialog(
                             kind = fs.kind,
                             portalMessage = fs.portalMessage,
+                            failedAttempts = fs.failedAttempts,
+                            wasAutoLogin = fs.wasAutoLogin,
                             onReviewData = {
                                 showLoginDialog = true
                                 controller.reviewData()
@@ -388,8 +390,9 @@ fun TuPerfilBiometricScreen(
     if (showLoginDialog) {
         TuPerfilLoginDialog(
             savedUsername = controller.session.lastUsername,
+            failedAttempts = controller.session.failedLoginAttempts,
             title = "Inicia sesión en Tu Perfil IMSS",
-            subtitle = null,
+            subtitle = "tuperfil.imss.gob.mx",
             description = "Usaremos este mismo acceso para Tarjetones y Registros biométricos.",
             onLogin = { username, password, remember ->
                 showLoginDialog = false

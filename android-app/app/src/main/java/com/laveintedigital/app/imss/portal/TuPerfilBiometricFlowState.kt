@@ -82,6 +82,8 @@ sealed interface TuPerfilBiometricFlowState {
     data class LoginError(
         val kind: PortalLoginErrorKind,
         val portalMessage: String? = null,
+        val failedAttempts: Int = 1,
+        val wasAutoLogin: Boolean = false,
     ) : TuPerfilBiometricFlowState
 
     /** La sesión venció en plena operación (o la reautenticación falló). */

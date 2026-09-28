@@ -182,8 +182,17 @@ struct ImssPortalView: View {
 
     private var loginSheet: some View {
         VStack(spacing: 16) {
-            Text("Iniciar sesión")
+            Text(portal == .tuPerfil ? "Inicia sesión en Tu Perfil IMSS" : "Inicia sesión en Tarjetón Digital")
                 .font(.headline)
+            Text(
+                portal == .tuPerfil
+                    ? "Ingresa tu matrícula y la contraseña exclusiva de Tu Perfil IMSS (tuperfil.imss.gob.mx). No uses la contraseña de Tarjetón Digital ni la de La Veinte Digital."
+                    : "Ingresa tu delegación, usuario/matrícula y la contraseña exclusiva del Tarjetón Digital clásico (rh.imss.gob.mx). No uses la contraseña de Tu Perfil IMSS ni la de La Veinte Digital."
+            )
+            .font(.caption)
+            .foregroundColor(LvdColors.textSecondary)
+            .multilineTextAlignment(.leading)
+
             if portal == .tarjetonDigital {
                 Picker("Delegación", selection: $delegacion) {
                     Text("Selecciona una delegación")
@@ -194,14 +203,21 @@ struct ImssPortalView: View {
                 }
                 .pickerStyle(.menu)
             }
-            LvdTextField(placeholder: "Usuario / matrícula", text: $username)
-            LvdTextField(placeholder: "Contraseña", text: $password, secure: true)
+            LvdTextField(
+                placeholder: portal == .tuPerfil ? "Matrícula (Tu Perfil IMSS)" : "Usuario / matrícula (Tarjetón Digital)",
+                text: $username
+            )
+            LvdTextField(
+                placeholder: portal == .tuPerfil ? "Contraseña de Tu Perfil IMSS" : "Contraseña de Tarjetón Digital",
+                text: $password,
+                secure: true
+            )
             Toggle("Recordar mis datos", isOn: $remember).font(.footnote)
 
             Button {
                 submitLogin()
             } label: {
-                Text("Entrar")
+                Text(portal == .tuPerfil ? "Entrar a Tu Perfil IMSS" : "Entrar a Tarjetón Digital")
                     .font(.headline)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)

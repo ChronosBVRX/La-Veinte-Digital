@@ -68,6 +68,8 @@ try{
 
     var lastDelegacion: TarjetonDigitalDelegaciones.Delegacion? = null
     var lastUsername: String? = null
+    var failedLoginAttempts: Int = 0
+        private set
     var delegaciones = TarjetonDigitalDelegaciones.FALLBACK
     var periods = listOf<TarjetonPeriod>()
     var selectedPeriod by mutableStateOf<TarjetonPeriod?>(null)
@@ -111,7 +113,7 @@ try{
                 Log.i(TAG, "LOGIN_DIRECT_ATTEMPT_STARTED")
                 authenticated = false
                 _state.value = TarjetonDigitalFlowState.LoadingPage
-                doLogin(delegacion, username, password)
+                doLogin(delegacion, username, password, wasAutoLogin = false)
                 val finalState = _state.value
                 val success = authenticated
                 if (remember && success) {
@@ -126,12 +128,16 @@ try{
                 Log.i(TAG, "LOGIN_FLOW_FINAL_STATE=${finalState::class.simpleName}")
                 if (finalState is TarjetonDigitalFlowState.Error) {
                     _state.value = TarjetonDigitalFlowState.LoginError(
-                        TarjetonDigitalLoginResult.UnknownError(null))
+                        TarjetonDigitalLoginResult.UnknownError(null),
+                        failedAttempts = failedLoginAttempts.coerceAtLeast(1),
+                    )
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "LOGIN_DIRECT_FAILED", e)
                 _state.value = TarjetonDigitalFlowState.LoginError(
-                    TarjetonDigitalLoginResult.UnknownError(null))
+                    TarjetonDigitalLoginResult.UnknownError(null),
+                    failedAttempts = failedLoginAttempts.coerceAtLeast(1),
+                )
             }
         }
     }
@@ -274,7 +280,11 @@ try{
             val wv = webViewReady.await()
             // Si ya estamos dentro del área autenticada, ir directo a consulta.
             val snap = parseJson(evaluateJs(wv, AUTH_SCRIPT))
-            if (snap?.optString("page") == "tarjeton") { doOpenTarjetonPage(wv); return }
+            if (snap?.optString("page") == "tarjeton") {
+                failedLoginAttempts = 0
+                doOpenTarjetonPage(wv)
+                return
+            }
             if (!autoLoginAttempted) {
                 autoLoginAttempted = true
                 val payload = try { ImssVaultManager.decryptCredentials(context, ImssPortal.TARJETON_DIGITAL) }
@@ -285,7 +295,7 @@ try{
                         lastUsername = payload.username
                         lastDelegacion = deleg
                         _state.value = TarjetonDigitalFlowState.LoadingPage
-                        doLogin(deleg, payload.username, payload.password)
+                        doLogin(deleg, payload.username, payload.password, wasAutoLogin = true)
                         return
                     }
                 }
@@ -302,7 +312,12 @@ try{
 
     // ── Login flow ─────────────────────────────────────────────────────────
 
-    private suspend fun doLogin(delegacion: TarjetonDigitalDelegaciones.Delegacion, u: String, p: String) {
+    private suspend fun doLogin(
+        delegacion: TarjetonDigitalDelegaciones.Delegacion,
+        u: String,
+        p: String,
+        wasAutoLogin: Boolean = false,
+    ) {
         try {
             val wv = webViewReady.await()
             lastUsername = u
@@ -345,6 +360,7 @@ try{
                     AuthResult.SUCCESS -> {
                         Log.i(TAG, "authentication success")
                         authenticated = true
+                        failedLoginAttempts = 0
                         _state.value = TarjetonDigitalFlowState.Authenticated
                         doOpenTarjetonPage(wv)
                         return
@@ -358,9 +374,22 @@ try{
                             Log.i(TAG, "LOGIN_FIELDS_REQUIRED_RETRY attempt=$fieldsRequiredRetries")
                             continue
                         }
+                        val isCredFail = ImssLoginProtectionPolicy.countsAsTarjetonDigitalCredentialFailure(parsed)
+                        failedLoginAttempts = ImssLoginProtectionPolicy.nextFailedAttempts(
+                            failedLoginAttempts,
+                            isCredFail,
+                        )
+                        if (ImssLoginProtectionPolicy.shouldClearSavedTarjetonDigitalCredentials(wasAutoLogin, parsed)) {
+                            Log.w(TAG, "AUTO_LOGIN_REJECTED_CLEARING_SAVED_CREDENTIALS")
+                            withContext(Dispatchers.IO) {
+                                ImssVaultManager.deleteCredentials(context, ImssPortal.TARJETON_DIGITAL)
+                            }
+                        }
                         _state.value = TarjetonDigitalFlowState.LoginError(
                             result = parsed,
                             portalMessage = errorInfo?.message,
+                            failedAttempts = failedLoginAttempts.coerceAtLeast(1),
+                            wasAutoLogin = wasAutoLogin,
                         )
                         return
                     }

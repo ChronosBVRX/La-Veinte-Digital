@@ -103,8 +103,8 @@ fun ManageImssCredentialsScreen(
                             )
                             Text(
                                 when (p) {
-                                    ImssPortal.TU_PERFIL -> "Se usa para Tarjetones y Registros biométricos."
-                                    else -> "Protegido con biometría"
+                                    ImssPortal.TU_PERFIL -> "Cuenta de tuperfil.imss.gob.mx (Tarjetones y Registros biométricos)."
+                                    ImssPortal.TARJETON_DIGITAL -> "Cuenta de rh.imss.gob.mx (Tarjetón Digital clásico con delegación)."
                                 },
                                 fontSize = 12.sp,
                                 color = LvdColors.TextSecondary,
@@ -177,16 +177,28 @@ fun ManageImssCredentialsScreen(
             title = "Actualizar acceso a ${p.displayName}",
             text = {
                 Column {
+                    Text(
+                        when (p) {
+                            ImssPortal.TU_PERFIL -> "Ingresa tu matrícula y la contraseña exclusiva de Tu Perfil IMSS (tuperfil.imss.gob.mx)."
+                            ImssPortal.TARJETON_DIGITAL -> "Ingresa tu usuario/matrícula y la contraseña exclusiva de Tarjetón Digital clásico (rh.imss.gob.mx)."
+                        },
+                        fontSize = 12.sp,
+                        color = LvdColors.TextSecondary,
+                    )
+                    Spacer(Modifier.height(LvdSpacing.Sm))
                     LvdTextField(
                         value = updateUsername,
                         onValueChange = { updateUsername = it; updateError = null },
-                        label = "Usuario / matrícula",
+                        label = when (p) {
+                            ImssPortal.TU_PERFIL -> "Matrícula (Tu Perfil IMSS)"
+                            ImssPortal.TARJETON_DIGITAL -> "Usuario / matrícula (Tarjetón Digital)"
+                        },
                     )
                     Spacer(Modifier.height(LvdSpacing.Md))
                     LvdTextField(
                         value = updatePassword,
                         onValueChange = { updatePassword = it; updateError = null },
-                        label = "Contraseña",
+                        label = "Contraseña de ${p.displayName}",
                     )
                     if (updateError != null) {
                         Spacer(Modifier.height(LvdSpacing.Sm))
