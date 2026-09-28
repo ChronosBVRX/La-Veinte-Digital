@@ -40,6 +40,7 @@ fun ImssPortalScreen(
     onBack: () -> Unit,
     onClose: () -> Unit,
     onOpenHistory: () -> Unit = {},
+    onSwitchPortal: ((ImssPortal) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -356,7 +357,10 @@ fun ImssPortalScreen(
                         TuPerfilLoginErrorDialog(
                             kind = loginError.kind,
                             portalMessage = loginError.portalMessage,
+                            failedAttempts = loginError.failedAttempts,
+                            wasAutoLogin = loginError.wasAutoLogin,
                             onReviewData = {
+                                showLoginDialog = true
                                 flowController?.manualEntry()
                             },
                             onRetry = {
@@ -364,6 +368,9 @@ fun ImssPortalScreen(
                             },
                             onManualEntry = {
                                 flowController?.manualEntry()
+                            },
+                            onSwitchPortal = onSwitchPortal?.let { switch ->
+                                { switch(ImssPortal.TARJETON_DIGITAL) }
                             },
                             onDismiss = {
                                 flowController?.manualEntry()
@@ -405,9 +412,15 @@ fun ImssPortalScreen(
                         tarjetonRawFormVisible = false
                         TarjetonDigitalLoginErrorDialog(
                             error = ts,
-                            onReviewData = { tarjetonController?.reviewData() },
+                            onReviewData = {
+                                showTarjetonLoginDialog = true
+                                tarjetonController?.reviewData()
+                            },
                             onRetry = { tarjetonController?.retryLogin() },
                             onManualEntry = { tarjetonController?.manualEntry() },
+                            onSwitchPortal = onSwitchPortal?.let { switch ->
+                                { switch(ImssPortal.TU_PERFIL) }
+                            },
                             onDismiss = { tarjetonController?.manualEntry() },
                         )
                     }
@@ -589,9 +602,16 @@ fun ImssPortalScreen(
     if (showLoginDialog) {
         TuPerfilLoginDialog(
             savedUsername = flowController?.lastUsername,
+            failedAttempts = flowController?.failedLoginAttempts ?: 0,
             onLogin = { username, password, remember ->
                 showLoginDialog = false
                 flowController?.loginWithCredentials(username, password, remember)
+            },
+            onSwitchToTarjetonDigital = onSwitchPortal?.let { switch ->
+                {
+                    showLoginDialog = false
+                    switch(ImssPortal.TARJETON_DIGITAL)
+                }
             },
             onDismiss = { showLoginDialog = false },
         )
@@ -603,6 +623,7 @@ fun ImssPortalScreen(
             delegaciones = tarjetonController?.delegaciones ?: TarjetonDigitalDelegaciones.FALLBACK,
             savedDelegacion = tarjetonController?.lastDelegacion,
             savedUsername = tarjetonController?.lastUsername,
+            failedAttempts = tarjetonController?.failedLoginAttempts ?: 0,
             onLogin = { delegacion, username, password, remember ->
                 showTarjetonLoginDialog = false
                 tarjetonController?.loginWithCredentials(delegacion, username, password, remember)
@@ -610,6 +631,12 @@ fun ImssPortalScreen(
             onManualEntry = {
                 showTarjetonLoginDialog = false
                 tarjetonController?.manualEntry()
+            },
+            onSwitchToTuPerfil = onSwitchPortal?.let { switch ->
+                {
+                    showTarjetonLoginDialog = false
+                    switch(ImssPortal.TU_PERFIL)
+                }
             },
             onDismiss = { showTarjetonLoginDialog = false },
         )

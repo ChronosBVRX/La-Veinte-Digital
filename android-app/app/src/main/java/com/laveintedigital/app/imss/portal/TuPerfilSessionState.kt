@@ -19,6 +19,8 @@ sealed interface TuPerfilSessionState {
     data class LoginError(
         val kind: PortalLoginErrorKind,
         val portalMessage: String? = null,
+        val failedAttempts: Int = 1,
+        val wasAutoLogin: Boolean = false,
     ) : TuPerfilSessionState
     data class Error(val reason: String) : TuPerfilSessionState
 }

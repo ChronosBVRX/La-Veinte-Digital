@@ -54,6 +54,8 @@ class TuPerfilSessionController(
     private var autoLoginAttempted = false
     private var loginJob: Job? = null
     var lastUsername: String? = null
+    var failedLoginAttempts: Int = 0
+        private set
 
     fun attachWebView(wv: WebView) { if (!webViewReady.isCompleted) webViewReady.complete(wv) }
 
@@ -71,7 +73,7 @@ class TuPerfilSessionController(
             try {
                 Log.i(TAG, "LOGIN_DIRECT_ATTEMPT_STARTED")
                 _state.value = TuPerfilSessionState.WaitingForm
-                doLogin(username, password)
+                doLogin(username, password, wasAutoLogin = false)
                 val finalState = _state.value
                 val success = finalState is TuPerfilSessionState.Authenticated
                 if (remember && success) {
@@ -82,12 +84,16 @@ class TuPerfilSessionController(
                     }
                 }
                 if (finalState is TuPerfilSessionState.Error && !success) {
-                    _state.value = TuPerfilSessionState.LoginError(PortalLoginErrorKind.UNKNOWN)
+                    _state.value = TuPerfilSessionState.LoginError(
+                        kind = PortalLoginErrorKind.UNKNOWN,
+                        failedAttempts = failedLoginAttempts.coerceAtLeast(1),
+                    )
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "LOGIN_DIRECT_FAILED", e)
                 _state.value = TuPerfilSessionState.LoginError(
                     kind = PortalLoginErrorKind.UNKNOWN,
+                    failedAttempts = failedLoginAttempts.coerceAtLeast(1),
                 )
             }
         }
@@ -146,6 +152,7 @@ class TuPerfilSessionController(
             val path = TuPerfilWebBridge.evaluateJs(wv, "location.pathname")?.trim('"') ?: ""
             if (path.startsWith("/guitpei-web/app")) {
                 Log.i(TAG, "SESSION_ALREADY_AUTHENTICATED")
+                failedLoginAttempts = 0
                 _state.value = TuPerfilSessionState.Authenticated
                 return
             }
@@ -157,7 +164,7 @@ class TuPerfilSessionController(
                 if (payload != null) {
                     lastUsername = payload.username
                     _state.value = TuPerfilSessionState.WaitingForm
-                    doLogin(payload.username, payload.password)
+                    doLogin(payload.username, payload.password, wasAutoLogin = true)
                     return
                 }
             }
@@ -167,7 +174,7 @@ class TuPerfilSessionController(
 
     // ── Login flow ─────────────────────────────────────────────────────────
 
-    private suspend fun doLogin(u: String, p: String) {
+    private suspend fun doLogin(u: String, p: String, wasAutoLogin: Boolean = false) {
         try {
             val wv = webViewReady.await()
             lastUsername = u
@@ -201,6 +208,7 @@ class TuPerfilSessionController(
                 val (result, errorInfo) = awaitAuth(wv)
                 when (result) {
                     AuthResult.SUCCESS -> {
+                        failedLoginAttempts = 0
                         _state.value = TuPerfilSessionState.Authenticated
                         return
                     }
@@ -212,9 +220,22 @@ class TuPerfilSessionController(
                             Log.i(TAG, "LOGIN_FIELDS_REQUIRED_RETRY attempt=$fieldsRequiredRetries")
                             continue
                         }
+                        val isCredFail = ImssLoginProtectionPolicy.countsAsTuPerfilCredentialFailure(kind)
+                        failedLoginAttempts = ImssLoginProtectionPolicy.nextFailedAttempts(
+                            failedLoginAttempts,
+                            isCredFail,
+                        )
+                        if (ImssLoginProtectionPolicy.shouldClearSavedTuPerfilCredentials(wasAutoLogin, kind)) {
+                            Log.w(TAG, "AUTO_LOGIN_REJECTED_CLEARING_SAVED_CREDENTIALS")
+                            withContext(Dispatchers.IO) {
+                                ImssVaultManager.deleteCredentials(context, ImssPortal.TU_PERFIL)
+                            }
+                        }
                         _state.value = TuPerfilSessionState.LoginError(
                             kind = kind,
                             portalMessage = errorInfo?.message,
+                            failedAttempts = failedLoginAttempts.coerceAtLeast(1),
+                            wasAutoLogin = wasAutoLogin,
                         )
                         return
                     }

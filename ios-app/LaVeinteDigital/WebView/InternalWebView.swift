@@ -59,7 +59,7 @@ struct InternalWebView: UIViewRepresentable {
                 self?.router.route(NavigationRouter.resolveForExternal(url))
             }
             BridgeHandler.shared.onOpenOfficialPayslips = { [weak self] in
-                self?.router.path.append(.imssPortal(.tuPerfil))
+                self?.router.path.append(.officialPayslips)
             }
             BridgeHandler.shared.onOpenBiometrics = { [weak self] in
                 // iOS aún no tiene pantalla dedicada de biométricos; por ahora abre Tu Perfil IMSS

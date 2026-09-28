@@ -55,6 +55,8 @@ sealed interface TuPerfilFlowState {
     data class LoginError(
         val kind: PortalLoginErrorKind,
         val portalMessage: String? = null,
+        val failedAttempts: Int = 1,
+        val wasAutoLogin: Boolean = false,
     ) : TuPerfilFlowState
     data class Error(val reason: String) : TuPerfilFlowState
 }

@@ -454,7 +454,7 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
         ? agendaSummary.nextStatus
         : "Sin compromisos hoy"
 
-  const tarjetonDesc = "Consulta tus recibos de pago"
+  const tarjetonDesc = "Tu Perfil IMSS o Tarjetón Digital"
   const tarjetonStatusDisplay =
     tarjetonHasData && tarjetonStatus ? tarjetonStatus : null
 

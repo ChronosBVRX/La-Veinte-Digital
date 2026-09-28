@@ -45,6 +45,7 @@ class TuPerfilFlowController(
     val cardStage: StateFlow<String> = _cardStage.asStateFlow()
 
     val lastUsername: String? get() = session.lastUsername
+    val failedLoginAttempts: Int get() = session.failedLoginAttempts
 
     var ooadOptions by mutableStateOf(listOf<PortalOoad>())
     var selectedOoad by mutableStateOf<PortalOoad?>(null)
@@ -68,7 +69,12 @@ class TuPerfilFlowController(
                         _state.value = TuPerfilFlowState.Authenticated
                         scope.launch { doNavigateToCard(session.awaitWebView()) }
                     }
-                    is TuPerfilSessionState.LoginError -> _state.value = TuPerfilFlowState.LoginError(auth.kind, auth.portalMessage)
+                    is TuPerfilSessionState.LoginError -> _state.value = TuPerfilFlowState.LoginError(
+                        kind = auth.kind,
+                        portalMessage = auth.portalMessage,
+                        failedAttempts = auth.failedAttempts,
+                        wasAutoLogin = auth.wasAutoLogin,
+                    )
                     is TuPerfilSessionState.Error -> _state.value = TuPerfilFlowState.Error(auth.reason)
                 }
             }

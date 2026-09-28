@@ -57,7 +57,7 @@ fun AppNavHost(
                     }
                 },
                 onCustomTab = onCustomTab,
-                onOpenOfficialPayslips = { navController.navigate(NavRoute.ImssPortal.create(ImssPortal.TU_PERFIL.id, false)) },
+                onOpenOfficialPayslips = { navController.navigate(NavRoute.OfficialPayslips.route) },
                 onOpenBiometrics = { navController.navigate(NavRoute.TuPerfilBiometrics.route) },
                 onOpenSavedDocuments = { navController.navigate(NavRoute.OfflineDocuments.route) },
             )
@@ -141,6 +141,10 @@ fun AppNavHost(
                 onBack = { navController.popBackStack() },
                 onClose = { navController.popBackStack(NavRoute.Internal.route, inclusive = false) },
                 onOpenHistory = { navController.navigate(NavRoute.PayslipHistory.route) },
+                onSwitchPortal = { targetPortal ->
+                    navController.popBackStack()
+                    navController.navigate(NavRoute.ImssPortal.create(targetPortal.id, false))
+                },
             )
         }
 

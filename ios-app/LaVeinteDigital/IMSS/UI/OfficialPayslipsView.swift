@@ -18,7 +18,7 @@ struct OfficialPayslipsView: View {
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(LvdColors.textPrimary)
                 }
-                Text("Tarjetones oficiales")
+                Text("Consultar mi tarjetón")
                     .font(.headline)
                     .foregroundColor(LvdColors.textPrimary)
                 Spacer()
@@ -28,39 +28,65 @@ struct OfficialPayslipsView: View {
             .background(LvdColors.surface)
 
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 12) {
-                    ServiceCard(
-                        title: "Tu Perfil IMSS",
-                        subtitle: "Descarga tu tarjetón desde tu perfil",
-                        icon: "person.crop.circle",
-                        accent: BrandColors.brandBlue
-                    ) {
-                        router.path.append(.imssPortal(.tuPerfil))
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Elige cómo consultar tu tarjetón")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(LvdColors.textPrimary)
+                    Text("El IMSS tiene 2 portales distintos con contraseñas independientes. Selecciona el portal donde ya tengas cuenta activa para evitar bloquear tu acceso.")
+                        .font(.caption)
+                        .foregroundColor(LvdColors.textSecondary)
+
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        ServiceCard(
+                            title: "1. Tu Perfil IMSS",
+                            subtitle: "Usa la cuenta de tuperfil.imss.gob.mx (la misma de Registros biométricos).",
+                            icon: "person.crop.circle",
+                            accent: BrandColors.brandBlue
+                        ) {
+                            router.path.append(.imssPortal(.tuPerfil))
+                        }
+                        ServiceCard(
+                            title: "2. Tarjetón Digital",
+                            subtitle: "Usa la cuenta clásica de rh.imss.gob.mx (con selección de delegación).",
+                            icon: "doc.badge.gearshape",
+                            accent: BrandColors.brandCyan
+                        ) {
+                            router.path.append(.imssPortal(.tarjetonDigital))
+                        }
+                        ServiceCard(
+                            title: "Mis tarjetones",
+                            subtitle: store.count == 1 ? "1 documento guardado" : "\(store.count) documentos guardados",
+                            icon: "folder.fill",
+                            accent: BrandColors.primary
+                        ) {
+                            router.path.append(.payslipHistory)
+                        }
+                        ServiceCard(
+                            title: "Administrar accesos",
+                            subtitle: credentialsSubtitle,
+                            icon: "key.fill",
+                            accent: LvdColors.info
+                        ) {
+                            router.path.append(.manageImssCredentials)
+                        }
                     }
-                    ServiceCard(
-                        title: "Tarjetón Digital",
-                        subtitle: "Comprobante digital del IMSS",
-                        icon: "doc.badge.gearshape",
-                        accent: BrandColors.brandCyan
-                    ) {
-                        router.path.append(.imssPortal(.tarjetonDigital))
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Protección contra bloqueo de cuenta IMSS")
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(LvdColors.textPrimary)
+                        Text("No uses la contraseña de La Veinte Digital aquí, ni mezcles las contraseñas entre Tu Perfil IMSS y Tarjetón Digital.")
+                            .font(.caption2)
+                            .foregroundColor(LvdColors.textSecondary)
                     }
-                    ServiceCard(
-                        title: "Mis tarjetones",
-                        subtitle: store.count == 1 ? "1 documento guardado" : "\(store.count) documentos guardados",
-                        icon: "folder.fill",
-                        accent: BrandColors.primary
-                    ) {
-                        router.path.append(.payslipHistory)
-                    }
-                    ServiceCard(
-                        title: "Administrar accesos",
-                        subtitle: credentialsSubtitle,
-                        icon: "key.fill",
-                        accent: LvdColors.info
-                    ) {
-                        router.path.append(.manageImssCredentials)
-                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(LvdColors.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: LvdTokens.radius.card)
+                            .stroke(LvdColors.border, lineWidth: 1)
+                    )
+                    .cornerRadius(LvdTokens.radius.card)
                 }
                 .padding(16)
             }

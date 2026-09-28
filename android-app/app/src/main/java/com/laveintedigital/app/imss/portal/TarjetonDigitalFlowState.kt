@@ -59,6 +59,8 @@ sealed interface TarjetonDigitalFlowState {
     data class LoginError(
         val result: TarjetonDigitalLoginResult,
         val portalMessage: String? = null,
+        val failedAttempts: Int = 1,
+        val wasAutoLogin: Boolean = false,
     ) : TarjetonDigitalFlowState
     data class Error(val reason: String) : TarjetonDigitalFlowState
     /** Fallo en la fase de consulta de tarjetones (ya autenticado). NO es un error de login. */

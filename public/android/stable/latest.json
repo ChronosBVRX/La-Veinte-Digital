@@ -1,19 +1,19 @@
 {
   "channel": "stable",
-  "versionCode": 210,
-  "versionName": "1.2.0",
+  "versionCode": 211,
+  "versionName": "1.2.1",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-09-28T01:45:00.000Z",
+  "publishedAt": "2026-09-28T23:15:00.000Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "deca5661772309d919d241ff047a687a658ffd096b8afad327faa2c11f3f5b49",
-    "size": 25082988
+    "sha256": "6ea9c2e72a58d23be6fc86917fba78a7bb5b33fe797890e57340accfa1936b1a",
+    "size": 25115756
   },
   "releaseNotes": [
-    "Nuevo centro sin conexión (Modo Offline ampliado): además de tus documentos PDF, ahora puedes consultar Mi Quincena y Perfil, Mi Agenda y Calculadoras y Guía sin Internet.",
-    "Calculadoras rápidas sin conexión para Fondo de Ahorro (2ª de Julio con Concepto 002 + 011), Aguinaldo y Tiempo Extra, además de buscador de conceptos del tarjetón IMSS.",
-    "Arranque más ágil y caché nativa inteligente de recursos estáticos con garantía de versión siempre actualizada al instante.",
-    "Sincronización automática y segura de tu resumen laboral al actualizar tu tarjetón o agenda."
+    "Selector claro al tocar «Mi tarjetón»: ahora puedes elegir entre las 2 opciones oficiales (1. Tu Perfil IMSS y 2. Tarjetón Digital clásico) con explicación detallada de cada una.",
+    "Identificación clara de cuentas: cada portal indica exactamente qué contraseña debes ingresar para no confundir Tu Perfil IMSS, Tarjetón Digital y La Veinte Digital.",
+    "Protección inteligente contra bloqueo de cuenta IMSS: freno preventivo tras intentos fallidos y desactivación automática de contraseñas guardadas rechazadas para proteger tu cuenta.",
+    "Cambio rápido entre Tu Perfil IMSS y Tarjetón Digital desde la pantalla de inicio de sesión."
   ]
 }

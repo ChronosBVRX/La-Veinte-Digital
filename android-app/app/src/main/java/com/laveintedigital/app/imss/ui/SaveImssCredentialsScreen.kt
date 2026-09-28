@@ -94,7 +94,10 @@ fun SaveImssCredentialsScreen(
 
             LvdSectionHeader(
                 title = "Acceso a ${portal.displayName}",
-                subtitle = "Guarda tu usuario y contraseña cifrados en este dispositivo.",
+                subtitle = when (portal) {
+                    ImssPortal.TU_PERFIL -> "Ingresa tu matrícula y la contraseña exclusiva de Tu Perfil IMSS (tuperfil.imss.gob.mx). No es la del Tarjetón Digital clásico ni la de La Veinte Digital."
+                    ImssPortal.TARJETON_DIGITAL -> "Ingresa tu usuario/matrícula y la contraseña exclusiva del Tarjetón Digital clásico (rh.imss.gob.mx). No es la de Tu Perfil IMSS ni la de La Veinte Digital."
+                },
             )
 
             if (!canBio) {
@@ -115,14 +118,17 @@ fun SaveImssCredentialsScreen(
             LvdTextField(
                 value = username,
                 onValueChange = { username = it; error = null },
-                label = "Usuario / matrícula",
+                label = when (portal) {
+                    ImssPortal.TU_PERFIL -> "Matrícula (Tu Perfil IMSS)"
+                    ImssPortal.TARJETON_DIGITAL -> "Usuario / matrícula (Tarjetón Digital)"
+                },
                 enabled = canBio,
             )
 
             LvdTextField(
                 value = password,
                 onValueChange = { password = it; error = null },
-                label = "Contraseña",
+                label = "Contraseña de ${portal.displayName}",
                 enabled = canBio,
             )
 

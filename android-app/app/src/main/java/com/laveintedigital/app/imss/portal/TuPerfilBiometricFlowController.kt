@@ -377,7 +377,14 @@ class TuPerfilBiometricFlowController(
             is TuPerfilSessionState.VerifyingForm,
             is TuPerfilSessionState.SubmittingLogin,
             is TuPerfilSessionState.WaitingAuthentication -> setState(TuPerfilBiometricFlowState.Authenticating)
-            is TuPerfilSessionState.LoginError -> setState(TuPerfilBiometricFlowState.LoginError(auth.kind, auth.portalMessage))
+            is TuPerfilSessionState.LoginError -> setState(
+                TuPerfilBiometricFlowState.LoginError(
+                    kind = auth.kind,
+                    portalMessage = auth.portalMessage,
+                    failedAttempts = auth.failedAttempts,
+                    wasAutoLogin = auth.wasAutoLogin,
+                ),
+            )
             is TuPerfilSessionState.Error -> setState(TuPerfilBiometricFlowState.Error(
                 BiometricErrorKind.UNKNOWN,
                 "No pudimos conectar con Tu Perfil IMSS. Inténtalo de nuevo.",
