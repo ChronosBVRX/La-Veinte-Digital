@@ -1,5 +1,4 @@
 "use client"
-import { useEffect, useState } from "react"
 import { Button } from "@/shared/components/ui/Button"
 
 interface WelcomeStepProps {
@@ -11,27 +10,9 @@ interface WelcomeStepProps {
 }
 
 export function WelcomeStep({ onStart, onChoosePayslip, onSkipBasic, loading, isInitialOnboarding }: WelcomeStepProps) {
-  const [oauthProvider, setOauthProvider] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    try {
-      const pending = window.sessionStorage.getItem("lvd_oauth_pending")
-      if (pending) {
-        window.sessionStorage.removeItem("lvd_oauth_pending")
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- consume indicador de redirección OAuth al montar
-        setOauthProvider(pending)
-      }
-    } catch {
-      // Ignorar si sessionStorage está restringido
-    }
-  }, [])
-
-  const showRegistrationSuccess = Boolean(isInitialOnboarding || oauthProvider)
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", alignItems: "center", textAlign: "center" }}>
-      {showRegistrationSuccess && (
+      {isInitialOnboarding && (
         <div
           role="status"
           style={{
@@ -46,10 +27,7 @@ export function WelcomeStep({ onStart, onChoosePayslip, onSkipBasic, loading, is
             lineHeight: 1.45,
           }}
         >
-          <strong>
-            ✅ {oauthProvider === "google" ? "¡Registro con Google exitoso!" : "¡Registro realizado con éxito!"}
-          </strong>{" "}
-          Tu cuenta ya está activa. Puedes configurar tus datos laborales ahora o ir directo al inicio.
+          <strong>✅ ¡Registro e inicio de sesión exitoso!</strong> Tu cuenta ya está activa. Puedes configurar tus datos laborales ahora o ir directo al inicio.
         </div>
       )}
       <div style={{ fontSize: "2.5rem" }}>👋</div>

@@ -177,7 +177,7 @@ describe("OnboardingWizard — flujo directo y consentimiento manual", () => {
     const onComplete = vi.fn()
     render(<OnboardingWizard userId="u1" isInitialOnboarding onComplete={onComplete} />)
 
-    expect(screen.getByText(/¡Registro realizado con éxito!/i)).toBeTruthy()
+    expect(screen.getByText(/¡Registro e inicio de sesión exitoso!/i)).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: /Omitir por ahora/i }))
 
     await waitFor(() => {
@@ -185,13 +185,6 @@ describe("OnboardingWizard — flujo directo y consentimiento manual", () => {
       expect(onComplete).toHaveBeenCalledWith("basic", null)
       expect(mocks.routerPush).toHaveBeenCalledWith("/")
     })
-  })
-
-  it("muestra aviso de registro con Google exitoso cuando viene de OAuth", () => {
-    window.sessionStorage.setItem("lvd_oauth_pending", "google")
-    render(<OnboardingWizard userId="u1" isInitialOnboarding onComplete={vi.fn()} />)
-    expect(screen.getByText(/¡Registro con Google exitoso!/i)).toBeTruthy()
-    expect(window.sessionStorage.getItem("lvd_oauth_pending")).toBeNull()
   })
 })
 
