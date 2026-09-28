@@ -111,6 +111,21 @@ export function LockerMobileList({
                     📍 {zoneName} {bankName ? `· ${bankName}` : ""}
                   </div>
                 ) : null}
+                {locker.notes && (locker.notes.includes("[REVISAR MAPEO]") || locker.notes.includes("[ALTA POR RECORRIDO]")) ? (
+                  <div
+                    style={{
+                      fontSize: "0.6875rem",
+                      color: locker.notes.includes("[REVISAR MAPEO]") ? "#b45309" : "#1d4ed8",
+                      backgroundColor: locker.notes.includes("[REVISAR MAPEO]") ? "#fffbeb" : "#eff6ff",
+                      border: `1px solid ${locker.notes.includes("[REVISAR MAPEO]") ? "#fde68a" : "#bfdbfe"}`,
+                      borderRadius: "0.25rem",
+                      padding: "0.15rem 0.4rem",
+                      marginTop: "0.25rem",
+                    }}
+                  >
+                    {locker.notes}
+                  </div>
+                ) : null}
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>

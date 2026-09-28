@@ -251,6 +251,8 @@ export async function GET(req: Request): Promise<NextResponse> {
       if (q && includeInMap) {
         const numMatch = normalize(l.locker_number).includes(normQ);
         const codeMatch = normalize(l.physical_code || "").includes(normQ);
+        const notesMatch = normalize(l.notes || "").includes(normQ);
+        const posMatch = normalize(l.position_label || "").includes(normQ);
         const empMatch = worker ? normalize(worker.employee_number || "").includes(normQ) : false;
         const nameMatch = worker
           ? normalize(`${worker.first_name || ""} ${worker.paternal_surname || ""} ${worker.maternal_surname || ""}`).includes(normQ)
@@ -260,7 +262,7 @@ export async function GET(req: Request): Promise<NextResponse> {
             normalize(pending.source_employee_number || "").includes(normQ)
           : false;
 
-        includeInMap = numMatch || codeMatch || empMatch || nameMatch || pendingNameMatch;
+        includeInMap = numMatch || codeMatch || notesMatch || posMatch || empMatch || nameMatch || pendingNameMatch;
       }
 
       if (includeInMap) {
