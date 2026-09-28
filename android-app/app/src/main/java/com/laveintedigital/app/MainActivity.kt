@@ -107,13 +107,13 @@ private fun MainScreen() {
         // Boot loader — runs once. Private content (AppNavHost/WebView) only mounts after UNLOCKED.
         if (!bootloaderDone) {
             LaunchedEffect(Unit) {
-                delay(500)
+                delay(150)
                 StartupCoordinator.advanceTo(StartupStage.UPDATE_CHECK)
-                delay(600)
+                delay(150)
                 StartupCoordinator.advanceTo(StartupStage.PREPARING_WEBVIEW)
-                delay(400)
+                delay(100)
                 StartupCoordinator.advanceTo(StartupStage.RESTORING_SESSION)
-                delay(200)
+                delay(80)
                 StartupCoordinator.advanceTo(StartupStage.SECURITY)
                 StartupCoordinator.ready()
                 bootloaderDone = true

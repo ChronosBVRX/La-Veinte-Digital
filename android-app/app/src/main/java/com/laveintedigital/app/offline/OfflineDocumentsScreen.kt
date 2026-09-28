@@ -1,7 +1,9 @@
 package com.laveintedigital.app.offline
 
 import android.content.Intent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,17 +12,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,11 +60,21 @@ import com.laveintedigital.app.ui.lvd.LvdDialog
 import com.laveintedigital.app.ui.lvd.LvdPrimaryButton
 import com.laveintedigital.app.ui.theme.BrandNavy
 import com.laveintedigital.app.ui.theme.Primary
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+private enum class OfflineSection(val label: String) {
+    DOCUMENTOS("Documentos PDF"),
+    QUINCENA("Mi Quincena"),
+    AGENDA("Mi Agenda"),
+    HERRAMIENTAS("Calculadoras y Guía"),
+}
 
 private enum class OfflineFilter(val label: String) {
     TODOS("Todos"),
@@ -65,10 +85,12 @@ private enum class OfflineFilter(val label: String) {
 }
 
 /**
- * Pantalla Compose 100% nativa de documentos guardados (modo offline).
+ * Pantalla Compose 100% nativa para el Modo Sin Conexión.
  *
- * Sin WebView y sin llamadas de red: lee Room + archivos físicos de filesDir vía
- * [NativeDocuments]. Reutiliza el visor local ([onViewPdf]) y el compartir por FileProvider.
+ * Sin WebView y sin llamadas de red:
+ * - Lee Room + archivos físicos de filesDir vía [NativeDocuments] (vista predeterminada "Documentos PDF").
+ * - Lee el snapshot sincronizado de solo lectura vía [OfflineSnapshotStore] ("Mi Quincena", "Mi Agenda").
+ * - Ofrece buscador offline de conceptos IMSS y calculadoras rápidas deterministas ("Calculadoras y Guía").
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,8 +103,10 @@ fun OfflineDocumentsScreen(
     val scope = rememberCoroutineScope()
     com.laveintedigital.app.ui.theme.StatusBarAppearance(lightIcons = false)
 
+    var section by remember { mutableStateOf(OfflineSection.DOCUMENTOS) }
     var loading by remember { mutableStateOf(true) }
     var docs by remember { mutableStateOf<List<PayslipDocument>>(emptyList()) }
+    var snapshot by remember { mutableStateOf<OfflineSnapshotStore.OfflineWorkerSnapshot?>(null) }
     var filter by remember { mutableStateOf(OfflineFilter.TODOS) }
     var deleteTarget by remember { mutableStateOf<PayslipDocument?>(null) }
     var feedback by remember { mutableStateOf<String?>(null) }
@@ -93,7 +117,6 @@ fun OfflineDocumentsScreen(
             loading = true
             feedback = null
             try {
-                // Limpieza conservadora de huérfanos (archivo ausente) antes de listar.
                 val pruned = NativeDocuments.pruneMissingFiles(context)
                 if (pruned.isNotEmpty()) {
                     android.util.Log.i(
@@ -106,6 +129,9 @@ fun OfflineDocumentsScreen(
                 val owner = NativeSessionOwner.current(context)
                 docs = db.filter { NativeDocuments.isVisibleTo(it.ownerId, owner) }
                     .filter { runCatching { File(it.localPath).exists() }.getOrDefault(false) }
+                snapshot = withContext(Dispatchers.IO) {
+                    OfflineSnapshotStore.loadForCurrentOwner(context)
+                }
             } catch (e: Exception) {
                 android.util.Log.w(OfflineLog.TAG, "offline_docs_load_failed", e)
                 feedback = "No se pudieron cargar los documentos."
@@ -163,7 +189,7 @@ fun OfflineDocumentsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Mis documentos") },
+                title = { Text("Mis documentos y consulta offline") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
@@ -205,101 +231,139 @@ fun OfflineDocumentsScreen(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
+                val syncLabel = remember(snapshot) {
+                    snapshot?.syncedAtMs?.takeIf { it > 0L }?.let { ms ->
+                        val fmt = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale("es", "MX"))
+                        "Última sincronización con servidor: ${fmt.format(Date(ms))}"
+                    } ?: "Puedes consultar los archivos y herramientas disponibles en este dispositivo."
+                }
                 Text(
-                    "Puedes consultar los archivos guardados en este dispositivo.",
-                    fontSize = 13.sp,
+                    syncLabel,
+                    fontSize = 12.sp,
                     color = Color.Gray,
                 )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            // Selector de sección offline
+            LazyRow(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                OfflineFilter.entries.forEach { f ->
+                items(OfflineSection.entries) { sec ->
                     FilterChip(
-                        selected = filter == f,
-                        onClick = { filter = f },
-                        label = { Text(f.label, fontSize = 13.sp) },
+                        selected = section == sec,
+                        onClick = { section = sec },
+                        label = { Text(sec.label, fontSize = 13.sp, fontWeight = if (section == sec) FontWeight.SemiBold else FontWeight.Normal) },
                     )
                 }
             }
 
-            feedback?.let { msg ->
-                Text(
-                    msg,
-                    fontSize = 13.sp,
-                    color = Color(0xFFB91C1C),
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                )
-            }
+            HorizontalDivider(color = Color.LightGray.copy(alpha = 0.4f))
 
-            when {
-                loading -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
+            when (section) {
+                OfflineSection.DOCUMENTOS -> {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text("Cargando documentos…", fontSize = 14.sp, color = Color.Gray)
+                        items(OfflineFilter.entries) { f ->
+                            FilterChip(
+                                selected = filter == f,
+                                onClick = { filter = f },
+                                label = { Text(f.label, fontSize = 13.sp) },
+                            )
+                        }
                     }
-                }
-                visible.isEmpty() -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        Text("No tienes documentos guardados en este dispositivo", fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                        Spacer(Modifier.height(8.dp))
+
+                    feedback?.let { msg ->
                         Text(
-                            "Los tarjetones, checadas y escritos que guardes aparecerán aquí y podrás abrirlos sin conexión.",
-                            color = Color.Gray,
+                            msg,
                             fontSize = 13.sp,
+                            color = Color(0xFFB91C1C),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                         )
                     }
-                }
-                else -> {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(visible, key = { it.id }) { doc ->
-                            val df = remember {
-                                SimpleDateFormat("dd MMM yyyy", Locale("es", "MX"))
-                            }
-                            val bucket = OfflineDetection.bucketFor(doc.source)
-                            Row(
-                                modifier = Modifier.fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+
+                    when {
+                        loading -> {
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(32.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        doc.displayName,
-                                        fontWeight = FontWeight.Medium,
-                                        fontSize = 14.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    Text(
-                                        "${OfflineDetection.bucketLabel(bucket)} · ${df.format(Date(doc.downloadedAt))} · ${formatSize(doc.fileSize)}",
-                                        fontSize = 12.sp,
-                                        color = Color.Gray,
-                                    )
-                                }
-                                IconButton(onClick = {
-                                    android.util.Log.i(OfflineLog.TAG, "${OfflineLog.EVENT_DOC_OPENED} id=${doc.id} source=${doc.source}")
-                                    onViewPdf(doc.localPath, viewerTitle(doc))
-                                }) {
-                                    Icon(Icons.Filled.Visibility, "Abrir", tint = Primary)
-                                }
-                                IconButton(onClick = { shareDoc(doc) }) {
-                                    Icon(Icons.Filled.Share, "Compartir", tint = Color.Gray)
-                                }
-                                IconButton(onClick = { deleteTarget = doc }) {
-                                    Icon(Icons.Filled.Delete, "Eliminar", tint = Color.Gray)
+                                Text("Cargando documentos…", fontSize = 14.sp, color = Color.Gray)
+                            }
+                        }
+                        visible.isEmpty() -> {
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(32.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                            ) {
+                                Text("No tienes documentos guardados en este dispositivo", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    "Los tarjetones, checadas y escritos que guardes aparecerán aquí y podrás abrirlos sin conexión.",
+                                    color = Color.Gray,
+                                    fontSize = 13.sp,
+                                )
+                            }
+                        }
+                        else -> {
+                            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                                items(visible, key = { it.id }) { doc ->
+                                    val df = remember {
+                                        SimpleDateFormat("dd MMM yyyy", Locale("es", "MX"))
+                                    }
+                                    val bucket = OfflineDetection.bucketFor(doc.source)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                doc.displayName,
+                                                fontWeight = FontWeight.Medium,
+                                                fontSize = 14.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                            Text(
+                                                "${OfflineDetection.bucketLabel(bucket)} · ${df.format(Date(doc.downloadedAt))} · ${formatSize(doc.fileSize)}",
+                                                fontSize = 12.sp,
+                                                color = Color.Gray,
+                                            )
+                                        }
+                                        IconButton(onClick = {
+                                            android.util.Log.i(OfflineLog.TAG, "${OfflineLog.EVENT_DOC_OPENED} id=${doc.id} source=${doc.source}")
+                                            onViewPdf(doc.localPath, viewerTitle(doc))
+                                        }) {
+                                            Icon(Icons.Filled.Visibility, "Abrir", tint = Primary)
+                                        }
+                                        IconButton(onClick = { shareDoc(doc) }) {
+                                            Icon(Icons.Filled.Share, "Compartir", tint = Color.Gray)
+                                        }
+                                        IconButton(onClick = { deleteTarget = doc }) {
+                                            Icon(Icons.Filled.Delete, "Eliminar", tint = Color.Gray)
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
+                }
+
+                OfflineSection.QUINCENA -> {
+                    OfflineQuincenaTab(snapshot = snapshot)
+                }
+
+                OfflineSection.AGENDA -> {
+                    OfflineAgendaTab(snapshot = snapshot)
+                }
+
+                OfflineSection.HERRAMIENTAS -> {
+                    OfflineToolsTab(snapshot = snapshot)
                 }
             }
         }
@@ -341,6 +405,347 @@ fun OfflineDocumentsScreen(
                     Text("Cancelar", color = LvdColors.TextSecondary)
                 }
             },
+        )
+    }
+}
+
+@Composable
+private fun OfflineQuincenaTab(snapshot: OfflineSnapshotStore.OfflineWorkerSnapshot?) {
+    val currency = remember { NumberFormat.getCurrencyInstance(Locale("es", "MX")) }
+    if (snapshot == null || (snapshot.profile.fullName == null && snapshot.latestPayslip == null)) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                "Aún no hay resumen laboral sincronizado",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "En cuanto abras La Veinte Digital con Internet, tu perfil laboral y el desglose de tu último tarjetón se guardarán automáticamente para consulta sin conexión.",
+                color = Color.Gray,
+                fontSize = 13.sp,
+            )
+        }
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Mi Perfil Laboral", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = BrandNavy)
+                    Spacer(Modifier.height(8.dp))
+                    ProfileRow("Nombre", snapshot.profile.fullName ?: "—")
+                    ProfileRow("Matrícula", snapshot.profile.matricula ?: "—")
+                    ProfileRow("Categoría", snapshot.profile.categoria ?: "—")
+                    ProfileRow("Antigüedad", snapshot.profile.antiguedad ?: "—")
+                    ProfileRow("Adscripción", snapshot.profile.adscripcion ?: "—")
+                    snapshot.latestPayslip?.vacationDueDate?.let { due ->
+                        ProfileRow("Próximo vencimiento vacacional", due)
+                    }
+                }
+            }
+        }
+
+        val payslip = snapshot.latestPayslip
+        if (payslip != null) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F9FF)),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "Resumen · ${payslip.periodLabel}",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = BrandNavy,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        ProfileRow("Total Percepciones", currency.format(payslip.totalEarnings))
+                        ProfileRow("Total Deducciones", currency.format(payslip.totalDeductions))
+                        ProfileRow("Neto Líquido", currency.format(payslip.netPay), highlight = true)
+                    }
+                }
+            }
+
+            if (payslip.lines.isNotEmpty()) {
+                item {
+                    Text(
+                        "Conceptos del último tarjetón (${payslip.lines.size})",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                items(payslip.lines) { line ->
+                    val isDeduction = line.kind.equals("deduction", ignoreCase = true)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFF8FAFC), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                            Text(
+                                "${line.code} · ${line.description}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                if (isDeduction) "Deducción" else "Percepción",
+                                fontSize = 11.sp,
+                                color = Color.Gray,
+                            )
+                        }
+                        Text(
+                            currency.format(line.amount),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isDeduction) Color(0xFFB91C1C) else Color(0xFF047857),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OfflineAgendaTab(snapshot: OfflineSnapshotStore.OfflineWorkerSnapshot?) {
+    val commitments = snapshot?.commitments.orEmpty()
+    if (commitments.isEmpty()) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                "Sin registros de agenda sincronizados",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Tus registros de Tiempo Extra, TxT, Faltas y Recordatorios agendados aparecerán aquí automáticamente.",
+                color = Color.Gray,
+                fontSize = 13.sp,
+            )
+        }
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        items(commitments, key = { it.id }) { item ->
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            item.typeLabel,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Primary,
+                        )
+                        Text(
+                            item.startAt.take(10),
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(item.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    item.notes?.let { notes ->
+                        Spacer(Modifier.height(4.dp))
+                        Text(notes, fontSize = 12.sp, color = Color.DarkGray)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OfflineToolsTab(snapshot: OfflineSnapshotStore.OfflineWorkerSnapshot?) {
+    val currency = remember { NumberFormat.getCurrencyInstance(Locale("es", "MX")) }
+    val base = snapshot?.calculatorBase
+
+    var sueldo002Text by remember(base) {
+        mutableStateOf(
+            if ((base?.sueldoBaseQuincenal002 ?: 0.0) > 0.0) base!!.sueldoBaseQuincenal002.toString() else ""
+        )
+    }
+    var renta011Text by remember(base) {
+        mutableStateOf(
+            if ((base?.ayudaRentaQuincenal011 ?: 0.0) > 0.0) base!!.ayudaRentaQuincenal011.toString() else ""
+        )
+    }
+    var extraHoursText by remember { mutableStateOf("8") }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val sueldo002 = sueldo002Text.replace(",", "").toDoubleOrNull() ?: 0.0
+    val renta011 = renta011Text.replace(",", "").toDoubleOrNull() ?: 0.0
+    val extraHours = extraHoursText.replace(",", "").toDoubleOrNull() ?: 0.0
+    val workdayHours = base?.workdayHours ?: 8.0
+
+    val fondoJulio = remember(sueldo002, renta011) {
+        OfflineSnapshotStore.calculateOfflineSegundaJulio(sueldo002, renta011, 365)
+    }
+    val aguinaldoEst = remember(sueldo002, renta011, base) {
+        val monthly = if (sueldo002 > 0.0) (sueldo002 + renta011) * 2.0 else (base?.sueldoMensualIntegrado ?: 0.0)
+        OfflineSnapshotStore.calculateOfflineAguinaldo(monthly, 365)
+    }
+    val tiempoExtraEst = remember(sueldo002, workdayHours, extraHours) {
+        OfflineSnapshotStore.calculateOfflineTiempoExtra(sueldo002, workdayHours, extraHours)
+    }
+    val catalogResults = remember(searchQuery) {
+        OfflineSnapshotStore.searchCatalog(searchQuery)
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Simulador Rápido Sin Conexión",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = BrandNavy,
+                    )
+                    Text(
+                        "Pre-rellenado con tu último tarjetón sincronizado. Puedes ajustar las cifras manualmente.",
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = sueldo002Text,
+                            onValueChange = { sueldo002Text = it },
+                            label = { Text("Concepto 002 (Qnal)", fontSize = 12.sp) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                        OutlinedTextField(
+                            value = renta011Text,
+                            onValueChange = { renta011Text = it },
+                            label = { Text("Concepto 011 (Qnal)", fontSize = 12.sp) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = extraHoursText,
+                        onValueChange = { extraHoursText = it },
+                        label = { Text("Horas de Tiempo Extra a simular (Jornada ${workdayHours}h)", fontSize = 12.sp) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    ProfileRow("2ª de Julio / Fondo de Ahorro (002 + 011, 45 días)", currency.format(fondoJulio), highlight = true)
+                    ProfileRow("Aguinaldo Anual Estimado (90 días)", currency.format(aguinaldoEst))
+                    ProfileRow("Tiempo Extra Estimado (${extraHours}h)", currency.format(tiempoExtraEst))
+                }
+            }
+        }
+
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                label = { Text("Buscar concepto del tarjetón (ej. 002, 011, 055, ISR…)", fontSize = 13.sp) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        items(catalogResults, key = { it.code }) { concept ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFF8FAFC), RoundedCornerShape(10.dp))
+                    .padding(12.dp),
+            ) {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "Concepto ${concept.code} · ${concept.title}",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp,
+                            color = BrandNavy,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            concept.kind,
+                            fontSize = 11.sp,
+                            color = if (concept.kind == "Deducción") Color(0xFFB91C1C) else Color(0xFF047857),
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(concept.explanation, fontSize = 12.sp, color = Color.DarkGray)
+                    Spacer(Modifier.height(2.dp))
+                    Text(concept.clauseRef, fontSize = 11.sp, color = Color.Gray)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileRow(label: String, value: String, highlight: Boolean = false) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, fontSize = 12.sp, color = Color.Gray, modifier = Modifier.weight(1f))
+        Text(
+            value,
+            fontSize = if (highlight) 14.sp else 13.sp,
+            fontWeight = if (highlight) FontWeight.Bold else FontWeight.Medium,
+            color = if (highlight) Primary else Color.Black,
         )
     }
 }

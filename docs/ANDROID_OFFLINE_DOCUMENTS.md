@@ -142,12 +142,34 @@ intenta abrir rutas inexistentes ("Archivo no disponible" en compartir si aplica
 ## 12. Archivos
 
 Nuevos: `offline/` (`OfflineDocumentsScreen`, `OfflineDetection`, `NetworkMonitor` +
-`OnlineRecovery`, `NativeSessionOwner`, `OfflineLog`), tests `offline/` +
-`NativeDocumentsOfflineTest`, `services/escrito-native-sync.ts` (+ test).
+`OnlineRecovery`, `NativeSessionOwner`, `OfflineLog`, `OfflineSnapshotStore`),
+`internal/WebStaticAssetCache`, tests `offline/` (`OfflineDetectionTest`, `OfflineSnapshotStoreTest`) +
+`internal/WebStaticAssetCacheTest` + `NativeDocumentsOfflineTest`,
+`services/escrito-native-sync.ts` (+ test), `shared/services/offline-snapshot-sync.ts` (+ test),
+`shared/components/layout/NativeRuntimeEnhancer.tsx`.
 Modificados (delta mínimo): `PayslipDatabase` (v4), `NativeDocuments`, `PdfShareManager`
-(modo SAVE + `setOwner`), `LaVeinteInternalWebViewClient`, `InternalWebScreen`,
+(modo SAVE + `setOwner` + `syncOfflineSnapshot`), `LaVeinteInternalWebViewClient`, `InternalWebScreen`,
 `OfflineErrorScreen`, `AppNavHost`, `NavRoute`, `LaVeinteApplication`,
-`PayslipHistoryScreen` (borrado canónico), `build.gradle.kts` (1.1.6/206),
-`pdfShareBridge.ts` (`savePdfToNativeDocs`, `setNativeDocsOwner`),
+`PayslipHistoryScreen` (borrado canónico), `MainActivity` (optimización de tiempos de `BootloaderScreen`),
+`build.gradle.kts` (1.2.0/210), `pdfShareBridge.ts` (`savePdfToNativeDocs`, `setNativeDocsOwner`),
+`calculator-prefill-client.ts` (caché SWR en sesión con invalidación instantánea en `nomina_payslip_updated`),
 `escrito-native-sync` hooks (`EscritosGenerator`, `document-viewer-adapter`,
 `DocumentosPersonales`), tipos (`global.d.ts`, `documents.ts`).
+
+---
+
+## 13. Expansión v1.2.0 (build 210) — Hub Offline Completo y Aceleración Sin Datos Obsoletos
+
+### 13.1 Hub Offline en `OfflineDocumentsScreen` (4 pestañas nativas)
+1. **Documentos PDF (vista predeterminada):** conserva intacta toda la funcionalidad previa (Tarjetones, Checadas, Escritos, Normativa, búsqueda, visor `PdfRenderer`, compartir y eliminar).
+2. **Mi Quincena y Perfil:** muestra el snapshot de solo lectura sincronizado de la sesión del trabajador (nombre, matrícula, categoría, adscripción, jornada, turno, antigüedad, fecha de vencimiento vacacional y desglose completo de percepciones y deducciones del último tarjetón confirmado).
+3. **Mi Agenda:** lista los compromisos laborales próximos sincronizados desde `worker_commitments`.
+4. **Calculadoras y Guía:**
+   - **Calculadoras rápidas deterministas offline:** Fondo de Ahorro / 2ª de Julio (integrando estrictamente **Concepto 002 + Concepto 011** conforme a la Cláusula 144 y 63 Bis B del CCT), Aguinaldo (Cláusula 107) y Tiempo Extra, prerrellenadas con los importes reales del snapshot del trabajador.
+   - **Buscador de conceptos del tarjetón IMSS:** catálogo estático offline con explicación y fundamento contractual.
+
+### 13.2 Aceleración de Navegación con Garantía "Cero Contenido Obsoleto"
+- **`WebStaticAssetCache` (`shouldInterceptRequest`):** cachea en disco local (LRU 40 MB) **únicamente** activos estáticos inmutables con hash (`/_next/static/*` y `/vendor/*`) en peticiones `GET` de subrecursos hacia dominios internos. **Jamás** intercepta HTML (`isForMainFrame`), payloads RSC (`_rsc=`), ni rutas `/api/*`. Cuando se despliega una versión nueva en producción, el HTML referencia nuevos hashes y el usuario ve la última versión al instante.
+- **`BootloaderScreen` optimizado:** reducción de esperas artificiales de arranque de `1,700 ms` a `480 ms` respetando todas las etapas de `StartupCoordinator` y `AppLockManager`.
+- **Pre-calentamiento e invalidación instantánea (`NativeRuntimeEnhancer` + `calculator-prefill-client.ts`):** pre-carga en `requestIdleCallback` solo las rutas estáticas permitidas por `shouldPrefetchRoute` (excluyendo `ACTIVE_WORKER_DATA_ROUTES`) y mantiene caché SWR en memoria para `/api/calculator-prefill` que se purga de inmediato ante `nomina_payslip_updated` o `nomina_profile_updated`.
+

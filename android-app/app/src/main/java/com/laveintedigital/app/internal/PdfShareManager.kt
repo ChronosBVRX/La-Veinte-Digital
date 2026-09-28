@@ -120,6 +120,12 @@ object PdfShareManager {
                     return@launch
                 }
 
+                // syncOfflineSnapshot persiste el resumen laboral/agenda para consulta sin conexión.
+                if (action == "syncOfflineSnapshot") {
+                    handleSyncOfflineSnapshot(context, replyProxy, json, message)
+                    return@launch
+                }
+
                 val transferId = json.optString("transferId", json.optString("reqId"))
 
                 if (!isValidTransferId(transferId)) {
@@ -459,6 +465,30 @@ object PdfShareManager {
         postResult(replyProxy, JSONObject().apply {
             put("ok", true)
             put("status", "owner_set")
+        })
+    }
+
+    private fun handleSyncOfflineSnapshot(
+        context: Context,
+        replyProxy: JavaScriptReplyProxy?,
+        json: JSONObject,
+        rawMessage: String,
+    ) {
+        val snapObj = json.optJSONObject("snapshot") ?: json
+        val ownerId = snapObj.optString("ownerId", json.optString("userId", "")).trim()
+        if (!com.laveintedigital.app.offline.NativeSessionOwner.isValidOwnerId(ownerId)) {
+            sendErrorResponse(context, replyProxy, "INVALID_REQUEST", "Propietario de snapshot no válido.", null)
+            return
+        }
+        com.laveintedigital.app.offline.NativeSessionOwner.set(context, ownerId)
+        val ok = com.laveintedigital.app.offline.OfflineSnapshotStore.save(context, rawMessage)
+        if (!ok) {
+            sendErrorResponse(context, replyProxy, "WRITE_FAILED", "No se pudo guardar el resumen offline.", null)
+            return
+        }
+        postResult(replyProxy, JSONObject().apply {
+            put("ok", true)
+            put("status", "snapshot_saved")
         })
     }
 
