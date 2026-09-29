@@ -40,9 +40,13 @@ vi.mock("../services/license-document-dto", () => ({
   buildUnionLicenseDocumentData: vi.fn(),
 }));
 
-vi.mock("../services/license-print-package", () => ({
-  buildLicensePrintPackage: vi.fn(),
-}));
+vi.mock("../services/license-print-package", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/license-print-package")>();
+  return {
+    ...actual,
+    buildLicensePrintPackage: vi.fn(),
+  };
+});
 
 vi.mock("../services/passage-document-service", () => ({
   buildPassageDocument: vi.fn(),
@@ -748,6 +752,120 @@ describe("Módulo de Impresión Sindical — Seguridad, Tokens y Ciclo de Vida",
 
       expect(result.job.status).toBe("queued");
       expect(result.job.document_type).toBe("license_package");
+    });
+
+    it("divide un PDF real de Licencia (2 páginas) en 2 trabajos separados de 1 página para evitar impresión atrás y adelante", async () => {
+      const { PDFDocument } = await import("pdf-lib");
+      const { createClient } = await import("@/lib/supabase/server");
+      const { buildUnionLicenseDocumentData } = await import("../services/license-document-dto");
+      const { buildLicensePrintPackage } = await import("../services/license-print-package");
+
+      const realTwoPagePdf = await PDFDocument.create();
+      realTwoPagePdf.addPage([612, 792]);
+      realTwoPagePdf.addPage([612, 792]);
+      const realTwoPageBuffer = Buffer.from(await realTwoPagePdf.save());
+
+      vi.mocked(buildUnionLicenseDocumentData).mockResolvedValue({
+        caseId: "case-uuid-split",
+        delegationId: "del-uuid-1",
+        folio: "XXI-2026-LIC-000099",
+        revisionNumber: 1,
+      } as unknown as UnionLicenseDocumentData);
+
+      vi.mocked(buildLicensePrintPackage).mockResolvedValue({
+        buffer: realTwoPageBuffer,
+        pageCount: 2,
+      });
+
+      const mockStation = {
+        id: "station-uuid-1",
+        delegation_id: "del-uuid-1",
+        name: "Oficina Sindical",
+        is_active: true,
+      };
+
+      const insertedPayloads: Record<string, unknown>[] = [];
+      const uploadedBuffers: Buffer[] = [];
+
+      const mockSupabase = {
+        from: vi.fn((table: string) => {
+          if (table === "union_cases") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: {
+                      id: "case-uuid-split",
+                      delegation_id: "del-uuid-1",
+                      folio: "XXI-2026-LIC-000099",
+                      case_type: "license",
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === "union_print_stations") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  eq: vi.fn().mockReturnValue({
+                    order: vi.fn().mockReturnValue({
+                      limit: vi.fn().mockReturnValue({
+                        maybeSingle: vi.fn().mockResolvedValue({ data: mockStation }),
+                      }),
+                    }),
+                  }),
+                }),
+              }),
+            };
+          }
+          if (table === "union_print_jobs") {
+            return {
+              insert: vi.fn().mockImplementation((payload) => {
+                insertedPayloads.push(payload);
+                return {
+                  select: vi.fn().mockReturnValue({
+                    single: vi.fn().mockResolvedValue({
+                      data: { ...payload, id: payload.id },
+                      error: null,
+                    }),
+                  }),
+                };
+              }),
+            };
+          }
+          return {};
+        }),
+        storage: {
+          from: vi.fn().mockReturnValue({
+            upload: vi.fn().mockImplementation((_path: string, buf: Buffer) => {
+              uploadedBuffers.push(buf);
+              return Promise.resolve({ data: { path: _path }, error: null });
+            }),
+            remove: vi.fn(),
+          }),
+        },
+      };
+
+      vi.mocked(createClient).mockResolvedValue(mockSupabase as unknown as SupabaseClient<Database>);
+
+      const result = await createUnionPrintJob({
+        caseId: "case-uuid-split",
+        userId: "user-uuid-1",
+      });
+
+      expect(result.job.status).toBe("queued");
+      expect(insertedPayloads).toHaveLength(2);
+      expect(uploadedBuffers).toHaveLength(2);
+      expect(insertedPayloads[0].duplex).toBe(false);
+      expect(insertedPayloads[1].duplex).toBe(false);
+
+      for (const buf of uploadedBuffers) {
+        const singleDoc = await PDFDocument.load(buf);
+        expect(singleDoc.getPageCount()).toBe(1);
+      }
     });
   });
 

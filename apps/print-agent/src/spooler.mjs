@@ -2,8 +2,34 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import ptp from "pdf-to-printer";
+import { PDFDocument } from "pdf-lib";
 
 const printerLib = ptp.default || ptp;
+
+/**
+ * Divide un PDF multipágina en buffers individuales de 1 página cuando se imprime a una sola cara (simplex),
+ * garantizando que ningún controlador de impresora imprima dos hojas distintas en el frente y reverso de la misma hoja.
+ */
+async function splitToSinglePageBuffersIfNeeded(pdfBuffer, duplex) {
+  if (duplex) return [pdfBuffer];
+  try {
+    const srcDoc = await PDFDocument.load(pdfBuffer);
+    const pageCount = srcDoc.getPageCount();
+    if (pageCount <= 1) return [pdfBuffer];
+
+    const buffers = [];
+    for (let i = 0; i < pageCount; i++) {
+      const singleDoc = await PDFDocument.create();
+      const [copiedPage] = await singleDoc.copyPages(srcDoc, [i]);
+      singleDoc.addPage(copiedPage);
+      const bytes = await singleDoc.save();
+      buffers.push(Buffer.from(bytes));
+    }
+    return buffers;
+  } catch {
+    return [pdfBuffer];
+  }
+}
 
 /**
  * Obtiene la lista de impresoras configuradas en Windows.
@@ -49,6 +75,18 @@ export async function getInstalledPrinters() {
  * @param {boolean} [options.duplex=false] - Imprimir a doble cara
  */
 export async function printPdfSilently(pdfBuffer, options = {}) {
+  const duplex = Boolean(options.duplex);
+  const pageBuffers = await splitToSinglePageBuffersIfNeeded(pdfBuffer, duplex);
+  if (pageBuffers.length > 1) {
+    for (let idx = 0; idx < pageBuffers.length; idx++) {
+      await printSingleBufferSilently(pageBuffers[idx], { ...options, duplex: false });
+    }
+    return { success: true };
+  }
+  return printSingleBufferSilently(pageBuffers[0], { ...options, duplex });
+}
+
+async function printSingleBufferSilently(pdfBuffer, options = {}) {
   const tempDir = os.tmpdir();
   const tempFilePath = path.join(tempDir, `la20-job-${Date.now()}-${Math.random().toString(36).slice(2)}.pdf`);
 
@@ -64,10 +102,10 @@ export async function printPdfSilently(pdfBuffer, options = {}) {
       paperSize: "Letter",
       copies,
       silent: true,
-      ...(options.duplex ? { side: "duplex" } : {}),
+      side: options.duplex ? "duplex" : "simplex",
     };
 
-    console.log(`[SPOOLER] Enviando trabajo a impresora: "${printer || "Predeterminada"}" (${copies} copia/s, Carta)...`);
+    console.log(`[SPOOLER] Enviando trabajo a impresora: "${printer || "Predeterminada"}" (${copies} copia/s, Carta, ${printOptions.side})...`);
 
     await printerLib.print(tempFilePath, printOptions);
 

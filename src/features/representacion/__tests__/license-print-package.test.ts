@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { PDFDocument } from "pdf-lib";
-import { buildLicensePrintPackage } from "../services/license-print-package";
+import { PDFDocument, PDFName } from "pdf-lib";
+import {
+  buildLicensePrintPackage,
+  splitPdfIntoSinglePageBuffers,
+} from "../services/license-print-package";
 import type { UnionLicenseDocumentData } from "../services/license-document-dto";
 
 describe("license-print-package", () => {
@@ -74,7 +77,7 @@ describe("license-print-package", () => {
     },
   };
 
-  it("generates a valid 2-page PDF document combining Oficio and Solicitud", async () => {
+  it("generates a valid 2-page PDF document combining Oficio and Solicitud with Simplex ViewerPreferences", async () => {
     const result = await buildLicensePrintPackage(baseDto);
 
     expect(result.pageCount).toBe(2);
@@ -87,6 +90,11 @@ describe("license-print-package", () => {
     const loadedDoc = await PDFDocument.load(result.buffer);
     expect(loadedDoc.getPageCount()).toBe(2);
 
+    // Verify /ViewerPreferences << /Duplex /Simplex >> is set on catalog
+    const viewerPrefs = loadedDoc.catalog.get(PDFName.of("ViewerPreferences"));
+    expect(viewerPrefs).toBeDefined();
+    expect(viewerPrefs?.toString()).toContain("/Duplex /Simplex");
+
     const page1 = loadedDoc.getPage(0);
     const size1 = page1.getSize();
     expect(Math.round(size1.width)).toBe(612);
@@ -96,6 +104,31 @@ describe("license-print-package", () => {
     const size2 = page2.getSize();
     expect(Math.round(size2.width)).toBe(612);
     expect(Math.round(size2.height)).toBe(792);
+  });
+
+  it("generates separate 1-page PDFs when part is 'oficio' or 'solicitud'", async () => {
+    const oficioResult = await buildLicensePrintPackage(baseDto, { part: "oficio" });
+    expect(oficioResult.pageCount).toBe(1);
+    const oficioDoc = await PDFDocument.load(oficioResult.buffer);
+    expect(oficioDoc.getPageCount()).toBe(1);
+
+    const solicitudResult = await buildLicensePrintPackage(baseDto, { part: "solicitud" });
+    expect(solicitudResult.pageCount).toBe(1);
+    const solicitudDoc = await PDFDocument.load(solicitudResult.buffer);
+    expect(solicitudDoc.getPageCount()).toBe(1);
+  });
+
+  it("splits a 2-page license PDF into two independent 1-page Simplex PDFs via splitPdfIntoSinglePageBuffers", async () => {
+    const combined = await buildLicensePrintPackage(baseDto);
+    const sheets = await splitPdfIntoSinglePageBuffers(combined.buffer);
+    expect(sheets).toHaveLength(2);
+
+    for (const sheetBuffer of sheets) {
+      const doc = await PDFDocument.load(sheetBuffer);
+      expect(doc.getPageCount()).toBe(1);
+      const prefs = doc.catalog.get(PDFName.of("ViewerPreferences"));
+      expect(prefs?.toString()).toContain("/Duplex /Simplex");
+    }
   });
 
   it("generates package correctly for sin goce (sin sueldo) with extension (prórroga)", async () => {
