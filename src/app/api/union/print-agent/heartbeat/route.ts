@@ -53,11 +53,29 @@ export async function POST(req: Request): Promise<NextResponse> {
       .update(updatePayload)
       .eq("id", station.id);
 
+    let parkingPendingCount = 0;
+    try {
+      const { count } = await supabase
+        .from("union_parking_bridge_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("delegation_id", station.delegation_id)
+        .eq("status", "pending");
+      parkingPendingCount = count ?? 0;
+    } catch {
+      // Ignorar si no está disponible en mocks de test
+    }
+
     return NextResponse.json({
       success: true,
       station_id: station.id,
+      delegation_id: station.delegation_id,
       station_name: station.name,
       printer_name: parsed.success && parsed.data.printer_name ? parsed.data.printer_name : station.printer_name,
+      parking_pending_count: parkingPendingCount,
+      realtime_config: {
+        url: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+        anon_key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
+      },
       timestamp: new Date().toISOString(),
     });
   } catch (err: unknown) {

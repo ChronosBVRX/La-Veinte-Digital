@@ -64,6 +64,10 @@ export const API_ACCESS = {
   "/api/union/lockers/audits/[id]": "authenticated",
   "/api/union/lockers/export": "authenticated",
   "/api/union/lockers/renewal": "authenticated",
+  // Control de Acceso Vehicular / Estacionamiento HGR 1
+  "/api/union/parking": "authenticated",
+  "/api/union/parking/sync": "authenticated",
+  "/api/union/parking/[id]/qr": "authenticated",
   // Impresión Automática en Oficina Sindical (Representantes y Admins)
   "/api/union/print/jobs": "authenticated",
   "/api/union/print/jobs/[id]/retry": "authenticated",
@@ -78,6 +82,7 @@ export const API_ACCESS = {
   "/api/union/print-agent/claim": "public",
   "/api/union/print-agent/jobs/[id]/document": "public",
   "/api/union/print-agent/jobs/[id]/status": "public",
+  "/api/union/print-agent/parking-bridge": "public",
   // Descarga del agente para Windows
   "/api/downloads/print-agent/windows": "public",
   "/api/cron/agenda-reminders": "public",

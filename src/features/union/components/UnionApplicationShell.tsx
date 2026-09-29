@@ -8,6 +8,7 @@ import {
   Users,
   Baby,
   Lockers,
+  Car,
   Ticket,
   FileText,
   Folder,
@@ -67,6 +68,7 @@ export const UNION_NAV_GROUPS: UnionNavGroup[] = [
       { href: "/representacion/licencias", label: "Licencias", description: "Solicitud y oficio", icon: FileText },
       { href: "/representacion/pasajes", label: "Pasajes", description: "Formatos 026 / 027", icon: Ticket },
       { href: "/representacion/lockers", label: "Lockers", description: "Asignaciones y espera", icon: Lockers },
+      { href: "/representacion/estacionamiento", label: "Estacionamiento", description: "Control vehicular CAV HGR 1", icon: Car },
     ],
   },
   {

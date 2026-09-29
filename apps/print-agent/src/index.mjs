@@ -1,8 +1,9 @@
 import crypto from "node:crypto";
 import { loadStationCredentials } from "./security.mjs";
-import { printPdfSilently, getInstalledPrinters } from "./spooler.mjs";
+import { printPdfSilently } from "./spooler.mjs";
+import { createParkingBridgeWorker } from "./parking-bridge.cjs";
 
-const AGENT_VERSION = "1.0.0";
+const AGENT_VERSION = "1.1.0";
 const HEARTBEAT_INTERVAL_MS = 20000;
 const POLL_INTERVAL_MS = 12000;
 
@@ -26,6 +27,7 @@ console.log(`[CONFIG] Impresora configurada: ${printerName || "(Predeterminada d
 
 let isProcessing = false;
 let stationDetails = null;
+let parkingBridge = null;
 
 /**
  * Realiza una petición HTTP autenticada con el Station Token.
@@ -69,6 +71,9 @@ async function sendHeartbeat() {
     if (!stationDetails) {
       stationDetails = data;
       console.log(`[ESTACIÓN] Conectado exitosamente como: "${data.station_name}"`);
+    }
+    if (parkingBridge && data && typeof parkingBridge.onHeartbeat === "function") {
+      parkingBridge.onHeartbeat(data);
     }
     return true;
   } catch (err) {
@@ -194,6 +199,13 @@ async function reportStatus(jobId, status, errorCode, errorMessage) {
 // Iniciar ciclo de vida del agente
 async function bootstrap() {
   console.log("\n[INICIO] Conectando con La Veinte Digital...");
+  parkingBridge = createParkingBridgeWorker({
+    apiRequest,
+    agentVersion: AGENT_VERSION,
+  });
+  parkingBridge.start();
+  console.log("[PUENTE EN VIVO] ✓ Sincronizador Zero-Idle en tiempo real CAV HGR 1 (11.1.17.44:8080) activo.");
+
   const connected = await sendHeartbeat();
   if (connected) {
     console.log("[INICIO] ✓ Estación activa. Escuchando cola de impresión...");

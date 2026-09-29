@@ -103,7 +103,7 @@ __pycache__/
 # Representación sindical: trabajo local con PII (nunca versionar)
 .local-private/
 .tools-venv/
+/tools/parking-inspector/
 *.xlsm
 !assets/templates/**
 !supabase/tests/**
-
