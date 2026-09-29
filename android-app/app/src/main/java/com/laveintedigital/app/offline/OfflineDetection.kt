@@ -33,6 +33,35 @@ object OfflineDetection {
     fun isMainFrameConnectivityError(errorCode: Int): Boolean =
         errorCode in CONNECTIVITY_ERRORS
 
+    /**
+     * Sobrecarga que también inspecciona la descripción textual de Chromium
+     * (por ejemplo `net::ERR_INTERNET_DISCONNECTED`, `net::ERR_NAME_NOT_RESOLVED`,
+     * `net::ERR_CONNECTION_TIMED_OUT`, `net::ERR_ADDRESS_UNREACHABLE`) por si algún
+     * WebView OEM reporta `ERROR_UNKNOWN` u otro código en desconexión total.
+     */
+    fun isMainFrameConnectivityError(errorCode: Int, description: CharSequence?): Boolean {
+        if (errorCode in CONNECTIVITY_ERRORS) return true
+        val desc = description?.toString()?.uppercase() ?: return false
+        return desc.contains("ERR_INTERNET_DISCONNECTED") ||
+            desc.contains("ERR_NAME_NOT_RESOLVED") ||
+            desc.contains("ERR_ADDRESS_UNREACHABLE") ||
+            desc.contains("ERR_NETWORK_CHANGED") ||
+            desc.contains("ERR_CONNECTION_") ||
+            desc.contains("ERR_TUNNEL_CONNECTION_FAILED")
+    }
+
+    /**
+     * ¿La URL corresponde a la página interna de error de Chromium (`chrome-error://`)
+     * o a una página en blanco (`about:blank`)?
+     */
+    fun isInternalErrorUrl(url: String?): Boolean {
+        if (url.isNullOrBlank()) return true
+        val normalized = url.trim().lowercase()
+        return normalized.startsWith("chrome-error://") ||
+            normalized == "about:blank" ||
+            normalized.startsWith("data:")
+    }
+
     /** Buckets de la pantalla offline a partir del `source` de Room. */
     enum class DocBucket { TARJETON, CHECADAS, ESCRITO, NORMATIVA, OTRO }
 
@@ -52,3 +81,32 @@ object OfflineDetection {
         DocBucket.OTRO -> "Documento"
     }
 }
+
+/**
+ * Rastreador puro del ciclo de navegación del marco principal para evitar que el
+ * `onPageFinished` posterior a un `onReceivedError` (cuando Chromium termina de
+ * renderizar `chrome-error://chromewebdata/`) limpie por accidente el estado
+ * `isOffline = true` y deje visible la pantalla cruda `net::ERR_INTERNET_DISCONNECTED`.
+ */
+class OfflineNavigationTracker {
+    @Volatile
+    var hasOfflineError: Boolean = false
+        private set
+
+    fun onPageStarted(url: String?) {
+        if (!OfflineDetection.isInternalErrorUrl(url)) {
+            hasOfflineError = false
+        }
+    }
+
+    fun onMainFrameConnectivityError() {
+        hasOfflineError = true
+    }
+
+    fun shouldCommitOnlineOnPageFinished(url: String?, isInternalHost: Boolean): Boolean {
+        if (hasOfflineError) return false
+        if (OfflineDetection.isInternalErrorUrl(url)) return false
+        return isInternalHost
+    }
+}
+

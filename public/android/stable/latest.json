@@ -1,19 +1,18 @@
 {
   "channel": "stable",
-  "versionCode": 211,
-  "versionName": "1.2.1",
+  "versionCode": 212,
+  "versionName": "1.2.2",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-09-28T23:15:00.000Z",
+  "publishedAt": "2026-09-28T23:55:00.000Z",
   "apk": {
     "url": "https://la-veinte-digital.vercel.app/LaVeinteDigital.apk",
-    "sha256": "6ea9c2e72a58d23be6fc86917fba78a7bb5b33fe797890e57340accfa1936b1a",
-    "size": 25115756
+    "sha256": "e4cac02f8e1b82104998fbff83ef977cd674b0b88f0bbee6395fbe1dfd77583f",
+    "size": 25132140
   },
   "releaseNotes": [
-    "Selector claro al tocar «Mi tarjetón»: ahora puedes elegir entre las 2 opciones oficiales (1. Tu Perfil IMSS y 2. Tarjetón Digital clásico) con explicación detallada de cada una.",
-    "Identificación clara de cuentas: cada portal indica exactamente qué contraseña debes ingresar para no confundir Tu Perfil IMSS, Tarjetón Digital y La Veinte Digital.",
-    "Protección inteligente contra bloqueo de cuenta IMSS: freno preventivo tras intentos fallidos y desactivación automática de contraseñas guardadas rechazadas para proteger tu cuenta.",
-    "Cambio rápido entre Tu Perfil IMSS y Tarjetón Digital desde la pantalla de inicio de sesión."
+    "Modo sin conexión inmediato al abrir la app sin Internet: nunca muestra la pantalla cruda de error del navegador (ERR_INTERNET_DISCONNECTED) y permite acceder directo a tus documentos guardados, Mi Quincena, Mi Agenda y Calculadoras.",
+    "Recuperación automática y segura de conexión cuando vuelve Internet.",
+    "Selector claro en «Mi tarjetón» con las 2 opciones oficiales (Tu Perfil IMSS y Tarjetón Digital clásico), guía de qué contraseña usar en cada una y protección inteligente contra bloqueo de cuenta."
   ]
 }

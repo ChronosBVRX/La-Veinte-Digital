@@ -97,14 +97,17 @@ fun InternalWebScreen(
     onOpenSavedDocuments: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    var webView by remember { mutableStateOf<WebView?>(null) }
-    var isLoading by remember { mutableStateOf(true) }
-    var initialLoadDone by remember { mutableStateOf(false) }
-    var isOffline by remember { mutableStateOf(false) }
-    var pendingFileCallback by remember { mutableStateOf<ValueCallback<Array<android.net.Uri>>?>(null) }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
     val activity = context as ComponentActivity
+    var webView by remember { mutableStateOf<WebView?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var initialLoadDone by remember { mutableStateOf(false) }
+    var hasCommittedOnlinePage by remember { mutableStateOf(false) }
+    var isOffline by remember {
+        mutableStateOf(!com.laveintedigital.app.offline.NetworkMonitor.hasValidatedInternetNow(context))
+    }
+    var pendingFileCallback by remember { mutableStateOf<ValueCallback<Array<android.net.Uri>>?>(null) }
 
     // Enrollment state: show invitation dialog after web reports authenticated
     var showEnrollmentInvite by remember { mutableStateOf(false) }
@@ -492,6 +495,19 @@ fun InternalWebScreen(
 
     // Señal de conectividad del sistema para el aviso discreto de recuperación.
     val backOnline by com.laveintedigital.app.offline.NetworkMonitor.validatedInternet.collectAsState()
+
+    fun reloadOrLoadInitial(wv: WebView?) {
+        if (wv == null) return
+        wv.post {
+            val currentUrl = wv.url
+            if (com.laveintedigital.app.offline.OfflineDetection.isInternalErrorUrl(currentUrl)) {
+                wv.loadUrl(initialUrl)
+            } else {
+                wv.reload()
+            }
+        }
+    }
+
     // Recarga solicitada al volver de la pantalla offline con Internet recuperado.
     val recoveryGen by com.laveintedigital.app.offline.OnlineRecovery.generation.collectAsState()
     LaunchedEffect(recoveryGen) {
@@ -499,8 +515,16 @@ fun InternalWebScreen(
             val wv = webView
             if (wv != null) {
                 isOffline = false
-                wv.post { wv.reload() }
+                isLoading = true
+                reloadOrLoadInitial(wv)
             }
+        }
+    }
+    // Si la red regresa mientras estamos en la pantalla de error offline, reintenta en segundo plano;
+    // cuando la página cargue realmente sin errores, onOnline pasará isOffline a false.
+    LaunchedEffect(backOnline, isOffline) {
+        if (isOffline && backOnline == true) {
+            reloadOrLoadInitial(webView)
         }
     }
     // Diagnóstico de entrada a modo offline (una vez por episodio, sin datos sensibles).
@@ -546,7 +570,7 @@ fun InternalWebScreen(
                 // sigue resolviéndose (el evaluateJavascript en vuelo).
                 if (!backHandling.compareAndSet(false, true)) return
                 val wv = webView
-                if (wv == null) {
+                if (wv == null || isOffline) {
                     backHandling.set(false)
                     isEnabled = false
                     activity.onBackPressedDispatcher.onBackPressed()
@@ -623,9 +647,9 @@ fun InternalWebScreen(
                 )
             ),
     ) {
-        // Branded loading screen — only on initial load, not during navigation
+        // Branded loading screen — on initial load or while retrying before an online page commits
         AnimatedVisibility(
-            visible = !initialLoadDone,
+            visible = (!initialLoadDone || !hasCommittedOnlinePage) && !isOffline,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize().align(Alignment.Center),
@@ -738,6 +762,7 @@ fun InternalWebScreen(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                     )
                     setBackgroundColor(AndroidColor.WHITE)
+                    visibility = if (isOffline) android.view.View.INVISIBLE else android.view.View.VISIBLE
                     settings.configureForLaVeinte(BuildConfig.VERSION_NAME)
                     CookieManager.getInstance().apply {
                         setAcceptCookie(true)
@@ -751,15 +776,20 @@ fun InternalWebScreen(
                         onPageLoadStateChanged = { loading ->
                             isLoading = loading
                             if (!loading && !initialLoadDone) initialLoadDone = true
-                            isOffline = false
                             // Fuente de verdad de documento; el controller solo
                             // actúa post-splash (gated por setEnabled).
-                            if (initialLoadDone) navFeedback.onRealLoading(loading)
+                            if (initialLoadDone && !isOffline) navFeedback.onRealLoading(loading)
                         },
                         onSslError = { navFeedback.onLoadFailed() },
                         onOffline = {
                             isOffline = true
+                            hasCommittedOnlinePage = false
+                            initialLoadDone = true
                             navFeedback.onOffline()
+                        },
+                        onOnline = {
+                            hasCommittedOnlinePage = true
+                            isOffline = false
                         },
                     )
                     webChromeClient = chromeClient
@@ -802,6 +832,13 @@ fun InternalWebScreen(
                     loadUrl(initialUrl)
                 }.also { webView = it }
             },
+            update = { wv ->
+                wv.visibility = if (isOffline || !hasCommittedOnlinePage) {
+                    android.view.View.INVISIBLE
+                } else {
+                    android.view.View.VISIBLE
+                }
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
@@ -810,7 +847,7 @@ fun InternalWebScreen(
 
         // Barra discreta mientras el overlay aún no alcanzó su umbral; una vez
         // visible el overlay la sustituye para no competir (siempre hay feedback).
-        if (isLoading && initialLoadDone && !navUi.overlayVisible) {
+        if (isLoading && initialLoadDone && !isOffline && !navUi.overlayVisible) {
             LinearProgressIndicator(
                 modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding(),
                 color = Primary,
@@ -820,7 +857,7 @@ fun InternalWebScreen(
 
         // Overlay nativo post-splash: solo observa, no consume Back ni toques.
         NativeNavigationOverlay(
-            visible = navUi.overlayVisible,
+            visible = navUi.overlayVisible && !isOffline,
             slow = navUi.slowText,
         )
 
@@ -830,7 +867,8 @@ fun InternalWebScreen(
             OfflineErrorScreen(
                 onRetry = {
                     isOffline = false
-                    webView?.reload()
+                    isLoading = true
+                    reloadOrLoadInitial(webView)
                 },
                 onOpenSavedDocuments = onOpenSavedDocuments,
                 isBackOnline = backOnline == true,
