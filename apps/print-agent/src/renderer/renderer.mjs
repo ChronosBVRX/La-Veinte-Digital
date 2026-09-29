@@ -34,6 +34,7 @@ const dashLastSeen = document.getElementById("dash-last-seen");
 const statusDot = document.getElementById("status-dot");
 const dashStationName = document.getElementById("dash-station-name");
 const dashPrinterName = document.getElementById("dash-printer-name");
+const dashSelectPrinter = document.getElementById("dash-select-printer");
 const recentJobBox = document.getElementById("recent-job-box");
 const recentJobText = document.getElementById("recent-job-text");
 const btnDashTestPrint = document.getElementById("btn-dash-test-print");
@@ -156,30 +157,60 @@ function hideEnrollError() {
 // ------------------------------------------------------------
 // 3. Poblado y Configuración de Impresoras
 // ------------------------------------------------------------
-async function populatePrinters(preselectedName = "") {
-  selectPrinter.innerHTML = "";
-  const printers = await window.api.getInstalledPrinters();
+function fillPrinterSelectElement(selectEl, printers, preselectedName = "") {
+  if (!selectEl) return;
+  selectEl.innerHTML = "";
 
-  if (printers.length === 0) {
+  if (!printers || printers.length === 0) {
     const opt = document.createElement("option");
     opt.value = "";
-    opt.textContent = "(Predeterminada de Windows)";
-    selectPrinter.appendChild(opt);
+    opt.textContent = "(Impresora predeterminada de Windows)";
+    selectEl.appendChild(opt);
     return;
   }
 
+  let matched = false;
   printers.forEach((pName) => {
     const opt = document.createElement("option");
     opt.value = pName;
     opt.textContent = pName;
     if (preselectedName && pName.toLowerCase() === preselectedName.toLowerCase()) {
       opt.selected = true;
+      matched = true;
     }
-    selectPrinter.appendChild(opt);
+    selectEl.appendChild(opt);
+  });
+
+  if (!matched && selectEl.options.length > 0) {
+    selectEl.options[0].selected = true;
+  }
+}
+
+async function populatePrinters(preselectedName = "") {
+  const printers = await window.api.getInstalledPrinters();
+  fillPrinterSelectElement(selectPrinter, printers, preselectedName);
+  fillPrinterSelectElement(dashSelectPrinter, printers, preselectedName);
+
+  // Si aún no había impresora guardada pero detectamos una física, guardarla automáticamente
+  if (!preselectedName && printers.length > 0) {
+    await window.api.savePreferredPrinter(printers[0]);
+  }
+}
+
+if (dashSelectPrinter) {
+  dashSelectPrinter.addEventListener("change", async () => {
+    const selected = dashSelectPrinter.value;
+    await window.api.savePreferredPrinter(selected);
+    if (dashPrinterName) {
+      dashPrinterName.textContent = selected || "(Predeterminada de Windows)";
+    }
   });
 }
 
 btnTestPrintSetup.addEventListener("click", async () => {
+  if (selectPrinter && selectPrinter.value) {
+    await window.api.savePreferredPrinter(selectPrinter.value);
+  }
   btnTestPrintSetup.disabled = true;
   btnTestPrintSetup.textContent = "Enviando al spooler de Windows...";
   testPrintMsg.style.display = "block";
@@ -206,7 +237,7 @@ btnFinishSetup.addEventListener("click", async () => {
   btnFinishSetup.textContent = "Finalizar configuración";
 
   // Cambiar a vista dashboard y minimizar a bandeja
-  renderDashboardData({
+  await renderDashboardData({
     printerName: selected,
     stationName: setupStationName.textContent,
   });
@@ -217,12 +248,17 @@ btnFinishSetup.addEventListener("click", async () => {
 // ------------------------------------------------------------
 // 4. Panel de Estado (Dashboard)
 // ------------------------------------------------------------
-function renderDashboardData({ stationName, printerName }) {
+async function renderDashboardData({ stationName, printerName, installedPrinters }) {
   if (stationName) dashStationName.textContent = stationName;
   if (printerName) {
     dashPrinterName.textContent = printerName;
   } else {
     dashPrinterName.textContent = "(Predeterminada de Windows)";
+  }
+  const printers = installedPrinters || (await window.api.getInstalledPrinters());
+  fillPrinterSelectElement(dashSelectPrinter, printers, printerName);
+  if (!printerName && printers.length > 0) {
+    await window.api.savePreferredPrinter(printers[0]);
   }
 }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import {
+  createPrintAgentClient,
   hashEnrollmentCode,
   normalizeEnrollmentCode,
   generateStationToken,
@@ -41,7 +41,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     const hash = hashEnrollmentCode(normalized);
     const nowIso = new Date().toISOString();
 
-    const supabase = await createClient();
+    const supabase = await createPrintAgentClient();
 
     // 1. Buscar código activo, no usado y no expirado
     const { data: enrollment, error: findError } = await supabase

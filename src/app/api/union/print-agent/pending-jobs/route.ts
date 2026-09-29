@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { authenticatePrintStation } from "@/features/representacion/services/print-token";
+import {
+  authenticatePrintStation,
+  createPrintAgentClient,
+} from "@/features/representacion/services/print-token";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(req: Request): Promise<NextResponse> {
-  const supabase = await createClient();
+  const supabase = await createPrintAgentClient();
   const { station, errorResponse } = await authenticatePrintStation(req, supabase);
   if (errorResponse || !station) return errorResponse!;
 

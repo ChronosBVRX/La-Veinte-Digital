@@ -107,9 +107,11 @@
             <span class="info-label">Estación:</span>
             <strong id="dash-station-name" class="info-value">Oficina Sindical</strong>
           </div>
-          <div class="info-row">
-            <span class="info-label">Impresora configurada:</span>
-            <span id="dash-printer-name" class="info-value">HP LaserJet Pro</span>
+          <div class="info-row" style="flex-direction: column; align-items: stretch; gap: 0.4rem;">
+            <span class="info-label">Impresora configurada: <strong id="dash-printer-name" class="info-value" style="display: none;"></strong></span>
+            <select id="dash-select-printer" class="text-input" style="width: 100%;">
+              <option value="">(Cargando impresoras...)</option>
+            </select>
           </div>
           <div class="info-row">
             <span class="info-label">Inicio con Windows:</span>
@@ -144,6 +146,6 @@
     </footer>
   </div>
 
-  <script type="module" src="renderer.mjs"></script>
+  <script defer src="renderer.mjs"></script>
 </body>
 </html>

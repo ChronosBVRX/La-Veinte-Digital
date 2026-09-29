@@ -125,29 +125,61 @@ describe("Print Agent Windows Release & Download", () => {
     });
   });
 
-  describe("E. Redirección en la ruta normal", () => {
-    it("devuelve redirect 302 solamente hacia una URL válida configurada", async () => {
+  describe("E. Descarga directa desde nuestro servidor (la20.com.mx) y arquitecturas 64/32 bits", () => {
+    it("sirve el ejecutable directamente desde nuestro servidor (200 attachment) sin redirigir al navegador a github.com", async () => {
       delete process.env.PRINT_AGENT_DOWNLOAD_URL;
       process.env.PRINT_AGENT_RELEASE_TAG = "print-agent-v1.0.0";
 
       const req = new Request("https://la20.com.mx/api/downloads/print-agent/windows");
       const res = await GET(req);
 
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe(
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-disposition")).toBe('attachment; filename="LaVeintePrint-Setup.exe"');
+      expect(res.headers.get("x-upstream-url")).toBe(
         "https://github.com/ChronosBVRX/La-Veinte-Digital/releases/download/print-agent-v1.0.0/LaVeintePrint-Setup.exe"
       );
     });
 
-    it("con PRINT_AGENT_DOWNLOAD_URL válido redirige 302 al URL sobrescrito", async () => {
+    it("sirve las dos versiones (x64 de 64 bits y x86 de 32 bits) con sus nombres correspondientes", async () => {
+      delete process.env.PRINT_AGENT_DOWNLOAD_URL;
+      process.env.PRINT_AGENT_RELEASE_TAG = "print-agent-v1.0.0";
+
+      const req64 = new Request("https://la20.com.mx/api/downloads/print-agent/windows?arch=x64");
+      const res64 = await GET(req64);
+      expect(res64.status).toBe(200);
+      expect(res64.headers.get("content-disposition")).toBe('attachment; filename="LaVeintePrint-Setup-x64.exe"');
+      expect(res64.headers.get("x-print-agent-arch")).toBe("x64");
+
+      const req32 = new Request("https://la20.com.mx/api/downloads/print-agent/windows?arch=x86");
+      const res32 = await GET(req32);
+      expect(res32.status).toBe(200);
+      expect(res32.headers.get("content-disposition")).toBe('attachment; filename="LaVeintePrint-Setup-x86.exe"');
+      expect(res32.headers.get("x-print-agent-arch")).toBe("x86");
+    });
+
+    it("en ?check=true devuelve download_url apuntando al servidor propio (/api/downloads/print-agent/windows) y no a github.com", async () => {
+      delete process.env.PRINT_AGENT_DOWNLOAD_URL;
+      process.env.PRINT_AGENT_RELEASE_TAG = "print-agent-v1.0.0";
+
+      const req32 = new Request("https://la20.com.mx/api/downloads/print-agent/windows?check=true&arch=x86");
+      const res32 = await GET(req32);
+      expect(res32.status).toBe(200);
+      const data32 = await res32.json();
+      expect(data32.ok).toBe(true);
+      expect(data32.arch).toBe("x86");
+      expect(data32.filename).toBe("LaVeintePrint-Setup-x86.exe");
+      expect(data32.download_url).toBe("/api/downloads/print-agent/windows?arch=x86");
+    });
+
+    it("con PRINT_AGENT_DOWNLOAD_URL válido transmite desde el URL sobrescrito", async () => {
       const customUrl = "https://custom.storage.la20.com.mx/releases/LaVeintePrint-Setup.exe";
       process.env.PRINT_AGENT_DOWNLOAD_URL = customUrl;
 
       const req = new Request("https://la20.com.mx/api/downloads/print-agent/windows");
       const res = await GET(req);
 
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe(customUrl);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("x-upstream-url")).toBe(customUrl);
     });
   });
 

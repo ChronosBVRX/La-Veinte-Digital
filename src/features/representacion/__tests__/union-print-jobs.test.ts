@@ -8,6 +8,7 @@ import {
   hashStationToken,
   timingSafeTokenMatch,
   authenticatePrintStation,
+  generateEnrollmentCode,
 } from "../services/print-token";
 import {
   isStationOnline,
@@ -22,6 +23,7 @@ import {
   isPrintableCaseType,
 } from "../services/print-document-registry";
 import { GET as downloadJobDocument } from "@/app/api/union/print-agent/jobs/[id]/document/route";
+import { POST as enrollPrintStation } from "@/app/api/union/print-agent/enroll/route";
 
 // Mock de Supabase server
 vi.mock("@/lib/supabase/server", () => ({
@@ -1250,6 +1252,98 @@ describe("Módulo de Impresión Sindical — Seguridad, Tokens y Ciclo de Vida",
       await expect(retryPrintJob("j1", "user-uuid-1")).rejects.toThrow(
         "Este trabajo ya fue impreso exitosamente",
       );
+    });
+  });
+
+  describe("8. Vinculación Rápida por Código de 6 Dígitos (/api/union/print-agent/enroll)", () => {
+    it("vincula correctamente una PC de oficina con código de 6 dígitos (con o sin espacios) y entrega station_token", async () => {
+      const { createClient } = await import("@/lib/supabase/server");
+      const { formattedCode, codeHash } = generateEnrollmentCode();
+
+      const mockEnrollment = {
+        id: "enroll-uuid-1",
+        delegation_id: "del-uuid-1",
+        station_name: "Oficina Sindical",
+        printer_name: "HP LaserJet",
+        expires_at: new Date(Date.now() + 600_000).toISOString(),
+        used_at: null,
+      };
+
+      const mockSupabase = {
+        from: vi.fn((table: string) => {
+          if (table === "union_print_enrollment_codes") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn((col: string, val: string) => {
+                  expect(col).toBe("code_hash");
+                  expect(val).toBe(codeHash);
+                  return {
+                    is: vi.fn().mockReturnValue({
+                      gt: vi.fn().mockReturnValue({
+                        order: vi.fn().mockReturnValue({
+                          limit: vi.fn().mockReturnValue({
+                            maybeSingle: vi.fn().mockResolvedValue({ data: mockEnrollment, error: null }),
+                          }),
+                        }),
+                      }),
+                    }),
+                  };
+                }),
+              }),
+              update: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  is: vi.fn().mockResolvedValue({ data: { id: "enroll-uuid-1" }, error: null }),
+                }),
+              }),
+            };
+          }
+          if (table === "union_print_stations") {
+            return {
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+                  }),
+                }),
+              }),
+              insert: vi.fn().mockReturnValue({
+                select: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({
+                    data: {
+                      id: "station-uuid-new",
+                      name: "Oficina Sindical",
+                      printer_name: "HP LaserJet",
+                      delegation_id: "del-uuid-1",
+                    },
+                    error: null,
+                  }),
+                }),
+              }),
+            };
+          }
+          return {};
+        }),
+      };
+
+      vi.mocked(createClient).mockResolvedValue(mockSupabase as unknown as SupabaseClient<Database>);
+
+      const req = new Request("https://la20.com.mx/api/union/print-agent/enroll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: formattedCode,
+          hostname: "admv05",
+          printer_name: "HP LaserJet",
+          agent_version: "1.0.0",
+        }),
+      });
+
+      const res = await enrollPrintStation(req);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      expect(body.token).toMatch(/^[0-9a-f]{64}$/);
+      expect(body.station_name).toBe("Oficina Sindical");
     });
   });
 });

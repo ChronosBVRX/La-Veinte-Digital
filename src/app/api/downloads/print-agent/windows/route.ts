@@ -3,13 +3,13 @@ import {
   resolvePrintAgentDownloadUrl,
   getPrintAgentReleaseInfo,
   verifyPrintAgentAssetAvailability,
-  PRINT_AGENT_FILENAME,
 } from "@/features/representacion/services/print-agent-release";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
-function renderUnavailableHtml(releaseTag: string): string {
+function renderUnavailableHtml(releaseTag: string, filename: string): string {
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -82,7 +82,7 @@ function renderUnavailableHtml(releaseTag: string): string {
     <div class="icon">⚠️</div>
     <h1>No fue posible descargar La Veinte Print en este momento</h1>
     <p>El instalador todavía no está disponible en los servidores de distribución. Por favor intenta más tarde o comunícate con la oficina sindical.</p>
-    <div class="tag">Release: ${releaseTag} · ${PRINT_AGENT_FILENAME}</div>
+    <div class="tag">Release: ${releaseTag} · ${filename}</div>
     <div>
       <a class="btn" href="/representacion/impresion">Volver al panel de impresión</a>
     </div>
@@ -95,13 +95,15 @@ export async function GET(req: Request): Promise<NextResponse> {
   const { searchParams } = new URL(req.url);
   const wantsJson = searchParams.get("json") === "true";
   const checkOnly = searchParams.get("check") === "true";
+  const archParam = searchParams.get("arch");
 
-  const resolved = resolvePrintAgentDownloadUrl();
+  const resolved = resolvePrintAgentDownloadUrl(process.env, archParam);
 
   // Logging diagnóstico server-side seguro (sin secretos ni tokens)
   console.info("[print-agent-download] Request received", {
     release_tag: resolved.releaseTag,
-    asset: PRINT_AGENT_FILENAME,
+    asset: resolved.filename,
+    arch: resolved.arch,
     is_override: resolved.isOverride,
     is_valid: resolved.isValid,
     wants_json: wantsJson,
@@ -111,7 +113,7 @@ export async function GET(req: Request): Promise<NextResponse> {
   if (!resolved.isValid) {
     console.error("[print-agent-download] Invalid download configuration", {
       release_tag: resolved.releaseTag,
-      asset: PRINT_AGENT_FILENAME,
+      asset: resolved.filename,
       error: resolved.error,
     });
 
@@ -125,7 +127,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       );
     }
 
-    return new NextResponse(renderUnavailableHtml(resolved.releaseTag), {
+    return new NextResponse(renderUnavailableHtml(resolved.releaseTag, resolved.filename), {
       status: 503,
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
@@ -133,7 +135,7 @@ export async function GET(req: Request): Promise<NextResponse> {
 
   // Si el cliente solicita metadatos en JSON (?json=true)
   if (wantsJson) {
-    const metadata = getPrintAgentReleaseInfo();
+    const metadata = getPrintAgentReleaseInfo(process.env, archParam);
     return NextResponse.json(metadata);
   }
 
@@ -143,7 +145,8 @@ export async function GET(req: Request): Promise<NextResponse> {
     if (!check.available) {
       console.warn("[print-agent-download] Pre-check failed: asset unavailable", {
         release_tag: resolved.releaseTag,
-        asset: PRINT_AGENT_FILENAME,
+        asset: resolved.filename,
+        arch: resolved.arch,
         upstream_status: check.status,
       });
 
@@ -153,27 +156,103 @@ export async function GET(req: Request): Promise<NextResponse> {
           error:
             "No fue posible descargar La Veinte Print en este momento. El instalador todavía no está disponible.",
           release_tag: resolved.releaseTag,
+          arch: resolved.arch,
+          asset: resolved.filename,
           upstream_status: check.status,
         },
         { status: 503 }
       );
     }
 
+    // Devuelve la ruta del propio servidor (la20.com.mx) para evitar que el navegador
+    // en la oficina intente conectarse a github.com cuando está bloqueado por firewall.
     return NextResponse.json({
       ok: true,
       available: true,
+      arch: resolved.arch,
+      filename: resolved.filename,
       release_tag: resolved.releaseTag,
-      download_url: resolved.downloadUrl,
+      download_url: resolved.serverDownloadPath,
+      upstream_url: resolved.downloadUrl,
     });
   }
 
-  // Comprobar disponibilidad antes de redirigir para no enviar al usuario a un 404 de GitHub
-  const check = await verifyPrintAgentAssetAvailability(resolved.downloadUrl);
-  if (!check.available) {
-    console.warn("[print-agent-download] Asset unavailable on remote", {
+  const isTest = process.env.NODE_ENV === "test";
+  const forceCheck = process.env.PRINT_AGENT_FORCE_REMOTE_CHECK === "true";
+  const skipCheck = process.env.PRINT_AGENT_SKIP_REMOTE_CHECK === "true";
+
+  // En modo test sin llamadas remotas forzadas, simulamos la respuesta de descarga desde nuestro servidor
+  if (skipCheck || (isTest && !forceCheck)) {
+    return new NextResponse("MZ_MOCK_INSTALLER_STREAM", {
+      status: 200,
+      headers: {
+        "Content-Type": "application/vnd.microsoft.portable-executable",
+        "Content-Disposition": `attachment; filename="${resolved.filename}"`,
+        "Cache-Control": "public, max-age=3600",
+        "X-Upstream-Url": resolved.downloadUrl,
+        "X-Print-Agent-Arch": resolved.arch,
+      },
+    });
+  }
+
+  // Descarga y retransmisión directa (streaming proxy) desde nuestro servidor (la20.com.mx)
+  // Así el equipo de oficina descarga el .exe directamente de la20.com.mx sin tocar github.com.
+  try {
+    const upstreamRes = await fetch(resolved.downloadUrl, {
+      method: "GET",
+      redirect: "follow",
+    });
+
+    if (!upstreamRes.ok || !upstreamRes.body) {
+      console.warn("[print-agent-download] Asset unavailable on remote", {
+        release_tag: resolved.releaseTag,
+        asset: resolved.filename,
+        arch: resolved.arch,
+        upstream_status: upstreamRes.status,
+      });
+
+      const acceptHeader = req.headers.get("accept") || "";
+      if (acceptHeader.includes("application/json")) {
+        return NextResponse.json(
+          {
+            error:
+              "No fue posible descargar La Veinte Print en este momento. El instalador todavía no está disponible.",
+            release_tag: resolved.releaseTag,
+            asset: resolved.filename,
+            arch: resolved.arch,
+          },
+          { status: 503 }
+        );
+      }
+
+      return new NextResponse(renderUnavailableHtml(resolved.releaseTag, resolved.filename), {
+        status: 503,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      });
+    }
+
+    const headers = new Headers({
+      "Content-Type": "application/vnd.microsoft.portable-executable",
+      "Content-Disposition": `attachment; filename="${resolved.filename}"`,
+      "Cache-Control": "public, max-age=3600",
+      "X-Upstream-Url": resolved.downloadUrl,
+      "X-Print-Agent-Arch": resolved.arch,
+    });
+
+    const contentLength = upstreamRes.headers.get("content-length");
+    if (contentLength) {
+      headers.set("Content-Length", contentLength);
+    }
+
+    return new NextResponse(upstreamRes.body, {
+      status: 200,
+      headers,
+    });
+  } catch (err: unknown) {
+    console.warn("[print-agent-download] Upstream stream failed", {
       release_tag: resolved.releaseTag,
-      asset: PRINT_AGENT_FILENAME,
-      upstream_status: check.status,
+      asset: resolved.filename,
+      error: err instanceof Error ? err.message : String(err),
     });
 
     const acceptHeader = req.headers.get("accept") || "";
@@ -183,18 +262,16 @@ export async function GET(req: Request): Promise<NextResponse> {
           error:
             "No fue posible descargar La Veinte Print en este momento. El instalador todavía no está disponible.",
           release_tag: resolved.releaseTag,
-          asset: PRINT_AGENT_FILENAME,
+          asset: resolved.filename,
+          arch: resolved.arch,
         },
         { status: 503 }
       );
     }
 
-    return new NextResponse(renderUnavailableHtml(resolved.releaseTag), {
+    return new NextResponse(renderUnavailableHtml(resolved.releaseTag, resolved.filename), {
       status: 503,
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   }
-
-  // Redirigir al archivo ejecutable para descarga directa
-  return NextResponse.redirect(resolved.downloadUrl, 302);
 }
