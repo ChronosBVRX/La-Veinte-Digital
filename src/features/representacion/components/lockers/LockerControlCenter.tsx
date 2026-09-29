@@ -509,85 +509,45 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-      {/* 1. ENCABEZADO INSTITUCIONAL DE REPRESENTACIÓN */}
+      {/* 1. ENCABEZADO INSTITUCIONAL DE REPRESENTACIÓN (SIMPLIFICADO PARA USO OPERATIVO) */}
       <RepresentationSectionHeader
         title="Lockers — Delegación XXI"
-        subtitle="Centro visual y operativo de casilleros. Mapa digital del inventario físico, asignaciones y estado en tiempo real."
+        subtitle="Consulta qué casilleros están libres u ocupados, busca por número o nombre del trabajador y registra asignaciones fácilmente."
         secondaryAction={
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-            <a
-              href="/api/union/lockers/export"
-              download="lockers_delegacion_xxi.csv"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "0.45rem 0.75rem",
-                borderRadius: "0.375rem",
-                border: "1px solid var(--border)",
-                backgroundColor: "var(--card)",
-                color: "var(--fg)",
-                fontSize: "0.8125rem",
-                fontWeight: 600,
-                textDecoration: "none",
-                minHeight: 38,
-              }}
-            >
-              Descargar CSV
-            </a>
-
-            <Link
-              href="/representacion/lockers/importar"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "0.45rem 0.75rem",
-                borderRadius: "0.375rem",
-                border: "1px solid var(--border)",
-                backgroundColor: "var(--card)",
-                color: "var(--fg)",
-                fontSize: "0.8125rem",
-                fontWeight: 600,
-                textDecoration: "none",
-                minHeight: 38,
-              }}
-            >
-              Actualizar base
-            </Link>
-
-            <Link
-              href="/representacion/lockers/actualizacion-2026"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.375rem",
-                padding: "0.45rem 0.875rem",
-                borderRadius: "0.375rem",
-                backgroundColor: "#166534",
-                color: "#ffffff",
-                fontSize: "0.8125rem",
-                fontWeight: 600,
-                textDecoration: "none",
-                minHeight: 38,
-                boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
-              }}
-            >
-              🏷️ Actualización 2026
-            </Link>
-
-            <Button
-              variant="secondary"
-              onClick={() => setIsZoneManagerOpen(true)}
-              style={{ minHeight: 38, whiteSpace: "nowrap", fontSize: "0.8125rem" }}
-            >
-              ⚙ Zonas y Muebles
-            </Button>
-          </div>
+          <Link
+            href="/representacion/lockers/actualizacion-2026"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.5rem",
+              padding: "0.6rem 1.125rem",
+              borderRadius: "0.5rem",
+              backgroundColor: "#166534",
+              color: "#ffffff",
+              fontSize: "0.9375rem",
+              fontWeight: 700,
+              textDecoration: "none",
+              minHeight: 44,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span aria-hidden="true">🏷️</span>
+            <span>Programa de Actualización 2026</span>
+          </Link>
         }
         primaryAction={
           <Button
             variant="primary"
             onClick={() => handleOpenAssignFromLocker()}
-            style={{ minHeight: 38, whiteSpace: "nowrap" }}
+            style={{
+              minHeight: 44,
+              padding: "0.6rem 1.125rem",
+              fontSize: "0.9375rem",
+              fontWeight: 700,
+              whiteSpace: "nowrap",
+            }}
           >
             + Asignar casillero
           </Button>
@@ -623,30 +583,33 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
         />
 
         {currentView === "map" && (
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <div style={{ position: "relative" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flex: "1 1 280px", justifyContent: "flex-end" }}>
+            <div style={{ position: "relative", flex: "1 1 280px", maxWidth: "380px" }}>
               <input
                 type="search"
+                aria-label="Buscar casillero por número o nombre del trabajador"
                 placeholder="Buscar casillero # o trabajador..."
                 value={searchQuery}
                 onChange={(e) => handleSearchSubmit(e.target.value)}
                 style={{
-                  padding: "0.45rem 0.75rem 0.45rem 2rem",
-                  fontSize: "0.8125rem",
-                  borderRadius: "0.375rem",
+                  width: "100%",
+                  minHeight: 42,
+                  padding: "0.5rem 0.875rem 0.5rem 2.25rem",
+                  fontSize: "0.875rem",
+                  borderRadius: "0.5rem",
                   border: "1px solid var(--border)",
                   backgroundColor: "var(--card)",
                   color: "var(--fg)",
-                  minWidth: "260px",
+                  boxSizing: "border-box",
                 }}
               />
               <span
                 style={{
                   position: "absolute",
-                  left: "0.65rem",
+                  left: "0.75rem",
                   top: "50%",
                   transform: "translateY(-50%)",
-                  fontSize: "0.8125rem",
+                  fontSize: "0.875rem",
                   color: "var(--muted)",
                   pointerEvents: "none",
                 }}
@@ -685,9 +648,6 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
             totalLockersCount={mapLockers.length}
             onSelectZone={handleZoneSelect}
             isAdmin={isAdmin}
-            onConfigureZones={() => {
-              if (isAdmin) setIsZoneManagerOpen(true);
-            }}
           />
 
           {loadingMap ? (
@@ -724,15 +684,6 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
               onLockerLeave={handleLockerLeave}
               onSelectZone={handleZoneSelect}
               isAdmin={isAdmin}
-              onConfigureMap={() => {
-                if (isAdmin) setIsZoneManagerOpen(true);
-              }}
-              onEditBank={(bank) => {
-                if (isAdmin) {
-                  setBankToEdit(bank);
-                  setIsBankEditorOpen(true);
-                }
-              }}
             />
           )}
 
