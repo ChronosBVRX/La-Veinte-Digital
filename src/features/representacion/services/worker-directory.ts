@@ -413,6 +413,23 @@ export interface UnionExpedienteCase extends CaseBaseRow {
   events: Array<{ id: string; event_type: string; title: string; detail: string | null; created_at: string }>;
 }
 
+export interface UnionExpedienteParkingRecord {
+  id: string;
+  external_id_reg: number;
+  matricula: string;
+  placas: string;
+  vehicle_model_label: string;
+  area_code: string;
+  area_label: string;
+  parking_lot: string;
+  cajon_number: string;
+  shift: string;
+  status: string;
+  internal_status: string;
+  suspension_reason: string;
+  last_synced_at: string;
+}
+
 export interface UnionWorkerExpediente {
   worker: UnionExpedienteWorker;
   cases: UnionExpedienteCase[];
@@ -426,6 +443,7 @@ export interface UnionWorkerExpediente {
     assigned_at: string;
     released_at: string | null;
   }>;
+  parking?: UnionExpedienteParkingRecord[];
   waitlist: Array<{ id: string; requested_at: string; status: string; notes: string | null }>;
   audit: Array<{ id: string; action: string; entity_type: string; created_at: string }>;
 }
@@ -557,6 +575,26 @@ export async function getUnionWorkerExpediente(
     .limit(30);
   if (auditError) throw auditError;
 
+  let parkingRecords: UnionExpedienteParkingRecord[] = [];
+  try {
+    const empNumber = String((worker as { employee_number?: string }).employee_number ?? "").trim();
+    const filterExpr = empNumber
+      ? `worker_id.eq.${workerId},matricula.eq.${empNumber}`
+      : `worker_id.eq.${workerId}`;
+    const { data: pRows } = await supabase
+      .from("union_parking_records")
+      .select(
+        "id, external_id_reg, matricula, placas, vehicle_model_label, area_code, area_label, parking_lot, cajon_number, shift, status, internal_status, suspension_reason, last_synced_at",
+      )
+      .eq("delegation_id", delegationId)
+      .or(filterExpr)
+      .order("external_id_reg", { ascending: false })
+      .limit(20);
+    parkingRecords = (pRows ?? []) as UnionExpedienteParkingRecord[];
+  } catch {
+    parkingRecords = [];
+  }
+
   return {
     worker: {
       ...(worker as unknown as UnionExpedienteWorker),
@@ -594,6 +632,7 @@ export async function getUnionWorkerExpediente(
         };
       })
       .filter((row): row is NonNullable<typeof row> => row !== null),
+    parking: parkingRecords,
     waitlist: (waitlistRows ?? []) as UnionWorkerExpediente["waitlist"],
     audit: (auditRows ?? []) as UnionWorkerExpediente["audit"],
   };

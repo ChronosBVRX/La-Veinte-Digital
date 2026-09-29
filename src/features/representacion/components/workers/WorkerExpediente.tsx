@@ -223,7 +223,7 @@ function CaseCard({ item }: { item: UnionExpedienteCase }): React.JSX.Element {
 }
 
 export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpediente }): React.JSX.Element {
-  const { worker, cases, lockers, waitlist, audit } = expediente;
+  const { worker, cases, lockers, parking = [], waitlist, audit } = expediente;
   const licenseCases = cases.filter((c) => c.case_type === "license");
   const maternityCases = cases.filter((c) => c.case_type === "maternity");
   const lactationCases = cases.filter((c) => c.case_type === "lactation");
@@ -425,6 +425,82 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
         </Section>
       ) : null}
 
+      {parking.length > 0 ? (
+        <Section title="Estacionamiento (CAV HGR 1)" count={parking.length}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {parking.map((veh) => {
+              const isActive = veh.status === "A" && veh.internal_status === "activo";
+              const isBaja = veh.internal_status === "baja";
+              const lotLabel =
+                veh.parking_lot === "2"
+                  ? "CONFIANZA"
+                  : veh.parking_lot === "3"
+                    ? "VISITANTES"
+                    : "BASE";
+              return (
+                <div
+                  key={veh.id}
+                  style={{
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius)",
+                    padding: "0.625rem 0.75rem",
+                    fontSize: "0.8125rem",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "0.75rem",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                      <strong>Placas {veh.placas || "SIN PLACA"}</strong>
+                      <span
+                        style={{
+                          fontSize: "0.6875rem",
+                          fontWeight: 700,
+                          borderRadius: 999,
+                          padding: "0.125rem 0.5rem",
+                          background: isActive ? "#ecf8f2" : isBaja ? "#fef2f2" : "#fffbeb",
+                          color: isActive ? "#126447" : isBaja ? "#b91c1c" : "#b45309",
+                        }}
+                      >
+                        {isActive ? "ACTIVO" : isBaja ? "BAJA" : "SUSPENDIDO"}
+                      </span>
+                    </div>
+                    <div style={{ color: "var(--muted)", fontSize: "0.75rem", marginTop: "0.125rem" }}>
+                      {veh.vehicle_model_label ? `${veh.vehicle_model_label} · ` : ""}
+                      Cajón {veh.cajon_number || "0"} · {lotLabel} · Registro #{veh.external_id_reg}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", flexWrap: "wrap" }}>
+                    <Link
+                      href={`/representacion/estacionamiento?q=${encodeURIComponent(worker.employee_number)}`}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.25rem",
+                        padding: "0.25rem 0.5rem",
+                        borderRadius: "0.25rem",
+                        border: "1px solid var(--border)",
+                        backgroundColor: "var(--accent)",
+                        color: "var(--primary)",
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        textDecoration: "none",
+                      }}
+                    >
+                      🚗 Administrar
+                    </Link>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      ) : null}
+
       {documents.length > 0 ? (
         <Section title="Documentos" count={documents.length}>
           <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "0.375rem" }}>
@@ -463,7 +539,7 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
         </Section>
       ) : null}
 
-      {cases.length === 0 && lockers.length === 0 && waitlist.length === 0 && documents.length === 0 && events.length === 0 && audit.length === 0 ? (
+      {cases.length === 0 && lockers.length === 0 && parking.length === 0 && waitlist.length === 0 && documents.length === 0 && events.length === 0 && audit.length === 0 ? (
         <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--muted)" }}>
           Este trabajador aún no tiene trámites, documentos ni historial registrados.
         </p>

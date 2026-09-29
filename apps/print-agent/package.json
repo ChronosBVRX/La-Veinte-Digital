@@ -1,7 +1,7 @@
 {
   "name": "la-veinte-print-agent",
   "version": "1.0.0",
-  "description": "Agente nativo de impresión automática y silenciosa para la oficina sindical de La Veinte Digital",
+  "description": "Agente nativo de impresión automática y puente en vivo para la oficina sindical de La Veinte Digital",
   "main": "src/electron-main.cjs",
   "type": "module",
   "author": "La Veinte Digital",

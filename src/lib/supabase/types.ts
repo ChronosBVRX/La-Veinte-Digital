@@ -2280,6 +2280,138 @@ export type Database = {
         }
         Relationships: []
       }
+      union_parking_records: {
+        Row: {
+          id: string
+          delegation_id: string
+          external_id_reg: number
+          worker_id: string | null
+          matricula: string
+          full_name: string
+          nombre: string
+          apellido_paterno: string
+          apellido_materno: string
+          cargo: string
+          area_code: string
+          area_label: string
+          placas: string
+          vehicle_model_id: number | null
+          vehicle_model_label: string
+          parking_lot: string
+          cajon_number: string
+          shift: string
+          email: string
+          status: string
+          internal_status: string
+          suspension_reason: string
+          last_synced_at: string
+          created_by: string | null
+          updated_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          delegation_id: string
+          external_id_reg: number
+          worker_id?: string | null
+          matricula?: string
+          full_name?: string
+          nombre?: string
+          apellido_paterno?: string
+          apellido_materno?: string
+          cargo?: string
+          area_code?: string
+          area_label?: string
+          placas?: string
+          vehicle_model_id?: number | null
+          vehicle_model_label?: string
+          parking_lot?: string
+          cajon_number?: string
+          shift?: string
+          email?: string
+          status?: string
+          internal_status?: string
+          suspension_reason?: string
+          last_synced_at?: string
+          created_by?: string | null
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          delegation_id?: string
+          external_id_reg?: number
+          worker_id?: string | null
+          matricula?: string
+          full_name?: string
+          nombre?: string
+          apellido_paterno?: string
+          apellido_materno?: string
+          cargo?: string
+          area_code?: string
+          area_label?: string
+          placas?: string
+          vehicle_model_id?: number | null
+          vehicle_model_label?: string
+          parking_lot?: string
+          cajon_number?: string
+          shift?: string
+          email?: string
+          status?: string
+          internal_status?: string
+          suspension_reason?: string
+          last_synced_at?: string
+          created_by?: string | null
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      union_parking_bridge_requests: {
+        Row: {
+          id: string
+          delegation_id: string
+          station_id: string | null
+          action: string
+          payload: Json
+          status: string
+          result: Json | null
+          error_message: string | null
+          created_by: string | null
+          created_at: string
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          delegation_id: string
+          station_id?: string | null
+          action: string
+          payload?: Json
+          status?: string
+          result?: Json | null
+          error_message?: string | null
+          created_by?: string | null
+          created_at?: string
+          completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          delegation_id?: string
+          station_id?: string | null
+          action?: string
+          payload?: Json
+          status?: string
+          result?: Json | null
+          error_message?: string | null
+          created_by?: string | null
+          created_at?: string
+          completed_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       limited_profiles: {

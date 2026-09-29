@@ -95,6 +95,9 @@ describe("API route policy", () => {
       "/api/union/lockers/audits/[id]": "authenticated",
       "/api/union/lockers/export": "authenticated",
       "/api/union/lockers/renewal": "authenticated",
+      "/api/union/parking": "authenticated",
+      "/api/union/parking/sync": "authenticated",
+      "/api/union/parking/[id]/qr": "authenticated",
       // Centro de Administración de Usuarios (migración 20260919040000)
       "/api/admin/users": "authenticated",
       "/api/admin/users/[id]": "authenticated",
@@ -122,6 +125,7 @@ describe("API route policy", () => {
       "/api/union/print-agent/claim": "public",
       "/api/union/print-agent/jobs/[id]/document": "public",
       "/api/union/print-agent/jobs/[id]/status": "public",
+      "/api/union/print-agent/parking-bridge": "public",
       "/api/downloads/print-agent/windows": "public",
     })
   })

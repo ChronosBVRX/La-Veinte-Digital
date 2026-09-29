@@ -19,6 +19,7 @@ const { execFile } = require("child_process");
 const { promisify } = require("util");
 const ptp = require("pdf-to-printer");
 const { PDFDocument, rgb, StandardFonts } = require("pdf-lib");
+const { createParkingBridgeWorker } = require("./parking-bridge.cjs");
 
 const execFileAsync = promisify(execFile);
 const printerLib = ptp.default || ptp;
@@ -26,7 +27,7 @@ const printerLib = ptp.default || ptp;
 // Compatibilidad con equipos Windows 7 / GPUs antiguas de oficina sin drivers DirectX modernos
 app.disableHardwareAcceleration();
 
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
 const DEFAULT_SERVER_URL = "https://la20.com.mx";
 const HEARTBEAT_INTERVAL_MS = 20000;
 const POLL_INTERVAL_MS = 12000;
@@ -792,6 +793,10 @@ async function sendHeartbeat() {
     if (res.ok) {
       isOnline = true;
       lastHeartbeatTime = new Date().toISOString();
+      const data = await res.json().catch(() => null);
+      if (parkingBridgeWorker && data && typeof parkingBridgeWorker.onHeartbeat === "function") {
+        parkingBridgeWorker.onHeartbeat(data);
+      }
       updateTrayMenu();
       notifyRendererStatus();
       return true;
@@ -894,19 +899,78 @@ async function reportJobStatus(jobId, status, errorCode, errorMessage) {
   }
 }
 
+let parkingBridgeWorker = null;
+let autoUpdateTimer = null;
+
+async function checkAndApplySelfUpdate() {
+  if (!activeCreds || !app.isPackaged) return;
+  try {
+    const archParam = os.arch() === "ia32" ? "x86" : "x64";
+    const infoRes = await httpRequest(
+      `${activeCreds.serverUrl}/api/downloads/print-agent/windows?json=true&arch=${archParam}`
+    );
+    if (!infoRes.ok) return;
+    const info = await infoRes.json();
+    const remoteVersion = String(info.version || "").trim();
+    if (!remoteVersion || remoteVersion === APP_VERSION) return;
+
+    const [rMaj = 1, rMin = 0, rPat = 0] = remoteVersion.split(".").map(Number);
+    const [cMaj = 1, cMin = 0, cPat = 0] = APP_VERSION.split(".").map(Number);
+    const isNewer =
+      rMaj > cMaj ||
+      (rMaj === cMaj && rMin > cMin) ||
+      (rMaj === cMaj && rMin === cMin && rPat > cPat);
+    if (!isNewer) return;
+
+    const installerRes = await httpRequest(
+      `${activeCreds.serverUrl}/api/downloads/print-agent/windows?arch=${archParam}`
+    );
+    if (!installerRes.ok) return;
+    const installerBuf = await installerRes.arrayBuffer();
+    const tempInstallerPath = path.join(os.tmpdir(), `LaVeintePrint-Update-${remoteVersion}.exe`);
+    fs.writeFileSync(tempInstallerPath, Buffer.from(installerBuf));
+
+    // Ejecutar instalador NSIS en modo silencioso (/S) y cerrar instancia actual
+    execFile(tempInstallerPath, ["/S"], { detached: true, windowsHide: true });
+    setTimeout(() => {
+      isQuitting = true;
+      app.quit();
+    }, 1500);
+  } catch {
+    // Ignorar fallo en verificación de actualización silenciosa
+  }
+}
+
 function startBackgroundLoops() {
   stopBackgroundLoops();
+
+  parkingBridgeWorker = createParkingBridgeWorker({
+    apiRequest,
+    agentVersion: APP_VERSION,
+  });
+  parkingBridgeWorker.start();
+
   void sendHeartbeat();
   void processQueue();
   heartbeatTimer = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
   pollTimer = setInterval(processQueue, POLL_INTERVAL_MS);
+
+  // Verificar actualizaciones silenciosas cada 30 minutos
+  setTimeout(() => void checkAndApplySelfUpdate(), 60000);
+  autoUpdateTimer = setInterval(checkAndApplySelfUpdate, 30 * 60 * 1000);
 }
 
 function stopBackgroundLoops() {
   if (heartbeatTimer) clearInterval(heartbeatTimer);
   if (pollTimer) clearInterval(pollTimer);
+  if (autoUpdateTimer) clearInterval(autoUpdateTimer);
+  if (parkingBridgeWorker) {
+    parkingBridgeWorker.stop();
+    parkingBridgeWorker = null;
+  }
   heartbeatTimer = null;
   pollTimer = null;
+  autoUpdateTimer = null;
   isOnline = false;
   updateTrayMenu();
 }
