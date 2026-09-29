@@ -12,7 +12,10 @@ import { z } from "zod";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const bodySchema = z.object({ case_id: z.string().uuid() });
+const bodySchema = z.object({
+  case_id: z.string().uuid(),
+  part: z.enum(["both", "oficio", "solicitud"]).optional().default("both"),
+});
 
 export async function POST(req: Request): Promise<NextResponse> {
   const auth = await requireUser();
@@ -30,7 +33,8 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     await requireUnionMembership(docData.delegationId);
 
-    const result = await buildLicensePrintPackage(docData, { supabase });
+    const part = parsed.data.part;
+    const result = await buildLicensePrintPackage(docData, { supabase, part });
 
     await markLicenseDocumentsGenerated(parsed.data.case_id);
 
@@ -39,14 +43,21 @@ export async function POST(req: Request): Promise<NextResponse> {
       parsed.data.case_id,
       "document",
       "Paquete de licencia generado para impresión",
-      `Comité Delegacional ${docData.delegationCode}. Paquete unificado de ${result.pageCount} páginas (Oficio Word v${result.wordVersion ?? "n/a"} + Formato 1A74-009-036 v${result.excelVersion ?? "n/a"}).`,
+      `Comité Delegacional ${docData.delegationCode}. Documento de ${result.pageCount} página(s) (${part === "oficio" ? `Hoja 1 Oficio Word v${result.wordVersion ?? "n/a"}` : part === "solicitud" ? `Hoja 2 Formato 1A74-009-036 v${result.excelVersion ?? "n/a"}` : `Oficio Word v${result.wordVersion ?? "n/a"} + Formato 1A74-009-036 v${result.excelVersion ?? "n/a"}`}).`,
     );
+
+    const pdfFilename =
+      part === "oficio"
+        ? `oficio-licencia-${docData.folio}.pdf`
+        : part === "solicitud"
+          ? `solicitud-licencia-${docData.folio}.pdf`
+          : `expediente-licencia-${docData.folio}.pdf`;
 
     return new NextResponse(new Uint8Array(result.buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="expediente-licencia-${docData.folio}.pdf"`,
+        "Content-Disposition": `inline; filename="${pdfFilename}"`,
         "Cache-Control": "private, no-store",
       },
     });

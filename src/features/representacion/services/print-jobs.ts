@@ -9,6 +9,7 @@ import {
   resolvePrintableDocumentTypeForCase,
   getPrintableDocumentDefinition,
 } from "./print-document-registry";
+import { splitPdfIntoSinglePageBuffers } from "./license-print-package";
 import { addCaseEvent } from "./cases";
 
 export type PrintJobStatus = "queued" | "claimed" | "printing" | "printed" | "failed" | "cancelled";
@@ -149,65 +150,98 @@ export async function createUnionPrintJob(params: {
   // 5. Generar el PDF final inmutable
   const docResult = await docDef.buildDocument({ supabase, caseId: params.caseId });
   const pdfBuffer = docResult.buffer;
-  const sha256 = crypto.createHash("sha256").update(pdfBuffer).digest("hex");
-  const sizeBytes = pdfBuffer.length;
 
   const copies = params.copies && params.copies > 0 ? params.copies : docDef.defaultCopies;
   const duplex = typeof params.duplex === "boolean" ? params.duplex : docDef.defaultDuplex;
 
-  // 6. Pre-generar UUID del trabajo y ruta inmutable en storage privado
-  const jobId = crypto.randomUUID();
-  const storagePath = `print-jobs/${c.delegation_id}/${params.caseId}/${jobId}.pdf`;
+  // Para licencias (2 hojas independientes: Oficio Word + Solicitud 1A74-009-036),
+  // dividir en trabajos de 1 sola página cuando duplex=false para forzar físicamente
+  // a cualquier impresora (incluso con doble cara predeterminada en Windows) a expulsar
+  // cada documento en una hoja separada.
+  const sheetBuffers =
+    docType === "license_package" && !duplex
+      ? await splitPdfIntoSinglePageBuffers(pdfBuffer)
+      : [pdfBuffer];
 
-  // 7. Almacenar exactamente estos bytes en el bucket privado union-private
-  const { error: uploadErr } = await supabase.storage
-    .from("union-private")
-    .upload(storagePath, pdfBuffer, {
-      contentType: "application/pdf",
-      upsert: false,
-    });
+  const uploadedPaths: string[] = [];
+  const createdJobs: PrintJobRecord[] = [];
+  const baseTimeMs = Date.now();
 
-  if (uploadErr) {
-    throw new Error(`Error al almacenar el documento para impresión: ${uploadErr.message}`);
+  try {
+    for (let i = 0; i < sheetBuffers.length; i++) {
+      const sheetBuf = sheetBuffers[i];
+      const sha256 = crypto.createHash("sha256").update(sheetBuf).digest("hex");
+      const sizeBytes = sheetBuf.length;
+
+      // 6. Pre-generar UUID del trabajo y ruta inmutable en storage privado
+      const jobId = crypto.randomUUID();
+      const storagePath = `print-jobs/${c.delegation_id}/${params.caseId}/${jobId}.pdf`;
+
+      // 7. Almacenar exactamente estos bytes en el bucket privado union-private
+      const { error: uploadErr } = await supabase.storage
+        .from("union-private")
+        .upload(storagePath, sheetBuf, {
+          contentType: "application/pdf",
+          upsert: false,
+        });
+
+      if (uploadErr) {
+        throw new Error(`Error al almacenar el documento para impresión: ${uploadErr.message}`);
+      }
+      uploadedPaths.push(storagePath);
+
+      // 8. Insertar el trabajo en la cola (status: queued) apuntando al archivo en Storage
+      const { data: job, error: insertErr } = await supabase
+        .from("union_print_jobs")
+        .insert({
+          id: jobId,
+          delegation_id: c.delegation_id,
+          station_id: station.id,
+          case_id: params.caseId,
+          document_type: docType,
+          document_revision: docResult.documentRevision,
+          status: "queued",
+          copies,
+          duplex: Boolean(duplex),
+          document_storage_path: storagePath,
+          document_sha256: sha256,
+          document_size_bytes: sizeBytes,
+          created_by: params.userId,
+          ...(sheetBuffers.length > 1
+            ? { created_at: new Date(baseTimeMs + i * 10).toISOString() }
+            : {}),
+        })
+        .select("*")
+        .single();
+
+      if (insertErr || !job) {
+        throw new Error(
+          `Error al registrar el trabajo en la cola de impresión: ${insertErr?.message || "sin respuesta"}`,
+        );
+      }
+
+      createdJobs.push(job as PrintJobRecord);
+    }
+  } catch (err) {
+    // Limpieza best-effort de archivos huérfanos en Storage
+    if (uploadedPaths.length > 0) {
+      await supabase.storage.from("union-private").remove(uploadedPaths).catch(() => {});
+    }
+    throw err;
   }
 
-  // 8. Insertar el trabajo en la cola (status: queued) apuntando al archivo en Storage
-  const { data: job, error: insertErr } = await supabase
-    .from("union_print_jobs")
-    .insert({
-      id: jobId,
-      delegation_id: c.delegation_id,
-      station_id: station.id,
-      case_id: params.caseId,
-      document_type: docType,
-      document_revision: docResult.documentRevision,
-      status: "queued",
-      copies,
-      duplex,
-      document_storage_path: storagePath,
-      document_sha256: sha256,
-      document_size_bytes: sizeBytes,
-      created_by: params.userId,
-    })
-    .select("*")
-    .single();
-
-  if (insertErr || !job) {
-    // Limpieza best-effort del archivo huérfano en Storage
-    await supabase.storage.from("union-private").remove([storagePath]).catch(() => {});
-    throw new Error(`Error al registrar el trabajo en la cola de impresión: ${insertErr?.message || "sin respuesta"}`);
-  }
+  const primaryJob = createdJobs[createdJobs.length - 1]!;
 
   // 9. Registrar evento de auditoría en el expediente (sin datos clínicos sensibles)
   await addCaseEvent(
     params.caseId,
     "document",
     "Trabajo de impresión enviado a oficina",
-    `${docDef.label} ${docResult.folio} (Rev. ${docResult.documentRevision}) enviado a la estación "${station.name}". Impresora: ${station.printer_name || "Predeterminada"}. Copias: ${copies}.`,
+    `${docDef.label} ${docResult.folio} (Rev. ${docResult.documentRevision}) enviado a la estación "${station.name}". Impresora: ${station.printer_name || "Predeterminada"}. Copias: ${copies}.${sheetBuffers.length > 1 ? ` (${sheetBuffers.length} hojas separadas)` : ""}`,
   );
 
   return {
-    job: job as PrintJobRecord,
+    job: primaryJob,
     station,
     documentBuffer: pdfBuffer,
   };

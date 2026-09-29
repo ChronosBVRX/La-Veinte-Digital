@@ -318,7 +318,40 @@ async function printPdfViaChromiumGdi(pdfBuffer, { printerName, copies = 1, dupl
   }
 }
 
+async function splitToSinglePageBuffersIfNeeded(pdfBuffer, duplex) {
+  if (duplex) return [pdfBuffer];
+  try {
+    const srcDoc = await PDFDocument.load(pdfBuffer);
+    const pageCount = srcDoc.getPageCount();
+    if (pageCount <= 1) return [pdfBuffer];
+
+    const buffers = [];
+    for (let i = 0; i < pageCount; i++) {
+      const singleDoc = await PDFDocument.create();
+      const [copiedPage] = await singleDoc.copyPages(srcDoc, [i]);
+      singleDoc.addPage(copiedPage);
+      const bytes = await singleDoc.save();
+      buffers.push(Buffer.from(bytes));
+    }
+    return buffers;
+  } catch {
+    return [pdfBuffer];
+  }
+}
+
 async function printPdfSilently(pdfBuffer, options = {}) {
+  const duplex = Boolean(options.duplex);
+  const pageBuffers = await splitToSinglePageBuffersIfNeeded(pdfBuffer, duplex);
+  if (pageBuffers.length > 1) {
+    for (let idx = 0; idx < pageBuffers.length; idx++) {
+      await printSingleBufferSilently(pageBuffers[idx], { ...options, duplex: false });
+    }
+    return { success: true };
+  }
+  return printSingleBufferSilently(pageBuffers[0], { ...options, duplex });
+}
+
+async function printSingleBufferSilently(pdfBuffer, options = {}) {
   const printer = await resolveTargetPrinterName(options.printerName);
   const copies = options.copies && options.copies > 0 ? options.copies : 1;
   const duplex = Boolean(options.duplex);
@@ -349,7 +382,7 @@ async function printPdfSilently(pdfBuffer, options = {}) {
       paperSize: "Letter",
       copies,
       silent: true,
-      ...(duplex ? { side: "duplex" } : {}),
+      side: duplex ? "duplex" : "simplex",
     };
 
     await printerLib.print(tempFilePath, printOptions);

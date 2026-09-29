@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { PDFDocument, rgb, StandardFonts, degrees } from "pdf-lib";
+import { PDFDocument, PDFName, rgb, StandardFonts, degrees } from "pdf-lib";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 import type { UnionLicenseDocumentData } from "./license-document-dto";
@@ -16,10 +16,13 @@ const LOCAL_EXCEL_PRINT_PATH = path.join(
   "assets/templates/union/licencias/formato-licencia-1A74-009-036-v2.pdf",
 );
 
+export type LicensePrintPackagePart = "both" | "oficio" | "solicitud";
+
 export interface BuildLicensePrintPackageOptions {
   wordPdfBuffer?: Buffer;
   excelPdfBuffer?: Buffer;
   supabase?: SupabaseClient<Database>;
+  part?: LicensePrintPackagePart;
 }
 
 export interface LicensePrintPackageResult {
@@ -30,10 +33,54 @@ export interface LicensePrintPackageResult {
 }
 
 /**
- * Generates the unified two-page print package PDF:
+ * Marks a PDFDocument catalog with ISO 32000-1 ViewerPreferences /Duplex /Simplex
+ * so PDF viewers and spoolers never combine separate sheets front-and-back.
+ */
+function markPdfSimplex(doc: PDFDocument): void {
+  doc.catalog.set(
+    PDFName.of("ViewerPreferences"),
+    doc.context.obj({
+      Duplex: PDFName.of("Simplex"),
+    }),
+  );
+}
+
+/**
+ * Splits a multi-page PDF into independent 1-page PDF buffers (each marked Simplex).
+ * Used by the print queue when duplex=false so physical printers with default
+ * duplex enabled are hardware-forced to eject Sheet 1 before printing Sheet 2.
+ */
+export async function splitPdfIntoSinglePageBuffers(
+  pdfBuffer: Buffer,
+): Promise<Buffer[]> {
+  try {
+    const srcDoc = await PDFDocument.load(pdfBuffer);
+    const totalPages = srcDoc.getPageCount();
+    if (totalPages <= 1) {
+      return [pdfBuffer];
+    }
+
+    const singlePageBuffers: Buffer[] = [];
+    for (let i = 0; i < totalPages; i++) {
+      const singleDoc = await PDFDocument.create();
+      const [copiedPage] = await singleDoc.copyPages(srcDoc, [i]);
+      singleDoc.addPage(copiedPage);
+      markPdfSimplex(singleDoc);
+      const bytes = await singleDoc.save();
+      singlePageBuffers.push(Buffer.from(bytes));
+    }
+    return singlePageBuffers;
+  } catch {
+    return [pdfBuffer];
+  }
+}
+
+/**
+ * Generates the union license print PDF:
  * - Page 1: Oficio de Licencia (Word layout)
  * - Page 2: Solicitud de Licencia Formato 1A74-009-036 (Excel layout)
  *
+ * Supports generating 'both' (2 pages, marked Simplex) or individual 1-page sheets ('oficio' | 'solicitud').
  * Runs 100% in-memory using pdf-lib and official institutional print masters.
  * Zero dependency on Microsoft Office COM on Linux/Vercel serverless.
  */
@@ -41,13 +88,17 @@ export async function buildLicensePrintPackage(
   data: UnionLicenseDocumentData,
   options: BuildLicensePrintPackageOptions = {},
 ): Promise<LicensePrintPackageResult> {
+  const part: LicensePrintPackagePart = options.part ?? "both";
+  const includeWord = part === "both" || part === "oficio";
+  const includeExcel = part === "both" || part === "solicitud";
+
   let wordBuf = options.wordPdfBuffer;
   let wordVer: string | undefined;
   let excelBuf = options.excelPdfBuffer;
   let excelVer: string | undefined;
 
   // 1. Resolve Word print master PDF
-  if (!wordBuf) {
+  if (includeWord && !wordBuf) {
     try {
       const t = await getActiveUnionDocumentTemplate({
         delegationId: data.delegationId,
@@ -69,7 +120,7 @@ export async function buildLicensePrintPackage(
   }
 
   // 2. Resolve Excel print master PDF
-  if (!excelBuf) {
+  if (includeExcel && !excelBuf) {
     try {
       const t = await getActiveUnionDocumentTemplate({
         delegationId: data.delegationId,
@@ -90,7 +141,7 @@ export async function buildLicensePrintPackage(
     }
   }
 
-  // 3. Create target combined PDF
+  // 3. Create target PDF
   const outDoc = await PDFDocument.create();
 
   // Embedded standard fonts
@@ -100,10 +151,11 @@ export async function buildLicensePrintPackage(
   // -------------------------------------------------------------
   // PAGE 1: OFICIO DE LICENCIA (WORD MASTER)
   // -------------------------------------------------------------
-  const wordSrcDoc = await PDFDocument.load(wordBuf);
-  const [wordPageCopy] = await outDoc.copyPages(wordSrcDoc, [0]);
-  const wordPage = outDoc.addPage(wordPageCopy);
-  const wordHeight = wordPage.getHeight();
+  if (includeWord && wordBuf) {
+    const wordSrcDoc = await PDFDocument.load(wordBuf);
+    const [wordPageCopy] = await outDoc.copyPages(wordSrcDoc, [0]);
+    const wordPage = outDoc.addPage(wordPageCopy);
+    const wordHeight = wordPage.getHeight();
 
   const drawWordTop = (
     text: string,
@@ -199,10 +251,12 @@ export async function buildLicensePrintPackage(
   const delegationClean = data.delegationCode || "XXI";
   const delW = fontRegular.widthOfTextAtSize(delegationClean, 8.5);
   drawWordTop(delegationClean, contentCenterX - delW / 2, 593, 8.5, false);
+  }
 
   // -------------------------------------------------------------
   // PAGE 2: SOLICITUD DE LICENCIA 1A74-009-036 (EXCEL MASTER V2)
   // -------------------------------------------------------------
+  if (includeExcel && excelBuf) {
   const excelSrcDoc = await PDFDocument.load(excelBuf);
   const [excelPageCopy] = await outDoc.copyPages(excelSrcDoc, [0]);
   const excelPage = outDoc.addPage(excelPageCopy);
@@ -376,6 +430,9 @@ export async function buildLicensePrintPackage(
     color: rgb(1, 1, 1),
   });
   drawExcelTop(`C. ${data.worker.fullName}`, 75, 617, 7, true);
+  }
+
+  markPdfSimplex(outDoc);
 
   const finalPdfBytes = await outDoc.save();
   return {

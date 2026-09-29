@@ -239,14 +239,18 @@ export function LicenseManager(): React.JSX.Element {
     }
   }
 
-  // Imprimir paquete PDF conjunto directamente
-  async function handlePrintPackage(cId: string, cFolio: string) {
+  // Imprimir paquete PDF conjunto o cada hoja por separado
+  async function handlePrintPackage(
+    cId: string,
+    cFolio: string,
+    part: "both" | "oficio" | "solicitud" = "both"
+  ) {
     setPrintingCaseId(cId);
     try {
       const res = await fetch("/api/union/licenses/print-package", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ case_id: cId }),
+        body: JSON.stringify({ case_id: cId, part }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -258,7 +262,12 @@ export function LicenseManager(): React.JSX.Element {
       if (!newTab) {
         const a = document.createElement("a");
         a.href = url;
-        a.download = `expediente-licencia-${cFolio}.pdf`;
+        a.download =
+          part === "oficio"
+            ? `oficio-licencia-${cFolio}.pdf`
+            : part === "solicitud"
+              ? `solicitud-licencia-${cFolio}.pdf`
+              : `expediente-licencia-${cFolio}.pdf`;
         a.click();
       }
       await fetchList();
@@ -781,13 +790,31 @@ export function LicenseManager(): React.JSX.Element {
                 loading={autoPrintingCaseId === detailCase.id}
                 onClick={() => handleAutoPrint(detailCase.id)}
               >
-                {autoPrintSuccessId === detailCase.id ? "✓ Enviado a impresora de oficina" : "🖨️ Mandar a imprimir (Oficina Sindical)"}
+                {autoPrintSuccessId === detailCase.id ? "✓ Enviado a impresora de oficina (2 hojas separadas)" : "🖨️ Mandar a imprimir (Oficina Sindical)"}
               </Button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={printingCaseId === detailCase.id}
+                  onClick={() => handlePrintPackage(detailCase.id, detailCase.folio, "oficio")}
+                >
+                  🖨️ Hoja 1: Oficio (PDF)
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={printingCaseId === detailCase.id}
+                  onClick={() => handlePrintPackage(detailCase.id, detailCase.folio, "solicitud")}
+                >
+                  🖨️ Hoja 2: Solicitud (PDF)
+                </Button>
+              </div>
               <Button
-                variant="secondary"
+                variant="ghost"
                 fullWidth
                 loading={printingCaseId === detailCase.id}
-                onClick={() => handlePrintPackage(detailCase.id, detailCase.folio)}
+                onClick={() => handlePrintPackage(detailCase.id, detailCase.folio, "both")}
               >
                 👁️ Ver e imprimir en navegador (Ambos)
               </Button>

@@ -54,6 +54,7 @@ export function LicenseWizard({
   const [downloadingExcel, setDownloadingExcel] = useState(false);
   const [downloadingWord, setDownloadingWord] = useState(false);
   const [printingPackage, setPrintingPackage] = useState(false);
+  const [printingPart, setPrintingPart] = useState<"both" | "oficio" | "solicitud" | null>(null);
 
   // Estados de Impresión Automática en Oficina Sindical
   const [autoPrintStatus, setAutoPrintStatus] = useState<"idle" | "preparing" | "queued" | "printing" | "printed" | "failed">("idle");
@@ -428,21 +429,22 @@ export function LicenseWizard({
     }
   }
 
-  async function printPackage(): Promise<void> {
+  async function printPackage(part: "both" | "oficio" | "solicitud" = "both"): Promise<void> {
     if (!caseId) return;
     setError(null);
     setPrintingPackage(true);
+    setPrintingPart(part);
 
     try {
       const res = await fetch("/api/union/licenses/print-package", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ case_id: caseId }),
+        body: JSON.stringify({ case_id: caseId, part }),
       });
 
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(j.error ?? "No se pudo generar el paquete de impresión.");
+        throw new Error(j.error ?? "No se pudo generar el documento PDF de licencia.");
       }
 
       const blob = await res.blob();
@@ -451,7 +453,12 @@ export function LicenseWizard({
       if (!newTab) {
         const a = document.createElement("a");
         a.href = url;
-        a.download = `expediente-licencia-${folio ?? ""}.pdf`;
+        a.download =
+          part === "oficio"
+            ? `oficio-licencia-${folio ?? ""}.pdf`
+            : part === "solicitud"
+              ? `solicitud-licencia-${folio ?? ""}.pdf`
+              : `expediente-licencia-${folio ?? ""}.pdf`;
         a.click();
       }
 
@@ -462,6 +469,7 @@ export function LicenseWizard({
       setError(err instanceof Error ? err.message : "Error al generar paquete de impresión.");
     } finally {
       setPrintingPackage(false);
+      setPrintingPart(null);
     }
   }
 
@@ -1020,7 +1028,7 @@ export function LicenseWizard({
 
                 {/* Subtítulo informativo */}
                 <div style={{ fontSize: "0.75rem", color: "var(--muted)", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 0.25rem" }}>
-                  <span>Oficio + Solicitud · Oficina Sindical</span>
+                  <span>2 hojas separadas (Oficio + Solicitud) · Oficina Sindical</span>
                   {autoPrintStation ? (
                     <span style={{ color: autoPrintStation.is_online ? "#16a34a" : "#dc2626", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "0.25rem" }}>
                       <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: autoPrintStation.is_online ? "#16a34a" : "#dc2626", display: "inline-block" }} />
@@ -1040,16 +1048,36 @@ export function LicenseWizard({
 
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.25rem" }}>
                 <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Opciones Secundarias
+                  Opciones Secundarias (Hojas Separadas)
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                  <Button
+                    onClick={() => void printPackage("oficio")}
+                    variant="secondary"
+                    loading={printingPackage && printingPart === "oficio"}
+                    disabled={downloadingExcel || downloadingWord || printingPackage || autoPrintStatus === "preparing"}
+                    fullWidth
+                  >
+                    🖨️ Hoja 1: Oficio (PDF)
+                  </Button>
+                  <Button
+                    onClick={() => void printPackage("solicitud")}
+                    variant="secondary"
+                    loading={printingPackage && printingPart === "solicitud"}
+                    disabled={downloadingExcel || downloadingWord || printingPackage || autoPrintStatus === "preparing"}
+                    fullWidth
+                  >
+                    🖨️ Hoja 2: Solicitud (PDF)
+                  </Button>
                 </div>
                 <Button
-                  onClick={() => void printPackage()}
-                  variant="secondary"
-                  loading={printingPackage}
-                  disabled={downloadingExcel || downloadingWord || autoPrintStatus === "preparing"}
+                  onClick={() => void printPackage("both")}
+                  variant="ghost"
+                  loading={printingPackage && printingPart === "both"}
+                  disabled={downloadingExcel || downloadingWord || printingPackage || autoPrintStatus === "preparing"}
                   fullWidth
                 >
-                  {printingPackage ? "Preparando visor..." : "👁️ Ver / Imprimir ambos"}
+                  {printingPackage && printingPart === "both" ? "Preparando visor..." : "👁️ Ver / Imprimir ambos"}
                 </Button>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
                   <Button
