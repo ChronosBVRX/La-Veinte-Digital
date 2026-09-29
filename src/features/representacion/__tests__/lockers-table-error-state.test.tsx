@@ -140,5 +140,12 @@ describe("LockerControlCenter Table Error vs Empty State", () => {
 
     // Error message must not be visible
     expect(screen.queryByText("No pudimos cargar el inventario")).toBeNull();
+
+    // Header actions: only Programa de Actualización 2026 and + Asignar casillero
+    expect(screen.getByText("Programa de Actualización 2026")).toBeDefined();
+    expect(screen.getByRole("button", { name: "+ Asignar casillero" })).toBeDefined();
+    expect(screen.queryByText(/Descargar CSV/i)).toBeNull();
+    expect(screen.queryByText(/Actualizar base/i)).toBeNull();
+    expect(screen.queryByText(/Zonas y Muebles/i)).toBeNull();
   });
 });

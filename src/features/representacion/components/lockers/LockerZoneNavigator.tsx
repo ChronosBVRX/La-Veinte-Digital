@@ -44,8 +44,6 @@ export function LockerZoneNavigator({
   unlocatedCount,
   totalLockersCount,
   onSelectZone,
-  isAdmin,
-  onConfigureZones,
 }: LockerZoneNavigatorProps): React.JSX.Element {
   const grouped = useMemo(() => groupLockerZones(zones), [zones]);
   const womenStats = useMemo(() => sumZoneStats(grouped.women), [grouped.women]);
@@ -104,7 +102,7 @@ export function LockerZoneNavigator({
         gap: "0.875rem",
       }}
     >
-      {/* Encabezado y botón de configuración */}
+      {/* Encabezado de guía sencilla */}
       <div
         style={{
           display: "flex",
@@ -115,35 +113,13 @@ export function LockerZoneNavigator({
         }}
       >
         <div>
-          <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)" }}>
+          <div style={{ fontSize: "1rem", fontWeight: 700, color: "var(--fg)" }}>
             Zonas Físicas de Casilleros
           </div>
-          <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.1rem" }}>
+          <div style={{ fontSize: "0.8125rem", color: "var(--muted)", marginTop: "0.15rem" }}>
             1. Elige <strong>Mujeres</strong> u <strong>Hombres</strong> · 2. Explora cada zona de una en una
           </div>
         </div>
-        {isAdmin && onConfigureZones && (
-          <button
-            type="button"
-            onClick={onConfigureZones}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.375rem",
-              fontSize: "0.75rem",
-              color: "var(--primary)",
-              fontWeight: 600,
-              background: "#eff6ff",
-              border: "1px solid #bfdbfe",
-              cursor: "pointer",
-              padding: "0.375rem 0.75rem",
-              borderRadius: "0.375rem",
-            }}
-          >
-            <span>⚙</span>
-            <span>Configurar Zonas y Muebles</span>
-          </button>
-        )}
       </div>
 
       {/* NIVEL 1: Selector principal Mujeres / Hombres / Sin ubicar / Todas */}
