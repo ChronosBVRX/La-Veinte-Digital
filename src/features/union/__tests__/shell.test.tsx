@@ -66,7 +66,6 @@ describe("UnionApplicationShell", () => {
       "Lockers",
       "Pasajes",
       "Licencias",
-      "Expedientes",
       "Administración",
     ];
 
@@ -74,6 +73,7 @@ describe("UnionApplicationShell", () => {
       const elements = screen.getAllByText(mod);
       expect(elements.length).toBeGreaterThanOrEqual(1);
     }
+    expect(screen.queryByText("Expedientes")).toBeNull();
   });
 
   it("regresión de aislamiento: NO contiene ningún enlace a herramientas generales", () => {

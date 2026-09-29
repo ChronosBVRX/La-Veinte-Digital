@@ -93,7 +93,7 @@ const mockSummaryData: UnionDashboardSummary = {
       title: "Pasaje 026 XXI-2026-PAS-000002",
       subtitle: "Enviado · Mariana Torres",
       actionLabel: "Revisar",
-      actionHref: "/representacion/expedientes?folio=XXI-2026-PAS-000002",
+      actionHref: "/representacion/trabajadores/worker-pas-002",
       urgency: "medium",
       date: "2026-09-17T15:00:00Z",
     },
@@ -126,7 +126,7 @@ const mockSummaryData: UnionDashboardSummary = {
       timestamp: "2026-09-18T11:00:00Z",
       caseType: "passage_026",
       folio: "XXI-2026-PAS-000003",
-      href: "/representacion/expedientes?folio=XXI-2026-PAS-000003",
+      href: "/representacion/trabajadores/worker-pas-003",
     },
   ],
 };
@@ -176,7 +176,6 @@ describe("Centro de Control de Representación Sindical", () => {
       // Métricas KPI
       expect(screen.getByText("186")).toBeDefined();
       expect(screen.getByText("184 activos")).toBeDefined();
-      expect(screen.getByText("94")).toBeDefined();
       expect(screen.getByText("34 de 46 asignados")).toBeDefined();
       expect(screen.getAllByText("12 disponibles").length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText("74%")).toBeDefined();
@@ -196,7 +195,7 @@ describe("Centro de Control de Representación Sindical", () => {
       expect(screen.getByText("Pasajes")).toBeDefined();
       expect(screen.getAllByText("Lockers").length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText("Trabajadores").length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText("Expedientes").length).toBeGreaterThanOrEqual(1);
+      expect(screen.queryByText("Expedientes")).toBeNull();
 
       // Botón secundario "Nueva" en Licencias
       const newLicenseLink = screen.getByRole("link", { name: /Nueva/ });
@@ -270,7 +269,6 @@ describe("Centro de Control de Representación Sindical", () => {
       render(<DashboardClient initialData={partialErrorData} isAdmin={false} />);
       expect(screen.getByText("No disponible")).toBeDefined();
       // Las demás métricas siguen operativas
-      expect(screen.getByText("94")).toBeDefined();
       expect(screen.getByText("34 de 46 asignados")).toBeDefined();
     });
   });
@@ -281,14 +279,14 @@ describe("Centro de Control de Representación Sindical", () => {
       expect(screen.getByPlaceholderText("Buscar trabajador, matrícula o expediente...")).toBeDefined();
     });
 
-    it("navega a expedientes con Enter si el término contiene patrón de folio institucional", () => {
+    it("navega a trabajadores con Enter cuando no hay trámite precargado", () => {
       render(<DashboardQuickSearch />);
       const input = screen.getByRole("searchbox");
 
       fireEvent.change(input, { target: { value: "XXI-2026-LIC-000005" } });
       fireEvent.keyDown(input, { key: "Enter" });
 
-      expect(mockPush).toHaveBeenCalledWith("/representacion/expedientes?folio=XXI-2026-LIC-000005");
+      expect(mockPush).toHaveBeenCalledWith("/representacion/trabajadores?q=XXI-2026-LIC-000005");
     });
 
     it("navega a trabajadores con Enter si el término es un nombre o matrícula común", () => {

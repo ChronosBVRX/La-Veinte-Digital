@@ -19,6 +19,7 @@ interface CaseMatch {
   folio: string;
   case_type: string;
   status: string;
+  worker_id?: string;
   union_workers?: {
     first_name: string;
     paternal_surname: string;
@@ -107,16 +108,22 @@ export function DashboardQuickSearch(): React.JSX.Element {
         const trimmed = query.trim();
         if (!trimmed) return;
 
-        // Si parece un folio institucional (XXI-, LIC, PAS, etc.) navegar a expedientes
-        const isLikelyFolio = /^(xxi|lic|pas|mat|lac|lok)/i.test(trimmed) || trimmed.includes("-");
-        const targetUrl = isLikelyFolio
-          ? `/representacion/expedientes?folio=${encodeURIComponent(trimmed)}`
-          : `/representacion/trabajadores?q=${encodeURIComponent(trimmed)}`;
+        const firstCase = cases[0];
+        if (firstCase) {
+          const caseHref =
+            firstCase.case_type === "license"
+              ? `/representacion/licencias?case=${firstCase.id}&action=continue`
+              : firstCase.worker_id
+                ? `/representacion/trabajadores/${firstCase.worker_id}`
+                : `/representacion/trabajadores?q=${encodeURIComponent(trimmed)}`;
+          navigate(caseHref);
+          return;
+        }
 
-        navigate(targetUrl);
+        navigate(`/representacion/trabajadores?q=${encodeURIComponent(trimmed)}`);
       }
     },
-    [query, navigate],
+    [query, cases, navigate],
   );
 
   const trimmedQuery = query.trim();
@@ -302,7 +309,7 @@ export function DashboardQuickSearch(): React.JSX.Element {
                 </div>
               ) : null}
 
-              {/* Sección Expedientes */}
+              {/* Sección Trámites */}
               {activeCases.length > 0 ? (
                 <div>
                   <div
@@ -318,7 +325,7 @@ export function DashboardQuickSearch(): React.JSX.Element {
                       gap: "0.375rem",
                     }}
                   >
-                    <Folder size={13} weight="bold" /> Expedientes ({activeCases.length})
+                    <Folder size={13} weight="bold" /> Trámites ({activeCases.length})
                   </div>
                   {cases.map((c) => {
                     const wName = c.union_workers
@@ -327,7 +334,9 @@ export function DashboardQuickSearch(): React.JSX.Element {
                     const targetHref =
                       c.case_type === "license"
                         ? `/representacion/licencias?case=${c.id}&action=continue`
-                        : `/representacion/expedientes?folio=${c.folio}`;
+                        : c.worker_id
+                          ? `/representacion/trabajadores/${c.worker_id}`
+                          : `/representacion/trabajadores?q=${encodeURIComponent(c.folio)}`;
                     return (
                       <button
                         key={c.id}
