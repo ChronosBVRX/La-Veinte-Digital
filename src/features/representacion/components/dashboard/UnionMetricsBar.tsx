@@ -4,7 +4,6 @@ import React from "react";
 import Link from "next/link";
 import {
   Users,
-  Folder,
   Lockers,
   FileText,
   ArrowsClockwise,
@@ -204,58 +203,6 @@ export function UnionMetricsBar({
           </div>
         </Link>
 
-        {/* KPI 2: Expedientes */}
-        <Link
-          href="/representacion/expedientes"
-          style={{ textDecoration: "none", color: "inherit", display: "flex" }}
-        >
-          <div
-            style={{
-              flex: 1,
-              background: "var(--card, #ffffff)",
-              border: "1px solid var(--border, #e2e8f0)",
-              borderRadius: "var(--radius-lg, 0.75rem)",
-              padding: "0.875rem 1rem",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "space-between",
-              boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
-              transition: "border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease",
-              cursor: "pointer",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", color: "var(--muted, #64748b)" }}>
-              <span style={{ fontSize: "0.6875rem", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                Expedientes
-              </span>
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: "var(--radius-sm, 0.375rem)",
-                  background: "rgba(37, 99, 235, 0.08)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "var(--primary, #2563eb)",
-                }}
-              >
-                <Folder size={16} weight="bold" />
-              </div>
-            </div>
-
-            <div style={{ margin: "0.375rem 0 0.25rem" }}>
-              <div style={{ fontSize: "1.625rem", fontWeight: 800, color: "var(--fg, #0f172a)", lineHeight: 1 }}>
-                {metrics.cases.error ? "No disponible" : (metrics.cases.total ?? 0)}
-              </div>
-            </div>
-
-            <div style={{ fontSize: "0.75rem", color: "var(--muted, #64748b)" }}>
-              Historial institucional
-            </div>
-          </div>
-        </Link>
-
         {/* KPI 3: Lockers */}
         <Link
           href="/representacion/lockers"
@@ -338,7 +285,7 @@ export function UnionMetricsBar({
 
         {/* KPI 4: Trámites en proceso */}
         <Link
-          href="/representacion/expedientes"
+          href="/representacion/licencias"
           style={{ textDecoration: "none", color: "inherit", display: "flex" }}
         >
           <div

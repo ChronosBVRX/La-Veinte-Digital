@@ -11,7 +11,6 @@ const UNION_MODULES_LIST = [
   { label: "Lockers", href: "/representacion/lockers" },
   { label: "Pasajes", href: "/representacion/pasajes" },
   { label: "Licencias", href: "/representacion/licencias" },
-  { label: "Expedientes", href: "/representacion/expedientes" },
   { label: "Administración", href: "/representacion/administracion" },
 ];
 

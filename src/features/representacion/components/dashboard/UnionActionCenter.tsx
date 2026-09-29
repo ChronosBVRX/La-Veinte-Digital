@@ -8,7 +8,6 @@ import {
   Drop,
   Ticket,
   Users,
-  Folder,
   Lockers,
   Printer,
   ShieldCheck,
@@ -406,55 +405,6 @@ export function UnionActionCenter({ metrics, isAdmin }: UnionActionCenterProps):
                 </div>
                 <div style={{ fontSize: "0.8125rem", color: "var(--muted, #64748b)", lineHeight: 1.4 }}>
                   Consulta y administra el padrón de trabajadores.
-                </div>
-              </div>
-            </div>
-          </Link>
-
-          {/* Módulo: Expedientes */}
-          <Link
-            href="/representacion/expedientes"
-            style={{ textDecoration: "none", color: "inherit", display: "flex" }}
-          >
-            <div
-              style={{
-                flex: 1,
-                background: "var(--card, #ffffff)",
-                border: "1px solid var(--border, #e2e8f0)",
-                borderRadius: "var(--radius-lg, 0.75rem)",
-                padding: "1.125rem",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between",
-                boxShadow: "0 1px 3px rgba(15, 23, 42, 0.04)",
-                transition: "border-color 0.15s ease, box-shadow 0.15s ease",
-                cursor: "pointer",
-              }}
-            >
-              <div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
-                  <div
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: "var(--radius-md, 0.5rem)",
-                      background: "rgba(37, 99, 235, 0.08)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "var(--primary, #2563eb)",
-                    }}
-                  >
-                    <Folder size={22} weight="bold" />
-                  </div>
-                  <ArrowRight size={16} weight="bold" style={{ color: "var(--muted, #64748b)" }} />
-                </div>
-
-                <div style={{ fontWeight: 800, fontSize: "1.0625rem", color: "var(--fg, #0f172a)", marginBottom: "0.25rem" }}>
-                  Expedientes
-                </div>
-                <div style={{ fontSize: "0.8125rem", color: "var(--muted, #64748b)", lineHeight: 1.4 }}>
-                  Consulta expedientes y antecedentes de representación.
                 </div>
               </div>
             </div>

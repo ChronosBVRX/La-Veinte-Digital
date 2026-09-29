@@ -132,27 +132,6 @@ export function UnionAttentionList({
             );
           })}
         </div>
-
-        <div
-          style={{
-            padding: "0.625rem 1.125rem",
-            background: "var(--accent, #f8fafc)",
-            borderTop: "1px solid var(--border, #e2e8f0)",
-            textAlign: "right",
-          }}
-        >
-          <Link
-            href="/representacion/expedientes"
-            style={{
-              fontSize: "0.75rem",
-              fontWeight: 700,
-              color: "var(--primary, #2563eb)",
-              textDecoration: "none",
-            }}
-          >
-            Ver todos los expedientes en proceso →
-          </Link>
-        </div>
       </div>
     </div>
   );

@@ -267,7 +267,7 @@ export async function getUnionDashboardSummary(delegationId: string): Promise<Un
         title: `${formatCaseTypeLabel(c.case_type)} ${c.folio}`,
         subtitle: `Borrador sin finalizar${wInfo}`,
         actionLabel: "Ver",
-        actionHref: `/representacion/expedientes?folio=${c.folio}`,
+        actionHref: c.worker_id ? `/representacion/trabajadores/${c.worker_id}` : "/representacion/trabajadores",
         urgency: "high",
         date: c.opened_at,
       });
@@ -288,7 +288,9 @@ export async function getUnionDashboardSummary(delegationId: string): Promise<Un
       actionHref:
         c.case_type === "license"
           ? `/representacion/licencias?case=${c.id}&action=edit`
-          : `/representacion/expedientes?folio=${c.folio}`,
+          : c.worker_id
+            ? `/representacion/trabajadores/${c.worker_id}`
+            : "/representacion/trabajadores",
       urgency: "medium",
       date: c.opened_at,
     });
@@ -362,7 +364,12 @@ export async function getUnionDashboardSummary(delegationId: string): Promise<Un
       timestamp: c.opened_at,
       caseType: c.case_type,
       folio: c.folio,
-      href: c.case_type === "license" ? `/representacion/licencias?case=${c.id}&action=edit` : `/representacion/expedientes?folio=${c.folio}`,
+      href:
+        c.case_type === "license"
+          ? `/representacion/licencias?case=${c.id}&action=edit`
+          : c.worker_id
+            ? `/representacion/trabajadores/${c.worker_id}`
+            : "/representacion/trabajadores",
     });
   }
 

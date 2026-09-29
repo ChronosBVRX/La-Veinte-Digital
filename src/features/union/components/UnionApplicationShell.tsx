@@ -11,7 +11,6 @@ import {
   Car,
   Ticket,
   FileText,
-  Folder,
   ShieldCheck,
   List,
   X,
@@ -52,7 +51,6 @@ export const UNION_NAV_GROUPS: UnionNavGroup[] = [
     label: "Personas",
     modules: [
       { href: "/representacion/trabajadores", label: "Trabajadores", description: "Padrón, filtros y expediente", icon: Users },
-      { href: "/representacion/expedientes", label: "Expedientes", description: "Timeline de casos", icon: Folder },
     ],
   },
   {
@@ -85,7 +83,6 @@ export const UNION_MODULES: UnionNavModule[] = UNION_NAV_GROUPS.flatMap((group) 
 const MOBILE_PRIMARY_MODULES: UnionNavModule[] = [
   "/representacion",
   "/representacion/trabajadores",
-  "/representacion/expedientes",
 ]
   .map((href) => UNION_MODULES.find((module) => module.href === href))
   .filter((module): module is UnionNavModule => Boolean(module));
