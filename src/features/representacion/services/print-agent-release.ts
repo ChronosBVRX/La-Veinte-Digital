@@ -10,28 +10,76 @@
 export const DEFAULT_PRINT_AGENT_VERSION = "1.0.0";
 export const DEFAULT_PRINT_AGENT_RELEASE_TAG = `print-agent-v${DEFAULT_PRINT_AGENT_VERSION}`;
 export const PRINT_AGENT_FILENAME = "LaVeintePrint-Setup.exe";
+export const PRINT_AGENT_FILENAME_X64 = "LaVeintePrint-Setup-x64.exe";
+export const PRINT_AGENT_FILENAME_X86 = "LaVeintePrint-Setup-x86.exe";
 export const GITHUB_REPO_OWNER = "ChronosBVRX";
 export const GITHUB_REPO_NAME = "La-Veinte-Digital";
 export const GITHUB_RELEASES_BASE_URL = `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/download`;
+
+export type PrintAgentArch = "x64" | "x86";
+
+export interface PrintAgentVariantInfo {
+  arch: PrintAgentArch;
+  label: string;
+  filename: string;
+  download_url: string;
+  upstream_url: string;
+}
 
 export interface PrintAgentReleaseInfo {
   name: string;
   version: string;
   platform: string;
-  arch: string;
+  arch: PrintAgentArch;
   filename: string;
   release_tag: string;
   download_url: string;
+  server_download_url: string;
+  variants: {
+    x64: PrintAgentVariantInfo;
+    x86: PrintAgentVariantInfo;
+  };
   instructions: string[];
 }
 
 export interface ResolvedPrintAgentDownload {
   downloadUrl: string;
+  serverDownloadPath: string;
+  filename: string;
+  arch: PrintAgentArch;
   releaseTag: string;
   version: string;
   isOverride: boolean;
   isValid: boolean;
   error?: string;
+}
+
+/**
+ * Normaliza el parámetro de arquitectura ('x64' / '64' vs 'x86' / 'ia32' / '32').
+ * Si no se especifica, retorna undefined para preservar el nombre clásico por defecto.
+ */
+export function normalizePrintAgentArch(archParam?: string | null): PrintAgentArch | undefined {
+  if (!archParam) return undefined;
+  const cleaned = archParam.trim().toLowerCase();
+  if (cleaned === "x86" || cleaned === "ia32" || cleaned === "32" || cleaned === "32bit") {
+    return "x86";
+  }
+  if (cleaned === "x64" || cleaned === "64" || cleaned === "64bit" || cleaned === "amd64") {
+    return "x64";
+  }
+  return undefined;
+}
+
+export function getPrintAgentFilename(arch?: PrintAgentArch): string {
+  if (arch === "x86") return PRINT_AGENT_FILENAME_X86;
+  if (arch === "x64") return PRINT_AGENT_FILENAME_X64;
+  return PRINT_AGENT_FILENAME;
+}
+
+export function getServerDownloadPath(arch?: PrintAgentArch): string {
+  if (arch === "x86") return "/api/downloads/print-agent/windows?arch=x86";
+  if (arch === "x64") return "/api/downloads/print-agent/windows?arch=x64";
+  return "/api/downloads/print-agent/windows";
 }
 
 /**
@@ -44,14 +92,28 @@ export function extractVersionFromTag(tag: string): string {
 
 /**
  * Resuelve la URL de descarga siguiendo la jerarquía estricta:
- * 1. PRINT_AGENT_DOWNLOAD_URL si está definido (override absoluto en Vercel/entorno)
+ * 1. PRINT_AGENT_DOWNLOAD_URL[_X64|_X86] si está definido (override absoluto en Vercel/entorno)
  * 2. PRINT_AGENT_RELEASE_TAG (construye URL al tag indicado)
  * 3. Fallback seguro a DEFAULT_PRINT_AGENT_RELEASE_TAG (print-agent-v1.0.0)
  * 
  * Garantía: NUNCA genera ni permite '/releases/latest/'.
  */
-export function resolvePrintAgentDownloadUrl(env: Partial<NodeJS.ProcessEnv> = process.env): ResolvedPrintAgentDownload {
-  const explicitDownloadUrl = env.PRINT_AGENT_DOWNLOAD_URL?.trim();
+export function resolvePrintAgentDownloadUrl(
+  env: Partial<NodeJS.ProcessEnv> = process.env,
+  archParam?: string | null
+): ResolvedPrintAgentDownload {
+  const normalizedArch = normalizePrintAgentArch(archParam);
+  const effectiveArch: PrintAgentArch = normalizedArch || "x64";
+  const targetFilename = getPrintAgentFilename(normalizedArch);
+  const serverDownloadPath = getServerDownloadPath(normalizedArch);
+
+  const archSpecificOverride =
+    normalizedArch === "x86"
+      ? env.PRINT_AGENT_DOWNLOAD_URL_X86?.trim()
+      : normalizedArch === "x64"
+        ? env.PRINT_AGENT_DOWNLOAD_URL_X64?.trim()
+        : undefined;
+  const explicitDownloadUrl = archSpecificOverride || env.PRINT_AGENT_DOWNLOAD_URL?.trim();
   const configuredTag = env.PRINT_AGENT_RELEASE_TAG?.trim();
 
   // 1. Override explícito por URL
@@ -59,6 +121,9 @@ export function resolvePrintAgentDownloadUrl(env: Partial<NodeJS.ProcessEnv> = p
     if (explicitDownloadUrl.includes("/releases/latest/")) {
       return {
         downloadUrl: explicitDownloadUrl,
+        serverDownloadPath,
+        filename: targetFilename,
+        arch: effectiveArch,
         releaseTag: configuredTag || DEFAULT_PRINT_AGENT_RELEASE_TAG,
         version: extractVersionFromTag(configuredTag || DEFAULT_PRINT_AGENT_RELEASE_TAG),
         isOverride: true,
@@ -72,6 +137,9 @@ export function resolvePrintAgentDownloadUrl(env: Partial<NodeJS.ProcessEnv> = p
       if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
         return {
           downloadUrl: explicitDownloadUrl,
+          serverDownloadPath,
+          filename: targetFilename,
+          arch: effectiveArch,
           releaseTag: configuredTag || DEFAULT_PRINT_AGENT_RELEASE_TAG,
           version: extractVersionFromTag(configuredTag || DEFAULT_PRINT_AGENT_RELEASE_TAG),
           isOverride: true,
@@ -82,6 +150,9 @@ export function resolvePrintAgentDownloadUrl(env: Partial<NodeJS.ProcessEnv> = p
     } catch {
       return {
         downloadUrl: explicitDownloadUrl,
+        serverDownloadPath,
+        filename: targetFilename,
+        arch: effectiveArch,
         releaseTag: configuredTag || DEFAULT_PRINT_AGENT_RELEASE_TAG,
         version: extractVersionFromTag(configuredTag || DEFAULT_PRINT_AGENT_RELEASE_TAG),
         isOverride: true,
@@ -97,8 +168,17 @@ export function resolvePrintAgentDownloadUrl(env: Partial<NodeJS.ProcessEnv> = p
       deducedTag = tagMatch ? tagMatch[1] : DEFAULT_PRINT_AGENT_RELEASE_TAG;
     }
 
+    // Si se solicitó arquitectura explícita (ej. x86) y el override genérico termina en LaVeintePrint-Setup.exe
+    let finalOverrideUrl = explicitDownloadUrl;
+    if (!archSpecificOverride && normalizedArch && explicitDownloadUrl.endsWith(`/${PRINT_AGENT_FILENAME}`)) {
+      finalOverrideUrl = explicitDownloadUrl.replace(new RegExp(`/${PRINT_AGENT_FILENAME}$`), `/${targetFilename}`);
+    }
+
     return {
-      downloadUrl: explicitDownloadUrl,
+      downloadUrl: finalOverrideUrl,
+      serverDownloadPath,
+      filename: targetFilename,
+      arch: effectiveArch,
       releaseTag: deducedTag,
       version: extractVersionFromTag(deducedTag),
       isOverride: true,
@@ -108,10 +188,13 @@ export function resolvePrintAgentDownloadUrl(env: Partial<NodeJS.ProcessEnv> = p
 
   // 2. Variable PRINT_AGENT_RELEASE_TAG
   const activeTag = configuredTag || DEFAULT_PRINT_AGENT_RELEASE_TAG;
-  const downloadUrl = `${GITHUB_RELEASES_BASE_URL}/${activeTag}/${PRINT_AGENT_FILENAME}`;
+  const downloadUrl = `${GITHUB_RELEASES_BASE_URL}/${activeTag}/${targetFilename}`;
 
   return {
     downloadUrl,
+    serverDownloadPath,
+    filename: targetFilename,
+    arch: effectiveArch,
     releaseTag: activeTag,
     version: extractVersionFromTag(activeTag),
     isOverride: false,
@@ -122,19 +205,41 @@ export function resolvePrintAgentDownloadUrl(env: Partial<NodeJS.ProcessEnv> = p
 /**
  * Devuelve el contrato estructurado de metadatos para '?json=true'.
  */
-export function getPrintAgentReleaseInfo(env: Partial<NodeJS.ProcessEnv> = process.env): PrintAgentReleaseInfo {
-  const resolved = resolvePrintAgentDownloadUrl(env);
+export function getPrintAgentReleaseInfo(
+  env: Partial<NodeJS.ProcessEnv> = process.env,
+  archParam?: string | null
+): PrintAgentReleaseInfo {
+  const resolved = resolvePrintAgentDownloadUrl(env, archParam);
+  const resolvedX64 = resolvePrintAgentDownloadUrl(env, "x64");
+  const resolvedX86 = resolvePrintAgentDownloadUrl(env, "x86");
 
   return {
     name: "La Veinte Print para Windows",
     version: resolved.version,
     platform: "win32",
-    arch: "x64",
-    filename: PRINT_AGENT_FILENAME,
+    arch: resolved.arch,
+    filename: resolved.filename,
     release_tag: resolved.releaseTag,
     download_url: resolved.downloadUrl,
+    server_download_url: resolved.serverDownloadPath,
+    variants: {
+      x64: {
+        arch: "x64",
+        label: "Windows 64 bits (x64)",
+        filename: PRINT_AGENT_FILENAME_X64,
+        download_url: resolvedX64.serverDownloadPath,
+        upstream_url: resolvedX64.downloadUrl,
+      },
+      x86: {
+        arch: "x86",
+        label: "Windows 32 bits (x86)",
+        filename: PRINT_AGENT_FILENAME_X86,
+        download_url: resolvedX86.serverDownloadPath,
+        upstream_url: resolvedX86.downloadUrl,
+      },
+    },
     instructions: [
-      "1. Descarga LaVeintePrint-Setup.exe y ejecútalo con doble clic.",
+      `1. Descarga ${resolved.filename} desde nuestro servidor y ejecútalo con doble clic.`,
       "2. Introduce el código de 6 dígitos generado en el portal web.",
       "3. Selecciona tu impresora y finaliza. La PC imprimirá automáticamente en segundo plano.",
     ],

@@ -11,9 +11,29 @@ const printerLib = ptp.default || ptp;
 export async function getInstalledPrinters() {
   try {
     const printers = await printerLib.getPrinters();
-    return printers.map((p) => (typeof p === "string" ? p : p.name || p.deviceId));
+    const list = printers
+      .map((p) => (typeof p === "string" ? p : p.name || p.deviceId))
+      .filter(Boolean);
+    if (list.length > 0) {
+      return list;
+    }
   } catch (err) {
     console.warn("No se pudieron listar impresoras con pdf-to-printer:", err.message);
+  }
+
+  // Fallback WMIC para equipos Windows de 32 bits o con PowerShell sin módulo CIM
+  try {
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const execFileAsync = promisify(execFile);
+    const { stdout } = await execFileAsync("wmic", ["printer", "get", "Name"], {
+      windowsHide: true,
+    });
+    return stdout
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && line.toLowerCase() !== "name");
+  } catch {
     return [];
   }
 }

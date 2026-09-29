@@ -75,7 +75,7 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
   const [isWindows] = useState(() => (typeof navigator !== "undefined" ? /Win/i.test(navigator.userAgent) : true));
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const [isCheckingDownload, setIsCheckingDownload] = useState(false);
+  const [downloadingArch, setDownloadingArch] = useState<"x64" | "x86" | null>(null);
 
   // Modal de vinculación por código de 6 dígitos
   const [showEnrollModal, setShowEnrollModal] = useState(false);
@@ -214,15 +214,14 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
     setTimeout(() => setCopiedEnrollCode(false), 2500);
   }
 
-  async function handleDownloadInstaller(e: React.MouseEvent) {
-    e.preventDefault();
+  async function handleDownloadInstaller(arch: "x64" | "x86") {
     setDownloadError(null);
-    setIsCheckingDownload(true);
+    setDownloadingArch(arch);
     try {
-      const res = await fetch("/api/downloads/print-agent/windows?check=true");
+      const res = await fetch(`/api/downloads/print-agent/windows?check=true&arch=${arch}`);
       const data = await res.json().catch(() => null);
 
-      if (!res.ok || !data?.available || !data?.download_url) {
+      if (!res.ok || !data?.available) {
         setDownloadError(
           data?.error ||
             "No fue posible descargar La Veinte Print en este momento. El instalador todavía no está disponible."
@@ -230,13 +229,14 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
         return;
       }
 
-      window.location.href = data.download_url;
+      // Siempre descargar desde la ruta propia de nuestro servidor (la20.com.mx)
+      window.location.href = `/api/downloads/print-agent/windows?arch=${arch}`;
     } catch {
       setDownloadError(
         "No fue posible descargar La Veinte Print en este momento. El instalador todavía no está disponible."
       );
     } finally {
-      setIsCheckingDownload(false);
+      setDownloadingArch(null);
     }
   }
 
@@ -479,10 +479,20 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
               <Button
                 variant="primary"
                 size="md"
-                onClick={handleDownloadInstaller}
-                loading={isCheckingDownload}
+                onClick={() => handleDownloadInstaller("x64")}
+                loading={downloadingArch === "x64"}
+                disabled={downloadingArch !== null}
               >
-                <DownloadSimple size={18} weight="bold" /> Descargar instalador .exe
+                <DownloadSimple size={18} weight="bold" /> Descargar Windows 64 bits (.exe)
+              </Button>
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => handleDownloadInstaller("x86")}
+                loading={downloadingArch === "x86"}
+                disabled={downloadingArch !== null}
+              >
+                <DownloadSimple size={18} weight="bold" /> Descargar Windows 32 bits (.exe)
               </Button>
               <Button
                 variant="secondary"
@@ -491,6 +501,9 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
               >
                 <Key size={18} weight="bold" /> Vincular con código (6 dígitos)
               </Button>
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.4 }}>
+              Descarga directa desde nuestro servidor <strong>la20.com.mx</strong>. Si tu equipo de oficina muestra que requiere un sistema de 64 bits, elige la versión de <strong>32 bits (compatible con todo tipo de PC)</strong>.
             </div>
             {downloadError && (
               <div
@@ -549,10 +562,10 @@ export function PrintQueueClient({ delegationId, isAdmin = false }: PrintQueueCl
           >
             <div style={{ padding: "0.75rem", borderRadius: "var(--radius, 0.375rem)", backgroundColor: "var(--accent)" }}>
               <div style={{ fontWeight: 700, fontSize: "0.8125rem", color: "var(--primary)", marginBottom: "0.25rem" }}>
-                1. Descarga el archivo
+                1. Descarga tu versión (64 o 32 bits)
               </div>
               <p style={{ margin: 0, fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.4 }}>
-                Descarga <strong>LaVeintePrint-Setup.exe</strong> y ejecútalo con doble clic. Se instala en 5 segundos sin pedir contraseñas de administrador.
+                Descarga la versión de <strong>64 bits</strong> o <strong>32 bits</strong> directamente desde nuestro servidor y ejecútala con doble clic. Se instala en 5 segundos sin pedir contraseñas de administrador.
               </p>
             </div>
 

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
-import type { Database } from "@/lib/supabase/types";
-import { authenticatePrintStation } from "@/features/representacion/services/print-token";
+import {
+  authenticatePrintStation,
+  createPrintAgentClient,
+} from "@/features/representacion/services/print-token";
 import { buildUnionLicenseDocumentData } from "@/features/representacion/services/license-document-dto";
 import { buildLicensePrintPackage } from "@/features/representacion/services/license-print-package";
 
@@ -14,7 +14,7 @@ export async function GET(
   req: Request,
   props: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
-  const supabase = await createClient();
+  const supabase = await createPrintAgentClient();
   const { station, errorResponse } = await authenticatePrintStation(req, supabase);
   if (errorResponse || !station) return errorResponse!;
 
@@ -43,15 +43,7 @@ export async function GET(
       );
     }
 
-    // Cliente privilegiado server-only para recuperar del bucket privado union-private tras validar Station Token
-    const storageClient =
-      process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.NEXT_PUBLIC_SUPABASE_URL
-        ? createSupabaseClient<Database>(
-            process.env.NEXT_PUBLIC_SUPABASE_URL,
-            process.env.SUPABASE_SERVICE_ROLE_KEY,
-            { auth: { persistSession: false, autoRefreshToken: false } },
-          )
-        : supabase;
+    const storageClient = supabase;
 
     // 1. Jobs con PDF almacenado inmutable (modelo estándar)
     if (job.document_storage_path) {

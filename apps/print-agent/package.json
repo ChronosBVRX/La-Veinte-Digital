@@ -2,7 +2,7 @@
   "name": "la-veinte-print-agent",
   "version": "1.0.0",
   "description": "Agente nativo de impresión automática y silenciosa para la oficina sindical de La Veinte Digital",
-  "main": "src/electron-main.mjs",
+  "main": "src/electron-main.cjs",
   "type": "module",
   "author": "La Veinte Digital",
   "repository": {
@@ -17,7 +17,9 @@
     "status": "node -e \"import('./src/security.mjs').then(s => console.log(s.readConfigSummary()))\"",
     "test:printers": "node -e \"import('pdf-to-printer').then(p => p.getPrinters().then(printers => console.log('Impresoras instaladas en Windows:', printers)))\"",
     "pack": "electron-builder --dir",
-    "build:win": "electron-builder --win"
+    "build:win": "electron-builder --win --x64 --ia32 --publish never && node -e \"import('node:fs').then(fs => { if(fs.existsSync('dist/LaVeintePrint-Setup-ia32.exe')) fs.copyFileSync('dist/LaVeintePrint-Setup-ia32.exe','dist/LaVeintePrint-Setup-x86.exe'); if(fs.existsSync('dist/LaVeintePrint-Setup-x64.exe')) fs.copyFileSync('dist/LaVeintePrint-Setup-x64.exe','dist/LaVeintePrint-Setup.exe'); })\"",
+    "build:win:x64": "electron-builder --win --x64 --publish never",
+    "build:win:x86": "electron-builder --win --ia32 --publish never"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
@@ -27,14 +29,14 @@
     "pdf-to-printer": "^5.8.1"
   },
   "devDependencies": {
-    "electron": "^34.2.0",
+    "electron": "22.3.27",
     "electron-builder": "^25.1.8"
   },
   "build": {
     "appId": "mx.com.la20.printagent",
     "productName": "La Veinte Print",
     "copyright": "Copyright © 2026 La Veinte Digital",
-    "artifactName": "LaVeintePrint-Setup.${ext}",
+    "artifactName": "LaVeintePrint-Setup-${arch}.${ext}",
     "publish": [
       {
         "provider": "github",
@@ -58,7 +60,8 @@
         {
           "target": "nsis",
           "arch": [
-            "x64"
+            "x64",
+            "ia32"
           ]
         }
       ],

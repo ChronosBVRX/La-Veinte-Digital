@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/types";
 
 export interface StationAuthRecord {
   id: string;
@@ -10,6 +12,25 @@ export interface StationAuthRecord {
   is_active: boolean;
   last_seen_at: string | null;
   agent_version: string | null;
+}
+
+/**
+ * Crea el cliente Supabase para los endpoints máquina-a-máquina del Agente de Impresión
+ * (`/api/union/print-agent/*`). Como la app de escritorio se autentica por código de 6 dígitos
+ * o header `x-station-token` (sin cookies de navegador `auth.uid()`), en producción/desarrollo
+ * utiliza `SUPABASE_SERVICE_ROLE_KEY` para operar sobre las tablas protegidas por RLS tras
+ * validar criptográficamente el token de la estación. En tests unitarios sin service role key,
+ * hace fallback transparente a `createClient()`.
+ */
+export async function createPrintAgentClient(): Promise<SupabaseClient<Database>> {
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    return createSupabaseClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+  }
+  return await createClient();
 }
 
 /**

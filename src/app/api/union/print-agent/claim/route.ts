@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { authenticatePrintStation } from "@/features/representacion/services/print-token";
-import { addCaseEvent } from "@/features/representacion/services/cases";
+import {
+  authenticatePrintStation,
+  createPrintAgentClient,
+} from "@/features/representacion/services/print-token";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ const claimSchema = z.object({
 });
 
 export async function POST(req: Request): Promise<NextResponse> {
-  const supabase = await createClient();
+  const supabase = await createPrintAgentClient();
   const { station, errorResponse } = await authenticatePrintStation(req, supabase);
   if (errorResponse || !station) return errorResponse!;
 
@@ -81,12 +82,17 @@ export async function POST(req: Request): Promise<NextResponse> {
 
     // Si tiene caso asociado, registrar evento de auditoría
     if (claimedJob.case_id) {
-      await addCaseEvent(
-        claimedJob.case_id,
-        "document",
-        "Trabajo reclamado por estación de impresión",
-        `La estación "${station.name}" reclamó el trabajo de impresión para procesamiento.`,
-      );
+      try {
+        await supabase.from("union_case_events").insert({
+          case_id: claimedJob.case_id,
+          event_type: "document",
+          title: "Trabajo reclamado por estación de impresión",
+          detail: `La estación "${station.name}" reclamó el trabajo de impresión para procesamiento.`,
+          created_by: null,
+        });
+      } catch {
+        // Ignorar fallo no crítico de auditoría
+      }
     }
 
     return NextResponse.json({

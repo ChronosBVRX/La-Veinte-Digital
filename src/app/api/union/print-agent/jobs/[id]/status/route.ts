@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { authenticatePrintStation } from "@/features/representacion/services/print-token";
-import { addCaseEvent } from "@/features/representacion/services/cases";
+import {
+  authenticatePrintStation,
+  createPrintAgentClient,
+} from "@/features/representacion/services/print-token";
 import { getPrintableDocumentLabel } from "@/features/representacion/services/print-document-registry";
 import { z } from "zod";
 
@@ -44,7 +45,7 @@ export async function POST(
   req: Request,
   props: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
-  const supabase = await createClient();
+  const supabase = await createPrintAgentClient();
   const { station, errorResponse } = await authenticatePrintStation(req, supabase);
   if (errorResponse || !station) return errorResponse!;
 
@@ -105,20 +106,26 @@ export async function POST(
 
     // Registrar evento de auditoría en el historial del expediente (generalizado por tipo documental)
     if (job.case_id) {
-      if (parsed.data.status === "printed") {
-        await addCaseEvent(
-          job.case_id,
-          "document",
-          getPrintedEventTitle(job.document_type),
-          `Expediente impreso exitosamente en la estación "${station.name}" (${station.printer_name || "Impresora predeterminada"}).`,
-        );
-      } else if (parsed.data.status === "failed") {
-        await addCaseEvent(
-          job.case_id,
-          "document",
-          getFailedEventTitle(job.document_type),
-          `Error en estación "${station.name}": ${parsed.data.error_message || "Sin detalle"}.`,
-        );
+      try {
+        if (parsed.data.status === "printed") {
+          await supabase.from("union_case_events").insert({
+            case_id: job.case_id,
+            event_type: "document",
+            title: getPrintedEventTitle(job.document_type),
+            detail: `Expediente impreso exitosamente en la estación "${station.name}" (${station.printer_name || "Impresora predeterminada"}).`,
+            created_by: null,
+          });
+        } else if (parsed.data.status === "failed") {
+          await supabase.from("union_case_events").insert({
+            case_id: job.case_id,
+            event_type: "document",
+            title: getFailedEventTitle(job.document_type),
+            detail: `Error en estación "${station.name}": ${parsed.data.error_message || "Sin detalle"}.`,
+            created_by: null,
+          });
+        }
+      } catch {
+        // Ignorar fallo no crítico de auditoría
       }
     }
 
