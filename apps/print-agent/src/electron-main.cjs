@@ -144,9 +144,56 @@ function httpRequest(urlString, options = {}, redirectCount = 0) {
 }
 
 // ------------------------------------------------------------
-// Spooler de impresión compatible con Windows 7, 8, 10 y 11
+// Spooler de impresión GDI nativo compatible con Windows 7, 8, 10 y 11
 // ------------------------------------------------------------
+function isVirtualOrTextOnlyPrinter(name) {
+  const n = String(name || "").toLowerCase();
+  return (
+    n.includes("microsoft xps") ||
+    n.includes("print to pdf") ||
+    n === "fax" ||
+    n.includes("onenote") ||
+    n.includes("generic / text") ||
+    n.includes("generic text")
+  );
+}
+
+async function getNativeElectronPrinters() {
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      return await mainWindow.webContents.getPrintersAsync();
+    }
+    const tempWin = new BrowserWindow({ show: false });
+    try {
+      return await tempWin.webContents.getPrintersAsync();
+    } finally {
+      if (!tempWin.isDestroyed()) tempWin.destroy();
+    }
+  } catch {
+    return [];
+  }
+}
+
 async function getInstalledPrinters() {
+  const nativePrinters = await getNativeElectronPrinters();
+  if (nativePrinters && nativePrinters.length > 0) {
+    const sorted = [...nativePrinters].sort((a, b) => {
+      const aVirt = isVirtualOrTextOnlyPrinter(a.name) ? 1 : 0;
+      const bVirt = isVirtualOrTextOnlyPrinter(b.name) ? 1 : 0;
+      if (aVirt !== bVirt) return aVirt - bVirt;
+      if (a.isDefault && !b.isDefault) return -1;
+      if (!a.isDefault && b.isDefault) return 1;
+      return String(a.name).localeCompare(String(b.name));
+    });
+    const physicalOnly = sorted.filter((p) => !isVirtualOrTextOnlyPrinter(p.name));
+    const list = (physicalOnly.length > 0 ? physicalOnly : sorted)
+      .map((p) => p.name)
+      .filter(Boolean);
+    if (list.length > 0) {
+      return list;
+    }
+  }
+
   try {
     const printers = await printerLib.getPrinters();
     const list = printers
@@ -165,6 +212,7 @@ async function getInstalledPrinters() {
       windowsHide: true,
     });
     const list = stdout
+      .replace(/\0/g, "")
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter((line) => line && line.toLowerCase() !== "name");
@@ -195,7 +243,97 @@ async function getInstalledPrinters() {
   }
 }
 
+async function resolveTargetPrinterName(requestedName) {
+  const trimmed = String(requestedName || "").trim();
+  const nativePrinters = await getNativeElectronPrinters();
+
+  if (trimmed && !isVirtualOrTextOnlyPrinter(trimmed)) {
+    if (nativePrinters.length === 0) return trimmed;
+    const exact = nativePrinters.find(
+      (p) => String(p.name).toLowerCase() === trimmed.toLowerCase()
+    );
+    if (exact) return exact.name;
+  }
+
+  const defaultPhysical = nativePrinters.find(
+    (p) => p.isDefault && !isVirtualOrTextOnlyPrinter(p.name)
+  );
+  if (defaultPhysical) return defaultPhysical.name;
+
+  const firstPhysical = nativePrinters.find((p) => !isVirtualOrTextOnlyPrinter(p.name));
+  if (firstPhysical) return firstPhysical.name;
+
+  return trimmed || undefined;
+}
+
+async function printPdfViaChromiumGdi(pdfBuffer, { printerName, copies = 1, duplex = false } = {}) {
+  const printWin = new BrowserWindow({
+    show: false,
+    width: 816,
+    height: 1056,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: false,
+      sandbox: false,
+    },
+  });
+
+  try {
+    const workerPath = path.join(__dirname, "renderer", "print-worker.html");
+    await printWin.loadFile(workerPath);
+
+    const b64 = Buffer.from(pdfBuffer).toString("base64");
+    await printWin.webContents.executeJavaScript(
+      `window.renderPdfBase64(${JSON.stringify(b64)})`
+    );
+
+    await new Promise((r) => setTimeout(r, 150));
+
+    await new Promise((resolve, reject) => {
+      printWin.webContents.print(
+        {
+          silent: true,
+          printBackground: true,
+          deviceName: printerName || undefined,
+          copies: copies > 0 ? copies : 1,
+          duplexMode: duplex ? "longEdge" : "simplex",
+          margins: { marginType: "none" },
+        },
+        (success, failureReason) => {
+          if (success) {
+            resolve(true);
+          } else {
+            reject(new Error(failureReason || "Error en webContents.print"));
+          }
+        }
+      );
+    });
+
+    return { success: true };
+  } finally {
+    if (!printWin.isDestroyed()) {
+      printWin.destroy();
+    }
+  }
+}
+
 async function printPdfSilently(pdfBuffer, options = {}) {
+  const printer = await resolveTargetPrinterName(options.printerName);
+  const copies = options.copies && options.copies > 0 ? options.copies : 1;
+  const duplex = Boolean(options.duplex);
+
+  // Motor primario: Impresión GDI nativa de Chromium + PDF.js (evita basura PostScript/PCL de SumatraPDF en Windows 7)
+  try {
+    return await printPdfViaChromiumGdi(pdfBuffer, {
+      printerName: printer,
+      copies,
+      duplex,
+    });
+  } catch (chromiumErr) {
+    console.warn("Aviso en motor GDI Chromium, intentando fallback SumatraPDF:", chromiumErr.message);
+  }
+
+  // Fallback secundario: SumatraPDF vía pdf-to-printer
   const tempDir = os.tmpdir();
   const tempFilePath = path.join(
     tempDir,
@@ -205,18 +343,12 @@ async function printPdfSilently(pdfBuffer, options = {}) {
   fs.writeFileSync(tempFilePath, pdfBuffer);
 
   try {
-    const printer =
-      options.printerName && options.printerName.trim()
-        ? options.printerName.trim()
-        : undefined;
-    const copies = options.copies && options.copies > 0 ? options.copies : 1;
-
     const printOptions = {
       printer,
       paperSize: "Letter",
       copies,
       silent: true,
-      ...(options.duplex ? { side: "duplex" } : {}),
+      ...(duplex ? { side: "duplex" } : {}),
     };
 
     await printerLib.print(tempFilePath, printOptions);

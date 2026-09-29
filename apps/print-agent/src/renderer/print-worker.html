@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>La Veinte Print Worker</title>
+  <style>
+    @page {
+      size: letter portrait;
+      margin: 0mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html, body {
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+    }
+    .pdf-page {
+      width: 8.5in;
+      height: 11in;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      page-break-after: always;
+      break-after: page;
+    }
+    .pdf-page:last-child {
+      page-break-after: auto;
+      break-after: auto;
+    }
+    .pdf-page canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+  <script src="./vendor/pdfjs/pdf.min.js"></script>
+</head>
+<body>
+  <div id="pages-container"></div>
+  <script>
+    /* global pdfjsLib */
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "./vendor/pdfjs/pdf.worker.min.js";
+
+    window.renderPdfBase64 = async function (base64Data) {
+      const container = document.getElementById("pages-container");
+      container.innerHTML = "";
+
+      const binaryStr = atob(base64Data);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+
+      const loadingTask = pdfjsLib.getDocument({
+        data: bytes,
+        standardFontDataUrl: "./vendor/pdfjs/standard_fonts/",
+        isEvalSupported: false,
+      });
+
+      const pdf = await loadingTask.promise;
+      const numPages = pdf.numPages;
+
+      // 200 DPI (200 / 72 = 2.777) para máxima nitidez de texto y líneas en impresoras láser GDI
+      const RENDER_SCALE = 2.5;
+
+      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: RENDER_SCALE });
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "pdf-page";
+
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+
+        const ctx = canvas.getContext("2d", { alpha: false });
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        await page.render({
+          canvasContext: ctx,
+          viewport: viewport,
+          intent: "print",
+        }).promise;
+
+        wrapper.appendChild(canvas);
+        container.appendChild(wrapper);
+      }
+
+      return { pageCount: numPages };
+    };
+  </script>
+</body>
+</html>
