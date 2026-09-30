@@ -6,6 +6,8 @@ enum Domains {
 
     /// Hosts de La Veinte Digital (se cargan en el WebView interno persistente).
     static let internalHosts: Set<String> = [
+        "la20.com.mx",
+        "www.la20.com.mx",
         "la-veinte-digital.vercel.app",
         "laveinte-digital.vercel.app",
         "la-veinte-digital.pages.dev",

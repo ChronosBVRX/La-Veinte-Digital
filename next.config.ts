@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://ragktminwduiggvaoeix.supabase.co";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://supabase.la20.com.mx";
 
 // Cloudflare Turnstile: script del CAPTCHA + iframe del reto + verificación.
 // Requerido por src/app/(auth)/turnstile-widget.tsx para obtener captcha_token.
@@ -12,6 +12,7 @@ const turnstileOrigin = "https://challenges.cloudflare.com"
 const connectSources = [
   "'self'",
   supabaseUrl,
+  "https://ragktminwduiggvaoeix.supabase.co",
   "https://tessdata.projectnaptha.com",
   "https://cdn.jsdelivr.net",
   turnstileOrigin,

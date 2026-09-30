@@ -342,10 +342,10 @@ describe("Commitment Reminders Engine: Casos Obligatorios 15 a 25", () => {
 
   it("25. deep link y agrupación de varios compromisos mañana (Sección 10 y 14)", async () => {
     const deepLinkSingle = buildAgendaDeepLink("2026-09-06", "comm-123")
-    expect(deepLinkSingle).toBe("https://la-veinte-digital.vercel.app/bitacora?date=2026-09-06&commitment=comm-123")
+    expect(deepLinkSingle).toBe("https://la20.com.mx/bitacora?date=2026-09-06&commitment=comm-123")
 
     const deepLinkDayOnly = buildAgendaDeepLink("2026-09-06")
-    expect(deepLinkDayOnly).toBe("https://la-veinte-digital.vercel.app/bitacora?date=2026-09-06")
+    expect(deepLinkDayOnly).toBe("https://la20.com.mx/bitacora?date=2026-09-06")
 
     // Agrupación: usuario con 2 compromisos mañana
     fakeCommitments = [
@@ -388,7 +388,7 @@ describe("Commitment Reminders Engine: Casos Obligatorios 15 a 25", () => {
     expect(payload.title).toBe("Mañana tienes 2 compromisos")
     expect(payload.body).toContain("Tiempo extra 16:00")
     expect(payload.body).toContain("Guardia festiva 22:00")
-    expect(payload.destination).toBe("https://la-veinte-digital.vercel.app/bitacora?date=2026-09-06")
+    expect(payload.destination).toBe("https://la20.com.mx/bitacora?date=2026-09-06")
 
     // Both recorded in fakeDeliveries
     expect(fakeDeliveries.filter((d) => d.reminder_type === "DAY_BEFORE")).toHaveLength(2)

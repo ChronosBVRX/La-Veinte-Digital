@@ -5,7 +5,7 @@ import WebKit
 /// WebView interno persistente (equivalente a `InternalWebScreen.kt`).
 /// Carga siempre el Home web y aplica el bridge JS.
 struct InternalWebView: UIViewRepresentable {
-    static let defaultURL = URL(string: "https://la-veinte-digital.vercel.app")!
+    static let defaultURL = URL(string: "https://la20.com.mx")!
 
     @EnvironmentObject var router: AppRouter
     @EnvironmentObject var appLock: AppLockManager

@@ -32,7 +32,8 @@ function getServiceRoleSupabase() {
  * Builds the internal destination URL for a push notification deep link.
  */
 export function buildAgendaDeepLink(dateStr: string, commitmentId?: string): string {
-  const base = "https://la-veinte-digital.vercel.app/bitacora"
+  const origin = process.env.NEXT_PUBLIC_CANONICAL_ORIGIN ?? "https://la20.com.mx"
+  const base = `${origin}/bitacora`
   const params = new URLSearchParams()
   if (dateStr) params.set("date", dateStr)
   if (commitmentId) params.set("commitment", commitmentId)

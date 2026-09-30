@@ -119,6 +119,7 @@ class LaVeinteBridge(
 internal fun WebView.installLaVeinteBridgeFor(bridge: LaVeinteBridge, url: String?) {
     val host = url?.let { runCatching { Uri.parse(it).host?.lowercase() }.getOrNull() }
     val allowed = listOf(
+        "la20.com.mx", "www.la20.com.mx",
         "la-veinte-digital.vercel.app", "laveinte-digital.vercel.app",
         "la-veinte-digital.pages.dev", "la-veinte-digital.localhost",
     )
@@ -132,6 +133,7 @@ internal fun WebView.installLaVeinteBridgeFor(bridge: LaVeinteBridge, url: Strin
 internal fun WebView.injectBridgeFallback(bridge: LaVeinteBridge, url: String?) {
     val host = url?.let { runCatching { Uri.parse(it).host?.lowercase() }.getOrNull() }
     val allowed = listOf(
+        "la20.com.mx", "www.la20.com.mx",
         "la-veinte-digital.vercel.app", "laveinte-digital.vercel.app",
         "la-veinte-digital.pages.dev", "la-veinte-digital.localhost",
     )
