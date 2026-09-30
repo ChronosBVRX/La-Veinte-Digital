@@ -238,4 +238,4 @@ private fun MainScreen() {
     }
 }
 
-private const val DEFAULT_URL = "https://la-veinte-digital.vercel.app"
+private const val DEFAULT_URL = "https://la20.com.mx"

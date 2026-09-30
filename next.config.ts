@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://ragktminwduiggvaoeix.supabase.co";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://supabase.la20.com.mx";
 
 // Cloudflare Turnstile: script del CAPTCHA + iframe del reto + verificación.
 // Requerido por src/app/(auth)/turnstile-widget.tsx para obtener captcha_token.
@@ -12,6 +12,7 @@ const turnstileOrigin = "https://challenges.cloudflare.com"
 const connectSources = [
   "'self'",
   supabaseUrl,
+  "https://ragktminwduiggvaoeix.supabase.co",
   "https://tessdata.projectnaptha.com",
   "https://cdn.jsdelivr.net",
   turnstileOrigin,
@@ -33,6 +34,7 @@ const cspDirectives = [
 ];
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   poweredByHeader: false,
   reactStrictMode: true,
   compiler: {
@@ -40,7 +42,19 @@ const nextConfig: NextConfig = {
   },
   transpilePackages: ["@la-veinte/tts-core", "@la-veinte/radio-core"],
   outputFileTracingExcludes: {
-    "*": ["data/tts/**", "data/normativa/**", "tools/**"],
+    "*": [
+      "data/tts/**",
+      "data/normativa/**",
+      "tools/**",
+      "*.aab",
+      "android-app/**",
+      "ios-app/**",
+      "release-artifacts/**",
+      "artifacts/**",
+      "e2e/**",
+      "docs/**",
+      "supabase/**",
+    ],
     "/api/escritos/generar": [
       "data/**",
       "apps/**",
@@ -110,6 +124,11 @@ const nextConfig: NextConfig = {
           { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
         ],
       },
+    ];
+  },
+  async rewrites() {
+    return [
+      { source: "/health", destination: "/api/health" },
     ];
   },
 };

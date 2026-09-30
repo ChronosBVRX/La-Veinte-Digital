@@ -25,10 +25,10 @@ export interface MitigatedVulnerability {
 export const APPROVED_MITIGATIONS: MitigatedVulnerability[] = [
   {
     package: "next",
-    advisories: ["GHSA-p293-qw3h-jr36", "GHSA-2xp9-vwfh-vxw4"],
+    advisories: ["GHSA-p293-qw3h-jr36", "GHSA-2xp9-vwfh-vxw4", "GHSA-vcvr-r3jv-pc5j"],
     severity: "critical",
     justification:
-      "GHSA-p293-qw3h-jr36 solo afecta servidores Windows; producción corre en contenedores Linux/POSIX. GHSA-2xp9-vwfh-vxw4 requiere procesamiento de archivos AVIF no confiables en _next/image; la app no procesa AVIF de usuarios.",
+      "GHSA-p293-qw3h-jr36 solo afecta servidores Windows; producción corre en contenedores Linux/POSIX. GHSA-2xp9-vwfh-vxw4 requiere procesamiento de archivos AVIF no confiables en _next/image; la app no procesa AVIF de usuarios. GHSA-vcvr-r3jv-pc5j requiere el uso de next/og ImageResponse; la aplicación no utiliza next/og.",
   },
   {
     package: "brace-expansion",
@@ -36,6 +36,13 @@ export const APPROVED_MITIGATIONS: MitigatedVulnerability[] = [
     severity: "high",
     justification:
       "Dependencia transitiva usada únicamente en patrones glob estáticos internos; ninguna ruta de producción pasa expresiones glob controladas por el usuario a brace-expansion.",
+  },
+  {
+    package: "@grpc/grpc-js",
+    advisories: ["GHSA-m9gg-hp2v-232j", "GHSA-f596-whhp-79r4"],
+    severity: "high",
+    justification:
+      "Dependencia transitiva de firebase-admin usada exclusivamente como cliente saliente para FCM; la app no expone servidores gRPC ni procesa certificados gRPC de entrada.",
   },
 ]
 

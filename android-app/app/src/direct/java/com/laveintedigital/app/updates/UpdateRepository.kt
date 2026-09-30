@@ -20,7 +20,7 @@ import java.net.URL
 object UpdateRepository {
 
     private const val TAG = "UpdateRepository"
-    internal const val BASE_URL = "https://la-veinte-digital.vercel.app"
+    internal const val BASE_URL = "https://la20.com.mx"
 
     suspend fun fetch(
         context: Context,

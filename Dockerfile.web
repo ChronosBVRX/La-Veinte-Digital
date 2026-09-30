@@ -1,0 +1,23 @@
+# Dockerfile for La Veinte Digital Next.js Standalone
+# Target: Linux ARM64 (Oracle Cloud Always Free Ampere A1)
+
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Security: Run as non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Copy all pre-built standalone assets from staging
+COPY --chown=nextjs:nodejs . ./
+
+USER nextjs
+
+EXPOSE 3000
+
+# Next.js standalone entrypoint
+CMD ["node", "server.js"]

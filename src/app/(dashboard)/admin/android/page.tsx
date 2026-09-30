@@ -29,7 +29,7 @@ export default async function AdminAndroidPage() {
     )
   }
 
-  const baseUrl = "https://la-veinte-digital.vercel.app"
+  const baseUrl = process.env.NEXT_PUBLIC_CANONICAL_ORIGIN ?? "https://la20.com.mx"
 
   // Fetch published manifests
   let stable: AndroidManifest | null = null, beta: AndroidManifest | null = null, dev: AndroidManifest | null = null
