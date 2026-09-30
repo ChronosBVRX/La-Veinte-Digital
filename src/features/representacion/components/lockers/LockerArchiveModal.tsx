@@ -58,7 +58,7 @@ export function LockerArchiveModal({
   async function handleConfirm(): Promise<void> {
     if (!locker) return;
     if (!isArchived && !reason.trim()) {
-      setError("Debe proporcionar un motivo para retirar/archivar el casillero.");
+      setError("Debe proporcionar un motivo para enviar el casillero a la papelera.");
       return;
     }
 
@@ -96,13 +96,13 @@ export function LockerArchiveModal({
       onClose={onClose}
       title={
         isArchived
-          ? `Reactivar casillero ${locker.locker_number}`
-          : `Retirar / Archivar casillero ${locker.locker_number}`
+          ? `Restaurar casillero ${locker.locker_number} de papelera`
+          : `Enviar casillero ${locker.locker_number} a papelera`
       }
       description={
         isArchived
           ? "El casillero volverá al inventario activo como disponible para asignación."
-          : "Retira el casillero del inventario activo sin borrar su historial ni sus asignaciones pasadas."
+          : "El casillero se retirará del inventario activo y se resguardará en la papelera con todo su historial preservado. Podrás recuperarlo o restaurarlo en cualquier momento."
       }
       size="sm"
       closeOnOverlay={!loading}
@@ -122,7 +122,7 @@ export function LockerArchiveModal({
                 : { backgroundColor: "#ea580c", borderColor: "#ea580c" }
             }
           >
-            {isArchived ? "Reactivar casillero" : "Archivar casillero"}
+            {isArchived ? "Restaurar a inventario" : "Enviar a papelera"}
           </Button>
         </>
       }
@@ -169,7 +169,7 @@ export function LockerArchiveModal({
 
         {!isArchived ? (
           <Input
-            label="Motivo del retiro *"
+            label="Motivo del envío a papelera *"
             placeholder="ej. Mueble desmantelado, casillero inservible, remodelación…"
             value={reason}
             onChange={(e) => setReason(e.target.value)}

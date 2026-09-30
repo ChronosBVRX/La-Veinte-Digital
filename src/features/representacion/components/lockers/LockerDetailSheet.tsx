@@ -290,10 +290,10 @@ export function LockerDetailSheet({
                   }}
                 >
                   <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#475569", textTransform: "uppercase" }}>
-                    📦 Casillero Retirado del Inventario Activo
+                    📦 En Papelera / Fuera del Inventario Activo
                   </div>
                   <div style={{ fontSize: "0.8125rem", color: "#64748b" }}>
-                    Archivado el {formatDate(locker.archived_at)}. Motivo: <em>«{locker.archive_reason || "Sin motivo especificado"}»</em>
+                    Enviado a papelera el {formatDate(locker.archived_at)}. Motivo: <em>«{locker.archive_reason || "Sin motivo especificado"}»</em>
                   </div>
                 </div>
               ) : null}
@@ -586,7 +586,7 @@ export function LockerDetailSheet({
                     </>
                   )}
 
-                  {/* Archivar / Reactivar */}
+                  {/* Enviar a papelera / Restaurar de papelera */}
                   {onOpenArchive ? (
                     <Button
                       variant="ghost"
@@ -594,12 +594,12 @@ export function LockerDetailSheet({
                       onClick={() => onOpenArchive(locker)}
                       style={{ color: isArchived ? "#16a34a" : "#ea580c" }}
                     >
-                      {isArchived ? "♻️ Reactivar casillero" : "📦 Retirar / Archivar"}
+                      {isArchived ? "♻️ Restaurar de papelera" : "🗑 Enviar a papelera"}
                     </Button>
                   ) : null}
 
-                  {/* Eliminar definitivamente (solo admin) */}
-                  {isAdmin && onOpenHardDelete ? (
+                  {/* Eliminar definitivamente (solo para casilleros ya en papelera y con permisos de admin) */}
+                  {isAdmin && isArchived && onOpenHardDelete ? (
                     <Button
                       variant="ghost"
                       size="sm"

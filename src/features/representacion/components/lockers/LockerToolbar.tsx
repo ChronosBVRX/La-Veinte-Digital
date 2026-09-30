@@ -209,7 +209,7 @@ export function LockerToolbar({
             style={selectStyle}
           >
             <option value="active">Inventario: Activos</option>
-            <option value="archived">Inventario: Archivados</option>
+            <option value="archived">Papelera / Archivados</option>
             <option value="all">Inventario: Todos</option>
           </select>
         ) : null}

@@ -102,6 +102,16 @@ export function LockerAssignSheet({
     }
   }, []);
 
+  // Debounce para verificación automática al pausar la escritura
+  useEffect(() => {
+    const trimmed = lockerNumberInput.trim();
+    if (!trimmed) return;
+    const timer = setTimeout(() => {
+      void verifyLockerNumber(trimmed);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [lockerNumberInput, verifyLockerNumber]);
+
   // Verificar si el trabajador ya tiene un casillero activo
   useEffect(() => {
     if (!worker) {
@@ -284,7 +294,14 @@ export function LockerAssignSheet({
                     value={lockerNumberInput}
                     onChange={(e) => {
                       setLockerNumberInput(e.target.value);
-                      void verifyLockerNumber(e.target.value);
+                      setLockerSearchError(null);
+                      setResolvedLocker(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void verifyLockerNumber(lockerNumberInput);
+                      }
                     }}
                   />
                   <Button

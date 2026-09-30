@@ -30,7 +30,6 @@ vi.mock("next/link", () => ({
 import {
   naturalCompare,
   getLockerStatusLabel,
-  getLockerStatusBadge,
   getLockerEffectiveState,
   type LockerZone,
   type LockerMapItem,
@@ -40,11 +39,13 @@ import { LockerToolbar } from "../components/lockers/LockerToolbar";
 import { LockerDesktopTable, type LockerItem } from "../components/lockers/LockerDesktopTable";
 import { LockerMobileList } from "../components/lockers/LockerMobileList";
 import { LockerAssignSheet } from "../components/lockers/LockerAssignSheet";
-import { LockerDetailSheet } from "../components/lockers/LockerDetailSheet";
 import { LockerReleaseModal } from "../components/lockers/LockerReleaseModal";
 import { LockerStatusBadge } from "../components/lockers/LockerStatusBadge";
 import { LockerZoneNavigator } from "../components/lockers/LockerZoneNavigator";
+import { LockerArchiveModal } from "../components/lockers/LockerArchiveModal";
+import { LockerHardDeleteModal } from "../components/lockers/LockerHardDeleteModal";
 import { LockerZoneMap } from "../components/lockers/LockerZoneMap";
+import { LockerControlCenter } from "../components/lockers/LockerControlCenter";
 
 const MOCK_LOCKERS: LockerItem[] = [
   {
@@ -552,6 +553,254 @@ describe("Rediseño UX/UI de Lockers", () => {
       expect(screen.getByText("1001")).toBeDefined();
       expect(screen.queryByText("1002")).toBeNull();
       expect(screen.queryByText("1201")).toBeNull();
+    });
+  });
+
+  describe("11. Búsqueda de casilleros sin interrupción al teclear números", () => {
+    it("permite teclear números en el buscador del mapa sin abrir prematuramente el modal de detalle", async () => {
+      global.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url.includes("/api/union/lockers/map")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                zones: [{ id: "z1", name: "Vestidores Planta Baja", total_lockers: 3, assigned_lockers: 1, available_lockers: 2 }],
+                banks: [],
+                lockers: [
+                  { id: "loc-1", locker_number: "1", status: "assigned", zone_id: "z1" },
+                  { id: "loc-14", locker_number: "14", status: "available", zone_id: "z1" },
+                  { id: "loc-145", locker_number: "145", status: "available", zone_id: "z1" },
+                ],
+                summary: { total: 3, assigned: 1, available: 2, maintenance: 0, blocked: 0, reserved: 0, unlocated: 0 },
+              }),
+          });
+        }
+        if (url.includes("/api/union/waitlist")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ count: 0, waitlist: [] }),
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({}),
+        });
+      });
+
+      render(<LockerControlCenter isAdmin={true} />);
+
+      // Esperar a que cargue el mapa
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText("Buscar casillero # o trabajador...")).toBeDefined();
+      });
+
+      const searchInput = screen.getByPlaceholderText("Buscar casillero # o trabajador...") as HTMLInputElement;
+
+      // El usuario teclea "1" (queriendo buscar 145)
+      fireEvent.change(searchInput, { target: { value: "1" } });
+
+      // No debe abrir automáticamente el drawer lateral ni el modal de detalle del casillero 1
+      expect(searchInput.value).toBe("1");
+      expect(screen.queryByText(/Historial de asignaciones/i)).toBeNull();
+
+      // El usuario continúa escribiendo "145" sin interrupciones
+      fireEvent.change(searchInput, { target: { value: "145" } });
+      expect(searchInput.value).toBe("145");
+      expect(screen.queryByText(/Historial de asignaciones/i)).toBeNull();
+
+      // Al pulsar Enter, se confirma la búsqueda intencional y se actualiza la ruta con el locker encontrado
+      fireEvent.keyDown(searchInput, { key: "Enter" });
+      await waitFor(() => {
+        expect(replaceMock).toHaveBeenCalled();
+      });
+    });
+
+    it("en LockerAssignSheet permite escribir el número de casillero sin errores prematuros", () => {
+      render(
+        <LockerAssignSheet
+          isOpen={true}
+          onClose={vi.fn()}
+          initialLocker={null}
+          onSuccess={vi.fn()}
+        />
+      );
+
+      const input = screen.getByPlaceholderText("Número de locker (ej. 25)…") as HTMLInputElement;
+      expect(input).toBeDefined();
+
+      // Escribir "2" no debe mostrar error inmediatamente
+      fireEvent.change(input, { target: { value: "2" } });
+      expect(input.value).toBe("2");
+      expect(screen.queryByRole("alert")).toBeNull();
+
+      // Completar a "25"
+      fireEvent.change(input, { target: { value: "25" } });
+      expect(input.value).toBe("25");
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+  });
+
+  describe("Protección contra opciones destructivas y flujo seguro de Papelera", () => {
+    it("LockerDesktopTable: un casillero activo solo muestra 'Enviar a papelera' y nunca eliminación definitiva", () => {
+      const activeLocker: LockerItem = {
+        id: "l-active",
+        locker_number: "101",
+        status: "available",
+        archived_at: null,
+      };
+
+      render(
+        <LockerDesktopTable
+          lockers={[activeLocker]}
+          selectedIds={[]}
+          onToggleSelect={vi.fn()}
+          onToggleSelectAll={vi.fn()}
+          onOpenDetail={vi.fn()}
+          onOpenAssign={vi.fn()}
+          onOpenRelease={vi.fn()}
+          onOpenArchive={vi.fn()}
+          onOpenHardDelete={vi.fn()}
+          onSetStatus={vi.fn()}
+          isAdmin={true}
+        />
+      );
+
+      // Abrir menú de acciones
+      const menuButton = screen.getByLabelText("Acciones del locker 101");
+      fireEvent.click(menuButton);
+
+      // Debe mostrar la opción segura de Papelera
+      expect(screen.getByText("🗑 Enviar a papelera")).toBeDefined();
+
+      // NUNCA debe mostrar la opción destructiva en casilleros activos
+      expect(screen.queryByText("🗑 Eliminar definitivamente")).toBeNull();
+    });
+
+    it("LockerDesktopTable: un casillero en papelera muestra 'Restaurar de papelera' y acceso condicionado a eliminación definitiva", () => {
+      const archivedLocker: LockerItem = {
+        id: "l-archived",
+        locker_number: "102",
+        status: "available",
+        archived_at: "2026-09-20T10:00:00Z",
+      };
+
+      render(
+        <LockerDesktopTable
+          lockers={[archivedLocker]}
+          selectedIds={[]}
+          onToggleSelect={vi.fn()}
+          onToggleSelectAll={vi.fn()}
+          onOpenDetail={vi.fn()}
+          onOpenAssign={vi.fn()}
+          onOpenRelease={vi.fn()}
+          onOpenArchive={vi.fn()}
+          onOpenHardDelete={vi.fn()}
+          onSetStatus={vi.fn()}
+          isAdmin={true}
+        />
+      );
+
+      // Abrir menú de acciones
+      const menuButton = screen.getByLabelText("Acciones del locker 102");
+      fireEvent.click(menuButton);
+
+      // Debe mostrar Restaurar de papelera
+      expect(screen.getByText("♻️ Restaurar de papelera")).toBeDefined();
+
+      // Por estar en papelera y ser admin, muestra la opción excepcional
+      expect(screen.getByText("🗑 Eliminar definitivamente")).toBeDefined();
+    });
+
+    it("LockerArchiveModal: utiliza terminología clara de Papelera y resguardo", () => {
+      const activeLocker = {
+        id: "l-arch-test",
+        locker_number: "205",
+        archived_at: null,
+      };
+
+      const { rerender } = render(
+        <LockerArchiveModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onSuccess={vi.fn()}
+          locker={activeLocker}
+        />
+      );
+
+      expect(screen.getByText("Enviar casillero 205 a papelera")).toBeDefined();
+      expect(screen.getByText("Enviar a papelera")).toBeDefined();
+
+      // Si el casillero ya está archivado
+      rerender(
+        <LockerArchiveModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onSuccess={vi.fn()}
+          locker={{ ...activeLocker, archived_at: "2026-09-20T10:00:00Z" }}
+        />
+      );
+
+      expect(screen.getByText("Restaurar casillero 205 de papelera")).toBeDefined();
+      expect(screen.getByText("Restaurar a inventario")).toBeDefined();
+    });
+
+    it("LockerHardDeleteModal: aplica candados y exige doble verificación (checkbox + tecleo exacto)", () => {
+      const archivedLocker = {
+        id: "l-del-test",
+        locker_number: "305",
+        archived_at: "2026-09-20T10:00:00Z",
+      };
+
+      render(
+        <LockerHardDeleteModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onSuccess={vi.fn()}
+          locker={archivedLocker}
+        />
+      );
+
+      const deleteButton = screen.getByRole("button", { name: /Destruir definitivamente/i }) as HTMLButtonElement;
+      const checkbox = screen.getByRole("checkbox") as HTMLInputElement;
+      const input = screen.getByPlaceholderText("305") as HTMLInputElement;
+
+      // Inicialmente deshabilitado
+      expect(deleteButton.disabled).toBe(true);
+
+      // Solo tecleando el número sin marcar el checkbox -> sigue deshabilitado
+      fireEvent.change(input, { target: { value: "305" } });
+      expect(deleteButton.disabled).toBe(true);
+
+      // Solo marcando el checkbox sin teclear el número exacto -> sigue deshabilitado
+      fireEvent.change(input, { target: { value: "" } });
+      fireEvent.click(checkbox);
+      expect(checkbox.checked).toBe(true);
+      expect(deleteButton.disabled).toBe(true);
+
+      // Doble verificación cumplida: checkbox marcado Y número exacto
+      fireEvent.change(input, { target: { value: "305" } });
+      expect(deleteButton.disabled).toBe(false);
+    });
+
+    it("LockerHardDeleteModal: bloquea la acción si el casillero no está en la papelera", () => {
+      const nonArchivedLocker = {
+        id: "l-non-arch",
+        locker_number: "405",
+        archived_at: null,
+      };
+
+      render(
+        <LockerHardDeleteModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onSuccess={vi.fn()}
+          locker={nonArchivedLocker}
+        />
+      );
+
+      expect(screen.getByText(/Este casillero no está en la papelera/i)).toBeDefined();
+      const deleteButton = screen.getByRole("button", { name: /Destruir definitivamente/i }) as HTMLButtonElement;
+      expect(deleteButton.disabled).toBe(true);
     });
   });
 });

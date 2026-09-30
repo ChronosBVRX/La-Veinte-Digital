@@ -627,6 +627,31 @@ export async function POST(req: Request): Promise<NextResponse> {
       const parsed = lockerDeleteUnusedSchema.safeParse(body);
       if (!parsed.success) return noStore(NextResponse.json({ error: "Datos inválidos", issues: parsed.error.issues }, { status: 400 }));
 
+      // Candado de seguridad: El casillero debe estar primero en la papelera (archived_at no nulo)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: targetLocker, error: targetErr } = await (supabase as any)
+        .from("union_lockers")
+        .select("id, archived_at, locker_number")
+        .eq("id", parsed.data.locker_id)
+        .eq("delegation_id", depId)
+        .maybeSingle();
+
+      if (targetErr || !targetLocker) {
+        return noStore(NextResponse.json({ error: "Casillero no encontrado en la delegación" }, { status: 404 }));
+      }
+
+      if (!targetLocker.archived_at) {
+        return noStore(
+          NextResponse.json(
+            {
+              error:
+                "Para proteger la auditoría y evitar pérdidas accidentales, el casillero debe enviarse primero a la papelera antes de destruirse definitivamente.",
+            },
+            { status: 400 }
+          )
+        );
+      }
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: rpcRes, error: rpcErr } = await (supabase as any).rpc("union_delete_unused_locker", {
         p_locker_id: parsed.data.locker_id,
