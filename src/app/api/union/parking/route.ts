@@ -172,7 +172,29 @@ export async function GET(req: Request): Promise<NextResponse> {
       try {
         cavLookup = await lookupWorkerInCav(normMat);
       } catch {
-        // Si la red LAN 11.1.17.44 no está disponible en este momento, usamos el Padrón Sindical
+        try {
+          const bridgeStatus = await getParkingBridgeStatus(supabase, depId);
+          if (bridgeStatus.stationOnline && bridgeStatus.agentVersion === "1.2.0") {
+            const bridgeRes = await dispatchCavBridgeCommand(supabase, {
+              delegationId: depId,
+              action: "lookup_worker",
+              payload: { matricula: normMat },
+              userId: auth.user.id,
+              timeoutMs: 5000,
+              leaveQueuedOnTimeout: false,
+            });
+            if (bridgeRes.executedLive && bridgeRes.result?.worker) {
+              cavLookup = bridgeRes.result.worker as {
+                nombre: string;
+                apellido_paterno: string;
+                apellido_materno: string;
+                cargo: string;
+              };
+            }
+          }
+        } catch {
+          // Si la red LAN o el puente no responden, usamos el Padrón Sindical
+        }
       }
 
       return noStore(
@@ -192,7 +214,7 @@ export async function GET(req: Request): Promise<NextResponse> {
       );
     }
 
-    // 3. Detalle individual de registro (con enriquecimiento en vivo desde config_usuarios.php si la LAN responde)
+    // 3. Detalle individual de registro (con enriquecimiento en vivo desde config_usuarios.php en LAN o Puente en Vivo)
     const detailId = url.searchParams.get("id");
     if (detailId) {
       const { data: rawRecord, error: recErr } = await supabase
@@ -209,40 +231,59 @@ export async function GET(req: Request): Promise<NextResponse> {
       let record = rawRecord as unknown as ParkingRowRecord;
 
       if (record.external_id_reg > 0 && (!record.nombre || !record.vehicle_model_id || url.searchParams.get("refresh") === "1")) {
+        let liveDetail = null;
         try {
-          const liveDetail = await fetchCavRecordDetail(record.external_id_reg);
-          if (liveDetail) {
-            const updates = {
-              matricula: liveDetail.matricula || record.matricula,
-              full_name: liveDetail.full_name || record.full_name,
-              nombre: liveDetail.nombre,
-              apellido_paterno: liveDetail.apellido_paterno,
-              apellido_materno: liveDetail.apellido_materno,
-              cargo: liveDetail.cargo,
-              area_code: liveDetail.area_code || record.area_code,
-              area_label: liveDetail.area_label || record.area_label,
-              placas: liveDetail.placas || record.placas,
-              vehicle_model_id: liveDetail.vehicle_model_id,
-              vehicle_model_label: liveDetail.vehicle_model_label,
-              parking_lot: liveDetail.parking_lot,
-              cajon_number: liveDetail.cajon_number || record.cajon_number,
-              shift: liveDetail.shift,
-              email: liveDetail.email,
-              last_synced_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            };
-            const { data: updatedRow } = await supabase
-              .from("union_parking_records")
-              .update(updates)
-              .eq("id", record.id)
-              .select("*")
-              .maybeSingle();
-            if (updatedRow) {
-              record = updatedRow as unknown as ParkingRowRecord;
-            }
-          }
+          liveDetail = await fetchCavRecordDetail(record.external_id_reg);
         } catch {
-          // Si 11.1.17.44 no está accesible, devolvemos la copia local sincronizada
+          try {
+            const bridgeStatus = await getParkingBridgeStatus(supabase, depId);
+            if (bridgeStatus.stationOnline && bridgeStatus.agentVersion === "1.2.0") {
+              const bridgeRes = await dispatchCavBridgeCommand(supabase, {
+                delegationId: depId,
+                action: "detail",
+                payload: { external_id_reg: record.external_id_reg },
+                userId: auth.user.id,
+                timeoutMs: 6000,
+                leaveQueuedOnTimeout: false,
+              });
+              if (bridgeRes.executedLive && bridgeRes.result?.detail) {
+                liveDetail = bridgeRes.result.detail as Awaited<ReturnType<typeof fetchCavRecordDetail>>;
+              }
+            }
+          } catch {
+            // Ignorar si el puente no responde
+          }
+        }
+
+        if (liveDetail) {
+          const updates = {
+            matricula: liveDetail.matricula || record.matricula,
+            full_name: liveDetail.full_name || record.full_name,
+            nombre: liveDetail.nombre,
+            apellido_paterno: liveDetail.apellido_paterno,
+            apellido_materno: liveDetail.apellido_materno,
+            cargo: liveDetail.cargo,
+            area_code: liveDetail.area_code || record.area_code,
+            area_label: liveDetail.area_label || record.area_label,
+            placas: liveDetail.placas || record.placas,
+            vehicle_model_id: liveDetail.vehicle_model_id,
+            vehicle_model_label: liveDetail.vehicle_model_label,
+            parking_lot: liveDetail.parking_lot,
+            cajon_number: liveDetail.cajon_number || record.cajon_number,
+            shift: liveDetail.shift,
+            email: liveDetail.email,
+            last_synced_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          const { data: updatedRow } = await supabase
+            .from("union_parking_records")
+            .update(updates)
+            .eq("id", record.id)
+            .select("*")
+            .maybeSingle();
+          if (updatedRow) {
+            record = updatedRow as unknown as ParkingRowRecord;
+          }
         }
       }
 

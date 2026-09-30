@@ -27,7 +27,7 @@ const printerLib = ptp.default || ptp;
 // Compatibilidad con equipos Windows 7 / GPUs antiguas de oficina sin drivers DirectX modernos
 app.disableHardwareAcceleration();
 
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.2.0";
 const DEFAULT_SERVER_URL = "https://la20.com.mx";
 const HEARTBEAT_INTERVAL_MS = 20000;
 const POLL_INTERVAL_MS = 12000;
@@ -829,6 +829,9 @@ async function sendHeartbeat() {
       const data = await res.json().catch(() => null);
       if (parkingBridgeWorker && data && typeof parkingBridgeWorker.onHeartbeat === "function") {
         parkingBridgeWorker.onHeartbeat(data);
+      }
+      if (data && data.force_self_update) {
+        void checkAndApplySelfUpdate();
       }
       updateTrayMenu();
       notifyRendererStatus();

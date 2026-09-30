@@ -30,90 +30,119 @@ const DEFAULT_CAV_CONFIG = {
   password: Buffer.from("OTkxNzM5MzA=", "base64").toString("utf8"),
 };
 
-const CAV_HGR1_UNIT_CODE = "200217062151";
+// Código oficial de unidad HGR No. 1 Morelia en CAV v1.0 (dt3="170501")
+const CAV_HGR1_UNIT_CODE = "170501";
 const LAN_DELTA_INTERVAL_MS = 45000; // 45s en red local LAN (0 tráfico a internet si no hay cambios)
 
 const APPDATA_DIR = process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming");
 const DATA_DIR = path.join(APPDATA_DIR, "LaVeintePrintAgent");
 const FINGERPRINTS_FILE = path.join(DATA_DIR, "parking-fingerprints.json");
 
-const AREA_CODE_BY_NORMALIZED_LABEL = {
-  DIRECCION: "200201",
-  SUBDIRECCIONMEDICA: "200202",
-  SUBDIRECCIONADMINISTRATIVA: "200203",
-  JEFATURADEENFERMERIA: "200204",
-  JEFATURADEMEDICINAINTERNA: "200205",
-  JEFATURADECIRUGIA: "200206",
-  JEFATURADEPEDIATRIA: "200207",
-  JEFATURADEGINECOOBSTETRICIA: "200208",
-  JEFATURADEURGENCIAS: "200209",
-  JEFATURADETERAPIAINTENSIVA: "200210",
-  JEFATURADEANESTESIOLOGIA: "200211",
-  JEFATURADERADIOLOGIA: "200212",
-  JEFATURADELABORATORIO: "200213",
-  JEFATURADEANATOMIAPATOLOGICA: "200214",
-  JEFATURADEEDUCACIONEINVESTIGACION: "200215",
-  PERSONAL: "200216",
-  FINANZAS: "200217",
-  ABASTECIMIENTO: "200218",
-  CONSERVACION: "200219",
-  SERVICIOSGENERALES: "200220",
-  NUTRICIONYDIETETICA: "200221",
-  TRABAJOSOCIAL: "200222",
-  FARMACIA: "200223",
-  ARCHIVOCLINICO: "200224",
-  ADMISION: "200225",
-  INFORMATICA: "200226",
-  CALIDAD: "200227",
-  EPIDEMIOLOGIA: "200228",
-  SALUDENELTRABAJO: "200229",
-  MEDICINAFISICAYREHABILITACION: "200230",
-  HEMODIALISIS: "200231",
-  ENDOSCOPIA: "200232",
-  QUIMIOTERAPIA: "200233",
-  INHALOTERAPIA: "200234",
-  BANCODESANGRE: "200235",
-  CEYE: "200236",
-  QUIROFANO: "200237",
-  TOCOCIRUGIA: "200238",
-  HOSPITALIZACION: "200239",
-  CONSULTAEXTERNA: "200240",
-  SINDICATO: "200256",
+const CAV_AREAS_BY_CODE = {
+  "51201": "Servs orient y quejas",
+  "100902": "Servicios Admvos En Unidades M",
+  "130100": "Depto Construc-Planeac Inmobil",
+  "141901": "Transportes Terrestres -Ambula",
+  "141902": "Comunicaciones Electricas",
+  "142901": "Servs Basicos",
+  "142902": "Residencia De Conservacion",
+  "142905": "Servicio de Limpieza e Higiene",
+  "150901": "Almacen De Unidad Medica",
+  "200200": "Direccion de la Unidad Médica",
+  "200201": "Jefatura de Cirugía / Especialidades",
+  "200202": "Jefatura de Medicina Interna",
+  "200203": "Farmacia",
+  "200204": "Lab Citología Exfoliativa",
+  "200205": "Laboratorio Clínico",
+  "200206": "Atención Médica Continúa",
+  "200207": "Gabinete De Rayos X",
+  "200208": "Consulta Dental",
+  "200209": "Nutrición y Dietética",
+  "200210": "Banco de Sangre",
+  "200211": "Consulta a Donadores",
+  "200215": "Medicina Fisica y Rehabilitaci",
+  "200216": "Anatomía Patológica",
+  "200217": "Hospitalización",
+  "200218": "Urgencias",
+  "200219": "Quirofanos",
+  "200220": "Terapia Intensiva",
+  "200221": "Tococírugia",
+  "200222": "Pediatría",
+  "200223": "Consulta De Especialidades",
+  "200224": "Gabinete de Electrodiagnostico",
+  "200227": "Hemodialisis",
+  "200240": "Terapia Psicologica",
+  "200242": "Protesis y Ortesis",
+  "200244": "Terapia Física",
+  "200246": "Tomografia Axial Computarizada",
+  "200260": "UnidCuidadosIntensivNeonatales",
+  "200263": "Centro de Mezclas",
+  "200901": "Jefatura de Enfermería",
+  "200902": "Trabajo Social",
+  "200903": "Lavanderia Propia de la Unidad",
+  "200905": "Traslado De Pacientes",
+  "200907": "Ctral de Equipos y Esterilizac",
+  "200908": "Traspaso Costo Atn Med IMSS",
+  "230201": "Medicina Del Trabajo Anal Y Ev",
+  "230204": "Serv de Prev yProm de la Salud",
+  "230903": "Divisiones De Salud En El Trab",
+  "230904": "Servs Infor-Asesoria-Capacit-S",
+  "250901": "Coordinación Clínica de Educación",
+  "250902": "Biblioteca Medica Biblio Trab",
+  "250903": "Educacion Continua",
+  "250904": "Pasantes En Servicio Social Pr",
+  "250905": "Postgrado De Enfermeria",
+  "250906": "Internado De Pregrado",
+  "250908": "Postgrado De Medicina",
+  "250909": "Formacion Profesores P-Ensenan",
+  "250910": "Lic Enfer Sist Univer Abierta",
+  "2H0210": "Promoción de la Salud",
+  "2H0220": "Prog Integ de Salud PREVENIMSS",
+  "2H0230": "Prog Esp de Planificacion Fam",
+  "2H0240": "Prot Anticonc Gen y Salud",
+  "2H0250": "Atn Materna y Perinatal",
+  "2J0910": "Area Inf Med y Archivo Clinico",
+  "610200": "Serv Admvos Presp Cont UMed",
+  "999998": "CENTRO DE COSTOS DUMMY",
 };
 
-function normalizeKey(str) {
-  return String(str || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, "");
+function getCavAreaLabel(code) {
+  if (!code) return "";
+  const trimmed = String(code).trim();
+  return CAV_AREAS_BY_CODE[trimmed] || trimmed;
 }
 
-function resolveAreaCode(labelOrCode) {
-  const raw = String(labelOrCode || "").trim();
-  if (/^\d{6}$/.test(raw)) return raw;
-  const key = normalizeKey(raw);
-  return AREA_CODE_BY_NORMALIZED_LABEL[key] || "200217";
-}
-
-function resolveParkingLotCode(labelOrCode) {
-  const u = String(labelOrCode || "").trim().toUpperCase();
-  if (u === "2" || u.includes("CONFIANZA")) return "2";
-  if (u === "3" || u.includes("VISITANTE")) return "3";
+function getCavParkingLotCode(raw) {
+  if (!raw) return "1";
+  const upper = String(raw).trim().toUpperCase();
+  if (upper === "2" || upper.includes("CONFIANZA")) return "2";
+  if (upper === "3" || upper.includes("VISITANTE")) return "3";
   return "1";
 }
 
-function stripTags(html) {
-  return String(html || "")
-    .replace(/<[^>]*>/g, "")
+function getCavParkingLotLabel(code) {
+  const c = getCavParkingLotCode(code);
+  if (c === "2") return "CONFIANZA";
+  if (c === "3") return "VISITANTES";
+  return "BASE";
+}
+
+function cleanHtmlText(raw) {
+  return String(raw || "")
+    .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#039;/gi, "'")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 function normalizeMatricula(raw) {
-  return String(raw || "").trim().replace(/\D+/g, "");
+  if (!raw) return "";
+  const cleaned = String(raw).trim();
+  const digitsOnly = cleaned.replace(/\D/g, "");
+  return digitsOnly.length >= 5 ? digitsOnly : cleaned.toUpperCase();
 }
 
 function encodeFormBody(params) {
@@ -191,59 +220,197 @@ function rawHttpRequest(urlString, options = {}, timeoutMs = 10000) {
 }
 
 function parseLoginSessionId(html) {
+  const s = String(html || "");
   const m =
-    String(html || "").match(/name=['"]UserSess['"][^>]*value=['"](\d+)['"]/i) ||
-    String(html || "").match(/value=['"](\d+)['"][^>]*name=['"]UserSess['"]/i);
-  return m ? m[1].trim() : "16";
+    s.match(/name=["']UserSess["'][^>]*value=["']([^"']+)["']/i) ||
+    s.match(/id=["']UserSess["'][^>]*value=["']([^"']+)["']/i) ||
+    s.match(/value=["']([^"']+)["'][^>]*name=["']UserSess["']/i);
+  if (!m) return "16";
+  const val = m[1].trim();
+  return val.length > 0 ? val : "16";
 }
 
+/**
+ * Parsea la tabla devuelta por `dashboard/plataforma/buscar_registro.php`
+ * (5 celdas `<td>` por fila: [0]=QR button, [1]=switch+cajon, [2]=Nombre // Matricula <br> Area, [3]=Placas, [4]=Estacionamiento).
+ */
 function parseBuscarRegistroRows(html) {
   const rows = [];
-  const tbodyMatch = String(html || "").match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
-  const bodyHtml = tbodyMatch ? tbodyMatch[1] : String(html || "");
-
+  const s = String(html || "");
   const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-  let trMatch;
-  while ((trMatch = trRegex.exec(bodyHtml)) !== null) {
-    const trContent = trMatch[1];
+  let match;
+
+  while ((match = trRegex.exec(s)) !== null) {
+    const tr = match[1];
+
+    // Extraer IDReg desde select_campos_show("0","2422") o Send_Auxiliar2(...,'2422')
+    const idMatch =
+      tr.match(/select_campos_show\(\s*['"][^'"]*['"]\s*,\s*['"](\d+)['"]\s*\)/i) ||
+      tr.match(/gen_code_qr_encript_hgr1\.php['"]\s*,\s*['"][^'"]*['"]\s*,\s*['"](\d+)['"]/i);
+    if (!idMatch) continue;
+    const externalIdReg = Number.parseInt(idMatch[1], 10);
+    if (!Number.isFinite(externalIdReg) || externalIdReg <= 0) continue;
+
+    // Verificar si el checkbox está activo
+    const checkboxMatch = tr.match(/<input[^>]*type=['"]checkbox['"][^>]*>/i);
+    const isChecked = checkboxMatch ? /checked/i.test(checkboxMatch[0]) : false;
+    const status = isChecked ? "A" : "X";
+
+    // Extraer número de cajón
+    const cajonMatch = tr.match(/<label[^>]*class=['"]left['"][^>]*>([^<]*)<\/label>/i);
+    const cajonNumber = cajonMatch ? cajonMatch[1].trim() : "";
+
+    // Extraer celdas <td> (5 celdas por registro)
     const tdRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-    const cells = [];
+    const tds = [];
     let tdMatch;
-    while ((tdMatch = tdRegex.exec(trContent)) !== null) {
-      cells.push(tdMatch[1]);
+    while ((tdMatch = tdRegex.exec(tr)) !== null) {
+      tds.push(tdMatch[1]);
     }
-    if (cells.length < 8) continue;
+    if (tds.length < 5) continue;
 
-    const idCellText = stripTags(cells[0]);
-    const updateMatch =
-      trContent.match(/update_campo\(\s*['"]?(\d+)['"]?/i) ||
-      trContent.match(/fn_ModReg\(\s*['"]?(\d+)['"]?/i);
-    const externalId = Number.parseInt(idCellText || (updateMatch ? updateMatch[1] : ""), 10);
-    if (!Number.isFinite(externalId) || externalId <= 0) continue;
-
-    const matricula = normalizeMatricula(stripTags(cells[1]));
-    const fullName = stripTags(cells[2]).toUpperCase();
-    const areaLabel = stripTags(cells[3]).toUpperCase();
-    const placas = stripTags(cells[4]).toUpperCase();
-    const parkingLotLabel = stripTags(cells[5]).toUpperCase();
-    const cajonNumber = stripTags(cells[6]);
-    const statusCellHtml = cells[7];
-    const isChecked = /\bchecked\b/i.test(statusCellHtml);
+    const personalRaw = tds[2];
+    const [nameAndMatPart, areaPart] = personalRaw.split(/<br\s*\/?>/i);
+    const nameAndMatText = cleanHtmlText(nameAndMatPart || "");
+    const slashParts = nameAndMatText.split("//");
+    const fullName = (slashParts[0] || "").trim();
+    const rawMatricula = (slashParts[1] || "").trim();
+    const matricula = normalizeMatricula(rawMatricula);
+    const areaCode = cleanHtmlText(areaPart || "");
+    const placas = cleanHtmlText(tds[3]).toUpperCase();
+    const parkingLotRaw = cleanHtmlText(tds[4]).toUpperCase();
+    const parkingLot = getCavParkingLotCode(parkingLotRaw);
+    const parkingLotLabel = getCavParkingLotLabel(parkingLot);
 
     rows.push({
-      external_id_reg: externalId,
-      matricula,
-      full_name: fullName,
-      area_label: areaLabel,
-      area_code: resolveAreaCode(areaLabel),
-      placas,
-      parking_lot_label: parkingLotLabel,
-      parking_lot: resolveParkingLotCode(parkingLotLabel),
+      external_id_reg: externalIdReg,
+      status,
       cajon_number: cajonNumber,
-      status: isChecked ? "A" : "X",
+      full_name: fullName,
+      matricula,
+      area_code: areaCode,
+      area_label: getCavAreaLabel(areaCode),
+      placas,
+      parking_lot: parkingLot,
+      parking_lot_label: parkingLotLabel,
     });
   }
+
   return rows;
+}
+
+function extractInputValue(html, id) {
+  const regex = new RegExp(`<input[^>]*id=["']${id}["'][^>]*>`, "i");
+  const tagMatch = String(html || "").match(regex);
+  if (!tagMatch) return "";
+  const valMatch = tagMatch[0].match(/value=["']([^"']*)["']/i);
+  return valMatch ? valMatch[1].trim() : "";
+}
+
+function extractSelectedOption(html, selectId) {
+  const s = String(html || "");
+  const idx = s.indexOf(`id="${selectId}"`);
+  const idxSingle = idx === -1 ? s.indexOf(`id='${selectId}'`) : idx;
+  if (idxSingle === -1) return { code: "", label: "" };
+  const endIdx = s.indexOf("</select>", idxSingle);
+  const chunk = endIdx === -1 ? s.slice(idxSingle, idxSingle + 5000) : s.slice(idxSingle, endIdx);
+
+  const selectedMatch =
+    chunk.match(/<option[^>]*selected[^>]*value=['"]([^'"]*)['"][^>]*>([^<]*)<\/option>/i) ||
+    chunk.match(/<option[^>]*value=['"]([^'"]*)['"][^>]*selected[^>]*>([^<]*)<\/option>/i) ||
+    chunk.match(/<option[^>]*value=['"]([^'"]*)['"][^>]*>([^<]*)<\/option>/i);
+
+  if (!selectedMatch) return { code: "", label: "" };
+  const code = selectedMatch[1].trim();
+  const label = cleanHtmlText(selectedMatch[2]);
+  if (code === "0") return { code: "", label: "" };
+  return { code, label };
+}
+
+function parseConfigUsuarioDetail(html) {
+  const s = String(html || "");
+  const spanIdMatch = s.match(/<span[^>]*id=["']SpanIdReg["'][^>]*>(\d+)<\/span>/i);
+  if (!spanIdMatch) return null;
+  const externalIdReg = Number.parseInt(spanIdMatch[1], 10);
+  if (!Number.isFinite(externalIdReg) || externalIdReg <= 0) return null;
+
+  const spanKeyMatch = s.match(/<span[^>]*id=["']SpanIdReg2["'][^>]*>([^<]*)<\/span>/i);
+  const cajonKey = spanKeyMatch ? spanKeyMatch[1].trim() : "";
+  const keyParts = cajonKey.split("-");
+  const cajonNumber = keyParts.length >= 3 ? keyParts[2].trim() : "";
+
+  const matricula = normalizeMatricula(extractInputValue(s, "Cmpo_12"));
+  const nombre = extractInputValue(s, "Cmpo_2");
+  const apellidoPaterno = extractInputValue(s, "Cmpo_2A");
+  const apellidoMaterno = extractInputValue(s, "Cmpo_2B");
+  const cargo = extractInputValue(s, "Cmpo_4");
+  const placas = extractInputValue(s, "Cmpo_1").toUpperCase();
+  const email = extractInputValue(s, "Cmpo_3");
+
+  const areaOpt = extractSelectedOption(s, "Cmpo_5");
+  const modelOpt = extractSelectedOption(s, "Cmpo_6");
+  const lotOpt = extractSelectedOption(s, "Cmpo_11");
+  const shiftOpt = extractSelectedOption(s, "Cmpo_7");
+
+  const vehicleModelId = modelOpt.code ? Number.parseInt(modelOpt.code, 10) : null;
+  const validModelId =
+    vehicleModelId !== null && Number.isFinite(vehicleModelId) && vehicleModelId > 0
+      ? vehicleModelId
+      : null;
+  const parkingLot = getCavParkingLotCode(lotOpt.code || "1");
+  const rawShift = (shiftOpt.code || "M").toUpperCase();
+  const shift = rawShift === "V" || rawShift === "N" || rawShift === "A" ? rawShift : "M";
+
+  const fullName = [nombre, apellidoPaterno, apellidoMaterno]
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ");
+
+  return {
+    external_id_reg: externalIdReg,
+    cajon_key: cajonKey,
+    cajon_number: cajonNumber,
+    matricula,
+    nombre,
+    apellido_paterno: apellidoPaterno,
+    apellido_materno: apellidoMaterno,
+    full_name: fullName,
+    cargo,
+    area_code: areaOpt.code,
+    area_label: getCavAreaLabel(areaOpt.code) || areaOpt.label,
+    placas,
+    vehicle_model_id: validModelId,
+    vehicle_model_label: modelOpt.label || "",
+    parking_lot: parkingLot,
+    parking_lot_label: getCavParkingLotLabel(parkingLot),
+    shift,
+    email,
+  };
+}
+
+function parseWorkerLookupResponse(jsHtml) {
+  const s = String(jsHtml || "");
+  const extractJsAssign = (fieldId) => {
+    const re = new RegExp(
+      `getElementById\\(\\s*["']${fieldId}["']\\s*\\)\\.value\\s*=\\s*["']([^"']*)["']`,
+      "i"
+    );
+    const m = s.match(re);
+    return m ? m[1].trim() : "";
+  };
+
+  const nombre = extractJsAssign("Cmpo_2");
+  const apellidoPaterno = extractJsAssign("Cmpo_2A");
+  const apellidoMaterno = extractJsAssign("Cmpo_2B");
+  const cargo = extractJsAssign("Cmpo_4");
+
+  if (!nombre && !apellidoPaterno) return null;
+  return {
+    nombre,
+    apellido_paterno: apellidoPaterno,
+    apellido_materno: apellidoMaterno,
+    cargo,
+  };
 }
 
 async function loginToCav(cavConfig) {
@@ -296,7 +463,7 @@ async function fetchAllCavRowsFromLan(cavConfig, lots = ["1", "2", "3"]) {
           dt3: CAV_HGR1_UNIT_CODE,
         }),
       },
-      10000
+      12000
     );
 
     if (!res.ok) {
@@ -324,6 +491,55 @@ async function executeCavBridgeCommandOnLan(command, cavConfig) {
   }
 
   const session = await loginToCav(cavConfig);
+
+  if (action === "detail") {
+    const extId = Number(payload.external_id_reg);
+    const res = await rawHttpRequest(
+      `${session.baseUrl}/dashboard/plataforma/config_usuarios.php`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          ...(session.cookie ? { Cookie: session.cookie } : {}),
+        },
+        body: encodeFormBody({
+          UserSess: session.userSess,
+          SD0: session.userSess,
+          SD1: "",
+          SD2: String(extId),
+        }),
+      },
+      8000
+    );
+    const detail = parseConfigUsuarioDetail(res.latin1Text);
+    return {
+      result: { detail },
+      rows: [],
+    };
+  }
+
+  if (action === "lookup_worker") {
+    const normMat = normalizeMatricula(payload.matricula);
+    const res = await rawHttpRequest(
+      `${session.baseUrl}/dashboard/plataforma/consultas/list_trab.php`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          ...(session.cookie ? { Cookie: session.cookie } : {}),
+        },
+        body: encodeFormBody({
+          Data_M: normMat,
+        }),
+      },
+      6000
+    );
+    const worker = parseWorkerLookupResponse(res.latin1Text);
+    return {
+      result: { worker },
+      rows: [],
+    };
+  }
 
   if (action === "create") {
     const normMat = normalizeMatricula(payload.matricula);
@@ -526,7 +742,7 @@ function saveFingerprintsToDisk(map) {
   }
 }
 
-function createParkingBridgeWorker({ apiRequest, agentVersion = "1.1.0" }) {
+function createParkingBridgeWorker({ apiRequest, agentVersion = "1.2.0" }) {
   let deltaTimer = null;
   let isRunningCommands = false;
   let isRunningDelta = false;
@@ -574,9 +790,11 @@ function createParkingBridgeWorker({ apiRequest, agentVersion = "1.1.0" }) {
 
   async function uploadRowsInChunks(rows) {
     const chunkSize = 400;
+    let totalLinked = 0;
+    let totalUnlinked = 0;
     for (let i = 0; i < rows.length; i += chunkSize) {
       const chunk = rows.slice(i, i + chunkSize);
-      await apiRequest("/api/union/print-agent/parking-bridge", {
+      const res = await apiRequest("/api/union/print-agent/parking-bridge", {
         method: "POST",
         headers: { "x-agent-version": agentVersion },
         body: JSON.stringify({
@@ -584,7 +802,18 @@ function createParkingBridgeWorker({ apiRequest, agentVersion = "1.1.0" }) {
           rows: chunk,
         }),
       });
+      if (res && res.ok) {
+        const stats = await res.json().catch(() => null);
+        if (stats) {
+          totalLinked += Number(stats.linked_workers_count || 0);
+          totalUnlinked += Number(stats.unlinked_count || 0);
+        }
+      }
     }
+    return {
+      linked_workers_count: totalLinked,
+      unlinked_count: totalUnlinked,
+    };
   }
 
   async function pollBridgeCommands(isInitialStartup = false) {
@@ -619,12 +848,12 @@ function createParkingBridgeWorker({ apiRequest, agentVersion = "1.1.0" }) {
         try {
           if (cmd.action === "sync_all") {
             const allRows = await fetchAllCavRowsFromLan(cachedCavConfig, ["1", "2", "3"]);
+            const uploadStats = await uploadRowsInChunks(allRows);
             knownFingerprints.clear();
             for (const r of allRows) {
               knownFingerprints.set(r.external_id_reg, rowFingerprint(r));
             }
             saveFingerprintsToDisk(knownFingerprints);
-            await uploadRowsInChunks(allRows);
 
             await apiRequest("/api/union/print-agent/parking-bridge", {
               method: "POST",
@@ -636,8 +865,8 @@ function createParkingBridgeWorker({ apiRequest, agentVersion = "1.1.0" }) {
                 result: {
                   sync_stats: {
                     total_cav_rows: allRows.length,
-                    linked_workers_count: allRows.length,
-                    unlinked_count: 0,
+                    linked_workers_count: uploadStats.linked_workers_count,
+                    unlinked_count: uploadStats.unlinked_count,
                     synced_at: new Date().toISOString(),
                   },
                 },
@@ -738,6 +967,10 @@ function createParkingBridgeWorker({ apiRequest, agentVersion = "1.1.0" }) {
       );
     }
 
+    if (heartbeatData.needs_initial_sync && !isRunningDelta) {
+      void runDeltaOrInitialSync(true);
+    }
+
     if (Number(heartbeatData.parking_pending_count) > 0) {
       void pollBridgeCommands(false);
     }
@@ -766,7 +999,11 @@ function createParkingBridgeWorker({ apiRequest, agentVersion = "1.1.0" }) {
 }
 
 module.exports = {
+  CAV_HGR1_UNIT_CODE,
   createParkingBridgeWorker,
   fetchAllCavRowsFromLan,
   executeCavBridgeCommandOnLan,
+  parseBuscarRegistroRows,
+  parseConfigUsuarioDetail,
+  parseWorkerLookupResponse,
 };

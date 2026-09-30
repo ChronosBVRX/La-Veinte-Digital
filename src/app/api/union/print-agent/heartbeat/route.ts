@@ -65,6 +65,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       // Ignorar si no está disponible en mocks de test
     }
 
+    const activeVersion = updatePayload.agent_version ?? station.agent_version ?? "1.0.0";
     return NextResponse.json({
       success: true,
       station_id: station.id,
@@ -72,6 +73,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       station_name: station.name,
       printer_name: parsed.success && parsed.data.printer_name ? parsed.data.printer_name : station.printer_name,
       parking_pending_count: parkingPendingCount,
+      force_self_update: activeVersion !== "1.2.0",
       realtime_config: {
         url: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
         anon_key: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
