@@ -22,6 +22,8 @@ apps/print-agent/dist/
 
 # production
 /build
+deploy-web.tar.gz
+*.tar.gz
 
 # misc
 .DS_Store

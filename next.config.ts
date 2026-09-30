@@ -33,6 +33,7 @@ const cspDirectives = [
 ];
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   poweredByHeader: false,
   reactStrictMode: true,
   compiler: {
@@ -40,7 +41,19 @@ const nextConfig: NextConfig = {
   },
   transpilePackages: ["@la-veinte/tts-core", "@la-veinte/radio-core"],
   outputFileTracingExcludes: {
-    "*": ["data/tts/**", "data/normativa/**", "tools/**"],
+    "*": [
+      "data/tts/**",
+      "data/normativa/**",
+      "tools/**",
+      "*.aab",
+      "android-app/**",
+      "ios-app/**",
+      "release-artifacts/**",
+      "artifacts/**",
+      "e2e/**",
+      "docs/**",
+      "supabase/**",
+    ],
     "/api/escritos/generar": [
       "data/**",
       "apps/**",
@@ -110,6 +123,11 @@ const nextConfig: NextConfig = {
           { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
         ],
       },
+    ];
+  },
+  async rewrites() {
+    return [
+      { source: "/health", destination: "/api/health" },
     ];
   },
 };
