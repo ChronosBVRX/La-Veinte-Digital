@@ -80,6 +80,25 @@ describe("Calculadoras Rediseño - UX y Equivalencia Matemática", () => {
 
       expect(sueldoInput.value).toBe("")
     })
+
+    it("integra concepto 054 (emanaciones radiactivas) en el cálculo de aguinaldo", () => {
+      render(<AguinaldoCalculator />)
+
+      const sueldoInput = screen.getByLabelText("Tu sueldo quincenal") as HTMLInputElement
+      const rentaInput = screen.getByLabelText("Ayuda de renta") as HTMLInputElement
+      const c054Input = screen.getByLabelText("Emanaciones radiactivas / riesgo") as HTMLInputElement
+
+      fireEvent.change(sueldoInput, { target: { value: "4160.84" } })
+      fireEvent.change(rentaInput, { target: { value: "3011.58" } })
+      fireEvent.change(c054Input, { target: { value: "1434.48" } })
+
+      const calcBtn = screen.getByText("Calcular aguinaldo")
+      fireEvent.click(calcBtn)
+
+      // Base quincenal = 4160.84 + 3011.58 + 1434.48 = 8606.90
+      // Base mensual = 17213.80, Total 3 meses = 51641.40
+      expect(screen.getByText(formatCurrency(51641.40))).toBeTruthy()
+    })
   })
 
   describe("SegundaJulioCalculator unificada", () => {

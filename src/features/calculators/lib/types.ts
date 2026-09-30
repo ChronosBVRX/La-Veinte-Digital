@@ -96,9 +96,14 @@ export interface TiempoExtraInput {
   concepto020: number
   conceptoAdicional1: number
   conceptoAdicional2: number
+  concepto054?: number
   concepto050: number
   jornada: JornadaHoras
   horasExtra: number
+  /** Horas extra trabajadas en la primera semana de la quincena. */
+  horasSemana1?: number
+  /** Horas extra trabajadas en la segunda semana de la quincena. */
+  horasSemana2?: number
   /** Horas extra de la semana corriente (validación 9 h semanales). */
   horasSemana?: number
   /** Excepción expresamente seleccionada/documentada para exceder el límite. */

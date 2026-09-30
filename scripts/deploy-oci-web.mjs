@@ -34,6 +34,8 @@ function runRemote(cmd) {
     "-i", SSH_KEY,
     "-o", "BatchMode=yes",
     "-o", "StrictHostKeyChecking=accept-new",
+    "-o", "ConnectTimeout=30",
+    "-o", "ServerAliveInterval=15",
     `${VPS_USER}@${VPS_IP}`,
     cmd,
   ];
@@ -49,6 +51,8 @@ function scpUpload(localPath, remotePath) {
     "-i", SSH_KEY,
     "-o", "BatchMode=yes",
     "-o", "StrictHostKeyChecking=accept-new",
+    "-o", "ConnectTimeout=30",
+    "-o", "ServerAliveInterval=15",
     localPath,
     `${VPS_USER}@${VPS_IP}:${remotePath}`,
   ];
@@ -218,6 +222,11 @@ async function main() {
       }
       return `${key}=${val}`;
     });
+    let currentSha = "dev";
+    try {
+      currentSha = execSync("git rev-parse HEAD", { encoding: "utf8" }).trim();
+    } catch {}
+    cleanedLines.push(`APP_COMMIT_SHA=${currentSha}`);
     fs.writeFileSync(tempEnvPath, cleanedLines.join("\n"));
   } else {
     console.error("ERROR: .env.production.local no existe.");

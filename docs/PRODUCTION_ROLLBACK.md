@@ -36,34 +36,55 @@ flowchart TD
 
 ---
 
-## 2. Reversión en Vercel (Aplicación Web y APIs)
+## 2. Reversión en Servidor OCI (Aplicación Web Principal)
 
-Vercel mantiene despliegues inmutables (*immutable deployments*). La reversión a nivel web es instantánea y no requiere reconstruir paquetes.
+El servidor de producción opera en Oracle Cloud Infrastructure (VPS ARM64) mediante Docker Compose en `/opt/laveinte-app/`.
 
-### A. Reversión Instantánea vía Vercel CLI
+### A. Re-despliegue del Commit Estable Previo vía Script Automatizado
+La forma más segura y canónica de revertir un cambio defectuoso en el servidor web:
 ```bash
-# 1. Identificar el despliegue previo estable
-npx vercel list --prod
+# 1. En la máquina local, cambiar al commit estable anterior
+git checkout <COMMIT_STABLE>
 
-# 2. Revertir el tráfico instantáneamente al despliegue anterior
-npx vercel rollback <DEPLOYMENT_URL_OR_ID>
+# 2. Compilar y desplegar a OCI
+npm run deploy:oci
 
-# Ejemplo:
-# npx vercel rollback dpl_previous_good_deployment
+# 3. Regresar a la rama principal para diagnosticar
+git checkout main
 ```
 
-### B. Reversión vía Dashboard Web de Vercel
-1. Ingresar a: `https://vercel.com/chronosbvrx/la-veinte-digital/deployments`.
-2. Ubicar el último despliegue con estado **Production** que operaba sin fallas.
-3. Hacer clic en los tres puntos (`...`) junto al despliegue.
-4. Seleccionar **Instant Rollback**.
-5. Confirmar en el cuadro de diálogo. El tráfico de borde (*Edge Network*) conmutará en menos de 5 segundos.
+### B. Reversión Directa en el Servidor VPS vía Docker
+Si se requiere intervención de emergencia directamente en el VPS:
+```bash
+# 1. Acceder al servidor por SSH
+ssh -i ~/.ssh/oci_key_3 opc@159.54.146.146
 
-### C. Reversión de Variables de Entorno en Vercel
-Si el incidente se debió a una clave o URL de entorno incorrecta:
-1. `Settings` → `Environment Variables`.
-2. Restaurar el valor correcto.
-3. Ejecutar `npx vercel --prod` o redeplegar el commit estable para que el nuevo entorno surta efecto.
+# 2. Ir al directorio de la aplicación
+cd /opt/laveinte-app
+
+# 3. Si se dispone del respaldo del bundle anterior (deploy-web-backup.tar.gz)
+tar -xzf deploy-web-backup.tar.gz
+docker compose build web
+docker compose up -d web
+
+# 4. Verificar salud del servicio
+curl -i http://127.0.0.1:3000/api/health
+```
+
+### C. Reversión de Variables de Entorno en OCI
+Si el incidente se debe a una variable de entorno errónea:
+1. Conectarse al servidor por SSH.
+2. Editar el archivo protegido: `nano /opt/laveinte-app/.env` (o actualizar localmente `.env.production.local` y re-ejecutar `npm run deploy:oci`).
+3. Reiniciar el contenedor para recargar variables:
+   ```bash
+   docker compose restart web
+   ```
+
+### D. Nota sobre Vercel (Pasarela de Redirección)
+Vercel opera únicamente como pasarela de redirección HTTP 308 permanente hacia `https://la20.com.mx`. No ejecuta lógica de negocio ni SSR de producción. En caso de requerir reconfigurar o desplegar `vercel.json`:
+```bash
+npx vercel --prod
+```
 
 ---
 
