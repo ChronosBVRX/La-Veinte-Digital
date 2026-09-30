@@ -45,10 +45,20 @@ interface PendingApiResponse {
 
 export function LockerPendingReviewList(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [searchInput, setSearchInput] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<string>("easy");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const pageSize = 25;
+
+  // Debounce de 350ms para búsqueda de pendientes sin bloquear escritura de números
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput);
+      setCurrentPage(1);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const [cases, setCases] = useState<ReconciliationCase[]>([]);
   const [totalCases, setTotalCases] = useState<number>(0);
@@ -121,8 +131,7 @@ export function LockerPendingReviewList(): React.JSX.Element {
   }
 
   function handleSearchChange(val: string): void {
-    setSearchQuery(val);
-    setCurrentPage(1);
+    setSearchInput(val);
   }
 
   function handleSortChange(val: string): void {
@@ -444,8 +453,15 @@ export function LockerPendingReviewList(): React.JSX.Element {
         <div style={{ flex: 1, minWidth: "240px" }}>
           <Input
             placeholder="Buscar por casillero (ej. 547), matrícula o nombre…"
-            value={searchQuery}
+            value={searchInput}
             onChange={(e) => handleSearchChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                setSearchQuery(searchInput);
+                setCurrentPage(1);
+              }
+            }}
           />
         </div>
 

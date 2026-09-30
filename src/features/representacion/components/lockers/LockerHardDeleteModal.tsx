@@ -9,6 +9,7 @@ export interface LockerDeleteTarget {
   id: string;
   locker_number: string;
   active_assignment?: unknown | null;
+  archived_at?: string | null;
 }
 
 interface LockerHardDeleteModalProps {
@@ -25,6 +26,7 @@ export function LockerHardDeleteModal({
   locker,
 }: LockerHardDeleteModalProps): React.JSX.Element | null {
   const [confirmInput, setConfirmInput] = useState("");
+  const [hasAgreed, setHasAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,6 +34,7 @@ export function LockerHardDeleteModal({
     if (isOpen) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- reset form state on modal open
       setConfirmInput("");
+      setHasAgreed(false);
       setError(null);
       setLoading(false);
     }
@@ -39,10 +42,12 @@ export function LockerHardDeleteModal({
 
   if (!locker) return null;
 
+  const isArchived = Boolean(locker.archived_at);
   const isConfirmed = confirmInput.trim().toUpperCase() === locker.locker_number.trim().toUpperCase();
+  const canDelete = isArchived && isConfirmed && hasAgreed;
 
   async function handleDelete(): Promise<void> {
-    if (!locker || !isConfirmed) return;
+    if (!locker || !canDelete) return;
 
     setLoading(true);
     setError(null);
@@ -77,7 +82,7 @@ export function LockerHardDeleteModal({
       open={isOpen}
       onClose={onClose}
       title={`Eliminar definitivamente ${locker.locker_number}`}
-      description="Esta operación destruye físicamente el registro en la base de datos. Solo se permite si el casillero nunca ha tenido historial ni actividad registrada."
+      description="Esta operación destruye físicamente el registro en la base de datos de manera irreversible. Solo se permite si el casillero se encuentra en papelera y nunca ha tenido historial ni actividad registrada."
       size="sm"
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -95,7 +100,7 @@ export function LockerHardDeleteModal({
             fontWeight: 700,
           }}
         >
-          ⚠️ ACCIÓN ADMINISTRATIVA EXCEPCIONAL
+          🔒 CANDADO DE SEGURIDAD ESTRICTA
         </div>
 
         {error ? (
@@ -114,6 +119,39 @@ export function LockerHardDeleteModal({
           </div>
         ) : null}
 
+        {!isArchived ? (
+          <div
+            style={{
+              padding: "0.75rem 1rem",
+              borderRadius: "0.375rem",
+              backgroundColor: "#fffbeb",
+              border: "1px solid #fde68a",
+              color: "#92400e",
+              fontSize: "0.8125rem",
+              lineHeight: 1.4,
+            }}
+          >
+            <strong>Acción bloqueada:</strong> Este casillero no está en la papelera.
+            Para proteger la auditoría sindical y prevenir borrados accidentales, primero debes enviarlo a la papelera.
+          </div>
+        ) : (
+          <div
+            style={{
+              backgroundColor: "#f8fafc",
+              border: "1px solid var(--border)",
+              borderRadius: "0.375rem",
+              padding: "0.75rem 1rem",
+              fontSize: "0.8125rem",
+              color: "var(--muted)",
+              lineHeight: 1.4,
+            }}
+          >
+            ℹ️ <strong>Aviso de resguardo:</strong> Los casilleros en papelera se conservan de forma segura
+            con todo su historial. No es necesario eliminarlos definitivamente a menos que se trate de un error
+            de captura sin uso.
+          </div>
+        )}
+
         <div
           style={{
             backgroundColor: "#fef2f2",
@@ -125,20 +163,44 @@ export function LockerHardDeleteModal({
             lineHeight: 1.4,
           }}
         >
-          Si el casillero fue importado en un Excel, tiene asignaciones previas, reservas o incidencias,
-          el sistema <strong>rechazará la eliminación</strong> para proteger la auditoría. En ese caso, debes <strong>Archivarlo</strong>.
+          Si el casillero fue importado en un censo, tiene asignaciones previas, reservas o incidencias,
+          la base de datos <strong>rechazará la eliminación</strong> para proteger la auditoría sindical.
         </div>
 
+        {/* Verificación 1: Checkbox explícito de riesgo */}
+        <label
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "0.625rem",
+            fontSize: "0.8125rem",
+            color: "var(--fg)",
+            cursor: isArchived && !loading ? "pointer" : "not-allowed",
+            lineHeight: 1.4,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={hasAgreed}
+            onChange={(e) => setHasAgreed(e.target.checked)}
+            disabled={loading || !isArchived}
+            style={{ marginTop: "0.15rem", cursor: isArchived && !loading ? "pointer" : "not-allowed" }}
+          />
+          <span>
+            Comprendo que este casillero está en la papelera y confirmo su <strong>destrucción física definitiva</strong> e irreversible.
+          </span>
+        </label>
+
+        {/* Verificación 2: Entrada exacta del número */}
         <div>
           <label style={{ display: "block", fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)", marginBottom: "0.375rem" }}>
-            Escribe exactamente <span style={{ fontFamily: "monospace", color: "#b91c1c" }}>{locker.locker_number}</span> para confirmar:
+            Escribe exactamente <span style={{ fontFamily: "monospace", color: "#b91c1c" }}>{locker.locker_number}</span> para desbloquear la destrucción:
           </label>
           <Input
             value={confirmInput}
             onChange={(e) => setConfirmInput(e.target.value)}
             placeholder={locker.locker_number}
-            disabled={loading}
-            autoFocus
+            disabled={loading || !isArchived}
           />
         </div>
 
@@ -150,10 +212,10 @@ export function LockerHardDeleteModal({
             variant="primary"
             onClick={handleDelete}
             loading={loading}
-            disabled={loading || !isConfirmed}
+            disabled={loading || !canDelete}
             style={{ backgroundColor: "#dc2626", borderColor: "#dc2626" }}
           >
-            Destruir registro
+            Destruir definitivamente
           </Button>
         </div>
       </div>

@@ -66,6 +66,13 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
   const [currentView, setCurrentView] = useState<LockerViewMode>(initialView);
   const [selectedZoneId, setSelectedZoneId] = useState<string>(initialZone);
   const [searchQuery, setSearchQuery] = useState<string>(initialQ);
+  const [mapSearchInput, setMapSearchInput] = useState<string>(initialQ);
+
+  // Sincronizar input del mapa si searchQuery cambia externamente (ej. reset o query param)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync local input with external searchQuery
+    setMapSearchInput(searchQuery);
+  }, [searchQuery]);
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
   const [inventoryFilter, setInventoryFilter] = useState<string>(initialInventory);
   const [conditionFilter, setConditionFilter] = useState<string>(initialCondition);
@@ -350,50 +357,109 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
     updateUrlParams({ zone: zoneId });
   }
 
-  // Manejo de búsqueda reactiva con brillo y auto-selección
-  function handleSearchSubmit(query: string): void {
-    setSearchQuery(query);
-    updateUrlParams({ q: query });
-
-    if (!query.trim()) {
-      setHighlightedLockerId(null);
-      return;
-    }
-
+  // Función auxiliar de coincidencia priorizada: exacta primero, luego parcial
+  const findMatchingLocker = useCallback((query: string, lockers: LockerMapItem[]): LockerMapItem | null => {
+    if (!query.trim()) return null;
     const cleanNum = query.replace(/^#/, "").trim();
     const normalize = (str: string): string => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const normQ = normalize(cleanNum);
 
-    // Buscar coincidencia en mapa
-    const found = mapLockers.find((l) => {
-      if (normalize(l.locker_number).includes(normQ)) return true;
-      if (l.physical_code && normalize(l.physical_code).includes(normQ)) return true;
-      if (l.notes && normalize(l.notes).includes(normQ)) return true;
-      if (l.position_label && normalize(l.position_label).includes(normQ)) return true;
-      if (l.occupant_name && normalize(l.occupant_name).includes(normQ)) return true;
-      if (l.occupant_employee_number && normalize(l.occupant_employee_number).includes(normQ)) return true;
-      if (l.active_assignment?.worker_name && normalize(l.active_assignment.worker_name).includes(normQ)) return true;
-      if (l.active_assignment?.employee_number && normalize(l.active_assignment.employee_number).includes(normQ)) return true;
-      if (l.pending_review?.source_worker_name && normalize(l.pending_review.source_worker_name).includes(normQ)) return true;
-      if (l.pending_review?.source_employee_number && normalize(l.pending_review.source_employee_number).includes(normQ)) return true;
-      return false;
-    });
+    // 1. Coincidencia exacta por número de casillero
+    const exactNumber = lockers.find((l) => normalize(l.locker_number) === normQ);
+    if (exactNumber) return exactNumber;
 
+    // 2. Coincidencia exacta por matrícula
+    const exactEmp = lockers.find((l) => {
+      const occEmp = l.occupant_employee_number ? normalize(l.occupant_employee_number) : "";
+      const actEmp = l.active_assignment?.employee_number ? normalize(l.active_assignment.employee_number) : "";
+      const srcEmp = l.pending_review?.source_employee_number ? normalize(l.pending_review.source_employee_number) : "";
+      return occEmp === normQ || actEmp === normQ || srcEmp === normQ;
+    });
+    if (exactEmp) return exactEmp;
+
+    // 3. Coincidencia exacta por código físico
+    const exactCode = lockers.find((l) => l.physical_code && normalize(l.physical_code) === normQ);
+    if (exactCode) return exactCode;
+
+    // 4. Coincidencia parcial (requiere al menos 2 caracteres o letras para evitar falsos positivos con dígitos individuales)
+    if (cleanNum.length >= 2 || !/^\d+$/.test(cleanNum)) {
+      const partial = lockers.find((l) => {
+        if (normalize(l.locker_number).includes(normQ)) return true;
+        if (l.physical_code && normalize(l.physical_code).includes(normQ)) return true;
+        if (l.notes && normalize(l.notes).includes(normQ)) return true;
+        if (l.position_label && normalize(l.position_label).includes(normQ)) return true;
+        if (l.occupant_name && normalize(l.occupant_name).includes(normQ)) return true;
+        if (l.occupant_employee_number && normalize(l.occupant_employee_number).includes(normQ)) return true;
+        if (l.active_assignment?.worker_name && normalize(l.active_assignment.worker_name).includes(normQ)) return true;
+        if (l.active_assignment?.employee_number && normalize(l.active_assignment.employee_number).includes(normQ)) return true;
+        if (l.pending_review?.source_worker_name && normalize(l.pending_review.source_worker_name).includes(normQ)) return true;
+        if (l.pending_review?.source_employee_number && normalize(l.pending_review.source_employee_number).includes(normQ)) return true;
+        return false;
+      });
+      if (partial) return partial;
+    }
+
+    return null;
+  }, []);
+
+  // Manejo de búsqueda intencional concluida (Enter o botón Buscar): resalta, enfoca zona y abre ficha de detalle
+  const handleMapSearchSubmit = useCallback((query: string): void => {
+    const trimmed = query.trim();
+    setSearchQuery(trimmed);
+    setMapSearchInput(trimmed);
+
+    if (!trimmed) {
+      setHighlightedLockerId(null);
+      updateUrlParams({ q: "" });
+      return;
+    }
+
+    const found = findMatchingLocker(trimmed, mapLockers);
     if (found) {
       setHighlightedLockerId(found.id);
-      if (found.zone_id) {
-        setSelectedZoneId(found.zone_id);
-        updateUrlParams({ zone: found.zone_id, locker: found.id });
-      } else {
-        setSelectedZoneId("unlocated");
-        updateUrlParams({ zone: "unlocated", locker: found.id });
-      }
+      const targetZone = found.zone_id || "unlocated";
+      setSelectedZoneId(targetZone);
+      updateUrlParams({ zone: targetZone, locker: found.id, q: trimmed });
 
-      // Abrir detalle directamente
+      // Abrir detalle intencionalmente tras confirmación de búsqueda
       setDetailLockerId(found.id);
       setIsDetailOpen(true);
+    } else {
+      setHighlightedLockerId(null);
+      updateUrlParams({ q: trimmed });
     }
-  }
+  }, [findMatchingLocker, mapLockers, updateUrlParams]);
+
+  // Debounce para búsqueda en mapa: resalta en mapa si hay coincidencia SIN abrir el modal ni interrumpir escritura
+  useEffect(() => {
+    if (currentView !== "map") return;
+    const timer = setTimeout(() => {
+      if (mapSearchInput !== searchQuery) {
+        setSearchQuery(mapSearchInput);
+        const trimmed = mapSearchInput.trim();
+        updateUrlParams({ q: trimmed });
+
+        if (!trimmed) {
+          setHighlightedLockerId(null);
+          return;
+        }
+
+        const found = findMatchingLocker(trimmed, mapLockers);
+        if (found) {
+          setHighlightedLockerId(found.id);
+          // Si coincide exactamente con el número de casillero y pertenece a una zona específica, sincronizar la zona
+          const clean = trimmed.replace(/^#/, "").trim().toLowerCase();
+          if (found.locker_number.toLowerCase() === clean && found.zone_id && found.zone_id !== selectedZoneId) {
+            setSelectedZoneId(found.zone_id);
+          }
+        } else {
+          setHighlightedLockerId(null);
+        }
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [mapSearchInput, searchQuery, currentView, mapLockers, selectedZoneId, updateUrlParams, findMatchingLocker]);
 
   // Abrir detalle de casillero
   function handleLockerClick(locker: LockerMapItem): void {
@@ -589,8 +655,19 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
                 type="search"
                 aria-label="Buscar casillero por número o nombre del trabajador"
                 placeholder="Buscar casillero # o trabajador..."
-                value={searchQuery}
-                onChange={(e) => handleSearchSubmit(e.target.value)}
+                value={mapSearchInput}
+                onChange={(e) => {
+                  setMapSearchInput(e.target.value);
+                  if (!e.target.value.trim()) {
+                    setHighlightedLockerId(null);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleMapSearchSubmit(mapSearchInput);
+                  }
+                }}
                 style={{
                   width: "100%",
                   minHeight: 42,
@@ -618,14 +695,15 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
               </span>
             </div>
 
-            {searchQuery && (
+            {mapSearchInput && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
+                  setMapSearchInput("");
                   setSearchQuery("");
                   setHighlightedLockerId(null);
-                  updateUrlParams({ q: "" });
+                  updateUrlParams({ q: undefined, locker: undefined });
                 }}
               >
                 Limpiar
@@ -1184,8 +1262,8 @@ export function LockerControlCenter({ isAdmin = false }: LockerControlCenterProp
         onSuccess={(lockerNumber, isRestored) => {
           setFeedbackMessage(
             isRestored
-              ? `Casillero ${lockerNumber} reactivado en el inventario.`
-              : `Casillero ${lockerNumber} retirado del inventario.`
+              ? `Casillero ${lockerNumber} restaurado al inventario activo.`
+              : `Casillero ${lockerNumber} enviado a la papelera.`
           );
           void loadTableData();
           void loadMapData();

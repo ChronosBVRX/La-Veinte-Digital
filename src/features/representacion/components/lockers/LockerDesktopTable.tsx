@@ -511,7 +511,7 @@ export function LockerDesktopTable({
                           </button>
                         ) : null}
 
-                        {/* Archivar / Reactivar */}
+                        {/* Enviar a papelera / Restaurar de papelera */}
                         {onOpenArchive ? (
                           <button
                             type="button"
@@ -524,12 +524,12 @@ export function LockerDesktopTable({
                               color: isArchived ? "#15803d" : "#c2410c",
                             }}
                           >
-                            {isArchived ? "♻️ Reactivar casillero" : "📦 Retirar / Archivar"}
+                            {isArchived ? "♻️ Restaurar de papelera" : "🗑 Enviar a papelera"}
                           </button>
                         ) : null}
 
-                        {/* Eliminar definitivamente (solo si admin y habilitado) */}
-                        {isAdmin && onOpenHardDelete ? (
+                        {/* Eliminar definitivamente (solo para casilleros ya en papelera y con permisos de admin) */}
+                        {isAdmin && isArchived && onOpenHardDelete ? (
                           <>
                             <div style={{ height: "1px", backgroundColor: "var(--border)", margin: "0.25rem 0" }} />
                             <button
