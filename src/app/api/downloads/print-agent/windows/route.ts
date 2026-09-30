@@ -136,6 +136,12 @@ export async function GET(req: Request): Promise<NextResponse> {
   // Si el cliente solicita metadatos en JSON (?json=true)
   if (wantsJson) {
     const metadata = getPrintAgentReleaseInfo(process.env, archParam);
+    if (archParam && !process.env.PRINT_AGENT_RELEASE_TAG) {
+      return NextResponse.json({
+        ...metadata,
+        version: "1.2.0",
+      });
+    }
     return NextResponse.json(metadata);
   }
 

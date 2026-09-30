@@ -238,4 +238,35 @@ describe("CAV HGR 1 Parking Integration & Padrón Sindical Linker", () => {
     expect(classifyRequestPath("/api/union/parking/sync")).toBe("authenticated-api");
     expect(classifyRequestPath("/api/union/parking/1792/qr")).toBe("authenticated-api");
   });
+
+  it("Print Agent parking-bridge.cjs uses official unit code 170501 and parses 5-cell buscar_registro.php rows identically", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const bridgeMod = require("../../../../apps/print-agent/src/parking-bridge.cjs") as {
+      CAV_HGR1_UNIT_CODE: string;
+      parseBuscarRegistroRows: typeof parseBuscarRegistroRows;
+    };
+    expect(bridgeMod.CAV_HGR1_UNIT_CODE).toBe("170501");
+
+    const sampleHtml = `
+      <table id="dataTables-example">
+        <tbody>
+          <tr class='odd gradeX'>
+            <td><button type="button" class="btn btn-outline btn-warning" onclick="Send_Auxiliar2('../fpdf/print/gen_code_qr_encript_hgr1.php','1','1792');"><i class="fa fa-file-pdf-o fa-fw"></i></button></td>
+            <td><div class='c12'><div class='c10'>
+              <label class='switch' onChange='select_campos_show("1","1792");'>
+                <input type='checkbox' id='Chk_Pto_Rep[1]' name=Chk_Pto_Rep[1]' value='1' checked='checked'> <span class='sliderV round'></span>
+              </label>
+              <label class='left'>31</label>
+            </div></div></td>
+            <td>BEATRIZ SARAHI BALTAZAR ROSALES // 97170668<br>200216</td>
+            <td class='center'>UKF482G</td>
+            <td>BASE</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+
+    const rows = bridgeMod.parseBuscarRegistroRows(sampleHtml);
+    expect(rows).toEqual(parseBuscarRegistroRows(sampleHtml));
+  });
 });

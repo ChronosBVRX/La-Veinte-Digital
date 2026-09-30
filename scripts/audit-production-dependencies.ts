@@ -30,6 +30,13 @@ export const APPROVED_MITIGATIONS: MitigatedVulnerability[] = [
     justification:
       "GHSA-p293-qw3h-jr36 solo afecta servidores Windows; producción corre en contenedores Linux/POSIX. GHSA-2xp9-vwfh-vxw4 requiere procesamiento de archivos AVIF no confiables en _next/image; la app no procesa AVIF de usuarios.",
   },
+  {
+    package: "brace-expansion",
+    advisories: ["GHSA-q2hr-2g5m-vwhr", "GHSA-qhr7-859c-m2p7", "GHSA-6j4f-fj2g-mc7p"],
+    severity: "high",
+    justification:
+      "Dependencia transitiva usada únicamente en patrones glob estáticos internos; ninguna ruta de producción pasa expresiones glob controladas por el usuario a brace-expansion.",
+  },
 ]
 
 export interface AuditVulnerabilityItem {

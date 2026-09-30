@@ -75,7 +75,8 @@
       "runAfterFinish": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "La Veinte Print"
+      "shortcutName": "La Veinte Print",
+      "include": "build/installer.nsh"
     }
   }
 }

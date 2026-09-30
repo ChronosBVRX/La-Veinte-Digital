@@ -3,7 +3,7 @@ import { loadStationCredentials } from "./security.mjs";
 import { printPdfSilently } from "./spooler.mjs";
 import { createParkingBridgeWorker } from "./parking-bridge.cjs";
 
-const AGENT_VERSION = "1.1.0";
+const AGENT_VERSION = "1.2.0";
 const HEARTBEAT_INTERVAL_MS = 20000;
 const POLL_INTERVAL_MS = 12000;
 

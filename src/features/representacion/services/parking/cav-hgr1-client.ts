@@ -488,7 +488,14 @@ export function buildRecordDisplayFields(row: {
   };
 }
 
-export type CavBridgeAction = "sync_all" | "create" | "update" | "toggle_status" | "download_qr";
+export type CavBridgeAction =
+  | "sync_all"
+  | "create"
+  | "update"
+  | "toggle_status"
+  | "download_qr"
+  | "detail"
+  | "lookup_worker";
 
 export interface ParkingBridgeStationStatus {
   stationOnline: boolean;
