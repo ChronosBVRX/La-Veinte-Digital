@@ -8,6 +8,7 @@ import {
 } from "@/features/representacion/services/parking/cav-hgr1-client";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function GET(
   req: Request,
@@ -45,28 +46,69 @@ export async function GET(
       externalIdReg = rec.external_id_reg;
     }
 
-    let pdfBuffer: Buffer;
-    try {
-      pdfBuffer = await fetchCavQrPdfBuffer(externalIdReg);
-    } catch {
-      const bridgeRes = await dispatchCavBridgeCommand<{ pdf_base64?: string }>(supabase, {
-        delegationId: depId,
-        action: "download_qr",
-        payload: { external_id_reg: externalIdReg },
-        userId: auth.user.id,
-        timeoutMs: 12_000,
-        leaveQueuedOnTimeout: false,
-      });
+    const forceRefresh = url.searchParams.get("force_refresh") === "1";
+    let pdfBuffer: Buffer | null = null;
 
-      if (!bridgeRes.executedLive || !bridgeRes.result?.pdf_base64) {
-        return NextResponse.json(
-          {
-            error: "No se pudo obtener el tarjetón QR en tiempo real. Verifique que La Veinte Print v1.1.0 esté activo en la PC de la oficina.",
-          },
-          { status: 502 },
-        );
+    if (!forceRefresh) {
+      // 1. Recuperar PDF oficial generado previamente (caché persistente en Supabase)
+      const { data: cachedReq } = await supabase
+        .from("union_parking_bridge_requests")
+        .select("result")
+        .eq("delegation_id", depId)
+        .eq("action", "download_qr")
+        .eq("status", "completed")
+        .contains("payload", { external_id_reg: externalIdReg })
+        .order("completed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const cachedB64 = (cachedReq?.result as { pdf_base64?: string } | null)?.pdf_base64;
+      if (cachedB64 && typeof cachedB64 === "string" && cachedB64.length > 100) {
+        pdfBuffer = Buffer.from(cachedB64, "base64");
       }
-      pdfBuffer = Buffer.from(bridgeRes.result.pdf_base64, "base64");
+    }
+
+    if (!pdfBuffer) {
+      try {
+        pdfBuffer = await fetchCavQrPdfBuffer(externalIdReg);
+      } catch {
+        const bridgeRes = await dispatchCavBridgeCommand<{ pdf_base64?: string }>(supabase, {
+          delegationId: depId,
+          action: "download_qr",
+          payload: { external_id_reg: externalIdReg },
+          userId: auth.user.id,
+          timeoutMs: 30_000,
+          leaveQueuedOnTimeout: false,
+        });
+
+        if (!bridgeRes.executedLive || !bridgeRes.result?.pdf_base64) {
+          // Rescate: verificar si durante el tiempo de espera se completó en la base de datos
+          const { data: fallbackReq } = await supabase
+            .from("union_parking_bridge_requests")
+            .select("result")
+            .eq("delegation_id", depId)
+            .eq("action", "download_qr")
+            .eq("status", "completed")
+            .contains("payload", { external_id_reg: externalIdReg })
+            .order("completed_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          const fallbackB64 = (fallbackReq?.result as { pdf_base64?: string } | null)?.pdf_base64;
+          if (fallbackB64 && typeof fallbackB64 === "string" && fallbackB64.length > 100) {
+            pdfBuffer = Buffer.from(fallbackB64, "base64");
+          } else {
+            return NextResponse.json(
+              {
+                error: "No se pudo obtener el tarjetón QR en tiempo real. Verifique que La Veinte Print v1.1.0 esté activo en la PC de la oficina.",
+              },
+              { status: 502 },
+            );
+          }
+        } else {
+          pdfBuffer = Buffer.from(bridgeRes.result.pdf_base64, "base64");
+        }
+      }
     }
 
     return new NextResponse(new Uint8Array(pdfBuffer), {
