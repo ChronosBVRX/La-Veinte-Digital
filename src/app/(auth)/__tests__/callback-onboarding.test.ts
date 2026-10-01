@@ -148,4 +148,70 @@ describe("callback route onboarding redirection", () => {
     })
     expect(res.headers.get("location")).toBe("http://localhost:3000/")
   })
+
+  it("usa encabezados x-forwarded-host y x-forwarded-proto para resolver el origen publico", async () => {
+    mocks.exchangeCodeForSession.mockResolvedValue({ error: null })
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: "user-1", user_metadata: {} } },
+      error: null,
+    })
+
+    const maybeSingleProfile = vi.fn().mockResolvedValue({ data: { matricula: "12345678", adscripcion: "HGZ 32" }, error: null })
+    const eqProfile = vi.fn().mockReturnValue({ maybeSingle: maybeSingleProfile })
+    const selectProfile = vi.fn().mockReturnValue({ eq: eqProfile })
+    const maybeSinglePrefs = vi.fn().mockResolvedValue({ data: { onboarding_state: "configured" }, error: null })
+    const eqPrefs = vi.fn().mockReturnValue({ maybeSingle: maybeSinglePrefs })
+    const selectPrefs = vi.fn().mockReturnValue({ eq: eqPrefs })
+
+    mocks.from.mockImplementation((table: string) => {
+      if (table === "profiles") return { select: selectProfile }
+      if (table === "worker_preferences") return { select: selectPrefs }
+      return {}
+    })
+
+    const req = new Request("http://0.0.0.0:3000/callback?code=test-code", {
+      headers: {
+        "x-forwarded-host": "la20.com.mx",
+        "x-forwarded-proto": "https",
+      },
+    })
+    const res = await GET(req)
+
+    expect(res.status).toBe(307)
+    expect(res.headers.get("location")).toBe("https://la20.com.mx/")
+  })
+
+  it("sustituye 0.0.0.0 por el dominio canonico la20.com.mx en produccion", async () => {
+    const originalEnv = process.env.NODE_ENV
+    process.env.NODE_ENV = "production"
+
+    try {
+      mocks.exchangeCodeForSession.mockResolvedValue({ error: null })
+      mocks.getUser.mockResolvedValue({
+        data: { user: { id: "user-1", user_metadata: {} } },
+        error: null,
+      })
+
+      const maybeSingleProfile = vi.fn().mockResolvedValue({ data: { matricula: "12345678", adscripcion: "HGZ 32" }, error: null })
+      const eqProfile = vi.fn().mockReturnValue({ maybeSingle: maybeSingleProfile })
+      const selectProfile = vi.fn().mockReturnValue({ eq: eqProfile })
+      const maybeSinglePrefs = vi.fn().mockResolvedValue({ data: { onboarding_state: "configured" }, error: null })
+      const eqPrefs = vi.fn().mockReturnValue({ maybeSingle: maybeSinglePrefs })
+      const selectPrefs = vi.fn().mockReturnValue({ eq: eqPrefs })
+
+      mocks.from.mockImplementation((table: string) => {
+        if (table === "profiles") return { select: selectProfile }
+        if (table === "worker_preferences") return { select: selectPrefs }
+        return {}
+      })
+
+      const req = new Request("http://0.0.0.0:3000/callback?code=test-code")
+      const res = await GET(req)
+
+      expect(res.status).toBe(307)
+      expect(res.headers.get("location")).toBe("https://la20.com.mx/")
+    } finally {
+      process.env.NODE_ENV = originalEnv
+    }
+  })
 })

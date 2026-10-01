@@ -45,7 +45,7 @@ function runRemote(cmd) {
   }
 }
 
-function scpUpload(localPath, remotePath) {
+function scpUpload(localPath, remotePath, maxRetries = 3) {
   console.log(`[scp] ${localPath} -> ${remotePath}`);
   const scpArgs = [
     "-i", SSH_KEY,
@@ -56,9 +56,19 @@ function scpUpload(localPath, remotePath) {
     localPath,
     `${VPS_USER}@${VPS_IP}:${remotePath}`,
   ];
-  const res = spawnSync("scp", scpArgs, { stdio: "inherit" });
-  if (res.status !== 0) {
-    throw new Error(`SCP falló con código ${res.status}`);
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const res = spawnSync("scp", scpArgs, { stdio: "inherit" });
+    if (res.status === 0) {
+      return;
+    }
+    console.warn(`[scp] Intento ${attempt}/${maxRetries} falló con código ${res.status}.`);
+    if (attempt < maxRetries) {
+      console.log(`[scp] Reintentando en 5 segundos...`);
+      spawnSync("node", ["-e", "setTimeout(() => {}, 5000)"]);
+    } else {
+      throw new Error(`SCP falló tras ${maxRetries} intentos con código ${res.status}`);
+    }
   }
 }
 
