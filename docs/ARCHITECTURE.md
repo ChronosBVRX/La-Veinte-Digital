@@ -33,25 +33,33 @@ La Veinte Digital es un ecosistema multiplataforma full-stack que sirve a la com
 │             └─────────────────────────┼─────────────────────────────┘                  │
 │                                       ▼                                                │
 │                 ┌───────────────────────────────────────────┐                          │
-│                 │   Next.js 16.2.12 App Router (Turbopack)  │                          │
+│                 │   Caddy Reverse Proxy (HTTPS / HTTP3)     │                          │
+│                 │   - Dominio Web: la20.com.mx              │                          │
+│                 │   - Dominio API DB: supabase.la20.com.mx  │                          │
+│                 │   - Vercel Gateway: Redirect 308 Perm.    │                          │
+│                 └─────────────────────┬─────────────────────┘                          │
+│                                       ▼                                                │
+│                 ┌───────────────────────────────────────────┐                          │
+│                 │   Next.js 16.2.12 Standalone (Docker)     │                          │
+│                 │   - VPS: Oracle Cloud ARM64 Ampere A1     │                          │
 │                 │   - Proxy Middleware (src/proxy.ts)       │                          │
-│                 │   - Server Components (RSC)               │                          │
-│                 │   - Client Components (CSR - React 19.2.4)│                          │
 │                 │   - Route Policy (route-policy.ts)        │                          │
 │                 │   - 20 Rutas API Internas (REST)          │                          │
+│                 │   - Crons Nativos Linux (/opt/laveinte)   │                          │
 │                 └─────────────────────┬─────────────────────┘                          │
 └───────────────────────────────────────┼────────────────────────────────────────────────┘
                                         │
              ┌──────────────────────────┼──────────────────────────┐
              ▼                          ▼                          ▼
 ┌─────────────────────────┐┌─────────────────────────┐┌─────────────────────────┐
-│        Supabase         ││     Servicios IA Cloud   ││    Radio Studio Desktop │
-│ - Auth (SSR PKCE)       ││ - OpenAI API:           ││ (apps/radio-studio)     │
-│ - PostgreSQL 14.5       ││   gpt-4o-mini + ada-002 ││ - Tauri v2 + Sidecar     │
-│ - Row Level Security    ││ - Groq API (Radio LLM): ││ - Groq-only Governance   │
+│ Supabase Self-Hosted    ││     Servicios IA Cloud   ││    Radio Studio Desktop │
+│ (Oracle Cloud ARM64)    ││ - OpenAI API:           ││ (apps/radio-studio)     │
+│ - Auth (SSR PKCE / JWT) ││   gpt-4o-mini + ada-002 ││ - Tauri v2 + Sidecar     │
+│ - PostgreSQL 14.5 + RLS ││ - Groq API (Radio LLM): ││ - Groq-only Governance   │
 │ - RPCs Transaccionales  ││   gpt-oss-120b / 20b    ││ - Speechify Cloud TTS    │
-│ - Storage de Archivos   ││ - Speechify API (TTS):  ││ - ACE-Step 1.5 (DiT local│
-│ - Realtime / Triggers   ││   simba-3.0 (5 voces)   ││   música en GPU GTX 1650)│
+│ - Storage: android /    ││ - Speechify API (TTS):  ││ - ACE-Step 1.5 (DiT local│
+│   union-private         ││   simba-3.0 (5 voces)   ││   música en GPU GTX 1650)│
+│ - 65 Tablas Migradas    ││ - Firebase Admin (FCM)  ││                          │
 └─────────────────────────┘└─────────────────────────┘└─────────────────────────┘
 ```
 
@@ -156,7 +164,7 @@ src/
 - **Flavors:**
   - `play`: Para publicación en Google Play. Sin actualizador OTA, sin permiso `REQUEST_INSTALL_PACKAGES`.
   - `direct`: Canal sideload para distribución directa. Incorpora `UpdateManager`, verificación SHA-256 de APK e instalación vía `PackageInstaller`.
-- **WebView Persistente:** Carga `https://la-veinte-digital.vercel.app` con allowlist estricta de dominios autorizados.
+- **WebView Persistente:** Carga canónica en `https://la20.com.mx` con allowlist estricta de dominios autorizados (`la20.com.mx`, `supabase.la20.com.mx` y retención de `la-veinte-digital.vercel.app` para redirección automática y retrocompatibilidad de links).
 - **Inyección del Bridge:** `LaVeinteBridgeInjector.kt` inyecta `window.LaVeinteApp` en el evento Document Start mediante `WebViewCompat.addDocumentStartJavaScript`, eliminando condiciones de carrera en la hidratación de Next.js.
 - **Bóveda IMSS:** Cifrado seguro de credenciales con `AndroidKeyStore` (claves no exportables AES-256-GCM) y almacenamiento local en `Room DB` + `DataStore`.
 
@@ -203,3 +211,16 @@ El repositorio cuenta con una batería integral de verificación automatizada:
    - `ci.yml`: Validación frontend completa (typecheck, lint, unit tests, build), comprobación RLS en Supabase y verificación de sintaxis Python.
    - `release-gate.yml`: Compuerta de producción para Android (AAB, APKs, lint release, compliance 16 KB page-size).
    - `android-build.yml` / `ios-build.yml`: Compilación de artefactos nativos.
+
+---
+
+## 9. Infraestructura de Producción OCI y Despliegue
+
+- **Servidor Principal:** Oracle Cloud Always Free (Instancia Ampere A1 ARM64, 4 OCPUs, 24 GB RAM).
+- **Enrutamiento y Proxy Inverso:** Caddy v2 gestionando TLS automático con certificados Let's Encrypt para `la20.com.mx` y `supabase.la20.com.mx`.
+- **Contenedores de Aplicación:**
+  - `laveinte-web`: Imagen Docker ejecutando Next.js Standalone en Node 22 Alpine (`/opt/laveinte-app`).
+  - Stack Supabase: PostgreSQL 14.5 + PostgREST + GoTrue Auth + Storage (`android-releases`, `union-private`) + Realtime.
+- **Comando de Despliegue Web:** `npm run deploy:oci` (ejecuta `scripts/deploy-oci-web.mjs`, empaqueta el standalone, transfiere vía SCP a `/opt/laveinte-app`, compila el contenedor Docker en ARM64 y verifica el endpoint de salud `http://127.0.0.1:3000/api/health`).
+- **Tareas Programadas (Crons):** Crontab nativo de Linux en el VPS ejecutando `scripts/run-cron.sh` para `agenda-reminders` (diario) y `push-campaigns` (cada 10 min).
+- **Redirección de Vercel:** Vercel configurado exclusivamente como gateway de migración con redirección HTTP 308 permanente (`/(.*) -> https://la20.com.mx/$1`).

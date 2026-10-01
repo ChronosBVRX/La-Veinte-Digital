@@ -529,7 +529,7 @@ export async function getParkingBridgeStatus(
   }
 
   const lastSeenMs = station.last_seen_at ? Date.now() - new Date(station.last_seen_at).getTime() : Infinity;
-  const stationOnline = lastSeenMs <= 45_000;
+  const stationOnline = lastSeenMs <= 90_000;
   const versionStr = station.agent_version ?? "1.0.0";
   const [majorStr = "1", minorStr = "0"] = versionStr.replace(/^v/i, "").split(".");
   const major = Number(majorStr) || 1;
@@ -693,7 +693,7 @@ export async function dispatchCavBridgeCommand<TResult = Record<string, unknown>
   void notifyParkingBridgeRealtime(params.delegationId, requestId);
 
   const canWaitLive = stationStatus.stationOnline && stationStatus.bridgeCapable;
-  const maxWaitMs = canWaitLive ? (params.timeoutMs ?? 12_000) : 900;
+  const maxWaitMs = canWaitLive ? (params.timeoutMs ?? 30_000) : 900;
   const startedAt = Date.now();
   let checkCount = 0;
 

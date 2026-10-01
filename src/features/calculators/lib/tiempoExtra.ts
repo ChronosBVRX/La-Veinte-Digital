@@ -36,9 +36,12 @@ export function sumTiempoExtraConceptos(input: TiempoExtraInput): number {
     (input.concepto002 || 0) +
     (input.concepto011 || 0) +
     (input.concepto020 || 0) +
+    (input.concepto014 || 0) +
     (input.conceptoAdicional1 || 0) +
     (input.conceptoAdicional2 || 0) +
-    (input.concepto050 || 0)
+    (input.concepto054 || 0) +
+    (input.concepto050 || 0) +
+    (input.integrarAntiguedad ? (input.concepto022 || 0) : 0)
   )
 }
 
@@ -57,10 +60,25 @@ export function calcularValorHora(base: number, jornada: number): number {
  * - Primeras 9 horas semanales: factor 2 (100% adicional / dobles).
  * - Excedente de 9 horas semanales: factor 3 (200% adicional / triples).
  */
-export function calcularPagoTiempoExtra(base: number, jornada: number, horasExtra: number): number {
+export function calcularPagoTiempoExtra(
+  base: number,
+  jornada: number,
+  horasExtra: number,
+  horasSemana1?: number,
+  horasSemana2?: number,
+): number {
   const valorHora = calcularValorHora(base, jornada)
-  const horasDobles = Math.min(9, Math.max(0, horasExtra))
-  const horasTriples = Math.max(0, horasExtra - 9)
+  let horasDobles = 0
+  let horasTriples = 0
+  if (horasSemana1 !== undefined || horasSemana2 !== undefined) {
+    const s1 = Math.max(0, horasSemana1 || 0)
+    const s2 = Math.max(0, horasSemana2 || 0)
+    horasDobles = Math.min(9, s1) + Math.min(9, s2)
+    horasTriples = Math.max(0, s1 - 9) + Math.max(0, s2 - 9)
+  } else {
+    horasDobles = Math.min(9, Math.max(0, horasExtra))
+    horasTriples = Math.max(0, horasExtra - 9)
+  }
   return roundCurrency(horasDobles * valorHora * 2 + horasTriples * valorHora * 3)
 }
 
@@ -94,8 +112,24 @@ export function calculateTiempoExtra(input: TiempoExtraInput): TiempoExtraResult
   const horasOrdinariasPeriodo = calcularHorasOrdinariasPeriodo(input.jornada)
   const valorHora = calcularValorHora(baseTotal, input.jornada)
 
-  const horasDobles = Math.min(9, Math.max(0, input.horasExtra))
-  const horasTriples = Math.max(0, input.horasExtra - 9)
+  let horasDobles = 0
+  let horasTriples = 0
+
+  if (input.horasSemana1 !== undefined || input.horasSemana2 !== undefined) {
+    const s1 = Math.max(0, input.horasSemana1 || 0)
+    const s2 = Math.max(0, input.horasSemana2 || 0)
+    horasDobles = Math.min(9, s1) + Math.min(9, s2)
+    horasTriples = Math.max(0, s1 - 9) + Math.max(0, s2 - 9)
+  } else if (input.horasSemana !== undefined && input.horasSemana > 0) {
+    const s1 = Math.min(input.horasExtra, Math.max(0, input.horasSemana))
+    const s2 = Math.max(0, input.horasExtra - s1)
+    horasDobles = Math.min(9, s1) + Math.min(9, s2)
+    horasTriples = Math.max(0, s1 - 9) + Math.max(0, s2 - 9)
+  } else {
+    horasDobles = Math.min(9, Math.max(0, input.horasExtra))
+    horasTriples = Math.max(0, input.horasExtra - 9)
+  }
+
   const horasDescansoSemanal = Math.max(0, input.horasDescansoSemanal || 0)
   const horasDescansoObligatorio = Math.max(0, input.horasDescansoObligatorio || 0)
   const horasCoincidentes = Math.max(0, input.horasDescansoObligatorioEnSemanal || 0)
@@ -153,6 +187,24 @@ export function calculateTiempoExtra(input: TiempoExtraInput): TiempoExtraResult
     ? roundCurrency(pago / (valorHora * totalHorasCalculadas))
     : 2
 
+  let comparativaAntiguedad: TiempoExtraResult["comparativaAntiguedad"] = undefined
+  const monto022 = input.concepto022 ?? 0
+  if (monto022 > 0) {
+    const baseConAntiguedad = input.integrarAntiguedad ? baseTotal : baseTotal + monto022
+    const valorHoraConAntiguedad = calcularValorHora(baseConAntiguedad, input.jornada)
+    const pagoConAntiguedad = desglose.reduce((sum, d) => {
+      return sum + roundCurrency(d.horas * valorHoraConAntiguedad * d.factor)
+    }, 0)
+    comparativaAntiguedad = {
+      monto022,
+      baseConAntiguedad,
+      valorHoraConAntiguedad,
+      pagoConAntiguedad,
+      diferencia: roundCurrency(pagoConAntiguedad - pago),
+      integradaEnPrincipal: Boolean(input.integrarAntiguedad),
+    }
+  }
+
   return {
     sumaConceptos: baseTotal,
     horasOrdinariasPeriodo,
@@ -163,6 +215,7 @@ export function calculateTiempoExtra(input: TiempoExtraInput): TiempoExtraResult
     desglose,
     baseNormativaUsada,
     conceptosIntegrados,
+    comparativaAntiguedad,
   }
 }
 

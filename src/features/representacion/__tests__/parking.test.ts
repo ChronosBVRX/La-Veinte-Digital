@@ -269,4 +269,35 @@ describe("CAV HGR 1 Parking Integration & Padrón Sindical Linker", () => {
     const rows = bridgeMod.parseBuscarRegistroRows(sampleHtml);
     expect(rows).toEqual(parseBuscarRegistroRows(sampleHtml));
   });
+
+  it("getParkingBridgeStatus considers stations seen within 90s as online", async () => {
+    const { getParkingBridgeStatus } = await import("../services/parking/cav-hgr1-client");
+    const mockSupabase = {
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            eq: () => ({
+              order: () => ({
+                limit: () => ({
+                  maybeSingle: async () => ({
+                    data: {
+                      id: "station-1",
+                      name: "Oficina Sindical",
+                      is_active: true,
+                      agent_version: "1.2.0",
+                      last_seen_at: new Date(Date.now() - 60_000).toISOString(), // 60s ago (within 90s tolerance)
+                    },
+                  }),
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    };
+
+    const status = await getParkingBridgeStatus(mockSupabase as never, "dep-1");
+    expect(status.stationOnline).toBe(true);
+    expect(status.bridgeCapable).toBe(true);
+  });
 });

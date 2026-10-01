@@ -235,8 +235,8 @@ export function resolveIntegratedMonthlySalary(
     }
   }
 
-  // Reconstrucción normativa oficial (Suma quincenal de 002 + 011 + 016 + 022 + 023 + 057 + 058 + 061 + 063 + 020 + 050 * 2)
-  const SMI_INTEGRATING_CONCEPTS = new Set(["002", "011", "016", "022", "023", "057", "058", "061", "063", "020", "050"])
+  // Reconstrucción normativa oficial (Suma quincenal de 002 + 011 + 014 + 016 + 022 + 023 + 054 + 057 + 058 + 061 + 063 + 020 + 050 * 2)
+  const SMI_INTEGRATING_CONCEPTS = new Set(["002", "011", "014", "016", "022", "023", "054", "057", "058", "061", "063", "020", "050"])
   const baseSalaryLine = payslipLines.find((l) => l.concept_code === "002" && l.kind === "earning" && l.amount > 0)
 
   if (baseSalaryLine) {

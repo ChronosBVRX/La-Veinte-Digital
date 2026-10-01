@@ -34,6 +34,22 @@ describe("Extracción, Reconstrucción y Persistencia del Sueldo Mensual Integra
     expect(res.meta.isReconstructed).toBe(true)
   })
 
+  it("Reconstruye normativamente el SMI integrando conceptos de radiación (054) e infectocontagiosidad no médica (014)", () => {
+    const totals = { totalEarnings: 15000 }
+    const lines: PayslipLineRow[] = [
+      { concept_code: "002", description: "SUELDO BASE", amount: 4160.84, kind: "earning", confirmed_by_user: true },
+      { concept_code: "011", description: "AYUDA DE RENTA", amount: 3011.58, kind: "earning", confirmed_by_user: true },
+      { concept_code: "054", description: "EMANACIONES RADIACTIVAS", amount: 1434.48, kind: "earning", confirmed_by_user: true },
+      { concept_code: "014", description: "INFECTOCONTAGIOSIDAD NO MEDICA", amount: 500, kind: "earning", confirmed_by_user: true },
+    ]
+
+    // Integrables: (4160.84 + 3011.58 + 1434.48 + 500) = 9106.90 * 2 = 18213.80
+    const res = resolveIntegratedMonthlySalary(totals, lines, "2026-16")
+    expect(res.amount).toBe(18213.8)
+    expect(res.meta.origin).toBe("RECONSTRUCTED")
+    expect(res.meta.isReconstructed).toBe(true)
+  })
+
   it("Devuelve INCOMPLETE si no hay datos suficientes para calcular o reconstruir el SMI", () => {
     const totals = null
     const lines: PayslipLineRow[] = []

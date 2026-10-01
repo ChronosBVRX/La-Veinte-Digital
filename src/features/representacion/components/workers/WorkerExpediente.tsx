@@ -83,22 +83,25 @@ function Section({
   title,
   count,
   defaultOpen,
+  forceOpen,
   children,
 }: {
   title: string;
   count?: number;
   defaultOpen?: boolean;
+  forceOpen?: boolean;
   children: ReactNode;
 }): React.JSX.Element {
   const [open, setOpen] = useState(Boolean(defaultOpen));
   const panelId = useId();
+  const isOpen = forceOpen !== undefined ? forceOpen : open;
 
   return (
     <section style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", background: "var(--card)", overflow: "hidden" }}>
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        aria-expanded={open}
+        aria-expanded={isOpen}
         aria-controls={panelId}
         style={{
           width: "100%",
@@ -134,11 +137,11 @@ function Section({
           <CaretDown
             size={16}
             weight="bold"
-            style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s ease", color: "var(--muted)" }}
+            style={{ transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s ease", color: "var(--muted)" }}
           />
         </span>
       </button>
-      {open ? (
+      {isOpen ? (
         <div id={panelId} style={{ padding: "0 0.875rem 0.875rem", borderTop: "1px solid var(--border)" }}>
           <div style={{ paddingTop: "0.75rem" }}>{children}</div>
         </div>
@@ -224,6 +227,8 @@ function CaseCard({ item }: { item: UnionExpedienteCase }): React.JSX.Element {
 
 export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpediente }): React.JSX.Element {
   const { worker, cases, lockers, parking = [], waitlist, audit } = expediente;
+  const [activeTab, setActiveTab] = useState<string>("todos");
+
   const licenseCases = cases.filter((c) => c.case_type === "license");
   const maternityCases = cases.filter((c) => c.case_type === "maternity");
   const lactationCases = cases.filter((c) => c.case_type === "lactation");
@@ -254,70 +259,445 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
     return "—";
   })();
 
+  const totalCases = cases.length;
+  const totalLockers = lockers.length + waitlist.length;
+  const totalParking = parking.length;
+  const totalDocuments = documents.length;
+  const totalHistory = events.length + audit.length;
+
+  const showTabSection = (tabName: string) => {
+    return activeTab === "todos" || activeTab === tabName;
+  };
+
+  const activeLocker = lockers[0] ?? null;
+  const activeVehicle = parking[0] ?? null;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+      {/* 1. FICHA PRINCIPAL DEL TRABAJADOR Y HUB OPERATIVO INTEGRADO */}
       <div
         style={{
           border: "1px solid var(--border)",
-          borderLeft: "3px solid var(--primary)",
+          borderLeft: "3.5px solid var(--primary)",
           borderRadius: "var(--radius-lg)",
           background: "var(--card)",
           padding: "0.875rem",
           minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.875rem",
         }}
       >
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.5rem", flexWrap: "wrap" }}>
-          <h2 style={{ margin: 0, fontSize: "clamp(1.125rem, 4.5vw, 1.375rem)", fontWeight: 800, overflowWrap: "anywhere" }}>
-            {getWorkerDisplayName(worker)}
-          </h2>
-          <span
+        <div>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.5rem", flexWrap: "wrap" }}>
+            <h2 style={{ margin: 0, fontSize: "clamp(1.125rem, 4.5vw, 1.375rem)", fontWeight: 800, overflowWrap: "anywhere" }}>
+              {getWorkerDisplayName(worker)}
+            </h2>
+            <span
+              style={{
+                fontSize: "0.6875rem",
+                fontWeight: 700,
+                borderRadius: 999,
+                padding: "0.15rem 0.55rem",
+                background: worker.active ? "#ecf8f2" : "var(--accent)",
+                color: worker.active ? "#126447" : "var(--muted)",
+                letterSpacing: "0.02em",
+              }}
+            >
+              {worker.active ? "ACTIVO" : "INACTIVO"}
+            </span>
+          </div>
+
+          <dl style={{ margin: "0.5rem 0 0", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "0.4rem 0.75rem" }}>
+            <div>
+              <dt style={{ fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)", fontWeight: 700 }}>Matrícula</dt>
+              <dd style={{ margin: "0.125rem 0 0", fontSize: "0.875rem", fontWeight: 700 }}>{worker.employee_number}</dd>
+            </div>
+            <div>
+              <dt style={{ fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)", fontWeight: 700 }}>Categoría</dt>
+              <dd style={{ margin: "0.125rem 0 0", fontSize: "0.875rem" }}>{worker.category || "—"}</dd>
+            </div>
+            <div>
+              <dt style={{ fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)", fontWeight: 700 }}>Turno</dt>
+              <dd style={{ margin: "0.125rem 0 0", fontSize: "0.875rem" }}>{worker.turn || "—"}</dd>
+            </div>
+            <div>
+              <dt style={{ fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)", fontWeight: 700 }}>Adscripción</dt>
+              <dd style={{ margin: "0.125rem 0 0", fontSize: "0.875rem" }}>{worker.assignment || "—"}</dd>
+            </div>
+          </dl>
+        </div>
+
+        {/* HUB OPERACIONAL INTEGRADO (Móvil y Escritorio: Locker, Estacionamiento y Trámites a 1 toque) */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+            gap: "0.5rem",
+            paddingTop: "0.75rem",
+            borderTop: "1px solid var(--border)",
+          }}
+        >
+          {/* Card Rápida: Locker Sindical */}
+          <div
             style={{
-              fontSize: "0.6875rem",
-              fontWeight: 700,
-              borderRadius: 999,
-              padding: "0.125rem 0.5rem",
-              background: worker.active ? "#ecf8f2" : "var(--accent)",
-              color: worker.active ? "#126447" : "var(--muted)",
+              borderRadius: "var(--radius)",
+              border: "1px solid var(--border)",
+              background: "var(--bg)",
+              padding: "0.625rem 0.75rem",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              gap: "0.375rem",
             }}
           >
-            {worker.active ? "ACTIVO" : "INACTIVO"}
-          </span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.25rem" }}>
+              <span style={{ fontSize: "0.6875rem", fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: "0.03em" }}>
+                🗄️ Locker
+              </span>
+              {activeLocker ? (
+                <span
+                  style={{
+                    fontSize: "0.625rem",
+                    fontWeight: 700,
+                    borderRadius: 999,
+                    padding: "0.0625rem 0.375rem",
+                    background: activeLocker.status === "active" ? "#ecf8f2" : "var(--accent)",
+                    color: activeLocker.status === "active" ? "#126447" : "var(--muted)",
+                  }}
+                >
+                  {activeLocker.status === "active" ? "ACTIVO" : "LIBERADO"}
+                </span>
+              ) : waitlist.length > 0 ? (
+                <span style={{ fontSize: "0.625rem", fontWeight: 700, borderRadius: 999, padding: "0.0625rem 0.375rem", background: "#fffbeb", color: "#b45309" }}>
+                  EN ESPERA
+                </span>
+              ) : null}
+            </div>
+
+            <div>
+              <div style={{ fontSize: "0.875rem", fontWeight: 700 }}>
+                {activeLocker ? "Casillero Asignado" : waitlist.length > 0 ? "En lista de espera" : "Sin casillero"}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.125rem", overflowWrap: "anywhere" }}>
+                {activeLocker
+                  ? `${activeLocker.section ? `Sec. ${activeLocker.section} · ` : ""}${activeLocker.location || "Unidad médica"}`
+                  : waitlist.length > 0
+                    ? `Solicitado ${formatDate(waitlist[0]?.requested_at)}`
+                    : "No asignado"}
+              </div>
+            </div>
+
+            <div style={{ marginTop: "0.25rem" }}>
+              {activeLocker ? (
+                <Link
+                  href={`/representacion/lockers?locker=${encodeURIComponent(activeLocker.locker_id || activeLocker.id)}&q=${encodeURIComponent(activeLocker.locker_number)}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "0.25rem",
+                    padding: "0.25rem 0.5rem",
+                    borderRadius: "0.25rem",
+                    border: "1px solid var(--border)",
+                    backgroundColor: "var(--card)",
+                    color: "var(--primary)",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    textDecoration: "none",
+                    minHeight: 32,
+                    width: "100%",
+                  }}
+                >
+                  🗺 Ver en mapa
+                </Link>
+              ) : (
+                <Link
+                  href={`/representacion/lockers?q=${encodeURIComponent(worker.employee_number)}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0.25rem 0.5rem",
+                    borderRadius: "0.25rem",
+                    border: "1px solid var(--border)",
+                    backgroundColor: "var(--card)",
+                    color: "var(--muted)",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    textDecoration: "none",
+                    minHeight: 32,
+                    width: "100%",
+                  }}
+                >
+                  + Asignar locker
+                </Link>
+              )}
+            </div>
+          </div>
+
+          {/* Card Rápida: Estacionamiento CAV con 1-TAP QR */}
+          <div
+            style={{
+              borderRadius: "var(--radius)",
+              border: "1px solid var(--border)",
+              background: "var(--bg)",
+              padding: "0.625rem 0.75rem",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              gap: "0.375rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.25rem" }}>
+              <span style={{ fontSize: "0.6875rem", fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: "0.03em" }}>
+                🚗 Estacionamiento CAV
+              </span>
+              {activeVehicle ? (
+                <span
+                  style={{
+                    fontSize: "0.625rem",
+                    fontWeight: 700,
+                    borderRadius: 999,
+                    padding: "0.0625rem 0.375rem",
+                    background: activeVehicle.status === "A" && activeVehicle.internal_status === "activo" ? "#ecf8f2" : "#fffbeb",
+                    color: activeVehicle.status === "A" && activeVehicle.internal_status === "activo" ? "#126447" : "#b45309",
+                  }}
+                >
+                  {activeVehicle.status === "A" && activeVehicle.internal_status === "activo" ? "ACTIVO" : "SUSPENDIDO"}
+                </span>
+              ) : null}
+            </div>
+
+            <div>
+              <div style={{ fontSize: "0.875rem", fontWeight: 700 }}>
+                {activeVehicle ? (
+                  <span style={{ fontFamily: "monospace", letterSpacing: "0.05em" }}>{activeVehicle.placas || "SIN PLACA"}</span>
+                ) : (
+                  "Sin vehículo"
+                )}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.125rem", overflowWrap: "anywhere" }}>
+                {activeVehicle
+                  ? `Cajón ${activeVehicle.cajon_number || "0"} · ${activeVehicle.parking_lot === "2" ? "Confianza" : activeVehicle.parking_lot === "3" ? "Visitante" : "Base"}`
+                  : "No registrado en pluma"}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "0.25rem", marginTop: "0.25rem" }}>
+              {activeVehicle ? (
+                <>
+                  <a
+                    href={`/api/union/parking/${encodeURIComponent(activeVehicle.id)}/qr`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "0.25rem",
+                      padding: "0.25rem 0.5rem",
+                      borderRadius: "0.25rem",
+                      backgroundColor: "var(--primary)",
+                      color: "var(--primary-fg)",
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      textDecoration: "none",
+                      minHeight: 32,
+                      flex: "1 1 auto",
+                    }}
+                  >
+                    📄 Tarjetón QR
+                  </a>
+                  <Link
+                    href={`/representacion/estacionamiento?q=${encodeURIComponent(worker.employee_number)}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "0.25rem 0.4rem",
+                      borderRadius: "0.25rem",
+                      border: "1px solid var(--border)",
+                      backgroundColor: "var(--card)",
+                      color: "var(--muted)",
+                      fontSize: "0.75rem",
+                      textDecoration: "none",
+                      minHeight: 32,
+                    }}
+                    title="Administrar en CAV"
+                  >
+                    ⚙️
+                  </Link>
+                </>
+              ) : (
+                <Link
+                  href={`/representacion/estacionamiento?q=${encodeURIComponent(worker.employee_number)}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0.25rem 0.5rem",
+                    borderRadius: "0.25rem",
+                    border: "1px solid var(--border)",
+                    backgroundColor: "var(--card)",
+                    color: "var(--muted)",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    textDecoration: "none",
+                    minHeight: 32,
+                    width: "100%",
+                  }}
+                >
+                  + Registrar vehículo
+                </Link>
+              )}
+            </div>
+          </div>
+
+          {/* Card Rápida: Trámites Sindicales */}
+          <div
+            style={{
+              borderRadius: "var(--radius)",
+              border: "1px solid var(--border)",
+              background: "var(--bg)",
+              padding: "0.625rem 0.75rem",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              gap: "0.375rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.25rem" }}>
+              <span style={{ fontSize: "0.6875rem", fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", letterSpacing: "0.03em" }}>
+                📋 Trámites
+              </span>
+              <span
+                style={{
+                  fontSize: "0.625rem",
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  padding: "0.0625rem 0.375rem",
+                  background: "var(--accent)",
+                  color: "var(--muted)",
+                }}
+              >
+                {totalCases}
+              </span>
+            </div>
+
+            <div>
+              <div style={{ fontSize: "0.875rem", fontWeight: 700 }}>
+                {totalCases > 0 ? `${totalCases} caso${totalCases === 1 ? "" : "s"} registrado${totalCases === 1 ? "" : "s"}` : "Sin trámites"}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.125rem", overflowWrap: "anywhere" }}>
+                {totalCases > 0
+                  ? `${cases.filter((c) => c.status !== "completed" && c.status !== "cancelled").length} activos · ${documents.length} docs`
+                  : "Licencias, maternidad, pasajes"}
+              </div>
+            </div>
+
+            <div style={{ marginTop: "0.25rem" }}>
+              <Link
+                href={`/representacion/licencias?q=${encodeURIComponent(worker.employee_number)}`}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "0.25rem 0.5rem",
+                  borderRadius: "0.25rem",
+                  border: "1px solid var(--border)",
+                  backgroundColor: "var(--card)",
+                  color: "var(--primary)",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  minHeight: 32,
+                  width: "100%",
+                }}
+              >
+                + Nuevo trámite
+              </Link>
+            </div>
+          </div>
         </div>
-        <dl style={{ margin: "0.625rem 0 0", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "0.5rem 0.875rem" }}>
-          <div>
-            <dt style={{ fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)", fontWeight: 700 }}>Matrícula</dt>
-            <dd style={{ margin: "0.125rem 0 0", fontSize: "0.875rem", fontWeight: 600 }}>{worker.employee_number}</dd>
-          </div>
-          <div>
-            <dt style={{ fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)", fontWeight: 700 }}>Categoría</dt>
-            <dd style={{ margin: "0.125rem 0 0", fontSize: "0.875rem" }}>{worker.category || "—"}</dd>
-          </div>
-          <div>
-            <dt style={{ fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)", fontWeight: 700 }}>Turno</dt>
-            <dd style={{ margin: "0.125rem 0 0", fontSize: "0.875rem" }}>{worker.turn || "—"}</dd>
-          </div>
-          <div>
-            <dt style={{ fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--muted)", fontWeight: 700 }}>Adscripción</dt>
-            <dd style={{ margin: "0.125rem 0 0", fontSize: "0.875rem" }}>{worker.assignment || "—"}</dd>
-          </div>
-        </dl>
       </div>
 
-      <Section title="Resumen" defaultOpen>
-        <DetailList
-          items={[
-            { label: "Antigüedad", value: ageLabel },
-            { label: "Ingreso", value: formatDate(worker.employment_start_date) },
-            { label: "Horario", value: worker.schedule },
-            { label: "Descansos", value: worker.rest_days },
-            { label: "Teléfono", value: worker.phone },
-            { label: "Notas", value: worker.notes },
-          ]}
-        />
-      </Section>
+      {/* 2. BARRA DE PESTAÑAS DE NAVEGACIÓN RÁPIDA (Óptimo para móvil) */}
+      {(hasLaborData || totalCases > 0 || totalLockers > 0 || totalParking > 0 || totalDocuments > 0 || totalHistory > 0) ? (
+        <nav
+          role="tablist"
+          aria-label="Pestañas del expediente"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.375rem",
+            overflowX: "auto",
+            paddingBottom: "0.125rem",
+            WebkitOverflowScrolling: "touch",
+            scrollbarWidth: "none",
+          }}
+        >
+          {[
+            { id: "todos", label: "Vista completa" },
+            { id: "resumen", label: "Resumen" },
+            ...(hasLaborData ? [{ id: "laboral", label: "Datos laborales" }] : []),
+            ...(totalCases > 0 ? [{ id: "tramites", label: `Trámites (${totalCases})` }] : []),
+            ...(totalLockers > 0 ? [{ id: "lockers", label: `Lockers (${totalLockers})` }] : []),
+            ...(totalParking > 0 ? [{ id: "parking", label: `Estacionamiento (${totalParking})` }] : []),
+            ...(totalDocuments > 0 ? [{ id: "documentos", label: `Documentos (${totalDocuments})` }] : []),
+            ...(totalHistory > 0 ? [{ id: "historial", label: `Historial (${totalHistory})` }] : []),
+          ].map((tab) => {
+            const isSelected = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.25rem",
+                  padding: "0.375rem 0.75rem",
+                  borderRadius: "var(--radius-pill)",
+                  fontSize: "0.8125rem",
+                  fontWeight: isSelected ? 700 : 600,
+                  border: isSelected ? "1.5px solid var(--primary)" : "1px solid var(--border)",
+                  background: isSelected ? "var(--primary)" : "var(--card)",
+                  color: isSelected ? "var(--primary-fg)" : "var(--muted)",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                  minHeight: 36,
+                  transition: "all 0.15s ease",
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </nav>
+      ) : null}
 
-      {hasLaborData ? (
-        <Section title="Datos laborales">
+      {/* 3. SECCIONES DETALLADAS DEL EXPEDIENTE */}
+      {showTabSection("resumen") ? (
+        <Section title="Resumen" defaultOpen forceOpen={activeTab === "resumen" ? true : undefined}>
+          <DetailList
+            items={[
+              { label: "Antigüedad", value: ageLabel },
+              { label: "Ingreso", value: formatDate(worker.employment_start_date) },
+              { label: "Horario", value: worker.schedule },
+              { label: "Descansos", value: worker.rest_days },
+              { label: "Teléfono", value: worker.phone },
+              { label: "Notas", value: worker.notes },
+            ]}
+          />
+        </Section>
+      ) : null}
+
+      {hasLaborData && showTabSection("laboral") ? (
+        <Section title="Datos laborales" forceOpen={activeTab === "laboral" ? true : undefined}>
           <DetailList
             items={[
               { label: "Tipo de contrato", value: worker.contract_type_code },
@@ -335,8 +715,8 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
         </Section>
       ) : null}
 
-      {licenseCases.length > 0 ? (
-        <Section title="Licencias" count={licenseCases.length}>
+      {licenseCases.length > 0 && showTabSection("tramites") ? (
+        <Section title="Licencias" count={licenseCases.length} forceOpen={activeTab === "tramites" ? true : undefined}>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             {licenseCases.map((item) => (
               <CaseCard key={item.id} item={item} />
@@ -345,8 +725,8 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
         </Section>
       ) : null}
 
-      {maternityCases.length + lactationCases.length > 0 ? (
-        <Section title="Maternidad y lactancia" count={maternityCases.length + lactationCases.length}>
+      {maternityCases.length + lactationCases.length > 0 && showTabSection("tramites") ? (
+        <Section title="Maternidad y lactancia" count={maternityCases.length + lactationCases.length} forceOpen={activeTab === "tramites" ? true : undefined}>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             {[...maternityCases, ...lactationCases].map((item) => (
               <CaseCard key={item.id} item={item} />
@@ -355,8 +735,8 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
         </Section>
       ) : null}
 
-      {passageCases.length > 0 ? (
-        <Section title="Pasajes" count={passageCases.length}>
+      {passageCases.length > 0 && showTabSection("tramites") ? (
+        <Section title="Pasajes" count={passageCases.length} forceOpen={activeTab === "tramites" ? true : undefined}>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             {passageCases.map((item) => (
               <CaseCard key={item.id} item={item} />
@@ -365,8 +745,8 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
         </Section>
       ) : null}
 
-      {lockers.length + waitlist.length > 0 ? (
-        <Section title="Lockers" count={lockers.length + waitlist.length}>
+      {lockers.length + waitlist.length > 0 && showTabSection("lockers") ? (
+        <Section title="Lockers" count={lockers.length + waitlist.length} forceOpen={activeTab === "lockers" ? true : undefined}>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             {lockers.map((locker) => (
               <div
@@ -374,7 +754,7 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
                 style={{
                   border: "1px solid var(--border)",
                   borderRadius: "var(--radius)",
-                  padding: "0.625rem 0.75rem",
+                  padding: "0.75rem 0.875rem",
                   fontSize: "0.8125rem",
                   display: "flex",
                   justifyContent: "space-between",
@@ -383,23 +763,37 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
                   flexWrap: "wrap",
                 }}
               >
-                <div>
-                  <strong>Locker {locker.locker_number}</strong>
-                  {locker.section ? ` · Sección ${locker.section}` : ""}
-                  {locker.location ? ` · ${locker.location}` : ""}
-                  <div style={{ color: "var(--muted)", fontSize: "0.75rem", marginTop: "0.125rem" }}>
-                    {LOCKER_ASSIGNMENT_STATUS_LABEL[locker.status] ?? locker.status} · Asignado {formatDate(locker.assigned_at)}
+                <div style={{ minWidth: 0, flex: "1 1 auto" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <strong style={{ fontSize: "0.9375rem" }}>Locker {locker.locker_number}</strong>
+                    <span
+                      style={{
+                        fontSize: "0.6875rem",
+                        fontWeight: 700,
+                        borderRadius: 999,
+                        padding: "0.125rem 0.5rem",
+                        background: locker.status === "active" ? "#ecf8f2" : "var(--accent)",
+                        color: locker.status === "active" ? "#126447" : "var(--muted)",
+                      }}
+                    >
+                      {LOCKER_ASSIGNMENT_STATUS_LABEL[locker.status] ?? locker.status}
+                    </span>
+                  </div>
+                  <div style={{ color: "var(--muted)", fontSize: "0.75rem", marginTop: "0.25rem", overflowWrap: "anywhere" }}>
+                    {locker.section ? `Sección ${locker.section} · ` : ""}
+                    {locker.location ? `${locker.location} · ` : ""}
+                    Asignado {formatDate(locker.assigned_at)}
                     {locker.released_at ? ` · Liberado ${formatDate(locker.released_at)}` : ""}
                   </div>
                 </div>
 
                 <Link
-                  href={`/representacion/lockers?locker=${locker.locker_id || locker.id}&q=${locker.locker_number}`}
+                  href={`/representacion/lockers?locker=${encodeURIComponent(locker.locker_id || locker.id)}&q=${encodeURIComponent(locker.locker_number)}`}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "0.25rem",
-                    padding: "0.25rem 0.5rem",
+                    padding: "0.35rem 0.75rem",
                     borderRadius: "0.25rem",
                     border: "1px solid var(--border)",
                     backgroundColor: "var(--accent)",
@@ -407,6 +801,7 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
                     fontSize: "0.75rem",
                     fontWeight: 600,
                     textDecoration: "none",
+                    minHeight: 36,
                   }}
                 >
                   🗺 Ver en mapa
@@ -414,7 +809,7 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
               </div>
             ))}
             {waitlist.map((entry) => (
-              <div key={entry.id} style={{ border: "1px dashed var(--border)", borderRadius: "var(--radius)", padding: "0.5rem 0.75rem", fontSize: "0.8125rem" }}>
+              <div key={entry.id} style={{ border: "1px dashed var(--border)", borderRadius: "var(--radius)", padding: "0.625rem 0.75rem", fontSize: "0.8125rem" }}>
                 <strong>Lista de espera</strong>
                 <div style={{ color: "var(--muted)", fontSize: "0.75rem", marginTop: "0.125rem" }}>
                   Solicitado {formatDate(entry.requested_at)} · {entry.status}
@@ -425,8 +820,8 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
         </Section>
       ) : null}
 
-      {parking.length > 0 ? (
-        <Section title="Estacionamiento (CAV HGR 1)" count={parking.length}>
+      {parking.length > 0 && showTabSection("parking") ? (
+        <Section title="Estacionamiento (CAV HGR 1)" count={parking.length} forceOpen={activeTab === "parking" ? true : undefined}>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             {parking.map((veh) => {
               const isActive = veh.status === "A" && veh.internal_status === "activo";
@@ -443,7 +838,7 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
                   style={{
                     border: "1px solid var(--border)",
                     borderRadius: "var(--radius)",
-                    padding: "0.625rem 0.75rem",
+                    padding: "0.75rem 0.875rem",
                     fontSize: "0.8125rem",
                     display: "flex",
                     justifyContent: "space-between",
@@ -452,9 +847,23 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
                     flexWrap: "wrap",
                   }}
                 >
-                  <div>
+                  <div style={{ minWidth: 0, flex: "1 1 auto" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                      <strong>Placas {veh.placas || "SIN PLACA"}</strong>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          fontFamily: "monospace",
+                          fontWeight: 800,
+                          fontSize: "0.875rem",
+                          padding: "0.15rem 0.5rem",
+                          borderRadius: "0.25rem",
+                          border: "1px solid var(--border)",
+                          background: "var(--bg)",
+                          letterSpacing: "0.04em",
+                        }}
+                      >
+                        {veh.placas || "SIN PLACA"}
+                      </span>
                       <span
                         style={{
                           fontSize: "0.6875rem",
@@ -468,27 +877,48 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
                         {isActive ? "ACTIVO" : isBaja ? "BAJA" : "SUSPENDIDO"}
                       </span>
                     </div>
-                    <div style={{ color: "var(--muted)", fontSize: "0.75rem", marginTop: "0.125rem" }}>
+                    <div style={{ color: "var(--muted)", fontSize: "0.75rem", marginTop: "0.25rem", overflowWrap: "anywhere" }}>
                       {veh.vehicle_model_label ? `${veh.vehicle_model_label} · ` : ""}
-                      Cajón {veh.cajon_number || "0"} · {lotLabel} · Registro #{veh.external_id_reg}
+                      Cajón <strong>{veh.cajon_number || "0"}</strong> · {lotLabel} · Registro #{veh.external_id_reg}
                     </div>
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", flexWrap: "wrap" }}>
+                    <a
+                      href={`/api/union/parking/${encodeURIComponent(veh.id)}/qr`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.25rem",
+                        padding: "0.35rem 0.75rem",
+                        borderRadius: "0.25rem",
+                        backgroundColor: "var(--primary)",
+                        color: "var(--primary-fg)",
+                        fontSize: "0.75rem",
+                        fontWeight: 700,
+                        textDecoration: "none",
+                        minHeight: 36,
+                      }}
+                    >
+                      📄 Tarjetón QR
+                    </a>
                     <Link
                       href={`/representacion/estacionamiento?q=${encodeURIComponent(worker.employee_number)}`}
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
                         gap: "0.25rem",
-                        padding: "0.25rem 0.5rem",
+                        padding: "0.35rem 0.75rem",
                         borderRadius: "0.25rem",
                         border: "1px solid var(--border)",
                         backgroundColor: "var(--accent)",
-                        color: "var(--primary)",
+                        color: "var(--fg)",
                         fontSize: "0.75rem",
                         fontWeight: 600,
                         textDecoration: "none",
+                        minHeight: 36,
                       }}
                     >
                       🚗 Administrar
@@ -501,8 +931,8 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
         </Section>
       ) : null}
 
-      {documents.length > 0 ? (
-        <Section title="Documentos" count={documents.length}>
+      {documents.length > 0 && showTabSection("documentos") ? (
+        <Section title="Documentos" count={documents.length} forceOpen={activeTab === "documentos" ? true : undefined}>
           <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "0.375rem" }}>
             {documents.map((document) => (
               <li key={document.id} style={{ border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "0.5rem 0.75rem", fontSize: "0.8125rem" }}>
@@ -517,8 +947,8 @@ export function WorkerExpediente({ expediente }: { expediente: UnionWorkerExpedi
         </Section>
       ) : null}
 
-      {events.length + audit.length > 0 ? (
-        <Section title="Historial" count={events.length + audit.length}>
+      {events.length + audit.length > 0 && showTabSection("historial") ? (
+        <Section title="Historial" count={events.length + audit.length} forceOpen={activeTab === "historial" ? true : undefined}>
           <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             {events.map((event) => (
               <li key={event.id} style={{ borderLeft: "2px solid var(--border)", paddingLeft: "0.625rem", fontSize: "0.8125rem" }}>

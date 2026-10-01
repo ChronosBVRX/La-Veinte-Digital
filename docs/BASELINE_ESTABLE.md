@@ -23,8 +23,11 @@
 
 | Campo | Valor |
 |---|---|
-| URL de producción | `https://la-veinte-digital.vercel.app` (alias: `https://la20.com.mx`) |
-| Salud observada | `GET /api/health` → HTTP 200; `GET /` → 307 a `/login` (guardia de auth operativa) |
+| Servidor de producción | Oracle Cloud Infrastructure (Always Free Ampere A1 ARM64 VPS) |
+| URL canónica | `https://la20.com.mx` |
+| Gateway de redirección Vercel | `https://la-veinte-digital.vercel.app` (HTTP 308 permanente hacia `https://la20.com.mx`) |
+| Base de datos y Auth | `https://supabase.la20.com.mx` (Supabase self-hosted en OCI, 65 tablas activas) |
+| Salud observada | `GET https://la20.com.mx/api/health` → HTTP 200; `GET /` → 307 a `/login` (guardia de auth operativa) |
 
 ---
 
