@@ -25,6 +25,12 @@ interface LinkedWorkerSummary {
   turn: string;
   phone: string | null;
   active: boolean;
+  seniority_years?: number | null;
+  seniority_raw?: string | null;
+  employment_start_date?: string | null;
+  source_import_state?: string | null;
+  source_status_code?: string | null;
+  avatar_url?: string | null;
 }
 
 interface ParkingRecordItem {
@@ -53,6 +59,9 @@ interface ParkingRecordItem {
   suspension_reason: string;
   last_synced_at: string;
   worker: LinkedWorkerSummary | null;
+  avatar_url?: string | null;
+  isDepuracionCandidate?: boolean;
+  depuracionReason?: string | null;
 }
 
 interface ParkingCounts {
@@ -62,10 +71,100 @@ interface ParkingCounts {
   baja: number;
   linkedToPadron: number;
   unlinked: number;
+  depuracionCount?: number;
   baseCount: number;
   confianzaCount: number;
   visitantesCount: number;
   lastSyncedAt: string | null;
+}
+
+function WorkerPhotoAvatar({
+  avatarUrl,
+  fullName,
+  size = 46,
+  isActive = true,
+}: {
+  avatarUrl?: string | null;
+  fullName: string;
+  size?: number;
+  isActive?: boolean;
+}): React.JSX.Element {
+  const [imageError, setImageError] = useState(false);
+
+  const initials = (() => {
+    const parts = (fullName || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (parts.length === 0) return "TR";
+    if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+    return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
+  })();
+
+  const hasPhoto = Boolean(avatarUrl && !imageError);
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: size,
+        height: size,
+        flexShrink: 0,
+      }}
+    >
+      {hasPhoto ? (
+        // eslint-disable-next-line @next/next/no-img-element -- Dynamic avatar from database
+        <img
+          src={avatarUrl!}
+          alt={fullName}
+          onError={() => setImageError(true)}
+          style={{
+            width: size,
+            height: size,
+            borderRadius: "50%",
+            objectFit: "cover",
+            border: "2px solid var(--border)",
+            background: "var(--card)",
+            display: "block",
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            width: size,
+            height: size,
+            borderRadius: "50%",
+            background: "linear-gradient(135deg, var(--primary), #4f46e5)",
+            color: "#ffffff",
+            fontWeight: 800,
+            fontSize: Math.round(size * 0.36),
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: "2px solid var(--border)",
+            letterSpacing: "0.02em",
+            userSelect: "none",
+          }}
+        >
+          {initials}
+        </div>
+      )}
+      <span
+        style={{
+          position: "absolute",
+          bottom: 0,
+          right: 0,
+          width: Math.max(10, Math.round(size * 0.25)),
+          height: Math.max(10, Math.round(size * 0.25)),
+          borderRadius: "50%",
+          background: isActive ? "#16a34a" : "#dc2626",
+          border: "2px solid var(--card)",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.15)",
+        }}
+        title={isActive ? "Padrón Sindical: Activo" : "Fuera de Padrón / Inactivo"}
+      />
+    </div>
+  );
 }
 
 interface ConnectionState {
@@ -138,6 +237,8 @@ export function ParkingManager(): React.JSX.Element {
   const [statusFilter, setStatusFilter] = useState("all");
   const [lotFilter, setLotFilter] = useState("all");
   const [linkedFilter, setLinkedFilter] = useState("all");
+  const [sort, setSort] = useState("seniority_desc");
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -201,6 +302,7 @@ export function ParkingManager(): React.JSX.Element {
         status: statusFilter,
         lot: lotFilter,
         linked: linkedFilter,
+        sort,
       });
       if (q.trim()) params.set("q", q.trim());
 
@@ -231,7 +333,7 @@ export function ParkingManager(): React.JSX.Element {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, lotFilter, linkedFilter, q]);
+  }, [page, statusFilter, lotFilter, linkedFilter, q, sort]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- initial LAN status check on mount
@@ -642,15 +744,15 @@ export function ParkingManager(): React.JSX.Element {
         </div>
       ) : null}
 
-      {/* Tarjetas de métricas */}
+      {/* Tarjetas de métricas y diagnóstico de depuración */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
           gap: "0.75rem",
         }}
       >
-        <Card padding="1rem">
+        <Card padding="0.875rem">
           <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>
             Total Vehículos CAV
           </div>
@@ -662,19 +764,19 @@ export function ParkingManager(): React.JSX.Element {
           </div>
         </Card>
 
-        <Card padding="1rem">
+        <Card padding="0.875rem">
           <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#126447", textTransform: "uppercase" }}>
-            Accesos Activos
+            Accesos Habilitados
           </div>
           <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "#126447", marginTop: "0.25rem" }}>
             {counts.active.toLocaleString("es-MX")}
           </div>
           <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.125rem" }}>
-            Switch habilitado en pluma HGR 1
+            Pluma activa en HGR 1
           </div>
         </Card>
 
-        <Card padding="1rem">
+        <Card padding="0.875rem">
           <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#b45309", textTransform: "uppercase" }}>
             Suspendidos / Bajas
           </div>
@@ -686,42 +788,130 @@ export function ParkingManager(): React.JSX.Element {
           </div>
         </Card>
 
-        <Card padding="1rem">
+        <Card padding="0.875rem">
           <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--primary)", textTransform: "uppercase" }}>
-            Enlazados al Padrón Sindical
+            En Padrón Sindical
           </div>
           <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--primary)", marginTop: "0.25rem" }}>
             {counts.linkedToPadron.toLocaleString("es-MX")}{" "}
-            <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>({padronLinkPercent}%)</span>
+            <span style={{ fontSize: "0.8125rem", fontWeight: 600 }}>({padronLinkPercent}%)</span>
           </div>
           <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.125rem" }}>
-            Sin enlazar: {counts.unlinked}
+            Sin enlace: {counts.unlinked}
           </div>
         </Card>
+
+        {/* Tarjeta de Acción Rápida: Depuración de Cajones */}
+        <div
+          onClick={() => {
+            setLinkedFilter("depuracion");
+            setPage(1);
+          }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              setLinkedFilter("depuracion");
+              setPage(1);
+            }
+          }}
+          style={{
+            cursor: "pointer",
+            outline: "none",
+          }}
+          title="Ver vehículos asignados a personas que ya no están activas en el padrón para depuración"
+        >
+          <Card
+            padding="0.875rem"
+            style={{
+              border: (counts.depuracionCount ?? 0) > 0 ? "1.5px solid #f87171" : "1px solid var(--border)",
+              background: (counts.depuracionCount ?? 0) > 0 ? "rgba(254, 242, 242, 0.6)" : "var(--card)",
+              transition: "transform 0.15s ease, box-shadow 0.15s ease",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.02em" }}>
+                🧹 Por Depurar
+              </div>
+              {(counts.depuracionCount ?? 0) > 0 ? (
+                <span style={{ fontSize: "0.625rem", fontWeight: 800, background: "#ef4444", color: "#fff", padding: "0.1rem 0.4rem", borderRadius: 999 }}>
+                  ATENCIÓN
+                </span>
+              ) : null}
+            </div>
+            <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "#b91c1c", marginTop: "0.25rem" }}>
+              {(counts.depuracionCount ?? 0).toLocaleString("es-MX")}
+            </div>
+            <div style={{ fontSize: "0.75rem", color: "#991b1b", marginTop: "0.125rem", fontWeight: 500 }}>
+              Fuera de padrón / inactivos →
+            </div>
+          </Card>
+        </div>
       </div>
 
-      {/* Barra de búsqueda y filtros */}
+      {/* Barra de búsqueda, filtros y ordenamiento */}
       <Card padding="1rem">
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
             gap: "0.75rem",
             alignItems: "end",
           }}
         >
-          <Input
-            label="Buscar por matrícula, placas, nombre o cajón"
-            placeholder="Ej. 99173930, PJJ556C, REBOLLO…"
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value);
-              setPage(1);
-            }}
-          />
+          <div style={{ position: "relative" }}>
+            <Input
+              label="Búsqueda rápida"
+              placeholder="Matrícula, placas, nombre o cajón…"
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setPage(1);
+              }}
+            />
+            {q ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setQ("");
+                  setPage(1);
+                }}
+                style={{
+                  position: "absolute",
+                  right: 8,
+                  bottom: 8,
+                  background: "transparent",
+                  border: "none",
+                  fontSize: "0.875rem",
+                  color: "var(--muted)",
+                  cursor: "pointer",
+                  padding: "0.25rem",
+                }}
+                title="Limpiar búsqueda"
+              >
+                ✕
+              </button>
+            ) : null}
+          </div>
 
           <Select
-            label="Estatus"
+            label="Ordenar por"
+            value={sort}
+            onChange={(e) => {
+              setSort(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="seniority_desc">⭐️ Mayor Antigüedad Sindical</option>
+            <option value="cajon">Cajón (0 al 75)</option>
+            <option value="recent">Registro más reciente</option>
+            <option value="name">Nombre de trabajador (A-Z)</option>
+            <option value="placas">Placas (A-Z)</option>
+            <option value="seniority_asc">Menor Antigüedad</option>
+          </Select>
+
+          <Select
+            label="Estatus en pluma"
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value);
@@ -729,9 +919,9 @@ export function ParkingManager(): React.JSX.Element {
             }}
           >
             <option value="all">Todos los estatus</option>
-            <option value="activo">Activos (Switch ON)</option>
-            <option value="suspendido">Suspendidos (Switch OFF)</option>
-            <option value="baja">Bajas registradas</option>
+            <option value="activo">🟢 Habilitado en pluma (Activo)</option>
+            <option value="suspendido">🟡 Pluma bloqueada (Suspendido)</option>
+            <option value="baja">🔴 Cajón liberado (Baja)</option>
           </Select>
 
           <Select
@@ -742,49 +932,438 @@ export function ParkingManager(): React.JSX.Element {
               setPage(1);
             }}
           >
-            <option value="all">Todos (BASE / CONFIANZA / VISITANTES)</option>
-            <option value="1">BASE</option>
-            <option value="2">CONFIANZA</option>
-            <option value="3">VISITANTES</option>
+            <option value="all">Todos (Base / Confianza / Visitantes)</option>
+            <option value="1">Lote Base</option>
+            <option value="2">Lote Confianza</option>
+            <option value="3">Lote Visitantes</option>
           </Select>
 
           <Select
-            label="Vínculo con Padrón Sindical"
+            label="Padrón y Depuración"
             value={linkedFilter}
             onChange={(e) => {
               setLinkedFilter(e.target.value);
               setPage(1);
             }}
           >
-            <option value="all">Todos</option>
-            <option value="linked">Enlazados con Padrón Sindical</option>
-            <option value="unlinked">Sin coincidencia en Padrón</option>
+            <option value="all">Todos los trabajadores</option>
+            <option value="depuracion">🧹 Por Depurar (Fuera de Padrón)</option>
+            <option value="linked">✓ Enlazados en Padrón Sindical</option>
+            <option value="unlinked">⚠️ Sin coincidencia en Padrón</option>
           </Select>
+        </div>
+
+        {/* Barra de control de vista e información de resultados */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "0.5rem",
+            marginTop: "0.875rem",
+            paddingTop: "0.75rem",
+            borderTop: "1px solid var(--border)",
+          }}
+        >
+          <div style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
+            Mostrando <strong>{totalFiltered.toLocaleString("es-MX")}</strong> vehículos
+            {linkedFilter === "depuracion" ? (
+              <span style={{ color: "#b91c1c", fontWeight: 700, marginLeft: "0.375rem" }}>
+                · Filtro activo: Candidatos a depuración
+              </span>
+            ) : null}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+            <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600 }}>Vista:</span>
+            <Button
+              variant={viewMode === "cards" ? "primary" : "secondary"}
+              size="sm"
+              onClick={() => setViewMode("cards")}
+              style={{ minHeight: 32 }}
+            >
+              📱 Tarjetas
+            </Button>
+            <Button
+              variant={viewMode === "table" ? "primary" : "secondary"}
+              size="sm"
+              onClick={() => setViewMode("table")}
+              style={{ minHeight: 32 }}
+            >
+              🖥️ Tabla
+            </Button>
+          </div>
         </div>
       </Card>
 
-      {/* Tabla de registros */}
+      {/* Contenedor principal de registros (Tarjetas responsivas o Tabla moderna) */}
       <Card padding="0">
         {loading ? (
-          <div style={{ padding: "2.5rem" }}>
-            <LoadingSpinner text="Cargando registros de estacionamiento…" />
+          <div style={{ padding: "3rem" }}>
+            <LoadingSpinner text="Cargando padrón vehicular y fotografías…" />
           </div>
         ) : records.length === 0 ? (
-          <div style={{ padding: "2.5rem", textAlign: "center", color: "var(--muted)" }}>
-            <p style={{ margin: 0, fontSize: "0.9375rem", fontWeight: 600 }}>
+          <div style={{ padding: "3rem 1.5rem", textAlign: "center", color: "var(--muted)" }}>
+            <p style={{ margin: 0, fontSize: "1rem", fontWeight: 700 }}>
               {counts.total === 0
                 ? "Aún no se han sincronizado los vehículos desde el servidor CAV HGR 1."
-                : "No se encontraron vehículos con los filtros seleccionados."}
+                : linkedFilter === "depuracion"
+                  ? "🎉 ¡Excelente! No hay vehículos candidatos a depuración con los filtros actuales."
+                  : "No se encontraron vehículos que coincidan con la búsqueda."}
             </p>
-            {counts.total === 0 ? (
+            {linkedFilter === "depuracion" ? (
+              <div style={{ marginTop: "0.75rem" }}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setLinkedFilter("all");
+                    setPage(1);
+                  }}
+                >
+                  Ver todos los vehículos
+                </Button>
+              </div>
+            ) : counts.total === 0 ? (
               <div style={{ marginTop: "0.875rem" }}>
                 <Button variant="primary" loading={syncing} onClick={() => void handleSyncFromCav()}>
-                  🔄 Sincronizar ahora desde 11.1.17.44:8080
+                  🔄 Sincronizar ahora desde CAV HGR 1
                 </Button>
               </div>
             ) : null}
           </div>
+        ) : viewMode === "cards" ? (
+          /* ========================================================================= */
+          /* 1. VISTA DE TARJETAS FLUIDAS Y RESPONSIVAS (IDEAL PARA MÓVILES Y TABLETS)  */
+          /* ========================================================================= */
+          <div
+            style={{
+              padding: "0.875rem",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))",
+              gap: "0.875rem",
+            }}
+          >
+            {records.map((rec) => {
+              const isActive = rec.status === "A" && rec.internal_status === "activo";
+              const isBaja = rec.internal_status === "baja";
+              const seniorityLabel =
+                rec.worker?.seniority_years !== null && rec.worker?.seniority_years !== undefined
+                  ? `${rec.worker.seniority_years} años de antigüedad`
+                  : rec.worker?.seniority_raw || null;
+
+              return (
+                <div
+                  key={rec.id}
+                  style={{
+                    border: rec.isDepuracionCandidate
+                      ? "1.5px solid #fca5a5"
+                      : "1px solid var(--border)",
+                    borderRadius: "var(--radius-lg)",
+                    background: rec.isDepuracionCandidate
+                      ? "linear-gradient(180deg, #fffcfc 0%, var(--card) 100%)"
+                      : "var(--card)",
+                    padding: "0.875rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    gap: "0.75rem",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                  }}
+                >
+                  {/* Encabezado de la tarjeta: Foto previa, nombre, matrícula y cajón */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
+                    <WorkerPhotoAvatar
+                      avatarUrl={rec.avatar_url}
+                      fullName={rec.full_name || rec.matricula}
+                      size={52}
+                      isActive={rec.worker ? rec.worker.active : false}
+                    />
+
+                    <div style={{ minWidth: 0, flex: "1 1 auto" }}>
+                      <div
+                        style={{
+                          fontWeight: 800,
+                          fontSize: "0.9375rem",
+                          lineHeight: 1.25,
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {rec.full_name || "SIN NOMBRE"}
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.375rem",
+                          flexWrap: "wrap",
+                          marginTop: "0.25rem",
+                          fontSize: "0.75rem",
+                          color: "var(--muted)",
+                        }}
+                      >
+                        <span>
+                          Matrícula: <strong>{rec.matricula || "—"}</strong>
+                        </span>
+                        {seniorityLabel ? (
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "0.15rem",
+                              fontSize: "0.6875rem",
+                              fontWeight: 700,
+                              padding: "0.1rem 0.45rem",
+                              borderRadius: 999,
+                              background: "rgba(37,99,235,0.08)",
+                              color: "var(--primary)",
+                            }}
+                          >
+                            ⭐️ {seniorityLabel}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* Cajón asignado destacado */}
+                    <div
+                      style={{
+                        textAlign: "right",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: "inline-block",
+                          fontWeight: 900,
+                          fontSize: "1rem",
+                          padding: "0.2rem 0.6rem",
+                          borderRadius: "0.375rem",
+                          background: "var(--accent)",
+                          color: "var(--fg)",
+                          border: "1px solid var(--border)",
+                        }}
+                      >
+                        Cajón {rec.cajon_number || "0"}
+                      </span>
+                      <div style={{ fontSize: "0.6875rem", color: "var(--muted)", marginTop: "0.15rem" }}>
+                        {rec.parking_lot_label}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Banner de alerta si es candidato a depuración */}
+                  {rec.isDepuracionCandidate ? (
+                    <div
+                      style={{
+                        background: "#fef2f2",
+                        border: "1px solid #fecaca",
+                        borderRadius: "var(--radius)",
+                        padding: "0.4rem 0.625rem",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "0.5rem",
+                        fontSize: "0.75rem",
+                        color: "#991b1b",
+                      }}
+                    >
+                      <div>
+                        <strong>⚠️ Por depurar:</strong> {rec.depuracionReason}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setStatusModalTarget({
+                            record: rec,
+                            nextStatus: "baja",
+                            reason: `Depuración: ${rec.depuracionReason}`,
+                          })
+                        }
+                        style={{
+                          background: "#dc2626",
+                          color: "#ffffff",
+                          border: "none",
+                          borderRadius: "0.25rem",
+                          padding: "0.2rem 0.5rem",
+                          fontSize: "0.6875rem",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Liberar
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {/* Ficha técnica del vehículo y estatus */}
+                  <div
+                    style={{
+                      background: "var(--bg)",
+                      borderRadius: "var(--radius)",
+                      padding: "0.5rem 0.75rem",
+                      fontSize: "0.75rem",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.35rem",
+                      border: "1px solid var(--border)",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.375rem" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.375rem" }}>
+                        <span
+                          style={{
+                            fontFamily: "monospace",
+                            fontWeight: 800,
+                            fontSize: "0.875rem",
+                            padding: "0.1rem 0.45rem",
+                            borderRadius: "0.25rem",
+                            background: "var(--card)",
+                            border: "1px solid var(--border)",
+                            letterSpacing: "0.04em",
+                          }}
+                        >
+                          {rec.placas || "SIN PLACA"}
+                        </span>
+                        <span style={{ color: "var(--muted)", overflowWrap: "anywhere" }}>
+                          {rec.vehicle_model_label || "Vehículo sin modelo"}
+                        </span>
+                      </div>
+
+                      <span
+                        style={{
+                          fontSize: "0.6875rem",
+                          fontWeight: 700,
+                          borderRadius: 999,
+                          padding: "0.125rem 0.5rem",
+                          background: isActive ? "#ecf8f2" : isBaja ? "#fef2f2" : "#fffbeb",
+                          color: isActive ? "#126447" : isBaja ? "#b91c1c" : "#b45309",
+                        }}
+                      >
+                        {isActive ? "HABILITADO" : isBaja ? "BAJA" : "SUSPENDIDO"}
+                      </span>
+                    </div>
+
+                    <div style={{ color: "var(--muted)" }}>
+                      Área: <strong>{rec.area_label || rec.area_code || "—"}</strong> · Turno: <strong>{rec.shift_label}</strong>
+                    </div>
+
+                    {rec.worker ? (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem", paddingTop: "0.25rem", borderTop: "1px dashed var(--border)" }}>
+                        <span style={{ color: "var(--fg)", fontWeight: 600 }}>
+                          {rec.worker.category}
+                        </span>
+                        <Link
+                          href={`/representacion/trabajadores?q=${encodeURIComponent(rec.worker.employee_number)}`}
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "var(--primary)",
+                            textDecoration: "none",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          Ver expediente →
+                        </Link>
+                      </div>
+                    ) : (
+                      <div style={{ color: "#b91c1c", fontSize: "0.6875rem", fontWeight: 600 }}>
+                        ⚠️ Sin ficha en el Padrón Sindical
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Acciones de la tarjeta (Táctiles, ergonómicas y directas) */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.375rem",
+                      flexWrap: "wrap",
+                      paddingTop: "0.25rem",
+                    }}
+                  >
+                    {rec.external_id_reg > 0 ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() =>
+                          window.open(`/api/union/parking/${encodeURIComponent(rec.id)}/qr`, "_blank", "noopener,noreferrer")
+                        }
+                        style={{ flex: "1 1 auto", minHeight: 38, fontWeight: 700 }}
+                      >
+                        📄 Tarjetón QR
+                      </Button>
+                    ) : null}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleOpenEdit(rec)}
+                      style={{ minHeight: 38 }}
+                    >
+                      Modificar
+                    </Button>
+
+                    {isActive ? (
+                      <>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() =>
+                            setStatusModalTarget({
+                              record: rec,
+                              nextStatus: "suspendido",
+                              reason: "",
+                            })
+                          }
+                          style={{ minHeight: 38 }}
+                        >
+                          Suspender
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() =>
+                            setStatusModalTarget({
+                              record: rec,
+                              nextStatus: "baja",
+                              reason: rec.isDepuracionCandidate ? `Depuración: ${rec.depuracionReason}` : "",
+                            })
+                          }
+                          style={{ minHeight: 38 }}
+                        >
+                          Baja
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() =>
+                          setStatusModalTarget({
+                            record: rec,
+                            nextStatus: "activo",
+                            reason: "",
+                          })
+                        }
+                        style={{ minHeight: 38 }}
+                      >
+                        Reactivar
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
+          /* ========================================================================= */
+          /* 2. VISTA DE TABLA MODERNA CON FOTO Y ANTIGÜEDAD (IDEAL PARA PANTALLAS PC) */
+          /* ========================================================================= */
           <div style={{ overflowX: "auto" }}>
             <table
               style={{
@@ -802,10 +1381,10 @@ export function ParkingManager(): React.JSX.Element {
                   }}
                 >
                   <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}># / Cajón</th>
-                  <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>Trabajador y Padrón Sindical</th>
+                  <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>Trabajador y Antigüedad</th>
                   <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>Placas y Vehículo</th>
                   <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>Área / Turno</th>
-                  <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>Estatus CAV</th>
+                  <th style={{ padding: "0.75rem 1rem", fontWeight: 700 }}>Estatus Pluma</th>
                   <th style={{ padding: "0.75rem 1rem", fontWeight: 700, textAlign: "right" }}>Acciones</th>
                 </tr>
               </thead>
@@ -813,15 +1392,21 @@ export function ParkingManager(): React.JSX.Element {
                 {records.map((rec) => {
                   const isActive = rec.status === "A" && rec.internal_status === "activo";
                   const isBaja = rec.internal_status === "baja";
+                  const seniorityLabel =
+                    rec.worker?.seniority_years !== null && rec.worker?.seniority_years !== undefined
+                      ? `${rec.worker.seniority_years} años`
+                      : rec.worker?.seniority_raw || null;
+
                   return (
                     <tr
                       key={rec.id}
                       style={{
                         borderBottom: "1px solid var(--border)",
+                        background: rec.isDepuracionCandidate ? "rgba(254, 242, 242, 0.4)" : "transparent",
                       }}
                     >
                       <td style={{ padding: "0.75rem 1rem", whiteSpace: "nowrap" }}>
-                        <div style={{ fontWeight: 800, fontSize: "0.875rem" }}>
+                        <div style={{ fontWeight: 800, fontSize: "0.9375rem" }}>
                           Cajón {rec.cajon_number || "0"}
                         </div>
                         <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
@@ -830,43 +1415,58 @@ export function ParkingManager(): React.JSX.Element {
                       </td>
 
                       <td style={{ padding: "0.75rem 1rem" }}>
-                        <div style={{ fontWeight: 700, fontSize: "0.875rem" }}>
-                          {rec.full_name || "SIN NOMBRE"}
-                        </div>
-                        <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.125rem" }}>
-                          Matrícula: <strong>{rec.matricula || "—"}</strong>
-                        </div>
-                        {rec.worker ? (
-                          <div style={{ marginTop: "0.25rem", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                            <span
-                              style={{
-                                fontSize: "0.6875rem",
-                                fontWeight: 700,
-                                padding: "0.1rem 0.45rem",
-                                borderRadius: 999,
-                                background: "#eff6ff",
-                                color: "var(--primary)",
-                              }}
-                            >
-                              ✓ En Padrón: {rec.worker.category}
-                            </span>
-                            <Link
-                              href={`/representacion/trabajadores?q=${encodeURIComponent(rec.worker.employee_number)}`}
-                              style={{
-                                fontSize: "0.75rem",
-                                fontWeight: 600,
-                                color: "var(--primary)",
-                                textDecoration: "none",
-                              }}
-                            >
-                              Ver expediente →
-                            </Link>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
+                          <WorkerPhotoAvatar
+                            avatarUrl={rec.avatar_url}
+                            fullName={rec.full_name || rec.matricula}
+                            size={40}
+                            isActive={rec.worker ? rec.worker.active : false}
+                          />
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: "0.875rem" }}>
+                              {rec.full_name || "SIN NOMBRE"}
+                            </div>
+                            <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.125rem", display: "flex", alignItems: "center", gap: "0.375rem", flexWrap: "wrap" }}>
+                              <span>Matrícula: <strong>{rec.matricula || "—"}</strong></span>
+                              {seniorityLabel ? (
+                                <span
+                                  style={{
+                                    fontSize: "0.6875rem",
+                                    fontWeight: 700,
+                                    padding: "0.05rem 0.35rem",
+                                    borderRadius: 999,
+                                    background: "rgba(37,99,235,0.08)",
+                                    color: "var(--primary)",
+                                  }}
+                                >
+                                  ⭐️ {seniorityLabel}
+                                </span>
+                              ) : null}
+                            </div>
+                            {rec.worker ? (
+                              <div style={{ marginTop: "0.2rem", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                                <span style={{ fontSize: "0.6875rem", color: "var(--muted)" }}>
+                                  {rec.worker.category}
+                                </span>
+                                <Link
+                                  href={`/representacion/trabajadores?q=${encodeURIComponent(rec.worker.employee_number)}`}
+                                  style={{
+                                    fontSize: "0.75rem",
+                                    fontWeight: 600,
+                                    color: "var(--primary)",
+                                    textDecoration: "none",
+                                  }}
+                                >
+                                  Expediente →
+                                </Link>
+                              </div>
+                            ) : (
+                              <div style={{ marginTop: "0.2rem", fontSize: "0.6875rem", color: "#b91c1c", fontWeight: 600 }}>
+                                ⚠️ Sin ficha en Padrón Sindical
+                              </div>
+                            )}
                           </div>
-                        ) : (
-                          <div style={{ marginTop: "0.25rem", fontSize: "0.6875rem", color: "var(--muted)" }}>
-                            Sin coincidencia en Padrón Sindical
-                          </div>
-                        )}
+                        </div>
                       </td>
 
                       <td style={{ padding: "0.75rem 1rem" }}>
@@ -910,11 +1510,11 @@ export function ParkingManager(): React.JSX.Element {
                             color: isActive ? "#126447" : isBaja ? "#b91c1c" : "#b45309",
                           }}
                         >
-                          {isActive ? "ACTIVO" : isBaja ? "BAJA" : "SUSPENDIDO"}
+                          {isActive ? "HABILITADO" : isBaja ? "BAJA" : "SUSPENDIDO"}
                         </span>
-                        {rec.suspension_reason ? (
-                          <div style={{ fontSize: "0.7rem", color: "var(--muted)", marginTop: "0.25rem", maxWidth: 180 }}>
-                            Motivo: {rec.suspension_reason}
+                        {rec.isDepuracionCandidate ? (
+                          <div style={{ fontSize: "0.6875rem", color: "#b91c1c", marginTop: "0.25rem", fontWeight: 600 }}>
+                            ⚠️ Por depurar: {rec.depuracionReason}
                           </div>
                         ) : null}
                       </td>
@@ -929,10 +1529,24 @@ export function ParkingManager(): React.JSX.Element {
                             flexWrap: "wrap",
                           }}
                         >
+                          {rec.external_id_reg > 0 ? (
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={() =>
+                                window.open(`/api/union/parking/${encodeURIComponent(rec.id)}/qr`, "_blank", "noopener,noreferrer")
+                              }
+                              style={{ fontWeight: 700, minHeight: 32 }}
+                            >
+                              📄 QR PDF
+                            </Button>
+                          ) : null}
+
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => void handleOpenEdit(rec)}
+                            style={{ minHeight: 32 }}
                           >
                             Modificar
                           </Button>
@@ -949,6 +1563,7 @@ export function ParkingManager(): React.JSX.Element {
                                     reason: "",
                                   })
                                 }
+                                style={{ minHeight: 32 }}
                               >
                                 Suspender
                               </Button>
@@ -959,9 +1574,10 @@ export function ParkingManager(): React.JSX.Element {
                                   setStatusModalTarget({
                                     record: rec,
                                     nextStatus: "baja",
-                                    reason: "",
+                                    reason: rec.isDepuracionCandidate ? `Depuración: ${rec.depuracionReason}` : "",
                                   })
                                 }
+                                style={{ minHeight: 32 }}
                               >
                                 Baja
                               </Button>
@@ -972,27 +1588,16 @@ export function ParkingManager(): React.JSX.Element {
                               size="sm"
                               onClick={() =>
                                 setStatusModalTarget({
-                                  record: rec,
-                                  nextStatus: "activo",
-                                  reason: "",
-                                })
+                                    record: rec,
+                                    nextStatus: "activo",
+                                    reason: "",
+                                  })
                               }
+                              style={{ minHeight: 32 }}
                             >
                               Reactivar
                             </Button>
                           )}
-
-                          {rec.external_id_reg > 0 ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                window.open(`/api/union/parking/${encodeURIComponent(rec.id)}/qr`, "_blank", "noopener,noreferrer")
-                              }
-                            >
-                              📄 QR PDF
-                            </Button>
-                          ) : null}
                         </div>
                       </td>
                     </tr>
