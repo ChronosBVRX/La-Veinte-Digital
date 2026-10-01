@@ -136,10 +136,11 @@ describe("Prerrelleno normativo - política por calculadora", () => {
 })
 
 describe("Prerrelleno normativo - tiempo extra", () => {
-  it("nunca integra el 022 en la base (regresión requisito 15)", () => {
+  it("incluye el 022 solo como referencia informativa sin integrarlo a la base de cálculo", () => {
     const res = buildCalculatorPrefillResponse(makeContext({ calculatorId: "tiempo-extra" }))
-    expect(res.fields.concepto022).toBeUndefined()
-    expect(CALCULATOR_POLICIES["tiempo-extra"].includeConcept022AsInfo).toBe(false)
+    expect(res.fields.concepto022?.value).toBe(700)
+    expect(res.fields.concepto022?.warning).toContain("se muestra como referencia y NO se integra")
+    expect(CALCULATOR_POLICIES["tiempo-extra"].includeConcept022AsInfo).toBe(true)
     expect(CALCULATOR_POLICIES["tiempo-extra"].allowedConceptCodes).not.toContain("022")
   })
 
