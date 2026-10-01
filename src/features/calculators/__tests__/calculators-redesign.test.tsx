@@ -208,22 +208,22 @@ describe("Calculadoras Rediseño - UX y Equivalencia Matemática", () => {
       const expected = calculateTiempoExtra({
         concepto002: 10000,
         concepto011: 2000,
-        concepto020: 0,
+        concepto020: 250,
         conceptoAdicional1: 0,
         conceptoAdicional2: 0,
-        concepto050: 0,
+        concepto050: 200,
         jornada: 8,
         horasExtra: 5,
         baseNormativa: {
           conceptos: [
             { code: "002", amount: 10000 },
             { code: "011", amount: 2000 },
-            { code: "020", amount: 0 },
+            { code: "020", amount: 250 },
             { code: "023", amount: 0 },
             { code: "063", amount: 0 },
-            { code: "050", amount: 0 },
+            { code: "050", amount: 200 },
           ],
-          baseAmount: 12000,
+          baseAmount: 12450,
         },
       })
 

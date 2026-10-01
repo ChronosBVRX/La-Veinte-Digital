@@ -107,9 +107,9 @@ export const CALCULATOR_POLICIES: Record<CalculatorId, CalculatorPrefillPolicy> 
   "tiempo-extra": {
     calculatorId: "tiempo-extra",
     allowCategory: true,
-    allowedConceptCodes: ["002", "011", "020", "023", "050", "054", "063"],
-    includeConcept022AsInfo: false,
-    includeSeniority: false,
+    allowedConceptCodes: ["002", "011", "014", "020", "023", "050", "054", "063"],
+    includeConcept022AsInfo: true,
+    includeSeniority: true,
     includeWorkdayHours: true,
     includeDaysWorked: false,
     notes: [

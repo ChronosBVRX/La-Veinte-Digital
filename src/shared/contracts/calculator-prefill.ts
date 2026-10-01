@@ -52,6 +52,7 @@ export interface CalculatorPrefillFields {
 
   concepto002?: PrefillField<number>
   concepto011?: PrefillField<number>
+  concepto014?: PrefillField<number>
   concepto020?: PrefillField<number>
   concepto022?: PrefillField<number>
   concepto023?: PrefillField<number>
@@ -197,6 +198,7 @@ const FIELD_CHECKS: Array<[string, (v: unknown) => boolean]> = [
   ["categoryName", isString],
   ["concepto002", isNonNegativeNumber],
   ["concepto011", isNonNegativeNumber],
+  ["concepto014", isNonNegativeNumber],
   ["concepto020", isNonNegativeNumber],
   ["concepto022", isNonNegativeNumber],
   ["concepto023", isNonNegativeNumber],

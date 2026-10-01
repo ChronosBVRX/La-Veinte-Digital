@@ -309,6 +309,53 @@ describe("Tiempo extra", () => {
     expect(res.desglose?.[0].horas).toBe(18)
     expect(res.pago).toBe(2657.07)
   })
+  it("calcula caso de Técnico Radiólogo con concepto 050 ($200) y comparativa de antigüedad 022", () => {
+    const radiologoCon050: TiempoExtraInput = {
+      concepto002: 3937.64,
+      concepto011: 3234.77,
+      concepto020: 250.00,
+      concepto054: 1434.48,
+      concepto050: 200.00,
+      concepto022: 1972.41, // 14 años (Eduardo)
+      conceptoAdicional1: 0,
+      conceptoAdicional2: 0,
+      jornada: 8,
+      horasExtra: 18,
+      horasSemana1: 9,
+      horasSemana2: 9,
+    }
+    const res = calculateTiempoExtra(radiologoCon050)
+    // Base estándar contractual = 3937.64 + 3234.77 + 250 + 1434.48 + 200 = 9056.89
+    expect(res.sumaConceptos).toBe(9056.89)
+    expect(res.valorHora).toBeCloseTo(75.4741, 4)
+    expect(res.pago).toBe(2717.07)
+
+    // Comparativa con antigüedad (022 = 1972.41)
+    expect(res.comparativaAntiguedad).toBeDefined()
+    expect(res.comparativaAntiguedad?.baseConAntiguedad).toBeCloseTo(11029.30, 2)
+    expect(res.comparativaAntiguedad?.valorHoraConAntiguedad).toBeCloseTo(91.9108, 4)
+    expect(res.comparativaAntiguedad?.pagoConAntiguedad).toBe(3308.79)
+  })
+  it("calcula comparativa para compañero con 20 años de antigüedad (022 = $2,988.50)", () => {
+    const radiologo20Anios: TiempoExtraInput = {
+      concepto002: 3937.64,
+      concepto011: 3234.77,
+      concepto020: 250.00,
+      concepto054: 1434.48,
+      concepto050: 200.00,
+      concepto022: 2988.50, // 20 años (150 días de Cl. 63 Bis c)
+      conceptoAdicional1: 0,
+      conceptoAdicional2: 0,
+      jornada: 8,
+      horasExtra: 18,
+      horasSemana1: 9,
+      horasSemana2: 9,
+    }
+    const res = calculateTiempoExtra(radiologo20Anios)
+    expect(res.pago).toBe(2717.07) // Base estándar idéntica
+    expect(res.comparativaAntiguedad?.pagoConAntiguedad).toBe(3613.62) // Con sus 20 años
+    expect(res.comparativaAntiguedad?.valorHoraConAntiguedad).toBeCloseTo(100.378, 2)
+  })
   it("desglosa dobles y triples correctamente cuando una semana excede de 9h", () => {
     const rMixto = calculateTiempoExtra({
       ...input,

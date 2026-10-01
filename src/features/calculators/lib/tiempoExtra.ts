@@ -36,10 +36,12 @@ export function sumTiempoExtraConceptos(input: TiempoExtraInput): number {
     (input.concepto002 || 0) +
     (input.concepto011 || 0) +
     (input.concepto020 || 0) +
+    (input.concepto014 || 0) +
     (input.conceptoAdicional1 || 0) +
     (input.conceptoAdicional2 || 0) +
     (input.concepto054 || 0) +
-    (input.concepto050 || 0)
+    (input.concepto050 || 0) +
+    (input.integrarAntiguedad ? (input.concepto022 || 0) : 0)
   )
 }
 
@@ -185,6 +187,24 @@ export function calculateTiempoExtra(input: TiempoExtraInput): TiempoExtraResult
     ? roundCurrency(pago / (valorHora * totalHorasCalculadas))
     : 2
 
+  let comparativaAntiguedad: TiempoExtraResult["comparativaAntiguedad"] = undefined
+  const monto022 = input.concepto022 ?? 0
+  if (monto022 > 0) {
+    const baseConAntiguedad = input.integrarAntiguedad ? baseTotal : baseTotal + monto022
+    const valorHoraConAntiguedad = calcularValorHora(baseConAntiguedad, input.jornada)
+    const pagoConAntiguedad = desglose.reduce((sum, d) => {
+      return sum + roundCurrency(d.horas * valorHoraConAntiguedad * d.factor)
+    }, 0)
+    comparativaAntiguedad = {
+      monto022,
+      baseConAntiguedad,
+      valorHoraConAntiguedad,
+      pagoConAntiguedad,
+      diferencia: roundCurrency(pagoConAntiguedad - pago),
+      integradaEnPrincipal: Boolean(input.integrarAntiguedad),
+    }
+  }
+
   return {
     sumaConceptos: baseTotal,
     horasOrdinariasPeriodo,
@@ -195,6 +215,7 @@ export function calculateTiempoExtra(input: TiempoExtraInput): TiempoExtraResult
     desglose,
     baseNormativaUsada,
     conceptosIntegrados,
+    comparativaAntiguedad,
   }
 }
 
