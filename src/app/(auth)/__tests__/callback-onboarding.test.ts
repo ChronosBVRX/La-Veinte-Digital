@@ -182,8 +182,7 @@ describe("callback route onboarding redirection", () => {
   })
 
   it("sustituye 0.0.0.0 por el dominio canonico la20.com.mx en produccion", async () => {
-    const originalEnv = process.env.NODE_ENV
-    process.env.NODE_ENV = "production"
+    vi.stubEnv("NODE_ENV", "production")
 
     try {
       mocks.exchangeCodeForSession.mockResolvedValue({ error: null })
@@ -211,7 +210,7 @@ describe("callback route onboarding redirection", () => {
       expect(res.status).toBe(307)
       expect(res.headers.get("location")).toBe("https://la20.com.mx/")
     } finally {
-      process.env.NODE_ENV = originalEnv
+      vi.unstubAllEnvs()
     }
   })
 })
