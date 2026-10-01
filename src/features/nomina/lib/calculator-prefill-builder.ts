@@ -187,8 +187,16 @@ export function buildCalculatorPrefillResponse(ctx: CalculatorPrefillBuildContex
       }
     }
 
-    for (const code of ["023", "063"] as const) {
+    const c014 = concept("014")
+    if (policy.allowedConceptCodes.includes("014")) {
+      if (c014 && c014.included && c014.amount > 0) {
+        fields.concepto014 = fieldFromConcept(c014, ruleVersions.get("014"), ctx.targetDate)
+      }
+    }
+
+    for (const code of ["014", "023", "063"] as const) {
       if (!policy.allowedConceptCodes.includes(code)) continue
+      if (code === "014" && fields.concepto014) continue
       const evidence = ctx.recurringEvidence.find((e) => e.conceptCode === code)
       if (evidence && evidence.confirmed && evidence.amount > 0) {
         const value: PrefillField<number> = {
@@ -199,7 +207,8 @@ export function buildCalculatorPrefillResponse(ctx: CalculatorPrefillBuildContex
           editable: true,
           warning: "Valor del último tarjetón confirmado — no es una fórmula normativa validada.",
         }
-        if (code === "023") fields.concepto023 = value
+        if (code === "014") fields.concepto014 = value
+        else if (code === "023") fields.concepto023 = value
         else fields.concepto063 = value
       }
     }

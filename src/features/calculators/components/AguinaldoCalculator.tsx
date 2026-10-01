@@ -28,7 +28,7 @@ interface Props {
   initialCategoria?: string | null
 }
 
-type FieldKey = "c002" | "c011"
+type FieldKey = "c002" | "c011" | "c054"
 
 export function AguinaldoCalculator({ initialCategoria }: Props) {
   const targetDate = useMemo(() => todayForQueryParam(), [])
@@ -42,12 +42,22 @@ export function AguinaldoCalculator({ initialCategoria }: Props) {
     return records.find((r) => r.categoria.toLowerCase().includes(norm)) ?? null
   }, [initialCategoria])
 
+  const initialC054 = useMemo(() => {
+    if (!initialCategoria || !initialMatch?.sueldoQuincenal) return ""
+    if (initialCategoria.toUpperCase().includes("RADIOLOG")) {
+      const base = initialMatch.sueldoQuincenal + (initialMatch.concepto011 || 0)
+      return formatCurrency(Math.floor(base * 0.20 * 100) / 100)
+    }
+    return ""
+  }, [initialCategoria, initialMatch])
+
   const [c002, setC002] = useState(() =>
     initialMatch?.sueldoQuincenal ? formatCurrency(initialMatch.sueldoQuincenal) : ""
   )
   const [c011, setC011] = useState(() =>
     initialMatch?.concepto011 !== undefined ? formatCurrency(initialMatch.concepto011) : ""
   )
+  const [c054, setC054] = useState(() => initialC054)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [result, setResult] = useState<ReturnType<typeof calculateAguinaldo> | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(
@@ -55,17 +65,19 @@ export function AguinaldoCalculator({ initialCategoria }: Props) {
   )
   const [isEditingFields, setIsEditingFields] = useState(() => !initialMatch?.sueldoQuincenal)
 
-  const fields = useMemo(() => ({ c002, c011 }), [c002, c011])
+  const fields = useMemo(() => ({ c002, c011, c054 }), [c002, c011, c054])
 
   const setField = useCallback((key: FieldKey, value: string) => {
     if (key === "c002") setC002(value)
-    else setC011(value)
-    if (!value) setResult(null)
+    else if (key === "c011") setC011(value)
+    else setC054(value)
+    if (!value && key !== "c054") setResult(null)
   }, [])
 
-  const fieldMap = useMemo<Record<FieldKey, "concepto002" | "concepto011">>(() => ({
+  const fieldMap = useMemo<Record<FieldKey, "concepto002" | "concepto011" | "concepto054">>(() => ({
     c002: "concepto002",
     c011: "concepto011",
+    c054: "concepto054",
   }), [])
 
   const prefillFields = usePrefillFields({
@@ -84,32 +96,45 @@ export function AguinaldoCalculator({ initialCategoria }: Props) {
     setSelectedCategory(record.categoria)
     prefillFields.markDirty("c002")
     prefillFields.markDirty("c011")
+    prefillFields.markDirty("c054")
     if (record.sueldoQuincenal) setC002(formatCurrency(record.sueldoQuincenal))
     if (record.concepto011 !== undefined) setC011(formatCurrency(record.concepto011))
+    if (record.categoria.toUpperCase().includes("RADIOLOG") && record.sueldoQuincenal) {
+      const base = record.sueldoQuincenal + (record.concepto011 || 0)
+      const c054Val = Math.floor(base * 0.20 * 100) / 100
+      setC054(formatCurrency(c054Val))
+    } else {
+      setC054("")
+    }
   }
 
-  function validate(): { valid: boolean; v002: number | null; v011: number | null } {
+  function validate(): { valid: boolean; v002: number | null; v011: number | null; v054: number } {
     const v002 = parseCurrencyInput(c002)
     const v011 = parseCurrencyInput(c011)
+    const v054 = c054.trim() === "" ? 0 : (parseCurrencyInput(c054) ?? 0)
     const e: Record<string, string> = {}
     if (v002 === null) e.c002 = "Escribe una cantidad válida, por ejemplo $8,500"
     if (v011 === null) e.c011 = "Escribe una cantidad válida (escribe 0 si no aplica en tu caso)"
+    if (c054.trim() !== "" && parseCurrencyInput(c054) === null) {
+      e.c054 = "Escribe una cantidad válida (escribe 0 o déjalo vacío si no aplica)"
+    }
     setErrors(e)
-    return { valid: Object.keys(e).length === 0 && v002 !== null && v011 !== null, v002, v011 }
+    return { valid: Object.keys(e).length === 0 && v002 !== null && v011 !== null, v002, v011, v054 }
   }
 
   function handleCalculate() {
-    const { valid, v002, v011 } = validate()
+    const { valid, v002, v011, v054 } = validate()
     if (!valid || v002 === null || v011 === null) {
       setIsEditingFields(true)
       return
     }
-    setResult(calculateAguinaldo({ concepto002: v002, concepto011: v011 }))
+    setResult(calculateAguinaldo({ concepto002: v002, concepto011: v011, concepto054: v054 }))
   }
 
   function handleClear() {
     setC002("")
     setC011("")
+    setC054("")
     setErrors({})
     setResult(null)
     setSelectedCategory(null)
@@ -135,6 +160,9 @@ export function AguinaldoCalculator({ initialCategoria }: Props) {
             items={[
               { label: "Tu sueldo quincenal", value: c002, technicalCode: "Concepto 002" },
               { label: "Ayuda de renta", value: c011 || "$0.00", technicalCode: "Concepto 011" },
+              ...(c054 && c054.trim() !== ""
+                ? [{ label: "Emanaciones radiactivas", value: c054, technicalCode: "Concepto 054" }]
+                : []),
             ]}
             isEditing={isEditingFields}
             onToggleEditing={() => setIsEditingFields(true)}
@@ -201,6 +229,17 @@ export function AguinaldoCalculator({ initialCategoria }: Props) {
               onChange={handleCurrencyChange("c011")}
               error={errors.c011}
               placeholder="Ej: $1,245.30"
+            />
+
+            <FriendlyField
+              id="c054"
+              label="Emanaciones radiactivas / riesgo"
+              technicalLabel="Concepto 054 (Cl. 86 CCT)"
+              description="Si tu categoría recibe compensación por radiaciones o áreas tóxicas (ej. 20% para Técnicos Radiólogos). Si no aplica, déjalo vacío o en 0."
+              value={c054}
+              onChange={handleCurrencyChange("c054")}
+              error={errors.c054}
+              placeholder="Ej: $1,434.48"
             />
           </div>
         )}
@@ -319,7 +358,7 @@ export function AguinaldoCalculator({ initialCategoria }: Props) {
             <FormulaExplanation
               title="Procedimiento normativo de cálculo"
               steps={[
-                "Base quincenal = Concepto 002 (sueldo tabular) + Concepto 011 (ayuda de renta)",
+                "Base quincenal = Concepto 002 (sueldo tabular) + Concepto 011 (ayuda de renta) + conceptos integrantes autorizados (ej. 054)",
                 "Sueldo mensual base = Base quincenal × 2",
                 "Aguinaldo total anual = Sueldo mensual base × 3 meses (90 días de salario)",
                 "Concepto 047 (Enero) = Sueldo mensual base × 0.5 (medio mes / 15 días)",

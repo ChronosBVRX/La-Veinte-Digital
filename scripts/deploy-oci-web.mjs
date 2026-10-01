@@ -34,6 +34,8 @@ function runRemote(cmd) {
     "-i", SSH_KEY,
     "-o", "BatchMode=yes",
     "-o", "StrictHostKeyChecking=accept-new",
+    "-o", "ConnectTimeout=30",
+    "-o", "ServerAliveInterval=15",
     `${VPS_USER}@${VPS_IP}`,
     cmd,
   ];
@@ -43,18 +45,30 @@ function runRemote(cmd) {
   }
 }
 
-function scpUpload(localPath, remotePath) {
+function scpUpload(localPath, remotePath, maxRetries = 3) {
   console.log(`[scp] ${localPath} -> ${remotePath}`);
   const scpArgs = [
     "-i", SSH_KEY,
     "-o", "BatchMode=yes",
     "-o", "StrictHostKeyChecking=accept-new",
+    "-o", "ConnectTimeout=30",
+    "-o", "ServerAliveInterval=15",
     localPath,
     `${VPS_USER}@${VPS_IP}:${remotePath}`,
   ];
-  const res = spawnSync("scp", scpArgs, { stdio: "inherit" });
-  if (res.status !== 0) {
-    throw new Error(`SCP falló con código ${res.status}`);
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const res = spawnSync("scp", scpArgs, { stdio: "inherit" });
+    if (res.status === 0) {
+      return;
+    }
+    console.warn(`[scp] Intento ${attempt}/${maxRetries} falló con código ${res.status}.`);
+    if (attempt < maxRetries) {
+      console.log(`[scp] Reintentando en 5 segundos...`);
+      spawnSync("node", ["-e", "setTimeout(() => {}, 5000)"]);
+    } else {
+      throw new Error(`SCP falló tras ${maxRetries} intentos con código ${res.status}`);
+    }
   }
 }
 
@@ -218,6 +232,11 @@ async function main() {
       }
       return `${key}=${val}`;
     });
+    let currentSha = "dev";
+    try {
+      currentSha = execSync("git rev-parse HEAD", { encoding: "utf8" }).trim();
+    } catch {}
+    cleanedLines.push(`APP_COMMIT_SHA=${currentSha}`);
     fs.writeFileSync(tempEnvPath, cleanedLines.join("\n"));
   } else {
     console.error("ERROR: .env.production.local no existe.");

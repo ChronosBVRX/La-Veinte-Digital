@@ -34,13 +34,13 @@ export const CALCULATOR_POLICIES: Record<CalculatorId, CalculatorPrefillPolicy> 
   aguinaldo: {
     calculatorId: "aguinaldo",
     allowCategory: true,
-    allowedConceptCodes: ["002", "011"],
+    allowedConceptCodes: ["002", "011", "019", "054", "057", "058", "061"],
     includeConcept022AsInfo: false,
     includeWorkdayHours: false,
     includeDaysWorked: false,
     ...NO_SENIORITY,
     notes: [
-      "002 y 011 se prerrellenan; 011 solo como referencia normativa.",
+      "002 y 011 se prerrellenan; 054 y demás conceptos autorizados (019, 057, 058, 061) integran la base conforme a Cláusula 107 y Manual IMSS pág. 27.",
       "La fórmula original (factor 7.490956567109524) y la distribución 047/043/049 no se modifican; el factor se documenta como app_reconstructed.",
       "Alternativa documentada (Cláusula 107, factor 6) se muestra como comparación pendiente de validación.",
       "El 022 no forma parte de la base del aguinaldo.",
@@ -107,9 +107,9 @@ export const CALCULATOR_POLICIES: Record<CalculatorId, CalculatorPrefillPolicy> 
   "tiempo-extra": {
     calculatorId: "tiempo-extra",
     allowCategory: true,
-    allowedConceptCodes: ["002", "011", "020", "023", "050", "054", "063"],
-    includeConcept022AsInfo: false,
-    includeSeniority: false,
+    allowedConceptCodes: ["002", "011", "014", "020", "023", "050", "054", "063"],
+    includeConcept022AsInfo: true,
+    includeSeniority: true,
     includeWorkdayHours: true,
     includeDaysWorked: false,
     notes: [
