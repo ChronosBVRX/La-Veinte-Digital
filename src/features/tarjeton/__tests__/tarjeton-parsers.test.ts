@@ -461,6 +461,15 @@ describe("presentación amigable del tarjetón", () => {
     ])
   })
 
+  it("permite importar la antigüedad cuando el perfil todavía está vacío", async () => {
+    const outcome = await parseImssTarjeton({ items: imssPositionedTextFixture, pageCount: 2 })
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(buildDifferences(outcome.parsed, { antiguedad: null })).toEqual([
+      expect.objectContaining({ key: "antiguedad", current: null, detected: outcome.parsed.employee.seniority?.raw }),
+    ])
+  })
+
   it("traduce las claves visibles y agrupa advertencias técnicas", () => {
     const requiredLabels = ["delays", "exitPasses", "absences", "noDelayDays", "attendanceScore", "maternityLeave", "license140Bis", "paidLicenses", "unpaidLicenses", "commissions", "concept033Days", "enjoyedDays", "daysInYear", "continuityMark", "periodNumberToEnjoy"]
     expect(requiredLabels.every((key) => Boolean(DETAIL_LABELS[key]))).toBe(true)

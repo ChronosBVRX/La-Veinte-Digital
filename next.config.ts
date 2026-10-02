@@ -12,7 +12,6 @@ const turnstileOrigin = "https://challenges.cloudflare.com"
 const connectSources = [
   "'self'",
   supabaseUrl,
-  "https://ragktminwduiggvaoeix.supabase.co",
   "https://tessdata.projectnaptha.com",
   "https://cdn.jsdelivr.net",
   turnstileOrigin,

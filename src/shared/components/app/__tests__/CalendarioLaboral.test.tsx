@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi, beforeEach } from "vitest"
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest"
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { CalendarioLaboral } from "../CalendarioLaboral"
 import { clearLocal } from "@/features/agenda-laboral/services/commitments-local"
@@ -26,8 +26,14 @@ vi.mock("@/lib/supabase/client", () => ({
 
 describe("<CalendarioLaboral /> con Días de Descanso CCT y Guardias", () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date(2026, 8, 15))
     clearLocal()
     window.localStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it("renderiza el filtro institucional 'Descanso CCT'", () => {

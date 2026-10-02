@@ -66,7 +66,17 @@ interface Props {
   initialCategoria?: string | null
 }
 
-type FieldKey = "c002" | "c011" | "c020" | "adicional1" | "adicional2" | "c050" | "jornada"
+type FieldKey =
+  | "c002"
+  | "c011"
+  | "c020"
+  | "c014"
+  | "adicional1"
+  | "adicional2"
+  | "c054"
+  | "c050"
+  | "c022"
+  | "jornada"
 
 export function TiempoExtraCalculator({ initialCategoria }: Props) {
   const targetDate = useMemo(() => todayForQueryParam(), [])
@@ -80,17 +90,32 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
     return records.find((r) => r.categoria.toLowerCase().includes(norm)) ?? null
   }, [initialCategoria])
 
+  const initialC054 = useMemo(() => {
+    if (!initialCategoria || !initialMatch?.sueldoQuincenal) return ""
+    if (initialCategoria.toUpperCase().includes("RADIOLOG")) {
+      const base = initialMatch.sueldoQuincenal + (initialMatch.concepto011 || 0)
+      return formatCurrency(Math.floor(base * 0.20 * 100) / 100)
+    }
+    return ""
+  }, [initialCategoria, initialMatch])
+
   const [fields, setFields] = useState({
     c002: initialMatch?.sueldoQuincenal ? formatCurrency(initialMatch.sueldoQuincenal) : "",
     c011: initialMatch?.concepto011 !== undefined ? formatCurrency(initialMatch.concepto011) : "",
-    c020: "",
+    c020: formatCurrency(250),
+    c014: "",
     adicional1: "",
     adicional2: "",
-    c050: "",
+    c054: initialC054,
+    c050: formatCurrency(200),
+    c022: "",
     jornada: "8",
     horasExtra: "",
+    horasSemana1: "",
+    horasSemana2: "",
     horasSemana: "",
   })
+  const [integrarAntiguedad, setIntegrarAntiguedad] = useState(false)
   const [exceptionType, setExceptionType] = useState<TiempoExtraExceptionType>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [warning, setWarning] = useState<string | null>(null)
@@ -118,9 +143,12 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
     c002: "concepto002",
     c011: "concepto011",
     c020: "concepto020",
+    c014: "concepto014",
     adicional1: "concepto023",
     adicional2: "concepto063",
+    c054: "concepto054",
     c050: "concepto050",
+    c022: "concepto022",
     jornada: "workdayHours",
   }), [])
 
@@ -146,14 +174,29 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
     prefillFields.markDirty("c002")
     prefillFields.markDirty("c011")
     prefillFields.markDirty("c020")
+    prefillFields.markDirty("c014")
     prefillFields.markDirty("adicional1")
     prefillFields.markDirty("adicional2")
+    prefillFields.markDirty("c054")
     prefillFields.markDirty("c050")
+    prefillFields.markDirty("c022")
     if (record.sueldoQuincenal) setField("c002", formatCurrency(record.sueldoQuincenal))
     if (record.concepto011 !== undefined) setField("c011", formatCurrency(record.concepto011))
+    setField("c020", formatCurrency(250))
+    setField("c050", formatCurrency(200))
+    if (record.categoria.toUpperCase().includes("RADIOLOG") && record.sueldoQuincenal) {
+      const base = record.sueldoQuincenal + (record.concepto011 || 0)
+      const c054Val = Math.floor(base * 0.20 * 100) / 100
+      setField("c054", formatCurrency(c054Val))
+    }
   }
 
-  const vH = parseFloat(fields.horasExtra)
+  const vSem1 = fields.horasSemana1.trim() === "" ? undefined : parseFloat(fields.horasSemana1)
+  const vSem2 = fields.horasSemana2.trim() === "" ? undefined : parseFloat(fields.horasSemana2)
+  const parsedVH = parseFloat(fields.horasExtra)
+  const vH = !isNaN(parsedVH) && parsedVH > 0
+    ? parsedVH
+    : ((vSem1 ?? 0) + (vSem2 ?? 0))
   const isOverQuincenaLimit = !isNaN(vH) && vH > MAX_HORAS_QUINCENALES
 
   function validate(): boolean {
@@ -173,13 +216,23 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
     if (v002 === null) e.c002 = "Escribe tu sueldo quincenal válido, por ejemplo $8,500"
     optional("c011", "c011")
     optional("c020", "c020")
+    optional("c014", "c014")
     optional("adicional1", "adicional1")
     optional("adicional2", "adicional2")
+    optional("c054", "c054")
     optional("c050", "c050")
+    optional("c022", "c022")
 
     if (vJ !== 6 && vJ !== 6.5 && vJ !== 8 && vJ !== 12) e.jornada = "Selecciona tu jornada diaria"
 
-    if (!fields.horasExtra || isNaN(vH)) {
+    if (vSem1 !== undefined && (isNaN(vSem1) || vSem1 < 0)) {
+      e.horasSemana1 = "Escribe un número válido de horas"
+    }
+    if (vSem2 !== undefined && (isNaN(vSem2) || vSem2 < 0)) {
+      e.horasSemana2 = "Escribe un número válido de horas"
+    }
+
+    if (!vH || isNaN(vH) || vH <= 0) {
       e.horasExtra = "Escribe el número de horas extra trabajadas (por ejemplo: 5)"
     } else {
       const quincena = validateHorasExtraQuincena(vH, exceptionType)
@@ -220,21 +273,30 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
       { code: "002", amount: g("c002") },
       { code: "011", amount: g("c011") },
       { code: "020", amount: g("c020") },
+      { code: "014", amount: g("c014") },
       { code: "023", amount: g("adicional1") },
       { code: "063", amount: g("adicional2") },
+      { code: "054", amount: g("c054") },
       { code: "050", amount: g("c050") },
-    ]
+      ...(integrarAntiguedad && g("c022") > 0 ? [{ code: "022", amount: g("c022") }] : []),
+    ].filter((c) => c.amount > 0)
     const baseAmount = conceptos.reduce((s, c) => s + c.amount, 0)
 
     const input: TiempoExtraInput = {
       concepto002: g("c002"),
       concepto011: g("c011"),
       concepto020: g("c020"),
+      concepto014: g("c014"),
+      concepto022: g("c022"),
+      integrarAntiguedad,
       conceptoAdicional1: g("adicional1"),
       conceptoAdicional2: g("adicional2"),
+      concepto054: g("c054"),
       concepto050: g("c050"),
       jornada: parseFloat(fields.jornada) as JornadaHoras,
-      horasExtra: parseFloat(fields.horasExtra),
+      horasExtra: vH,
+      horasSemana1: vSem1,
+      horasSemana2: vSem2,
       horasSemana: fields.horasSemana.trim() === "" ? undefined : parseFloat(fields.horasSemana),
       exceptionType,
       baseNormativa: { conceptos, baseAmount },
@@ -247,14 +309,20 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
     setFields({
       c002: "",
       c011: "",
-      c020: "",
+      c020: formatCurrency(250),
+      c014: "",
       adicional1: "",
       adicional2: "",
-      c050: "",
+      c054: "",
+      c050: formatCurrency(200),
+      c022: "",
       jornada: "8",
       horasExtra: "",
+      horasSemana1: "",
+      horasSemana2: "",
       horasSemana: "",
     })
+    setIntegrarAntiguedad(false)
     setExceptionType(null)
     setErrors({})
     setResult(null)
@@ -293,11 +361,53 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
             ¿Cuántas horas extra vas a registrar?
           </span>
 
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+            <FriendlyField
+              id="horasSemana1"
+              label="Horas Semana 1"
+              technicalLabel="Límite: 9 h al doble"
+              description="Horas de la 1ª semana"
+              value={fields.horasSemana1}
+              onChange={(val) => {
+                setField("horasSemana1", val)
+                prefillFields.markDirty("horasSemana1")
+                const s1 = parseFloat(val) || 0
+                const s2 = parseFloat(fields.horasSemana2) || 0
+                if (val !== "" || fields.horasSemana2 !== "") {
+                  setField("horasExtra", String(s1 + s2))
+                }
+              }}
+              type="number"
+              error={errors.horasSemana1}
+              placeholder="Ej: 9"
+            />
+
+            <FriendlyField
+              id="horasSemana2"
+              label="Horas Semana 2"
+              technicalLabel="Límite: 9 h al doble"
+              description="Horas de la 2ª semana"
+              value={fields.horasSemana2}
+              onChange={(val) => {
+                setField("horasSemana2", val)
+                prefillFields.markDirty("horasSemana2")
+                const s1 = parseFloat(fields.horasSemana1) || 0
+                const s2 = parseFloat(val) || 0
+                if (val !== "" || fields.horasSemana1 !== "") {
+                  setField("horasExtra", String(s1 + s2))
+                }
+              }}
+              type="number"
+              error={errors.horasSemana2}
+              placeholder="Ej: 9"
+            />
+          </div>
+
           <FriendlyField
             id="horasExtra"
             label="Horas extra trabajadas en la quincena"
             technicalLabel="Concepto 037 (Tiempo Extraordinario)"
-            description={`Límite ordinario normal: hasta ${MAX_HORAS_QUINCENALES} horas por quincena.`}
+            description={`Límite ordinario normal: hasta ${MAX_HORAS_QUINCENALES} horas por quincena (hasta 9 h/semana al doble).`}
             value={fields.horasExtra}
             onChange={(val) => {
               setField("horasExtra", val)
@@ -305,7 +415,7 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
             }}
             type="number"
             error={errors.horasExtra}
-            placeholder="Ej: 5"
+            placeholder="Ej: 18"
           />
 
           <div>
@@ -328,21 +438,6 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
               Determina cuántas horas ordinarias comprende tu periodo quincenal.
             </p>
           </div>
-
-          <FriendlyField
-            id="horasSemana"
-            label="Horas trabajadas en la semana más cargada (opcional)"
-            technicalLabel="Para cálculo exacto de horas dobles y triples"
-            description={`Límite ordinario: hasta ${MAX_HORAS_SEMANALES} horas por semana.`}
-            value={fields.horasSemana}
-            onChange={(val) => {
-              setField("horasSemana", val)
-              prefillFields.markDirty("horasSemana")
-            }}
-            type="number"
-            error={errors.horasSemana}
-            placeholder="Ej: 6 (opcional)"
-          />
         </div>
 
         {/* 2. Sección humana para límites excedidos */}
@@ -405,6 +500,21 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
             items={[
               { label: "Sueldo quincenal", value: fields.c002, technicalCode: "Concepto 002" },
               { label: "Ayuda de renta", value: fields.c011 || "$0.00", technicalCode: "Concepto 011" },
+              ...(fields.c054 && fields.c054 !== "$0.00" && fields.c054 !== "0"
+                ? [{ label: "Emanaciones no médicas", value: fields.c054, technicalCode: "Concepto 054" }]
+                : []),
+              ...(fields.c020 && fields.c020 !== "$0.00" && fields.c020 !== "0"
+                ? [{ label: "Ayuda de renta fija", value: fields.c020, technicalCode: "Concepto 020" }]
+                : []),
+              ...(fields.c050 && fields.c050 !== "$0.00" && fields.c050 !== "0"
+                ? [{ label: "Ayuda para despensa", value: fields.c050, technicalCode: "Concepto 050" }]
+                : []),
+              ...(fields.c014 && fields.c014 !== "$0.00" && fields.c014 !== "0"
+                ? [{ label: "Infecto no médico", value: fields.c014, technicalCode: "Concepto 014" }]
+                : []),
+              ...(fields.c022 && fields.c022 !== "$0.00" && fields.c022 !== "0"
+                ? [{ label: "Antigüedad (Cl. 63 Bis c)", value: fields.c022, technicalCode: "Concepto 022" }]
+                : []),
               { label: "Jornada seleccionada", value: `${fields.jornada} horas` },
             ]}
             sourceText="Usaremos automáticamente estos datos de tu nómina para calcular el valor de tu hora."
@@ -480,18 +590,48 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
 
             <FriendlyField
               id="c020"
-              label="Compensación o infecto"
-              technicalLabel="Concepto 020 (si aplica)"
+              label="Ayuda de renta fija (Cláusula 63 Bis, inciso a)"
+              technicalLabel="Concepto 020 ($250.00 quincenales fijos)"
               value={fields.c020}
               onChange={handleCurrencyChange("c020")}
               error={errors.c020}
+              placeholder="Ej: $250.00"
+            />
+
+            <FriendlyField
+              id="c050"
+              label="Ayuda para despensa (Cláusula 142 Bis)"
+              technicalLabel="Concepto 050 ($200.00 quincenales para trabajadores de base)"
+              value={fields.c050}
+              onChange={handleCurrencyChange("c050")}
+              error={errors.c050}
+              placeholder="Ej: $200.00"
+            />
+
+            <FriendlyField
+              id="c054"
+              label="Emanaciones radiactivas no médicas"
+              technicalLabel="Concepto 054 (Técnicos radiólogos y áreas expuestas)"
+              value={fields.c054}
+              onChange={handleCurrencyChange("c054")}
+              error={errors.c054}
+              placeholder="Ej: $1,434.48"
+            />
+
+            <FriendlyField
+              id="c014"
+              label="Infectocontagiosidad no médica"
+              technicalLabel="Concepto 014 (10% sobre 002 + 011 para técnicos/auxiliares)"
+              value={fields.c014}
+              onChange={handleCurrencyChange("c014")}
+              error={errors.c014}
               placeholder="Ej: $0.00"
             />
 
             <FriendlyField
               id="adicional1"
-              label="Concepto adicional 1"
-              technicalLabel="Concepto 023 o 063 (si aplica)"
+              label="Infectocontagiosidad médica"
+              technicalLabel="Concepto 023 (personal médico)"
               value={fields.adicional1}
               onChange={handleCurrencyChange("adicional1")}
               error={errors.adicional1}
@@ -500,8 +640,8 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
 
             <FriendlyField
               id="adicional2"
-              label="Concepto adicional 2"
-              technicalLabel="Concepto 023 o 063 (si aplica)"
+              label="Emanaciones radiactivas médicas"
+              technicalLabel="Concepto 063 (médicos radiólogos)"
               value={fields.adicional2}
               onChange={handleCurrencyChange("adicional2")}
               error={errors.adicional2}
@@ -509,14 +649,38 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
             />
 
             <FriendlyField
-              id="c050"
-              label="Otras percepciones computables"
-              technicalLabel="Concepto 050 (si aplica)"
-              value={fields.c050}
-              onChange={handleCurrencyChange("c050")}
-              error={errors.c050}
-              placeholder="Ej: $0.00"
+              id="c022"
+              label="Ayuda de renta por antigüedad (opcional)"
+              technicalLabel="Concepto 022 (Cláusula 63 Bis, inciso c)"
+              description="Ingresa el importe de tu tarjetón si deseas calcular o comparar el escenario con antigüedad integrada."
+              value={fields.c022}
+              onChange={handleCurrencyChange("c022")}
+              error={errors.c022}
+              placeholder="Ej: $1,972.41"
             />
+
+            {parseCurrencyInput(fields.c022) !== null && (parseCurrencyInput(fields.c022) ?? 0) > 0 && (
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  fontSize: "0.8125rem",
+                  color: "var(--fg)",
+                  cursor: "pointer",
+                  padding: "0.375rem 0.5rem",
+                  background: "var(--accent)",
+                  borderRadius: "var(--radius-md)",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={integrarAntiguedad}
+                  onChange={(e) => setIntegrarAntiguedad(e.target.checked)}
+                />
+                Integrar antigüedad (Concepto 022) a la base principal del cálculo
+              </label>
+            )}
           </div>
         )}
 
@@ -579,6 +743,86 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
               value: formatCurrency(result.valorHora),
             }}
           />
+
+          {result.comparativaAntiguedad && (
+            <div
+              style={{
+                background: "rgba(37, 99, 235, 0.04)",
+                border: "1px solid rgba(37, 99, 235, 0.2)",
+                borderRadius: "var(--radius-lg)",
+                padding: "1.25rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.75rem",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+                <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--fg)" }}>
+                  Impacto de Antigüedad (Concepto 022)
+                </span>
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    padding: "0.2rem 0.5rem",
+                    borderRadius: "999px",
+                    background: "rgba(37, 99, 235, 0.1)",
+                    color: "var(--primary)",
+                    fontWeight: 600,
+                  }}
+                >
+                  Cláusula 63 Bis c CCT
+                </span>
+              </div>
+
+              <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0, lineHeight: 1.45 }}>
+                En el IMSS, la base contractual estricta de tiempo extra usa el tabulador más riesgos. No obstante, si tu centro de trabajo o reclamo liquida sobre <strong>Salario Quincenal Integrado</strong> con tu Concepto 022 ({formatCurrency(result.comparativaAntiguedad.monto022)}):
+              </p>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "0.75rem" }}>
+                <div
+                  style={{
+                    background: "var(--card)",
+                    padding: "0.875rem",
+                    borderRadius: "var(--radius-md)",
+                    border: !result.comparativaAntiguedad.integradaEnPrincipal ? "2px solid var(--primary)" : "1px solid var(--border)",
+                  }}
+                >
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", display: "block" }}>
+                    Base Tabular Estándar {!result.comparativaAntiguedad.integradaEnPrincipal && "✓ (Activo)"}
+                  </span>
+                  <strong style={{ fontSize: "1.25rem", color: "var(--fg)", display: "block", marginTop: "0.25rem" }}>
+                    {formatCurrency(result.comparativaAntiguedad.integradaEnPrincipal ? result.pago - result.comparativaAntiguedad.diferencia : result.pago)}
+                  </strong>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", display: "block", marginTop: "0.25rem" }}>
+                    Hora ordinaria: {formatCurrency(result.comparativaAntiguedad.integradaEnPrincipal ? (result.sumaConceptos - result.comparativaAntiguedad.monto022) / result.horasOrdinariasPeriodo : result.valorHora)}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    background: "var(--card)",
+                    padding: "0.875rem",
+                    borderRadius: "var(--radius-md)",
+                    border: result.comparativaAntiguedad.integradaEnPrincipal ? "2px solid var(--primary)" : "1px solid rgba(37, 99, 235, 0.3)",
+                  }}
+                >
+                  <span style={{ fontSize: "0.75rem", color: "var(--primary)", display: "block" }}>
+                    Con Antigüedad Integrada {result.comparativaAntiguedad.integradaEnPrincipal && "✓ (Activo)"}
+                  </span>
+                  <strong style={{ fontSize: "1.25rem", color: "var(--primary)", display: "block", marginTop: "0.25rem" }}>
+                    {formatCurrency(result.comparativaAntiguedad.integradaEnPrincipal ? result.pago : result.comparativaAntiguedad.pagoConAntiguedad)}
+                  </strong>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", display: "block", marginTop: "0.25rem" }}>
+                    Hora ordinaria: {formatCurrency(result.comparativaAntiguedad.valorHoraConAntiguedad)} (+{formatCurrency(Math.abs(result.comparativaAntiguedad.diferencia))})
+                  </span>
+                </div>
+              </div>
+
+              <p style={{ fontSize: "0.75rem", color: "var(--muted)", margin: 0, fontStyle: "italic" }}>
+                💡 Esto explica por qué compañeros con 20 años de servicio (150 días en el Concepto 022) cobran una tarifa por hora superior a los $100.00/h aunque compartan la misma categoría y turno.
+              </p>
+            </div>
+          )}
 
           {result.desglose && result.desglose.length > 0 && (
             <FriendlyBreakdown
@@ -645,11 +889,12 @@ export function TiempoExtraCalculator({ initialCategoria }: Props) {
             <FormulaExplanation
               title="Fórmulas aplicables"
               steps={[
-                "Base quincenal = 002 + 011 + 020 + 023 + 063 + 050 (matriz de repercusiones concepto 037)",
+                "Base quincenal estándar = 002 + 011 + 020 + 050 + 054 (y en su caso 014, 023, 063) (matriz CCT pág. 26 / concepto 037)",
+                "Base con antigüedad integrada = Base estándar + 022 (Cláusula 63 Bis c)",
                 "Horas ordinarias quincenales = Jornada diaria × 15 días",
                 "Valor hora ordinaria = Base quincenal ÷ Horas ordinarias",
-                "Primeras 9 horas a la semana = Valor hora × 2",
-                "Excedente mayor a 9 horas = Valor hora × 3",
+                "Primeras 9 horas de cada semana = Valor hora × 2 (dobles)",
+                "Excedente mayor a 9 horas por semana = Valor hora × 3 (triples)",
                 "Descanso semanal o festivo laborado = Valor hora × 3",
                 "Coincidencia de descanso obligatorio en descanso semanal = Valor hora × 4",
                 "Redondeo Cláusula 33: < 30 min = 0.5 h; 30 a 60 min = 1.0 h",

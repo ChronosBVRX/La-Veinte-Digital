@@ -29,8 +29,29 @@ function isSafeInternalPath(path: string | null): boolean {
   )
 }
 
+function getCallbackOrigin(request: Request): string {
+  const forwardedHost = request.headers.get("x-forwarded-host")
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https"
+  if (forwardedHost && !forwardedHost.startsWith("0.0.0.0")) {
+    return `${forwardedProto}://${forwardedHost}`
+  }
+
+  const host = request.headers.get("host")
+  if (host && !host.startsWith("0.0.0.0") && !host.startsWith("127.0.0.1")) {
+    return `${forwardedProto}://${host}`
+  }
+
+  const { origin, hostname } = new URL(request.url)
+  if (hostname === "0.0.0.0" || hostname === "127.0.0.1") {
+    return process.env.NODE_ENV === "production" ? "https://la20.com.mx" : origin
+  }
+
+  return origin
+}
+
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
+  const origin = getCallbackOrigin(request)
   const code = searchParams.get("code")
   const next = searchParams.get("next")
   const oauthError = searchParams.get("error")

@@ -113,6 +113,12 @@ interface WorkerSummaryRow {
   turn: string;
   phone: string | null;
   active: boolean;
+  seniority_years: number | null;
+  seniority_raw: string | null;
+  employment_start_date: string | null;
+  source_import_state: string | null;
+  source_status_code: string | null;
+  avatar_url?: string | null;
 }
 
 export async function GET(req: Request): Promise<NextResponse> {
@@ -291,10 +297,25 @@ export async function GET(req: Request): Promise<NextResponse> {
       if (record.worker_id) {
         const { data: w } = await supabase
           .from("union_workers")
-          .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment, turn, phone, active")
+          .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment, turn, phone, active, seniority_years, seniority_raw, employment_start_date, source_import_state, source_status_code")
           .eq("id", record.worker_id)
           .maybeSingle();
         worker = (w as WorkerSummaryRow | null) ?? null;
+      }
+
+      let avatarUrl: string | null = null;
+      const lookupMat = worker?.employee_number || record.matricula;
+      if (lookupMat) {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("avatar_url")
+          .eq("matricula", lookupMat)
+          .limit(1)
+          .maybeSingle();
+        avatarUrl = prof?.avatar_url ?? null;
+      }
+      if (worker && avatarUrl) {
+        worker.avatar_url = avatarUrl;
       }
 
       return noStore(
@@ -306,6 +327,7 @@ export async function GET(req: Request): Promise<NextResponse> {
             parking_lot_label: getCavParkingLotLabel(record.parking_lot),
             shift_label: getCavShiftLabel(record.shift),
             worker,
+            avatar_url: avatarUrl,
           },
         }),
       );
@@ -338,11 +360,43 @@ export async function GET(req: Request): Promise<NextResponse> {
       for (const chunk of chunkArray(workerIds, 200)) {
         const { data: workers } = await supabase
           .from("union_workers")
-          .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment, turn, phone, active")
+          .select("id, employee_number, first_name, paternal_surname, maternal_surname, category, assignment, turn, phone, active, seniority_years, seniority_raw, employment_start_date, source_import_state, source_status_code")
           .in("id", chunk);
         for (const w of (workers ?? []) as WorkerSummaryRow[]) {
           workerById.set(w.id, w);
         }
+      }
+    }
+
+    // Consulta en lote de avatares/fotografías desde la tabla profiles
+    const allMatriculas = [
+      ...new Set(
+        allRecords
+          .map((r) => r.matricula?.trim())
+          .concat(Array.from(workerById.values()).map((w) => w.employee_number?.trim()))
+          .filter((m): m is string => Boolean(m)),
+      ),
+    ];
+    const avatarByMatricula = new Map<string, string>();
+    if (allMatriculas.length > 0) {
+      for (const chunk of chunkArray(allMatriculas, 200)) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("matricula, avatar_url")
+          .in("matricula", chunk);
+        for (const p of profs ?? []) {
+          if (p.matricula && p.avatar_url) {
+            avatarByMatricula.set(p.matricula, p.avatar_url);
+          }
+        }
+      }
+    }
+
+    for (const [id, w] of workerById.entries()) {
+      const avatar = avatarByMatricula.get(w.employee_number);
+      if (avatar) {
+        w.avatar_url = avatar;
+        workerById.set(id, w);
       }
     }
 
@@ -353,21 +407,26 @@ export async function GET(req: Request): Promise<NextResponse> {
       }
     }
 
-    const counts = {
-      total: allRecords.length,
-      active: allRecords.filter((r) => r.status === "A" && r.internal_status === "activo").length,
-      suspended: allRecords.filter((r) => r.status === "X" && r.internal_status !== "baja").length,
-      baja: allRecords.filter((r) => r.internal_status === "baja").length,
-      linkedToPadron: allRecords.filter((r) => Boolean(r.worker_id)).length,
-      unlinked: allRecords.filter((r) => !r.worker_id).length,
-      baseCount: allRecords.filter((r) => r.parking_lot === "1").length,
-      confianzaCount: allRecords.filter((r) => r.parking_lot === "2").length,
-      visitantesCount: allRecords.filter((r) => r.parking_lot === "3").length,
-      lastSyncedAt,
-    };
-
     const enriched = allRecords.map((r) => {
       const worker = r.worker_id ? (workerById.get(r.worker_id) ?? null) : null;
+      const avatar_url =
+        worker?.avatar_url ||
+        (r.matricula ? avatarByMatricula.get(r.matricula) : null) ||
+        null;
+      const isUnlinked = !worker;
+      const isInactive = Boolean(worker && !worker.active);
+      const isMissing = Boolean(worker && worker.source_import_state === "missing");
+      const isDepuracionCandidate = r.internal_status !== "baja" && (isUnlinked || isInactive || isMissing);
+      const depuracionReason = !isDepuracionCandidate
+        ? null
+        : isUnlinked
+          ? "Sin registro en Padrón Sindical"
+          : isInactive
+            ? "Trabajador inactivo en Padrón Sindical"
+            : isMissing
+              ? "Trabajador ausente en última plantilla"
+              : "Pendiente de verificación";
+
       return {
         ...r,
         area_label: r.area_label || getCavAreaLabel(r.area_code),
@@ -375,8 +434,25 @@ export async function GET(req: Request): Promise<NextResponse> {
         parking_lot_label: getCavParkingLotLabel(r.parking_lot),
         shift_label: getCavShiftLabel(r.shift),
         worker,
+        avatar_url,
+        isDepuracionCandidate,
+        depuracionReason,
       };
     });
+
+    const counts = {
+      total: allRecords.length,
+      active: allRecords.filter((r) => r.status === "A" && r.internal_status === "activo").length,
+      suspended: allRecords.filter((r) => r.status === "X" && r.internal_status !== "baja").length,
+      baja: allRecords.filter((r) => r.internal_status === "baja").length,
+      linkedToPadron: allRecords.filter((r) => Boolean(r.worker_id)).length,
+      unlinked: allRecords.filter((r) => !r.worker_id).length,
+      depuracionCount: enriched.filter((r) => r.isDepuracionCandidate).length,
+      baseCount: allRecords.filter((r) => r.parking_lot === "1").length,
+      confianzaCount: allRecords.filter((r) => r.parking_lot === "2").length,
+      visitantesCount: allRecords.filter((r) => r.parking_lot === "3").length,
+      lastSyncedAt,
+    };
 
     let filtered = enriched;
 
@@ -392,7 +468,10 @@ export async function GET(req: Request): Promise<NextResponse> {
       filtered = filtered.filter((r) => r.parking_lot === lotFilter);
     }
 
-    if (linkedFilter === "linked") {
+    const depuracionParam = url.searchParams.get("depuracion");
+    if (depuracionParam === "1" || linkedFilter === "depuracion") {
+      filtered = filtered.filter((r) => r.isDepuracionCandidate);
+    } else if (linkedFilter === "linked") {
       filtered = filtered.filter((r) => Boolean(r.worker_id));
     } else if (linkedFilter === "unlinked") {
       filtered = filtered.filter((r) => !r.worker_id);
@@ -425,6 +504,41 @@ export async function GET(req: Request): Promise<NextResponse> {
         }
         return false;
       });
+    }
+
+    // Ordenamiento: Antigüedad descendente, ascendente, cajón, placas, nombre o recientes
+    const sort = url.searchParams.get("sort") ?? "seniority_desc";
+    if (sort === "seniority_desc") {
+      filtered.sort((a, b) => {
+        const aYears = a.worker?.seniority_years ?? -1;
+        const bYears = b.worker?.seniority_years ?? -1;
+        if (bYears !== aYears) return bYears - aYears;
+        const aDate = a.worker?.employment_start_date || "9999-99-99";
+        const bDate = b.worker?.employment_start_date || "9999-99-99";
+        if (aDate !== bDate) return aDate.localeCompare(bDate);
+        return (b.external_id_reg || 0) - (a.external_id_reg || 0);
+      });
+    } else if (sort === "seniority_asc") {
+      filtered.sort((a, b) => {
+        const aYears = a.worker?.seniority_years ?? 999;
+        const bYears = b.worker?.seniority_years ?? 999;
+        if (aYears !== bYears) return aYears - bYears;
+        return (b.external_id_reg || 0) - (a.external_id_reg || 0);
+      });
+    } else if (sort === "cajon") {
+      filtered.sort((a, b) => {
+        const aNum = parseInt(a.cajon_number || "0", 10);
+        const bNum = parseInt(b.cajon_number || "0", 10);
+        if (!isNaN(aNum) && !isNaN(bNum) && aNum !== bNum) return aNum - bNum;
+        return (a.cajon_number || "").localeCompare(b.cajon_number || "");
+      });
+    } else if (sort === "name") {
+      filtered.sort((a, b) => (a.full_name || "").localeCompare(b.full_name || ""));
+    } else if (sort === "placas") {
+      filtered.sort((a, b) => (a.placas || "").localeCompare(b.placas || ""));
+    } else {
+      // Por defecto reciente: external_id_reg desc
+      filtered.sort((a, b) => (b.external_id_reg || 0) - (a.external_id_reg || 0));
     }
 
     const totalFiltered = filtered.length;

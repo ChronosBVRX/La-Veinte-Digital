@@ -94,11 +94,22 @@ export interface TiempoExtraInput {
   concepto002: number
   concepto011: number
   concepto020: number
+  /** Infectocontagiosidad no médica (Concepto 014 - personal técnico/enfermería/lab). */
+  concepto014?: number
+  /** Ayuda de renta por antigüedad (Concepto 022 - Cláusula 63 Bis, inciso c). */
+  concepto022?: number
+  /** Si es true, integra formalmente el Concepto 022 en la base principal. */
+  integrarAntiguedad?: boolean
   conceptoAdicional1: number
   conceptoAdicional2: number
+  concepto054?: number
   concepto050: number
   jornada: JornadaHoras
   horasExtra: number
+  /** Horas extra trabajadas en la primera semana de la quincena. */
+  horasSemana1?: number
+  /** Horas extra trabajadas en la segunda semana de la quincena. */
+  horasSemana2?: number
   /** Horas extra de la semana corriente (validación 9 h semanales). */
   horasSemana?: number
   /** Excepción expresamente seleccionada/documentada para exceder el límite. */
@@ -139,6 +150,15 @@ export interface TiempoExtraResult {
   baseNormativaUsada: boolean
   /** Conceptos integrados a la base (repercusiones). */
   conceptosIntegrados: TiempoExtraConceptoBase[]
+  /** Escenario comparativo integrando la antigüedad (Concepto 022). */
+  comparativaAntiguedad?: {
+    monto022: number
+    baseConAntiguedad: number
+    valorHoraConAntiguedad: number
+    pagoConAntiguedad: number
+    diferencia: number
+    integradaEnPrincipal: boolean
+  }
 }
 
 export interface HorasExtraValidation {

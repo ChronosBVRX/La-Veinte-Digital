@@ -297,54 +297,48 @@ Both must be kept in sync. The bot speaks Spanish, uses **negritas**, emojis wit
 
 ## Infrastructure Access
 
-### Supabase (Database)
+### Supabase en OCI (Database & Auth)
 
 | Info | Value |
 |------|-------|
-| Project URL | `https://ragktminwduiggvaoeix.supabase.co` |
-| Project ref | `ragktminwduiggvaoeix` |
-| Service role key | en `.env.local` como `NEXT_PUBLIC_SUPABASE_ANON_KEY` NO es la service role — la service_role solo está en el dashboard de Supabase |
+| Production URL | `https://supabase.la20.com.mx` |
+| Self-hosted host | Oracle Cloud VPS ARM64 (`159.54.146.146`) |
+| Service role key | En `.env.production.local` / `/opt/laveinte-app/.env` (NUNCA en el cliente ni en git) |
+| Buckets de Storage | `android-releases`, `union-private` |
 
-**Comandos útiles:**
-```bash
-# Login con PAT (Personal Access Token de app.supabase.com/account/tokens)
-supabase login --token <pat>
+**Comandos y operaciones:**
+- La base de datos corre self-hosted en PostgreSQL 14.5 bajo Docker en OCI (65 tablas activas con RLS).
+- Toda nueva migración se ubica en `supabase/migrations/` y se aplica directamente al motor PostgreSQL de OCI.
+- Toda operación remota sobre la base de datos de producción exige revisión y aprobación explícitas.
 
-# Vincular proyecto local
-supabase link --project-ref ragktminwduiggvaoeix
-
-# Inventario remoto de solo lectura
-supabase migration list --linked
-supabase db query --linked "begin transaction read only; SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'; commit;"
-```
-
-**PAT (Supabase access token):** no commitearlo — configurarlo en `.env.local` como `SUPABASE_ACCESS_TOKEN` o en `~/.supabase/access-token`. Se genera en app.supabase.com/account/tokens.
-
-No presupongas el historial remoto. La evidencia de 2026-08-03 muestra deriva
-entre el ledger y los archivos locales; consulta `docs/schema-reconciliation/`
-y vuelve a ejecutar inventario de solo lectura antes de cualquier decisión.
-Toda operación remota, incluida una reparación de historial, migración, hotfix o
-deploy, exige revisión y aprobación explícitas. Nunca uses `db reset --linked`.
-
-### Vercel (Deploy)
+### Servidor de Producción OCI (Deploy Web)
 
 | Info | Value |
 |------|-------|
-| Project name | `la-veinte-digital` |
-| Production URL | `https://la-veinte-digital.vercel.app` |
+| Servidor | Oracle Cloud Always Free (Ampere A1 ARM64) |
+| Production URL | `https://la20.com.mx` |
+| Directorio remoto | `/opt/laveinte-app/` |
+| Reverse Proxy | Caddy v2 con TLS automático (Let's Encrypt / HTTP3) |
+| Gateway Vercel (Retirado) | `https://la-veinte-digital.vercel.app` (308 redirect permanente hacia `la20.com.mx`) |
 
-**Comandos útiles:**
+**Comando canónico de despliegue:**
 ```bash
-# Deploy a producción
-vercel --prod --yes
+# Despliegue oficial a producción en OCI:
+npm run deploy:oci
+
+# Opcional con compilación forzada previa:
+node scripts/deploy-oci-web.mjs --build
 ```
 
-El OIDC token de Vercel está en `.env.local` como `VERCEL_OIDC_TOKEN`. Las variables de entorno se configuran en el dashboard de Vercel.
+### Tareas Programadas (Crons Nativos)
+- Los crons se ejecutan nativamente en Linux crontab en el servidor OCI vía `scripts/run-cron.sh` (`agenda-reminders` y `push-campaigns`).
+- Están 100% desacoplados de Vercel y GitHub Actions.
+- Bitácora de ejecución en `/var/log/laveinte-crons.log` y en la tabla `notification_job_runs`.
 
 ### Notas
 
-- `.env.local` no se sube a git (está en `.gitignore`). Las secrets van en el dashboard de Vercel para producción.
-- El Service Role Key de Supabase NO debe exponerse al cliente ni subirse a git — solo se usa desde scripts de administración o el dashboard.
+- `.env.production.local` y `.env.local` no se suben a git (están en `.gitignore`). Las secrets de producción van en `/opt/laveinte-app/.env` en el servidor OCI.
+- El Service Role Key de Supabase NO debe exponerse al cliente ni subirse a git — solo se usa desde scripts de administración del servidor.
 
 ## Anti-patterns — NEVER do these
 

@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
   try {
     revalidatePath("/vacaciones")
     revalidatePath("/profile/mi-informacion-laboral")
+    revalidatePath("/profile")
     revalidatePath("/calculadoras")
     revalidatePath("/guia")
     revalidatePath("/")

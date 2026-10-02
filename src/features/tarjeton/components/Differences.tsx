@@ -27,11 +27,11 @@ export function buildDifferences(
   if (profile.matricula && emp.employeeNumber && profile.matricula.trim() !== emp.employeeNumber.trim()) {
     differences.push({ key: "matricula", label: "Matrícula", current: profile.matricula, detected: emp.employeeNumber })
   }
-  if (emp.categoryName && (profile.categoria ?? "").trim().toUpperCase() !== emp.categoryName.trim().toUpperCase()) {
-    differences.push({ key: "categoria", label: "Categoría", current: profile.categoria, detected: emp.categoryName })
+  if (profile.categoria !== undefined && emp.categoryName && (profile.categoria ?? "").trim().toUpperCase() !== emp.categoryName.trim().toUpperCase()) {
+    differences.push({ key: "categoria", label: "Categoría", current: profile.categoria ?? null, detected: emp.categoryName })
   }
-  if (profile.antiguedad && emp.seniority?.raw && profile.antiguedad.trim().toUpperCase() !== emp.seniority.raw.trim().toUpperCase()) {
-    differences.push({ key: "antiguedad", label: "Antigüedad", current: profile.antiguedad, detected: emp.seniority.raw })
+  if (profile.antiguedad !== undefined && emp.seniority?.raw && (profile.antiguedad ?? "").trim().toUpperCase() !== emp.seniority.raw.trim().toUpperCase()) {
+    differences.push({ key: "antiguedad", label: "Antigüedad", current: profile.antiguedad ?? null, detected: emp.seniority.raw })
   }
   return differences
 }

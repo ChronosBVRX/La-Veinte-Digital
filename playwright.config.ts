@@ -9,10 +9,10 @@ if (typeof process.loadEnvFile === "function") {
   }
 }
 
-if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("ragktminwduiggvaoeix")) {
+if (process.env.NEXT_PUBLIC_SUPABASE_URL?.includes("supabase.la20.com.mx")) {
   console.warn(
     "\x1b[33m%s\x1b[0m",
-    "[SECURITY WARNING] Playwright detectó la URL de producción de Supabase (ragktminwduiggvaoeix). Las pruebas mutantes están bloqueadas por el guardrail assertSafeDatabase."
+    "[SECURITY WARNING] Playwright detectó la URL de producción de Supabase (supabase.la20.com.mx). Las pruebas mutantes están bloqueadas por el guardrail assertSafeDatabase."
   )
 }
 

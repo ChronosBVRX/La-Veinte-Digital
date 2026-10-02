@@ -79,7 +79,7 @@ describe("CSP permite Cloudflare Turnstile (regresión P0)", () => {
     const directives = parseCsp(csp)
 
     expect(directives.get("frame-src")).toContain("https://www.facebook.com")
-    expect(directives.get("connect-src")!.some((o) => o.includes("supabase.co"))).toBe(true)
+    expect(directives.get("connect-src")!.some((o) => o.includes("supabase"))).toBe(true)
     expect(directives.get("connect-src")).toContain("https://cdn.jsdelivr.net")
     expect(directives.get("connect-src")).toContain("https://tessdata.projectnaptha.com")
 

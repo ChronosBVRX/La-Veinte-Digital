@@ -15,7 +15,7 @@ import { Badge } from "@/shared/components/ui/Badge"
 import { Checkbox } from "@/shared/components/ui/Checkbox"
 import { ExtractedField } from "./ExtractedField"
 import { Summary } from "./Summary"
-import { Differences } from "./Differences"
+import { Differences, buildDifferences } from "./Differences"
 import { ConceptHelp } from "@/shared/components/app/ConceptHelp"
 
 interface ReviewProps {
@@ -97,7 +97,20 @@ export function buildFriendlyWarnings(warnings: string[]): string[] {
 }
 
 export function Review({ parsed, profile, confirming, onConfirm, onCancel }: ReviewProps) {
-  const [updates, setUpdates] = useState<ConfirmTarjetonRequest["profileUpdates"]>({})
+  const [updates, setUpdates] = useState<ConfirmTarjetonRequest["profileUpdates"]>(() => {
+    const isWorkerReplacement = Boolean(
+      profile?.matricula &&
+      parsed.employee.employeeNumber &&
+      profile.matricula.trim() !== parsed.employee.employeeNumber.trim()
+    )
+    if (isWorkerReplacement) return {}
+    const diffs = buildDifferences(parsed, profile)
+    const initial: ConfirmTarjetonRequest["profileUpdates"] = {}
+    for (const d of diffs) {
+      initial[d.key] = true
+    }
+    return initial
+  })
   const [acknowledge, setAcknowledge] = useState(false)
   const [consentGiven, setConsentGiven] = useState(false)
   const [rows, setRows] = useState<ReviewedConceptLine[]>(() =>
