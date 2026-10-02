@@ -27,6 +27,7 @@ import {
   TXT_PAID_STATUS_LABELS,
 } from "../types"
 import { getFortnightInfo, calculateFaltaDescuento } from "../lib/falta-calculo"
+import { calculateAgendaTiempoExtra } from "../lib/tiempo-extra-calculo"
 
 interface CommitmentFormProps {
   open: boolean
@@ -79,12 +80,14 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
   const [reminder, setReminder] = useState(DEFAULT_REMINDER)
   const [error, setError] = useState<string | null>(null)
 
-  // Sueldo base para el cálculo de falta injustificada
+  // Sueldo base y jornada para el cálculo de incidencias (falta injustificada y tiempo extra)
   const [baseSalary, setBaseSalary] = useState<number | null>(null)
+  const [workdayHours, setWorkdayHours] = useState<number | null>(null)
   const [salaryLoaded, setSalaryLoaded] = useState(false)
+  const [isHolidayOrRestDay, setIsHolidayOrRestDay] = useState(false)
 
   useEffect(() => {
-    if (type === "falta_injustificada" && !salaryLoaded) {
+    if ((type === "falta_injustificada" || type === "overtime") && !salaryLoaded) {
       let isMounted = true
       fetch("/api/calculator-prefill?calculator=tiempo-extra")
         .then((res) => (res.ok ? res.json() : null))
@@ -93,6 +96,10 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
           const val = data?.fields?.concepto002?.value
           if (typeof val === "number" && val > 0) {
             setBaseSalary(val)
+          }
+          const hours = data?.fields?.workdayHours?.value
+          if (typeof hours === "number" && hours > 0) {
+            setWorkdayHours(hours)
           }
           setSalaryLoaded(true)
         })
@@ -113,6 +120,7 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
     setService("")
     setAuthorizedBy("")
     setAffectedShift("")
+    setIsHolidayOrRestDay(false)
     setClaimSubject("")
     setClaimFiledDate("")
     setClaimReference("")
@@ -175,6 +183,17 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
   // Cálculos reactivos de falta injustificada
   const fortnightInfo = date && type === "falta_injustificada" ? getFortnightInfo(date) : null
   const faltaDeduction = type === "falta_injustificada" ? calculateFaltaDescuento({ baseSalaryFortnightly: baseSalary }) : null
+
+  // Cálculos reactivos de tiempo extra
+  const overtimeCalculation = type === "overtime" && startTime && endTime
+    ? calculateAgendaTiempoExtra({
+        startTime,
+        endTime,
+        baseSalaryFortnightly: baseSalary,
+        jornada: workdayHours ?? 8,
+        isHolidayOrRestDay,
+      })
+    : null
 
   const handleSave = () => {
     if (!type || !detailsComplete) {
@@ -276,6 +295,15 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
         shift: affectedShift || undefined,
         affectedShift: affectedShift || undefined,
         authorizedBy: authorizedBy.trim(),
+        isHolidayOrRestDay,
+        estimatedEarnings: overtimeCalculation?.estimatedEarnings,
+        hoursCalculated: overtimeCalculation?.hoursCalculated,
+        hourlyRate: overtimeCalculation?.hourlyRate,
+        earningsFormula: overtimeCalculation?.formula,
+        calculationStatus: overtimeCalculation?.status,
+        missingDataReason: overtimeCalculation?.missingDataReason,
+        overtimeFactor: overtimeCalculation?.factor,
+        jornadaUsed: overtimeCalculation?.jornadaUsed,
       }
     }
 
@@ -413,6 +441,79 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
                 <div style={{ fontSize: "var(--text-sm)", color: "var(--brand-cyan)", fontWeight: 600, textAlign: "center" }}>
                   <Clock size={14} style={{ verticalAlign: "middle", marginRight: "0.25rem" }} />
                   {hours}{isOvernight ? " (termina al día siguiente)" : ""}
+                </div>
+              )}
+
+              <div style={{ marginTop: "0.25rem", marginBottom: "0.25rem" }}>
+                <Checkbox
+                  id="isHolidayOrRestDay"
+                  label="Labor en día de descanso semanal o festivo obligatorio (pago al triple)"
+                  checked={isHolidayOrRestDay}
+                  onChange={(e) => setIsHolidayOrRestDay(e.target.checked)}
+                />
+              </div>
+
+              {/* Panel informativo de cálculo automático de tiempo extra */}
+              {startTime && endTime && (
+                <div style={{
+                  padding: "0.875rem",
+                  background: "var(--accent)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-md)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.5rem",
+                  fontSize: "var(--text-xs)",
+                }}>
+                  <div style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: "0.35rem", color: "var(--fg)" }}>
+                    <CalendarBlank size={16} />
+                    <span>Cálculo de pago estimado en nómina</span>
+                  </div>
+
+                  {overtimeCalculation?.status === "calculated" ? (
+                    <>
+                      <div>
+                        <span style={{ color: "var(--muted)" }}>Salario base utilizado: </span>
+                        <strong style={{ color: "var(--fg)" }}>
+                          ${baseSalary?.toLocaleString("es-MX", { minimumFractionDigits: 2 })} quincenal (jornada {overtimeCalculation.jornadaUsed}h)
+                        </strong>
+                      </div>
+                      <div>
+                        <span style={{ color: "var(--muted)" }}>Fórmula: </span>
+                        <span style={{ fontFamily: "monospace", color: "var(--fg)" }}>{overtimeCalculation.formula}</span>
+                      </div>
+                      <div style={{
+                        marginTop: "0.25rem",
+                        padding: "0.45rem 0.65rem",
+                        background: "rgba(16, 185, 129, 0.1)",
+                        color: "#047857",
+                        borderRadius: "var(--radius-sm)",
+                        fontWeight: 700,
+                        fontSize: "var(--text-sm)",
+                      }}>
+                        Percepción estimada: ${overtimeCalculation.estimatedEarnings?.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{
+                      marginTop: "0.25rem",
+                      padding: "0.5rem",
+                      background: "rgba(245, 158, 11, 0.1)",
+                      color: "#b45309",
+                      borderRadius: "var(--radius-sm)",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "0.35rem",
+                    }}>
+                      <WarningCircle size={16} style={{ flexShrink: 0, marginTop: "0.1rem" }} />
+                      <div>
+                        <strong>Pendiente de calcular:</strong> {overtimeCalculation?.missingDataReason}
+                        <div style={{ marginTop: "0.2rem", fontSize: "0.6875rem", color: "var(--muted)" }}>
+                          Registra tu tarjetón en tu perfil para que el cálculo se realice automáticamente.
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

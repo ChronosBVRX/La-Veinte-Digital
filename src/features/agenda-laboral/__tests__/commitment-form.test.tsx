@@ -228,4 +228,32 @@ describe("CommitmentForm: altas autorizadas y captura específica", () => {
     expect(finalInput.value).toBe(texto)
     expect(document.activeElement).toBe(finalInput)
   })
+
+  it("tiempo extra guarda detalles de calculo y soporta labor en dia festivo", () => {
+    const { onSave } = renderForm()
+    fireEvent.click(screen.getByRole("button", { name: /Tiempo extra/i }))
+
+    fireEvent.change(screen.getByLabelText(/Fecha del tiempo extra/i), { target: { value: "2026-09-20" } })
+    fireEvent.change(screen.getByLabelText(/Turno/i), { target: { value: "morning" } })
+    fireEvent.change(screen.getByLabelText(/Hora de inicio/i), { target: { value: "14:00" } })
+    fireEvent.change(screen.getByLabelText(/Hora de término/i), { target: { value: "18:00" } })
+    fireEvent.change(screen.getByLabelText(/Persona que autorizó/i), { target: { value: "Jefatura Médica" } })
+
+    // Marcar festivo / descanso
+    const holidayCheckbox = screen.getByLabelText(/Labor en día de descanso semanal o festivo obligatorio/i)
+    fireEvent.click(holidayCheckbox)
+
+    fireEvent.click(screen.getByRole("button", { name: /Continuar/i }))
+    fireEvent.click(screen.getByRole("button", { name: /Guardar y programar/i }))
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      type: "overtime",
+      details: expect.objectContaining({
+        shift: "morning",
+        authorizedBy: "Jefatura Médica",
+        isHolidayOrRestDay: true,
+        hoursCalculated: 4,
+      }),
+    }))
+  })
 })

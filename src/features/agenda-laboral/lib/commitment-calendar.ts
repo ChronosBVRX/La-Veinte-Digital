@@ -100,6 +100,10 @@ export function isCommitmentOnLocalDate(
   if (startDay === targetDateStr) return true
 
   const endDay = getLocalDateString(commitment.endAt, timeZone)
+  if (startDay < targetDateStr && targetDateStr < endDay) {
+    return true
+  }
+
   if (startDay < targetDateStr && endDay === targetDateStr) {
     // If it ends on targetDateStr, check if it actually covers any hours of targetDateStr
     const end = new Date(commitment.endAt)
@@ -286,6 +290,14 @@ export function getCommitmentDetailLines(
     if (details.authorizedBy) {
       lines.push(`Autorizó: ${details.authorizedBy}`)
     }
+    if (typeof details.estimatedEarnings === "number") {
+      lines.push(`Pago estimado: $${details.estimatedEarnings.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+    } else if (details.calculationStatus === "pending" && details.missingDataReason) {
+      lines.push(`Pago estimado: pendiente (${details.missingDataReason})`)
+    }
+    if (details.earningsFormula) {
+      lines.push(`Fórmula: ${details.earningsFormula}`)
+    }
   }
 
   if (commitment.type === "sport") {
@@ -368,6 +380,21 @@ export function getCommitmentDetailLines(
     }
     if (details.reminderAt) {
       lines.push(`Recordatorio programado: ${details.reminderAt.replace("T", " ")}`)
+    }
+  }
+
+  if (commitment.type === "vacaciones") {
+    if (details.vacationRoleLabel) {
+      lines.push(`Rol: ${details.vacationRoleLabel}`)
+    }
+    if (details.vacationMark !== undefined && details.vacationMark !== "") {
+      lines.push(`Marca a solicitar: ${details.vacationMark}`)
+    }
+    if (details.vacationUnits) {
+      lines.push(`Duración: ${details.vacationUnits} días hábiles`)
+    }
+    if (typeof details.grossVacationExtra === "number" && details.grossVacationExtra > 0) {
+      lines.push(`Total adicional estimado: $${details.grossVacationExtra.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
     }
   }
 

@@ -5,6 +5,8 @@ import Link from "next/link"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
 import { useLiveWorkerContext } from "@/shared/hooks/useLiveWorkerContext"
+import { createClient } from "@/lib/supabase/client"
+import { insertCommitment } from "@/features/agenda-laboral/services/commitments-supabase"
 import { prefillVacationSimulator } from "../domain/prefill"
 import { formatMexicanDate } from "@/features/tarjeton/lib/imss-date-parser"
 import { formatMexicanCurrency, calculateVacationPayment } from "../domain/payment-estimate"
@@ -152,6 +154,9 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
   const [selections, setSelections] = useState<Record<number, PlanSelectionStep>>({})
   const calendar = VACATION_CALENDAR_2027
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false)
+  const [savingAgenda, setSavingAgenda] = useState<boolean>(false)
+  const [agendaSavedSuccess, setAgendaSavedSuccess] = useState<boolean>(false)
+  const [agendaSaveError, setAgendaSaveError] = useState<string | null>(null)
 
   // Huella única del trabajador/tarjetón para detectar cambios de identidad o periodo
   const contextFingerprint = useMemo(() => {
@@ -1550,6 +1555,63 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
     )
   )
 
+  const handleSaveToAgenda = async () => {
+    if (!isPlanValid || !planResult.periods || planResult.periods.length === 0) return
+    setSavingAgenda(true)
+    setAgendaSaveError(null)
+
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setAgendaSaveError("Inicia sesión para registrar tus vacaciones en la agenda.")
+        setSavingAgenda(false)
+        return
+      }
+
+      let savedCount = 0
+      for (const p of planResult.periods) {
+        if (!p.startDate || !p.endDate) continue
+        const startAt = `${p.startDate}T00:00:00.000Z`
+        const endAt = `${p.endDate}T23:59:59.000Z`
+        const title = `Vacaciones 2027 — ${p.kind === "V20" ? "Periodo Extraordinario V20" : `Periodo ${p.index}`} (Marca ${p.selectedMark ?? "—"})`
+
+        const inserted = await insertCommitment({
+          user_id: user.id,
+          type: "vacaciones",
+          title,
+          start_at: startAt,
+          end_at: endAt,
+          status: "active",
+          reminder_day_before: true,
+          reminder_hours_before: false,
+          reminder_at_start: true,
+          details: {
+            allDay: true,
+            vacationPeriodIndex: p.index,
+            vacationMark: p.selectedMark,
+            vacationRoleLabel: p.selectedRole?.label,
+            vacationUnits: p.units,
+            premium029: p.payment?.premium029,
+            culturalHelp048: p.payment?.culturalHelp048,
+            grossVacationExtra: p.payment?.grossVacationExtra,
+          },
+        })
+        if (inserted) savedCount++
+      }
+
+      if (savedCount > 0) {
+        setAgendaSavedSuccess(true)
+      } else {
+        setAgendaSaveError("No se encontraron periodos válidos para registrar en la agenda.")
+      }
+    } catch (e) {
+      setAgendaSaveError(e instanceof Error ? e.message : "Error al registrar en la agenda")
+    } finally {
+      setSavingAgenda(false)
+    }
+  }
+
   return (
     <div style={CONTAINER}>
       <h1 style={HEADER}>Así quedaría tu programación</h1>
@@ -1847,9 +1909,36 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
       {/* Acciones finales */}
       {savedSuccess && (
         <div style={{ background: "#dcfce7", border: "1px solid #22c55e", color: "#166534", padding: "0.75rem 1rem", borderRadius: "var(--radius)", marginBottom: "1rem", fontSize: "0.85rem" }}>
-          {hasReviewItems
-            ? "✓ Simulación guardada en tu cuenta como simulación pendiente de confirmación oficial."
-            : "✓ Simulación compatible guardada con éxito en tu cuenta."}
+          <div>
+            {hasReviewItems
+              ? "✓ Simulación guardada en tu cuenta como simulación pendiente de confirmación oficial."
+              : "✓ Simulación compatible guardada con éxito en tu cuenta."}
+          </div>
+          {agendaSavedSuccess ? (
+            <div style={{ marginTop: "0.5rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+              <span>📅 Periodos guardados en tu Agenda Laboral con éxito.</span>
+              <Link href="/bitacora" style={{ color: "#15803d", textDecoration: "underline" }}>
+                Ver mi Agenda →
+              </Link>
+            </div>
+          ) : (
+            <div style={{ marginTop: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+              <Button
+                variant="outline"
+                size="sm"
+                loading={savingAgenda}
+                onClick={handleSaveToAgenda}
+                style={{ background: "#ffffff", borderColor: "#86efac", color: "#166534" }}
+              >
+                📅 Guardar estos periodos en mi Agenda
+              </Button>
+            </div>
+          )}
+          {agendaSaveError && (
+            <div style={{ marginTop: "0.35rem", color: "#991b1b", fontSize: "0.78rem" }}>
+              ⚠️ {agendaSaveError}
+            </div>
+          )}
         </div>
       )}
 
@@ -1866,7 +1955,10 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
             disabled={!isPlanValid}
             title={!isPlanValid ? "Debes corregir los periodos con error para poder guardar esta simulación" : undefined}
             onClick={() => {
-              if (isPlanValid) setSavedSuccess(true)
+              if (isPlanValid) {
+                setSavedSuccess(true)
+                void handleSaveToAgenda()
+              }
             }}
           >
             Guardar simulación

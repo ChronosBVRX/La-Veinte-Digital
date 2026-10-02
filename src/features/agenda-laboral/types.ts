@@ -134,6 +134,14 @@ export interface CommitmentDetails {
   shift?: AffectedShift
   affectedShift?: AffectedShift
   authorizedBy?: string
+  // Tiempo extra (overtime)
+  estimatedEarnings?: number
+  hoursCalculated?: number
+  hourlyRate?: number
+  earningsFormula?: string
+  isHolidayOrRestDay?: boolean
+  overtimeFactor?: number
+  jornadaUsed?: number
   // Falta injustificada
   affectedFortnight?: string
   fortnightLabel?: string
@@ -143,6 +151,14 @@ export interface CommitmentDetails {
   deductionFormula?: string
   calculationStatus?: "calculated" | "pending"
   missingDataReason?: string
+  // Vacaciones (vacaciones)
+  vacationPeriodIndex?: number
+  vacationRoleLabel?: string
+  vacationMark?: number | string
+  vacationUnits?: number
+  premium029?: number
+  culturalHelp048?: number
+  grossVacationExtra?: number
   // Reclamación pendiente
   claimFiledDate?: string
   claimReference?: string
