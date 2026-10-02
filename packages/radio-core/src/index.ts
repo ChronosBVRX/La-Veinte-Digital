@@ -169,3 +169,8 @@ export * from "./conversation";
 export * from "./human-gate";
 export * from "./antirepetition";
 export * from "./complete-sentence";
+export * from "./script-classifier";
+export * from "./script-parser";
+export * from "./prosody-director";
+export * from "./script-validator";
+export * from "./dialogue-auditor";

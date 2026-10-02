@@ -138,14 +138,17 @@ export function verifyScript(script: Script, ctx: VerifierContext): VerifyResult
   }
 
   const blocking = issues.filter((i) => i.code !== "OK").length;
+  const speakerValid = !issues.some((i) => i.code === "INVALID_SPEAKER");
   return {
     verified: blocking === 0,
     totalClaims,
+    claimsTotal: totalClaims,
     verifiedClaims,
+    speakerValid,
     sources: [...sources].filter(Boolean),
     issues,
     estimatedDurSec: script.estimacionDurSec,
-  };
+  } as unknown as VerifyResult;
 }
 
 export function healthyVerifyResult(script: Script): VerifyResult {

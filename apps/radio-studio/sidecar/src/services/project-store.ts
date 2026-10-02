@@ -82,7 +82,9 @@ function readJson<T>(file: string): T | null {
 export interface CreateProjectInput {
   topic: string;
   titulo?: string;
+  title?: string;
   config?: Project["config"];
+  script?: Script | null;
 }
 
 export class ProjectStore {
@@ -146,23 +148,27 @@ export class ProjectStore {
       modo: "ia",
       comerciales: { enabled: false, ids: [], allowDirectorChoice: true, count: "auto", ubicacion: "auto", interaccion: "natural", duracionSec: 30 },
     };
+    const initialScript = input.script ?? null;
     const project: Project = {
       id,
-      titulo: input.titulo ?? input.topic,
+      titulo: input.titulo ?? input.title ?? input.topic,
       topic: input.topic,
-      state: "DRAFT",
+      state: initialScript ? "SCRIPT_READY" : "DRAFT",
       createdAt: now,
       updatedAt: now,
       config,
       research: null,
       proposal: null,
-      script: null,
+      script: initialScript,
       production: null,
       master: null,
       error: null,
     };
     this.save(project);
     this.writeArtifact(id, "logs.json", []);
+    if (initialScript) {
+      this.writeArtifact(id, "script.json", initialScript);
+    }
     return project;
   }
 
@@ -209,6 +215,9 @@ export class ProjectStore {
   }
   writeScript(id: string, s: Script): void {
     this.writeArtifact(id, "script.json", s);
+  }
+  readScript(id: string): Script | null {
+    return this.readArtifact<Script>(id, "script.json");
   }
   writeProduction(id: string, p: ProductionState): void {
     this.writeArtifact(id, "production.json", p);

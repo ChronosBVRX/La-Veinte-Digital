@@ -2,10 +2,12 @@
  * Rutas de proyecto (proposal-first). Empaquetadas en un módulo aparte para
  * no engordar index.ts: un handler por ruta, inyección de servicios vía ctx.
  */
+import path from "node:path";
 import type { ServerResponse } from "node:http";
 import type { ProjectWorkflowService } from "../services/project-workflow";
 import type { ProjectStore } from "../services/project-store";
 import type { CommercialLibraryService } from "../services/commercial-service";
+import type { ProgressManager } from "../services/progress-manager";
 import {
   ProjectSchema,
   type Project,
@@ -18,6 +20,9 @@ export interface ProjectRouteCtx {
   workflow: ProjectWorkflowService;
   commercials: CommercialLibraryService;
   json: (res: ServerResponse, code: number, body: unknown) => void;
+  progressManager?: ProgressManager;
+  repoRoot?: string;
+  cancelProduction?: (id: string) => Promise<boolean>;
   /** Dispara la cola de producción TTS real (implementada en index.ts). */
   startProduction?: (id: string, script: Script) => Promise<{ started: boolean; total: number }>;
   /** Limpia un trabajo de producción activo asociado al proyecto (implementada en index.ts). */
@@ -45,6 +50,34 @@ export async function routeProject(url: URL, req: import("node:http").IncomingMe
     const project = ctx.store.get(id);
     if (!project) { ctx.json(res, 404, { error: "PROJECT_NOT_FOUND" }); return true; }
     ctx.json(res, 200, project);
+    return true;
+  }
+
+  if (method === "GET" && segments.length === 3 && id) {
+    if (segments[2] === "progress") {
+      if (!ctx.progressManager) {
+        ctx.json(res, 501, { error: "ProgressManager no configurado" });
+        return true;
+      }
+      const progress = ctx.progressManager.getProgress(id);
+      ctx.json(res, 200, progress);
+      return true;
+    }
+    if (segments[2] === "open-folder") {
+      const progress = ctx.progressManager?.getProgress(id);
+      const folderPath = progress?.outputs?.folderPath ?? (ctx.repoRoot ? path.join(ctx.repoRoot, "data", "tts", "video", id) : undefined);
+      ctx.json(res, 200, { ok: true, path: folderPath });
+      return true;
+    }
+  }
+
+  if (method === "POST" && segments.length === 3 && id && segments[2] === "cancel") {
+    let cancelled = false;
+    if (ctx.cancelProduction) {
+      cancelled = await ctx.cancelProduction(id);
+    }
+    const progress = ctx.progressManager?.getProgress(id);
+    ctx.json(res, 200, { cancelled, id, progress });
     return true;
   }
 
@@ -131,8 +164,9 @@ export async function routeProject(url: URL, req: import("node:http").IncomingMe
 }
 
 /** Errores de flujo → mensaje amigable con código. */
-export function friendlyProjectError(e: unknown): { code: string; message: string; userMessage: string } {
-  const msg = e instanceof Error ? e.message : String(e);
+export function friendlyProjectError(e: unknown): { code: string; message: string; userMessage: string; error?: string } {
+  let msg = e instanceof Error ? e.message : String(e);
+  msg = msg.replace(/gsk_[A-Za-z0-9_]+/g, "gsk_***");
   const codeMap: Record<string, { code: string; userMessage: string }> = {
     PROJECT_NOT_FOUND: { code: "UNKNOWN", userMessage: "No encuentro ese episodio. Vuelve a abrirlo desde la lista." },
     RESEARCH_REQUIRED: { code: "UNKNOWN", userMessage: "Primero reviso las fuentes antes de armar la propuesta." },
@@ -149,7 +183,7 @@ export function friendlyProjectError(e: unknown): { code: string; message: strin
     "produccion en curso": { code: "UNKNOWN", userMessage: "Ya hay un episodio en producción. Espera a que termine o detén la producción actual." },
   };
   for (const [k, v] of Object.entries(codeMap)) {
-    if (msg.includes(k)) return { ...v, message: msg };
+    if (msg.includes(k)) return { ...v, message: msg, error: v.userMessage };
   }
-  return { code: "UNKNOWN", message: msg, userMessage: "Algo salió mal en la creación del episodio." };
+  return { code: "UNKNOWN", message: msg, userMessage: "Algo salió mal en la creación del episodio.", error: "Algo salió mal en la creación del episodio." };
 }

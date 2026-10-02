@@ -27,6 +27,7 @@ const STORAGE_KEY_OPEN = "lvd_floating_chat_open"
 
 function SearchParamsListener({ onOpen }: { onOpen: () => void }) {
   const searchParams = useSearchParams()
+
   useEffect(() => {
     if (!searchParams) return
     const chatParam = searchParams.get("chat") || searchParams.get("asistente")

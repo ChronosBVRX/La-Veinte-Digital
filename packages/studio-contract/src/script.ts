@@ -23,6 +23,22 @@ export const SourceRefSchema = z.object({
 });
 export type SourceRef = z.infer<typeof SourceRefSchema>;
 
+export const DeliverySchema = z.object({
+  styles: z.array(z.string()).default([]),
+  emotion: z.string().nullable().optional(),
+});
+export type Delivery = z.infer<typeof DeliverySchema>;
+
+export const ProductionEventSchema = z.object({
+  type: z.string(),
+  position: z.enum(["before", "inline", "after"]).default("inline"),
+  durationMs: z.number().default(0),
+  label: z.string().default(""),
+  cueText: z.string().default(""),
+  ssmlTag: z.string().optional(),
+});
+export type ProductionEvent = z.infer<typeof ProductionEventSchema>;
+
 export const TurnSchema = z.object({
   id: z.string(),
   speaker: z.string(),
@@ -46,6 +62,11 @@ export const TurnSchema = z.object({
   sponsorName: z.string().nullable().optional(),
   sceneId: z.string().nullable().optional(),
   respondsTo: z.string().nullable().optional(),
+  delivery: DeliverySchema.optional(),
+  ssml: z.string().optional(),
+  productionEvents: z.array(ProductionEventSchema).optional(),
+  authorPause: z.boolean().optional(),
+  relation: z.string().nullable().optional(),
 });
 export type Turn = z.infer<typeof TurnSchema>;
 

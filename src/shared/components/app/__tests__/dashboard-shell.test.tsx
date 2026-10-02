@@ -6,6 +6,7 @@ import type { ReactNode } from "react"
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }))
 
 vi.mock("next/link", () => ({
