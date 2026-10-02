@@ -120,8 +120,8 @@ describe("Motor Económico de Vacaciones (Conceptos 029 y 048)", () => {
     expect(res4.culturalHelp048).toBe(31000)
   })
 
-  it("Periodo extraordinario V20: paga prima vacacional de sus días pero no genera ayuda 048", () => {
-    const resV20 = calculateVacationPayment({
+  it("Periodo extraordinario V20 Marca 6: 15 días continuos con 30 días de salario de ayuda 048 (Cláusula 47 CCT)", () => {
+    const resV20M6 = calculateVacationPayment({
       integratedMonthlySalary: SMI_30K,
       daysOrUnits: 15,
       seniorityYears: 20,
@@ -129,9 +129,65 @@ describe("Motor Económico de Vacaciones (Conceptos 029 y 048)", () => {
       regime: "EXTRAORDINARIO_V20",
       isV20: true,
     })
-    expect(resV20.premium029).toBe(3750) // 1,000 * 15 * 0.25
-    expect(resV20.culturalHelp048).toBe(0)
-    expect(resV20.grossVacationExtra).toBe(3750)
+    expect(resV20M6.premium029).toBe(3750) // 1,000 * 15 * 0.25
+    expect(resV20M6.culturalHelp048).toBe(30000) // 1,000 * 30 días
+    expect(resV20M6.grossVacationExtra).toBe(33750)
+  })
+
+  it("Periodo extraordinario V20 Marca 0: 10 días de descanso con 10 días de ayuda 048 (Cláusula 47 CCT)", () => {
+    const resV20M0 = calculateVacationPayment({
+      integratedMonthlySalary: SMI_30K,
+      daysOrUnits: 10,
+      seniorityYears: 20,
+      mark: 0,
+      regime: "EXTRAORDINARIO_V20",
+      isV20: true,
+    })
+    expect(resV20M0.premium029).toBe(2500) // 1,000 * 10 * 0.25
+    expect(resV20M0.culturalHelp048).toBe(10000) // 1,000 * 10 días
+    expect(resV20M0.grossVacationExtra).toBe(12500)
+  })
+
+  it("Periodo extraordinario V20 Marca 7: 30 días de ayuda 048 en efectivo sin descanso", () => {
+    const resV20M7 = calculateVacationPayment({
+      integratedMonthlySalary: SMI_30K,
+      daysOrUnits: 0,
+      seniorityYears: 20,
+      mark: 7,
+      regime: "EXTRAORDINARIO_V20",
+      isV20: true,
+    })
+    expect(resV20M7.premium029).toBe(0)
+    expect(resV20M7.culturalHelp048).toBe(30000)
+    expect(resV20M7.grossVacationExtra).toBe(30000)
+  })
+
+  it("Periodo extraordinario V20 Marca 8: 15 días de prima 029 sin ayuda 048 (acredita 30 días para jubilación)", () => {
+    const resV20M8 = calculateVacationPayment({
+      integratedMonthlySalary: SMI_30K,
+      daysOrUnits: 0,
+      seniorityYears: 20,
+      mark: 8,
+      regime: "EXTRAORDINARIO_V20",
+      isV20: true,
+    })
+    expect(resV20M8.premium029).toBe(3750) // 1,000 * 15 * 0.25
+    expect(resV20M8.culturalHelp048).toBe(0)
+    expect(resV20M8.grossVacationExtra).toBe(3750)
+  })
+
+  it("Modalidad B Cuatrimestral (Marcas 2 y 5): calcula prima de 15 días sin ayuda 048", () => {
+    const resCuatriB = calculateVacationPayment({
+      integratedMonthlySalary: SMI_30K,
+      daysOrUnits: 15,
+      seniorityYears: 3,
+      mark: 2,
+      regime: "CUATRIMESTRAL",
+    })
+    expect(resCuatriB.premium029).toBe(3750) // 1,000 * 15 * 0.25
+    expect(resCuatriB.culturalHelp048).toBe(0)
+    expect(resCuatriB.grossVacationExtra).toBe(3750)
+    expect(resCuatriB.warnings.some((w) => w.includes("Modalidad B"))).toBe(true)
   })
 
   it("SMI faltante o incompleto devuelve confidence INCOMPLETE sin cifras inventadas", () => {

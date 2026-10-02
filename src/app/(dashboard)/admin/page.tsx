@@ -21,6 +21,7 @@ import {
   WarningCircle,
   Broadcast,
   FileText,
+  MagnifyingGlass,
 } from "@phosphor-icons/react/dist/ssr"
 
 export default async function AdminHomePage() {
@@ -284,6 +285,29 @@ export default async function AdminHomePage() {
               <Link href="/admin/avisos/nuevo" style={{ textDecoration: "none" }}>
                 <Button variant="primary" size="sm">
                   Nuevo
+                </Button>
+              </Link>
+            </div>
+          </Card>
+
+          {/* Card Radar & Calendario Laboral */}
+          <Card padding="1.25rem">
+            <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+              <div style={{ background: "rgba(168, 85, 247, 0.1)", color: "#9333ea", padding: "0.5rem", borderRadius: "0.5rem", display: "flex" }}>
+                <MagnifyingGlass size={24} weight="duotone" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ fontSize: "1rem", fontWeight: 600, margin: "0 0 0.25rem" }}>Radar & Alertas de Calendario</h3>
+                <p style={{ color: "var(--muted)", fontSize: "0.8125rem", margin: 0, lineHeight: 1.4 }}>
+                  Monitoreo de temas de interés sindical con IA y control de notificaciones de pago por banco, vacaciones e interactivo.
+                </p>
+              </div>
+            </div>
+            <div style={{ marginTop: "1rem" }}>
+              <Link href="/admin/radar" style={{ textDecoration: "none", display: "block" }}>
+                <Button variant="secondary" size="sm" style={{ width: "100%" }}>
+                  <CalendarCheck size={16} weight="bold" style={{ marginRight: "0.375rem" }} />
+                  Abrir Radar & Calendario
                 </Button>
               </Link>
             </div>

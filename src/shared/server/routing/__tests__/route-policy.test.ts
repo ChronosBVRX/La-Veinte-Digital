@@ -30,6 +30,7 @@ describe("API route policy", () => {
       "/api/calendario": "public",
       "/api/cron/agenda-reminders": "public",
       "/api/cron/push-campaigns": "public",
+      "/api/cron/calendar-reminders": "public",
       "/api/announcements/bar": "public",
       "/api/announcements/hero": "public",
       "/api/calculator-prefill": "authenticated",
