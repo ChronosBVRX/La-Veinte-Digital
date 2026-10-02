@@ -87,6 +87,7 @@ export const API_ACCESS = {
   "/api/downloads/print-agent/windows": "public",
   "/api/cron/agenda-reminders": "public",
   "/api/cron/push-campaigns": "public",
+  "/api/cron/calendar-reminders": "public",
   "/api/announcements/bar": "public",
   "/api/announcements/hero": "public",
   // Centro de Administración de Usuarios (solo platform admin, validado en el
