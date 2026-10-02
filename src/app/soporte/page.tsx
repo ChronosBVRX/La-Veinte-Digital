@@ -40,7 +40,7 @@ export default function SupportPage() {
           Teléfono: <a href={CONTACT_PHONE_HREF} style={link}>{CONTACT_PHONE_DISPLAY}</a>
         </p>
         <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
-          Atiende: {OWNER_NAME}, soporte de La Veinte Digital.
+          Atiende: Soporte técnico de {OWNER_NAME} para La Veinte Digital.
         </p>
         <p style={{ fontSize: "0.8125rem", color: "var(--muted)" }}>
           Consulta nuestra <a href="/privacidad" style={link}>Política de Privacidad</a> y nuestros{" "}

@@ -79,7 +79,7 @@ Añadimos una sección pública de Información y fuentes, enlaces directos a pu
 - Información y fuentes (pública, sin login): `https://la20.com.mx/informacion-y-fuentes`
 - Correo de soporte: `noirsysan@gmail.com`
 - Teléfono de soporte: `+52 443 366 7106`
-- Responsable: `Eduardo Bolaños Vazquez (Técnico Radiólogo)`
+- Responsable: `Chronos System S.A.S`
 
 ## Instrucciones de acceso para el revisor
 
