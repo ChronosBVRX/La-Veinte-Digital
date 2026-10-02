@@ -99,6 +99,7 @@ export async function completePayslipOnboardingAction(
       { extractionMethod: method, confidence, period: meta.period ?? undefined },
     )
     revalidatePath("/profile/mi-informacion-laboral")
+    revalidatePath("/profile")
     revalidatePath("/vacaciones")
     revalidatePath("/calculadoras")
     revalidatePath("/guia")
