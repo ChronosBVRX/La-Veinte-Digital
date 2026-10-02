@@ -35,7 +35,7 @@ export function DashboardShell({ fullName, canAccessAdmin = false, canAccessUnio
   return (
     <MobileViewportProvider>
       <div className="mobile-app-shell">
-        <AppHeader fullName={fullName} onMenuToggle={toggleSidebar} />
+        <AppHeader fullName={fullName} onMenuToggle={toggleSidebar} canAccessUnion={canAccessUnion} />
 
         <div style={{ display: "flex", flex: 1, minHeight: 0, position: "relative" }}>
           <DesktopSidebar open={sidebarOpen} onClose={closeSidebar} canAccessAdmin={canAccessAdmin} canAccessUnion={canAccessUnion} />

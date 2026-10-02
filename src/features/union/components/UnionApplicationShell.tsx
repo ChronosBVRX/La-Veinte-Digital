@@ -20,6 +20,7 @@ import {
 } from "@phosphor-icons/react";
 import { SignOutButton } from "@/shared/components/app/SignOutButton";
 import { useBackLayer } from "@/shared/navigation/useBackLayer";
+import { RoleModeSwitch } from "@/shared/components/app/RoleModeSwitch";
 import type { UnionMembership } from "@/features/representacion/services/permissions";
 
 export interface UnionNavModule {
@@ -359,6 +360,9 @@ export function UnionApplicationShell({ memberships, userName, isPlatformAdmin =
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "0.625rem", flexShrink: 0 }}>
+          <div className="desktop-only" style={{ marginRight: "0.25rem" }}>
+            <RoleModeSwitch currentMode="union" variant="dark" />
+          </div>
           <div
             className="desktop-only"
             style={{
@@ -381,6 +385,24 @@ export function UnionApplicationShell({ memberships, userName, isPlatformAdmin =
           </div>
         </div>
       </header>
+
+      <div
+        className="mobile-only union-mode-bar"
+        style={{
+          background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+          padding: "0.375rem 0.75rem",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          position: "sticky",
+          top: 56,
+          zIndex: 35,
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+        }}
+      >
+        <RoleModeSwitch currentMode="union" variant="dark" />
+      </div>
 
       <div style={{ display: "flex", flex: 1, minHeight: 0, position: "relative" }}>
         <aside
@@ -541,6 +563,18 @@ export function UnionApplicationShell({ memberships, userName, isPlatformAdmin =
             >
               <X size={20} weight="bold" />
             </button>
+          </div>
+
+          <div
+            style={{
+              padding: "0.5rem 0.75rem",
+              borderBottom: "1px solid var(--border, #e2e8f0)",
+              background: "var(--accent, #f8fafc)",
+              display: "flex",
+              justifyContent: "center",
+            }}
+          >
+            <RoleModeSwitch currentMode="union" variant="light" />
           </div>
 
           <nav aria-label="Módulos sindicales móviles" style={{ padding: "0.625rem 0.5rem", flex: 1 }}>

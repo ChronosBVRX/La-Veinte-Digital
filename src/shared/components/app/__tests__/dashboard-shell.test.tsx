@@ -88,4 +88,23 @@ describe("DashboardShell con MobileValueBar", () => {
     expect(cta).toBeTruthy()
     expect(["/calculadoras", "/escritos", "/vacaciones", "/asistente"]).toContain(cta?.getAttribute("href"))
   })
+
+  it("no muestra RoleModeSwitch en el header cuando canAccessUnion es false", () => {
+    render(
+      <DashboardShell fullName="Test User" canAccessUnion={false}>
+        <p>contenido</p>
+      </DashboardShell>
+    )
+    expect(screen.queryByRole("group", { name: /Conmutador de modo de cuenta/i })).toBeNull()
+  })
+
+  it("muestra RoleModeSwitch en el header cuando canAccessUnion es true", () => {
+    render(
+      <DashboardShell fullName="Test User" canAccessUnion={true}>
+        <p>contenido</p>
+      </DashboardShell>
+    )
+    expect(screen.getByRole("group", { name: /Conmutador de modo de cuenta/i })).toBeDefined()
+  })
 })
+
