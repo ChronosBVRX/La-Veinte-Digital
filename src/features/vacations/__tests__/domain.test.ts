@@ -131,6 +131,12 @@ describe("getUnitsForInclusion", () => {
     expect(getUnitsForInclusion("CUATRIMESTRAL", 20, 0, 0, 4)).toBe(7)
   })
 
+  it("uses 15 days for CUATRIMESTRAL Modalidad B (marks 2 and 5) per Cláusula 47 párrafo 16", () => {
+    expect(getUnitsForInclusion("CUATRIMESTRAL", 20, 2, 0, 1)).toBe(15)
+    expect(getUnitsForInclusion("CUATRIMESTRAL", 20, 5, 0, 2)).toBe(15)
+    expect(getUnitsForInclusion("CUATRIMESTRAL", 20, 5, 0, 3)).toBe(15)
+  })
+
   it("uses normative units for V20 marks (0: 10, 6: 15, 7: 0, 8: 0)", () => {
     expect(getUnitsForInclusion("EXTRAORDINARIO_V20", 20, 0, 20, 1)).toBe(10)
     expect(getUnitsForInclusion("EXTRAORDINARIO_V20", 20, 6, 20, 1)).toBe(15)

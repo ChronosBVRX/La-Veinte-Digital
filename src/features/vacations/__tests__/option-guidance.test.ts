@@ -54,4 +54,40 @@ describe("Orientación de Marcas en Lenguaje de Trabajador", () => {
     const r4 = getIncompatibleReason(1, 4, "SEMESTRAL")
     expect(r4).toContain("marca 9")
   })
+
+  it("Orienta correctamente las opciones de V20 (marcas 0, 6, 7 y 8)", () => {
+    const g0 = getMarkGuidance(0, "EXTRAORDINARIO_V20")
+    expect(g0.title).toContain("Marca 0")
+    expect(g0.plainSummary).toContain("10 días hábiles de descanso")
+    expect(g0.paysFullHelpNow).toBe(true)
+
+    const g6 = getMarkGuidance(6, "EXTRAORDINARIO_V20")
+    expect(g6.title).toContain("Marca 6")
+    expect(g6.plainSummary).toContain("15 días hábiles de descanso continuo")
+    expect(g6.plainSummary).toContain("30 días de salario por concepto de ayuda cultural 048")
+    expect(g6.paysFullHelpNow).toBe(true)
+
+    const g7 = getMarkGuidance(7, "EXTRAORDINARIO_V20")
+    expect(g7.title).toContain("Marca 7")
+    expect(g7.plainSummary).toContain("30 días de salario")
+    expect(g7.plainSummary).toContain("sin ausentarte")
+
+    const g8 = getMarkGuidance(8, "EXTRAORDINARIO_V20")
+    expect(g8.title).toContain("Marca 8")
+    expect(g8.plainSummary).toContain("15 días de prima vacacional")
+    expect(g8.plainSummary).toContain("jubilación")
+    expect(g8.paysNoHelp).toBe(true)
+  })
+
+  it("Orienta correctamente la Modalidad B Cuatrimestral (Marcas 2 y 5)", () => {
+    const g2 = getMarkGuidance(2, "CUATRIMESTRAL")
+    expect(g2.title).toContain("Marca 2")
+    expect(g2.plainSummary).toContain("hasta 15 días hábiles de descanso")
+    expect(g2.paysNoHelp).toBe(true)
+
+    const g5 = getMarkGuidance(5, "CUATRIMESTRAL")
+    expect(g5.title).toContain("Marca 5")
+    expect(g5.plainSummary).toContain("hasta 15 días hábiles")
+    expect(g5.paysNoHelp).toBe(true)
+  })
 })

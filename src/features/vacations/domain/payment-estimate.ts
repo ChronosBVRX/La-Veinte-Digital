@@ -59,39 +59,54 @@ export function calculateVacationPayment(params: PaymentCalculationParams): Vaca
   const dailyIntegratedSalaryExact = integratedMonthlySalary / 30
   const dailyIntegratedSalary = Math.round(dailyIntegratedSalaryExact * 100) / 100
 
+  const isV20Calculated = Boolean(isV20 || regime === "EXTRAORDINARIO_V20")
+
   // 1. Prima vacacional (concepto 029): Salario Diario x Días disfrutados x 25%
-  const payableDays = Math.max(0, daysOrUnits)
+  // Nota: en V20 Marca 8 se pagan 15 días de prima 029 sin días de descanso presencial
+  const payableDays = (isV20Calculated && mark === 8) ? 15 : Math.max(0, daysOrUnits)
   const premium029Exact = dailyIntegratedSalaryExact * payableDays * 0.25
   const premium029 = Math.round(premium029Exact * 100) / 100
 
   // 2. Ayuda para actividades culturales y recreativas (concepto 048):
   // Días según CCT Cláusula 47 (antigüedad efectiva) x Salario Diario x proporción de la marca
   let helpDays = 0
-  if (!isV20) {
-    if (regime === "CUATRIMESTRAL" || radiologicalExposure === true) {
-      helpDays = getRadiationCulturalHelpDays(seniorityYears)
-    } else {
-      helpDays = getCctCulturalHelpDays(seniorityYears)
-    }
-  }
-
   let helpPaymentFraction: 0 | 0.5 | 1 = 0
 
-  if (isV20) {
-    // El periodo extraordinario V20 genera prima vacacional de sus días pero no ayuda 048
-    helpPaymentFraction = 0
-  } else if (regime === "CUATRIMESTRAL") {
-    // En régimen cuatrimestral: marca 0 paga completa la ayuda correspondiente a este periodo
+  if (isV20Calculated) {
+    // Cláusula 47 del CCT (párrafos 13, 14 y 15):
+    // - Marca 0: 10 días de descanso + 10 días de salario por concepto 048
+    // - Marca 6: 15 días de descanso continuo + 30 días de salario por concepto 048
+    // - Marca 7: 30 días de salario por concepto 048 en efectivo (sin descanso)
+    // - Marca 8: 15 días de prima 029 y 30 días de antigüedad para jubilación (sin concepto 048)
+    switch (mark) {
+      case 6:
+      case 7:
+        helpDays = 30
+        helpPaymentFraction = 1
+        break
+      case 8:
+        helpDays = 0
+        helpPaymentFraction = 0
+        break
+      case 0:
+      default:
+        helpDays = 10
+        helpPaymentFraction = 1
+        break
+    }
+  } else if (regime === "CUATRIMESTRAL" || radiologicalExposure === true) {
+    // Régimen CUATRIMESTRAL (exposición a radiaciones)
+    helpDays = getRadiationCulturalHelpDays(seniorityYears)
     if (mark === 0) {
       helpPaymentFraction = 1
-    } else if (mark === 2) {
+    } else if (mark === 2 || mark === 5) {
+      // Modalidad B (Mayor Descanso): no liquida ayuda 048 a cambio de hasta 15 días hábiles de descanso por cuatrimestre
       helpPaymentFraction = 0
-      warnings.push("Esta opción cuatrimestral no liquida la ayuda cultural 048.")
-    } else if (mark === 5) {
-      helpPaymentFraction = 0
+      warnings.push("Modalidad B (Mayor Descanso): Esta opción otorga hasta 15 días hábiles de descanso físico por cuatrimestre a cambio de no percibir la ayuda cultural 048.")
     }
   } else {
     // Régimen SEMESTRAL / ESTATUTO
+    helpDays = getCctCulturalHelpDays(seniorityYears)
     switch (mark) {
       case 1:
         helpPaymentFraction = 0.5
@@ -99,11 +114,11 @@ export function calculateVacationPayment(params: PaymentCalculationParams): Vaca
         break
       case 2:
         helpPaymentFraction = 0
-        warnings.push("La secuencia 2→3 conserva un segundo periodo de descanso pero esta opción no paga la ayuda cultural 048.")
+        warnings.push("Modalidad Mayor Descanso: Con Marca 2 disfrutas tu primer periodo. En el segundo periodo (Marca 3) disfrutas de hasta 15 días hábiles de descanso a cambio de no cobrar la ayuda cultural 048.")
         break
       case 3:
         helpPaymentFraction = 0
-        warnings.push("La marca 3 concluye la secuencia 2→3: cobras la prima de este periodo pero no incluye ayuda 048.")
+        warnings.push("Modalidad Mayor Descanso: Concluye la secuencia 2→3 con hasta 15 días hábiles de descanso físico. No incluye cobro de ayuda cultural 048.")
         break
       case 4:
         helpPaymentFraction = 1

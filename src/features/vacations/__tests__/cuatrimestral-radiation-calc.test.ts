@@ -3,6 +3,7 @@ import {
   getRadiationCulturalHelpDays,
   getRadiationDaysForPeriod,
   getCctCulturalHelpDays,
+  getUnitsForInclusion,
 } from "../domain/entitlement"
 import { calculateVacationPayment } from "../domain/payment-estimate"
 import { getMarkGuidance, getIncompatibleReason } from "../domain/option-guidance"
@@ -167,7 +168,7 @@ describe("Cálculo Cuatrimestral 029 y 048 — Procedimiento IMSS 1A74-003-025 A
       expect(semestralResult.culturalHelp048).toBeCloseTo(22793.89, 2)
     })
 
-    it("periodo extraordinario V20 genera prima vacacional sin ayuda 048", () => {
+    it("periodo extraordinario V20 Marca 6 genera prima vacacional y 30 días de ayuda 048 (Cláusula 47 CCT)", () => {
       const v20Result = calculateVacationPayment({
         integratedMonthlySalary: 22058.60,
         seniorityYears: 20,
@@ -178,8 +179,14 @@ describe("Cálculo Cuatrimestral 029 y 048 — Procedimiento IMSS 1A74-003-025 A
       })
 
       expect(v20Result.premium029).toBeCloseTo(2757.33, 2)
-      expect(v20Result.culturalHelp048).toBe(0)
-      expect(v20Result.grossVacationExtra).toBeCloseTo(2757.33, 2)
+      expect(v20Result.culturalHelp048).toBeCloseTo(22058.60, 2)
+      expect(v20Result.grossVacationExtra).toBeCloseTo(24815.93, 2)
+    })
+
+    it("régimen cuatrimestral Modalidad B (Marcas 2 y 5) otorga hasta 15 días hábiles", () => {
+      expect(getUnitsForInclusion("CUATRIMESTRAL", 24, 2, 2, 1)).toBe(15)
+      expect(getUnitsForInclusion("CUATRIMESTRAL", 24, 5, 2, 2)).toBe(15)
+      expect(getUnitsForInclusion("CUATRIMESTRAL", 24, 5, 2, 3)).toBe(15)
     })
 
     it("el régimen cuatrimestral no reutiliza mensajes semestrales", () => {

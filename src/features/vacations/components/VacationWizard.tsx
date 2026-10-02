@@ -720,22 +720,22 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", fontSize: "0.85rem" }}>
               <div style={{ background: "var(--card)", padding: "0.75rem 1rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
-                <div style={{ fontWeight: 700, color: "var(--fg)" }}>Periodo regular con ayuda</div>
+                <div style={{ fontWeight: 700, color: "var(--fg)" }}>Periodo regular con ayuda (Modalidad A)</div>
                 <p style={{ margin: "0.25rem 0", color: "var(--muted)", lineHeight: 1.4 }}>
-                  Programas los tres periodos con la Marca 0. En cada periodo disfrutas tus días de descanso y recibes tu prima vacacional 029 y la ayuda cultural 048 completa.
+                  Programas los tres periodos con la Marca 0. En cada periodo disfrutas tus días de descanso según tabla (7 a 10 días) y recibes tu prima vacacional 029 y la ayuda cultural 048 completa.
                 </p>
                 <div style={{ fontWeight: 600, color: "var(--primary)", marginTop: "0.25rem" }}>
-                  Primer periodo: Marca 0 • Segundo periodo: Marca 0 • Tercer periodo: Marca 0
+                  Primer periodo: Marca 0 • Segundo periodo: Marca 0 • Tercer periodo: Marca 0 (Mayor Pago)
                 </div>
               </div>
 
               <div style={{ background: "var(--card)", padding: "0.75rem 1rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
-                <div style={{ fontWeight: 700, color: "var(--fg)" }}>Periodos fraccionados: Marca 2 → Marca 5 → Marca 5</div>
+                <div style={{ fontWeight: 700, color: "var(--fg)" }}>Mayor descanso físico (Modalidad B: Marca 2 → Marca 5 → Marca 5)</div>
                 <p style={{ margin: "0.25rem 0", color: "var(--muted)", lineHeight: 1.4 }}>
-                  La Marca 2 inicia la secuencia. Las marcas 5 continúan los siguientes periodos. No puedes cambiar de modalidad a mitad de la secuencia.
+                  La Marca 2 inicia la secuencia y la Marca 5 continúa los siguientes periodos. Tienes derecho a disfrutar <strong>hasta 15 días hábiles en cada cuatrimestre (hasta 45 días al año fuera de radiaciones)</strong>. Se cobra la prima vacacional 029 pero no se percibe la ayuda cultural 048.
                 </p>
                 <div style={{ fontWeight: 600, color: "var(--primary)", marginTop: "0.25rem" }}>
-                  Marca 2 → Marca 5 → Marca 5
+                  Marca 2 → Marca 5 → Marca 5 (Hasta 15 días por cuatrimestre)
                 </div>
               </div>
 
@@ -793,7 +793,8 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", boxSizing: "border-box" }}>
             {orderedAllowedMarks.map((m) => {
-              const g = getMarkGuidance(m, regime)
+              const activeRegime = isV20 ? "EXTRAORDINARIO_V20" : regime
+              const g = getMarkGuidance(m, activeRegime)
               const isChosen = selectedMark === m
 
               // Estimación para esta marca en tiempo real
@@ -803,7 +804,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                 seniorityYears: effectiveSeniorityYears,
                 mark: m,
                 radiologicalExposure: Boolean(prefilled.profile?.radiologicalExposure),
-                regime,
+                regime: activeRegime,
                 isV20,
               })
 
@@ -814,13 +815,13 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                     seniorityYears: effectiveSeniorityYears,
                     mark: 0,
                     radiologicalExposure: Boolean(prefilled.profile?.radiologicalExposure),
-                    regime,
+                    regime: activeRegime,
                     isV20,
                   })
                 : null
 
               const nextTransition = applyInclusionMark(
-                isV20 ? "EXTRAORDINARIO_V20" : regime,
+                activeRegime,
                 currentContinuityForActive,
                 m
               )
@@ -1789,7 +1790,8 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
       {/* Lista de periodos programados */}
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem", width: "100%", boxSizing: "border-box" }}>
         {planResult.periods.map((p) => {
-          const g = p.selectedMark !== undefined ? getMarkGuidance(p.selectedMark, regime) : null
+          const periodRegime = p.kind === "V20" ? "EXTRAORDINARIO_V20" : regime
+          const g = p.selectedMark !== undefined ? getMarkGuidance(p.selectedMark, periodRegime) : null
 
           return (
             <Card key={p.index} padding="1.25rem">

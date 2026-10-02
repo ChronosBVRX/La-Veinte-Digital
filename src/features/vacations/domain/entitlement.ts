@@ -121,6 +121,11 @@ export function getUnitsForInclusion(
   nextPeriodNumber: number
 ): number {
   if (regime === "CUATRIMESTRAL") {
+    // Cláusula 47, párrafo 16 del CCT: Modalidad B (Mayor Descanso con Marcas 2 y 5)
+    // otorga hasta 15 días hábiles en cada periodo cuatrimestral a cambio de no percibir la ayuda 048.
+    if (inclusionMark === 2 || inclusionMark === 5) {
+      return 15;
+    }
     const periodIndex = ((Math.max(1, nextPeriodNumber) - 1) % 3) as 0 | 1 | 2;
     return getRadiationDaysForPeriod(completedYears, periodIndex);
   }
