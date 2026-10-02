@@ -4,8 +4,9 @@
  * Fuente única para páginas públicas (privacidad, términos, soporte,
  * eliminación de cuenta) y el pie de las páginas legales.
  */
-export const OWNER_NAME = "Eduardo Bolaños Vazquez"
-export const OWNER_ROLE = "Técnico Radiólogo"
+export const COMPANY_NAME = "Chronos System S.A.S"
+export const OWNER_NAME = "Chronos System S.A.S"
+export const OWNER_ROLE = ""
 export const CONTACT_EMAIL = "noirsysan@gmail.com"
 export const CONTACT_PHONE_DISPLAY = "443 366 7106"
 export const CONTACT_PHONE_HREF = "tel:+524433667106"

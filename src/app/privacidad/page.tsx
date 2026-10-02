@@ -1,5 +1,5 @@
 import { PublicPageShell } from "@/shared/components/public/PublicPageShell"
-import { OWNER_NAME, OWNER_ROLE, CONTACT_EMAIL, CONTACT_MAILTO, CONTACT_PHONE_DISPLAY, CONTACT_PHONE_HREF } from "@/shared/lib/contact"
+import { OWNER_NAME, CONTACT_EMAIL, CONTACT_MAILTO, CONTACT_PHONE_DISPLAY, CONTACT_PHONE_HREF } from "@/shared/lib/contact"
 
 export const metadata = {
   title: "Política de Privacidad | La Veinte Digital",
@@ -17,7 +17,7 @@ export default function PrivacyPage() {
           Solo proporciona herramientas informativas y de acceso a portales públicos y oficiales.
         </p>
         <p>
-          Responsable del tratamiento de tus datos: <strong>{OWNER_NAME}</strong>, {OWNER_ROLE}.
+          Responsable del tratamiento de tus datos: <strong>{OWNER_NAME}</strong>.
         </p>
       </section>
 
