@@ -5,7 +5,6 @@ import {
   Notebook,
   FileText,
   Books,
-  Sparkle,
   Newspaper,
   UserCircle,
   SquaresFour,
@@ -46,49 +45,46 @@ export interface NavGroup {
   items: NavItem[]
 }
 
+const WORK_NAV_GROUP: NavGroup = {
+  label: "MI TRABAJO",
+  area: "work",
+  color: "var(--area-work)",
+  items: [
+    { href: "/calendario", label: "Calendario", icon: CalendarDots },
+    { href: "/vacaciones", label: "Vacaciones", icon: AirplaneTilt },
+    { href: "/bitacora", label: "Mi Agenda", icon: Notebook },
+  ],
+}
+
+const TOOLS_NAV_GROUP: NavGroup = {
+  label: "HERRAMIENTAS",
+  area: "tools",
+  color: "var(--area-tools)",
+  items: [
+    { href: "/calculadoras", label: "Calculadoras", icon: Calculator },
+    { href: "/escritos", label: "Crear un escrito", icon: FileText },
+    { href: "/guia", label: "Guía de mi Tarjetón", icon: Books },
+  ],
+}
+
+const COMMUNITY_NAV_GROUP: NavGroup = {
+  label: "COMUNIDAD",
+  area: "community",
+  color: "var(--area-community)",
+  items: [
+    { href: "/facebook", label: "Noticias SNTSS", icon: Newspaper },
+  ],
+}
+
 export const DESKTOP_NAV_GROUPS: NavGroup[] = [
-  {
-    label: "MI TRABAJO",
-    area: "work",
-    color: "var(--area-work)",
-    items: [
-      { href: "/calendario", label: "Calendario", icon: CalendarDots },
-      { href: "/vacaciones", label: "Vacaciones", icon: AirplaneTilt },
-      { href: "/bitacora", label: "Mi Agenda", icon: Notebook },
-    ],
-  },
-  {
-    label: "HERRAMIENTAS",
-    area: "tools",
-    color: "var(--area-tools)",
-    items: [
-      { href: "/calculadoras", label: "Calculadoras", icon: Calculator },
-      { href: "/escritos", label: "Crear un escrito", icon: FileText },
-      { href: "/guia", label: "Guía de mi Tarjetón", icon: Books },
-    ],
-  },
-  {
-    label: "ASISTENCIA",
-    area: "assistance",
-    color: "var(--area-assistance)",
-    items: [
-      { href: "/asistente", label: "Preguntar sobre mis derechos", icon: Sparkle },
-    ],
-  },
-  {
-    label: "COMUNIDAD",
-    area: "community",
-    color: "var(--area-community)",
-    items: [
-      { href: "/facebook", label: "Noticias SNTSS", icon: Newspaper },
-    ],
-  },
+  WORK_NAV_GROUP,
+  TOOLS_NAV_GROUP,
+  COMMUNITY_NAV_GROUP,
 ]
 
 export const BOTTOM_NAV_ITEMS: { key: string; label: string; icon: NavItem["icon"]; href?: string }[] = [
   { key: "inicio", label: "Inicio", icon: House, href: "/" },
   { key: "trabajo", label: "Mi trabajo", icon: Briefcase },
-  { key: "asistente", label: "Asistente", icon: Sparkle, href: "/asistente" },
   { key: "herramientas", label: "Herramientas", icon: Wrench },
   { key: "mas", label: "Más", icon: SquaresFour },
 ]
@@ -97,18 +93,18 @@ export const MOBILE_SHEET_GROUPS: Record<string, { label: string; color: string;
   trabajo: {
     label: "Mi Trabajo",
     color: "var(--area-work)",
-    items: DESKTOP_NAV_GROUPS[0].items,
+    items: WORK_NAV_GROUP.items,
   },
   herramientas: {
     label: "Herramientas",
     color: "var(--area-tools)",
-    items: DESKTOP_NAV_GROUPS[1].items,
+    items: TOOLS_NAV_GROUP.items,
   },
   mas: {
     label: "Más",
     color: "var(--muted)",
     items: [
-      ...DESKTOP_NAV_GROUPS[3].items,
+      ...COMMUNITY_NAV_GROUP.items,
       { href: "/profile", label: "Mi perfil", icon: UserCircle },
       { href: "/profile/mi-informacion-laboral", label: "Mi información laboral", icon: Briefcase },
       { href: "/informacion-y-fuentes", label: "Información y fuentes", icon: FileText },

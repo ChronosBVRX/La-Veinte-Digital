@@ -9,7 +9,7 @@ type IconType = React.ComponentType<IconProps & { size?: number; weight?: "thin"
 
 const CHIPS: { href: string; label: string; icon: IconType; color: string }[] = [
   { href: "/vacaciones", label: "Vacaciones", icon: AirplaneTilt, color: "#22c55e" },
-  { href: "/calendario", label: "Interactivo", icon: CalendarDots, color: "#eab308" },
+  { href: "/calendario", label: "Interactivo", icon: CalendarDots, color: "#d97706" },
   { href: "#agenda", label: "Agenda", icon: CalendarCheck, color: "var(--brand-cyan)" },
 ]
 

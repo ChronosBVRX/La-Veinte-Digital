@@ -111,12 +111,12 @@ describe("social module retirement", () => {
     expect(statSync(path.resolve(ROOT, "src/app/api/consulta/route.ts")).isFile()).toBe(true)
   })
 
-  it("uses the required five-item mobile navigation order", () => {
+  it("uses the required four-item mobile navigation order", () => {
     const source = readFileSync(
       path.resolve(ROOT, "src/shared/components/app/navigation.ts"),
       "utf8",
     )
-    const keys = ["inicio", "trabajo", "asistente", "herramientas", "mas"]
+    const keys = ["inicio", "trabajo", "herramientas", "mas"]
     const positions = keys.map((key) => source.indexOf(`key: "${key}"`))
 
     expect(positions.every((position) => position >= 0)).toBe(true)

@@ -12,33 +12,38 @@ import {
 } from "@phosphor-icons/react"
 import { shouldPrefetchRoute } from "./navigation"
 
+import { useFloatingChat } from "@/features/asistente/context/FloatingChatContext"
+
 interface QuickActionProps {
   icon: React.ComponentType<IconProps & { size?: number; weight?: string }>
   label: string
-  href: string
+  href?: string
+  onClick?: () => void
   color: string
 }
 
-export function QuickAction({ icon: IconComponent, label, href, color }: QuickActionProps) {
-  return (
-    <Link
-      href={href}
-      prefetch={shouldPrefetchRoute(href) ? undefined : false}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "0.5rem",
-        padding: "0.875rem 0.75rem",
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-lg)",
-        textDecoration: "none",
-        color: "var(--fg)",
-        transition: "all var(--transition)",
-      }}
-      className="hover-lift"
-    >
+export function QuickAction({ icon: IconComponent, label, href, onClick, color }: QuickActionProps) {
+  const commonStyle: CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "0.5rem",
+    padding: "0.875rem 0.75rem",
+    background: "var(--card)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius-lg)",
+    textDecoration: "none",
+    color: "var(--fg)",
+    transition: "all var(--transition)",
+    cursor: "pointer",
+    width: "100%",
+    boxSizing: "border-box",
+    fontFamily: "inherit",
+  }
+
+  const innerContent = (
+    <>
       <div
         style={{
           width: 40,
@@ -63,11 +68,38 @@ export function QuickAction({ icon: IconComponent, label, href, color }: QuickAc
       >
         {label}
       </span>
+    </>
+  )
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        style={commonStyle}
+        className="hover-lift pressable"
+        aria-label={label.replace("\n", " ")}
+      >
+        {innerContent}
+      </button>
+    )
+  }
+
+  return (
+    <Link
+      href={href || "#"}
+      prefetch={href && shouldPrefetchRoute(href) ? undefined : false}
+      style={commonStyle}
+      className="hover-lift"
+    >
+      {innerContent}
     </Link>
   )
 }
 
 export function QuickActionsGrid() {
+  const { openChat } = useFloatingChat()
+
   const actions = [
     {
       icon: IdentificationCard,
@@ -78,7 +110,7 @@ export function QuickActionsGrid() {
     {
       icon: Sparkle,
       label: "Consultar al\nasistente",
-      href: "/asistente",
+      onClick: () => openChat(),
       color: "var(--area-assistance)",
     },
     {

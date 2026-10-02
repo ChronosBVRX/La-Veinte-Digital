@@ -6,7 +6,7 @@ export interface CalendarEvent {
 }
 
 export const EVENT_COLORS: Record<CalendarEventType, string> = {
-  interactivo: '#eab308',
+  interactivo: '#d97706',
   vacacional: '#22c55e',
   santander: '#ef4444',
   otros: '#3b82f6',

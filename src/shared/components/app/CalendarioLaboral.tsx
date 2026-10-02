@@ -52,7 +52,7 @@ const AGENDA_KEYS: FilterKey[] = [
 
 const FILTER_DEFS: { key: FilterKey; label: string; color: string; group: "institucional" | "agenda" | "legacy" }[] = [
   { key: "payments", label: "Pagos", color: "#ef4444", group: "institucional" },
-  { key: "interactivo", label: "Interactivo", color: "#eab308", group: "institucional" },
+  { key: "interactivo", label: "Interactivo", color: "#d97706", group: "institucional" },
   { key: "vacacional", label: "Vacaciones", color: "#22c55e", group: "institucional" },
   { key: "descanso_cct", label: "Descanso CCT", color: "#6366f1", group: "institucional" },
   { key: "txt_substitution", label: "TxT", color: "#3b82f6", group: "legacy" },
@@ -63,7 +63,7 @@ const FILTER_DEFS: { key: FilterKey; label: string; color: string; group: "insti
   { key: "falta_injustificada", label: "Falta", color: "#f43f5e", group: "agenda" },
   { key: "incapacidad", label: "Incapacidad", color: "#14b8a6", group: "legacy" },
   { key: "pase_salida", label: "Pases", color: "#0ea5e9", group: "legacy" },
-  { key: "vacaciones", label: "Mis vacaciones", color: "#84cc16", group: "legacy" },
+  { key: "vacaciones", label: "Mis vacaciones", color: "#16a34a", group: "agenda" },
   { key: "no_pagado", label: "Reclamación", color: "#b45309", group: "agenda" },
   { key: "other", label: "Otros", color: "#64748b", group: "legacy" },
 ]
@@ -71,6 +71,7 @@ const FILTER_DEFS: { key: FilterKey; label: string; color: string; group: "insti
 interface CalendarEvent {
   id: string
   date: Date
+  endDate?: Date
   title: string
   time?: string
   color: string
@@ -219,6 +220,7 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
           return {
             id: `agenda-${commitment.id}`,
             date: start,
+            endDate: end,
             title: commitment.title,
             time: getCommitmentScheduleLabel(commitment),
             color,
@@ -243,6 +245,7 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
         return {
           id: `agenda-${c.id}`,
           date: start,
+          endDate: end,
           title: c.title,
           time: getCommitmentScheduleLabel(c),
           color,
@@ -374,9 +377,18 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
 
   const agendaActive = useMemo(() => AGENDA_KEYS.some((key) => filters.includes(key)), [filters])
 
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const startOffset = new Date(year, month, 1).getDay() === 0 ? 6 : new Date(year, month, 1).getDay() - 1
+
   const allEvents = useMemo(() => {
     const inst = getInstitutionalEvents(year, month)
-    const agenda = commitments.filter((c) => c.date.getMonth() === month && c.date.getFullYear() === year)
+    const monthStart = new Date(year, month, 1)
+    const monthEnd = new Date(year, month, daysInMonth, 23, 59, 59)
+    const agenda = commitments.filter((c) => {
+      const start = c.date
+      const end = c.endDate ?? c.date
+      return start <= monthEnd && end >= monthStart
+    })
 
     // Fusionar y verificar si un descanso contractual tiene guardia asignada
     const merged: CalendarEvent[] = []
@@ -401,24 +413,37 @@ export function CalendarioLaboral({ fullPage = false }: CalendarioLaboralProps) 
     return merged
       .filter((e) => filters.includes(e.type))
       .sort((a, b) => a.date.getTime() - b.date.getTime())
-  }, [year, month, commitments, filters])
-
-  const selectedEvents = selectedDay
-    ? allEvents.filter((e) => e.date.getDate() === selectedDay)
-    : []
-
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const startOffset = new Date(year, month, 1).getDay() === 0 ? 6 : new Date(year, month, 1).getDay() - 1
+  }, [year, month, commitments, filters, daysInMonth])
 
   const dayEvents = useMemo(() => {
     const map = new Map<number, CalendarEvent[]>()
     for (const e of allEvents) {
-      const d = e.date.getDate()
-      if (!map.has(d)) map.set(d, [])
-      map.get(d)!.push(e)
+      if (e.endDate && e.type === "vacaciones") {
+        const startDay = new Date(e.date.getFullYear(), e.date.getMonth(), e.date.getDate())
+        const endDay = new Date(e.endDate.getFullYear(), e.endDate.getMonth(), e.endDate.getDate())
+        for (let d = 1; d <= daysInMonth; d++) {
+          const currentDay = new Date(year, month, d)
+          if (currentDay >= startDay && currentDay <= endDay) {
+            if (!map.has(d)) map.set(d, [])
+            if (!map.get(d)!.some((existing) => existing.id === e.id)) {
+              map.get(d)!.push(e)
+            }
+          }
+        }
+      } else {
+        const d = e.date.getDate()
+        if (e.date.getMonth() === month && e.date.getFullYear() === year) {
+          if (!map.has(d)) map.set(d, [])
+          map.get(d)!.push(e)
+        }
+      }
     }
     return map
-  }, [allEvents])
+  }, [allEvents, daysInMonth, year, month])
+
+  const selectedEvents = selectedDay
+    ? dayEvents.get(selectedDay) ?? []
+    : []
 
   const prevMonth = () => { if (month === 0) { setYear(y => y - 1); setMonth(11) } else setMonth(m => m - 1); setSelectedDay(null) }
   const nextMonth = () => { if (month === 11) { setYear(y => y + 1); setMonth(0) } else setMonth(m => m + 1); setSelectedDay(null) }
@@ -626,11 +651,20 @@ function CalendarGrid({ year, month, prevMonth, nextMonth, startOffset, daysInMo
           const hasInteractivo = events.some((e) => e.type === "interactivo")
           const hasMandatoryRest = events.some((e) => e.type === "descanso_cct")
           const hasGuard = events.some((e) => e.type === "guardia_festiva" || e.hasUserGuard)
+          const hasVacaciones = events.some((e) => e.type === "vacaciones" || e.type === "vacacional")
           const active = selectedDay === d
 
+          const prevHasVacaciones = d > 1 && (dayEvents.get(d - 1) ?? []).some((e) => e.type === "vacaciones" || e.type === "vacacional")
+          const nextHasVacaciones = d < daysInMonth && (dayEvents.get(d + 1) ?? []).some((e) => e.type === "vacaciones" || e.type === "vacacional")
+
           let bg = "transparent"
-          if (hasInteractivo) bg = EVENT_COLORS.interactivo
-          else if (active) bg = "var(--accent)"
+          if (hasInteractivo) {
+            bg = active ? "rgba(217, 119, 6, 0.16)" : "rgba(217, 119, 6, 0.08)"
+          } else if (active) {
+            bg = "var(--accent)"
+          }
+
+          const dotEvents = events.filter((e) => e.type !== "interactivo" && e.type !== "vacaciones" && e.type !== "vacacional")
 
           return (
             <button
@@ -642,25 +676,60 @@ function CalendarGrid({ year, month, prevMonth, nextMonth, startOffset, daysInMo
                 justifyContent: "center", gap: "1px",
                 aspectRatio: "1", minHeight: compact ? 36 : 44,
                 background: bg,
-                border: today ? "2px solid var(--primary)" : hasGuard ? "2px dashed #ec4899" : hasMandatoryRest ? "1px solid #818cf8" : active ? "1px solid var(--border)" : "none",
+                border: today
+                  ? "2px solid var(--primary)"
+                  : hasGuard
+                  ? "2px dashed #ec4899"
+                  : hasMandatoryRest
+                  ? "1.5px solid #818cf8"
+                  : active
+                  ? "1.5px solid var(--primary)"
+                  : hasInteractivo
+                  ? "1px solid rgba(217, 119, 6, 0.2)"
+                  : "1px solid transparent",
                 borderRadius: "var(--radius-sm)", cursor: "pointer",
-                color: hasInteractivo ? "#0f172a" : "var(--fg)",
+                color: today ? "var(--primary)" : "var(--fg)",
                 fontFamily: "inherit", fontSize: compact ? "0.75rem" : "0.8125rem",
                 fontWeight: today || hasMandatoryRest ? 700 : 400,
                 position: "relative",
+                padding: "2px",
+                boxSizing: "border-box",
               }}
             >
               <span>{d}</span>
-              {events.length > 0 && !hasInteractivo && (
-                <div style={{ display: "flex", gap: "2px", flexWrap: "wrap", justifyContent: "center", maxWidth: "100%" }}>
-                  {events.slice(0, 3).map((e, j) => (
+              {dotEvents.length > 0 && (
+                <div style={{
+                  display: "flex", gap: "2px", flexWrap: "wrap", justifyContent: "center",
+                  maxWidth: "100%", marginBottom: hasVacaciones ? (compact ? 3 : 4) : 0,
+                }}>
+                  {dotEvents.slice(0, 3).map((e, j) => (
                     <span key={j} style={{
-                      width: 6, height: 6, borderRadius: "50%",
+                      width: 5, height: 5, borderRadius: "50%",
                       background: e.color, display: "inline-block",
                     }} />
                   ))}
-                  {events.length > 3 && <span style={{ fontSize: "0.5rem", color: "var(--muted)" }}>+{events.length - 3}</span>}
+                  {dotEvents.length > 3 && <span style={{ fontSize: "0.5rem", color: "var(--muted)" }}>+{dotEvents.length - 3}</span>}
                 </div>
+              )}
+              {hasVacaciones && (
+                <div
+                  style={{
+                    position: "absolute",
+                    bottom: compact ? 2 : 3,
+                    left: prevHasVacaciones ? 0 : 3,
+                    right: nextHasVacaciones ? 0 : 3,
+                    height: compact ? 3 : 4,
+                    background: "#16a34a",
+                    borderRadius: !prevHasVacaciones && !nextHasVacaciones
+                      ? "999px"
+                      : !prevHasVacaciones
+                      ? "3px 0 0 3px"
+                      : !nextHasVacaciones
+                      ? "0 3px 3px 0"
+                      : "0",
+                  }}
+                  title="Periodo vacacional"
+                />
               )}
             </button>
           )

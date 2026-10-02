@@ -10,6 +10,10 @@ import { applyInclusionMark } from "./continuity"
 import { calculateVacationPayment, calculateAnnualTotals } from "./payment-estimate"
 import { getVacationRoleEndDate, hasDateOverlap } from "./calendar-roles"
 import { evaluateVacationRoleEligibility } from "./role-eligibility"
+import { calculateVacationRange } from "./validation"
+import { getMandatoryRestDatesForRange } from "./holidays"
+import { getWorkScheduleForProfile, getUnitType } from "./schedules"
+import { getDayOfWeekName } from "./return-calculator"
 
 /**
  * Determina el número de periodos que el trabajador debe programar en su plan anual.
@@ -199,6 +203,28 @@ export function buildVacationPlan(
       })
     }
 
+    // 6. Cálculo de fecha exacta de reanudación de labores
+    let returnDate: string | undefined = undefined
+    let returnDayName: string | undefined = undefined
+    let dateBreakdown = undefined
+
+    const periodStartDate = effectiveSelectedRole?.startDate || sel.startDate
+    if (periodStartDate && units !== undefined && units > 0) {
+      const schedule = getWorkScheduleForProfile(workerProfile ?? { weeklyRestDays: [5, 6] })
+      const uType = getUnitType(workerProfile?.workScheduleType ?? "ORDINARY")
+      dateBreakdown = calculateVacationRange({
+        startDate: periodStartDate,
+        entitlementUnits: units,
+        unitType: uType,
+        weeklyRestDays: workerProfile?.weeklyRestDays ?? [5, 6],
+        mandatoryRestDates: getMandatoryRestDatesForRange(periodStartDate, 400),
+        workSchedule: schedule,
+        contractEndDate: workerProfile?.contractEndDate,
+      })
+      returnDate = dateBreakdown.returnToWorkDate
+      returnDayName = getDayOfWeekName(returnDate)
+    }
+
     periods.push({
       index: idx,
       kind: isV20Period ? "V20" : "ORDINARY",
@@ -207,8 +233,11 @@ export function buildVacationPlan(
       dueDateConfidence,
       selectedRole: effectiveSelectedRole,
       selectedMark,
-      startDate: effectiveSelectedRole?.startDate || sel.startDate,
+      startDate: periodStartDate,
       endDate: resolvedRoleEndDate || sel.endDate,
+      returnDate,
+      returnDayName,
+      dateBreakdown,
       units,
       continuityBefore,
       continuityAfter,

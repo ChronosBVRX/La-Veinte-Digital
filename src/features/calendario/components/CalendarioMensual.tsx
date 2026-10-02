@@ -102,11 +102,21 @@ export function CalendarioMensual() {
               style={{
                 textAlign: "center", padding: "0.375rem 0.125rem",
                 borderRadius: "var(--radius-sm)", fontSize: "0.8125rem",
-                fontWeight: hasInteractivo ? 600 : isToday ? 700 : 500,
-                background: hasInteractivo ? EVENT_COLORS.interactivo : events.length > 0 ? "var(--accent)" : isToday ? "var(--primary)" : "transparent",
-                color: isToday && !hasInteractivo ? "var(--primary-fg)" : hasInteractivo ? "#0f172a" : undefined,
-                outline: isToday && !hasInteractivo ? "2px solid var(--primary)" : undefined,
-                outlineOffset: isToday && !hasInteractivo ? "-2px" : undefined,
+                fontWeight: isToday ? 700 : hasInteractivo ? 600 : 500,
+                background: isToday && !hasInteractivo
+                  ? "var(--primary)"
+                  : hasInteractivo
+                    ? "rgba(217, 119, 6, 0.09)"
+                    : events.length > 0
+                      ? "var(--accent)"
+                      : "transparent",
+                color: isToday && !hasInteractivo
+                  ? "var(--primary-fg)"
+                  : isToday && hasInteractivo
+                    ? "var(--primary)"
+                    : "var(--fg)",
+                outline: isToday ? "2px solid var(--primary)" : undefined,
+                outlineOffset: isToday ? "-2px" : undefined,
               }}
             >
               <span style={{ lineHeight: 1.5 }}>{day}</span>

@@ -44,18 +44,13 @@ describe("navegación móvil — Punto 3", () => {
   })
 })
 
-describe("barra inferior móvil — Punto 4", () => {
-  it("renderiza exactamente 5 tabs", () => {
+describe("barra inferior móvil — 4 tabs y asistente flotante", () => {
+  it("renderiza los 4 tabs de navegación", () => {
     render(<MobileBottomNav onSheetOpen={vi.fn()} />)
+    expect(BOTTOM_NAV_ITEMS).toHaveLength(4)
     for (const item of BOTTOM_NAV_ITEMS) {
       expect(screen.getByLabelText(item.label)).toBeTruthy()
     }
-  })
-
-  it("el Asistente tiene aria-label y no lanza error", () => {
-    render(<MobileBottomNav onSheetOpen={vi.fn()} />)
-    const asistente = screen.getByLabelText("Asistente")
-    expect(asistente.tagName).toBe("A")
   })
 
   it("los tabs sin href disparan onSheetOpen con su key", () => {

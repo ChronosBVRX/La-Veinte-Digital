@@ -5,12 +5,18 @@ import { useState, useCallback } from "react"
 import { AppHeader } from "@/shared/components/app/AppHeader"
 import { DesktopSidebar } from "@/shared/components/app/DesktopSidebar"
 import { MobileViewportProvider } from "./MobileViewportProvider"
+import { FloatingChatProvider } from "@/features/asistente/context/FloatingChatContext"
 import type { ReactNode } from "react"
 
 // Solo cliente (sin SSR): el contenido depende de sesión/azar del navegador.
 // Así el HTML del servidor nunca difiere del primer render (cero mismatch).
 const MobileValueBar = dynamic(
   () => import("@/shared/components/app/MobileValueBar").then((m) => m.MobileValueBar),
+  { ssr: false },
+)
+
+const FloatingChatWidget = dynamic(
+  () => import("@/features/asistente/components/FloatingChatWidget").then((m) => m.FloatingChatWidget),
   { ssr: false },
 )
 
@@ -34,40 +40,43 @@ export function DashboardShell({ fullName, canAccessAdmin = false, canAccessUnio
 
   return (
     <MobileViewportProvider>
-      <div className="mobile-app-shell">
-        <AppHeader fullName={fullName} onMenuToggle={toggleSidebar} canAccessUnion={canAccessUnion} />
+      <FloatingChatProvider>
+        <div className="mobile-app-shell">
+          <AppHeader fullName={fullName} onMenuToggle={toggleSidebar} canAccessUnion={canAccessUnion} />
 
-        <div style={{ display: "flex", flex: 1, minHeight: 0, position: "relative" }}>
-          <DesktopSidebar open={sidebarOpen} onClose={closeSidebar} canAccessAdmin={canAccessAdmin} canAccessUnion={canAccessUnion} />
-          <main
-            className="mobile-app-shell__scroll"
-            style={{
-              flex: 1,
-              padding: "clamp(0.75rem, 2vw, 1.5rem)",
-              minWidth: 0,
-              width: "100%",
-              maxWidth: "100%",
-              boxSizing: "border-box",
-              overflowX: "hidden",
-            }}
-          >
-            <div
-              className="animate-fade-in"
+          <div style={{ display: "flex", flex: 1, minHeight: 0, position: "relative" }}>
+            <DesktopSidebar open={sidebarOpen} onClose={closeSidebar} canAccessAdmin={canAccessAdmin} canAccessUnion={canAccessUnion} />
+            <main
+              className="mobile-app-shell__scroll"
               style={{
+                flex: 1,
+                padding: "clamp(0.75rem, 2vw, 1.5rem)",
+                minWidth: 0,
                 width: "100%",
                 maxWidth: "100%",
-                minWidth: 0,
                 boxSizing: "border-box",
                 overflowX: "hidden",
               }}
             >
-              {children}
-            </div>
-          </main>
-        </div>
+              <div
+                className="animate-fade-in"
+                style={{
+                  width: "100%",
+                  maxWidth: "100%",
+                  minWidth: 0,
+                  boxSizing: "border-box",
+                  overflowX: "hidden",
+                }}
+              >
+                {children}
+              </div>
+            </main>
+          </div>
 
-        <MobileValueBar />
-      </div>
+          <MobileValueBar />
+          <FloatingChatWidget />
+        </div>
+      </FloatingChatProvider>
     </MobileViewportProvider>
   )
 }
