@@ -6,13 +6,15 @@ import { useEffect, useRef, useState } from "react"
 import { List, UserCircle, CaretDown, DeviceMobile } from "@phosphor-icons/react"
 import { useAppEnvironment } from "@/shared/hooks/useAppEnvironment"
 import { useBackLayer } from "@/shared/navigation/useBackLayer"
+import { RoleModeSwitch } from "./RoleModeSwitch"
 
 interface AppHeaderProps {
   fullName: string | null
   onMenuToggle: () => void
+  canAccessUnion?: boolean
 }
 
-export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
+export function AppHeader({ fullName, onMenuToggle, canAccessUnion = false }: AppHeaderProps) {
   const firstName = fullName?.split(" ")[0] ?? ""
   const [profileOpen, setProfileOpen] = useState(false)
   const { environment, platform, resolved } = useAppEnvironment()
@@ -118,6 +120,11 @@ export function AppHeader({ fullName, onMenuToggle }: AppHeaderProps) {
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        {canAccessUnion && (
+          <div className="desktop-only" style={{ marginRight: "0.25rem" }}>
+            <RoleModeSwitch currentMode="worker" variant="light" />
+          </div>
+        )}
         {shouldShowAndroidDownload && (
         <a
           href="/LaVeinteDigital.apk"

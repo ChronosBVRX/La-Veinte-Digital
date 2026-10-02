@@ -7,6 +7,7 @@ import { DesktopQuickPills } from "@/shared/components/app/DesktopQuickPills"
 import { CalendarioLaboral } from "@/shared/components/app/CalendarioLaboral"
 import { AgendaCardWrapper } from "@/shared/components/app/AgendaCardWrapper"
 import { HomeHighlightsCarousel } from "@/features/dashboard/components/HomeHighlightsCarousel"
+import { RoleModeSwitch } from "@/shared/components/app/RoleModeSwitch"
 import {
   describeSupabaseError,
   resolveDashboardProfile,
@@ -87,6 +88,13 @@ export default async function DashboardPage() {
       ? "Buenas tardes"
       : "Buenas noches"
 
+  const { count: unionCount } = await supabase
+    .from("union_members")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .eq("active", true)
+  const canAccessUnion = (unionCount ?? 0) > 0
+
   return (
     <div
       className="dashboard-root"
@@ -96,6 +104,19 @@ export default async function DashboardPage() {
         width: "100%",
       }}
     >
+      {canAccessUnion && (
+        <div
+          className="mobile-only"
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            marginBottom: "0.75rem",
+          }}
+        >
+          <RoleModeSwitch currentMode="worker" variant="light" />
+        </div>
+      )}
+
       <WelcomeCard
         fullName={profileState.fullName}
         greeting={greeting}

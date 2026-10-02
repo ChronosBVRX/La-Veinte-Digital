@@ -209,6 +209,21 @@ describe("UnionApplicationShell", () => {
 
     expect(screen.queryByText("Panel de administración")).toBeNull();
   });
+
+  it("renderiza el conmutador de modo persistente para regresar a Modo Usuario", () => {
+    render(
+      <UnionApplicationShell memberships={mockMemberships} userName="Delegado Prueba">
+        <div>Contenido</div>
+      </UnionApplicationShell>
+    );
+
+    const switchGroups = screen.getAllByRole("group", { name: /Conmutador de modo de cuenta/i });
+    expect(switchGroups.length).toBeGreaterThanOrEqual(1);
+
+    const workerLinks = screen.getAllByRole("link", { name: /Cambiar a Modo Usuario/i });
+    expect(workerLinks.length).toBeGreaterThanOrEqual(1);
+    expect(workerLinks[0].getAttribute("href")).toBe("/");
+  });
 });
 
 describe("UnionAccessDenied", () => {
