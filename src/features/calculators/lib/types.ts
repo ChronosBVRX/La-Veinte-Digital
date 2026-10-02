@@ -196,6 +196,7 @@ export interface PrestamoCategoriaRecord {
   clausula97UnMes?: number
   clausula97DosMeses?: number
   clausula97TresMeses?: number
+  clausula97CuatroMeses?: number
   concepto160?: number
   automovil?: number
   enganche?: number

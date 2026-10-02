@@ -147,15 +147,16 @@ describe("Regresión completa 4→41 — tabla contractual como única verdad (I
     }
   })
 
-  it("<5 años excluye; >40 años exige confirmación sin máximo silencioso", () => {
+  it("<5 años excluye; >=40 años aplica tope consolidado de 270 días", () => {
     const p4 = run(4)
     const c022_4 = [...p4.earnings, ...p4.probableConcepts, ...p4.excludedConcepts].find((c) => c.code === "022")!
     expect(c022_4.included).toBe(false)
 
     const p41 = run(41)
     const c022_41 = [...p41.earnings, ...p41.probableConcepts, ...p41.excludedConcepts].find((c) => c.code === "022")!
-    expect(c022_41.warnings.some((w) => w.includes("fuera de la tabla"))).toBe(true)
-    expect(c022_41.confidence).toBe("requires_confirmation")
+    expect(c022_41.included).toBe(true)
+    expect(c022_41.confidence).toBe("medium")
+    expect(c022_41.warnings.some((w) => w.includes("fuera de la tabla"))).toBe(false)
   })
 
   it("hitos clave: 15→16 (+179.31) y 19→20 (+179.31) usan tramos reales", () => {

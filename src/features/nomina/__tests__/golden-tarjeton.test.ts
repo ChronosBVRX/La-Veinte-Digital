@@ -234,14 +234,12 @@ describe("Escenario Más antigüedad — tabla contractual 63 Bis c (días ÷ 36
     expect(projection.totals.possibleGross).toBeCloseTo(14256.87, 2)
   })
 
-  it("14→41 (fuera de tabla): exige confirmación SIN máximo silencioso", () => {
+  it("14→41 años aplica el tope contractual consolidado de 270 días (Cl. 63 Bis c)", () => {
     const projection = runProjection({ seniorityYears: 41 })
     const c022 = conceptMap(projection).get("022")!
-    expect(c022.warnings.some((w) => w.includes("fuera de la tabla"))).toBe(true)
-    expect(c022.confidence).toBe("requires_confirmation")
-    // Ancla presente → se repite marcada; jamás 270 días:
-    expect(c022.resolutionAudit?.formulaComputable).toBe(false)
-    if (c022.resolutionAudit) expect(c022.resolutionAudit.reason).toContain("sin_formula")
+    expect(c022.warnings.some((w) => w.includes("fuera de la tabla"))).toBe(false)
+    expect(c022.confidence).toBe("medium")
+    expect(c022.amount).toBe(5379.30)
   })
 
   it("14→14 conserva el ancla (dependencias idénticas)", () => {

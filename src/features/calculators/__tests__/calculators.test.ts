@@ -57,10 +57,11 @@ describe("Aguinaldo (Cláusula 107 CCT)", () => {
     expect(r.formulaEvidence.status).toBe("contract_verified")
     expect(r.formulaEvidence.source).toContain("Contrato Colectivo")
   })
-  it("incluye comparación histórica con factor empírico anterior", () => {
-    expect(r.historicalComparison).toBeDefined()
-    expect(r.historicalComparison?.factor).toBe(FACTOR_AGUINALDO)
-    expect(r.historicalComparison?.total).toBeCloseTo(89891.48, 2)
+  it("valida factor 6 quincenas (90 días) conforme a Cláusula 107 CCT", () => {
+    expect(r.factor).toBe(6)
+    expect(FACTOR_AGUINALDO).toBe(6)
+    expect(r.totalAnual).toBe(72000)
+    expect(r.diasOrdinarios).toBe(90)
   })
   it("integra correctamente el Concepto 054 (Emanaciones radiactivas) para Técnico Radiólogo", () => {
     const trAguinaldo = calculateAguinaldo({
@@ -390,6 +391,7 @@ describe("Prestamos", () => {
     expect(byName("Cláusula 97 - 1 mes").valor).toBe(14000)
     expect(byName("Cláusula 97 - 2 meses").valor).toBe(28000)
     expect(byName("Cláusula 97 - 3 meses").valor).toBe(42000)
+    expect(byName("Cláusula 97 - 4 meses").valor).toBe(56000)
     expect(byName("Concepto 160").valor).toBe(1400)
   })
   it("calcularPrestamos genera todas las modalidades institucionales", () => {

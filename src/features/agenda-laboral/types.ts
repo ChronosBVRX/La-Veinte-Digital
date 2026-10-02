@@ -57,9 +57,10 @@ export const COMMITMENT_TYPES: CommitmentType[] = [
   "general_reminder",
 ]
 
-/** Tipos que se pueden registrar desde la agenda actual (5 tipos autorizados).
+/** Tipos que se pueden registrar desde la agenda actual (tipos autorizados para nuevas altas).
  * Los demás se conservan únicamente para leer compromisos históricos sin perder compatibilidad. */
 export const PRIMARY_COMMITMENT_TYPES: CommitmentType[] = [
+  "vacaciones",
   "overtime",
   "falta_injustificada",
   "no_pagado",

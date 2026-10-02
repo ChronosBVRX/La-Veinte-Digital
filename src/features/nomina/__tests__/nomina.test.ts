@@ -656,9 +656,9 @@ describe("Verification status de reglas", () => {
     const r = rule055.calculate(ctx2)
     expect(r.concept.verificationStatus).toBe("regulation_verified")
   })
-  it("050 es pending_validation", () => {
+  it("050 es contract_verified (Cláusula 142 Bis)", () => {
     const r = rule050.calculate(createMockContext())
-    expect(r.concept.verificationStatus).toBe("pending_validation")
+    expect(r.concept.verificationStatus).toBe("contract_verified")
   })
 })
 
@@ -858,17 +858,22 @@ describe("Anclaje de tarjetón — elegibilidad confirmada, importe no congelado
     expect(r148.concept.warnings.some((w) => w.includes("Factor 99/360"))).toBe(true)
   })
 
-  it("022 con antigüedad fuera de tabla (>40) exige confirmación SIN usar 270 días", () => {
-    const anchors = {
-      "022": { amount: 1972.41, date: "2025-01-10", occurrenceType: "variable" as const, eligibilityPersistence: "until_changed" as const },
-    }
+  it("022 con antigüedad >= 40 años aplica el tope consolidado de 270 días (Cl. 63 Bis c)", () => {
+    const r002 = rule002.calculate(createMockContext())
+    const c011Calc = rule011.calculate(createMockContext({
+      calculatedConcepts: new Map([["002", r002.concept]]),
+    }))
     const ctx = createMockContext({
-      conceptAnchors: new Map(Object.entries(anchors)),
       seniority: { ...mockSeniority, years: 41 },
+      calculatedConcepts: new Map([["002", r002.concept], ["011", c011Calc.concept]]),
     })
     const r = rule022.calculate(ctx)
-    expect(r.concept.warnings.some((w) => w.includes("fuera de la tabla"))).toBe(true)
-    expect(r.concept.confidence).toBe("requires_confirmation")
+    expect(r.concept.warnings.some((w) => w.includes("fuera de la tabla"))).toBe(false)
+    expect(r.concept.confidence).toBe("medium")
+    const base = mockCategory.biweeklyBaseSalary +
+      (mockCategory.conceptoTabular011 ?? mockCategory.biweeklyBaseSalary * 0.8215)
+    const expected = Math.floor((base * 270 / 360 + Number.EPSILON) * 100) / 100
+    expect(r.concept.amount).toBe(expected)
   })
 
   it("otros conceptos (020) no cambian por antigüedad", () => {

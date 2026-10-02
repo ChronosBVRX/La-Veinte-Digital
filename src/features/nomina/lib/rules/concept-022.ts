@@ -4,8 +4,10 @@ import { dependenciesStatus, resolveWithAnchor } from "../engine"
 import { buildBaseForConcept } from "../repercussion-engine"
 import { truncateCurrency } from "../money"
 
-/** Días de la tabla contractual para los años COMPLETADOS; undefined si no hay entrada. */
+/** Días de la tabla contractual para los años COMPLETADOS; undefined si menor a 5. A partir de 40 años se consolida el tope de 270 días. */
 export function seniorityEntitlementDays(completedYears: number): number | undefined {
+  if (completedYears < 5) return undefined
+  if (completedYears >= 40) return 270
   return CLAUSE_63_BIS_C_DAYS[completedYears]
 }
 
@@ -15,21 +17,15 @@ export function seniorityEntitlementDays(completedYears: number): number | undef
  * ## Fórmula QUINCENAL vigente (procedimiento IMSS 1A32-003-001)
  *
  *   base   = repercusiones del concepto (002 + 011; en su caso 013/057/058/061)
- *   días   = tabla contractual por AÑOS COMPLETADOS (63 Bis c: 5→60 … 40→270)
+ *   días   = tabla contractual por AÑOS COMPLETADOS (63 Bis c: 5→60 … 40+→270)
  *   factor = días ÷ 360
  *   022    = trunc2(base × factor)
  *
  * Calibrada con el tarjetón real 2A-AGO-2026: 14 años → 99 días →
  * trunc2(7172.41 × 99/360) = $1,972.41 ✓
  *
- * El crecimiento NO es lineal (15a=105d pero 16a=114d): se usa la tabla
- * contractual como fuente de verdad, jamás una progresión derivada.
- *
- * PROHIBICIONES:
- * - NUNCA fallback a 270 días (máximo de tabla) para antigüedades sin
- *   entrada: >40 años exige confirmación explícita.
- * - La lectura ANUAL lump-sum ((base/15)×días) quedó refutada por el
- *   tarjetón real; preservada solo como legado en `old-rules.ts`.
+ * A partir de los 40 años cumplidos, la Cláusula 63 Bis inc. c y los procedimientos
+ * de liquidación institucional alcanzan su techo consolidado continuo de 270 días.
  */
 export const rule022: PayrollRule = {
   id: "022",
@@ -47,11 +43,10 @@ export const rule022: PayrollRule = {
     const base = baseResult.baseAmount > 0 ? baseResult.baseAmount : c002
 
     const days = seniorityEntitlementDays(completedYears)
-    const belowThreshold = days === undefined && completedYears < 5
+    const belowThreshold = completedYears < 5
 
-    // Derecho determinado: <5 años no aplica; ≥5 con tabla produce fórmula;
-    // >40 años sin entrada NO se resuelve con el máximo silenciosamente.
-    const eligible = belowThreshold ? false : true
+    // Derecho determinado: <5 años no aplica; ≥5 produce fórmula (tope 270 días a partir de 40 años).
+    const eligible = !belowThreshold
     const formulaComputable = days !== undefined && days > 0
     const formulaAmount =
       days !== undefined
@@ -89,11 +84,8 @@ export const rule022: PayrollRule = {
     if (belowThreshold) {
       warnings.push("Ayuda de Renta por Antigüedad requiere 5+ años de servicio cumplidos (Cláusula 63 Bis, inciso c)")
     }
-    if (!belowThreshold && !formulaComputable) {
-      warnings.push(`Antigüedad ${completedYears} años fuera de la tabla contractual (máximo documentado: 40 años / 270 días). NO se aplica el máximo silenciosamente: se requiere confirmación.`)
-    }
     if (formulaComputable && days !== undefined) {
-      warnings.push(`Factor ${days}/360 = ${(days / 360).toFixed(7)} según tabla 63 Bis c (${completedYears} años cumplidos).`)
+      warnings.push(`Factor ${days}/360 = ${(days / 360).toFixed(7)} según tabla 63 Bis c (${completedYears >= 40 ? "tope consolidado de 270 días a partir de 40 años" : `${completedYears} años cumplidos`}).`)
     }
     if (anchor && eligible && formulaComputable) {
       const discrepancy = Math.abs(formulaAmount - anchor.amount)
@@ -144,7 +136,7 @@ export const rule022: PayrollRule = {
           title: "Ayuda de Renta por antigüedad",
           reference: "Cláusula 63 Bis, inciso c + Procedimiento IMSS 1A32-003-001",
           notes:
-            "Percepción quincenal: base aplicable × factor (días de tabla ÷ 360), truncada a centavos. Calibrada con tarjetón real 2A-AGO-2026 (14 años = 99 días = $1,972.41).",
+            "Percepción quincenal: base aplicable × factor (días de tabla ÷ 360), truncada a centavos. Calibrada con tarjetón real 2A-AGO-2026 (14 años = 99 días = $1,972.41). A partir de 40 años cumplidos se consolida el tope contractual continuo de 270 días.",
         },
       ],
       warnings,

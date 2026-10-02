@@ -2,20 +2,14 @@ import type { AguinaldoInput, AguinaldoResult, FormulaEvidence } from "./types"
 import { roundCurrency } from "./money"
 
 /**
- * Factor histórico reconstruido (fixture / referencia empírica).
- * Se mantiene como comparación histórica documentada pero NUNCA como el resultado principal.
- */
-export const FACTOR_AGUINALDO_RECONSTRUIDO = 7.490956567109524
-export const FACTOR_AGUINALDO = FACTOR_AGUINALDO_RECONSTRUIDO
-
-/**
  * Cláusula 107 del CCT IMSS-SNTSS 2025-2027:
  * "Los trabajadores percibirán por concepto de aguinaldo anual el equivalente a
  * tres meses de sueldo nominal..."
- * Tres meses de sueldo nominal = 6 quincenas de sueldo base integrado.
+ * Tres meses de sueldo nominal = 6 quincenas de sueldo base integrado (90 días).
  */
 export const DIAS_AGUINALDO_ORDINARIO = 90 // 3 meses = 90 días
 export const FACTOR_AGUINALDO_CLAUSULA_107 = 6
+export const FACTOR_AGUINALDO = FACTOR_AGUINALDO_CLAUSULA_107
 
 const FORMULA_EVIDENCE: FormulaEvidence = {
   status: "contract_verified",
@@ -86,9 +80,6 @@ export function calculateAguinaldo(input: AguinaldoInput): AguinaldoResult {
   // 4. Concepto 049 (Diciembre): saldo remanente
   const saldoDiciembre049 = Math.max(0, roundCurrency(totalAnual - anticiposDeducibles))
 
-  // Comparación histórica con el factor empírico previo
-  const historicalTotal = roundCurrency(base * FACTOR_AGUINALDO_RECONSTRUIDO)
-
   return {
     base,
     baseMensual,
@@ -103,12 +94,6 @@ export function calculateAguinaldo(input: AguinaldoInput): AguinaldoResult {
     saldoDiciembre049,
     factor: 6,
     formulaEvidence: FORMULA_EVIDENCE,
-    historicalComparison: {
-      label: "Factor empírico anterior (reconstruido)",
-      factor: FACTOR_AGUINALDO_RECONSTRUIDO,
-      total: historicalTotal,
-      reference: "Factor histórico 7.490956... (sin evidencia documental en CCT)",
-    },
   }
 }
 

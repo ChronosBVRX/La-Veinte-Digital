@@ -39,6 +39,7 @@ interface CommitmentFormProps {
 type Step = "type" | "details" | "reminder"
 
 const TYPES: { key: CommitmentType; label: string; icon: string; desc: string }[] = [
+  { key: "vacaciones", label: "Vacaciones", icon: "🏖", desc: "Periodo vacacional, fechas de inicio y fin" },
   { key: "overtime", label: "Tiempo extra", icon: "⏱", desc: "Turno, horario y persona que autorizó" },
   { key: "falta_injustificada", label: "Falta injustificada", icon: "🚫", desc: "Turno, quincena afectada y descuento estimado" },
   { key: "no_pagado", label: "Reclamación pendiente", icon: "📋", desc: "Asunto, folio, área y fecha/hora de seguimiento" },
@@ -76,6 +77,11 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
   const [priority, setPriority] = useState<ReminderPriority>("normal")
   const [recurrence, setRecurrence] = useState<ReminderRecurrence>("none")
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
+  const [vacationTitle, setVacationTitle] = useState("")
+  const [vacationEndDate, setVacationEndDate] = useState("")
+  const [vacationMark, setVacationMark] = useState("")
+  const [vacationRoleLabel, setVacationRoleLabel] = useState("")
+  const [vacationUnits, setVacationUnits] = useState<number | "">("")
   const [notes, setNotes] = useState("")
   const [reminder, setReminder] = useState(DEFAULT_REMINDER)
   const [error, setError] = useState<string | null>(null)
@@ -135,6 +141,11 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
     setPriority("normal")
     setRecurrence("none")
     setNotificationsEnabled(true)
+    setVacationTitle("")
+    setVacationEndDate("")
+    setVacationMark("")
+    setVacationRoleLabel("")
+    setVacationUnits("")
     setNotes("")
     setError(null)
   }
@@ -159,12 +170,17 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
   const chooseType = (nextType: CommitmentType) => {
     if (type !== nextType) resetDetails()
     setType(nextType)
+    if (nextType === "vacaciones") {
+      setVacationTitle("Vacaciones")
+    }
     setReminder(
       nextType === "no_pagado"
         ? { dayBefore: true, hoursBefore: false, atStart: true }
         : nextType === "falta_injustificada"
           ? { dayBefore: false, hoursBefore: false, atStart: false }
-          : DEFAULT_REMINDER,
+          : nextType === "vacaciones"
+            ? { dayBefore: true, hoursBefore: false, atStart: true }
+            : DEFAULT_REMINDER,
     )
     setStep("details")
   }
@@ -172,6 +188,7 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
   // Validación de completitud según tipo
   const detailsComplete = (() => {
     if (!type || !date) return false
+    if (type === "vacaciones") return Boolean(vacationTitle.trim() && date && vacationEndDate && vacationEndDate >= date)
     if (type === "overtime") return Boolean(startTime && endTime && affectedShift && authorizedBy.trim())
     if (type === "falta_injustificada") return Boolean(affectedShift)
     if (type === "no_pagado") return Boolean(claimSubject.trim() && claimFiledDate && startTime)
@@ -206,7 +223,21 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
     let title = COMMITMENT_TYPE_LABELS[type]
     let details: CommitmentDetails = {}
 
-    if (type === "falta_injustificada") {
+    if (type === "vacaciones") {
+      if (vacationEndDate < date) {
+        setError("La fecha de término no puede ser anterior a la fecha de inicio.")
+        return
+      }
+      start = new Date(`${date}T00:00:00`)
+      end = new Date(`${vacationEndDate}T23:59:59`)
+      title = vacationTitle.trim()
+      details = {
+        allDay: true,
+        vacationMark: vacationMark.trim() || undefined,
+        vacationRoleLabel: vacationRoleLabel.trim() || undefined,
+        vacationUnits: typeof vacationUnits === "number" && vacationUnits > 0 ? vacationUnits : undefined,
+      }
+    } else if (type === "falta_injustificada") {
       start = new Date(`${date}T00:00:00`)
       end = new Date(`${date}T23:59:00`)
       details = {
@@ -412,6 +443,78 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "var(--text-sm)", fontWeight: 600, color: "var(--muted)" }}>
             {COMMITMENT_TYPE_ICONS[type]} {COMMITMENT_TYPE_LABELS[type]}
           </div>
+
+          {/* 0. VACACIONES */}
+          {type === "vacaciones" && (
+            <>
+              <FormField label="Título del periodo vacacional" htmlFor="vacationTitle" required>
+                <Input
+                  id="vacationTitle"
+                  value={vacationTitle}
+                  onChange={(e) => setVacationTitle(e.target.value)}
+                  placeholder="Ej. Vacaciones 2027 — Periodo 1"
+                />
+              </FormField>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-3)" }}>
+                <FormField label="Fecha de inicio" htmlFor="date" required>
+                  <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                </FormField>
+                <FormField label="Fecha de término" htmlFor="vacationEndDate" required>
+                  <Input
+                    id="vacationEndDate"
+                    type="date"
+                    value={vacationEndDate}
+                    min={date || undefined}
+                    onChange={(e) => setVacationEndDate(e.target.value)}
+                  />
+                </FormField>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-3)" }}>
+                <FormField label="Marca a solicitar" htmlFor="vacationMark" hint="Opcional">
+                  <Input
+                    id="vacationMark"
+                    value={vacationMark}
+                    onChange={(e) => setVacationMark(e.target.value)}
+                    placeholder="Ej. 0, 1, 2, 4..."
+                  />
+                </FormField>
+                <FormField label="Rol asignado" htmlFor="vacationRoleLabel" hint="Opcional">
+                  <Input
+                    id="vacationRoleLabel"
+                    value={vacationRoleLabel}
+                    onChange={(e) => setVacationRoleLabel(e.target.value)}
+                    placeholder="Ej. Rol A o Primavera"
+                  />
+                </FormField>
+              </div>
+
+              <FormField label="Días hábiles del periodo" htmlFor="vacationUnits" hint="Opcional">
+                <Input
+                  id="vacationUnits"
+                  type="number"
+                  min={1}
+                  max={35}
+                  value={vacationUnits === "" ? "" : vacationUnits}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setVacationUnits(v === "" ? "" : Number(v))
+                  }}
+                  placeholder="Ej. 10"
+                />
+              </FormField>
+
+              <FormField label="Observaciones o notas" htmlFor="notes" hint="Opcional">
+                <Textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Notas adicionales sobre tu periodo vacacional"
+                />
+              </FormField>
+            </>
+          )}
 
           {/* 1. TIEMPO EXTRA */}
           {type === "overtime" && (
@@ -801,9 +904,11 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
           <p style={{ fontSize: "var(--text-sm)", fontWeight: 600, margin: 0 }}>
             {type === "no_pagado"
               ? "¿Cuándo quieres que te recordemos dar seguimiento?"
-              : type === "general_reminder"
-                ? "¿Deseas recordatorios adicionales para este evento?"
-                : "¿Cuándo quieres que te recordemos?"}
+              : type === "vacaciones"
+                ? "¿Cuándo quieres que te recordemos sobre tus vacaciones?"
+                : type === "general_reminder"
+                  ? "¿Deseas recordatorios adicionales para este evento?"
+                  : "¿Cuándo quieres que te recordemos?"}
           </p>
 
           <Checkbox
@@ -814,18 +919,30 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
           <Checkbox
             checked={reminder.hoursBefore}
             onChange={(event) => setReminder({ ...reminder, hoursBefore: event.target.checked })}
-            label={type === "no_pagado" ? "Dos horas antes del seguimiento" : "Dos horas antes del inicio"}
+            label={
+              type === "no_pagado"
+                ? "Dos horas antes del seguimiento"
+                : type === "vacaciones"
+                  ? "El mismo día por la mañana (08:00)"
+                  : "Dos horas antes del inicio"
+            }
           />
           <Checkbox
             checked={reminder.atStart}
             onChange={(event) => setReminder({ ...reminder, atStart: event.target.checked })}
-            label={type === "no_pagado" ? "A la hora del seguimiento" : "Al iniciar"}
+            label={
+              type === "no_pagado"
+                ? "A la hora del seguimiento"
+                : type === "vacaciones"
+                  ? "Al iniciar el periodo"
+                  : "Al iniciar"
+            }
           />
 
           <div style={{ display: "flex", gap: "0.75rem", justifyContent: "space-between", marginTop: "0.5rem" }}>
             <Button variant="secondary" onClick={() => setStep("details")} leadingIcon={<CaretLeft size={14} />}>Volver</Button>
             <Button onClick={handleSave}>
-              {type === "no_pagado" ? "Guardar seguimiento" : "Guardar y programar"}
+              {type === "no_pagado" ? "Guardar seguimiento" : type === "vacaciones" ? "Guardar vacaciones" : "Guardar y programar"}
             </Button>
           </div>
         </div>

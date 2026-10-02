@@ -115,6 +115,7 @@ export function calcularPrestamos(record: PrestamoCategoriaRecord): PrestamoCalc
   const unMesC97 = baseMensual
   const dosMesesC97 = roundCurrency(baseMensual * 2)
   const tresMesesC97 = roundCurrency(baseMensual * 3)
+  const cuatroMesesC97 = roundCurrency(baseMensual * 4)
 
   const resultados: PrestamoCalculado[] = [
     {
@@ -134,6 +135,12 @@ export function calcularPrestamos(record: PrestamoCategoriaRecord): PrestamoCalc
       formula: "3 meses de sueldo mensual (recuperación 30 qnas)",
       valor: tresMesesC97,
       valorOriginal: record.clausula97TresMeses,
+    },
+    {
+      modalidad: "Cláusula 97 - 4 meses",
+      formula: "4 meses de sueldo mensual (recuperación 40 qnas)",
+      valor: cuatroMesesC97,
+      valorOriginal: record.clausula97CuatroMeses,
     },
     {
       modalidad: "Concepto 160",
@@ -205,6 +212,8 @@ export function mapJsonToPrestamoRecord(raw: Record<string, unknown>): PrestamoC
       Number(raw["C97 2 M"] ?? raw["clausula97DosMeses"] ?? raw["CLAUSULA 97 2 MESES"] ?? 0) || undefined,
     clausula97TresMeses:
       Number(raw["C97 3 M"] ?? raw["clausula97TresMeses"] ?? raw["CLAUSULA 97 3 MESES"] ?? 0) || undefined,
+    clausula97CuatroMeses:
+      Number(raw["C97 4 M"] ?? raw["clausula97CuatroMeses"] ?? raw["CLAUSULA 97 4 MESES"] ?? 0) || undefined,
     concepto160: Number(raw["CPTO 160"] ?? raw["concepto160"] ?? raw["CONCEPTO 160"] ?? 0) || undefined,
     automovil: Number(raw["AUTO"] ?? raw["automovil"] ?? raw["AUTOMOVIL"] ?? 0) || undefined,
     enganche: Number(raw["ENGANCHE"] ?? raw["enganche"] ?? 0) || undefined,
