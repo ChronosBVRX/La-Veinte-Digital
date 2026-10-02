@@ -373,5 +373,58 @@ describe("Canonical Agenda: Casos Obligatorios 1 a 14", () => {
       "Repetición: Semanal",
       "Ubicación: Dirección General",
     ])
+
+    const overtimeWithPay = createCommitment({
+      type: "overtime",
+      details: {
+        affectedShift: "afternoon",
+        authorizedBy: "Dr. Morales",
+        estimatedEarnings: 950.50,
+        earningsFormula: "$118.81/h × 4h × 2",
+      },
+    })
+    expect(getCommitmentDetailLines(overtimeWithPay)).toEqual([
+      "Turno: Vespertino",
+      "Autorizó: Dr. Morales",
+      "Pago estimado: $950.50",
+      "Fórmula: $118.81/h × 4h × 2",
+    ])
+
+    const vacation = createCommitment({
+      type: "vacaciones",
+      details: {
+        allDay: true,
+        vacationRoleLabel: "Rol #12 - Primavera",
+        vacationMark: "12",
+        vacationUnits: 10,
+        grossVacationExtra: 4200.75,
+      },
+    })
+    expect(getCommitmentDetailLines(vacation)).toEqual([
+      "Rol: Rol #12 - Primavera",
+      "Marca a solicitar: 12",
+      "Duración: 10 días hábiles",
+      "Total adicional estimado: $4,200.75",
+    ])
+  })
+
+  it("compromisos multidia (como vacaciones) se detectan en cualquier dia del rango", () => {
+    // 12:00 UTC = 06:00 CDMX (claramente dentro de la fecha civil respectiva)
+    const multiDayVacation = createCommitment({
+      type: "vacaciones",
+      startAt: "2027-04-01T12:00:00.000Z",
+      endAt: "2027-04-15T12:00:00.000Z",
+      details: { allDay: true },
+    })
+
+    // Día de inicio
+    expect(isCommitmentOnLocalDate(multiDayVacation, "2027-04-01")).toBe(true)
+    // Día intermedio
+    expect(isCommitmentOnLocalDate(multiDayVacation, "2027-04-08")).toBe(true)
+    // Día de término
+    expect(isCommitmentOnLocalDate(multiDayVacation, "2027-04-15")).toBe(true)
+    // Día fuera del rango
+    expect(isCommitmentOnLocalDate(multiDayVacation, "2027-04-16")).toBe(false)
+    expect(isCommitmentOnLocalDate(multiDayVacation, "2027-03-31")).toBe(false)
   })
 })

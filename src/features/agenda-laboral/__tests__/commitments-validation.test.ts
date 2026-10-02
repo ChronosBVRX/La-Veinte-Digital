@@ -150,4 +150,30 @@ describe("commitments-validation: Seguridad y reglas de negocio en capa de servi
     })
     expect(validReminder.ok).toBe(true)
   })
+
+  it("permite y valida campos para vacaciones programadas en agenda", () => {
+    const invalidVacation = validateCommitmentInput({
+      type: "vacaciones",
+      user_id: "user-1",
+      start_at: "2027-04-01T00:00:00Z",
+      title: "",
+    })
+    expect(invalidVacation.ok).toBe(false)
+    expect(invalidVacation.errors.some((e) => e.includes("título del periodo vacacional"))).toBe(true)
+    expect(invalidVacation.errors.some((e) => e.includes("fecha de término"))).toBe(true)
+
+    const validVacation = validateCommitmentInput({
+      type: "vacaciones",
+      user_id: "user-1",
+      title: "Vacaciones 2027 — Periodo 1 (Marca 12)",
+      start_at: "2027-04-01T00:00:00Z",
+      end_at: "2027-04-15T23:59:59Z",
+      details: {
+        allDay: true,
+        vacationMark: 12,
+        vacationUnits: 10,
+      },
+    })
+    expect(validVacation.ok).toBe(true)
+  })
 })

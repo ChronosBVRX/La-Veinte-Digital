@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "apps/radio-studio", "packages/tts-core/qwen"]
+  "exclude": ["node_modules", "apps/radio-studio", "packages/tts-core/qwen", "packages/radio-core", "packages/studio-contract"]
 }

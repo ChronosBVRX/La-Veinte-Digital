@@ -18,8 +18,8 @@ export function validateCommitmentInput(input: Partial<CommitmentInsert>): Valid
     return { ok: false, errors }
   }
 
-  // Verificar que el tipo pertenezca a los autorizados para nuevas altas
-  if (!PRIMARY_COMMITMENT_TYPES.includes(input.type as CommitmentType)) {
+  // Verificar que el tipo pertenezca a los autorizados para nuevas altas o agenda
+  if (!PRIMARY_COMMITMENT_TYPES.includes(input.type as CommitmentType) && input.type !== "vacaciones") {
     errors.push(`El tipo '${input.type}' no está permitido para nuevas altas en la agenda.`)
     return { ok: false, errors }
   }
@@ -105,6 +105,16 @@ export function validateCommitmentInput(input: Partial<CommitmentInsert>): Valid
       }
       if (details.recurrence && !["none", "daily", "weekly", "monthly"].includes(details.recurrence as string)) {
         errors.push("La repetición debe ser: none, daily, weekly o monthly.")
+      }
+      break
+    }
+
+    case "vacaciones": {
+      if (!input.title || !input.title.trim()) {
+        errors.push("El título del periodo vacacional es obligatorio.")
+      }
+      if (!input.end_at || isNaN(new Date(input.end_at).getTime())) {
+        errors.push("La fecha de término de las vacaciones es obligatoria.")
       }
       break
     }
