@@ -257,7 +257,8 @@ async function main() {
   const remoteDeployScript = `
     set -e
     cd ${REMOTE_DIR}
-    tar -xzf deploy-web.tar.gz
+    rm -rf .next server.js node_modules public Dockerfile docker-compose.yml
+    tar --overwrite -xzf deploy-web.tar.gz
     rm -f deploy-web.tar.gz
     chmod 600 .env
     
