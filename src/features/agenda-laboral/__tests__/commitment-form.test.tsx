@@ -23,9 +23,10 @@ describe("CommitmentForm: altas autorizadas y captura específica", () => {
     return { onSave, onClose }
   }
 
-  it("ofrece únicamente los cinco tipos autorizados y retira deporte y cambio de turno de nuevas altas", () => {
+  it("ofrece los tipos autorizados incluyendo Vacaciones y retira deporte y cambio de turno de nuevas altas", () => {
     renderForm()
 
+    expect(screen.getByRole("button", { name: /Vacaciones/i })).toBeDefined()
     expect(screen.getByRole("button", { name: /Tiempo extra/i })).toBeDefined()
     expect(screen.getByRole("button", { name: /Falta injustificada/i })).toBeDefined()
     expect(screen.getByRole("button", { name: /Reclamación pendiente/i })).toBeDefined()
@@ -253,6 +254,38 @@ describe("CommitmentForm: altas autorizadas y captura específica", () => {
         authorizedBy: "Jefatura Médica",
         isHolidayOrRestDay: true,
         hoursCalculated: 4,
+      }),
+    }))
+  })
+
+  it("6. vacaciones permite registrar título, fechas de inicio y fin, marca, rol y unidades", () => {
+    const { onSave } = renderForm()
+    fireEvent.click(screen.getByRole("button", { name: /Vacaciones/i }))
+
+    fireEvent.change(screen.getByLabelText(/Título del periodo vacacional/i), { target: { value: "Vacaciones 2027 — Periodo 1" } })
+    fireEvent.change(screen.getByLabelText(/Fecha de inicio/i), { target: { value: "2027-04-01" } })
+    fireEvent.change(screen.getByLabelText(/Fecha de término/i), { target: { value: "2027-04-15" } })
+    fireEvent.change(screen.getByLabelText(/Marca a solicitar/i), { target: { value: "0" } })
+    fireEvent.change(screen.getByLabelText(/Rol asignado/i), { target: { value: "Rol A" } })
+    fireEvent.change(screen.getByLabelText(/Días hábiles del periodo/i), { target: { value: "10" } })
+    fireEvent.change(screen.getByLabelText(/Observaciones o notas/i), { target: { value: "Primer periodo programado" } })
+
+    fireEvent.click(screen.getByRole("button", { name: /Continuar/i }))
+    fireEvent.click(screen.getByRole("button", { name: /Guardar vacaciones/i }))
+
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      type: "vacaciones",
+      title: "Vacaciones 2027 — Periodo 1",
+      notes: "Primer periodo programado",
+      details: expect.objectContaining({
+        allDay: true,
+        vacationMark: "0",
+        vacationRoleLabel: "Rol A",
+        vacationUnits: 10,
+      }),
+      reminder: expect.objectContaining({
+        dayBefore: true,
+        atStart: true,
       }),
     }))
   })

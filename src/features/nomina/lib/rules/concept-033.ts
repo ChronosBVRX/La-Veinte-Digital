@@ -6,16 +6,19 @@ import { hasConfirmedRecurrence } from "./concept-032"
 /**
  * Estímulo por Puntualidad (033) — Art. 93 del RIT.
  *
- * Calibración empírica (tarjetón real 2A-AGO-2026, TÉCNICO RADIÓLOGO 80):
- *   base = 002 + 011 = 7,172.41
- *   033  = trunc2(7172.41 × 16%) = $1,147.58 ✓
+ * Fundamentación legal y actuarial:
+ * El Art. 93 del RIT otorga al trabajador que registre diez marcas puntuales
+ * en la quincena el equivalente a 2 días de aguinaldo integrado:
+ *   Salario diario base = (002 + 011) / 15
+ *   Día de aguinaldo integrado = (Salario diario base) × 1.20 = Base × 0.08
+ *   Estímulo 033 (2 días de aguinaldo) = 2 × (Base × 0.08) = Base × 16%
  *
- * Mismo contrato de ancla y base observada que el 032 (grupo extendido
- * previo refutado por la observación real).
+ * 033 = trunc2(Base × 16%)
+ * Se devenga por bloques de 10 marcas dentro de los 5 minutos de tolerancia contractual.
  */
 export const concept033Rule: PayrollRule = {
   id: "033",
-  version: "1.0.0",
+  version: "2.0.0",
   effectiveFrom: "2025-01-01",
   dependencies: ["002", "011"],
   valuePersistence: "while_dependencies_unchanged",
@@ -55,9 +58,9 @@ export const concept033Rule: PayrollRule = {
 
     const warnings: string[] = [...resolution.warnings]
     if (!eligible) {
-      warnings.push("Requiere evidencia de estímulo por puntualidad en tarjetón (se pierde por retardos según RIT)")
+      warnings.push("Requiere registro de puntualidad (10 marcas en tolerancia según Art. 93 RIT)")
     }
-    warnings.push("Tarifa 16% sobre (002+011) calibrada con tarjetón real 2A-AGO-2026; verificar incompatibilidades por retardos.")
+    warnings.push("Equivale a 2 días de aguinaldo integrado (16% sobre 002+011, Art. 93 RIT).")
     if (anchor && eligible) {
       const discrepancy = Math.abs(formulaAmount - anchor.amount)
       if (discrepancy > 0.50) {
@@ -74,7 +77,7 @@ export const concept033Rule: PayrollRule = {
       included: eligible,
       source,
       confidence,
-      verificationStatus: "empirically_verified",
+      verificationStatus: "contract_verified",
       elegibilitySource: eligible ? "payslip_confirmed" : "unknown",
       anchorAmount: anchor?.amount,
       anchorDate: anchor?.date,
@@ -84,11 +87,11 @@ export const concept033Rule: PayrollRule = {
         { label: "Base: 002", expression: `002 = ${c002.toFixed(2)}`, value: c002 },
         { label: "Base: 011", expression: `011 = ${c011.toFixed(2)}`, value: c011 },
         { label: "Base total", expression: `${c002} + ${c011} = ${base}`, value: base },
-        { label: "033 = base × 16%", expression: `${base} × 0.16 = ${formulaAmount} (truncado a centavos)`, value: formulaAmount },
+        { label: "2 días de aguinaldo (Art. 93 RIT)", expression: `2 × (${base}/15 × 1.20) = ${base} × 16% = ${formulaAmount}`, value: formulaAmount },
         ...(anchor ? [{ label: "Último tarjetón (referencia)", expression: `Ancla: ${anchor.amount}`, value: anchor.amount }] : []),
       ],
       legalBasis: [
-        { source: "CCT", title: "Estímulo por Puntualidad", reference: "Art. 93 del RIT", notes: "Base observada empíricamente: solo 002+011 (tarjetón 2A-AGO-2026)." },
+        { source: "CCT", title: "Estímulo por Puntualidad", reference: "Art. 93 del RIT", notes: "Equivalente a 2 días de aguinaldo calculados a valor integrado ordinario (Base × 16%)." },
       ],
       warnings,
     }

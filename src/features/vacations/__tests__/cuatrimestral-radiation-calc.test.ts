@@ -32,20 +32,20 @@ describe("Cálculo Cuatrimestral 029 y 048 — Procedimiento IMSS 1A74-003-025 A
       expect(getRadiationDaysForPeriod(2, 1)).toBe(8)
       expect(getRadiationDaysForPeriod(2, 2)).toBe(8)
 
-      // 3 años: 8, 9, 8
+      // 3 años: 8, 9, 9
       expect(getRadiationDaysForPeriod(3, 0)).toBe(8)
       expect(getRadiationDaysForPeriod(3, 1)).toBe(9)
-      expect(getRadiationDaysForPeriod(3, 2)).toBe(8)
+      expect(getRadiationDaysForPeriod(3, 2)).toBe(9)
 
-      // 4 años: 9, 9, 9
+      // 4 años: 9, 9, 10
       expect(getRadiationDaysForPeriod(4, 0)).toBe(9)
       expect(getRadiationDaysForPeriod(4, 1)).toBe(9)
-      expect(getRadiationDaysForPeriod(4, 2)).toBe(9)
+      expect(getRadiationDaysForPeriod(4, 2)).toBe(10)
 
-      // 5 años: 9, 10, 9
-      expect(getRadiationDaysForPeriod(5, 0)).toBe(9)
+      // 5 años: 10, 10, 10
+      expect(getRadiationDaysForPeriod(5, 0)).toBe(10)
       expect(getRadiationDaysForPeriod(5, 1)).toBe(10)
-      expect(getRadiationDaysForPeriod(5, 2)).toBe(9)
+      expect(getRadiationDaysForPeriod(5, 2)).toBe(10)
 
       // Más de 5 años: 10, 10, 10
       expect(getRadiationDaysForPeriod(6, 0)).toBe(10)

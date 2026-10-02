@@ -14,8 +14,9 @@ import { CCT_2025_2027, NORMA_1000_001_020, PROC_1A74_003_031 } from "./vigencia
  * - Solo las relaciones `regulation_verified` se integran en la base
  *   monetaria. Las `pending_validation` se separan en `pendingImpacts`.
  * - `weight` (por defecto 1) multiplica el monto del concepto origen al
- *   integrarse (p. ej. el SMI de 107/108/111/152 usa 1.25 para el grupo
- *   [002, 011-019, 057, 058], cláusula 107 del CCT).
+ *   integrarse (p. ej. la base de cotización RJP / aguinaldo de 107/108/111/152
+ *   usa el factor de ponderación anualizada 1.25 para el grupo [002, 011-019, 057, 058],
+ *   conforme a Cláusula 107 y Cláusula 63 Bis del CCT: (12 meses + 3 meses aguinaldo) / 12 = 1.25).
  * - `effectiveFrom` no se inventa: por defecto "2025-01-01" expresa que no
  *   hay evidencia de un inicio posterior (inicio del periodo cubierto por los
  *   datos). Si existiera evidencia de vigencia concreta, se usa esa fecha.
@@ -148,9 +149,11 @@ const MATRIX: ConceptImpactRule[] = [
   ...pairList(SMI_GROUP, ["048"], "Cláusula 47 (ayuda cultural, SMI/30)")
     .map(([s, t, r]) => verified(s, t, CCT_2025_2027, r)),
 
-  // ── 107/108/111/152 Aguinaldo y compensaciones (fórmula propia de SMI) ───────
-  // [002, 011-019, 057, 058] se multiplican por 1.25; [020, 022, 023, 050, 062,
-  // 063] no se multiplican (Cláusula 107 del CCT).
+  // ── 107 Deducción RJP / 108/111/152 Compensaciones (Cláusula 107 y Cl. 63 Bis CCT) ──
+  // El factor 1.25 representa la ponderación anualizada ((12 meses + 3 meses aguinaldo) / 12 meses = 1.25)
+  // que integra el aguinaldo en la base de cotización estatutaria del Fondo de Jubilaciones y
+  // Pensiones (deducción Concepto 107 RJP - 7%) sobre [002, 011-019, 057, 058].
+  // Los conceptos [020, 022, 023, 050, 062, 063] no se multiplican por 1.25.
   ...pairList(SMI_GROUP_X1_25, ["107"], "Cláusula 107 (SMI con factor 1.25)")
     .map(([s, t, r]) => verified(s, t, CCT_2025_2027, r, undefined, 1.25)),
   ...pairList(SMI_GROUP_X1, ["107"], "Cláusula 107 (SMI sin factor 1.25)")

@@ -6,9 +6,9 @@ const CCT_ANNUAL_DAYS_MAX = 20;
 export const RADIATION_DAYS_BY_SENIORITY: Record<number, [number, number, number]> = {
   1: [7, 8, 7],
   2: [8, 8, 8],
-  3: [8, 9, 8],
-  4: [9, 9, 9],
-  5: [9, 10, 9],
+  3: [8, 9, 9],
+  4: [9, 9, 10],
+  5: [10, 10, 10],
 };
 
 export function getCctAnnualDays(completedYears: number): number {

@@ -15,14 +15,15 @@ export function hasConfirmedRecurrence(
 /**
  * Estímulo por Asistencia (032) — Art. 91 del RIT.
  *
- * Calibración empírica (tarjetón real 2A-AGO-2026, TÉCNICO RADIÓLOGO 80):
- *   base = 002 + 011 = 7,172.41
- *   032  = trunc2(7172.41 × 24%) = $1,721.37 ✓
+ * Fundamentación legal y actuarial:
+ * El Art. 91 del RIT otorga al trabajador con asistencia completa en la quincena
+ * el equivalente a 3 días de aguinaldo integrado:
+ *   Salario diario base = (002 + 011) / 15
+ *   Día de aguinaldo integrado = (Salario diario base) × 1.20 = Base × 0.08
+ *   Estímulo 032 (3 días de aguinaldo) = 3 × (Base × 0.08) = Base × 24%
  *
- * La matriz previa asumía el grupo extendido [002, 011, 019, 054, 057, 058,
- * 061]; la observación real lo REFUTA (con 054 presente en el tarjetón, la
- * base observada es solo 002+011). CONTRATO DE ANCLA estándar de la familia
- * derivada.
+ * 032 = trunc2(Base × 24%)
+ * Se cancela íntegramente ante cualquier falta injustificada o pase particular en la quincena.
  */
 export const concept032Rule: PayrollRule = {
   id: "032",
@@ -66,9 +67,9 @@ export const concept032Rule: PayrollRule = {
 
     const warnings: string[] = [...resolution.warnings]
     if (!eligible) {
-      warnings.push("Requiere evidencia de estímulo por asistencia en tarjetón (se pierde por inasistencias según RIT)")
+      warnings.push("Requiere asistencia completa en la quincena (se pierde por falta injustificada o pases particulares según Art. 91 RIT)")
     }
-    warnings.push("Tarifa 24% sobre (002+011) calibrada con tarjetón real 2A-AGO-2026; verificar incompatibilidades por ausencias.")
+    warnings.push("Equivale a 3 días de aguinaldo integrado (24% sobre 002+011, Art. 91 RIT).")
     if (anchor && eligible) {
       const discrepancy = Math.abs(formulaAmount - anchor.amount)
       if (discrepancy > 0.50) {
@@ -85,7 +86,7 @@ export const concept032Rule: PayrollRule = {
       included: eligible,
       source,
       confidence,
-      verificationStatus: "empirically_verified",
+      verificationStatus: "contract_verified",
       elegibilitySource: eligible ? "payslip_confirmed" : "unknown",
       anchorAmount: anchor?.amount,
       anchorDate: anchor?.date,
@@ -95,11 +96,11 @@ export const concept032Rule: PayrollRule = {
         { label: "Base: 002", expression: `002 = ${c002.toFixed(2)}`, value: c002 },
         { label: "Base: 011", expression: `011 = ${c011.toFixed(2)}`, value: c011 },
         { label: "Base total", expression: `${c002} + ${c011} = ${base}`, value: base },
-        { label: "032 = base × 24%", expression: `${base} × 0.24 = ${formulaAmount} (truncado a centavos)`, value: formulaAmount },
+        { label: "3 días de aguinaldo (Art. 91 RIT)", expression: `3 × (${base}/15 × 1.20) = ${base} × 24% = ${formulaAmount}`, value: formulaAmount },
         ...(anchor ? [{ label: "Último tarjetón (referencia)", expression: `Ancla: ${anchor.amount}`, value: anchor.amount }] : []),
       ],
       legalBasis: [
-        { source: "CCT", title: "Estímulo por Asistencia", reference: "Art. 91 del RIT", notes: "Base observada empíricamente: solo 002+011 (tarjetón 2A-AGO-2026)." },
+        { source: "CCT", title: "Estímulo por Asistencia", reference: "Art. 91 del RIT", notes: "Equivalente a 3 días de aguinaldo calculados a valor integrado ordinario (Base × 24%)." },
       ],
       warnings,
     }

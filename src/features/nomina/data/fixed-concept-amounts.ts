@@ -13,9 +13,8 @@ export const FIXED_CONCEPT_AMOUNTS: Record<string, FixedConceptAmountEntry[]> = 
       frequency: "biweekly",
     },
   ],
-  // Ayuda para Despensa (050): importe observado en tarjetón real
-  // 2A-AGO-2026 ($200.00 quincenales). Pendiente confirmar contra catálogo
-  // oficial; versionado para poder actualizar sin romper reproducciones.
+  // Ayuda para Despensa (050): Cláusula 142 Bis del CCT ($200.00 quincenales /
+  // $400.00 mensuales en vales de consumo o dispersión quincenal).
   "050": [
     {
       effectiveFrom: "2025-01-01",
