@@ -3,6 +3,10 @@ package com.laveintedigital.app.internal
 import android.net.Uri
 import android.webkit.WebView
 import androidx.webkit.WebViewCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
  * JS object injected as `window.LaVeinteApp`. Native→web replies are delivered by calling
@@ -67,8 +71,26 @@ object LaVeinteBridgeInjector {
     sdkVersion: function() { return ${android.os.Build.VERSION.SDK_INT}; },
     packageName: function() { return 'com.laveintedigital.app'; },
     isNativeApp: function() { return true; },
-    hasBiometrics: function() { return false; },
-    isBiometricsEnabled: function() { return false; },
+    hasBiometrics: function() {
+      return new Promise(function(resolve) {
+        var id = 'req' + (++__seq);
+        __pending[id] = function(p) { try { resolve(JSON.parse(p || 'false')); } catch(e) { resolve(false); } };
+        window.location.href = 'laveinte://bridge/hasBiometrics?req=' + id;
+      });
+    },
+    isBiometricsEnabled: function() {
+      return new Promise(function(resolve) {
+        var id = 'req' + (++__seq);
+        __pending[id] = function(p) { try { resolve(JSON.parse(p || 'false')); } catch(e) { resolve(false); } };
+        window.location.href = 'laveinte://bridge/isBiometricsEnabled?req=' + id;
+      });
+    },
+    promptBiometricEnrollment: function() {
+      window.location.href = 'laveinte://bridge/promptBiometrics';
+    },
+    disableBiometrics: function() {
+      window.location.href = 'laveinte://bridge/disableBiometrics';
+    },
     saveBlobToDownloads: function(base64Data, filename, mimeType) {
       if (window.LaVeinteBlobReceiver && typeof window.LaVeinteBlobReceiver.onBlobData === 'function') {
         window.LaVeinteBlobReceiver.onBlobData(base64Data, filename || 'documento', mimeType || 'application/octet-stream');
@@ -252,6 +274,29 @@ fun handleBridgeUrl(url: String, webView: WebView?): Boolean {
             val portalId = parsed.queryParams["portalId"] ?: return true
             // Just consume, the JS side doesn't need the result
         }
+        "/hasBiometrics" -> {
+            val req = parsed.queryParams["req"] ?: return true
+            val wv = webView ?: return true
+            val canAuth = com.laveintedigital.app.security.LaveinteBiometricManager.canAuthenticate(wv.context)
+            pushBridgeResult(wv, req, if (canAuth) "true" else "false")
+        }
+        "/isBiometricsEnabled" -> {
+            val req = parsed.queryParams["req"] ?: return true
+            val wv = webView ?: return true
+            val ctx = wv.context
+            CoroutineScope(Dispatchers.Main).launch {
+                val enabled = runCatching {
+                    com.laveintedigital.app.security.BiometricPreferences.isEnabled(ctx).first()
+                }.getOrDefault(false)
+                pushBridgeResult(wv, req, if (enabled) "true" else "false")
+            }
+        }
+        "/promptBiometrics" -> {
+            BridgeHandler.onPromptBiometrics?.invoke()
+        }
+        "/disableBiometrics" -> {
+            BridgeHandler.onDisableBiometrics?.invoke()
+        }
         else -> return false
     }
     return true
@@ -268,6 +313,8 @@ object BridgeHandler {
     var onCheckForUpdate: (() -> Unit)? = null
     var onAuthenticated: (() -> Unit)? = null
     var onLoggedOut: (() -> Unit)? = null
+    var onPromptBiometrics: (() -> Unit)? = null
+    var onDisableBiometrics: (() -> Unit)? = null
     var onRequestCameraPermission: ((WebView?, String) -> Unit)? = null
     var onRequestNotificationsPermission: (() -> Unit)? = null
     var onListNativeDocuments: ((WebView?, String) -> Unit)? = null

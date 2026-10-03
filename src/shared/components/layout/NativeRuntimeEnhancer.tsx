@@ -101,6 +101,16 @@ export function NativeRuntimeEnhancer({ userId }: NativeRuntimeEnhancerProps) {
   useEffect(() => {
     if (!userId || typeof window === "undefined") return
 
+    // Notificar al puente nativo de Android/iOS que la sesión está autenticada
+    // para ofrecer el bloqueo biométrico si el hardware y preferencias lo ameritan.
+    if (typeof window.LaVeinteApp?.onAuthenticated === "function") {
+      try {
+        window.LaVeinteApp.onAuthenticated()
+      } catch {
+        // best-effort
+      }
+    }
+
     // 1. Pre-calentamiento de rutas estáticas en tiempo ocioso (una vez por sesión)
     if (!warmedUpRef.current) {
       warmedUpRef.current = true
