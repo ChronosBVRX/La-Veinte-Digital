@@ -401,6 +401,17 @@ fun InternalWebScreen(
                 showEnrollmentInvite = true
             }
         }
+        BridgeHandler.onPromptBiometrics = {
+            if (LaveinteBiometricManager.canAuthenticate(context)) {
+                showEnrollmentInvite = true
+            }
+        }
+        BridgeHandler.onDisableBiometrics = {
+            scope.launch {
+                BiometricPreferences.setEnabled(context, false)
+                BiometricPreferences.setDismissed(context, true)
+            }
+        }
         BridgeHandler.onLoggedOut = {
             showEnrollmentInvite = false
             AppLockManager.pendingDeepLink = null
@@ -419,6 +430,8 @@ fun InternalWebScreen(
             BridgeHandler.onCheckForUpdate = null
             BridgeHandler.onAuthenticated = null
             BridgeHandler.onLoggedOut = null
+            BridgeHandler.onPromptBiometrics = null
+            BridgeHandler.onDisableBiometrics = null
             BridgeHandler.onRequestCameraPermission = null
             BridgeHandler.onRequestNotificationsPermission = null
             BridgeHandler.onOpenAppSettings = null

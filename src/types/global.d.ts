@@ -12,8 +12,10 @@ declare global {
     sdkVersion(): number
     packageName(): string
     isNativeApp(): boolean
-    hasBiometrics(): boolean
-    isBiometricsEnabled(): boolean
+    hasBiometrics(): Promise<boolean> | boolean
+    isBiometricsEnabled(): Promise<boolean> | boolean
+    promptBiometricEnrollment?(): void
+    disableBiometrics?(): void
     openExternal(url: string): void
     pickPdf(acceptHint?: string): void
     share(title?: string, text?: string): void

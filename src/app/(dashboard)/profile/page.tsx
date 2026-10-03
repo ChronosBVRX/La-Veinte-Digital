@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { User, Shield, Trash2, CheckCircle2 } from "lucide-react"
 import Link from "next/link"
 import { ProfileForm } from "@/features/profile/components/ProfileForm"
+import { BiometricSecurityCard } from "@/features/profile/components/BiometricSecurityCard"
 
 export default async function ProfilePage() {
   const supabase = await createClient()
@@ -201,6 +202,8 @@ export default async function ProfilePage() {
           <ProfileForm profile={effectiveProfile} />
         </div>
       </div>
+
+      <BiometricSecurityCard />
 
       {/* Privacidad y cuenta */}
       <div style={{
