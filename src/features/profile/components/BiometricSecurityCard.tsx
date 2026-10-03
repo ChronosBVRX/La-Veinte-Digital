@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Fingerprint, CheckCircle2, ShieldAlert } from "lucide-react"
+import { Fingerprint } from "lucide-react"
 import { Button } from "@/shared/components/ui/Button"
 
 export function BiometricSecurityCard() {
@@ -41,13 +41,16 @@ export function BiometricSecurityCard() {
   }, [])
 
   useEffect(() => {
-    void checkBiometricStatus()
+    const timer = setTimeout(() => {
+      void checkBiometricStatus()
+    }, 0)
 
     const onFocus = () => void checkBiometricStatus()
     window.addEventListener("focus", onFocus)
     window.addEventListener("laveinte:native-ready", onFocus)
 
     return () => {
+      clearTimeout(timer)
       window.removeEventListener("focus", onFocus)
       window.removeEventListener("laveinte:native-ready", onFocus)
     }
