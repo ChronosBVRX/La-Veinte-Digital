@@ -125,4 +125,30 @@ describe("FloatingChatWidget y FloatingChatContext", () => {
     fireEvent.click(screen.getByText("Cerrar Externo"))
     expect(screen.getByTestId("state-status").textContent).toBe("closed")
   })
+
+  it("la burbuja permanece visible y se abre y cierra sobre ella misma estilo Messenger", () => {
+    render(
+      <FloatingChatProvider>
+        <FloatingChatWidget />
+      </FloatingChatProvider>
+    )
+
+    // Inicialmente cerrada: muestra la burbuja de abrir
+    const openBubble = screen.getByLabelText("Abrir asistente de derechos")
+    expect(openBubble).toBeTruthy()
+    expect(screen.queryByTestId("chat-assistant-body")).toBeNull()
+
+    // Clic en la burbuja: se abre el chat sobre ella misma
+    fireEvent.click(openBubble)
+    expect(screen.getByTestId("chat-assistant-body")).toBeTruthy()
+
+    // La burbuja permanece visible transformada en botón de cierre
+    const closeBubble = screen.getByLabelText("Cerrar asistente de derechos")
+    expect(closeBubble).toBeTruthy()
+
+    // Clic en la misma burbuja: se cierra el chat sobre ella misma
+    fireEvent.click(closeBubble)
+    expect(screen.queryByTestId("chat-assistant-body")).toBeNull()
+    expect(screen.getByLabelText("Abrir asistente de derechos")).toBeTruthy()
+  })
 })

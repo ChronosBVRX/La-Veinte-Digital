@@ -25,6 +25,7 @@ import { useCommitmentsListener } from "@/features/agenda-laboral/lib/agenda-bus
 import type { WorkerCommitment } from "@/features/agenda-laboral/types"
 import { shouldPrefetchRoute } from "./navigation"
 import { rowToCommitment, type CommitmentRow } from "@/features/agenda-laboral/services/commitments-supabase"
+import { useFloatingChat } from "@/features/asistente/context/FloatingChatContext"
 
 type IconType = React.ComponentType<IconProps & { size?: number; weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone" }>
 
@@ -182,15 +183,19 @@ function QuickCard({
 
   if (onClick) {
     return (
-      <button
-        type="button"
-        onClick={onClick}
+      <Link
+        href={href}
+        prefetch={shouldPrefetchRoute(href) ? undefined : false}
+        onClick={(e) => {
+          e.preventDefault()
+          onClick()
+        }}
         aria-label={ariaLabel}
         className="hover-lift pressable"
         style={baseStyle}
       >
         {cardInner}
-      </button>
+      </Link>
     )
   }
 
@@ -211,6 +216,7 @@ function QuickCard({
 export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuickActionsProps) {
   const isNative = useIsNativeApp()
   const router = useRouter()
+  const { openChat } = useFloatingChat()
 
   const [agendaSummary, setAgendaSummary] = useState<{
     loaded: boolean
@@ -550,6 +556,7 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
           href="/asistente"
           color="var(--area-assistance)"
           ariaLabel="Mis derechos: pregunta sobre tu contrato y derechos"
+          onClick={() => openChat()}
         />
       </div>
       <p

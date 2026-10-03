@@ -125,10 +125,19 @@ export function FloatingChatProvider({ children }: { children: React.ReactNode }
   )
 }
 
+const DEFAULT_NOOP_CHAT_CONTEXT: FloatingChatContextType = {
+  isOpen: false,
+  isMinimized: false,
+  position: null,
+  openChat: () => {},
+  closeChat: () => {},
+  minimizeChat: () => {},
+  restoreChat: () => {},
+  toggleChat: () => {},
+  setPosition: () => {},
+}
+
 export function useFloatingChat(): FloatingChatContextType {
   const context = useContext(FloatingChatContext)
-  if (!context) {
-    throw new Error("useFloatingChat debe utilizarse dentro de un FloatingChatProvider")
-  }
-  return context
+  return context ?? DEFAULT_NOOP_CHAT_CONTEXT
 }
