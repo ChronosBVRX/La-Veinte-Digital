@@ -126,6 +126,52 @@ export function CalculatorsIndex({ hasTarjeton = false }: { hasTarjeton?: boolea
         )}
       </Link>
 
+      {/* Herramienta destacada: Regreso de Vacaciones */}
+      <Link
+        href="/calculadoras/regreso-vacaciones"
+        style={{ textDecoration: "none", display: "block", marginBottom: "1.25rem" }}
+      >
+        <div
+          style={{
+            background: "linear-gradient(135deg, rgba(37,99,235,0.06) 0%, rgba(34,197,94,0.06) 100%)",
+            border: "1.5px solid rgba(34,197,94,0.35)",
+            borderRadius: "var(--radius-lg)",
+            padding: "1rem 1.25rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "1rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.85rem" }}>
+            <CalendarDots size={28} weight="duotone" style={{ color: "var(--primary)", flexShrink: 0 }} />
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 700, fontSize: "1rem", color: "var(--fg)" }}>
+                  Calculadora de Regreso de Vacaciones
+                </span>
+                <span
+                  style={{
+                    padding: "0.15rem 0.5rem",
+                    borderRadius: "9999px",
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    background: "rgba(34,197,94,0.15)",
+                    color: "#166534",
+                  }}
+                >
+                  Cláusula 47 y 46 CCT
+                </span>
+              </div>
+              <p style={{ margin: "0.2rem 0 0", fontSize: "var(--text-sm)", color: "var(--muted)", lineHeight: 1.4 }}>
+                Calcula la fecha exacta en que te presentas a laborar según tu antigüedad, descansos semanales, festivos oficiales y días a cuenta.
+              </p>
+            </div>
+          </div>
+          <ArrowRight size={20} style={{ color: "var(--primary)", flexShrink: 0 }} />
+        </div>
+      </Link>
+
       <div
         className="calculators-grid"
         style={{

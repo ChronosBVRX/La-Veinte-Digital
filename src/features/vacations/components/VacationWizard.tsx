@@ -392,8 +392,39 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
             <li>Identificar qué marca paga más dinero en este momento, cuál divide el pago o cuál no incluye la ayuda.</li>
             <li>Calcular cuánto recibirías aproximadamente en pesos por concepto de prima vacacional (029) y ayuda cultural (048).</li>
             <li>Elegir roles válidos sin empalmes ni inconsistencias normativas.</li>
+            <li>Conocer con exactitud qué día te presentas a laborar (reanudación de labores).</li>
           </ul>
         </Card>
+
+        {/* Acceso rápido para quien solo necesita calcular su fecha de regreso */}
+        <div
+          style={{
+            background: "rgba(37,99,235,0.05)",
+            border: "1px solid rgba(37,99,235,0.2)",
+            borderRadius: "var(--radius)",
+            padding: "0.85rem 1rem",
+            marginBottom: "1.25rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "0.75rem",
+          }}
+        >
+          <div>
+            <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--fg)" }}>
+              🧮 ¿Solo quieres saber qué día regresas a trabajar?
+            </div>
+            <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.15rem" }}>
+              Calcula tu fecha exacta de reanudación considerando descansos semanales, festivos oficiales y días a cuenta.
+            </div>
+          </div>
+          <Link href="/calculadoras/regreso-vacaciones" style={{ textDecoration: "none" }}>
+            <Button size="sm" variant="secondary">
+              Calcular fecha de regreso →
+            </Button>
+          </Link>
+        </div>
 
         <div style={BUTTON_ROW}>
           <div />
@@ -1279,6 +1310,45 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
           )}
         </Card>
 
+        {/* 2.5 FECHA DE REANUDACIÓN DE LABORES PREVIEW */}
+        {activePeriod?.returnDate && (
+          <div
+            style={{
+              background: "rgba(34, 197, 94, 0.08)",
+              border: "1.5px solid rgba(34, 197, 94, 0.35)",
+              borderRadius: "var(--radius)",
+              padding: "0.75rem 1rem",
+              marginBottom: "1.25rem",
+              color: "#166534",
+              fontSize: "0.85rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "0.5rem",
+            }}
+          >
+            <div>
+              🏢 <strong>Reanudación de labores:</strong> Te presentas a trabajar el{" "}
+              <strong>{activePeriod.returnDayName ? `${activePeriod.returnDayName} ` : ""}{formatMexicanDate(activePeriod.returnDate)}</strong>.
+              <div style={{ fontSize: "0.75rem", color: "#15803d", marginTop: "0.2rem" }}>
+                El cálculo incluye descansos semanales y festivos contractuales automáticamente.
+              </div>
+            </div>
+            <Link
+              href="/calculadoras/regreso-vacaciones"
+              style={{
+                fontSize: "0.8rem",
+                color: "var(--primary)",
+                fontWeight: 600,
+                textDecoration: "underline",
+              }}
+            >
+              ¿Tienes días a cuenta? Ajustar aquí →
+            </Link>
+          </div>
+        )}
+
         {/* 3. ESTIMACIÓN ECONÓMICA EN TIEMPO REAL */}
         {currentPeriodPayment && currentPeriodPayment.confidence !== "INCOMPLETE" && (
           <Card padding="1rem" style={{ marginBottom: "1.5rem", background: "rgba(37,99,235,0.03)" }}>
@@ -1828,6 +1898,29 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                 <div>
                   <strong>Término:</strong> {p.endDate ? formatMexicanDate(p.endDate) : "Por definir"}
                 </div>
+                {p.returnDate && (
+                  <div
+                    style={{
+                      gridColumn: "1 / -1",
+                      background: "rgba(34, 197, 94, 0.08)",
+                      border: "1px solid rgba(34, 197, 94, 0.3)",
+                      borderRadius: "var(--radius-sm)",
+                      padding: "0.45rem 0.65rem",
+                      color: "#166534",
+                      fontSize: "0.85rem",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      flexWrap: "wrap",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <span>
+                      🏢 <strong>Te presentas a laborar:</strong> {p.returnDayName ? `${p.returnDayName} ` : ""}{formatMexicanDate(p.returnDate)}
+                    </span>
+                    <span style={{ fontSize: "0.75rem", color: "#15803d" }}>(descansos y festivos aplicados)</span>
+                  </div>
+                )}
               </div>
 
               {p.payment && (

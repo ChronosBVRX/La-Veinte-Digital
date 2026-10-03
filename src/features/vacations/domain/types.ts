@@ -348,6 +348,9 @@ export interface VacationPlanPeriod {
   continuityAfter?: number;
   payment?: VacationPaymentEstimate;
   eligibility?: RoleEligibilityResult;
+  returnDate?: string;
+  returnDayName?: string;
+  dateBreakdown?: VacationDateCalculationResult;
   allowed: boolean;
   reasons: string[];
 }

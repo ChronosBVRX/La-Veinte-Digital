@@ -501,10 +501,10 @@ export class ProjectWorkflowService {
     const script = project.script ?? this.store.readArtifact<Script>(id, "script.json");
     if (!script) throw new Error("SCRIPT_REQUIRED");
     const research = this.store.readArtifact<ResearchBundle>(id, "research.json");
-    if (!research) throw new Error("RESEARCH_REQUIRED");
+    if (!research && !project.script) throw new Error("RESEARCH_REQUIRED");
     const ctx: VerifierContext = {
-      claims: research.claims,
-      sources: new Map(research.documents.map((d) => [d.sourceId, d.document])),
+      claims: research?.claims ?? [],
+      sources: new Map((research?.documents ?? []).map((d) => [d.sourceId, d.document])),
       speakers: new Set((script.turns.map((t) => t.speaker)).map((s) => s.toUpperCase())),
     };
     return verifyScript(script, ctx);

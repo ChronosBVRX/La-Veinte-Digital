@@ -642,7 +642,23 @@ import type {
   VerifyResult,
   Script,
   Commercial,
+  EpisodeProductionProgress,
+  AssetItem,
+  ReferenceItem,
 } from "@la-veinte/studio-contract";
+
+export type {
+  Project,
+  ProjectConfig,
+  ResearchBundle,
+  Proposal,
+  VerifyResult,
+  Script,
+  Commercial,
+  EpisodeProductionProgress,
+  AssetItem,
+  ReferenceItem,
+};
 
 export interface CreateProjectInput {
   topic: string;
@@ -735,3 +751,71 @@ export async function listCommercials(): Promise<Commercial[]> {
 export async function seedCommercials(): Promise<{ added: number; items: Commercial[] }> {
   return post<{ added: number; items: Commercial[] }>("/commercials?seed=true", {}, 10000).catch(() => ({ added: 0, items: [] } as { added: number; items: Commercial[] }));
 }
+
+export async function getProjectProgress(id: string): Promise<EpisodeProductionProgress> {
+  return get<EpisodeProductionProgress>(`/projects/${id}/progress`, 5000);
+}
+
+export async function cancelEpisodeProduction(id: string): Promise<{ cancelled: boolean; progress?: EpisodeProductionProgress }> {
+  return post<{ cancelled: boolean; progress?: EpisodeProductionProgress }>(`/projects/${id}/cancel`, {}, 10000);
+}
+
+export async function retryEpisodeProduction(id: string): Promise<{ project: Project; started?: { started: boolean; total: number }; retriedStage?: string }> {
+  const r = await projectProduce(id);
+  return { ...r, retriedStage: "producción" };
+}
+
+export async function openProjectFolder(id: string): Promise<{ ok: boolean; path?: string }> {
+  return get<{ ok: boolean; path?: string }>(`/projects/${id}/open-folder`, 5000);
+}
+
+export function connectSseEvents(onEvent: (event: { type: string; projectId?: string; data?: unknown }) => void): () => void {
+  try {
+    const es = new EventSource(`${SIDECAR_URL}/events`);
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        onEvent(data);
+      } catch {}
+    };
+    es.addEventListener("progress", (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        onEvent({ type: "progress", ...data });
+      } catch {}
+    });
+    return () => {
+      es.close();
+    };
+  } catch {
+    return () => {};
+  }
+}
+
+export async function listAssets(params?: { category?: string; type?: string; q?: string; tag?: string; favorites?: boolean }): Promise<AssetItem[]> {
+  const q = new URLSearchParams();
+  if (params?.category) q.set("category", params.category);
+  if (params?.type) q.set("type", params.type);
+  if (params?.q) q.set("q", params.q);
+  if (params?.tag) q.set("tag", params.tag);
+  if (params?.favorites) q.set("favorites", "true");
+  const qs = q.toString();
+  return get<AssetItem[]>(`/assets${qs ? `?${qs}` : ""}`, 10000);
+}
+
+export async function uploadAsset(data: { filename: string; base64: string; entity: string; category: string; type?: string; tags?: string[]; orientation?: string[]; source?: string }): Promise<AssetItem> {
+  return post<AssetItem>("/assets/upload", data, 30000);
+}
+
+export async function toggleAssetFavorite(id: string): Promise<{ id: string; favorite: boolean }> {
+  return post<{ id: string; favorite: boolean }>(`/assets/${id}/favorite`, {}, 5000);
+}
+
+export async function toggleAssetBlock(id: string): Promise<{ id: string; blocked: boolean }> {
+  return post<{ id: string; blocked: boolean }>(`/assets/${id}/block`, {}, 5000);
+}
+
+export async function generateAsset(data: { entity: string; category?: string; investigateReferences?: boolean; orientations?: string[]; stylePrompt?: string }): Promise<{ ok: boolean; providerStatus: string; asset?: AssetItem; userMessage?: string }> {
+  return post<{ ok: boolean; providerStatus: string; asset?: AssetItem; userMessage?: string }>("/assets/generate", data, 60000);
+}
+

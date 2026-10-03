@@ -42,6 +42,9 @@ import { CommercialLibraryService } from "./services/commercial-service";
 import { LocalEditorialLLM } from "./llm/editorial/editorial-llm";
 import { routeProject, friendlyProjectError, type ProjectRouteCtx } from "./routes/project-routes";
 import { routeCommercial, type CommercialRouteCtx } from "./routes/commercial-routes";
+import { ProgressManager } from "./services/progress-manager";
+import { VisualAssetService } from "./services/visual-asset-service";
+import { routeVisual, type VisualRouteCtx } from "./routes/visual-routes";
 import { resolveMediaSafe } from "./services/media-security";
 import type { Script as StudioScript, ProgressEventType } from "@la-veinte/studio-contract";
 
@@ -78,6 +81,8 @@ loadLocalEnv(path.join(REPO, ".env.local"));
 // ── Servicios del flujo de episodio (proposal-first) ──
 const projectStore = makeProjectStoreForRepo(REPO);
 const commercialService = new CommercialLibraryService(path.join(REPO, "data", "tts", "commercials"));
+const progressManager = new ProgressManager(projectStore, REPO);
+const visualAssetService = new VisualAssetService(REPO);
 const editorialLlm = LocalEditorialLLM.create(REPO);
 let workflowSingleton: ProjectWorkflowService | null = null;
 function getWorkflow(): ProjectWorkflowService {
@@ -1998,11 +2003,22 @@ const server = http.createServer(async (req, res) => {
       store: projectStore,
       workflow: getWorkflow(),
       commercials: commercialService,
+      progressManager,
+      repoRoot: REPO,
+      cancelProduction: async (id: string) => {
+        requestProductionCancel();
+        return true;
+      },
       json,
       startProduction: startProjectProduction,
       onDelete: deleteProjectCleanup,
     };
     if (await routeProject(url, req, res, pctx, () => readBody(req))) return;
+    const vctx: VisualRouteCtx = {
+      assetService: visualAssetService,
+      json,
+    };
+    if (await routeVisual(url, req, res, vctx, () => readBody(req))) return;
     const cctx: CommercialRouteCtx = { commercials: commercialService, json };
     if (await routeCommercial(url, req, res, cctx, () => readBody(req))) return;
     json(res, 404, { error: "ruta desconocida" });

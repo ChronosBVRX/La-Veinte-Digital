@@ -11,3 +11,6 @@ export * from "./script";
 export * from "./production";
 export * from "./events";
 export * from "./project";
+export * from "./alignment";
+export * from "./progress";
+export * from "./visual-production";
