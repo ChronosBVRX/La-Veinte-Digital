@@ -32,7 +32,7 @@ vi.mock("@/features/asistente/lib/motor", async (importOriginal) => {
     embedQueryLru: vi.fn(),
     retrieveHybrid: vi.fn(),
     buildCompactEvidence: vi.fn((s) => s.map((x: RetrievedSource) => `[${x.id}] ${x.documento}`).join("\n")),
-    buildPrompt: vi.fn((i, c) => `PROMPT(${i})\n${c}`),
+    buildPrompt: vi.fn((i, c, p) => `PROMPT(${i})\n${c}${p ? `\n${p}` : ""}`),
     buildMessages: vi.fn((sys, hist) => [{ role: "system", content: sys }, ...hist]),
   }
 })
@@ -250,6 +250,15 @@ describe("POST /api/consulta", () => {
     standardSetup()
     const res = await POST(jsonRequest({ history: [{ role: "user", content: "vacaciones" }] }))
     expect(res.headers.get("Cache-Control")).toContain("no-store")
+  })
+
+  it("recomienda herramientas nativas de la plataforma en los chips según el tema", async () => {
+    standardSetup()
+    const res = await POST(jsonRequest({ history: [{ role: "user", content: "¿Cómo calcular mis horas extras?" }] }))
+    expect(res.status).toBe(200)
+    const data = await res.json()
+    expect(Array.isArray(data.chips)).toBe(true)
+    expect(data.chips.some((c: string) => c.includes("Horas Extra"))).toBe(true)
   })
 })
 

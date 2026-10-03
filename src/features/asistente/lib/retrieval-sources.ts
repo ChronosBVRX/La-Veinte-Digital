@@ -19,6 +19,7 @@ export interface RetrievedSource {
   validity: string
   pendingReview: boolean
   score: number
+  origin?: string
 }
 
 export interface RpcChunkRow {
@@ -452,6 +453,7 @@ export function rowToSource(row: RpcChunkRow, id: string, score: number): Retrie
     validity: row.validity,
     pendingReview: row.validity === "PENDING_REVIEW",
     score,
+    origin: (row as unknown as { origin?: string }).origin ?? "",
   }
 }
 
@@ -502,10 +504,16 @@ export function validateCitations(
   respuesta: string,
   sources: RetrievedSource[],
 ): { respuesta: string; citedIds: string[]; invalidIdsRemoved: string[] } {
+  // Normalizar citas agrupadas como [S1, S2] o [S1,S2] a [S1] [S2]
+  const normalized = respuesta.replace(/\[S(\d+)(?:\s*,\s*S?(\d+))+\]/g, (match) => {
+    const ids = [...match.matchAll(/S?(\d+)/g)].map((m) => `[S${m[1]}]`)
+    return ids.join(" ")
+  })
+
   const valid = new Set(sources.map((s) => s.id))
-  const found = [...respuesta.matchAll(/\[S(\d+)\]/g)].map((m) => `S${m[1]}`)
+  const found = [...normalized.matchAll(/\[S(\d+)\]/g)].map((m) => `S${m[1]}`)
   const invalid = [...new Set(found.filter((id) => !valid.has(id)))]
-  let cleaned = respuesta
+  let cleaned = normalized
   for (const bad of invalid) {
     cleaned = cleaned.replaceAll(`[${bad}]`, "")
   }

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import Markdown from "react-markdown"
 import { Bot, User } from "lucide-react"
 import type { BotMessage } from "../services/bot"
@@ -69,6 +70,20 @@ export function ChatMessage({ message, onChip }: ChatMessageProps) {
               ol: ({ children }) => <ol style={{ margin: "0.375rem 0", paddingLeft: "1.25rem" }}>{children}</ol>,
               li: ({ children }) => <li style={{ marginBottom: "0.25rem" }}>{children}</li>,
               p: ({ children }) => <p style={{ margin: "0.375rem 0" }}>{children}</p>,
+              a: ({ href, children }) => {
+                if (href?.startsWith("/")) {
+                  return (
+                    <Link href={href} style={{ color: "inherit", textDecoration: "underline", fontWeight: 600 }}>
+                      {children}
+                    </Link>
+                  )
+                }
+                return (
+                  <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline" }}>
+                    {children}
+                  </a>
+                )
+              },
             }}
           >
             {message.content}

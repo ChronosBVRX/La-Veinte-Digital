@@ -19,6 +19,7 @@ export function FloatingChatWidget() {
 
   // Estado interno para arrastrar
   const [isDragging, setIsDragging] = useState(false)
+  const [bubblePos, setBubblePos] = useState<ChatPosition | null>(null)
   const dragStartRef = useRef<{ startX: number; startY: number; initPosX: number; initPosY: number }>({
     startX: 0,
     startY: 0,
@@ -58,11 +59,12 @@ export function FloatingChatWidget() {
     setIsDragging(true)
     hasMovedRef.current = false
 
+    const rect = currentTarget.getBoundingClientRect()
     dragStartRef.current = {
       startX: e.clientX,
       startY: e.clientY,
-      initPosX: currentPos.x,
-      initPosY: currentPos.y,
+      initPosX: rect.left,
+      initPosY: rect.top,
     }
   }
 
@@ -77,8 +79,8 @@ export function FloatingChatWidget() {
       hasMovedRef.current = true
     }
 
-    const widgetWidth = widgetRef.current?.offsetWidth || (isMinimized ? 240 : 380)
-    const widgetHeight = widgetRef.current?.offsetHeight || (isMinimized ? 44 : 520)
+    const widgetWidth = widgetRef.current?.offsetWidth || (isOpen ? (isMinimized ? 240 : 380) : 64)
+    const widgetHeight = widgetRef.current?.offsetHeight || (isOpen ? (isMinimized ? 44 : 520) : 64)
 
     const rawX = dragStartRef.current.initPosX + deltaX
     const rawY = dragStartRef.current.initPosY + deltaY
@@ -90,7 +92,11 @@ export function FloatingChatWidget() {
     const safeX = Math.max(10, Math.min(maxX, rawX))
     const safeY = Math.max(10, Math.min(maxY, rawY))
 
-    setPosition({ x: safeX, y: safeY })
+    if (!isOpen) {
+      setBubblePos({ x: safeX, y: safeY })
+    } else {
+      setPosition({ x: safeX, y: safeY })
+    }
   }
 
   // Manejador de finalización de arrastre
@@ -110,8 +116,12 @@ export function FloatingChatWidget() {
     }
   }
 
-  // Si está completamente cerrado -> Botón Flotante (FAB)
+  // Si está completamente cerrado -> Botón Flotante Redondo (Burbuja)
   if (!isOpen) {
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 640
+    const bottomNavOffset = isMobile ? 84 : 24
+    const rightOffset = isMobile ? 16 : 24
+
     return (
       <div
         ref={widgetRef}
@@ -120,8 +130,9 @@ export function FloatingChatWidget() {
         onPointerUp={handlePointerUp}
         style={{
           position: "fixed",
-          left: `${currentPos.x}px`,
-          top: `${currentPos.y}px`,
+          ...(bubblePos
+            ? { left: `${bubblePos.x}px`, top: `${bubblePos.y}px` }
+            : { right: `${rightOffset}px`, bottom: `${bottomNavOffset}px` }),
           zIndex: 45,
           touchAction: "none",
           userSelect: "none",
@@ -132,34 +143,38 @@ export function FloatingChatWidget() {
           aria-label="Abrir asistente de derechos"
           style={{
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
-            gap: "0.5rem",
-            padding: "0.625rem 0.875rem",
+            justifyContent: "center",
+            width: 64,
+            height: 64,
+            padding: "4px",
             background: "linear-gradient(135deg, var(--primary), #6366f1)",
             color: "#ffffff",
-            border: "1px solid rgba(255, 255, 255, 0.2)",
-            borderRadius: "9999px",
-            boxShadow: "0 6px 20px rgba(37, 99, 235, 0.38), 0 2px 6px rgba(0, 0, 0, 0.12)",
+            border: "1.5px solid rgba(255, 255, 255, 0.28)",
+            borderRadius: "50%",
+            boxShadow: "0 8px 24px rgba(37, 99, 235, 0.42), 0 2px 6px rgba(0, 0, 0, 0.16)",
             cursor: isDragging ? "grabbing" : "pointer",
-            fontWeight: 600,
-            fontSize: "0.85rem",
             transition: isDragging ? "none" : "transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease",
-            transform: isDragging ? "scale(1.04)" : "scale(1)",
+            transform: isDragging ? "scale(1.06)" : "scale(1)",
+            gap: "2px",
           }}
           className="pressable"
         >
-          <div
+          <Sparkle size={18} weight="duotone" color="#ffffff" style={{ flexShrink: 0 }} />
+          <span
             style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 24,
-              height: 24,
+              fontSize: "0.62rem",
+              fontWeight: 700,
+              lineHeight: 1.15,
+              textAlign: "center",
+              letterSpacing: "-0.01em",
+              color: "#ffffff",
+              whiteSpace: "pre-line",
             }}
           >
-            <Sparkle size={20} weight="duotone" color="#ffffff" />
-          </div>
-          <span style={{ whiteSpace: "nowrap" }}>Pregunta por tus derechos</span>
+            {"¿Necesitas\nayuda?"}
+          </span>
         </button>
       </div>
     )

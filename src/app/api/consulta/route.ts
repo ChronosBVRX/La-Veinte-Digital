@@ -16,6 +16,13 @@ import {
   classifyAcompañamiento,
   isContinuation,
 } from "@/features/asistente/lib/acompanamiento"
+import {
+  fetchSanitizedWorkerProfile,
+  formatWorkerProfilePrompt,
+  type SanitizedWorkerProfile,
+} from "@/features/asistente/lib/worker-context-adapter"
+import { normalizeForRetrieval } from "@/features/asistente/lib/canonical-dictionary"
+import { recommendPlatformTools } from "@/features/asistente/lib/platform-tools"
 import { APP_COMMIT_SHA, RAG_BACKEND, LLM_PROVIDER } from "@/features/asistente/lib/app-version"
 import { ASSISTANT_POLICY, withAbortTimeout } from "@/features/asistente/lib/assistant-policy"
 import {
@@ -114,10 +121,17 @@ function getQueryForRetrieval(history: ConsultaMessage[], question: string, inte
   return prev ? `${prev.content.trim()}\n${question}` : question
 }
 
-async function respondDirect(history: ConsultaMessage[], question: string, requestId: string, userId: string): Promise<NextResponse> {
+async function respondDirect(
+  history: ConsultaMessage[],
+  question: string,
+  requestId: string,
+  userId: string,
+  workerProfile?: SanitizedWorkerProfile,
+): Promise<NextResponse> {
   const t0 = performance.now()
   const intent = classifyRetrievalIntent(question)
-  const retrievalQuery = getQueryForRetrieval(history, question, intent)
+  const { expandedQuery } = normalizeForRetrieval(question, workerProfile)
+  const retrievalQuery = getQueryForRetrieval(history, expandedQuery, intent)
   const obs = baseObservability(intent)
   try {
     const openai = getOpenAI()
@@ -143,26 +157,25 @@ async function respondDirect(history: ConsultaMessage[], question: string, reque
     obs.embeddingCacheHit = emb.cacheHit
     obs.embeddingMs = emb.ms
 
-    // ── 3. RETRIEVAL HÍBRIDO (1 RPC) ──
+    // ── 3. RETRIEVAL HÍBRIDO (1 RPC con RRF / fallback) ──
     const { sources, rpcMs } = await retrieveHybrid(retrievalQuery, emb.embedding, intent, refs, 8)
     obs.retrievalMs = rpcMs
     obs.evidenceCount = sources.length
     obs.evidenceChars = sources.reduce((a, s) => a + s.fragmento.length, 0)
 
     // ── 4. FAIL CLOSED: 0 evidence o evidencia irrelevante → 0 LLM ──
-    // Umbral de relevancia: si ni la mejor evidencia alcanza puntaje
-    // significativo, no hay contexto real. Preguntas reales ~157-219;
-    // consultas sin relación ~109-118. 140 separa ambos grupos sin falsos
-    // positivos (evita responder con respaldo inventado).
-    const MIN_RELEVANT_SCORE = 140
-    if (sources.length === 0 || sources[0].score < MIN_RELEVANT_SCORE) {
+    // Umbral de relevancia calibrado según backend (RRF ~10..60 vs suma legacy ~140..1000)
+    const isRrf = sources.length > 0 && (sources[0].origin?.includes("+") || sources[0].origin === "rrf")
+    const minScore = isRrf ? 10 : 140
+    if (sources.length === 0 || sources[0].score < minScore) {
       obs.totalMs = performance.now() - t0
       return privateJson({ respuesta: NO_EVIDENCE_RESPONSE, fuentes: [], chips: [] })
     }
 
-    // ── 5. CONTEXTO COMPACTO + PROMPT DINÁMICO ──
+    // ── 5. CONTEXTO COMPACTO + PROMPT DINÁMICO CON PERFIL DEL TRABAJADOR ──
     const compactEvidence = buildCompactEvidence(sources)
-    const systemPrompt = buildPrompt(intent, compactEvidence)
+    const workerProfilePrompt = workerProfile ? formatWorkerProfilePrompt(workerProfile) : undefined
+    const systemPrompt = buildPrompt(intent, compactEvidence, workerProfilePrompt)
     const trimmedHistory = history.slice(-6)
     obs.historyChars = trimmedHistory.reduce((a, m) => a + m.content.length, 0)
 
@@ -184,10 +197,7 @@ async function respondDirect(history: ConsultaMessage[], question: string, reque
     let respuesta = comp.text
     if (!respuesta) respuesta = "Lo siento, no pude generar una respuesta."
 
-    // ── 7. VALIDACIÓN DE CITAS + FAIL-CLOSED. Sin judge LLM. Si la primera
-    //        pasada no cita, UNA sola regeneración (punto 18); si tras ella
-    //        sigue sin cita válida → no se entrega texto normativo sin fuente
-    //        validada (punto 18+.5). Máximo 2 llamadas LLM. ──
+    // ── 7. VALIDACIÓN DE CITAS + FAIL-CLOSED ──
     const first = validateCitations(respuesta, sources)
     let retries = 0
     let regenText: string | null = null
@@ -221,7 +231,9 @@ async function respondDirect(history: ConsultaMessage[], question: string, reque
     obs.totalMs = performance.now() - t0
     logObservability(requestId, userId, obs)
 
-    const chips = ac.chips.slice(0, 4)
+    const toolRecs = recommendPlatformTools(question)
+    const toolChips = toolRecs.map((t) => t.chipLabel)
+    const chips = [...new Set([...toolChips, ...ac.chips])].slice(0, 4)
     return privateJson({ respuesta: respuestaFinal, fuentes: fuentesPayload(sources, citedIds), chips })
   } catch (error) {
     obs.totalMs = performance.now() - t0
@@ -300,5 +312,14 @@ export async function POST(req: Request) {
     return privateJsonError(classified.httpStatus, classified.publicMessage, requestId, classified.code)
   }
 
-  return await respondDirect(history, question, requestId, user.id)
+  // ── Perfil no sensible del trabajador para personalización ──
+  let workerProfile: SanitizedWorkerProfile | undefined
+  try {
+    const supabase = await createClient()
+    workerProfile = await fetchSanitizedWorkerProfile(user, supabase, requestId)
+  } catch (err) {
+    console.warn("[consulta] no se pudo cargar perfil de trabajador:", err instanceof Error ? err.message : err)
+  }
+
+  return await respondDirect(history, question, requestId, user.id, workerProfile)
 }

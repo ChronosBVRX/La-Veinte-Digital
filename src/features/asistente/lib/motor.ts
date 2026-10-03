@@ -86,21 +86,36 @@ export async function embedQueryLru(question: string, intent: RetrievalIntent): 
   return { embedding: vec, skipped: false, cacheHit: false, ms: performance.now() - t0 }
 }
 
-/** Recupera evidencias vía RPC híbrida única (punto 5). */
+/** Recupera evidencias vía RPC híbrida única (RRF con fallback a búsqueda ponderada). */
 export async function retrieveHybrid(question: string, embedding: number[] | null, intent: RetrievalIntent, refs: ReturnType<typeof extractExactRefs>, limit: number): Promise<{ sources: RetrievedSource[]; rpcMs: number; rpcCalls: number }> {
   const t0 = performance.now()
   const supabase = await createClient()
   const call = supabase.rpc as unknown as (this: unknown, f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>
-  const { data, error } = await call.call(supabase, "hybrid_normativa_search", {
+
+  // Intento prioritario 1: hybrid_normativa_rrf (Fusión de Rangos Recíprocos)
+  let rpcRes = await call.call(supabase, "hybrid_normativa_rrf", {
     p_query: question,
     p_query_embedding: embedding && embedding.length === 1536 ? embedding : null,
     p_clause: refs.clause ?? null,
     p_article: refs.article ?? null,
     p_key: refs.key ?? null,
-    p_match_count: Math.max(limit, 16),
+    p_match_count: Math.max(limit, 20),
   })
-  if (error) throw new Error(`hybrid: ${error.message}`)
-  const rows = (data ?? []) as HybridRow[]
+
+  // Fallback seguro a hybrid_normativa_search si la RPC RRF aún no está desplegada en el entorno
+  if (rpcRes.error) {
+    rpcRes = await call.call(supabase, "hybrid_normativa_search", {
+      p_query: question,
+      p_query_embedding: embedding && embedding.length === 1536 ? embedding : null,
+      p_clause: refs.clause ?? null,
+      p_article: refs.article ?? null,
+      p_key: refs.key ?? null,
+      p_match_count: Math.max(limit, 16),
+    })
+  }
+
+  if (rpcRes.error) throw new Error(`hybrid: ${rpcRes.error.message}`)
+  const rows = (rpcRes.data ?? []) as HybridRow[]
   const rpcMs = performance.now() - t0
 
   const byChunk = new Map<string, RetrievedSource>()
@@ -132,11 +147,12 @@ export function buildMessages(systemPrompt: string, history: { role: string; con
   ]
 }
 
-/** Punto 10+ayuda: prompt estático + guía por intent (sin duplicar). */
-export function buildPrompt(intent: RetrievalIntent, compactEvidence: string): string {
+/** Punto 10+ayuda: prompt estático + guía por intent + perfil del trabajador (sin duplicar). */
+export function buildPrompt(intent: RetrievalIntent, compactEvidence: string, workerProfilePrompt?: string): string {
+  const profileBlock = workerProfilePrompt ? `\n\n${workerProfilePrompt}` : ""
   return `${STATIC_SYSTEM_PROMPT}
 
-${intentGuidance(intent)}
+${intentGuidance(intent)}${profileBlock}
 
 Contexto:
 ${compactEvidence}`
