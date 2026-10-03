@@ -339,11 +339,29 @@ export async function processPendingCommitmentReminders(options?: {
   for (const c of dueScheduled) {
     try {
       const displayTitle = getCommitmentDisplayTitle(c)
-      const title = c.type === "general_reminder" ? c.title : `Recordatorio: ${displayTitle}`
-      const placeDesc = c.details?.location || c.workplace ? ` · ${c.details?.location || c.workplace}` : ""
-      const body = c.notes?.trim()
-        ? `${c.notes.trim()}${placeDesc}`
-        : `Recordatorio programado para hoy${placeDesc}`
+      let title: string
+      let body: string
+
+      if (c.type === "overtime" && c.details?.paydayReminderEnabled) {
+        title = "💰 Cobro de Tiempo Extra"
+        const amountStr = typeof c.details.estimatedEarnings === "number"
+          ? ` ($${c.details.estimatedEarnings.toLocaleString("es-MX", { minimumFractionDigits: 2 })} est.)`
+          : ""
+        body = `Hoy es día de dispersión de nómina. Revisa tu tarjetón en el Concepto 037 para cotejar tus horas de tiempo extra${amountStr}.`
+      } else if (c.type === "no_pagado" && c.details?.paydayReminderEnabled) {
+        title = `📋 Cobro de Reclamación: ${displayTitle}`
+        const amountStr = typeof c.details.estimatedClaimAmount === "number"
+          ? ` ($${c.details.estimatedClaimAmount.toLocaleString("es-MX", { minimumFractionDigits: 2 })} est.)`
+          : ""
+        body = `Hoy es la fecha programada de cobro para tu reclamación${amountStr}. Verifica en tu tarjetón si se aplicó el pago retroactivo.`
+      } else {
+        title = c.type === "general_reminder" ? c.title : `Recordatorio: ${displayTitle}`
+        const placeDesc = c.details?.location || c.workplace ? ` · ${c.details?.location || c.workplace}` : ""
+        body = c.notes?.trim()
+          ? `${c.notes.trim()}${placeDesc}`
+          : `Recordatorio programado para hoy${placeDesc}`
+      }
+
       const destination = buildAgendaDeepLink(getLocalDateString(c.startAt), c.id)
 
       if (!dryRun) {
