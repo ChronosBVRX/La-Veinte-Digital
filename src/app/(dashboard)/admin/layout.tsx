@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 import { getAdminCapabilities } from "@/shared/server/admin/admin-capabilities"
+import { AdminSubNav } from "@/features/admin/components/AdminSubNav"
 import type { ReactNode } from "react"
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
@@ -32,6 +33,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   return (
     <div style={{ width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
+      <AdminSubNav capabilities={capabilities} />
       {children}
     </div>
   )
