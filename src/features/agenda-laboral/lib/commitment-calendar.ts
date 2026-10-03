@@ -295,6 +295,12 @@ export function getCommitmentDetailLines(
     } else if (details.calculationStatus === "pending" && details.missingDataReason) {
       lines.push(`Pago estimado: pendiente (${details.missingDataReason})`)
     }
+    if (details.expectedPaymentFortnightLabel) {
+      lines.push(`Quincena de cobro (SIAP): ${details.expectedPaymentFortnightLabel}`)
+    }
+    if (details.expectedPaymentDate) {
+      lines.push(`Día de dispersión: ${details.expectedPaymentDate}`)
+    }
     if (details.earningsFormula) {
       lines.push(`Fórmula: ${details.earningsFormula}`)
     }
@@ -344,11 +350,26 @@ export function getCommitmentDetailLines(
       const [year, month, day] = details.claimFiledDate.split("-")
       lines.push(`Solicitud presentada: ${day}/${month}/${year}`)
     }
+    if (details.claimedConceptsLabels && details.claimedConceptsLabels.length > 0) {
+      lines.push(`Conceptos: ${details.claimedConceptsLabels.join(", ")}`)
+    }
+    if (typeof details.estimatedClaimAmount === "number" && details.estimatedClaimAmount > 0) {
+      lines.push(`Monto reclamado: $${details.estimatedClaimAmount.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+    }
     if (details.claimReference) {
       lines.push(`Folio: ${details.claimReference}`)
     }
     if (details.responsibleArea) {
       lines.push(`Seguimiento con: ${details.responsibleArea}`)
+    }
+    if (details.targetPaymentFortnightLabel) {
+      lines.push(`Cobro estimado (45 días): ${details.targetPaymentFortnightLabel}`)
+    }
+    if (details.targetPaymentDate) {
+      lines.push(`Día de dispersión: ${details.targetPaymentDate}`)
+    }
+    if (details.clausula8Deadline) {
+      lines.push(`Límite respuesta escrita (Cl. 8): ${details.clausula8Deadline}`)
     }
     if (details.claimStatus && CLAIM_STATUS_LABELS[details.claimStatus]) {
       lines.push(`Estado: ${CLAIM_STATUS_LABELS[details.claimStatus]}`)

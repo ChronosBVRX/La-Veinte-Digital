@@ -20,6 +20,7 @@ import type {
 import {
   AFFECTED_SHIFT_LABELS,
   CLAIM_STATUS_LABELS,
+  CLAIMABLE_CONCEPTS,
   COMMITMENT_TYPE_ICONS,
   COMMITMENT_TYPE_LABELS,
   REMINDER_PRIORITY_LABELS,
@@ -28,6 +29,7 @@ import {
 } from "../types"
 import { getFortnightInfo, calculateFaltaDescuento } from "../lib/falta-calculo"
 import { calculateAgendaTiempoExtra } from "../lib/tiempo-extra-calculo"
+import { getOvertimePaymentSchedule, getClaimResolutionSchedule } from "../lib/payroll-schedule"
 
 interface CommitmentFormProps {
   open: boolean
@@ -82,6 +84,10 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
   const [vacationMark, setVacationMark] = useState("")
   const [vacationRoleLabel, setVacationRoleLabel] = useState("")
   const [vacationUnits, setVacationUnits] = useState<number | "">("")
+  const [claimedConcepts, setClaimedConcepts] = useState<string[]>([])
+  const [estimatedClaimAmount, setEstimatedClaimAmount] = useState<number | "">("")
+  const [overtimePaydayReminder, setOvertimePaydayReminder] = useState(true)
+  const [claimPaydayReminder, setClaimPaydayReminder] = useState(true)
   const [notes, setNotes] = useState("")
   const [reminder, setReminder] = useState(DEFAULT_REMINDER)
   const [error, setError] = useState<string | null>(null)
@@ -132,6 +138,10 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
     setClaimReference("")
     setResponsibleArea("")
     setClaimStatus("pendiente")
+    setClaimedConcepts([])
+    setEstimatedClaimAmount("")
+    setOvertimePaydayReminder(true)
+    setClaimPaydayReminder(true)
     setSubstituteWorkerName("")
     setPaidStatus("pendiente")
     setGeneralTitle("")
@@ -212,6 +222,26 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
       })
     : null
 
+  const overtimeSchedule = type === "overtime" && date ? getOvertimePaymentSchedule(date) : null
+  const claimSchedule = type === "no_pagado" && claimFiledDate ? getClaimResolutionSchedule(claimFiledDate) : null
+
+  const toggleClaimedConcept = (code: string) => {
+    setClaimedConcepts((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    )
+  }
+
+  const handleClaimFiledDateChange = (val: string) => {
+    setClaimFiledDate(val)
+    if (val) {
+      const schedule = getClaimResolutionSchedule(val)
+      if (!date || (claimSchedule && date === claimSchedule.targetPaymentDate)) {
+        setDate(schedule.targetPaymentDate)
+        if (!startTime) setStartTime("08:00")
+      }
+    }
+  }
+
   const handleSave = () => {
     if (!type || !detailsComplete) {
       setError("Completa los campos obligatorios para guardar el registro.")
@@ -261,11 +291,29 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
       start = new Date(`${date}T${startTime}:00`)
       end = plusOneHour(start)
       title = claimSubject.trim()
+
+      const numericClaimAmount = typeof estimatedClaimAmount === "number" && estimatedClaimAmount > 0
+        ? estimatedClaimAmount
+        : undefined
+      const conceptLabels = claimedConcepts.map((code) => {
+        const found = CLAIMABLE_CONCEPTS.find((c) => c.code === code)
+        return found ? found.label : code
+      })
+
       details = {
         claimFiledDate,
         claimReference: claimReference.trim() || undefined,
         responsibleArea: responsibleArea.trim() || undefined,
         claimStatus,
+        claimedConcepts,
+        claimedConceptsLabels: conceptLabels,
+        estimatedClaimAmount: numericClaimAmount,
+        clausula8Deadline: claimSchedule?.clausula8Deadline,
+        targetPaymentFortnightKey: claimSchedule?.targetFortnightKey,
+        targetPaymentFortnightLabel: claimSchedule?.targetFortnightLabel,
+        targetPaymentDate: date || claimSchedule?.targetPaymentDate,
+        paydayReminderEnabled: claimPaydayReminder,
+        reminderAt: claimPaydayReminder ? `${date}T${startTime}:00` : undefined,
       }
     } else if (type === "general_reminder") {
       title = generalTitle.trim()
@@ -335,6 +383,15 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
         missingDataReason: overtimeCalculation?.missingDataReason,
         overtimeFactor: overtimeCalculation?.factor,
         jornadaUsed: overtimeCalculation?.jornadaUsed,
+        incidenceFortnightKey: overtimeSchedule?.incidenceFortnightKey,
+        incidenceFortnightLabel: overtimeSchedule?.incidenceFortnightLabel,
+        expectedPaymentFortnightKey: overtimeSchedule?.targetFortnightKey,
+        expectedPaymentFortnightLabel: overtimeSchedule?.targetFortnightLabel,
+        expectedPaymentDate: overtimeSchedule?.targetPaymentDate,
+        paydayReminderEnabled: overtimePaydayReminder,
+        reminderAt: overtimePaydayReminder && overtimeSchedule?.targetPaymentDate
+          ? `${overtimeSchedule.targetPaymentDate}T08:00:00`
+          : undefined,
       }
     }
 
@@ -617,6 +674,37 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
                       </div>
                     </div>
                   )}
+
+                  {overtimeSchedule && (
+                    <div style={{
+                      borderTop: "1px solid var(--border)",
+                      paddingTop: "0.5rem",
+                      marginTop: "0.25rem",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.25rem",
+                    }}>
+                      <div>
+                        <span style={{ color: "var(--muted)" }}>Quincena de cobro (desfase 1 mes SIAP): </span>
+                        <strong style={{ color: "var(--fg)" }}>{overtimeSchedule.targetFortnightLabel}</strong>
+                      </div>
+                      <div>
+                        <span style={{ color: "var(--muted)" }}>Día de dispersión bancaria: </span>
+                        <strong style={{ color: "var(--fg)" }}>{overtimeSchedule.formattedPaymentDate}</strong>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {date && overtimeSchedule && (
+                <div style={{ marginTop: "0.125rem", marginBottom: "0.25rem" }}>
+                  <Checkbox
+                    id="overtimePaydayReminder"
+                    label={`Avisarme el día de cobro (${overtimeSchedule.formattedPaymentDate}) para cotejar mi tarjetón (Concepto 037)`}
+                    checked={overtimePaydayReminder}
+                    onChange={(e) => setOvertimePaydayReminder(e.target.checked)}
+                  />
                 </div>
               )}
 
@@ -712,9 +800,93 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
                 <Input id="claimSubject" value={claimSubject} onChange={(e) => setClaimSubject(e.target.value)} placeholder="Concepto o trámite reclamado" />
               </FormField>
 
-              <FormField label="Fecha de la solicitud" htmlFor="claimFiledDate" required>
-                <Input id="claimFiledDate" type="date" value={claimFiledDate} onChange={(e) => setClaimFiledDate(e.target.value)} />
+              {/* Selector de conceptos reclamados */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                <label style={{ fontSize: "var(--text-xs)", fontWeight: 600, color: "var(--fg)" }}>
+                  Conceptos involucrados en la reclamación
+                </label>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                  {CLAIMABLE_CONCEPTS.map((concept) => {
+                    const isSelected = claimedConcepts.includes(concept.code)
+                    return (
+                      <button
+                        key={concept.code}
+                        type="button"
+                        onClick={() => toggleClaimedConcept(concept.code)}
+                        style={{
+                          padding: "0.25rem 0.5rem",
+                          borderRadius: "var(--radius-pill)",
+                          fontSize: "0.75rem",
+                          fontWeight: 500,
+                          border: isSelected ? "1.5px solid var(--primary)" : "1px solid var(--border)",
+                          background: isSelected ? "rgba(37, 99, 235, 0.1)" : "var(--bg)",
+                          color: isSelected ? "var(--primary)" : "var(--muted)",
+                          cursor: "pointer",
+                          transition: "all var(--transition)",
+                        }}
+                      >
+                        {isSelected ? "✓ " : "+ "}{concept.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <FormField label="Monto aproximado que esperas recibir ($)" htmlFor="estimatedClaimAmount" hint="Opcional. Te ayuda a llevar el saldo acumulado de adeudos">
+                <Input
+                  id="estimatedClaimAmount"
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={estimatedClaimAmount === "" ? "" : estimatedClaimAmount}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setEstimatedClaimAmount(v === "" ? "" : Number(v))
+                  }}
+                  placeholder="Ej. 2500"
+                />
               </FormField>
+
+              <FormField label="Fecha de la solicitud" htmlFor="claimFiledDate" required>
+                <Input id="claimFiledDate" type="date" value={claimFiledDate} onChange={(e) => handleClaimFiledDateChange(e.target.value)} />
+              </FormField>
+
+              {/* Panel del cronograma de resolución según el Procedimiento Bilateral (45 días / 3 quincenas) */}
+              {claimSchedule && (
+                <div style={{
+                  padding: "0.875rem",
+                  background: "var(--accent)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-md)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.5rem",
+                  fontSize: "var(--text-xs)",
+                }}>
+                  <div style={{ fontWeight: 600, display: "flex", alignItems: "center", gap: "0.35rem", color: "var(--fg)" }}>
+                    <CalendarBlank size={16} />
+                    <span>Cronograma de gestión sindical y nómina (45 días / 3 quincenas)</span>
+                  </div>
+
+                  <div>
+                    <span style={{ color: "var(--muted)" }}>Hito 1 (Día 15 — Cláusula 8 CCT): </span>
+                    <strong style={{ color: "var(--fg)" }}>{claimSchedule.formattedClausula8Deadline}</strong>
+                    <div style={{ color: "var(--muted)", fontSize: "0.6875rem" }}>
+                      Plazo máximo para contestación formal por escrito de la representación bilateral.
+                    </div>
+                  </div>
+
+                  <div>
+                    <span style={{ color: "var(--muted)" }}>Hito 2 (Día 45 — Dispersión en nómina): </span>
+                    <strong style={{ color: "var(--fg)" }}>
+                      {claimSchedule.targetFortnightLabel} ({claimSchedule.formattedPaymentDate})
+                    </strong>
+                    <div style={{ color: "var(--muted)", fontSize: "0.6875rem" }}>
+                      Fecha prevista para liquidación retroactiva en tarjetón tras interactivo.
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <FormField label="Folio" htmlFor="claimReference" hint="Opcional si cuentas con folio u oficio">
                 <Input id="claimReference" value={claimReference} onChange={(e) => setClaimReference(e.target.value)} placeholder="Ej. OF-2026/089" />
@@ -724,13 +896,26 @@ export function CommitmentForm({ open, onClose, onSave, userId }: CommitmentForm
                 <Input id="responsibleArea" value={responsibleArea} onChange={(e) => setResponsibleArea(e.target.value)} placeholder="Ej. Delegación sindical, Personal o Nóminas" />
               </FormField>
 
-              <FormField label="Fecha para volver a recordarlo" htmlFor="date" required>
-                <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-              </FormField>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-3)" }}>
+                <FormField label="Fecha para volver a recordarlo" htmlFor="date" required hint="Calculada a 45 días o personalizada">
+                  <Input id="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                </FormField>
 
-              <FormField label="Hora del recordatorio" htmlFor="startTime" required>
-                <Input id="startTime" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-              </FormField>
+                <FormField label="Hora del recordatorio" htmlFor="startTime" required>
+                  <Input id="startTime" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                </FormField>
+              </div>
+
+              {date && (
+                <div style={{ marginTop: "0.125rem", marginBottom: "0.25rem" }}>
+                  <Checkbox
+                    id="claimPaydayReminder"
+                    label="Avisarme en esta fecha para verificar si fue cubierta en mi tarjetón"
+                    checked={claimPaydayReminder}
+                    onChange={(e) => setClaimPaydayReminder(e.target.checked)}
+                  />
+                </div>
+              )}
 
               <FormField label="Estado de la reclamación" htmlFor="claimStatus">
                 <Select id="claimStatus" value={claimStatus} onChange={(e) => setClaimStatus(e.target.value as ClaimStatus)}>

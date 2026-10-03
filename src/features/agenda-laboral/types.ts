@@ -129,12 +129,28 @@ export const REMINDER_RECURRENCE_LABELS: Record<ReminderRecurrence, string> = {
   monthly: "Mensual",
 }
 
+export const CLAIMABLE_CONCEPTS = [
+  { code: "037", label: "Tiempo extraordinario (Concepto 037)" },
+  { code: "033", label: "Estímulo de puntualidad (Concepto 033)" },
+  { code: "032", label: "Estímulo de asistencia (Concepto 032)" },
+  { code: "172", label: "Falta injustificada indebida (Descuento 172)" },
+  { code: "003", label: "Guardia festiva / descanso laborado" },
+  { code: "otro", label: "Otro concepto o ajuste salarial" },
+] as const
+
 /** Datos propios de cada tipo de registro. Se persisten en worker_commitments.details. */
 export interface CommitmentDetails {
   allDay?: boolean
   shift?: AffectedShift
   affectedShift?: AffectedShift
   authorizedBy?: string
+  // Fechas y quincena de aplicación contractual / pago
+  incidenceFortnightKey?: string
+  incidenceFortnightLabel?: string
+  expectedPaymentFortnightKey?: string
+  expectedPaymentFortnightLabel?: string
+  expectedPaymentDate?: string
+  paydayReminderEnabled?: boolean
   // Tiempo extra (overtime)
   estimatedEarnings?: number
   hoursCalculated?: number
@@ -165,6 +181,13 @@ export interface CommitmentDetails {
   claimReference?: string
   responsibleArea?: string
   claimStatus?: ClaimStatus
+  claimedConcepts?: string[]
+  claimedConceptsLabels?: string[]
+  estimatedClaimAmount?: number
+  clausula8Deadline?: string
+  targetPaymentFortnightKey?: string
+  targetPaymentFortnightLabel?: string
+  targetPaymentDate?: string
   // TxT
   paidStatus?: TxtPaidStatus
   // Recordatorio general
