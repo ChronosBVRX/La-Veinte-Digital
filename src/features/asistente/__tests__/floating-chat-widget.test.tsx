@@ -35,7 +35,7 @@ describe("FloatingChatWidget y FloatingChatContext", () => {
 
     const fab = screen.getByLabelText("Abrir asistente de derechos")
     expect(fab).toBeTruthy()
-    expect(screen.getByText("Pregunta por tus derechos")).toBeTruthy()
+    expect(screen.getByText(/¿Necesitas/i)).toBeTruthy()
     expect(screen.queryByTestId("chat-assistant-body")).toBeNull()
   })
 
