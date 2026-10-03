@@ -35,7 +35,7 @@ for (const l of lines) { doc.text(l, M, y); y += 20 }
 doc.setDrawColor(203, 213, 225); doc.line(M, y, W - M, y)
 doc.setFontSize(9); doc.setTextColor(100, 116, 139)
 doc.text("Herramientas normativas / simuladores: resultados meramente informativos.", M, y + 18)
-doc.text("Privacidad: https://la-veinte-digital.vercel.app/privacidad", M, y + 30)
+doc.text("Privacidad: https://la20.com.mx/privacidad", M, y + 30)
 const pdfBuf = Buffer.from(doc.output("arraybuffer"))
 writeFileSync(path.join(outDir, "demo-tarjeton-imss.pdf"), pdfBuf)
 console.log("PDF", pdfBuf.length, "bytes")
@@ -44,7 +44,7 @@ console.log("PDF", pdfBuf.length, "bytes")
 try {
   execFileSync("python3", [
     "-c",
-    "import qrcode; q=qrcode.QRCode(version=5,box_size=10,border=4); q.add_data('https://la-veinte-digital.vercel.app/transfer?demo=1'); q.make(fit=True); q.make_image(fill_color='#0f172a', back_color='white').save('public/demo/demo-qr-transfer.png')",
+    "import qrcode; q=qrcode.QRCode(version=5,box_size=10,border=4); q.add_data('https://la20.com.mx/transfer?demo=1'); q.make(fit=True); q.make_image(fill_color='#0f172a', back_color='white').save('public/demo/demo-qr-transfer.png')",
   ])
   console.log("QR written")
 } catch (e) {

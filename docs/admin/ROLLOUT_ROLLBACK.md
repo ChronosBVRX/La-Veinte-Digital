@@ -10,15 +10,15 @@
 
 ## 1. Requisitos Previos y Variables de Entorno
 
-Antes de promover los cambios a producción (Vercel) o ejecutar el workflow de GitHub Actions, asegúrese de tener configuradas las siguientes variables de entorno:
+Antes de promover los cambios a producción (OCI VPS) o ejecutar el workflow de GitHub Actions, asegúrese de tener configuradas las siguientes variables de entorno:
 
 | Variable | Destino | Propósito | Crítica |
 |---|---|---|---|
-| `CRON_SECRET` | Vercel & GitHub Secrets | Token compartido para autorizar ejecuciones del endpoint `/api/cron/push-campaigns`. Debe ser una cadena aleatoria de alta entropía (mínimo 32 caracteres). | Sí |
-| `SUPABASE_SERVICE_ROLE_KEY` | Vercel Server-Only | Clave de servicio para leasing atómico del worker de campañas push, snapshotting, limpieza de tokens inválidos y métricas administrativas agregadas. | Sí |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | Vercel Server-Only | Credenciales de servicio de Google Cloud / Firebase para el transporte HTTP v1 de FCM hacia la app Android. | Sí |
-| `PUSH_ADMIN_ALLOWED_EMAILS` | Vercel Server-Only | Lista separada por comas de correos con permisos para operar campañas push y herramientas administrativas (`admin@laveinte.digital,...`). | Sí |
-| `NEXT_PUBLIC_CANONICAL_ORIGIN` | Vercel | Origen canónico de la aplicación (`https://la-veinte-digital.vercel.app`). Si no está fijado, el sistema usa este valor por defecto para validar URLs de destino. | Recomendada |
+| `CRON_SECRET` | OCI VPS (.env) & Crons | Token compartido para autorizar ejecuciones del endpoint `/api/cron/push-campaigns`. Debe ser una cadena aleatoria de alta entropía (mínimo 32 caracteres). | Sí |
+| `SUPABASE_SERVICE_ROLE_KEY` | OCI VPS Server-Only | Clave de servicio para leasing atómico del worker de campañas push, snapshotting, limpieza de tokens inválidos y métricas administrativas agregadas. | Sí |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | OCI VPS Server-Only | Credenciales de servicio de Google Cloud / Firebase para el transporte HTTP v1 de FCM hacia la app Android. | Sí |
+| `PUSH_ADMIN_ALLOWED_EMAILS` | OCI VPS Server-Only | Lista separada por comas de correos con permisos para operar campañas push y herramientas administrativas (`admin@laveinte.digital,...`). | Sí |
+| `NEXT_PUBLIC_CANONICAL_ORIGIN` | OCI VPS | Origen canónico de la aplicación (`https://la20.com.mx`). Si no está fijado, el sistema usa este valor por defecto para validar URLs de destino. | Recomendada |
 
 ---
 
@@ -37,17 +37,17 @@ supabase db push
 - Crea la función transaccional `archive_announcement_atomic`.
 - Habilita RLS estricto en todas las tablas nuevas con políticas para administradores y aislamiento por usuario.
 
-### Paso 2: Despliegue de Código (Vercel)
-Fusionar la rama `feat/admin-panel` en `main` tras revisión de PR:
-- Vercel ejecutará automáticamente `prebuild` (`scripts/copy-vendor.mjs`), `next build` y desplegará la nueva versión.
+### Paso 2: Despliegue de Código (OCI VPS)
+Ejecutar el despliegue a producción en el VPS:
+```bash
+npm run deploy:oci
+```
+- El script empaqueta el build standalone de Next.js, lo transfiere al VPS, compila el contenedor Docker en ARM64 y verifica el endpoint de salud `https://la20.com.mx/api/health`.
 
-### Paso 3: Configuración del Cron en GitHub Actions
-En el repositorio de GitHub:
-1. Ir a **Settings > Secrets and variables > Actions**.
-2. Agregar el secreto de repositorio:
-   - Nombre: `CRON_SECRET`
-   - Valor: Mismo valor configurado en el proyecto de Vercel.
-3. El archivo `.github/workflows/push-campaigns-cron.yml` se ejecutará cada 15 minutos (`*/15 * * * *`).
+### Paso 3: Configuración del Cron
+En el crontab del servidor Linux o GitHub Actions:
+1. Asegurar que `CRON_SECRET` esté configurado en `/opt/laveinte-app/.env`.
+2. El script `scripts/run-cron.sh` o el crontab nativo en el VPS ejecuta las campañas periódicamente cada 10-15 minutos.
 
 ---
 
@@ -82,7 +82,7 @@ Una vez desplegado:
 7. **Latido del Cron:**
    - Enviar una petición curl de prueba al cron:
      ```bash
-     curl -s -X POST https://la-veinte-digital.vercel.app/api/cron/push-campaigns \
+     curl -s -X POST https://la20.com.mx/api/cron/push-campaigns \
        -H "Authorization: Bearer <CRON_SECRET>"
      ```
    - Debe retornar HTTP 200 con `{ ok: true, scheduledPublished, campaignsProcessed }`.
@@ -94,8 +94,8 @@ Una vez desplegado:
 
 Si surge algún problema crítico en producción:
 
-### Nivel 1: Reversión Rápida de Frontend (Vercel)
-1. En el panel de Vercel > Deployments, seleccionar el deployment inmediatamente anterior a la fusión de `feat/admin-panel` y presionar **Instant Rollback**.
+### Nivel 1: Reversi�n R�pida de Frontend (OCI VPS)
+1. En el repositorio local, hacer checkout al commit anterior estable y ejecutar `npm run deploy:oci`, o en el VPS reiniciar el contenedor con la imagen previa.
 2. **Impacto:** Cero tiempo de inactividad. La aplicación vuelve a la versión estable previa (`7cd9a69`).
 3. El frontend anterior simplemente no consulta las tablas nuevas. La base de datos puede permanecer con las tablas nuevas creadas sin causar ningún conflicto ni degradación a usuarios existentes.
 
@@ -107,7 +107,7 @@ Si se necesita detener de emergencia el envío de notificaciones push:
 ### Nivel 3: Desactivar el Cron
 Si se desea detener la ejecución periódica del cron:
 - En GitHub Actions > Actions > `push-campaigns-cron`, presionar **Disable workflow**.
-- O bien, rotar la variable `CRON_SECRET` en Vercel para que cualquier invocación externa retorne HTTP 401 Unauthorized sin procesar nada.
+- O bien, rotar la variable `CRON_SECRET` en /opt/laveinte-app/.env para que cualquier invocación externa retorne HTTP 401 Unauthorized sin procesar nada.
 
 ### Nivel 4: Reversión Completa de Base de Datos (Solo en caso necesario)
 Las tablas y funciones creadas son completamente independientes y no alteran ninguna columna de tablas preexistentes (`profiles`, `push_devices`, etc.).

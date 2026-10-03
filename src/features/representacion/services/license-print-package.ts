@@ -82,7 +82,7 @@ export async function splitPdfIntoSinglePageBuffers(
  *
  * Supports generating 'both' (2 pages, marked Simplex) or individual 1-page sheets ('oficio' | 'solicitud').
  * Runs 100% in-memory using pdf-lib and official institutional print masters.
- * Zero dependency on Microsoft Office COM on Linux/Vercel serverless.
+ * Zero dependency on Microsoft Office COM on Linux/Node.
  */
 export async function buildLicensePrintPackage(
   data: UnionLicenseDocumentData,

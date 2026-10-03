@@ -1,7 +1,7 @@
 # 🏛️ Lista de Verificación y Gobernanza para Lanzamiento a Producción — La Veinte Digital
 
 > **Fecha de formulación:** 2026-09-10  
-> **Ámbito:** Repositorio GitHub `ChronosBVRX/La-Veinte-Digital`, GitHub Actions, Vercel, Supabase, Google Play Console, App Store Connect  
+> **Ámbito:** Repositorio GitHub `ChronosBVRX/La-Veinte-Digital`, GitHub Actions, OCI VPS, Supabase, Google Play Console, App Store Connect  
 > **Objetivo:** Cero regresiones, despliegues reproducibles e inmutabilidad de la rama `main`.
 
 ---
@@ -64,7 +64,7 @@ Antes de autorizar el merge de `hardening/production-readiness` a `main` y proce
 - [x] **Fase 13**: Manual de reversión y contingencia documentado en `docs/PRODUCTION_ROLLBACK.md`.
 
 ### B. Validación de Entorno en Servidores
-- [ ] Variables de producción en Vercel verificadas con `npm run preflight:env` (sin placeholders, URLs HTTPS válidas).
+- [ ] Variables de producción en OCI VPS (/opt/laveinte-app/.env) verificadas con `npm run preflight:env` (sin placeholders, URLs HTTPS válidas).
 - [ ] Migración `20260910200000_harden_security_definer_functions.sql` aplicada en la base de datos Supabase de producción.
 - [ ] Tablas activas en Supabase verificadas con RLS habilitado (34/34 tablas).
 

@@ -2,7 +2,7 @@
 
 > Documento de referencia técnica para el shell nativo iOS.
 > Ámbito: `ios-app/` (shell nativo SwiftUI) que embebe el Home web
-> (`https://la-veinte-digital.vercel.app`) en un `WKWebView` persistente.
+> (`https://la20.com.mx`) en un `WKWebView` persistente.
 > Última actualización: **2026-09-05 — v1.0.0 (build 1) — Stable Baseline**.
 
 La fuente de verdad del comportamiento general es `docs/ANDROID_APP.md` y `docs/STABLE_BASELINE.md`. Este documento
@@ -113,7 +113,7 @@ hasImssCredentials(portalId), onAuthenticated(), onLoggedOut(), log(msg)
 ## 3. Fases
 
 ### Fase 1 — Esqueleto funcional (MVP)
-SwiftUI + WKWebView cargando `https://la-veinte-digital.vercel.app`, bridge JS
+SwiftUI + WKWebView cargando `https://la20.com.mx`, bridge JS
 (`appPlatform()="ios"`), tema LVD, ruteo (internal/external/SFSafari/openURL),
 bootloader simple, detección offline. Cambio web de detección de UA.
 **Salida**: app que abre la web igual que Android, navegación básica OK.
@@ -185,7 +185,7 @@ firma y exporta el IPA. Configurar estos secrets en GitHub (Settings → Secrets
 
 ### Universal Links (opcional)
 
-Para deep links `https://la-veinte-digital.vercel.app` en iOS hay que alojar
+Para deep links `https://la20.com.mx` en iOS hay que alojar
 `/.well-known/apple-app-site-association` y declarar `com.apple.developer.associated-domains`
 en entitlements. Pendiente de implementar cuando se quiera.
 

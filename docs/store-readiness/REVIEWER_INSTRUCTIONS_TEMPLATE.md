@@ -15,9 +15,9 @@ Digital. **No hay contraseñas reales en Git**; los campos marcados se completan
 
 ## Datos demo publicados
 
-- PDF de demostración (ficticio): `https://la-veinte-digital.vercel.app/demo/demo-tarjeton-imss.pdf`
+- PDF de demostración (ficticio): `https://la20.com.mx/demo/demo-tarjeton-imss.pdf`
   (marca "DOCUMENTO DE DEMOSTRACIÓN — DATOS FICTICIOS").
-- QR de demostración: `https://la-veinte-digital.vercel.app/demo/demo-qr-transfer.png`.
+- QR de demostración: `https://la20.com.mx/demo/demo-qr-transfer.png`.
 
 ## Pasos de inicio
 
@@ -66,7 +66,7 @@ Digital. **No hay contraseñas reales en Git**; los campos marcados se completan
 
 | Función | Requiere acceso externo | Nota |
 |---------|-------------------------|------|
-| App principal (web) | Sí — `https://la-veinte-digital.vercel.app` | Debe estar desplegada |
+| App principal (web) | Sí — `https://la20.com.mx` | Debe estar desplegada |
 | Tu Perfil IMSS / nómina | Sí — portal oficial IMSS | Requiere credenciales IMSS reales del revisor |
 | Chat asistente | Sí — backend `/api/consulta` | Requiere backend + RAG |
 | Push | Sí — Firebase + Supabase | Requiere backend configurado |

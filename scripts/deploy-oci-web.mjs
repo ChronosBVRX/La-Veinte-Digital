@@ -216,11 +216,11 @@ async function main() {
 
   if (fs.existsSync(envProdLocal)) {
     let envContent = fs.readFileSync(envProdLocal, "utf8");
-    // Limpiar variables de Turborepo / Vercel específicas de CI y comillas externas literales
+    // Limpiar variables de CI / Vercel obsoletas y comillas externas literales
     const cleanedLines = envContent.split(/\r?\n/).filter((line) => {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith("#")) return true;
-      if (trimmed.startsWith("TURBO_") || trimmed.startsWith("NX_") || trimmed.startsWith("VERCEL_GIT_")) return false;
+      if (trimmed.startsWith("TURBO_") || trimmed.startsWith("NX_") || trimmed.toUpperCase().startsWith("VERCEL")) return false;
       return true;
     }).map((line) => {
       const match = line.match(/^([A-Za-z0-9_]+)=(.*)$/);

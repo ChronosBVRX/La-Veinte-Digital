@@ -1,6 +1,6 @@
 # Plantillas de documentos — Representación Sindical XXI
 
-Todas se generan en runtime Vercel con dependencias Node puras (sin Office,
+Todas se generan en runtime Node / VPS OCI con dependencias Node puras (sin Office,
 sin LibreOffice, sin Python, sin binarios, sin rutas D:\ en producción).
 
 ## Pasajes (Plantillas Oficiales PDF + Overlay Declarativo)

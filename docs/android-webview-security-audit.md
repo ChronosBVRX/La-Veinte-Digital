@@ -60,7 +60,7 @@ El script de compilación `android-app/app/build.gradle.kts` define dos sabores 
 ## 3. Auditoría del `AndroidManifest.xml` y Permisos
 
 1. **Permisos Mínimos Necesarios**:
-   - `INTERNET`: Comunicación con Supabase y backend Vercel.
+   - `INTERNET`: Comunicación con Supabase y backend OCI VPS.
    - `ACCESS_NETWORK_STATE`: Detección de conectividad para pantallas offline.
    - `POST_NOTIFICATIONS`: Notificaciones push de convocatorias sindicales (Android 13+).
    - `CAMERA` (`android:required="false"`): Escaneo opcional de credenciales y códigos QR.
@@ -74,4 +74,4 @@ El script de compilación `android-app/app/build.gradle.kts` define dos sabores 
 4. **Seguridad de Red (`network_security_config.xml`)**:
    - `android:usesCleartextTraffic="false"`
    - `cleartextTrafficPermitted="false"` a nivel base y por dominio.
-   - Tráfico cifrado TLS obligatorio hacia `la-veinte-digital.vercel.app` y `ragktminwduiggvaoeix.supabase.co`.
+   - Tráfico cifrado TLS obligatorio hacia `la20.com.mx` y `ragktminwduiggvaoeix.supabase.co`.

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -18,7 +19,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Card
@@ -31,6 +36,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -46,9 +55,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -69,11 +80,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private enum class OfflineSection(val label: String) {
-    DOCUMENTOS("Documentos PDF"),
-    QUINCENA("Mi Quincena"),
-    AGENDA("Mi Agenda"),
-    HERRAMIENTAS("Calculadoras y Guía"),
+private enum class OfflineSection(val label: String, val icon: ImageVector) {
+    DOCUMENTOS("Documentos", Icons.Filled.Description),
+    QUINCENA("Mi Quincena", Icons.Filled.Payments),
+    AGENDA("Mi Agenda", Icons.Filled.CalendarMonth),
+    HERRAMIENTAS("Calculadoras", Icons.Filled.Calculate),
 }
 
 private enum class OfflineFilter(val label: String) {
@@ -256,21 +267,48 @@ fun OfflineDocumentsScreen(
                 )
             }
 
-            // Selector de sección offline
-            LazyRow(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            // Selector de sección offline (Pestañas nativas claras con iconos)
+            TabRow(
+                selectedTabIndex = section.ordinal,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = Primary,
+                indicator = { tabPositions ->
+                    if (section.ordinal < tabPositions.size) {
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(tabPositions[section.ordinal]),
+                            color = Primary,
+                        )
+                    }
+                },
+                divider = { HorizontalDivider(color = Color.LightGray.copy(alpha = 0.35f)) },
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                items(OfflineSection.entries) { sec ->
-                    FilterChip(
-                        selected = section == sec,
+                OfflineSection.entries.forEach { sec ->
+                    val selected = section == sec
+                    Tab(
+                        selected = selected,
                         onClick = { section = sec },
-                        label = { Text(sec.label, fontSize = 13.sp, fontWeight = if (section == sec) FontWeight.SemiBold else FontWeight.Normal) },
+                        text = {
+                            Text(
+                                text = sec.label,
+                                fontSize = 11.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                        icon = {
+                            Icon(
+                                imageVector = sec.icon,
+                                contentDescription = sec.label,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        },
+                        selectedContentColor = Primary,
+                        unselectedContentColor = Color.Gray,
                     )
                 }
             }
-
-            HorizontalDivider(color = Color.LightGray.copy(alpha = 0.4f))
 
             when (section) {
                 OfflineSection.DOCUMENTOS -> {
@@ -437,9 +475,10 @@ private fun OfflineQuincenaTab(snapshot: OfflineSnapshotStore.OfflineWorkerSnaps
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "En cuanto abras La Veinte Digital con Internet, tu perfil laboral y el desglose de tu último tarjetón se guardarán automáticamente para consulta sin conexión.",
+                "En cuanto abras La Veinte Digital con conexión a Internet, tu perfil laboral y el desglose de tu último tarjetón se guardarán automáticamente aquí.\n\nNota: Si tienes tarjetones PDF guardados en este dispositivo, puedes consultarlos directamente en la pestaña «Documentos».",
                 color = Color.Gray,
                 fontSize = 13.sp,
+                textAlign = TextAlign.Center,
             )
         }
         return
@@ -555,9 +594,10 @@ private fun OfflineAgendaTab(snapshot: OfflineSnapshotStore.OfflineWorkerSnapsho
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "Tus registros de Tiempo Extra, TxT, Faltas y Recordatorios agendados aparecerán aquí automáticamente.",
+                "Tus registros de Tiempo Extra, TxT, Faltas y Recordatorios guardados en el calendario online se sincronizan automáticamente para consulta sin conexión.",
                 color = Color.Gray,
                 fontSize = 13.sp,
+                textAlign = TextAlign.Center,
             )
         }
         return
@@ -652,13 +692,13 @@ private fun OfflineToolsTab(snapshot: OfflineSnapshotStore.OfflineWorkerSnapshot
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        "Simulador Rápido Sin Conexión",
+                        "Calculadoras Rápidas Sin Conexión",
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
                         color = BrandNavy,
                     )
                     Text(
-                        "Pre-rellenado con tu último tarjetón sincronizado. Puedes ajustar las cifras manualmente.",
+                        "Simula tus prestaciones clave al instante. Si aún no tienes un tarjetón sincronizado, ingresa los montos quincenales para calcular:",
                         fontSize = 12.sp,
                         color = Color.Gray,
                     )
@@ -667,7 +707,8 @@ private fun OfflineToolsTab(snapshot: OfflineSnapshotStore.OfflineWorkerSnapshot
                         OutlinedTextField(
                             value = sueldo002Text,
                             onValueChange = { sueldo002Text = it },
-                            label = { Text("Concepto 002 (Qnal)", fontSize = 12.sp) },
+                            label = { Text("Concepto 002 (Sueldo Base Qnal)", fontSize = 12.sp) },
+                            placeholder = { Text("Ej. 6500.00", fontSize = 12.sp, color = Color.Gray) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             singleLine = true,
                             modifier = Modifier.weight(1f),
@@ -675,7 +716,8 @@ private fun OfflineToolsTab(snapshot: OfflineSnapshotStore.OfflineWorkerSnapshot
                         OutlinedTextField(
                             value = renta011Text,
                             onValueChange = { renta011Text = it },
-                            label = { Text("Concepto 011 (Qnal)", fontSize = 12.sp) },
+                            label = { Text("Concepto 011 (Ayuda Renta Qnal)", fontSize = 12.sp) },
+                            placeholder = { Text("Ej. 2900.00", fontSize = 12.sp, color = Color.Gray) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             singleLine = true,
                             modifier = Modifier.weight(1f),

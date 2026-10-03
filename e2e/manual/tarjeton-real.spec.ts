@@ -5,7 +5,7 @@
  *
  * Usage (PowerShell):
  *   $env:E2E_REAL_TARJETON_PATH='C:\...\tarjeton.pdf'
- *   $env:E2E_BASE_URL='https://la-veinte-digital.vercel.app'
+ *   $env:E2E_BASE_URL='https://la20.com.mx'
  *   $env:E2E_EXTERNAL='1'
  *   npx playwright test e2e/manual/tarjeton-real.spec.ts --project=chromium-desktop --headed
  */
@@ -90,7 +90,7 @@ test.describe("Tarjeton real - diagnostico manual", () => {
     if (status >= 200 && status < 300) {
       console.log("SUCCESS: Tarjeton confirmado correctamente")
     } else {
-      console.log("FAILURE: Revisa los logs de Vercel para el error detallado")
+      console.log("FAILURE: Revisa los logs del servidor para el error detallado")
     }
   })
 })

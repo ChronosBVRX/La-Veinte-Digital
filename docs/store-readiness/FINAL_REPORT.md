@@ -115,7 +115,7 @@ IOS PORT READINESS:     6/10
 | Internal Testing | ⛔ requiere Play Console |
 | AAB uploaded | ⛔ requiere Play Console |
 | Data Safety | ✅ matriz en `GOOGLE_PLAY_DATA_SAFETY.md` (lista para rellenar) |
-| Privacy Policy | ✅ `https://la-veinte-digital.vercel.app/privacidad` (live, 200) |
+| Privacy Policy | ✅ `https://la20.com.mx/privacidad` (live, 200) |
 | App Access | ✅ instrucciones de acceso demo (cuenta + assets) |
 | Content Rating | ✅ determinable (herramienta/productividad, 18+ sugerido) |
 | Target Audience | ✅ adultos/trabajadores; sin menores |

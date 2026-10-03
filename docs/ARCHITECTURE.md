@@ -36,7 +36,6 @@ La Veinte Digital es un ecosistema multiplataforma full-stack que sirve a la com
 │                 │   Caddy Reverse Proxy (HTTPS / HTTP3)     │                          │
 │                 │   - Dominio Web: la20.com.mx              │                          │
 │                 │   - Dominio API DB: supabase.la20.com.mx  │                          │
-│                 │   - Vercel Gateway: Redirect 308 Perm.    │                          │
 │                 └─────────────────────┬─────────────────────┘                          │
 │                                       ▼                                                │
 │                 ┌───────────────────────────────────────────┐                          │
@@ -164,7 +163,7 @@ src/
 - **Flavors:**
   - `play`: Para publicación en Google Play. Sin actualizador OTA, sin permiso `REQUEST_INSTALL_PACKAGES`.
   - `direct`: Canal sideload para distribución directa. Incorpora `UpdateManager`, verificación SHA-256 de APK e instalación vía `PackageInstaller`.
-- **WebView Persistente:** Carga canónica en `https://la20.com.mx` con allowlist estricta de dominios autorizados (`la20.com.mx`, `supabase.la20.com.mx` y retención de `la-veinte-digital.vercel.app` para redirección automática y retrocompatibilidad de links).
+- **WebView Persistente:** Carga canónica en `https://la20.com.mx` con allowlist estricta de dominios autorizados (`la20.com.mx`, `supabase.la20.com.mx`).
 - **Inyección del Bridge:** `LaVeinteBridgeInjector.kt` inyecta `window.LaVeinteApp` en el evento Document Start mediante `WebViewCompat.addDocumentStartJavaScript`, eliminando condiciones de carrera en la hidratación de Next.js.
 - **Bóveda IMSS:** Cifrado seguro de credenciales con `AndroidKeyStore` (claves no exportables AES-256-GCM) y almacenamiento local en `Room DB` + `DataStore`.
 
@@ -223,4 +222,3 @@ El repositorio cuenta con una batería integral de verificación automatizada:
   - Stack Supabase: PostgreSQL 14.5 + PostgREST + GoTrue Auth + Storage (`android-releases`, `union-private`) + Realtime.
 - **Comando de Despliegue Web:** `npm run deploy:oci` (ejecuta `scripts/deploy-oci-web.mjs`, empaqueta el standalone, transfiere vía SCP a `/opt/laveinte-app`, compila el contenedor Docker en ARM64 y verifica el endpoint de salud `http://127.0.0.1:3000/api/health`).
 - **Tareas Programadas (Crons):** Crontab nativo de Linux en el VPS ejecutando `scripts/run-cron.sh` para `agenda-reminders` (diario) y `push-campaigns` (cada 10 min).
-- **Redirección de Vercel:** Vercel configurado exclusivamente como gateway de migración con redirección HTTP 308 permanente (`/(.*) -> https://la20.com.mx/$1`).

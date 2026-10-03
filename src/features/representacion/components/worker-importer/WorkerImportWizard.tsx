@@ -64,7 +64,7 @@ export function WorkerImportWizard({ format = "SIAP" }: WorkerImportWizardProps)
         throw new Error("Solo se admiten archivos en formato Excel estándar (.xlsx).");
       }
 
-      // 1 y 2: Subida segura a almacenamiento privado (sin exceder el payload de Vercel)
+      // 1 y 2: Subida segura a almacenamiento privado (sin exceder el límite de payload del servidor)
       const uploadResult = await secureUnionExcelUpload({
         file,
         uploadUrlEndpoint,

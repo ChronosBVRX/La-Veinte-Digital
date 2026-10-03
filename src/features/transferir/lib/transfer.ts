@@ -47,7 +47,7 @@ export function isAllowedType(mime: string): boolean {
 
 /**
  * Official hosts that a transfer QR URL may come from. We do NOT trust the current page origin
- * blindly: the main domain, its www alias and any Vercel/preview alias are the only acceptable
+ * blindly: the main domain, its www alias and allowed alternate aliases are the only acceptable
  * hosts, so a forged/pasted QR pointing to an arbitrary origin is rejected.
  */
 export const ALLOWED_TRANSFER_HOSTS = [

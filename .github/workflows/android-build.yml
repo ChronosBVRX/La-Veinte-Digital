@@ -184,5 +184,5 @@ jobs:
           echo " Next steps:"
           echo "  1. Download the artifact from this run"
           echo "  2. Copy SHA-256 above to public/android/${{ github.event.inputs.channel }}/latest.json"
-          echo "  3. Deploy to Vercel to publish"
+          echo "  3. Deploy to OCI VPS to publish (npm run deploy:oci)"
           echo "============================================"

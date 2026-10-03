@@ -25,7 +25,6 @@
 |---|---|
 | Servidor de producción | Oracle Cloud Infrastructure (Always Free Ampere A1 ARM64 VPS) |
 | URL canónica | `https://la20.com.mx` |
-| Gateway de redirección Vercel | `https://la-veinte-digital.vercel.app` (HTTP 308 permanente hacia `https://la20.com.mx`) |
 | Base de datos y Auth | `https://supabase.la20.com.mx` (Supabase self-hosted en OCI, 65 tablas activas) |
 | Salud observada | `GET https://la20.com.mx/api/health` → HTTP 200; `GET /` → 307 a `/login` (guardia de auth operativa) |
 
@@ -186,7 +185,7 @@ ejecutable — prohibido modificarlas para ocultar regresiones):
   `commitment_id × reminder_type`; trigger que limpia entregas al
   cancelar/completar/reprogramar); tipos `DAY_BEFORE`, `HOURS_BEFORE`,
   `AT_START`, `SCHEDULED_TIME`; cron `GET /api/cron/agenda-reminders`
-  (`vercel.json`: `0 1 * * *`) + workflow
+  (crontab nativo Linux VPS: `0 1 * * *` v�a `scripts/run-cron.sh`) + workflow
   `.github/workflows/agenda-reminders-cron.yml`.
 - **Push / campañas:** `src/features/push/` (registro FCM,
   `push-admin.ts` con lotes ≤ 500 y deduplicación, `campaign-worker.ts`
@@ -218,7 +217,7 @@ ejecutable — prohibido modificarlas para ocultar regresiones):
 - **Nota operativa:** el panel es funcional en código y pruebas; su
   operación plena en producción depende de la migración
   `20260906140000_*` aplicada en remoto (§4.2) y de secretos de servidor
-  (`CRON_SECRET`, FCM) configurados en Vercel.
+  (`CRON_SECRET`, FCM) configurados en el VPS OCI (/opt/laveinte-app/.env).
 
 ---
 
@@ -266,10 +265,10 @@ ejecutable — prohibido modificarlas para ocultar regresiones):
 - Ledger remoto de migraciones no reconsultado aquí (sin CLI Supabase en
   el entorno); deriva histórica documentada desde 2026-08-03/04.
 - SHA desplegado establecido por correlación temporal merge→deploy;
-  confirmación definitiva en el dashboard de Vercel.
+  confirmación definitiva en el endpoint /api/health del VPS OCI.
 - E2E Playwright no ejecutado en esta tarea.
 - Operación plena del panel admin y recordatorios en producción sujeta a
-  migraciones remotas (§4.2) y secretos de servidor en Vercel.
+  migraciones remotas (§4.2) y secretos de servidor en el VPS OCI (/opt/laveinte-app/.env).
 - Tabulador Base expira **2026-10-15** (independiente del CCT 2025-2027,
   vigente hasta 2027-10-15); Estatutos SNTSS edición octubre 2022
   (`PENDING_REVIEW`, nunca etiquetar "vigentes 2026").

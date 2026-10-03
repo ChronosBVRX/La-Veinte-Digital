@@ -319,7 +319,6 @@ Both must be kept in sync. The bot speaks Spanish, uses **negritas**, emojis wit
 | Production URL | `https://la20.com.mx` |
 | Directorio remoto | `/opt/laveinte-app/` |
 | Reverse Proxy | Caddy v2 con TLS automático (Let's Encrypt / HTTP3) |
-| Gateway Vercel (Retirado) | `https://la-veinte-digital.vercel.app` (308 redirect permanente hacia `la20.com.mx`) |
 
 **Comando canónico de despliegue:**
 ```bash
@@ -332,7 +331,6 @@ node scripts/deploy-oci-web.mjs --build
 
 ### Tareas Programadas (Crons Nativos)
 - Los crons se ejecutan nativamente en Linux crontab en el servidor OCI vía `scripts/run-cron.sh` (`agenda-reminders` y `push-campaigns`).
-- Están 100% desacoplados de Vercel y GitHub Actions.
 - Bitácora de ejecución en `/var/log/laveinte-crons.log` y en la tabla `notification_job_runs`.
 
 ### Notas
@@ -342,6 +340,7 @@ node scripts/deploy-oci-web.mjs --build
 
 ## Anti-patterns — NEVER do these
 
+- ❌ MENCIONAR, CONFIGURAR O USAR VERCEL PARA NINGÚN DESPLIEGUE. Todo despliegue es EXCLUSIVAMENTE a nuestro VPS OCI (`npm run deploy:oci` o workflow `deploy-oci.yml`).
 - ❌ Put business logic in `app/` or `lib/`
 - ❌ Import across feature boundaries (promote to `shared/` instead)
 - ❌ Use `<a>` for internal navigation (use `<Link>` from `next/link`)

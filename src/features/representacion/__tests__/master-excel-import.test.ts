@@ -1411,7 +1411,7 @@ describe("Master Excel Import - Signed Upload and Payload Defense", () => {
     expect(deletedPath).toBe(cleanPath);
   });
 
-  it("respuesta no JSON (ej. Vercel 413 Request Entity Too Large) no provoca Unexpected token", async () => {
+  it("respuesta no JSON (ej. Servidor/Proxy 413 Request Entity Too Large) no provoca Unexpected token", async () => {
     async function readApiResponse<T>(res: {
       status: number;
       headers: { get: (name: string) => string | null };
@@ -1429,7 +1429,7 @@ describe("Master Excel Import - Signed Upload and Payload Defense", () => {
       throw new Error(text || `Error HTTP ${res.status}`);
     }
 
-    const vercel413Response = {
+    const server413Response = {
       status: 413,
       headers: { get: () => "text/plain" },
       json: async () => {
@@ -1438,11 +1438,11 @@ describe("Master Excel Import - Signed Upload and Payload Defense", () => {
       text: async () => "Request Entity Too Large",
     };
 
-    await expect(readApiResponse(vercel413Response)).rejects.toThrow(
+    await expect(readApiResponse(server413Response)).rejects.toThrow(
       "No se pudo procesar el archivo porque es demasiado grande para el método de carga actual."
     );
 
-    const vercel502Response = {
+    const server502Response = {
       status: 502,
       headers: { get: () => "text/html" },
       json: async () => {
@@ -1451,7 +1451,7 @@ describe("Master Excel Import - Signed Upload and Payload Defense", () => {
       text: async () => "Bad Gateway",
     };
 
-    await expect(readApiResponse(vercel502Response)).rejects.toThrow("Bad Gateway");
+    await expect(readApiResponse(server502Response)).rejects.toThrow("Bad Gateway");
   });
 
   it("SIAP permanece intacto y sigue enviando multipart FormData directamente", () => {

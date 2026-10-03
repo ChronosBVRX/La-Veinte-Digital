@@ -78,8 +78,8 @@ SQL files are not in the repository. Before any repair:
     git push origin fix/public-launch-readiness
     ```
 4b. Open PR and merge.
-4c. Deploy to Vercel (frontend without chat/forum).
-4d. **Confirm** via Vercel logs that no requests hit `/chat`, `/foro`,
+4c. Deploy to OCI VPS (frontend without chat/forum).
+4d. **Confirm** via logs del VPS that no requests hit `/chat`, `/foro`,
     or social API routes.
 
 ### Phase 5: Social Schema Cleanup (after deploy confirmed)

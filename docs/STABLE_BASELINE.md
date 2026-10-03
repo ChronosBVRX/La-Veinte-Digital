@@ -55,7 +55,7 @@ El repositorio no es un simple sitio web: es un ecosistema multiplataforma coord
 
 1. **Plataforma Web (Next.js 16 App Router)**:
    - Directorio: `src/`
-   - Dominio productivo: `https://la-veinte-digital.vercel.app`
+   - Dominio productivo: `https://la20.com.mx` (OCI VPS)
    - Rutas públicas y privadas protegidas por `src/proxy.ts`
    - Clasificación de API routes exhaustiva y estricta en `src/shared/server/routing/route-policy.ts` (rutas no listadas devuelven JSON 404).
 

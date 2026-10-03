@@ -15,6 +15,6 @@ Documentos relacionados:
 - `ARCHITECTURE.md` — capas, rutas, APIs, permisos.
 - `NORMATIVE-RULES.md` — fundamentos CCT 2025-2027 y procedimientos, con fecha de consulta.
 - `SECURITY.md` — RLS, storage privado, auditoría sanitizada.
-- `DOCUMENT-TEMPLATES.md` — Excel/Word/PDF generados en runtime Vercel.
+- `DOCUMENT-TEMPLATES.md` — Excel/Word/PDF generados en runtime Node / VPS OCI.
 - `TESTING.md` — cómo correr pruebas y qué cubren.
 - `SOURCE-INVENTORY.md` — inventario SIN datos personales de los archivos D:\.
