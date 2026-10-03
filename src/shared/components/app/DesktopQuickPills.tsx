@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { ArrowRight, ArrowsLeftRight } from "@phosphor-icons/react"
 import { TransferDocumentsButton } from "@/features/transferir/components/TransferDocumentsButton"
+import { useFloatingChat } from "@/features/asistente/context/FloatingChatContext"
 import { shouldPrefetchRoute } from "./navigation"
 
 const PILLS = [
@@ -11,6 +12,8 @@ const PILLS = [
 ]
 
 export function DesktopQuickPills() {
+  const { openChat } = useFloatingChat()
+
   return (
     <div style={{ marginBottom: "var(--space-6)" }}>
       <div
@@ -52,6 +55,12 @@ export function DesktopQuickPills() {
           <Link
             key={pill.href}
             href={pill.href}
+            onClick={(e) => {
+              if (pill.href === "/asistente") {
+                e.preventDefault()
+                openChat()
+              }
+            }}
             prefetch={shouldPrefetchRoute(pill.href) ? undefined : false}
             className="hover-lift pressable"
             style={{
