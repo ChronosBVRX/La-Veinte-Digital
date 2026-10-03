@@ -17,7 +17,7 @@ BASE = os.getcwd()
 SHARED_SECRET = os.getenv("BOT_API_SHARED_SECRET", "")
 
 CORS_ORIGIN = os.getenv(
-    "BOT_CORS_ORIGIN", "https://la-veinte-digital.vercel.app"
+    "BOT_CORS_ORIGIN", "https://la20.com.mx"
 )
 
 MAX_HISTORY_LENGTH = 20

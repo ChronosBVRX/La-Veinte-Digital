@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Automatiza bump + build + latest.json + deploy OTA Android
 # Uso: ./scripts/android-release-auto.sh [patch|minor|major] ["notas"]
-# Requiere: vercel login (una vez) o VERCEL_TOKEN en env, y JAVA_HOME al JBR
+# Requiere: JAVA_HOME al JBR, despliegue a producción vía npm run deploy:oci
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -60,7 +60,7 @@ d["versionName"]=vn
 d["publishedAt"]=at
 d["apk"]["sha256"]=sha
 d["apk"]["size"]=int(size)
-d["apk"]["url"]="https://la-veinte-digital.vercel.app/LaVeinteDigital.apk"
+d["apk"]["url"]="https://la20.com.mx/LaVeinteDigital.apk"
 d["releaseNotes"]=[notes]
 json.dump(d, open(path,"w"), indent=2, ensure_ascii=False)
 print(json.dumps(d, indent=2, ensure_ascii=False))
@@ -77,25 +77,8 @@ else
   echo "Sin cambios para commit"
 fi
 
-# 6) Deploy si hay credenciales vercel
-# Carga VERCEL_TOKEN de .env.local si no está en env
-if [ -z "${VERCEL_TOKEN:-}" ] && [ -f ".env.local" ]; then
-  VERCEL_TOKEN=$(grep -E "^VERCEL_TOKEN=" .env.local | sed -E 's/^VERCEL_TOKEN="?([^"]*)"?/\1/' | tail -1)
-  export VERCEL_TOKEN
-fi
-if command -v vercel >/dev/null 2>&1 || npx vercel --version >/dev/null 2>&1; then
-  if [ -f "$HOME/.vercel/auth.json" ] || [ -n "${VERCEL_TOKEN:-}" ]; then
-    echo "Desplegando a Vercel..."
-    if [ -n "${VERCEL_TOKEN:-}" ]; then
-      npx vercel --prod --yes --token "$VERCEL_TOKEN"
-    else
-      npx vercel --prod --yes
-    fi
-    echo "Verifica: curl -s https://la-veinte-digital.vercel.app/android/stable/latest.json | grep versionName"
-  else
-    echo "Vercel no logueado. Ejecuta 'vercel login' o exporta VERCEL_TOKEN y re-ejecuta 'vercel --prod --yes'."
-    echo "O haz git push origin main para que Vercel Git Integration despliegue."
-  fi
-else
-  echo "Vercel CLI no instalado. Instala con 'npm i -g vercel' y luego 'vercel --prod --yes'."
-fi
+# 6) Despliegue a OCI VPS
+echo "Para desplegar a producción en el VPS OCI ejecuta:"
+echo "  npm run deploy:oci"
+echo "Y verifica en:"
+echo "  curl -s https://la20.com.mx/android/stable/latest.json | grep versionName"

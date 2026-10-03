@@ -1,6 +1,6 @@
 # Deploy — Persistencia tolerante del tarjetón (2026-08-12)
 
-> **Estado: ÉXITO.** Migración aplicada a producción y código desplegado en Vercel.
+> **Estado: ÉXITO.** Migración aplicada a producción y código desplegado en OCI VPS.
 
 ## Resumen
 
@@ -33,7 +33,7 @@ validación estricta.**
 - Verificación read-only posterior: `safe_numeric_cast` existe y `v1`
   contiene `safe_numeric_cast`, `v_obs_clean` y `obs_insert_failed`.
 
-### Código (Vercel)
+### Código (OCI VPS)
 
 - Deploy: `dpl_GfXfXwVA98gv9UeWukGcxWpePSXM` → `https://la20.com.mx`
 - Sanitización en cliente (`useTarjetonImporter`) y servidor
@@ -73,7 +73,7 @@ aún presentes).
 
 ## Rollback
 
-- Código: redeploy del commit anterior con `vercel --prod`.
+- Código: redeploy del commit anterior con `npm run deploy:oci`.
 - BD: reemplazar `confirm_imported_payslip_v1` con la definición 017
   (backup: `remote-v1-backup-20260812.json`, carpeta temporal local) y
   `DROP FUNCTION public.safe_numeric_cast(TEXT)`.

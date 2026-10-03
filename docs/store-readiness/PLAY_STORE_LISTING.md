@@ -96,7 +96,7 @@ iniciar sesión.
 | ¿Requiere cuenta? | Sí (cualquiera puede crearla con correo; fuentes visibles sin cuenta) |
 | ¿Obtiene información del usuario? | Sí (perfil, datos laborales, correo — ver matriz Data Safety) |
 | ¿Comparte datos con terceros? | Solo sub-procesadores declarados (Supabase, Firebase FCM) |
-| ¿Usa App Links? | Sí (`la20.com.mx`, `la-veinte-digital.vercel.app`) |
+| ¿Usa App Links? | Sí (`la20.com.mx`, `la20.com.mx`) |
 | ¿Contenido generado por IA? | Sí — con mecanismo interno “Reportar contenido” en cada salida |
 | ¿Funciones de salud/finanzas/noticias? | No — calculadoras de nómina = cálculo laboral orientativo, no servicio financiero |
 

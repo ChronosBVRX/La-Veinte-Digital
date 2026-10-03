@@ -5,7 +5,7 @@
 - Working tree limpio.
 - Desarrollo local completo (migraciones, pruebas, integración) OK.
 - Acceso a Supabase dashboard (project `ragktminwduiggvaoeix`).
-- Acceso a Vercel dashboard (project `la-veinte-digital`).
+- Acceso a panel de control (project `la-veinte-digital`).
 
 ## Estado pre-aplicación (verificado 2026-08-05)
 - profiles: 2 filas.
@@ -28,7 +28,7 @@
 | 4 | Aplicar SQL remoto (`docs/worker-profile/remote/apply-worker-profile-persistence.sql`) | Operador | COMMIT exitoso |
 | 5 | Verificación read-only (`verify-worker-profile-persistence.sql`) | Operador | Todas las ASSERT pasan |
 | 6 | Smoke tests API (login, register, profile, `/api/health`) | Operador | 200/201 OK |
-| 7 | Deploy frontend (Vercel) | Operador | Build OK |
+| 7 | Deploy frontend (OCI VPS) | Operador | Build OK |
 | 8 | Smoke tests navegador (REMOTE_SMOKE_TESTS.md) | Operador | 20/20 |
 | 9 | Observación (logs, errores, métricas) | Operador | 1h sin incidencias |
 | 10 | Rollback si aplica (`docs/worker-profile/remote/rollback-worker-profile-persistence.sql`) | Operador | Solo si NO-GO |

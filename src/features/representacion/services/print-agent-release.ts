@@ -92,7 +92,7 @@ export function extractVersionFromTag(tag: string): string {
 
 /**
  * Resuelve la URL de descarga siguiendo la jerarquía estricta:
- * 1. PRINT_AGENT_DOWNLOAD_URL[_X64|_X86] si está definido (override absoluto en Vercel/entorno)
+ * 1. PRINT_AGENT_DOWNLOAD_URL[_X64|_X86] si está definido (override absoluto en variables de entorno)
  * 2. PRINT_AGENT_RELEASE_TAG (construye URL al tag indicado)
  * 3. Fallback seguro a DEFAULT_PRINT_AGENT_RELEASE_TAG (print-agent-v1.0.0)
  * 

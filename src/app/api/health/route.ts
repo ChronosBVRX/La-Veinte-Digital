@@ -1,8 +1,7 @@
 export function GET() {
   const commitSha =
-    process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ||
-    process.env.VERCEL_GIT_COMMIT_SHA ||
     process.env.APP_COMMIT_SHA ||
+    process.env.GIT_COMMIT_SHA ||
     "dev"
 
   return Response.json(

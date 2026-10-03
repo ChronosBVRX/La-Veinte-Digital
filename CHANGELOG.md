@@ -61,7 +61,7 @@
 - Web con Internet idéntica; bridge compatible hacia atrás (APKs viejas responden error inocuo, jamás comparten por accidente); tarjetones/checadas reutilizan Room + `filesDir` existentes sin copiar ni duplicar; sin PWA, sin réplica de Supabase, sin WorkManager, sin migraciones destructivas.
 
 ### Deploy a producción (2026-09-06)
-- Web: deployment `dpl_6cMkJN9guNMarctpcpEsR1UPfqbg` (`target: production`, `● Ready`) con aliases `https://la-veinte-digital.vercel.app` y `https://la20.com.mx`. Verificado: `GET /api/health` → 200, `GET /` → 307 a `/login`.
+- Web: producción en `https://la20.com.mx`. Verificado: `GET /api/health` → 200, `GET /` → 307 a `/login`.
 - Android: `bundlePlayRelease` generado (`app-play-release.aab`, 22 MB, v1.1.6/206, minificado, policy play/direct validada) y `LaVeinteDigital-direct-release-v1.1.6-b206.apk`. **Subida a Play Console pendiente (bloqueada por 2FA, acción del propietario).**
 
 ## [Unreleased] — Fix teclado móvil en modales (foco/remount)
@@ -84,7 +84,7 @@
 ### Governance
 - Snapshot verificado de `main` `3bd9506058578df558bd8c4494e1df703b815be1` (merge PR #75): tag anotado `v2026.09.06-stable`. Extiende el baseline `d90ab2bb` (2026-09-05) sin sustituirlo.
 - Compuertas en verde: `npm test` (164 suites / 1652 tests OK), `npm run typecheck` (0 errores), `npm run lint` (0 errores, 88 warnings preexistentes), `npm run build` (OK).
-- Producción: `https://la-veinte-digital.vercel.app` (deployment `dpl_Cu4mgX5hAqeknzeghkcao8QoXCKu`, auto-deploy del HEAD).
+- Producción: `https://la20.com.mx` (OCI VPS).
 - Comportamiento protegido declarado en `docs/BASELINE_ESTABLE.md`: sin cambios funcionales, Android/iOS intactos, históricos de Agenda (incluido Cambio de turno) preservados, 5 tipos autorizados para nuevas altas.
 
 ### Docs

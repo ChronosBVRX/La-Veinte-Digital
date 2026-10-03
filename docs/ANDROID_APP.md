@@ -2,7 +2,7 @@
 
 > Documentación técnica de referencia para agentes futuros.
 > Ámbito: `android-app/` (shell nativo Compose) que embebe el Home web
-> (`https://la-veinte-digital.vercel.app`) en un WebView persistente.
+> (`https://la20.com.mx`) en un WebView persistente.
 > Última actualización: **2026-09-05 — v1.1.3 (versionCode 203) — Stable Baseline**.
 > Nota de gobernanza: Cambios estrictamente documentales (`docs-only`) **NO requieren bump de versión** del APK ni regeneración de binarios.
 
@@ -22,7 +22,7 @@ funcionalidad ni provocar regresiones**. Antes de tocar código, lee también
   - `direct`: Canal sideload con pipeline de actualización OTA completo (`SELF_UPDATE_ENABLED = true`, `REQUEST_INSTALL_PACKAGES` activo, verificación SHA-256 de APK).
 - **Idioma de UI**: español (es-MX). No se usa i18n.
 - **Modelo**: shell híbrido. El WebView interno carga SIEMPRE el Home web desde
-  `https://la-veinte-digital.vercel.app` (`DEFAULT_URL` en `MainActivity.kt`).
+  `https://la20.com.mx` (`DEFAULT_URL` en `MainActivity.kt`).
   El web (Next.js) contiene login/auth Supabase, dashboard, calculadoras,
   tarjetón web, etc. El shell nativo añade: actualizaciones OTA (en direct), biometría,
   bóveda de credenciales IMSS, captura de tarjetones de los portales oficiales,
@@ -155,13 +155,12 @@ Checklist de publicación (ejecutado en las versiones 1.0.44/145/146):
 1. **Bump** en `android-app/app/build.gradle.kts`: `versionCode` (único y
    creciente) y `versionName` (`X.Y.Z`).
 2. **Compilar**: `:app:assembbleDebug`.
-3. **Copiar** el APK a `public/LaVeinteDigital.apk` (raíz de `vercel.json`).
 4. **SHA-256** del APK (verificar 64 dígitos en minúsculas).
 5. **Actualizar** `public/android/stable/latest.json`: `versionCode`,
    `versionName`, `publishedAt`, `apk.url`, `apk.sha256`, `apk.size`, y
    `releaseNotes` con los cambios en español.
-6. **Deploy**: `vercel --prod --yes` (solicitar aprobación/confirmación).
-7. **Verificar**: `HEAD https://la-veinte-digital.vercel.app/LaVeinteDigital.apk`
+6. **Deploy**: `npm run deploy:oci` (despliegue a producci�n en OCI VPS).
+7. **Verificar**: `HEAD https://la20.com.mx/LaVeinteDigital.apk`
    → 200 y tamaño coincidente; GET `latest.json` → versionName/sha coincidentes.
 
 Estado actual de producción: **1.0.63 / 163** — SHA
@@ -204,7 +203,7 @@ Detalles del grafo:
 
 ### Deep links (AndroidManifest.xml)
 
-- `https://la-veinte-digital.vercel.app` (`autoVerify`) → verificación de
+- `https://la20.com.mx` (`autoVerify`) → verificación de
   vínculo de app.
 - `com.laveintedigital.app` (esquema propio).
 - Ambos en `MainActivity` (singleTask). El URI llega por `onNewIntent` →
@@ -217,7 +216,7 @@ Detalles del grafo:
 
 ### 6.1 `routing/Domains.kt` — listas de hosts
 
-- `INTERNAL_HOSTS`: `la-veinte-digital.vercel.app`, `laveinte-digital.vercel.app`,
+- `INTERNAL_HOSTS`: `la20.com.mx`, `www.la20.com.mx`,
   `la-veinte-digital.pages.dev`, `la-veinte-digital.localhost`.
 - `EXTERNAL_WEBVIEW_HOSTS`: gobierno/SNTSS que deben abrirse dentro del navegador
   integrado (`imss.gob.mx`, `sat.gob.mx`, `sntss.org.mx`, `gob.mx`,
@@ -1078,6 +1077,5 @@ Solo se migró el flujo Tu Perfil (refactor visual, lógica intacta):
 
 - `public/android/stable/latest.json` — manifest OTA.
 - `public/LaVeinteDigital.apk` — binario publicado.
-- `vercel.json` — rewrites del host.
 - `android-app/gradle/libs.versions.toml` — catálogo de versiones.
 - `android-app/app/build.gradle.kts` — versión + signing.

@@ -75,8 +75,8 @@ Todas las conexiones son HTTPS. No desactivar ATS.
 
 ### Universal Links / AASA
 
-- Crear `https://la-veinte-digital.vercel.app/.well-known/apple-app-site-association` con
-  `applinks:la-veinte-digital.vercel.app` y el `appID` del team.
+- Crear `https://la20.com.mx/.well-known/apple-app-site-association` con
+  `applinks:la20.com.mx` y el `appID` del team.
 - Tener el dominio en el App ID Capabilities → Associated Domains.
 
 ### Mínimo contenido nativo suficiente (4.2 Minimum Functionality)

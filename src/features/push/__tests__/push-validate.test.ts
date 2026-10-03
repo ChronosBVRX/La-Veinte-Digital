@@ -36,11 +36,11 @@ describe("validatePushSend", () => {
   })
 
   it("accepts an internal or relative destination", () => {
-    const abs = validatePushSend({ title: "t", message: "m", destination: "https://la-veinte-digital.vercel.app/documentos-personales" })
+    const abs = validatePushSend({ title: "t", message: "m", destination: "https://la20.com.mx/documentos-personales" })
     expect(abs.ok).toBe(true)
     const rel = validatePushSend({ title: "t", message: "m", destination: "/documentos" })
     expect(rel.ok).toBe(true)
-    if (rel.ok) expect(rel.value.destination).toContain("https://la-veinte-digital.vercel.app")
+    if (rel.ok) expect(rel.value.destination).toContain("https://la20.com.mx")
   })
 
   it("rejects userIds that are not UUIDs or not an array", () => {

@@ -74,7 +74,7 @@
 ## Rollback de frontend si falla
 
 Si algún smoke test falla (401/403/500 en rutas no esperadas):
-1. Revertir deploy de Vercel al último release estable.
+1. Revertir deploy en OCI VPS al último release estable.
 2. Mantener migración aplicada (no hace daño sin frontend).
 3. Investigar causa.
 4. Re-ejecutar solo el paso que falló.

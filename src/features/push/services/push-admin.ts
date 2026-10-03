@@ -3,7 +3,7 @@ import { createClient as createServiceRoleClient } from "@supabase/supabase-js"
 /**
  * Server-only push sending via Firebase Admin/FCM.
  *
- * Secrets live EXCLUSIVELY in environment (Vercel/Supabase), never in the repo:
+ * Secrets live EXCLUSIVELY in environment (OCI VPS/Supabase), never in the repo:
  *  - FIREBASE_SERVICE_ACCOUNT_JSON  → Firebase Admin service-account JSON (string)
  *  - SUPABASE_SERVICE_ROLE_KEY      → service-role key (token cleanup on UNREGISTERED)
  *
@@ -28,7 +28,7 @@ export interface PushPayload {
   notificationId?: number
 }
 
-const CANONICAL_ORIGIN = "https://la-veinte-digital.vercel.app"
+const CANONICAL_ORIGIN = "https://la20.com.mx"
 
 export function sanitizeDestination(destination?: string | null): string | undefined {
   if (!destination) return undefined

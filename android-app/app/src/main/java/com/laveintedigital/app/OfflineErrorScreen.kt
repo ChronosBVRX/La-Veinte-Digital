@@ -100,7 +100,7 @@ fun OfflineErrorScreen(
                     ),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("Abrir modo sin conexión (Mis documentos)", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    Text("Abrir modo sin conexión", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                 }
                 Spacer(Modifier.height(12.dp))
                 OutlinedButton(

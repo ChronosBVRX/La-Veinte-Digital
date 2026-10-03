@@ -3,17 +3,17 @@
  * Puente en Vivo de Consumo Cero en Reposo (Event-Driven Real-Time Bridge)
  * para CAV v1.0 — HGR No. 1 Morelia (http://11.1.17.44:8080/acceso-hgr1)
  *
- * Arquitectura optimizada para proteger al 100% la cuota gratuita de Supabase y Vercel:
+ * Arquitectura optimizada para proteger al 100% los recursos de Supabase y el servidor VPS:
  * 1. CERO polling continuo a internet en reposo:
  *    - Escucha un canal WebSocket ligero de Supabase Realtime Broadcast (`parking-bridge:<delegationId>`)
- *      que no consume invocaciones de Vercel ni consultas SQL en reposo, despertando en ~25ms
+ *      que no consume invocaciones del servidor ni consultas SQL en reposo, despertando en ~25ms
  *      únicamente cuando un usuario hace clic en una acción en la web.
  *    - Respaldo piggyback sobre el latido existente de 20s (`/api/union/print-agent/heartbeat`),
  *      que informa `parking_pending_count` sin agregar peticiones adicionales.
  * 2. Sincronización Diferencial LAN con Caché en Disco Local (`parking-fingerprints.json`):
  *    - Consulta `11.1.17.44:8080` cada 45s exclusivamente por la red local del hospital (gratis).
  *    - Compara contra el archivo local `parking-fingerprints.json` en `%APPDATA%\LaVeintePrintAgent`.
- *    - Si nadie modificó nada en `11.1.17.44:8080`, hace 0 peticiones a Supabase/Vercel (incluso al
+ *    - Si nadie modificó nada en `11.1.17.44:8080`, hace 0 peticiones a Supabase/servidor (incluso al
  *      reiniciar la PC por la mañana). Solo sube a la nube la fila exacta cuando detecta un cambio real.
  */
 

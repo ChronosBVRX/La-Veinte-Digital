@@ -153,7 +153,6 @@ la-veinte-digital/
 ├── next.config.ts                  # Next.js config
 ├── tsconfig.json                   # TypeScript config
 ├── vitest.config.ts                # Vitest config
-├── vercel.json                     # Vercel rewrites
 └── package.json
 ```
 
@@ -259,7 +258,7 @@ Variables del bot (`bot-api/.env`):
 |---|---|
 | `OPENAI_API_KEY` | API key de OpenAI (embeddings + respuestas) |
 | `BOT_API_SHARED_SECRET` | Secreto requerido por `/health` y `/consulta` (header `X-Bot-Secret`) |
-| `BOT_CORS_ORIGIN` | Origen permitido (por defecto `https://la-veinte-digital.vercel.app`) |
+| `BOT_CORS_ORIGIN` | Origen permitido (por defecto `https://la20.com.mx`) |
 
 O con Docker:
 
@@ -286,14 +285,14 @@ actualización de doc + publicación OTA documentada en ese archivo.
 
 ## Despliegue
 
-El proyecto está configurado para desplegarse en Vercel:
+El proyecto se despliega exclusivamente en el VPS de Oracle Cloud Infrastructure (OCI):
 
 ```bash
-# Despliegue manual
-vercel --prod --yes
+# Despliegue automatizado a producción en VPS OCI
+npm run deploy:oci
 ```
 
-El archivo `vercel.json` expone `/health` mediante el endpoint independiente `/api/health`.
+El script `scripts/deploy-oci-web.mjs` compila el bundle autónomo de Next.js, lo transfiere vía SCP a `/opt/laveinte-app`, compila el contenedor Docker nativo ARM64 y verifica el endpoint de salud `https://la20.com.mx/api/health`.
 
 ---
 

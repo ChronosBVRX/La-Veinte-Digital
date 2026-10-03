@@ -1,7 +1,7 @@
 # 🚨 Procedimientos de Reversión en Producción (Rollback Playbook) — La Veinte Digital
 
 > **Última actualización:** 2026-09-10  
-> **Ámbito:** Vercel (Web), Supabase (PostgreSQL), Android (Google Play & Sideload), iOS (App Store)  
+> **Ámbito:** OCI VPS (Web en la20.com.mx), Supabase (PostgreSQL), Android (Google Play & Sideload), iOS (App Store)  
 > **Objetivo permanente:** Restauración inmediata del servicio, cero pérdida de datos de trabajadores y mitigación de incidentes con mínima fricción operativa.
 
 ---
@@ -80,12 +80,6 @@ Si el incidente se debe a una variable de entorno errónea:
    docker compose restart web
    ```
 
-### D. Nota sobre Vercel (Pasarela de Redirección)
-Vercel opera únicamente como pasarela de redirección HTTP 308 permanente hacia `https://la20.com.mx`. No ejecuta lógica de negocio ni SSR de producción. En caso de requerir reconfigurar o desplegar `vercel.json`:
-```bash
-npx vercel --prod
-```
-
 ---
 
 ## 3. Reversión en Supabase (Base de Datos PostgreSQL)
@@ -156,7 +150,7 @@ Debido a los mecanismos de seguridad de Android OS, **un dispositivo físico NUN
    ```bash
    ./gradlew assembleDirectRelease
    ```
-2. Subir el binario resultante al almacenamiento oficial de descargas directas (`data/releases/` o Vercel static assets).
+2. Subir el binario resultante al almacenamiento oficial de descargas directas (`data/releases/` o servidor VPS / public/).
 3. El servicio de auto-actualización in-app detectará el nuevo `versionCode` y notificará a los trabajadores para su actualización automática.
 
 ---
@@ -196,7 +190,7 @@ Apple no permite conmutar a una versión previa una vez aprobada y lanzada en la
 Estado: INVESTIGANDO / MITIGANDO / RESUELTO
 Impacto: [Descripción del impacto en trabajadores]
 Componente afectado: [Web / Base de datos / Android / iOS]
-Acción tomada: [Rollback en Vercel a dpl_xxx / Pausa en Google Play / Hotfix]
+Acción tomada: [Rollback/Reiniciar en OCI VPS / Pausa en Google Play / Hotfix]
 Responsable: [Nombre]
 Hora de inicio: [YYYY-MM-DD HH:MM UTC]
 Próxima actualización: [En 15 minutos]

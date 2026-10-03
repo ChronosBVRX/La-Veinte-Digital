@@ -35,7 +35,7 @@ La navegación externa e interna replica exactamente los principios de seguridad
    - `imss.gob.mx`, `sat.gob.mx`, `sntss.org.mx`, `gob.mx`, `stps.gob.mx`.
    - Se cargan dentro de una vista externa dedicada para mantener al usuario dentro de la experiencia asistida.
 5. **Navegación Interna Segura (`Domains.internalHosts`)**:
-   - `la-veinte-digital.vercel.app` se mantiene en el WebView principal.
+   - `la20.com.mx` se mantiene en el WebView principal.
 
 ---
 

@@ -903,7 +903,7 @@ internal fun bridgeResultJs(req: String, payload: String): String =
 
 /**
  * Builds the origin (scheme://authority) of an internal URL. Given
- * `https://la-veinte-digital.vercel.app` this returns `https://la-veinte-digital.vercel.app`
+ * `https://la20.com.mx` this returns `https://la20.com.mx`
  * — `substringBeforeLast('/')` is NOT suitable because it corrupts a bare origin into `https:/`.
  *
  * Implemented with plain string parsing (no android.net.Uri) so it is deterministic and unit-testable

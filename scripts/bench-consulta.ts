@@ -3,7 +3,7 @@
  *
  * Reproduce EXACTAMENTE el camino del route handler:
  *   OpenAI embedding → retrieveEvidenceWithMetrics (RPCs autenticadas vía
- *   PostgREST+RLS, idénticas a las que llama /api/consulta en Vercel)
+ *   PostgREST+RLS, idénticas a las que llama /api/consulta en producción / VPS OCI)
  *   → fusión pura → prompt con [S#] → LLM streaming (TTFT real).
  *
  * Uso: node --import tsx scripts/bench-consulta.ts [vueltas=3]
@@ -95,7 +95,7 @@ async function main() {
     throw new Error("Faltan credenciales (NEXT_PUBLIC_SUPABASE_*, E2E_*, OPENAI key)");
   }
 
-  // Sesión REAL autenticada: mismos grants/RPCs que usa /api/consulta en Vercel.
+  // Sesión REAL autenticada: mismos grants/RPCs que usa /api/consulta en producción / VPS OCI.
   const admin = createClient(SUPABASE_URL, SUPABASE_ANON);
   const { data: authData, error: authErr } = await admin.auth.signInWithPassword({
     email: E2E_EMAIL,

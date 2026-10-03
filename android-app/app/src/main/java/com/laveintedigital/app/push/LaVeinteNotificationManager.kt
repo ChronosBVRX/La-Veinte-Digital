@@ -92,7 +92,7 @@ object LaVeinteNotificationManager {
 
     /**
      * Shows a notification. [deepLink] should be a full internal URL (e.g.
-     * `https://la-veinte-digital.vercel.app/documentos-personales`); tapping it opens the app and,
+     * `https://la20.com.mx/documentos-personales`); tapping it opens the app and,
      * after biometric (if enabled), the web navigates to that destination.
      */
     fun notify(

@@ -4,7 +4,7 @@
 > **Host Canónico:** `https://la20.com.mx`  
 > **API de Base de Datos / Auth:** `https://supabase.la20.com.mx`  
 > **Fecha de Migración:** 2026-09-30  
-> **Estado:** 100% ACTIVO Y OPERATIVO EN OCI (Vercel retirado a redirección permanente 308)
+> **Estado:** 100% ACTIVO Y OPERATIVO EN OCI VPS
 
 ---
 
@@ -33,7 +33,7 @@ npm run deploy:oci
 2. **Staging Limpio:** Ensambla en `.next/deploy-staging/` el código compilado (`server.js`), las dependencias mínimas de producción (`node_modules`), los activos estáticos (`.next/static`) y los recursos públicos (`public/`).
 3. **Generación de Configuración Docker:** Incluye `Dockerfile.web` y genera `docker-compose.yml` optimizado con healthchecks periódicos.
 4. **Empaquetado Comprimido:** Genera `deploy-web.tar.gz`.
-5. **Sanitización de Variables:** Limpia variables de CI/Vercel de `.env.production.local` y prepara `/opt/laveinte-app/.env`.
+5. **Sanitización de Variables:** Prepara `/opt/laveinte-app/.env` a partir de `.env.production.local`.
 6. **Transferencia Segura:** Sube el bundle y las variables vía SCP utilizando la llave SSH del servidor.
 7. **Despliegue Cero-Downtime:** En el VPS extrae los archivos, compila la imagen Docker nativa ARM64 (`docker compose build web`), reinicia el contenedor (`docker compose up -d web`) y valida el endpoint `http://127.0.0.1:3000/api/health`.
 
@@ -57,7 +57,7 @@ En el servidor VPS reside en `/opt/laveinte-app/.env` con permisos estrictos `ch
 
 ## 4. Tareas Programadas (Crons Nativos en Linux)
 
-Los crons que anteriormente dependían de Vercel y GitHub Actions ahora se ejecutan de forma **100% nativa e independiente** en el cron del sistema operativo Linux en el VPS:
+Los crons se ejecutan de forma **100% nativa e independiente** en el cron del sistema operativo Linux en el VPS:
 
 ### Script Ejecutor:
 `/opt/laveinte-app/scripts/run-cron.sh` (o `scripts/run-cron.sh` en el repo).
@@ -94,26 +94,7 @@ psql "postgresql://postgres:<PASSWORD>@supabase.la20.com.mx:5432/postgres" -f su
 
 ---
 
-## 6. Pasarela de Redirección desde Vercel (Fallback)
-
-Para proteger a usuarios con versiones anteriores de la app o enlaces web guardados:
-- El proyecto en Vercel mantiene `vercel.json` con una redirección HTTP 308 permanente:
-  ```json
-  {
-    "redirects": [
-      {
-        "source": "/(.*)",
-        "destination": "https://la20.com.mx/$1",
-        "permanent": true
-      }
-    ]
-  }
-  ```
-- Cualquier solicitud a `https://la-veinte-digital.vercel.app/*` es redirigida instantáneamente a `https://la20.com.mx/*`.
-
----
-
-## 7. Procedimiento de Rollback en OCI
+## 6. Procedimiento de Rollback en OCI
 
 Si un despliegue presenta incidencias en producción:
 

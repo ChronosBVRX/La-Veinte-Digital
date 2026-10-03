@@ -1,18 +1,19 @@
 {
   "channel": "stable",
-  "versionCode": 212,
-  "versionName": "1.2.2",
+  "versionCode": 215,
+  "versionName": "1.2.5",
   "minimumVersionCode": 100,
   "forceUpdate": false,
-  "publishedAt": "2026-09-28T23:55:00.000Z",
+  "publishedAt": "2026-10-03T03:46:00.000Z",
   "apk": {
     "url": "https://la20.com.mx/LaVeinteDigital.apk",
-    "sha256": "e4cac02f8e1b82104998fbff83ef977cd674b0b88f0bbee6395fbe1dfd77583f",
-    "size": 25132140
+    "sha256": "2a90a0e0afbed8a89dd46cbe79cfca5afd3dd2b70e32124008c4d0fe4b128ba0",
+    "size": 25132216
   },
   "releaseNotes": [
-    "Modo sin conexión inmediato al abrir la app sin Internet: nunca muestra la pantalla cruda de error del navegador (ERR_INTERNET_DISCONNECTED) y permite acceder directo a tus documentos guardados, Mi Quincena, Mi Agenda y Calculadoras.",
-    "Recuperación automática y segura de conexión cuando vuelve Internet.",
-    "Selector claro en «Mi tarjetón» con las 2 opciones oficiales (Tu Perfil IMSS y Tarjetón Digital clásico), guía de qué contraseña usar en cada una y protección inteligente contra bloqueo de cuenta."
+    "Navegación del Modo Sin Conexión renovada: barra superior de pestañas fijas con iconos para Documentos PDF, Mi Quincena, Mi Agenda y Calculadoras.",
+    "Botón unificado «Abrir modo sin conexión» en la pantalla de alerta sin conexión para acceso directo e intuitivo a todo el centro offline.",
+    "Calculadoras Rápidas Sin Conexión optimizadas para simular Fondo de Ahorro (002+011), Aguinaldo y Horas Extra con o sin tarjetón sincronizado.",
+    "Conmutador de rol trabajador y representante sindical (v1.2.5 b215)."
   ]
 }
