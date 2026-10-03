@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { spawnSync } from "node:child_process";
 import {
   generateSilenceWav,
   monoToStereoPcmWav,
@@ -9,6 +10,15 @@ import {
   applyGainToPcmWav,
   getPcmWavDurationMs,
 } from "../smart-mixer";
+
+const hasFfmpeg = (() => {
+  try {
+    const res = spawnSync("ffmpeg", ["-version"], { stdio: "ignore" });
+    return res.status === 0;
+  } catch {
+    return false;
+  }
+})();
 
 function generateSineTone(frequencyHz: number, durationSec: number, sampleRate: number): Buffer {
   const numSamples = Math.round(durationSec * sampleRate);
@@ -107,7 +117,7 @@ describe("Regla Canónica de Formato de Audio y Resampling Real", () => {
 
   const testRates = [24000, 22050, 44100, 48000];
   for (const r of testRates) {
-    it(`Regla 4: Resampling real de ${r} Hz a 48000 Hz estéreo conserva duración y pitch (1000 Hz)`, async () => {
+    it.skipIf(!hasFfmpeg)(`Regla 4: Resampling real de ${r} Hz a 48000 Hz estéreo conserva duración y pitch (1000 Hz)`, async () => {
       const tone = generateSineTone(1000, 1.0, r);
       const canonical = await ensureCanonicalWavFormat(tone, "ffmpeg", 48000, 2);
 
