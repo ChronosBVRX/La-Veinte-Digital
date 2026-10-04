@@ -151,4 +151,65 @@ describe("FloatingChatWidget y FloatingChatContext", () => {
     expect(screen.queryByTestId("chat-assistant-body")).toBeNull()
     expect(screen.getByLabelText("Abrir asistente de derechos")).toBeTruthy()
   })
+
+  it("abre correctamente en entorno web con secuencia completa de puntero y micro-movimiento", () => {
+    render(
+      <FloatingChatProvider>
+        <FloatingChatWidget />
+      </FloatingChatProvider>
+    )
+
+    const fab = screen.getByLabelText("Abrir asistente de derechos")
+    expect(screen.queryByTestId("chat-assistant-body")).toBeNull()
+
+    // Secuencia real de mouse en escritorio con jitter de 2px (bajo el umbral de 8px)
+    fireEvent.pointerDown(fab, { clientX: 100, clientY: 100, button: 0 })
+    fireEvent.pointerMove(fab, { clientX: 102, clientY: 101 })
+    fireEvent.pointerUp(fab, { clientX: 102, clientY: 101 })
+    fireEvent.click(fab)
+
+    expect(screen.getByTestId("chat-assistant-body")).toBeTruthy()
+  })
+
+  it("un arrastre que supera el umbral no abre ni cierra accidentalmente el chat", () => {
+    render(
+      <FloatingChatProvider>
+        <FloatingChatWidget />
+      </FloatingChatProvider>
+    )
+
+    const fab = screen.getByLabelText("Abrir asistente de derechos")
+    expect(screen.queryByTestId("chat-assistant-body")).toBeNull()
+
+    // Arrastre real de 50px (supera el umbral de 8px)
+    fireEvent.pointerDown(fab, { clientX: 100, clientY: 100, button: 0 })
+    fireEvent.pointerMove(fab, { clientX: 150, clientY: 150 })
+    fireEvent.pointerUp(fab, { clientX: 150, clientY: 150 })
+    fireEvent.click(fab)
+
+    // Al haber sido arrastrado, el chat NO debe haberse abierto
+    expect(screen.queryByTestId("chat-assistant-body")).toBeNull()
+  })
+
+  it("en vista móvil la ventana del chat usa posicionamiento responsivo sin desfasarse", () => {
+    // Configurar ancho móvil
+    window.innerWidth = 390
+    window.dispatchEvent(new Event("resize"))
+
+    render(
+      <FloatingChatProvider>
+        <FloatingChatWidget />
+      </FloatingChatProvider>
+    )
+
+    const fab = screen.getByLabelText("Abrir asistente de derechos")
+    fireEvent.click(fab)
+
+    const dialog = screen.getByRole("dialog", { name: "Ventana del asistente laboral" })
+    expect(dialog).toBeTruthy()
+    expect(dialog.style.left).toBe("10px")
+    expect(dialog.style.right).toBe("10px")
+    expect(dialog.style.maxWidth).toBe("480px")
+  })
 })
+
