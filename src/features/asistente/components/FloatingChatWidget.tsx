@@ -4,6 +4,8 @@ import React, { useState, useRef, useEffect } from "react"
 import { Sparkle, X, Minus, ArrowsOutSimple, DotsSixVertical } from "@phosphor-icons/react"
 import { useFloatingChat, type ChatPosition } from "../context/FloatingChatContext"
 import { ChatAssistant } from "./ChatAssistant"
+import { Z_INDEX } from "@/shared/constants/z-index"
+import { useBackLayer } from "@/shared/navigation/useBackLayer"
 
 export function FloatingChatWidget() {
   const {
@@ -17,11 +19,16 @@ export function FloatingChatWidget() {
     setPosition,
   } = useFloatingChat()
 
+  // Integración canónica con el botón Atrás (Android/navegador)
+  useBackLayer(isOpen, closeChat, "floating-chat")
+
   // Estado interno para arrastrar la burbuja o la ventana
   const [isDragging, setIsDragging] = useState(false)
   const [bubblePos, setBubblePos] = useState<ChatPosition | null>(null)
   const [isMobile, setIsMobile] = useState(false)
 
+  const isPointerDownRef = useRef(false)
+  const isDraggingRef = useRef(false)
   const dragStartRef = useRef<{ startX: number; startY: number; initPosX: number; initPosY: number }>({
     startX: 0,
     startY: 0,
@@ -33,10 +40,12 @@ export function FloatingChatWidget() {
   const widgetRef = useRef<HTMLDivElement>(null)
   const bubbleRef = useRef<HTMLDivElement>(null)
 
-  // Detectar viewport móvil
+  const DRAG_THRESHOLD = 8
+
+  // Detectar viewport móvil respetando el breakpoint canónico del sistema (768px)
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 640)
+      setIsMobile(window.innerWidth < 768)
     }
     checkMobile()
     window.addEventListener("resize", checkMobile)
@@ -54,23 +63,31 @@ export function FloatingChatWidget() {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [isOpen, closeChat])
 
-  // Drag handler para la burbuja o el header
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, targetType: "bubble" | "window") => {
+  // Drag handler: solo inicia arrastre tras superar el umbral de movimiento (DRAG_THRESHOLD)
+  // para permitir clics nativos sin interferencias en web y móvil.
+  const handlePointerDown = (e: React.PointerEvent<HTMLElement>, targetType: "bubble" | "window") => {
+    if (e.button !== 0) return
+
     const target = e.target as HTMLElement
+    // Si se hizo click en un botón interactivo dentro del header (ej. cerrar o minimizar), no interferir
     if (target.closest("button") && !target.closest(".chat-bubble-toggle")) {
       return
     }
 
-    const currentTarget = e.currentTarget
-    try {
-      currentTarget.setPointerCapture(e.pointerId)
-    } catch {}
+    // En móviles la ventana no se arrastra para evitar desfasarla de la pantalla
+    if (targetType === "window" && isMobile) {
+      return
+    }
 
-    setIsDragging(true)
+    const currentElem = targetType === "bubble" ? bubbleRef.current : widgetRef.current
+    if (!currentElem) return
+
+    isPointerDownRef.current = true
+    isDraggingRef.current = false
     hasMovedRef.current = false
     dragTargetRef.current = targetType
 
-    const rect = currentTarget.getBoundingClientRect()
+    const rect = currentElem.getBoundingClientRect()
     dragStartRef.current = {
       startX: e.clientX,
       startY: e.clientY,
@@ -79,26 +96,35 @@ export function FloatingChatWidget() {
     }
   }
 
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging) return
+  const handlePointerMove = (e: React.PointerEvent<HTMLElement>) => {
+    if (!isPointerDownRef.current) return
 
     const deltaX = e.clientX - dragStartRef.current.startX
     const deltaY = e.clientY - dragStartRef.current.startY
+    const distance = Math.hypot(deltaX, deltaY)
 
-    if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+    // Solo capturar puntero y marcar arrastre si se supera el umbral de píxeles
+    if (!isDraggingRef.current && distance > DRAG_THRESHOLD) {
+      isDraggingRef.current = true
       hasMovedRef.current = true
+      setIsDragging(true)
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId)
+      } catch {}
     }
+
+    if (!isDraggingRef.current) return
 
     const isTargetBubble = dragTargetRef.current === "bubble"
     const currentElem = isTargetBubble ? bubbleRef.current : widgetRef.current
-    const targetWidth = currentElem?.offsetWidth || (isTargetBubble ? 64 : 380)
+    const targetWidth = currentElem?.offsetWidth || (isTargetBubble ? 64 : 384)
     const targetHeight = currentElem?.offsetHeight || (isTargetBubble ? 64 : 520)
 
     const rawX = dragStartRef.current.initPosX + deltaX
     const rawY = dragStartRef.current.initPosY + deltaY
 
-    const maxX = Math.max(0, window.innerWidth - targetWidth - 10)
-    const maxY = Math.max(0, window.innerHeight - targetHeight - 10)
+    const maxX = Math.max(10, window.innerWidth - targetWidth - 10)
+    const maxY = Math.max(10, window.innerHeight - targetHeight - 10)
 
     const safeX = Math.max(10, Math.min(maxX, rawX))
     const safeY = Math.max(10, Math.min(maxY, rawY))
@@ -110,26 +136,39 @@ export function FloatingChatWidget() {
     }
   }
 
-  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDragging) return
-    setIsDragging(false)
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId)
-    } catch {}
+  const handlePointerUp = (e: React.PointerEvent<HTMLElement>) => {
+    if (!isPointerDownRef.current) return
+    isPointerDownRef.current = false
+
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false
+      setIsDragging(false)
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId)
+      } catch {}
+      setTimeout(() => {
+        hasMovedRef.current = false
+      }, 60)
+      return
+    }
+
+    hasMovedRef.current = false
   }
 
   // Manejador del click en la burbuja: abrir si está cerrado, cerrar si está abierto
-  const handleBubbleClick = () => {
-    if (!hasMovedRef.current) {
-      if (isOpen) {
-        closeChat()
-      } else {
-        openChat()
-      }
+  const handleBubbleClick = (e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    if (hasMovedRef.current || isDraggingRef.current) {
+      return
+    }
+    if (isOpen) {
+      closeChat()
+    } else {
+      openChat()
     }
   }
 
-  const bottomNavOffset = isMobile ? 84 : 24
+  const bottomNavOffset = isMobile ? 76 : 24
   const rightOffset = isMobile ? 16 : 24
 
   return (
@@ -155,23 +194,7 @@ export function FloatingChatWidget() {
           aria-label="Ventana del asistente laboral"
           style={{
             position: "fixed",
-            ...(position
-              ? { left: `${position.x}px`, top: `${position.y}px` }
-              : isMobile
-              ? {
-                  left: "12px",
-                  right: "12px",
-                  bottom: "156px",
-                  maxHeight: "calc(100dvh - 176px)",
-                }
-              : {
-                  right: `${rightOffset}px`,
-                  bottom: "96px",
-                  width: "384px",
-                  maxHeight: "calc(100vh - 120px)",
-                }),
-            height: isMobile ? "min(520px, calc(100dvh - 176px))" : "min(560px, calc(100vh - 120px))",
-            zIndex: 49,
+            zIndex: Z_INDEX.sheet + 10,
             display: "flex",
             flexDirection: "column",
             background: "var(--card)",
@@ -180,8 +203,35 @@ export function FloatingChatWidget() {
             boxShadow: "0 20px 48px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.08)",
             overflow: "hidden",
             touchAction: "pan-y",
-            transformOrigin: "bottom right",
+            transformOrigin: isMobile ? "bottom center" : "bottom right",
             animation: "messengerBubblePop 0.22s cubic-bezier(0.16, 1, 0.3, 1)",
+            ...(isMobile
+              ? {
+                  left: "10px",
+                  right: "10px",
+                  maxWidth: "480px",
+                  margin: "0 auto",
+                  bottom: `${bottomNavOffset + 68}px`,
+                  maxHeight: `calc(var(--visual-viewport-height, 100dvh) - ${bottomNavOffset + 76}px - max(12px, env(safe-area-inset-top, 12px)))`,
+                  height: `min(540px, calc(var(--visual-viewport-height, 100dvh) - ${bottomNavOffset + 76}px - max(12px, env(safe-area-inset-top, 12px))))`,
+                }
+              : position
+              ? {
+                  left: `${position.x}px`,
+                  top: `${position.y}px`,
+                  width: "384px",
+                  maxWidth: "calc(100vw - 20px)",
+                  maxHeight: "calc(100vh - 40px)",
+                  height: "min(560px, calc(100vh - 120px))",
+                }
+              : {
+                  right: `${rightOffset}px`,
+                  bottom: "96px",
+                  width: "384px",
+                  maxWidth: "calc(100vw - 32px)",
+                  maxHeight: "calc(100vh - 120px)",
+                  height: "min(560px, calc(100vh - 120px))",
+                }),
           }}
         >
           {/* Cabecera / Drag Handle */}
@@ -196,7 +246,7 @@ export function FloatingChatWidget() {
               padding: "0.65rem 0.85rem",
               background: "linear-gradient(135deg, rgba(37,99,235,0.06), rgba(99,102,241,0.06))",
               borderBottom: "1px solid var(--border)",
-              cursor: isDragging ? "grabbing" : "grab",
+              cursor: isMobile ? "default" : isDragging ? "grabbing" : "grab",
               userSelect: "none",
               flexShrink: 0,
             }}
@@ -303,16 +353,30 @@ export function FloatingChatWidget() {
           onPointerUp={handlePointerUp}
           style={{
             position: "fixed",
-            ...(position
-              ? { left: `${position.x}px`, top: `${position.y}px` }
-              : isMobile
-              ? { right: `${rightOffset}px`, bottom: "156px" }
-              : { right: `${rightOffset}px`, bottom: "96px" }),
-            width: 260,
-            zIndex: 49,
+            zIndex: Z_INDEX.sheet + 10,
             touchAction: "none",
             userSelect: "none",
             animation: "messengerBubblePop 0.18s ease-out",
+            ...(isMobile
+              ? {
+                  right: `${rightOffset}px`,
+                  bottom: `${bottomNavOffset + 68}px`,
+                  width: "min(260px, calc(100vw - 32px))",
+                  maxWidth: "calc(100vw - 32px)",
+                }
+              : position
+              ? {
+                  left: `${position.x}px`,
+                  top: `${position.y}px`,
+                  width: 260,
+                  maxWidth: "calc(100vw - 32px)",
+                }
+              : {
+                  right: `${rightOffset}px`,
+                  bottom: "96px",
+                  width: 260,
+                  maxWidth: "calc(100vw - 32px)",
+                }),
           }}
         >
           <div
@@ -406,7 +470,7 @@ export function FloatingChatWidget() {
           ...(bubblePos
             ? { left: `${bubblePos.x}px`, top: `${bubblePos.y}px` }
             : { right: `${rightOffset}px`, bottom: `${bottomNavOffset}px` }),
-          zIndex: 55,
+          zIndex: Z_INDEX.sheet + 15,
           touchAction: "none",
           userSelect: "none",
         }}
@@ -421,8 +485,8 @@ export function FloatingChatWidget() {
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            width: 64,
-            height: 64,
+            width: isMobile ? 58 : 64,
+            height: isMobile ? 58 : 64,
             padding: "4px",
             background: isOpen
               ? "linear-gradient(135deg, #1e293b, #0f172a)"
@@ -450,7 +514,7 @@ export function FloatingChatWidget() {
               <Sparkle size={18} weight="duotone" color="#ffffff" style={{ flexShrink: 0 }} />
               <span
                 style={{
-                  fontSize: "0.62rem",
+                  fontSize: isMobile ? "0.58rem" : "0.62rem",
                   fontWeight: 700,
                   lineHeight: 1.15,
                   textAlign: "center",
