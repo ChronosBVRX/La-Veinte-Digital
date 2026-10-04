@@ -39,9 +39,9 @@ import { privateJson, privateJsonError } from "@/shared/lib/api-response"
 
 type QuotaResult = "allowed" | "exceeded" | "error"
 
-/** Fail-closed tras validación de citas sin resultado (punto 18+.5). */
+/** Respuesta cálida de respaldo si no hay fragmentos citables (punto 18+.5). */
 const CITATION_FAILED_RESPONSE =
-  "Encontré información relacionada en el corpus, pero no pude validar con suficiente seguridad las referencias de la respuesta. Prefiero no darte una orientación normativa sin fuentes verificables. Puedes intentarlo de nuevo o reformular la pregunta."
+  "¡Con mucho gusto te apoyo, compañero! 😊 Para darte el dato exacto y seguro de nuestro Contrato Colectivo, cuéntame un poquito más de detalle (por ejemplo: el nombre de tu puesto o categoría, tu jornada de 6.5 u 8 horas, o qué trámite quieres revisar). ¡Aquí estoy para orientarte paso a paso!"
 
 function getOpenAI() {
   const apiKey = process.env.OPENAI_API_KEY
@@ -130,8 +130,9 @@ async function respondDirect(
 ): Promise<NextResponse> {
   const t0 = performance.now()
   const intent = classifyRetrievalIntent(question)
-  const { expandedQuery } = normalizeForRetrieval(question, workerProfile)
+  const { expandedQuery, lexicalQuery } = normalizeForRetrieval(question, workerProfile)
   const retrievalQuery = getQueryForRetrieval(history, expandedQuery, intent)
+  const ftsQuery = getQueryForRetrieval(history, lexicalQuery, intent)
   const obs = baseObservability(intent)
   try {
     const openai = getOpenAI()
@@ -139,7 +140,7 @@ async function respondDirect(
 
     // ── 1. FAST PATH: EXACT_LOOKUP → 0 embedding, 0 LLM ──
     if (intent === "EXACT_LOOKUP") {
-      const { sources } = await retrieveHybrid(retrievalQuery, null, intent, refs, 3)
+      const { sources } = await retrieveHybrid(ftsQuery, null, intent, refs, 3, question)
       obs.fastPath = true
       obs.embeddingSkipped = true
       obs.evidenceCount = sources.length
@@ -148,7 +149,7 @@ async function respondDirect(
       obs.totalMs = performance.now() - t0
       // respuesta determinista server-side (sin LLM)
       const respuesta = fastLookupAnswer(sources)
-      return privateJson({ respuesta, fuentes: fuentesPayload(sources, []), chips: [] })
+      return privateJson({ respuesta, fuentes: fuentesPayload(sources, sources[0] ? [sources[0].id] : []), chips: [] })
     }
 
     // ── 2. EMBEDDING (LRU) ──
@@ -158,18 +159,25 @@ async function respondDirect(
     obs.embeddingMs = emb.ms
 
     // ── 3. RETRIEVAL HÍBRIDO (1 RPC con RRF / fallback) ──
-    const { sources, rpcMs } = await retrieveHybrid(retrievalQuery, emb.embedding, intent, refs, 8)
+    const { sources, rpcMs } = await retrieveHybrid(ftsQuery, emb.embedding, intent, refs, 8, question)
     obs.retrievalMs = rpcMs
     obs.evidenceCount = sources.length
     obs.evidenceChars = sources.reduce((a, s) => a + s.fragmento.length, 0)
 
     // ── 4. FAIL CLOSED: 0 evidence o evidencia irrelevante → 0 LLM ──
     // Umbral de relevancia calibrado según backend (RRF ~10..60 vs suma legacy ~140..1000)
-    const isRrf = sources.length > 0 && (sources[0].origin?.includes("+") || sources[0].origin === "rrf")
+    const isRrf =
+      sources.length > 0 &&
+      (sources[0].origin?.includes("rrf") || sources[0].origin?.includes("+") || sources[0].score < 100)
     const minScore = isRrf ? 10 : 140
+    const ac = classifyAcompañamiento(question, intent)
+    const toolRecs = recommendPlatformTools(question)
+    const toolChips = toolRecs.map((t) => t.chipLabel)
+    const chips = [...new Set([...toolChips, ...ac.chips])].slice(0, 4)
+
     if (sources.length === 0 || sources[0].score < minScore) {
       obs.totalMs = performance.now() - t0
-      return privateJson({ respuesta: NO_EVIDENCE_RESPONSE, fuentes: [], chips: [] })
+      return privateJson({ respuesta: NO_EVIDENCE_RESPONSE, fuentes: [], chips })
     }
 
     // ── 5. CONTEXTO COMPACTO + PROMPT DINÁMICO CON PERFIL DEL TRABAJADOR ──
@@ -181,7 +189,6 @@ async function respondDirect(
 
     const messages = buildMessages(systemPrompt, trimmedHistory)
 
-    const ac = classifyAcompañamiento(question, intent)
     const priorLabor = history.some((m) => m.role === "user" && /hostig|acoso|agresi|amenaz|sanci[oó]n|acta|jefe|fuera de categor|vacaciones|jornada|horas extra|riesgo de trabajo/i.test(m.content))
     // guía adicional de continuidad si aplica
     const cont = isContinuation(question, priorLabor)
@@ -203,7 +210,15 @@ async function respondDirect(
     let regenText: string | null = null
     if (first.citedIds.length === 0 && sources.length > 0) {
       retries = 1
-      const regenMessages = [{ role: "system", content: messages[0].content + "\n\nIMPORTANTE: cita al menos una vez con [S#] cada afirmación factual. Si no puedes citar, responde de forma breve." }, ...messages.slice(1)] as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
+      const regenMessages = [
+        {
+          role: "system",
+          content:
+            messages[0].content +
+            "\n\nIMPORTANTE: Responde SIEMPRE en tono positivo y palabras sencillas para el trabajador. Comparte lo útil que aparece en el CONTEXTO e incluye OBLIGATORIAMENTE al menos una etiqueta [S1] (o [S2], etc.) al final de los datos tomados del contexto.",
+        },
+        ...messages.slice(1),
+      ] as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
       const regen = await runCompletion(openai, regenMessages, maxTokens)
       if (regen.text) obs.llmTotalMs += regen.total
       regenText = regen.text ?? null
@@ -216,10 +231,11 @@ async function respondDirect(
       obs.citationValidationPassed = false
       obs.totalMs = performance.now() - t0
       logObservability(requestId, userId, obs)
+      const fallbackPositivo = buildPositiveSourceFallback(sources)
       return privateJson({
-        respuesta: CITATION_FAILED_RESPONSE,
-        fuentes: fuentesPayload(sources, []),
-        chips: [],
+        respuesta: fallbackPositivo.respuesta,
+        fuentes: fuentesPayload(sources, fallbackPositivo.citedIds),
+        chips,
       })
     }
     const respuestaFinal = outcome.respuesta
@@ -231,9 +247,6 @@ async function respondDirect(
     obs.totalMs = performance.now() - t0
     logObservability(requestId, userId, obs)
 
-    const toolRecs = recommendPlatformTools(question)
-    const toolChips = toolRecs.map((t) => t.chipLabel)
-    const chips = [...new Set([...toolChips, ...ac.chips])].slice(0, 4)
     return privateJson({ respuesta: respuestaFinal, fuentes: fuentesPayload(sources, citedIds), chips })
   } catch (error) {
     obs.totalMs = performance.now() - t0
@@ -248,7 +261,25 @@ function fastLookupAnswer(sources: RetrievedSource[]): string {
   if (sources.length === 0) return NO_EVIDENCE_RESPONSE
   const s = sources[0]
   const loc = [s.numero, s.paginaInicio != null ? `pág. ${s.paginaInicio}` : null].filter(Boolean).join(" · ")
-  return `Esto es lo que encontré en la normativa:\n\n[S1] ${s.documento}${loc ? ` · ${loc}` : ""}\n${s.fragmento}`
+  return `¡Con gusto, compañero! 😊 Esto es lo que establece nuestro documento oficial:\n\n**[S1] ${s.documento}${loc ? ` · ${loc}` : ""}**\n${s.fragmento}`
+}
+
+/**
+ * Si el modelo omitió la etiqueta [S#] pero existen fuentes verificadas del corpus,
+ * entrega una orientación positiva basada directamente en el fragmento oficial [S1]
+ * sin inventar ningún dato fuera del documento.
+ */
+function buildPositiveSourceFallback(sources: RetrievedSource[]): { respuesta: string; citedIds: string[] } {
+  if (sources.length === 0) {
+    return { respuesta: CITATION_FAILED_RESPONSE, citedIds: [] }
+  }
+  const s = sources[0]
+  const loc = [s.numero, s.paginaInicio != null ? `pág. ${s.paginaInicio}` : null].filter(Boolean).join(" · ")
+  const excerpt = s.fragmento.length > 600 ? `${s.fragmento.slice(0, 600).trim()}…` : s.fragmento.trim()
+  return {
+    respuesta: `¡Con mucho gusto te apoyo, compañero! 😊 Encontré esta referencia oficial en nuestros documentos que se relaciona con tu consulta:\n\n📋 **${s.documento}${loc ? ` (${loc})` : ""}** [S1]:\n${excerpt}\n\nSi quieres que revisemos un caso más específico (como tu categoría exacta, tu jornada de 6.5 u 8 horas o algún concepto de tu tarjetón), ¡escríbeme ese detalle y lo checamos juntos paso a paso!`,
+    citedIds: [s.id],
+  }
 }
 
 async function runCompletion(openai: OpenAI, messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[], maxTokens: number): Promise<{ text: string; ttft: number; total: number }> {

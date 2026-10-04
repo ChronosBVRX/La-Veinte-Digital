@@ -87,12 +87,20 @@ export async function embedQueryLru(question: string, intent: RetrievalIntent): 
 }
 
 /** Recupera evidencias vía RPC híbrida única (RRF con fallback a búsqueda ponderada). */
-export async function retrieveHybrid(question: string, embedding: number[] | null, intent: RetrievalIntent, refs: ReturnType<typeof extractExactRefs>, limit: number): Promise<{ sources: RetrievedSource[]; rpcMs: number; rpcCalls: number }> {
+export async function retrieveHybrid(
+  question: string,
+  embedding: number[] | null,
+  intent: RetrievalIntent,
+  refs: ReturnType<typeof extractExactRefs>,
+  limit: number,
+  rawQuestion?: string,
+): Promise<{ sources: RetrievedSource[]; rpcMs: number; rpcCalls: number }> {
   const t0 = performance.now()
   const supabase = await createClient()
   const call = supabase.rpc as unknown as (this: unknown, f: string, a: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>
 
   // Intento prioritario 1: hybrid_normativa_rrf (Fusión de Rangos Recíprocos)
+  let usedRrf = true
   let rpcRes = await call.call(supabase, "hybrid_normativa_rrf", {
     p_query: question,
     p_query_embedding: embedding && embedding.length === 1536 ? embedding : null,
@@ -104,6 +112,7 @@ export async function retrieveHybrid(question: string, embedding: number[] | nul
 
   // Fallback seguro a hybrid_normativa_search si la RPC RRF aún no está desplegada en el entorno
   if (rpcRes.error) {
+    usedRrf = false
     rpcRes = await call.call(supabase, "hybrid_normativa_search", {
       p_query: question,
       p_query_embedding: embedding && embedding.length === 1536 ? embedding : null,
@@ -121,12 +130,16 @@ export async function retrieveHybrid(question: string, embedding: number[] | nul
   const byChunk = new Map<string, RetrievedSource>()
   for (const row of rows) {
     if (byChunk.has(row.chunk_id)) continue
-    // híbrido ya trae score final; VALIDITY_WEIGHT aplicado en DB implícito,
-    // aquí solo mapeamos.
-    byChunk.set(row.chunk_id, rowToSource(row, "", Number(row.score ?? 0)))
+    const src = rowToSource(row, "", Number(row.score ?? 0))
+    if (usedRrf && src.origin && !src.origin.startsWith("rrf")) {
+      src.origin = `rrf:${src.origin}`
+    } else if (usedRrf && !src.origin) {
+      src.origin = "rrf"
+    }
+    byChunk.set(row.chunk_id, src)
   }
   let fused = [...byChunk.values()].sort((a, b) => b.score - a.score)
-  fused = rerankByNormativePriority(fused, question)
+  fused = rerankByNormativePriority(fused, rawQuestion ?? question)
   fused = dedupeByText(fused)
   const rd = evidenceRangeForIntent(intent)
   // Preferir el tope del rango para dar contexto suficiente sin pasarse de 8.
