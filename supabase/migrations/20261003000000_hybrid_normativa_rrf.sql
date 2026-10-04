@@ -20,7 +20,7 @@ create or replace function public.hybrid_normativa_rrf(
   p_article text default null,
   p_key text default null,
   p_match_count int default 20,
-  p_fts_weight float default 1.0,
+  p_fts_weight float default 1.25,
   p_vector_weight float default 1.0,
   p_exact_weight float default 2.0,
   p_rrf_k int default 60,
@@ -42,6 +42,27 @@ set search_path = extensions, public
 as $$
   with bounds as (
     select least(greatest(p_match_count, 1), 40) as n
+  ),
+  clean_q as (
+    select coalesce(
+      nullif(
+        trim(
+          regexp_replace(
+            regexp_replace(
+              p_query,
+              '\y(cu[aá]l|cu[aá]les|cu[aá]nto|cu[aá]ntos|cu[aá]nta|cu[aá]ntas|c[oó]mo|d[oó]nde|cu[aá]ndo|qui[eé]n|qu[eé]|dime|expl[ií]came|puedes|podr[ií]as|quiero|necesito|saber|conocer|gana|gano|ganan|pagan|percibe|toca|corresponde|corresponden|hace|hacen|tengo|soy|favor|hola|gracias|ayuda|ay[uú]dame)\y',
+              ' ',
+              'gi'
+            ),
+            '\s+',
+            ' ',
+            'g'
+          )
+        ),
+        ''
+      ),
+      p_query
+    ) as q
   ),
   exact_hits as (
     select
@@ -65,11 +86,11 @@ as $$
     select
       c.chunk_id,
       row_number() over (
-        order by ts_rank_cd(to_tsvector('spanish', c.text), websearch_to_tsquery('spanish', p_query)) desc
+        order by ts_rank_cd(to_tsvector('spanish', c.text), websearch_to_tsquery('spanish', (select q from clean_q))) desc
       ) as rank_pos
     from public.normativa_chunks c
     where (p_include_historical or c.validity <> 'HISTORICAL')
-      and to_tsvector('spanish', c.text) @@ websearch_to_tsquery('spanish', p_query)
+      and to_tsvector('spanish', c.text) @@ websearch_to_tsquery('spanish', (select q from clean_q))
     limit (select n from bounds) * 2
   ),
   vector_hits as (
