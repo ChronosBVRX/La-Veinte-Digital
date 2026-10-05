@@ -23,7 +23,10 @@ import { determineVacationRegime } from "./entitlement"
 import { getCompatibleInclusionMarks } from "./continuity"
 import { parseImssPayslipSeniority } from "@/features/tarjeton/lib/imss-seniority-parser"
 import { parsePorVencerDate } from "@/features/tarjeton/lib/imss-date-parser"
-import { addCivilMonths, normalizeCivilDate } from "./role-eligibility"
+import { addCivilDays, normalizeCivilDate } from "./role-eligibility"
+
+export const TARJETON_VENCIMIENTO_NOTICE =
+  "Esta programación se calcula con base en la fecha por vencer de tu último tarjetón confirmado. Ten en cuenta que esta fecha puede variar o recorrerse en función de faltas injustificadas o licencias sin goce de sueldo."
 
 export interface PrefilledVacationState {
   profile: WorkerProfile
@@ -321,6 +324,8 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
       isPorVencerMissingFromPayslip = true
       warnings.push("Tu tarjetón no tiene la fecha 'Por vencer' persistida. Reimporta tu tarjetón una sola vez para recuperarla automáticamente, o captúrala directamente.")
     }
+  } else {
+    warnings.push(TARJETON_VENCIMIENTO_NOTICE)
   }
 
   // 10. Régimen
@@ -348,9 +353,10 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
       let entSrc = ent.dueDateSource
 
       // Si periodos posteriores vienen sin dueDate pero tenemos dueDate en el periodo 1:
+      // Se proyectan con base en bloques de 105 días (cuatrimestral) o 120 días (semestral)
       if (!entDue && dueDate && idx > 0) {
-        const monthsToAdd = regime === "CUATRIMESTRAL" ? idx * 4 : idx * 6
-        entDue = addCivilMonths(dueDate, monthsToAdd)
+        const daysToAdd = regime === "CUATRIMESTRAL" ? idx * 105 : idx * 120
+        entDue = addCivilDays(dueDate, daysToAdd)
         entConf = "PROVISIONAL"
         entSrc = "PROJECTED"
       }
@@ -381,7 +387,7 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
     const secondRaw = typeof vacationsRow?.secondPeriodStartRaw === "string" ? vacationsRow.secondPeriodStartRaw : null
     const secondParsed = secondRaw ? (normalizeCivilDate(secondRaw) || secondRaw) : null
     const projectedSecond = (!secondParsed && dueDate)
-      ? addCivilMonths(dueDate, regime === "CUATRIMESTRAL" ? 4 : 6)
+      ? addCivilDays(dueDate, regime === "CUATRIMESTRAL" ? 105 : 120)
       : null
 
     entitlements.push({
@@ -399,7 +405,7 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
     })
 
     if (regime === "CUATRIMESTRAL") {
-      const projectedThird = dueDate ? addCivilMonths(dueDate, 8) : null
+      const projectedThird = dueDate ? addCivilDays(dueDate, 210) : null
       entitlements.push({
         id: "ord-3",
         sequence: 3,

@@ -532,7 +532,7 @@ describe("Motor de Elegibilidad de Roles Vacacionales (evaluateVacationRoleEligi
       expect(evalRes.workerMessage).not.toContain("todavía no te corresponde")
     })
 
-    it("B. Continuidad inmediata: Período 1 (10-20 febrero) + Período 2 (21 febrero-3 marzo) -> PERMITIDO sin exigir separación artificial", () => {
+    it("B. Bloqueo por separación insuficiente: Período 1 (10-20 febrero) + Período 2 (21 febrero-3 marzo) -> BLOQUEADO con INSUFFICIENT_PERIOD_SEPARATION", () => {
       const seq = validatePeriodSequence({
         periodIndex: 2,
         previousPeriodIndex: 1,
@@ -543,13 +543,14 @@ describe("Motor de Elegibilidad de Roles Vacacionales (evaluateVacationRoleEligi
         entitlementKind: "ORDINARY",
       })
 
-      expect(seq.allowed).toBe(true)
-      expect(seq.reasonCode).toBe("OK")
+      expect(seq.allowed).toBe(false)
+      expect(seq.reasonCode).toBe("INSUFFICIENT_PERIOD_SEPARATION")
+      expect(seq.workerMessage).toContain("separación mínima de 120 días naturales")
 
       const evalRes = evaluateVacationRoleEligibility({
         regime: "SEMESTRAL",
         entitlementKind: "ORDINARY",
-        dueDate: "2027-06-15", // 21/02/2027 está a 114 días (<= 120)
+        dueDate: "2027-06-15",
         dueDateConfidence: "CONFIRMED",
         roleStartDate: "2027-02-21",
         roleEndDate: "2027-03-03",
@@ -560,8 +561,8 @@ describe("Motor de Elegibilidad de Roles Vacacionales (evaluateVacationRoleEligi
         calendarStatus: "PUBLISHED",
       })
 
-      expect(evalRes.status).toBe("ALLOWED")
-      expect(evalRes.reasonCode).toBe("ROLE_ALLOWED")
+      expect(evalRes.status).toBe("BLOCKED")
+      expect(evalRes.reasonCode).toBe("INSUFFICIENT_PERIOD_SEPARATION")
     })
 
     it("C. Empalme: Período 1 (10-20 febrero) + Período 2 (15-25 febrero) -> BLOQUEADO con PERIOD_DATE_OVERLAP", () => {
@@ -580,36 +581,22 @@ describe("Motor de Elegibilidad de Roles Vacacionales (evaluateVacationRoleEligi
       expect(seq.workerMessage).toBe("Este periodo se empalma con el Periodo 1 (2027-02-10 a 2027-02-20).")
     })
 
-    it("Secuencia normal: Período 1 en enero + Período 2 en febrero, y Período 1 en febrero + Período 2 en marzo -> VÁLIDOS", () => {
-      const janThenFeb = evaluateVacationRoleEligibility({
+    it("Separación reglamentaria: Período 1 en enero (18-29 ene) + Período 2 en junio (18-29 jun, >=120 días) -> VÁLIDO", () => {
+      const janThenJun = evaluateVacationRoleEligibility({
         regime: "SEMESTRAL",
         entitlementKind: "ORDINARY",
-        dueDate: "2027-05-15",
+        dueDate: "2027-10-15",
         dueDateConfidence: "CONFIRMED",
-        roleStartDate: "2027-02-02",
-        roleEndDate: "2027-02-15",
+        roleStartDate: "2027-06-18",
+        roleEndDate: "2027-06-29",
         periodIndex: 2,
         previousPeriodIndex: 1,
         previousPeriodStartDate: "2027-01-18",
         previousPeriodEndDate: "2027-01-29",
         calendarStatus: "PUBLISHED",
       })
-      expect(janThenFeb.status).toBe("ALLOWED")
-
-      const febThenMar = evaluateVacationRoleEligibility({
-        regime: "SEMESTRAL",
-        entitlementKind: "ORDINARY",
-        dueDate: "2027-06-15",
-        dueDateConfidence: "CONFIRMED",
-        roleStartDate: "2027-03-03",
-        roleEndDate: "2027-03-16",
-        periodIndex: 2,
-        previousPeriodIndex: 1,
-        previousPeriodStartDate: "2027-02-02",
-        previousPeriodEndDate: "2027-02-15",
-        calendarStatus: "PUBLISHED",
-      })
-      expect(febThenMar.status).toBe("ALLOWED")
+      expect(janThenJun.status).toBe("ALLOWED")
+      expect(janThenJun.reasonCode).toBe("ROLE_ALLOWED")
     })
 
     it("Cruce de año calendario: respeta secuencia antes de evaluar advertencia de cruce de año", () => {

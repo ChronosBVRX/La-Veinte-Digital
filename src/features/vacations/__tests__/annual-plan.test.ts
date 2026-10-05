@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { getRequiredPeriodCount, buildVacationPlan } from "../domain/annual-plan"
 import { PERIOD_SEQUENCE_INVERTED_MESSAGE } from "../domain/role-eligibility"
-import { VACATION_CALENDAR_2027 } from "../data/calendar-2027"
 import type { VacationPlanInput, VacationRole, WorkerProfile } from "../domain/types"
 
 describe("Planificador Anual de Vacaciones y Encadenamiento de Continuidad", () => {
@@ -178,6 +177,20 @@ describe("Planificador Anual de Vacaciones y Encadenamiento de Continuidad", () 
       endDate: "2027-03-20",
       enabled: true,
     }
+    const roleJun: VacationRole = {
+      id: "r-jun",
+      roleNumber: 5,
+      startDate: "2027-06-15",
+      endDate: "2027-06-25",
+      enabled: true,
+    }
+    const roleJul: VacationRole = {
+      id: "r-jul",
+      roleNumber: 6,
+      startDate: "2027-07-15",
+      endDate: "2027-07-25",
+      enabled: true,
+    }
 
     const semestralInput: VacationPlanInput = {
       workerProfile: baseProfile,
@@ -185,7 +198,7 @@ describe("Planificador Anual de Vacaciones y Encadenamiento de Continuidad", () 
       initialContinuity: 0,
       entitlements: [
         { id: "p1", kind: "ORDINARY", periodNumber: 1, dueDate: "2027-04-15", confirmed: true },
-        { id: "p2", kind: "ORDINARY", periodNumber: 2, dueDate: "2027-04-30", confirmed: true },
+        { id: "p2", kind: "ORDINARY", periodNumber: 2, dueDate: "2027-08-15", confirmed: true },
       ],
       calendar: {
         id: "cal-test",
@@ -193,15 +206,15 @@ describe("Planificador Anual de Vacaciones y Encadenamiento de Continuidad", () 
         version: "v1",
         status: "PUBLISHED",
         sourceName: "IMSS",
-        roles: [roleJan, roleFeb, roleFebCont, roleMar],
+        roles: [roleJan, roleFeb, roleFebCont, roleMar, roleJun, roleJul],
       },
       integratedMonthlySalary: 30000,
     }
 
-    it("1) Período 1 en enero + Período 2 en febrero -> evaluado como VÁLIDO", () => {
+    it("1) Período 1 en enero + Período 2 en junio (>= 120 días) -> evaluado como VÁLIDO", () => {
       const plan = buildVacationPlan(semestralInput, {
         1: { mark: 1, role: roleJan },
-        2: { mark: 1, role: roleFeb },
+        2: { mark: 1, role: roleJun },
       })
 
       expect(plan.periods[0].allowed).toBe(true)
@@ -209,9 +222,9 @@ describe("Planificador Anual de Vacaciones y Encadenamiento de Continuidad", () 
       expect(plan.isValidPlan).toBe(true)
     })
 
-    it("2) Período 1 en febrero + Período 2 en enero -> INVALIDAR por inversión de secuencia aunque enero cumpla los 120 días de anticipación", () => {
+    it("2) Período 1 en junio + Período 2 en enero -> INVALIDAR por inversión de secuencia", () => {
       const plan = buildVacationPlan(semestralInput, {
-        1: { mark: 1, role: roleFeb },
+        1: { mark: 1, role: roleJun },
         2: { mark: 1, role: roleJan },
       })
 
@@ -222,91 +235,44 @@ describe("Planificador Anual de Vacaciones y Encadenamiento de Continuidad", () 
       expect(plan.isValidPlan).toBe(false)
     })
 
-    it("3) Período 1 en febrero + Período 2 en marzo -> evaluado normalmente como VÁLIDO", () => {
+    it("3) Período 1 en febrero + Período 2 en marzo (<120 días) -> INVALIDAR por separación insuficiente", () => {
       const plan = buildVacationPlan(semestralInput, {
         1: { mark: 4, role: roleFeb },
         2: { mark: 9, role: roleMar },
       })
 
       expect(plan.periods[0].allowed).toBe(true)
-      expect(plan.periods[1].allowed).toBe(true)
-      expect(plan.isValidPlan).toBe(true)
+      expect(plan.periods[1].allowed).toBe(false)
+      expect(plan.periods[1].eligibility?.reasonCode).toBe("INSUFFICIENT_PERIOD_SEPARATION")
+      expect(plan.periods[1].reasons.some((r) => r.includes("separación mínima de 120 días"))).toBe(true)
+      expect(plan.isValidPlan).toBe(false)
     })
 
-    it("4) Continuidad inmediata: P1 (10-20 feb) + P2 (21 feb-3 mar) y roles consecutivos 2027 con marcas 2->3 -> VÁLIDOS sin exigir separación artificial", () => {
-      // Caso A: P1 10-20 febrero + P2 21 febrero-3 marzo
+    it("4) Roles seguidos o próximos: P1 (10-20 feb) + P2 (21 feb-3 mar) -> BLOQUEADOS por no cumplir los 120 días de separación", () => {
       const planImmediate = buildVacationPlan(semestralInput, {
         1: { mark: 2, role: roleFeb },
         2: { mark: 3, role: roleFebCont },
       })
 
-      expect(planImmediate.periods[0].stage).toBe("FIRST_COMPLETE_PERIOD")
-      expect(planImmediate.periods[1].stage).toBe("SECOND_COMPLETE_PERIOD")
       expect(planImmediate.periods[0].allowed).toBe(true)
-      expect(planImmediate.periods[1].allowed).toBe(true)
-      expect(planImmediate.isValidPlan).toBe(true)
-
-      // Caso B: Roles consecutivos del calendario oficial 2027 con fraccionamiento 1->1 (10 días: Rol 5 termina 2027-04-01, Rol 6 inicia 2027-04-02)
-      const role5 = VACATION_CALENDAR_2027.roles.find((r) => r.roleNumber === 5)!
-      const role6 = VACATION_CALENDAR_2027.roles.find((r) => r.roleNumber === 6)!
-      const role7 = VACATION_CALENDAR_2027.roles.find((r) => r.roleNumber === 7)!
-      const planOfficialConsecutive11 = buildVacationPlan(
-        {
-          ...semestralInput,
-          calendar: VACATION_CALENDAR_2027,
-          entitlements: [
-            { id: "p1", kind: "ORDINARY", periodNumber: 1, dueDate: "2027-06-15", confirmed: true },
-            { id: "p2", kind: "ORDINARY", periodNumber: 2, dueDate: "2027-07-15", confirmed: true },
-          ],
-        },
-        {
-          1: { mark: 1, role: role5 },
-          2: { mark: 1, role: role6 },
-        }
-      )
-
-      expect(planOfficialConsecutive11.periods[0].endDate).toBe("2027-04-01")
-      expect(planOfficialConsecutive11.periods[1].startDate).toBe("2027-04-02")
-      expect(planOfficialConsecutive11.periods[0].allowed).toBe(true)
-      expect(planOfficialConsecutive11.periods[1].allowed).toBe(true)
-      expect(planOfficialConsecutive11.isValidPlan).toBe(true)
-
-      // Caso C: Continuidad inmediata en modalidad 2->3 (20 días + 15 días: Rol 5 termina 2027-04-15, Rol 7 inicia 2027-04-16)
-      const planOfficialConsecutive23 = buildVacationPlan(
-        {
-          ...semestralInput,
-          calendar: VACATION_CALENDAR_2027,
-          entitlements: [
-            { id: "p1", kind: "ORDINARY", periodNumber: 1, dueDate: "2027-06-15", confirmed: true },
-            { id: "p2", kind: "ORDINARY", periodNumber: 2, dueDate: "2027-07-15", confirmed: true },
-          ],
-        },
-        {
-          1: { mark: 2, role: role5 },
-          2: { mark: 3, role: role7 },
-        }
-      )
-
-      expect(planOfficialConsecutive23.periods[0].endDate).toBe("2027-04-15")
-      expect(planOfficialConsecutive23.periods[1].startDate).toBe("2027-04-19")
-      expect(planOfficialConsecutive23.periods[0].allowed).toBe(true)
-      expect(planOfficialConsecutive23.periods[1].allowed).toBe(true)
-      expect(planOfficialConsecutive23.isValidPlan).toBe(true)
+      expect(planImmediate.periods[1].allowed).toBe(false)
+      expect(planImmediate.periods[1].eligibility?.reasonCode).toBe("INSUFFICIENT_PERIOD_SEPARATION")
+      expect(planImmediate.isValidPlan).toBe(false)
     })
 
     it("5) Período 1 diferido hacia adelante después de programar Período 2 -> recalcula e invalida Período 2 sin permitir inversión", () => {
-      // Inicialmente P1 en enero y P2 en febrero -> válido
+      // Inicialmente P1 en enero y P2 en junio (161 días apart) -> válido
       const initialSelections = {
         1: { mark: 1, role: roleJan },
-        2: { mark: 1, role: roleFeb },
+        2: { mark: 1, role: roleJun },
       }
       const validPlan = buildVacationPlan(semestralInput, initialSelections)
       expect(validPlan.isValidPlan).toBe(true)
 
-      // El trabajador difiere P1 hacia marzo mientras P2 sigue en febrero
+      // El trabajador difiere P1 hacia julio mientras P2 sigue en junio
       const deferredSelections = {
         ...initialSelections,
-        1: { mark: 1, role: roleMar },
+        1: { mark: 1, role: roleJul },
       }
       const recalculatedPlan = buildVacationPlan(semestralInput, deferredSelections)
 
