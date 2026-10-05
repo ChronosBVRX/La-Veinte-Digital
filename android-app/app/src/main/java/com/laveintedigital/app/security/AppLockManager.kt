@@ -47,6 +47,15 @@ object AppLockManager {
         Log.d("APP_LOCK", "APP_LOCK initializing biometric_enabled=$enabled -> ${_state.value}")
     }
 
+    /**
+     * Updates the in-memory biometric flag when the user enables, disables or logs out mid-session,
+     * ensuring [onAppForeground] enforces the 5-minute auto-lock without requiring a cold restart.
+     */
+    fun setBiometricEnabled(enabled: Boolean) {
+        isBiometricEnabled = enabled
+        Log.d("APP_LOCK", "APP_LOCK biometric_enabled_updated=$enabled")
+    }
+
     fun lock() {
         _state.value = LockState.LOCKED
         Log.d("APP_LOCK", "APP_LOCK locked")

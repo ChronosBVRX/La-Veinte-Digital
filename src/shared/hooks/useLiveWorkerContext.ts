@@ -266,6 +266,7 @@ export function useWorkerContextSync(initialContext?: WorkerContext | null): Wor
             `[useLiveWorkerContext] seq=${currentSeq} response_rejected (user mismatch or missing auth identifier: fresh=${freshUserId} active=${activeAuthUserId} requested=${requestedUserId})`
           )
           pendingContextRef.current = null
+          contextRef.current = null
           setContext(null)
           setIsUpdating(false)
           setErrorState({
@@ -281,7 +282,10 @@ export function useWorkerContextSync(initialContext?: WorkerContext | null): Wor
         retryCountRef.current = 0
         setErrorState(null)
         setContext((prev) => {
-          if (!prev) return freshContext
+          if (!prev) {
+            contextRef.current = freshContext
+            return freshContext
+          }
 
           const prevUserId = prev.userId ?? prev.meta?.userId ?? null
           const isDifferentUser = Boolean((prevUserId || freshUserId) && prevUserId !== freshUserId)
@@ -298,6 +302,7 @@ export function useWorkerContextSync(initialContext?: WorkerContext | null): Wor
           // Si el usuario/cuenta es diferente (incluso con la misma matrícula) o si el trabajador es diferente,
           // NUNCA se descarta por revisión menor: la cuenta B jamás debe mantener visible el contexto salarial de A.
           if (!isDifferentUser && !isDifferentWorker && prevRevision && freshRevision && freshRevision < prevRevision) {
+            contextRef.current = prev
             return prev
           }
 
@@ -318,7 +323,9 @@ export function useWorkerContextSync(initialContext?: WorkerContext | null): Wor
             prevMatricula !== freshMatricula ||
             prevPeriod !== freshPeriod
 
-          return hasChanged ? freshContext : prev
+          const next = hasChanged ? freshContext : prev
+          contextRef.current = next
+          return next
         })
         setStatus("ready")
         setIsUpdating(false)
@@ -510,6 +517,7 @@ export function useWorkerContextSync(initialContext?: WorkerContext | null): Wor
                 console.info(
                   `[useLiveWorkerContext] seq=${requestSeqRef.current} initial_session_resolved_pending user=${eventUserId}`
                 )
+                contextRef.current = pending
                 setContext(pending)
                 setStatus("ready")
                 setErrorState(null)
@@ -520,6 +528,7 @@ export function useWorkerContextSync(initialContext?: WorkerContext | null): Wor
                   `[useLiveWorkerContext] seq=${requestSeqRef.current} initial_session_mismatch_pending expected=${eventUserId} found=${pendingUserId}`
                 )
                 pendingContextRef.current = null
+                contextRef.current = null
                 setContext(null)
                 setStatus("error")
                 setErrorState({

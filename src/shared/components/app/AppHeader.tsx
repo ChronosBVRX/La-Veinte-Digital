@@ -7,6 +7,7 @@ import { List, UserCircle, CaretDown, DeviceMobile } from "@phosphor-icons/react
 import { useAppEnvironment } from "@/shared/hooks/useAppEnvironment"
 import { useBackLayer } from "@/shared/navigation/useBackLayer"
 import { RoleModeSwitch } from "./RoleModeSwitch"
+import { SignOutButton } from "./SignOutButton"
 
 interface AppHeaderProps {
   fullName: string | null
@@ -226,11 +227,13 @@ export function AppHeader({ fullName, onMenuToggle, canAccessUnion = false }: Ap
               </div>
               <ProfileItem label="Mi perfil" href="/profile" onClick={() => setProfileOpen(false)} />
               <ProfileItem
-                label="Mi información laboral"
-                href="/profile/mi-informacion-laboral"
+                label="Configuración"
+                href="/profile/configuracion"
                 onClick={() => setProfileOpen(false)}
               />
-              <ProfileItem label="Mi Agenda" href="/bitacora" onClick={() => setProfileOpen(false)} />
+              <div style={{ borderTop: "1px solid var(--border)", marginTop: "0.25rem", paddingTop: "0.25rem" }}>
+                <SignOutButton onDone={() => setProfileOpen(false)} />
+              </div>
             </div>
           )}
         </div>

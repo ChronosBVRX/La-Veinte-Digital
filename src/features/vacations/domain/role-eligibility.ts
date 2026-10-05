@@ -3,7 +3,94 @@ import type {
   RoleEligibilityResult,
   CalendarCertainty,
   DateEligibility,
+  PeriodSequenceValidationInput,
+  PeriodSequenceValidationResult,
 } from "./types"
+
+export const PERIOD_SEQUENCE_INVERTED_MESSAGE =
+  "El período vacacional debe respetar la secuencia de programación. La fecha seleccionada para este período queda antes del período vacacional anterior."
+
+/**
+ * Valida que el disfrute de los periodos ordinarios respete la secuencia progresiva
+ * del ciclo vacacional (Procedimiento IMSS 1A74-003-025 numerales 4.14 y 5.2.5; Anexo 1 1A74-022-065),
+ * separando:
+ * A) Inversión del orden de los periodos (roleStartDate < previousPeriodStartDate) -> PERIOD_SEQUENCE_INVERTED
+ * B) Continuidad inmediata (roleStartDate > previousPeriodEndDate) -> Permitida sin exigir brecha artificial
+ * C) Empalme / traslape de fechas (previousPeriodStartDate <= roleStartDate <= previousPeriodEndDate) -> PERIOD_DATE_OVERLAP
+ */
+export function validatePeriodSequence(
+  input: PeriodSequenceValidationInput
+): PeriodSequenceValidationResult {
+  const {
+    periodIndex,
+    previousPeriodIndex = periodIndex - 1,
+    roleStartDate: rawRoleStartDate,
+    roleEndDate: rawRoleEndDate,
+    previousPeriodStartDate: rawPrevStart,
+    previousPeriodEndDate: rawPrevEnd,
+    entitlementKind = "ORDINARY",
+  } = input
+
+  // Los periodos extraordinarios V20 se programan con independencia de la secuencia ordinaria
+  if (entitlementKind === "V20") {
+    return {
+      allowed: true,
+      reasonCode: "OK",
+      workerMessage: "",
+      technicalMessage: "Periodo extraordinario V20 independiente de la secuencia ordinaria.",
+    }
+  }
+
+  if (periodIndex <= 1) {
+    return {
+      allowed: true,
+      reasonCode: "OK",
+      workerMessage: "",
+      technicalMessage: "Primer periodo del ciclo sin antecedente inmediato en el mismo ciclo.",
+    }
+  }
+
+  const roleStartDate = normalizeCivilDate(rawRoleStartDate)
+  const prevStartDate = normalizeCivilDate(rawPrevStart)
+  if (!roleStartDate || !prevStartDate) {
+    return {
+      allowed: true,
+      reasonCode: "OK",
+      workerMessage: "",
+      technicalMessage: "Sin fechas suficientes del periodo previo para evaluar secuencia.",
+    }
+  }
+
+  // A) Inversión de secuencia: el periodo N+1 inicia antes de que inicie el periodo N
+  if (roleStartDate < prevStartDate) {
+    return {
+      allowed: false,
+      reasonCode: "PERIOD_SEQUENCE_INVERTED",
+      workerMessage: PERIOD_SEQUENCE_INVERTED_MESSAGE,
+      technicalMessage: `Inversión de secuencia: Periodo ${periodIndex} (${roleStartDate}) inicia antes del Periodo ${previousPeriodIndex} (${prevStartDate}).`,
+    }
+  }
+
+  // C) Empalme con el periodo anterior (cuando se conoce o mismo día de inicio)
+  const prevEndDate = normalizeCivilDate(rawPrevEnd) || prevStartDate
+  const roleEndDate = normalizeCivilDate(rawRoleEndDate) || roleStartDate
+  if (roleStartDate <= prevEndDate && roleEndDate >= prevStartDate) {
+    return {
+      allowed: false,
+      reasonCode: "PERIOD_DATE_OVERLAP",
+      workerMessage: `Este periodo se empalma con el Periodo ${previousPeriodIndex} (${prevStartDate} a ${prevEndDate}).`,
+      technicalMessage: `Empalme de fechas entre Periodo ${previousPeriodIndex} (${prevStartDate}..${prevEndDate}) y Periodo ${periodIndex} (${roleStartDate}..${roleEndDate}).`,
+    }
+  }
+
+  // B) Continuidad inmediata (roleStartDate > prevEndDate) o posterior: permitida
+  return {
+    allowed: true,
+    reasonCode: "OK",
+    workerMessage: "",
+    technicalMessage: `Secuencia válida: Periodo ${periodIndex} (${roleStartDate}) posterior al Periodo ${previousPeriodIndex} (${prevStartDate}..${prevEndDate}).`,
+  }
+}
 
 /**
  * Parsea una fecha ISO YYYY-MM-DD en sus componentes de fecha civil (sin horas ni husos horarios).
@@ -215,11 +302,57 @@ export function evaluateVacationRoleEligibility(
     calendarStatus = "PUBLISHED",
     retirementDate: rawRetirementDate,
     workerRetirementDate,
+    periodIndex,
+    previousPeriodIndex,
+    previousPeriodStartDate,
+    previousPeriodEndDate,
   } = input
 
   const calendarCertainty: CalendarCertainty = calendarStatus === "DRAFT" ? "PRELIMINARY" : "OFFICIAL"
   const dueDate = normalizeCivilDate(rawDueDate)
   const retirementDate = normalizeCivilDate(rawRetirementDate ?? workerRetirementDate)
+  const hasValidRoleStartDate = Boolean(roleStartDate && roleStartDate.trim() && parseCivilDate(roleStartDate))
+
+  const maxAnticipation = entitlementKind === "V20"
+    ? 120
+    : getMaxAnticipationDays(regime)
+
+  const precalcDaysBeforeDue = dueDate && hasValidRoleStartDate ? diffCivilDays(dueDate, roleStartDate) : null
+  const precalcEarliestAllowedDate = dueDate ? subtractCivilDays(dueDate, maxAnticipation) : null
+
+  // 0. Validación de secuencia progresiva del ciclo (Procedimiento 1A74-003-025 y Anexo 1 1A74-022-065)
+  // Se comprueba antes de vencimiento/anticipación para impedir que el Periodo N+1 quede antes del Periodo N
+  // o se empalme con él, sin emitir un mensaje erróneo de "todavía no vence".
+  if (hasValidRoleStartDate && previousPeriodStartDate) {
+    const seqCheck = validatePeriodSequence({
+      periodIndex: periodIndex ?? 2,
+      previousPeriodIndex: previousPeriodIndex ?? (periodIndex ? periodIndex - 1 : 1),
+      roleStartDate,
+      roleEndDate,
+      previousPeriodStartDate,
+      previousPeriodEndDate,
+      entitlementKind,
+    })
+
+    if (!seqCheck.allowed) {
+      return {
+        status: "BLOCKED",
+        reasonCode: seqCheck.reasonCode,
+        workerMessage: seqCheck.workerMessage,
+        technicalMessage: seqCheck.technicalMessage,
+        dueDate,
+        earliestAllowedDate: precalcEarliestAllowedDate,
+        daysBeforeDue: precalcDaysBeforeDue,
+        evaluation: {
+          dateEligibility: "NOT_ELIGIBLE",
+          calendarCertainty,
+          selectableForSimulation: false,
+          confirmableAsOfficial: false,
+          normativeCategory: "BLOCKED",
+        },
+      }
+    }
+  }
 
   // 1. Validación de fecha de vencimiento/generación del derecho
   if (!dueDate) {
@@ -267,11 +400,6 @@ export function evaluateVacationRoleEligibility(
   // > 0 significa que el rol inicia antes de adquirir el derecho.
   // <= 0 significa que el rol inicia en o después de adquirir el derecho.
   const daysBeforeDue = diffCivilDays(dueDate, roleStartDate)
-
-  // Anticipación ordinaria máxima
-  const maxAnticipation = entitlementKind === "V20"
-    ? 120
-    : getMaxAnticipationDays(regime)
 
   const earliestAllowedDate = subtractCivilDays(dueDate, maxAnticipation)
 

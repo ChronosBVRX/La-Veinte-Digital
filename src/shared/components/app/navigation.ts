@@ -6,7 +6,6 @@ import {
   FileText,
   Books,
   Newspaper,
-  UserCircle,
   SquaresFour,
   AirplaneTilt,
   Briefcase,
@@ -29,6 +28,7 @@ export const ACTIVE_WORKER_DATA_ROUTES = [
   "/vacaciones",
   "/guia",
   "/calculadoras",
+  "/profile",
   "/profile/mi-informacion-laboral",
 ] as const
 
@@ -105,9 +105,6 @@ export const MOBILE_SHEET_GROUPS: Record<string, { label: string; color: string;
     color: "var(--muted)",
     items: [
       ...COMMUNITY_NAV_GROUP.items,
-      { href: "/profile", label: "Mi perfil", icon: UserCircle },
-      { href: "/profile/mi-informacion-laboral", label: "Mi información laboral", icon: Briefcase },
-      { href: "/informacion-y-fuentes", label: "Información y fuentes", icon: FileText },
     ],
   },
 }

@@ -48,11 +48,13 @@ export function BiometricSecurityCard() {
     const onFocus = () => void checkBiometricStatus()
     window.addEventListener("focus", onFocus)
     window.addEventListener("laveinte:native-ready", onFocus)
+    window.addEventListener("laveinte:biometrics-changed", onFocus)
 
     return () => {
       clearTimeout(timer)
       window.removeEventListener("focus", onFocus)
       window.removeEventListener("laveinte:native-ready", onFocus)
+      window.removeEventListener("laveinte:biometrics-changed", onFocus)
     }
   }, [checkBiometricStatus])
 
@@ -69,15 +71,12 @@ export function BiometricSecurityCard() {
       } else {
         window.location.href = "laveinte://bridge/disableBiometrics"
       }
-      setIsEnabled(false)
     } else {
       if (typeof window.LaVeinteApp.promptBiometricEnrollment === "function") {
         window.LaVeinteApp.promptBiometricEnrollment()
       } else {
         window.location.href = "laveinte://bridge/promptBiometrics"
       }
-      // Re-verificar tras breve pausa para captar el resultado del prompt
-      setTimeout(() => void checkBiometricStatus(), 1200)
     }
   }
 

@@ -2,6 +2,7 @@ import type { VacationSimulationInput, VacationSimulationResult, RuleTrace, Norm
 import { calculateCompletedYears, getCctAnnualDays, getEstatutoAnnualDays, getUnitsForInclusion, resolveVacationEntitlementUnits } from "./entitlement";
 import { applyInclusionMark, getCompatibleInclusionMarks } from "./continuity";
 import { validateAnticipation, calculateVacationRange, isFirstPeriod } from "./validation";
+import { validatePeriodSequence } from "./role-eligibility";
 import type { VacationDateCalculationResult } from "./types";
 import { detectNormativeConflicts } from "./conflicts";
 import { getUnitType, getWorkScheduleForProfile } from "./schedules";
@@ -99,6 +100,36 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
     : undefined;
   const normativeCitation = findVacationMarkRule(regime, proposedInclusionMark, input.continuityMark)?.citation;
 
+  let sequenceBlocked = false;
+  if (input.selectedStartDate && input.previousPeriodStartDate && !transitionBlocked) {
+    const seqCheck = validatePeriodSequence({
+      periodIndex: input.nextPeriodNumber,
+      previousPeriodIndex: input.previousPeriodIndex ?? Math.max(1, input.nextPeriodNumber - 1),
+      roleStartDate: input.selectedStartDate,
+      previousPeriodStartDate: input.previousPeriodStartDate,
+      previousPeriodEndDate: input.previousPeriodEndDate,
+      entitlementKind: regime === "EXTRAORDINARIO_V20" ? "V20" : "ORDINARY",
+    });
+
+    traces.push({
+      ruleCode: "VALIDATE_PERIOD_SEQUENCE",
+      result: seqCheck.allowed ? "APPLIED" : "BLOCKED",
+      input: {
+        periodIndex: input.nextPeriodNumber,
+        selectedStartDate: input.selectedStartDate,
+        previousPeriodStartDate: input.previousPeriodStartDate,
+        previousPeriodEndDate: input.previousPeriodEndDate,
+      },
+      output: seqCheck,
+      explanation: seqCheck.allowed ? seqCheck.technicalMessage : seqCheck.workerMessage,
+    });
+
+    if (!seqCheck.allowed) {
+      sequenceBlocked = true;
+      warnings.push(seqCheck.workerMessage);
+    }
+  }
+
   const firstPeriod = isFirstPeriod(
     input.nextPeriodNumber,
     input.expiredVacationPeriods,
@@ -106,7 +137,7 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
   );
 
   let anticipationResult: AnticipationResult | undefined;
-  if (input.selectedStartDate && input.dueDate && !transitionBlocked) {
+  if (input.selectedStartDate && input.dueDate && !transitionBlocked && !sequenceBlocked) {
     anticipationResult = validateAnticipation(
       regime,
       input.dueDate,
@@ -132,7 +163,7 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
   const anticipationBlocked = anticipationResult ? !anticipationResult.allowed : false;
   let contractBlocked = false;
 
-  if (input.selectedStartDate && !transitionBlocked && !anticipationBlocked && unitsUsed !== undefined) {
+  if (input.selectedStartDate && !transitionBlocked && !sequenceBlocked && !anticipationBlocked && unitsUsed !== undefined) {
     dateBreakdown = calculateVacationRange({
       startDate: input.selectedStartDate,
       entitlementUnits: unitsUsed,
@@ -179,7 +210,7 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
   const requiresNormativeReview = normativeConflicts.some((c) => c.requiresReview);
 
   return {
-    status: transitionBlocked ? "BLOCKED" : "COMPUTED",
+    status: (transitionBlocked || sequenceBlocked) ? "BLOCKED" : "COMPUTED",
     regime,
     periodNumber: input.nextPeriodNumber,
     startDate: input.selectedStartDate,
@@ -195,7 +226,7 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
     affectedUPO: transitionBlocked ? undefined : input.nextPeriodNumber + upoIncrement,
     dueDate: input.dueDate,
     anticipationDays: anticipationResult?.daysInAdvance ?? 0,
-    requiresSpecialProcess: transitionBlocked || anticipationBlocked || contractBlocked,
+    requiresSpecialProcess: transitionBlocked || sequenceBlocked || anticipationBlocked || contractBlocked,
     requiresNormativeReview,
     normativeConflicts,
     warnings,

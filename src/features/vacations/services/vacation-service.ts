@@ -16,14 +16,18 @@ export async function saveSimulation(
       return { error: "No se puede guardar una programación con opciones o roles bloqueados." };
     }
 
-    if (input.selectedStartDate && input.dueDate) {
+    if (input.selectedStartDate && (input.dueDate || input.previousPeriodStartDate)) {
       const eligibility = evaluateVacationRoleEligibility({
         regime: input.regime,
         entitlementKind: input.regime === "EXTRAORDINARIO_V20" ? "V20" : "ORDINARY",
-        dueDate: input.dueDate,
+        dueDate: input.dueDate ?? null,
         roleStartDate: input.selectedStartDate,
         contractType: input.workerProfile?.contractType,
         contractEndDate: input.workerProfile?.contractEndDate,
+        periodIndex: input.nextPeriodNumber,
+        previousPeriodIndex: input.previousPeriodIndex,
+        previousPeriodStartDate: input.previousPeriodStartDate,
+        previousPeriodEndDate: input.previousPeriodEndDate,
       });
 
       if (eligibility.status === "BLOCKED") {

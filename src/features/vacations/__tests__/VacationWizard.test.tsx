@@ -313,6 +313,48 @@ describe("VacationWizard (Asesor y Planificador Anual)", () => {
     fireEvent.click(saveButton)
     expect(screen.getByText(/Simulación guardada en tu cuenta como simulación pendiente de confirmación oficial/i)).toBeDefined()
   })
+
+  it("Paso 4: Bloquea roles anteriores al Periodo 1 con el mensaje de secuencia de programación y permite continuidad inmediata", async () => {
+    const contextFebJan: WorkerContext = {
+      ...mockContext,
+      vacations: {
+        ...mockContext.vacations!,
+        entitlements: [
+          { id: "1", kind: "ORDINARY", periodNumber: 1, dueDate: "2027-04-15", confirmed: true, sourcePayslipPeriod: "2026-16" },
+          { id: "2", kind: "ORDINARY", periodNumber: 2, dueDate: "2027-04-30", confirmed: true, sourcePayslipPeriod: "2026-16" },
+        ],
+      },
+    }
+
+    render(<VacationWizard initialContext={contextFebJan} />)
+    fireEvent.click(screen.getByText(/Comenzar simulación/i))
+    fireEvent.click(screen.getByText(/Continuar a prioridades/i))
+    fireEvent.click(screen.getByText(/Continuar a programación/i))
+
+    // En Periodo 1: elegir Marca 4 y el Rol #2 (febrero: inicia 2027-02-02)
+    fireEvent.click(screen.getByText(/Elegir Marca 4/i))
+    const role2CardP1 = screen.getByText(/Rol #2\b/i).closest("div[style*='cursor: pointer']")
+    expect(role2CardP1).not.toBeNull()
+    if (role2CardP1) fireEvent.click(role2CardP1)
+
+    // Avanzar al Periodo 2
+    fireEvent.click(screen.getByText(/Siguiente periodo →/i))
+    expect(screen.getByText(/Programa tu segundo periodo/i)).toBeDefined()
+
+    // En Periodo 2: el Rol #1 (enero: 2027-01-18) debe mostrarse bloqueado con el mensaje de secuencia
+    expect(
+      screen.getAllByText(
+        /El período vacacional debe respetar la secuencia de programación\. La fecha seleccionada para este período queda antes del período vacacional anterior\./i
+      ).length
+    ).toBeGreaterThan(0)
+
+    const role1CardP2 = screen.getByText(/Rol #1\b/i).closest("div[style*='cursor: not-allowed']")
+    expect(role1CardP2).not.toBeNull()
+
+    // Y el Rol #3 consecutivo (2027-02-17) sigue disponible sin bloqueo artificial
+    const role3CardP2 = screen.getByText(/Rol #3\b/i).closest("div[style*='cursor: pointer']")
+    expect(role3CardP2).not.toBeNull()
+  })
 })
 
 
