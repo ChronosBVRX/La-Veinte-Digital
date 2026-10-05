@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useEffect, useMemo, useRef, type CSSProperties } from "react"
+import { useState, useEffect, useMemo, useRef, useCallback, type CSSProperties } from "react"
 import Link from "next/link"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
+import { Modal } from "@/shared/components/ui/Modal"
 import { useLiveWorkerContext } from "@/shared/hooks/useLiveWorkerContext"
 import { createClient } from "@/lib/supabase/client"
 import { insertCommitment } from "@/features/agenda-laboral/services/commitments-supabase"
@@ -54,6 +55,57 @@ const CONTAINER: CSSProperties = {
   boxSizing: "border-box",
   margin: "0 auto",
   padding: "1rem",
+}
+
+const PLANNING_CONTAINER: CSSProperties = {
+  width: "100%",
+  maxWidth: 1120,
+  minWidth: 0,
+  boxSizing: "border-box",
+  margin: "0 auto",
+  padding: "1rem",
+}
+
+const MONTH_NAMES = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+] as const
+
+const WEEKDAY_INITIALS = ["L", "M", "M", "J", "V", "S", "D"] as const
+const WEEKDAY_SHORT = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"] as const
+
+function getMonthIndexFromIsoDate(isoDate: string): number {
+  const monthPart = Number(isoDate.slice(5, 7))
+  if (!Number.isInteger(monthPart) || monthPart < 1 || monthPart > 12) return 0
+  return monthPart - 1
+}
+
+function buildMonthCalendarCells(year: number, monthIndex: number): {
+  startOffset: number
+  days: { day: number; isoDate: string }[]
+} {
+  const firstWeekday = new Date(Date.UTC(year, monthIndex, 1)).getUTCDay()
+  const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate()
+  const startOffset = firstWeekday === 0 ? 6 : firstWeekday - 1
+  const monthStr = String(monthIndex + 1).padStart(2, "0")
+  const days: { day: number; isoDate: string }[] = []
+  for (let d = 1; d <= daysInMonth; d++) {
+    days.push({
+      day: d,
+      isoDate: `${year}-${monthStr}-${String(d).padStart(2, "0")}`,
+    })
+  }
+  return { startOffset, days }
 }
 
 const HEADER: CSSProperties = {
@@ -157,6 +209,35 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
   const [savingAgenda, setSavingAgenda] = useState<boolean>(false)
   const [agendaSavedSuccess, setAgendaSavedSuccess] = useState<boolean>(false)
   const [agendaSaveError, setAgendaSaveError] = useState<string | null>(null)
+  const [openMonthState, setOpenMonthState] = useState<{
+    step: WizardStep
+    periodIdx: number
+    monthIndex: number
+  } | null>(null)
+  const [hoveredModalRoleId, setHoveredModalRoleId] = useState<string | number | null>(null)
+
+  const openMonthIndex =
+    openMonthState &&
+    openMonthState.step === step &&
+    openMonthState.periodIdx === activePeriodIdx
+      ? openMonthState.monthIndex
+      : null
+
+  const setOpenMonthIndex = useCallback(
+    (monthIdx: number | null) => {
+      if (monthIdx === null) {
+        setOpenMonthState(null)
+      } else {
+        setOpenMonthState({ step, periodIdx: activePeriodIdx, monthIndex: monthIdx })
+      }
+    },
+    [step, activePeriodIdx]
+  )
+
+  const closeMonthModal = useCallback(() => {
+    setOpenMonthState(null)
+    setHoveredModalRoleId(null)
+  }, [])
 
   // Huella única del trabajador/tarjetón para detectar cambios de identidad o periodo
   const contextFingerprint = useMemo(() => {
@@ -189,6 +270,8 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
       setActivePeriodIdx(1)
       setSelections({})
       setSavedSuccess(false)
+      setOpenMonthState(null)
+      setHoveredModalRoleId(null)
     }
     prevFingerprintRef.current = contextFingerprint
   }, [contextFingerprint])
@@ -675,7 +758,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
     )
 
     return (
-      <div style={CONTAINER}>
+      <div style={PLANNING_CONTAINER}>
         {/* Navegación adaptable de periodos (cuadrícula en móvil, sin corte horizontal) */}
         <div
           style={{
@@ -1107,9 +1190,72 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
         {/* 2. SELECCIÓN DE ROL DEL CALENDARIO */}
         <Card padding="1.25rem" style={{ marginBottom: "1.25rem" }}>
-          <h3 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.5rem", color: "var(--fg)" }}>
-            2. Selecciona tu rol del calendario
-          </h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem", marginBottom: "0.75rem" }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <h3 style={{ fontSize: "1.05rem", fontWeight: 700, marginBottom: "0.25rem", color: "var(--fg)" }}>
+                2. Selecciona tu rol del calendario {calendar.year}
+              </h3>
+              <p style={{ fontSize: "0.85rem", color: "var(--muted)", margin: 0, lineHeight: 1.45 }}>
+                Explora el calendario por mes (de Enero a Diciembre). Haz clic en cualquier mes para abrir su calendario en grande y seleccionar tu rol vacacional.
+              </p>
+            </div>
+            {selectedRole && (
+              <div
+                onClick={() => setOpenMonthIndex(getMonthIndexFromIsoDate(selectedRole.startDate))}
+                style={{
+                  background: "rgba(37,99,235,0.08)",
+                  border: "1.5px solid var(--primary)",
+                  borderRadius: "var(--radius)",
+                  padding: "0.5rem 0.85rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  flexWrap: "wrap",
+                }}
+              >
+                <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--primary)" }}>
+                  📅 Rol {selectedRole.roleNumber} ({MONTH_NAMES[getMonthIndexFromIsoDate(selectedRole.startDate)]}) seleccionado
+                </span>
+                <span style={{ fontSize: "0.75rem", color: "var(--muted)", textDecoration: "underline" }}>
+                  Ver mes
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Leyenda visual rápida del calendario */}
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "0.5rem 1.25rem",
+              padding: "0.6rem 0.85rem",
+              background: "var(--accent)",
+              borderRadius: "var(--radius-sm)",
+              border: "1px solid var(--border)",
+              marginBottom: "1rem",
+              fontSize: "0.78rem",
+              color: "var(--fg)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+              <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "3px", background: "#dcfce7", border: "1.5px solid #16a34a" }} />
+              <span><strong>Inicio de rol disponible</strong></span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+              <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "3px", background: "var(--primary)" }} />
+              <span><strong>Días de tu rol elegido</strong></span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+              <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "3px", background: "#fee2e2", border: "1px dashed #ef4444" }} />
+              <span><strong>Rol bloqueado</strong></span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+              <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: "3px", background: "rgba(22, 163, 74, 0.18)", border: "1px solid #16a34a" }} />
+              <span><strong>Día de regreso a laborar</strong></span>
+            </div>
+          </div>
 
           {/* Aviso general de calendario preliminar (una sola vez arriba) */}
           {calendar?.status === "DRAFT" && (
@@ -1161,163 +1307,666 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
           {calendar.roles.length === 0 ? (
             <p style={{ color: "var(--muted)", fontSize: "0.85rem" }}>No hay roles disponibles en este momento.</p>
-          ) : (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))",
-                gap: "0.75rem",
-                width: "100%",
-                boxSizing: "border-box",
-                minWidth: 0,
-              }}
-            >
-              {calendar.roles.map((r) => {
-                const roleEndDate = getVacationRoleEndDate(r, activePeriodUnits)
-                const isMissingOfficialDuration = Boolean(r.endDateByDays && !roleEndDate)
-                const isSelected = selectedRole?.id === r.id || selectedRole?.roleNumber === r.roleNumber
-                const ev = roleEvaluations.get(r.id || r.roleNumber)
-                const isBlocked = isMissingOfficialDuration || ev?.status === "BLOCKED" || ev?.evaluation?.dateEligibility === "NOT_ELIGIBLE"
-                const isEligible = ev?.evaluation?.dateEligibility === "ELIGIBLE"
-                const isPreliminary = ev?.evaluation?.calendarCertainty === "PRELIMINARY"
-                const isUnknown = ev?.evaluation?.dateEligibility === "UNKNOWN"
-                const canSelect = ev ? ev.evaluation.selectableForSimulation : !isBlocked
+          ) : (() => {
+            const renderRoleCardItem = (
+              r: VacationRole,
+              opts: { inModal: boolean; monthIdx: number }
+            ) => {
+              const roleEndDate = getVacationRoleEndDate(r, activePeriodUnits)
+              const isMissingOfficialDuration = Boolean(r.endDateByDays && !roleEndDate)
+              const isSelected = selectedRole?.id === r.id || selectedRole?.roleNumber === r.roleNumber
+              const ev = roleEvaluations.get(r.id || r.roleNumber)
+              const isBlocked = isMissingOfficialDuration || ev?.status === "BLOCKED" || ev?.evaluation?.dateEligibility === "NOT_ELIGIBLE"
+              const isEligible = ev?.evaluation?.dateEligibility === "ELIGIBLE"
+              const isPreliminary = ev?.evaluation?.calendarCertainty === "PRELIMINARY"
+              const isUnknown = ev?.evaluation?.dateEligibility === "UNKNOWN"
+              const canSelect = ev ? ev.evaluation.selectableForSimulation : !isBlocked
 
-                return (
-                  <div
-                    key={r.id || r.roleNumber}
-                    onClick={() => {
-                      if (!isBlocked && canSelect) {
-                        handleSelectRole(activePeriodIdx, { ...r, endDate: roleEndDate })
+              return (
+                <div
+                  key={r.id || r.roleNumber}
+                  onMouseEnter={() => {
+                    if (opts.inModal) setHoveredModalRoleId(r.id || r.roleNumber)
+                  }}
+                  onMouseLeave={() => {
+                    if (opts.inModal) setHoveredModalRoleId(null)
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (!isBlocked && canSelect) {
+                      handleSelectRole(activePeriodIdx, { ...r, endDate: roleEndDate })
+                      if (opts.inModal) {
+                        closeMonthModal()
+                      } else {
+                        setOpenMonthIndex(opts.monthIdx)
                       }
-                    }}
-                    style={{
-                      textAlign: "left",
-                      padding: "0.75rem",
-                      borderRadius: "var(--radius)",
-                      border: `1.5px solid ${
-                        isBlocked
-                          ? "#fca5a5"
-                          : isSelected
-                            ? "var(--primary)"
-                            : "var(--border)"
-                      }`,
-                      background: isBlocked
-                        ? "#fef2f2"
+                    } else if (!opts.inModal) {
+                      setOpenMonthIndex(opts.monthIdx)
+                    }
+                  }}
+                  style={{
+                    textAlign: "left",
+                    padding: opts.inModal ? "1rem" : "0.65rem 0.75rem",
+                    borderRadius: "var(--radius)",
+                    border: `1.5px solid ${
+                      isBlocked
+                        ? "#fca5a5"
                         : isSelected
-                          ? "rgba(37,99,235,0.06)"
-                          : "var(--card)",
-                      opacity: isBlocked ? 0.75 : 1,
-                      cursor: isBlocked ? "not-allowed" : "pointer",
-                      width: "100%",
-                      minWidth: 0,
-                      boxSizing: "border-box",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.3rem", marginBottom: "0.3rem" }}>
-                      <div
-                        style={{ fontWeight: 700, fontSize: "0.9rem", color: isBlocked ? "#991b1b" : "var(--fg)" }}
-                        title={r.observation ? "La observación A/B pertenece a la tabla oficial y no es una marca de continuidad o inclusión." : r.roleGroup ? "Este grupo identifica el rol dentro del calendario. No es una marca ni cambia por sí mismo lo que vas a cobrar." : undefined}
-                      >
-                        Rol #{r.roleNumber} {r.observation ? `(Observación ${r.observation})` : r.roleGroup ? `(Grupo de calendario ${r.roleGroup})` : ""}
-                      </div>
-                      {isBlocked ? (
-                        <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#fee2e2", color: "#991b1b", fontWeight: 700 }}>
-                          Bloqueado ✕
-                        </span>
-                      ) : isSelected ? (
-                        <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", borderRadius: "var(--radius-sm)", background: isPreliminary ? "#fef3c7" : "#dcfce7", color: isPreliminary ? "#92400e" : "#166534", fontWeight: 700 }}>
-                          {isPreliminary ? "Seleccionado para simular" : "Elegido ✓"}
-                        </span>
-                      ) : isEligible && isPreliminary ? (
-                        <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#fef3c7", color: "#92400e", fontWeight: 700 }}>
-                          Compatible · calendario preliminar
-                        </span>
-                      ) : isEligible && !isPreliminary ? (
-                        <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#dcfce7", color: "#166534", fontWeight: 700 }}>
-                          Disponible ✓
-                        </span>
-                      ) : (
-                        <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#e0f2fe", color: "#075985", fontWeight: 700 }}>
-                          Falta tu fecha de vencimiento
-                        </span>
-                      )}
+                          ? "var(--primary)"
+                          : "var(--border)"
+                    }`,
+                    background: isBlocked
+                      ? "#fef2f2"
+                      : isSelected
+                        ? "rgba(37,99,235,0.06)"
+                        : "var(--card)",
+                    opacity: isBlocked ? 0.78 : 1,
+                    cursor: isBlocked ? "not-allowed" : "pointer",
+                    width: "100%",
+                    minWidth: 0,
+                    boxSizing: "border-box",
+                    transition: "border-color 0.15s ease, background 0.15s ease",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.3rem", marginBottom: "0.25rem" }}>
+                    <div
+                      style={{ fontWeight: 700, fontSize: opts.inModal ? "0.95rem" : "0.84rem", color: isBlocked ? "#991b1b" : "var(--fg)" }}
+                      title={r.observation ? "La observación A/B pertenece a la tabla oficial y no es una marca de continuidad o inclusión." : r.roleGroup ? "Este grupo identifica el rol dentro del calendario. No es una marca ni cambia por sí mismo lo que vas a cobrar." : undefined}
+                    >
+                      Rol #{r.roleNumber} {r.observation ? `(Observación ${r.observation})` : r.roleGroup ? `(Grupo de calendario ${r.roleGroup})` : ""}
                     </div>
-
-                    <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginTop: "0.2rem" }}>
-                      Inicio: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(r.startDate)}</strong>
-                      {roleEndDate ? (
-                        <> • Término para {activePeriodUnits} días: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(roleEndDate)}</strong></>
-                      ) : (
-                        <> • <strong style={{ color: "#991b1b" }}>Este rol no contempla oficialmente {activePeriodUnits} días</strong></>
-                      )}
-                    </div>
-
-                    {/* Por qué sí o por qué no */}
-                    {(ev || isMissingOfficialDuration) && (
-                      <div style={{ fontSize: "0.78rem", color: isBlocked ? "#991b1b" : "var(--fg)", marginTop: "0.4rem", lineHeight: 1.4 }}>
-                        {isMissingOfficialDuration
-                          ? `Este rol no contempla oficialmente ${activePeriodUnits} días en la tabla 2027.`
-                          : isBlocked
-                            ? ev?.workerMessage
-                            : isPreliminary
-                              ? "Compatible con tus fechas."
-                              : isUnknown
-                                ? "Falta tu fecha de vencimiento para validar oficialmente este rol."
-                                : ev?.workerMessage}
-                      </div>
-                    )}
-
-                    {/* Fecha en que genera el derecho y fecha más temprana permitida */}
-                    {activeDueDate && (
-                      <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.3rem" }}>
-                        Tu derecho se genera el: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(activeDueDate)}</strong>
-                        {activeDueDateConfidence === "PROVISIONAL" && " (fecha estimada)"}
-                      </div>
-                    )}
-                    {ev?.earliestAllowedDate && (
-                      <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.15rem" }}>
-                        Fecha más temprana permitida: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(ev.earliestAllowedDate)}</strong>
-                      </div>
-                    )}
-
-                    {/* Advertencia breve si el calendario es preliminar */}
-                    {isPreliminary && (
-                      <div style={{ fontSize: "0.75rem", color: "#92400e", marginTop: "0.3rem", lineHeight: 1.35 }}>
-                        ⚠️ Calendario preliminar {calendar.year}; confirma el rol cuando se publique el calendario oficial.
-                      </div>
-                    )}
-
-                    {/* Acordeón de detalles técnicos (inicia cerrado) */}
-                    {ev && (
-                      <details
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                          marginTop: "0.5rem",
-                          padding: "0.3rem 0.5rem",
-                          borderRadius: "var(--radius-sm)",
-                          background: "rgba(0,0,0,0.03)",
-                          fontSize: "0.72rem",
-                          color: "var(--muted)",
-                        }}
-                      >
-                        <summary style={{ cursor: "pointer", fontWeight: 600 }}>
-                          Ver detalles
-                        </summary>
-                        <div style={{ marginTop: "0.3rem", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
-                          <div><strong>Evaluación:</strong> {isEligible ? "Fechas compatibles" : isBlocked ? "No compatible con las fechas" : "Fecha no confirmada"}</div>
-                          <div><strong>Certeza:</strong> {isPreliminary ? "Calendario preliminar" : "Calendario oficial"}</div>
-                          {ev.daysBeforeDue !== null && (
-                            <div>{formatAnticipationCivilPhrase(ev.daysBeforeDue)}</div>
-                          )}
-                        </div>
-                      </details>
+                    {isBlocked ? (
+                      <span style={{ fontSize: "0.68rem", padding: "0.12rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#fee2e2", color: "#991b1b", fontWeight: 700 }}>
+                        Bloqueado ✕
+                      </span>
+                    ) : isSelected ? (
+                      <span style={{ fontSize: "0.68rem", padding: "0.12rem 0.4rem", borderRadius: "var(--radius-sm)", background: isPreliminary ? "#fef3c7" : "#dcfce7", color: isPreliminary ? "#92400e" : "#166534", fontWeight: 700 }}>
+                        {isPreliminary ? "Seleccionado para simular" : "Elegido ✓"}
+                      </span>
+                    ) : isEligible && isPreliminary ? (
+                      <span style={{ fontSize: "0.68rem", padding: "0.12rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#fef3c7", color: "#92400e", fontWeight: 700 }}>
+                        Compatible · calendario preliminar
+                      </span>
+                    ) : isEligible && !isPreliminary ? (
+                      <span style={{ fontSize: "0.68rem", padding: "0.12rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#dcfce7", color: "#166534", fontWeight: 700 }}>
+                        Disponible ✓
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: "0.68rem", padding: "0.12rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#e0f2fe", color: "#075985", fontWeight: 700 }}>
+                        Falta tu fecha de vencimiento
+                      </span>
                     )}
                   </div>
-                )
-              })}
-            </div>
-          )}
+
+                  <div style={{ fontSize: opts.inModal ? "0.84rem" : "0.76rem", color: "var(--muted)", marginTop: "0.15rem", lineHeight: 1.4 }}>
+                    Inicio: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(r.startDate)}</strong>
+                    {roleEndDate ? (
+                      <> • Término para {activePeriodUnits} días: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(roleEndDate)}</strong></>
+                    ) : (
+                      <> • <strong style={{ color: "#991b1b" }}>Este rol no contempla oficialmente {activePeriodUnits} días</strong></>
+                    )}
+                  </div>
+
+                  {/* Por qué sí o por qué no */}
+                  {(ev || isMissingOfficialDuration) && (
+                    <div style={{ fontSize: opts.inModal ? "0.8rem" : "0.73rem", color: isBlocked ? "#991b1b" : "var(--fg)", marginTop: "0.3rem", lineHeight: 1.38 }}>
+                      {isMissingOfficialDuration
+                        ? `Este rol no contempla oficialmente ${activePeriodUnits} días en la tabla 2027.`
+                        : isBlocked
+                          ? ev?.workerMessage
+                          : isPreliminary
+                            ? "Compatible con tus fechas."
+                            : isUnknown
+                              ? "Falta tu fecha de vencimiento para validar oficialmente este rol."
+                              : ev?.workerMessage}
+                    </div>
+                  )}
+
+                  {/* Detalles extendidos y botón de acción dentro del Modal del Mes */}
+                  {opts.inModal && (
+                    <>
+                      {activeDueDate && (
+                        <div style={{ fontSize: "0.76rem", color: "var(--muted)", marginTop: "0.35rem" }}>
+                          Tu derecho se genera el: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(activeDueDate)}</strong>
+                          {activeDueDateConfidence === "PROVISIONAL" && " (fecha estimada)"}
+                        </div>
+                      )}
+                      {ev?.earliestAllowedDate && (
+                        <div style={{ fontSize: "0.76rem", color: "var(--muted)", marginTop: "0.15rem" }}>
+                          Fecha más temprana permitida: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(ev.earliestAllowedDate)}</strong>
+                        </div>
+                      )}
+                      {isPreliminary && (
+                        <div style={{ fontSize: "0.75rem", color: "#92400e", marginTop: "0.3rem", lineHeight: 1.35 }}>
+                          ⚠️ Calendario preliminar {calendar.year}; confirma el rol cuando se publique el calendario oficial.
+                        </div>
+                      )}
+                      {ev && (
+                        <details
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            marginTop: "0.5rem",
+                            padding: "0.35rem 0.55rem",
+                            borderRadius: "var(--radius-sm)",
+                            background: "rgba(0,0,0,0.03)",
+                            fontSize: "0.74rem",
+                            color: "var(--muted)",
+                          }}
+                        >
+                          <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+                            Ver detalles
+                          </summary>
+                          <div style={{ marginTop: "0.3rem", display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                            <div><strong>Evaluación:</strong> {isEligible ? "Fechas compatibles" : isBlocked ? "No compatible con las fechas" : "Fecha no confirmada"}</div>
+                            <div><strong>Certeza:</strong> {isPreliminary ? "Calendario preliminar" : "Calendario oficial"}</div>
+                            {ev.daysBeforeDue !== null && (
+                              <div>{formatAnticipationCivilPhrase(ev.daysBeforeDue)}</div>
+                            )}
+                          </div>
+                        </details>
+                      )}
+                      <div style={{ marginTop: "0.75rem", display: "flex", justifyContent: "flex-end" }}>
+                        <Button
+                          size="sm"
+                          variant={isSelected ? "primary" : "secondary"}
+                          disabled={isBlocked || !canSelect}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (!isBlocked && canSelect) {
+                              handleSelectRole(activePeriodIdx, { ...r, endDate: roleEndDate })
+                              closeMonthModal()
+                            }
+                          }}
+                        >
+                          {isBlocked
+                            ? "No elegible en este periodo"
+                            : isSelected
+                              ? `Rol ${r.roleNumber} seleccionado`
+                              : `Seleccionar Rol ${r.roleNumber}`}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )
+            }
+
+            const selectedStart = selectedRole?.startDate ?? null
+            const selectedEnd = selectedRole
+              ? getVacationRoleEndDate(selectedRole, activePeriodUnits) ?? selectedRole.endDate ?? selectedRole.startDate
+              : null
+
+            const modalMonthRoles = openMonthIndex !== null
+              ? calendar.roles.filter((r) => getMonthIndexFromIsoDate(r.startDate) === openMonthIndex)
+              : []
+
+            const previewedModalRole = openMonthIndex !== null
+              ? modalMonthRoles.find((r) => (r.id || r.roleNumber) === hoveredModalRoleId) ??
+                modalMonthRoles.find((r) => selectedRole?.id === r.id || selectedRole?.roleNumber === r.roleNumber) ??
+                null
+              : null
+
+            const previewedModalStart = previewedModalRole?.startDate ?? selectedStart
+            const previewedModalEnd = previewedModalRole
+              ? getVacationRoleEndDate(previewedModalRole, activePeriodUnits) ?? previewedModalRole.endDate ?? previewedModalRole.startDate
+              : selectedEnd
+
+            return (
+              <>
+                {/* CUADRÍCULA ANUAL DE 12 MESES */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 285px), 1fr))",
+                    gap: "1rem",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    minWidth: 0,
+                  }}
+                >
+                  {MONTH_NAMES.map((monthName, monthIdx) => {
+                    const monthRoles = calendar.roles.filter(
+                      (r) => getMonthIndexFromIsoDate(r.startDate) === monthIdx
+                    )
+                    const { startOffset, days } = buildMonthCalendarCells(calendar.year, monthIdx)
+
+                    let monthAvailableCount = 0
+                    let hasSelectedInMonth = false
+
+                    const roleStartByIsoDate = new Map<string, { role: VacationRole; isBlocked: boolean; isSelected: boolean }>()
+
+                    for (const r of monthRoles) {
+                      const roleEndDate = getVacationRoleEndDate(r, activePeriodUnits)
+                      const isMissingOfficialDuration = Boolean(r.endDateByDays && !roleEndDate)
+                      const ev = roleEvaluations.get(r.id || r.roleNumber)
+                      const isBlocked = isMissingOfficialDuration || ev?.status === "BLOCKED" || ev?.evaluation?.dateEligibility === "NOT_ELIGIBLE"
+                      const isSel = selectedRole?.id === r.id || selectedRole?.roleNumber === r.roleNumber
+                      if (!isBlocked) monthAvailableCount++
+                      if (isSel) hasSelectedInMonth = true
+                      roleStartByIsoDate.set(r.startDate, { role: r, isBlocked, isSelected: isSel })
+                    }
+
+                    return (
+                      <div
+                        key={monthName}
+                        onClick={() => setOpenMonthIndex(monthIdx)}
+                        style={{
+                          background: hasSelectedInMonth ? "rgba(37,99,235,0.03)" : "var(--card)",
+                          border: `2px solid ${
+                            hasSelectedInMonth
+                              ? "var(--primary)"
+                              : monthAvailableCount > 0
+                                ? "var(--border)"
+                                : "#e2e8f0"
+                          }`,
+                          borderRadius: "var(--radius)",
+                          padding: "0.9rem",
+                          cursor: "pointer",
+                          display: "flex",
+                          flexDirection: "column",
+                          justifyContent: "space-between",
+                          gap: "0.75rem",
+                          width: "100%",
+                          minWidth: 0,
+                          boxSizing: "border-box",
+                          boxShadow: hasSelectedInMonth ? "0 4px 12px rgba(37,99,235,0.10)" : "none",
+                        }}
+                      >
+                        <div>
+                          {/* Cabecera del Mes */}
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              paddingBottom: "0.55rem",
+                              marginBottom: "0.55rem",
+                              borderBottom: "1px solid var(--border)",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "baseline", gap: "0.35rem" }}>
+                              <span style={{ fontSize: "1.05rem", fontWeight: 800, color: hasSelectedInMonth ? "var(--primary)" : "var(--fg)" }}>
+                                {monthName}
+                              </span>
+                              <span style={{ fontSize: "0.78rem", color: "var(--muted)", fontWeight: 600 }}>
+                                {calendar.year}
+                              </span>
+                            </div>
+
+                            {hasSelectedInMonth ? (
+                              <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.5rem", borderRadius: "9999px", background: "var(--primary)", color: "#ffffff", fontWeight: 700 }}>
+                                Mes seleccionado
+                              </span>
+                            ) : monthAvailableCount > 0 ? (
+                              <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.5rem", borderRadius: "9999px", background: "#dcfce7", color: "#166534", fontWeight: 700 }}>
+                                {monthAvailableCount} {monthAvailableCount === 1 ? "rol disponible" : "roles disponibles"}
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.5rem", borderRadius: "9999px", background: "#fee2e2", color: "#991b1b", fontWeight: 700 }}>
+                                Sin disponibles
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Mini-Calendario Mensual (L M M J V S D) */}
+                          <div style={{ marginBottom: "0.75rem", background: "var(--accent)", padding: "0.5rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px", marginBottom: "4px" }}>
+                              {WEEKDAY_INITIALS.map((wd, idx) => (
+                                <div
+                                  key={`${monthName}-wd-${idx}`}
+                                  style={{
+                                    textAlign: "center",
+                                    fontSize: "0.62rem",
+                                    fontWeight: 700,
+                                    color: "var(--muted)",
+                                  }}
+                                >
+                                  {wd}
+                                </div>
+                              ))}
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px" }}>
+                              {Array.from({ length: startOffset }).map((_, i) => (
+                                <div key={`${monthName}-empty-${i}`} style={{ height: 22 }} />
+                              ))}
+                              {days.map(({ day, isoDate }) => {
+                                const startInfo = roleStartByIsoDate.get(isoDate)
+                                const isInSelectedRange = Boolean(
+                                  selectedStart && selectedEnd && isoDate >= selectedStart && isoDate <= selectedEnd
+                                )
+                                const isSelectedBoundary = isoDate === selectedStart || isoDate === selectedEnd
+                                const isReturnDay = activePeriod?.returnDate === isoDate
+
+                                return (
+                                  <div
+                                    key={isoDate}
+                                    title={
+                                      startInfo
+                                        ? `Inicia Rol #${startInfo.role.roleNumber} (${formatCivilMexicanDate(isoDate)})`
+                                        : isReturnDay
+                                          ? `Reanudación de labores (${formatCivilMexicanDate(isoDate)})`
+                                          : undefined
+                                    }
+                                    style={{
+                                      height: 22,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      borderRadius: "4px",
+                                      fontSize: "0.68rem",
+                                      fontWeight: startInfo || isInSelectedRange || isReturnDay ? 700 : 500,
+                                      background: isSelectedBoundary
+                                        ? "var(--primary)"
+                                        : isInSelectedRange
+                                          ? "rgba(37, 99, 235, 0.18)"
+                                          : isReturnDay
+                                            ? "rgba(22, 163, 74, 0.18)"
+                                            : startInfo
+                                              ? startInfo.isBlocked
+                                                ? "#fee2e2"
+                                                : "#dcfce7"
+                                              : "transparent",
+                                      color: isSelectedBoundary
+                                        ? "#ffffff"
+                                        : isInSelectedRange
+                                          ? "var(--primary)"
+                                          : isReturnDay
+                                            ? "#166534"
+                                            : startInfo
+                                              ? startInfo.isBlocked
+                                                ? "#991b1b"
+                                                : "#166534"
+                                              : "var(--fg)",
+                                      border: startInfo
+                                        ? startInfo.isBlocked
+                                          ? "1px dashed #ef4444"
+                                          : "1.5px solid #16a34a"
+                                        : isReturnDay
+                                          ? "1px solid #16a34a"
+                                          : "none",
+                                      boxSizing: "border-box",
+                                    }}
+                                  >
+                                    {day}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Resumen de Roles en el Mes */}
+                          <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", marginBottom: "0.35rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                            Roles en {monthName} ({monthRoles.length})
+                          </div>
+
+                          {openMonthIndex === monthIdx ? (
+                            <div
+                              style={{
+                                padding: "0.65rem",
+                                borderRadius: "var(--radius-sm)",
+                                background: "rgba(37,99,235,0.06)",
+                                color: "var(--primary)",
+                                fontSize: "0.8rem",
+                                fontWeight: 600,
+                                textAlign: "center",
+                              }}
+                            >
+                              Abierto en ventana de selección…
+                            </div>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+                              {monthRoles.map((r) => renderRoleCardItem(r, { inModal: false, monthIdx }))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Pie de la tarjeta de mes para abrir el modal */}
+                        <div
+                          style={{
+                            paddingTop: "0.5rem",
+                            borderTop: "1px solid var(--border)",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            fontSize: "0.8rem",
+                            fontWeight: 700,
+                            color: "var(--primary)",
+                          }}
+                        >
+                          <span>📅 Abrir calendario de {monthName}</span>
+                          <span>→</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* MODAL DEL MES PARA SELECCIONAR ROL EN GRANDE */}
+                <Modal
+                  open={openMonthIndex !== null}
+                  onClose={closeMonthModal}
+                  size="lg"
+                  title={
+                    openMonthIndex !== null
+                      ? `📅 ${MONTH_NAMES[openMonthIndex]} ${calendar.year} — Selecciona tu rol`
+                      : "Calendario de roles"
+                  }
+                  description={
+                    openMonthIndex !== null
+                      ? `Revisa en el calendario de ${MONTH_NAMES[openMonthIndex]} qué días abarca cada rol para tus ${activePeriodUnits} días de vacaciones y haz clic en el rol que deseas elegir.`
+                      : undefined
+                  }
+                  footer={
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", flexWrap: "wrap", gap: "0.5rem" }}>
+                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                        {openMonthIndex !== null && openMonthIndex > 0 && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                              setHoveredModalRoleId(null)
+                              setOpenMonthIndex(openMonthIndex - 1)
+                            }}
+                          >
+                            ← {MONTH_NAMES[openMonthIndex - 1]}
+                          </Button>
+                        )}
+                        {openMonthIndex !== null && openMonthIndex < 11 && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                              setHoveredModalRoleId(null)
+                              setOpenMonthIndex(openMonthIndex + 1)
+                            }}
+                          >
+                            {MONTH_NAMES[openMonthIndex + 1]} →
+                          </Button>
+                        )}
+                      </div>
+                      <Button size="sm" variant="primary" onClick={closeMonthModal}>
+                        Cerrar calendario
+                      </Button>
+                    </div>
+                  }
+                >
+                  {openMonthIndex !== null && (() => {
+                    const { startOffset, days } = buildMonthCalendarCells(calendar.year, openMonthIndex)
+                    const roleStartByIsoDate = new Map<string, { role: VacationRole; isBlocked: boolean; isSelected: boolean; canSelect: boolean; endDate?: string }>()
+
+                    for (const r of modalMonthRoles) {
+                      const roleEndDate = getVacationRoleEndDate(r, activePeriodUnits)
+                      const isMissingOfficialDuration = Boolean(r.endDateByDays && !roleEndDate)
+                      const ev = roleEvaluations.get(r.id || r.roleNumber)
+                      const isBlocked = isMissingOfficialDuration || ev?.status === "BLOCKED" || ev?.evaluation?.dateEligibility === "NOT_ELIGIBLE"
+                      const canSelect = ev ? ev.evaluation.selectableForSimulation : !isBlocked
+                      const isSel = selectedRole?.id === r.id || selectedRole?.roleNumber === r.roleNumber
+                      roleStartByIsoDate.set(r.startDate, { role: r, isBlocked, isSelected: isSel, canSelect, endDate: roleEndDate })
+                    }
+
+                    return (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
+                        {/* Calendario Mensual Grande dentro del Modal */}
+                        <div
+                          style={{
+                            background: "var(--accent)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "var(--radius)",
+                            padding: "0.85rem",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.6rem" }}>
+                            <div style={{ fontWeight: 800, fontSize: "1rem", color: "var(--fg)" }}>
+                              Vista mensual de {MONTH_NAMES[openMonthIndex]} {calendar.year}
+                            </div>
+                            {previewedModalRole && previewedModalStart && previewedModalEnd && (
+                              <span style={{ fontSize: "0.76rem", padding: "0.2rem 0.6rem", borderRadius: "9999px", background: "rgba(37,99,235,0.12)", color: "var(--primary)", fontWeight: 700 }}>
+                                Rol {previewedModalRole.roleNumber}: {formatCivilMexicanDate(previewedModalStart)} al {formatCivilMexicanDate(previewedModalEnd)}
+                              </span>
+                            )}
+                          </div>
+
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px", marginBottom: "4px" }}>
+                            {WEEKDAY_SHORT.map((wd) => (
+                              <div
+                                key={`modal-wd-${wd}`}
+                                style={{
+                                  textAlign: "center",
+                                  fontSize: "0.72rem",
+                                  fontWeight: 700,
+                                  color: "var(--muted)",
+                                  padding: "0.2rem 0",
+                                  textTransform: "uppercase",
+                                }}
+                              >
+                                {wd}
+                              </div>
+                            ))}
+                          </div>
+
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px" }}>
+                            {Array.from({ length: startOffset }).map((_, i) => (
+                              <div key={`modal-empty-${i}`} style={{ minHeight: 46 }} />
+                            ))}
+                            {days.map(({ day, isoDate }) => {
+                              const startInfo = roleStartByIsoDate.get(isoDate)
+                              const isInPreviewRange = Boolean(
+                                previewedModalStart &&
+                                  previewedModalEnd &&
+                                  isoDate >= previewedModalStart &&
+                                  isoDate <= previewedModalEnd
+                              )
+                              const isPreviewBoundary = isoDate === previewedModalStart || isoDate === previewedModalEnd
+                              const isReturnDay = activePeriod?.returnDate === isoDate
+
+                              return (
+                                <div
+                                  key={`modal-day-${isoDate}`}
+                                  onClick={() => {
+                                    if (startInfo && !startInfo.isBlocked && startInfo.canSelect) {
+                                      handleSelectRole(activePeriodIdx, { ...startInfo.role, endDate: startInfo.endDate })
+                                      closeMonthModal()
+                                    }
+                                  }}
+                                  style={{
+                                    minHeight: 46,
+                                    padding: "0.25rem",
+                                    borderRadius: "var(--radius-sm)",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                    cursor: startInfo && !startInfo.isBlocked && startInfo.canSelect ? "pointer" : "default",
+                                    background: isPreviewBoundary
+                                      ? "var(--primary)"
+                                      : isInPreviewRange
+                                        ? "rgba(37, 99, 235, 0.16)"
+                                        : isReturnDay
+                                          ? "rgba(22, 163, 74, 0.16)"
+                                          : startInfo
+                                            ? startInfo.isBlocked
+                                              ? "#fef2f2"
+                                              : "#f0fdf4"
+                                            : "var(--card)",
+                                    color: isPreviewBoundary
+                                      ? "#ffffff"
+                                      : isInPreviewRange
+                                        ? "var(--primary)"
+                                        : isReturnDay
+                                          ? "#166534"
+                                          : "var(--fg)",
+                                    border: startInfo
+                                      ? startInfo.isBlocked
+                                        ? "1.5px dashed #f87171"
+                                        : "1.5px solid #16a34a"
+                                      : isReturnDay
+                                        ? "1.5px solid #16a34a"
+                                        : "1px solid var(--border)",
+                                    boxSizing: "border-box",
+                                  }}
+                                >
+                                  <span style={{ fontSize: "0.78rem", fontWeight: startInfo || isInPreviewRange || isReturnDay ? 700 : 500 }}>
+                                    {day}
+                                  </span>
+                                  {startInfo && (
+                                    <span
+                                      style={{
+                                        fontSize: "0.6rem",
+                                        fontWeight: 700,
+                                        padding: "0.05rem 0.3rem",
+                                        borderRadius: "4px",
+                                        background: isPreviewBoundary
+                                          ? "rgba(255,255,255,0.22)"
+                                          : startInfo.isBlocked
+                                            ? "#fee2e2"
+                                            : "#dcfce7",
+                                        color: isPreviewBoundary
+                                          ? "#ffffff"
+                                          : startInfo.isBlocked
+                                            ? "#991b1b"
+                                            : "#166534",
+                                        whiteSpace: "nowrap",
+                                      }}
+                                    >
+                                      Inicio R{startInfo.role.roleNumber}
+                                    </span>
+                                  )}
+                                  {!startInfo && isReturnDay && (
+                                    <span
+                                      style={{
+                                        fontSize: "0.58rem",
+                                        fontWeight: 700,
+                                        color: "#166534",
+                                        whiteSpace: "nowrap",
+                                      }}
+                                    >
+                                      Regreso
+                                    </span>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Tarjetas detalladas de los roles de este mes */}
+                        <div>
+                          <h4 style={{ fontSize: "0.9rem", fontWeight: 700, margin: "0 0 0.6rem 0", color: "var(--fg)" }}>
+                            Roles disponibles en {MONTH_NAMES[openMonthIndex]} ({modalMonthRoles.length})
+                          </h4>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                            {modalMonthRoles.map((r) => renderRoleCardItem(r, { inModal: true, monthIdx: openMonthIndex }))}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </Modal>
+              </>
+            )
+          })()}
         </Card>
 
         {/* 2.5 FECHA DE REANUDACIÓN DE LABORES PREVIEW */}

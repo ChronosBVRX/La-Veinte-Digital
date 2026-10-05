@@ -355,6 +355,32 @@ describe("VacationWizard (Asesor y Planificador Anual)", () => {
     const role3CardP2 = screen.getByText(/Rol #3\b/i).closest("div[style*='cursor: pointer']")
     expect(role3CardP2).not.toBeNull()
   })
+
+  it("Paso 4: Muestra vista de calendario por meses (Enero a Diciembre) y abre modal al hacer clic en un mes para seleccionar rol", () => {
+    render(<VacationWizard initialContext={mockContext} />)
+    fireEvent.click(screen.getByText(/Comenzar simulación/i))
+    fireEvent.click(screen.getByText(/Continuar a prioridades/i))
+    fireEvent.click(screen.getByText(/Continuar a programación/i))
+
+    // Verifica que aparecen los meses del calendario y sus conteos de roles
+    expect(screen.getByText("Enero")).toBeDefined()
+    expect(screen.getByText("Febrero")).toBeDefined()
+    expect(screen.getByText("Diciembre")).toBeDefined()
+    expect(screen.getByText(/Roles en Enero \(1\)/i)).toBeDefined()
+    expect(screen.getByText(/Roles en Febrero \(2\)/i)).toBeDefined()
+
+    // Al hacer clic en "Abrir calendario de Enero", se abre el modal con la vista mensual de Enero
+    fireEvent.click(screen.getByText(/Abrir calendario de Enero/i))
+    expect(screen.getByText(/Vista mensual de Enero 2027/i)).toBeDefined()
+    expect(screen.getByText(/Roles disponibles en Enero \(1\)/i)).toBeDefined()
+
+    // Seleccionar el Rol 1 desde el botón del modal
+    fireEvent.click(screen.getByRole("button", { name: /Seleccionar Rol 1/i }))
+
+    // Se cierra el modal y queda marcado como elegido en la vista anual
+    expect(screen.getByText(/Rol 1 \(Enero\) seleccionado/i)).toBeDefined()
+  })
 })
+
 
 
