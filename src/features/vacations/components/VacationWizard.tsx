@@ -1164,6 +1164,22 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
               : "Fecha en que se genera el derecho: Pendiente de confirmación con Personal."}
           </div>
 
+          {/* Banner permanente institucional: cálculo en base a último tarjetón y faltas/licencias */}
+          <div
+            style={{
+              fontSize: "0.82rem",
+              color: "#0369a1",
+              background: "#f0f9ff",
+              border: "1px solid #bae6fd",
+              padding: "0.55rem 0.75rem",
+              borderRadius: "var(--radius-sm)",
+              marginBottom: "0.65rem",
+              lineHeight: 1.45,
+            }}
+          >
+            📋 <strong>Cálculo basado en tu último tarjetón:</strong> La fecha de vencimiento y tus periodos de programación se calculan con base en tu último tarjetón confirmado. Ten en cuenta que esta fecha puede variar o recorrerse en función de faltas injustificadas o licencias sin goce de sueldo.
+          </div>
+
           {activeDueDateConfidence === "PROVISIONAL" && (
             <div style={{ fontSize: "0.8rem", color: "#b45309", background: "#fef3c7", padding: "0.4rem 0.6rem", borderRadius: "var(--radius-sm)", marginBottom: "0.5rem" }}>
               ⚠️ Aviso: La fecha de este periodo es provisional o calculada. Requiere confirmación con Personal antes de la programación oficial.
@@ -2477,6 +2493,22 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
           📅 <strong>Calendario preliminar {calendar.year}:</strong> Esta programación es una simulación basada en un calendario preliminar. Los roles seleccionados son compatibles con tus fechas, pero deberán confirmarse oficialmente cuando tu unidad publique el calendario definitivo.
         </div>
       )}
+
+      {/* Banner permanente institucional: cálculo en base a último tarjetón y faltas/licencias */}
+      <div
+        style={{
+          background: "#f0f9ff",
+          border: "1px solid #bae6fd",
+          color: "#0369a1",
+          padding: "0.75rem 1rem",
+          borderRadius: "var(--radius)",
+          marginBottom: "1.25rem",
+          fontSize: "0.85rem",
+          lineHeight: 1.45,
+        }}
+      >
+        📋 <strong>Cálculo basado en tu último tarjetón:</strong> Esta programación anual se proyecta con base en la fecha de vencimiento registrada en tu último tarjetón confirmado. Ten presente que esta fecha oficial puede variar o recorrerse en función de faltas injustificadas o licencias sin goce de sueldo que modifiquen tus días efectivos de servicio ante la Jefatura de Personal.
+      </div>
 
       {/* Cifra destacada total o aviso de corrección */}
       {!isPlanValid ? (

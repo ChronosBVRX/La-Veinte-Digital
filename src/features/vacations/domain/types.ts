@@ -321,11 +321,13 @@ export interface PeriodSequenceValidationInput {
   previousPeriodEndDate?: string | null;
   entitlementKind?: "ORDINARY" | "V20";
   previousEntitlementKind?: "ORDINARY" | "V20";
+  regime?: VacationRegime;
+  dueDate?: string | null;
 }
 
 export interface PeriodSequenceValidationResult {
   allowed: boolean;
-  reasonCode: "OK" | "PERIOD_SEQUENCE_INVERTED" | "PERIOD_DATE_OVERLAP";
+  reasonCode: "OK" | "PERIOD_SEQUENCE_INVERTED" | "PERIOD_DATE_OVERLAP" | "INSUFFICIENT_PERIOD_SEPARATION";
   workerMessage: string;
   technicalMessage: string;
 }
