@@ -1,14 +1,16 @@
 import Link from "next/link"
-import { User, CheckCircle2 } from "lucide-react"
+import { CheckCircle2 } from "lucide-react"
 import { PageContainer } from "@/shared/components/layout/PageContainer"
 import { TarjetonUploaderSection } from "@/features/profile/components/worker/TarjetonUploaderSection"
 import { TarjetonHistorySection, type PreviousImport } from "@/features/tarjeton/components/TarjetonHistorySection"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
+import { AvatarUploader } from "@/features/profile/components/worker/AvatarUploader"
 
 export interface UnifiedProfileViewProps {
   userId: string
   email: string | null
   fullName: string | null
+  avatarUrl?: string | null
   matricula: string | null
   categoria: string | null
   antiguedad: string | null
@@ -30,6 +32,7 @@ export function UnifiedProfileView({
   userId,
   email,
   fullName,
+  avatarUrl,
   matricula,
   categoria,
   antiguedad,
@@ -105,21 +108,8 @@ export function UnifiedProfileView({
       )}
 
       {/* 1. Encabezado del usuario */}
-      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-        <div
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: "50%",
-            background: "linear-gradient(135deg, var(--primary), #6366f1)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-        >
-          <User size={22} color="white" />
-        </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+        <AvatarUploader initialAvatarUrl={avatarUrl} fullName={fullName} />
         <div style={{ minWidth: 0, flex: 1 }}>
           <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0, wordBreak: "break-word" }}>
             {fullName || "Mi Perfil"}

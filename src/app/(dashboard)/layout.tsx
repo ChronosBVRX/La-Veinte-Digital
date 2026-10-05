@@ -14,7 +14,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, role")
+    .select("full_name, role, avatar_url")
     .eq("id", user.id)
     .single()
 
@@ -39,6 +39,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     <ToastProvider>
       <DashboardShell
         fullName={profile?.full_name ?? null}
+        avatarUrl={profile?.avatar_url ?? null}
         canAccessAdmin={canAccessAdmin}
         canAccessUnion={canAccessUnion}
       >
