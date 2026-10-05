@@ -5,7 +5,7 @@ import type {
   VacationRegime,
   VacationRole,
 } from "./types"
-import { calculateCompletedYears, getCctAnnualDays, getEstatutoAnnualDays, getUnitsForInclusion } from "./entitlement"
+import { calculateCompletedYears, getCctAnnualDays, getEstatutoAnnualDays, getUnitsForInclusion, resolveVacationEntitlementUnits } from "./entitlement"
 import { applyInclusionMark } from "./continuity"
 import { calculateVacationPayment, calculateAnnualTotals } from "./payment-estimate"
 import { getVacationRoleEndDate, hasDateOverlap } from "./calendar-roles"
@@ -14,6 +14,7 @@ import { calculateVacationRange } from "./validation"
 import { getMandatoryRestDatesForRange } from "./holidays"
 import { getWorkScheduleForProfile, getUnitType } from "./schedules"
 import { getDayOfWeekName } from "./return-calculator"
+import { findVacationMarkRule } from "./normative-rules-table"
 
 /**
  * Determina el número de periodos que el trabajador debe programar en su plan anual.
@@ -82,6 +83,7 @@ export function buildVacationPlan(
 
     const dueDate = entitlement?.dueDate ?? undefined
     const dueDateConfidence = entitlement?.dueDateConfidence ?? (entitlement?.confirmed ? "CONFIRMED" : "PROVISIONAL")
+    const dueDateSource = entitlement?.dueDateSource ?? (entitlement?.confirmed ? "OFFICIAL" : "DERIVED")
 
     // 1. Marca y continuidad
     const selectedMark = sel.mark
@@ -108,14 +110,23 @@ export function buildVacationPlan(
     }
 
     // 2. Unidades disfrutadas
+    const effectiveRegime = isV20Period ? "EXTRAORDINARIO_V20" : regime
     const units = selectedMark !== undefined
       ? getUnitsForInclusion(
-          isV20Period ? "EXTRAORDINARIO_V20" : regime,
+          effectiveRegime,
           totalAnnualDays,
           selectedMark,
           completedYears,
-          idx
+          idx,
+          continuityBefore
         )
+      : undefined
+
+    const entitlementBreakdown = units !== undefined
+      ? resolveVacationEntitlementUnits(units, workerProfile?.workScheduleType ?? "ORDINARY")
+      : undefined
+    const normativeCitation = selectedMark !== undefined
+      ? findVacationMarkRule(effectiveRegime, selectedMark, continuityBefore)?.citation
       : undefined
 
     // 3. Validación de rol y fecha con el motor unificado de elegibilidad
@@ -140,10 +151,11 @@ export function buildVacationPlan(
 
       if (selectedRole.startDate) {
         roleEligibilityResult = evaluateVacationRoleEligibility({
-          regime: isV20Period ? "EXTRAORDINARIO_V20" : regime,
+          regime: effectiveRegime,
           entitlementKind: isV20Period ? "V20" : "ORDINARY",
           dueDate: dueDate || null,
           dueDateConfidence,
+          dueDateSource,
           roleStartDate: selectedRole.startDate,
           roleEndDate: resolvedRoleEndDate,
           isFirstEverVacationPeriod: completedYears < 1 && idx === 1,
@@ -153,6 +165,7 @@ export function buildVacationPlan(
           v20Sequence: isV20Period ? 1 : undefined,
           calendarYear: calendar?.year,
           calendarStatus: calendar?.status ?? "PUBLISHED",
+          retirementDate: workerProfile?.retirementDate,
         })
 
         if (roleEligibilityResult.status === "BLOCKED") {
@@ -196,7 +209,7 @@ export function buildVacationPlan(
         seniorityYears: completedYears,
         radiologicalExposure: Boolean(workerProfile?.radiologicalExposure),
         mark: selectedMark,
-        regime: isV20Period ? "EXTRAORDINARIO_V20" : regime,
+        regime: effectiveRegime,
         sourcePayslipPeriod,
         isReconstructed: isReconstructedSmi,
         isV20: isV20Period,
@@ -231,6 +244,7 @@ export function buildVacationPlan(
       entitlementId: entitlement?.id,
       dueDate,
       dueDateConfidence,
+      dueDateSource,
       selectedRole: effectiveSelectedRole,
       selectedMark,
       startDate: periodStartDate,
@@ -239,6 +253,8 @@ export function buildVacationPlan(
       returnDayName,
       dateBreakdown,
       units,
+      entitlementBreakdown,
+      normativeCitation,
       continuityBefore,
       continuityAfter,
       payment,

@@ -69,6 +69,14 @@ export interface WorkerProfile {
   radiologicalExposure?: boolean | "UNSURE";
   weeklyRestDays: number[];
   contractEndDate?: string;
+  retirementDate?: string;
+}
+
+export interface VacationEntitlementUnits {
+  vacationDays: number;
+  journeyEquivalent: number;
+  unitType?: "WORKDAY" | "JOURNEY" | "VELADA";
+  journeyType: "WORKDAY" | "JOURNEY" | "VELADA" | "ORDINARY" | "ACCUMULATED_DAY" | "ACCUMULATED_NIGHT" | "ROTATING";
 }
 
 export interface AnticipationResult {
@@ -99,6 +107,8 @@ export interface WorkScheduleDefinition {
 
 export interface VacationDateCalculationResult {
   startDate: string;
+  effectiveStartDate?: string;
+  startAdjustedToWorkDay?: boolean;
   lastVacationDate: string;
   returnToWorkDate: string;
   consumedDates: string[];
@@ -215,6 +225,7 @@ export interface VacationSimulationInput {
   selectedInclusionMark?: number;
   selectedStartDate?: string;
   vacationStage?: VacationStage;
+  retirementDate?: string;
 }
 
 export interface VacationSimulationResult {
@@ -231,6 +242,8 @@ export interface VacationSimulationResult {
   returnDate?: string;
   unitsUsed?: number;
   unitType: "WORKDAY" | "JOURNEY" | "VELADA";
+  entitlementBreakdown?: VacationEntitlementUnits;
+  normativeCitation?: import("./normative-rules-table").NormativeCitation;
   originalContinuityMark: number;
   proposedInclusionMark: number;
   resultingContinuityMark?: number;
@@ -264,19 +277,25 @@ export interface VacationPaymentEstimate {
   warnings: string[];
 }
 
-export type EntitlementDueDateSource = "TARJETON" | "OFFICIAL_RECORD" | "PROJECTED" | "MISSING";
-export type EntitlementDueDateConfidence = "CONFIRMED" | "PROVISIONAL" | "UNKNOWN";
+export type EntitlementDueDateSource = "TARJETON" | "OFFICIAL_RECORD" | "OFFICIAL" | "DERIVED" | "PROJECTED" | "MISSING";
+export type EntitlementDueDateConfidence = "CONFIRMED" | "OFFICIAL" | "DERIVED" | "PROVISIONAL" | "UNKNOWN";
 
 export type RoleEligibilityStatus = "ALLOWED" | "BLOCKED" | "REQUIRES_REVIEW" | "NEEDS_DATA";
 
 export type DateEligibility = "ELIGIBLE" | "NOT_ELIGIBLE" | "UNKNOWN";
 export type CalendarCertainty = "OFFICIAL" | "PRELIMINARY";
+export type NormativeEligibilityCategory =
+  | "ELIGIBLE"
+  | "REQUIRES_AUTHORIZATION"
+  | "REQUIRES_NORMATIVE_REVIEW"
+  | "BLOCKED";
 
 export interface RoleEvaluation {
   dateEligibility: DateEligibility;
   calendarCertainty: CalendarCertainty;
   selectableForSimulation: boolean;
   confirmableAsOfficial: boolean;
+  normativeCategory?: NormativeEligibilityCategory;
 }
 
 export interface RoleEligibilityResult {
@@ -295,11 +314,14 @@ export interface EvaluateVacationRoleEligibilityInput {
   entitlementKind: "ORDINARY" | "V20";
   dueDate: string | null;
   dueDateConfidence?: EntitlementDueDateConfidence;
+  dueDateSource?: EntitlementDueDateSource;
   roleStartDate: string;
   roleEndDate?: string;
   isFirstEverVacationPeriod?: boolean;
   contractType?: ContractType;
   contractEndDate?: string;
+  retirementDate?: string;
+  workerRetirementDate?: string;
   selectedMark?: number;
   v20Sequence?: number;
   calendarYear?: number;
@@ -339,11 +361,14 @@ export interface VacationPlanPeriod {
   entitlementId?: string;
   dueDate?: string;
   dueDateConfidence?: EntitlementDueDateConfidence;
+  dueDateSource?: EntitlementDueDateSource;
   selectedRole?: VacationRole;
   selectedMark?: number;
   startDate?: string;
   endDate?: string;
   units?: number;
+  entitlementBreakdown?: VacationEntitlementUnits;
+  normativeCitation?: import("./normative-rules-table").NormativeCitation;
   continuityBefore?: number;
   continuityAfter?: number;
   payment?: VacationPaymentEstimate;

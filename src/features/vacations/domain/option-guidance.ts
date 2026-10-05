@@ -109,7 +109,7 @@ export function getVacationContinuityGuidance(
         continuity: 6,
         regime: "ESTATUTO",
         whatItMeans: "Ciclo anterior concluido bajo Estatuto.",
-        allowedMarksExplanation: "Puedes iniciar nuevo ciclo con marca 0.",
+        allowedMarksExplanation: "Puedes iniciar nuevo ciclo en bloque único (marca 0) o en secuencia de dos periodos (marca 2).",
         allowedMarks: allowed,
       }
     }
@@ -194,14 +194,14 @@ export function getMarkGuidance(
       case 6:
         return {
           mark: 6,
-          title: "Marca 6: Disfrutar 15 días continuos (con 30 días de ayuda 048)",
-          plainSummary: "Disfrutas de 15 días hábiles de descanso continuo y recibes 30 días de salario por concepto de ayuda cultural 048, además de la prima 029.",
-          economicDetail: "Cobras la prima vacacional 029 de 15 días más 30 días de salario de ayuda cultural 048 (Cláusula 47, párrafo 14 CCT).",
+          title: "Marca 6: Disfrutar 15 días continuos (sin ayuda 048)",
+          plainSummary: "Disfrutas de 15 días hábiles de descanso continuo con pago de prima vacacional 029, sin pago de ayuda cultural 048.",
+          economicDetail: "Cobras la prima vacacional 029 de 15 días hábiles sin recibir ayuda cultural 048 (Cláusula 47 CCT y Tabla 1A74-022-065).",
           nextStepDetail: "Concluye tu periodo extraordinario V20.",
-          secondaryTechnical: "15 días hábiles continuos + 30 días de Ayuda 048 (Cláusula 47, párrafo 14 CCT).",
+          secondaryTechnical: "15 días hábiles continuos con Prima 029 y 0 días de Ayuda 048 (Cláusula 47 CCT, Tabla 1A74-022-065).",
           helpsSplitOrDeferred: false,
-          paysFullHelpNow: true,
-          paysNoHelp: false,
+          paysFullHelpNow: false,
+          paysNoHelp: true,
         }
       case 7:
         return {
@@ -219,10 +219,10 @@ export function getMarkGuidance(
         return {
           mark: 8,
           title: "Marca 8: Prima de 15 días y 30 días para jubilación",
-          plainSummary: "Cobras 15 días de prima vacacional 029 y se te acreditan 30 días adicionales para cómputo de jubilación institucional.",
+          plainSummary: "Cobras 15 días de prima vacacional 029 y se te acreditan 30 días adicionales para cómputo de jubilación institucional (anticipa 30 días a tu jubilación).",
           economicDetail: "Cobras 15 días de prima 029 a valor integrado y sumas 30 días a tu antigüedad para jubilación, sin cobro de ayuda 048.",
           nextStepDetail: "Concluye la acreditación para tu jubilación.",
-          secondaryTechnical: "15 días de prima 029 + 30 días acreditados para jubilación (Régimen de Jubilaciones y Pensiones).",
+          secondaryTechnical: "15 días de prima 029 + 30 días acreditados para jubilación (Cláusula 47 CCT y Tabla 1A74-022-065).",
           helpsSplitOrDeferred: false,
           paysFullHelpNow: false,
           paysNoHelp: true,
@@ -292,11 +292,11 @@ export function getMarkGuidance(
     case 2:
       return {
         mark: 2,
-        title: "Marca 2: Conservar segundo periodo de descanso",
-        plainSummary: "Conservas un segundo periodo de descanso (Modalidad Mayor Descanso). Cobras la prima de los días que disfrutas, pero esta opción no paga la ayuda cultural para reservar un segundo periodo de descanso de hasta 15 días con Marca 3.",
-        economicDetail: "Esta opción paga menos ahora porque no incluye la ayuda cultural 048.",
+        title: "Marca 2: Conservar segundo periodo de descanso (15 a 20 días continuos)",
+        plainSummary: "Conservas un segundo periodo de descanso (Modalidad Mayor Descanso). Disfrutas tu primer periodo completo continuo (15 a 20 días hábiles) con prima vacacional 029, sin ayuda cultural 048, para reservar un segundo periodo de 10 a 15 días con Marca 3.",
+        economicDetail: "Esta opción paga prima vacacional 029 de tu primer periodo completo y no incluye la ayuda cultural 048.",
         nextStepDetail: "Para tu segundo periodo deberás anotar obligatoriamente la marca 3.",
-        secondaryTechnical: "Primer periodo de descanso + Prima vacacional (concepto 029). Sin ayuda cultural 048 (Cláusula 47 CCT).",
+        secondaryTechnical: "Primer periodo completo continuo (15–20 días) + Prima vacacional (concepto 029). Sin ayuda cultural 048 (Cláusula 47 CCT y Tabla 1A74-022-065).",
         helpsSplitOrDeferred: false,
         paysFullHelpNow: false,
         paysNoHelp: true,
@@ -305,11 +305,11 @@ export function getMarkGuidance(
     case 3:
       return {
         mark: 3,
-        title: "Marca 3: Concluir segundo periodo de descanso",
-        plainSummary: "Con esta marca terminas el periodo que tenías pendiente de la secuencia iniciada con marca 2, disfrutando de tu descanso físico con prima vacacional.",
-        economicDetail: "Cobras la prima vacacional correspondiente a esta segunda parte.",
-        nextStepDetail: "Concluye tu ciclo vacacional anual ordinario.",
-        secondaryTechnical: "Segundo periodo de descanso + Prima vacacional (concepto 029). Cierre de ciclo 2→3.",
+        title: "Marca 3: Concluir segundo periodo de descanso (10 a 15 días)",
+        plainSummary: "Con esta marca terminas el segundo periodo (10 a 15 días hábiles según tu antigüedad efectiva) de la secuencia iniciada con marca 2, disfrutando de tu descanso físico con prima vacacional.",
+        economicDetail: "Cobras la prima vacacional 029 correspondiente a los 10 a 15 días de este segundo periodo (sin ayuda 048).",
+        nextStepDetail: "Concluye tu ciclo vacacional anual ordinario (continuidad 6).",
+        secondaryTechnical: "Segundo periodo de descanso (10–15 días) + Prima vacacional (concepto 029). Cierre de ciclo 2→3 (Tabla 1A74-022-065).",
         helpsSplitOrDeferred: false,
         paysFullHelpNow: false,
         paysNoHelp: true,

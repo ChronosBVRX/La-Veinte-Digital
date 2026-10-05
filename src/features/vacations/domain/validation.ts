@@ -142,6 +142,8 @@ export function calculateVacationRange(input: VacationDateCalculationInput): Vac
     i++;
   }
 
+  const effectiveStartDate = consumedDates[0] ?? input.startDate;
+  const startAdjustedToWorkDay = effectiveStartDate !== input.startDate;
   const lastDate = consumedDates[consumedDates.length - 1] ?? input.startDate;
   const returnDate = getReturnDate(lastDate, input.weeklyRestDays, input.mandatoryRestDates, input.workSchedule);
 
@@ -154,6 +156,8 @@ export function calculateVacationRange(input: VacationDateCalculationInput): Vac
 
   return {
     startDate: input.startDate,
+    effectiveStartDate,
+    startAdjustedToWorkDay,
     lastVacationDate: lastDate,
     returnToWorkDate: returnDate,
     consumedDates,
@@ -196,7 +200,14 @@ export function validateModification(
   originallyScheduledDate: string,
   newDate: string,
   requestDate?: string
-): { allowed: boolean; requiresSpecialProcess: boolean; requiresNormativeReview?: boolean; friendlyMessage: string } {
+): {
+  allowed: boolean;
+  requiresSpecialProcess: boolean;
+  requiresNormativeReview?: boolean;
+  modificationType?: "ORDINARY" | "EXCEPTIONAL_SERVICE_NEED" | "OUT_OF_CALENDAR";
+  shiftDaysFromScheduledRole?: number;
+  friendlyMessage: string;
+} {
   const referenceDate = requestDate ?? newDate;
   const [oy, om, od] = originallyScheduledDate.split("-").map(Number);
   const [ny, nm, nd] = newDate.split("-").map(Number);
@@ -206,11 +217,14 @@ export function validateModification(
   const request = new Date(ry, rm - 1, rd);
   const diffMs = original.getTime() - request.getTime();
   const daysBefore = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const shiftDaysFromScheduledRole = Math.round(Math.abs(proposed.getTime() - original.getTime()) / (1000 * 60 * 60 * 24));
 
   if (daysBefore < 0) {
     return {
       allowed: false,
       requiresSpecialProcess: true,
+      modificationType: "OUT_OF_CALENDAR",
+      shiftDaysFromScheduledRole,
       friendlyMessage: "No puedes modificar un periodo que ya inició.",
     };
   }
@@ -219,6 +233,8 @@ export function validateModification(
     return {
       allowed: false,
       requiresSpecialProcess: true,
+      modificationType: "OUT_OF_CALENDAR",
+      shiftDaysFromScheduledRole,
       friendlyMessage: "La nueva fecha no puede ser anterior a la fecha de la solicitud.",
     };
   }
@@ -227,7 +243,9 @@ export function validateModification(
     return {
       allowed: true,
       requiresSpecialProcess: true,
-      friendlyMessage: "Para cambiar esta fecha debes solicitarlo con al menos 45 días de anticipación. Este cambio requiere formato fuera de calendario.",
+      modificationType: "ORDINARY",
+      shiftDaysFromScheduledRole,
+      friendlyMessage: "Modificación ordinaria (Procedimiento 1A74-003-025): se solicita con al menos 45 días de anticipación. Este cambio requiere formato fuera de calendario.",
     };
   }
 
@@ -236,7 +254,12 @@ export function validateModification(
       allowed: true,
       requiresSpecialProcess: true,
       requiresNormativeReview: true,
-      friendlyMessage: "El cambio se solicita con menos de 45 días de anticipación. Se permite solo con autorización de las áreas correspondientes; la regla exacta requiere revisión normativa.",
+      modificationType: shiftDaysFromScheduledRole <= 15 ? "EXCEPTIONAL_SERVICE_NEED" : "OUT_OF_CALENDAR",
+      shiftDaysFromScheduledRole,
+      friendlyMessage:
+        shiftDaysFromScheduledRole <= 15
+          ? "Modificación excepcional (hasta ±15 días naturales respecto del rol programado): procede por necesidades del servicio y de común acuerdo con autorización de Servicios de Personal."
+          : "El cambio se solicita con menos de 45 días de anticipación. Se permite solo con autorización de las áreas correspondientes; la regla exacta requiere revisión normativa.",
     };
   }
 
@@ -245,14 +268,54 @@ export function validateModification(
       allowed: false,
       requiresSpecialProcess: true,
       requiresNormativeReview: true,
-      friendlyMessage: "La modificación queda dentro del margen excepcional de 15 días naturales previos al periodo programado. No puede aplicarse automáticamente: requiere autorización expresa de Servicios de Personal.",
+      modificationType: shiftDaysFromScheduledRole <= 15 ? "EXCEPTIONAL_SERVICE_NEED" : "OUT_OF_CALENDAR",
+      shiftDaysFromScheduledRole,
+      friendlyMessage: "La modificación queda dentro del margen excepcional de 15 días naturales previos al periodo programado. No puede aplicarse automáticamente: requiere acuerdo y autorización expresa de Servicios de Personal.",
     };
   }
 
   return {
     allowed: false,
     requiresSpecialProcess: true,
+    modificationType: "OUT_OF_CALENDAR",
+    shiftDaysFromScheduledRole,
     friendlyMessage: "No puedes modificar un periodo que ya inició.",
+  };
+}
+
+/**
+ * Valida la condición normativa de V20 Marca 8 (Tabla 1A74-022-065):
+ * "Anticipa 30 días a su jubilación" (retirementDate - referenceDate >= 30 días).
+ */
+export function validateV20Mark8Retirement(
+  referenceDate: string,
+  retirementDate?: string | null
+): { allowed: boolean; daysBeforeRetirement: number | null; friendlyMessage: string } {
+  if (!retirementDate || !/^\d{4}-\d{2}-\d{2}$/.test(retirementDate)) {
+    return {
+      allowed: false,
+      daysBeforeRetirement: null,
+      friendlyMessage: "La Marca 8 requiere contar con la fecha proyectada de jubilación (debe anticiparse al menos 30 días a la jubilación).",
+    };
+  }
+  const [ry, rm, rd] = referenceDate.split("-").map(Number);
+  const [jy, jm, jd] = retirementDate.split("-").map(Number);
+  const ref = Date.UTC(ry, rm - 1, rd);
+  const ret = Date.UTC(jy, jm - 1, jd);
+  const daysBeforeRetirement = Math.round((ret - ref) / (1000 * 60 * 60 * 24));
+
+  if (daysBeforeRetirement < 30) {
+    return {
+      allowed: false,
+      daysBeforeRetirement,
+      friendlyMessage: `La Marca 8 exige anticipar al menos 30 días previos a la fecha de jubilación (${retirementDate}). Actualmente existen ${daysBeforeRetirement} días.`,
+    };
+  }
+
+  return {
+    allowed: true,
+    daysBeforeRetirement,
+    friendlyMessage: `Cumple con el requisito de anticipar al menos 30 días previos a la jubilación (${daysBeforeRetirement} días antes de ${retirementDate}).`,
   };
 }
 
