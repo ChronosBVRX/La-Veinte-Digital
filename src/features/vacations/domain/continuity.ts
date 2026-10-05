@@ -48,10 +48,9 @@ export function getCompatibleSemestralInclusionMarks(
     .map((t) => t.inclusionMark);
 }
 
-function getCompatibleEstatutoMarks(currentContinuity: number): number[] {
-  if (currentContinuity === 0) return [0, 2];
+export function getCompatibleEstatutoMarks(currentContinuity: number): number[] {
+  if (currentContinuity === 0 || currentContinuity === 6) return [0, 2];
   if (currentContinuity === 3) return [3];
-  if (currentContinuity === 6) return [0];
   return [];
 }
 
@@ -132,17 +131,14 @@ export function applyInclusionMark(
     return { nextContinuity: 0, upoIncrement: 1, stage: "FULL_OR_CLOSED_OPTION" };
   }
   if (regime === "ESTATUTO") {
-    if (currentContinuity === 0 && inclusionMark === 0) {
+    if ((currentContinuity === 0 || currentContinuity === 6) && inclusionMark === 0) {
       return { nextContinuity: 0, upoIncrement: 2, stage: "FULL_OR_CLOSED_OPTION" };
     }
-    if (currentContinuity === 0 && inclusionMark === 2) {
+    if ((currentContinuity === 0 || currentContinuity === 6) && inclusionMark === 2) {
       return { nextContinuity: 3, upoIncrement: 1, stage: "FIRST_COMPLETE_PERIOD" };
     }
     if (currentContinuity === 3 && inclusionMark === 3) {
       return { nextContinuity: 6, upoIncrement: 1, stage: "SECOND_COMPLETE_PERIOD" };
-    }
-    if (currentContinuity === 6 && inclusionMark === 0) {
-      return { nextContinuity: 0, upoIncrement: 2, stage: "FULL_OR_CLOSED_OPTION" };
     }
     return { error: "Marca de inclusión no válida desde tu estado actual en el régimen Estatuto." };
   }

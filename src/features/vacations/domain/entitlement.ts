@@ -1,15 +1,21 @@
-import type { ContractType, EffectiveSeniority, VacationRegime } from "./types";
+import type { ContractType, EffectiveSeniority, VacationEntitlementUnits, VacationRegime, WorkScheduleType } from "./types";
+import { RADIATION_DAYS_BY_SENIORITY as NORMATIVE_RADIATION_DAYS } from "./normative-rules-table";
+import { ACCUMULATED_DAY_JOURNEYS, ACCUMULATED_NIGHT_VELADAS } from "./schedules";
+
 const CCT_ANNUAL_DAYS_MIN = 16;
 const CCT_ANNUAL_DAYS_MAX = 20;
 
-
-export const RADIATION_DAYS_BY_SENIORITY: Record<number, [number, number, number]> = {
-  1: [7, 8, 7],
-  2: [8, 8, 8],
-  3: [8, 9, 9],
-  4: [9, 9, 10],
-  5: [10, 10, 10],
-};
+/**
+ * Tabla contractual de días hábiles por periodo cuatrimestral para personal
+ * expuesto a emanaciones radiactivas (Cláusula 47 del CCT IMSS-SNTSS):
+ * 0 años (primer año): [7, 8, 7] = 22
+ * 1 año:  [8, 8, 8] = 24
+ * 2 años: [8, 9, 8] = 25
+ * 3 años: [9, 9, 9] = 27
+ * 4 años: [9, 10, 9] = 28
+ * 5+ años: [10, 10, 10] = 30
+ */
+export const RADIATION_DAYS_BY_SENIORITY: Record<number, [number, number, number]> = NORMATIVE_RADIATION_DAYS;
 
 export function getCctAnnualDays(completedYears: number): number {
   if (completedYears < 1) return 0;
@@ -34,12 +40,8 @@ export function getEstatutoAnnualDays(completedYears: number): number {
 }
 
 export function getRadiationDaysForPeriod(completedYears: number, periodIndex: 0 | 1 | 2): number {
-  if (completedYears <= 1) return RADIATION_DAYS_BY_SENIORITY[1][periodIndex];
-  if (completedYears === 2) return RADIATION_DAYS_BY_SENIORITY[2][periodIndex];
-  if (completedYears === 3) return RADIATION_DAYS_BY_SENIORITY[3][periodIndex];
-  if (completedYears === 4) return RADIATION_DAYS_BY_SENIORITY[4][periodIndex];
-  if (completedYears === 5) return RADIATION_DAYS_BY_SENIORITY[5][periodIndex];
-  return 10;
+  const normalizedYears = Math.max(0, Math.min(5, Math.floor(completedYears)));
+  return RADIATION_DAYS_BY_SENIORITY[normalizedYears][periodIndex];
 }
 
 export function calculateCompletedYears(seniority: EffectiveSeniority): number {
@@ -100,25 +102,36 @@ export function getVacationDivision(totalDays: number): [number, number] {
 }
 
 /**
- * Unidades a disfrutar según régimen e inclusión.
- * - CUATRIMESTRAL: tabla RADIATION_DAYS por periodo (0|1|2) del año.
- * - EXTRAORDINARIO_V20: 15 días por fracción (marca 6/7/8) o el total (marca 0).
- * - SEMESTRAL/ESTATUTO: completo (marca 0), primera parte (1/2/4) o segunda (3/9).
- *
- * Nota normativa (hallazgo de auditoría #9): las marcas 2 y 3 ("periodo
- * completo") devuelven la mitad del año vacacional (floor/ceil), no el total.
- * Es el desglose semestral esperado: cada "periodo completo" corresponde a la
- * mitad del año y ambas partes suman el total anual. Sin embargo, la semántica
- * exacta de la marca está sujeta a confirmación con la normativa vigente; el
- * motor no la corrige por intuición y expone el desglose en la traza
- * `UNITS_COMPLETE_PERIOD` para revisión.
+ * Calcula los días del segundo periodo vacacional (Marca 3 en régimen semestral: 10 a 15 días hábiles)
+ * conforme a la Cláusula 47 del CCT y la Tabla de Marcas 1A74-022-065.
+ */
+export function getSecondCompletePeriodDays(completedYears: number, totalDays?: number): number {
+  const baseDays = totalDays && totalDays >= 15 ? totalDays : Math.max(15, getCctAnnualDays(completedYears));
+  return Math.min(15, Math.max(10, baseDays - 5));
+}
+
+/**
+ * Unidades (días hábiles de derecho vacacional) a disfrutar según régimen, marca de inclusión
+ * y estado de continuidad actual, conforme a Cláusula 47 del CCT y Tabla 1A74-022-065:
+ * - CUATRIMESTRAL: tabla RADIATION_DAYS_BY_SENIORITY (0..5+) por periodo (0|1|2) en Marca 0,
+ *   o 15 días hábiles por cuatrimestre en Modalidad B (Marcas 2 y 5).
+ * - EXTRAORDINARIO_V20: Marca 0 (10 días), Marca 6 (15 días), Marca 7 (0 días), Marca 8 (0 días).
+ * - ESTATUTO: Marca 0 (totalDays), Marca 2 (primera mitad), Marca 3 (segunda mitad).
+ * - SEMESTRAL:
+ *   - Marca 0: periodo único anual continuo (15 a 20 días: totalDays).
+ *   - Marca 1: primera fracción (7–10 días = floor(totalDays/2)) cuando inicia ciclo,
+ *              segunda fracción (8–10 días = ceil(totalDays/2)) cuando cierra desde continuidad 1.
+ *   - Marca 2: disfruta primer periodo completo continuo de 15 a 20 días (sin 048, abre continuidad 3).
+ *   - Marca 3: disfruta segundo periodo de 10 a 15 días según antigüedad efectiva (sin 048, cierra continuidad 6).
+ *   - Marca 4 / Marca 9: primera fracción (floor) al abrir ciclo, segunda fracción (ceil) al cerrar ciclo.
  */
 export function getUnitsForInclusion(
   regime: VacationRegime,
   totalDays: number,
   inclusionMark: number,
   completedYears: number,
-  nextPeriodNumber: number
+  nextPeriodNumber: number,
+  currentContinuity?: number
 ): number {
   if (regime === "CUATRIMESTRAL") {
     // Cláusula 47, párrafo 16 del CCT: Modalidad B (Mayor Descanso con Marcas 2 y 5)
@@ -136,11 +149,70 @@ export function getUnitsForInclusion(
     if (inclusionMark === 8) return 0;
     return 10;
   }
+
   const [firstPart, secondPart] = getVacationDivision(totalDays);
+
+  if (regime === "ESTATUTO") {
+    if (inclusionMark === 0) return totalDays;
+    if (inclusionMark === 2) return firstPart;
+    if (inclusionMark === 3) return secondPart;
+    return totalDays;
+  }
+
+  // Régimen SEMESTRAL
   if (inclusionMark === 0) return totalDays;
-  if (inclusionMark === 1 || inclusionMark === 2 || inclusionMark === 4) return firstPart;
-  if (inclusionMark === 3 || inclusionMark === 9) return secondPart;
+  if (inclusionMark === 1) {
+    if (currentContinuity === 1) return secondPart;
+    return firstPart;
+  }
+  if (inclusionMark === 2) {
+    return Math.min(20, Math.max(15, totalDays));
+  }
+  if (inclusionMark === 3) {
+    return getSecondCompletePeriodDays(completedYears, totalDays);
+  }
+  if (inclusionMark === 4) {
+    if (currentContinuity === 9) return secondPart;
+    return firstPart;
+  }
+  if (inclusionMark === 9) {
+    if (currentContinuity === 4) return secondPart;
+    if (currentContinuity !== undefined) return firstPart;
+    return secondPart;
+  }
   return totalDays;
+}
+
+/**
+ * Desacopla los días hábiles de vacaciones (para prima 029 y derecho sustantivo)
+ * de su equivalencia en jornadas/veladas de ausencia para trabajadores de jornada acumulada
+ * (Procedimiento 1A74-003-025).
+ */
+export function resolveVacationEntitlementUnits(
+  vacationDays: number,
+  scheduleType: WorkScheduleType = "ORDINARY"
+): VacationEntitlementUnits {
+  if (scheduleType === "ACCUMULATED_WEEKEND_DAY") {
+    const journeyEquivalent = ACCUMULATED_DAY_JOURNEYS[vacationDays] ?? Math.max(1, Math.round(vacationDays * 0.4));
+    return {
+      vacationDays,
+      journeyEquivalent,
+      journeyType: "JOURNEY",
+    };
+  }
+  if (scheduleType === "ACCUMULATED_NIGHT") {
+    const journeyEquivalent = ACCUMULATED_NIGHT_VELADAS[vacationDays] ?? Math.max(1, Math.round(vacationDays * 0.6));
+    return {
+      vacationDays,
+      journeyEquivalent,
+      journeyType: "VELADA",
+    };
+  }
+  return {
+    vacationDays,
+    journeyEquivalent: vacationDays,
+    journeyType: "WORKDAY",
+  };
 }
 
 export function isEligibleForV20(completedYears: number): boolean {

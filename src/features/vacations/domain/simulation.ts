@@ -1,11 +1,12 @@
 import type { VacationSimulationInput, VacationSimulationResult, RuleTrace, NormativeConflict, AnticipationResult } from "./types";
-import { calculateCompletedYears, getCctAnnualDays, getEstatutoAnnualDays, getUnitsForInclusion } from "./entitlement";
+import { calculateCompletedYears, getCctAnnualDays, getEstatutoAnnualDays, getUnitsForInclusion, resolveVacationEntitlementUnits } from "./entitlement";
 import { applyInclusionMark, getCompatibleInclusionMarks } from "./continuity";
 import { validateAnticipation, calculateVacationRange, isFirstPeriod } from "./validation";
 import type { VacationDateCalculationResult } from "./types";
 import { detectNormativeConflicts } from "./conflicts";
 import { getUnitType, getWorkScheduleForProfile } from "./schedules";
 import { getMandatoryRestDatesForRange } from "./holidays";
+import { findVacationMarkRule } from "./normative-rules-table";
 
 export function buildSimulationResult(input: VacationSimulationInput): VacationSimulationResult {
   const traces: RuleTrace[] = [];
@@ -62,7 +63,8 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
       : `Marca de continuidad ${input.continuityMark} → inclusión ${proposedInclusionMark} → continuidad resultante ${resultingContinuityMark}.`,
   });
 
-  const unitType = getUnitType(input.workerProfile.workScheduleType ?? "ORDINARY");
+  const scheduleType = input.workerProfile.workScheduleType ?? "ORDINARY";
+  const unitType = getUnitType(scheduleType);
   const vacationDays = cctDays;
 
   let unitsUsed: number | undefined;
@@ -72,7 +74,8 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
       vacationDays,
       proposedInclusionMark,
       completedYears,
-      input.nextPeriodNumber
+      input.nextPeriodNumber,
+      input.continuityMark
     );
 
     if ((regime === "SEMESTRAL" || regime === "ESTATUTO") && (proposedInclusionMark === 2 || proposedInclusionMark === 3)) {
@@ -81,10 +84,20 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
         result: "APPLIED",
         input: { regime, inclusionMark: proposedInclusionMark, totalDays: vacationDays },
         output: unitsUsed,
-        explanation: `La marca ${proposedInclusionMark} corresponde a un periodo completo dentro del año vacacional: la primera parte (marca 2) y la segunda (marca 3) equivalen cada una a la mitad semestral del periodo anual (${vacationDays} → ${Math.floor(vacationDays / 2)} + ${Math.ceil(vacationDays / 2)}). El desglose está sujeto a confirmación normativa.`,
+        explanation:
+          regime === "SEMESTRAL"
+            ? proposedInclusionMark === 2
+              ? `La marca 2 en régimen semestral otorga el primer periodo completo continuo (${unitsUsed} días hábiles, de 15 a 20 según antigüedad) sin ayuda 048, conservando un segundo periodo con marca 3 (Cláusula 47 CCT y Tabla 1A74-022-065).`
+              : `La marca 3 en régimen semestral otorga el segundo periodo vacacional (${unitsUsed} días hábiles, de 10 a 15 según antigüedad efectiva) sin ayuda 048 y cierra la continuidad en 6 (Cláusula 47 CCT y Tabla 1A74-022-065).`
+            : `La marca ${proposedInclusionMark} bajo Estatuto divide el derecho anual (${vacationDays} días → ${Math.floor(vacationDays / 2)} + ${Math.ceil(vacationDays / 2)}).`,
       });
     }
   }
+
+  const entitlementBreakdown = unitsUsed !== undefined
+    ? resolveVacationEntitlementUnits(unitsUsed, scheduleType)
+    : undefined;
+  const normativeCitation = findVacationMarkRule(regime, proposedInclusionMark, input.continuityMark)?.citation;
 
   const firstPeriod = isFirstPeriod(
     input.nextPeriodNumber,
@@ -174,6 +187,8 @@ export function buildSimulationResult(input: VacationSimulationInput): VacationS
     returnDate: returnDateStr || undefined,
     unitsUsed,
     unitType,
+    entitlementBreakdown,
+    normativeCitation,
     originalContinuityMark: input.continuityMark,
     proposedInclusionMark,
     resultingContinuityMark,

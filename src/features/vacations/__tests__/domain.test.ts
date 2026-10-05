@@ -1,12 +1,13 @@
 import { describe, it, expect } from "vitest"
-import { getCctAnnualDays, getEstatutoAnnualDays, getRadiationDaysForPeriod, determineVacationRegime, isEligibleForV20, getVacationDivision, getUnitsForInclusion } from "../domain/entitlement"
+import { getCctAnnualDays, getEstatutoAnnualDays, getRadiationDaysForPeriod, determineVacationRegime, isEligibleForV20, getVacationDivision, getUnitsForInclusion, resolveVacationEntitlementUnits } from "../domain/entitlement"
 import { getSemestralTransition, getCompatibleSemestralInclusionMarks, isCycleClosed, applyInclusionMark, SEMESTRAL_CLOSED_STATES, getCompatibleV20Options } from "../domain/continuity"
-import { validateAnticipation, calculateReturnDate, calculateVacationRange, validateModification, isFirstPeriod } from "../domain/validation"
+import { validateAnticipation, calculateReturnDate, calculateVacationRange, validateModification, validateV20Mark8Retirement, isFirstPeriod } from "../domain/validation"
 import { getMandatoryRestDates, getMandatoryRestDatesForRange, isWeeklyRest } from "../domain/holidays"
 import { getAccumulatedDayJourneys, getAccumulatedNightVeladas, isWorkDay, getWorkScheduleForProfile, getUnitType } from "../domain/schedules"
 import { getCompatibleCuatrimestralOptions } from "../domain/continuity"
 import { detectNormativeConflicts } from "../domain/conflicts"
 import { buildSimulationResult } from "../domain/simulation"
+import { findVacationMarkRule, VACATION_MARK_RULES } from "../domain/normative-rules-table"
 import type { VacationSimulationInput, WorkScheduleDefinition } from "../domain/types"
 
 describe("getCctAnnualDays", () => {
@@ -57,6 +58,18 @@ describe("getRadiationDaysForPeriod", () => {
     expect(getRadiationDaysForPeriod(0, 0)).toBe(7)
     expect(getRadiationDaysForPeriod(0, 1)).toBe(8)
     expect(getRadiationDaysForPeriod(0, 2)).toBe(7)
+    expect(getRadiationDaysForPeriod(1, 0)).toBe(8)
+    expect(getRadiationDaysForPeriod(1, 1)).toBe(8)
+    expect(getRadiationDaysForPeriod(1, 2)).toBe(8)
+    expect(getRadiationDaysForPeriod(2, 0)).toBe(8)
+    expect(getRadiationDaysForPeriod(2, 1)).toBe(9)
+    expect(getRadiationDaysForPeriod(2, 2)).toBe(8)
+    expect(getRadiationDaysForPeriod(3, 0)).toBe(9)
+    expect(getRadiationDaysForPeriod(3, 1)).toBe(9)
+    expect(getRadiationDaysForPeriod(3, 2)).toBe(9)
+    expect(getRadiationDaysForPeriod(4, 0)).toBe(9)
+    expect(getRadiationDaysForPeriod(4, 1)).toBe(10)
+    expect(getRadiationDaysForPeriod(4, 2)).toBe(9)
     expect(getRadiationDaysForPeriod(5, 0)).toBe(10)
     expect(getRadiationDaysForPeriod(5, 1)).toBe(10)
     expect(getRadiationDaysForPeriod(5, 2)).toBe(10)
@@ -113,15 +126,23 @@ describe("getUnitsForInclusion", () => {
     expect(getUnitsForInclusion("SEMESTRAL", 16, 0, 14, 43)).toBe(16)
   })
 
-  it("uses first half for fraction marks", () => {
-    expect(getUnitsForInclusion("SEMESTRAL", 17, 1, 14, 43)).toBe(8)
-    expect(getUnitsForInclusion("SEMESTRAL", 17, 2, 14, 43)).toBe(8)
-    expect(getUnitsForInclusion("SEMESTRAL", 17, 4, 14, 43)).toBe(8)
+  it("uses first half (floor) and second half (ceil) for fraction marks 1, 4, 9 without losing odd days", () => {
+    expect(getUnitsForInclusion("SEMESTRAL", 17, 1, 2, 1, 0)).toBe(8)
+    expect(getUnitsForInclusion("SEMESTRAL", 17, 1, 2, 2, 1)).toBe(9)
+    expect(getUnitsForInclusion("SEMESTRAL", 17, 4, 2, 1, 0)).toBe(8)
+    expect(getUnitsForInclusion("SEMESTRAL", 17, 9, 2, 2, 4)).toBe(9)
   })
 
-  it("uses second half for completion marks", () => {
-    expect(getUnitsForInclusion("SEMESTRAL", 17, 3, 14, 43)).toBe(9)
-    expect(getUnitsForInclusion("SEMESTRAL", 17, 9, 14, 43)).toBe(9)
+  it("uses 15–20 continuous days for SEMESTRAL mark 2 and 10–15 days for SEMESTRAL mark 3 per Tabla 1A74-022-065", () => {
+    expect(getUnitsForInclusion("SEMESTRAL", 17, 2, 2, 1, 0)).toBe(17)
+    expect(getUnitsForInclusion("SEMESTRAL", 20, 2, 14, 43, 0)).toBe(20)
+    expect(getUnitsForInclusion("SEMESTRAL", 17, 3, 2, 2, 3)).toBe(12)
+    expect(getUnitsForInclusion("SEMESTRAL", 20, 3, 14, 44, 3)).toBe(15)
+  })
+
+  it("splits Estatuto annual days between marks 2 and 3", () => {
+    expect(getUnitsForInclusion("ESTATUTO", 22, 2, 8, 1, 0)).toBe(11)
+    expect(getUnitsForInclusion("ESTATUTO", 22, 3, 8, 2, 3)).toBe(11)
   })
 
   it("uses RADIATION_DAYS table per period for CUATRIMESTRAL", () => {
@@ -490,13 +511,9 @@ describe("detectNormativeConflicts", () => {
     expect(conflicts[0].cctValue).toBe(16)
   })
 
-  it("detects V20 inclusion mark 6 discrepancy", () => {
-    const conflicts = detectNormativeConflicts("EXTRAORDINARIO_V20", 20, 6, 0, 10)
-    const v20Conflict = conflicts.find(c =>
-      c.sources.some(s => s.includes("Anexo 2"))
-    )
-    expect(v20Conflict).toBeDefined()
-    expect(v20Conflict!.requiresReview).toBe(true)
+  it("does not flag false conflict on V20 inclusion mark 6 when cctDays >= 16", () => {
+    const conflicts = detectNormativeConflicts("EXTRAORDINARIO_V20", 20, 6, 0, 20)
+    expect(conflicts.some(c => c.requiresReview)).toBe(false)
   })
 
   it("detects CCT vs administrative value difference", () => {
@@ -560,6 +577,12 @@ describe("buildSimulationResult", () => {
     expect(result.unitsUsed).toBeGreaterThan(0)
     expect(result.affectedUPO).toBeGreaterThan(0)
     expect(result.traces.length).toBeGreaterThan(0)
+    expect(result.normativeCitation).toBeDefined()
+    expect(result.entitlementBreakdown).toEqual({
+      vacationDays: 20,
+      journeyEquivalent: 20,
+      journeyType: "WORKDAY",
+    })
   })
 
   it("detects normative conflicts", () => {
@@ -580,9 +603,21 @@ describe("buildSimulationResult", () => {
     expect(result.returnDate).toBeDefined()
   })
 
-  it("uses half entitlement for first fraction inclusion", () => {
-    const result = buildSimulationResult({ ...baseInput, selectedInclusionMark: 1 })
-    expect(result.unitsUsed).toBe(10)
+  it("uses half entitlement for first fraction inclusion and ceil for second fraction", () => {
+    const result1 = buildSimulationResult({ ...baseInput, selectedInclusionMark: 1 })
+    expect(result1.unitsUsed).toBe(10)
+
+    const oddInput: VacationSimulationInput = {
+      ...baseInput,
+      workerProfile: {
+        ...baseInput.workerProfile,
+        effectiveSeniority: { years: 2, fortnights: 0, days: 0 },
+      },
+      continuityMark: 1,
+      selectedInclusionMark: 1,
+    }
+    const result2 = buildSimulationResult(oddInput)
+    expect(result2.unitsUsed).toBe(9)
   })
 
   it("blocks invalid transitions without producing apparent data", () => {
@@ -629,14 +664,18 @@ describe("buildSimulationResult", () => {
     expect(result.compatibleOptions).toEqual(["Completar la segunda parte del periodo"])
   })
 
-  it("traces the complete-period unit split for marks 2 and 3", () => {
-    const result = buildSimulationResult({ ...baseInput, selectedInclusionMark: 2 })
-    expect(result.status).toBe("COMPUTED")
-    expect(result.unitsUsed).toBe(10)
-    const trace = result.traces.find((t) => t.ruleCode === "UNITS_COMPLETE_PERIOD")
-    expect(trace).toBeDefined()
-    expect(trace!.result).toBe("APPLIED")
-    expect(String(trace!.explanation)).toContain("mitad semestral")
+  it("traces the normative complete-period units for marks 2 (15–20 days) and 3 (10–15 days)", () => {
+    const result2 = buildSimulationResult({ ...baseInput, selectedInclusionMark: 2 })
+    expect(result2.status).toBe("COMPUTED")
+    expect(result2.unitsUsed).toBe(20)
+    const trace2 = result2.traces.find((t) => t.ruleCode === "UNITS_COMPLETE_PERIOD")
+    expect(trace2).toBeDefined()
+    expect(trace2!.result).toBe("APPLIED")
+    expect(String(trace2!.explanation)).toContain("primer periodo completo continuo")
+
+    const result3 = buildSimulationResult({ ...baseInput, continuityMark: 3, selectedInclusionMark: 3 })
+    expect(result3.status).toBe("COMPUTED")
+    expect(result3.unitsUsed).toBe(15)
   })
 
   it("uses RADIATION_DAYS units for CUATRIMESTRAL regime", () => {
@@ -722,7 +761,7 @@ describe("Cuatrimestral State Machine", () => {
 })
 
 describe("Estatuto State Machine", () => {
-  it("only allows mark 2 from a closed state, mark 3 from continuity 3", () => {
+  it("allows mark 2 from closed states 0 and 6, and mark 3 from continuity 3", () => {
     const first = applyInclusionMark("ESTATUTO", 0, 2)
     if ("error" in first) throw new Error(first.error)
     expect(first.nextContinuity).toBe(3)
@@ -732,6 +771,11 @@ describe("Estatuto State Machine", () => {
     if ("error" in second) throw new Error(second.error)
     expect(second.nextContinuity).toBe(6)
     expect(second.stage).toBe("SECOND_COMPLETE_PERIOD")
+
+    const reopenFrom6 = applyInclusionMark("ESTATUTO", 6, 2)
+    if ("error" in reopenFrom6) throw new Error(reopenFrom6.error)
+    expect(reopenFrom6.nextContinuity).toBe(3)
+    expect(reopenFrom6.upoIncrement).toBe(1)
   })
 
   it("closes the cycle with mark 0 from continuity 6", () => {
@@ -742,9 +786,41 @@ describe("Estatuto State Machine", () => {
   })
 
   it("blocks invalid transitions", () => {
-    expect("error" in applyInclusionMark("ESTATUTO", 6, 2)).toBe(true)
+    expect("error" in applyInclusionMark("ESTATUTO", 6, 3)).toBe(true)
     expect("error" in applyInclusionMark("ESTATUTO", 0, 3)).toBe(true)
     expect("error" in applyInclusionMark("ESTATUTO", 3, 2)).toBe(true)
+  })
+})
+
+describe("Normative Rules Table, Accumulated Units, and V20 Mark 8 Retirement", () => {
+  it("resolves vacationDays vs journeyEquivalent for accumulated schedules without conflating them", () => {
+    expect(resolveVacationEntitlementUnits(20, "ACCUMULATED_WEEKEND_DAY")).toEqual({
+      vacationDays: 20,
+      journeyEquivalent: 8,
+      journeyType: "JOURNEY",
+    })
+    expect(resolveVacationEntitlementUnits(20, "ACCUMULATED_NIGHT")).toEqual({
+      vacationDays: 20,
+      journeyEquivalent: 12,
+      journeyType: "VELADA",
+    })
+  })
+
+  it("validates V20 Mark 8 retirement window (>= 30 days before retirementDate)", () => {
+    const valid = validateV20Mark8Retirement("2026-06-01", "2026-07-15")
+    expect(valid.allowed).toBe(true)
+    expect(valid.daysBeforeRetirement).toBe(44)
+
+    const tooClose = validateV20Mark8Retirement("2026-07-01", "2026-07-15")
+    expect(tooClose.allowed).toBe(false)
+    expect(tooClose.daysBeforeRetirement).toBe(14)
+  })
+
+  it("exposes structured normative citations for all vacation mark rules", () => {
+    expect(VACATION_MARK_RULES.length).toBeGreaterThanOrEqual(15)
+    const v20Mark6 = findVacationMarkRule("EXTRAORDINARIO_V20", 6)
+    expect(v20Mark6?.concept048Rule).toEqual({ type: "NONE" })
+    expect(v20Mark6?.citation.clauseOrSection).toContain("Cláusula 47")
   })
 })
 

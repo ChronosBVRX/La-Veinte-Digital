@@ -93,6 +93,53 @@ describe("Planificador Anual de Vacaciones y Encadenamiento de Continuidad", () 
     expect(plan.periods[2].kind).toBe("V20")
     expect(plan.periods[2].continuityBefore).toBeUndefined()
     expect(plan.periods[2].payment?.premium029).toBe(3750)
-    expect(plan.periods[2].payment?.culturalHelp048).toBe(30000)
+    expect(plan.periods[2].payment?.culturalHelp048).toBe(0)
+  })
+
+  it("No pierde días en años impares con secuencia 1 -> 1 (ej. 17 días a los 2 años = 8 + 9)", () => {
+    const input: VacationPlanInput = {
+      workerProfile: { ...baseProfile, effectiveSeniority: { years: 2, fortnights: 0, days: 0 } },
+      regime: "SEMESTRAL",
+      initialContinuity: 0,
+      entitlements: [
+        { id: "1", kind: "ORDINARY", periodNumber: 1, confirmed: true, sourcePayslipPeriod: "2026-16" },
+        { id: "2", kind: "ORDINARY", periodNumber: 2, confirmed: true, sourcePayslipPeriod: "2026-16" },
+      ],
+      calendar: null,
+      integratedMonthlySalary: 30000,
+    }
+
+    const plan = buildVacationPlan(input, {
+      1: { mark: 1 },
+      2: { mark: 1 },
+    })
+
+    expect(plan.periods[0].units).toBe(8)
+    expect(plan.periods[1].units).toBe(9)
+    expect((plan.periods[0].units ?? 0) + (plan.periods[1].units ?? 0)).toBe(17)
+  })
+
+  it("Secuencia 2 -> 3 otorga 15-20 días continuos en Marca 2 y 10-15 días en Marca 3 (sin 048)", () => {
+    const input: VacationPlanInput = {
+      workerProfile: { ...baseProfile, effectiveSeniority: { years: 5, fortnights: 0, days: 0 } },
+      regime: "SEMESTRAL",
+      initialContinuity: 0,
+      entitlements: [
+        { id: "1", kind: "ORDINARY", periodNumber: 1, confirmed: true, sourcePayslipPeriod: "2026-16" },
+        { id: "2", kind: "ORDINARY", periodNumber: 2, confirmed: true, sourcePayslipPeriod: "2026-16" },
+      ],
+      calendar: null,
+      integratedMonthlySalary: 30000,
+    }
+
+    const plan = buildVacationPlan(input, {
+      1: { mark: 2 },
+      2: { mark: 3 },
+    })
+
+    expect(plan.periods[0].units).toBe(20)
+    expect(plan.periods[1].units).toBe(15)
+    expect(plan.periods[0].payment?.culturalHelp048).toBe(0)
+    expect(plan.periods[1].payment?.culturalHelp048).toBe(0)
   })
 })
