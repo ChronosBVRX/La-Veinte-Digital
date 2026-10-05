@@ -21,7 +21,7 @@ const cspDirectives = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' ${turnstileOrigin}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
+  `img-src 'self' data: blob: ${supabaseUrl}`,
   "font-src 'self' data:",
   `connect-src ${connectSources}`,
   "worker-src 'self' blob: https://cdn.jsdelivr.net",
