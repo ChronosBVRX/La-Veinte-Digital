@@ -2,10 +2,9 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { House, UserCircle, X, Article, ArrowsClockwise, FolderOpen, ShieldCheck, Handshake } from "@phosphor-icons/react"
+import { House, X, Article, FolderOpen, ShieldCheck, Handshake } from "@phosphor-icons/react"
 import { DESKTOP_NAV_GROUPS, shouldPrefetchRoute } from "./navigation"
-import { SignOutButton } from "./SignOutButton"
-import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
+import { useIsNativeApp } from "@/shared/hooks/useIsNativeApp"
 import { useBackLayer } from "@/shared/navigation/useBackLayer"
 import type { CSSProperties } from "react"
 
@@ -19,7 +18,6 @@ interface DesktopSidebarProps {
 export function DesktopSidebar({ open, onClose, canAccessAdmin = false, canAccessUnion = false }: DesktopSidebarProps) {
   const pathname = usePathname()
   const isNative = useIsNativeApp()
-  const platform = useNativePlatform()
   const isHomeActive = pathname === "/"
 
   // Capa transitoria canónica: Atrás cierra el drawer móvil antes que retroceder.
@@ -171,66 +169,34 @@ export function DesktopSidebar({ open, onClose, canAccessAdmin = false, canAcces
                 Documentos personales
               </Link>
             </li>
-            {platform === "android" && (
-              <li>
-                <button
-                  onClick={() => { window.LaVeinteApp?.checkForUpdate?.() }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: "0.625rem", width: "100%",
-                    padding: "0.625rem 0.75rem", borderRadius: "var(--radius)",
-                    background: "transparent", border: "none", cursor: "pointer",
-                    fontSize: "var(--text-sm)", color: "var(--fg)", textDecoration: "none",
-                    textAlign: "left", fontFamily: "inherit",
-                  }}
-                >
-                  <ArrowsClockwise size={20} weight="regular" style={{ color: "var(--brand-cyan)", flexShrink: 0 }} />
-                  Buscar actualización
-                </button>
-              </li>
-            )}
           </ul>
         </div>
       )}
 
-      <div style={{ marginTop: "1rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.125rem" }}>
-        {canAccessUnion && (
-          <NavItem
-            href="/representacion"
-            label="Representación Sindical"
-            icon={Handshake}
-            isActive={pathname === "/representacion" || pathname.startsWith("/representacion/")}
-            color="var(--brand-navy, #1e3a8a)"
-            onClick={onClose}
-          />
-        )}
-        {canAccessAdmin && (
-          <NavItem
-            href="/admin"
-            label="Administración"
-            icon={ShieldCheck}
-            isActive={pathname === "/admin" || pathname.startsWith("/admin/")}
-            color="var(--brand-navy, #1e3a8a)"
-            onClick={onClose}
-          />
-        )}
-        <NavItem
-          href="/profile"
-          label="Mi perfil"
-          icon={UserCircle}
-          isActive={pathname === "/profile" || pathname.startsWith("/profile/")}
-          color="var(--muted)"
-          onClick={onClose}
-        />
-        <NavItem
-          href="/informacion-y-fuentes"
-          label="Información y fuentes"
-          icon={Article}
-          isActive={pathname === "/informacion-y-fuentes"}
-          color="var(--muted)"
-          onClick={onClose}
-        />
-        <SignOutButton onDone={onClose} />
-      </div>
+      {(canAccessUnion || canAccessAdmin) && (
+        <div style={{ marginTop: "1rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.125rem" }}>
+          {canAccessUnion && (
+            <NavItem
+              href="/representacion"
+              label="Representación Sindical"
+              icon={Handshake}
+              isActive={pathname === "/representacion" || pathname.startsWith("/representacion/")}
+              color="var(--brand-navy, #1e3a8a)"
+              onClick={onClose}
+            />
+          )}
+          {canAccessAdmin && (
+            <NavItem
+              href="/admin"
+              label="Administración"
+              icon={ShieldCheck}
+              isActive={pathname === "/admin" || pathname.startsWith("/admin/")}
+              color="var(--brand-navy, #1e3a8a)"
+              onClick={onClose}
+            />
+          )}
+        </div>
+      )}
     </>
   )
 

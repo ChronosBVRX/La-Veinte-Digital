@@ -1,17 +1,12 @@
-import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
-import { WorkerProfileService } from "@/shared/server/worker-profile"
-import { WorkerProfileUnavailableError, WorkerProfileUnauthorizedError } from "@/shared/server/worker-profile/errors"
 import { isSafeInternalReturnPath } from "@/shared/domain/worker"
 import { PageContainer } from "@/shared/components/layout/PageContainer"
-import { WorkerProfileCenter } from "@/features/profile/components/worker/WorkerProfileCenter"
-import { TarjetonUploaderSection } from "@/features/profile/components/worker/TarjetonUploaderSection"
-import { TarjetonHistorySection, type PreviousImport } from "@/features/tarjeton/components/TarjetonHistorySection"
+import { UnifiedProfileView } from "@/features/profile/components/UnifiedProfileView"
+import { type PreviousImport } from "@/features/tarjeton/components/TarjetonHistorySection"
 import { resolveActivePayslip } from "@/shared/server/active-payslip"
-import type { WorkerProfile, ProfileQuality, FieldRequirement, WorkerDataEvent, WorkerProfileMode } from "@/shared/domain/worker"
 
 interface PageProps {
-  searchParams: Promise<{ returnTo?: string; onboarding?: string }>
+  searchParams?: Promise<{ returnTo?: string; onboarding?: string }>
 }
 
 export default async function WorkerProfilePage({ searchParams }: PageProps) {
@@ -19,15 +14,12 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return <p style={{ padding: "2rem" }}>Debes iniciar sesión.</p>
 
-  // Inicialización idempotente del perfil: un usuario autenticado puede abrir
-  // esta página directamente (sin visitar antes /profile). Sin fila en
-  // public.profiles, la confirmación del tarjetón fallaría por llave foránea.
   const { error: ensureProfileError } = await supabase.rpc("ensure_profile_exists")
   if (ensureProfileError) {
     console.error("[worker-profile-page] ensure_profile_exists:", ensureProfileError.code)
     return (
       <PageContainer maxWidth={600} padding="1.5rem 0">
-        <h1 style={{ fontSize: "1.25rem", margin: "0 0 0.5rem", wordBreak: "break-word" }}>Mi información laboral</h1>
+        <h1 style={{ fontSize: "1.25rem", margin: "0 0 0.5rem", wordBreak: "break-word" }}>Mi Perfil</h1>
         <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.375rem", padding: "1rem", color: "#991b1b", fontSize: "0.9375rem", wordBreak: "break-word" }}>
           No se pudo preparar tu perfil para cargar tu información laboral. Recarga la página e inténtalo de nuevo.
         </div>
@@ -36,71 +28,35 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
   }
 
   // Validar y sanitizar returnTo en servidor.
-  const resolvedSearchParams = await searchParams
+  const resolvedSearchParams = searchParams ? await searchParams : undefined
   const rawReturnTo = resolvedSearchParams?.returnTo
   const returnTo = typeof rawReturnTo === "string" && isSafeInternalReturnPath(rawReturnTo)
     ? rawReturnTo
     : undefined
   const isInitialOnboarding = resolvedSearchParams?.onboarding === "true"
 
-  let state: "unconfigured" | "basic" | "configured" = "unconfigured"
-  let mode: WorkerProfileMode | null = null
-  let profile: WorkerProfile | null = null
-  let quality: ProfileQuality | null = null
-  let requirements: readonly FieldRequirement[] = []
-  let events: WorkerDataEvent[] = []
+  const [profileRes, payrollRes] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("full_name, matricula, adscripcion, categoria, antiguedad")
+      .eq("id", user.id)
+      .single(),
+    supabase
+      .from("payroll_contexts")
+      .select("category_name, matricula, adscripcion, effective_seniority_date, workday_hours")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+  ])
 
-  try {
-    const svc = new WorkerProfileService()
-    const current = await svc.getCurrentProfile()
+  const profileData = profileRes.data
+  const payrollData = payrollRes.data
 
-    if (current.state === "unconfigured" || current.state === "basic") {
-      state = current.state
-    } else {
-      state = "configured"
-      mode = current.mode
-      profile = current.profile
-    }
-
-    if (state === "configured" && profile) {
-      quality = await svc.getProfileQuality()
-      requirements = svc.getFieldRequirements()
-      events = await svc.listWorkerEvents(20)
-    }
-  } catch (err) {
-    if (err instanceof WorkerProfileUnavailableError) {
-      // Estado de transición o sin perfil aún: degradar a unconfigured para
-      // permitir acceso al historial de tarjetones y al importador
-      console.warn("[worker-profile-page] Perfil no configurado o en transición:", err.message)
-      state = "unconfigured"
-    } else {
-      console.error("[worker-profile-page]", err instanceof Error ? err.message : err)
-      const displayMessage = err instanceof WorkerProfileUnauthorizedError
-        ? "Debes iniciar sesión para ver tu información laboral."
-        : "No se pudo cargar tu información laboral. Inténtalo de nuevo."
-      return (
-        <PageContainer maxWidth={600} padding="1.5rem 0">
-          <h1 style={{ fontSize: "1.25rem", margin: "0 0 0.5rem", wordBreak: "break-word" }}>Mi información laboral</h1>
-          <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "0.375rem", padding: "1rem", color: "#991b1b", fontSize: "0.9375rem", wordBreak: "break-word" }}>
-            {displayMessage}
-          </div>
-        </PageContainer>
-      )
-    }
-  }
-
-  // Snapshot del perfil para detección de diferencias durante la importación.
-  const profileRes = await supabase
-    .from("profiles")
-    .select("full_name, matricula, adscripcion, categoria, antiguedad")
-    .eq("id", user.id)
-    .single()
   const snapshot = {
-    fullName: profileRes.data?.full_name ?? null,
-    matricula: profileRes.data?.matricula ?? null,
-    adscripcion: profileRes.data?.adscripcion ?? null,
-    categoria: profileRes.data?.categoria ?? null,
-    antiguedad: profileRes.data?.antiguedad ?? null,
+    fullName: profileData?.full_name ?? null,
+    matricula: profileData?.matricula || payrollData?.matricula || null,
+    adscripcion: profileData?.adscripcion || payrollData?.adscripcion || null,
+    categoria: profileData?.categoria || payrollData?.category_name || null,
+    antiguedad: profileData?.antiguedad || (payrollData?.effective_seniority_date ? String(payrollData.effective_seniority_date) : null),
   }
 
   // Resolver tarjetón activo canónico
@@ -142,6 +98,14 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
     }
   })
 
+  const activePayslipRow =
+    (payslipsRes.data ?? []).find((p) => p.id === resolved.activePayslipId) ??
+    (payslipsRes.data ?? [])[0] ??
+    null
+  const activeEmpData = ((activePayslipRow?.employee_data ?? {}) as Record<string, unknown>)
+  const activeEmployeeName =
+    (activeEmpData.fullName as string) || (activeEmpData.name as string) || null
+
   // Obtener conceptos del tarjetón activo solo si no hubo error
   let latestConcepts: Array<{ code: string; description: string; amount: number; kind: "earning" | "deduction" }> = []
   if (resolved.activePayslipId && !resolved.error) {
@@ -165,108 +129,25 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
   }
 
   return (
-    <PageContainer maxWidth={700} style={{ display: "flex", flexDirection: "column", gap: "1.75rem", padding: "0.5rem 0" }}>
-      <WorkerProfileCenter
-        state={state}
-        mode={mode}
-        profile={profile}
-        quality={quality}
-        requirements={requirements}
-        events={events}
-        returnTo={returnTo}
-        isInitialOnboarding={isInitialOnboarding}
-        profileSnapshot={snapshot}
-        userId={user.id}
-      />
-
-      {payslipsQueryError && (
-        <div
-          role="alert"
-          style={{
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            borderRadius: "0.375rem",
-            padding: "0.875rem 1rem",
-            color: "#991b1b",
-            fontSize: "0.875rem",
-          }}
-        >
-          No pudimos consultar tu historial de tarjetones en este momento. Intenta recargar la página.
-        </div>
-      )}
-
-      {/* Historial de tarjetones con control de tarjetón activo */}
-      {previousImports.length > 0 && (
-        <section id="historial-tarjetones" style={{
-          borderTop: "1px solid var(--border)",
-          paddingTop: "1.25rem",
-          display: "flex",
-          flexDirection: "column",
-          gap: "0.75rem",
-          width: "100%",
-          maxWidth: "100%",
-          minWidth: 0,
-          boxSizing: "border-box",
-        }}>
-          <div>
-            <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.25rem", wordBreak: "break-word" }}>
-              Mis tarjetones importados
-            </h2>
-            <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: 0, lineHeight: 1.55, wordBreak: "break-word" }}>
-              Selecciona cuál tarjetón alimenta tus calculadoras, vacaciones y herramientas.
-            </p>
-          </div>
-
-          <TarjetonHistorySection
-            imports={previousImports}
-            activePayslipId={resolved.activePayslipId}
-            latestPayslipId={resolved.latestPayslipId}
-            selectionMode={resolved.selectionMode}
-            latestConcepts={latestConcepts}
-            uploadHref="#subir-tarjeton"
-          />
-        </section>
-      )}
-
-      {/* Sección unificada: aquí se sube el tarjetón y aquí se actualiza
-          toda la información laboral (categoría, antigüedad, jornada,
-          conceptos recurrentes). */}
-      <section id="subir-tarjeton" style={{
-        borderTop: "1px solid var(--border)",
-        paddingTop: "1.25rem",
-        display: "flex",
-        flexDirection: "column",
-        gap: "1rem",
-        width: "100%",
-        maxWidth: "100%",
-        minWidth: 0,
-        boxSizing: "border-box",
-      }}>
-        <div>
-          <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.25rem", wordBreak: "break-word" }}>
-            Importar nuevo tarjetón IMSS
-          </h2>
-          <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: 0, lineHeight: 1.55, wordBreak: "break-word" }}>
-            Sube tu archivo PDF de tarjetón para mantener tu información laboral al día.
-            Tus datos se sincronizan de manera segura en tu dispositivo (categoría, antigüedad, jornada y conceptos)
-            para alimentar las calculadoras de la app.
-          </p>
-        </div>
-
-        <TarjetonUploaderSection profileSnapshot={snapshot} userId={user.id} />
-
-        <Link
-          href="/documentos-personales"
-          style={{
-            display: "inline-flex", alignItems: "center", gap: "0.375rem",
-            fontSize: "var(--text-sm)", fontWeight: 600,
-            color: "var(--primary)", textDecoration: "none",
-            width: "fit-content", maxWidth: "100%",
-          }}
-        >
-          Ver mis documentos personales →
-        </Link>
-      </section>
-    </PageContainer>
+    <UnifiedProfileView
+      userId={user.id}
+      email={user.email ?? null}
+      fullName={snapshot.fullName || activeEmployeeName}
+      matricula={snapshot.matricula}
+      categoria={snapshot.categoria}
+      antiguedad={snapshot.antiguedad}
+      adscripcion={snapshot.adscripcion}
+      workdayHours={payrollData?.workday_hours ?? null}
+      activePeriodRaw={activePayslipRow?.period_raw ?? null}
+      snapshot={snapshot}
+      previousImports={previousImports}
+      activePayslipId={resolved.activePayslipId}
+      latestPayslipId={resolved.latestPayslipId}
+      selectionMode={resolved.selectionMode}
+      latestConcepts={latestConcepts}
+      payslipsQueryError={payslipsQueryError}
+      returnTo={returnTo}
+      isInitialOnboarding={isInitialOnboarding}
+    />
   )
 }

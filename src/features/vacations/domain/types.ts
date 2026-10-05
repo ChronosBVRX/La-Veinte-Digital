@@ -226,6 +226,9 @@ export interface VacationSimulationInput {
   selectedStartDate?: string;
   vacationStage?: VacationStage;
   retirementDate?: string;
+  previousPeriodIndex?: number;
+  previousPeriodStartDate?: string;
+  previousPeriodEndDate?: string;
 }
 
 export interface VacationSimulationResult {
@@ -309,6 +312,24 @@ export interface RoleEligibilityResult {
   evaluation: RoleEvaluation;
 }
 
+export interface PeriodSequenceValidationInput {
+  periodIndex: number;
+  previousPeriodIndex?: number;
+  roleStartDate: string;
+  roleEndDate?: string | null;
+  previousPeriodStartDate: string;
+  previousPeriodEndDate?: string | null;
+  entitlementKind?: "ORDINARY" | "V20";
+  previousEntitlementKind?: "ORDINARY" | "V20";
+}
+
+export interface PeriodSequenceValidationResult {
+  allowed: boolean;
+  reasonCode: "OK" | "PERIOD_SEQUENCE_INVERTED" | "PERIOD_DATE_OVERLAP";
+  workerMessage: string;
+  technicalMessage: string;
+}
+
 export interface EvaluateVacationRoleEligibilityInput {
   regime: VacationRegime;
   entitlementKind: "ORDINARY" | "V20";
@@ -326,6 +347,10 @@ export interface EvaluateVacationRoleEligibilityInput {
   v20Sequence?: number;
   calendarYear?: number;
   calendarStatus?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  periodIndex?: number;
+  previousPeriodIndex?: number;
+  previousPeriodStartDate?: string | null;
+  previousPeriodEndDate?: string | null;
 }
 
 export interface VacationEntitlement {
@@ -364,6 +389,7 @@ export interface VacationPlanPeriod {
   dueDateSource?: EntitlementDueDateSource;
   selectedRole?: VacationRole;
   selectedMark?: number;
+  stage?: VacationStage;
   startDate?: string;
   endDate?: string;
   units?: number;

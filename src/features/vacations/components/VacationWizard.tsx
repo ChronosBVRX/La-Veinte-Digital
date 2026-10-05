@@ -304,6 +304,12 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
   let availableRolesCount = 0
   let blockedRolesCount = 0
 
+  const prevOrdinaryForActive = activePeriod?.kind !== "V20"
+    ? [...planResult.periods.slice(0, activePeriodIdx - 1)]
+        .reverse()
+        .find((p) => p.kind === "ORDINARY" && p.startDate)
+    : undefined
+
   if (calendar?.roles) {
     for (const r of calendar.roles) {
       const roleEndDate = getVacationRoleEndDate(r, activePeriod?.units)
@@ -325,6 +331,10 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
         v20Sequence: activePeriod?.kind === "V20" ? 1 : undefined,
         calendarYear: calendar.year,
         calendarStatus: calendar.status ?? "PUBLISHED",
+        periodIndex: activePeriodIdx,
+        previousPeriodIndex: prevOrdinaryForActive?.index,
+        previousPeriodStartDate: prevOrdinaryForActive?.startDate ?? null,
+        previousPeriodEndDate: prevOrdinaryForActive?.endDate ?? null,
       })
       roleEvaluations.set(r.id || r.roleNumber, evalResult)
       if (evalResult.status === "BLOCKED" || evalResult.evaluation?.dateEligibility === "NOT_ELIGIBLE") {
@@ -1396,7 +1406,10 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
         {activePeriod && !activePeriod.allowed && (
           <div style={{ background: "#fee2e2", border: "1px solid #f87171", color: "#991b1b", padding: "0.6rem 0.8rem", borderRadius: "var(--radius)", marginBottom: "0.75rem", fontSize: "0.8rem" }}>
-            ⚠️ Este periodo tiene un rol o marca no permitida. Selecciona un rol y marca válidos para poder continuar.
+            <div>⚠️ Este periodo tiene un rol o marca no permitida. Selecciona un rol y marca válidos para poder continuar.</div>
+            {activePeriod.reasons.length > 0 && (
+              <div style={{ marginTop: "0.25rem", fontWeight: 600 }}>{activePeriod.reasons.join(" ")}</div>
+            )}
           </div>
         )}
 

@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest"
 import {
   evaluateVacationRoleEligibility,
+  validatePeriodSequence,
+  PERIOD_SEQUENCE_INVERTED_MESSAGE,
   diffCivilDays,
   subtractCivilDays,
   parseCivilDate,
@@ -485,6 +487,165 @@ describe("Motor de Elegibilidad de Roles Vacacionales (evaluateVacationRoleEligi
     it("Formato mexicano de fecha civil", () => {
       expect(formatCivilMexicanDate("2027-10-14")).toBe("14/10/2027")
       expect(formatCivilMexicanDate("2027-01-05")).toBe("05/01/2027")
+    })
+  })
+
+  // 12. Secuencia progresiva del ciclo vacacional (Procedimiento 1A74-003-025 y Anexo 1 1A74-022-065)
+  describe("12. Secuencia progresiva del ciclo (Inversión vs Continuidad vs Empalme)", () => {
+    it("A. Inversión: Período 1 en febrero (10-20 feb) + Período 2 en enero (5-15 ene) -> INVALIDAR con PERIOD_SEQUENCE_INVERTED", () => {
+      const seq = validatePeriodSequence({
+        periodIndex: 2,
+        previousPeriodIndex: 1,
+        roleStartDate: "2027-01-05",
+        roleEndDate: "2027-01-15",
+        previousPeriodStartDate: "2027-02-10",
+        previousPeriodEndDate: "2027-02-20",
+        entitlementKind: "ORDINARY",
+      })
+
+      expect(seq.allowed).toBe(false)
+      expect(seq.reasonCode).toBe("PERIOD_SEQUENCE_INVERTED")
+      expect(seq.workerMessage).toBe(PERIOD_SEQUENCE_INVERTED_MESSAGE)
+      expect(seq.workerMessage).toBe(
+        "El período vacacional debe respetar la secuencia de programación. La fecha seleccionada para este período queda antes del período vacacional anterior."
+      )
+
+      // Incluso si enero satisface matemáticamente la ventana de anticipación (o falta dueDate),
+      // evaluateVacationRoleEligibility debe bloquear por secuencia y NO decir "todavía no vence"
+      const evalRes = evaluateVacationRoleEligibility({
+        regime: "SEMESTRAL",
+        entitlementKind: "ORDINARY",
+        dueDate: "2027-04-15",
+        dueDateConfidence: "CONFIRMED",
+        roleStartDate: "2027-01-05",
+        roleEndDate: "2027-01-15",
+        periodIndex: 2,
+        previousPeriodIndex: 1,
+        previousPeriodStartDate: "2027-02-10",
+        previousPeriodEndDate: "2027-02-20",
+        calendarStatus: "PUBLISHED",
+      })
+
+      expect(evalRes.status).toBe("BLOCKED")
+      expect(evalRes.reasonCode).toBe("PERIOD_SEQUENCE_INVERTED")
+      expect(evalRes.workerMessage).toBe(PERIOD_SEQUENCE_INVERTED_MESSAGE)
+      expect(evalRes.workerMessage).not.toContain("todavía no te corresponde")
+    })
+
+    it("B. Continuidad inmediata: Período 1 (10-20 febrero) + Período 2 (21 febrero-3 marzo) -> PERMITIDO sin exigir separación artificial", () => {
+      const seq = validatePeriodSequence({
+        periodIndex: 2,
+        previousPeriodIndex: 1,
+        roleStartDate: "2027-02-21",
+        roleEndDate: "2027-03-03",
+        previousPeriodStartDate: "2027-02-10",
+        previousPeriodEndDate: "2027-02-20",
+        entitlementKind: "ORDINARY",
+      })
+
+      expect(seq.allowed).toBe(true)
+      expect(seq.reasonCode).toBe("OK")
+
+      const evalRes = evaluateVacationRoleEligibility({
+        regime: "SEMESTRAL",
+        entitlementKind: "ORDINARY",
+        dueDate: "2027-06-15", // 21/02/2027 está a 114 días (<= 120)
+        dueDateConfidence: "CONFIRMED",
+        roleStartDate: "2027-02-21",
+        roleEndDate: "2027-03-03",
+        periodIndex: 2,
+        previousPeriodIndex: 1,
+        previousPeriodStartDate: "2027-02-10",
+        previousPeriodEndDate: "2027-02-20",
+        calendarStatus: "PUBLISHED",
+      })
+
+      expect(evalRes.status).toBe("ALLOWED")
+      expect(evalRes.reasonCode).toBe("ROLE_ALLOWED")
+    })
+
+    it("C. Empalme: Período 1 (10-20 febrero) + Período 2 (15-25 febrero) -> BLOQUEADO con PERIOD_DATE_OVERLAP", () => {
+      const seq = validatePeriodSequence({
+        periodIndex: 2,
+        previousPeriodIndex: 1,
+        roleStartDate: "2027-02-15",
+        roleEndDate: "2027-02-25",
+        previousPeriodStartDate: "2027-02-10",
+        previousPeriodEndDate: "2027-02-20",
+        entitlementKind: "ORDINARY",
+      })
+
+      expect(seq.allowed).toBe(false)
+      expect(seq.reasonCode).toBe("PERIOD_DATE_OVERLAP")
+      expect(seq.workerMessage).toBe("Este periodo se empalma con el Periodo 1 (2027-02-10 a 2027-02-20).")
+    })
+
+    it("Secuencia normal: Período 1 en enero + Período 2 en febrero, y Período 1 en febrero + Período 2 en marzo -> VÁLIDOS", () => {
+      const janThenFeb = evaluateVacationRoleEligibility({
+        regime: "SEMESTRAL",
+        entitlementKind: "ORDINARY",
+        dueDate: "2027-05-15",
+        dueDateConfidence: "CONFIRMED",
+        roleStartDate: "2027-02-02",
+        roleEndDate: "2027-02-15",
+        periodIndex: 2,
+        previousPeriodIndex: 1,
+        previousPeriodStartDate: "2027-01-18",
+        previousPeriodEndDate: "2027-01-29",
+        calendarStatus: "PUBLISHED",
+      })
+      expect(janThenFeb.status).toBe("ALLOWED")
+
+      const febThenMar = evaluateVacationRoleEligibility({
+        regime: "SEMESTRAL",
+        entitlementKind: "ORDINARY",
+        dueDate: "2027-06-15",
+        dueDateConfidence: "CONFIRMED",
+        roleStartDate: "2027-03-03",
+        roleEndDate: "2027-03-16",
+        periodIndex: 2,
+        previousPeriodIndex: 1,
+        previousPeriodStartDate: "2027-02-02",
+        previousPeriodEndDate: "2027-02-15",
+        calendarStatus: "PUBLISHED",
+      })
+      expect(febThenMar.status).toBe("ALLOWED")
+    })
+
+    it("Cruce de año calendario: respeta secuencia antes de evaluar advertencia de cruce de año", () => {
+      // Si la secuencia es válida pero cruza de año respecto al vencimiento -> YEAR_CROSSING_REQUIRES_REVIEW
+      const validSeqYearCross = evaluateVacationRoleEligibility({
+        regime: "SEMESTRAL",
+        entitlementKind: "ORDINARY",
+        dueDate: "2028-02-15",
+        dueDateConfidence: "CONFIRMED",
+        roleStartDate: "2027-11-15", // 92 días antes de 2028-02-15, cruza año
+        roleEndDate: "2027-11-28",
+        periodIndex: 2,
+        previousPeriodIndex: 1,
+        previousPeriodStartDate: "2027-06-01",
+        previousPeriodEndDate: "2027-06-14",
+        calendarStatus: "PUBLISHED",
+      })
+      expect(validSeqYearCross.status).toBe("REQUIRES_REVIEW")
+      expect(validSeqYearCross.reasonCode).toBe("YEAR_CROSSING_REQUIRES_REVIEW")
+
+      // Si además invierte la secuencia (P1 en dic 2027, P2 en nov 2027) -> BLOCKED por PERIOD_SEQUENCE_INVERTED
+      const invertedYearCross = evaluateVacationRoleEligibility({
+        regime: "SEMESTRAL",
+        entitlementKind: "ORDINARY",
+        dueDate: "2028-02-15",
+        dueDateConfidence: "CONFIRMED",
+        roleStartDate: "2027-11-15",
+        roleEndDate: "2027-11-28",
+        periodIndex: 2,
+        previousPeriodIndex: 1,
+        previousPeriodStartDate: "2027-12-01",
+        previousPeriodEndDate: "2027-12-14",
+        calendarStatus: "PUBLISHED",
+      })
+      expect(invertedYearCross.status).toBe("BLOCKED")
+      expect(invertedYearCross.reasonCode).toBe("PERIOD_SEQUENCE_INVERTED")
     })
   })
 })

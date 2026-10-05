@@ -4,6 +4,7 @@ import type {
   VacationPlanResult,
   VacationRegime,
   VacationRole,
+  VacationStage,
 } from "./types"
 import { calculateCompletedYears, getCctAnnualDays, getEstatutoAnnualDays, getUnitsForInclusion, resolveVacationEntitlementUnits } from "./entitlement"
 import { applyInclusionMark } from "./continuity"
@@ -89,6 +90,7 @@ export function buildVacationPlan(
     const selectedMark = sel.mark
     const continuityBefore = isV20Period ? undefined : currentContinuity
     let continuityAfter: number | undefined = undefined
+    let stage: VacationStage | undefined = undefined
 
     if (selectedMark !== undefined) {
       if (!isV20Period) {
@@ -99,6 +101,7 @@ export function buildVacationPlan(
         } else {
           continuityAfter = trans.nextContinuity
           currentContinuity = trans.nextContinuity
+          stage = trans.stage
         }
       } else {
         // V20 marcas: 0, 6, 7, 8
@@ -129,7 +132,7 @@ export function buildVacationPlan(
       ? findVacationMarkRule(effectiveRegime, selectedMark, continuityBefore)?.citation
       : undefined
 
-    // 3. Validación de rol y fecha con el motor unificado de elegibilidad
+    // 3. Validación de rol, secuencia de ciclo y fecha con el motor unificado de elegibilidad
     const selectedRole = sel.role
     const resolvedRoleEndDate = selectedRole
       ? getVacationRoleEndDate(selectedRole, units)
@@ -137,6 +140,14 @@ export function buildVacationPlan(
     const effectiveSelectedRole = selectedRole
       ? { ...selectedRole, endDate: resolvedRoleEndDate }
       : undefined
+    const candidateStartDate = selectedRole?.startDate || sel.startDate
+    const candidateEndDate = selectedRole ? resolvedRoleEndDate : sel.endDate
+
+    // Periodo ordinario inmediato anterior con fecha programada (para secuencia del ciclo)
+    const prevOrdinaryPeriod = !isV20Period
+      ? [...periods].reverse().find((p) => p.kind === "ORDINARY" && p.startDate)
+      : undefined
+
     let roleEligibilityResult = undefined
     if (selectedRole) {
       if (selectedRole.endDateByDays && units !== undefined && !resolvedRoleEndDate) {
@@ -148,53 +159,64 @@ export function buildVacationPlan(
         allowed = false
         reasons.push("El rol seleccionado está deshabilitado en el calendario.")
       }
+    }
 
-      if (selectedRole.startDate) {
-        roleEligibilityResult = evaluateVacationRoleEligibility({
-          regime: effectiveRegime,
-          entitlementKind: isV20Period ? "V20" : "ORDINARY",
-          dueDate: dueDate || null,
-          dueDateConfidence,
-          dueDateSource,
-          roleStartDate: selectedRole.startDate,
-          roleEndDate: resolvedRoleEndDate,
-          isFirstEverVacationPeriod: completedYears < 1 && idx === 1,
-          contractType: workerProfile?.contractType,
-          contractEndDate: workerProfile?.contractEndDate,
-          selectedMark,
-          v20Sequence: isV20Period ? 1 : undefined,
-          calendarYear: calendar?.year,
-          calendarStatus: calendar?.status ?? "PUBLISHED",
-          retirementDate: workerProfile?.retirementDate,
-        })
+    if (candidateStartDate) {
+      roleEligibilityResult = evaluateVacationRoleEligibility({
+        regime: effectiveRegime,
+        entitlementKind: isV20Period ? "V20" : "ORDINARY",
+        dueDate: dueDate || null,
+        dueDateConfidence,
+        dueDateSource,
+        roleStartDate: candidateStartDate,
+        roleEndDate: candidateEndDate,
+        isFirstEverVacationPeriod: completedYears < 1 && idx === 1,
+        contractType: workerProfile?.contractType,
+        contractEndDate: workerProfile?.contractEndDate,
+        selectedMark,
+        v20Sequence: isV20Period ? 1 : undefined,
+        calendarYear: calendar?.year,
+        calendarStatus: calendar?.status ?? "PUBLISHED",
+        retirementDate: workerProfile?.retirementDate,
+        periodIndex: idx,
+        previousPeriodIndex: prevOrdinaryPeriod?.index,
+        previousPeriodStartDate: prevOrdinaryPeriod?.startDate ?? null,
+        previousPeriodEndDate: prevOrdinaryPeriod?.endDate ?? null,
+      })
 
-        if (roleEligibilityResult.status === "BLOCKED") {
-          allowed = false
-          reasons.push(roleEligibilityResult.workerMessage)
-        } else if (roleEligibilityResult.status === "REQUIRES_REVIEW") {
-          warnings.push(`Periodo ${idx}: ${roleEligibilityResult.workerMessage}`)
-        } else if (roleEligibilityResult.status === "NEEDS_DATA") {
-          warnings.push(`Periodo ${idx}: ${roleEligibilityResult.workerMessage}`)
-        }
+      if (roleEligibilityResult.status === "BLOCKED") {
+        allowed = false
+        reasons.push(roleEligibilityResult.workerMessage)
+      } else if (roleEligibilityResult.status === "REQUIRES_REVIEW") {
+        warnings.push(`Periodo ${idx}: ${roleEligibilityResult.workerMessage}`)
+      } else if (roleEligibilityResult.status === "NEEDS_DATA") {
+        warnings.push(`Periodo ${idx}: ${roleEligibilityResult.workerMessage}`)
       }
     }
 
-    // 4. Detección de empalmes con periodos ya procesados
-    if (effectiveSelectedRole?.startDate && resolvedRoleEndDate) {
+    // 4. Detección de empalmes con periodos ya procesados (incluyendo cuatrimestrales no adyacentes o V20 con días de descanso)
+    const hasPhysicalDays = units === undefined || units > 0
+    if (candidateStartDate && candidateEndDate && hasPhysicalDays) {
       const currentRange = {
-        startDate: effectiveSelectedRole.startDate,
-        endDate: resolvedRoleEndDate,
+        startDate: candidateStartDate,
+        endDate: candidateEndDate,
       }
       for (let prevIdx = 0; prevIdx < periods.length; prevIdx++) {
         const prevP = periods[prevIdx]
-        if (prevP.selectedRole?.startDate) {
+        const prevStartDate = prevP.selectedRole?.startDate || prevP.startDate
+        const prevHasPhysicalDays = prevP.units === undefined || prevP.units > 0
+        if (prevStartDate && prevHasPhysicalDays) {
+          const prevEndDate = prevP.selectedRole?.endDate || prevP.endDate || prevStartDate
           const prevRange = {
-            startDate: prevP.selectedRole.startDate,
-            endDate: prevP.selectedRole.endDate || prevP.selectedRole.startDate,
+            startDate: prevStartDate,
+            endDate: prevEndDate,
           }
           if (hasDateOverlap(currentRange, prevRange)) {
+            const overlapMsg = `Este periodo se empalma con el Periodo ${prevIdx + 1} (${prevRange.startDate} a ${prevRange.endDate}).`
             allowed = false
-            reasons.push(`Este periodo se empalma con el Periodo ${prevIdx + 1} (${prevRange.startDate} a ${prevRange.endDate}).`)
+            if (!reasons.includes(overlapMsg)) {
+              reasons.push(overlapMsg)
+            }
           }
         }
       }
@@ -257,6 +279,7 @@ export function buildVacationPlan(
       normativeCitation,
       continuityBefore,
       continuityAfter,
+      stage,
       payment,
       eligibility: roleEligibilityResult,
       allowed,

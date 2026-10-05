@@ -82,7 +82,6 @@ import com.laveintedigital.app.util.configureForLaVeinte
 import androidx.biometric.BiometricPrompt
 import androidx.fragment.app.FragmentActivity
 import android.util.Log
-import java.util.concurrent.Executors
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 
@@ -396,25 +395,119 @@ fun InternalWebScreen(
 
         BridgeHandler.onScanDocument = scanDocumentResolver
 
+        val notifyBiometricStateToWeb: () -> Unit = {
+            webView?.post {
+                webView?.evaluateJavascript(
+                    "window.dispatchEvent(new Event('laveinte:biometrics-changed')); window.dispatchEvent(new Event('focus'));",
+                    null,
+                )
+            }
+        }
+        val launchEnrollmentBiometricPrompt: () -> Unit = {
+            if (LaveinteBiometricManager.canAuthenticate(context)) {
+                activity.runOnUiThread {
+                    runCatching {
+                        val fragActivity = context as FragmentActivity
+                        val enrollPrompt = BiometricPrompt(
+                            fragActivity,
+                            ContextCompat.getMainExecutor(context),
+                            object : BiometricPrompt.AuthenticationCallback() {
+                                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                                    Log.d("APP_LOCK", "APP_LOCK enrollment_success")
+                                    AppLockManager.setBiometricEnabled(true)
+                                    scope.launch {
+                                        BiometricPreferences.setEnabled(context, true)
+                                        notifyBiometricStateToWeb()
+                                    }
+                                }
+
+                                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                                    Log.w("APP_LOCK", "APP_LOCK enrollment_error=$errorCode")
+                                    notifyBiometricStateToWeb()
+                                }
+
+                                override fun onAuthenticationFailed() {
+                                    Log.w("APP_LOCK", "APP_LOCK enrollment_failed")
+                                }
+                            },
+                        )
+                        val enrollPromptInfo = BiometricPrompt.PromptInfo.Builder()
+                            .setTitle("Activar bloqueo biométrico")
+                            .setSubtitle("Confirma tu identidad con huella, rostro o bloqueo seguro")
+                            .setAllowedAuthenticators(LaveinteBiometricManager.ALLOWED_AUTHENTICATORS)
+                            .build()
+                        enrollPrompt.authenticate(enrollPromptInfo)
+                    }.onFailure { e ->
+                        Log.w("APP_LOCK", "APP_LOCK enrollment_prompt_failed", e)
+                        notifyBiometricStateToWeb()
+                    }
+                }
+            } else {
+                notifyBiometricStateToWeb()
+            }
+        }
+
         BridgeHandler.onAuthenticated = {
             if (!enrollmentDone && !enrollmentDismissed && LaveinteBiometricManager.canAuthenticate(context)) {
                 showEnrollmentInvite = true
             }
         }
         BridgeHandler.onPromptBiometrics = {
-            if (LaveinteBiometricManager.canAuthenticate(context)) {
-                showEnrollmentInvite = true
-            }
+            launchEnrollmentBiometricPrompt()
         }
         BridgeHandler.onDisableBiometrics = {
-            scope.launch {
-                BiometricPreferences.setEnabled(context, false)
-                BiometricPreferences.setDismissed(context, true)
+            if (!LaveinteBiometricManager.canAuthenticate(context)) {
+                AppLockManager.setBiometricEnabled(false)
+                scope.launch {
+                    BiometricPreferences.setEnabled(context, false)
+                    BiometricPreferences.setDismissed(context, true)
+                    notifyBiometricStateToWeb()
+                }
+            } else {
+                activity.runOnUiThread {
+                    runCatching {
+                        val fragActivity = context as FragmentActivity
+                        val disablePrompt = BiometricPrompt(
+                            fragActivity,
+                            ContextCompat.getMainExecutor(context),
+                            object : BiometricPrompt.AuthenticationCallback() {
+                                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                                    Log.d("APP_LOCK", "APP_LOCK disable_success")
+                                    AppLockManager.setBiometricEnabled(false)
+                                    scope.launch {
+                                        BiometricPreferences.setEnabled(context, false)
+                                        BiometricPreferences.setDismissed(context, true)
+                                        notifyBiometricStateToWeb()
+                                    }
+                                }
+
+                                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                                    Log.w("APP_LOCK", "APP_LOCK disable_error=$errorCode")
+                                    notifyBiometricStateToWeb()
+                                }
+
+                                override fun onAuthenticationFailed() {
+                                    Log.w("APP_LOCK", "APP_LOCK disable_failed")
+                                }
+                            },
+                        )
+                        val disablePromptInfo = BiometricPrompt.PromptInfo.Builder()
+                            .setTitle("Desactivar bloqueo biométrico")
+                            .setSubtitle("Confirma tu identidad con huella, rostro o bloqueo seguro")
+                            .setAllowedAuthenticators(LaveinteBiometricManager.ALLOWED_AUTHENTICATORS)
+                            .build()
+                        disablePrompt.authenticate(disablePromptInfo)
+                    }.onFailure { e ->
+                        Log.w("APP_LOCK", "APP_LOCK disable_prompt_failed", e)
+                        notifyBiometricStateToWeb()
+                    }
+                }
             }
         }
         BridgeHandler.onLoggedOut = {
             showEnrollmentInvite = false
             AppLockManager.pendingDeepLink = null
+            AppLockManager.setBiometricEnabled(false)
             scope.launch {
                 BiometricPreferences.clearLegacyEnrollment(context)
                 BiometricPreferences.setEnabled(context, false)
@@ -703,33 +796,6 @@ fun InternalWebScreen(
         // Biometric enrollment invitation — shown once after first login. Runs a REAL
         // BiometricPrompt; only onAuthenticationSucceeded persists biometric_enabled=true.
         if (showEnrollmentInvite) {
-            val enrollmentPrompt = remember {
-                runCatching {
-                    val fragActivity = context as FragmentActivity
-                    BiometricPrompt(
-                        fragActivity,
-                        Executors.newSingleThreadExecutor(),
-                        object : BiometricPrompt.AuthenticationCallback() {
-                            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                                Log.d("APP_LOCK", "APP_LOCK enrollment_success")
-                                scope.launch { BiometricPreferences.setEnabled(context, true) }
-                            }
-                            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                                Log.w("APP_LOCK", "APP_LOCK enrollment_error=$errorCode")
-                            }
-                            override fun onAuthenticationFailed() {}
-                        },
-                    )
-                }.getOrNull()
-            }
-            val enrollmentPromptInfo = remember {
-                BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Protege La Veinte Digital")
-                    .setSubtitle("Usa tu huella, rostro o bloqueo seguro para proteger tu información")
-                    .setAllowedAuthenticators(LaveinteBiometricManager.ALLOWED_AUTHENTICATORS)
-                    .build()
-            }
-
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = {
                     showEnrollmentInvite = false
@@ -746,10 +812,45 @@ fun InternalWebScreen(
                     androidx.compose.material3.TextButton(
                         onClick = {
                             showEnrollmentInvite = false
-                            val p = enrollmentPrompt
-                            if (p != null) {
-                                runCatching { p.authenticate(enrollmentPromptInfo) }
-                                    .onFailure { Log.w("APP_LOCK", "APP_LOCK enrollment_prompt_failed", it) }
+                            activity.runOnUiThread {
+                                runCatching {
+                                    val fragActivity = context as FragmentActivity
+                                    val enrollmentPrompt = BiometricPrompt(
+                                        fragActivity,
+                                        ContextCompat.getMainExecutor(context),
+                                        object : BiometricPrompt.AuthenticationCallback() {
+                                            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                                                Log.d("APP_LOCK", "APP_LOCK enrollment_success")
+                                                AppLockManager.setBiometricEnabled(true)
+                                                scope.launch {
+                                                    BiometricPreferences.setEnabled(context, true)
+                                                    webView?.post {
+                                                        webView?.evaluateJavascript(
+                                                            "window.dispatchEvent(new Event('laveinte:biometrics-changed')); window.dispatchEvent(new Event('focus'));",
+                                                            null,
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                                                Log.w("APP_LOCK", "APP_LOCK enrollment_error=$errorCode")
+                                                webView?.post {
+                                                    webView?.evaluateJavascript(
+                                                        "window.dispatchEvent(new Event('laveinte:biometrics-changed')); window.dispatchEvent(new Event('focus'));",
+                                                        null,
+                                                    )
+                                                }
+                                            }
+                                            override fun onAuthenticationFailed() {}
+                                        },
+                                    )
+                                    val enrollmentPromptInfo = BiometricPrompt.PromptInfo.Builder()
+                                        .setTitle("Protege La Veinte Digital")
+                                        .setSubtitle("Usa tu huella, rostro o bloqueo seguro para proteger tu información")
+                                        .setAllowedAuthenticators(LaveinteBiometricManager.ALLOWED_AUTHENTICATORS)
+                                        .build()
+                                    enrollmentPrompt.authenticate(enrollmentPromptInfo)
+                                }.onFailure { Log.w("APP_LOCK", "APP_LOCK enrollment_prompt_failed", it) }
                             }
                         }
                     ) { Text("Activar") }
