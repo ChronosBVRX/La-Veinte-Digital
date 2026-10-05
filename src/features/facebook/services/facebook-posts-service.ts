@@ -7,6 +7,7 @@ import {
   type ScrapedFacebookPost,
 } from "../types"
 import { extractPostsFromFacebookHtml } from "../lib/relay-post-extractor"
+import { classifyPostWithLocalAI } from "../lib/facebook-ai-classifier"
 
 const STORAGE_BUCKET = "facebook-media"
 
@@ -86,6 +87,9 @@ export async function fetchFacebookPosts(
       permalinkUrl: row.permalink_url,
       contentText: row.content_text,
       mediaUrls: parseMediaUrls(row.media_urls),
+      category: row.category ?? null,
+      summary: row.summary ?? null,
+      tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
       publishedAt: row.published_at,
       syncedAt: row.synced_at,
     }))
@@ -210,6 +214,8 @@ export async function persistScrapedPostsToSupabase(
         }
       }
 
+      const classification = await classifyPostWithLocalAI(post.contentText)
+
       const nowIso = new Date().toISOString()
       const { error } = await client.from("facebook_posts").upsert(
         {
@@ -219,10 +225,15 @@ export async function persistScrapedPostsToSupabase(
           permalink_url: post.permalinkUrl,
           content_text: post.contentText,
           media_urls: finalMediaUrls,
+          category: classification.category,
+          summary: classification.summary,
+          tags: classification.tags,
+          ai_processed: classification.source === "ollama",
           published_at: post.publishedAt,
           is_visible: true,
           raw_metadata: {
             original_image_count: post.images.length,
+            ai_source: classification.source,
           },
           synced_at: nowIso,
           updated_at: nowIso,

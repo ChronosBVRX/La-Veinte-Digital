@@ -201,6 +201,8 @@ async function respondDirect(
     const comp = await runCompletion(openai, messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[], maxTokens)
     obs.llmTtftMs = comp.ttft
     obs.llmTotalMs = comp.total
+    if (comp.provider) obs.provider = comp.provider
+    if (comp.model) obs.model = comp.model
     let respuesta = comp.text
     if (!respuesta) respuesta = "Lo siento, no pude generar una respuesta."
 
@@ -282,19 +284,75 @@ function buildPositiveSourceFallback(sources: RetrievedSource[]): { respuesta: s
   }
 }
 
-async function runCompletion(openai: OpenAI, messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[], maxTokens: number): Promise<{ text: string; ttft: number; total: number }> {
+async function runCompletion(
+  openai: OpenAI,
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+  maxTokens: number,
+): Promise<{ text: string; ttft: number; total: number; provider?: string; model?: string }> {
   const t = performance.now()
-  const stream = await withAbortTimeout(ASSISTANT_POLICY.completionTimeoutMs, (signal) =>
-    openai.chat.completions.create({ model: ASSISTANT_POLICY.chatModel, temperature: 0, messages, stream: true, max_tokens: maxTokens }, { signal }),
-  )
-  let text = ""
-  let ttft = 0
-  for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta?.content
-    if (delta && ttft === 0) ttft = performance.now() - t
-    if (delta) text += delta
+  try {
+    const stream = await withAbortTimeout(ASSISTANT_POLICY.completionTimeoutMs, (signal) =>
+      openai.chat.completions.create(
+        { model: ASSISTANT_POLICY.chatModel, temperature: 0, messages, stream: true, max_tokens: maxTokens },
+        { signal },
+      ),
+    )
+    let text = ""
+    let ttft = 0
+    for await (const chunk of stream) {
+      const delta = chunk.choices[0]?.delta?.content
+      if (delta && ttft === 0) ttft = performance.now() - t
+      if (delta) text += delta
+    }
+    return { text, ttft, total: performance.now() - t, provider: "openai", model: ASSISTANT_POLICY.chatModel }
+  } catch (err) {
+    const localUrl = process.env.LOCAL_LLM_URL || (process.env.NODE_ENV === "production" ? "http://127.0.0.1:11434" : null)
+    if (localUrl) {
+      try {
+        console.warn("[consulta] OpenAI falló, recurriendo a motor local Ollama:", err instanceof Error ? err.message : err)
+        return await runLocalOllamaCompletion(localUrl, messages, maxTokens)
+      } catch (ollamaErr) {
+        console.warn("[consulta] Fallback a Ollama local no disponible:", ollamaErr)
+      }
+    }
+    throw err
   }
-  return { text, ttft, total: performance.now() - t }
+}
+
+async function runLocalOllamaCompletion(
+  baseUrl: string,
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+  maxTokens: number,
+): Promise<{ text: string; ttft: number; total: number; provider: string; model: string }> {
+  const t = performance.now()
+  const model = process.env.LOCAL_LLM_MODEL || "qwen2.5:7b"
+  const formatted = messages.map((m) => ({
+    role: m.role,
+    content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+  }))
+
+  const resp = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      messages: formatted,
+      max_tokens: maxTokens,
+      temperature: 0,
+    }),
+    signal: AbortSignal.timeout(35000),
+  })
+
+  if (!resp.ok) throw new Error(`Ollama fallback HTTP ${resp.status}`)
+  const data = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> }
+  const text = data.choices?.[0]?.message?.content || ""
+  return {
+    text,
+    ttft: performance.now() - t,
+    total: performance.now() - t,
+    provider: "ollama:local",
+    model,
+  }
 }
 
 function logObservability(requestId: string, userId: string, obs: MotorObservability): void {

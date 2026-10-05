@@ -157,12 +157,20 @@ export type Database = {
           page_key: string
           page_name: string
           permalink_url: string
+          category: string | null
+          summary: string | null
+          tags: Json | null
+          ai_processed: boolean
           published_at: string
           raw_metadata: Json | null
           synced_at: string
           updated_at: string
         }
         Insert: {
+          category?: string | null
+          summary?: string | null
+          tags?: Json | null
+          ai_processed?: boolean
           content_text?: string
           created_at?: string
           external_post_id: string
@@ -178,6 +186,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          category?: string | null
+          summary?: string | null
+          tags?: Json | null
+          ai_processed?: boolean
           content_text?: string
           created_at?: string
           external_post_id?: string

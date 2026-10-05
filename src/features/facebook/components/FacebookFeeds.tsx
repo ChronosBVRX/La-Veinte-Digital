@@ -19,6 +19,7 @@ export function FacebookFeeds({ compact = false, initialPosts }: Props) {
   const [posts, setPosts] = useState<FacebookPost[]>(initialPosts ?? [])
   const [loading, setLoading] = useState(!initialPosts || initialPosts.length === 0)
   const [activeTab, setActiveTab] = useState<FilterTab>("all")
+  const [selectedCategory, setSelectedCategory] = useState<string>("all")
 
   useEffect(() => {
     if (initialPosts && initialPosts.length > 0) {
@@ -47,10 +48,21 @@ export function FacebookFeeds({ compact = false, initialPosts }: Props) {
     }
   }, [initialPosts])
 
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>()
+    for (const p of posts) {
+      if (p.category) set.add(p.category)
+    }
+    return Array.from(set).sort()
+  }, [posts])
+
   const filteredPosts = useMemo(() => {
-    if (activeTab === "all") return posts
-    return posts.filter((p) => p.pageKey === activeTab)
-  }, [posts, activeTab])
+    return posts.filter((p) => {
+      if (activeTab !== "all" && p.pageKey !== activeTab) return false
+      if (selectedCategory !== "all" && p.category !== selectedCategory) return false
+      return true
+    })
+  }, [posts, activeTab, selectedCategory])
 
   const counts = useMemo(() => {
     let seccionxx = 0
@@ -158,6 +170,40 @@ export function FacebookFeeds({ compact = false, initialPosts }: Props) {
             </a>
           </div>
         </div>
+        {availableCategories.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.375rem",
+              flexWrap: "wrap",
+              paddingTop: "0.625rem",
+              marginTop: "0.625rem",
+              borderTop: "1px solid var(--border)",
+            }}
+          >
+            <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600, marginRight: "0.25rem" }}>
+              Categoría:
+            </span>
+            <Button
+              variant={selectedCategory === "all" ? "primary" : "ghost"}
+              size="sm"
+              onClick={() => setSelectedCategory("all")}
+            >
+              Todas
+            </Button>
+            {availableCategories.map((cat) => (
+              <Button
+                key={cat}
+                variant={selectedCategory === cat ? "primary" : "ghost"}
+                size="sm"
+                onClick={() => setSelectedCategory(cat)}
+              >
+                {cat}
+              </Button>
+            ))}
+          </div>
+        )}
       </Card>
 
       {/* Estado de carga inicial */}

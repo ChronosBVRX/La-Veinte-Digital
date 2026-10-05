@@ -164,6 +164,22 @@ export function FacebookPostCard({ post, compact = false }: FacebookPostCardProp
                   >
                     {pageConfig.shortName}
                   </span>
+                  {post.category && (
+                    <span
+                      style={{
+                        fontSize: "0.6875rem",
+                        fontWeight: 600,
+                        padding: "0.125rem 0.5rem",
+                        borderRadius: "999px",
+                        background: "var(--accent)",
+                        color: "var(--fg)",
+                        border: "1px solid var(--border)",
+                        letterSpacing: "0.01em",
+                      }}
+                    >
+                      {post.category}
+                    </span>
+                  )}
                 </div>
                 {dateLabel && (
                   <p
@@ -196,6 +212,22 @@ export function FacebookPostCard({ post, compact = false }: FacebookPostCardProp
                 >
                   {headline}
                 </h3>
+              )}
+              {post.summary && !expanded && (
+                <div
+                  style={{
+                    padding: "0.5rem 0.75rem",
+                    borderRadius: "calc(var(--radius) - 2px)",
+                    background: "var(--accent)",
+                    borderLeft: `3px solid ${pageConfig.accentColor}`,
+                    fontSize: "0.8125rem",
+                    color: "var(--fg)",
+                    lineHeight: 1.35,
+                    fontStyle: "italic",
+                  }}
+                >
+                  💡 <strong>Resumen:</strong> {post.summary}
+                </div>
               )}
               {visibleBody && (
                 <p

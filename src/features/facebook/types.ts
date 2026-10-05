@@ -36,6 +36,9 @@ export interface FacebookPost {
   permalinkUrl: string
   contentText: string
   mediaUrls: string[]
+  category?: string | null
+  summary?: string | null
+  tags?: string[]
   publishedAt: string
   syncedAt: string
 }
