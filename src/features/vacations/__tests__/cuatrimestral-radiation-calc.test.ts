@@ -21,29 +21,34 @@ describe("Cálculo Cuatrimestral 029 y 048 — Procedimiento IMSS 1A74-003-025 A
     })
   })
 
-  describe("Tabla de Días de Descanso por Periodo para Régimen Cuatrimestral", () => {
-    it("asigna los días correctos por periodo según la antigüedad sin desfase de 1 año", () => {
-      // 1 año: 7, 8, 7
-      expect(getRadiationDaysForPeriod(1, 0)).toBe(7)
-      expect(getRadiationDaysForPeriod(1, 1)).toBe(8)
-      expect(getRadiationDaysForPeriod(1, 2)).toBe(7)
+  describe("Tabla de Días de Descanso por Periodo para Régimen Cuatrimestral (Cláusula 47 CCT)", () => {
+    it("asigna los días correctos por periodo según la antigüedad efectiva (0 a 5+ años)", () => {
+      // 0 años (primer año): 7, 8, 7 (total 22)
+      expect(getRadiationDaysForPeriod(0, 0)).toBe(7)
+      expect(getRadiationDaysForPeriod(0, 1)).toBe(8)
+      expect(getRadiationDaysForPeriod(0, 2)).toBe(7)
 
-      // 2 años: 8, 8, 8
+      // 1 año: 8, 8, 8 (total 24)
+      expect(getRadiationDaysForPeriod(1, 0)).toBe(8)
+      expect(getRadiationDaysForPeriod(1, 1)).toBe(8)
+      expect(getRadiationDaysForPeriod(1, 2)).toBe(8)
+
+      // 2 años: 8, 9, 8 (total 25)
       expect(getRadiationDaysForPeriod(2, 0)).toBe(8)
-      expect(getRadiationDaysForPeriod(2, 1)).toBe(8)
+      expect(getRadiationDaysForPeriod(2, 1)).toBe(9)
       expect(getRadiationDaysForPeriod(2, 2)).toBe(8)
 
-      // 3 años: 8, 9, 9
-      expect(getRadiationDaysForPeriod(3, 0)).toBe(8)
+      // 3 años: 9, 9, 9 (total 27)
+      expect(getRadiationDaysForPeriod(3, 0)).toBe(9)
       expect(getRadiationDaysForPeriod(3, 1)).toBe(9)
       expect(getRadiationDaysForPeriod(3, 2)).toBe(9)
 
-      // 4 años: 9, 9, 10
+      // 4 años: 9, 10, 9 (total 28)
       expect(getRadiationDaysForPeriod(4, 0)).toBe(9)
-      expect(getRadiationDaysForPeriod(4, 1)).toBe(9)
-      expect(getRadiationDaysForPeriod(4, 2)).toBe(10)
+      expect(getRadiationDaysForPeriod(4, 1)).toBe(10)
+      expect(getRadiationDaysForPeriod(4, 2)).toBe(9)
 
-      // 5 años: 10, 10, 10
+      // 5 años: 10, 10, 10 (total 30)
       expect(getRadiationDaysForPeriod(5, 0)).toBe(10)
       expect(getRadiationDaysForPeriod(5, 1)).toBe(10)
       expect(getRadiationDaysForPeriod(5, 2)).toBe(10)
@@ -168,7 +173,7 @@ describe("Cálculo Cuatrimestral 029 y 048 — Procedimiento IMSS 1A74-003-025 A
       expect(semestralResult.culturalHelp048).toBeCloseTo(22793.89, 2)
     })
 
-    it("periodo extraordinario V20 Marca 6 genera prima vacacional y 30 días de ayuda 048 (Cláusula 47 CCT)", () => {
+    it("periodo extraordinario V20 Marca 6 genera prima vacacional de 15 días y 0 días de ayuda 048 (Cláusula 47 CCT y Tabla 1A74-022-065)", () => {
       const v20Result = calculateVacationPayment({
         integratedMonthlySalary: 22058.60,
         seniorityYears: 20,
@@ -179,8 +184,8 @@ describe("Cálculo Cuatrimestral 029 y 048 — Procedimiento IMSS 1A74-003-025 A
       })
 
       expect(v20Result.premium029).toBeCloseTo(2757.33, 2)
-      expect(v20Result.culturalHelp048).toBeCloseTo(22058.60, 2)
-      expect(v20Result.grossVacationExtra).toBeCloseTo(24815.93, 2)
+      expect(v20Result.culturalHelp048).toBe(0)
+      expect(v20Result.grossVacationExtra).toBeCloseTo(2757.33, 2)
     })
 
     it("régimen cuatrimestral Modalidad B (Marcas 2 y 5) otorga hasta 15 días hábiles", () => {

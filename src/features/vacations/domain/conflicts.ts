@@ -29,15 +29,5 @@ export function detectNormativeConflicts(
     });
   }
 
-  if (regime === "EXTRAORDINARIO_V20" && inclusionMark === 6) {
-    conflicts.push({
-      requiresReview: true,
-      sources: ["CCT 2025-2027 - Cláusula 47", "Procedimiento 1A74-003-025 - Anexo 2"],
-      description: "La marca 6 del periodo V20 indica disfrute continuo de 15 días según tabla administrativa, pero podría diferir de la redacción del CCT sobre el periodo extraordinario. Esta combinación requiere validación con Servicios de Personal.",
-      cctValue: undefined,
-      administrativeValue: 15,
-    });
-  }
-
   return conflicts;
 }

@@ -73,13 +73,16 @@ export function calculateVacationPayment(params: PaymentCalculationParams): Vaca
   let helpPaymentFraction: 0 | 0.5 | 1 = 0
 
   if (isV20Calculated) {
-    // Cláusula 47 del CCT (párrafos 13, 14 y 15):
+    // Cláusula 47 del CCT y Tabla de Marcas 1A74-022-065:
     // - Marca 0: 10 días de descanso + 10 días de salario por concepto 048
-    // - Marca 6: 15 días de descanso continuo + 30 días de salario por concepto 048
-    // - Marca 7: 30 días de salario por concepto 048 en efectivo (sin descanso)
+    // - Marca 6: 15 días de descanso continuo con prima 029, SIN ayuda cultural 048 (0 días)
+    // - Marca 7: 30 días de salario por concepto 048 en efectivo (sin descanso ni prima 029)
     // - Marca 8: 15 días de prima 029 y 30 días de antigüedad para jubilación (sin concepto 048)
     switch (mark) {
       case 6:
+        helpDays = 0
+        helpPaymentFraction = 0
+        break
       case 7:
         helpDays = 30
         helpPaymentFraction = 1

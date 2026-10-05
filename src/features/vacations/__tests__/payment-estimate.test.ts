@@ -120,7 +120,7 @@ describe("Motor Económico de Vacaciones (Conceptos 029 y 048)", () => {
     expect(res4.culturalHelp048).toBe(31000)
   })
 
-  it("Periodo extraordinario V20 Marca 6: 15 días continuos con 30 días de salario de ayuda 048 (Cláusula 47 CCT)", () => {
+  it("Periodo extraordinario V20 Marca 6: 15 días continuos con prima 029 y 0 días de ayuda 048 (Cláusula 47 CCT y Tabla 1A74-022-065)", () => {
     const resV20M6 = calculateVacationPayment({
       integratedMonthlySalary: SMI_30K,
       daysOrUnits: 15,
@@ -130,8 +130,8 @@ describe("Motor Económico de Vacaciones (Conceptos 029 y 048)", () => {
       isV20: true,
     })
     expect(resV20M6.premium029).toBe(3750) // 1,000 * 15 * 0.25
-    expect(resV20M6.culturalHelp048).toBe(30000) // 1,000 * 30 días
-    expect(resV20M6.grossVacationExtra).toBe(33750)
+    expect(resV20M6.culturalHelp048).toBe(0) // Sin concepto 048 en Marca 6
+    expect(resV20M6.grossVacationExtra).toBe(3750)
   })
 
   it("Periodo extraordinario V20 Marca 0: 10 días de descanso con 10 días de ayuda 048 (Cláusula 47 CCT)", () => {
