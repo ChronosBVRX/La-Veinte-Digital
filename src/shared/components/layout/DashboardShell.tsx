@@ -22,12 +22,19 @@ const FloatingChatWidget = dynamic(
 
 interface DashboardShellProps {
   fullName: string | null
+  avatarUrl?: string | null
   canAccessAdmin?: boolean
   canAccessUnion?: boolean
   children: ReactNode
 }
 
-export function DashboardShell({ fullName, canAccessAdmin = false, canAccessUnion = false, children }: DashboardShellProps) {
+export function DashboardShell({
+  fullName,
+  avatarUrl,
+  canAccessAdmin = false,
+  canAccessUnion = false,
+  children,
+}: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const toggleSidebar = useCallback(() => {
@@ -42,7 +49,12 @@ export function DashboardShell({ fullName, canAccessAdmin = false, canAccessUnio
     <MobileViewportProvider>
       <FloatingChatProvider>
         <div className="mobile-app-shell">
-          <AppHeader fullName={fullName} onMenuToggle={toggleSidebar} canAccessUnion={canAccessUnion} />
+          <AppHeader
+            fullName={fullName}
+            avatarUrl={avatarUrl}
+            onMenuToggle={toggleSidebar}
+            canAccessUnion={canAccessUnion}
+          />
 
           <div style={{ display: "flex", flex: 1, minHeight: 0, position: "relative" }}>
             <DesktopSidebar open={sidebarOpen} onClose={closeSidebar} canAccessAdmin={canAccessAdmin} canAccessUnion={canAccessUnion} />

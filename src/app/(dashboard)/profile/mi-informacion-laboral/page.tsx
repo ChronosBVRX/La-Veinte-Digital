@@ -38,7 +38,7 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
   const [profileRes, payrollRes] = await Promise.all([
     supabase
       .from("profiles")
-      .select("full_name, matricula, adscripcion, categoria, antiguedad")
+      .select("full_name, matricula, adscripcion, categoria, antiguedad, avatar_url")
       .eq("id", user.id)
       .single(),
     supabase
@@ -133,6 +133,7 @@ export default async function WorkerProfilePage({ searchParams }: PageProps) {
       userId={user.id}
       email={user.email ?? null}
       fullName={snapshot.fullName || activeEmployeeName}
+      avatarUrl={profileData?.avatar_url ?? null}
       matricula={snapshot.matricula}
       categoria={snapshot.categoria}
       antiguedad={snapshot.antiguedad}

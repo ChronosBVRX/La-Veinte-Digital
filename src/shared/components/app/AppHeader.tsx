@@ -8,14 +8,16 @@ import { useAppEnvironment } from "@/shared/hooks/useAppEnvironment"
 import { useBackLayer } from "@/shared/navigation/useBackLayer"
 import { RoleModeSwitch } from "./RoleModeSwitch"
 import { SignOutButton } from "./SignOutButton"
+import { Avatar } from "@/shared/components/ui/Avatar"
 
 interface AppHeaderProps {
   fullName: string | null
+  avatarUrl?: string | null
   onMenuToggle: () => void
   canAccessUnion?: boolean
 }
 
-export function AppHeader({ fullName, onMenuToggle, canAccessUnion = false }: AppHeaderProps) {
+export function AppHeader({ fullName, avatarUrl, onMenuToggle, canAccessUnion = false }: AppHeaderProps) {
   const firstName = fullName?.split(" ")[0] ?? ""
   const [profileOpen, setProfileOpen] = useState(false)
   const { environment, platform, resolved } = useAppEnvironment()
@@ -180,19 +182,16 @@ export function AppHeader({ fullName, onMenuToggle, canAccessUnion = false }: Ap
             <span className="desktop-only" style={{ whiteSpace: "nowrap" }}>
               {firstName}
             </span>
-            <span style={{
-              width: 32,
-              height: 32,
-              borderRadius: "50%",
-              background: "linear-gradient(135deg, var(--brand-navy), var(--brand-blue))",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "var(--primary-fg)",
-              boxShadow: "0 2px 6px rgba(23,50,77,0.2)",
-            }}>
-              <UserCircle size={18} weight="fill" />
-            </span>
+            <Avatar
+              src={avatarUrl}
+              alt={fullName || "Perfil"}
+              size={32}
+              gradient="linear-gradient(135deg, var(--brand-navy), var(--brand-blue))"
+              icon={<UserCircle size={18} weight="fill" color="var(--primary-fg)" />}
+              style={{
+                boxShadow: "0 2px 6px rgba(23,50,77,0.2)",
+              }}
+            />
             <CaretDown size={12} weight="bold" style={{ color: "var(--muted)", marginLeft: "-0.125rem" }} />
           </button>
           {profileOpen && (
