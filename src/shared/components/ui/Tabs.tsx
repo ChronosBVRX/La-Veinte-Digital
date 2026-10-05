@@ -59,8 +59,8 @@ export function Tabs({ tabs, defaultTab, onChange, style, children }: TabsProps)
                 background: "none",
                 border: "none",
                 cursor: "pointer",
-                padding: isTwoTabs ? "0.5rem 0.5rem" : "0.625rem 0.875rem",
-                fontSize: "0.875rem",
+                padding: isTwoTabs ? "0.5rem 0.375rem" : "0.625rem 0.875rem",
+                fontSize: isTwoTabs ? "clamp(0.75rem, 3.3vw, 0.875rem)" : "0.875rem",
                 fontWeight: isActive ? 600 : 400,
                 color: isActive ? "var(--primary)" : "var(--muted)",
                 borderBottom: isActive ? "2px solid var(--primary)" : "2px solid transparent",
@@ -73,7 +73,7 @@ export function Tabs({ tabs, defaultTab, onChange, style, children }: TabsProps)
                 minWidth: 0,
                 minHeight: 44,
                 whiteSpace: isTwoTabs ? "normal" : "nowrap",
-                wordBreak: "break-word",
+                overflowWrap: "break-word",
                 lineHeight: 1.25,
                 textAlign: "center",
                 transition: "color var(--transition), border-color var(--transition)",
@@ -81,7 +81,7 @@ export function Tabs({ tabs, defaultTab, onChange, style, children }: TabsProps)
               }}
             >
               {tab.icon && <span style={{ display: "inline-flex", flexShrink: 0 }}>{tab.icon}</span>}
-              <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{tab.label}</span>
+              <span style={{ minWidth: 0, overflowWrap: "break-word" }}>{tab.label}</span>
               {tab.badge && <span style={{ display: "inline-flex", flexShrink: 0 }}>{tab.badge}</span>}
             </button>
           )

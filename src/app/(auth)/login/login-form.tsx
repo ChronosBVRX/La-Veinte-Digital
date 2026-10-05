@@ -47,16 +47,18 @@ export function LoginForm() {
 
   return (
     <>
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", minWidth: 0, maxWidth: "100%" }}>
       {displayedError && (
         <div style={{
           display: "flex", alignItems: "center", gap: "0.5rem",
           color: "var(--error)", fontSize: "0.875rem",
           background: "#fef2f2", padding: "0.75rem 1rem",
           borderRadius: "var(--radius-sm)",
+          minWidth: 0,
+          wordBreak: "break-word",
         }}>
           <WarningCircle size={18} weight="fill" style={{ flexShrink: 0 }} />
-          <span>{displayedError}</span>
+          <span style={{ minWidth: 0 }}>{displayedError}</span>
         </div>
       )}
 
@@ -71,6 +73,7 @@ export function LoginForm() {
             borderRadius: "var(--radius-sm)",
             fontSize: "0.8125rem",
             lineHeight: 1.45,
+            wordBreak: "break-word",
           }}
         >
           <strong>Conectando con {oauthProvider === "google" ? "Google" : "Facebook"}…</strong> En unos segundos serás redirigido. Al elegir tu cuenta, tu acceso o registro quedará listo automáticamente.
@@ -87,7 +90,7 @@ export function LoginForm() {
         icon={<EnvelopeSimple size={18} />}
       />
 
-      <div>
+      <div style={{ minWidth: 0 }}>
         <Input
           id="password"
           name="password"
@@ -97,7 +100,7 @@ export function LoginForm() {
           autoComplete="current-password"
           icon={<Lock size={16} />}
         />
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.375rem" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.375rem", flexWrap: "wrap" }}>
           <Link
             href="/recuperar-password"
             style={{
@@ -118,19 +121,19 @@ export function LoginForm() {
 
       <TurnstileWidget siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY} resetKey={state} />
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", minWidth: 0 }}>
           <span style={{ flex: 1, height: "1px", background: "var(--border)" }} />
           <span style={{ fontSize: "0.8rem", color: "var(--muted)", whiteSpace: "nowrap" }}>o continúa con</span>
           <span style={{ flex: 1, height: "1px", background: "var(--border)" }} />
         </div>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           <Button
             type="button"
             variant="secondary"
             loading={oauthProvider === "google"}
             disabled={pending || oauthProvider !== null}
-            style={{ flex: 1, justifyContent: "center" }}
+            style={{ flex: "1 1 130px", justifyContent: "center", minWidth: 0 }}
             onClick={() => handleOAuth("google")}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
@@ -147,7 +150,7 @@ export function LoginForm() {
             variant="secondary"
             loading={oauthProvider === "facebook"}
             disabled={pending || oauthProvider !== null}
-            style={{ flex: 1, justifyContent: "center" }}
+            style={{ flex: "1 1 130px", justifyContent: "center", minWidth: 0 }}
             onClick={() => handleOAuth("facebook")}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>

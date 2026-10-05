@@ -18,9 +18,10 @@ describe("TurnstileWidget", () => {
     expect(container.innerHTML).toBe("")
   })
 
-  it("renderiza el widget y entrega el token por input oculto", async () => {
+  it("renderiza el widget con size flexible para responsividad móvil y entrega el token por input oculto", async () => {
     type RenderOpts = {
       sitekey: string
+      size?: string
       callback?: (token: string) => void
     }
     let captured: RenderOpts | undefined
@@ -36,6 +37,7 @@ describe("TurnstileWidget", () => {
 
     await waitFor(() => {
       expect(captured?.sitekey).toBe("test-site-key")
+      expect(captured?.size).toBe("flexible")
     })
 
     await act(async () => {

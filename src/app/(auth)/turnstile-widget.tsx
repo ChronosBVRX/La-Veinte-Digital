@@ -9,6 +9,7 @@ declare global {
         element: HTMLElement,
         options: {
           sitekey: string
+          size?: "normal" | "compact" | "flexible"
           appearance?: "always" | "execute" | "interaction-only"
           callback?: (token: string) => void
           "expired-callback"?: () => void
@@ -81,6 +82,7 @@ export function TurnstileWidget({
         }
         widgetIdRef.current = window.turnstile.render(containerRef.current, {
           sitekey: siteKey,
+          size: "flexible",
           appearance: "always",
           callback: (newToken: string) => {
             if (inputRef.current) inputRef.current.value = newToken
@@ -160,12 +162,15 @@ export function TurnstileWidget({
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", minWidth: 0, maxWidth: "100%" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", width: "100%", minWidth: 0, maxWidth: "100%", boxSizing: "border-box" }}>
       <div
         ref={containerRef}
         style={{
+          width: "100%",
           minWidth: 0,
           maxWidth: "100%",
+          overflow: "hidden",
+          boxSizing: "border-box",
           display: status === "error" ? "none" : "flex",
           justifyContent: "center",
         }}
