@@ -263,6 +263,43 @@ describe("diversificación para BROAD_TOPIC", () => {
     b.fragmento = a.fragmento
     expect(dedupeByText([a, b])).toHaveLength(1)
   })
+
+  it("dedupeByText conserva páginas distintas del Tabulador que comparten encabezado largo", () => {
+    const sharedHeader =
+      "INSTITUTO MEXICANO DEL SEGURO SOCIAL DIRECCIÓN DE ADMINISTRACIÓN UNIDAD DE PERSONAL TABULADOR DE SUELDOS PARA PERSONAL DE BASE VIGENTE A PARTIR DEL 16 DE OCTUBRE DE 2025 ".repeat(
+        2,
+      )
+    const page1 = mk("IMSS-TABULADOR-BASE-2025-2026", 1)
+    const page8 = mk("IMSS-TABULADOR-BASE-2025-2026", 8)
+    page1.fragmento = `${sharedHeader}\nAsistente Médica 6.5 $5,221.30`
+    page8.fragmento = `${sharedHeader}\nManejador de Alimentos 6.5 $3,961.30 8.0 $4,875.46`
+    expect(dedupeByText([page1, page8])).toHaveLength(2)
+  })
+
+  it("rowToSource conserva páginas largas de Tabulador/Profesiograma hasta 2800 caracteres", () => {
+    const longText = `${"Encabezado de página. ".repeat(65)}Manejador de Alimentos 8.0 $4,875.46`
+    const src = rowToSource(
+      {
+        chunk_id: "CCT-IMSS-SNTSS-2025-2027@2025-2027:315",
+        document_id: "CCT-IMSS-SNTSS-2025-2027",
+        document_title: "CCT 2025-2027",
+        version_id: "CCT-IMSS-SNTSS-2025-2027@2025-2027",
+        validity: "CURRENT",
+        section_type: "clausula",
+        section_title: "Tabulador",
+        article: null,
+        clause: null,
+        numeral: null,
+        page_start: 97,
+        page_end: 97,
+        text: longText,
+        source_url: null,
+      },
+      "S1",
+      100,
+    )
+    expect(src.fragmento).toContain("Manejador de Alimentos 8.0 $4,875.46")
+  })
 })
 
 describe("expandForRetrieval — solo retrieval, nunca redacción", () => {

@@ -391,7 +391,7 @@ export function dedupeByText<T extends { documentId: string; fragmento: string }
   const seen = new Set<string>()
   const out: T[] = []
   for (const s of sources) {
-    const key = `${s.documentId}::${s.fragmento.slice(0, 120).toLowerCase()}`
+    const key = `${s.documentId}::${s.fragmento.slice(0, 400).toLowerCase()}::${s.fragmento.slice(-200).toLowerCase()}`
     if (seen.has(key)) continue
     seen.add(key)
     out.push(s)
@@ -448,7 +448,7 @@ export function rowToSource(row: RpcChunkRow, id: string, score: number): Retrie
     numero: row.clause ?? row.article ?? row.numeral ?? null,
     paginaInicio: row.page_start,
     paginaFin: row.page_end,
-    fragmento: row.text.slice(0, 1200),
+    fragmento: row.text.slice(0, 2800),
     sourceUrl: row.source_url,
     validity: row.validity,
     pendingReview: row.validity === "PENDING_REVIEW",
@@ -504,11 +504,13 @@ export function validateCitations(
   respuesta: string,
   sources: RetrievedSource[],
 ): { respuesta: string; citedIds: string[]; invalidIdsRemoved: string[] } {
-  // Normalizar citas agrupadas como [S1, S2] o [S1,S2] a [S1] [S2]
-  const normalized = respuesta.replace(/\[S(\d+)(?:\s*,\s*S?(\d+))+\]/g, (match) => {
-    const ids = [...match.matchAll(/S?(\d+)/g)].map((m) => `[S${m[1]}]`)
-    return ids.join(" ")
-  })
+  // Normalizar citas como (S1) o agrupadas como [S1, S2] / [S1 y S2] a [S1] [S2]
+  const normalized = respuesta
+    .replace(/\(S(\d+)\)/g, "[S$1]")
+    .replace(/\[S(\d+)(?:(?:\s*,\s*|\s+y\s+)S?(\d+))+\]/gi, (match) => {
+      const ids = [...match.matchAll(/S?(\d+)/gi)].map((m) => `[S${m[1]}]`)
+      return ids.join(" ")
+    })
 
   const valid = new Set(sources.map((s) => s.id))
   const found = [...normalized.matchAll(/\[S(\d+)\]/g)].map((m) => `S${m[1]}`)

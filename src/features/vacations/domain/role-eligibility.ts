@@ -213,10 +213,13 @@ export function evaluateVacationRoleEligibility(
     v20Sequence = 1,
     calendarYear,
     calendarStatus = "PUBLISHED",
+    retirementDate: rawRetirementDate,
+    workerRetirementDate,
   } = input
 
   const calendarCertainty: CalendarCertainty = calendarStatus === "DRAFT" ? "PRELIMINARY" : "OFFICIAL"
   const dueDate = normalizeCivilDate(rawDueDate)
+  const retirementDate = normalizeCivilDate(rawRetirementDate ?? workerRetirementDate)
 
   // 1. Validación de fecha de vencimiento/generación del derecho
   if (!dueDate) {
@@ -235,6 +238,7 @@ export function evaluateVacationRoleEligibility(
         calendarCertainty,
         selectableForSimulation: true,
         confirmableAsOfficial: false,
+        normativeCategory: "REQUIRES_NORMATIVE_REVIEW",
       },
     }
   }
@@ -254,6 +258,7 @@ export function evaluateVacationRoleEligibility(
         calendarCertainty,
         selectableForSimulation: false,
         confirmableAsOfficial: false,
+        normativeCategory: "REQUIRES_NORMATIVE_REVIEW",
       },
     }
   }
@@ -288,6 +293,7 @@ export function evaluateVacationRoleEligibility(
           calendarCertainty,
           selectableForSimulation: false,
           confirmableAsOfficial: false,
+          normativeCategory: "REQUIRES_AUTHORIZATION",
         },
       }
     }
@@ -308,6 +314,7 @@ export function evaluateVacationRoleEligibility(
           calendarCertainty,
           selectableForSimulation: false,
           confirmableAsOfficial: false,
+          normativeCategory: "BLOCKED",
         },
       }
     }
@@ -331,6 +338,7 @@ export function evaluateVacationRoleEligibility(
           calendarCertainty,
           selectableForSimulation: false,
           confirmableAsOfficial: false,
+          normativeCategory: "BLOCKED",
         },
       }
     }
@@ -352,6 +360,7 @@ export function evaluateVacationRoleEligibility(
         calendarCertainty,
         selectableForSimulation: false,
         confirmableAsOfficial: false,
+        normativeCategory: "BLOCKED",
       },
     }
   }
@@ -373,6 +382,7 @@ export function evaluateVacationRoleEligibility(
         calendarCertainty,
         selectableForSimulation: false,
         confirmableAsOfficial: false,
+        normativeCategory: "BLOCKED",
       },
     }
   }
@@ -395,6 +405,7 @@ export function evaluateVacationRoleEligibility(
           calendarCertainty,
           selectableForSimulation: false,
           confirmableAsOfficial: false,
+          normativeCategory: "BLOCKED",
         },
       }
     }
@@ -415,6 +426,7 @@ export function evaluateVacationRoleEligibility(
           calendarCertainty,
           selectableForSimulation: false,
           confirmableAsOfficial: false,
+          normativeCategory: "BLOCKED",
         },
       }
     }
@@ -436,12 +448,14 @@ export function evaluateVacationRoleEligibility(
             calendarCertainty,
             selectableForSimulation: false,
             confirmableAsOfficial: false,
+            normativeCategory: "BLOCKED",
           },
         }
       }
     }
 
     // Marca 8 (acumulación para jubilación): no debe anticiparse antes de su vencimiento
+    // y si se proporciona fecha de jubilación, debe anticipar al menos 30 días previos a ella.
     if (selectedMark === 8 && daysBeforeDue > 0) {
       return {
         status: "BLOCKED",
@@ -457,7 +471,32 @@ export function evaluateVacationRoleEligibility(
           calendarCertainty,
           selectableForSimulation: false,
           confirmableAsOfficial: false,
+          normativeCategory: "BLOCKED",
         },
+      }
+    }
+
+    if (selectedMark === 8 && retirementDate) {
+      const daysBeforeRetirement = diffCivilDays(retirementDate, roleStartDate)
+      if (daysBeforeRetirement < 30) {
+        return {
+          status: "BLOCKED",
+          reasonCode: "V20_MARK_8_RETIREMENT_WINDOW",
+          workerMessage: `La marca 8 exige anticipar al menos 30 días previos a la fecha de jubilación (${formatCivilMexicanDate(
+            retirementDate
+          )}).`,
+          technicalMessage: `Marca 8 requiere retirementDate (${retirementDate}) - roleStartDate (${roleStartDate}) >= 30 días (actual: ${daysBeforeRetirement}).`,
+          dueDate,
+          earliestAllowedDate: dueDate,
+          daysBeforeDue,
+          evaluation: {
+            dateEligibility: "NOT_ELIGIBLE",
+            calendarCertainty,
+            selectableForSimulation: false,
+            confirmableAsOfficial: false,
+            normativeCategory: "BLOCKED",
+          },
+        }
       }
     }
   }
@@ -482,6 +521,7 @@ export function evaluateVacationRoleEligibility(
         calendarCertainty,
         selectableForSimulation: false,
         confirmableAsOfficial: false,
+        normativeCategory: "BLOCKED",
       },
     }
   }
@@ -507,6 +547,7 @@ export function evaluateVacationRoleEligibility(
         calendarCertainty,
         selectableForSimulation: true,
         confirmableAsOfficial: false,
+        normativeCategory: "REQUIRES_AUTHORIZATION",
       },
     }
   }
@@ -527,12 +568,13 @@ export function evaluateVacationRoleEligibility(
         calendarCertainty: "PRELIMINARY",
         selectableForSimulation: true,
         confirmableAsOfficial: false,
+        normativeCategory: "REQUIRES_NORMATIVE_REVIEW",
       },
     }
   }
 
-  // 10. Comprobación de fecha provisional / proyectada
-  if (dueDateConfidence !== "CONFIRMED") {
+  // 10. Comprobación de fecha provisional / proyectada / derivada
+  if (dueDateConfidence !== "CONFIRMED" && dueDateConfidence !== "OFFICIAL") {
     return {
       status: "REQUIRES_REVIEW",
       reasonCode: "PROVISIONAL_DUE_DATE",
@@ -547,6 +589,7 @@ export function evaluateVacationRoleEligibility(
         calendarCertainty,
         selectableForSimulation: true,
         confirmableAsOfficial: false,
+        normativeCategory: "REQUIRES_NORMATIVE_REVIEW",
       },
     }
   }
@@ -565,6 +608,7 @@ export function evaluateVacationRoleEligibility(
       calendarCertainty: "OFFICIAL",
       selectableForSimulation: true,
       confirmableAsOfficial: true,
+      normativeCategory: "ELIGIBLE",
     },
   }
 }

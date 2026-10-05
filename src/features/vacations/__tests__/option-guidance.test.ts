@@ -64,8 +64,9 @@ describe("Orientación de Marcas en Lenguaje de Trabajador", () => {
     const g6 = getMarkGuidance(6, "EXTRAORDINARIO_V20")
     expect(g6.title).toContain("Marca 6")
     expect(g6.plainSummary).toContain("15 días hábiles de descanso continuo")
-    expect(g6.plainSummary).toContain("30 días de salario por concepto de ayuda cultural 048")
-    expect(g6.paysFullHelpNow).toBe(true)
+    expect(g6.plainSummary).toContain("sin pago de ayuda cultural 048")
+    expect(g6.paysFullHelpNow).toBe(false)
+    expect(g6.paysNoHelp).toBe(true)
 
     const g7 = getMarkGuidance(7, "EXTRAORDINARIO_V20")
     expect(g7.title).toContain("Marca 7")

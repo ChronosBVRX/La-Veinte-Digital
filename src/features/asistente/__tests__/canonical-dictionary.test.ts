@@ -36,4 +36,18 @@ describe("canonical-dictionary", () => {
     expect(subQueries.length).toBe(1)
     expect(subQueries[0].focus).toBe("GENERAL")
   })
+
+  it("genera lexicalQuery limpio para FTS y expande categorías como 'manejador de alimentos'", () => {
+    const { expandedQuery, lexicalQuery, subQueries } = normalizeForRetrieval(
+      "¿Cuál es el sueldo de un manejador de alimentos?",
+    )
+    expect(expandedQuery).toContain("MANEJADOR DE ALIMENTOS")
+    expect(expandedQuery).toContain("tabulador de sueldos")
+    expect(lexicalQuery.toLowerCase()).toContain("manejador")
+    expect(lexicalQuery.toLowerCase()).toContain("alimentos")
+    expect(lexicalQuery).not.toMatch(/\bcual\b/i)
+    expect(subQueries.map((s) => s.focus)).toContain("SALARY")
+  })
 })
+
+
