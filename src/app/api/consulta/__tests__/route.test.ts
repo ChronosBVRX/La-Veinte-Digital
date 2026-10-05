@@ -76,7 +76,7 @@ vi.mock("openai", () => ({
 
 import { requireUser } from "@/shared/server/auth/require-user"
 import { createClient } from "@/lib/supabase/server"
-import { embedQueryLru, retrieveHybrid } from "@/features/asistente/lib/motor"
+import { embedQueryLru, retrieveHybrid, NO_EVIDENCE_RESPONSE } from "@/features/asistente/lib/motor"
 
 describe("POST /api/consulta", () => {
   beforeEach(() => {
@@ -145,7 +145,7 @@ describe("POST /api/consulta", () => {
     expect(mockChatCompletionsCreate).not.toHaveBeenCalled()
     const data = await res.json()
     expect(data.fuentes).toEqual([])
-    expect(data.respuesta).toContain("No encontré evidencia")
+    expect(data.respuesta).toBe(NO_EVIDENCE_RESPONSE)
   })
 
   it("ESTRUCTURA: evidencia irrelevante (score bajo) → 0 LLM (fail closed por umbral)", async () => {
@@ -161,7 +161,7 @@ describe("POST /api/consulta", () => {
     expect(mockChatCompletionsCreate).not.toHaveBeenCalled()
     const data = await res.json()
     expect(data.fuentes).toEqual([])
-    expect(data.respuesta).toContain("No encontré evidencia")
+    expect(data.respuesta).toBe(NO_EVIDENCE_RESPONSE)
   })
 
   it("ESTRUCTURA: SPECIFIC_TOPIC → ≤1 embedding, ≤1 LLM, híbrido 1 RPC", async () => {

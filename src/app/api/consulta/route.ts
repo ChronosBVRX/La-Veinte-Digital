@@ -168,7 +168,7 @@ async function respondDirect(
     // Umbral de relevancia calibrado según backend (RRF ~10..60 vs suma legacy ~140..1000)
     const isRrf =
       sources.length > 0 &&
-      (sources[0].origin?.includes("rrf") || sources[0].origin?.includes("+") || sources[0].score < 100)
+      Boolean(sources[0].origin && (sources[0].origin.includes("rrf") || sources[0].origin.includes("+")))
     const minScore = isRrf ? 10 : 140
     const ac = classifyAcompañamiento(question, intent)
     const toolRecs = recommendPlatformTools(question)
