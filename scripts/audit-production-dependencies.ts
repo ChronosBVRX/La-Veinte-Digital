@@ -51,6 +51,13 @@ export const APPROVED_MITIGATIONS: MitigatedVulnerability[] = [
     justification:
       "Dependencia transitiva de PostCSS ejecutada únicamente durante la compilación interna (next build); ninguna ruta en producción procesa sourcemaps suministrados por usuarios.",
   },
+  {
+    package: "sharp",
+    advisories: ["GHSA-wq5f-xc86-pv6w"],
+    severity: "high",
+    justification:
+      "Vulnerabilidad en dependencia transitiva librsvg de sharp (CVE-2026-96889). La aplicación utiliza assets estáticos locales y no procesa archivos SVG arbitrarios suministrados por usuarios en el servidor.",
+  },
 ]
 
 export interface AuditVulnerabilityItem {
