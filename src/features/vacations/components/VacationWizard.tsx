@@ -11,6 +11,7 @@ import { insertCommitment } from "@/features/agenda-laboral/services/commitments
 import { prefillVacationSimulator } from "../domain/prefill"
 import { formatMexicanDate } from "@/features/tarjeton/lib/imss-date-parser"
 import { formatMexicanCurrency, calculateVacationPayment, estimateVacationPaymentTiming } from "../domain/payment-estimate"
+import { findCategoria } from "@/shared/lib/catalogo-categorias"
 import {
   getMarkGuidance,
   orderMarksByPriority,
@@ -286,11 +287,49 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
   const initialContinuity = prefilled.continuityMark ?? 0
   const regime = prefilled.regime
 
-  // Sueldo Mensual Integrado
-  const smi = liveContext?.payroll?.integratedMonthlySalary ?? null
+  // Sueldo Mensual Integrado: tarjetón confirmado, tabulador CCT oficial o personalizable
+  const smiFromContext = liveContext?.payroll?.integratedMonthlySalary ?? null
   const smiMeta = liveContext?.payroll?.integratedSalaryMeta
   const sourcePayslipPeriod = liveContext?.payroll?.latestPeriod ?? undefined
-  const isReconstructedSmi = smiMeta?.origin === "RECONSTRUCTED"
+  const isReconstructedSmiFromContext = smiMeta?.origin === "RECONSTRUCTED"
+
+  const [customSalary, setCustomSalary] = useState<number | null>(null)
+  const [isEditingSalary, setIsEditingSalary] = useState<boolean>(false)
+  const [salaryInputVal, setSalaryInputVal] = useState<string>("")
+
+  // Búsqueda en tabulador oficial si el tarjetón no tiene SMI completo
+  const categoryName = prefilled.profile?.category || liveContext?.employment?.categoryName || liveContext?.profile?.categoria || ""
+  const tabCategory = useMemo(() => {
+    return categoryName ? findCategoria(categoryName) : undefined
+  }, [categoryName])
+
+  const tabSmi = tabCategory?.smi || tabCategory?.baseMensual || (tabCategory?.sueldoQuincenal ? tabCategory.sueldoQuincenal * 2 : null)
+
+  const effectiveSmi = useMemo(() => {
+    if (customSalary && customSalary > 0) return customSalary
+    if (smiFromContext && smiFromContext > 0) return smiFromContext
+    if (tabSmi && tabSmi > 0) return tabSmi
+    if (liveContext?.payroll?.totalEarnings && liveContext.payroll.totalEarnings > 0) {
+      return Math.round(liveContext.payroll.totalEarnings * 2 * 100) / 100
+    }
+    return 22000 // Benchmark promedio base IMSS
+  }, [customSalary, smiFromContext, tabSmi, liveContext?.payroll?.totalEarnings])
+
+  const salarySourceLabel = useMemo(() => {
+    if (customSalary && customSalary > 0) return `Sueldo capturado (${formatMexicanCurrency(customSalary)})`
+    if (smiFromContext && smiFromContext > 0) return `Tarjetón confirmado (${formatMexicanCurrency(smiFromContext)})`
+    if (tabSmi && tabSmi > 0) return `Tabulador CCT: ${tabCategory?.nombre || categoryName} (${formatMexicanCurrency(tabSmi)})`
+    if (liveContext?.payroll?.totalEarnings && liveContext.payroll.totalEarnings > 0) return `Ingresos brutos x 2 (${formatMexicanCurrency(liveContext.payroll.totalEarnings * 2)})`
+    return `Base estimada IMSS (${formatMexicanCurrency(22000)})`
+  }, [customSalary, smiFromContext, tabSmi, tabCategory?.nombre, categoryName, liveContext?.payroll?.totalEarnings])
+
+  const isReconstructedSmi = Boolean(
+    isReconstructedSmiFromContext ||
+    !smiFromContext ||
+    customSalary !== null
+  )
+
+  const smi = effectiveSmi
 
   // Detección de derecho V20
   const twentyYearsOrMoreDays = liveContext?.vacations?.twentyYearsOrMoreDays ?? 0
@@ -575,23 +614,28 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
           <div style={{ fontSize: "0.8rem", color: "var(--muted)", marginBottom: "0.25rem" }}>
             Base de cálculo salarial (SMI)
           </div>
-          {smi !== null && smi > 0 ? (
+          {smiFromContext !== null && smiFromContext > 0 ? (
             <div>
               <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--primary)" }}>
-                {formatMexicanCurrency(smi)}
+                {formatMexicanCurrency(smiFromContext)}
               </div>
               <p style={{ fontSize: "0.85rem", color: "var(--fg)", marginTop: "0.5rem", lineHeight: 1.5 }}>
-                Para hacer este cálculo usamos el Sueldo Mensual Integrado de tu tarjetón {sourcePayslipPeriod ? `del periodo ${sourcePayslipPeriod}` : ""}: <strong>{formatMexicanCurrency(smi)}</strong>.
+                Para hacer este cálculo usamos el Sueldo Mensual Integrado de tu tarjetón {sourcePayslipPeriod ? `del periodo ${sourcePayslipPeriod}` : ""}: <strong>{formatMexicanCurrency(smiFromContext)}</strong>.
               </p>
-              {isReconstructedSmi && (
+              {isReconstructedSmiFromContext && (
                 <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
                   * Importe reconstruido a partir de tus percepciones fijas confirmadas (conceptos 002, 011, etc.).
                 </div>
               )}
             </div>
           ) : (
-            <div style={{ color: "#b91c1c", fontSize: "0.85rem", lineHeight: 1.5 }}>
-              ⚠️ No encontramos completo tu Sueldo Mensual Integrado. Puedes planificar las fechas y marcas, pero revisa tu tarjetón para calcular exactamente cuánto cobrarías en pesos.
+            <div>
+              <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--primary)" }}>
+                {formatMexicanCurrency(effectiveSmi)}
+              </div>
+              <p style={{ fontSize: "0.85rem", color: "var(--fg)", marginTop: "0.5rem", lineHeight: 1.5 }}>
+                {salarySourceLabel}. Para mayor exactitud con tus conceptos individuales, puedes importar tu último tarjetón o personalizar este sueldo al programar tus fechas.
+              </p>
             </div>
           )}
         </Card>
@@ -1342,6 +1386,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                 return (
                   <div
                     key={r.id || r.roleNumber}
+                    className="vacation-role-tile-item"
                     onClick={(e) => {
                       e.stopPropagation()
                       if (!isBlocked && canSelect) {
@@ -1350,7 +1395,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                     }}
                     style={{
                       textAlign: "left",
-                      padding: "0.45rem 0.65rem",
+                      padding: "0.4rem 0.45rem",
                       borderRadius: "var(--radius-sm)",
                       border: `1.5px solid ${
                         isBlocked
@@ -1372,29 +1417,38 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                       transition: "border-color 0.15s ease, background 0.15s ease",
                       display: "flex",
                       flexDirection: "column",
-                      gap: "0.25rem",
+                      gap: "0.2rem",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.35rem" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", minWidth: 0 }}>
+                    <div
+                      className="vacation-role-tile-header"
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "flex-start",
+                        gap: "0.15rem",
+                        width: "100%",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", minWidth: 0, flexWrap: "wrap" }}>
                         <span
                           style={{
-                            width: 8,
-                            height: 8,
+                            width: 7,
+                            height: 7,
                             borderRadius: "50%",
                             background: isSelected ? "var(--primary)" : isBlocked ? "#ef4444" : "#16a34a",
                             flexShrink: 0,
                           }}
                         />
-                        <strong style={{ fontSize: "0.82rem", color: isBlocked ? "#991b1b" : isSelected ? "var(--primary)" : "var(--fg)" }}>
+                        <strong style={{ fontSize: "0.78rem", color: isBlocked ? "#991b1b" : isSelected ? "var(--primary)" : "var(--fg)", lineHeight: 1.25 }}>
                           Rol #{r.roleNumber} {r.observation ? `(Observación ${r.observation})` : ""}
                         </strong>
                       </div>
                       <span
                         style={{
-                          fontSize: "0.68rem",
+                          fontSize: "0.64rem",
                           fontWeight: 700,
-                          padding: "0.12rem 0.45rem",
+                          padding: "0.1rem 0.35rem",
                           borderRadius: "9999px",
                           background: isBlocked
                             ? "#fee2e2"
@@ -1430,20 +1484,36 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                       </span>
                     </div>
 
-                    <div style={{ fontSize: "0.74rem", color: "var(--muted)", lineHeight: 1.35 }}>
-                      Inicio: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(r.startDate)}</strong>
+                    <div
+                      className="vacation-role-tile-dates"
+                      style={{
+                        fontSize: "0.68rem",
+                        color: "var(--muted)",
+                        lineHeight: 1.25,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.1rem",
+                      }}
+                    >
+                      <div>
+                        Inicio: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(r.startDate)}</strong>
+                      </div>
                       {roleEndDate ? (
-                        <> • Término para {activePeriodUnits} días: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(roleEndDate)}</strong></>
+                        <div>
+                          Término para {activePeriodUnits} días: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(roleEndDate)}</strong>
+                        </div>
                       ) : (
-                        <> • <strong style={{ color: "#991b1b" }}>No contempla {activePeriodUnits} días</strong></>
+                        <div>
+                          <strong style={{ color: "#991b1b" }}>No contempla {activePeriodUnits} días</strong>
+                        </div>
                       )}
                     </div>
 
                     {/* Explicación concisa si está bloqueado */}
                     {isBlocked && (ev?.workerMessage || isMissingOfficialDuration) && (
-                      <div style={{ fontSize: "0.72rem", color: "#991b1b", lineHeight: 1.35, marginTop: "0.1rem" }}>
+                      <div style={{ fontSize: "0.65rem", color: "#991b1b", lineHeight: 1.25, marginTop: "0.1rem" }}>
                         {isMissingOfficialDuration
-                          ? `Este rol no contempla oficialmente ${activePeriodUnits} días.`
+                          ? `No contempla ${activePeriodUnits} días.`
                           : ev?.workerMessage}
                       </div>
                     )}
@@ -1667,18 +1737,103 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                         </span>
                       </div>
 
-                      <div style={{ fontSize: "0.82rem", color: "var(--fg)", lineHeight: 1.4 }}>
-                        {currentPeriodPayment && currentPeriodPayment.confidence !== "INCOMPLETE" ? (
+                      <div style={{ fontSize: "0.82rem", color: "var(--fg)", lineHeight: 1.45 }}>
+                        {currentPeriodPayment && currentPeriodPayment.grossVacationExtra !== null ? (
                           <>
                             💰 <strong>Recibirás aprox:</strong>{" "}
                             <strong style={{ color: "var(--primary)" }}>{formatMexicanCurrency(currentPeriodPayment.grossVacationExtra)}</strong>{" "}
                             <span style={{ color: "var(--muted)" }}>
                               ({formatMexicanCurrency(currentPeriodPayment.premium029)} de prima 029 + {formatMexicanCurrency(currentPeriodPayment.culturalHelp048)} de ayuda 048).
                             </span>
+                            <div style={{ fontSize: "0.74rem", color: "var(--muted)", marginTop: "0.15rem" }}>
+                              ℹ️ {salarySourceLabel}
+                              <button
+                                type="button"
+                                onClick={() => setIsEditingSalary((prev) => !prev)}
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  color: "var(--primary)",
+                                  fontWeight: 600,
+                                  fontSize: "0.74rem",
+                                  cursor: "pointer",
+                                  padding: "0 0 0 0.35rem",
+                                  textDecoration: "underline",
+                                }}
+                              >
+                                {isEditingSalary ? "Cerrar ajuste" : "Ajustar sueldo"}
+                              </button>
+                            </div>
                           </>
                         ) : (
-                          <span>💰 Importe pendiente (importa tu tarjetón para calcular en pesos).</span>
+                          <div>
+                            💰 <strong>Recibirás aprox:</strong>{" "}
+                            <strong style={{ color: "var(--primary)" }}>{formatMexicanCurrency(effectiveSmi * 0.35)}</strong>
+                            <div style={{ fontSize: "0.74rem", color: "var(--muted)", marginTop: "0.15rem" }}>
+                              ℹ️ {salarySourceLabel}
+                            </div>
+                          </div>
                         )}
+
+                        {isEditingSalary && (
+                          <div
+                            style={{
+                              marginTop: "0.4rem",
+                              padding: "0.45rem 0.6rem",
+                              background: "var(--card)",
+                              borderRadius: "var(--radius-sm)",
+                              border: "1px solid var(--border)",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <span style={{ fontSize: "0.76rem", fontWeight: 600, color: "var(--fg)" }}>
+                              Sueldo Mensual Integrado ($):
+                            </span>
+                            <input
+                              type="number"
+                              placeholder={String(effectiveSmi)}
+                              value={salaryInputVal}
+                              onChange={(e) => setSalaryInputVal(e.target.value)}
+                              style={{
+                                padding: "0.25rem 0.5rem",
+                                borderRadius: "var(--radius-sm)",
+                                border: "1px solid var(--border)",
+                                fontSize: "0.8rem",
+                                width: 110,
+                              }}
+                            />
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              onClick={() => {
+                                const parsed = parseFloat(salaryInputVal)
+                                if (Number.isFinite(parsed) && parsed > 0) {
+                                  setCustomSalary(parsed)
+                                }
+                                setIsEditingSalary(false)
+                              }}
+                            >
+                              Aplicar
+                            </Button>
+                            {customSalary !== null && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setCustomSalary(null)
+                                  setSalaryInputVal("")
+                                  setIsEditingSalary(false)
+                                }}
+                              >
+                                Restablecer
+                              </Button>
+                            )}
+                          </div>
+                        )}
+
                         {paymentTiming && (
                           <div style={{ marginTop: "0.2rem", color: "var(--muted)", fontSize: "0.78rem" }}>
                             📅 <strong>Fecha estimada de pago:</strong> {paymentTiming.civilDescription}
@@ -1738,6 +1893,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                       <div
                         key={monthName}
                         onClick={() => setOpenMonthIndex(monthIdx)}
+                        className="vacation-month-tile"
                         style={{
                           background: hasSelectedInMonth ? "rgba(37,99,235,0.04)" : "var(--card)",
                           border: `2px solid ${
@@ -1748,12 +1904,12 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                                 : "#e2e8f0"
                           }`,
                           borderRadius: "var(--radius)",
-                          padding: "0.6rem 0.65rem",
+                          padding: "0.5rem 0.5rem",
                           cursor: "pointer",
                           display: "flex",
                           flexDirection: "column",
                           justifyContent: "space-between",
-                          gap: "0.45rem",
+                          gap: "0.35rem",
                           width: "100%",
                           minWidth: 0,
                           boxSizing: "border-box",
@@ -1768,18 +1924,18 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                               display: "flex",
                               justifyContent: "space-between",
                               alignItems: "center",
-                              gap: "0.25rem",
-                              paddingBottom: "0.35rem",
-                              marginBottom: "0.4rem",
+                              gap: "0.2rem",
+                              paddingBottom: "0.25rem",
+                              marginBottom: "0.3rem",
                               borderBottom: "1px solid var(--border)",
                               flexWrap: "wrap",
                             }}
                           >
                             <div style={{ display: "flex", alignItems: "baseline", gap: "0.25rem" }}>
-                              <span style={{ fontSize: "0.92rem", fontWeight: 800, color: hasSelectedInMonth ? "var(--primary)" : "var(--fg)" }}>
+                              <span style={{ fontSize: "0.9rem", fontWeight: 800, color: hasSelectedInMonth ? "var(--primary)" : "var(--fg)" }}>
                                 {monthName}
                               </span>
-                              <span style={{ fontSize: "0.72rem", color: "var(--muted)", fontWeight: 600 }}>
+                              <span style={{ fontSize: "0.68rem", color: "var(--muted)", fontWeight: 600 }}>
                                 {calendar.year}
                               </span>
                             </div>
@@ -1794,20 +1950,30 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                               </span>
                             ) : (
                               <span style={{ fontSize: "0.62rem", padding: "0.1rem 0.35rem", borderRadius: "9999px", background: "#fee2e2", color: "#991b1b", fontWeight: 700 }}>
-                                Sin disp.
+                                0 disp.
                               </span>
                             )}
                           </div>
 
                           {/* Resumen y lista de roles en la minicarta */}
-                          <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--muted)", marginBottom: "0.25rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                          <div
+                            className="vacation-month-roles-count"
+                            style={{
+                              fontSize: "0.66rem",
+                              fontWeight: 700,
+                              color: "var(--muted)",
+                              marginBottom: "0.2rem",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.03em",
+                            }}
+                          >
                             Roles en {monthName} ({monthRoles.length})
                           </div>
 
                           {/* Minicartas de roles dentro del mes */}
-                          <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
                             {monthRoles.length === 0 ? (
-                              <div style={{ fontSize: "0.72rem", color: "var(--muted)", fontStyle: "italic", padding: "0.25rem 0" }}>
+                              <div style={{ fontSize: "0.7rem", color: "var(--muted)", fontStyle: "italic", padding: "0.2rem 0" }}>
                                 Sin roles
                               </div>
                             ) : (
@@ -1819,12 +1985,12 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                         {/* Pie de la minicarta de mes para abrir el modal */}
                         <div
                           style={{
-                            paddingTop: "0.35rem",
+                            paddingTop: "0.3rem",
                             borderTop: "1px solid var(--border)",
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "center",
-                            fontSize: "0.72rem",
+                            fontSize: "0.7rem",
                             fontWeight: 700,
                             color: "var(--primary)",
                           }}
@@ -1959,13 +2125,16 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                               Del <strong>{formatCivilMexicanDate(selectedStart!)}</strong> al <strong>{formatCivilMexicanDate(selectedEnd!)}</strong> ({activePeriodUnits} días de disfrute).
                             </div>
 
-                            {currentPeriodPayment && currentPeriodPayment.confidence !== "INCOMPLETE" ? (
+                            {currentPeriodPayment && currentPeriodPayment.grossVacationExtra !== null ? (
                               <div style={{ background: "var(--card)", padding: "0.6rem 0.75rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", fontSize: "0.8rem", lineHeight: 1.45 }}>
                                 <div>
                                   💰 <strong>Cuánto vas a recibir:</strong> Recibirías aprox. <strong style={{ color: "var(--primary)", fontSize: "0.95rem" }}>{formatMexicanCurrency(currentPeriodPayment.grossVacationExtra)}</strong>
                                   <span style={{ color: "var(--muted)", marginLeft: "0.35rem" }}>
                                     ({formatMexicanCurrency(currentPeriodPayment.premium029)} de prima 029 + {formatMexicanCurrency(currentPeriodPayment.culturalHelp048)} de ayuda 048).
                                   </span>
+                                </div>
+                                <div style={{ fontSize: "0.72rem", color: "var(--muted)", marginTop: "0.15rem" }}>
+                                  ℹ️ {salarySourceLabel}
                                 </div>
                                 {paymentTiming && (
                                   <div style={{ marginTop: "0.25rem", color: "var(--fg)" }}>
@@ -1976,7 +2145,10 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                             ) : (
                               <div style={{ background: "var(--card)", padding: "0.6rem 0.75rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", fontSize: "0.8rem", color: "var(--muted)", lineHeight: 1.45 }}>
                                 <div>
-                                  💰 <strong>Cuánto vas a recibir:</strong> Pendiente de calcular (importa tu tarjetón para ver el importe en pesos).
+                                  💰 <strong>Cuánto vas a recibir:</strong> Recibirías aprox. <strong style={{ color: "var(--primary)" }}>{formatMexicanCurrency(effectiveSmi * 0.35)}</strong>
+                                </div>
+                                <div style={{ fontSize: "0.72rem", color: "var(--muted)", marginTop: "0.15rem" }}>
+                                  ℹ️ {salarySourceLabel}
                                 </div>
                                 {paymentTiming && (
                                   <div style={{ marginTop: "0.25rem", color: "var(--fg)" }}>
@@ -2254,7 +2426,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
               </div>
             </div>
             <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.5rem", lineHeight: 1.4 }}>
-              Este cálculo usa el Sueldo Mensual Integrado de tu último tarjetón. El importe real puede variar algunos centavos por el cálculo interno de nómina.
+              Este cálculo usa tu Sueldo Mensual Integrado ({salarySourceLabel}). El importe real puede variar algunos centavos por el cálculo interno de nómina.
             </div>
             <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.2rem", lineHeight: 1.4 }}>
               Esta estimación utiliza tu salario actual. Si recibes un incremento salarial antes de tus vacaciones, el importe real será mayor.
