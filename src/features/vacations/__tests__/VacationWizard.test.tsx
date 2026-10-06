@@ -21,6 +21,13 @@ vi.mock("@/lib/supabase/client", () => ({
   }),
 }))
 
+// Mock useLiveWorkerContext to preserve deterministic initialContext in unit tests
+vi.mock("@/shared/hooks/useLiveWorkerContext", () => ({
+  useLiveWorkerContext: (initialContext: unknown) => initialContext,
+}))
+
+
+
 describe("VacationWizard (Asesor y Planificador Anual)", () => {
   const mockContext: WorkerContext = {
     profile: {
@@ -379,6 +386,15 @@ describe("VacationWizard (Asesor y Planificador Anual)", () => {
 
     // Se cierra el modal y queda marcado como elegido en la vista anual
     expect(screen.getByText(/Rol 1 \(Enero\) seleccionado/i)).toBeDefined()
+
+    // Muestra en corto cuánto vas a recibir y cuándo, y el botón directo para avanzar al Periodo 2
+    expect(screen.getAllByText(/Cuánto vas a recibir:/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Cuándo lo vas a recibir:/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Avanzar al Periodo 2 →/i).length).toBeGreaterThan(0)
+
+    // Avanzar directo al periodo 2 sin necesidad de scrollear arriba o abajo
+    fireEvent.click(screen.getAllByText(/Avanzar al Periodo 2 →/i)[0])
+    expect(screen.getByText(/Estás programando el periodo 2 de 2/i)).toBeDefined()
   })
 })
 

@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/client"
 import { insertCommitment } from "@/features/agenda-laboral/services/commitments-supabase"
 import { prefillVacationSimulator } from "../domain/prefill"
 import { formatMexicanDate } from "@/features/tarjeton/lib/imss-date-parser"
-import { formatMexicanCurrency, calculateVacationPayment } from "../domain/payment-estimate"
+import { formatMexicanCurrency, calculateVacationPayment, estimateVacationPaymentTiming } from "../domain/payment-estimate"
 import {
   getMarkGuidance,
   orderMarksByPriority,
@@ -81,7 +81,6 @@ const MONTH_NAMES = [
   "Diciembre",
 ] as const
 
-const WEEKDAY_INITIALS = ["L", "M", "M", "J", "V", "S", "D"] as const
 const WEEKDAY_SHORT = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"] as const
 
 function getMonthIndexFromIsoDate(isoDate: string): number {
@@ -749,6 +748,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
     const currentPeriodPayment = activePeriod?.payment
     const activePeriodUnits = activePeriod?.units || 10
+    const paymentTiming = selectedRole ? estimateVacationPaymentTiming(selectedRole.startDate) : null
 
     const priorityFeedback = getPriorityFeedback(
       priority,
@@ -1347,7 +1347,6 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                       if (!isBlocked && canSelect) {
                         handleSelectRole(activePeriodIdx, { ...r, endDate: roleEndDate })
                       }
-                      setOpenMonthIndex(opts.monthIdx)
                     }}
                     style={{
                       textAlign: "left",
@@ -1604,14 +1603,13 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                             e.stopPropagation()
                             if (!isBlocked && canSelect) {
                               handleSelectRole(activePeriodIdx, { ...r, endDate: roleEndDate })
-                              closeMonthModal()
                             }
                           }}
                         >
                           {isBlocked
                             ? "No elegible en este periodo"
                             : isSelected
-                              ? `Rol ${r.roleNumber} seleccionado`
+                              ? `Rol ${r.roleNumber} seleccionado ✓`
                               : `Seleccionar Rol ${r.roleNumber}`}
                         </Button>
                       </div>
@@ -1640,21 +1638,95 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
             const previewedModalEnd = previewedModalRole
               ? getVacationRoleEndDate(previewedModalRole, activePeriodUnits) ?? previewedModalRole.endDate ?? previewedModalRole.startDate
               : selectedEnd
+            const paymentTiming = selectedRole ? estimateVacationPaymentTiming(selectedRole.startDate) : null
 
             return (
               <>
+                {/* BANNER RÁPIDO SUPERIOR: CONFIRMACIÓN Y AVANCE AL SIGUIENTE PERIODO SIN SCROLL */}
+                {selectedRole && (
+                  <div
+                    style={{
+                      background: "rgba(37,99,235,0.06)",
+                      border: "1.5px solid var(--primary)",
+                      borderRadius: "var(--radius)",
+                      padding: "0.85rem 1rem",
+                      marginBottom: "1rem",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: "0.75rem",
+                    }}
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap", marginBottom: "0.25rem" }}>
+                        <strong style={{ fontSize: "0.95rem", color: "var(--fg)" }}>
+                          Periodo {activePeriodIdx}: Rol #{selectedRole.roleNumber} elegido
+                        </strong>
+                        <span style={{ fontSize: "0.72rem", padding: "0.12rem 0.45rem", borderRadius: "9999px", background: "var(--primary)", color: "#ffffff", fontWeight: 700 }}>
+                          Programado ✓
+                        </span>
+                        <span style={{ fontSize: "0.8rem", color: "var(--muted)" }}>
+                          (Del {formatCivilMexicanDate(selectedStart!)} al {formatCivilMexicanDate(selectedEnd!)} • {activePeriodUnits} días)
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: "0.82rem", color: "var(--fg)", lineHeight: 1.4 }}>
+                        {currentPeriodPayment && currentPeriodPayment.confidence !== "INCOMPLETE" ? (
+                          <>
+                            💰 <strong>Recibirás aprox:</strong>{" "}
+                            <strong style={{ color: "var(--primary)" }}>{formatMexicanCurrency(currentPeriodPayment.grossVacationExtra)}</strong>{" "}
+                            <span style={{ color: "var(--muted)" }}>
+                              ({formatMexicanCurrency(currentPeriodPayment.premium029)} de prima 029 + {formatMexicanCurrency(currentPeriodPayment.culturalHelp048)} de ayuda 048).
+                            </span>
+                          </>
+                        ) : (
+                          <span>💰 Importe pendiente (importa tu tarjetón para calcular en pesos).</span>
+                        )}
+                        {paymentTiming && (
+                          <div style={{ marginTop: "0.2rem", color: "var(--muted)", fontSize: "0.78rem" }}>
+                            📅 <strong>Fecha estimada de pago:</strong> {paymentTiming.civilDescription}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      {activePeriodIdx < requiredPeriodCount ? (
+                        <Button
+                          size="md"
+                          variant="primary"
+                          disabled={activePeriod && !activePeriod.allowed}
+                          onClick={() => {
+                            setActivePeriodIdx((p) => p + 1)
+                            window.scrollTo({ top: 0, behavior: "smooth" })
+                          }}
+                        >
+                          Avanzar al Periodo {activePeriodIdx + 1} →
+                        </Button>
+                      ) : (
+                        <Button
+                          size="md"
+                          variant="primary"
+                          disabled={activePeriod && !activePeriod.allowed}
+                          onClick={() => setStep("summary")}
+                        >
+                          Ir al resumen final →
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* CUADRÍCULA ANUAL DE 12 MESES (3 EN UNA LÍNEA: ENERO, FEBRERO, MARZO...) */}
                 <div className="vacation-calendar-months-grid">
                   {MONTH_NAMES.map((monthName, monthIdx) => {
                     const monthRoles = calendar.roles.filter(
                       (r) => getMonthIndexFromIsoDate(r.startDate) === monthIdx
                     )
-                    const { startOffset, days } = buildMonthCalendarCells(calendar.year, monthIdx)
 
                     let monthAvailableCount = 0
                     let hasSelectedInMonth = false
-
-                    const roleStartByIsoDate = new Map<string, { role: VacationRole; isBlocked: boolean; isSelected: boolean }>()
 
                     for (const r of monthRoles) {
                       const roleEndDate = getVacationRoleEndDate(r, activePeriodUnits)
@@ -1664,7 +1736,6 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                       const isSel = selectedRole?.id === r.id || selectedRole?.roleNumber === r.roleNumber
                       if (!isBlocked) monthAvailableCount++
                       if (isSel) hasSelectedInMonth = true
-                      roleStartByIsoDate.set(r.startDate, { role: r, isBlocked, isSelected: isSel })
                     }
 
                     return (
@@ -1672,7 +1743,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                         key={monthName}
                         onClick={() => setOpenMonthIndex(monthIdx)}
                         style={{
-                          background: hasSelectedInMonth ? "rgba(37,99,235,0.03)" : "var(--card)",
+                          background: hasSelectedInMonth ? "rgba(37,99,235,0.04)" : "var(--card)",
                           border: `2px solid ${
                             hasSelectedInMonth
                               ? "var(--primary)"
@@ -1681,16 +1752,17 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                                 : "#e2e8f0"
                           }`,
                           borderRadius: "var(--radius)",
-                          padding: "0.9rem",
+                          padding: "0.6rem 0.65rem",
                           cursor: "pointer",
                           display: "flex",
                           flexDirection: "column",
                           justifyContent: "space-between",
-                          gap: "0.75rem",
+                          gap: "0.45rem",
                           width: "100%",
                           minWidth: 0,
                           boxSizing: "border-box",
-                          boxShadow: hasSelectedInMonth ? "0 4px 12px rgba(37,99,235,0.10)" : "none",
+                          boxShadow: hasSelectedInMonth ? "0 4px 12px rgba(37,99,235,0.12)" : "none",
+                          transition: "all 0.15s ease",
                         }}
                       >
                         <div>
@@ -1700,158 +1772,63 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                               display: "flex",
                               justifyContent: "space-between",
                               alignItems: "center",
-                              gap: "0.5rem",
-                              paddingBottom: "0.55rem",
-                              marginBottom: "0.55rem",
+                              gap: "0.25rem",
+                              paddingBottom: "0.35rem",
+                              marginBottom: "0.4rem",
                               borderBottom: "1px solid var(--border)",
                               flexWrap: "wrap",
                             }}
                           >
-                            <div style={{ display: "flex", alignItems: "baseline", gap: "0.35rem" }}>
-                              <span style={{ fontSize: "1.05rem", fontWeight: 800, color: hasSelectedInMonth ? "var(--primary)" : "var(--fg)" }}>
+                            <div style={{ display: "flex", alignItems: "baseline", gap: "0.25rem" }}>
+                              <span style={{ fontSize: "0.92rem", fontWeight: 800, color: hasSelectedInMonth ? "var(--primary)" : "var(--fg)" }}>
                                 {monthName}
                               </span>
-                              <span style={{ fontSize: "0.78rem", color: "var(--muted)", fontWeight: 600 }}>
+                              <span style={{ fontSize: "0.72rem", color: "var(--muted)", fontWeight: 600 }}>
                                 {calendar.year}
                               </span>
                             </div>
 
                             {hasSelectedInMonth ? (
-                              <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.5rem", borderRadius: "9999px", background: "var(--primary)", color: "#ffffff", fontWeight: 700 }}>
-                                Mes seleccionado
+                              <span style={{ fontSize: "0.62rem", padding: "0.1rem 0.35rem", borderRadius: "9999px", background: "var(--primary)", color: "#ffffff", fontWeight: 700 }}>
+                                Asignado ✓
                               </span>
                             ) : monthAvailableCount > 0 ? (
-                              <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.5rem", borderRadius: "9999px", background: "#dcfce7", color: "#166534", fontWeight: 700 }}>
-                                {monthAvailableCount} {monthAvailableCount === 1 ? "rol disponible" : "roles disponibles"}
+                              <span style={{ fontSize: "0.62rem", padding: "0.1rem 0.35rem", borderRadius: "9999px", background: "#dcfce7", color: "#166534", fontWeight: 700 }}>
+                                {monthAvailableCount} disp.
                               </span>
                             ) : (
-                              <span style={{ fontSize: "0.7rem", padding: "0.15rem 0.5rem", borderRadius: "9999px", background: "#fee2e2", color: "#991b1b", fontWeight: 700 }}>
-                                Sin disponibles
+                              <span style={{ fontSize: "0.62rem", padding: "0.1rem 0.35rem", borderRadius: "9999px", background: "#fee2e2", color: "#991b1b", fontWeight: 700 }}>
+                                Sin disp.
                               </span>
                             )}
                           </div>
 
-                          {/* Mini-Calendario Mensual (L M M J V S D) */}
-                          <div style={{ marginBottom: "0.75rem", background: "var(--accent)", padding: "0.5rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }}>
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px", marginBottom: "4px" }}>
-                              {WEEKDAY_INITIALS.map((wd, idx) => (
-                                <div
-                                  key={`${monthName}-wd-${idx}`}
-                                  style={{
-                                    textAlign: "center",
-                                    fontSize: "0.62rem",
-                                    fontWeight: 700,
-                                    color: "var(--muted)",
-                                  }}
-                                >
-                                  {wd}
-                                </div>
-                              ))}
-                            </div>
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px" }}>
-                              {Array.from({ length: startOffset }).map((_, i) => (
-                                <div key={`${monthName}-empty-${i}`} style={{ height: 22 }} />
-                              ))}
-                              {days.map(({ day, isoDate }) => {
-                                const startInfo = roleStartByIsoDate.get(isoDate)
-                                const isInSelectedRange = Boolean(
-                                  selectedStart && selectedEnd && isoDate >= selectedStart && isoDate <= selectedEnd
-                                )
-                                const isSelectedBoundary = isoDate === selectedStart || isoDate === selectedEnd
-                                const isReturnDay = activePeriod?.returnDate === isoDate
-
-                                return (
-                                  <div
-                                    key={isoDate}
-                                    title={
-                                      startInfo
-                                        ? `Inicia Rol #${startInfo.role.roleNumber} (${formatCivilMexicanDate(isoDate)})`
-                                        : isReturnDay
-                                          ? `Reanudación de labores (${formatCivilMexicanDate(isoDate)})`
-                                          : undefined
-                                    }
-                                    style={{
-                                      height: 22,
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      borderRadius: "4px",
-                                      fontSize: "0.68rem",
-                                      fontWeight: startInfo || isInSelectedRange || isReturnDay ? 700 : 500,
-                                      background: isSelectedBoundary
-                                        ? "var(--primary)"
-                                        : isInSelectedRange
-                                          ? "rgba(37, 99, 235, 0.18)"
-                                          : isReturnDay
-                                            ? "rgba(22, 163, 74, 0.18)"
-                                            : startInfo
-                                              ? startInfo.isBlocked
-                                                ? "#fee2e2"
-                                                : "#dcfce7"
-                                              : "transparent",
-                                      color: isSelectedBoundary
-                                        ? "#ffffff"
-                                        : isInSelectedRange
-                                          ? "var(--primary)"
-                                          : isReturnDay
-                                            ? "#166534"
-                                            : startInfo
-                                              ? startInfo.isBlocked
-                                                ? "#991b1b"
-                                                : "#166534"
-                                              : "var(--fg)",
-                                      border: startInfo
-                                        ? startInfo.isBlocked
-                                          ? "1px dashed #ef4444"
-                                          : "1.5px solid #16a34a"
-                                        : isReturnDay
-                                          ? "1px solid #16a34a"
-                                          : "none",
-                                      boxSizing: "border-box",
-                                    }}
-                                  >
-                                    {day}
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </div>
-
-                          {/* Resumen de Roles en el Mes */}
-                          <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--muted)", marginBottom: "0.35rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                          {/* Resumen y lista de roles en la minicarta */}
+                          <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--muted)", marginBottom: "0.25rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                             Roles en {monthName} ({monthRoles.length})
                           </div>
 
-                          {openMonthIndex === monthIdx ? (
-                            <div
-                              style={{
-                                padding: "0.65rem",
-                                borderRadius: "var(--radius-sm)",
-                                background: "rgba(37,99,235,0.06)",
-                                color: "var(--primary)",
-                                fontSize: "0.8rem",
-                                fontWeight: 600,
-                                textAlign: "center",
-                              }}
-                            >
-                              Abierto en ventana de selección…
-                            </div>
-                          ) : (
-                            <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
-                              {monthRoles.map((r) => renderRoleCardItem(r, { inModal: false, monthIdx }))}
-                            </div>
-                          )}
+                          {/* Minicartas de roles dentro del mes */}
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                            {monthRoles.length === 0 ? (
+                              <div style={{ fontSize: "0.72rem", color: "var(--muted)", fontStyle: "italic", padding: "0.25rem 0" }}>
+                                Sin roles
+                              </div>
+                            ) : (
+                              monthRoles.map((r) => renderRoleCardItem(r, { inModal: false, monthIdx }))
+                            )}
+                          </div>
                         </div>
 
-                        {/* Pie de la tarjeta de mes para abrir el modal */}
+                        {/* Pie de la minicarta de mes para abrir el modal */}
                         <div
                           style={{
-                            paddingTop: "0.5rem",
+                            paddingTop: "0.35rem",
                             borderTop: "1px solid var(--border)",
                             display: "flex",
                             justifyContent: "space-between",
                             alignItems: "center",
-                            fontSize: "0.8rem",
+                            fontSize: "0.72rem",
                             fontWeight: 700,
                             color: "var(--primary)",
                           }}
@@ -1907,9 +1884,40 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                           </Button>
                         )}
                       </div>
-                      <Button size="sm" variant="primary" onClick={closeMonthModal}>
-                        Cerrar calendario
-                      </Button>
+
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                        {selectedRole && (
+                          activePeriodIdx < requiredPeriodCount ? (
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              disabled={activePeriod && !activePeriod.allowed}
+                              onClick={() => {
+                                closeMonthModal()
+                                setActivePeriodIdx((p) => p + 1)
+                                window.scrollTo({ top: 0, behavior: "smooth" })
+                              }}
+                            >
+                              Avanzar al Periodo {activePeriodIdx + 1} →
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              disabled={activePeriod && !activePeriod.allowed}
+                              onClick={() => {
+                                closeMonthModal()
+                                setStep("summary")
+                              }}
+                            >
+                              Ir al resumen final →
+                            </Button>
+                          )
+                        )}
+                        <Button size="sm" variant={selectedRole ? "secondary" : "primary"} onClick={closeMonthModal}>
+                          Cerrar calendario
+                        </Button>
+                      </div>
                     </div>
                   }
                 >
@@ -1929,6 +1937,90 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
                     return (
                       <div style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}>
+                        {/* CONFIRMACIÓN INMEDIATA DEL ROL SELECCIONADO: CUÁNTO Y CUÁNDO COBRAS + AVANCE DIRECTO */}
+                        {selectedRole && (
+                          <div
+                            style={{
+                              background: "rgba(37,99,235,0.06)",
+                              border: "1.5px solid var(--primary)",
+                              borderRadius: "var(--radius)",
+                              padding: "0.85rem 1rem",
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "0.5rem",
+                            }}
+                          >
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.4rem" }}>
+                              <div style={{ fontWeight: 800, fontSize: "0.95rem", color: "var(--primary)" }}>
+                                🎉 Rol #{selectedRole.roleNumber} seleccionado para tu Periodo {activePeriodIdx}
+                              </div>
+                              <span style={{ fontSize: "0.72rem", padding: "0.15rem 0.5rem", borderRadius: "9999px", background: "var(--primary)", color: "#ffffff", fontWeight: 700 }}>
+                                Seleccionado ✓
+                              </span>
+                            </div>
+
+                            <div style={{ fontSize: "0.82rem", color: "var(--fg)" }}>
+                              Del <strong>{formatCivilMexicanDate(selectedStart!)}</strong> al <strong>{formatCivilMexicanDate(selectedEnd!)}</strong> ({activePeriodUnits} días de disfrute).
+                            </div>
+
+                            {currentPeriodPayment && currentPeriodPayment.confidence !== "INCOMPLETE" ? (
+                              <div style={{ background: "var(--card)", padding: "0.6rem 0.75rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", fontSize: "0.8rem", lineHeight: 1.45 }}>
+                                <div>
+                                  💰 <strong>Cuánto vas a recibir:</strong> Recibirías aprox. <strong style={{ color: "var(--primary)", fontSize: "0.95rem" }}>{formatMexicanCurrency(currentPeriodPayment.grossVacationExtra)}</strong>
+                                  <span style={{ color: "var(--muted)", marginLeft: "0.35rem" }}>
+                                    ({formatMexicanCurrency(currentPeriodPayment.premium029)} de prima 029 + {formatMexicanCurrency(currentPeriodPayment.culturalHelp048)} de ayuda 048).
+                                  </span>
+                                </div>
+                                {paymentTiming && (
+                                  <div style={{ marginTop: "0.25rem", color: "var(--fg)" }}>
+                                    📅 <strong>Cuándo lo vas a recibir:</strong> {paymentTiming.civilDescription}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div style={{ background: "var(--card)", padding: "0.6rem 0.75rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", fontSize: "0.8rem", color: "var(--muted)", lineHeight: 1.45 }}>
+                                <div>
+                                  💰 <strong>Cuánto vas a recibir:</strong> Pendiente de calcular (importa tu tarjetón para ver el importe en pesos).
+                                </div>
+                                {paymentTiming && (
+                                  <div style={{ marginTop: "0.25rem", color: "var(--fg)" }}>
+                                    📅 <strong>Cuándo lo vas a recibir:</strong> {paymentTiming.civilDescription}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* BOTÓN DIRECTO PARA AVANZAR AL SIGUIENTE PERIODO SIN SCROLL */}
+                            <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.25rem" }}>
+                              {activePeriodIdx < requiredPeriodCount ? (
+                                <Button
+                                  size="md"
+                                  variant="primary"
+                                  disabled={activePeriod && !activePeriod.allowed}
+                                  onClick={() => {
+                                    closeMonthModal()
+                                    setActivePeriodIdx((p) => p + 1)
+                                    window.scrollTo({ top: 0, behavior: "smooth" })
+                                  }}
+                                >
+                                  Avanzar al Periodo {activePeriodIdx + 1} →
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="md"
+                                  variant="primary"
+                                  disabled={activePeriod && !activePeriod.allowed}
+                                  onClick={() => {
+                                    closeMonthModal()
+                                    setStep("summary")
+                                  }}
+                                >
+                                  Ir al resumen final →
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        )}
                         {/* Calendario Mensual Grande dentro del Modal */}
                         <div
                           style={{
@@ -2218,6 +2310,83 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
             )}
           </div>
         </div>
+
+        {/* BARRA FLOTANTE FIJA INFERIOR PARA AVANCE INMEDIATO SIN SCROLL */}
+        {selectedRole && (
+          <div
+            style={{
+              position: "sticky",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              zIndex: 25,
+              background: "var(--card)",
+              borderTop: "2px solid var(--primary)",
+              boxShadow: "0 -4px 16px rgba(0,0,0,0.12)",
+              padding: "0.75rem 1rem",
+              borderRadius: "var(--radius) var(--radius) 0 0",
+              marginTop: "1.5rem",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "0.6rem",
+                maxWidth: "1100px",
+                margin: "0 auto",
+              }}
+            >
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+                  <strong style={{ fontSize: "0.88rem", color: "var(--fg)" }}>
+                    Periodo {activePeriodIdx}: Rol #{selectedRole.roleNumber}
+                  </strong>
+                  <span style={{ fontSize: "0.68rem", padding: "0.1rem 0.4rem", borderRadius: "9999px", background: "var(--primary)", color: "#fff", fontWeight: 700 }}>
+                    Programado ✓
+                  </span>
+                  {currentPeriodPayment && currentPeriodPayment.confidence !== "INCOMPLETE" && (
+                    <span style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--primary)" }}>
+                      • {formatMexicanCurrency(currentPeriodPayment.grossVacationExtra)}
+                    </span>
+                  )}
+                  {paymentTiming && (
+                    <span style={{ fontSize: "0.78rem", color: "var(--muted)" }}>
+                      ({paymentTiming.quincenaLabel})
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                {activePeriodIdx < requiredPeriodCount ? (
+                  <Button
+                    size="md"
+                    variant="primary"
+                    disabled={activePeriod && !activePeriod.allowed}
+                    onClick={() => {
+                      setActivePeriodIdx((p) => p + 1)
+                      window.scrollTo({ top: 0, behavior: "smooth" })
+                    }}
+                  >
+                    Avanzar al Periodo {activePeriodIdx + 1} →
+                  </Button>
+                ) : (
+                  <Button
+                    size="md"
+                    variant="primary"
+                    disabled={activePeriod && !activePeriod.allowed}
+                    onClick={() => setStep("summary")}
+                  >
+                    Ir al resumen final →
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }

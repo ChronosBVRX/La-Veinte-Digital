@@ -3,6 +3,7 @@ import {
   calculateVacationPayment,
   calculateAnnualTotals,
   formatMexicanCurrency,
+  estimateVacationPaymentTiming,
 } from "../domain/payment-estimate"
 
 describe("Motor Económico de Vacaciones (Conceptos 029 y 048)", () => {
@@ -230,3 +231,44 @@ describe("Motor Económico de Vacaciones (Conceptos 029 y 048)", () => {
     expect(formatMexicanCurrency(null)).toBe("$—")
   })
 })
+
+describe("estimateVacationPaymentTiming (Cláusula 47 del CCT - Pago con anticipación)", () => {
+  it("Si el rol inicia del 1 al 15 del mes, se paga en la 2.ª quincena del mes anterior", () => {
+    // Rol que empieza el 1 de febrero 2027 -> se paga última de enero 2027 (31/01/2027)
+    const timingFeb1 = estimateVacationPaymentTiming("2027-02-01")
+    expect(timingFeb1.quincenaLabel).toBe("2.ª quincena de enero de 2027")
+    expect(timingFeb1.estimatedPaymentDate).toBe("31/01/2027")
+    expect(timingFeb1.civilDescription).toContain("2.ª quincena de enero de 2027")
+
+    // Rol que empieza el 15 de marzo 2027 -> se paga última de febrero 2027 (28/02/2027)
+    const timingMar15 = estimateVacationPaymentTiming("2027-03-15")
+    expect(timingMar15.quincenaLabel).toBe("2.ª quincena de febrero de 2027")
+    expect(timingMar15.estimatedPaymentDate).toBe("28/02/2027")
+
+    // Rol que empieza el 1 de enero 2027 -> se paga en la 2.ª quincena de diciembre 2026 (31/12/2026)
+    const timingEne1 = estimateVacationPaymentTiming("2027-01-01")
+    expect(timingEne1.quincenaLabel).toBe("2.ª quincena de diciembre de 2026")
+    expect(timingEne1.estimatedPaymentDate).toBe("31/12/2026")
+  })
+
+  it("Si el rol inicia del 16 al fin de mes, se paga en la 1.ª quincena del mismo mes (día 15)", () => {
+    // Rol que empieza el 16 de enero 2027 -> se paga en la 1.ª quincena de enero 2027 (15/01/2027)
+    const timingEne16 = estimateVacationPaymentTiming("2027-01-16")
+    expect(timingEne16.quincenaLabel).toBe("1.ª quincena de enero de 2027")
+    expect(timingEne16.estimatedPaymentDate).toBe("15/01/2027")
+    expect(timingEne16.civilDescription).toContain("1.ª quincena de enero de 2027")
+
+    // Rol que empieza el 25 de julio 2027 -> se paga en la 1.ª quincena de julio 2027 (15/07/2027)
+    const timingJul25 = estimateVacationPaymentTiming("2027-07-25")
+    expect(timingJul25.quincenaLabel).toBe("1.ª quincena de julio de 2027")
+    expect(timingJul25.estimatedPaymentDate).toBe("15/07/2027")
+  })
+
+  it("Maneja fechas vacías o inválidas con fallback defensivo sin lanzar error", () => {
+    const fallback = estimateVacationPaymentTiming("")
+    expect(fallback.quincenaLabel).toBe("Quincena previa a tu rol")
+    expect(fallback.estimatedPaymentDate).toBe("Fecha por confirmar")
+    expect(fallback.civilDescription).toContain("Cláusula 47")
+  })
+})
+
