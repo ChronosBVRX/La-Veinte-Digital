@@ -25,39 +25,51 @@ export async function uploadUserAvatar(file: File): Promise<AvatarOperationResul
 
     const storagePath = `${user.id}/${compressed.fileName}`
 
-    // 2. Subida atómica al bucket de avatars
-    const { error: uploadError } = await supabase.storage
-      .from("avatars")
-      .upload(storagePath, compressed.blob, {
-        upsert: true,
-        contentType: compressed.mimeType,
-        cacheControl: "3600",
-      })
+    let finalAvatarUrl: string | undefined
 
-    if (uploadError) {
-      console.error("[avatar-storage] Error subiendo imagen:", uploadError)
-      return { success: false, error: "No se pudo subir la foto de perfil. Revisa tu conexión." }
+    // 2. Intentar subir al bucket de storage si está disponible
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(storagePath, compressed.blob, {
+          upsert: true,
+          contentType: compressed.mimeType,
+          cacheControl: "3600",
+        })
+
+      if (!uploadError) {
+        const { data: publicUrlData } = supabase.storage
+          .from("avatars")
+          .getPublicUrl(storagePath)
+        finalAvatarUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`
+      } else {
+        console.warn("[avatar-storage] Storage no disponible, usando Data URL optimizado:", uploadError.message)
+      }
+    } catch (storageErr) {
+      console.warn("[avatar-storage] Excepción en storage, usando Data URL optimizado:", storageErr)
     }
 
-    // 3. Obtener URL pública con timestamp para invalidar caché del navegador al cambiar
-    const { data: publicUrlData } = supabase.storage
-      .from("avatars")
-      .getPublicUrl(storagePath)
+    // 3. Respaldo directo en base de datos si storage falló o no existe el bucket
+    if (!finalAvatarUrl && compressed.dataUrl) {
+      finalAvatarUrl = compressed.dataUrl
+    }
 
-    const avatarUrl = `${publicUrlData.publicUrl}?t=${Date.now()}`
+    if (!finalAvatarUrl) {
+      return { success: false, error: "No se pudo procesar la foto de perfil." }
+    }
 
     // 4. Actualizar tabla profiles
     const { error: profileError } = await supabase
       .from("profiles")
-      .update({ avatar_url: avatarUrl })
+      .update({ avatar_url: finalAvatarUrl })
       .eq("id", user.id)
 
     if (profileError) {
       console.error("[avatar-storage] Error actualizando profile:", profileError)
-      return { success: false, error: "Se subió la imagen pero no se pudo asociar a tu perfil." }
+      return { success: false, error: "No se pudo asociar la foto a tu perfil." }
     }
 
-    return { success: true, avatarUrl }
+    return { success: true, avatarUrl: finalAvatarUrl }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error inesperado al procesar la foto."
     return { success: false, error: message }
@@ -77,9 +89,13 @@ export async function deleteUserAvatar(): Promise<AvatarOperationResult> {
     }
 
     // 1. Intentar limpiar archivos en storage
-    await supabase.storage
-      .from("avatars")
-      .remove([`${user.id}/avatar.webp`, `${user.id}/avatar.jpg`])
+    try {
+      await supabase.storage
+        .from("avatars")
+        .remove([`${user.id}/avatar.webp`, `${user.id}/avatar.jpg`])
+    } catch {
+      // Ignorar silenciosamente si storage no está disponible
+    }
 
     // 2. Establecer avatar_url en null en profiles
     const { error: profileError } = await supabase

@@ -184,7 +184,7 @@ export function AppHeader({ fullName, avatarUrl, onMenuToggle, canAccessUnion = 
             </span>
             <Avatar
               src={avatarUrl}
-              alt={fullName || "Perfil"}
+              alt=""
               size={32}
               gradient="linear-gradient(135deg, var(--brand-navy), var(--brand-blue))"
               icon={<UserCircle size={18} weight="fill" color="var(--primary-fg)" />}

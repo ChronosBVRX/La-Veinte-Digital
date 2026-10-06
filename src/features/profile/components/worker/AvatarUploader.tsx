@@ -9,12 +9,14 @@ import { uploadUserAvatar, deleteUserAvatar } from "../../services/avatar-storag
 export interface AvatarUploaderProps {
   initialAvatarUrl?: string | null
   fullName?: string | null
+  email?: string | null
   onAvatarChange?: (newUrl: string | null) => void
 }
 
 export function AvatarUploader({
   initialAvatarUrl,
   fullName,
+  email,
   onAvatarChange,
 }: AvatarUploaderProps) {
   const router = useRouter()
@@ -85,7 +87,14 @@ export function AvatarUploader({
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        gap: "1rem",
+        width: "100%",
+      }}
+    >
       <div style={{ position: "relative", width: 56, height: 56, flexShrink: 0 }}>
         <Avatar
           src={avatarUrl}
@@ -156,8 +165,43 @@ export function AvatarUploader({
         />
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+      <div style={{ minWidth: 0, flex: 1, display: "flex", flexDirection: "column" }}>
+        <h1
+          style={{
+            fontSize: "1.25rem",
+            fontWeight: 700,
+            margin: 0,
+            lineHeight: 1.25,
+            wordBreak: "normal",
+            overflowWrap: "break-word",
+          }}
+        >
+          {fullName || "Mi Perfil"}
+        </h1>
+
+        {email && (
+          <p
+            style={{
+              fontSize: "0.8125rem",
+              color: "var(--muted)",
+              margin: "0.125rem 0 0",
+              wordBreak: "normal",
+              overflowWrap: "break-word",
+            }}
+          >
+            {email}
+          </p>
+        )}
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            marginTop: "0.375rem",
+            flexWrap: "wrap",
+          }}
+        >
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -207,12 +251,29 @@ export function AvatarUploader({
         </div>
 
         {statusMessage && (
-          <span style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 500 }}>
+          <span
+            style={{
+              fontSize: "0.75rem",
+              color: "var(--muted)",
+              fontWeight: 500,
+              marginTop: "0.25rem",
+              overflowWrap: "break-word",
+            }}
+          >
             {statusMessage}
           </span>
         )}
+
         {errorMessage && (
-          <span style={{ fontSize: "0.75rem", color: "#dc2626", fontWeight: 500 }}>
+          <span
+            style={{
+              fontSize: "0.75rem",
+              color: "#dc2626",
+              fontWeight: 500,
+              marginTop: "0.25rem",
+              overflowWrap: "break-word",
+            }}
+          >
             {errorMessage}
           </span>
         )}

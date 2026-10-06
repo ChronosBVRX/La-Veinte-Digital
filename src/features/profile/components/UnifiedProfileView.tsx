@@ -108,19 +108,11 @@ export function UnifiedProfileView({
       )}
 
       {/* 1. Encabezado del usuario */}
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
-        <AvatarUploader initialAvatarUrl={avatarUrl} fullName={fullName} />
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <h1 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0, wordBreak: "break-word" }}>
-            {fullName || "Mi Perfil"}
-          </h1>
-          {email && (
-            <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0.125rem 0 0", wordBreak: "break-word" }}>
-              {email}
-            </p>
-          )}
-        </div>
-      </div>
+      <AvatarUploader
+        initialAvatarUrl={avatarUrl}
+        fullName={fullName}
+        email={email}
+      />
 
       {/* 2. Ficha Laboral Oficial (automática desde el tarjetón) */}
       <div
