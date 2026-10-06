@@ -146,6 +146,66 @@ export type Database = {
         }
         Relationships: []
       }
+      facebook_posts: {
+        Row: {
+          content_text: string
+          created_at: string
+          external_post_id: string
+          id: string
+          is_visible: boolean
+          media_urls: Json
+          page_key: string
+          page_name: string
+          permalink_url: string
+          category: string | null
+          summary: string | null
+          tags: Json | null
+          ai_processed: boolean
+          published_at: string
+          raw_metadata: Json | null
+          synced_at: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          summary?: string | null
+          tags?: Json | null
+          ai_processed?: boolean
+          content_text?: string
+          created_at?: string
+          external_post_id: string
+          id?: string
+          is_visible?: boolean
+          media_urls?: Json
+          page_key: string
+          page_name: string
+          permalink_url: string
+          published_at: string
+          raw_metadata?: Json | null
+          synced_at?: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          summary?: string | null
+          tags?: Json | null
+          ai_processed?: boolean
+          content_text?: string
+          created_at?: string
+          external_post_id?: string
+          id?: string
+          is_visible?: boolean
+          media_urls?: Json
+          page_key?: string
+          page_name?: string
+          permalink_url?: string
+          published_at?: string
+          raw_metadata?: Json | null
+          synced_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notification_job_runs: {
         Row: {
           created_at: string

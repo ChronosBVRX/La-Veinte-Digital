@@ -88,16 +88,18 @@ export function RegisterForm() {
   const displayedError = state?.error ?? oauthError
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", minWidth: 0, maxWidth: "100%" }}>
       {displayedError && (
         <div style={{
           display: "flex", alignItems: "center", gap: "0.5rem",
           color: "var(--error)", fontSize: "0.875rem",
           background: "#fef2f2", padding: "0.75rem 1rem",
           borderRadius: "var(--radius-sm)",
+          minWidth: 0,
+          wordBreak: "break-word",
         }}>
           <AlertCircle size={16} style={{ flexShrink: 0 }} />
-          <span>{displayedError}</span>
+          <span style={{ minWidth: 0 }}>{displayedError}</span>
         </div>
       )}
 
@@ -112,23 +114,24 @@ export function RegisterForm() {
             borderRadius: "var(--radius-sm)",
             fontSize: "0.8125rem",
             lineHeight: 1.45,
+            wordBreak: "break-word",
           }}
         >
           <strong>Conectando con {oauthProvider === "google" ? "Google" : "Facebook"}…</strong> En unos segundos serás redirigido. Al elegir tu cuenta, tu registro quedará listo automáticamente.
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem", minWidth: 0 }}>
         <p style={{ margin: 0, fontSize: "0.8125rem", color: "var(--muted)", textAlign: "center" }}>
           Registro rápido sin contraseña ni correo de confirmación:
         </p>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
           <Button
             type="button"
             variant="secondary"
             loading={oauthProvider === "google"}
             disabled={pending || oauthProvider !== null}
-            style={{ flex: 1, justifyContent: "center" }}
+            style={{ flex: "1 1 130px", justifyContent: "center", minWidth: 0 }}
             onClick={() => handleOAuth("google")}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
@@ -145,7 +148,7 @@ export function RegisterForm() {
             variant="secondary"
             loading={oauthProvider === "facebook"}
             disabled={pending || oauthProvider !== null}
-            style={{ flex: 1, justifyContent: "center" }}
+            style={{ flex: "1 1 130px", justifyContent: "center", minWidth: 0 }}
             onClick={() => handleOAuth("facebook")}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
@@ -155,7 +158,7 @@ export function RegisterForm() {
           </Button>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.25rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginTop: "0.25rem", minWidth: 0 }}>
           <span style={{ flex: 1, height: "1px", background: "var(--border)" }} />
           <span style={{ fontSize: "0.8rem", color: "var(--muted)", whiteSpace: "nowrap" }}>o regístrate con tu correo</span>
           <span style={{ flex: 1, height: "1px", background: "var(--border)" }} />
@@ -171,7 +174,7 @@ export function RegisterForm() {
         icon={<User size={16} />}
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.75rem" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 160px), 1fr))", gap: "0.75rem", minWidth: 0 }}>
         <Input
           id="matricula"
           name="matricula"
