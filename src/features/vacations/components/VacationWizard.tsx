@@ -1645,20 +1645,16 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                 {/* BANNER RÁPIDO SUPERIOR: CONFIRMACIÓN Y AVANCE AL SIGUIENTE PERIODO SIN SCROLL */}
                 {selectedRole && (
                   <div
+                    className="vacation-quick-advance-banner"
                     style={{
                       background: "rgba(37,99,235,0.06)",
                       border: "1.5px solid var(--primary)",
                       borderRadius: "var(--radius)",
                       padding: "0.85rem 1rem",
                       marginBottom: "1rem",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                      gap: "0.75rem",
                     }}
                   >
-                    <div style={{ minWidth: 0, flex: 1 }}>
+                    <div className="vacation-quick-advance-content">
                       <div style={{ display: "flex", alignItems: "center", gap: "0.45rem", flexWrap: "wrap", marginBottom: "0.25rem" }}>
                         <strong style={{ fontSize: "0.95rem", color: "var(--fg)" }}>
                           Periodo {activePeriodIdx}: Rol #{selectedRole.roleNumber} elegido
@@ -1691,7 +1687,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                       </div>
                     </div>
 
-                    <div>
+                    <div className="vacation-quick-advance-action">
                       {activePeriodIdx < requiredPeriodCount ? (
                         <Button
                           size="md"
@@ -2313,32 +2309,8 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
         {/* BARRA FLOTANTE FIJA INFERIOR PARA AVANCE INMEDIATO SIN SCROLL */}
         {selectedRole && (
-          <div
-            style={{
-              position: "sticky",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              zIndex: 25,
-              background: "var(--card)",
-              borderTop: "2px solid var(--primary)",
-              boxShadow: "0 -4px 16px rgba(0,0,0,0.12)",
-              padding: "0.75rem 1rem",
-              borderRadius: "var(--radius) var(--radius) 0 0",
-              marginTop: "1.5rem",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: "0.6rem",
-                maxWidth: "1100px",
-                margin: "0 auto",
-              }}
-            >
+          <div className="vacation-sticky-advance-bar">
+            <div className="vacation-sticky-advance-container">
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
                   <strong style={{ fontSize: "0.88rem", color: "var(--fg)" }}>
@@ -2360,7 +2332,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                 </div>
               </div>
 
-              <div>
+              <div className="vacation-sticky-advance-action">
                 {activePeriodIdx < requiredPeriodCount ? (
                   <Button
                     size="md"
