@@ -263,7 +263,7 @@ export function AppSettingsContent() {
         }}
       >
         <div style={{ fontSize: "0.9375rem", fontWeight: 700, marginBottom: "0.375rem", color: "var(--fg)" }}>
-          Cuenta
+          Cuenta y Sesión
         </div>
         <Link
           href="/eliminar-cuenta"
