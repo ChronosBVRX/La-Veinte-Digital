@@ -474,19 +474,115 @@ select {
   white-space: nowrap;
 }
 
-/* Cuadrícula de 12 meses del calendario vacacional (3 columnas: Enero, Febrero, Marzo) */
+/* Cuadrícula de 12 meses del calendario vacacional */
 .vacation-calendar-months-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: 0.85rem;
   width: 100%;
   box-sizing: border-box;
 }
 
-@media (max-width: 599px) {
+@media (max-width: 960px) and (min-width: 641px) {
   .vacation-calendar-months-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.35rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
   }
 }
+
+@media (max-width: 640px) {
+  .vacation-calendar-months-grid {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
+}
+
+/* Banner rápido superior de confirmación y avance en vacaciones */
+.vacation-quick-advance-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.vacation-quick-advance-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.vacation-quick-advance-action {
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .vacation-quick-advance-banner {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+  }
+
+  .vacation-quick-advance-action {
+    width: 100% !important;
+  }
+
+  .vacation-quick-advance-action button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+/* Barra flotante fija inferior para avance sin scroll */
+.vacation-sticky-advance-bar {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 25;
+  background: var(--card);
+  border-top: 2px solid var(--primary);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.12);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius) var(--radius) 0 0;
+  margin-top: 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.vacation-sticky-advance-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.vacation-sticky-advance-action {
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .vacation-sticky-advance-bar {
+    bottom: calc(var(--mobile-value-bar-height, 0px) + env(safe-area-inset-bottom, 0px));
+    padding: 0.65rem 0.75rem;
+  }
+
+  .vacation-sticky-advance-container {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.5rem !important;
+  }
+
+  .vacation-sticky-advance-action {
+    width: 100% !important;
+  }
+
+  .vacation-sticky-advance-action button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
 
