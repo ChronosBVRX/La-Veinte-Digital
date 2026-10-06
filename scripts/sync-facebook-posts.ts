@@ -137,7 +137,7 @@ async function main() {
   initEnv()
   const args = process.argv.slice(2)
   const httpOnly = args.includes("--http-only")
-  const pageKeys: FacebookPageKey[] = ["seccionxx", "cen"]
+  const pageKeys: FacebookPageKey[] = ["seccionxx"]
 
   console.log("=== SINCRONIZACIÓN DE NOTICIAS FACEBOOK SNTSS -> SUPABASE ===")
 

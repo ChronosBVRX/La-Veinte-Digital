@@ -1,4 +1,4 @@
-export type FacebookPageKey = "seccionxx" | "cen"
+export type FacebookPageKey = "seccionxx"
 
 export interface FacebookPageConfig {
   key: FacebookPageKey
@@ -18,14 +18,6 @@ export const FACEBOOK_PAGES: Record<FacebookPageKey, FacebookPageConfig> = {
     url: "https://www.facebook.com/SNTSSSeccionXXMichoacan",
     accentColor: "#047857",
   },
-  cen: {
-    key: "cen",
-    name: "CEN SNTSS Nacional",
-    shortName: "CEN Nacional",
-    subtitle: "Comité Ejecutivo Nacional · SNTSS",
-    url: "https://www.facebook.com/SNTSSOFICIAL",
-    accentColor: "#1d4ed8",
-  },
 }
 
 export interface FacebookPost {
@@ -36,6 +28,8 @@ export interface FacebookPost {
   permalinkUrl: string
   contentText: string
   mediaUrls: string[]
+  videoUrl?: string | null
+  isVideo?: boolean
   category?: string | null
   summary?: string | null
   tags?: string[]
@@ -57,5 +51,7 @@ export interface ScrapedFacebookPost {
   permalinkUrl: string
   contentText: string
   images: ScrapedFacebookImage[]
+  videoUrl?: string | null
+  isVideo?: boolean
   publishedAt: string
 }

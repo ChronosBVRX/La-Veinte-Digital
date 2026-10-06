@@ -13,9 +13,7 @@ export const dynamic = "force-dynamic"
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
-    const rawPage = searchParams.get("page") ?? "all"
-    const pageKey: FacebookPageKey | "all" =
-      rawPage === "seccionxx" || rawPage === "cen" ? rawPage : "all"
+    const pageKey: FacebookPageKey = "seccionxx"
 
     const rawLimit = Number(searchParams.get("limit") ?? "20")
     const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 40) : 20

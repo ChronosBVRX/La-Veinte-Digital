@@ -11,6 +11,8 @@ interface RawPostAccumulator {
   text: string | null
   creationTime: number | null
   imagesByAssetKey: Map<string, ScrapedFacebookImage>
+  videoUrl?: string | null
+  isVideo?: boolean
 }
 
 /**
@@ -118,6 +120,8 @@ function inspectStoryObject(
     primaryText: string | null
     attachedText: string | null
     creationTime: number | null
+    videoUrl: string | null
+    isVideo: boolean
   } = {
     postId: typeof storyObj.post_id === "string" ? storyObj.post_id : null,
     url:
@@ -129,8 +133,23 @@ function inspectStoryObject(
     primaryText: null,
     attachedText: null,
     creationTime: null,
+    videoUrl: null,
+    isVideo: false,
   }
   const candidateImages = new Map<string, ScrapedFacebookImage>()
+
+  const tryExtractImage = (imgObj: unknown, defaultW = 800, defaultH = 800) => {
+    if (!imgObj || typeof imgObj !== "object") return
+    const rec = imgObj as Record<string, unknown>
+    const uri = typeof rec.uri === "string" ? rec.uri : typeof rec.url === "string" ? rec.url : null
+    if (uri && (uri.includes("scontent") || uri.startsWith("http"))) {
+      const w = typeof rec.width === "number" ? rec.width : defaultW
+      const h = typeof rec.height === "number" ? rec.height : defaultH
+      if (w >= 180 || h >= 180 || !rec.width) {
+        addCandidateImage(candidateImages, uri, w, h)
+      }
+    }
+  }
 
   const scanSubtree = (root: unknown, isAttachedStory: boolean) => {
     if (!root || typeof root !== "object") return
@@ -182,31 +201,82 @@ function inspectStoryObject(
       (candidateUrl.includes("/posts/") ||
         candidateUrl.includes("/videos/") ||
         candidateUrl.includes("/reel/") ||
+        candidateUrl.includes("/watch/") ||
         candidateUrl.includes("story_fbid")) &&
       !candidateUrl.includes("comment_id=")
     ) {
       state.url = candidateUrl
     }
 
-    if (sub.photo_image && typeof sub.photo_image === "object") {
-      const img = sub.photo_image as Record<string, unknown>
-      if (typeof img.uri === "string") {
-        addCandidateImage(
-          candidateImages,
-          img.uri,
-          typeof img.width === "number" ? img.width : 800,
-          typeof img.height === "number" ? img.height : 800,
-        )
-      }
-    } else if (sub.image && typeof sub.image === "object") {
-      const img = sub.image as Record<string, unknown>
-      if (typeof img.uri === "string" && img.uri.includes("scontent")) {
-        const w = typeof img.width === "number" ? img.width : 0
-        const h = typeof img.height === "number" ? img.height : 0
-        if (w >= 220 || h >= 220) {
-          addCandidateImage(candidateImages, img.uri, w, h)
+    if (
+      candidateUrl &&
+      (candidateUrl.includes("/videos/") ||
+        candidateUrl.includes("/reel/") ||
+        candidateUrl.includes("/watch/") ||
+        candidateUrl.includes("fb.watch"))
+    ) {
+      state.isVideo = true
+    }
+
+    // Detectar fuentes de video directo o URLs reproducibles
+    if (!state.videoUrl) {
+      if (typeof sub.playable_url === "string" && sub.playable_url.startsWith("http")) {
+        state.videoUrl = sub.playable_url
+        state.isVideo = true
+      } else if (
+        typeof sub.playable_url_quality_hd === "string" &&
+        sub.playable_url_quality_hd.startsWith("http")
+      ) {
+        state.videoUrl = sub.playable_url_quality_hd
+        state.isVideo = true
+      } else if (sub.video && typeof sub.video === "object") {
+        const v = sub.video as Record<string, unknown>
+        if (typeof v.playable_url === "string" && v.playable_url.startsWith("http")) {
+          state.videoUrl = v.playable_url
+          state.isVideo = true
+        } else if (
+          typeof v.playable_url_quality_hd === "string" &&
+          v.playable_url_quality_hd.startsWith("http")
+        ) {
+          state.videoUrl = v.playable_url_quality_hd
+          state.isVideo = true
         }
       }
+    }
+
+    if (sub.is_video === true || sub.__typename === "Video" || sub.video != null) {
+      state.isVideo = true
+    }
+
+    // Extracción de imágenes estándar
+    if (sub.photo_image && typeof sub.photo_image === "object") {
+      tryExtractImage(sub.photo_image)
+    } else if (sub.image && typeof sub.image === "object") {
+      tryExtractImage(sub.image)
+    }
+
+    // Extraer también miniaturas de video / reels
+    if (sub.preferred_thumbnail && typeof sub.preferred_thumbnail === "object") {
+      const pt = sub.preferred_thumbnail as Record<string, unknown>
+      tryExtractImage(pt.image || pt)
+    }
+    if (sub.thumbnailImage && typeof sub.thumbnailImage === "object") {
+      tryExtractImage(sub.thumbnailImage)
+    }
+    if (sub.video_preview_image && typeof sub.video_preview_image === "object") {
+      tryExtractImage(sub.video_preview_image)
+    }
+    if (sub.large_share_media && typeof sub.large_share_media === "object") {
+      const lsm = sub.large_share_media as Record<string, unknown>
+      tryExtractImage(lsm.image || lsm)
+    }
+    if (sub.video && typeof sub.video === "object") {
+      const v = sub.video as Record<string, unknown>
+      if (v.preferred_thumbnail) {
+        const pt = v.preferred_thumbnail as Record<string, unknown>
+        tryExtractImage(pt.image || pt)
+      }
+      if (v.thumbnailImage) tryExtractImage(v.thumbnailImage)
     }
 
     for (const [k, v] of Object.entries(sub)) {
@@ -219,13 +289,24 @@ function inspectStoryObject(
   const finalText = state.primaryText || state.attachedText || null
 
   if (!state.postId && state.url) {
-    const match = state.url.match(/\/(?:posts|videos|reel)\/([^/?#]+)/)
+    const match = state.url.match(/\/(?:posts|videos|reel|watch)\/([^/?#]+)/)
     if (match) state.postId = match[1]
+  }
+
+  if (state.url && !state.isVideo) {
+    if (
+      state.url.includes("/videos/") ||
+      state.url.includes("/reel/") ||
+      state.url.includes("/watch/") ||
+      state.url.includes("fb.watch")
+    ) {
+      state.isVideo = true
+    }
   }
 
   // Ignorar nodos vacíos o que son únicamente metadatos de reacciones
   if (!state.postId) return
-  if (!finalText && candidateImages.size === 0) return
+  if (!finalText && candidateImages.size === 0 && !state.isVideo && !state.videoUrl) return
 
   const existing: RawPostAccumulator = postsById.get(state.postId) ?? {
     postId: state.postId,
@@ -233,6 +314,8 @@ function inspectStoryObject(
     text: null,
     creationTime: null,
     imagesByAssetKey: new Map<string, ScrapedFacebookImage>(),
+    videoUrl: null,
+    isVideo: false,
   }
 
   if (state.url && !existing.url) {
@@ -243,6 +326,12 @@ function inspectStoryObject(
   }
   if (state.creationTime && !existing.creationTime) {
     existing.creationTime = state.creationTime
+  }
+  if (state.videoUrl && !existing.videoUrl) {
+    existing.videoUrl = state.videoUrl
+  }
+  if (state.isVideo) {
+    existing.isVideo = true
   }
   for (const img of candidateImages.values()) {
     addCandidateImage(existing.imagesByAssetKey, img.uri, img.width, img.height)
@@ -275,8 +364,18 @@ export function finalizeScrapedPosts(
     const contentText = (item.text ?? "").trim()
     const images = [...item.imagesByAssetKey.values()].slice(0, 6)
 
-    // Exigir que tenga texto o al menos una imagen Y una fecha de publicación real
-    if (!contentText && images.length === 0) continue
+    const isVideo = Boolean(
+      item.isVideo ||
+      item.videoUrl ||
+      (item.url &&
+        (item.url.includes("/videos/") ||
+          item.url.includes("/reel/") ||
+          item.url.includes("/watch/") ||
+          item.url.includes("fb.watch"))),
+    )
+
+    // Exigir que tenga texto o al menos una imagen/video Y una fecha de publicación real
+    if (!contentText && images.length === 0 && !isVideo) continue
     if (!item.creationTime) continue
 
     const permalinkUrl = item.url
@@ -290,6 +389,8 @@ export function finalizeScrapedPosts(
       permalinkUrl,
       contentText,
       images,
+      videoUrl: item.videoUrl ?? null,
+      isVideo,
       publishedAt: new Date(item.creationTime * 1000).toISOString(),
     })
   }

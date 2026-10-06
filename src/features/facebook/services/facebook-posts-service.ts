@@ -56,6 +56,7 @@ export interface FetchFacebookPostsOptions {
 /**
  * Obtiene las publicaciones sincronizadas de Facebook desde Supabase,
  * ordenadas desde la más reciente.
+ * La fuente activa es exclusivamente la Sección XX Michoacán.
  */
 export async function fetchFacebookPosts(
   options: FetchFacebookPostsOptions = {},
@@ -65,34 +66,53 @@ export async function fetchFacebookPosts(
     if (!client) return []
 
     const limit = Math.min(Math.max(options.limit ?? 20, 1), 50)
-    let query = client
+    const query = client
       .from("facebook_posts")
       .select("*")
       .eq("is_visible", true)
+      .eq("page_key", "seccionxx")
       .order("published_at", { ascending: false })
       .limit(limit)
-
-    if (options.pageKey && options.pageKey !== "all") {
-      query = query.eq("page_key", options.pageKey)
-    }
 
     const { data, error } = await query
     if (error || !data) return []
 
-    return data.map((row) => ({
-      id: row.id,
-      pageKey: (row.page_key === "cen" ? "cen" : "seccionxx") as FacebookPageKey,
-      pageName: row.page_name,
-      externalPostId: row.external_post_id,
-      permalinkUrl: row.permalink_url,
-      contentText: row.content_text,
-      mediaUrls: parseMediaUrls(row.media_urls),
-      category: row.category ?? null,
-      summary: row.summary ?? null,
-      tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
-      publishedAt: row.published_at,
-      syncedAt: row.synced_at,
-    }))
+    return data.map((row) => {
+      const rawMeta =
+        row.raw_metadata && typeof row.raw_metadata === "object"
+          ? (row.raw_metadata as Record<string, unknown>)
+          : {}
+      const permalink = row.permalink_url || ""
+      const isVideoFromPermalink =
+        permalink.includes("/videos/") ||
+        permalink.includes("/reel/") ||
+        permalink.includes("/watch/") ||
+        permalink.includes("fb.watch")
+
+      const videoUrl =
+        typeof rawMeta.video_url === "string" && rawMeta.video_url.startsWith("http")
+          ? rawMeta.video_url
+          : null
+
+      const isVideo = Boolean(rawMeta.is_video || videoUrl || isVideoFromPermalink)
+
+      return {
+        id: row.id,
+        pageKey: "seccionxx" as FacebookPageKey,
+        pageName: row.page_name,
+        externalPostId: row.external_post_id,
+        permalinkUrl: row.permalink_url,
+        contentText: row.content_text,
+        mediaUrls: parseMediaUrls(row.media_urls),
+        videoUrl,
+        isVideo,
+        category: row.category ?? null,
+        summary: row.summary ?? null,
+        tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
+        publishedAt: row.published_at,
+        syncedAt: row.synced_at,
+      }
+    })
   } catch {
     return []
   }
@@ -168,7 +188,7 @@ export async function persistScrapedPostsToSupabase(
   const result: SyncFacebookPostsResult = {
     upsertedCount: 0,
     mirroredImagesCount: 0,
-    byPage: { seccionxx: 0, cen: 0 },
+    byPage: { seccionxx: 0 },
     errors: [],
   }
 
@@ -234,6 +254,8 @@ export async function persistScrapedPostsToSupabase(
           raw_metadata: {
             original_image_count: post.images.length,
             ai_source: classification.source,
+            is_video: Boolean(post.isVideo || post.videoUrl),
+            video_url: post.videoUrl ?? null,
           },
           synced_at: nowIso,
           updated_at: nowIso,
@@ -265,7 +287,7 @@ export async function persistScrapedPostsToSupabase(
  * publicaciones recientes incluidas en los bloques Relay JSON.
  */
 export async function syncLatestFacebookPostsViaHttp(
-  pageKeys: FacebookPageKey[] = ["seccionxx", "cen"],
+  pageKeys: FacebookPageKey[] = ["seccionxx"],
 ): Promise<SyncFacebookPostsResult> {
   const allScraped: ScrapedFacebookPost[] = []
   const fetchErrors: string[] = []
