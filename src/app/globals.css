@@ -483,6 +483,10 @@ select {
   box-sizing: border-box;
 }
 
+.vacation-month-footer-short {
+  display: none;
+}
+
 @media (max-width: 640px) {
   .vacation-calendar-months-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
@@ -491,22 +495,36 @@ select {
 
   .vacation-month-tile {
     padding: 0.4rem 0.25rem !important;
+    gap: 0.25rem !important;
+  }
+
+  .vacation-month-roles-count {
+    font-size: 0.58rem !important;
+    margin-bottom: 0.15rem !important;
+    letter-spacing: 0.01em !important;
   }
 
   .vacation-role-tile-item {
-    padding: 0.35rem 0.25rem !important;
-    gap: 0.15rem !important;
+    padding: 0.3rem 0.25rem !important;
+    gap: 0.1rem !important;
   }
 
   .vacation-role-tile-header {
     flex-direction: column !important;
     align-items: flex-start !important;
-    gap: 0.15rem !important;
+    gap: 0.1rem !important;
   }
 
   .vacation-role-tile-dates {
-    font-size: 0.65rem !important;
-    line-height: 1.25 !important;
+    display: none !important;
+  }
+
+  .vacation-month-footer-full {
+    display: none !important;
+  }
+
+  .vacation-month-footer-short {
+    display: inline !important;
   }
 }
 

@@ -1399,7 +1399,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                     }}
                     style={{
                       textAlign: "left",
-                      padding: "0.4rem 0.45rem",
+                      padding: "0.35rem 0.35rem",
                       borderRadius: "var(--radius-sm)",
                       border: `1.5px solid ${
                         isBlocked
@@ -1421,7 +1421,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                       transition: "border-color 0.15s ease, background 0.15s ease",
                       display: "flex",
                       flexDirection: "column",
-                      gap: "0.2rem",
+                      gap: "0.15rem",
                     }}
                   >
                     <div
@@ -1430,29 +1430,64 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                         display: "flex",
                         flexDirection: "column",
                         alignItems: "flex-start",
-                        gap: "0.15rem",
+                        gap: "0.1rem",
                         width: "100%",
+                        minWidth: 0,
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.25rem", minWidth: 0, flexWrap: "wrap" }}>
-                        <span
-                          style={{
-                            width: 7,
-                            height: 7,
-                            borderRadius: "50%",
-                            background: isSelected ? "var(--primary)" : isBlocked ? "#ef4444" : "#16a34a",
-                            flexShrink: 0,
-                          }}
-                        />
-                        <strong style={{ fontSize: "0.78rem", color: isBlocked ? "#991b1b" : isSelected ? "var(--primary)" : "var(--fg)", lineHeight: 1.25 }}>
-                          Rol #{r.roleNumber} {r.observation ? `(Observación ${r.observation})` : ""}
-                        </strong>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.08rem", minWidth: 0, width: "100%" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.2rem", minWidth: 0 }}>
+                          <span
+                            style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: "50%",
+                              background: isSelected ? "var(--primary)" : isBlocked ? "#ef4444" : "#16a34a",
+                              flexShrink: 0,
+                            }}
+                          />
+                          <strong
+                            style={{
+                              fontSize: "0.74rem",
+                              color: isBlocked ? "#991b1b" : isSelected ? "var(--primary)" : "var(--fg)",
+                              lineHeight: 1.2,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            Rol #{r.roleNumber}
+                          </strong>
+                          {isSelected && (
+                            <span style={{ fontSize: "0.6rem", fontWeight: 800, color: "var(--primary)", whiteSpace: "nowrap" }}>
+                              ✓
+                            </span>
+                          )}
+                        </div>
+
+                        {r.observation && (
+                          <div
+                            className="vacation-role-tile-observation"
+                            style={{
+                              fontSize: "0.62rem",
+                              fontWeight: 700,
+                              color: isBlocked ? "#991b1b" : "var(--muted)",
+                              lineHeight: 1.2,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              width: "100%",
+                            }}
+                          >
+                            Observación {r.observation}
+                          </div>
+                        )}
                       </div>
+
                       <span
+                        className="vacation-role-tile-badge"
                         style={{
-                          fontSize: "0.64rem",
+                          fontSize: "0.58rem",
                           fontWeight: 700,
-                          padding: "0.1rem 0.35rem",
+                          padding: "0.08rem 0.32rem",
                           borderRadius: "9999px",
                           background: isBlocked
                             ? "#fee2e2"
@@ -1474,6 +1509,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                                   : "#075985",
                           whiteSpace: "nowrap",
                           flexShrink: 0,
+                          alignSelf: "flex-start",
                         }}
                       >
                         {isBlocked
@@ -1491,7 +1527,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                     <div
                       className="vacation-role-tile-dates"
                       style={{
-                        fontSize: "0.68rem",
+                        fontSize: "0.65rem",
                         color: "var(--muted)",
                         lineHeight: 1.25,
                         display: "flex",
@@ -1515,7 +1551,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
                     {/* Explicación concisa si está bloqueado */}
                     {isBlocked && (ev?.workerMessage || isMissingOfficialDuration) && (
-                      <div style={{ fontSize: "0.65rem", color: "#991b1b", lineHeight: 1.25, marginTop: "0.1rem" }}>
+                      <div className="vacation-role-tile-dates" style={{ fontSize: "0.62rem", color: "#991b1b", lineHeight: 1.25, marginTop: "0.1rem" }}>
                         {isMissingOfficialDuration
                           ? `No contempla ${activePeriodUnits} días.`
                           : ev?.workerMessage}
@@ -1584,7 +1620,7 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
                       </span>
                     ) : isSelected ? (
                       <span style={{ fontSize: "0.68rem", padding: "0.12rem 0.4rem", borderRadius: "var(--radius-sm)", background: isPreliminary ? "#fef3c7" : "#dcfce7", color: isPreliminary ? "#92400e" : "#166534", fontWeight: 700 }}>
-                        {isPreliminary ? "Seleccionado para simular" : "Elegido ✓"}
+                        {isPreliminary ? "Elegido ✓ (Preliminar)" : "Elegido ✓"}
                       </span>
                     ) : isEligible && isPreliminary ? (
                       <span style={{ fontSize: "0.68rem", padding: "0.12rem 0.4rem", borderRadius: "var(--radius-sm)", background: "#fef3c7", color: "#92400e", fontWeight: 700 }}>
@@ -1988,19 +2024,21 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
                         {/* Pie de la minicarta de mes para abrir el modal */}
                         <div
+                          className="vacation-month-tile-footer"
                           style={{
-                            paddingTop: "0.3rem",
+                            paddingTop: "0.25rem",
                             borderTop: "1px solid var(--border)",
                             display: "flex",
-                            justifyContent: "space-between",
+                            justifyContent: "center",
                             alignItems: "center",
-                            fontSize: "0.7rem",
+                            fontSize: "0.68rem",
                             fontWeight: 700,
                             color: "var(--primary)",
+                            textAlign: "center",
                           }}
                         >
-                          <span>📅 Abrir calendario de {monthName}</span>
-                          <span>→</span>
+                          <span className="vacation-month-footer-full">📅 Abrir calendario de {monthName} →</span>
+                          <span className="vacation-month-footer-short">📅 Abrir mes →</span>
                         </div>
                       </div>
                     )
