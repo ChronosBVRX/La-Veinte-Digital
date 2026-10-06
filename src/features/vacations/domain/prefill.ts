@@ -346,16 +346,21 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
 
   // 13. Derechos vacacionales estructurados por periodo
   let entitlements: VacationEntitlement[] = []
+  const cadence = regime === "CUATRIMESTRAL" ? 105 : 120
+
   if (vacationsRow?.entitlements && Array.isArray(vacationsRow.entitlements) && vacationsRow.entitlements.length > 0) {
     entitlements = vacationsRow.entitlements.map((ent, idx) => {
       let entDue = ent.dueDate ? (normalizeCivilDate(ent.dueDate) || ent.dueDate) : null
       let entConf = ent.dueDateConfidence
       let entSrc = ent.dueDateSource
 
-      // Si periodos posteriores vienen sin dueDate pero tenemos dueDate en el periodo 1:
-      // Se proyectan con base en bloques de 105 días (cuatrimestral) o 120 días (semestral)
-      if (!entDue && dueDate && idx > 0) {
-        const daysToAdd = regime === "CUATRIMESTRAL" ? idx * 105 : idx * 120
+      // Si periodos vienen sin dueDate pero tenemos dueDate base del tarjetón:
+      // Se proyectan con base en bloques de 105 días (cuatrimestral) o 120 días (semestral):
+      // Periodo 1 = dueDate + cadence
+      // Periodo 2 = dueDate + (cadence * 2)
+      // Periodo 3 = dueDate + (cadence * 3)
+      if (!entDue && dueDate) {
+        const daysToAdd = (idx + 1) * cadence
         entDue = addCivilDays(dueDate, daysToAdd)
         entConf = "PROVISIONAL"
         entSrc = "PROJECTED"
@@ -370,6 +375,7 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
     })
   } else {
     const workerRegime = regime === "CUATRIMESTRAL" ? "CUATRIMESTRAL" : "SEMESTRAL"
+    const projectedFirst = dueDate ? addCivilDays(dueDate, cadence) : null
     entitlements.push({
       id: "ord-1",
       sequence: 1,
@@ -377,9 +383,9 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
       entitlementKind: "ORDINARY",
       kind: "ORDINARY",
       periodNumber: 1,
-      dueDate: dueDate || null,
-      dueDateSource: dueDate ? "TARJETON" : "MISSING",
-      dueDateConfidence: dueDate ? "CONFIRMED" : "UNKNOWN",
+      dueDate: projectedFirst,
+      dueDateSource: projectedFirst ? "PROJECTED" : "MISSING",
+      dueDateConfidence: projectedFirst ? "PROVISIONAL" : "UNKNOWN",
       sourcePayslipPeriod: periodLabel ?? "",
       confirmed: Boolean(dueDate),
     })
@@ -387,7 +393,7 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
     const secondRaw = typeof vacationsRow?.secondPeriodStartRaw === "string" ? vacationsRow.secondPeriodStartRaw : null
     const secondParsed = secondRaw ? (normalizeCivilDate(secondRaw) || secondRaw) : null
     const projectedSecond = (!secondParsed && dueDate)
-      ? addCivilDays(dueDate, regime === "CUATRIMESTRAL" ? 105 : 120)
+      ? addCivilDays(dueDate, cadence * 2)
       : null
 
     entitlements.push({
@@ -405,7 +411,7 @@ export function prefillVacationSimulator(context: WorkerContext | null | undefin
     })
 
     if (regime === "CUATRIMESTRAL") {
-      const projectedThird = dueDate ? addCivilDays(dueDate, 210) : null
+      const projectedThird = dueDate ? addCivilDays(dueDate, cadence * 3) : null
       entitlements.push({
         id: "ord-3",
         sequence: 3,

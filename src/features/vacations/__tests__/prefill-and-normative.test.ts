@@ -98,6 +98,10 @@ describe("prefillVacationSimulator", () => {
     expect(state.provenance.hasLatestPayslip).toBe(true)
     expect(state.provenance.periodLabel).toBe("2A-JUL-2026")
     expect(state.provenance.isPorVencerMissingFromPayslip).toBe(false)
+
+    // 7. Vencimientos por periodo proyectados desde fecha del tarjetón (+120 y +240 días para semestral)
+    expect(state.entitlements[0].dueDate).toBe("2027-02-11")
+    expect(state.entitlements[1].dueDate).toBe("2027-06-11")
   })
 
   it("alerta puntualmente cuando porVencer falta en el tarjetón sin bloquear los demás datos", () => {

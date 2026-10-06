@@ -83,7 +83,7 @@ describe("Extracción, Reconstrucción y Persistencia del Sueldo Mensual Integra
 
     expect(ctx.vacations?.entitlements).toBeDefined()
     expect(ctx.vacations?.entitlements).toHaveLength(3) // 2 ordinarios + 1 V20
-    expect(ctx.vacations?.entitlements?.[0].dueDate).toBe("2026-10-14")
+    expect(ctx.vacations?.entitlements?.[0].dueDate).toBe("2027-02-11")
     expect(ctx.vacations?.entitlements?.[0].confirmed).toBe(true)
     expect(ctx.vacations?.entitlements?.[2].kind).toBe("V20")
   })
