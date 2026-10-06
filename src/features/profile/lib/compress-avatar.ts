@@ -120,6 +120,23 @@ export async function compressAvatarImage(
           targetSize
         )
 
+        // Generar Data URL optimizado para respaldo directo en base de datos
+        let dataUrl: string | undefined
+        try {
+          const webpData = canvas.toDataURL("image/webp", quality)
+          if (webpData.startsWith("data:image/webp")) {
+            dataUrl = webpData
+          } else {
+            dataUrl = canvas.toDataURL("image/jpeg", quality)
+          }
+        } catch {
+          try {
+            dataUrl = canvas.toDataURL("image/jpeg", quality)
+          } catch {
+            // Data URL opcional
+          }
+        }
+
         // Intentar exportar a WebP
         canvas.toBlob(
           (webpBlob) => {
@@ -128,6 +145,7 @@ export async function compressAvatarImage(
                 blob: webpBlob,
                 fileName: "avatar.webp",
                 mimeType: "image/webp",
+                dataUrl,
               })
               return
             }
@@ -143,6 +161,7 @@ export async function compressAvatarImage(
                   blob: jpegBlob,
                   fileName: "avatar.jpg",
                   mimeType: "image/jpeg",
+                  dataUrl,
                 })
               },
               "image/jpeg",
