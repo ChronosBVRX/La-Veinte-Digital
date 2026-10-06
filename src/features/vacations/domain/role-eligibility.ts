@@ -29,8 +29,6 @@ export function validatePeriodSequence(
     previousPeriodStartDate: rawPrevStart,
     previousPeriodEndDate: rawPrevEnd,
     entitlementKind = "ORDINARY",
-    regime = "SEMESTRAL",
-    dueDate: _rawDueDate,
   } = input
 
   // Los periodos extraordinarios V20 se programan con independencia de la secuencia ordinaria
@@ -85,26 +83,12 @@ export function validatePeriodSequence(
     }
   }
 
-  // D) Separación obligatoria de bloques (120 días semestral / 105 días cuatrimestral):
-  // No se pueden tomar periodos seguidos en las fechas de vencimiento; debe haber el conteo de días.
-  const minSeparationDays = regime === "CUATRIMESTRAL" ? 105 : 120
-  const daysBetweenPeriods = diffCivilDays(roleStartDate, prevStartDate)
-  if (daysBetweenPeriods < minSeparationDays) {
-    const earliestDate = addCivilDays(prevStartDate, minSeparationDays)
-    return {
-      allowed: false,
-      reasonCode: "INSUFFICIENT_PERIOD_SEPARATION",
-      workerMessage: `El Periodo ${periodIndex} no puede programarse seguido ni tan próximo al Periodo ${previousPeriodIndex}. Por normativa institucional de programación (${minSeparationDays} días en régimen ${regime === "CUATRIMESTRAL" ? "cuatrimestral" : "semestral"}), debe existir una separación mínima de ${minSeparationDays} días naturales entre ambos periodos. Lo más pronto que podrías iniciar este periodo es el ${formatCivilMexicanDate(earliestDate)}.`,
-      technicalMessage: `Separación insuficiente entre Periodo ${previousPeriodIndex} (${prevStartDate}) y Periodo ${periodIndex} (${roleStartDate}): ${daysBetweenPeriods} días naturales < ${minSeparationDays} requeridos.`,
-    }
-  }
-
-  // Secuencia válida con separación reglamentaria
+  // B) Continuidad inmediata (roleStartDate > prevEndDate) o posterior: permitida
   return {
     allowed: true,
     reasonCode: "OK",
     workerMessage: "",
-    technicalMessage: `Secuencia válida: Periodo ${periodIndex} (${roleStartDate}) respeta la separación de ${minSeparationDays} días respecto al Periodo ${previousPeriodIndex} (${prevStartDate}..${prevEndDate}).`,
+    technicalMessage: `Secuencia válida: Periodo ${periodIndex} (${roleStartDate}) posterior al Periodo ${previousPeriodIndex} (${prevStartDate}..${prevEndDate}).`,
   }
 }
 
@@ -361,8 +345,6 @@ export function evaluateVacationRoleEligibility(
       previousPeriodStartDate,
       previousPeriodEndDate,
       entitlementKind,
-      regime,
-      dueDate,
     })
 
     if (!seqCheck.allowed) {
