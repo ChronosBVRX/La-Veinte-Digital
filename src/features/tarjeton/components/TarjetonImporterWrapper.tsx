@@ -31,10 +31,12 @@ export function TarjetonImporterWrapper({
   profile,
   userId,
   onSuccess,
+  embedded = false,
 }: {
   profile: TarjetonProfileSnapshot | null
   userId: string
   onSuccess?: (meta: TarjetonImportSuccessMeta) => void
+  embedded?: boolean
 }) {
-  return <TarjetonImporterInner profile={profile} userId={userId} onSuccess={onSuccess} />
+  return <TarjetonImporterInner profile={profile} userId={userId} onSuccess={onSuccess} embedded={embedded} />
 }
