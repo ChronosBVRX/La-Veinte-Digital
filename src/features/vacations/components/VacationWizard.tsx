@@ -1338,6 +1338,120 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
               const isUnknown = ev?.evaluation?.dateEligibility === "UNKNOWN"
               const canSelect = ev ? ev.evaluation.selectableForSimulation : !isBlocked
 
+              if (!opts.inModal) {
+                return (
+                  <div
+                    key={r.id || r.roleNumber}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (!isBlocked && canSelect) {
+                        handleSelectRole(activePeriodIdx, { ...r, endDate: roleEndDate })
+                      }
+                      setOpenMonthIndex(opts.monthIdx)
+                    }}
+                    style={{
+                      textAlign: "left",
+                      padding: "0.45rem 0.65rem",
+                      borderRadius: "var(--radius-sm)",
+                      border: `1.5px solid ${
+                        isBlocked
+                          ? "#fca5a5"
+                          : isSelected
+                            ? "var(--primary)"
+                            : "var(--border)"
+                      }`,
+                      background: isBlocked
+                        ? "#fef2f2"
+                        : isSelected
+                          ? "rgba(37,99,235,0.06)"
+                          : "var(--card)",
+                      opacity: isBlocked ? 0.85 : 1,
+                      cursor: isBlocked ? "not-allowed" : "pointer",
+                      width: "100%",
+                      minWidth: 0,
+                      boxSizing: "border-box",
+                      transition: "border-color 0.15s ease, background 0.15s ease",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.25rem",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.35rem" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", minWidth: 0 }}>
+                        <span
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            background: isSelected ? "var(--primary)" : isBlocked ? "#ef4444" : "#16a34a",
+                            flexShrink: 0,
+                          }}
+                        />
+                        <strong style={{ fontSize: "0.82rem", color: isBlocked ? "#991b1b" : isSelected ? "var(--primary)" : "var(--fg)" }}>
+                          Rol #{r.roleNumber} {r.observation ? `(Observación ${r.observation})` : ""}
+                        </strong>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: "0.68rem",
+                          fontWeight: 700,
+                          padding: "0.12rem 0.45rem",
+                          borderRadius: "9999px",
+                          background: isBlocked
+                            ? "#fee2e2"
+                            : isSelected
+                              ? "var(--primary)"
+                              : isEligible && isPreliminary
+                                ? "#fef3c7"
+                                : isEligible && !isPreliminary
+                                  ? "#dcfce7"
+                                  : "#e0f2fe",
+                          color: isBlocked
+                            ? "#991b1b"
+                            : isSelected
+                              ? "#ffffff"
+                              : isEligible && isPreliminary
+                                ? "#92400e"
+                                : isEligible && !isPreliminary
+                                  ? "#166534"
+                                  : "#075985",
+                          whiteSpace: "nowrap",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {isBlocked
+                          ? "Bloqueado ✕"
+                          : isSelected
+                            ? "Elegido ✓"
+                            : isEligible && isPreliminary
+                              ? "Preliminar"
+                              : isEligible
+                                ? "Disponible ✓"
+                                : "Falta tu fecha de vencimiento"}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: "0.74rem", color: "var(--muted)", lineHeight: 1.35 }}>
+                      Inicio: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(r.startDate)}</strong>
+                      {roleEndDate ? (
+                        <> • Término para {activePeriodUnits} días: <strong style={{ color: "var(--fg)" }}>{formatCivilMexicanDate(roleEndDate)}</strong></>
+                      ) : (
+                        <> • <strong style={{ color: "#991b1b" }}>No contempla {activePeriodUnits} días</strong></>
+                      )}
+                    </div>
+
+                    {/* Explicación concisa si está bloqueado */}
+                    {isBlocked && (ev?.workerMessage || isMissingOfficialDuration) && (
+                      <div style={{ fontSize: "0.72rem", color: "#991b1b", lineHeight: 1.35, marginTop: "0.1rem" }}>
+                        {isMissingOfficialDuration
+                          ? `Este rol no contempla oficialmente ${activePeriodUnits} días.`
+                          : ev?.workerMessage}
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+
               return (
                 <div
                   key={r.id || r.roleNumber}
@@ -1529,17 +1643,8 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
             return (
               <>
-                {/* CUADRÍCULA ANUAL DE 12 MESES */}
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 285px), 1fr))",
-                    gap: "1rem",
-                    width: "100%",
-                    boxSizing: "border-box",
-                    minWidth: 0,
-                  }}
-                >
+                {/* CUADRÍCULA ANUAL DE 12 MESES (3 EN UNA LÍNEA: ENERO, FEBRERO, MARZO...) */}
+                <div className="vacation-calendar-months-grid">
                   {MONTH_NAMES.map((monthName, monthIdx) => {
                     const monthRoles = calendar.roles.filter(
                       (r) => getMonthIndexFromIsoDate(r.startDate) === monthIdx

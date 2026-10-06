@@ -61,12 +61,13 @@ describe("Integración: Tarjetón 14102026 → Perfil → Recarga → Simulador 
     // Asegurar que el contexto reconstruido recibe exactamente la fecha civil canónica 2026-10-14
     expect(reloadedWorkerContext.vacations?.porVencer).toBe("2026-10-14")
     expect(reloadedWorkerContext.vacations?.dueDate).toBe("2026-10-14")
-    expect(reloadedWorkerContext.vacations?.entitlements?.[0]?.dueDate).toBe("2026-10-14")
-    expect(reloadedWorkerContext.vacations?.entitlements?.[0]?.dueDateConfidence).toBe("CONFIRMED")
-    expect(reloadedWorkerContext.vacations?.entitlements?.[0]?.dueDateSource).toBe("TARJETON")
+    // El Periodo 1 vence en la fecha del tarjetón + 120 días (semestral)
+    expect(reloadedWorkerContext.vacations?.entitlements?.[0]?.dueDate).toBe("2027-02-11")
+    expect(reloadedWorkerContext.vacations?.entitlements?.[0]?.dueDateConfidence).toBe("PROVISIONAL")
+    expect(reloadedWorkerContext.vacations?.entitlements?.[0]?.dueDateSource).toBe("PROJECTED")
 
-    // El segundo periodo se proyecta exclusivamente para la simulación (+6 meses para semestral)
-    expect(reloadedWorkerContext.vacations?.entitlements?.[1]?.dueDate).toBe("2027-04-14")
+    // El segundo periodo se proyecta a 240 días (120 días después del primer periodo)
+    expect(reloadedWorkerContext.vacations?.entitlements?.[1]?.dueDate).toBe("2027-06-11")
     expect(reloadedWorkerContext.vacations?.entitlements?.[1]?.dueDateConfidence).toBe("PROVISIONAL")
     expect(reloadedWorkerContext.vacations?.entitlements?.[1]?.dueDateSource).toBe("PROJECTED")
 
@@ -74,8 +75,8 @@ describe("Integración: Tarjetón 14102026 → Perfil → Recarga → Simulador 
     const simulatorInput = prefillVacationSimulator(reloadedWorkerContext)
     expect(simulatorInput.dueDate).toBe("2026-10-14")
     expect(formatMexicanDate(simulatorInput.dueDate)).toBe("14/10/2026")
-    expect(simulatorInput.entitlements[0].dueDate).toBe("2026-10-14")
-    expect(simulatorInput.entitlements[1].dueDate).toBe("2027-04-14")
+    expect(simulatorInput.entitlements[0].dueDate).toBe("2027-02-11")
+    expect(simulatorInput.entitlements[1].dueDate).toBe("2027-06-11")
   })
 
   it("permite seleccionar roles compatibles en calendario DRAFT para simulación sin presentarlos como autorización oficial", () => {

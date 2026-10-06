@@ -13,7 +13,7 @@ import type { RecurringConceptEvidence, ConceptOccurrenceType, EligibilityPersis
 import { classifyOccurrence, classifyPersistence } from "@/shared/lib/recurring-concept-classifier"
 import { parsePorVencerDate } from "@/features/tarjeton/lib/imss-date-parser"
 import type { VacationEntitlement } from "@/features/vacations/domain/types"
-import { addCivilMonths } from "@/features/vacations/domain/role-eligibility"
+import { addCivilDays, addCivilMonths } from "@/features/vacations/domain/role-eligibility"
 
 export interface WorkerContextMeta {
   userId?: string | null
@@ -585,9 +585,11 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
   const periodRaw = latest?.period_raw ?? ""
   const entitlements: VacationEntitlement[] = []
   const workerRegime = radiologicalExposure === true ? "CUATRIMESTRAL" : "SEMESTRAL"
+  const cadenceDays = workerRegime === "CUATRIMESTRAL" ? 105 : 120
 
   if (vacationsData) {
-    // 1er periodo ordinario
+    const projectedFirst = dueDateVal ? addCivilDays(dueDateVal, cadenceDays) : null
+    // 1er periodo ordinario: vence en fecha de tarjetón + 105 días (o 120 días si es semestral)
     entitlements.push({
       id: "ord-1",
       sequence: 1,
@@ -595,9 +597,9 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
       entitlementKind: "ORDINARY",
       kind: "ORDINARY",
       periodNumber: 1,
-      dueDate: dueDateVal ?? null,
-      dueDateSource: dueDateVal ? "TARJETON" : "MISSING",
-      dueDateConfidence: dueDateVal ? "CONFIRMED" : "UNKNOWN",
+      dueDate: projectedFirst,
+      dueDateSource: projectedFirst ? "PROJECTED" : "MISSING",
+      dueDateConfidence: projectedFirst ? "PROVISIONAL" : "UNKNOWN",
       sourceRaw: typeof vacationsData.porVencerRaw === "string" ? vacationsData.porVencerRaw : undefined,
       sourcePayslipPeriod: periodRaw,
       confirmed: Boolean(dueDateVal),
@@ -607,7 +609,7 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
     const secondRaw = typeof vacationsData.secondPeriodStartRaw === "string" ? vacationsData.secondPeriodStartRaw : undefined
     const secondParsed = secondRaw ? parsePorVencerDate(secondRaw) || secondRaw : undefined
     const projectedSecond = (!secondParsed && dueDateVal)
-      ? addCivilMonths(dueDateVal, workerRegime === "CUATRIMESTRAL" ? 4 : 6)
+      ? addCivilDays(dueDateVal, cadenceDays * 2)
       : null
 
     entitlements.push({
@@ -627,7 +629,7 @@ export function buildWorkerContext(params: BuildWorkerContextParams): WorkerCont
 
     // 3er periodo ordinario (si es cuatrimestral por radiación)
     if (radiologicalExposure === true) {
-      const projectedThird = dueDateVal ? addCivilMonths(dueDateVal, 8) : null
+      const projectedThird = dueDateVal ? addCivilDays(dueDateVal, cadenceDays * 3) : null
       entitlements.push({
         id: "ord-3",
         sequence: 3,
