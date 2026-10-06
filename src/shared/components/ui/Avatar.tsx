@@ -14,14 +14,21 @@ export interface AvatarProps {
 
 export function Avatar({
   src,
-  alt = "Avatar",
+  alt = "",
   icon,
   size = 32,
   gradient = "linear-gradient(135deg, var(--primary), #6366f1)",
   className,
   style,
 }: AvatarProps) {
+  const [prevSrc, setPrevSrc] = useState(src)
   const [imageError, setImageError] = useState(false)
+
+  if (prevSrc !== src) {
+    setPrevSrc(src)
+    setImageError(false)
+  }
+
   const hasImage = Boolean(src && !imageError)
 
   return (
