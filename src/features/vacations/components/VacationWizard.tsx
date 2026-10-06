@@ -305,23 +305,27 @@ export function VacationWizard({ initialContext }: { initialContext?: WorkerCont
 
   const tabSmi = tabCategory?.smi || tabCategory?.baseMensual || (tabCategory?.sueldoQuincenal ? tabCategory.sueldoQuincenal * 2 : null)
 
+  const contextTotalEarnings = liveContext?.payroll?.totalEarnings
+
   const effectiveSmi = useMemo(() => {
     if (customSalary && customSalary > 0) return customSalary
     if (smiFromContext && smiFromContext > 0) return smiFromContext
     if (tabSmi && tabSmi > 0) return tabSmi
-    if (liveContext?.payroll?.totalEarnings && liveContext.payroll.totalEarnings > 0) {
-      return Math.round(liveContext.payroll.totalEarnings * 2 * 100) / 100
+    if (contextTotalEarnings && contextTotalEarnings > 0) {
+      return Math.round(contextTotalEarnings * 2 * 100) / 100
     }
     return 22000 // Benchmark promedio base IMSS
-  }, [customSalary, smiFromContext, tabSmi, liveContext?.payroll?.totalEarnings])
+  }, [customSalary, smiFromContext, tabSmi, contextTotalEarnings])
+
+  const tabCategoryNombre = tabCategory?.nombre
 
   const salarySourceLabel = useMemo(() => {
     if (customSalary && customSalary > 0) return `Sueldo capturado (${formatMexicanCurrency(customSalary)})`
     if (smiFromContext && smiFromContext > 0) return `Tarjetón confirmado (${formatMexicanCurrency(smiFromContext)})`
-    if (tabSmi && tabSmi > 0) return `Tabulador CCT: ${tabCategory?.nombre || categoryName} (${formatMexicanCurrency(tabSmi)})`
-    if (liveContext?.payroll?.totalEarnings && liveContext.payroll.totalEarnings > 0) return `Ingresos brutos x 2 (${formatMexicanCurrency(liveContext.payroll.totalEarnings * 2)})`
+    if (tabSmi && tabSmi > 0) return `Tabulador CCT: ${tabCategoryNombre || categoryName} (${formatMexicanCurrency(tabSmi)})`
+    if (contextTotalEarnings && contextTotalEarnings > 0) return `Ingresos brutos x 2 (${formatMexicanCurrency(contextTotalEarnings * 2)})`
     return `Base estimada IMSS (${formatMexicanCurrency(22000)})`
-  }, [customSalary, smiFromContext, tabSmi, tabCategory?.nombre, categoryName, liveContext?.payroll?.totalEarnings])
+  }, [customSalary, smiFromContext, tabSmi, tabCategoryNombre, categoryName, contextTotalEarnings])
 
   const isReconstructedSmi = Boolean(
     isReconstructedSmiFromContext ||
