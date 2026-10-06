@@ -474,25 +474,19 @@ select {
   white-space: nowrap;
 }
 
-/* Cuadrícula de 12 meses del calendario vacacional (3 columnas en pantallas medianas y grandes: Enero, Febrero, Marzo) */
+/* Cuadrícula de 12 meses del calendario vacacional (3 columnas: Enero, Febrero, Marzo) */
 .vacation-calendar-months-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1rem;
+  gap: 0.75rem;
   width: 100%;
   box-sizing: border-box;
 }
 
-@media (max-width: 900px) and (min-width: 600px) {
+@media (max-width: 599px) {
   .vacation-calendar-months-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.85rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
   }
 }
 
-@media (max-width: 599px) {
-  .vacation-calendar-months-grid {
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-  }
-}

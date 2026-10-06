@@ -214,3 +214,62 @@ export function formatMexicanCurrency(amount: number | null | undefined): string
     maximumFractionDigits: 2,
   }).format(amount)
 }
+
+export interface VacationPaymentTimingEstimate {
+  quincenaLabel: string
+  estimatedPaymentDate: string
+  civilDescription: string
+}
+
+const MONTH_NAMES_ES = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+]
+
+/**
+ * Estima la quincena y fecha de pago en la que el IMSS deposita las prestaciones
+ * vacacionales (Prima 029 y Ayuda Cultural 048) conforme a la Cláusula 47 del CCT:
+ * El pago se realiza con anticipación a la fecha en que el trabajador deba empezar a disfrutarlas.
+ *
+ * Regla de nómina IMSS:
+ * - Si el rol inicia del 1 al 15 del mes M: se cubre en la 2.ª quincena del mes previo (aprox. último día del mes previo).
+ * - Si el rol inicia del 16 en adelante del mes M: se cubre en la 1.ª quincena de ese mismo mes M (aprox. día 15 de ese mes).
+ */
+export function estimateVacationPaymentTiming(roleStartDate: string): VacationPaymentTimingEstimate {
+  const parts = roleStartDate.split("-").map(Number)
+  const year = parts[0]
+  const month = parts[1] // 1-12
+  const day = parts[2]
+
+  if (!year || !month || !day) {
+    return {
+      quincenaLabel: "Quincena previa a tu rol",
+      estimatedPaymentDate: "Fecha por confirmar",
+      civilDescription: "Se deposita en la quincena previa al inicio de tu rol conforme a la Cláusula 47 del CCT.",
+    }
+  }
+
+  if (day >= 16) {
+    const monthName = MONTH_NAMES_ES[month - 1]
+    return {
+      quincenaLabel: `1.ª quincena de ${monthName} de ${year}`,
+      estimatedPaymentDate: `15/${String(month).padStart(2, "0")}/${year}`,
+      civilDescription: `Se te deposita en la 1.ª quincena de ${monthName} de ${year} (aprox. 15 de ${monthName}), con anticipación a tu salida conforme a la Cláusula 47 del CCT.`,
+    }
+  } else {
+    let prevMonth = month - 1
+    let prevYear = year
+    if (prevMonth === 0) {
+      prevMonth = 12
+      prevYear = year - 1
+    }
+    const prevMonthName = MONTH_NAMES_ES[prevMonth - 1]
+    const lastDayOfPrevMonth = new Date(Date.UTC(prevYear, prevMonth, 0)).getUTCDate()
+    return {
+      quincenaLabel: `2.ª quincena de ${prevMonthName} de ${prevYear}`,
+      estimatedPaymentDate: `${lastDayOfPrevMonth}/${String(prevMonth).padStart(2, "0")}/${prevYear}`,
+      civilDescription: `Se te deposita en la 2.ª quincena de ${prevMonthName} de ${prevYear} (aprox. ${lastDayOfPrevMonth} de ${prevMonthName}), con anticipación a tu salida conforme a la Cláusula 47 del CCT.`,
+    }
+  }
+}
+

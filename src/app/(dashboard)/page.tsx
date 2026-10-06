@@ -7,6 +7,7 @@ import { DesktopQuickPills } from "@/shared/components/app/DesktopQuickPills"
 import { CalendarioLaboral } from "@/shared/components/app/CalendarioLaboral"
 import { AgendaCardWrapper } from "@/shared/components/app/AgendaCardWrapper"
 import { HomeHighlightsCarousel } from "@/features/dashboard/components/HomeHighlightsCarousel"
+import { HomeFacebookNewsPreview } from "@/features/facebook/components/HomeFacebookNewsPreview"
 import { RoleModeSwitch } from "@/shared/components/app/RoleModeSwitch"
 import {
   describeSupabaseError,
@@ -155,6 +156,8 @@ export default async function DashboardPage() {
           </div>
         </aside>
       </div>
+
+      <HomeFacebookNewsPreview />
 
       <style>{`
         .dashboard-desktop {

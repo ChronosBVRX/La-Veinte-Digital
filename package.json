@@ -47,7 +47,8 @@
     "studio:smoke": "bash apps/radio-studio/sidecar/scripts/studio-smoke.sh",
     "sidecar": "bash apps/radio-studio/sidecar/scripts/sidecarctl.sh",
     "test:unit": "npx vitest run packages/radio-core packages/tts-core src/features/normativa/__tests__ apps/radio-studio/sidecar/src/llm/__tests__",
-    "import:union-lockers": "node scripts/import-union-lockers.mjs"
+    "import:union-lockers": "node scripts/import-union-lockers.mjs",
+    "facebook:sync": "node --no-warnings --import tsx scripts/sync-facebook-posts.ts"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
