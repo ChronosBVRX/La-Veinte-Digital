@@ -44,6 +44,13 @@ export const APPROVED_MITIGATIONS: MitigatedVulnerability[] = [
     justification:
       "Dependencia transitiva de firebase-admin usada exclusivamente como cliente saliente para FCM; la app no expone servidores gRPC ni procesa certificados gRPC de entrada.",
   },
+  {
+    package: "source-map-js",
+    advisories: ["GHSA-68fv-2mgg-jv7q"],
+    severity: "high",
+    justification:
+      "Dependencia transitiva de PostCSS ejecutada únicamente durante la compilación interna (next build); ninguna ruta en producción procesa sourcemaps suministrados por usuarios.",
+  },
 ]
 
 export interface AuditVulnerabilityItem {
