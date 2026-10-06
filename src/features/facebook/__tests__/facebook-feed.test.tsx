@@ -322,4 +322,25 @@ describe("FacebookFeeds & FacebookPostCard", () => {
     expect(videoEl).toBeInTheDocument()
     expect(videoEl).toHaveAttribute("src", "https://example.com/comunicado.mp4")
   })
+
+  it("renders image lightbox in document.body via portal with 'Abrir fuera' button and closes on Esc", () => {
+    render(<FacebookPostCard post={samplePosts[0]} />)
+
+    // Click Ampliar
+    const enlargeBtn = screen.getByRole("button", { name: /Ampliar/i })
+    fireEvent.click(enlargeBtn)
+
+    // Modal dialog should be in document.body
+    const dialog = screen.getByRole("dialog", { name: /Visor de imágenes de noticia/i })
+    expect(dialog).toBeInTheDocument()
+    expect(dialog.parentElement).toBe(document.body)
+
+    // Should include 'Abrir fuera' button
+    const openExternalBtn = screen.getByRole("button", { name: /Abrir fuera/i })
+    expect(openExternalBtn).toBeInTheDocument()
+
+    // Press Escape to close
+    fireEvent.keyDown(window, { key: "Escape" })
+    expect(screen.queryByRole("dialog", { name: /Visor de imágenes de noticia/i })).not.toBeInTheDocument()
+  })
 })

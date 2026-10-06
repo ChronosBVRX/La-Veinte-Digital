@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { createPortal } from "react-dom"
 import {
   ArrowSquareOut,
   CaretLeft,
@@ -13,6 +14,7 @@ import {
 } from "@phosphor-icons/react"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
+import { Z_INDEX } from "@/shared/constants/z-index"
 import { FACEBOOK_PAGES, type FacebookPost } from "../types"
 
 interface FacebookPostCardProps {
@@ -162,6 +164,31 @@ export function FacebookPostCard({ post, compact = false }: FacebookPostCardProp
 
   const visibleGridImages = validImages.slice(0, compact ? 1 : 4)
   const extraImagesCount = Math.max(0, validImages.length - visibleGridImages.length)
+
+  useEffect(() => {
+    if (lightboxIndex === null) return
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setLightboxIndex(null)
+      } else if (e.key === "ArrowLeft") {
+        setLightboxIndex((prev) =>
+          prev !== null ? (prev - 1 + validImages.length) % validImages.length : null,
+        )
+      } else if (e.key === "ArrowRight") {
+        setLightboxIndex((prev) =>
+          prev !== null ? (prev + 1) % validImages.length : null,
+        )
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => {
+      document.body.style.overflow = prevOverflow
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [lightboxIndex, validImages.length])
 
   return (
     <>
@@ -382,111 +409,188 @@ export function FacebookPostCard({ post, compact = false }: FacebookPostCardProp
                     />
                   </div>
                 ) : targetVideoUrl ? (
-                  <div
-                    style={{
-                      position: "relative",
-                      width: "100%",
-                      aspectRatio: isReel ? "9 / 16" : "16 / 9",
-                      maxHeight: compact ? 340 : 480,
-                      background: "#0f172a",
-                      borderRadius: "var(--radius)",
-                      overflow: "hidden",
-                    }}
-                  >
-                    <iframe
-                      src={`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(targetVideoUrl)}&show_text=false&width=500`}
-                      width="100%"
-                      height="100%"
-                      style={{ border: "none", overflow: "hidden", width: "100%", height: "100%" }}
-                      scrolling="no"
-                      frameBorder="0"
-                      allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-                      allowFullScreen
-                      title={headline ?? "Video oficial de la Sección XX"}
-                    />
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                    <div
+                      style={{
+                        position: "relative",
+                        width: "100%",
+                        aspectRatio: isReel ? "9 / 16" : "16 / 9",
+                        maxHeight: compact ? 340 : 480,
+                        background: "#0f172a",
+                        borderRadius: "var(--radius)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <iframe
+                        src={`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(targetVideoUrl)}&show_text=false&width=500`}
+                        width="100%"
+                        height="100%"
+                        style={{ border: "none", overflow: "hidden", width: "100%", height: "100%" }}
+                        scrolling="no"
+                        frameBorder="0"
+                        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                        allowFullScreen
+                        title={headline ?? "Video oficial de la Sección XX"}
+                      />
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "0.5rem 0.75rem",
+                        background: "var(--accent)",
+                        borderRadius: "var(--radius-sm)",
+                        border: "1px solid var(--border)",
+                        gap: "0.5rem",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                        ¿Video bloqueado o transmisión en vivo?
+                      </span>
+                      <a
+                        href={targetVideoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.3rem",
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          color: "var(--primary)",
+                          textDecoration: "none",
+                        }}
+                      >
+                        Abrir y ver en Facebook
+                        <ArrowSquareOut size={13} weight="bold" />
+                      </a>
+                    </div>
                   </div>
                 ) : null
               ) : validImages.length > 0 ? (
                 /* Video con miniatura de portada */
-                <div
-                  style={{
-                    position: "relative",
-                    width: "100%",
-                    aspectRatio: isReel ? "9 / 16" : compact ? "16 / 9" : "16 / 10",
-                    maxHeight: compact ? 260 : 360,
-                    background: "#0f172a",
-                    borderRadius: "var(--radius)",
-                    overflow: "hidden",
-                    border: "1px solid var(--border)",
-                    cursor: "pointer",
-                  }}
-                  onClick={() => setIsPlayingVideo(true)}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={validImages[0]}
-                    alt={headline ?? `Video de ${pageConfig.name}`}
-                    loading="lazy"
-                    onError={() =>
-                      setFailedImages((prev) => ({
-                        ...prev,
-                        [validImages[0]]: true,
-                      }))
-                    }
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                      display: "block",
-                    }}
-                  />
-                  {/* Capa de reproducción */}
+                <div>
                   <div
                     style={{
-                      position: "absolute",
-                      inset: 0,
-                      background:
-                        "linear-gradient(to top, rgba(15, 23, 42, 0.72) 0%, rgba(15, 23, 42, 0.25) 60%, transparent 100%)",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: "1rem",
-                      gap: "0.6rem",
+                      position: "relative",
+                      width: "100%",
+                      aspectRatio: isReel ? "9 / 16" : compact ? "16 / 9" : "16 / 10",
+                      maxHeight: compact ? 260 : 360,
+                      background: "#0f172a",
+                      borderRadius: "var(--radius)",
+                      overflow: "hidden",
+                      border: "1px solid var(--border)",
+                      cursor: "pointer",
                     }}
+                    onClick={() => setIsPlayingVideo(true)}
                   >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={validImages[0]}
+                      alt={headline ?? `Video de ${pageConfig.name}`}
+                      loading="lazy"
+                      onError={() =>
+                        setFailedImages((prev) => ({
+                          ...prev,
+                          [validImages[0]]: true,
+                        }))
+                      }
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        display: "block",
+                      }}
+                    />
+                    {/* Capa de reproducción */}
                     <div
                       style={{
-                        width: compact ? 46 : 56,
-                        height: compact ? 46 : 56,
-                        borderRadius: "50%",
-                        background: "rgba(255, 255, 255, 0.95)",
-                        color: "#0f172a",
+                        position: "absolute",
+                        inset: 0,
+                        background:
+                          "linear-gradient(to top, rgba(15, 23, 42, 0.72) 0%, rgba(15, 23, 42, 0.25) 60%, transparent 100%)",
                         display: "flex",
+                        flexDirection: "column",
                         alignItems: "center",
                         justifyContent: "center",
-                        boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+                        padding: "1rem",
+                        gap: "0.6rem",
                       }}
                     >
-                      <Play size={compact ? 22 : 26} weight="fill" />
+                      <div
+                        style={{
+                          width: compact ? 46 : 56,
+                          height: compact ? 46 : 56,
+                          borderRadius: "50%",
+                          background: "rgba(255, 255, 255, 0.95)",
+                          color: "#0f172a",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+                        }}
+                      >
+                        <Play size={compact ? 22 : 26} weight="fill" />
+                      </div>
+                      <span
+                        style={{
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          color: "#ffffff",
+                          textShadow: "0 1px 3px rgba(0,0,0,0.8)",
+                          background: "rgba(15, 23, 42, 0.65)",
+                          padding: "0.2rem 0.65rem",
+                          borderRadius: "999px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.3rem",
+                        }}
+                      >
+                        <VideoCamera size={13} weight="fill" />
+                        {isReel ? "Reproducir Reel" : "Reproducir Video"}
+                      </span>
                     </div>
-                    <span
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      marginTop: "0.5rem",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => setIsPlayingVideo(true)}
+                      leadingIcon={<Play size={14} weight="fill" />}
+                    >
+                      {isReel ? "Reproducir reel" : "Reproducir video"}
+                    </Button>
+                    <a
+                      href={targetVideoUrl || post.permalinkUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       style={{
-                        fontSize: "0.75rem",
-                        fontWeight: 700,
-                        color: "#ffffff",
-                        textShadow: "0 1px 3px rgba(0,0,0,0.8)",
-                        background: "rgba(15, 23, 42, 0.65)",
-                        padding: "0.2rem 0.65rem",
-                        borderRadius: "999px",
                         display: "inline-flex",
                         alignItems: "center",
                         gap: "0.3rem",
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color: "var(--fg)",
+                        background: "var(--accent)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "var(--radius)",
+                        padding: "0.35rem 0.65rem",
+                        textDecoration: "none",
                       }}
                     >
-                      <VideoCamera size={13} weight="fill" />
-                      {isReel ? "Reproducir Reel" : "Reproducir Video"}
-                    </span>
+                      Ver en Facebook
+                      <ArrowSquareOut size={13} weight="bold" />
+                    </a>
                   </div>
                 </div>
               ) : (
@@ -728,109 +832,145 @@ export function FacebookPostCard({ post, compact = false }: FacebookPostCardProp
         </div>
       </Card>
 
-      {/* Visor modal de imágenes */}
-      {lightboxIndex !== null && validImages[lightboxIndex] && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Visor de imágenes de noticia"
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1100,
-            background: "rgba(15, 23, 42, 0.88)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1rem",
-          }}
-        >
+      {/* Visor modal de imágenes montado en body para evitar quedar atrapado en layouts con scroll/transform */}
+      {lightboxIndex !== null &&
+        validImages[lightboxIndex] &&
+        typeof document !== "undefined" &&
+        document.body &&
+        createPortal(
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Visor de imágenes de noticia"
             style={{
-              width: "100%",
-              maxWidth: 920,
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: "100vw",
+              height: "100vh",
+              zIndex: Z_INDEX.fullscreen,
+              background: "rgba(15, 23, 42, 0.94)",
+              backdropFilter: "blur(6px)",
               display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "0.75rem",
-              color: "#ffffff",
-            }}
-          >
-            <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>
-              {pageConfig.name} · Imagen {lightboxIndex + 1} de {validImages.length}
-            </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setLightboxIndex(null)}
-              leadingIcon={<X size={16} weight="bold" />}
-            >
-              Cerrar
-            </Button>
-          </div>
-
-          <div
-            style={{
-              position: "relative",
-              width: "100%",
-              maxWidth: 920,
-              maxHeight: "78vh",
-              display: "flex",
+              flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              background: "#0f172a",
-              borderRadius: "var(--radius-lg)",
-              overflow: "hidden",
-              border: "1px solid rgba(255,255,255,0.15)",
+              padding: "1rem",
+              boxSizing: "border-box",
+              margin: 0,
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setLightboxIndex(null)
+              }
             }}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={validImages[lightboxIndex]}
-              alt={headline ?? pageConfig.name}
-              style={{
-                maxWidth: "100%",
-                maxHeight: "76vh",
-                objectFit: "contain",
-                display: "block",
-              }}
-            />
-          </div>
-
-          {validImages.length > 1 && (
             <div
               style={{
+                width: "100%",
+                maxWidth: 960,
                 display: "flex",
                 alignItems: "center",
-                gap: "0.75rem",
-                marginTop: "0.85rem",
+                justifyContent: "space-between",
+                marginBottom: "0.75rem",
+                color: "#ffffff",
+                gap: "0.5rem",
+                flexWrap: "wrap",
               }}
             >
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() =>
-                  setLightboxIndex(
-                    (lightboxIndex - 1 + validImages.length) % validImages.length,
-                  )
-                }
-                leadingIcon={<CaretLeft size={16} weight="bold" />}
-              >
-                Anterior
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setLightboxIndex((lightboxIndex + 1) % validImages.length)}
-                trailingIcon={<CaretRight size={16} weight="bold" />}
-              >
-                Siguiente
-              </Button>
+              <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>
+                {pageConfig.name} · Imagen {lightboxIndex + 1} de {validImages.length}
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    window.open(validImages[lightboxIndex], "_blank", "noopener,noreferrer")
+                  }}
+                  leadingIcon={<ArrowSquareOut size={15} weight="bold" />}
+                  title="Abrir imagen original en nueva ventana o pestaña"
+                >
+                  Abrir fuera
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setLightboxIndex(null)}
+                  leadingIcon={<X size={16} weight="bold" />}
+                >
+                  Cerrar
+                </Button>
+              </div>
             </div>
-          )}
-        </div>
-      )}
+
+            <div
+              style={{
+                position: "relative",
+                width: "100%",
+                maxWidth: 960,
+                maxHeight: "78vh",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "#090d16",
+                borderRadius: "var(--radius-lg)",
+                overflow: "hidden",
+                border: "1px solid rgba(255,255,255,0.18)",
+                boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={validImages[lightboxIndex]}
+                alt={headline ?? pageConfig.name}
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "76vh",
+                  objectFit: "contain",
+                  display: "block",
+                }}
+              />
+            </div>
+
+            {validImages.length > 1 && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  marginTop: "0.85rem",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    setLightboxIndex(
+                      (lightboxIndex - 1 + validImages.length) % validImages.length,
+                    )
+                  }
+                  leadingIcon={<CaretLeft size={16} weight="bold" />}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setLightboxIndex((lightboxIndex + 1) % validImages.length)}
+                  trailingIcon={<CaretRight size={16} weight="bold" />}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            )}
+          </div>,
+          document.body,
+        )}
     </>
   )
 }
