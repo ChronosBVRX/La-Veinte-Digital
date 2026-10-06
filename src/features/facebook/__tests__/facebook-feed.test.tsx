@@ -9,7 +9,12 @@ import {
   extractPostsFromHtmlAndGraphqlChunks,
 } from "../lib/relay-post-extractor"
 import { FacebookFeeds } from "../components/FacebookFeeds"
-import { FacebookPostCard, splitHeadlineAndBody } from "../components/FacebookPostCard"
+import {
+  FacebookPostCard,
+  splitHeadlineAndBody,
+  isDirectVideoUrl,
+  isFacebookVideoUrl,
+} from "../components/FacebookPostCard"
 import type { FacebookPost } from "../types"
 
 describe("relay-post-extractor", () => {
@@ -94,15 +99,53 @@ describe("relay-post-extractor", () => {
     expect(posts[0].images[0].width).toBe(960)
   })
 
+  it("extracts video posts with thumbnails and marks isVideo flag", () => {
+    const videoPayload = {
+      comet_sections: {
+        story: {
+          post_id: "reel-123",
+          creation_time: 1791155621,
+          url: "https://www.facebook.com/reel/123456789/",
+          message: {
+            text: "🎬 Mensaje oficial en video de la Sección XX",
+          },
+          attachments: [
+            {
+              preferred_thumbnail: {
+                image: {
+                  uri: "https://scontent.xx.fbcdn.net/v/t39.30808-6/reel_thumb.jpg",
+                  width: 720,
+                  height: 1280,
+                },
+              },
+            },
+          ],
+        },
+      },
+    }
+
+    const posts = extractPostsFromHtmlAndGraphqlChunks(
+      "seccionxx",
+      [],
+      [JSON.stringify(videoPayload)],
+    )
+
+    expect(posts).toHaveLength(1)
+    expect(posts[0].externalPostId).toBe("reel-123")
+    expect(posts[0].isVideo).toBe(true)
+    expect(posts[0].images).toHaveLength(1)
+    expect(posts[0].images[0].uri).toContain("reel_thumb.jpg")
+  })
+
   it("merges graphql stream chunks and deduplicates identical text signatures", () => {
     const storyA = {
       comet_sections: {
         story: {
           post_id: "1001",
           creation_time: 1791155621,
-          url: "https://www.facebook.com/SNTSSOFICIAL/posts/pfbidA",
+          url: "https://www.facebook.com/SNTSSSeccionXXMichoacan/posts/pfbidA",
           message: {
-            text: "Comunicado oficial del Comité Ejecutivo Nacional sobre las convocatorias escalafonarias vigentes para todo el personal.",
+            text: "Comunicado oficial de la Sección XX sobre las convocatorias escalafonarias vigentes para todo el personal.",
           },
         },
       },
@@ -112,16 +155,16 @@ describe("relay-post-extractor", () => {
         story: {
           post_id: "1002",
           creation_time: 1791155600,
-          url: "https://www.facebook.com/SNTSSOFICIAL/posts/pfbidB",
+          url: "https://www.facebook.com/SNTSSSeccionXXMichoacan/posts/pfbidB",
           message: {
-            text: "Comunicado oficial del Comité Ejecutivo Nacional sobre las convocatorias escalafonarias vigentes para todo el personal.",
+            text: "Comunicado oficial de la Sección XX sobre las convocatorias escalafonarias vigentes para todo el personal.",
           },
         },
       },
     }
 
     const posts = extractPostsFromHtmlAndGraphqlChunks(
-      "cen",
+      "seccionxx",
       [],
       [`${JSON.stringify(storyA)}\n${JSON.stringify(storyDuplicateEdited)}`],
     )
@@ -138,6 +181,22 @@ describe("relay-post-extractor", () => {
   })
 })
 
+describe("video url helper functions", () => {
+  it("detects direct video URLs correctly", () => {
+    expect(isDirectVideoUrl("https://example.com/video.mp4")).toBe(true)
+    expect(isDirectVideoUrl("https://example.com/stream.webm")).toBe(true)
+    expect(isDirectVideoUrl("https://example.com/image.jpg")).toBe(false)
+    expect(isDirectVideoUrl("")).toBe(false)
+  })
+
+  it("detects Facebook video and reel URLs correctly", () => {
+    expect(isFacebookVideoUrl("https://www.facebook.com/reel/1747719799784382/")).toBe(true)
+    expect(isFacebookVideoUrl("https://www.facebook.com/SNTSSSeccionXXMichoacan/videos/123/")).toBe(true)
+    expect(isFacebookVideoUrl("https://www.facebook.com/watch/?v=123")).toBe(true)
+    expect(isFacebookVideoUrl("https://www.facebook.com/SNTSSSeccionXXMichoacan/posts/123")).toBe(false)
+  })
+})
+
 const samplePosts: FacebookPost[] = [
   {
     id: "uuid-1",
@@ -148,18 +207,20 @@ const samplePosts: FacebookPost[] = [
     contentText:
       "🏆 CLAUSURA DEL TORNEO DE VOLEIBOL ZONA URUAPAN\nCon entusiasmo y gran espíritu deportivo llegó a su clausura el Torneo en Uruapan.",
     mediaUrls: ["https://supabase.la20.com.mx/storage/v1/object/public/facebook-media/seccionxx/1.jpg"],
+    category: "Deportes y Cultura",
     publishedAt: "2026-10-04T23:13:41.000Z",
     syncedAt: "2026-10-05T18:00:00.000Z",
   },
   {
     id: "uuid-2",
-    pageKey: "cen",
-    pageName: "CEN SNTSS Nacional",
-    externalPostId: "post-cen-1",
-    permalinkUrl: "https://www.facebook.com/SNTSSOFICIAL/posts/2",
+    pageKey: "seccionxx",
+    pageName: "SNTSS Sección XX Michoacán",
+    externalPostId: "post-xx-2",
+    permalinkUrl: "https://www.facebook.com/SNTSSSeccionXXMichoacan/posts/2",
     contentText:
       "📚 Día Mundial de los Docentes\nReconocemos a quienes hacen de la enseñanza una herramienta para transformar el IMSS.",
     mediaUrls: [],
+    category: "Capacitación",
     publishedAt: "2026-10-05T16:56:51.000Z",
     syncedAt: "2026-10-05T18:00:00.000Z",
   },
@@ -177,21 +238,17 @@ describe("FacebookFeeds & FacebookPostCard", () => {
     vi.restoreAllMocks()
   })
 
-  it("renders native posts and filters by Sección XX and CEN Nacional tabs", () => {
+  it("renders native posts exclusively for Sección XX Michoacán with category filter", () => {
     render(<FacebookFeeds initialPosts={samplePosts} />)
 
     expect(screen.getByText(/CLAUSURA DEL TORNEO DE VOLEIBOL/i)).toBeInTheDocument()
     expect(screen.getByText(/Día Mundial de los Docentes/i)).toBeInTheDocument()
+    expect(screen.getAllByText("SNTSS Sección XX Michoacán").length).toBeGreaterThan(0)
 
-    // Filter by Sección XX Michoacán
-    fireEvent.click(screen.getByRole("tab", { name: /Sección XX Michoacán/i }))
+    // Filter by category "Deportes y Cultura"
+    fireEvent.click(screen.getByRole("button", { name: "Deportes y Cultura" }))
     expect(screen.getByText(/CLAUSURA DEL TORNEO DE VOLEIBOL/i)).toBeInTheDocument()
     expect(screen.queryByText(/Día Mundial de los Docentes/i)).not.toBeInTheDocument()
-
-    // Filter by CEN Nacional
-    fireEvent.click(screen.getByRole("tab", { name: /CEN Nacional/i }))
-    expect(screen.queryByText(/CLAUSURA DEL TORNEO DE VOLEIBOL/i)).not.toBeInTheDocument()
-    expect(screen.getByText(/Día Mundial de los Docentes/i)).toBeInTheDocument()
   })
 
   it("expands and collapses long post text when clicking Leer comunicado completo", () => {
@@ -207,5 +264,62 @@ describe("FacebookFeeds & FacebookPostCard", () => {
 
     fireEvent.click(toggleBtn)
     expect(screen.getByRole("button", { name: /Mostrar menos/i })).toBeInTheDocument()
+  })
+
+  it("renders video card and switches to player when clicking play for a video post", () => {
+    const videoPost: FacebookPost = {
+      id: "uuid-video",
+      pageKey: "seccionxx",
+      pageName: "SNTSS Sección XX Michoacán",
+      externalPostId: "post-reel-1",
+      permalinkUrl: "https://www.facebook.com/reel/1747719799784382/",
+      contentText: "🎬 Mensaje oficial en video de la Sección XX",
+      mediaUrls: [],
+      isVideo: true,
+      publishedAt: "2026-10-05T17:00:00.000Z",
+      syncedAt: "2026-10-05T18:00:00.000Z",
+    }
+
+    render(<FacebookPostCard post={videoPost} />)
+
+    // Should display Reel badge and play button
+    expect(screen.getAllByText(/Reel/i).length).toBeGreaterThan(0)
+    const playBtn = screen.getAllByRole("button", { name: /Reproducir/i })[0]
+    expect(playBtn).toBeInTheDocument()
+
+    // Click play to render iframe player
+    fireEvent.click(playBtn)
+    const iframe = screen.getByTitle(/Video oficial de la Sección XX/i)
+    expect(iframe).toBeInTheDocument()
+    expect(iframe).toHaveAttribute(
+      "src",
+      expect.stringContaining("https%3A%2F%2Fwww.facebook.com%2Freel%2F1747719799784382%2F"),
+    )
+  })
+
+  it("renders native <video> element when mediaUrls contains a direct video file", () => {
+    const directVideoPost: FacebookPost = {
+      id: "uuid-mp4",
+      pageKey: "seccionxx",
+      pageName: "SNTSS Sección XX Michoacán",
+      externalPostId: "post-mp4-1",
+      permalinkUrl: "https://www.facebook.com/SNTSSSeccionXXMichoacan/posts/100",
+      contentText: "🎥 Video institucional informativo",
+      mediaUrls: ["https://example.com/comunicado.mp4"],
+      isVideo: true,
+      publishedAt: "2026-10-05T17:00:00.000Z",
+      syncedAt: "2026-10-05T18:00:00.000Z",
+    }
+
+    render(<FacebookPostCard post={directVideoPost} />)
+
+    // Click play to load direct video
+    const playBtn = screen.getAllByRole("button", { name: /Reproducir/i })[0]
+    fireEvent.click(playBtn)
+
+    // Should render a <video> element, not an <img> element
+    const videoEl = document.querySelector("video")
+    expect(videoEl).toBeInTheDocument()
+    expect(videoEl).toHaveAttribute("src", "https://example.com/comunicado.mp4")
   })
 })

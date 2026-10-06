@@ -8,10 +8,6 @@ const PAGES: Record<string, { url: string; name: string }> = {
     url: "https://www.facebook.com/SNTSSSeccionXXMichoacan",
     name: "Sección XX Michoacán",
   },
-  cen: {
-    url: "https://www.facebook.com/SNTSSOFICIAL",
-    name: "CEN SNTSS",
-  },
 }
 
 interface Props {

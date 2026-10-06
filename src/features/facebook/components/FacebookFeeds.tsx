@@ -5,7 +5,7 @@ import { ArrowSquareOut, Newspaper } from "@phosphor-icons/react"
 import { Button } from "@/shared/components/ui/Button"
 import { Card } from "@/shared/components/ui/Card"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
-import { FACEBOOK_PAGES, type FacebookPageKey, type FacebookPost } from "../types"
+import { FACEBOOK_PAGES, type FacebookPost } from "../types"
 import { FacebookPostCard } from "./FacebookPostCard"
 
 interface Props {
@@ -13,12 +13,9 @@ interface Props {
   initialPosts?: FacebookPost[]
 }
 
-type FilterTab = "all" | FacebookPageKey
-
 export function FacebookFeeds({ compact = false, initialPosts }: Props) {
   const [posts, setPosts] = useState<FacebookPost[]>(initialPosts ?? [])
   const [loading, setLoading] = useState(!initialPosts || initialPosts.length === 0)
-  const [activeTab, setActiveTab] = useState<FilterTab>("all")
   const [selectedCategory, setSelectedCategory] = useState<string>("all")
 
   useEffect(() => {
@@ -58,25 +55,14 @@ export function FacebookFeeds({ compact = false, initialPosts }: Props) {
 
   const filteredPosts = useMemo(() => {
     return posts.filter((p) => {
-      if (activeTab !== "all" && p.pageKey !== activeTab) return false
       if (selectedCategory !== "all" && p.category !== selectedCategory) return false
       return true
     })
-  }, [posts, activeTab, selectedCategory])
-
-  const counts = useMemo(() => {
-    let seccionxx = 0
-    let cen = 0
-    for (const p of posts) {
-      if (p.pageKey === "seccionxx") seccionxx++
-      else if (p.pageKey === "cen") cen++
-    }
-    return { all: posts.length, seccionxx, cen }
-  }, [posts])
+  }, [posts, selectedCategory])
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%" }}>
-      {/* Barra de filtros y enlaces directos oficiales */}
+      {/* Barra de cabecera de la Sección XX y enlace oficial */}
       <Card padding="0.875rem 1rem">
         <div
           style={{
@@ -88,42 +74,40 @@ export function FacebookFeeds({ compact = false, initialPosts }: Props) {
           }}
         >
           <div
-            role="tablist"
-            aria-label="Filtrar noticias por origen"
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "0.5rem",
+              gap: "0.625rem",
               flexWrap: "wrap",
             }}
           >
-            <Button
-              variant={activeTab === "all" ? "primary" : "outline"}
-              size="sm"
-              role="tab"
-              aria-selected={activeTab === "all"}
-              onClick={() => setActiveTab("all")}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: FACEBOOK_PAGES.seccionxx.accentColor,
+                  display: "inline-block",
+                }}
+              />
+              <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--fg)" }}>
+                {FACEBOOK_PAGES.seccionxx.name}
+              </span>
+            </div>
+            <span
+              style={{
+                fontSize: "0.6875rem",
+                fontWeight: 600,
+                padding: "0.15rem 0.5rem",
+                borderRadius: "999px",
+                background: "var(--accent)",
+                color: "var(--muted)",
+                border: "1px solid var(--border)",
+              }}
             >
-              Todas ({counts.all})
-            </Button>
-            <Button
-              variant={activeTab === "seccionxx" ? "primary" : "outline"}
-              size="sm"
-              role="tab"
-              aria-selected={activeTab === "seccionxx"}
-              onClick={() => setActiveTab("seccionxx")}
-            >
-              Sección XX Michoacán ({counts.seccionxx})
-            </Button>
-            <Button
-              variant={activeTab === "cen" ? "primary" : "outline"}
-              size="sm"
-              role="tab"
-              aria-selected={activeTab === "cen"}
-              onClick={() => setActiveTab("cen")}
-            >
-              CEN Nacional ({counts.cen})
-            </Button>
+              {filteredPosts.length} {filteredPosts.length === 1 ? "publicación" : "publicaciones"}
+            </span>
           </div>
 
           <div
@@ -148,24 +132,7 @@ export function FacebookFeeds({ compact = false, initialPosts }: Props) {
                 textDecoration: "none",
               }}
             >
-              FB Sección XX
-              <ArrowSquareOut size={13} weight="bold" />
-            </a>
-            <a
-              href={FACEBOOK_PAGES.cen.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.25rem",
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                color: "var(--muted)",
-                textDecoration: "none",
-              }}
-            >
-              FB CEN Nacional
+              Página oficial en Facebook
               <ArrowSquareOut size={13} weight="bold" />
             </a>
           </div>
@@ -231,14 +198,14 @@ export function FacebookFeeds({ compact = false, initialPosts }: Props) {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
+            gridTemplateColumns: "minmax(0, 1fr)",
             gap: "1rem",
           }}
         >
-          {(["seccionxx", "cen"] as const).map((key) => {
-            const cfg = FACEBOOK_PAGES[key]
+          {(() => {
+            const cfg = FACEBOOK_PAGES.seccionxx
             return (
-              <Card key={key} padding="1.25rem">
+              <Card padding="1.25rem">
                 <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
                     <span
@@ -284,7 +251,7 @@ export function FacebookFeeds({ compact = false, initialPosts }: Props) {
                 </div>
               </Card>
             )
-          })}
+          })()}
         </div>
       )}
     </div>

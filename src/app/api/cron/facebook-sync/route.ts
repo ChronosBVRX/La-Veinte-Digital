@@ -26,7 +26,7 @@ async function handle(request: NextRequest) {
   }
 
   try {
-    const summary = await syncLatestFacebookPostsViaHttp(["seccionxx", "cen"])
+    const summary = await syncLatestFacebookPostsViaHttp(["seccionxx"])
     return NextResponse.json(
       {
         ok: true,
