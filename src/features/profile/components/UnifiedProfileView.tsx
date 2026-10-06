@@ -254,7 +254,7 @@ export function UnifiedProfileView({
             {previousImports.length > 0 ? "Actualizar con nuevo tarjetón IMSS" : "Importar mi tarjetón IMSS"}
           </h2>
           <p style={{ fontSize: "var(--text-sm)", color: "var(--muted)", margin: 0, lineHeight: 1.5, wordBreak: "break-word" }}>
-            Sube tu archivo PDF del tarjetón para sincronizar automáticamente tu nombre, matrícula, categoría, antigüedad, jornada y conceptos en todas las herramientas de la app.
+            Sube tu archivo PDF para importar tarjetón IMSS y sincronizar automáticamente tu nombre, matrícula, categoría, antigüedad, jornada y conceptos en todas las herramientas de la app.
           </p>
         </div>
 

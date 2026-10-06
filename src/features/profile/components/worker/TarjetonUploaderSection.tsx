@@ -100,7 +100,7 @@ export function TarjetonUploaderSection({ profileSnapshot, userId }: TarjetonUpl
           )}
         </div>
       )}
-      <TarjetonImporterWrapper profile={profileSnapshot} userId={userId} onSuccess={handleSuccess} />
+      <TarjetonImporterWrapper profile={profileSnapshot} userId={userId} onSuccess={handleSuccess} embedded />
     </div>
   )
 }
