@@ -19,15 +19,17 @@ import { useIsNativeApp } from "@/shared/hooks/useIsNativeApp"
 interface ImssAutoConsultationCardProps {
   /** Estilo compacto para incrustar en el flujo de tarjetón */
   compact?: boolean
+  /** Matrícula del trabajador vinculada a su cuenta */
+  matricula?: string | null
 }
 
-export function ImssAutoConsultationCard({ compact = false }: ImssAutoConsultationCardProps) {
+export function ImssAutoConsultationCard({ compact = false, matricula = null }: ImssAutoConsultationCardProps) {
   const isNative = useIsNativeApp()
   const [hasTuPerfil, setHasTuPerfil] = useState(false)
   const [hasTarjeton, setHasTarjeton] = useState(false)
   const [showSecurityDetails, setShowSecurityDetails] = useState(!compact)
 
-  const checkCredentials = useCallback(() => {
+  const checkCredentials = useCallback(async () => {
     if (typeof window === "undefined" || !window.LaVeinteApp) {
       setHasTuPerfil(false)
       setHasTarjeton(false)
@@ -36,8 +38,17 @@ export function ImssAutoConsultationCard({ compact = false }: ImssAutoConsultati
 
     try {
       if (typeof window.LaVeinteApp.hasImssCredentials === "function") {
-        setHasTuPerfil(Boolean(window.LaVeinteApp.hasImssCredentials("tuperfil")))
-        setHasTarjeton(Boolean(window.LaVeinteApp.hasImssCredentials("tarjetondigital")))
+        const resTuPerfil = window.LaVeinteApp.hasImssCredentials("tuperfil")
+        const valTuPerfil = typeof resTuPerfil === "object" && resTuPerfil !== null && "then" in resTuPerfil
+          ? await (resTuPerfil as Promise<boolean>)
+          : Boolean(resTuPerfil)
+        setHasTuPerfil(Boolean(valTuPerfil))
+
+        const resTarjeton = window.LaVeinteApp.hasImssCredentials("tarjetondigital")
+        const valTarjeton = typeof resTarjeton === "object" && resTarjeton !== null && "then" in resTarjeton
+          ? await (resTarjeton as Promise<boolean>)
+          : Boolean(resTarjeton)
+        setHasTarjeton(Boolean(valTarjeton))
       }
     } catch {
       // Best-effort en consulta nativa
@@ -49,14 +60,18 @@ export function ImssAutoConsultationCard({ compact = false }: ImssAutoConsultati
       checkCredentials()
     }, 0)
 
-    const onFocus = () => checkCredentials()
-    window.addEventListener("focus", onFocus)
-    window.addEventListener("laveinte:native-ready", onFocus)
+    const onRefresh = () => {
+      checkCredentials()
+    }
+    window.addEventListener("focus", onRefresh)
+    window.addEventListener("laveinte:native-ready", onRefresh)
+    window.addEventListener("laveinte:imss-credentials-updated", onRefresh)
 
     return () => {
       clearTimeout(timer)
-      window.removeEventListener("focus", onFocus)
-      window.removeEventListener("laveinte:native-ready", onFocus)
+      window.removeEventListener("focus", onRefresh)
+      window.removeEventListener("laveinte:native-ready", onRefresh)
+      window.removeEventListener("laveinte:imss-credentials-updated", onRefresh)
     }
   }, [checkCredentials])
 
@@ -126,6 +141,7 @@ export function ImssAutoConsultationCard({ compact = false }: ImssAutoConsultati
             </div>
             <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: "0.35rem 0 0", lineHeight: 1.5 }}>
               Revisión anticipada de tu próximo tarjetón de nómina y consulta directa de checadas (asistencia biométrica).
+              {matricula ? ` Cuenta vinculada a matrícula ${matricula}.` : ""}
             </p>
           </div>
         </div>
@@ -142,6 +158,89 @@ export function ImssAutoConsultationCard({ compact = false }: ImssAutoConsultati
           </Button>
         )}
       </div>
+
+      {/* Estado por portal en la Bóveda del dispositivo */}
+      {isNative && (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: "0.625rem",
+          }}
+        >
+          {/* Tu Perfil IMSS */}
+          <div
+            style={{
+              padding: "0.625rem 0.75rem",
+              borderRadius: "var(--radius-sm)",
+              border: `1px solid ${hasTuPerfil ? "#bbf7d0" : "var(--border)"}`,
+              background: hasTuPerfil ? "#f0fdf4" : "var(--card)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.2rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--fg)" }}>
+                Tu Perfil IMSS (Recomendado)
+              </span>
+              <span
+                style={{
+                  fontSize: "0.7rem",
+                  fontWeight: 600,
+                  color: hasTuPerfil ? "#166534" : "var(--muted)",
+                  background: hasTuPerfil ? "#dcfce7" : "var(--accent)",
+                  padding: "0.1rem 0.4rem",
+                  borderRadius: "var(--radius-sm)",
+                }}
+              >
+                {hasTuPerfil ? "✓ Conectado" : "○ Sin guardar"}
+              </span>
+            </div>
+            <p style={{ fontSize: "0.72rem", color: "var(--muted)", margin: 0, lineHeight: 1.35 }}>
+              {hasTuPerfil
+                ? `Acceso listo para consultar tarjetón y checadas${matricula ? ` (${matricula})` : ""}.`
+                : "Se publican primero tus tarjetones y checadas biométricas."}
+            </p>
+          </div>
+
+          {/* Tarjetón Digital clásico */}
+          <div
+            style={{
+              padding: "0.625rem 0.75rem",
+              borderRadius: "var(--radius-sm)",
+              border: `1px solid ${hasTarjeton ? "#bbf7d0" : "var(--border)"}`,
+              background: hasTarjeton ? "#f0fdf4" : "var(--card)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.2rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--fg)" }}>
+                Tarjetón Digital tradicional
+              </span>
+              <span
+                style={{
+                  fontSize: "0.7rem",
+                  fontWeight: 600,
+                  color: hasTarjeton ? "#166534" : "var(--muted)",
+                  background: hasTarjeton ? "#dcfce7" : "var(--accent)",
+                  padding: "0.1rem 0.4rem",
+                  borderRadius: "var(--radius-sm)",
+                }}
+              >
+                {hasTarjeton ? "✓ Conectado" : "○ Sin guardar"}
+              </span>
+            </div>
+            <p style={{ fontSize: "0.72rem", color: "var(--muted)", margin: 0, lineHeight: 1.35 }}>
+              {hasTarjeton
+                ? "Portal tradicional de Recursos Humanos por Delegación listo."
+                : "Portal alterno por Delegación (rh.imss.gob.mx)."}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Qué hace esta función por el trabajador */}
       <div

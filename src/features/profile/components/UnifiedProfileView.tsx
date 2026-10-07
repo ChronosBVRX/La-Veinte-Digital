@@ -280,7 +280,7 @@ export function UnifiedProfileView({
       </section>
 
       {/* Bóveda IMSS y Consultas Automáticas */}
-      <ImssAutoConsultationCard compact />
+      <ImssAutoConsultationCard compact matricula={matricula} />
 
       {payslipsQueryError && (
         <div

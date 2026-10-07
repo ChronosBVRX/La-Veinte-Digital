@@ -952,6 +952,9 @@ fun InternalWebScreen(
                 } else {
                     android.view.View.VISIBLE
                 }
+                if (!isOffline && hasCommittedOnlinePage) {
+                    wv.evaluateJavascript("window.dispatchEvent(new Event('laveinte:imss-credentials-updated'))", null)
+                }
             },
             modifier = Modifier
                 .fillMaxSize()
