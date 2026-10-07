@@ -15,7 +15,7 @@ import { Tabs } from "@/shared/components/ui/Tabs"
 import { useLatestPayslip } from "@/features/tarjeton-guia/hooks/useLatestPayslip"
 import { buildExplainer, buildQuincenaSummary, type ExplainerStep } from "@/features/tarjeton-guia/lib/explainer"
 import { buildReviewChecklist, type ReviewItem } from "@/features/tarjeton-guia/lib/review"
-import { compareQuincenas, describeChange } from "@/features/tarjeton-guia/lib/compare"
+import { compareQuincenas } from "@/features/tarjeton-guia/lib/compare"
 import type { GuidePayslip } from "@/features/tarjeton-guia/lib/types"
 import { syncLatestSavedPayslip } from "@/features/tarjeton/services/sync-latest-payslip"
 import { analyzeAndPersistPayslip } from "@/features/tarjeton/services/analyze-and-persist-payslip"
@@ -502,16 +502,82 @@ function ReviewTab({ items, comparison }: { items: ReviewItem[]; comparison: Ret
           <div style={{ fontWeight: 700, fontSize: "0.875rem", margin: "0 0 0.625rem", wordBreak: "break-word" }}>
             ¿Qué cambió vs. {comparison.periodPrevious}?
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem", width: "100%", minWidth: 0 }}>
-            {comparison.changes.map((c, i) => (
-              <div key={`${c.code}-${i}`} style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap", width: "100%", minWidth: 0 }}>
-                <Badge variant={changeVariant(c.type)}>{changeTag(c.type)}</Badge>
-                <span style={{ fontSize: "0.8125rem", color: "var(--fg)", flex: "1 1 140px", minWidth: 0, wordBreak: "break-word" }}>{describeChange(c)}</span>
-                <Link href={`/guia/conceptos/${c.code}`} style={{ color: "var(--primary)", fontSize: "0.75rem", fontWeight: 600, textDecoration: "none", flexShrink: 0, minHeight: 32, display: "inline-flex", alignItems: "center" }}>
-                  Ver
-                </Link>
-              </div>
-            ))}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", width: "100%", minWidth: 0 }}>
+            {comparison.changes.map((c, i) => {
+              const diag = c.diagnosis
+              const isCritical = diag?.severity === "critical"
+              const isWarning = diag?.severity === "warning" || c.type === "bajo"
+              const cardBg = isCritical ? "#fef2f2" : isWarning ? "#fffbeb" : "var(--accent)"
+              const cardBorder = isCritical ? "#fecaca" : isWarning ? "#fde68a" : "var(--border)"
+
+              return (
+                <div
+                  key={`${c.code}-${i}`}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.5rem",
+                    background: cardBg,
+                    border: `1px solid ${cardBorder}`,
+                    borderRadius: "var(--radius-sm)",
+                    padding: "0.75rem 0.875rem",
+                    width: "100%",
+                    minWidth: 0,
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                      <Badge variant={isCritical ? "error" : changeVariant(c.type)}>
+                        {isCritical && c.type === "desaparecio" ? "⚠️ No cobrado" : isCritical ? "🚨 Alerta" : changeTag(c.type)}
+                      </Badge>
+                      <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--fg)" }}>
+                        {c.code} · {c.label || diag?.label || `Concepto ${c.code}`}
+                      </span>
+                    </div>
+                    <Link
+                      href={`/guia/conceptos/${c.code}`}
+                      style={{
+                        color: "var(--primary)",
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        textDecoration: "none",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.25rem",
+                        minHeight: 28,
+                      }}
+                    >
+                      Ficha del concepto <ArrowRight size={12} style={{ flexShrink: 0 }} />
+                    </Link>
+                  </div>
+
+                  {diag?.headline && (
+                    <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: isCritical ? "#991b1b" : isWarning ? "#92400e" : "var(--fg)", lineHeight: 1.4 }}>
+                      {diag.headline}
+                    </div>
+                  )}
+
+                  {diag?.nature && (
+                    <div style={{ fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.35 }}>
+                      <strong style={{ color: "var(--fg)" }}>Naturaleza:</strong> {diag.nature}
+                    </div>
+                  )}
+
+                  {diag?.probableCause && (
+                    <div style={{ fontSize: "0.75rem", color: "var(--fg)", lineHeight: 1.45, background: "rgba(255,255,255,0.7)", padding: "0.4rem 0.5rem", borderRadius: "4px" }}>
+                      <strong style={{ color: isCritical ? "#b91c1c" : "#b45309" }}>Causa probable:</strong> {diag.probableCause}
+                    </div>
+                  )}
+
+                  {diag?.recommendedAction && (
+                    <div style={{ fontSize: "0.75rem", color: "#1e3a8a", lineHeight: 1.4, background: "#eff6ff", border: "1px solid #bfdbfe", padding: "0.4rem 0.5rem", borderRadius: "4px" }}>
+                      <strong>Qué hacer:</strong> {diag.recommendedAction}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </Card>
       )}

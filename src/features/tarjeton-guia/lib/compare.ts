@@ -4,6 +4,10 @@
  */
 import type { GuidePayslip } from "@/features/tarjeton-guia/lib/types"
 import { normalizeCode } from "@/features/tarjeton-guia/lib/normalize"
+import {
+  diagnoseConceptDiscrepancy,
+  type ConceptDiscrepancyDiagnosis,
+} from "@/features/tarjeton-guia/lib/concept-discrepancy-diagnostics"
 
 export type ChangeType = "nuevo" | "desaparecio" | "subio" | "bajo"
 
@@ -13,6 +17,7 @@ export interface PayChange {
   label: string
   previousAmount?: number
   amount?: number
+  diagnosis?: ConceptDiscrepancyDiagnosis
 }
 
 export interface PayslipComparison {
@@ -28,7 +33,7 @@ function norm(line: { code: string | null; description?: string }) {
   return line.description || "sin-codigo"
 }
 
-/** Compara dos quincenas de forma descriptiva. */
+/** Compara dos quincenas de forma descriptiva incorporando diagnóstico de naturaleza laboral. */
 export function compareQuincenas(current: GuidePayslip, previous: GuidePayslip): PayslipComparison {
   const curAll = [...current.earnings, ...current.deductions]
   const prevAll = [...previous.earnings, ...previous.deductions]
@@ -47,14 +52,22 @@ export function compareQuincenas(current: GuidePayslip, previous: GuidePayslip):
     curCodes.add(c)
     const prev = prevByCode.get(c)
     if (!prev) {
-      changes.push({ type: "nuevo", code: c, label: l.description, amount: l.amount })
+      const diag = diagnoseConceptDiscrepancy(c, "nuevo", { amount: l.amount, label: l.description })
+      changes.push({ type: "nuevo", code: c, label: l.description, amount: l.amount, diagnosis: diag })
     } else if (Math.abs(prev.amount - l.amount) > 0.01) {
+      const changeType = Math.abs(l.amount) > Math.abs(prev.amount) ? "subio" : "bajo"
+      const diag = diagnoseConceptDiscrepancy(c, changeType, {
+        previousAmount: prev.amount,
+        amount: l.amount,
+        label: l.description,
+      })
       changes.push({
-        type: Math.abs(l.amount) > Math.abs(prev.amount) ? "subio" : "bajo",
+        type: changeType,
         code: c,
         label: l.description,
         previousAmount: prev.amount,
         amount: l.amount,
+        diagnosis: diag,
       })
     }
   }
@@ -62,7 +75,17 @@ export function compareQuincenas(current: GuidePayslip, previous: GuidePayslip):
   for (const l of prevAll) {
     const c = norm(l)
     if (!curCodes.has(c)) {
-      changes.push({ type: "desaparecio", code: c, label: l.description, previousAmount: l.amount })
+      const diag = diagnoseConceptDiscrepancy(c, "desaparecio", {
+        previousAmount: l.amount,
+        label: l.description,
+      })
+      changes.push({
+        type: "desaparecio",
+        code: c,
+        label: l.description,
+        previousAmount: l.amount,
+        diagnosis: diag,
+      })
     }
   }
 
@@ -75,16 +98,24 @@ export function compareQuincenas(current: GuidePayslip, previous: GuidePayslip):
   }
 }
 
-/** Frase descriptiva para un cambio (nunca acusatoria). */
+/** Frase descriptiva para un cambio que diagnostica su naturaleza y causa probable. */
 export function describeChange(change: PayChange): string {
+  const diag =
+    change.diagnosis ??
+    diagnoseConceptDiscrepancy(change.code, change.type, {
+      previousAmount: change.previousAmount,
+      amount: change.amount,
+      label: change.label,
+    })
+
   switch (change.type) {
     case "nuevo":
-      return `El concepto ${change.code} ${change.label ? `(${change.label})` : ""} aparece en esta quincena.`
+      return `El concepto ${change.code} ${change.label ? `(${change.label})` : ""} aparece en esta quincena.${diag.probableCause ? ` Causa: ${diag.probableCause}` : ""}`
     case "desaparecio":
-      return `El concepto ${change.code} no aparece en esta quincena.`
+      return `El concepto ${change.code} no aparece en esta quincena.${diag.probableCause ? ` Causa probable: ${diag.probableCause}` : ""}`
     case "subio":
-      return `El importe del concepto ${change.code} aumentó respecto a la quincena anterior.`
+      return `El importe del concepto ${change.code} aumentó respecto a la quincena anterior.${diag.probableCause ? ` (${diag.probableCause})` : ""}`
     case "bajo":
-      return `El importe del concepto ${change.code} es menor respecto a la quincena anterior.`
+      return `El importe del concepto ${change.code} es menor respecto a la quincena anterior.${diag.probableCause ? ` Causa probable: ${diag.probableCause}` : ""}`
   }
 }

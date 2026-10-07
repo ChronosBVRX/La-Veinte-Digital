@@ -1,15 +1,13 @@
 "use client"
 
 import { useMemo, useState, type CSSProperties } from "react"
-import { BookMarked, Search, Radio, Library, Database, RefreshCw, GitCompareArrows, Mic2, BookOpen } from "lucide-react"
+import { BookMarked, Search, Library, Database, RefreshCw, GitCompareArrows, BookOpen } from "lucide-react"
 import type { LibraryData, LibraryDocumentEntry } from "../services/catalog"
 import { DocumentCard } from "./DocumentCard"
 import { DocumentDetail } from "./DocumentDetail"
 import { BusquedaNormativa } from "./BusquedaNormativa"
-import { InvestigacionPanel } from "./InvestigacionPanel"
 import { PanelSincronizacion } from "./PanelSincronizacion"
 import { PanelComparador } from "./PanelComparador"
-import { PanelTtsDiagnostico } from "./PanelTtsDiagnostico"
 import { NormativaOfflineDownloadCard } from "./NormativaOfflineDownloadCard"
 import { NormativeReferenceModal } from "@/shared/components/normativa/NormativeReferenceModal"
 
@@ -82,14 +80,8 @@ const containerStyle: CSSProperties = {
 export function BibliotecaNormativaPage({ data }: Props) {
   const [tab, setTab] = useState<TabId>("todos")
   const [selected, setSelected] = useState<LibraryDocumentEntry | null>(null)
-  const [mode, setMode] = useState<"biblioteca" | "buscar" | "investigar" | "sincronizar" | "comparar" | "voces">("biblioteca")
-  const [researchTopic, setResearchTopic] = useState<string>("")
+  const [mode, setMode] = useState<"biblioteca" | "buscar" | "sincronizar" | "comparar">("biblioteca")
   const [modalOpen, setModalOpen] = useState<boolean>(false)
-
-  const startEpisode = (topic: string) => {
-    setResearchTopic(topic)
-    setMode("investigar")
-  }
 
   const filtered = useMemo(() => data.documents.filter((d) => matchTab(d, tab)), [data.documents, tab])
 
@@ -146,17 +138,11 @@ export function BibliotecaNormativaPage({ data }: Props) {
           <button onClick={() => setMode("buscar")} style={mode === "buscar" ? activeMode : modeStyle}>
             <Search size={16} /> Buscar en normativa
           </button>
-          <button onClick={() => setMode("investigar")} style={mode === "investigar" ? activeMode : modeStyle}>
-            <Radio size={16} /> Investigar para episodio
-          </button>
           <button onClick={() => setMode("sincronizar")} style={mode === "sincronizar" ? activeMode : modeStyle}>
             <RefreshCw size={16} /> Sincronización
           </button>
           <button onClick={() => setMode("comparar")} style={mode === "comparar" ? activeMode : modeStyle}>
             <GitCompareArrows size={16} /> Comparador CCT
-          </button>
-          <button onClick={() => setMode("voces")} style={mode === "voces" ? activeMode : modeStyle}>
-            <Mic2 size={16} /> Voces (TTS)
           </button>
         </div>
         <button
@@ -206,11 +192,9 @@ export function BibliotecaNormativaPage({ data }: Props) {
         </>
       )}
 
-      {mode === "buscar" && <BusquedaNormativa onCrearEpisodio={startEpisode} />}
-      {mode === "investigar" && <InvestigacionPanel initialTopic={researchTopic} />}
+      {mode === "buscar" && <BusquedaNormativa />}
       {mode === "sincronizar" && <PanelSincronizacion />}
       {mode === "comparar" && <PanelComparador />}
-      {mode === "voces" && <PanelTtsDiagnostico />}
 
       {selected && <DocumentDetail doc={selected} onClose={() => setSelected(null)} />}
       <NormativeReferenceModal isOpen={modalOpen} onClose={() => setModalOpen(false)} />

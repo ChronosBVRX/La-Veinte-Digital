@@ -1,9 +1,18 @@
+import crypto from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 import {
   evaluateTodayCalendar,
   isCalendarNotificationDispatched,
   dispatchCalendarPushForDate,
 } from "@/features/radar/services/calendar-alerts-service"
+
+function safeCompare(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  if (bufA.length !== bufB.length) return false
+  return crypto.timingSafeEqual(bufA, bufB)
+}
 
 function isAuthorized(request: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET
@@ -12,8 +21,8 @@ function isAuthorized(request: NextRequest): boolean {
   const authHeader = request.headers.get("authorization")
   const adminHeader = request.headers.get("x-push-admin-key") || request.headers.get("x-cron-key")
 
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) return true
-  if (adminKey && adminHeader === adminKey) return true
+  if (cronSecret && safeCompare(authHeader, `Bearer ${cronSecret}`)) return true
+  if (adminKey && safeCompare(adminHeader, adminKey)) return true
   if (!cronSecret && !adminKey && process.env.NODE_ENV !== "production") return true
 
   return false

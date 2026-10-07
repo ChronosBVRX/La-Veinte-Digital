@@ -13,6 +13,7 @@ import {
   CaretRight,
 } from "@phosphor-icons/react"
 import { BiometricSecurityCard } from "./BiometricSecurityCard"
+import { ImssAutoConsultationCard } from "./ImssAutoConsultationCard"
 import { DeleteWorkerDataSection } from "./worker/DeleteWorkerDataSection"
 import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
 
@@ -90,6 +91,9 @@ export function AppSettingsContent() {
           </div>
         </div>
       )}
+
+      {/* Bóveda IMSS y Consultas Automáticas (Tarjetón y Checadas) */}
+      <ImssAutoConsultationCard />
 
       {/* Notificaciones y Aplicación */}
       <div

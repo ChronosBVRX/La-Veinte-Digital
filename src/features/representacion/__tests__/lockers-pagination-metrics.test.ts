@@ -479,4 +479,64 @@ describe("Lockers Pagination & Canonical Metrics (>1000 records)", () => {
     expect(json.error).toBe("No se pudo cargar el inventario de casilleros.");
     expect(json.errorCode).toBe("42703");
   });
+
+  it("SECURITY: sanitizes CSV formula injection characters in export", async () => {
+    const maliciousLocker = {
+      id: "malicious-1",
+      locker_number: "=cmd|' /C calc'!A0",
+      status: "available",
+      condition: "ok",
+      zone_id: null,
+      bank_id: null,
+      row_position: null,
+      column_position: null,
+      position_label: "+12345",
+      sort_order: 1,
+      physical_code: "@SUM(1+1)",
+      notes: "-DDE(server,topic)",
+      maintenance_reason: null,
+      maintenance_notes: null,
+    };
+
+    const mockSupabase: any = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === "union_lockers") {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            range: vi.fn().mockImplementation((from: number) => {
+              if (from === 0) {
+                return Promise.resolve({ data: [maliciousLocker], error: null });
+              }
+              return Promise.resolve({ data: [], error: null });
+            }),
+          };
+        }
+        if (table === "union_locker_zones" || table === "union_locker_banks") {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          range: vi.fn().mockResolvedValue({ data: [], error: null }),
+        };
+      }),
+    };
+
+    vi.mocked(createClient).mockResolvedValue(mockSupabase);
+
+    const req = new Request(`https://la20.com.mx/api/union/lockers/export?delegation_id=${mockDelegationId}`);
+    const res = await getExport(req);
+    expect(res.status).toBe(200);
+
+    const csvText = await res.text();
+    // Formula characters (=, +, @, -) must be escaped with leading single-quote
+    expect(csvText).toContain("\"'=cmd|' /C calc'!A0\"");
+    expect(csvText).toContain("\"'@SUM(1+1)\"");
+    expect(csvText).toContain("\"'+12345\"");
+    expect(csvText).toContain("\"'-DDE(server,topic)\"");
+  });
 });

@@ -9,8 +9,12 @@ export const dynamic = "force-dynamic";
 
 function escapeCsv(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return '""';
-  const str = String(value).replace(/"/g, '""');
-  return `"${str}"`;
+  let str = String(value);
+  // Mitigación de CSV Formula Injection (DDE / Excel Command Execution)
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = "'" + str;
+  }
+  return `"${str.replace(/"/g, '""')}"`;
 }
 
 export async function GET(req: Request): Promise<NextResponse> {

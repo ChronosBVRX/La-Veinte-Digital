@@ -2,17 +2,13 @@
   "name": "la-veinte-digital",
   "version": "0.002",
   "private": true,
-  "workspaces": [
-    "packages/*",
-    "apps/radio-studio"
-  ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "predev": "node scripts/copy-vendor.mjs && node scripts/init-qwen-env.mjs",
+    "predev": "node scripts/copy-vendor.mjs",
     "dev": "next dev",
-    "prebuild": "node scripts/copy-vendor.mjs && node scripts/init-qwen-env.mjs",
+    "prebuild": "node scripts/copy-vendor.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -43,10 +39,7 @@
     "normativa:sync-pgvector": "node --no-warnings --import tsx src/features/normativa/cli/pgvector-sync.ts",
     "normativa:verify-rag": "node --no-warnings --import tsx src/features/normativa/cli/pgvector-verify.ts",
     "normativa:search": "node --no-warnings --import tsx src/features/normativa/cli/search.ts",
-    "tts:benchmark-laptop": "node --no-warnings --import tsx src/features/normativa/cli/tts-benchmark.ts",
-    "studio:smoke": "bash apps/radio-studio/sidecar/scripts/studio-smoke.sh",
-    "sidecar": "bash apps/radio-studio/sidecar/scripts/sidecarctl.sh",
-    "test:unit": "npx vitest run packages/radio-core packages/tts-core src/features/normativa/__tests__ apps/radio-studio/sidecar/src/llm/__tests__",
+    "test:unit": "npx vitest run src/features/normativa/__tests__",
     "import:union-lockers": "node scripts/import-union-lockers.mjs",
     "facebook:sync": "node --no-warnings --import tsx scripts/sync-facebook-posts.ts"
   },

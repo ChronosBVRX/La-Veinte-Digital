@@ -22,10 +22,10 @@ interface RespuestaData {
 }
 
 interface Props {
-  onCrearEpisodio: (topic: string) => void
+  onCrearEpisodio?: (topic: string) => void
 }
 
-export function BusquedaNormativa({ onCrearEpisodio }: Props) {
+export function BusquedaNormativa({ onCrearEpisodio }: Props = {}) {
   const [query, setQuery] = useState("")
   const [hits, setHits] = useState<SearchHit[] | null>(null)
   const [respuesta, setRespuesta] = useState<RespuestaData | null>(null)
@@ -108,12 +108,14 @@ export function BusquedaNormativa({ onCrearEpisodio }: Props) {
             <span style={{ ...badge, color: respuesta.coverage.recommended ? "#15803d" : "#b45309", background: respuesta.coverage.recommended ? "#dcfce7" : "#fef3c7" }}>
               Cobertura documental: {respuesta.coverage.coverage}%
             </span>
-            <button
-              onClick={() => onCrearEpisodio(query.trim())}
-              style={{ ...badge, background: "var(--primary)", color: "var(--primary-fg)", border: "none", cursor: "pointer" }}
-            >
-              🎙 Crear episodio sobre este tema
-            </button>
+            {onCrearEpisodio && (
+              <button
+                onClick={() => onCrearEpisodio(query.trim())}
+                style={{ ...badge, background: "var(--primary)", color: "var(--primary-fg)", border: "none", cursor: "pointer" }}
+              >
+                🎙 Crear episodio sobre este tema
+              </button>
+            )}
           </div>
           <div style={{ whiteSpace: "pre-wrap", fontSize: "0.88rem", lineHeight: 1.55 }}>{respuesta.respuesta}</div>
           {respuesta.coverage.warnings.length > 0 && (
