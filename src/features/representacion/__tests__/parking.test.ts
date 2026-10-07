@@ -300,4 +300,24 @@ describe("CAV HGR 1 Parking Integration & Padrón Sindical Linker", () => {
     expect(status.stationOnline).toBe(true);
     expect(status.bridgeCapable).toBe(true);
   });
+
+  it("getCavConfig never contains hardcoded default credentials and fails safely without env", async () => {
+    const { getCavConfig, loginToCavHgr1 } = await import("../services/parking/cav-hgr1-client");
+    const prevUser = process.env.CAV_HGR1_USERNAME;
+    const prevPass = process.env.CAV_HGR1_PASSWORD;
+    try {
+      delete process.env.CAV_HGR1_USERNAME;
+      delete process.env.CAV_HGR1_PASSWORD;
+
+      const cfg = getCavConfig();
+      expect(cfg.username).toBe("");
+      expect(cfg.password).toBe("");
+
+      await expect(loginToCavHgr1()).rejects.toThrow("CAV_CREDENTIALS_NOT_CONFIGURED");
+    } finally {
+      if (prevUser !== undefined) process.env.CAV_HGR1_USERNAME = prevUser;
+      if (prevPass !== undefined) process.env.CAV_HGR1_PASSWORD = prevPass;
+    }
+  });
 });
+

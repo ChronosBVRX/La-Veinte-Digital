@@ -29,12 +29,10 @@ export interface CavConfig {
 }
 
 export function getCavConfig(timeoutMs = 8000): CavConfig {
-  const defaultUser = Buffer.from("QkxBRElNSVIuVEVSQQ==", "base64").toString("utf8");
-  const defaultPass = Buffer.from("OTkxNzM5MzA=", "base64").toString("utf8");
   return {
     baseUrl: (process.env.CAV_HGR1_BASE_URL ?? "http://11.1.17.44:8080/acceso-hgr1").replace(/\/+$/, ""),
-    username: process.env.CAV_HGR1_USERNAME ?? defaultUser,
-    password: process.env.CAV_HGR1_PASSWORD ?? defaultPass,
+    username: process.env.CAV_HGR1_USERNAME ?? "",
+    password: process.env.CAV_HGR1_PASSWORD ?? "",
     timeoutMs,
   };
 }
@@ -182,6 +180,9 @@ async function fetchLatin1Html(url: string, init: RequestInit, timeoutMs: number
 
 export async function loginToCavHgr1(customTimeoutMs?: number): Promise<CavSession> {
   const cfg = getCavConfig(customTimeoutMs);
+  if (!cfg.username || !cfg.password) {
+    throw new Error("CAV_CREDENTIALS_NOT_CONFIGURED: CAV_HGR1_USERNAME y CAV_HGR1_PASSWORD son requeridos.");
+  }
   const { html, setCookie } = await fetchLatin1Html(
     `${cfg.baseUrl}/validar.php`,
     {

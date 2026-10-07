@@ -12,10 +12,16 @@ type AuthResultState =
   | undefined
 
 async function getRequestOrigin(): Promise<string> {
+  const configured = process.env.NEXT_PUBLIC_CANONICAL_ORIGIN || process.env.NEXT_PUBLIC_APP_URL
+  if (configured && process.env.NODE_ENV === "production") {
+    return configured.replace(/\/+$/, "")
+  }
   const { headers } = await import("next/headers")
   const headersList = await headers()
-  const host = headersList.get("x-forwarded-host") || headersList.get("host") || "localhost:3000"
-  const proto = headersList.get("x-forwarded-proto") || "http"
+  const rawHost = headersList.get("x-forwarded-host") || headersList.get("host") || "localhost:3000"
+  const host = /^([a-zA-Z0-9.-]+)(:\d+)?$/.test(rawHost) ? rawHost : "localhost:3000"
+  const rawProto = headersList.get("x-forwarded-proto") || "http"
+  const proto = rawProto === "https" ? "https" : "http"
   return `${proto}://${host}`
 }
 

@@ -138,22 +138,22 @@ export const guideReviewRules: GuideReviewRule[] = [
         if (has172) {
           return {
             state: "info",
-            message: "El concepto 032 no aparece en esta quincena (correlacionado con falta 172)",
-            caveat: "Las inasistencias injustificadas descuentan la jornada y suspenden la acreditación del estímulo de asistencia.",
+            message: "Te llegó una falta (172): el estímulo de asistencia (032) no aparece en esta quincena",
+            caveat: "Se registró una falta injustificada que descuenta la jornada y suspende la acreditación del estímulo de asistencia. Revisa tus checadas con tu Delegado Sindical si asististe o fue falla de biométrico.",
           }
         }
         return {
           state: "info",
-          message: "El concepto 032 no aparece en esta quincena",
-          caveat: "Los estímulos se evalúan con la quincena de incidencia: faltas, retardos o licencias pueden modificar su pago sin que exista un error.",
+          message: "El concepto 032 no aparece en esta quincena (revisa si se registró alguna falta o incidencia en checador)",
+          caveat: "Si no recibiste el estímulo de asistencia, es probable que se haya registrado una falta, licencia o pase en tu quincena de incidencia. Revisa tu reporte de asistencia en Tu Perfil IMSS.",
         }
       }
     },
     presentState: "normal",
     absentState: "info",
     presentMessage: "Estímulo por asistencia encontrado",
-    absentMessage: "El concepto 032 no aparece en esta quincena",
-    caveat: "Los estímulos se evalúan con la quincena de incidencia: faltas, retardos o licencias pueden modificar su pago sin que exista un error.",
+    absentMessage: "El concepto 032 no aparece en esta quincena (revisa si se registró una falta)",
+    caveat: "Los estímulos se evalúan con la quincena de incidencia: una falta o incidencia en checador cancela el estímulo de asistencia.",
     helpHref: "/guia/conceptos/032",
     helpLabel: "¿Por qué podría no aparecer?",
   },
@@ -189,22 +189,22 @@ export const guideReviewRules: GuideReviewRule[] = [
         if (has174) {
           return {
             state: "info",
-            message: "El concepto 033 no aparece (correlacionado con descuento de retardos 174)",
+            message: "El concepto 033 no aparece (descuento de retardos 174 registrado en checador)",
             caveat: "La acumulación de retardos fuera de los 5 minutos de tolerancia exime el pago del estímulo 033 en la quincena procesada.",
           }
         }
         return {
           state: "info",
-          message: "El concepto 033 no aparece en esta quincena",
-          caveat: "Esto no significa necesariamente que exista un error. Algunas incidencias o el periodo en que se genera el concepto pueden modificar cuándo aparece reflejado.",
+          message: "El concepto 033 no aparece en esta quincena (revisa retardos o checadas fuera de tolerancia)",
+          caveat: "Checar después de los 5 minutos de tolerancia o fallas en el registro biométrico interrumpen la decena de puntualidad requerida para el estímulo 033.",
         }
       }
     },
     presentState: "normal",
     absentState: "info",
     presentMessage: "Estímulo por puntualidad encontrado",
-    absentMessage: "El concepto 033 no aparece en esta quincena",
-    caveat: "Esto no significa necesariamente que exista un error. Algunas incidencias o el periodo en que se genera el concepto pueden modificar cuándo aparece reflejado.",
+    absentMessage: "El concepto 033 no aparece en esta quincena (revisa retardos en checador)",
+    caveat: "Los retardos o checadas después del minuto 5 de tolerancia interrumpen la secuencia continua de 10 días requerida para el estímulo 033.",
     helpHref: "/guia/conceptos/033",
     helpLabel: "¿Por qué podría no aparecer?",
   },

@@ -17,7 +17,51 @@ const enrollSchema = z.object({
   agent_version: z.string().max(30).optional(),
 });
 
+const MAX_ENROLL_ATTEMPTS = 10;
+const ENROLL_WINDOW_MS = 60_000;
+const enrollRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+function checkEnrollRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  for (const [k, v] of enrollRateLimits.entries()) {
+    if (v.resetAt <= now) enrollRateLimits.delete(k);
+  }
+  const rec = enrollRateLimits.get(ip);
+  if (rec) {
+    if (rec.resetAt > now) {
+      if (rec.count >= MAX_ENROLL_ATTEMPTS) {
+        return { allowed: false, retryAfter: Math.ceil((rec.resetAt - now) / 1000) };
+      }
+      rec.count++;
+      return { allowed: true };
+    }
+  }
+  while (enrollRateLimits.size >= 1000) {
+    const firstKey = enrollRateLimits.keys().next().value;
+    if (firstKey) enrollRateLimits.delete(firstKey);
+    else break;
+  }
+  enrollRateLimits.set(ip, { count: 1, resetAt: now + ENROLL_WINDOW_MS });
+  return { allowed: true };
+}
+
 export async function POST(req: Request): Promise<NextResponse> {
+  const clientIp =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip") ||
+    "127.0.0.1";
+
+  const rate = checkEnrollRateLimit(clientIp);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      {
+        error: "Demasiados intentos de vinculación. Por favor espera un momento.",
+        code: "RATE_LIMITED",
+      },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfter ?? 60) } },
+    );
+  }
+
   try {
     const body: unknown = await req.json().catch(() => ({}));
     const parsed = enrollSchema.safeParse(body);

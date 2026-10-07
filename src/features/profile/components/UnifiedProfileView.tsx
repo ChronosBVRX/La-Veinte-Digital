@@ -5,6 +5,7 @@ import { TarjetonUploaderSection } from "@/features/profile/components/worker/Ta
 import { TarjetonHistorySection, type PreviousImport } from "@/features/tarjeton/components/TarjetonHistorySection"
 import type { TarjetonProfileSnapshot } from "@/features/tarjeton/hooks/useTarjetonImporter"
 import { AvatarUploader } from "@/features/profile/components/worker/AvatarUploader"
+import { ImssAutoConsultationCard } from "@/features/profile/components/ImssAutoConsultationCard"
 
 export interface UnifiedProfileViewProps {
   userId: string
@@ -277,6 +278,9 @@ export function UnifiedProfileView({
           Ver mis documentos personales →
         </Link>
       </section>
+
+      {/* Bóveda IMSS y Consultas Automáticas */}
+      <ImssAutoConsultationCard compact />
 
       {payslipsQueryError && (
         <div

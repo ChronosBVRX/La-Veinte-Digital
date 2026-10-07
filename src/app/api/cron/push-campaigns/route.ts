@@ -1,3 +1,4 @@
+import crypto from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { createClient as createServiceRoleClient } from "@supabase/supabase-js"
 import { processCampaignBatch } from "@/features/push/services/campaign-worker"
@@ -9,11 +10,19 @@ function serviceClient() {
   return createServiceRoleClient(url, key)
 }
 
+function safeCompare(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false
+  const bufA = Buffer.from(a)
+  const bufB = Buffer.from(b)
+  if (bufA.length !== bufB.length) return false
+  return crypto.timingSafeEqual(bufA, bufB)
+}
+
 function isAuthorized(request: NextRequest): boolean {
   const cronSecret = process.env.CRON_SECRET
   const authHeader = request.headers.get("authorization")
 
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) return true
+  if (cronSecret && safeCompare(authHeader, `Bearer ${cronSecret}`)) return true
   // En desarrollo local permite probar sin secreto
   if (!cronSecret && process.env.NODE_ENV !== "production") return true
 
