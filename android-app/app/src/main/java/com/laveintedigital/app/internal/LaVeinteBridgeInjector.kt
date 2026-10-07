@@ -104,8 +104,21 @@ object LaVeinteBridgeInjector {
     checkForUpdate: function() { window.location.href = 'laveinte://bridge/checkForUpdate'; },
     openSavedDocuments: function() { window.location.href = 'laveinte://bridge/openSavedDocuments'; },
     hasImssCredentials: function(portalId) {
-      window.location.href = 'laveinte://bridge/hasImssCredentials?portalId=' + portalId;
-      return false;
+      var pId = String(portalId || '').trim();
+      return new Promise(function(resolve) {
+        var id = 'req' + (++__seq);
+        __pending[id] = function(p) {
+          try {
+            var val = JSON.parse(p || 'false');
+            window.LaVeinteApp.__imssCredentials = window.LaVeinteApp.__imssCredentials || {};
+            window.LaVeinteApp.__imssCredentials[pId] = Boolean(val);
+            resolve(Boolean(val));
+          } catch(e) {
+            resolve(false);
+          }
+        };
+        window.location.href = 'laveinte://bridge/hasImssCredentials?req=' + id + '&portalId=' + encodeURIComponent(pId);
+      });
     },
     onAuthenticated: function() { window.location.href = 'laveinte://bridge/onAuthenticated'; },
     onLoggedOut: function() { window.location.href = 'laveinte://bridge/onLoggedOut'; },
@@ -271,8 +284,23 @@ fun handleBridgeUrl(url: String, webView: WebView?): Boolean {
             BridgeHandler.onShareNativeDocument?.invoke(p, title)
         }
         "/hasImssCredentials" -> {
+            val req = parsed.queryParams["req"]
             val portalId = parsed.queryParams["portalId"] ?: return true
-            // Just consume, the JS side doesn't need the result
+            val wv = webView ?: return true
+            val ctx = wv.context
+            CoroutineScope(Dispatchers.Main).launch {
+                val hasCreds = runCatching {
+                    val portal = com.laveintedigital.app.imss.credentials.ImssPortal.entries.firstOrNull { it.id == portalId }
+                    if (portal != null) {
+                        com.laveintedigital.app.imss.credentials.ImssVaultManager.hasCredentials(ctx, portal)
+                    } else {
+                        com.laveintedigital.app.imss.credentials.ImssCredentialRepository.hasCredentials(ctx, portalId)
+                    }
+                }.getOrDefault(false)
+                if (!req.isNullOrBlank()) {
+                    pushBridgeResult(wv, req, if (hasCreds) "true" else "false")
+                }
+            }
         }
         "/hasBiometrics" -> {
             val req = parsed.queryParams["req"] ?: return true

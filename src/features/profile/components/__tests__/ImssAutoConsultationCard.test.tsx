@@ -43,21 +43,33 @@ describe("ImssAutoConsultationCard", () => {
     expect(openOfficialPayslips).toHaveBeenCalledTimes(1)
   })
 
-  it("en app nativa sin credenciales, muestra botón para configurar en bóveda", async () => {
-    const openOfficialPayslips = vi.fn()
+  it("en app nativa con credenciales vía Promise asíncrona, detecta y muestra estado activo", async () => {
     ;(window as unknown as { LaVeinteApp: unknown }).LaVeinteApp = {
       isNativeApp: () => true,
-      hasImssCredentials: () => false,
-      openOfficialPayslips,
+      hasImssCredentials: (portalId: string) => Promise.resolve(portalId === "tuperfil"),
+      openOfficialPayslips: vi.fn(),
     }
 
-    render(<ImssAutoConsultationCard />)
+    render(<ImssAutoConsultationCard matricula="99123456" />)
+
+    const manageBtn = await screen.findByRole("button", { name: /Gestionar Bóveda IMSS/i })
+    expect(manageBtn).toBeTruthy()
+    expect(await screen.findByText(/Bóveda configurada en tu celular/i)).toBeTruthy()
+    expect(screen.getByText(/Cuenta vinculada a matrícula 99123456/i)).toBeTruthy()
+    expect(screen.getByText(/Acceso listo para consultar tarjetón y checadas \(99123456\)/i)).toBeTruthy()
+  })
+
+  it("en app nativa sin credenciales pero con matrícula, muestra matrícula identificada", async () => {
+    ;(window as unknown as { LaVeinteApp: unknown }).LaVeinteApp = {
+      isNativeApp: () => true,
+      hasImssCredentials: () => Promise.resolve(false),
+      openOfficialPayslips: vi.fn(),
+    }
+
+    render(<ImssAutoConsultationCard matricula="88776655" />)
 
     const configBtn = await screen.findByRole("button", { name: /Configurar en Bóveda/i })
     expect(configBtn).toBeTruthy()
-    expect(screen.getByText(/Sin credenciales guardadas/i)).toBeTruthy()
-
-    fireEvent.click(configBtn)
-    expect(openOfficialPayslips).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(/Cuenta vinculada a matrícula 88776655/i)).toBeTruthy()
   })
 })

@@ -57,6 +57,17 @@ class TuPerfilSessionController(
     var failedLoginAttempts: Int = 0
         private set
 
+    init {
+        scope.launch(Dispatchers.IO) {
+            if (lastUsername == null) {
+                val payload = runCatching { ImssVaultManager.decryptCredentials(context, ImssPortal.TU_PERFIL) }.getOrNull()
+                if (payload != null && payload.username.isNotBlank()) {
+                    lastUsername = payload.username
+                }
+            }
+        }
+    }
+
     fun attachWebView(wv: WebView) { if (!webViewReady.isCompleted) webViewReady.complete(wv) }
 
     suspend fun awaitWebView(): WebView = webViewReady.await()

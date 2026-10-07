@@ -25,7 +25,7 @@ declare global {
     onLoggedOut(): void
     openOfficialPayslips(): void
     openBiometrics?(): void
-    hasImssCredentials(portalId: string): boolean
+    hasImssCredentials(portalId: string): Promise<boolean> | boolean
     checkForUpdate(): void
     openSavedDocuments?(): void
     requestCameraPermission(): Promise<{ granted: boolean; permanentlyDenied?: boolean }>
