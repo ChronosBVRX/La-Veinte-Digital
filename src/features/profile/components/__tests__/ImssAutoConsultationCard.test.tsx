@@ -25,19 +25,21 @@ describe("ImssAutoConsultationCard", () => {
     expect(screen.getByText(/Disponible exclusivamente en la App Móvil/i)).toBeTruthy()
   })
 
-  it("en app nativa con credenciales, muestra estado configurado y botón para gestionar bóveda", async () => {
+  it("en app nativa con bridge sincrónico legacy, detecta bóveda activa localmente", async () => {
     const openOfficialPayslips = vi.fn()
     ;(window as unknown as { LaVeinteApp: unknown }).LaVeinteApp = {
       isNativeApp: () => true,
-      hasImssCredentials: (portalId: string) => portalId === "tuperfil",
+      hasImssCredentials: () => false,
       openOfficialPayslips,
     }
 
-    render(<ImssAutoConsultationCard />)
+    render(<ImssAutoConsultationCard matricula="98173968" />)
 
     const manageBtn = await screen.findByRole("button", { name: /Gestionar Bóveda IMSS/i })
     expect(manageBtn).toBeTruthy()
-    expect(screen.getByText(/Bóveda configurada en tu celular/i)).toBeTruthy()
+    expect(screen.getByText(/Bóveda activa en tu celular/i)).toBeTruthy()
+    expect(screen.getByText(/Cuenta vinculada a matrícula 98173968/i)).toBeTruthy()
+    expect(screen.getByText(/Disponible en Bóveda/i)).toBeTruthy()
 
     fireEvent.click(manageBtn)
     expect(openOfficialPayslips).toHaveBeenCalledTimes(1)

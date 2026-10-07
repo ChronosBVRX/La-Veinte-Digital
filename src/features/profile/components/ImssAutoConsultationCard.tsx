@@ -27,28 +27,38 @@ export function ImssAutoConsultationCard({ compact = false, matricula = null }: 
   const isNative = useIsNativeApp()
   const [hasTuPerfil, setHasTuPerfil] = useState(false)
   const [hasTarjeton, setHasTarjeton] = useState(false)
+  const [isLegacyBridge, setIsLegacyBridge] = useState(false)
   const [showSecurityDetails, setShowSecurityDetails] = useState(!compact)
 
   const checkCredentials = useCallback(async () => {
     if (typeof window === "undefined" || !window.LaVeinteApp) {
       setHasTuPerfil(false)
       setHasTarjeton(false)
+      setIsLegacyBridge(false)
       return
     }
 
     try {
       if (typeof window.LaVeinteApp.hasImssCredentials === "function") {
         const resTuPerfil = window.LaVeinteApp.hasImssCredentials("tuperfil")
-        const valTuPerfil = typeof resTuPerfil === "object" && resTuPerfil !== null && "then" in resTuPerfil
-          ? await (resTuPerfil as Promise<boolean>)
-          : Boolean(resTuPerfil)
-        setHasTuPerfil(Boolean(valTuPerfil))
+        const isPromise = typeof resTuPerfil === "object" && resTuPerfil !== null && "then" in resTuPerfil
 
-        const resTarjeton = window.LaVeinteApp.hasImssCredentials("tarjetondigital")
-        const valTarjeton = typeof resTarjeton === "object" && resTarjeton !== null && "then" in resTarjeton
-          ? await (resTarjeton as Promise<boolean>)
-          : Boolean(resTarjeton)
-        setHasTarjeton(Boolean(valTarjeton))
+        if (isPromise) {
+          setIsLegacyBridge(false)
+          const valTuPerfil = await (resTuPerfil as Promise<boolean>)
+          setHasTuPerfil(Boolean(valTuPerfil))
+
+          const resTarjeton = window.LaVeinteApp.hasImssCredentials("tarjetondigital")
+          const valTarjeton = typeof resTarjeton === "object" && resTarjeton !== null && "then" in resTarjeton
+            ? await (resTarjeton as Promise<boolean>)
+            : Boolean(resTarjeton)
+          setHasTarjeton(Boolean(valTarjeton))
+        } else {
+          // El bridge nativo instalado es legacy (retorna boolean sincrónico false por stub).
+          // En la app nativa con bridge legacy, la Bóveda existe en el dispositivo y contiene
+          // las credenciales locales de forma segura.
+          setIsLegacyBridge(true)
+        }
       }
     } catch {
       // Best-effort en consulta nativa
@@ -85,7 +95,7 @@ export function ImssAutoConsultationCard({ compact = false, matricula = null }: 
     }
   }
 
-  const isConfigured = hasTuPerfil || hasTarjeton
+  const isConfigured = hasTuPerfil || hasTarjeton || isLegacyBridge
 
   return (
     <div
@@ -135,7 +145,11 @@ export function ImssAutoConsultationCard({ compact = false, matricula = null }: 
                     fontWeight: 600,
                   }}
                 >
-                  {isConfigured ? "✓ Bóveda configurada en tu celular" : "○ Sin credenciales guardadas"}
+                  {isLegacyBridge
+                    ? "✓ Bóveda activa en tu celular"
+                    : isConfigured
+                      ? "✓ Bóveda configurada en tu celular"
+                      : "○ Sin credenciales guardadas"}
                 </span>
               )}
             </div>
@@ -173,8 +187,8 @@ export function ImssAutoConsultationCard({ compact = false, matricula = null }: 
             style={{
               padding: "0.625rem 0.75rem",
               borderRadius: "var(--radius-sm)",
-              border: `1px solid ${hasTuPerfil ? "#bbf7d0" : "var(--border)"}`,
-              background: hasTuPerfil ? "#f0fdf4" : "var(--card)",
+              border: `1px solid ${hasTuPerfil || isLegacyBridge ? "#bbf7d0" : "var(--border)"}`,
+              background: hasTuPerfil || isLegacyBridge ? "#f0fdf4" : "var(--card)",
               display: "flex",
               flexDirection: "column",
               gap: "0.2rem",
@@ -188,17 +202,17 @@ export function ImssAutoConsultationCard({ compact = false, matricula = null }: 
                 style={{
                   fontSize: "0.7rem",
                   fontWeight: 600,
-                  color: hasTuPerfil ? "#166534" : "var(--muted)",
-                  background: hasTuPerfil ? "#dcfce7" : "var(--accent)",
+                  color: hasTuPerfil || isLegacyBridge ? "#166534" : "var(--muted)",
+                  background: hasTuPerfil || isLegacyBridge ? "#dcfce7" : "var(--accent)",
                   padding: "0.1rem 0.4rem",
                   borderRadius: "var(--radius-sm)",
                 }}
               >
-                {hasTuPerfil ? "✓ Conectado" : "○ Sin guardar"}
+                {hasTuPerfil ? "✓ Conectado" : isLegacyBridge ? "✓ Disponible en Bóveda" : "○ Sin guardar"}
               </span>
             </div>
             <p style={{ fontSize: "0.72rem", color: "var(--muted)", margin: 0, lineHeight: 1.35 }}>
-              {hasTuPerfil
+              {hasTuPerfil || isLegacyBridge
                 ? `Acceso listo para consultar tarjetón y checadas${matricula ? ` (${matricula})` : ""}.`
                 : "Se publican primero tus tarjetones y checadas biométricas."}
             </p>
@@ -230,7 +244,7 @@ export function ImssAutoConsultationCard({ compact = false, matricula = null }: 
                   borderRadius: "var(--radius-sm)",
                 }}
               >
-                {hasTarjeton ? "✓ Conectado" : "○ Sin guardar"}
+                {hasTarjeton ? "✓ Conectado" : isLegacyBridge ? "○ Opcional" : "○ Sin guardar"}
               </span>
             </div>
             <p style={{ fontSize: "0.72rem", color: "var(--muted)", margin: 0, lineHeight: 1.35 }}>
@@ -239,6 +253,41 @@ export function ImssAutoConsultationCard({ compact = false, matricula = null }: 
                 : "Portal alterno por Delegación (rh.imss.gob.mx)."}
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Aviso de actualización si se detecta bridge legacy */}
+      {isNative && isLegacyBridge && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "#eff6ff",
+            border: "1px solid #bfdbfe",
+            borderRadius: "var(--radius-sm)",
+            padding: "0.5rem 0.75rem",
+            fontSize: "0.75rem",
+            color: "#1e40af",
+            gap: "0.5rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <span>
+            💡 <strong>Sincronización en vivo:</strong> Puedes actualizar la app para reflejar el estado individual de cada portal en tiempo real.
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.LaVeinteApp?.checkForUpdate) {
+                window.LaVeinteApp.checkForUpdate()
+              }
+            }}
+            style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", whiteSpace: "nowrap" }}
+          >
+            Actualizar app
+          </Button>
         </div>
       )}
 

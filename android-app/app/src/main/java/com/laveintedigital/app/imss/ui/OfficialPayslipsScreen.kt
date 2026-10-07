@@ -284,6 +284,7 @@ private fun TarjetonPortalOptionCard(
             ) {
                 Box(
                     modifier = Modifier
+                        .weight(1f, fill = false)
                         .clip(RoundedCornerShape(50))
                         .background(accent.copy(alpha = 0.10f))
                         .padding(horizontal = 10.dp, vertical = 4.dp),
@@ -293,9 +294,12 @@ private fun TarjetonPortalOptionCard(
                         color = accent,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
                 }
                 if (saved) {
+                    Spacer(Modifier.width(8.dp))
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
@@ -316,6 +320,8 @@ private fun TarjetonPortalOptionCard(
                             color = Color(0xFF15803D),
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false,
                         )
                     }
                 }
