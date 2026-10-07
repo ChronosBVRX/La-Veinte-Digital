@@ -12,33 +12,14 @@ import {
   Trash,
   CaretRight,
 } from "@phosphor-icons/react"
-import { useState, useEffect } from "react"
 import { BiometricSecurityCard } from "./BiometricSecurityCard"
-import { ImssAutoConsultationCard } from "./ImssAutoConsultationCard"
 import { DeleteWorkerDataSection } from "./worker/DeleteWorkerDataSection"
 import { useIsNativeApp, useNativePlatform } from "@/shared/hooks/useIsNativeApp"
-import { useUser } from "@/shared/hooks/useUser"
-import { createClient } from "@/lib/supabase/client"
 
 export function AppSettingsContent() {
   const router = useRouter()
   const isNative = useIsNativeApp()
   const platform = useNativePlatform()
-  const { user } = useUser()
-  const [matricula, setMatricula] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!user) return
-    const supabase = createClient()
-    supabase
-      .from("profiles")
-      .select("matricula")
-      .eq("id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.matricula) setMatricula(data.matricula)
-      })
-  }, [user])
 
   return (
     <div style={{ maxWidth: "700px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
@@ -109,9 +90,6 @@ export function AppSettingsContent() {
           </div>
         </div>
       )}
-
-      {/* Bóveda IMSS y Consultas Automáticas (Tarjetón y Checadas) */}
-      <ImssAutoConsultationCard matricula={matricula} />
 
       {/* Notificaciones y Aplicación */}
       <div
