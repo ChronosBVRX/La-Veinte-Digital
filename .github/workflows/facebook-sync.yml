@@ -1,0 +1,58 @@
+name: Sincronización Automática Noticias Facebook
+
+on:
+  schedule:
+    # Ejecutar automáticamente cada 2 horas (al minuto 15)
+    - cron: '15 */2 * * *'
+  workflow_dispatch:
+    inputs:
+      scroll_iterations:
+        description: 'Iteraciones de scroll para cargar publicaciones históricas'
+        required: false
+        default: '5'
+
+concurrency:
+  group: facebook-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sincronizar Facebook Sección XX -> Supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Instalar navegador Chromium para Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Configurar variables de entorno desde secretos
+        run: |
+          if [ -n "${{ secrets.ENV_PRODUCTION_LOCAL }}" ]; then
+            echo "${{ secrets.ENV_PRODUCTION_LOCAL }}" > .env.production.local
+            chmod 600 .env.production.local
+          fi
+
+      - name: Ejecutar sincronización de Facebook
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          FB_COOKIES_JSON: ${{ secrets.FB_COOKIES_JSON }}
+          SCROLL_ITERATIONS: ${{ github.event.inputs.scroll_iterations || '5' }}
+        run: |
+          npm run facebook:sync
