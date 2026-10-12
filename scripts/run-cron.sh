@@ -3,7 +3,7 @@ set -e
 
 CRON_NAME="$1"
 if [ -z "$CRON_NAME" ]; then
-  echo "Uso: $0 <agenda-reminders|push-campaigns>"
+  echo "Uso: $0 <agenda-reminders|push-campaigns|facebook-sync>"
   exit 1
 fi
 

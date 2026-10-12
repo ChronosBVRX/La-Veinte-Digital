@@ -69,6 +69,9 @@ Los crons se ejecutan de forma **100% nativa e independiente** en el cron del si
 
 # Procesamiento de campañas push en cola (Cada 10 minutos)
 */10 * * * * /opt/laveinte-app/scripts/run-cron.sh push-campaigns >> /var/log/laveinte-crons.log 2>&1
+
+# Sincronización automática de noticias Facebook Sección XX (Cada 2 horas)
+0 */2 * * * /opt/laveinte-app/scripts/run-cron.sh facebook-sync >> /var/log/laveinte-crons.log 2>&1
 ```
 
 ### Verificación de Ejecución:

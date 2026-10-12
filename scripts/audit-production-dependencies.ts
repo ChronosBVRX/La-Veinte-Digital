@@ -25,10 +25,19 @@ export interface MitigatedVulnerability {
 export const APPROVED_MITIGATIONS: MitigatedVulnerability[] = [
   {
     package: "next",
-    advisories: ["GHSA-p293-qw3h-jr36", "GHSA-2xp9-vwfh-vxw4", "GHSA-vcvr-r3jv-pc5j"],
+    advisories: [
+      "GHSA-p293-qw3h-jr36",
+      "GHSA-2xp9-vwfh-vxw4",
+      "GHSA-vcvr-r3jv-pc5j",
+      "GHSA-4jqv-mc3x-m676",
+      "GHSA-39w2-rjm5-chcv",
+      "GHSA-f87g-xv8r-7p7x",
+      "GHSA-mcj8-r9mp-w47p",
+      "GHSA-cjq9-62q9-8jv4",
+    ],
     severity: "critical",
     justification:
-      "GHSA-p293-qw3h-jr36 solo afecta servidores Windows; producción corre en contenedores Linux/POSIX. GHSA-2xp9-vwfh-vxw4 requiere procesamiento de archivos AVIF no confiables en _next/image; la app no procesa AVIF de usuarios. GHSA-vcvr-r3jv-pc5j requiere el uso de next/og ImageResponse; la aplicación no utiliza next/og.",
+      "GHSA-p293-qw3h-jr36 solo afecta servidores Windows; producción corre en Linux/POSIX. GHSA-2xp9-vwfh-vxw4 y GHSA-cjq9-62q9-8jv4 no son explotables porque la app no procesa AVIF ni orígenes no confiables en optimización de imágenes. GHSA-vcvr-r3jv-pc5j y GHSA-f87g-xv8r-7p7x requieren next/og o metadata images dinámicas no usadas en la app. GHSA-39w2-rjm5-chcv solo afecta next dev con MCP. GHSA-4jqv-mc3x-m676 y GHSA-mcj8-r9mp-w47p afectan caché SSG/ISR no compartida entre usuarios en producción.",
   },
   {
     package: "brace-expansion",

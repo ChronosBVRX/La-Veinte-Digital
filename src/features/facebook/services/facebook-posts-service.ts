@@ -230,8 +230,16 @@ export async function persistScrapedPostsToSupabase(
           if (storedUrl) {
             finalMediaUrls.push(storedUrl)
             result.mirroredImagesCount++
+          } else if (img.uri && typeof img.uri === "string" && img.uri.startsWith("http")) {
+            // Fallback resiliente: si la subida a Storage falla, conservar la URL original de la imagen
+            finalMediaUrls.push(img.uri)
           }
         }
+      }
+
+      // Si finalMediaUrls quedó vacío pero existían URLs previas en la base de datos, preservarlas
+      if (finalMediaUrls.length === 0 && existingUrls.length > 0) {
+        finalMediaUrls.push(...existingUrls)
       }
 
       const classification = await classifyPostWithLocalAI(post.contentText)
@@ -294,22 +302,41 @@ export async function syncLatestFacebookPostsViaHttp(
 
   for (const key of pageKeys) {
     const cfg = FACEBOOK_PAGES[key]
-    try {
-      const response = await fetch(cfg.url, {
-        headers: BROWSER_NAV_HEADERS,
-        signal: AbortSignal.timeout(15000),
-      })
-      if (!response.ok) {
-        fetchErrors.push(`${key}: HTTP ${response.status}`)
-        continue
+    let extracted: ScrapedFacebookPost[] = []
+    let lastError: string | null = null
+
+    // Realizar hasta 2 intentos con cabeceras de navegación completas y retraso de espera
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const response = await fetch(cfg.url, {
+          headers: BROWSER_NAV_HEADERS,
+          signal: AbortSignal.timeout(18000),
+        })
+        if (!response.ok) {
+          lastError = `${key}: HTTP ${response.status} (intento ${attempt})`
+          if (attempt < 2) {
+            await new Promise((resolve) => setTimeout(resolve, 2000))
+          }
+          continue
+        }
+        const html = await response.text()
+        extracted = extractPostsFromFacebookHtml(key, html)
+        if (extracted.length > 0) {
+          lastError = null
+          break
+        }
+      } catch (err) {
+        lastError = `${key}: ${err instanceof Error ? err.message : "Error de red al consultar Facebook"} (intento ${attempt})`
+        if (attempt < 2) {
+          await new Promise((resolve) => setTimeout(resolve, 2000))
+        }
       }
-      const html = await response.text()
-      const extracted = extractPostsFromFacebookHtml(key, html)
+    }
+
+    if (extracted.length > 0) {
       allScraped.push(...extracted)
-    } catch (err) {
-      fetchErrors.push(
-        `${key}: ${err instanceof Error ? err.message : "Error de red al consultar Facebook"}`,
-      )
+    } else if (lastError) {
+      fetchErrors.push(lastError)
     }
   }
 

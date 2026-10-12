@@ -60,6 +60,16 @@ Inicialmente, el escaneo reportó:
   - La configuración de seguridad CSP en `next.config.ts` restringe estrictamente los orígenes de imágenes a `'self' data: blob:`.
   - **Conclusión:** No existe superficie de ataque explotable en producción.
 
+### 3.3. Advisories GHSA-4jqv-mc3x-m676 y GHSA-mcj8-r9mp-w47p (Cache Poisoning SSG/ISR)
+- **Descripción:** Manipulación de encabezados de caché en páginas estáticas autohospedadas.
+- **Configuración en La Veinte Digital:** La aplicación no utiliza páginas SSG/ISR compartidas entre usuarios con estado sensible; el proxy de sesión (`proxy.ts`) y Supabase SSR evalúan el contexto en tiempo real con `force-dynamic` en rutas privadas y de API.
+- **Conclusión:** Mitigado por arquitectura de renderizado dinámico.
+
+### 3.4. Advisories GHSA-39w2-rjm5-chcv, GHSA-f87g-xv8r-7p7x y GHSA-cjq9-62q9-8jv4
+- **Descripción:** MCP endpoint en servidor de desarrollo, SSRF en optimización de imágenes y bypass en imágenes de metadatos App Router.
+- **Configuración en La Veinte Digital:** El endpoint MCP solo existe en `next dev` (no en el build standalone de producción). La app no define rutas dinámicas para `opengraph-image`/`twitter-image` con `dynamicParams` ni expone el endpoint de optimización de imágenes a orígenes remotos no verificados (las imágenes de noticias se sirven desde Supabase Storage).
+- **Conclusión:** Superficie de ataque cerrada en el contenedor de producción.
+
 ---
 
 ## 4. Política de Compuerta en CI

@@ -39,22 +39,54 @@ function initEnv(): void {
 
 async function scrapeWithPlaywright(
   pageKeys: FacebookPageKey[],
-  scrollIterations = 4,
+  scrollIterations = Number(process.env.SCROLL_ITERATIONS || 5),
 ): Promise<ScrapedFacebookPost[]> {
   const { chromium } = await import("@playwright/test")
 
   const storageStatePath = process.env.FB_STORAGE_STATE_PATH
-  const hasStorageState = Boolean(storageStatePath && fs.existsSync(storageStatePath))
+  const hasStorageStateFile = Boolean(storageStatePath && fs.existsSync(storageStatePath))
 
-  const browser = await chromium.launch({ headless: true })
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-blink-features=AutomationControlled",
+    ],
+  })
   try {
-    const context = await browser.newContext({
+    const contextOptions: Record<string, unknown> = {
       locale: "es-MX",
       userAgent:
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
       viewport: { width: 1280, height: 1400 },
-      ...(hasStorageState ? { storageState: storageStatePath } : {}),
+    }
+
+    if (hasStorageStateFile && storageStatePath) {
+      contextOptions.storageState = storageStatePath
+    }
+
+    const context = await browser.newContext(contextOptions)
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", {
+        get: () => undefined,
+      })
     })
+
+    // Inyectar cookies adicionales si vienen por variable de entorno (CI / GitHub Actions)
+    const rawCookiesEnv = process.env.FB_COOKIES_JSON || process.env.FB_STORAGE_STATE_JSON
+    if (rawCookiesEnv) {
+      try {
+        const parsed = JSON.parse(rawCookiesEnv)
+        const cookies = Array.isArray(parsed) ? parsed : parsed.cookies
+        if (Array.isArray(cookies) && cookies.length > 0) {
+          await context.addCookies(cookies)
+        }
+      } catch (err) {
+        console.warn("[facebook:sync] No se pudieron parsear cookies de entorno:", err)
+      }
+    }
 
     const page = await context.newPage()
     const allPosts: ScrapedFacebookPost[] = []
@@ -91,7 +123,25 @@ async function scrapeWithPlaywright(
 
       page.on("response", onResponse)
 
-      await page.goto(cfg.url, { waitUntil: "domcontentloaded", timeout: 35000 })
+      // Cargar la página con reintento si ocurre timeout
+      let loaded = false
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          await page.goto(cfg.url, { waitUntil: "domcontentloaded", timeout: 40000 })
+          loaded = true
+          break
+        } catch (err) {
+          console.warn(`[facebook:sync] Intento ${attempt} de carga falló para ${cfg.shortName}:`, err)
+          if (attempt < 2) await page.waitForTimeout(3000)
+        }
+      }
+
+      if (!loaded) {
+        console.warn(`[facebook:sync] No se pudo cargar ${cfg.url}. Omitiendo...`)
+        page.off("response", onResponse)
+        continue
+      }
+
       await page.waitForTimeout(3000)
 
       // Capturar también el HTML actual por si el documento inicial ya cargó
@@ -104,20 +154,75 @@ async function scrapeWithPlaywright(
         // Ignorar
       }
 
-      // Cerrar modal de inicio de sesión si aparece en páginas públicas
-      try {
-        const closeBtn = page.locator('[aria-label="Cerrar"], [aria-label="Close"]').first()
-        if (await closeBtn.isVisible({ timeout: 2500 })) {
-          await closeBtn.click()
-          await page.waitForTimeout(1200)
+      // Función defensiva para cerrar modales de inicio de sesión o cookies
+      const dismissPopups = async () => {
+        try {
+          await page.keyboard.press("Escape")
+        } catch {
+          // Ignorar
         }
-      } catch {
-        // Sin modal
+
+        const dismissSelectors = [
+          '[aria-label="Cerrar"]',
+          '[aria-label="Close"]',
+          'div[role="dialog"] [aria-label="Cerrar"]',
+          'div[role="dialog"] button:has-text("Cerrar")',
+          'div[role="dialog"] button:has-text("Close")',
+          '[aria-label="Permitir todas las cookies"]',
+          '[aria-label="Allow all cookies"]',
+          '[aria-label="Declinable"]',
+        ]
+
+        for (const sel of dismissSelectors) {
+          try {
+            const btn = page.locator(sel).first()
+            if (await btn.isVisible({ timeout: 1200 })) {
+              await btn.click({ force: true })
+              await page.waitForTimeout(600)
+              break
+            }
+          } catch {
+            // Continuar
+          }
+        }
+
+        // Si Facebook bloquea el scroll con un modal de login que no se puede cerrar, desbloquear el DOM
+        try {
+          await page.evaluate(() => {
+            const dialogs = document.querySelectorAll('div[role="dialog"]')
+            dialogs.forEach((d) => {
+              const text = d.textContent || ""
+              if (
+                text.includes("iniciar sesión") ||
+                text.includes("Log in") ||
+                text.includes("Inicia sesión") ||
+                text.includes("Crea una cuenta")
+              ) {
+                ;(d as HTMLElement).style.display = "none"
+              }
+            })
+            document.body.style.overflow = "auto"
+            document.documentElement.style.overflow = "auto"
+          })
+        } catch {
+          // Ignorar
+        }
       }
 
+      await dismissPopups()
+
+      // Scroll con desplazamiento JS y rueda de ratón para sortear bloqueos de capa
       for (let i = 0; i < scrollIterations; i++) {
-        await page.mouse.wheel(0, 1500)
-        await page.waitForTimeout(1800)
+        try {
+          await page.evaluate(() => window.scrollBy(0, 1600))
+        } catch {
+          // Ignorar
+        }
+        await page.mouse.wheel(0, 1600)
+        await page.waitForTimeout(1900)
+        if (i % 2 === 0) {
+          await dismissPopups()
+        }
       }
 
       page.off("response", onResponse)
@@ -141,6 +246,13 @@ async function main() {
 
   console.log("=== SINCRONIZACIÓN DE NOTICIAS FACEBOOK SNTSS -> SUPABASE ===")
 
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error(
+      "[facebook:sync] ERROR: Faltan variables obligatorias de Supabase (NEXT_PUBLIC_SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY). Verifica los secretos de GitHub Actions o tu archivo .env local.",
+    )
+    process.exit(1)
+  }
+
   if (httpOnly) {
     console.log("[facebook:sync] Modo HTTP SSR seleccionado (--http-only)...")
     const res = await syncLatestFacebookPostsViaHttp(pageKeys)
@@ -149,7 +261,14 @@ async function main() {
   }
 
   try {
-    const posts = await scrapeWithPlaywright(pageKeys, 4)
+    const posts = await scrapeWithPlaywright(pageKeys)
+    if (posts.length === 0) {
+      console.warn("[facebook:sync] Playwright obtuvo 0 publicaciones, activando respaldo HTTP SSR...")
+      const res = await syncLatestFacebookPostsViaHttp(pageKeys)
+      console.log(JSON.stringify(res, null, 2))
+      return
+    }
+
     console.log(`[facebook:sync] Persistiendo ${posts.length} publicaciones e imágenes en Supabase...`)
     const res = await persistScrapedPostsToSupabase(posts)
     console.log(JSON.stringify(res, null, 2))
