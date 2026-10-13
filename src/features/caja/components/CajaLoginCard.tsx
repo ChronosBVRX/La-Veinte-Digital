@@ -18,10 +18,11 @@ import type { CajaLoginError } from "../services/caja-service"
 interface CajaLoginCardProps {
   onLogin: (matricula: string, password: string) => Promise<void>
   initialMatricula?: string
+  initialError?: string | null
   userId?: string
 }
 
-export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLoginCardProps) {
+export function CajaLoginCard({ onLogin, initialMatricula = "", initialError, userId }: CajaLoginCardProps) {
   const { user } = useUser()
   const effectiveUserId = userId || user?.id
 
@@ -29,11 +30,13 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [internalError, setInternalError] = useState<string | null>(null)
   const [rememberCredentials, setRememberCredentials] = useState(false)
   const [hasSaved, setHasSaved] = useState(false)
   const [modalError, setModalError] = useState<CajaLoginError | Error | null>(null)
   const [showErrorModal, setShowErrorModal] = useState(false)
+
+  const displayError = internalError ?? initialError ?? null
 
   useEffect(() => {
     let active = true
@@ -72,11 +75,11 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!matricula.trim() || !password) {
-      setError("Por favor ingresa tu matrícula y contraseña de Caja.")
+      setInternalError("Por favor ingresa tu matrícula y contraseña de Caja.")
       return
     }
 
-    setError(null)
+    setInternalError(null)
     setModalError(null)
     setLoading(true)
     try {
@@ -95,7 +98,7 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
       }
     } catch (err: unknown) {
       const loginErr = err instanceof Error ? err : new Error(String(err))
-      setError(loginErr.message)
+      setInternalError(loginErr.message)
       setModalError(loginErr as CajaLoginError | Error)
       setShowErrorModal(true)
     } finally {
@@ -137,7 +140,7 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
           </p>
         </div>
 
-        {error && (
+        {displayError && (
           <div
             style={{
               display: "flex",
@@ -153,7 +156,7 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
             }}
           >
             <WarningCircle size={18} weight="fill" style={{ flexShrink: 0, marginTop: "0.1rem" }} />
-            <span>{error}</span>
+            <span>{displayError}</span>
           </div>
         )}
 

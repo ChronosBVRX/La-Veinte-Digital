@@ -24,10 +24,11 @@ export function CajaDashboard() {
     account,
     loan,
     dates,
+    error,
     login,
     logout,
     refreshData,
-  } = useCaja()
+  } = useCaja(user?.id)
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("saldos")
 
@@ -44,7 +45,12 @@ export function CajaDashboard() {
       <CajaHeader session={session} onLogout={logout} />
 
       {!session?.authenticated ? (
-        <CajaLoginCard onLogin={login} initialMatricula={session?.matricula} userId={user?.id} />
+        <CajaLoginCard
+          onLogin={login}
+          initialMatricula={session?.matricula}
+          initialError={error}
+          userId={user?.id}
+        />
       ) : (
         <div style={{ width: "100%", minWidth: 0, boxSizing: "border-box" }}>
           {/* Navegación por pestañas */}

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { PiggyBank, CurrencyDollar, ArrowClockwise, CalendarBlank, TrendUp, Info, ShieldCheck, Calculator, CaretDown, CaretUp } from "@phosphor-icons/react"
+import { PiggyBank, CurrencyDollar, ArrowClockwise, CalendarBlank, TrendUp, Info, ShieldCheck, Calculator, CaretDown, CaretUp, WarningCircle } from "@phosphor-icons/react"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
 import { semaforo, proyectarAhorro } from "@/informative"
@@ -23,6 +23,46 @@ function formatMoney(amount?: number | null): string {
 }
 
 export function CajaBalanceCard({ balance, loading, onRefresh }: CajaBalanceCardProps) {
+  const [proyQuincenas, setProyQuincenas] = useState(12)
+  const [proyAbono, setProyAbono] = useState(500)
+  const [showProyector, setShowProyector] = useState(false)
+
+  if (!balance && !loading) {
+    return (
+      <Card padding="clamp(1.5rem, 4vw, 2.25rem)">
+        <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
+          <div
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: "50%",
+              background: "var(--accent)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <WarningCircle size={30} weight="duotone" color="var(--muted)" />
+          </div>
+          <div>
+            <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.35rem" }}>
+              Información de saldos no sincronizada
+            </div>
+            <div style={{ fontSize: "0.8125rem", color: "var(--muted)", maxWidth: "420px", lineHeight: 1.5, margin: "0 auto" }}>
+              No se recibieron registros del servidor de la Caja SNTSS. Si tu sesión expiró por inactividad o hubo una interrupción de red, presiona sincronizar para reintentar.
+            </div>
+          </div>
+          <Button variant="secondary" size="sm" onClick={onRefresh} loading={loading}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem" }}>
+              <ArrowClockwise size={16} />
+              <span>Sincronizar saldos</span>
+            </span>
+          </Button>
+        </div>
+      </Card>
+    )
+  }
+
   const saldoTotal = balance?.saldoTotal ?? balance?.saldo ?? 0
   const saldoAhorro = balance?.saldoAhorro ?? 0
   const saldoPrestamo = balance?.saldoPrestamo ?? 0
@@ -30,9 +70,6 @@ export function CajaBalanceCard({ balance, loading, onRefresh }: CajaBalanceCard
   const retiroLaboral = balance?.retiroLaboral ?? 0
 
   const sem = semaforo(saldoPrestamo, saldoAhorro)
-  const [proyQuincenas, setProyQuincenas] = useState(12)
-  const [proyAbono, setProyAbono] = useState(500)
-  const [showProyector, setShowProyector] = useState(false)
 
   const proyeccion = proyectarAhorro({
     saldoActual: saldoAhorro,

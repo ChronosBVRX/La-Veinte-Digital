@@ -9,6 +9,7 @@ import {
   Receipt,
   HandCoins,
   Clock,
+  WarningCircle,
 } from "@phosphor-icons/react"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
@@ -39,6 +40,42 @@ function formatMoney(amount?: number | null): string {
 }
 
 export function CajaLoanCard({ balance, account, loan, onRefresh, loading }: CajaLoanCardProps) {
+  if (!balance && !loan && !loading) {
+    return (
+      <Card padding="clamp(1.5rem, 4vw, 2.25rem)">
+        <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
+          <div
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: "50%",
+              background: "var(--accent)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <WarningCircle size={30} weight="duotone" color="var(--muted)" />
+          </div>
+          <div>
+            <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.35rem" }}>
+              Información de préstamos no sincronizada
+            </div>
+            <div style={{ fontSize: "0.8125rem", color: "var(--muted)", maxWidth: "420px", lineHeight: 1.5, margin: "0 auto" }}>
+              No se recibieron registros de préstamos del servidor de la Caja SNTSS. Presiona sincronizar para reintentar la consulta.
+            </div>
+          </div>
+          <Button variant="secondary" size="sm" onClick={onRefresh} loading={loading}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.375rem" }}>
+              <ArrowClockwise size={16} />
+              <span>Sincronizar información</span>
+            </span>
+          </Button>
+        </div>
+      </Card>
+    )
+  }
+
   const saldoPrestamo = balance?.saldoPrestamo ?? 0
   const saldoAhorro = balance?.saldoAhorro ?? 0
   const prestamoOtorgado = balance?.prestamoOtorgado ?? 0

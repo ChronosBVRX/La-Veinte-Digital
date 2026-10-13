@@ -36,6 +36,28 @@ export class CajaLoginError extends Error {
   }
 }
 
+export class CajaSessionExpiredError extends Error {
+  code = "session_expired"
+  constructor(message = "Tu sesión en la Caja de Ahorro ha expirado. Por favor ingresa nuevamente.") {
+    super(message)
+    this.name = "CajaSessionExpiredError"
+  }
+}
+
+export function isCajaSessionExpired(err: unknown): boolean {
+  if (!err) return false
+  if (err instanceof CajaSessionExpiredError) return true
+  const e = err as { code?: string; status?: number; message?: string }
+  const msg = e.message || ""
+  return (
+    e.code === "session_expired" ||
+    e.code === "unauthenticated" ||
+    e.status === 401 ||
+    /(sesi[oó]n|token).*(expirad|inv[aá]l|cerrad)/i.test(msg) ||
+    /unauthorized/i.test(msg)
+  )
+}
+
 export async function loginCaja(matricula: string, password: string) {
   const res = await fetch("/api/caja/login", {
     method: "POST",
@@ -67,7 +89,10 @@ export async function logoutCaja() {
 
 export async function getCajaBalance(): Promise<SaldoPayload> {
   const res = await fetch("/api/caja/balance")
-  const data = (await res.json()) as { ok?: boolean; balance?: SaldoPayload; error?: string }
+  const data = (await res.json()) as { ok?: boolean; balance?: SaldoPayload; error?: string; code?: string }
+  if (res.status === 401 || data.code === "session_expired" || data.code === "unauthenticated") {
+    throw new CajaSessionExpiredError(data.error || "Tu sesión en la Caja de Ahorro ha expirado")
+  }
   if (!res.ok || !data.ok) {
     throw new Error(data.error || "No se pudo obtener el saldo")
   }
@@ -76,7 +101,10 @@ export async function getCajaBalance(): Promise<SaldoPayload> {
 
 export async function getCajaAccount(): Promise<AccountProfile> {
   const res = await fetch("/api/caja/account")
-  const data = (await res.json()) as { ok?: boolean; profile?: AccountProfile; error?: string }
+  const data = (await res.json()) as { ok?: boolean; profile?: AccountProfile; error?: string; code?: string }
+  if (res.status === 401 || data.code === "session_expired" || data.code === "unauthenticated") {
+    throw new CajaSessionExpiredError(data.error || "Tu sesión en la Caja de Ahorro ha expirado")
+  }
   if (!res.ok || !data.ok) {
     throw new Error(data.error || "No se pudo obtener la información de la cuenta")
   }
@@ -85,7 +113,10 @@ export async function getCajaAccount(): Promise<AccountProfile> {
 
 export async function getCajaLoans(): Promise<{ estimate: CajaLoanInfo | null; renewal: unknown }> {
   const res = await fetch("/api/caja/loans")
-  const data = (await res.json()) as { ok?: boolean; estimate?: CajaLoanInfo; renewal?: unknown; error?: string }
+  const data = (await res.json()) as { ok?: boolean; estimate?: CajaLoanInfo; renewal?: unknown; error?: string; code?: string }
+  if (res.status === 401 || data.code === "session_expired" || data.code === "unauthenticated") {
+    throw new CajaSessionExpiredError(data.error || "Tu sesión en la Caja de Ahorro ha expirado")
+  }
   if (!res.ok || !data.ok) {
     throw new Error(data.error || "No se pudo consultar préstamos")
   }
@@ -123,7 +154,10 @@ export async function requestCajaWithdraw(params: WithdrawRequestParams) {
 
 export async function getCajaDates(): Promise<DateItem[]> {
   const res = await fetch("/api/caja/dates")
-  const data = (await res.json()) as { ok?: boolean; dates?: DateItem[]; error?: string }
+  const data = (await res.json()) as { ok?: boolean; dates?: DateItem[]; error?: string; code?: string }
+  if (res.status === 401 || data.code === "session_expired" || data.code === "unauthenticated") {
+    throw new CajaSessionExpiredError(data.error || "Tu sesión en la Caja de Ahorro ha expirado")
+  }
   if (!res.ok || !data.ok) {
     throw new Error(data.error || "No se pudieron consultar las citas")
   }
