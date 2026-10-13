@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { House, X, Article, FolderOpen, ShieldCheck, Handshake } from "@phosphor-icons/react"
+import { House, X, Article, FolderOpen, ShieldCheck, Handshake, PiggyBank } from "@phosphor-icons/react"
 import { DESKTOP_NAV_GROUPS, shouldPrefetchRoute } from "./navigation"
 import { useIsNativeApp } from "@/shared/hooks/useIsNativeApp"
 import { useBackLayer } from "@/shared/navigation/useBackLayer"
@@ -13,9 +13,16 @@ interface DesktopSidebarProps {
   onClose: () => void
   canAccessAdmin?: boolean
   canAccessUnion?: boolean
+  isCajaPublic?: boolean
 }
 
-export function DesktopSidebar({ open, onClose, canAccessAdmin = false, canAccessUnion = false }: DesktopSidebarProps) {
+export function DesktopSidebar({
+  open,
+  onClose,
+  canAccessAdmin = false,
+  canAccessUnion = false,
+  isCajaPublic = false,
+}: DesktopSidebarProps) {
   const pathname = usePathname()
   const isNative = useIsNativeApp()
   const isHomeActive = pathname === "/"
@@ -173,8 +180,18 @@ export function DesktopSidebar({ open, onClose, canAccessAdmin = false, canAcces
         </div>
       )}
 
-      {(canAccessUnion || canAccessAdmin) && (
+      {(canAccessUnion || canAccessAdmin || isCajaPublic) && (
         <div style={{ marginTop: "1rem", borderTop: "1px solid var(--border)", paddingTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.125rem" }}>
+          {(canAccessAdmin || isCajaPublic) && (
+            <NavItem
+              href="/caja"
+              label="Caja de Ahorro"
+              icon={PiggyBank}
+              isActive={pathname === "/caja" || pathname.startsWith("/caja/")}
+              color="var(--brand-navy, #1e3a8a)"
+              onClick={onClose}
+            />
+          )}
           {canAccessUnion && (
             <NavItem
               href="/representacion"
