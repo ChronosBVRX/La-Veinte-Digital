@@ -231,9 +231,12 @@ class TuPerfilBiometricFlowController(
 
     // ── API pública ────────────────────────────────────────────────────────
 
+    private var autoQueryLatest: Boolean = false
+
     fun attachWebView(wv: WebView) = session.attachWebView(wv)
 
-    fun start() {
+    fun start(autoQueryLatest: Boolean = false) {
+        this.autoQueryLatest = autoQueryLatest
         newGeneration()
         setState(TuPerfilBiometricFlowState.CheckingSession)
         session.start()
@@ -308,6 +311,7 @@ class TuPerfilBiometricFlowController(
     }
 
     fun backToPeriodSelection() {
+        selectedPeriod = BiometricFlowPolicy.defaultPeriod(periods)
         setState(TuPerfilBiometricFlowState.PeriodSelection(periods))
     }
 
@@ -475,11 +479,24 @@ class TuPerfilBiometricFlowController(
             // (17 — Michoacán) y esperar a que Angular repueble Periodo. NO se
             // leen periodos antes de aplicar OOAD: el selector de Periodo es
             // dependiente y las opciones previas quedarían obsoletas.
-            setState(TuPerfilBiometricFlowState.ReadingOoads, gen)
-            if (!readOoads(wv, gen)) return
+            val ooadPref = selectedOoad
+                ?: BiometricOoad(BiometricFlowPolicy.DEFAULT_OOAD_VALUE, BiometricFlowPolicy.DEFAULT_OOAD_LABEL)
+            val initialOoad = BiometricDiscovery.parseOoadStatus(
+                TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.ooadStatusJs(ooadPref.value, ooadPref.label))
+            )
+            val ooadAlreadySet = initialOoad?.found == true && initialOoad.isDefault == true
 
-            setState(TuPerfilBiometricFlowState.ApplyingOoad, gen)
-            if (!applyOoadGuarded(wv, gen)) return
+            if (ooadAlreadySet) {
+                selectedOoad = ooadPref
+                trace(gen, "OOAD", "ALREADY_SET", result = true, details = "displayText=${initialOoad.displayText ?: ""}")
+                Log.i(FLOW_TAG, "[$gen] ooadAlreadySet=true displayText=\"${initialOoad.displayText ?: ""}\"")
+            } else {
+                setState(TuPerfilBiometricFlowState.ReadingOoads, gen)
+                if (!readOoads(wv, gen)) return
+
+                setState(TuPerfilBiometricFlowState.ApplyingOoad, gen)
+                if (!applyOoadGuarded(wv, gen)) return
+            }
 
             setState(TuPerfilBiometricFlowState.WaitingPeriodsForOoad, gen)
             if (!waitPeriodsRefresh(wv, gen)) {
@@ -499,10 +516,13 @@ class TuPerfilBiometricFlowController(
             Log.i(FLOW_TAG, "[$gen] PERIOD_DATA_READY periods=${periods.size}")
             trace(gen, "OPEN", "OK", result = true, durationMs = System.currentTimeMillis() - openStartedAt)
 
-            // 5) ¿Recuperación post-sesión-expirada? → restaurar periodo y consultar.
+            // 5) ¿Recuperación post-sesión-expirada o consulta automática del último periodo?
             val target = autoQueryPeriod?.let { BiometricFlowPolicy.restorePeriod(periods, it) }
+                ?: if (autoQueryLatest) BiometricFlowPolicy.defaultPeriod(periods) else null
             if (target != null && gen == generation) {
                 runQuery(target, gen)
+            } else if (autoQueryLatest && gen == generation) {
+                setState(TuPerfilBiometricFlowState.PeriodSelection(periods), gen)
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
@@ -579,7 +599,9 @@ class TuPerfilBiometricFlowController(
             if (finalState == null) { lastFailure = BiometricFlowPolicy.PeriodsFailure.TIMEOUT; break }
 
             if (finalState.optString("status") == "success") {
-                val list = BiometricJson.parsePeriodArray(finalState.optJSONArray("periods"))
+                val list = BiometricFlowPolicy.sortNewestFirst(
+                    BiometricJson.parsePeriodArray(finalState.optJSONArray("periods")),
+                )
                 if (BuildConfig.DEBUG) logDiscoveryAttempt(gen, attempt, finalState, list.size)
                 if (list.isNotEmpty()) {
                     periods = list
@@ -599,7 +621,9 @@ class TuPerfilBiometricFlowController(
                         runDiscoveryVerification(wv, gen)
                     }
                     TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.closeOverlayJs())
-                    setState(TuPerfilBiometricFlowState.PeriodSelection(list), gen)
+                    if (!autoQueryLatest) {
+                        setState(TuPerfilBiometricFlowState.PeriodSelection(list), gen)
+                    }
                     return true
                 }
                 lastFailure = BiometricFlowPolicy.PeriodsFailure.EMPTY_OPTIONS
@@ -1010,7 +1034,6 @@ class TuPerfilBiometricFlowController(
 
             // 3) WAIT: esperar resultados por condiciones terminales.
             setState(TuPerfilBiometricFlowState.WaitingResults, gen)
-            startObserveResults(wv, gen)
             when (val outcome = awaitResults(wv, gen, queryStartedAt)) {
                 is QueryOutcome.Rows -> {
                     if (gen != generation) return
@@ -1245,6 +1268,30 @@ class TuPerfilBiometricFlowController(
         var ooadText: String? = null
         var availableLabels = emptyList<String>()
         var hitLabel: String? = null
+
+        // Si el periodo solicitado ya coincide con el valor activo en el portal,
+        // no es necesario abrir el dropdown ni re-seleccionar la misma opción.
+        val preVerify = BiometricDiscovery.parseVerifyDetail(
+            TuPerfilWebBridge.evaluateJs(wv, BiometricDiscovery.verifyPeriodJs(period.label, period.value))
+        )
+        if (preVerify?.found == true && preVerify.expectedMatch == true) {
+            Log.i(FLOW_TAG, "[$gen] applyPeriod already verified displayText=\"${preVerify.displayText ?: ""}\"")
+            trace(gen, "APPLY_PERIOD", "ALREADY_VERIFIED", result = true, details = "displayText=${preVerify.displayText ?: ""}")
+            return ApplyOutcome(
+                success = true,
+                controlFound = true,
+                overlayOpened = false,
+                optionCount = null,
+                optionFound = true,
+                clickPerformed = false,
+                overlayClosed = true,
+                verified = true,
+                reason = null,
+                ooadVerified = true,
+                ooadText = null,
+                availableLabels = emptyList(),
+            )
+        }
 
         while (attempt < MAX_APPLY_ATTEMPTS && System.currentTimeMillis() - startedAt < APPLY_BUDGET_MS) {
             if (gen != generation) return ApplyOutcome(false, false, null, null, false, false, false, false, "STALE", null, null, emptyList())

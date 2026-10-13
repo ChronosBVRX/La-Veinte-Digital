@@ -438,7 +438,7 @@ export function HomeQuickActions({ heading = "¿Qué necesitas hoy?" }: HomeQuic
 
   const handleChecadasClick = useCallback(() => {
     if (typeof window !== "undefined" && window.LaVeinteApp?.openBiometrics) {
-      window.LaVeinteApp.openBiometrics()
+      window.LaVeinteApp.openBiometrics("hub")
       return
     }
     if (typeof window !== "undefined" && window.LaVeinteApp?.openOfficialPayslips) {

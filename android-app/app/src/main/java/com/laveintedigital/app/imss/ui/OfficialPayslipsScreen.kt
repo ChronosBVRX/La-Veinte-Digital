@@ -82,7 +82,7 @@ private const val CARD_RATIO = 0.82f
 @Composable
 fun OfficialPayslipsScreen(
     onOpenPortal: (ImssPortal) -> Unit,
-    onOpenBiometrics: () -> Unit,
+    onOpenBiometrics: (String) -> Unit = {},
     onSaveCredentials: (ImssPortal) -> Unit,
     onManageCredentials: () -> Unit,
     onBack: () -> Unit,
@@ -146,7 +146,7 @@ fun OfficialPayslipsScreen(
                         actionLabel = "Consultar checadas",
                         mainIcon = Icons.Filled.Fingerprint,
                         accentIcons = listOf(Icons.Filled.Schedule, Icons.Filled.Person),
-                        onClick = onOpenBiometrics,
+                        onClick = { onOpenBiometrics("hub") },
                         saved = hasTuPerfil,
                     ),
                     OfficialServiceUiModel(

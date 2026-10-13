@@ -825,6 +825,7 @@ async function openAndPick(c,targetLabel,targetValue){
       var hit=await (async function(){
         var deadline=Date.now()+4500;
         var lastCount=0;
+        var triedTopReset=false;
         while(Date.now()<deadline){
           var o=Array.from(document.querySelectorAll('.cdk-overlay-container mat-option[role="option"], mat-option[role="option"]'));
           if(o.length===0&&document.querySelector('.cdk-overlay-pane')){out.overlayOpened=true;await sleep(150);continue}
@@ -870,6 +871,14 @@ async function openAndPick(c,targetLabel,targetValue){
               await sleep(500);
               // No salgas aunque el conteo no cambie (virtual scroll recicla nodos)
               lastCount=o.length;
+              continue;
+            } else if(!triedTopReset&&scroller.scrollTop>0){
+              triedTopReset=true;
+              try{
+                scroller.scrollTop=0;
+                try{o[0].scrollIntoView({block:'start'})}catch(e){}
+              }catch(e){}
+              await sleep(400);
               continue;
             }
           } else if(o.length>0){

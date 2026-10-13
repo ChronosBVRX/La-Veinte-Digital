@@ -21,11 +21,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.laveintedigital.app.ui.lvd.LvdShapes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -71,6 +75,7 @@ import kotlinx.coroutines.launch
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun TuPerfilBiometricScreen(
+    initialMode: String = "consultar",
     onBack: () -> Unit,
     onClose: () -> Unit,
     onViewPdf: (String) -> Unit,
@@ -91,6 +96,13 @@ fun TuPerfilBiometricScreen(
     val controller = remember { TuPerfilBiometricFlowController(scope, context) }
     val flowState by controller.state.collectAsState()
 
+    val isQuincenaAuditMode = remember(initialMode) {
+        initialMode.equals("revisar_quincena", ignoreCase = true)
+            || initialMode.equals("quincena", ignoreCase = true)
+            || initialMode.equals("omisiones", ignoreCase = true)
+    }
+    var showFullResults by remember { mutableStateOf(!isQuincenaAuditMode) }
+
     // Fallback manual: si el login tarda >10s, ofrecer entrar manualmente.
     LaunchedEffect(flowState) {
         if (flowState is TuPerfilBiometricFlowState.Authenticating) {
@@ -104,7 +116,7 @@ fun TuPerfilBiometricScreen(
         }
     }
 
-    LaunchedEffect(Unit) { controller.start() }
+    LaunchedEffect(Unit) { controller.start(autoQueryLatest = isQuincenaAuditMode) }
 
     BackHandler(enabled = rawFormVisible) {
         rawFormVisible = false
@@ -222,16 +234,24 @@ fun TuPerfilBiometricScreen(
                     is TuPerfilBiometricFlowState.ApplyingOoad,
                     is TuPerfilBiometricFlowState.WaitingPeriodsForOoad,
                     is TuPerfilBiometricFlowState.ReadingPeriods -> {
-                        LoadingOverlay(message = "Preparando tus registros…")
+                        LoadingOverlay(
+                            message = if (isQuincenaAuditMode) "Preparando tu última quincena…" else "Preparando tus registros…",
+                            subtitle = if (isQuincenaAuditMode) "Identificando periodo más reciente en el portal…" else null,
+                        )
                     }
                     is TuPerfilBiometricFlowState.PeriodSelection -> {
-                        LaunchedEffect(fs.periods) {
-                            if (selectedPeriod == null || selectedPeriod !in fs.periods) {
-                                selectedPeriod = com.laveintedigital.app.imss.biometric.BiometricFlowPolicy.defaultPeriod(fs.periods)
+                        val sortedPeriods = remember(fs.periods) {
+                            com.laveintedigital.app.imss.biometric.BiometricFlowPolicy.sortNewestFirst(fs.periods)
+                        }
+                        LaunchedEffect(sortedPeriods) {
+                            val latest = com.laveintedigital.app.imss.biometric.BiometricFlowPolicy.defaultPeriod(sortedPeriods)
+                            selectedPeriod = latest
+                            if (latest != null) {
+                                controller.selectPeriod(latest)
                             }
                         }
                         TuPerfilBiometricPeriodSheet(
-                            periods = fs.periods,
+                            periods = sortedPeriods,
                             ooad = controller.selectedOoad,
                             selectedPeriod = selectedPeriod,
                             onPeriodSelected = { p ->
@@ -254,40 +274,66 @@ fun TuPerfilBiometricScreen(
                     is TuPerfilBiometricFlowState.WaitingResults,
                     is TuPerfilBiometricFlowState.ReadingResults -> {
                         LoadingOverlay(
-                            message = "Consultando registros biométricos…",
-                            subtitle = "Esto puede tomar unos segundos.",
+                            message = if (isQuincenaAuditMode) "Auditando tu última quincena…" else "Consultando registros biométricos…",
+                            subtitle = if (isQuincenaAuditMode) "Revisando omisiones y faltas de checada…" else "Esto puede tomar unos segundos.",
                         )
                     }
                     is TuPerfilBiometricFlowState.Results -> {
-                        TuPerfilBiometricResultsPanel(
-                            period = fs.period,
-                            columns = controller.lastColumns,
-                            records = fs.records,
-                            onChangePeriod = { controller.backToPeriodSelection() },
-                            onQueryAgain = { controller.consultar(fs.period) },
-                            onOpenFormularioOriginal = {
-                                rawFormVisible = true
-                                controller.manualEntry()
-                            },
-                            onSavePdf = { onResult ->
-                                controller.saveBiometricPdf(onResult)
-                            },
-                            onOpenSavedPdf = { path ->
-                                // Abre el PDF recién guardado como tarjetón (ver/compartir/imprimir).
-                                onViewPdf(path)
-                            },
-                        )
+                        if (isQuincenaAuditMode && !showFullResults) {
+                            TuPerfilBiometricQuincenaSummaryPanel(
+                                period = fs.period,
+                                columns = controller.lastColumns,
+                                records = fs.records,
+                                onVerDetalleCompleto = { showFullResults = true },
+                                onConsultarOtroPeriodo = {
+                                    showFullResults = true
+                                    controller.backToPeriodSelection()
+                                },
+                                onClose = onClose,
+                            )
+                        } else {
+                            TuPerfilBiometricResultsPanel(
+                                period = fs.period,
+                                columns = controller.lastColumns,
+                                records = fs.records,
+                                initialMode = initialMode,
+                                onChangePeriod = { controller.backToPeriodSelection() },
+                                onQueryAgain = { controller.consultar(fs.period) },
+                                onOpenFormularioOriginal = {
+                                    rawFormVisible = true
+                                    controller.manualEntry()
+                                },
+                                onSavePdf = { onResult ->
+                                    controller.saveBiometricPdf(onResult)
+                                },
+                                onOpenSavedPdf = { path ->
+                                    // Abre el PDF recién guardado como tarjetón (ver/compartir/imprimir).
+                                    onViewPdf(path)
+                                },
+                            )
+                        }
                     }
                     is TuPerfilBiometricFlowState.Empty -> {
-                        TuPerfilBiometricEmptyPanel(
-                            period = fs.period,
-                            onChangePeriod = { controller.backToPeriodSelection() },
-                            onQueryAgain = { controller.consultar(fs.period) },
-                            onOpenFormularioOriginal = {
-                                rawFormVisible = true
-                                controller.manualEntry()
-                            },
-                        )
+                        if (isQuincenaAuditMode && !showFullResults) {
+                            TuPerfilBiometricQuincenaEmptyPanel(
+                                period = fs.period,
+                                onConsultarOtroPeriodo = {
+                                    showFullResults = true
+                                    controller.backToPeriodSelection()
+                                },
+                                onClose = onClose,
+                            )
+                        } else {
+                            TuPerfilBiometricEmptyPanel(
+                                period = fs.period,
+                                onChangePeriod = { controller.backToPeriodSelection() },
+                                onQueryAgain = { controller.consultar(fs.period) },
+                                onOpenFormularioOriginal = {
+                                    rawFormVisible = true
+                                    controller.manualEntry()
+                                },
+                            )
+                        }
                     }
                     is TuPerfilBiometricFlowState.Error -> {
                         TuPerfilBiometricErrorPanel(
@@ -383,6 +429,26 @@ fun TuPerfilBiometricScreen(
                     }
                 }
             }
+
+            if (rawFormVisible) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = 24.dp),
+                    contentAlignment = Alignment.BottomCenter,
+                ) {
+                    Button(
+                        onClick = {
+                            rawFormVisible = false
+                            controller.resumeAfterManual()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = LvdColors.Navy),
+                        shape = LvdShapes.Pill,
+                    ) {
+                        Text("← Volver a vista asistida", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
         }
     }
 
@@ -410,23 +476,14 @@ private fun LoadingOverlay(
     showManualButton: Boolean = false,
     onManual: (() -> Unit)? = null,
 ) {
-    Box(
-        modifier = Modifier.fillMaxSize().background(LvdColors.Scrim),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(24.dp),
-        ) {
-            LvdLoadingState(title = message, subtitle = subtitle)
-            if (showManualButton && onManual != null) {
-                Spacer(Modifier.padding(8.dp))
-                TextButton(onClick = onManual) {
-                    Text("Entrar manualmente", color = LvdColors.Blue, fontWeight = FontWeight.Medium)
-                }
-            }
-        }
-    }
+    ImssPortalSyncOverlay(
+        title = message,
+        subtitle = subtitle ?: "Esto puede tomar unos segundos. Tus datos viajan cifrados y protegidos.",
+        icon = Icons.Filled.Fingerprint,
+        portalName = "Tu Perfil IMSS",
+        showManualButton = showManualButton,
+        onManual = onManual,
+    )
 }
 
 /** Título del error según su clase (los mensajes de periodos son un problema distinto al de consulta). */

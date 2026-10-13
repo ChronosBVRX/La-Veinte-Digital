@@ -92,7 +92,7 @@ fun InternalWebScreen(
     onExternalNavigation: (NavigationTarget) -> Unit,
     onCustomTab: (String) -> Unit,
     onOpenOfficialPayslips: () -> Unit = {},
-    onOpenBiometrics: () -> Unit = {},
+    onOpenBiometrics: (String) -> Unit = {},
     onOpenSavedDocuments: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -292,7 +292,7 @@ fun InternalWebScreen(
 
     DisposableEffect(Unit) {
         BridgeHandler.onOpenOfficialPayslips = { onOpenOfficialPayslips() }
-        BridgeHandler.onOpenBiometrics = { onOpenBiometrics() }
+        BridgeHandler.onOpenBiometrics = { mode -> onOpenBiometrics(mode) }
         BridgeHandler.onOpenSavedDocuments = { onOpenSavedDocuments() }
         BridgeHandler.onCheckForUpdate = { UpdateTrigger.request() }
         BridgeHandler.onRequestNotificationsPermission = {

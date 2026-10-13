@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -26,7 +27,7 @@ import com.laveintedigital.app.imss.credentials.ImssPortal
 import com.laveintedigital.app.imss.portal.*
 import com.laveintedigital.app.imss.tarjeton.*
 import com.laveintedigital.app.ui.lvd.LvdColors
-import com.laveintedigital.app.ui.lvd.LvdLoadingState
+import com.laveintedigital.app.ui.lvd.LvdShapes
 import com.laveintedigital.app.ui.lvd.LvdTopBar
 import com.laveintedigital.app.util.configureForLaVeinte
 import kotlinx.coroutines.*
@@ -91,6 +92,7 @@ fun ImssPortalScreen(
     var showTarjetonLoginDialog by remember { mutableStateOf(false) }
     var tarjetonTipo by remember { mutableStateOf(TarjetonDigitalFlowController.TarjetonTipo.TARJETON) }
     var tarjetonRawFormVisible by remember { mutableStateOf(false) }
+    var tuPerfilRawFormVisible by remember { mutableStateOf(false) }
 
     // Fallback timer: if login flow takes >10s, offer manual entry
     LaunchedEffect(flowState) {
@@ -177,6 +179,15 @@ fun ImssPortalScreen(
     // This intercepts the event before the NavHost/Activity can pop or finish.
     BackHandler(enabled = localPdfPath != null) {
         closeLocalViewer("SYSTEM_BACK")
+    }
+
+    // Si el usuario está en modo manual, Back regresa a la vista asistida
+    BackHandler(enabled = localPdfPath == null && ((portal == ImssPortal.TU_PERFIL && tuPerfilRawFormVisible) || (portal == ImssPortal.TARJETON_DIGITAL && tarjetonRawFormVisible))) {
+        tuPerfilRawFormVisible = false
+        tarjetonRawFormVisible = false
+        if (portal == ImssPortal.TU_PERFIL) {
+            cardPageDetected = true
+        }
     }
 
     Scaffold(
@@ -304,8 +315,10 @@ fun ImssPortalScreen(
             )
 
             // Tu Perfil flow UI overlay
-            if (portal == ImssPortal.TU_PERFIL && flowState != null) {
-                when (flowState) {
+            if (portal == ImssPortal.TU_PERFIL && !tuPerfilRawFormVisible) {
+                if (flowState == null && !cardPageDetected) {
+                    LoadingOverlay("Iniciando servicio…", portal = portal)
+                } else when (flowState) {
                     is TuPerfilFlowState.LoginRequired -> {
                         LaunchedEffect(Unit) { showLoginDialog = true }
                     }
@@ -315,23 +328,27 @@ fun ImssPortalScreen(
                     is TuPerfilFlowState.LoadingLoginPage,
                     is TuPerfilFlowState.ApplyingCredentials -> {
                         LoadingOverlay("Preparando acceso…",
+                            portal = portal,
                             showManualButton = showManualFallback,
                             onManual = {
                                 showManualFallback = false
+                                tuPerfilRawFormVisible = true
                                 flowController?.reset()
                             })
                     }
                     is TuPerfilFlowState.SubmittingLogin,
                     is TuPerfilFlowState.WaitingAuthentication -> {
                         LoadingOverlay("Conectando con Tu Perfil IMSS…",
+                            portal = portal,
                             showManualButton = showManualFallback,
                             onManual = {
                                 showManualFallback = false
+                                tuPerfilRawFormVisible = true
                                 flowController?.reset()
                             })
                     }
                     is TuPerfilFlowState.OpeningCardPage -> {
-                        LoadingOverlay("Abriendo sección de tarjetón...")
+                        LoadingOverlay("Abriendo sección de tarjetón...", portal = portal)
                     }
                     is TuPerfilFlowState.PreparingCardForm -> {
                         LaunchedEffect(Unit) { cardPageDetected = true }
@@ -340,10 +357,10 @@ fun ImssPortalScreen(
                         LaunchedEffect(Unit) { cardPageDetected = true }
                     }
                     is TuPerfilFlowState.GeneratingTarjeton -> {
-                        LoadingOverlay("Generando tu tarjetón...")
+                        LoadingOverlay("Generando tu tarjetón...", portal = portal)
                     }
                     is TuPerfilFlowState.SavingTarjeton -> {
-                        LoadingOverlay("Guardando tarjetón…")
+                        LoadingOverlay("Guardando tarjetón…", portal = portal)
                     }
                     is TuPerfilFlowState.TarjetonSaved -> {}
                     is TuPerfilFlowState.Completed -> {
@@ -367,12 +384,14 @@ fun ImssPortalScreen(
                                 flowController?.retryLogin()
                             },
                             onManualEntry = {
+                                tuPerfilRawFormVisible = true
                                 flowController?.manualEntry()
                             },
                             onSwitchPortal = onSwitchPortal?.let { switch ->
                                 { switch(ImssPortal.TARJETON_DIGITAL) }
                             },
                             onDismiss = {
+                                tuPerfilRawFormVisible = true
                                 flowController?.manualEntry()
                             },
                         )
@@ -387,8 +406,10 @@ fun ImssPortalScreen(
             }
 
             // Tarjetón Digital flow UI overlay
-            if (portal == ImssPortal.TARJETON_DIGITAL) {
-                when (val ts = tarjetonState) {
+            if (portal == ImssPortal.TARJETON_DIGITAL && !tarjetonRawFormVisible) {
+                if (tarjetonState == null) {
+                    LoadingOverlay("Iniciando servicio…", portal = portal)
+                } else when (val ts = tarjetonState) {
                     is TarjetonDigitalFlowState.LoginRequired -> {
                         LaunchedEffect(Unit) { showTarjetonLoginDialog = true }
                     }
@@ -398,15 +419,15 @@ fun ImssPortalScreen(
                     is TarjetonDigitalFlowState.WaitingDom,
                     is TarjetonDigitalFlowState.FillingForm,
                     is TarjetonDigitalFlowState.VerifyingForm -> {
-                        LoadingOverlay("Preparando acceso…")
+                        LoadingOverlay("Preparando acceso…", portal = portal)
                     }
                     is TarjetonDigitalFlowState.Submitting,
                     is TarjetonDigitalFlowState.WaitingAuthResult -> {
-                        LoadingOverlay("Conectando con Tarjetón Digital IMSS…")
+                        LoadingOverlay("Conectando con Tarjetón Digital IMSS…", portal = portal)
                     }
                     is TarjetonDigitalFlowState.Authenticated,
                     is TarjetonDigitalFlowState.OpeningTarjetonPage -> {
-                        LoadingOverlay("Abriendo consulta de tarjetones…")
+                        LoadingOverlay("Abriendo consulta de tarjetones…", portal = portal)
                     }
                     is TarjetonDigitalFlowState.LoginError -> {
                         tarjetonRawFormVisible = false
@@ -417,11 +438,17 @@ fun ImssPortalScreen(
                                 tarjetonController?.reviewData()
                             },
                             onRetry = { tarjetonController?.retryLogin() },
-                            onManualEntry = { tarjetonController?.manualEntry() },
+                            onManualEntry = {
+                                tarjetonRawFormVisible = true
+                                tarjetonController?.manualEntry()
+                            },
                             onSwitchPortal = onSwitchPortal?.let { switch ->
                                 { switch(ImssPortal.TU_PERFIL) }
                             },
-                            onDismiss = { tarjetonController?.manualEntry() },
+                            onDismiss = {
+                                tarjetonRawFormVisible = true
+                                tarjetonController?.manualEntry()
+                            },
                         )
                     }
                     is TarjetonDigitalFlowState.TarjetonSaved -> {
@@ -490,7 +517,7 @@ fun ImssPortalScreen(
             }
 
             // Tarjeton overlay — read state from flowController
-            if (cardPageDetected && portal == ImssPortal.TU_PERFIL) {
+            if (cardPageDetected && portal == ImssPortal.TU_PERFIL && !tuPerfilRawFormVisible) {
                 val overlayPageState = when (flowState) {
                     is TuPerfilFlowState.Ready -> PortalPageState.READY
                     is TuPerfilFlowState.GeneratingTarjeton,
@@ -583,8 +610,36 @@ fun ImssPortalScreen(
                         }
                     },
                     onOpenHistory = onOpenHistory,
-                    onOpenFormularioOriginal = { cardPageDetected = false },
+                    onOpenFormularioOriginal = {
+                        tuPerfilRawFormVisible = true
+                        cardPageDetected = false
+                    },
                 )
+            }
+
+            // Botón flotante para regresar de modo manual a vista asistida
+            val isManualActive = (portal == ImssPortal.TU_PERFIL && tuPerfilRawFormVisible) || (portal == ImssPortal.TARJETON_DIGITAL && tarjetonRawFormVisible)
+            if (isManualActive && localPdfPath == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = 24.dp),
+                    contentAlignment = Alignment.BottomCenter,
+                ) {
+                    Button(
+                        onClick = {
+                            tuPerfilRawFormVisible = false
+                            tarjetonRawFormVisible = false
+                            if (portal == ImssPortal.TU_PERFIL) {
+                                cardPageDetected = true
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = LvdColors.Navy),
+                        shape = LvdShapes.Pill,
+                    ) {
+                        Text("← Volver a vista asistida", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    }
+                }
             }
 
             // Local PDF viewer overlay — WebView stays alive underneath
@@ -644,22 +699,19 @@ fun ImssPortalScreen(
 }
 
 @Composable
-private fun LoadingOverlay(message: String, showManualButton: Boolean = false, onManual: (() -> Unit)? = null) {
-    Box(
-        modifier = Modifier.fillMaxSize().background(LvdColors.Scrim),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(24.dp),
-        ) {
-            LvdLoadingState(title = message)
-            if (showManualButton && onManual != null) {
-                Spacer(Modifier.height(16.dp))
-                TextButton(onClick = onManual) {
-                    Text("Entrar manualmente", color = LvdColors.Blue, fontWeight = FontWeight.Medium)
-                }
-            }
-        }
-    }
+private fun LoadingOverlay(
+    message: String,
+    subtitle: String? = null,
+    portal: ImssPortal = ImssPortal.TU_PERFIL,
+    showManualButton: Boolean = false,
+    onManual: (() -> Unit)? = null,
+) {
+    ImssPortalSyncOverlay(
+        title = message,
+        subtitle = subtitle ?: "Esto puede tomar unos segundos. Tus datos viajan cifrados y protegidos.",
+        icon = Icons.Filled.Description,
+        portalName = portal.displayName,
+        showManualButton = showManualButton,
+        onManual = onManual,
+    )
 }

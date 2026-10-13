@@ -207,12 +207,13 @@ class TuPerfilFlowController(
         }
         periodOptions = (0 until (periodArr?.length() ?: 0)).map { i ->
             PeriodParser.parse(periodArr!!.getJSONObject(i).optString("label"))
-        }
+        }.sortedByDescending { it.code.toLongOrNull() ?: 0L }
         selectedOoad = selOoad?.let {
             val label = it.optString("label")
             PortalOoad(it.optString("code"), label, label.replace(Regex("""^\d{2}\s*-\s*"""), ""))
         }
         selectedPeriod = selPeriod?.let { PeriodParser.parse(it.optString("label")) }
+            ?: PeriodParser.latestPeriod(periodOptions)
 
         val ooadCount = ooadOptions.size
         val periodCount = periodOptions.size

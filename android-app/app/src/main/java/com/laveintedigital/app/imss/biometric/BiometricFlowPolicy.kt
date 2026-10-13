@@ -52,11 +52,76 @@ object BiometricFlowPolicy {
         else -> EntryAction.LOGIN_REQUIRED
     }
 
+    private val PERIOD_CODE_7_REGEX = Regex("""\b(20\d{2})(\d{3})\b""")
+    private val PERIOD_CODE_6_REGEX = Regex("""\b(20\d{2})(\d{2})\b""")
+    private val YEAR_REGEX = Regex("""\b(20\d{2})\b""")
+
+    private val MONTH_MAP = mapOf(
+        "enero" to 1,
+        "febrero" to 2,
+        "marzo" to 3,
+        "abril" to 4,
+        "mayo" to 5,
+        "junio" to 6,
+        "julio" to 7,
+        "agosto" to 8,
+        "septiembre" to 9,
+        "setiembre" to 9,
+        "octubre" to 10,
+        "noviembre" to 11,
+        "diciembre" to 12,
+    )
+
     /**
-     * Periodo por defecto: el último que ofrece el portal (el orden del portal
-     * es el único criterio fiable sin información adicional).
+     * Extrae una clave numérica cronológica (mayor = más reciente) para un
+     * periodo del portal IMSS.
+     *
+     * Soporta:
+     *  - Código oficial de 7 dígitos `YYYYPPP` (ej. `2026019 (1ra - OCTUBRE)` o `2025001 (1ra - ENERO)`).
+     *  - Código de 6 dígitos `YYYYPP` (ej. `202619`).
+     *  - Texto en español con año, mes y quincena (ej. `2ª quincena de septiembre 2026`).
      */
-    fun defaultPeriod(periods: List<BiometricPeriod>): BiometricPeriod? = periods.lastOrNull()
+    fun periodSortKey(period: BiometricPeriod): Long? {
+        val combined = "${period.value} ${period.label}"
+        PERIOD_CODE_7_REGEX.find(combined)?.let { m ->
+            val year = m.groupValues[1].toLongOrNull()
+            val seq = m.groupValues[2].toLongOrNull()
+            if (year != null && seq != null) return year * 1000L + seq
+        }
+        PERIOD_CODE_6_REGEX.find(combined)?.let { m ->
+            val year = m.groupValues[1].toLongOrNull()
+            val seq = m.groupValues[2].toLongOrNull()
+            if (year != null && seq != null) return year * 1000L + seq
+        }
+        val norm = normalize(combined)
+        val year = YEAR_REGEX.find(norm)?.groupValues?.get(1)?.toLongOrNull() ?: return null
+        val month = MONTH_MAP.entries.firstOrNull { (name, _) -> norm.contains(name) }?.value ?: return null
+        val half = when {
+            norm.contains("2da") || norm.contains("2a") || norm.contains("2ª") || norm.contains("segunda") -> 2L
+            else -> 1L
+        }
+        val quincenaOfYear = (month - 1) * 2L + half
+        return year * 1000L + quincenaOfYear
+    }
+
+    /**
+     * Ordena la lista de periodos dejando SIEMPRE el más reciente al principio
+     * (índice 0). Si el portal devuelve códigos cronológicos, ordena de mayor a
+     * menor; si no hay claves reconocibles, conserva el orden original.
+     */
+    fun sortNewestFirst(periods: List<BiometricPeriod>): List<BiometricPeriod> {
+        if (periods.size <= 1) return periods
+        val hasAnyKey = periods.any { periodSortKey(it) != null }
+        if (!hasAnyKey) return periods
+        return periods.sortedByDescending { periodSortKey(it) ?: Long.MIN_VALUE }
+    }
+
+    /**
+     * Periodo por defecto: SIEMPRE el más reciente disponible en el portal
+     * (nunca el más antiguo como `2025001 (1ra - ENERO)` al final de la lista).
+     */
+    fun defaultPeriod(periods: List<BiometricPeriod>): BiometricPeriod? =
+        sortNewestFirst(periods).firstOrNull()
 
     /**
      * Restaura el periodo previo tras una reautenticación. Prioriza igualdad

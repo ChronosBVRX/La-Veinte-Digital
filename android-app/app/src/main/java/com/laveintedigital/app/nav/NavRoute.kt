@@ -9,7 +9,12 @@ sealed class NavRoute(val route: String) {
         fun create(url: String) = "external/${android.net.Uri.encode(url)}"
     }
     data object OfficialPayslips : NavRoute("official_payslips")
-    data object TuPerfilBiometrics : NavRoute("tu_perfil_biometrics")
+    data object TuPerfilBiometricsHub : NavRoute("tu_perfil_biometrics_hub")
+    data object TuPerfilBiometrics : NavRoute("tu_perfil_biometrics?mode={mode}") {
+        const val ARG_MODE = "mode"
+        fun create(mode: String = "consultar") =
+            "tu_perfil_biometrics?mode=${safeEncode(mode)}"
+    }
     data object ImssPortal : NavRoute("imss_portal/{portalId}/{autoLogin}") {
         fun create(portalId: String, autoLogin: Boolean = false) =
             "imss_portal/$portalId/$autoLogin"
@@ -25,4 +30,9 @@ sealed class NavRoute(val route: String) {
     data object ManageImssCreds : NavRoute("manage_imss_creds")
     /** Pantalla nativa de documentos offline (sin WebView ni red). */
     data object OfflineDocuments : NavRoute("offline_documents")
+
+    companion object {
+        internal fun safeEncode(s: String): String =
+            runCatching { android.net.Uri.encode(s) }.getOrNull() ?: s
+    }
 }

@@ -23,6 +23,7 @@ import com.laveintedigital.app.imss.ui.OfficialPayslipsScreen
 import com.laveintedigital.app.imss.ui.PayslipHistoryScreen
 import com.laveintedigital.app.imss.ui.PayslipViewerScreen
 import com.laveintedigital.app.imss.ui.SaveImssCredentialsScreen
+import com.laveintedigital.app.imss.ui.TuPerfilBiometricHubScreen
 import com.laveintedigital.app.imss.ui.TuPerfilBiometricScreen
 import com.laveintedigital.app.internal.InternalWebScreen
 import com.laveintedigital.app.offline.OfflineDocumentsScreen
@@ -44,6 +45,14 @@ fun AppNavHost(
         startDestination = NavRoute.Internal.route,
         modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
     ) {
+        val handleOpenBiometrics: (String) -> Unit = { mode ->
+            when (mode.lowercase()) {
+                "consultar" -> navController.navigate(NavRoute.TuPerfilBiometrics.create("consultar"))
+                "revisar_quincena", "quincena", "omisiones" -> navController.navigate(NavRoute.TuPerfilBiometrics.create("revisar_quincena"))
+                else -> navController.navigate(NavRoute.TuPerfilBiometricsHub.route)
+            }
+        }
+
         composable(NavRoute.Internal.route) {
             InternalWebScreen(
                 initialUrl = internalUrl,
@@ -58,7 +67,7 @@ fun AppNavHost(
                 },
                 onCustomTab = onCustomTab,
                 onOpenOfficialPayslips = { navController.navigate(NavRoute.OfficialPayslips.route) },
-                onOpenBiometrics = { navController.navigate(NavRoute.TuPerfilBiometrics.route) },
+                onOpenBiometrics = handleOpenBiometrics,
                 onOpenSavedDocuments = { navController.navigate(NavRoute.OfflineDocuments.route) },
             )
         }
@@ -91,15 +100,38 @@ fun AppNavHost(
         composable(NavRoute.OfficialPayslips.route) {
             OfficialPayslipsScreen(
                 onOpenPortal = { portal -> navController.navigate(NavRoute.ImssPortal.create(portal.id, false)) },
-                onOpenBiometrics = { navController.navigate(NavRoute.TuPerfilBiometrics.route) },
+                onOpenBiometrics = handleOpenBiometrics,
                 onSaveCredentials = { portal -> navController.navigate(NavRoute.ImssSaveCreds.create(portal.id)) },
                 onManageCredentials = { navController.navigate(NavRoute.ManageImssCreds.route) },
                 onBack = { navController.popBackStack() },
             )
         }
 
-        composable(NavRoute.TuPerfilBiometrics.route) {
+        composable(NavRoute.TuPerfilBiometricsHub.route) {
+            TuPerfilBiometricHubScreen(
+                onConsultarPeriodo = {
+                    navController.navigate(NavRoute.TuPerfilBiometrics.create("consultar"))
+                },
+                onRevisarQuincena = {
+                    navController.navigate(NavRoute.TuPerfilBiometrics.create("revisar_quincena"))
+                },
+                onBack = { navController.popBackStack() },
+                onClose = { navController.popBackStack(NavRoute.Internal.route, inclusive = false) },
+            )
+        }
+
+        composable(
+            NavRoute.TuPerfilBiometrics.route,
+            arguments = listOf(
+                navArgument("mode") {
+                    type = NavType.StringType
+                    defaultValue = "consultar"
+                },
+            ),
+        ) { backStackEntry ->
+            val mode = backStackEntry.arguments?.getString("mode") ?: "consultar"
             TuPerfilBiometricScreen(
+                initialMode = mode,
                 onBack = { navController.popBackStack() },
                 onClose = { navController.popBackStack(NavRoute.Internal.route, inclusive = false) },
                 onViewPdf = { path -> navController.navigate(NavRoute.PayslipViewer.create(path, title = "Checadas")) },
