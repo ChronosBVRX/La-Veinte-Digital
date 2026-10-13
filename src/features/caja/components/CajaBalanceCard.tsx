@@ -124,6 +124,31 @@ export function CajaBalanceCard({ balance, loading, onRefresh }: CajaBalanceCard
             </div>
           </div>
         </div>
+
+        {/* Barra de Avance de Amortización (27% o dato del server) */}
+        {typeof balance?.porcentaje === "number" && (
+          <div style={{ marginTop: "1rem", padding: "0.875rem", background: "var(--accent)", borderRadius: "var(--radius-md)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.375rem" }}>
+              <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--fg)" }}>
+                Avance de Amortización del Préstamo
+              </span>
+              <span style={{ fontSize: "0.75rem", fontWeight: 700, color: balance.porcentaje >= 25 ? "var(--success, #16a34a)" : "var(--primary)" }}>
+                {balance.porcentaje}% cubierto {balance.porcentaje >= 25 ? "✓ Elegible a renovación" : ""}
+              </span>
+            </div>
+            <div style={{ height: "6px", background: "var(--border)", borderRadius: "3px", overflow: "hidden" }}>
+              <div
+                style={{
+                  height: "100%",
+                  width: `${Math.min(100, Math.max(0, balance.porcentaje))}%`,
+                  background: balance.porcentaje >= 25 ? "var(--success, #16a34a)" : "var(--primary)",
+                  borderRadius: "3px",
+                  transition: "width 0.3s ease",
+                }}
+              />
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Historial de saldos si existe */}

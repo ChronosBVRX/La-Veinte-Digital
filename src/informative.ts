@@ -92,6 +92,56 @@ export interface ConciliacionResultado {
   detalle: string
 }
 
+export const SALDO_MINIMO_DEFAULT = 600
+
+/**
+ * Calcula el adeudo actual neto:
+ * Adeudo = saldoPrestamo − (saldoAhorro − saldoMinimo)
+ * Verificado con muestra real: 185,034.33 − (52,108.23 − 600) = 133,526.10 exacto.
+ */
+export function adeudoActual(
+  saldoPrestamo: number,
+  saldoAhorro: number,
+  saldoMinimo = SALDO_MINIMO_DEFAULT,
+): number {
+  const prestamo = Math.max(0, saldoPrestamo || 0)
+  const ahorroDisponible = Math.max(0, (saldoAhorro || 0) - saldoMinimo)
+  const adeudo = prestamo - ahorroDisponible
+  return Math.round(Math.max(0, adeudo) * 100) / 100
+}
+
+/**
+ * Calcula el líquido a recibir estimado:
+ * Líquido = Math.max(0, importeMaximo − adeudo)
+ * Verificado con muestra real: 186,000 − 133,526.10 = 52,473.90 exacto.
+ */
+export function liquidoARecibir(importeMaximo: number, adeudo: number): number {
+  const maximo = Math.max(0, importeMaximo || 0)
+  const adeudoNeto = Math.max(0, adeudo || 0)
+  return Math.round(Math.max(0, maximo - adeudoNeto) * 100) / 100
+}
+
+/**
+ * Determina la elegibilidad para renovación de préstamo sindical:
+ * Criterio preliminar: porcentaje de avance >= 25% o mensaje de renovación explícito.
+ */
+export function esElegibleRenovacion(
+  porcentaje?: number | null,
+  mensajeRenovacion?: string | null,
+): { elegible: boolean; porcentaje: number; motivo: string } {
+  const pct = Number(porcentaje ?? 0)
+  const tieneMensaje = Boolean(mensajeRenovacion && /renov/i.test(mensajeRenovacion))
+  const elegible = pct >= 25 || tieneMensaje
+
+  return {
+    elegible,
+    porcentaje: pct,
+    motivo: elegible
+      ? `Ya puedes renovar: Has cubierto el ${pct}% del préstamo (requisito mínimo: 25%). Puedes iniciar el trámite presencial ante tu delegación sindical.`
+      : `En amortización: Llevas ${pct}% de avance. Se requiere al menos 25% para solicitar una nueva renovación ante la Caja SNTSS.`,
+  }
+}
+
 /**
  * Evalúa si un error devuelto por invoices/{mat}/currents corresponde
  * a la ausencia de estados de cuenta vigentes (404 o código 1401) y no a un fallo real.

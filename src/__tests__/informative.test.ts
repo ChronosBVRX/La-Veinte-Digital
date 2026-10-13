@@ -6,6 +6,9 @@ import {
   buildSnapshot,
   proyectarAhorro,
   conciliarConTarjeton,
+  adeudoActual,
+  liquidoARecibir,
+  esElegibleRenovacion,
 } from "../informative"
 
 describe("src/informative.ts - Utilidades informativas", () => {
@@ -192,4 +195,32 @@ describe("src/informative.ts - Utilidades informativas", () => {
       expect(opts.headers.authorization).toBe("Bearer mock-jwt-token")
     })
   })
+
+  describe("Fórmulas réplica verificadas", () => {
+    it("adeudoActual replica exactamente la fórmula con saldo mínimo de 600", () => {
+      // 185,034.33 − (52,108.23 − 600) = 133,526.10 exacto
+      const adeudo = adeudoActual(185034.33, 52108.23)
+      expect(adeudo).toBe(133526.1)
+    })
+
+    it("liquidoARecibir replica exactamente la fórmula de importe_maximo - adeudo", () => {
+      // 186,000 − 133,526.10 = 52,473.90 exacto
+      const liquido = liquidoARecibir(186000, 133526.1)
+      expect(liquido).toBe(52473.9)
+    })
+
+    it("esElegibleRenovacion evalúa porcentaje >= 25%", () => {
+      const e27 = esElegibleRenovacion(27)
+      expect(e27.elegible).toBe(true)
+      expect(e27.motivo).toContain("Ya puedes renovar")
+
+      const e20 = esElegibleRenovacion(20)
+      expect(e20.elegible).toBe(false)
+      expect(e20.motivo).toContain("En amortización")
+
+      const conMensaje = esElegibleRenovacion(15, "Elegible para renovar")
+      expect(conMensaje.elegible).toBe(true)
+    })
+  })
 })
+

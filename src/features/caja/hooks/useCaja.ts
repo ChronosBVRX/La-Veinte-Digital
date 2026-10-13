@@ -6,17 +6,20 @@ import {
   getCajaBalance,
   getCajaAccount,
   getCajaDates,
+  getCajaLoans,
   loginCaja as apiLogin,
   logoutCaja as apiLogout,
   type CajaSessionStatus,
 } from "../services/caja-service"
 import type { SaldoPayload, AccountProfile, DateItem } from "@/lib/caja/models"
+import type { CajaLoanInfo } from "@/informative"
 
 export function useCaja() {
   const [session, setSession] = useState<CajaSessionStatus | null>(null)
   const [loadingSession, setLoadingSession] = useState(true)
   const [balance, setBalance] = useState<SaldoPayload | null>(null)
   const [account, setAccount] = useState<AccountProfile | null>(null)
+  const [loan, setLoan] = useState<CajaLoanInfo | null>(null)
   const [dates, setDates] = useState<DateItem[]>([])
   const [loadingData, setLoadingData] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,15 +42,17 @@ export function useCaja() {
     setLoadingData(true)
     setError(null)
     try {
-      const [bal, acc, dt] = await Promise.allSettled([
+      const [bal, acc, dt, ln] = await Promise.allSettled([
         getCajaBalance(),
         getCajaAccount(),
         getCajaDates(),
+        getCajaLoans(),
       ])
 
       if (bal.status === "fulfilled") setBalance(bal.value)
       if (acc.status === "fulfilled") setAccount(acc.value)
       if (dt.status === "fulfilled") setDates(dt.value)
+      if (ln.status === "fulfilled" && ln.value?.estimate) setLoan(ln.value.estimate)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Error al cargar datos de Caja")
     } finally {
@@ -65,15 +70,17 @@ export function useCaja() {
         setSession(st)
         if (st.authenticated) {
           setLoadingData(true)
-          const [bal, acc, dt] = await Promise.allSettled([
+          const [bal, acc, dt, ln] = await Promise.allSettled([
             getCajaBalance(),
             getCajaAccount(),
             getCajaDates(),
+            getCajaLoans(),
           ])
           if (!active) return
           if (bal.status === "fulfilled") setBalance(bal.value)
           if (acc.status === "fulfilled") setAccount(acc.value)
           if (dt.status === "fulfilled") setDates(dt.value)
+          if (ln.status === "fulfilled" && ln.value?.estimate) setLoan(ln.value.estimate)
         }
       } catch {
         if (active) setSession({ authenticated: false })
@@ -114,6 +121,7 @@ export function useCaja() {
       setSession({ authenticated: false })
       setBalance(null)
       setAccount(null)
+      setLoan(null)
       setDates([])
     } catch {
       // Ignorar
@@ -126,6 +134,7 @@ export function useCaja() {
     loadingData,
     balance,
     account,
+    loan,
     dates,
     error,
     login,

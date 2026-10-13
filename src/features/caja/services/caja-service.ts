@@ -1,4 +1,5 @@
 import type { RetiroTipo, SaldoPayload, AccountProfile, DateItem } from "@/lib/caja/models"
+import type { CajaLoanInfo } from "@/informative"
 
 export interface CajaSessionStatus {
   authenticated: boolean
@@ -82,13 +83,16 @@ export async function getCajaAccount(): Promise<AccountProfile> {
   return data.profile || {}
 }
 
-export async function getCajaLoans() {
+export async function getCajaLoans(): Promise<{ estimate: CajaLoanInfo | null; renewal: unknown }> {
   const res = await fetch("/api/caja/loans")
-  const data = (await res.json()) as { ok?: boolean; estimate?: unknown; renewal?: unknown; error?: string }
+  const data = (await res.json()) as { ok?: boolean; estimate?: CajaLoanInfo; renewal?: unknown; error?: string }
   if (!res.ok || !data.ok) {
     throw new Error(data.error || "No se pudo consultar préstamos")
   }
-  return data
+  return {
+    estimate: data.estimate || null,
+    renewal: data.renewal ?? null,
+  }
 }
 
 export async function renewCajaLoan(body: unknown = {}) {

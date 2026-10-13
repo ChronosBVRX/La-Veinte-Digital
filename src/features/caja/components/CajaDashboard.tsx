@@ -22,6 +22,7 @@ export function CajaDashboard() {
     loadingData,
     balance,
     account,
+    loan,
     dates,
     login,
     logout,
@@ -168,6 +169,8 @@ export function CajaDashboard() {
             <CajaLoanCard
               balance={balance}
               account={account}
+              loan={loan}
+              loading={loadingData}
               onRefresh={refreshData}
             />
           )}
