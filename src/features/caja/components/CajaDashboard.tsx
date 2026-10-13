@@ -39,22 +39,27 @@ export function CajaDashboard() {
   }
 
   return (
-    <div style={{ maxWidth: "900px", margin: "0 auto", paddingBottom: "3rem" }}>
+    <div style={{ width: "100%", maxWidth: "900px", margin: "0 auto", paddingBottom: "3rem", boxSizing: "border-box", minWidth: 0 }}>
       <CajaHeader session={session} onLogout={logout} />
 
       {!session?.authenticated ? (
         <CajaLoginCard onLogin={login} initialMatricula={session?.matricula} />
       ) : (
-        <div>
+        <div style={{ width: "100%", minWidth: 0, boxSizing: "border-box" }}>
           {/* Navegación por pestañas */}
           <div
             style={{
+              width: "100%",
+              boxSizing: "border-box",
               display: "flex",
-              gap: "0.375rem",
+              gap: "0.25rem",
               borderBottom: "1px solid var(--border)",
-              marginBottom: "1.5rem",
+              marginBottom: "1.25rem",
               overflowX: "auto",
+              WebkitOverflowScrolling: "touch",
               scrollbarWidth: "none",
+              minWidth: 0,
+              paddingBottom: "2px",
             }}
           >
             <button
@@ -63,15 +68,16 @@ export function CajaDashboard() {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.375rem",
-                padding: "0.625rem 1rem",
+                padding: "0.625rem 0.75rem",
                 border: "none",
                 background: "none",
                 borderBottom: activeTab === "saldos" ? "2px solid var(--primary)" : "2px solid transparent",
                 color: activeTab === "saldos" ? "var(--primary)" : "var(--muted)",
                 fontWeight: activeTab === "saldos" ? 700 : 500,
-                fontSize: "0.875rem",
+                fontSize: "0.8125rem",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
+                flexShrink: 0,
                 transition: "all 0.15s ease",
               }}
             >
@@ -88,15 +94,16 @@ export function CajaDashboard() {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.375rem",
-                padding: "0.625rem 1rem",
+                padding: "0.625rem 0.75rem",
                 border: "none",
                 background: "none",
                 borderBottom: activeTab === "retiros" ? "2px solid var(--primary)" : "2px solid transparent",
                 color: activeTab === "retiros" ? "var(--primary)" : "var(--muted)",
                 fontWeight: activeTab === "retiros" ? 700 : 500,
-                fontSize: "0.875rem",
+                fontSize: "0.8125rem",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
+                flexShrink: 0,
                 transition: "all 0.15s ease",
               }}
             >
@@ -110,15 +117,16 @@ export function CajaDashboard() {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.375rem",
-                padding: "0.625rem 1rem",
+                padding: "0.625rem 0.75rem",
                 border: "none",
                 background: "none",
                 borderBottom: activeTab === "prestamos" ? "2px solid var(--primary)" : "2px solid transparent",
                 color: activeTab === "prestamos" ? "var(--primary)" : "var(--muted)",
                 fontWeight: activeTab === "prestamos" ? 700 : 500,
-                fontSize: "0.875rem",
+                fontSize: "0.8125rem",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
+                flexShrink: 0,
                 transition: "all 0.15s ease",
               }}
             >
@@ -132,15 +140,16 @@ export function CajaDashboard() {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.375rem",
-                padding: "0.625rem 1rem",
+                padding: "0.625rem 0.75rem",
                 border: "none",
                 background: "none",
                 borderBottom: activeTab === "citas" ? "2px solid var(--primary)" : "2px solid transparent",
                 color: activeTab === "citas" ? "var(--primary)" : "var(--muted)",
                 fontWeight: activeTab === "citas" ? 700 : 500,
-                fontSize: "0.875rem",
+                fontSize: "0.8125rem",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
+                flexShrink: 0,
                 transition: "all 0.15s ease",
               }}
             >
@@ -154,15 +163,16 @@ export function CajaDashboard() {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.375rem",
-                padding: "0.625rem 1rem",
+                padding: "0.625rem 0.75rem",
                 border: "none",
                 background: "none",
                 borderBottom: activeTab === "cuenta" ? "2px solid var(--primary)" : "2px solid transparent",
                 color: activeTab === "cuenta" ? "var(--primary)" : "var(--muted)",
                 fontWeight: activeTab === "cuenta" ? 700 : 500,
-                fontSize: "0.875rem",
+                fontSize: "0.8125rem",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
+                flexShrink: 0,
                 transition: "all 0.15s ease",
               }}
             >

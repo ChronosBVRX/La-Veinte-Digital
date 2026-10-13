@@ -63,8 +63,8 @@ export function CajaDatesCard({ dates, loading, onRefresh }: CajaDatesCardProps)
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-      <Card padding="1.5rem">
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
+      <Card padding="clamp(1rem, 3vw, 1.5rem)">
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
           <CalendarDots size={22} color="var(--primary)" weight="bold" />
           <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: 0, color: "var(--fg)" }}>
@@ -141,20 +141,25 @@ export function CajaDatesCard({ dates, loading, onRefresh }: CajaDatesCardProps)
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
+                      flexWrap: "wrap",
+                      gap: "0.75rem",
                       padding: "0.875rem 1rem",
                       background: "var(--accent)",
                       borderRadius: "var(--radius-md)",
                       border: "1px solid var(--border)",
+                      width: "100%",
+                      boxSizing: "border-box",
+                      minWidth: 0,
                     }}
                   >
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", fontWeight: 600 }}>
-                        <Clock size={16} color="var(--primary)" />
-                        <span>{d.fecha || "Fecha por confirmar"} {d.hora ? `· ${d.hora}` : ""}</span>
+                    <div style={{ minWidth: 0, flex: "1 1 180px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", fontWeight: 600, flexWrap: "wrap" }}>
+                        <Clock size={16} color="var(--primary)" style={{ flexShrink: 0 }} />
+                        <span style={{ wordBreak: "break-word" }}>{d.fecha || "Fecha por confirmar"} {d.hora ? `· ${d.hora}` : ""}</span>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem" }}>
-                        <MapPin size={14} />
-                        <span>{d.delegacion || "Delegación SNTSS"}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem", flexWrap: "wrap" }}>
+                        <MapPin size={14} style={{ flexShrink: 0 }} />
+                        <span style={{ wordBreak: "break-word" }}>{d.delegacion || "Delegación SNTSS"}</span>
                         {d.estatus && <span>· Estado: {d.estatus}</span>}
                       </div>
                     </div>
@@ -165,6 +170,7 @@ export function CajaDatesCard({ dates, loading, onRefresh }: CajaDatesCardProps)
                       onClick={() => handleCancelDate(dateId)}
                       loading={cancelingId === dateId}
                       leadingIcon={<Trash size={14} />}
+                      style={{ flexShrink: 0 }}
                     >
                       Cancelar
                     </Button>
@@ -181,8 +187,8 @@ export function CajaDatesCard({ dates, loading, onRefresh }: CajaDatesCardProps)
             Solicitar Nueva Cita
           </div>
 
-          <form onSubmit={handleRequestDate} style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div style={{ flex: "1 1 240px" }}>
+          <form onSubmit={handleRequestDate} style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-end", width: "100%", boxSizing: "border-box" }}>
+            <div style={{ flex: "1 1 200px", minWidth: 0, width: "100%" }}>
               <Select
                 label="Delegación Sindical"
                 value={delegacionId}
@@ -197,7 +203,7 @@ export function CajaDatesCard({ dates, loading, onRefresh }: CajaDatesCardProps)
               </Select>
             </div>
 
-            <Button type="submit" variant="primary" size="md" loading={submitting} leadingIcon={<Plus size={16} />}>
+            <Button type="submit" variant="primary" size="md" loading={submitting} leadingIcon={<Plus size={16} />} style={{ flex: "1 1 auto" }}>
               Agendar Cita
             </Button>
           </form>

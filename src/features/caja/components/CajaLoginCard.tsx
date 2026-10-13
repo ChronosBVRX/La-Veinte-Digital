@@ -38,8 +38,8 @@ export function CajaLoginCard({ onLogin, initialMatricula = "" }: CajaLoginCardP
   }
 
   return (
-    <div style={{ maxWidth: "480px", margin: "1.5rem auto" }}>
-      <Card padding="2rem 1.75rem">
+    <div style={{ width: "100%", maxWidth: "480px", margin: "1rem auto", boxSizing: "border-box", minWidth: 0 }}>
+      <Card padding="clamp(1.25rem, 4vw, 1.75rem) clamp(1rem, 3vw, 1.5rem)">
         <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
           <div
             style={{

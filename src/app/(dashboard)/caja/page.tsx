@@ -15,8 +15,8 @@ export default async function CajaPage() {
   // Si no es admin y la caja no está abierta al público, mostrar aviso de prueba
   if (!capabilities.isAdmin && !isPublic) {
     return (
-      <div style={{ maxWidth: "560px", margin: "3rem auto", padding: "1.5rem" }}>
-        <Card padding="2rem">
+      <div style={{ width: "100%", maxWidth: "560px", margin: "2rem auto", boxSizing: "border-box" }}>
+        <Card padding="clamp(1.25rem, 4vw, 2rem)">
           <div style={{ textAlign: "center" }}>
             <ShieldWarning size={48} color="var(--primary)" weight="duotone" style={{ margin: "0 auto 1rem" }} />
             <h2 style={{ fontSize: "1.25rem", fontWeight: 700, margin: "0 0 0.5rem", color: "var(--fg)" }}>
@@ -37,7 +37,7 @@ export default async function CajaPage() {
   }
 
   return (
-    <div style={{ maxWidth: "1000px", margin: "1.5rem auto", padding: "0 1rem" }}>
+    <div style={{ width: "100%", maxWidth: "1000px", margin: "0 auto", boxSizing: "border-box", minWidth: 0 }}>
       <CajaDashboard />
     </div>
   )

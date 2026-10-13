@@ -77,12 +77,12 @@ export function CajaWithdrawModal({ balance, onClose, onSuccess }: CajaWithdrawM
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "1rem",
+        padding: "clamp(0.5rem, 2vw, 1rem)",
         backdropFilter: "blur(4px)",
       }}
     >
-      <div style={{ maxWidth: "520px", width: "100%", maxHeight: "90vh", overflowY: "auto" }}>
-        <Card padding="1.75rem">
+      <div style={{ maxWidth: "520px", width: "100%", maxHeight: "90vh", overflowY: "auto", boxSizing: "border-box", minWidth: 0 }}>
+        <Card padding="clamp(1.125rem, 3.5vw, 1.5rem)">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
             <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: 0, color: "var(--fg)" }}>
               Solicitud de Retiro

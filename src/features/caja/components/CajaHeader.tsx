@@ -14,23 +14,26 @@ export function CajaHeader({ session, onLogout }: CajaHeaderProps) {
   return (
     <div
       style={{
+        width: "100%",
+        boxSizing: "border-box",
+        minWidth: 0,
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         flexWrap: "wrap",
         gap: "1rem",
-        padding: "1.25rem",
+        padding: "clamp(0.875rem, 3vw, 1.25rem)",
         background: "var(--card)",
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-lg)",
-        marginBottom: "1.5rem",
+        marginBottom: "1.25rem",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", minWidth: 0, flex: "1 1 240px" }}>
         <div
           style={{
-            width: 52,
-            height: 52,
+            width: 48,
+            height: 48,
             position: "relative",
             borderRadius: "var(--radius-md)",
             overflow: "hidden",
@@ -45,15 +48,15 @@ export function CajaHeader({ session, onLogout }: CajaHeaderProps) {
           <Image
             src="/brand/caja/logo.png"
             alt="Caja de Previsión y Ahorro SNTSS"
-            width={48}
-            height={48}
+            width={44}
+            height={44}
             style={{ objectFit: "contain" }}
             priority
           />
         </div>
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <h1 style={{ fontSize: "1.125rem", fontWeight: 700, margin: 0, color: "var(--fg)" }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", flexWrap: "wrap" }}>
+            <h1 style={{ fontSize: "clamp(1rem, 4vw, 1.125rem)", fontWeight: 700, margin: 0, color: "var(--fg)", wordBreak: "break-word" }}>
               Caja de Ahorro SNTSS
             </h1>
             <span
@@ -67,22 +70,23 @@ export function CajaHeader({ session, onLogout }: CajaHeaderProps) {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: "0.25rem",
+                flexShrink: 0,
               }}
             >
               <ShieldCheck size={12} weight="bold" />
               Oficial
             </span>
           </div>
-          <p style={{ margin: "0.125rem 0 0", fontSize: "0.8125rem", color: "var(--muted)" }}>
+          <p style={{ margin: "0.125rem 0 0", fontSize: "0.75rem", color: "var(--muted)", wordBreak: "break-word", lineHeight: 1.35 }}>
             Caja de Previsión y Ahorro del SNTSS · Gestión de saldos, retiros y citas
           </p>
         </div>
       </div>
 
       {session?.authenticated && (
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "0.75rem", flexWrap: "wrap", minWidth: 0, flex: "1 1 200px" }}>
+          <div style={{ textAlign: "right", minWidth: 0 }}>
+            <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)", wordBreak: "break-word" }}>
               {session.nombre || `Matrícula: ${session.matricula}`}
             </div>
             <div style={{ fontSize: "0.6875rem", color: "var(--muted)" }}>Sesión activa en Caja</div>

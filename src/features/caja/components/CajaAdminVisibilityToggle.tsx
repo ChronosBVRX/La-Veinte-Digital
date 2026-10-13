@@ -52,10 +52,10 @@ export function CajaAdminVisibilityToggle() {
   if (loading) return null
 
   return (
-    <div style={{ marginBottom: "1.5rem" }}>
-      <Card padding="1.25rem 1.5rem">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+    <div style={{ width: "100%", boxSizing: "border-box", minWidth: 0, marginBottom: "1.25rem" }}>
+      <Card padding="clamp(1rem, 3vw, 1.25rem)">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", width: "100%", minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", minWidth: 0, flex: "1 1 240px" }}>
             <div
               style={{
                 width: 42,
@@ -67,14 +67,15 @@ export function CajaAdminVisibilityToggle() {
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
+                marginTop: "0.125rem",
               }}
             >
               {isPublic ? <Globe size={24} weight="bold" /> : <Lock size={24} weight="bold" />}
             </div>
 
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)" }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)", wordBreak: "break-word" }}>
                   Visibilidad de Caja de Ahorro:
                 </span>
                 <span
@@ -86,12 +87,13 @@ export function CajaAdminVisibilityToggle() {
                     borderRadius: "var(--radius-pill)",
                     background: isPublic ? "rgba(34, 197, 94, 0.15)" : "rgba(234, 179, 8, 0.15)",
                     color: isPublic ? "var(--success, #16a34a)" : "var(--warning, #ca8a04)",
+                    flexShrink: 0,
                   }}
                 >
                   {isPublic ? "Abierto a Todos" : "Modo Pruebas (Solo Admins)"}
                 </span>
               </div>
-              <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--muted)" }}>
+              <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--muted)", wordBreak: "break-word", lineHeight: 1.35 }}>
                 {isPublic
                   ? "El enlace aparece en el menú lateral para todos los trabajadores afiliados y la sección /caja está disponible."
                   : "Aparece únicamente en el menú lateral de cuentas con rol administrador. El público general ve un aviso de pruebas."}
@@ -99,7 +101,7 @@ export function CajaAdminVisibilityToggle() {
             </div>
           </div>
 
-          <div>
+          <div style={{ flex: "1 1 auto", display: "flex", justifyContent: "flex-end" }}>
             {isPublic ? (
               <Button
                 variant="outline"

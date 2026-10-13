@@ -37,8 +37,8 @@ export function CajaLoanCard({ balance, account, onRefresh }: CajaLoanCardProps)
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-      <Card padding="1.5rem">
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
+      <Card padding="clamp(1rem, 3vw, 1.5rem)">
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
           <CurrencyDollar size={22} color="var(--primary)" weight="bold" />
           <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: 0, color: "var(--fg)" }}>
@@ -49,22 +49,24 @@ export function CajaLoanCard({ balance, account, onRefresh }: CajaLoanCardProps)
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "1rem",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))",
+            gap: "0.75rem",
             marginBottom: "1.25rem",
+            width: "100%",
+            boxSizing: "border-box",
           }}
         >
-          <div style={{ padding: "1rem", background: "var(--accent)", borderRadius: "var(--radius-md)" }}>
+          <div style={{ padding: "0.875rem", background: "var(--accent)", borderRadius: "var(--radius-md)", minWidth: 0 }}>
             <div style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600 }}>Saldo Pendiente</div>
-            <div style={{ fontSize: "1.5rem", fontWeight: 800, color: saldoPrestamo > 0 ? "var(--error, #ef4444)" : "var(--fg)", margin: "0.25rem 0" }}>
+            <div style={{ fontSize: "clamp(1.25rem, 5vw, 1.5rem)", fontWeight: 800, color: saldoPrestamo > 0 ? "var(--error, #ef4444)" : "var(--fg)", margin: "0.25rem 0", wordBreak: "break-word" }}>
               {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(saldoPrestamo)}
             </div>
             <div style={{ fontSize: "0.6875rem", color: "var(--muted)" }}>Descuento vía nómina IMSS</div>
           </div>
 
-          <div style={{ padding: "1rem", background: "var(--accent)", borderRadius: "var(--radius-md)" }}>
+          <div style={{ padding: "0.875rem", background: "var(--accent)", borderRadius: "var(--radius-md)", minWidth: 0 }}>
             <div style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600 }}>Préstamo Otorgado</div>
-            <div style={{ fontSize: "1.5rem", fontWeight: 800, color: "var(--fg)", margin: "0.25rem 0" }}>
+            <div style={{ fontSize: "clamp(1.25rem, 5vw, 1.5rem)", fontWeight: 800, color: "var(--fg)", margin: "0.25rem 0", wordBreak: "break-word" }}>
               {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(prestamoOtorgado)}
             </div>
             <div style={{ fontSize: "0.6875rem", color: "var(--muted)" }}>Monto original concedido</div>

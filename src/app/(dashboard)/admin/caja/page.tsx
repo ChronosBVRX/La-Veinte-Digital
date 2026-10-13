@@ -9,8 +9,8 @@ export default async function AdminCajaPage() {
 
   if (!capabilities.isAdmin) {
     return (
-      <div style={{ maxWidth: "600px", margin: "2rem auto", padding: "1.5rem" }}>
-        <Card padding="1.5rem">
+      <div style={{ width: "100%", maxWidth: "600px", margin: "1.5rem auto", boxSizing: "border-box" }}>
+        <Card padding="clamp(1.25rem, 4vw, 1.5rem)">
           <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.5rem" }}>Acceso restringido</h2>
           <p style={{ color: "var(--muted)", fontSize: "0.875rem", margin: 0 }}>
             Se requieren privilegios de administrador para probar el módulo de Caja de Ahorro.
@@ -21,7 +21,7 @@ export default async function AdminCajaPage() {
   }
 
   return (
-    <div style={{ maxWidth: "1000px", margin: "1.5rem auto", padding: "0 1rem" }}>
+    <div style={{ width: "100%", maxWidth: "1000px", margin: "0 auto", boxSizing: "border-box", minWidth: 0 }}>
       <CajaAdminVisibilityToggle />
       <CajaDashboard />
     </div>
