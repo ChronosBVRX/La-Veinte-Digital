@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { requireUser } from "@/shared/server/auth/require-user"
 import { requireCajaAccess } from "@/lib/caja/auth-guard"
 import { CajaClient } from "@/lib/caja/client"
-import { setCajaSession } from "@/lib/caja/session"
+import { getCajaSession, setCajaSession } from "@/lib/caja/session"
 
 export async function POST(req: Request) {
   const auth = await requireUser()
@@ -39,8 +39,35 @@ export async function POST(req: Request) {
       }
     }
 
-    // 2. Realizar autenticación
-    const loginRes = await client.login({ matricula, password })
+    // 2. Realizar autenticación (con auto-recovery réplica de Contrasenia$f.smali:292)
+    let loginRes
+    try {
+      loginRes = await client.login({ matricula, password })
+    } catch (firstErr: unknown) {
+      const e = firstErr as { httpStatus?: number; code?: string; message?: string; apiMessage?: string }
+      const msg = e.apiMessage || e.message || ""
+      const isAct = /sesi[oó]n.*activa/i.test(msg)
+
+      if (isAct) {
+        // Si teníamos sesión previa en cookie, intentar logout en servidor y reintentar
+        const prevSession = await getCajaSession()
+        if (prevSession?.authToken) {
+          try {
+            const recoveryClient = new CajaClient({ getToken: () => prevSession.authToken })
+            await recoveryClient.logoutServer(matricula)
+            await new Promise((r) => setTimeout(r, 2000))
+            loginRes = await client.login({ matricula, password })
+          } catch {
+            throw firstErr
+          }
+        } else {
+          throw firstErr
+        }
+      } else {
+        throw firstErr
+      }
+    }
+
     const payload = loginRes.payload
 
     if (!payload?.authToken) {
@@ -105,13 +132,13 @@ export async function POST(req: Request) {
 
     const isSessionActive =
       /sesi[oó]n.*activa/i.test(message) ||
-      e.code === "1041" ||
-      e.code === "1042"
+      (e.code === "1040" && /sesi[oó]n/i.test(message)) ||
+      e.code === "1041"
 
     return NextResponse.json(
       {
         error: message,
-        code: e.code || "caja_api_error",
+        code: e.code || "1040",
         isSessionActive: Boolean(isSessionActive),
       },
       { status },

@@ -1,10 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { CurrencyDollar, CheckCircle, Info, Handshake } from "@phosphor-icons/react"
+import { CurrencyDollar, Info } from "@phosphor-icons/react"
 import { Card } from "@/shared/components/ui/Card"
-import { Button } from "@/shared/components/ui/Button"
-import { renewCajaLoan } from "../services/caja-service"
 import type { SaldoPayload, AccountProfile } from "@/lib/caja/models"
 
 interface CajaLoanCardProps {
@@ -13,28 +10,10 @@ interface CajaLoanCardProps {
   onRefresh: () => void
 }
 
-export function CajaLoanCard({ balance, account, onRefresh }: CajaLoanCardProps) {
-  const [loading, setLoading] = useState(false)
-  const [renewalSuccess, setRenewalSuccess] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
+export function CajaLoanCard({ balance, account }: CajaLoanCardProps) {
   const saldoPrestamo = balance?.saldoPrestamo ?? 0
   const prestamoOtorgado = balance?.prestamoOtorgado ?? 0
   const mensajeRenovacion = account?.mensajeRenovacion || "Consulta las condiciones vigentes de renovación de préstamo ante tu delegación sindical."
-
-  const handleRenew = async () => {
-    setError(null)
-    setLoading(true)
-    try {
-      await renewCajaLoan()
-      setRenewalSuccess(true)
-      onRefresh()
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error al procesar solicitud de renovación")
-    } finally {
-      setLoading(false)
-    }
-  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
@@ -42,7 +21,7 @@ export function CajaLoanCard({ balance, account, onRefresh }: CajaLoanCardProps)
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
           <CurrencyDollar size={22} color="var(--primary)" weight="bold" />
           <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: 0, color: "var(--fg)" }}>
-            Préstamos de Caja SNTSS
+            Consulta de Préstamos (Informativo)
           </h2>
         </div>
 
@@ -57,7 +36,7 @@ export function CajaLoanCard({ balance, account, onRefresh }: CajaLoanCardProps)
           }}
         >
           <div style={{ padding: "0.875rem", background: "var(--accent)", borderRadius: "var(--radius-md)", minWidth: 0 }}>
-            <div style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600 }}>Saldo Pendiente</div>
+            <div style={{ fontSize: "0.75rem", color: "var(--muted)", fontWeight: 600 }}>Saldo Pendiente por Pagar</div>
             <div style={{ fontSize: "clamp(1.25rem, 5vw, 1.5rem)", fontWeight: 800, color: saldoPrestamo > 0 ? "var(--error, #ef4444)" : "var(--fg)", margin: "0.25rem 0", wordBreak: "break-word" }}>
               {new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(saldoPrestamo)}
             </div>
@@ -79,7 +58,6 @@ export function CajaLoanCard({ balance, account, onRefresh }: CajaLoanCardProps)
             background: "rgba(37, 99, 235, 0.05)",
             border: "1px solid rgba(37, 99, 235, 0.15)",
             borderRadius: "var(--radius-md)",
-            marginBottom: "1.25rem",
             display: "flex",
             gap: "0.75rem",
             alignItems: "flex-start",
@@ -88,61 +66,35 @@ export function CajaLoanCard({ balance, account, onRefresh }: CajaLoanCardProps)
           <Info size={20} color="var(--primary)" style={{ flexShrink: 0, marginTop: "0.1rem" }} />
           <div>
             <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--fg)", marginBottom: "0.25rem" }}>
-              Estado de Renovación
+              Estatus de Renovación
             </div>
             <div style={{ fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.4 }}>
               {mensajeRenovacion}
             </div>
           </div>
         </div>
-
-        {error && (
-          <div
-            style={{
-              padding: "0.75rem",
-              background: "rgba(220, 38, 38, 0.08)",
-              border: "1px solid rgba(220, 38, 38, 0.25)",
-              borderRadius: "var(--radius-md)",
-              color: "var(--error)",
-              fontSize: "0.8125rem",
-              marginBottom: "1rem",
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        {renewalSuccess ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              padding: "0.75rem 1rem",
-              background: "rgba(34, 197, 94, 0.1)",
-              borderRadius: "var(--radius-md)",
-              color: "var(--success, #22c55e)",
-              fontSize: "0.8125rem",
-              fontWeight: 600,
-            }}
-          >
-            <CheckCircle size={18} weight="fill" />
-            <span>Solicitud de renovación enviada con éxito. Será evaluada por el comité de Caja.</span>
-          </div>
-        ) : (
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={handleRenew}
-              loading={loading}
-              leadingIcon={<Handshake size={18} />}
-            >
-              Solicitar Renovación de Préstamo
-            </Button>
-          </div>
-        )}
       </Card>
+
+      {/* Nota informativa */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "0.625rem",
+          padding: "0.875rem 1rem",
+          background: "var(--accent)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-md)",
+          fontSize: "0.8125rem",
+          color: "var(--muted)",
+          lineHeight: 1.45,
+        }}
+      >
+        <Info size={20} color="var(--primary)" style={{ flexShrink: 0, marginTop: "0.1rem" }} />
+        <span>
+          <strong>Información referencial:</strong> Esta vista es de carácter orientativo para consulta de saldos vigentes. Toda solicitud de préstamo, reestructuración o renovación se realiza por los canales oficiales presenciales o autorizados de la Caja SNTSS.
+        </span>
+      </div>
     </div>
   )
 }

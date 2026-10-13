@@ -1,6 +1,6 @@
 "use client"
 
-import { PiggyBank, HandCoins, CurrencyDollar, ArrowClockwise, CalendarBlank, TrendUp } from "@phosphor-icons/react"
+import { PiggyBank, CurrencyDollar, ArrowClockwise, CalendarBlank, TrendUp, Info } from "@phosphor-icons/react"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
 import type { SaldoPayload } from "@/lib/caja/models"
@@ -9,7 +9,6 @@ interface CajaBalanceCardProps {
   balance: SaldoPayload | null
   loading: boolean
   onRefresh: () => void
-  onOpenWithdraw: () => void
 }
 
 function formatMoney(amount?: number | null): string {
@@ -21,7 +20,7 @@ function formatMoney(amount?: number | null): string {
   }).format(amount)
 }
 
-export function CajaBalanceCard({ balance, loading, onRefresh, onOpenWithdraw }: CajaBalanceCardProps) {
+export function CajaBalanceCard({ balance, loading, onRefresh }: CajaBalanceCardProps) {
   const saldoTotal = balance?.saldoTotal ?? balance?.saldo ?? 0
   const saldoAhorro = balance?.saldoAhorro ?? 0
   const saldoPrestamo = balance?.saldoPrestamo ?? 0
@@ -35,7 +34,7 @@ export function CajaBalanceCard({ balance, loading, onRefresh, onOpenWithdraw }:
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem", width: "100%", minWidth: 0 }}>
           <div style={{ minWidth: 0, flex: "1 1 200px" }}>
             <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              Saldo Neto Disponible
+              Saldo Neto Registrado (Informativo)
             </div>
             <div style={{ fontSize: "clamp(1.75rem, 6vw, 2.25rem)", fontWeight: 800, color: "var(--fg)", margin: "0.25rem 0", letterSpacing: "-0.02em", wordBreak: "break-word" }}>
               {formatMoney(saldoTotal)}
@@ -48,12 +47,9 @@ export function CajaBalanceCard({ balance, loading, onRefresh, onOpenWithdraw }:
             )}
           </div>
 
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", width: "100%", maxWidth: "100%" }}>
-            <Button variant="outline" size="sm" onClick={onRefresh} loading={loading} leadingIcon={<ArrowClockwise size={16} />} style={{ flex: "1 1 auto" }}>
-              Actualizar
-            </Button>
-            <Button variant="primary" size="sm" onClick={onOpenWithdraw} leadingIcon={<HandCoins size={16} />} style={{ flex: "1 1 auto" }}>
-              Solicitar Retiro
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            <Button variant="outline" size="sm" onClick={onRefresh} loading={loading} leadingIcon={<ArrowClockwise size={16} />}>
+              Actualizar Saldos
             </Button>
           </div>
         </div>
@@ -142,6 +138,27 @@ export function CajaBalanceCard({ balance, loading, onRefresh, onOpenWithdraw }:
           </div>
         </Card>
       )}
+
+      {/* Nota informativa y referencial */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "0.625rem",
+          padding: "0.875rem 1rem",
+          background: "var(--accent)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-md)",
+          fontSize: "0.8125rem",
+          color: "var(--muted)",
+          lineHeight: 1.45,
+        }}
+      >
+        <Info size={20} color="var(--primary)" style={{ flexShrink: 0, marginTop: "0.1rem" }} />
+        <span>
+          <strong>Consulta sindical informativa:</strong> Esta sección refleja los saldos y acumulados reportados por el sistema de la Caja de Previsión y Ahorro SNTSS con propósitos de transparencia y consulta. Para trámites de retiro, aclaraciones o modificaciones patrimoniales, el trámite debe gestionarse directamente a través de tu delegación sindical o ventanillas oficiales de la Caja.
+        </span>
+      </div>
     </div>
   )
 }

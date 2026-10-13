@@ -1,19 +1,18 @@
 "use client"
 
 import { useState } from "react"
-import { PiggyBank, HandCoins, CurrencyDollar, CalendarDots, User } from "@phosphor-icons/react"
+import { PiggyBank, CurrencyDollar, CalendarDots, User } from "@phosphor-icons/react"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { useUser } from "@/shared/hooks/useUser"
 import { useCaja } from "../hooks/useCaja"
 import { CajaHeader } from "./CajaHeader"
 import { CajaLoginCard } from "./CajaLoginCard"
 import { CajaBalanceCard } from "./CajaBalanceCard"
-import { CajaWithdrawModal } from "./CajaWithdrawModal"
 import { CajaLoanCard } from "./CajaLoanCard"
 import { CajaDatesCard } from "./CajaDatesCard"
 import { CajaInfoCard } from "./CajaInfoCard"
 
-type ActiveTab = "saldos" | "retiros" | "prestamos" | "citas" | "cuenta"
+type ActiveTab = "saldos" | "prestamos" | "citas" | "cuenta"
 
 export function CajaDashboard() {
   const { user } = useUser()
@@ -30,7 +29,6 @@ export function CajaDashboard() {
   } = useCaja()
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("saldos")
-  const [showWithdrawModal, setShowWithdrawModal] = useState(false)
 
   if (loadingSession) {
     return (
@@ -88,32 +86,6 @@ export function CajaDashboard() {
             </button>
 
             <button
-              onClick={() => {
-                setActiveTab("retiros")
-                setShowWithdrawModal(true)
-              }}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.375rem",
-                padding: "0.625rem 0.75rem",
-                border: "none",
-                background: "none",
-                borderBottom: activeTab === "retiros" ? "2px solid var(--primary)" : "2px solid transparent",
-                color: activeTab === "retiros" ? "var(--primary)" : "var(--muted)",
-                fontWeight: activeTab === "retiros" ? 700 : 500,
-                fontSize: "0.8125rem",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-                transition: "all 0.15s ease",
-              }}
-            >
-              <HandCoins size={18} weight={activeTab === "retiros" ? "fill" : "regular"} />
-              <span>Retiros</span>
-            </button>
-
-            <button
               onClick={() => setActiveTab("prestamos")}
               style={{
                 display: "inline-flex",
@@ -133,7 +105,7 @@ export function CajaDashboard() {
               }}
             >
               <CurrencyDollar size={18} weight={activeTab === "prestamos" ? "fill" : "regular"} />
-              <span>Préstamos</span>
+              <span>Estado de Préstamos</span>
             </button>
 
             <button
@@ -156,7 +128,7 @@ export function CajaDashboard() {
               }}
             >
               <CalendarDots size={18} weight={activeTab === "citas" ? "fill" : "regular"} />
-              <span>Citas ({dates.length})</span>
+              <span>Citas Agendadas ({dates.length})</span>
             </button>
 
             <button
@@ -179,7 +151,7 @@ export function CajaDashboard() {
               }}
             >
               <User size={18} weight={activeTab === "cuenta" ? "fill" : "regular"} />
-              <span>Mi Cuenta</span>
+              <span>Mi Cuenta Sindical</span>
             </button>
           </div>
 
@@ -189,19 +161,7 @@ export function CajaDashboard() {
               balance={balance}
               loading={loadingData}
               onRefresh={refreshData}
-              onOpenWithdraw={() => setShowWithdrawModal(true)}
             />
-          )}
-
-          {activeTab === "retiros" && (
-            <div>
-              <CajaBalanceCard
-                balance={balance}
-                loading={loadingData}
-                onRefresh={refreshData}
-                onOpenWithdraw={() => setShowWithdrawModal(true)}
-              />
-            </div>
           )}
 
           {activeTab === "prestamos" && (
@@ -224,17 +184,6 @@ export function CajaDashboard() {
             <CajaInfoCard
               account={account}
               matricula={session?.matricula}
-            />
-          )}
-
-          {/* Modal de retiro */}
-          {showWithdrawModal && (
-            <CajaWithdrawModal
-              balance={balance}
-              onClose={() => setShowWithdrawModal(false)}
-              onSuccess={() => {
-                refreshData()
-              }}
             />
           )}
         </div>

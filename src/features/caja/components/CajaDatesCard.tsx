@@ -1,11 +1,6 @@
-"use client"
-
-import { useState } from "react"
-import { CalendarDots, Plus, Trash, Clock, MapPin, CheckCircle } from "@phosphor-icons/react"
+import { CalendarDots, Clock, MapPin, ArrowClockwise, Info } from "@phosphor-icons/react"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
-import { Select } from "@/shared/components/ui/Input"
-import { requestCajaDate, cancelCajaDate } from "../services/caja-service"
 import type { DateItem } from "@/lib/caja/models"
 
 interface CajaDatesCardProps {
@@ -14,108 +9,28 @@ interface CajaDatesCardProps {
   onRefresh: () => void
 }
 
-const DELEGACIONES = [
-  { id: 1, label: "Delegación 1 (CDMX Norte)" },
-  { id: 2, label: "Delegación 2 (CDMX Sur)" },
-  { id: 3, label: "Delegación 3 (Jalisco)" },
-  { id: 4, label: "Delegación 4 (Nuevo León)" },
-  { id: 5, label: "Delegación 5 (Puebla)" },
-  { id: 6, label: "Delegación 6 (Veracruz)" },
-]
-
 export function CajaDatesCard({ dates, loading, onRefresh }: CajaDatesCardProps) {
-  const [delegacionId, setDelegacionId] = useState("1")
-  const [submitting, setSubmitting] = useState(false)
-  const [cancelingId, setCancelingId] = useState<string | number | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
-
-  const handleRequestDate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setSuccessMsg(null)
-    setSubmitting(true)
-    try {
-      await requestCajaDate(delegacionId)
-      setSuccessMsg("Cita agendada correctamente.")
-      onRefresh()
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error al solicitar cita")
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handleCancelDate = async (id: string | number) => {
-    if (!confirm("¿Seguro que deseas cancelar esta cita?")) return
-    setError(null)
-    setSuccessMsg(null)
-    setCancelingId(id)
-    try {
-      await cancelCajaDate(id)
-      setSuccessMsg("Cita cancelada con éxito.")
-      onRefresh()
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error al cancelar cita")
-    } finally {
-      setCancelingId(null)
-    }
-  }
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
       <Card padding="clamp(1rem, 3vw, 1.5rem)">
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem" }}>
-          <CalendarDots size={22} color="var(--primary)" weight="bold" />
-          <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: 0, color: "var(--fg)" }}>
-            Citas de Atención Presencial
-          </h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <CalendarDots size={22} color="var(--primary)" weight="bold" />
+            <h2 style={{ fontSize: "1.125rem", fontWeight: 700, margin: 0, color: "var(--fg)" }}>
+              Citas Agendadas (Consulta)
+            </h2>
+          </div>
+
+          <Button variant="outline" size="sm" onClick={onRefresh} loading={loading} leadingIcon={<ArrowClockwise size={16} />}>
+            Actualizar
+          </Button>
         </div>
 
-        {error && (
-          <div
-            style={{
-              padding: "0.75rem",
-              background: "rgba(220, 38, 38, 0.08)",
-              border: "1px solid rgba(220, 38, 38, 0.25)",
-              borderRadius: "var(--radius-md)",
-              color: "var(--error)",
-              fontSize: "0.8125rem",
-              marginBottom: "1rem",
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        {successMsg && (
-          <div
-            style={{
-              padding: "0.75rem",
-              background: "rgba(34, 197, 94, 0.1)",
-              borderRadius: "var(--radius-md)",
-              color: "var(--success, #22c55e)",
-              fontSize: "0.8125rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              marginBottom: "1rem",
-            }}
-          >
-            <CheckCircle size={16} weight="fill" />
-            <span>{successMsg}</span>
-          </div>
-        )}
-
         {/* Citas registradas */}
-        <div style={{ marginBottom: "1.5rem" }}>
-          <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", marginBottom: "0.75rem" }}>
-            Citas Agendadas ({dates.length})
-          </div>
-
+        <div>
           {loading ? (
             <div style={{ padding: "1.5rem", textAlign: "center", color: "var(--muted)", fontSize: "0.8125rem" }}>
-              Cargando citas...
+              Consultando citas en Caja SNTSS...
             </div>
           ) : dates.length === 0 ? (
             <div
@@ -128,7 +43,7 @@ export function CajaDatesCard({ dates, loading, onRefresh }: CajaDatesCardProps)
                 fontSize: "0.8125rem",
               }}
             >
-              No tienes citas programadas en este momento.
+              No tienes citas programadas registradas en este momento.
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
@@ -163,52 +78,34 @@ export function CajaDatesCard({ dates, loading, onRefresh }: CajaDatesCardProps)
                         {d.estatus && <span>· Estado: {d.estatus}</span>}
                       </div>
                     </div>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleCancelDate(dateId)}
-                      loading={cancelingId === dateId}
-                      leadingIcon={<Trash size={14} />}
-                      style={{ flexShrink: 0 }}
-                    >
-                      Cancelar
-                    </Button>
                   </div>
                 )
               })}
             </div>
           )}
         </div>
-
-        {/* Agendar nueva cita */}
-        <div style={{ borderTop: "1px solid var(--border)", paddingTop: "1.25rem" }}>
-          <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--fg)", marginBottom: "0.75rem" }}>
-            Solicitar Nueva Cita
-          </div>
-
-          <form onSubmit={handleRequestDate} style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-end", width: "100%", boxSizing: "border-box" }}>
-            <div style={{ flex: "1 1 200px", minWidth: 0, width: "100%" }}>
-              <Select
-                label="Delegación Sindical"
-                value={delegacionId}
-                onChange={(e) => setDelegacionId(e.target.value)}
-                disabled={submitting}
-              >
-                {DELEGACIONES.map((del) => (
-                  <option key={del.id} value={del.id}>
-                    {del.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-
-            <Button type="submit" variant="primary" size="md" loading={submitting} leadingIcon={<Plus size={16} />} style={{ flex: "1 1 auto" }}>
-              Agendar Cita
-            </Button>
-          </form>
-        </div>
       </Card>
+
+      {/* Nota informativa */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "0.625rem",
+          padding: "0.875rem 1rem",
+          background: "var(--accent)",
+          border: "1px solid var(--border)",
+          borderRadius: "var(--radius-md)",
+          fontSize: "0.8125rem",
+          color: "var(--muted)",
+          lineHeight: 1.45,
+        }}
+      >
+        <Info size={20} color="var(--primary)" style={{ flexShrink: 0, marginTop: "0.1rem" }} />
+        <span>
+          <strong>Información sobre citas:</strong> Esta sección consulta tus citas de atención presencial previamente programadas ante la Caja SNTSS. Para solicitar una nueva cita o reprogramar, comunícate a la línea de atención de tu delegación sindical.
+        </span>
+      </div>
     </div>
   )
 }

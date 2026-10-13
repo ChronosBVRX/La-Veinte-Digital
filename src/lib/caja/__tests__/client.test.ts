@@ -99,4 +99,25 @@ describe("CajaClient", () => {
       apiMessage: "Matricula no encontrada",
     })
   })
+
+  it("logoutServer envía GET logout/{matricula} con Bearer token", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: "ok", message: "Sesión cerrada" }),
+    })
+
+    const client = new CajaClient({
+      fetchImpl: mockFetch,
+      getToken: () => "mock-bearer-token",
+    })
+    await client.logoutServer("123456")
+
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    const callArgs = mockFetch.mock.calls[0]
+    expect(callArgs[0]).toContain("logout/123456")
+    expect(callArgs[1].method).toBe("GET")
+    expect(callArgs[1].headers.authorization).toBe("Bearer mock-bearer-token")
+  })
 })
+
