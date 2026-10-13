@@ -1,23 +1,69 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
-import { Lock, IdentificationCard, Eye, EyeSlash, ShieldCheck, WarningCircle } from "@phosphor-icons/react"
+import { Lock, IdentificationCard, Eye, EyeSlash, ShieldCheck, WarningCircle, CheckCircle } from "@phosphor-icons/react"
 import { Card } from "@/shared/components/ui/Card"
 import { Input } from "@/shared/components/ui/Input"
 import { Button } from "@/shared/components/ui/Button"
+import { useUser } from "@/shared/hooks/useUser"
+import {
+  loadCajaCredentials,
+  saveCajaCredentials,
+  clearCajaCredentials,
+} from "../services/caja-credentials-storage"
 
 interface CajaLoginCardProps {
   onLogin: (matricula: string, password: string) => Promise<void>
   initialMatricula?: string
+  userId?: string
 }
 
-export function CajaLoginCard({ onLogin, initialMatricula = "" }: CajaLoginCardProps) {
+export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLoginCardProps) {
+  const { user } = useUser()
+  const effectiveUserId = userId || user?.id
+
   const [matricula, setMatricula] = useState(initialMatricula)
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [rememberCredentials, setRememberCredentials] = useState(false)
+  const [hasSaved, setHasSaved] = useState(false)
+
+  useEffect(() => {
+    let active = true
+
+    async function loadSaved() {
+      if (!effectiveUserId) return
+      try {
+        const saved = await loadCajaCredentials(effectiveUserId)
+        if (active && saved) {
+          setMatricula(saved.matricula)
+          setPassword(saved.password)
+          setRememberCredentials(true)
+          setHasSaved(true)
+        }
+      } catch {
+        // Ignorar si no se puede leer
+      }
+    }
+
+    void loadSaved()
+
+    return () => {
+      active = false
+    }
+  }, [effectiveUserId])
+
+  const handleForgetSaved = () => {
+    if (effectiveUserId) {
+      clearCajaCredentials(effectiveUserId)
+    }
+    setPassword("")
+    setRememberCredentials(false)
+    setHasSaved(false)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,6 +76,18 @@ export function CajaLoginCard({ onLogin, initialMatricula = "" }: CajaLoginCardP
     setLoading(true)
     try {
       await onLogin(matricula.trim(), password)
+      if (effectiveUserId) {
+        if (rememberCredentials) {
+          await saveCajaCredentials(effectiveUserId, {
+            matricula: matricula.trim(),
+            password,
+          })
+          setHasSaved(true)
+        } else {
+          clearCajaCredentials(effectiveUserId)
+          setHasSaved(false)
+        }
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Error al conectar con Caja de Ahorro")
     } finally {
@@ -135,6 +193,72 @@ export function CajaLoginCard({ onLogin, initialMatricula = "" }: CajaLoginCardP
             />
           </div>
 
+          {hasSaved && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.5rem",
+                padding: "0.5rem 0.75rem",
+                background: "rgba(16, 185, 129, 0.08)",
+                border: "1px solid rgba(16, 185, 129, 0.25)",
+                borderRadius: "var(--radius-sm)",
+                fontSize: "0.75rem",
+                color: "var(--success, #059669)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", minWidth: 0 }}>
+                <CheckCircle size={16} weight="fill" style={{ flexShrink: 0 }} />
+                <span style={{ fontWeight: 500 }}>Credenciales guardadas en este dispositivo</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleForgetSaved}
+                disabled={loading}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--muted)",
+                  cursor: "pointer",
+                  fontSize: "0.75rem",
+                  textDecoration: "underline",
+                  padding: 0,
+                  flexShrink: 0,
+                }}
+              >
+                Olvidar
+              </button>
+            </div>
+          )}
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              fontSize: "0.8125rem",
+              color: "var(--fg)",
+            }}
+          >
+            <input
+              id="caja-remember"
+              type="checkbox"
+              checked={rememberCredentials}
+              onChange={(e) => setRememberCredentials(e.target.checked)}
+              disabled={loading}
+              style={{
+                width: "1.05rem",
+                height: "1.05rem",
+                accentColor: "var(--primary)",
+                cursor: "pointer",
+              }}
+            />
+            <label htmlFor="caja-remember" style={{ cursor: "pointer", userSelect: "none" }}>
+              Recordar mis credenciales en este dispositivo
+            </label>
+          </div>
+
           <Button type="submit" variant="primary" size="md" loading={loading} fullWidth>
             {loading ? "Validando credenciales..." : "Entrar a Caja de Ahorro"}
           </Button>
@@ -155,7 +279,9 @@ export function CajaLoginCard({ onLogin, initialMatricula = "" }: CajaLoginCardP
         >
           <ShieldCheck size={20} weight="fill" color="var(--primary)" style={{ flexShrink: 0 }} />
           <span>
-            Tus datos se transmiten con cifrado seguro al servidor de la Caja SNTSS. Tu contraseña nunca se almacena y la sesión se resguarda mediante cookies HTTP-Only de servidor.
+            {hasSaved
+              ? "Tus credenciales están guardadas de forma cifrada (AES-GCM) únicamente en este dispositivo. Puedes olvidarlas en cualquier momento."
+              : "Tus datos se transmiten con cifrado seguro al servidor de la Caja SNTSS. Puedes optar por guardarlas cifradas en este dispositivo para mayor comodidad."}
           </span>
         </div>
       </Card>

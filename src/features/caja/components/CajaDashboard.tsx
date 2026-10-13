@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { PiggyBank, HandCoins, CurrencyDollar, CalendarDots, User } from "@phosphor-icons/react"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
+import { useUser } from "@/shared/hooks/useUser"
 import { useCaja } from "../hooks/useCaja"
 import { CajaHeader } from "./CajaHeader"
 import { CajaLoginCard } from "./CajaLoginCard"
@@ -15,6 +16,7 @@ import { CajaInfoCard } from "./CajaInfoCard"
 type ActiveTab = "saldos" | "retiros" | "prestamos" | "citas" | "cuenta"
 
 export function CajaDashboard() {
+  const { user } = useUser()
   const {
     session,
     loadingSession,
@@ -43,7 +45,7 @@ export function CajaDashboard() {
       <CajaHeader session={session} onLogout={logout} />
 
       {!session?.authenticated ? (
-        <CajaLoginCard onLogin={login} initialMatricula={session?.matricula} />
+        <CajaLoginCard onLogin={login} initialMatricula={session?.matricula} userId={user?.id} />
       ) : (
         <div style={{ width: "100%", minWidth: 0, boxSizing: "border-box" }}>
           {/* Navegación por pestañas */}
