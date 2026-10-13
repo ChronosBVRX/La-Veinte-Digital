@@ -61,6 +61,32 @@ class BiometricFlowPolicyTest {
     }
 
     @Test
+    fun `periodo por defecto selecciona el mas reciente cuando el portal devuelve orden descendente con 2025001 al final`() {
+        val portalPeriods = listOf(
+            BiometricPeriod("2026019 (1ra - OCTUBRE)", "2026019 (1ra - OCTUBRE)"),
+            BiometricPeriod("2026018 (2da - SEPTIEMBRE)", "2026018 (2da - SEPTIEMBRE)"),
+            BiometricPeriod("2025002 (2da - ENERO)", "2025002 (2da - ENERO)"),
+            BiometricPeriod("2025001 (1ra - ENERO)", "2025001 (1ra - ENERO)"),
+        )
+        assertEquals(
+            BiometricPeriod("2026019 (1ra - OCTUBRE)", "2026019 (1ra - OCTUBRE)"),
+            BiometricFlowPolicy.defaultPeriod(portalPeriods),
+        )
+    }
+
+    @Test
+    fun `sortNewestFirst coloca siempre el periodo mas reciente en la primera posicion`() {
+        val mixedPeriods = listOf(
+            BiometricPeriod("2025001 (1ra - ENERO)", "2025001 (1ra - ENERO)"),
+            BiometricPeriod("2026019 (1ra - OCTUBRE)", "2026019 (1ra - OCTUBRE)"),
+            BiometricPeriod("2026018 (2da - SEPTIEMBRE)", "2026018 (2da - SEPTIEMBRE)"),
+        )
+        val sorted = BiometricFlowPolicy.sortNewestFirst(mixedPeriods)
+        assertEquals("2026019 (1ra - OCTUBRE)", sorted.first().label)
+        assertEquals("2025001 (1ra - ENERO)", sorted.last().label)
+    }
+
+    @Test
     fun `sin periodos no hay periodo por defecto`() {
         assertNull(BiometricFlowPolicy.defaultPeriod(emptyList()))
     }

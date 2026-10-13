@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { NextRequest } from "next/server"
 import { requireUser } from "@/shared/server/auth/require-user"
+import { requirePlatformAdmin } from "@/shared/server/admin/require-platform-admin"
 import { privateJson, privateJsonError } from "@/shared/lib/api-response"
 import { NormativeCatalog } from "@/features/normativa/services/catalog"
 import { loadManifest } from "@/features/normativa/core/manifest"
@@ -70,6 +71,9 @@ export async function GET() {
   const auth = await requireUser()
   if (auth.response) return auth.response
 
+  const admin = await requirePlatformAdmin(auth.user)
+  if (admin.response) return admin.response
+
   if (!fs.existsSync(MANIFEST_PATH)) {
     return privateJsonError(503, "Manifest no disponible en este entorno", crypto.randomUUID(), "unavailable")
   }
@@ -79,6 +83,9 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const auth = await requireUser()
   if (auth.response) return auth.response
+
+  const admin = await requirePlatformAdmin(auth.user)
+  if (admin.response) return admin.response
 
   if (!fs.existsSync(MANIFEST_PATH)) {
     return privateJsonError(503, "La sincronización solo está disponible donde existe el corpus local", crypto.randomUUID(), "unavailable")

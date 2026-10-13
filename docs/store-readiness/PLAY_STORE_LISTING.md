@@ -60,10 +60,13 @@ Funciones mencionadas verificadas en el repo: perfil (`/profile`), documentos pe
 (`/asistente`, `/api/consulta`), asistencia documental (tarjetón local
 `features/tarjeton`), generación de escritos (`/escritos`, `/api/escritos/generar`).
 
-## Novedades de esta versión (267/500 caracteres)
+## Novedades de esta versión (v1.2.13 b224 - 468/500 caracteres)
 
 ```
-Añadimos una sección pública de Información y fuentes, enlaces directos a publicaciones oficiales y avisos claros sobre el carácter independiente de La Veinte Digital. También mejoramos la transparencia de las respuestas normativas y la compatibilidad con Android 16.
+• Nueva experiencia asistida: interfaz nativa con animación elegante durante la consulta de tarjetones y biométricos (el navegador opera protegido en segundo plano).
+• Foco automático en tu última quincena disponible tanto en auditoría rápida como en el selector de periodos.
+• Auditor inteligente de checadas: detección oportuna de omisiones de entrada/salida.
+• Estabilidad y rendimiento optimizados (v1.2.13 b224).
 ```
 
 ## Categoría sugerida

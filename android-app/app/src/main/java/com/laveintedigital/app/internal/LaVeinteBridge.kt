@@ -20,7 +20,7 @@ class LaVeinteBridge(
     private val hasBiometrics: () -> Boolean = { false },
     private val isBiometricsEnabled: () -> Boolean = { false },
     private val onOpenOfficialPayslips: () -> Unit = {},
-    private val onOpenBiometrics: () -> Unit = {},
+    private val onOpenBiometrics: (String) -> Unit = {},
     private val onHasImssCredentials: (String) -> Boolean = { false },
     private val onCheckForUpdate: () -> Unit = {},
     private val onOpenSavedDocuments: () -> Unit = {},
@@ -89,7 +89,12 @@ class LaVeinteBridge(
 
     @JavascriptInterface
     fun openBiometrics() {
-        runCatching { onOpenBiometrics() }
+        runCatching { onOpenBiometrics("hub") }
+    }
+
+    @JavascriptInterface
+    fun openBiometrics(mode: String?) {
+        runCatching { onOpenBiometrics(mode ?: "hub") }
     }
 
     @JavascriptInterface

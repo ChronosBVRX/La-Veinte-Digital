@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,17 +19,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.laveintedigital.app.imss.portal.TarjetonDigitalFlowController.TarjetonTipo
@@ -40,6 +45,7 @@ import com.laveintedigital.app.ui.lvd.LvdMotion
 import com.laveintedigital.app.ui.lvd.LvdPrimaryButton
 import com.laveintedigital.app.ui.lvd.LvdSecondaryButton
 import com.laveintedigital.app.ui.lvd.LvdSelectField
+import com.laveintedigital.app.ui.lvd.LvdShapes
 import com.laveintedigital.app.ui.lvd.LvdSpacing
 import com.laveintedigital.app.ui.lvd.LvdSuccessState
 
@@ -69,9 +75,63 @@ fun TarjetonDigitalTarjetonOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(LvdColors.Scrim)
+            .background(LvdColors.Background)
             .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
     ) {
+        // Fondo nativo elegante que oculta el WebView en segundo plano
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 36.dp, start = 24.dp, end = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(LvdShapes.Pill)
+                    .background(LvdColors.Surface)
+                    .border(1.dp, LvdColors.Border, LvdShapes.Pill)
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(LvdColors.SuccessStrong),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Tarjetón Digital IMSS • Conexión activa",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = LvdColors.TextPrimary,
+                )
+            }
+            Spacer(Modifier.height(18.dp))
+            Text(
+                "Consulta asistida de tarjetón",
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = LvdColors.TextPrimary,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Selecciona tu quincena y tipo de documento en el panel inferior.",
+                fontSize = 13.sp,
+                color = LvdColors.TextSecondary,
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp,
+            )
+        }
+
+        // Velo de contraste sobre el fondo nativo
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(LvdColors.Scrim),
+        )
+
         LvdBottomSheet(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
