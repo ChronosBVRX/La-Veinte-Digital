@@ -15,7 +15,8 @@ import { Button } from "@/shared/components/ui/Button"
 import {
   adeudoActual,
   liquidoARecibir,
-  esElegibleRenovacion,
+  coberturaColateralEstimada,
+  elegibilidadRenovacionEstimada,
   type CajaLoanInfo,
 } from "@/informative"
 import type { SaldoPayload, AccountProfile } from "@/lib/caja/models"
@@ -59,8 +60,9 @@ export function CajaLoanCard({ balance, account, loan, onRefresh, loading }: Caj
   const retencionMinima = loan?.retencion_minima ? Number(loan.retencion_minima) : null
   const periodoRetencion = loan?.periodo_retencion ? String(loan.periodo_retencion) : null
 
-  // Elegibilidad de renovación (porcentaje >= 25% o mensaje de server)
-  const renovacion = esElegibleRenovacion(porcentaje, account?.mensajeRenovacion)
+  // Cobertura colateral estimada y elegibilidad referencial
+  const cobertura = coberturaColateralEstimada(saldoAhorro, prestamoOtorgado)
+  const renovacion = elegibilidadRenovacionEstimada(porcentaje, account?.mensajeRenovacion)
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
@@ -128,12 +130,12 @@ export function CajaLoanCard({ balance, account, loan, onRefresh, loading }: Caj
         {/* Barra de Avance */}
         {typeof porcentaje === "number" && (
           <div style={{ padding: "0.875rem", background: "var(--accent)", borderRadius: "var(--radius-md)", marginBottom: "1rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.375rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.375rem", flexWrap: "wrap", gap: "0.25rem" }}>
               <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--fg)" }}>
-                Avance de Amortización: {porcentaje}%
+                Avance del servidor: {porcentaje}% {cobertura > 0 ? `· Cobertura colateral: ${cobertura}%` : ""}
               </span>
-              <span style={{ fontSize: "0.75rem", fontWeight: 700, color: porcentaje >= 25 ? "var(--success, #16a34a)" : "var(--muted)" }}>
-                {porcentaje >= 25 ? "✓ Elegible para renovación" : "25% requerido para renovar"}
+              <span style={{ fontSize: "0.75rem", fontWeight: 700, color: renovacion.elegible ? "var(--success, #16a34a)" : "var(--muted)" }}>
+                {renovacion.elegible ? "✓ Posible renovación" : "Umbral estimado ≥20%"}
               </span>
             </div>
             <div style={{ height: "8px", background: "var(--border)", borderRadius: "4px", overflow: "hidden", position: "relative" }}>
@@ -168,8 +170,13 @@ export function CajaLoanCard({ balance, account, loan, onRefresh, loading }: Caj
             <Clock size={22} color="var(--primary)" weight="bold" style={{ flexShrink: 0, marginTop: "0.1rem" }} />
           )}
           <div>
-            <div style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.25rem" }}>
-              {renovacion.elegible ? "Estatus: Elegible para Renovación" : "Estatus: En Proceso de Amortización"}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem", flexWrap: "wrap" }}>
+              <span style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--fg)" }}>
+                {renovacion.elegible ? "Estatus: Posiblemente Elegible para Renovación" : "Estatus: En Proceso de Amortización"}
+              </span>
+              <span style={{ fontSize: "0.6875rem", padding: "0.15rem 0.4rem", borderRadius: "4px", background: "var(--border)", color: "var(--muted)", fontWeight: 600 }}>
+                Estimación referencial
+              </span>
             </div>
             <div style={{ fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.45 }}>
               {renovacion.motivo}

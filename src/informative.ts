@@ -121,24 +121,94 @@ export function liquidoARecibir(importeMaximo: number, adeudo: number): number {
   return Math.round(Math.max(0, maximo - adeudoNeto) * 100) / 100
 }
 
+export const UMBRAL_RENOVACION_HIPOTESIS = 20
+
 /**
- * Determina la elegibilidad para renovación de préstamo sindical:
- * Criterio preliminar: porcentaje de avance >= 25% o mensaje de renovación explícito.
+ * Calcula la cobertura colateral estimada de ahorro sobre el préstamo:
+ * Cobertura = floor((saldoAhorro - saldoMinimo) / prestamoOtorgado * 100)
+ * Verificado con muestra: floor((52108.23 - 600) / 186000 * 100) = 27
  */
+export function coberturaColateralEstimada(
+  saldoAhorro: number,
+  prestamoOtorgado: number,
+  saldoMinimo = SALDO_MINIMO_DEFAULT,
+): number {
+  const ahorroDisp = Math.max(0, (saldoAhorro || 0) - saldoMinimo)
+  const prestamo = Math.max(0, prestamoOtorgado || 0)
+  if (prestamo === 0) return 0
+  return Math.floor((ahorroDisp / prestamo) * 100)
+}
+
+export interface ElegibilidadRenovacionResultado {
+  elegible: boolean
+  verificado: boolean
+  porcentaje: number
+  motivo: string
+}
+
+/**
+ * Evalúa la elegibilidad para renovación como estimación referencial.
+ * Devuelve siempre verificado: false por diseño hasta calibrar con 3+ snapshots.
+ */
+export function elegibilidadRenovacionEstimada(
+  porcentaje?: number | null,
+  mensajeRenovacion?: string | null,
+): ElegibilidadRenovacionResultado {
+  const pct = Number(porcentaje ?? 0)
+  const tieneMensaje = Boolean(mensajeRenovacion && /renov/i.test(mensajeRenovacion))
+  const elegible = pct >= UMBRAL_RENOVACION_HIPOTESIS || tieneMensaje
+
+  return {
+    elegible,
+    verificado: false,
+    porcentaje: pct,
+    motivo: elegible
+      ? `Estimación referencial: Con ${pct}% de cobertura (umbral hipótesis ≥${UMBRAL_RENOVACION_HIPOTESIS}%), la cuenta parece calificar para trámite de renovación. Consulta con tu delegación sindical.`
+      : `Estimación referencial: Con ${pct}% de cobertura, aún no alcanzaría el umbral de renovación estimado (≥${UMBRAL_RENOVACION_HIPOTESIS}%).`,
+  }
+}
+
+/** Alias retrocompatible de elegibilidad */
 export function esElegibleRenovacion(
   porcentaje?: number | null,
   mensajeRenovacion?: string | null,
 ): { elegible: boolean; porcentaje: number; motivo: string } {
-  const pct = Number(porcentaje ?? 0)
-  const tieneMensaje = Boolean(mensajeRenovacion && /renov/i.test(mensajeRenovacion))
-  const elegible = pct >= 25 || tieneMensaje
-
+  const res = elegibilidadRenovacionEstimada(porcentaje, mensajeRenovacion)
   return {
-    elegible,
-    porcentaje: pct,
-    motivo: elegible
-      ? `Ya puedes renovar: Has cubierto el ${pct}% del préstamo (requisito mínimo: 25%). Puedes iniciar el trámite presencial ante tu delegación sindical.`
-      : `En amortización: Llevas ${pct}% de avance. Se requiere al menos 25% para solicitar una nueva renovación ante la Caja SNTSS.`,
+    elegible: res.elegible,
+    porcentaje: res.porcentaje,
+    motivo: res.motivo,
+  }
+}
+
+export interface DesgloseDescuentoResultado {
+  total: number
+  capital: number | null
+  interes: number | null
+}
+
+/**
+ * Desglosa el descuento quincenal.
+ * Exige capitalDelPeriodo para no asumir arbitrariamente número de pagos sin histórico verificado.
+ */
+export function desgloseDescuentoEstimado(
+  abonoPrestamo: number,
+  capitalDelPeriodo?: number,
+): DesgloseDescuentoResultado {
+  const total = Number(abonoPrestamo || 0)
+  if (capitalDelPeriodo === undefined) {
+    return {
+      total,
+      capital: null,
+      interes: null,
+    }
+  }
+  const capital = Math.max(0, capitalDelPeriodo)
+  const interes = Math.round(Math.max(0, total - capital) * 100) / 100
+  return {
+    total,
+    capital,
+    interes,
   }
 }
 

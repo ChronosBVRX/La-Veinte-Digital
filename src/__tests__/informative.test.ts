@@ -9,6 +9,9 @@ import {
   adeudoActual,
   liquidoARecibir,
   esElegibleRenovacion,
+  coberturaColateralEstimada,
+  elegibilidadRenovacionEstimada,
+  desgloseDescuentoEstimado,
 } from "../informative"
 
 describe("src/informative.ts - Utilidades informativas", () => {
@@ -209,17 +212,49 @@ describe("src/informative.ts - Utilidades informativas", () => {
       expect(liquido).toBe(52473.9)
     })
 
-    it("esElegibleRenovacion evalúa porcentaje >= 25%", () => {
+    it("coberturaColateralEstimada calcula floor((saldoAhorro - 600) / prestamo * 100)", () => {
+      // floor((52108.23 - 600) / 186000 * 100) = 27 exacto
+      expect(coberturaColateralEstimada(52108.23, 186000)).toBe(27)
+      expect(coberturaColateralEstimada(500, 186000)).toBe(0)
+      expect(coberturaColateralEstimada(52108.23, 0)).toBe(0)
+    })
+
+    it("elegibilidadRenovacionEstimada evalúa umbral hipótesis >= 20% con verificado false", () => {
+      const e27 = elegibilidadRenovacionEstimada(27)
+      expect(e27.elegible).toBe(true)
+      expect(e27.verificado).toBe(false)
+      expect(e27.motivo).toContain("Estimación referencial")
+
+      const e20 = elegibilidadRenovacionEstimada(20)
+      expect(e20.elegible).toBe(true)
+
+      const e15 = elegibilidadRenovacionEstimada(15)
+      expect(e15.elegible).toBe(false)
+      expect(e15.motivo).toContain("aún no alcanzaría el umbral")
+
+      const conMensaje = elegibilidadRenovacionEstimada(15, "Elegible para renovar")
+      expect(conMensaje.elegible).toBe(true)
+    })
+
+    it("esElegibleRenovacion preserva compatibilidad con interfaz previa", () => {
       const e27 = esElegibleRenovacion(27)
       expect(e27.elegible).toBe(true)
-      expect(e27.motivo).toContain("Ya puedes renovar")
+      expect(e27.motivo).toContain("Estimación referencial")
 
-      const e20 = esElegibleRenovacion(20)
-      expect(e20.elegible).toBe(false)
-      expect(e20.motivo).toContain("En amortización")
+      const e15 = esElegibleRenovacion(15)
+      expect(e15.elegible).toBe(false)
+    })
 
-      const conMensaje = esElegibleRenovacion(15, "Elegible para renovar")
-      expect(conMensaje.elegible).toBe(true)
+    it("desgloseDescuentoEstimado separa capital e intereses solo si capital es provisto", () => {
+      const sinCapital = desgloseDescuentoEstimado(1430.19)
+      expect(sinCapital.total).toBe(1430.19)
+      expect(sinCapital.capital).toBeNull()
+      expect(sinCapital.interes).toBeNull()
+
+      const conCapital = desgloseDescuentoEstimado(1430.19, 965.67)
+      expect(conCapital.total).toBe(1430.19)
+      expect(conCapital.capital).toBe(965.67)
+      expect(conCapital.interes).toBe(464.52)
     })
   })
 })

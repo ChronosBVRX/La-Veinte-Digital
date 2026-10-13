@@ -128,12 +128,12 @@ export function CajaBalanceCard({ balance, loading, onRefresh }: CajaBalanceCard
         {/* Barra de Avance de Amortización (27% o dato del server) */}
         {typeof balance?.porcentaje === "number" && (
           <div style={{ marginTop: "1rem", padding: "0.875rem", background: "var(--accent)", borderRadius: "var(--radius-md)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.375rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.375rem", flexWrap: "wrap", gap: "0.25rem" }}>
               <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--fg)" }}>
-                Avance de Amortización del Préstamo
+                Avance reportado por el servidor
               </span>
-              <span style={{ fontSize: "0.75rem", fontWeight: 700, color: balance.porcentaje >= 25 ? "var(--success, #16a34a)" : "var(--primary)" }}>
-                {balance.porcentaje}% cubierto {balance.porcentaje >= 25 ? "✓ Elegible a renovación" : ""}
+              <span style={{ fontSize: "0.75rem", fontWeight: 700, color: balance.porcentaje >= 20 ? "var(--success, #16a34a)" : "var(--primary)" }}>
+                {balance.porcentaje}% {balance.porcentaje >= 20 ? "(Umbral hipótesis ≥20%)" : ""}
               </span>
             </div>
             <div style={{ height: "6px", background: "var(--border)", borderRadius: "3px", overflow: "hidden" }}>
