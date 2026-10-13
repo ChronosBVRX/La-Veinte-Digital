@@ -21,15 +21,41 @@ export async function getCajaSessionStatus(): Promise<CajaSessionStatus> {
   return (await res.json()) as CajaSessionStatus
 }
 
+export class CajaLoginError extends Error {
+  code?: string
+  isSessionActive?: boolean
+  status?: number
+
+  constructor(message: string, code?: string, isSessionActive?: boolean, status?: number) {
+    super(message)
+    this.name = "CajaLoginError"
+    this.code = code
+    this.isSessionActive = isSessionActive
+    this.status = status
+  }
+}
+
 export async function loginCaja(matricula: string, password: string) {
   const res = await fetch("/api/caja/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ matricula, password }),
   })
-  const data = (await res.json()) as { ok?: boolean; error?: string; code?: string; matricula?: string; profile?: AccountProfile }
+  const data = (await res.json()) as {
+    ok?: boolean
+    error?: string
+    code?: string
+    isSessionActive?: boolean
+    matricula?: string
+    profile?: AccountProfile
+  }
   if (!res.ok || !data.ok) {
-    throw new Error(data.error || "Error al iniciar sesión en Caja de Ahorro")
+    throw new CajaLoginError(
+      data.error || "Error al iniciar sesión en Caja de Ahorro",
+      data.code,
+      data.isSessionActive,
+      res.status
+    )
   }
   return data
 }

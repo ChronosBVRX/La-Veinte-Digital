@@ -51,7 +51,19 @@ export async function POST(req: Request) {
     }
 
     const authToken = payload.authToken
-    const sessionTime = payload.sessionTime ?? 1800
+
+    // sessionTime devuelto por Caja SNTSS viene en HORAS (ej. 3 = 3 horas).
+    // Si viene <= 24, convertir a segundos (horas * 3600). Si viene > 24, usar directamente o minutos.
+    let sessionSeconds = 3600 * 8 // 8 horas por defecto
+    if (typeof payload.sessionTime === "number" && payload.sessionTime > 0) {
+      if (payload.sessionTime <= 24) {
+        sessionSeconds = payload.sessionTime * 3600
+      } else if (payload.sessionTime <= 1440) {
+        sessionSeconds = payload.sessionTime * 60
+      } else {
+        sessionSeconds = payload.sessionTime
+      }
+    }
 
     // 3. Obtener perfil de cuenta con el token obtenido
     const authClient = new CajaClient({ getToken: () => authToken })
@@ -76,14 +88,14 @@ export async function POST(req: Request) {
         matricula,
         nombre: fullName,
       },
-      sessionTime,
+      sessionSeconds,
     )
 
     return NextResponse.json({
       ok: true,
       matricula,
       nombre: fullName,
-      sessionTime,
+      sessionTime: sessionSeconds,
       profile,
     })
   } catch (err: unknown) {
@@ -91,10 +103,16 @@ export async function POST(req: Request) {
     const status = e.httpStatus && e.httpStatus >= 400 && e.httpStatus < 600 ? e.httpStatus : 500
     const message = e.apiMessage || e.message || "Error al autenticar con Caja SNTSS"
 
+    const isSessionActive =
+      /sesi[oó]n.*activa/i.test(message) ||
+      e.code === "1041" ||
+      e.code === "1042"
+
     return NextResponse.json(
       {
         error: message,
         code: e.code || "caja_api_error",
+        isSessionActive: Boolean(isSessionActive),
       },
       { status },
     )

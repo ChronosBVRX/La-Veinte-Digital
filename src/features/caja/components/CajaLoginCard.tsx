@@ -12,6 +12,8 @@ import {
   saveCajaCredentials,
   clearCajaCredentials,
 } from "../services/caja-credentials-storage"
+import { CajaLoginErrorModal } from "./CajaLoginErrorModal"
+import type { CajaLoginError } from "../services/caja-service"
 
 interface CajaLoginCardProps {
   onLogin: (matricula: string, password: string) => Promise<void>
@@ -30,6 +32,8 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
   const [error, setError] = useState<string | null>(null)
   const [rememberCredentials, setRememberCredentials] = useState(false)
   const [hasSaved, setHasSaved] = useState(false)
+  const [modalError, setModalError] = useState<CajaLoginError | Error | null>(null)
+  const [showErrorModal, setShowErrorModal] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -73,6 +77,7 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
     }
 
     setError(null)
+    setModalError(null)
     setLoading(true)
     try {
       await onLogin(matricula.trim(), password)
@@ -89,7 +94,10 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
         }
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Error al conectar con Caja de Ahorro")
+      const loginErr = err instanceof Error ? err : new Error(String(err))
+      setError(loginErr.message)
+      setModalError(loginErr as CajaLoginError | Error)
+      setShowErrorModal(true)
     } finally {
       setLoading(false)
     }
@@ -285,6 +293,23 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", userId }: CajaLo
           </span>
         </div>
       </Card>
+
+      <CajaLoginErrorModal
+        isOpen={showErrorModal}
+        error={modalError}
+        matricula={matricula.trim()}
+        hasSavedCredentials={hasSaved}
+        onClose={() => setShowErrorModal(false)}
+        onRetry={() => {
+          setShowErrorModal(false)
+          const dummyEvent = { preventDefault: () => {} } as React.FormEvent
+          void handleSubmit(dummyEvent)
+        }}
+        onForgetSaved={() => {
+          handleForgetSaved()
+          setShowErrorModal(false)
+        }}
+      />
     </div>
   )
 }
