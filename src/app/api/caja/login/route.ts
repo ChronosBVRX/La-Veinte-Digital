@@ -1,0 +1,102 @@
+import { NextResponse } from "next/server"
+import { requireUser } from "@/shared/server/auth/require-user"
+import { requireCajaAccess } from "@/lib/caja/auth-guard"
+import { CajaClient } from "@/lib/caja/client"
+import { setCajaSession } from "@/lib/caja/session"
+
+export async function POST(req: Request) {
+  const auth = await requireUser()
+  if (auth.response) return auth.response
+
+  // Solo accesible si la caja está abierta o el usuario es admin
+  const authCheck = await requireCajaAccess(auth.user)
+  if (authCheck.response) return authCheck.response
+
+  try {
+    const body = (await req.json()) as { matricula?: string; password?: string }
+    const matricula = body.matricula?.trim()
+    const password = body.password
+
+    if (!matricula || !password) {
+      return NextResponse.json(
+        { error: "Matrícula y contraseña son requeridas", code: "validation_error" },
+        { status: 400 },
+      )
+    }
+
+    const client = new CajaClient()
+
+    // 1. Validar existencia de matrícula
+    try {
+      await client.validateMatricula(matricula)
+    } catch (valErr: unknown) {
+      const err = valErr as { httpStatus?: number; code?: string; message?: string }
+      if (err.httpStatus === 404 || err.code === "1040") {
+        return NextResponse.json(
+          { error: "Matrícula no encontrada en Caja de Ahorro. Verifique sus datos.", code: "1040" },
+          { status: 404 },
+        )
+      }
+    }
+
+    // 2. Realizar autenticación
+    const loginRes = await client.login({ matricula, password })
+    const payload = loginRes.payload
+
+    if (!payload?.authToken) {
+      return NextResponse.json(
+        { error: "No se recibió token de autenticación del API de Caja", code: "auth_failed" },
+        { status: 502 },
+      )
+    }
+
+    const authToken = payload.authToken
+    const sessionTime = payload.sessionTime ?? 1800
+
+    // 3. Obtener perfil de cuenta con el token obtenido
+    const authClient = new CajaClient({ getToken: () => authToken })
+    let profile = null
+    try {
+      const accRes = await authClient.getAccount(matricula)
+      profile = accRes.payload ?? null
+    } catch {
+      // Perfil no bloqueante
+      profile = null
+    }
+
+    const fullName = profile
+      ? [profile.nombre, profile.paterno, profile.materno].filter(Boolean).join(" ")
+      : undefined
+
+    // 4. Guardar en cookie HTTP-Only cifrada (prohibido localStorage plano)
+    await setCajaSession(
+      {
+        authToken,
+        accountId: matricula,
+        matricula,
+        nombre: fullName,
+      },
+      sessionTime,
+    )
+
+    return NextResponse.json({
+      ok: true,
+      matricula,
+      nombre: fullName,
+      sessionTime,
+      profile,
+    })
+  } catch (err: unknown) {
+    const e = err as { httpStatus?: number; code?: string; message?: string; apiMessage?: string }
+    const status = e.httpStatus && e.httpStatus >= 400 && e.httpStatus < 600 ? e.httpStatus : 500
+    const message = e.apiMessage || e.message || "Error al autenticar con Caja SNTSS"
+
+    return NextResponse.json(
+      {
+        error: message,
+        code: e.code || "caja_api_error",
+      },
+      { status },
+    )
+  }
+}

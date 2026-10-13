@@ -25,6 +25,7 @@ interface DashboardShellProps {
   avatarUrl?: string | null
   canAccessAdmin?: boolean
   canAccessUnion?: boolean
+  isCajaPublic?: boolean
   children: ReactNode
 }
 
@@ -33,6 +34,7 @@ export function DashboardShell({
   avatarUrl,
   canAccessAdmin = false,
   canAccessUnion = false,
+  isCajaPublic = false,
   children,
 }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -57,7 +59,13 @@ export function DashboardShell({
           />
 
           <div style={{ display: "flex", flex: 1, minHeight: 0, position: "relative" }}>
-            <DesktopSidebar open={sidebarOpen} onClose={closeSidebar} canAccessAdmin={canAccessAdmin} canAccessUnion={canAccessUnion} />
+            <DesktopSidebar
+              open={sidebarOpen}
+              onClose={closeSidebar}
+              canAccessAdmin={canAccessAdmin}
+              canAccessUnion={canAccessUnion}
+              isCajaPublic={isCajaPublic}
+            />
             <main
               className="mobile-app-shell__scroll"
               style={{

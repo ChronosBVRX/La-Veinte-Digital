@@ -11,6 +11,7 @@ import {
   DeviceMobile,
   AndroidLogo,
   ClockCounterClockwise,
+  PiggyBank,
 } from "@phosphor-icons/react"
 import type { AdminCapabilities } from "@/shared/server/admin/admin-capabilities"
 
@@ -74,6 +75,12 @@ const NAV_ITEMS: NavItemDef[] = [
     href: "/admin/usuarios/auditoria",
     label: "Auditoría",
     icon: ClockCounterClockwise,
+    requiredCapability: (caps) => caps.isAdmin,
+  },
+  {
+    href: "/admin/caja",
+    label: "Caja de Ahorro",
+    icon: PiggyBank,
     requiredCapability: (caps) => caps.isAdmin,
   },
 ]

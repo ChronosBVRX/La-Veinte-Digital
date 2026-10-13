@@ -5,6 +5,7 @@ import { ToastProvider } from "@/shared/components/ui/Toast"
 import { PushTokenSync } from "@/features/push/components/PushTokenSync"
 import { PayslipGlobalInvalidation } from "@/shared/components/layout/PayslipGlobalInvalidation"
 import { NativeRuntimeEnhancer } from "@/shared/components/layout/NativeRuntimeEnhancer"
+import { isCajaPubliclyEnabled } from "@/lib/caja/visibility"
 import type { ReactNode } from "react"
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
@@ -35,6 +36,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     .eq("active", true)
   const canAccessUnion = (unionCount ?? 0) > 0
 
+  const isCajaPublic = await isCajaPubliclyEnabled()
+
   return (
     <ToastProvider>
       <DashboardShell
@@ -42,6 +45,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         avatarUrl={profile?.avatar_url ?? null}
         canAccessAdmin={canAccessAdmin}
         canAccessUnion={canAccessUnion}
+        isCajaPublic={isCajaPublic}
       >
         {children}
       </DashboardShell>

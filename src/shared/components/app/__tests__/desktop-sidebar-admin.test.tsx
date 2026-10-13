@@ -42,4 +42,24 @@ describe("DesktopSidebar Admin Link", () => {
     expect(links.length).toBeGreaterThan(0)
     expect(links[0].getAttribute("href")).toBe("/admin")
   })
+
+  it("does not render Caja de Ahorro when canAccessAdmin is false and isCajaPublic is false", () => {
+    render(<DesktopSidebar open={true} onClose={() => {}} canAccessAdmin={false} isCajaPublic={false} />)
+    const links = screen.queryAllByRole("link", { name: /Caja de Ahorro/i })
+    expect(links.length).toBe(0)
+  })
+
+  it("renders Caja de Ahorro link when canAccessAdmin is true", () => {
+    render(<DesktopSidebar open={true} onClose={() => {}} canAccessAdmin={true} isCajaPublic={false} />)
+    const links = screen.getAllByRole("link", { name: /Caja de Ahorro/i })
+    expect(links.length).toBeGreaterThan(0)
+    expect(links[0].getAttribute("href")).toBe("/caja")
+  })
+
+  it("renders Caja de Ahorro link when isCajaPublic is true even if canAccessAdmin is false", () => {
+    render(<DesktopSidebar open={true} onClose={() => {}} canAccessAdmin={false} isCajaPublic={true} />)
+    const links = screen.getAllByRole("link", { name: /Caja de Ahorro/i })
+    expect(links.length).toBeGreaterThan(0)
+    expect(links[0].getAttribute("href")).toBe("/caja")
+  })
 })

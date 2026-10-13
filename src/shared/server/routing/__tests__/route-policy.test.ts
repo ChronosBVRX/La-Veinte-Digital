@@ -112,6 +112,17 @@ describe("API route policy", () => {
       "/api/admin/users/[id]/password-recovery": "authenticated",
       "/api/admin/users/[id]/purge": "authenticated",
       "/api/admin/audit-log": "authenticated",
+      // Caja de Previsión y Ahorro SNTSS (fase de prueba para administradores)
+      "/api/caja/login": "authenticated",
+      "/api/caja/logout": "authenticated",
+      "/api/caja/session": "authenticated",
+      "/api/caja/balance": "authenticated",
+      "/api/caja/account": "authenticated",
+      "/api/caja/loans": "authenticated",
+      "/api/caja/loans/renewal": "authenticated",
+      "/api/caja/withdraw": "authenticated",
+      "/api/caja/dates": "authenticated",
+      "/api/caja/visibility": "authenticated",
       // Impresión automática sindical (migración 20260919080000 y 20260919090000)
       "/api/union/print/jobs": "authenticated",
       "/api/union/print/jobs/[id]/retry": "authenticated",
