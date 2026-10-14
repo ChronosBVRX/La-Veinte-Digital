@@ -301,6 +301,28 @@ export function sumarQuincenas(quincenaStr?: string | null, delta = 0): string {
   return `${nuevoAnio}/${String(nuevoQ).padStart(2, "0")}`
 }
 
+/**
+ * Evalúa si una quincena corresponde a periodos de retención extraordinaria contractual SNTSS:
+ * - Quincena 14 (2ª de Julio: retención semestral)
+ * - Quincena 23 (1ª de Diciembre: Aguinaldo IMSS)
+ */
+export function esQuincenaRetencionExtraordinaria(quincenaCodigo: string): {
+  aplica: boolean
+  tipo?: "julio" | "aguinaldo"
+  etiqueta?: string
+} {
+  const parts = String(quincenaCodigo || "").trim().split("/")
+  if (parts.length !== 2) return { aplica: false }
+  const qNum = parseInt(parts[1], 10)
+  if (qNum === 14) {
+    return { aplica: true, tipo: "julio", etiqueta: "2ª de Julio" }
+  }
+  if (qNum === 23) {
+    return { aplica: true, tipo: "aguinaldo", etiqueta: "Aguinaldo" }
+  }
+  return { aplica: false }
+}
+
 export interface DiagnosticoRenovacionParams {
   saldoPrestamo: number
   saldoAhorro: number
@@ -309,6 +331,8 @@ export interface DiagnosticoRenovacionParams {
   abonoAhorro?: number | null
   abonoPrestamo?: number | null
   importeMaximo?: number | null
+  retencionExtraordinaria?: number | null
+  periodoRetencion?: string | number | null
   quincenaActual?: string | null
   quincenaOtorgamiento?: string | null
   fechaConsulta?: string | null
@@ -324,6 +348,9 @@ export interface ProyeccionQuincenaRenovacion {
   porcentajeEstimado: number
   liquidoEstimado: number
   esElegible: boolean
+  esExtraordinaria?: boolean
+  motivoExtraordinario?: string
+  montoExtraordinario?: number
 }
 
 export interface DiagnosticoRenovacionResultado {
@@ -347,6 +374,7 @@ export interface DiagnosticoRenovacionResultado {
  * - Determina si la cuenta es elegible hoy (cobertura >= 20%).
  * - Si no es elegible, calcula en qué quincena y fecha aproximada alcanzará el umbral.
  * - Proyecta el monto líquido que recibirá en su cuenta bancaria hoy y en quincenas futuras.
+ * - Integra las retenciones extraordinarias semestrales (2ª de Julio y Aguinaldo en Diciembre) si aplican.
  */
 export function diagnosticoRenovacion(params: DiagnosticoRenovacionParams): DiagnosticoRenovacionResultado {
   const {
@@ -357,6 +385,7 @@ export function diagnosticoRenovacion(params: DiagnosticoRenovacionParams): Diag
     abonoAhorro,
     abonoPrestamo,
     importeMaximo,
+    retencionExtraordinaria,
     quincenaActual,
     quincenaOtorgamiento,
     fechaConsulta,
@@ -383,6 +412,8 @@ export function diagnosticoRenovacion(params: DiagnosticoRenovacionParams): Diag
   // Amortización estimada a capital por quincena (~67% del abono al préstamo en créditos amortizando)
   const capitalPorQuincena = abonoPrestamo && abonoPrestamo > 0 ? Math.round(abonoPrestamo * 0.67) : 0
 
+  const montoExtraordinario = Math.max(0, Number(retencionExtraordinaria || 0))
+
   const qDefault = getQuincenaFromDate(fechaConsulta)
   const qActual = quincenaActual || qDefault
   const qOtorgamiento = quincenaOtorgamiento || undefined
@@ -400,12 +431,52 @@ export function diagnosticoRenovacion(params: DiagnosticoRenovacionParams): Diag
 
   const qElegible = sumarQuincenas(qActual, quincenasParaElegibilidad)
 
-  // Proyecciones a futuro (hoy, +1, +2, +4, +6, +8, +10 quincenas)
-  const offsets = [0, 1, 2, 4, 6, 8, 10]
+  // Offsets base: hoy, +1, +2, +4, +6, +8, +10 quincenas
+  const offsetsSet = new Set<number>([0, 1, 2, 4, 6, 8, 10])
+
+  // Si hay retención extraordinaria (ej. Jul-Dic), buscar si la próxima 2ª de Julio o Aguinaldo
+  // cae dentro de un horizonte razonable (hasta 24 quincenas) para incluirlo en la proyección
+  if (montoExtraordinario > 0) {
+    for (let delta = 1; delta <= 24; delta++) {
+      const q = sumarQuincenas(qActual, delta)
+      const extra = esQuincenaRetencionExtraordinaria(q)
+      if (extra.aplica) {
+        offsetsSet.add(delta)
+      }
+    }
+  }
+
+  const offsets = Array.from(offsetsSet).sort((a, b) => a - b)
+
   const proyecciones: ProyeccionQuincenaRenovacion[] = offsets.map((offset) => {
     const qCod = sumarQuincenas(qActual, offset)
-    const ahorroFuturo = Math.round((saldoAhorro + (ahorroPorQuincena * offset)) * 100) / 100
-    const prestamoFuturo = Math.max(0, Math.round((saldoPrestamo - (capitalPorQuincena * offset)) * 100) / 100)
+
+    // Sumar retenciones extraordinarias ocurridas estrictamente entre offset 1 y este offset
+    let extraAcumulado = 0
+    if (montoExtraordinario > 0) {
+      for (let k = 1; k <= offset; k++) {
+        const qPaso = sumarQuincenas(qActual, k)
+        const check = esQuincenaRetencionExtraordinaria(qPaso)
+        if (check.aplica) {
+          extraAcumulado += montoExtraordinario
+        }
+      }
+    }
+
+    const checkActual = esQuincenaRetencionExtraordinaria(qCod)
+    const esExtra = offset > 0 && checkActual.aplica && montoExtraordinario > 0
+    const motivoExtra = esExtra
+      ? `Retención ${checkActual.etiqueta} (+${new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(montoExtraordinario)})`
+      : undefined
+
+    const capitalOrdinarioAcumulado = capitalPorQuincena * offset
+    const reduccionCapitalTotal = capitalOrdinarioAcumulado + extraAcumulado
+
+    const saldoPrestamoNeto = saldoPrestamo - reduccionCapitalTotal
+    const prestamoFuturo = Math.max(0, Math.round(saldoPrestamoNeto * 100) / 100)
+    const remanenteAhorro = saldoPrestamoNeto < 0 ? Math.abs(saldoPrestamoNeto) : 0
+    const ahorroFuturo = Math.round((saldoAhorro + (ahorroPorQuincena * offset) + remanenteAhorro) * 100) / 100
+
     const adeudoFuturo = adeudoActual(prestamoFuturo, ahorroFuturo, saldoMinimo)
     const liquidoFuturo = liquidoARecibir(nuevoImporte, adeudoFuturo)
     const pctFuturo = coberturaColateralEstimada(ahorroFuturo, prestamoOriginal, saldoMinimo)
@@ -419,6 +490,9 @@ export function diagnosticoRenovacion(params: DiagnosticoRenovacionParams): Diag
       porcentajeEstimado: pctFuturo,
       liquidoEstimado: liquidoFuturo,
       esElegible: pctFuturo >= UMBRAL_RENOVACION_HIPOTESIS,
+      esExtraordinaria: esExtra,
+      motivoExtraordinario: motivoExtra,
+      montoExtraordinario: esExtra ? montoExtraordinario : undefined,
     }
   })
 

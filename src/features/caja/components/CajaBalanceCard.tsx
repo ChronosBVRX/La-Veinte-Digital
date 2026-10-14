@@ -6,7 +6,6 @@ import {
   CurrencyDollar,
   ArrowClockwise,
   CalendarBlank,
-  TrendUp,
   Info,
   Calculator,
   CaretDown,
@@ -86,7 +85,6 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
   const saldoAhorro = balance?.saldoAhorro ?? 0
   const saldoPrestamo = balance?.saldoPrestamo ?? 0
   const prestamoOtorgado = balance?.prestamoOtorgado ?? 0
-  const retiroLaboral = balance?.retiroLaboral ?? 0
 
   const quincenaHoy = getQuincenaFromDate(balance?.fechaConsultaSaldo)
 
@@ -98,6 +96,8 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
     abonoAhorro: loan?.abono_ahorro,
     abonoPrestamo: loan?.abono_prestamo,
     importeMaximo: loan?.importe_maximo,
+    retencionExtraordinaria: loan?.retencion_minima,
+    periodoRetencion: loan?.periodo_retencion,
     quincenaActual: quincenaHoy,
     quincenaOtorgamiento: balance?.quincena,
     fechaConsulta: balance?.fechaConsultaSaldo,
@@ -141,7 +141,7 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
             gap: "0.75rem",
             marginTop: "1.25rem",
             paddingTop: "1.25rem",
@@ -178,19 +178,6 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
               {balance?.quincena && (
                 <span>Solicitud: {balance.quincena} ({formatQuincena(balance.quincena)})</span>
               )}
-            </div>
-          </div>
-
-          <div style={{ padding: "0.875rem", background: "var(--accent)", borderRadius: "var(--radius-md)", minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.25rem" }}>
-              <TrendUp size={16} color="var(--success, #22c55e)" style={{ flexShrink: 0 }} />
-              <span style={{ fontWeight: 600 }}>Retiro Laboral Acumulado</span>
-            </div>
-            <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--fg)", wordBreak: "break-word" }}>
-              {formatMoney(retiroLaboral)}
-            </div>
-            <div style={{ fontSize: "0.6875rem", color: "var(--muted)", marginTop: "0.25rem" }}>
-              Fondo laboral sindicato
             </div>
           </div>
         </div>
@@ -326,7 +313,10 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
             ¿Cuánto líquido recibirías si renuevas en próximas quincenas?
           </div>
           <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.75rem", lineHeight: 1.4 }}>
-            Con cada quincena transcurrida, tu ahorro sigue acumulándose y tu saldo de préstamo disminuye, incrementando el líquido que te depositan en cuenta:
+            Con cada quincena transcurrida, tu ahorro sigue acumulándose y tu saldo de préstamo disminuye, incrementando el líquido que te depositan en cuenta
+            {loan?.retencion_minima ? (
+              <span> (incluye retenciones extraordinarias de {formatMoney(loan.retencion_minima)} en 2ª de Julio y Aguinaldo)</span>
+            ) : null}:
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
@@ -338,21 +328,38 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
                   justifyContent: "space-between",
                   alignItems: "center",
                   padding: "0.5rem 0.75rem",
-                  background: p.quincenaOffset === 0 ? "rgba(37, 99, 235, 0.06)" : "var(--accent)",
-                  border: p.quincenaOffset === 0 ? "1px solid rgba(37, 99, 235, 0.25)" : "1px solid transparent",
+                  background: p.quincenaOffset === 0 ? "rgba(37, 99, 235, 0.06)" : p.esExtraordinaria ? "rgba(22, 163, 74, 0.05)" : "var(--accent)",
+                  border: p.quincenaOffset === 0 ? "1px solid rgba(37, 99, 235, 0.25)" : p.esExtraordinaria ? "1px solid rgba(22, 163, 74, 0.25)" : "1px solid transparent",
                   borderRadius: "var(--radius-sm)",
                   fontSize: "0.8125rem",
                   flexWrap: "wrap",
                   gap: "0.5rem",
                 }}
               >
-                <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.375rem", flexWrap: "wrap" }}>
                   <span style={{ fontWeight: 600, color: "var(--fg)" }}>
                     {p.quincenaOffset === 0 ? `Hoy (${p.quincenaCodigo})` : `+${p.quincenaOffset} qnas (${p.quincenaCodigo})`}
                   </span>
-                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", marginLeft: "0.375rem" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
                     · {p.quincenaTexto}
                   </span>
+                  {p.esExtraordinaria && (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        padding: "0.15rem 0.5rem",
+                        borderRadius: "9999px",
+                        fontSize: "0.6875rem",
+                        fontWeight: 700,
+                        background: "rgba(22, 163, 74, 0.12)",
+                        color: "var(--success, #16a34a)",
+                        border: "1px solid rgba(22, 163, 74, 0.3)",
+                      }}
+                    >
+                      ★ {p.motivoExtraordinario}
+                    </span>
+                  )}
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontWeight: 700, color: p.esElegible ? "var(--success, #16a34a)" : "var(--muted)" }}>

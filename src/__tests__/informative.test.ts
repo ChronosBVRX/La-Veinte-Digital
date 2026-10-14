@@ -15,6 +15,7 @@ import {
   formatQuincena,
   sumarQuincenas,
   getQuincenaFromDate,
+  esQuincenaRetencionExtraordinaria,
   diagnosticoRenovacion,
 } from "../informative"
 
@@ -375,6 +376,55 @@ describe("src/informative.ts - Utilidades informativas", () => {
       // La siguiente (+2) debe ser la 1ª de Noviembre 2026
       expect(diag.proyecciones[2].quincenaCodigo).toBe("2026/21")
       expect(diag.proyecciones[2].quincenaTexto).toBe("1ª de Noviembre 2026")
+    })
+
+    it("esQuincenaRetencionExtraordinaria identifica 2ª de Julio y Aguinaldo", () => {
+      expect(esQuincenaRetencionExtraordinaria("2026/14")).toEqual({
+        aplica: true,
+        tipo: "julio",
+        etiqueta: "2ª de Julio",
+      })
+      expect(esQuincenaRetencionExtraordinaria("2026/23")).toEqual({
+        aplica: true,
+        tipo: "aguinaldo",
+        etiqueta: "Aguinaldo",
+      })
+      expect(esQuincenaRetencionExtraordinaria("2026/19")).toEqual({ aplica: false })
+      expect(esQuincenaRetencionExtraordinaria("2026/10")).toEqual({ aplica: false })
+    })
+
+    it("diagnosticoRenovacion suma retenciones extraordinarias semestrales (Julio y Aguinaldo)", () => {
+      const diag = diagnosticoRenovacion({
+        saldoPrestamo: 185034.33,
+        saldoAhorro: 52108.23,
+        prestamoOtorgado: 186000,
+        porcentajeActual: 27,
+        abonoAhorro: 3720,
+        abonoPrestamo: 1430.19,
+        importeMaximo: 186000,
+        retencionExtraordinaria: 11000,
+        quincenaActual: "2026/19", // 1ª de Octubre 2026
+      })
+
+      // Hoy (2026/19) no es extraordinaria
+      expect(diag.proyecciones[0].esExtraordinaria).toBe(false)
+      expect(diag.proyecciones[0].liquidoEstimado).toBe(52473.9)
+
+      // Aguinaldo ocurre en la quincena 2026/23 (offset 4)
+      const proyAguinaldo = diag.proyecciones.find((p) => p.quincenaCodigo === "2026/23")
+      expect(proyAguinaldo).toBeDefined()
+      expect(proyAguinaldo?.esExtraordinaria).toBe(true)
+      expect(proyAguinaldo?.motivoExtraordinario).toContain("Aguinaldo")
+      expect(proyAguinaldo?.motivoExtraordinario).toContain("11,000")
+      // El líquido en Aguinaldo debe ser significativamente mayor (incluye los $11,000 extraordinarios)
+      expect(proyAguinaldo?.liquidoEstimado).toBeGreaterThan(80000)
+
+      // 2ª de Julio ocurre en 2027/14 (offset 19)
+      const proyJulio = diag.proyecciones.find((p) => p.quincenaCodigo === "2027/14")
+      expect(proyJulio).toBeDefined()
+      expect(proyJulio?.esExtraordinaria).toBe(true)
+      expect(proyJulio?.motivoExtraordinario).toContain("2ª de Julio")
+      expect(proyJulio?.motivoExtraordinario).toContain("11,000")
     })
   })
 })
