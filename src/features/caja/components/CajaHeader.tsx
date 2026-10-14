@@ -78,7 +78,7 @@ export function CajaHeader({ session, onLogout }: CajaHeaderProps) {
             </span>
           </div>
           <p style={{ margin: "0.125rem 0 0", fontSize: "0.75rem", color: "var(--muted)", wordBreak: "break-word", lineHeight: 1.35 }}>
-            Caja de Previsión y Ahorro del SNTSS · Gestión de saldos, retiros y citas
+            Caja de Previsión y Ahorro del SNTSS · Consulta de saldos, ahorro y préstamos
           </p>
         </div>
       </div>

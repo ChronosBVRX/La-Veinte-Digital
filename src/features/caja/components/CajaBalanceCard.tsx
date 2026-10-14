@@ -81,7 +81,6 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
     )
   }
 
-  const saldoTotal = balance?.saldoTotal ?? balance?.saldo ?? 0
   const saldoAhorro = balance?.saldoAhorro ?? 0
   const saldoPrestamo = balance?.saldoPrestamo ?? 0
   const prestamoOtorgado = balance?.prestamoOtorgado ?? 0
@@ -112,20 +111,17 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem", width: "100%", minWidth: 0, boxSizing: "border-box" }}>
-      {/* Tarjeta Principal de Saldo Total */}
+      {/* Tarjeta Principal de Saldos */}
       <Card padding="clamp(1rem, 3vw, 1.5rem)">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "1rem", width: "100%", minWidth: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", width: "100%", minWidth: 0 }}>
           <div style={{ minWidth: 0, flex: "1 1 200px" }}>
-            <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-              Saldo Neto Registrado (Informativo)
-            </div>
-            <div style={{ fontSize: "clamp(1.75rem, 6vw, 2.25rem)", fontWeight: 800, color: "var(--fg)", margin: "0.25rem 0", letterSpacing: "-0.02em", wordBreak: "break-word" }}>
-              {formatMoney(saldoTotal)}
+            <div style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--fg)", letterSpacing: "-0.01em" }}>
+              Resumen de Cuenta en Caja SNTSS
             </div>
             {balance?.fechaConsultaSaldo && (
-              <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.75rem", color: "var(--muted)", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.25rem", flexWrap: "wrap" }}>
                 <CalendarBlank size={14} style={{ flexShrink: 0 }} />
-                <span>Actualizado al: {balance.fechaConsultaSaldo}</span>
+                <span>Corte de saldos al: {balance.fechaConsultaSaldo}</span>
               </div>
             )}
           </div>

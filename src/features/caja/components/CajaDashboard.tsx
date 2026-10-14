@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { PiggyBank, CurrencyDollar, CalendarDots, User } from "@phosphor-icons/react"
+import { PiggyBank, CurrencyDollar, User } from "@phosphor-icons/react"
 import { LoadingSpinner } from "@/shared/components/ui/LoadingSpinner"
 import { useUser } from "@/shared/hooks/useUser"
 import { useCaja } from "../hooks/useCaja"
@@ -9,10 +9,9 @@ import { CajaHeader } from "./CajaHeader"
 import { CajaLoginCard } from "./CajaLoginCard"
 import { CajaBalanceCard } from "./CajaBalanceCard"
 import { CajaLoanCard } from "./CajaLoanCard"
-import { CajaDatesCard } from "./CajaDatesCard"
 import { CajaInfoCard } from "./CajaInfoCard"
 
-type ActiveTab = "saldos" | "prestamos" | "citas" | "cuenta"
+type ActiveTab = "saldos" | "prestamos" | "cuenta"
 
 export function CajaDashboard() {
   const { user } = useUser()
@@ -23,7 +22,6 @@ export function CajaDashboard() {
     balance,
     account,
     loan,
-    dates,
     error,
     login,
     logout,
@@ -116,29 +114,6 @@ export function CajaDashboard() {
             </button>
 
             <button
-              onClick={() => setActiveTab("citas")}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.375rem",
-                padding: "0.625rem 0.75rem",
-                border: "none",
-                background: "none",
-                borderBottom: activeTab === "citas" ? "2px solid var(--primary)" : "2px solid transparent",
-                color: activeTab === "citas" ? "var(--primary)" : "var(--muted)",
-                fontWeight: activeTab === "citas" ? 700 : 500,
-                fontSize: "0.8125rem",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-                transition: "all 0.15s ease",
-              }}
-            >
-              <CalendarDots size={18} weight={activeTab === "citas" ? "fill" : "regular"} />
-              <span>Citas Agendadas ({dates.length})</span>
-            </button>
-
-            <button
               onClick={() => setActiveTab("cuenta")}
               style={{
                 display: "inline-flex",
@@ -177,14 +152,6 @@ export function CajaDashboard() {
               balance={balance}
               account={account}
               loan={loan}
-              loading={loadingData}
-              onRefresh={refreshData}
-            />
-          )}
-
-          {activeTab === "citas" && (
-            <CajaDatesCard
-              dates={dates}
               loading={loadingData}
               onRefresh={refreshData}
             />

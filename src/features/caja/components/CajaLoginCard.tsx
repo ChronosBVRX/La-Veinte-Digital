@@ -136,7 +136,7 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", initialError, us
             Iniciar Sesión en Caja SNTSS
           </h2>
           <p style={{ fontSize: "0.8125rem", color: "var(--muted)", margin: 0, lineHeight: 1.4 }}>
-            Consulta tus saldos de ahorro, estado de préstamos, solicita retiros y agenda citas.
+            Consulta tus saldos de ahorro, estado de préstamos y estimaciones de renovación.
           </p>
         </div>
 
