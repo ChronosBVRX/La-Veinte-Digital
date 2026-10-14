@@ -17,6 +17,7 @@ import {
   getQuincenaFromDate,
   esQuincenaRetencionExtraordinaria,
   diagnosticoRenovacion,
+  proyectarRenovacionParaQuincena,
 } from "../informative"
 
 describe("src/informative.ts - Utilidades informativas", () => {
@@ -425,6 +426,29 @@ describe("src/informative.ts - Utilidades informativas", () => {
       expect(proyJulio?.esExtraordinaria).toBe(true)
       expect(proyJulio?.motivoExtraordinario).toContain("2ª de Julio")
       expect(proyJulio?.motivoExtraordinario).toContain("11,000")
+    })
+
+    it("proyectarRenovacionParaQuincena estima con precisión para cualquier quincena seleccionada", () => {
+      const proy = proyectarRenovacionParaQuincena(
+        {
+          saldoPrestamo: 185034.33,
+          saldoAhorro: 52108.23,
+          prestamoOtorgado: 186000,
+          porcentajeActual: 27,
+          abonoAhorro: 3720,
+          abonoPrestamo: 1430.19,
+          importeMaximo: 186000,
+          retencionExtraordinaria: 11000,
+          quincenaActual: "2026/19",
+        },
+        4, // Quincena 2026/23 (Aguinaldo)
+      )
+
+      expect(proy.quincenaOffset).toBe(4)
+      expect(proy.quincenaCodigo).toBe("2026/23")
+      expect(proy.quincenaTexto).toBe("1ª de Diciembre 2026")
+      expect(proy.esExtraordinaria).toBe(true)
+      expect(proy.liquidoEstimado).toBeGreaterThan(80000)
     })
   })
 })

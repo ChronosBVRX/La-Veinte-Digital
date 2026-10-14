@@ -337,6 +337,7 @@ export interface DiagnosticoRenovacionParams {
   quincenaOtorgamiento?: string | null
   fechaConsulta?: string | null
   saldoMinimo?: number
+  horizonteQuincenas?: number
 }
 
 export interface ProyeccionQuincenaRenovacion {
@@ -390,6 +391,7 @@ export function diagnosticoRenovacion(params: DiagnosticoRenovacionParams): Diag
     quincenaOtorgamiento,
     fechaConsulta,
     saldoMinimo = SALDO_MINIMO_DEFAULT,
+    horizonteQuincenas,
   } = params
 
   const prestamoOriginal = Math.max(0, prestamoOtorgado || 0)
@@ -431,13 +433,19 @@ export function diagnosticoRenovacion(params: DiagnosticoRenovacionParams): Diag
 
   const qElegible = sumarQuincenas(qActual, quincenasParaElegibilidad)
 
-  // Offsets base: hoy, +1, +2, +4, +6, +8, +10 quincenas
-  const offsetsSet = new Set<number>([0, 1, 2, 4, 6, 8, 10])
+  // Horizonte de proyección quincenal (24 quincenas = 1 año completo por defecto)
+  const maxHorizonte = horizonteQuincenas !== undefined ? Math.max(0, horizonteQuincenas) : 24
+  const offsetsSet = new Set<number>()
+  for (let delta = 0; delta <= maxHorizonte; delta++) {
+    offsetsSet.add(delta)
+  }
+  if (quincenasParaElegibilidad > 0) {
+    offsetsSet.add(quincenasParaElegibilidad)
+  }
 
-  // Si hay retención extraordinaria (ej. Jul-Dic), buscar si la próxima 2ª de Julio o Aguinaldo
-  // cae dentro de un horizonte razonable (hasta 24 quincenas) para incluirlo en la proyección
+  // Si hay retención extraordinaria (ej. Jul-Dic), asegurar que cualquier quincena especial en el horizonte esté presente
   if (montoExtraordinario > 0) {
-    for (let delta = 1; delta <= 24; delta++) {
+    for (let delta = 1; delta <= Math.max(24, maxHorizonte); delta++) {
       const q = sumarQuincenas(qActual, delta)
       const extra = esQuincenaRetencionExtraordinaria(q)
       if (extra.aplica) {
@@ -511,6 +519,23 @@ export function diagnosticoRenovacion(params: DiagnosticoRenovacionParams): Diag
     importeNuevoEstimado: nuevoImporte,
     proyecciones,
   }
+}
+
+/**
+ * Proyecta la renovación de préstamo para un número específico de quincenas hacia adelante.
+ */
+export function proyectarRenovacionParaQuincena(
+  params: DiagnosticoRenovacionParams,
+  offsetQuincenas: number,
+): ProyeccionQuincenaRenovacion {
+  const diag = diagnosticoRenovacion({
+    ...params,
+    horizonteQuincenas: Math.max(offsetQuincenas, 24),
+  })
+  return (
+    diag.proyecciones.find((p) => p.quincenaOffset === offsetQuincenas) ||
+    diag.proyecciones[0]
+  )
 }
 
 /**
