@@ -10,12 +10,13 @@ import {
   Calculator,
   CaretDown,
   CaretUp,
+  CaretLeft,
+  CaretRight,
   WarningCircle,
   CalendarCheck,
 } from "@phosphor-icons/react"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
-import { Select } from "@/shared/components/ui/Input"
 import {
   proyectarAhorro,
   diagnosticoRenovacion,
@@ -46,6 +47,7 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
   const [proyAbono, setProyAbono] = useState(500)
   const [showProyector, setShowProyector] = useState(false)
   const [selectedOffset, setSelectedOffset] = useState<number>(0)
+  const [mostrarMenuQuincenas, setMostrarMenuQuincenas] = useState(false)
   const [mostrarTodasLasQuincenas, setMostrarTodasLasQuincenas] = useState(false)
 
   if (!balance && !loading) {
@@ -337,39 +339,207 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
             marginBottom: "1.25rem",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.35rem" }}>
-            <Calculator size={20} color="var(--primary)" weight="bold" />
-            <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)" }}>
-              Estimar préstamo para otra quincena
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.35rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <Calculator size={20} color="var(--primary)" weight="bold" />
+              <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)" }}>
+                Simulador de Préstamo por Quincena
+              </div>
             </div>
-          </div>
-          <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.875rem", lineHeight: 1.45 }}>
-            Selecciona la quincena en la que te gustaría renovar para ver cuánto dinero libre te depositarán. Conforme pasan las quincenas, abonas a tu deuda y tu ahorro sigue subiendo, por lo que te entregan más dinero.
+
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setMostrarMenuQuincenas(!mostrarMenuQuincenas)}
+              style={{ fontSize: "0.75rem", height: "auto", padding: "0.25rem 0.625rem" }}
+            >
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                <span>Elegir de lista</span>
+                {mostrarMenuQuincenas ? <CaretUp size={14} /> : <CaretDown size={14} />}
+              </span>
+            </Button>
           </div>
 
-          {/* Control Dropdown */}
-          <div style={{ marginBottom: "0.75rem" }}>
-            <Select
-              label="Elige la quincena en la que deseas simular tu préstamo:"
+          <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.875rem", lineHeight: 1.45 }}>
+            Usa las flechas <strong>◄ ►</strong>, desliza la barra o pulsa los accesos directos para ver cómo crece el dinero que recibirás:
+          </div>
+
+          {/* Tarjeta de Control Tipo Stepper (Flechas ◄ y ►) */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              background: "var(--card)",
+              border: "1.5px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+              padding: "0.625rem 0.75rem",
+              gap: "0.5rem",
+              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+              marginBottom: "0.75rem",
+            }}
+          >
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={selectedOffset <= 0}
+              onClick={() => setSelectedOffset((prev) => Math.max(0, prev - 1))}
+              style={{ padding: "0.4rem 0.6rem", minWidth: "38px" }}
+              aria-label="Quincena anterior"
+            >
+              <CaretLeft size={18} weight="bold" />
+            </Button>
+
+            <div
+              onClick={() => setMostrarMenuQuincenas(!mostrarMenuQuincenas)}
+              style={{
+                textAlign: "center",
+                flex: 1,
+                minWidth: 0,
+                cursor: "pointer",
+                padding: "0.25rem 0.5rem",
+                borderRadius: "var(--radius-sm)",
+              }}
+            >
+              <div style={{ fontSize: "1.0625rem", fontWeight: 800, color: "var(--fg)", wordBreak: "break-word" }}>
+                {proySeleccionada.quincenaTexto}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.35rem", fontSize: "0.75rem", color: "var(--muted)", marginTop: "0.15rem", flexWrap: "wrap" }}>
+                <span style={{ fontWeight: 600 }}>Quincena {proySeleccionada.quincenaCodigo}</span>
+                <span>•</span>
+                <span>{selectedOffset === 0 ? "Quincena actual (Hoy)" : `En ${selectedOffset} quincena${selectedOffset > 1 ? "s" : ""} (~${Math.round(selectedOffset / 2)} meses)`}</span>
+              </div>
+              {proySeleccionada.esExtraordinaria && (
+                <div style={{ marginTop: "0.35rem" }}>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                      padding: "0.15rem 0.5rem",
+                      borderRadius: "9999px",
+                      fontSize: "0.6875rem",
+                      fontWeight: 700,
+                      background: "rgba(22, 163, 74, 0.12)",
+                      color: "var(--success, #16a34a)",
+                      border: "1px solid rgba(22, 163, 74, 0.3)",
+                    }}
+                  >
+                    ★ {proySeleccionada.motivoExtraordinario}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={selectedOffset >= (diag.proyecciones[diag.proyecciones.length - 1]?.quincenaOffset ?? 24)}
+              onClick={() => {
+                const maxO = diag.proyecciones[diag.proyecciones.length - 1]?.quincenaOffset ?? 24
+                setSelectedOffset((prev) => Math.min(maxO, prev + 1))
+              }}
+              style={{ padding: "0.4rem 0.6rem", minWidth: "38px" }}
+              aria-label="Quincena siguiente"
+            >
+              <CaretRight size={18} weight="bold" />
+            </Button>
+          </div>
+
+          {/* Slider de Quincenas */}
+          <div style={{ marginBottom: "1rem", padding: "0 0.25rem" }}>
+            <input
+              type="range"
+              min={0}
+              max={diag.proyecciones[diag.proyecciones.length - 1]?.quincenaOffset ?? 24}
+              step={1}
               value={selectedOffset}
               onChange={(e) => setSelectedOffset(Number(e.target.value))}
+              style={{
+                width: "100%",
+                accentColor: "var(--primary)",
+                cursor: "pointer",
+                height: "6px",
+              }}
+              aria-label="Deslizador de quincenas"
+            />
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.6875rem", color: "var(--muted)", marginTop: "0.25rem" }}>
+              <span>Hoy ({diag.quincenaActual})</span>
+              <span>+6 meses</span>
+              <span>+1 año</span>
+            </div>
+          </div>
+
+          {/* Menú Desplegable Personalizado In-App (Si abren "Elegir de lista") */}
+          {mostrarMenuQuincenas && (
+            <div
+              style={{
+                marginBottom: "1rem",
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-md)",
+                maxHeight: "280px",
+                overflowY: "auto",
+                boxShadow: "0 4px 14px rgba(0, 0, 0, 0.08)",
+              }}
             >
+              <div style={{ padding: "0.5rem 0.75rem", borderBottom: "1px solid var(--border)", fontSize: "0.6875rem", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>
+                Selecciona una quincena:
+              </div>
               {diag.proyecciones.map((p) => {
-                let badge = ""
-                if (p.quincenaOffset === 0) {
-                  badge = " · Quincena actual (Hoy)"
-                } else if (p.esExtraordinaria) {
-                  badge = ` · ★ ${p.motivoExtraordinario || "Descuento especial"}`
-                }
-                const prefix = p.quincenaOffset === 0 ? "Hoy" : `En ${p.quincenaOffset} quincena${p.quincenaOffset > 1 ? "s" : ""}`
+                const isItem = p.quincenaOffset === selectedOffset
                 return (
-                  <option key={p.quincenaOffset} value={p.quincenaOffset}>
-                    {prefix} · {p.quincenaTexto} ({p.quincenaCodigo}){badge}
-                  </option>
+                  <div
+                    key={p.quincenaOffset}
+                    onClick={() => {
+                      setSelectedOffset(p.quincenaOffset)
+                      setMostrarMenuQuincenas(false)
+                    }}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "0.625rem 0.75rem",
+                      borderBottom: "1px solid var(--border)",
+                      background: isItem ? "rgba(37, 99, 235, 0.08)" : "transparent",
+                      cursor: "pointer",
+                      transition: "background 0.15s ease",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
+                      <div
+                        style={{
+                          width: 16,
+                          height: 16,
+                          borderRadius: "50%",
+                          border: isItem ? "5px solid var(--primary)" : "2px solid var(--border)",
+                          background: "#fff",
+                          flexShrink: 0,
+                        }}
+                      />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: "0.8125rem", fontWeight: isItem ? 700 : 500, color: isItem ? "var(--primary)" : "var(--fg)" }}>
+                          {p.quincenaOffset === 0 ? "Hoy" : `En ${p.quincenaOffset} qnas`} · {p.quincenaTexto}
+                        </div>
+                        <div style={{ fontSize: "0.6875rem", color: "var(--muted)" }}>
+                          Quincena {p.quincenaCodigo} {p.esExtraordinaria ? `· ★ ${p.motivoExtraordinario}` : ""}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontSize: "0.8125rem", fontWeight: 700, color: p.esElegible ? "var(--success, #16a34a)" : "var(--muted)" }}>
+                        {formatMoney(p.liquidoEstimado)}
+                      </div>
+                      <div style={{ fontSize: "0.625rem", color: "var(--muted)" }}>
+                        libre
+                      </div>
+                    </div>
+                  </div>
                 )
               })}
-            </Select>
-          </div>
+            </div>
+          )}
 
           {/* Accesos rápidos de selección */}
           <div style={{ display: "flex", gap: "0.375rem", flexWrap: "wrap", marginBottom: "1rem" }}>
