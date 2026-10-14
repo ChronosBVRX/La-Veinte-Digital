@@ -212,6 +212,180 @@ export function desgloseDescuentoEstimado(
   }
 }
 
+const MESES_NOMBRES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+]
+
+/**
+ * Formatea una quincena en formato "AAAA/QQ" a texto legible.
+ * Ej: "2026/09" -> "1ª de Mayo 2026"
+ */
+export function formatQuincena(quincenaStr?: string | null): string {
+  if (!quincenaStr) return "Quincena actual"
+  const parts = String(quincenaStr).trim().split("/")
+  if (parts.length !== 2) return quincenaStr
+  const anio = parseInt(parts[0], 10)
+  const qNum = parseInt(parts[1], 10)
+  if (Number.isNaN(anio) || Number.isNaN(qNum) || qNum < 1 || qNum > 24) return quincenaStr
+
+  const mesIdx = Math.floor((qNum - 1) / 2)
+  const mitad = qNum % 2 === 1 ? "1ª" : "2ª"
+  const mesNombre = MESES_NOMBRES[mesIdx] || ""
+
+  return `${mitad} de ${mesNombre} ${anio}`
+}
+
+/**
+ * Suma un número de quincenas a una fecha de quincena "AAAA/QQ".
+ */
+export function sumarQuincenas(quincenaStr?: string | null, delta = 0): string {
+  const parts = String(quincenaStr || "").trim().split("/")
+  let anio = parseInt(parts[0], 10)
+  let qNum = parseInt(parts[1], 10)
+
+  if (Number.isNaN(anio) || Number.isNaN(qNum) || qNum < 1 || qNum > 24) {
+    const now = new Date()
+    anio = now.getFullYear()
+    qNum = Math.ceil((now.getMonth() + 1) * 2)
+  }
+
+  const totalQ = (anio * 24) + (qNum - 1) + delta
+  const nuevoAnio = Math.floor(totalQ / 24)
+  const nuevoQ = (totalQ % 24) + 1
+
+  return `${nuevoAnio}/${String(nuevoQ).padStart(2, "0")}`
+}
+
+export interface DiagnosticoRenovacionParams {
+  saldoPrestamo: number
+  saldoAhorro: number
+  prestamoOtorgado: number
+  porcentajeActual?: number | null
+  abonoAhorro?: number | null
+  abonoPrestamo?: number | null
+  importeMaximo?: number | null
+  quincenaActual?: string | null
+  saldoMinimo?: number
+}
+
+export interface ProyeccionQuincenaRenovacion {
+  quincenaOffset: number
+  quincenaCodigo: string
+  quincenaTexto: string
+  ahorroEstimado: number
+  adeudoEstimado: number
+  porcentajeEstimado: number
+  liquidoEstimado: number
+  esElegible: boolean
+}
+
+export interface DiagnosticoRenovacionResultado {
+  elegibleHoy: boolean
+  porcentajeActual: number
+  quincenaActual: string
+  quincenaActualTexto: string
+  quincenasParaElegibilidad: number
+  quincenaEstimadaElegibilidad: string
+  quincenaEstimadaTexto: string
+  liquidoHoy: number
+  adeudoHoy: number
+  importeNuevoEstimado: number
+  proyecciones: ProyeccionQuincenaRenovacion[]
+}
+
+/**
+ * Genera el diagnóstico y proyección de renovación de préstamo sindical:
+ * - Determina si la cuenta es elegible hoy (cobertura >= 20%).
+ * - Si no es elegible, calcula en qué quincena y fecha aproximada alcanzará el umbral.
+ * - Proyecta el monto líquido que recibirá en su cuenta bancaria hoy y en quincenas futuras.
+ */
+export function diagnosticoRenovacion(params: DiagnosticoRenovacionParams): DiagnosticoRenovacionResultado {
+  const {
+    saldoPrestamo,
+    saldoAhorro,
+    prestamoOtorgado,
+    porcentajeActual,
+    abonoAhorro,
+    abonoPrestamo,
+    importeMaximo,
+    quincenaActual,
+    saldoMinimo = SALDO_MINIMO_DEFAULT,
+  } = params
+
+  const prestamoOriginal = Math.max(0, prestamoOtorgado || 0)
+  const nuevoImporte = Math.max(0, importeMaximo || prestamoOriginal || 0)
+
+  // Cobertura colateral base
+  const coberturaCalculada = coberturaColateralEstimada(saldoAhorro, prestamoOriginal, saldoMinimo)
+  const coberturaBase = typeof porcentajeActual === "number" && porcentajeActual > 0
+    ? porcentajeActual
+    : coberturaCalculada
+
+  const adeudoHoy = adeudoActual(saldoPrestamo, saldoAhorro, saldoMinimo)
+  const liquidoHoy = liquidoARecibir(nuevoImporte, adeudoHoy)
+
+  const elegibleHoy = coberturaBase >= UMBRAL_RENOVACION_HIPOTESIS
+
+  // Aportación quincenal al fondo de ahorro: por regla SNTSS es 2% del préstamo
+  const ahorroPorQuincena = abonoAhorro && abonoAhorro > 0 ? abonoAhorro : Math.round(prestamoOriginal * 0.02)
+
+  // Amortización estimada a capital por quincena (~67% del abono al préstamo en créditos amortizando)
+  const capitalPorQuincena = abonoPrestamo && abonoPrestamo > 0 ? Math.round(abonoPrestamo * 0.67) : 0
+
+  const now = new Date()
+  const qDefault = `${now.getFullYear()}/${String(Math.ceil((now.getMonth() + 1) * 2)).padStart(2, "0")}`
+  const qActual = quincenaActual || qDefault
+
+  // Calcular quincenas faltantes si no es elegible hoy
+  let quincenasParaElegibilidad = 0
+  if (!elegibleHoy && prestamoOriginal > 0) {
+    const incrementoPctPorQuincena = (ahorroPorQuincena / prestamoOriginal) * 100
+    const pctFaltante = Math.max(0, UMBRAL_RENOVACION_HIPOTESIS - coberturaBase)
+    quincenasParaElegibilidad = incrementoPctPorQuincena > 0
+      ? Math.ceil(pctFaltante / incrementoPctPorQuincena)
+      : 0
+  }
+
+  const qElegible = sumarQuincenas(qActual, quincenasParaElegibilidad)
+
+  // Proyecciones a futuro (hoy, +1, +2, +4, +6, +8, +10 quincenas)
+  const offsets = [0, 1, 2, 4, 6, 8, 10]
+  const proyecciones: ProyeccionQuincenaRenovacion[] = offsets.map((offset) => {
+    const qCod = sumarQuincenas(qActual, offset)
+    const ahorroFuturo = Math.round((saldoAhorro + (ahorroPorQuincena * offset)) * 100) / 100
+    const prestamoFuturo = Math.max(0, Math.round((saldoPrestamo - (capitalPorQuincena * offset)) * 100) / 100)
+    const adeudoFuturo = adeudoActual(prestamoFuturo, ahorroFuturo, saldoMinimo)
+    const liquidoFuturo = liquidoARecibir(nuevoImporte, adeudoFuturo)
+    const pctFuturo = coberturaColateralEstimada(ahorroFuturo, prestamoOriginal, saldoMinimo)
+
+    return {
+      quincenaOffset: offset,
+      quincenaCodigo: qCod,
+      quincenaTexto: formatQuincena(qCod),
+      ahorroEstimado: ahorroFuturo,
+      adeudoEstimado: adeudoFuturo,
+      porcentajeEstimado: pctFuturo,
+      liquidoEstimado: liquidoFuturo,
+      esElegible: pctFuturo >= UMBRAL_RENOVACION_HIPOTESIS,
+    }
+  })
+
+  return {
+    elegibleHoy,
+    porcentajeActual: coberturaBase,
+    quincenaActual: qActual,
+    quincenaActualTexto: formatQuincena(qActual),
+    quincenasParaElegibilidad,
+    quincenaEstimadaElegibilidad: qElegible,
+    quincenaEstimadaTexto: formatQuincena(qElegible),
+    liquidoHoy,
+    adeudoHoy,
+    importeNuevoEstimado: nuevoImporte,
+    proyecciones,
+  }
+}
+
 /**
  * Evalúa si un error devuelto por invoices/{mat}/currents corresponde
  * a la ausencia de estados de cuenta vigentes (404 o código 1401) y no a un fallo real.

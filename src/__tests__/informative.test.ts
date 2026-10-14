@@ -12,6 +12,9 @@ import {
   coberturaColateralEstimada,
   elegibilidadRenovacionEstimada,
   desgloseDescuentoEstimado,
+  formatQuincena,
+  sumarQuincenas,
+  diagnosticoRenovacion,
 } from "../informative"
 
 describe("src/informative.ts - Utilidades informativas", () => {
@@ -255,6 +258,68 @@ describe("src/informative.ts - Utilidades informativas", () => {
       expect(conCapital.total).toBe(1430.19)
       expect(conCapital.capital).toBe(965.67)
       expect(conCapital.interes).toBe(464.52)
+    })
+
+    it("formatQuincena convierte formato AAAA/QQ a texto legible", () => {
+      expect(formatQuincena("2026/09")).toBe("1ª de Mayo 2026")
+      expect(formatQuincena("2026/10")).toBe("2ª de Mayo 2026")
+      expect(formatQuincena("2026/01")).toBe("1ª de Enero 2026")
+      expect(formatQuincena("2026/24")).toBe("2ª de Diciembre 2026")
+      expect(formatQuincena(null)).toBe("Quincena actual")
+    })
+
+    it("sumarQuincenas calcula correctamente el avance en el calendario", () => {
+      expect(sumarQuincenas("2026/09", 0)).toBe("2026/09")
+      expect(sumarQuincenas("2026/09", 1)).toBe("2026/10")
+      expect(sumarQuincenas("2026/09", 2)).toBe("2026/11")
+      expect(sumarQuincenas("2026/23", 2)).toBe("2027/01")
+    })
+
+    it("diagnosticoRenovacion calcula elegibilidad, quincena y líquido exactos con datos reales", () => {
+      const diag = diagnosticoRenovacion({
+        saldoPrestamo: 185034.33,
+        saldoAhorro: 52108.23,
+        prestamoOtorgado: 186000,
+        porcentajeActual: 27,
+        abonoAhorro: 3720,
+        abonoPrestamo: 1430.19,
+        importeMaximo: 186000,
+        quincenaActual: "2026/09",
+      })
+
+      expect(diag.elegibleHoy).toBe(true)
+      expect(diag.porcentajeActual).toBe(27)
+      expect(diag.quincenaActual).toBe("2026/09")
+      expect(diag.quincenaActualTexto).toBe("1ª de Mayo 2026")
+      expect(diag.quincenasParaElegibilidad).toBe(0)
+      expect(diag.adeudoHoy).toBe(133526.1)
+      expect(diag.liquidoHoy).toBe(52473.9)
+      expect(diag.proyecciones.length).toBeGreaterThan(0)
+
+      // Primera proyección debe coincidir con hoy
+      expect(diag.proyecciones[0].quincenaOffset).toBe(0)
+      expect(diag.proyecciones[0].liquidoEstimado).toBe(52473.9)
+
+      // Proyección futura debe mostrar mayor líquido conforme se ahorra
+      const p2 = diag.proyecciones.find((p) => p.quincenaOffset === 2)
+      expect(p2?.liquidoEstimado).toBeGreaterThan(52473.9)
+    })
+
+    it("diagnosticoRenovacion proyecta quincenas faltantes cuando aún no califica", () => {
+      const diag = diagnosticoRenovacion({
+        saldoPrestamo: 180000,
+        saldoAhorro: 20000,
+        prestamoOtorgado: 180000,
+        porcentajeActual: 10,
+        abonoAhorro: 3600, // 2% por quincena
+        quincenaActual: "2026/09",
+      })
+
+      expect(diag.elegibleHoy).toBe(false)
+      // Para ir de 10% a 20% a 2% por quincena faltan 5 quincenas
+      expect(diag.quincenasParaElegibilidad).toBe(5)
+      expect(diag.quincenaEstimadaElegibilidad).toBe("2026/14")
+      expect(diag.quincenaEstimadaTexto).toBe("2ª de Julio 2026")
     })
   })
 })

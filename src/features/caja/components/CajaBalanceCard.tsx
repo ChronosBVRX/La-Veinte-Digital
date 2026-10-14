@@ -1,14 +1,27 @@
 "use client"
 
 import { useState } from "react"
-import { PiggyBank, CurrencyDollar, ArrowClockwise, CalendarBlank, TrendUp, Info, ShieldCheck, Calculator, CaretDown, CaretUp, WarningCircle } from "@phosphor-icons/react"
+import {
+  PiggyBank,
+  CurrencyDollar,
+  ArrowClockwise,
+  CalendarBlank,
+  TrendUp,
+  Info,
+  Calculator,
+  CaretDown,
+  CaretUp,
+  WarningCircle,
+  CalendarCheck,
+} from "@phosphor-icons/react"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
-import { semaforo, proyectarAhorro } from "@/informative"
+import { proyectarAhorro, diagnosticoRenovacion, type CajaLoanInfo } from "@/informative"
 import type { SaldoPayload } from "@/lib/caja/models"
 
 interface CajaBalanceCardProps {
   balance: SaldoPayload | null
+  loan?: CajaLoanInfo | null
   loading: boolean
   onRefresh: () => void
 }
@@ -22,7 +35,7 @@ function formatMoney(amount?: number | null): string {
   }).format(amount)
 }
 
-export function CajaBalanceCard({ balance, loading, onRefresh }: CajaBalanceCardProps) {
+export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalanceCardProps) {
   const [proyQuincenas, setProyQuincenas] = useState(12)
   const [proyAbono, setProyAbono] = useState(500)
   const [showProyector, setShowProyector] = useState(false)
@@ -69,7 +82,16 @@ export function CajaBalanceCard({ balance, loading, onRefresh }: CajaBalanceCard
   const prestamoOtorgado = balance?.prestamoOtorgado ?? 0
   const retiroLaboral = balance?.retiroLaboral ?? 0
 
-  const sem = semaforo(saldoPrestamo, saldoAhorro)
+  const diag = diagnosticoRenovacion({
+    saldoPrestamo,
+    saldoAhorro,
+    prestamoOtorgado,
+    porcentajeActual: balance?.porcentaje,
+    abonoAhorro: loan?.abono_ahorro,
+    abonoPrestamo: loan?.abono_prestamo,
+    importeMaximo: loan?.importe_maximo,
+    quincenaActual: balance?.quincena,
+  })
 
   const proyeccion = proyectarAhorro({
     saldoActual: saldoAhorro,
@@ -215,14 +237,19 @@ export function CajaBalanceCard({ balance, loading, onRefresh }: CajaBalanceCard
         </Card>
       )}
 
-      {/* Semáforo de Salud Financiera Sindical */}
+      {/* Diagnóstico y Planificador de Renovación de Préstamo */}
       <Card padding="clamp(1rem, 3vw, 1.25rem)">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.5rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem", flexWrap: "wrap", gap: "0.75rem" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <ShieldCheck size={22} color={sem.color} weight="bold" />
-            <span style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)" }}>
-              Diagnóstico Financiero Sindical
-            </span>
+            <CalendarCheck size={22} color="var(--primary)" weight="bold" />
+            <div>
+              <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: "var(--fg)" }}>
+                Diagnóstico de Renovación de Préstamo
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
+                Estimación de elegibilidad y líquido a recibir por quincena
+              </div>
+            </div>
           </div>
           <span
             style={{
@@ -233,39 +260,98 @@ export function CajaBalanceCard({ balance, loading, onRefresh }: CajaBalanceCard
               borderRadius: "9999px",
               fontSize: "0.75rem",
               fontWeight: 700,
-              background: `${sem.color}18`,
-              color: sem.color,
-              border: `1px solid ${sem.color}40`,
+              background: diag.elegibleHoy ? "rgba(22, 163, 74, 0.12)" : "rgba(37, 99, 235, 0.12)",
+              color: diag.elegibleHoy ? "var(--success, #16a34a)" : "var(--primary)",
+              border: `1px solid ${diag.elegibleHoy ? "rgba(22, 163, 74, 0.3)" : "rgba(37, 99, 235, 0.3)"}`,
             }}
           >
-            ● {sem.label} ({sem.porcentaje}% comprometido)
+            {diag.elegibleHoy ? "✓ Elegible para renovar" : `Faltan ~${diag.quincenasParaElegibilidad} quincenas`}
           </span>
         </div>
 
-        {/* Barra de compromiso */}
+        {/* Estatus principal */}
         <div
           style={{
-            height: "8px",
-            background: "var(--accent)",
-            borderRadius: "4px",
-            overflow: "hidden",
-            margin: "0.5rem 0",
+            padding: "0.875rem 1rem",
+            background: diag.elegibleHoy ? "rgba(22, 163, 74, 0.06)" : "var(--accent)",
+            border: `1px solid ${diag.elegibleHoy ? "rgba(22, 163, 74, 0.2)" : "var(--border)"}`,
+            borderRadius: "var(--radius-md)",
+            marginBottom: "1rem",
           }}
         >
-          <div
-            style={{
-              height: "100%",
-              width: `${Math.min(100, sem.porcentaje)}%`,
-              background: sem.color,
-              borderRadius: "4px",
-              transition: "width 0.3s ease",
-            }}
-          />
+          {diag.elegibleHoy ? (
+            <div>
+              <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.25rem" }}>
+                ¡Ya puedes tramitar tu renovación de préstamo!
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.45 }}>
+                Tu cobertura de ahorro actual es de <strong>{diag.porcentajeActual}%</strong> (supera el umbral estimado del 20%). En la quincena actual (<strong>{diag.quincenaActual} · {diag.quincenaActualTexto}</strong>), al liquidar tu adeudo anterior de {formatMoney(diag.adeudoHoy)}, tu líquido neto estimado a recibir es de:
+              </div>
+              <div style={{ fontSize: "1.35rem", fontWeight: 800, color: "var(--success, #16a34a)", marginTop: "0.375rem" }}>
+                {formatMoney(diag.liquidoHoy)}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.25rem" }}>
+                En proceso de amortización y ahorro
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "var(--muted)", lineHeight: 1.45 }}>
+                Llevas un <strong>{diag.porcentajeActual}%</strong> de cobertura. Para alcanzar el umbral de renovación estimado (≥20%), faltan aproximadamente <strong>{diag.quincenasParaElegibilidad} quincenas</strong> (~{Math.round(diag.quincenasParaElegibilidad / 2)} meses).
+              </div>
+              <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--primary)", marginTop: "0.375rem" }}>
+                Quincena estimada para calificar: {diag.quincenaEstimadaElegibilidad} ({diag.quincenaEstimadaTexto})
+              </div>
+            </div>
+          )}
         </div>
 
-        <p style={{ margin: "0.5rem 0 0", fontSize: "0.8125rem", color: "var(--muted)", lineHeight: 1.45 }}>
-          {sem.descripcion}
-        </p>
+        {/* Tabla / Proyecciones Quincena por Quincena */}
+        <div>
+          <div style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--fg)", marginBottom: "0.35rem" }}>
+            ¿Cuánto líquido recibirías si renuevas en próximas quincenas?
+          </div>
+          <div style={{ fontSize: "0.75rem", color: "var(--muted)", marginBottom: "0.75rem", lineHeight: 1.4 }}>
+            Con cada quincena transcurrida, tu ahorro sigue acumulándose y tu saldo de préstamo disminuye, incrementando el líquido que te depositan en cuenta:
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+            {diag.proyecciones.map((p, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "0.5rem 0.75rem",
+                  background: p.quincenaOffset === 0 ? "rgba(37, 99, 235, 0.06)" : "var(--accent)",
+                  border: p.quincenaOffset === 0 ? "1px solid rgba(37, 99, 235, 0.25)" : "1px solid transparent",
+                  borderRadius: "var(--radius-sm)",
+                  fontSize: "0.8125rem",
+                  flexWrap: "wrap",
+                  gap: "0.5rem",
+                }}
+              >
+                <div>
+                  <span style={{ fontWeight: 600, color: "var(--fg)" }}>
+                    {p.quincenaOffset === 0 ? `Hoy (${p.quincenaCodigo})` : `+${p.quincenaOffset} qnas (${p.quincenaCodigo})`}
+                  </span>
+                  <span style={{ fontSize: "0.75rem", color: "var(--muted)", marginLeft: "0.375rem" }}>
+                    · {p.quincenaTexto}
+                  </span>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontWeight: 700, color: p.esElegible ? "var(--success, #16a34a)" : "var(--muted)" }}>
+                    {formatMoney(p.liquidoEstimado)}
+                  </div>
+                  <div style={{ fontSize: "0.6875rem", color: "var(--muted)" }}>
+                    Líquido neto estimado
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </Card>
 
       {/* Proyector Referencial de Ahorro */}

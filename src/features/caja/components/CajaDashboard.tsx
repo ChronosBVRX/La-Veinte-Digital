@@ -166,6 +166,7 @@ export function CajaDashboard() {
           {activeTab === "saldos" && (
             <CajaBalanceCard
               balance={balance}
+              loan={loan}
               loading={loadingData}
               onRefresh={refreshData}
             />
