@@ -16,7 +16,13 @@ import {
 } from "@phosphor-icons/react"
 import { Card } from "@/shared/components/ui/Card"
 import { Button } from "@/shared/components/ui/Button"
-import { proyectarAhorro, diagnosticoRenovacion, type CajaLoanInfo } from "@/informative"
+import {
+  proyectarAhorro,
+  diagnosticoRenovacion,
+  getQuincenaFromDate,
+  formatQuincena,
+  type CajaLoanInfo,
+} from "@/informative"
 import type { SaldoPayload } from "@/lib/caja/models"
 
 interface CajaBalanceCardProps {
@@ -82,6 +88,8 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
   const prestamoOtorgado = balance?.prestamoOtorgado ?? 0
   const retiroLaboral = balance?.retiroLaboral ?? 0
 
+  const quincenaHoy = getQuincenaFromDate(balance?.fechaConsultaSaldo)
+
   const diag = diagnosticoRenovacion({
     saldoPrestamo,
     saldoAhorro,
@@ -90,7 +98,9 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
     abonoAhorro: loan?.abono_ahorro,
     abonoPrestamo: loan?.abono_prestamo,
     importeMaximo: loan?.importe_maximo,
-    quincenaActual: balance?.quincena,
+    quincenaActual: quincenaHoy,
+    quincenaOtorgamiento: balance?.quincena,
+    fechaConsulta: balance?.fechaConsultaSaldo,
   })
 
   const proyeccion = proyectarAhorro({
@@ -148,11 +158,9 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
             <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--fg)", wordBreak: "break-word" }}>
               {formatMoney(saldoAhorro)}
             </div>
-            {balance?.quincena && (
-              <div style={{ fontSize: "0.6875rem", color: "var(--muted)", marginTop: "0.25rem" }}>
-                Periodo: {balance.quincena} {balance.mes || ""}
-              </div>
-            )}
+            <div style={{ fontSize: "0.6875rem", color: "var(--muted)", marginTop: "0.25rem" }}>
+              {balance?.fechaConsultaSaldo ? `Corte: ${balance.fechaConsultaSaldo}` : `Quincena actual: ${quincenaHoy}`}
+            </div>
           </div>
 
           <div style={{ padding: "0.875rem", background: "var(--accent)", borderRadius: "var(--radius-md)", minWidth: 0 }}>
@@ -163,11 +171,14 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
             <div style={{ fontSize: "1.25rem", fontWeight: 700, color: saldoPrestamo > 0 ? "var(--error, #ef4444)" : "var(--fg)", wordBreak: "break-word" }}>
               {formatMoney(saldoPrestamo)}
             </div>
-            {prestamoOtorgado > 0 && (
-              <div style={{ fontSize: "0.6875rem", color: "var(--muted)", marginTop: "0.25rem" }}>
-                Otorgado: {formatMoney(prestamoOtorgado)}
-              </div>
-            )}
+            <div style={{ fontSize: "0.6875rem", color: "var(--muted)", marginTop: "0.25rem", display: "flex", flexDirection: "column", gap: "0.15rem" }}>
+              {prestamoOtorgado > 0 && (
+                <span>Otorgado: {formatMoney(prestamoOtorgado)}</span>
+              )}
+              {balance?.quincena && (
+                <span>Solicitud: {balance.quincena} ({formatQuincena(balance.quincena)})</span>
+              )}
+            </div>
           </div>
 
           <div style={{ padding: "0.875rem", background: "var(--accent)", borderRadius: "var(--radius-md)", minWidth: 0 }}>
@@ -248,6 +259,9 @@ export function CajaBalanceCard({ balance, loan, loading, onRefresh }: CajaBalan
               </div>
               <div style={{ fontSize: "0.75rem", color: "var(--muted)" }}>
                 Estimación de elegibilidad y líquido a recibir por quincena
+                {diag.quincenaOtorgamiento && (
+                  <span> · Préstamo otorgado en {diag.quincenaOtorgamiento} ({diag.quincenaOtorgamientoTexto})</span>
+                )}
               </div>
             </div>
           </div>

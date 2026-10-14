@@ -237,6 +237,48 @@ export function formatQuincena(quincenaStr?: string | null): string {
 }
 
 /**
+ * Determina el código de quincena en formato "AAAA/QQ" a partir de una fecha.
+ * Cada mes consta de 2 quincenas:
+ * - Días 1 al 15: 1ª quincena (índice: (mes - 1) * 2 + 1)
+ * - Días 16 en adelante: 2ª quincena (índice: mes * 2)
+ *
+ * Acepta strings en formato "DD/MM/AAAA", "AAAA-MM-DD", instancias de Date o vacío (usa fecha de hoy).
+ */
+export function getQuincenaFromDate(dateInput?: Date | string | null): string {
+  let d = new Date()
+
+  if (typeof dateInput === "string" && dateInput.trim().length > 0) {
+    const trimmed = dateInput.trim()
+    const ddmmyyyy = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
+    const yyyymmdd = trimmed.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/)
+
+    if (ddmmyyyy) {
+      const day = parseInt(ddmmyyyy[1], 10)
+      const month = parseInt(ddmmyyyy[2], 10) - 1
+      const year = parseInt(ddmmyyyy[3], 10)
+      d = new Date(year, month, day)
+    } else if (yyyymmdd) {
+      const year = parseInt(yyyymmdd[1], 10)
+      const month = parseInt(yyyymmdd[2], 10) - 1
+      const day = parseInt(yyyymmdd[3], 10)
+      d = new Date(year, month, day)
+    } else {
+      const parsed = new Date(trimmed)
+      if (!isNaN(parsed.getTime())) d = parsed
+    }
+  } else if (dateInput instanceof Date && !isNaN(dateInput.getTime())) {
+    d = dateInput
+  }
+
+  const anio = d.getFullYear()
+  const mes = d.getMonth() + 1 // 1..12
+  const dia = d.getDate()
+  const qNum = dia <= 15 ? (mes - 1) * 2 + 1 : mes * 2
+
+  return `${anio}/${String(qNum).padStart(2, "0")}`
+}
+
+/**
  * Suma un número de quincenas a una fecha de quincena "AAAA/QQ".
  */
 export function sumarQuincenas(quincenaStr?: string | null, delta = 0): string {
@@ -245,14 +287,16 @@ export function sumarQuincenas(quincenaStr?: string | null, delta = 0): string {
   let qNum = parseInt(parts[1], 10)
 
   if (Number.isNaN(anio) || Number.isNaN(qNum) || qNum < 1 || qNum > 24) {
-    const now = new Date()
-    anio = now.getFullYear()
-    qNum = Math.ceil((now.getMonth() + 1) * 2)
+    const qDefault = getQuincenaFromDate()
+    const partsDef = qDefault.split("/")
+    anio = parseInt(partsDef[0], 10)
+    qNum = parseInt(partsDef[1], 10)
   }
 
   const totalQ = (anio * 24) + (qNum - 1) + delta
   const nuevoAnio = Math.floor(totalQ / 24)
-  const nuevoQ = (totalQ % 24) + 1
+  const modQ = ((totalQ % 24) + 24) % 24
+  const nuevoQ = modQ + 1
 
   return `${nuevoAnio}/${String(nuevoQ).padStart(2, "0")}`
 }
@@ -266,6 +310,8 @@ export interface DiagnosticoRenovacionParams {
   abonoPrestamo?: number | null
   importeMaximo?: number | null
   quincenaActual?: string | null
+  quincenaOtorgamiento?: string | null
+  fechaConsulta?: string | null
   saldoMinimo?: number
 }
 
@@ -285,6 +331,8 @@ export interface DiagnosticoRenovacionResultado {
   porcentajeActual: number
   quincenaActual: string
   quincenaActualTexto: string
+  quincenaOtorgamiento?: string
+  quincenaOtorgamientoTexto?: string
   quincenasParaElegibilidad: number
   quincenaEstimadaElegibilidad: string
   quincenaEstimadaTexto: string
@@ -310,6 +358,8 @@ export function diagnosticoRenovacion(params: DiagnosticoRenovacionParams): Diag
     abonoPrestamo,
     importeMaximo,
     quincenaActual,
+    quincenaOtorgamiento,
+    fechaConsulta,
     saldoMinimo = SALDO_MINIMO_DEFAULT,
   } = params
 
@@ -333,9 +383,10 @@ export function diagnosticoRenovacion(params: DiagnosticoRenovacionParams): Diag
   // Amortización estimada a capital por quincena (~67% del abono al préstamo en créditos amortizando)
   const capitalPorQuincena = abonoPrestamo && abonoPrestamo > 0 ? Math.round(abonoPrestamo * 0.67) : 0
 
-  const now = new Date()
-  const qDefault = `${now.getFullYear()}/${String(Math.ceil((now.getMonth() + 1) * 2)).padStart(2, "0")}`
+  const qDefault = getQuincenaFromDate(fechaConsulta)
   const qActual = quincenaActual || qDefault
+  const qOtorgamiento = quincenaOtorgamiento || undefined
+  const qOtorgamientoTexto = qOtorgamiento ? formatQuincena(qOtorgamiento) : undefined
 
   // Calcular quincenas faltantes si no es elegible hoy
   let quincenasParaElegibilidad = 0
@@ -376,6 +427,8 @@ export function diagnosticoRenovacion(params: DiagnosticoRenovacionParams): Diag
     porcentajeActual: coberturaBase,
     quincenaActual: qActual,
     quincenaActualTexto: formatQuincena(qActual),
+    quincenaOtorgamiento: qOtorgamiento,
+    quincenaOtorgamientoTexto: qOtorgamientoTexto,
     quincenasParaElegibilidad,
     quincenaEstimadaElegibilidad: qElegible,
     quincenaEstimadaTexto: formatQuincena(qElegible),
@@ -455,8 +508,8 @@ export function semaforo(saldoPrestamo: number, saldoAhorro: number): SemaforoRe
  */
 export function buildSnapshot(balance?: SaldoPayload | null, loan?: CajaLoanInfo | null): CajaSnapshot {
   const now = new Date()
-  const quincena = balance?.quincena || `${now.getFullYear()}/${String(Math.ceil((now.getMonth() + 1) * 2)).padStart(2, "0")}`
   const fechaConsulta = balance?.fechaConsultaSaldo || now.toISOString().split("T")[0]
+  const quincena = balance?.quincena || getQuincenaFromDate(fechaConsulta)
 
   return {
     quincena,

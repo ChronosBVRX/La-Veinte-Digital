@@ -14,6 +14,7 @@ import {
   desgloseDescuentoEstimado,
   formatQuincena,
   sumarQuincenas,
+  getQuincenaFromDate,
   diagnosticoRenovacion,
 } from "../informative"
 
@@ -320,6 +321,60 @@ describe("src/informative.ts - Utilidades informativas", () => {
       expect(diag.quincenasParaElegibilidad).toBe(5)
       expect(diag.quincenaEstimadaElegibilidad).toBe("2026/14")
       expect(diag.quincenaEstimadaTexto).toBe("2ª de Julio 2026")
+    })
+
+    it("getQuincenaFromDate determina la quincena correcta en calendario laboral IMSS", () => {
+      // 13 de Octubre (<=15) -> Quincena 19 (1ª de Octubre)
+      expect(getQuincenaFromDate("13/10/2026")).toBe("2026/19")
+      expect(getQuincenaFromDate("2026-10-13")).toBe("2026/19")
+      expect(getQuincenaFromDate(new Date(2026, 9, 13))).toBe("2026/19")
+
+      // 16 de Octubre (>15) -> Quincena 20 (2ª de Octubre)
+      expect(getQuincenaFromDate("16/10/2026")).toBe("2026/20")
+      expect(getQuincenaFromDate("2026-10-16")).toBe("2026/20")
+      expect(getQuincenaFromDate(new Date(2026, 9, 16))).toBe("2026/20")
+
+      // 1 de Mayo -> Quincena 09 (1ª de Mayo)
+      expect(getQuincenaFromDate("01/05/2026")).toBe("2026/09")
+
+      // 31 de Diciembre -> Quincena 24 (2ª de Diciembre)
+      expect(getQuincenaFromDate("31/12/2026")).toBe("2026/24")
+    })
+
+    it("diagnosticoRenovacion diferencia entre quincena de solicitud y quincena actual de consulta", () => {
+      // Caso real del usuario:
+      // Préstamo solicitado en 2026/09 (Mayo 2026)
+      // Consulta realizada el 13/10/2026 (Quincena 2026/19 - 1ª de Octubre 2026)
+      const diag = diagnosticoRenovacion({
+        saldoPrestamo: 185034.33,
+        saldoAhorro: 52108.23,
+        prestamoOtorgado: 186000,
+        porcentajeActual: 27,
+        abonoAhorro: 3720,
+        abonoPrestamo: 1430.19,
+        importeMaximo: 186000,
+        quincenaOtorgamiento: "2026/09",
+        fechaConsulta: "13/10/2026",
+      })
+
+      expect(diag.elegibleHoy).toBe(true)
+      // Quincena actual calculada de la fecha de consulta (Octubre 2026), NO de la solicitud (Mayo)
+      expect(diag.quincenaActual).toBe("2026/19")
+      expect(diag.quincenaActualTexto).toBe("1ª de Octubre 2026")
+      expect(diag.quincenaOtorgamiento).toBe("2026/09")
+      expect(diag.quincenaOtorgamientoTexto).toBe("1ª de Mayo 2026")
+
+      // La primera proyección debe iniciar en la quincena actual (1ª de Octubre 2026)
+      expect(diag.proyecciones[0].quincenaCodigo).toBe("2026/19")
+      expect(diag.proyecciones[0].quincenaTexto).toBe("1ª de Octubre 2026")
+
+      // La siguiente quincena (+1) debe ser la 2ª de Octubre 2026
+      expect(diag.proyecciones[1].quincenaCodigo).toBe("2026/20")
+      expect(diag.proyecciones[1].quincenaTexto).toBe("2ª de Octubre 2026")
+
+      // La siguiente (+2) debe ser la 1ª de Noviembre 2026
+      expect(diag.proyecciones[2].quincenaCodigo).toBe("2026/21")
+      expect(diag.proyecciones[2].quincenaTexto).toBe("1ª de Noviembre 2026")
     })
   })
 })
