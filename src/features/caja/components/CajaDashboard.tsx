@@ -33,7 +33,7 @@ export function CajaDashboard() {
   if (loadingSession) {
     return (
       <div style={{ padding: "4rem 1rem", textAlign: "center" }}>
-        <LoadingSpinner text="Cargando Caja de Ahorro SNTSS..." />
+        <LoadingSpinner text="Iniciando sesión en tu Caja de Ahorro SNTSS..." />
       </div>
     )
   }

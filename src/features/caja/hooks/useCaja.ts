@@ -17,8 +17,32 @@ import { loadCajaCredentials } from "../services/caja-credentials-storage"
 import type { SaldoPayload, AccountProfile, DateItem } from "@/lib/caja/models"
 import type { CajaLoanInfo } from "@/informative"
 
+export const CAJA_MANUAL_LOGOUT_KEY = "caja_manual_logout"
+
+export function isCajaManualLogout(): boolean {
+  if (typeof window === "undefined") return false
+  try {
+    return sessionStorage.getItem(CAJA_MANUAL_LOGOUT_KEY) === "true"
+  } catch {
+    return false
+  }
+}
+
+export function setCajaManualLogout(value: boolean): void {
+  if (typeof window === "undefined") return
+  try {
+    if (value) {
+      sessionStorage.setItem(CAJA_MANUAL_LOGOUT_KEY, "true")
+    } else {
+      sessionStorage.removeItem(CAJA_MANUAL_LOGOUT_KEY)
+    }
+  } catch {
+    // noop
+  }
+}
+
 export function useCaja(userIdParam?: string) {
-  const { user } = useUser()
+  const { user, loading: userLoading } = useUser()
   const effectiveUserId = userIdParam || user?.id
 
   const [session, setSession] = useState<CajaSessionStatus | null>(null)
@@ -52,8 +76,11 @@ export function useCaja(userIdParam?: string) {
 
       await apiLogin(saved.matricula, saved.password)
       const st = await getCajaSessionStatus()
-      setSession(st)
-      return Boolean(st?.authenticated)
+      if (st?.authenticated) {
+        setSession(st)
+        return true
+      }
+      return false
     } catch {
       return false
     }
@@ -118,16 +145,37 @@ export function useCaja(userIdParam?: string) {
   }, [tryAutoRecovery])
 
   useEffect(() => {
+    if (userLoading && !effectiveUserId) return
+
     let active = true
 
     async function initialize() {
       try {
+        setLoadingSession(true)
         const st = await getCajaSessionStatus()
         if (!active) return
-        setSession(st)
 
-        if (st.authenticated) {
+        let isAuthenticated = Boolean(st.authenticated)
+        const initialMatricula = st.matricula
+
+        if (!isAuthenticated) {
+          const manualLogout = isCajaManualLogout()
+          if (!manualLogout && effectiveUserId) {
+            const recovered = await tryAutoRecovery()
+            if (!active) return
+            if (recovered) {
+              isAuthenticated = true
+            }
+          }
+        }
+
+        if (isAuthenticated) {
+          if (st.authenticated) {
+            setSession(st)
+          }
+          setLoadingSession(false)
           setLoadingData(true)
+
           const results = await Promise.allSettled([
             getCajaBalance(),
             getCajaAccount(),
@@ -160,7 +208,7 @@ export function useCaja(userIdParam?: string) {
               return
             }
 
-            setSession({ authenticated: false, matricula: st.matricula })
+            setSession({ authenticated: false, matricula: initialMatricula })
             setBalance(null)
             setAccount(null)
             setLoan(null)
@@ -177,12 +225,17 @@ export function useCaja(userIdParam?: string) {
           if (acc.status === "fulfilled") setAccount(acc.value)
           if (dt.status === "fulfilled") setDates(dt.value)
           if (ln.status === "fulfilled" && ln.value?.estimate) setLoan(ln.value.estimate)
+        } else {
+          setSession(st)
+          setLoadingSession(false)
         }
       } catch {
-        if (active) setSession({ authenticated: false })
+        if (active) {
+          setSession({ authenticated: false })
+          setLoadingSession(false)
+        }
       } finally {
         if (active) {
-          setLoadingSession(false)
           setLoadingData(false)
         }
       }
@@ -193,9 +246,10 @@ export function useCaja(userIdParam?: string) {
     return () => {
       active = false
     }
-  }, [tryAutoRecovery])
+  }, [effectiveUserId, userLoading, tryAutoRecovery])
 
   const login = async (matricula: string, pass: string) => {
+    setCajaManualLogout(false)
     setError(null)
     setLoadingSession(true)
     try {
@@ -212,6 +266,7 @@ export function useCaja(userIdParam?: string) {
   }
 
   const logout = async () => {
+    setCajaManualLogout(true)
     try {
       await apiLogout()
       setSession({ authenticated: false })

@@ -12,6 +12,7 @@ import {
   saveCajaCredentials,
   clearCajaCredentials,
 } from "../services/caja-credentials-storage"
+import { setCajaManualLogout } from "../hooks/useCaja"
 import { CajaLoginErrorModal } from "./CajaLoginErrorModal"
 import type { CajaLoginError } from "../services/caja-service"
 
@@ -31,7 +32,7 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", initialError, us
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [internalError, setInternalError] = useState<string | null>(null)
-  const [rememberCredentials, setRememberCredentials] = useState(false)
+  const [rememberCredentials, setRememberCredentials] = useState(true)
   const [hasSaved, setHasSaved] = useState(false)
   const [modalError, setModalError] = useState<CajaLoginError | Error | null>(null)
   const [showErrorModal, setShowErrorModal] = useState(false)
@@ -67,6 +68,7 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", initialError, us
     if (effectiveUserId) {
       clearCajaCredentials(effectiveUserId)
     }
+    setCajaManualLogout(true)
     setPassword("")
     setRememberCredentials(false)
     setHasSaved(false)
@@ -266,7 +268,7 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", initialError, us
               }}
             />
             <label htmlFor="caja-remember" style={{ cursor: "pointer", userSelect: "none" }}>
-              Recordar mis credenciales en este dispositivo
+              Iniciar sesión automáticamente al entrar a Caja (recordar credenciales)
             </label>
           </div>
 
@@ -291,8 +293,8 @@ export function CajaLoginCard({ onLogin, initialMatricula = "", initialError, us
           <ShieldCheck size={20} weight="fill" color="var(--primary)" style={{ flexShrink: 0 }} />
           <span>
             {hasSaved
-              ? "Tus credenciales están guardadas de forma cifrada (AES-GCM) únicamente en este dispositivo. Puedes olvidarlas en cualquier momento."
-              : "Tus datos se transmiten con cifrado seguro al servidor de la Caja SNTSS. Puedes optar por guardarlas cifradas en este dispositivo para mayor comodidad."}
+              ? "Tus credenciales están guardadas de forma cifrada (AES-GCM) en este dispositivo. Iniciarás sesión automáticamente cada que entres a Caja."
+              : "Tus datos se transmiten con cifrado seguro a la Caja SNTSS. Al guardar tus credenciales cifradas (AES-GCM), iniciarás sesión automáticamente cada que entres."}
           </span>
         </div>
       </Card>
